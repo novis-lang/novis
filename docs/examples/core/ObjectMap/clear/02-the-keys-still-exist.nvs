@@ -1,0 +1,26 @@
+<?nvs
+// Shows that `clear` removes the entries from the map, but not the objects you used as keys.
+
+final class Player {
+    public string $name;
+
+    public function constructor(string $name) {
+        $this->name = $name;
+    }
+}
+
+Player $ana = new Player("Ana");
+Player $ben = new Player("Ben");
+
+Core\ObjectMap<Player, int> $score = new Core\ObjectMap<Player, int>();
+$score->set($ana, 12);
+$score->set($ben, 7);
+$score->clear();
+
+// The variables `$ana` and `$ben` still work. The map has no score for them,
+// so `get` returns `null` and this prints "Ana: none".
+echo $ana->name, ": ", $score->get($ana) ?? "none", "\n";
+
+// You can fill the same map again after `clear`. This prints "Ben: 3".
+$score->set($ben, 3);
+echo $ben->name, ": ", $score->get($ben) ?? "none", "\n";

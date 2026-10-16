@@ -1,0 +1,19 @@
+<?nvs
+// Shows how to record the time of each database query, with one histogram per table.
+
+class Query {
+    public function constructor(public string $table, public float $seconds) {}
+}
+
+array<Query> $queries = [
+    new Query("orders", 0.012),
+    new Query("customers", 0.004),
+    new Query("orders", 0.230),
+];
+
+foreach ($queries as Query $query) {
+    // The label `table` gives each table its own histogram.
+    // The table names are written in the program, so they are allowed as label values.
+    Core\Metrics::observe("db_query_duration_seconds", $query->seconds, {labels: ["table" => $query->table]});
+    echo $query->table, ": ", $query->seconds, " s\n";
+}

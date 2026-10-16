@@ -1,0 +1,11 @@
+--TEST--
+a link is an edge the walk resolved, not a path the file mentions: a dynamic `require` has no literal and a literal naming nothing loadable has no file, and each is already a diagnostic, `rule:statements/require-is-the-only-inclusion-construct`
+--FILE--
+<?nvs
+var $name = 'lib.nvs';
+require $name;
+require 'missing.nvs';
+--REQUEST--
+documentLink
+--EXPECT--
+none

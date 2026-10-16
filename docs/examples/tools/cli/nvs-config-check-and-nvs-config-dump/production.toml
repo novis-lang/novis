@@ -1,0 +1,3 @@
+# This server has less memory, so each request gets less.
+[limits]
+memory = "128M"

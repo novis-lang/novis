@@ -1,0 +1,29 @@
+<?nvs
+// Measures reading one header of a reply, at growing numbers of lines in that header.
+// bench: start 16
+// bench: max 256
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        array<string> $lines = [];
+        uint $n = 0;
+        while ($n < $size) {
+            $lines[] = 'item';
+            $n = $n + 1;
+        }
+        // The reply comes from this table, so nothing is sent over a network.
+        Core\Test::answerHttp('https://api.example.com/items', 200, { headers: ['Vary' => $lines] });
+        Core\Http\Response $response = Core\Http\Client::get('https://api.example.com/items');
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            $total = $total + Core\Str::length($response->header('vary') ?? '');
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(16), "\n";

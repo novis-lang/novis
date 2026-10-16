@@ -1,0 +1,4 @@
+session: nothing written, so it is Lax
+admin: Strict, so a link from another site arrives signed out
+widget: None with secure, so an embedded page still gets it
+Core\Response::addCookie(): `sameSite: SameSite::None` needs `secure: true`, and this cookie has `secure: false` — a browser drops the pair rather than honouring it, so the cookie would never be stored

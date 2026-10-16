@@ -1,0 +1,41 @@
+<?nvs
+// Attack: a mail domain from a form is full of `*` and `)`, to make the
+// search match every address. Each text must stay one value, and nothing may crash.
+
+// 1. Texts that would be wildcards or new filters, if they were filter text.
+array<string> $typed = ['*', '@*', '*)(mail=*', '(', "\\29", "\r\n"];
+foreach ($typed as string $text) {
+    try {
+        echo '1 ', Core\Ldap\Filter::endsWith('mail', $text)->toString(), "\n";
+    } catch (Throwable $error) {
+        echo "1 threw\n";
+    }
+}
+
+// 2. An empty text. It must throw an error and not match everything.
+try {
+    Core\Ldap\Filter::endsWith('mail', '');
+    echo "2 built\n";
+} catch (LogicError $empty) {
+    echo "2 refused\n";
+}
+
+// 3. A text of one million characters, every one of which needs escaping.
+try {
+    var $long = Core\Ldap\Filter::endsWith('mail', Core\Str::repeat(')', 1000000));
+    echo '3 length: ', Core\Str::length($long->toString()), "\n";
+} catch (Throwable $error) {
+    echo "3 threw\n";
+}
+
+// 4. Attribute names that try to carry filter text. Each one must throw an error.
+array<string> $names = ['', 'mail=*', 'mail)(cn', "mail\x00"];
+uint $refused = 0;
+foreach ($names as string $name) {
+    try {
+        Core\Ldap\Filter::endsWith($name, '@example.test');
+    } catch (LogicError $notAName) {
+        $refused = $refused + 1;
+    }
+}
+echo '4 refused: ', $refused, ' of ', Core\Arr::count($names), "\n";

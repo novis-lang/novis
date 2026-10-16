@@ -1,0 +1,72 @@
+<?nvs
+// Attack: every field of a message tries to add a header with a line break, and two
+// lists of 100000 addresses try to exhaust memory. Each step must throw an error,
+// and no line break may reach the mail server as a new header.
+// hostile: timeout-ms 30000
+
+// 1. The subject has a line break and a `Bcc:` line. The subject is encoded,
+//    so the call reaches the mail server, which is not running, and throws an `IOError`.
+try {
+    Core\Mail::send('shop', ['anna@example.com'], "Hello\r\nBcc: everyone@example.com", 'Hi.');
+    echo "1 sent\n";
+} catch (RuntimeError $e) {
+    echo '1 ', $e::class, "\n";
+}
+
+// 2. The reply address has a line break. It must throw before any connection.
+try {
+    Core\Mail::send('shop', ['anna@example.com'], 'Hello', 'Hi.', { replyTo: "a@example.com\r\nBcc: b@example.com" });
+    echo "2 sent\n";
+} catch (RuntimeError $e) {
+    echo '2 ', $e::class, "\n";
+}
+
+// 3. A copy address uses a comma to name a second recipient. It must throw.
+try {
+    Core\Mail::send('shop', ['anna@example.com'], 'Hello', 'Hi.', { cc: ['a@example.com, b@example.com'] });
+    echo "3 sent\n";
+} catch (RuntimeError $e) {
+    echo '3 ', $e::class, "\n";
+}
+
+// 4. 100000 recipients, and only the last one has a line break. It must throw.
+array<string> $many = [];
+uint $i = 0;
+while ($i < 100000) {
+    $many[] = Core\Str::format('user%d@example.com', $i);
+    $i = $i + 1;
+}
+array<string> $withLast = $many;
+$withLast[] = "last@example.com\r\nRCPT TO:<victim@example.com>";
+try {
+    Core\Mail::send('shop', $withLast, 'Hello', 'Hi.');
+    echo "4 sent\n";
+} catch (RuntimeError $e) {
+    echo '4 ', $e::class, "\n";
+}
+
+// 5. 100000 hidden recipients that are all valid. The call builds the whole message,
+//    then throws an `IOError` because the mail server is not running.
+try {
+    Core\Mail::send('shop', ['anna@example.com'], 'Hello', 'Hi.', { bcc: $many });
+    echo "5 sent\n";
+} catch (RuntimeError $e) {
+    echo '5 ', $e::class, "\n";
+}
+
+// 6. A subject of 4 million characters full of line breaks. It is encoded, then the call throws.
+string $long = Core\Str::repeat("é\r\nBcc: x@example.com\r\n", 200000);
+try {
+    Core\Mail::send('shop', ['anna@example.com'], $long, $long, { html: $long });
+    echo "6 sent\n";
+} catch (RuntimeError $e) {
+    echo '6 ', $e::class, "\n";
+}
+
+// 7. A block name with a line break names no block, so the call throws.
+try {
+    Core\Mail::send("shop\r\nhost = evil.example.com", ['anna@example.com'], 'Hello', 'Hi.');
+    echo "7 sent\n";
+} catch (RuntimeError $e) {
+    echo '7 ', $e::class, "\n";
+}

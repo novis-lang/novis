@@ -1,0 +1,9 @@
+<?nvs
+// Shows that the path does not contain the prefix that the server serves the program under.
+
+// The client asked for `/shop/cart`. The server serves this program under `/shop`.
+// This prints "/cart".
+echo Core\Request::path(), "\n";
+
+// `Core\Request::mount()` returns the prefix. This prints "/shop".
+echo Core\Request::mount()->prefix(), "\n";

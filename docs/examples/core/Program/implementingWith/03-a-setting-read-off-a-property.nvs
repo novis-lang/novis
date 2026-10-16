@@ -1,0 +1,32 @@
+<?nvs
+// Shows how to read an attribute that is on a property: the argument is the
+// property's name. A constructor parameter with `public` counts as a property.
+
+type Unit = {unit: string};
+
+interface Sensor {
+    public function reading(): float;
+}
+
+class Thermometer implements Sensor {
+    #[Unit(unit: "°C")]
+    public float $value = 21.5;
+
+    public function reading(): float {
+        return $this->value;
+    }
+}
+
+class Barometer implements Sensor {
+    public function constructor(#[Unit(unit: "hPa")] public float $value = 1013.0) {}
+
+    public function reading(): float {
+        return $this->value;
+    }
+}
+
+// Each sensor with the unit its `$value` property declares.
+// This prints `1013 hPa` and `21.5 °C`.
+foreach (Core\Program::implementingWith<Sensor, Unit>("value") as {instance: Sensor, attribute: ?Unit} $row) {
+    echo $row->instance->reading(), " ", $row->attribute?->unit ?? "?", "\n";
+}

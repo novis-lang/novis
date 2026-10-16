@@ -1,0 +1,11 @@
+{
+  "title": "`nvs doc <entry>` writes one Markdown page per class from the JSON and has no source of truth of its own",
+  "status": "shipped",
+  "seeAlso": [
+    "tooling/one-json-several-renderers",
+    "tooling/meta-json-takes-a-program"
+  ],
+  "guardedBy": [
+    "crates/nvs-cli/tests/doc.rs"
+  ]
+}

@@ -1,0 +1,57 @@
+--TEST--
+`Core\Db\Row::time` answers the clock reading a `TIME` column holds, and it derives one from no other column, not even from a `DATETIME` that contains one — `rule:core-classes/db-column-types`
+--FILE--
+<?nvs
+// covers: Core\Db\Row::time
+// A `DATETIME` is the column that makes this rule worth pinning. It holds a
+// clock reading inside it, so a reader that handed one over would look right on
+// every row, and the reading it handed over would belong to one day out of many.
+use Core\Db\Row;
+
+var $db = Core\Db::connect("main");
+$db->execute("create table shops (opens time not null, born date not null, seen datetime not null)", []);
+$db->execute(
+    "insert into shops (opens, born, seen) values (?, ?, ?)",
+    ["09:30:00", "2026-09-03", "2026-09-03 14:05:00"]
+);
+
+array<Row> $one = $db->query("select opens, born, seen from shops", [])->all();
+var $row = $one[0];
+
+// The reading itself, which carries no day for a format to print.
+?Core\Time\TimeOfDay $opens = $row->time("opens");
+if ($opens != null) {
+    echo "opens ", $opens->format("HH:mm"), "\n";
+}
+
+// And the three refusals. The first two are the columns a reading could be
+// taken from, and the third is the column `time` itself may not be read from.
+array<string> $others = ["born", "seen"];
+foreach ($others as string $column) {
+    try {
+        $row->time($column);
+        echo "time over ", $column, ": answered\n";
+    } catch (LogicError $refused) {
+        echo "time over ", $column, ": refused\n";
+    }
+}
+try {
+    $row->date("opens");
+    echo "date over opens: answered\n";
+} catch (LogicError $refused) {
+    echo "date over opens: refused\n";
+}
+--FILE nvs.toml--
+# § 3: a SQLite connection's file path comes from its config block, so
+# `db.connect` covers it.
+[capabilities.db]
+connect = ["main"]
+
+[db.main]
+driver = "sqlite"
+path = ":memory:"
+--EXPECT--
+opens 09:30
+time over born: refused
+time over seen: refused
+date over opens: refused

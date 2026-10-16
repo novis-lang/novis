@@ -1,0 +1,14 @@
+<?nvs
+// Shows how to add a note to one cell.
+use Novis\Spreadsheet\Reader;
+use Novis\Spreadsheet\Workbook;
+
+var $book = Workbook::createInMemory();
+var $sheet = $book->sheet('Prices');
+$sheet->addAll([['item' => 'Widget', 'price' => 2.5], ['item' => 'Gadget', 'price' => 4.0]]);
+$sheet->note('B3', 'This price is valid until the end of the month.');
+bytes $file = $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
+
+foreach (Reader::open($file)->notes('Prices') as var $note) {
+    echo $note->noted, ': ', $note->note, "\n";
+}

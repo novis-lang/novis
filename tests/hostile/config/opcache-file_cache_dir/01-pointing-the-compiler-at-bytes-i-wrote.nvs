@@ -1,0 +1,86 @@
+<?nvs
+// Attack: a program tries to move `opcache.file_cache_dir`, the directory the
+// server loads compiled code from. With its own directory, it could run code it
+// wrote. Every write should fail, and the directory should not change.
+// hostile: timeout-ms 20000
+
+// 1. Tries `..` paths, a root, a device, a network share, null bytes and a very
+//    long path. Every write should fail.
+array<string> $paths = [
+    '/tmp/mine',
+    '.',
+    '..',
+    '',
+    '../../../../../../tmp/mine',
+    '/proc/self/cwd',
+    'C:\\Windows\\Temp\\mine',
+    '\\\\?\\C:\\mine',
+    '\\\\attacker\\share\\units',
+    '\\\\.\\pipe\\mine',
+    'CON',
+    'NUL',
+    "/tmp/mine\u{0000}/etc",
+    "/tmp/\u{202E}enutssti",
+    "/tmp/mine\nfile_cache = false",
+    'file:///tmp/mine',
+    'http://attacker.example/units',
+    '~',
+    '/' . Core\Str::repeat('a/', 100000),
+];
+foreach ($paths as string $path) {
+    Core\Config::set('opcache.file_cache_dir', $path);
+    Core\Config::restore('opcache.file_cache_dir');
+}
+
+// 2. Tries other keys that might name the same directory, including keys under
+//    `[cache]`, the data cache. Every write should fail.
+array<string> $names = [
+    'opcache.file_cache_dir',
+    'opcache.file_cache',
+    'opcache',
+    'cache.dir',
+    'cache.memory.dir',
+    'cache.file_cache_dir',
+    'file_cache_dir',
+    'app.opcache.file_cache_dir',
+    'app.0.opcache.file_cache_dir',
+    'opcache.file_cache_dir.',
+    'opcache..file_cache_dir',
+    "opcache.file_cache_dir\u{0000}",
+    'opcache.file_cache_directory',
+    'OPCACHE.FILE_CACHE_DIR',
+    'opcache.' . Core\Str::repeat('sub.', 20000) . 'file_cache_dir',
+];
+foreach ($names as string $name) {
+    Core\Config::set($name, '/tmp/mine');
+    Core\Config::get($name);
+    Core\Config::restore($name);
+}
+
+// 3. Tries to turn the cache off, set its size to `0`, or clear it on every
+//    compile. Every write should fail.
+array<string> $bounds = ['false', 'true', '0', '1', '-1', '18446744073709551615'];
+foreach ($bounds as string $bound) {
+    Core\Config::set('opcache.file_cache', $bound);
+    Core\Config::set('opcache.file_cache_max_size', $bound);
+    Core\Config::set('opcache.file_cache_gc_probability', $bound);
+    Core\Config::set('opcache.file_cache_gc_divisor', $bound);
+}
+
+// 4. Writes and reads the directory 200,000 times. The value should never
+//    change, so this prints `0`.
+uint $changes = 0;
+string $standing = Core\Config::get('opcache.file_cache_dir') ?? '(no value)';
+uint $i = 0;
+while ($i < 200000) {
+    Core\Config::set('opcache.file_cache_dir', '/tmp/mine');
+    Core\Config::restore('opcache.file_cache_dir');
+    if ((Core\Config::get('opcache.file_cache_dir') ?? '(no value)') != $standing) {
+        $changes = $changes + 1;
+    }
+    $i = $i + 1;
+}
+
+echo 'changes: ', $changes, "\n";
+echo 'artifact cache: ', Core\Config::get('opcache.file_cache_dir') ?? '(no value)', "\n";
+echo 'cache in use:   ', Core\Config::get('opcache.file_cache') ?? '(no value)', "\n";

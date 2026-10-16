@@ -1,0 +1,47 @@
+<?nvs
+// Attack: a program makes keys from bytes of every wrong length, from a very long value, and one
+// million times in a loop. Each call must return a key or throw a `LogicError`, and must not crash.
+
+bytes $zero = Core\Encoding::fromHex('00');
+
+// 1. Every length from 0 to 64 bytes is tried. Only 32 bytes may give a key.
+uint $made = 0;
+uint $length = 0;
+while ($length <= 64) {
+    try {
+        Core\Jwe\Key::shared(Core\Bytes::repeat($zero, $length));
+        $made = $made + 1;
+    } catch (LogicError $wrong) {
+    }
+    $length = $length + 1;
+}
+if ($made != 1) {
+    throw new LogicError('a length other than 32 bytes gave a key');
+}
+echo 'step 1: done', "\n";
+
+// 2. A value of sixteen million bytes is too long. `shared` must throw a `LogicError`.
+try {
+    Core\Jwe\Key::shared(Core\Bytes::repeat($zero, 16000000));
+    throw new RuntimeError('a very long value gave a key');
+} catch (LogicError $long) {
+}
+echo 'step 2: done', "\n";
+
+// 3. A key of 32 zero bytes is a valid key. It opens only its own tokens.
+Core\Jwe\Key $zeros = Core\Jwe\Key::shared(Core\Bytes::repeat($zero, 32));
+Core\Jwe\Key $other = Core\Jwe\Key::shared(Core\Crypto::generateKey());
+try {
+    Core\Jwe::decrypt(Core\Jwe::encrypt('id=1', $other), [$zeros]);
+    throw new LogicError('the zero key opened another key\'s token');
+} catch (RuntimeError $notOpened) {
+}
+echo 'step 3: done', "\n";
+
+// 4. One million keys are made and thrown away. The memory of each key must be freed.
+uint $i = 0;
+while ($i < 1000000) {
+    Core\Jwe\Key::shared(Core\Crypto::generateKey());
+    $i = $i + 1;
+}
+echo 'step 4: done', "\n";

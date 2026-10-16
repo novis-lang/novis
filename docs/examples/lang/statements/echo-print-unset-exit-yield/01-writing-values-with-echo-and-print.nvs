@@ -1,0 +1,16 @@
+<?nvs
+// Shows how `echo` and `print` write values. `echo` takes several values at
+// once and writes them in order with nothing between them.
+
+string $name = "Ada";
+int $orders = 3;
+
+// This prints: Ada has 3 orders
+echo $name, " has ", $orders, " orders", "\n";
+
+// `print` writes one value.
+print "report finished\n";
+
+// A value becomes text the same way `.` does. `true` writes `1`, and `false`
+// and `null` write nothing, so this line prints 1|||
+echo true, "|", false, "|", null, "|", "\n";

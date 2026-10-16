@@ -1,0 +1,39 @@
+<?nvs
+// Shows how to test what your code does when one operation fails, with the rest real.
+
+interface Storage {
+    public function exists(string $name): bool;
+    public function write(string $name, string $content): bool;
+}
+
+final class MemoryStorage implements Storage {
+    public function exists(string $name): bool {
+        return $name == "invoice-1.txt";
+    }
+
+    public function write(string $name, string $content): bool {
+        return true;
+    }
+}
+
+class Invoices {
+    public static function save(Storage $storage, string $name, string $content): string {
+        if ($storage->exists($name)) {
+            return $name . " already exists";
+        }
+        return $storage->write($name, $content) ? $name . " saved" : $name . " not saved: the disk is full";
+    }
+}
+
+// `write` is replaced to act like a full disk. `exists` is still the real method.
+Storage $full = Core\Test::partial<Storage>(new MemoryStorage(), {
+    write: fn(string $name, string $content): bool => false,
+});
+
+// This prints `invoice-1.txt already exists` and `invoice-2.txt not saved: the disk is full`.
+echo Invoices::save($full, "invoice-1.txt", "total: 40"), "\n";
+echo Invoices::save($full, "invoice-2.txt", "total: 55"), "\n";
+
+// The code tried to write only once, for the new invoice.
+Core\Test::assertCalled($full, Storage::write, {times: 1, with: ["invoice-2.txt", "total: 55"]});
+echo "one write was tried\n";

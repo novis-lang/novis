@@ -1,0 +1,15 @@
+--TEST--
+`Core\Env::OS` is a `Core\Env::Platform` case, so a platform the enum does not name is a compile error where a misspelled string compared `false` — `rule:core-classes/env-context`
+--FILE--
+<?nvs
+if (Core\Env::OS == Core\Env::Platform::Window) {
+    echo "Windows\n";
+}
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0405]: `Core\Env::Platform` has no case named `Window`
+  --> case.nvs:2:21
+%A
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

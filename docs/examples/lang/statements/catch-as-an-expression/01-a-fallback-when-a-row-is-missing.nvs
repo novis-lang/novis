@@ -1,0 +1,21 @@
+<?nvs
+// Shows how a `catch` arm after an expression supplies a fallback value.
+// `Repo::price` throws when it has no row for a product.
+
+class Repo {
+    public static function price(string $sku): int {
+        if ($sku == "lamp") {
+            return 1200;
+        }
+        throw new IOError("no row for " . $sku);
+    }
+}
+
+// The lookup worked, so the result is the call's own value. This prints 1200.
+echo Repo::price("lamp") catch (IOError $missing) => 0, "\n";
+
+// The lookup threw, so the result is the arm's value. This prints 0.
+echo Repo::price("ring") catch (IOError $missing) => 0, "\n";
+
+// The arm can read the error it caught. This prints `no row for ring`.
+echo Repo::price("ring") catch (IOError $e) => $e->message, "\n";

@@ -1,0 +1,59 @@
+<?nvs
+// Attack: a request sends very large or broken queries, and the program sets one parameter on each.
+// Each call should return a new address or an error, and every value should be freed.
+
+class Edit
+{
+    public static function length(string $address, string $name, mixed $value): string
+    {
+        try {
+            return Core\Str::length(Core\Uri::parse($address)->withQueryParameter($name, $value)->toString()) as string;
+        } catch (Throwable $e) {
+            return 'error';
+        }
+    }
+}
+
+// 1. A value of one million `&` characters. Each one becomes `%26`, so the
+// address grows three times. The value reads back whole. This prints 1000000.
+var $grown = Core\Uri::parse('/a')->withQueryParameter('v', Core\Str::repeat('&', 1000000));
+echo Core\Str::length($grown->queryParameter('v') as string), "\n";
+
+// 2. A name that tries to add a second pair. It is encoded, so `admin` is not
+// a parameter of the result. This prints "none".
+var $one = Core\Uri::parse('/a')->withQueryParameter('x=1&admin', 'yes');
+echo $one->queryParameter('admin') == null ? 'none' : 'found', "\n";
+
+// 3. A pair with 100000 levels of brackets is in the query. Setting another
+// parameter writes the whole deep pair again.
+echo Edit::length('/?a' . Core\Str::repeat('%5Bx%5D', 100000) . '=1', 'b', '2'), "\n";
+
+// 4. 200000 pairs are carried over while one of them is replaced.
+echo Edit::length('/?' . Core\Str::repeat('a%5B%5D=1&', 200000) . 'page=1', 'page', 2), "\n";
+
+// 5. Another name in the query has escapes that are not valid text.
+// This prints "error".
+echo Edit::length('/?a=1&%FF%FE=2', 'b', '3'), "\n";
+
+// 6. The value is an object, which has no text form. This prints "error".
+mixed $object = Core\Uri::parse('/');
+echo Edit::length('/?a=1', 'b', $object), "\n";
+
+// 7. 100000 edits in a chain. Each one is made on the result of the last,
+// and every address in between is freed. This prints 100000.
+var $chain = Core\Uri::parse('/list?q=lamp');
+uint $i = 0;
+while ($i < 100000) {
+    $i = $i + 1;
+    $chain = $chain->withQueryParameter('page', $i);
+}
+echo $chain->queryParameter('page') as string, "\n";
+
+// 8. The last parameter is added and removed 100000 times. This prints "/p".
+var $bare = Core\Uri::parse('/p');
+$i = 0;
+while ($i < 100000) {
+    $bare = $bare->withQueryParameter('t', $i)->withQueryParameter('t', null);
+    $i = $i + 1;
+}
+echo $bare, "\n";

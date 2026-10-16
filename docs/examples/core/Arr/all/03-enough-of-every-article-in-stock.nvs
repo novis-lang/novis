@@ -1,0 +1,15 @@
+<?nvs
+// Shows a check a shop makes before it accepts an order. Every article in the
+// basket needs enough left in stock.
+
+// The keys are article numbers. The values are how many the customer wants.
+array<int> $basket = ["NVS-100" => 2, "NVS-220" => 1];
+array<int> $stock = ["NVS-100" => 5, "NVS-220" => 0];
+
+// The second parameter of your function is the key of the entry, as a string.
+// Nothing is left of "NVS-220", so this prints "an article is out of stock".
+if (Core\Arr::all($basket, fn(int $wanted, string $article) => $wanted <= $stock[$article])) {
+    echo "order accepted", "\n";
+} else {
+    echo "an article is out of stock", "\n";
+}

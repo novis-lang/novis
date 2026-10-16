@@ -1,0 +1,36 @@
+<?nvs
+// Shows which class each common failure throws. The class tells you what kind
+// of problem it is, so you can catch only the kind you can handle.
+
+int $zero = 0;
+array<int> $stock = ["mugs" => 4];
+mixed $text = "abc";
+
+// Division by zero is an `ArithmeticError`.
+try {
+    echo 1 / $zero, "\n";
+} catch (ArithmeticError $divided) {
+    echo $divided->message, "\n";
+}
+
+// A key that is not in the array is a `RuntimeError`.
+try {
+    echo $stock["plates"], "\n";
+} catch (RuntimeError $missing) {
+    echo $missing->message, "\n";
+}
+
+// A value that cannot be converted is a `RuntimeError` as well.
+try {
+    echo $text as int, "\n";
+} catch (RuntimeError $bad) {
+    echo $bad->message, "\n";
+}
+
+// A `match` with no arm for the value is a bug in the program, so it is a
+// `LogicError`.
+try {
+    echo match ($zero) { 1 => "one" }, "\n";
+} catch (LogicError $noArm) {
+    echo $noArm->message, "\n";
+}

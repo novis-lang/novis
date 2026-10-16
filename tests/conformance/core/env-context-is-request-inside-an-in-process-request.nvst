@@ -1,0 +1,25 @@
+--TEST--
+The same file is `Core\Env::Context::Command` where it calls `Core\Test::request` and `Core\Env::Context::Request` while it answers that request, so a program picks its half without catching an error — `rule:core-classes/env-context`, `rule:testing/in-process-request`
+--FILE--
+<?nvs
+// An in-process request runs this file again as the request. The branch is
+// the member's answer: the request half reads the path, the command half
+// makes the request and prints what came back.
+if (Core\Env::context() == Core\Env::Context::Request) {
+    echo "inside=Request path=", Core\Request::path(), "\n";
+    // A task of the request is still the request.
+    var $tasks = Core\Task::all({
+        child: fn(): bool => Core\Env::context() == Core\Env::Context::Request,
+    });
+    echo "task=", $tasks->child ? "Request" : "moved", "\n";
+} else {
+    echo "outside=", Core\Env::context() == Core\Env::Context::Command ? "Command" : "moved", "\n";
+    var $answered = Core\Test::request(Core\Http\Method::Get, "/shop");
+    echo $answered->body();
+    echo "after=", Core\Env::context() == Core\Env::Context::Command ? "Command" : "moved", "\n";
+}
+--EXPECT--
+outside=Command
+inside=Request path=/shop
+task=Request
+after=Command

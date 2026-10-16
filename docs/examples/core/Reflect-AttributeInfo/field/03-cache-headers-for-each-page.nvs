@@ -1,0 +1,36 @@
+<?nvs
+// Shows how to build the `Cache-Control` header for each page from a cache attribute on its method.
+
+type Cache = {seconds: int, shared: bool};
+
+class PageController {
+    #[Cache(seconds: 3600, shared: true)]
+    public function home(): void {}
+
+    #[Cache(seconds: 60, shared: false)]
+    public function account(): void {}
+}
+
+class CacheHeader {
+    public static function forPage(string $className, string $method): string {
+        var $info = Core\Reflect::forClass($className);
+        if ($info == null) {
+            return "no-store";
+        }
+        foreach ($info->attributes() as Core\Reflect\AttributeInfo $attribute) {
+            if ($attribute->name() != "Cache" || $attribute->target() != $method) {
+                continue;
+            }
+            int $seconds = $attribute->field("seconds") as int;
+            bool $shared = $attribute->field("shared") as bool;
+            return ($shared ? "public" : "private") . ", max-age=" . $seconds as string;
+        }
+        // A page without a `Cache` attribute is not stored.
+        return "no-store";
+    }
+}
+
+// This prints `public, max-age=3600`, then `private, max-age=60`, then `no-store`.
+echo CacheHeader::forPage("PageController", "home"), "\n";
+echo CacheHeader::forPage("PageController", "account"), "\n";
+echo CacheHeader::forPage("PageController", "logout"), "\n";

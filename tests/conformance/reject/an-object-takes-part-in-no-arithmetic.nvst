@@ -1,0 +1,14 @@
+--TEST--
+`-7d` does not mean a backwards duration; Novis has no operator overloading — `rule:types/duration`
+--FILE--
+<?nvs
+var $back = -7d;
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: `-` has no meaning for `Core\Time\Duration`
+  --> case.nvs:2:13
+%A
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

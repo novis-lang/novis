@@ -1,0 +1,36 @@
+<?nvs
+// Shows a job that treats the two halves of the tree differently. A
+// `RuntimeError` is bad input, so the job reports the line and carries on. A
+// `LogicError` is a bug in the program, so the job stops.
+
+final class Cart {
+    public static function total(array<int> $line): int {
+        // A field that is not there throws a `RuntimeError`.
+        int $price = $line["price"];
+        int $count = $line["count"];
+        if ($count < 0) {
+            // A count below zero can only come from our own code.
+            throw new LogicError("a line with a count below zero");
+        }
+        return $price * $count;
+    }
+}
+
+array<array<int>> $lines = [
+    ["price" => 250, "count" => 2],
+    ["price" => 400],
+    ["price" => 100, "count" => 0 - 1],
+];
+
+int $sum = 0;
+foreach ($lines as array<int> $line) {
+    try {
+        $sum = $sum + Cart::total($line);
+    } catch (RuntimeError $input) {
+        echo "skipped a line: ", $input->message, "\n";
+    } catch (LogicError $bug) {
+        echo "stopping, this is a bug: ", $bug->message, "\n";
+        break;
+    }
+}
+echo "total ", $sum, "\n";

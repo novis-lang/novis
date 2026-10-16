@@ -1,0 +1,9 @@
+--METHOD--
+POST
+--PATH--
+/contact
+--HEADERS--
+host: localhost:8000
+content-type: application/x-www-form-urlencoded
+--BODY--
+name=Ada+%3CL%3E&email=ada%40example.com&message=Hello

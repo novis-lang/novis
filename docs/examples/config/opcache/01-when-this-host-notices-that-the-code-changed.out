@@ -1,0 +1,8 @@
+validate:        mtime
+revalidate_freq: 2s
+settle:          1s
+check by hash:          not allowed
+check on every request: not allowed
+compile at once:        not allowed
+change the mode:        not allowed
+settle is still:        1s

@@ -1,0 +1,10 @@
+<?nvs
+// Shows how a server builds the download link for a file a user uploaded.
+
+// In a real program, these names come from the uploaded files.
+array<string> $files = ["Café menu.pdf", "Größe (neu).xlsx"];
+
+foreach ($files as string $file) {
+    // Each byte of "é", "ö" and "ß" becomes its own escape, such as `%C3%A9`.
+    echo "https://example.com/files/", Core\Uri::encodeComponent($file), "\n";
+}

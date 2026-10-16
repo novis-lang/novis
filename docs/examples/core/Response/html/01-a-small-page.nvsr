@@ -1,0 +1,6 @@
+--METHOD--
+GET
+--PATH--
+/hours
+--HEADERS--
+host: example.com

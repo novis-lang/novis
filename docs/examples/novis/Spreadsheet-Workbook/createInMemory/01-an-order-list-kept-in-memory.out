@@ -1,0 +1,4 @@
+2 rows
+{"A":"order","B":"customer","C":"total"}
+{"A":1042,"B":"Ada","C":19.9}
+{"A":1043,"B":"Alan","C":5}

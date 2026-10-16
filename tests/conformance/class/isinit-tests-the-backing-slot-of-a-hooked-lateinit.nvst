@@ -1,0 +1,26 @@
+--TEST--
+`isinit` on a hooked `lateinit` property tests its backing slot and runs no hook — `rule:classes/isinit-reads-nothing`
+--FILE--
+<?nvs
+// covers: lang:classes/lateinit
+class Box {
+    public int $gets = 0;
+    public lateinit int $n {
+        get { $this->gets = $this->gets + 1; return $this->n; }
+        set (int $v) { $this->n = $v * 2; }
+    }
+}
+
+Box $b = new Box();
+echo isinit($b->n) ? "y" : "n", "\n";
+$b->n = 2;
+echo isinit($b->n) ? "y" : "n", "\n";
+echo "gets=", $b->gets as string, "\n";
+echo $b->n, "\n";
+echo "gets=", $b->gets as string, "\n";
+--EXPECT--
+n
+y
+gets=0
+4
+gets=1

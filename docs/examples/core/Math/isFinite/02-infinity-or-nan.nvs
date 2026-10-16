@@ -1,0 +1,25 @@
+<?nvs
+// Shows how to tell an ordinary number, an infinity and `NaN` apart.
+
+class Kind {
+    // Returns "a number", "infinite" or "NaN".
+    // An infinity is the only value that is not finite and not `NaN`.
+    public static function of(float $n): string {
+        if (Core\Math::isFinite($n)) {
+            return "a number";
+        }
+        if (Core\Math::isNan($n)) {
+            return "NaN";
+        }
+        return "infinite";
+    }
+}
+
+// This prints "a number".
+echo Kind::of(-12.5), "\n";
+
+// One divided by minus zero is `-INFINITY`. This prints "infinite".
+echo Kind::of(Core\Math::fdiv(1.0, -0.0)), "\n";
+
+// This prints "NaN".
+echo Kind::of(Core\Math::sqrt(-1.0)), "\n";

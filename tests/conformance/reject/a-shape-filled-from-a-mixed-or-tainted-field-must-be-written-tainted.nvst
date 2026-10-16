@@ -1,0 +1,57 @@
+--TEST--
+an object converted or tested to a shape gives each text field the text of its own field, so a field that is `mixed`, tainted, or not declared on the class needs `tainted {…}` — `rule:security/taint-propagation`, `rule:types/conversion`
+--FILE--
+<?nvs
+class Bag {
+    public mixed $data;
+    public function constructor(mixed $data) {
+        $this->data = $data;
+    }
+}
+class Held {
+    public tainted string $data;
+    public function constructor(tainted string $data) {
+        $this->data = $data;
+    }
+}
+class Empty {
+}
+class Named {
+    public string $data = "kept";
+}
+
+// A `mixed` field, a tainted field, and a field only a subclass could declare.
+Bag $bag = new Bag(Core\Request::json());
+echo ($bag as {data: string})->data, "\n";
+if ($bag is {data: string}) {
+    echo "tested\n";
+}
+Held $held = new Held(Core\Request::query("name") ?? "");
+echo ($held as {data: string})->data, "\n";
+Empty $empty = new Empty();
+echo ($empty as {data: string})->data, "\n";
+
+// Written `tainted {…}`, each is accepted. A plain `string` field stays plain.
+echo ($bag as tainted {data: string})->data, "\n";
+if ($held is tainted {data: string}) {
+    echo "tested\n";
+}
+Named $named = new Named();
+echo ($named as {data: string})->data, "\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0851]: `{data: string}` gets its text from `Bag`, so it must be `tainted {…}`
+   --> case.nvs:22:7
+%A
+error[E0851]: `{data: string}` gets its text from `Bag`, so it must be `tainted {…}`
+   --> case.nvs:23:5
+%A
+error[E0851]: `{data: string}` gets its text from `Held`, so it must be `tainted {…}`
+   --> case.nvs:27:7
+%A
+error[E0851]: `{data: string}` gets its text from `Empty`, so it must be `tainted {…}`
+   --> case.nvs:29:7
+%A
+error: aborting due to 4 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

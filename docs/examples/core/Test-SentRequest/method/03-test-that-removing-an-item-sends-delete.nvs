@@ -1,0 +1,25 @@
+<?nvs
+// Shows how to test that a shopping cart client removes an item with a DELETE request.
+
+use Core\Http\Client;
+use Core\Http\Method;
+use Core\Test;
+
+class CartClient {
+    // Removes one item from the cart on the shop service.
+    public static function remove(uint $itemId): int {
+        var $response = Client::delete("https://shop.example.com/cart/items/" . $itemId);
+        return $response->status();
+    }
+}
+
+Test::answerHttp("https://shop.example.com/cart/items/*", 204);
+CartClient::remove(42);
+
+// A GET or a POST to the same URL would not remove the item.
+// The test checks that the client used DELETE.
+Test::assertCount(Test::sentHttp(), 1);
+Test::assertSame(Test::sentHttp()[0]->method(), Method::Delete);
+
+// This prints `the item was removed with DELETE`.
+echo "the item was removed with DELETE\n";

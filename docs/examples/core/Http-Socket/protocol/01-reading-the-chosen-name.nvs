@@ -1,0 +1,13 @@
+<?nvs
+// Shows how to read the subprotocol the server chose from the names your program offered.
+
+// A fixed server, so the example runs without a network. It chooses `chat.v2`.
+Core\Test::answerSocket("wss://chat.example.com/room", ["welcome"], {protocol: "chat.v2"});
+
+// The program offers two names. The server chooses one of them.
+Core\Http\Socket $socket = Core\Http\Client::openSocket("wss://chat.example.com/room", {
+    protocols: ["chat.v1", "chat.v2"],
+});
+
+// This prints `chat.v2`.
+echo $socket->protocol() ?? "none", "\n";

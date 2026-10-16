@@ -1,0 +1,17 @@
+<?nvs
+// Shows how to work out what one item in a pack costs. The pack price has to
+// divide evenly, or the shop would be selling a price it cannot charge.
+
+array<decimal> $packPrice = ["tea" => 7.20, "soap" => 4.50, "rice" => 10.00];
+array<decimal> $packSize = ["tea" => 8, "soap" => 3, "rice" => 3];
+
+foreach ($packPrice as string $name => decimal $price) {
+    try {
+        decimal $each = Core\Decimal::divExact($price, $packSize[$name]);
+        echo $name, ": ", $each, " each\n";
+    } catch (ArithmeticError $uneven) {
+        // The pack cannot be sold one at a time at a fair price. Round it
+        // yourself with `Core\Decimal::divRound` if that is what you want.
+        echo $name, ": no exact unit price\n";
+    }
+}

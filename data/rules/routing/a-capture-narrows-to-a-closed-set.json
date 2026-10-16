@@ -1,0 +1,19 @@
+{
+  "title": "A capture narrows to a closed set with a set of allowed values or an enum-subset type, never with a regex",
+  "status": "shipped",
+  "seeAlso": [
+    "security/route-capture-is-laundered-by-its-type",
+    "types/single-value-types",
+    "core-classes/validate-has-no-type-predicates",
+    "programs/memory-priority",
+    "routing/a-leftover-link-key-is-a-query-string",
+    "routing/path-grammar",
+    "routing/api-document-is-generated-from-the-route-table"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/router-url-builds-every-value-of-a-captures-closed-set.nvst",
+    "tests/conformance/reject/a-route-link-refuses-a-capture-value-outside-its-closed-set.nvst",
+    "tests/conformance/core/a-route-capture-is-the-value-the-match-converted-not-the-segment-text.nvst",
+    "crates/nvs-runtime/src/routes.rs"
+  ]
+}

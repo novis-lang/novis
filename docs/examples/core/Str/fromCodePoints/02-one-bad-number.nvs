@@ -1,0 +1,15 @@
+<?nvs
+// Shows what happens when one number in the list is not a code point.
+
+// 0xD800 is in the reserved range, so it is not a code point.
+array<uint> $numbers = [79, 75, 0xD800];
+
+// `Core\Str::fromCodePoints` throws a `RuntimeError`. No part of the string is returned,
+// so `$text` keeps its first value. This prints `error` and then `(none)`.
+string $text = "(none)";
+try {
+    $text = Core\Str::fromCodePoints($numbers);
+} catch (RuntimeError $error) {
+    echo "error\n";
+}
+echo $text, "\n";

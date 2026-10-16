@@ -1,0 +1,17 @@
+<?nvs
+// Shows what happens to a field that holds a comma, a quote or a line break.
+// `Core\Csv::format` puts quotes around that field and writes a quote inside it
+// twice. A program that reads the document gets your text back unchanged.
+
+array<array<string>> $rows = [
+    ["Beans, dried", "500 g"],
+    ["The \"big\" tin", "2 kg"],
+    ["Two lines\nin one field", "1 kg"],
+];
+
+string $document = Core\Csv::format($rows);
+echo $document;
+
+// The text is unchanged: this prints `Beans, dried`.
+var $back = Core\Csv::parse($document);
+echo $back[0][0], "\n";

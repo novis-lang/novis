@@ -1,0 +1,8 @@
+--METHOD--
+GET
+--PATH--
+/search
+--QUERY--
+q=%3Cb%3Etea%3C%2Fb%3E&page=2
+--HEADERS--
+host: shop.example.com

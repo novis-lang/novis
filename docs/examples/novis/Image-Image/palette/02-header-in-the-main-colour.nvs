@@ -1,0 +1,12 @@
+<?nvs
+// Shows how a blog colours the header of a post with the main colour of its photo.
+use Novis\Image\Color;
+use Novis\Image\Image;
+
+bytes $photo = Image::create(120, 80, Color::hex("#16a34a"))->encode();
+
+// `count: 1` returns only the most common colour.
+Color $main = Image::palette($photo, 1)[0];
+
+// This prints a CSS rule with that colour.
+echo ".post-header { background: rgb({$main->r} {$main->g} {$main->b}); }\n";

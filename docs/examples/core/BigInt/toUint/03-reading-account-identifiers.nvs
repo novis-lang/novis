@@ -1,0 +1,18 @@
+<?nvs
+// Shows how a program reads 64-bit identifiers that arrive as text. An
+// identifier is never negative, and the largest ones are above what an `int`
+// holds, so `uint` is the type that fits them.
+
+array<string> $ids = ["1042", "18446744073709551615", "-3"];
+
+foreach ($ids as string $id) {
+    var $number = Core\BigInt::parse($id);
+    // The first two identifiers are printed. The third is negative, so the
+    // program reports it instead of using it.
+    try {
+        uint $account = $number->toUint();
+        echo "account ", $account, "\n";
+    } catch (ArithmeticError $notAnId) {
+        echo "not an identifier: ", $id, "\n";
+    }
+}

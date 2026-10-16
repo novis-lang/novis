@@ -1,0 +1,34 @@
+<?nvs
+// Shows a worker that receives jobs from a server and sends back an answer for each one.
+
+class Worker {
+    // Receives messages until the server closes. Answers `ping` with `pong`
+    // and every other message with `done:` and the job name.
+    public static function run(Core\Http\Socket $socket): uint {
+        uint $jobs = 0;
+        ?Core\Socket\Message $message = $socket->receive();
+        while ($message != null) {
+            tainted string $job = $message->text() ?? ("" as tainted string);
+            if ($job == "ping") {
+                $socket->send("pong");
+            } else {
+                $socket->send("done:" . $job);
+                $jobs = $jobs + 1;
+            }
+            $message = $socket->receive();
+        }
+        return $jobs;
+    }
+}
+
+// A fixed server, so the example runs without a network.
+Core\Test::answerSocket("wss://jobs.example.com/queue", ["resize-image", "ping", "send-invoice"]);
+
+Core\Http\Socket $socket = Core\Http\Client::openSocket("wss://jobs.example.com/queue");
+// This prints `2 jobs`.
+echo Worker::run($socket), " jobs\n";
+
+// `Core\Test::sentSocket()` returns what the program sent. This prints the three answers.
+foreach (Core\Test::sentSocket() as Core\Socket\Message $sent) {
+    echo "sent: ", $sent->text() ?? "", "\n";
+}

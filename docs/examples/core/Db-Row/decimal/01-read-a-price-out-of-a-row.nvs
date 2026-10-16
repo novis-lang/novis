@@ -1,0 +1,19 @@
+<?nvs
+// Shows how to read an exact number out of a row.
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table products (name text not null, price decimal(10,2) not null)', []);
+decimal $tea = 4.25;
+decimal $pot = 19.95;
+$db->execute('insert into products (name, price) values (?, ?), (?, ?)', ['tea', $tea, 'teapot', $pot]);
+
+// `decimal` reads the named column as an exact number. This prints `tea: 4.25`
+// and `teapot: 19.95`.
+foreach ($db->query('select name, price from products order by name', []) as Core\Db\Row $row) {
+    ?decimal $price = $row->decimal('price');
+    if ($price != null) {
+        echo $row->string('name') ?? '', ': ', $price, "\n";
+    }
+}
+
+$db->close();

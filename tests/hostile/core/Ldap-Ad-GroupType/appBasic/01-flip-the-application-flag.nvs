@@ -1,0 +1,36 @@
+<?nvs
+// Attack: a program flips the application flag many times, and sets the query flag beside it.
+// `appBasic` must only report its own flag, and nothing may crash.
+// hostile: timeout-ms 60000
+// requires: samba-ad
+
+var $corp = Core\Ldap::connect('corp');
+
+try {
+    var $found = $corp->read('CN=Newsletter,OU=Company,DC=example,DC=test', { select: ['groupType'] })?->groupType();
+    if ($found != null) {
+        Core\Ldap\Ad\GroupType $type = $found;
+
+        // 1. The flag set and cleared one hundred thousand times. A wrong answer is counted.
+        uint $wrong = 0;
+        uint $i = 0;
+        while ($i < 100000) {
+            bool $on = $i % 3 == 0;
+            if ($type->with({ appBasic: $on })->appBasic() != $on) {
+                $wrong = $wrong + 1;
+            }
+            $i = $i + 1;
+        }
+        echo '1 wrong: ', $wrong, "\n";
+
+        // 2. Only the query flag set. `appBasic` must be `false`.
+        var $query = $type->with({ appQuery: true });
+        echo '2 appBasic: ', $query->appBasic() ? 'yes' : 'no', ' bits: ', $query->bits(), "\n";
+
+        // 3. Both application flags set at once, which Active Directory does not allow.
+        var $both = $type->with({ appBasic: true, appQuery: true });
+        echo '3 appBasic: ', $both->appBasic() ? 'yes' : 'no', ' bits: ', $both->bits(), "\n";
+    }
+} catch (Throwable $error) {
+    echo "threw\n";
+}

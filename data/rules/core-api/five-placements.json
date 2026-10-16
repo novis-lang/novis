@@ -1,0 +1,14 @@
+{
+  "title": "A candidate lands in exactly one of five placements: Core, Native, Ext, Dropped or answered",
+  "status": "shipped",
+  "seeAlso": [
+    "core-api/tier-placement",
+    "core-api/tier-roster",
+    "core-api/core-means-always-present",
+    "packaging/an-extension-is-a-sandboxed-wasm-component",
+    "packaging/the-boundary-is-the-cost"
+  ],
+  "guardedBy": [
+    "crates/nvs-stdlib/tests/tier_boundary.rs"
+  ]
+}

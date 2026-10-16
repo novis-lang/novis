@@ -1,0 +1,33 @@
+--TEST--
+Every hook of one queue reads the same `Core\Script\ExitReport::memoryPeak`, even when an earlier hook used more memory than the script did — `rule:observability/script-on-exit`
+--FILE--
+<?nvs
+// covers: Core\Script\ExitReport::memoryPeak
+// The first hook holds 16 MiB, far more than the script ever did. The second
+// hook reads the peak again. The set counts distinct numbers, so `1` means
+// every reading was the same.
+Core\ObjectSet<mixed> $peaks = new Core\ObjectSet<mixed>();
+
+Core\Script::onExit(fn (Core\Script\ExitReport $report): void => {
+    $peaks->add($report->memoryPeak());
+    string $large = Core\Str::repeat("a", 16777216);
+    $peaks->add($report->memoryPeak());
+    echo "first hook held ", Core\Str::length($large), " bytes\n";
+});
+
+Core\Script::onExit(fn (Core\Script\ExitReport $report): void => {
+    $peaks->add($report->memoryPeak());
+    if ($report->memoryPeak() < 16777216) {
+        echo "second hook: the peak is below the first hook's string\n";
+    } else {
+        echo "second hook: the peak includes the first hook's string\n";
+    }
+    echo "distinct peaks: ", $peaks->count(), "\n";
+});
+
+echo "the script ends\n";
+--EXPECT--
+the script ends
+first hook held 16777216 bytes
+second hook: the peak is below the first hook's string
+distinct peaks: 1

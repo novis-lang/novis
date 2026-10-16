@@ -1,0 +1,9 @@
+<?nvs
+// Shows how a DN is read when a value has a comma in it.
+
+// `\,` is a comma inside the value. It does not start a new part.
+var $person = Core\Ldap\Dn::parse("CN=Lee\\, Ann,OU=Staff,DC=example,DC=test");
+// This prints Lee, Ann.
+echo $person->rdnValue(), "\n";
+// This prints OU=Staff,DC=example,DC=test.
+echo $person->parent()?->toString() ?? 'none', "\n";

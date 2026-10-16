@@ -1,0 +1,13 @@
+--TEST--
+a cursor on the `try` keyword is in the statement and in neither its body nor a catch, so one keypress takes the whole construct including them, `rule:ide/the-index-answers-the-cursor`
+--FILE--
+<?nvs
+tr<|>y {
+    echo "work";
+} catch (RuntimeError $refused) {
+    echo "refused";
+}
+--REQUEST--
+selectionRange
+--EXPECT--
+2:1-6:2

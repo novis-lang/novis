@@ -1,0 +1,38 @@
+--TEST--
+An entry whose zip64 compressed size would carry its end past the address space is refused as malformed, and the sum that finds its end never wraps or panics — `rule:core-classes/decompression-bound`
+--FILE--
+<?nvs
+// One stored entry, `note.txt`, holding five octets. Its central record puts
+// both sizes in a zip64 extra field and claims 2^64 - 16 compressed octets, so
+// the entry's end is its start plus a number no address can hold.
+uint $claimed = 0xFFFFFFFFFFFFFFF0;
+bytes $crc = Core\Bytes::pack('V', 0x3610a686);
+bytes $local = Core\Bytes::join([
+    Core\Bytes::pack('Vvvvvv', 0x04034b50, 45, 0, 0, 0, 0),
+    $crc,
+    Core\Bytes::pack('VVvv', 5, 5, 8, 0),
+    'note.txthello' as bytes,
+]);
+bytes $record = Core\Bytes::join([
+    Core\Bytes::pack('Vvvvvvv', 0x02014b50, 45, 45, 0, 0, 0, 0),
+    $crc,
+    Core\Bytes::pack('VVvvvvvVV', 0xFFFFFFFF, 0xFFFFFFFF, 8, 20, 0, 0, 0, 0, 0),
+    'note.txt' as bytes,
+    Core\Bytes::pack('vvPP', 0x0001, 16, 5, $claimed),
+]);
+bytes $end = Core\Bytes::pack('VvvvvVVv', 0x06054b50, 0, 0, 1, 1, Core\Bytes::length($record), Core\Bytes::length($local), 0);
+bytes $archive = Core\Bytes::join([$local, $record, $end]);
+
+// Listing reads only the directory, so the claim is not yet an address.
+echo "entries: ", Core\Arr::count(Core\Zip::entries($archive)), "\n";
+
+// Reading finds the entry's octets, and that is where the claim is refused.
+try {
+    Core\Zip::read($archive, "note.txt");
+    echo "a wrapping size was read\n";
+} catch (ParseError $error) {
+    echo $error->message, "\n";
+}
+--EXPECT--
+entries: 1
+Core\Zip: not a well-formed zip archive: an entry's data runs past the end of the archive.

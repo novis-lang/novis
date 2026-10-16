@@ -1,0 +1,23 @@
+--TEST--
+The cursor anywhere in a type test resolves to the type the test names, so it answers that interface's declaration and the `implements` clause that uses it, `rule:ide/the-index-answers-the-cursor`
+--FILE--
+<?nvs
+interface Shape
+{
+    public function area(): int;
+}
+
+class Square implements Shape
+{
+    public function area(): int { return 4; }
+}
+
+mixed $s = new Square();
+if ($s i<|>s Shape) {
+    echo $s->area();
+}
+--REQUEST--
+references
+--EXPECT--
+case.nvs:2:11
+case.nvs:7:25

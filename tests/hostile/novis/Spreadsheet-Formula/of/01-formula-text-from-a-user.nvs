@@ -1,0 +1,41 @@
+<?nvs
+// Attack: a request writes text a user typed that looks like a formula, and formulas with XML, huge text and odd cached values.
+// Text should stay text, and each export should give a file or throw an error. The server keeps running.
+use Novis\Spreadsheet\Formula;
+use Novis\Spreadsheet\Workbook;
+
+class Attack
+{
+    // This method writes one row as an Excel file and prints whether the sheet has a formula cell.
+    public static function attempt(int $step, array<mixed> $row): void
+    {
+        try {
+            bytes $file = Workbook::fromRows([$row])->bytes();
+            tainted string $sheet = Core\Zip::read($file, 'xl/worksheets/sheet1.xml') as string;
+            bool $broken = Core\Str::contains($sheet, '<script>') || Core\Str::contains($sheet, '<c><f>cmd');
+            echo 'step ', $step, ' ran ', Core\Str::contains($sheet, '<f>') ? 'with a formula' : 'text only', $broken ? ', XML broken' : '', "\n";
+        } catch (Throwable $e) {
+            echo 'step ', $step, ' stopped ', $e::class, "\n";
+        }
+    }
+}
+
+// 1. Strings that start a formula in a spreadsheet program. Each one should be text only.
+array<string> $typed = ["=cmd|' /C calc'!A0", '+1+1', '-2+3', '@SUM(1)', "\t=1+1", "\r=1+1", "=HYPERLINK(\"https://example.com\")"];
+foreach ($typed as string $text) {
+    Attack::attempt(1, ['comment' => $text]);
+}
+
+// 2. Formula text with XML in it, which should not end the cell early.
+Attack::attempt(2, ['total' => Formula::of("A1&\"</f><v>1</v></c><c><f>cmd\"")]);
+Attack::attempt(2, ['total' => Formula::of('SUM(A1:A2)', { cached: '</v><script>' })]);
+
+// 3. A formula of 1,000,000 characters, an empty formula, and one that is only `=`.
+Attack::attempt(3, ['total' => Formula::of(Core\Str::repeat('1+', 500000) . '1')]);
+Attack::attempt(3, ['total' => Formula::of('')]);
+Attack::attempt(3, ['total' => Formula::of('=')]);
+
+// 4. Cached values that are not numbers, or are as large as a number can be.
+Attack::attempt(4, ['total' => Formula::of('1/0', { cached: Core\Math::NAN })]);
+Attack::attempt(4, ['total' => Formula::of('1/0', { cached: Core\Math::INFINITY })]);
+Attack::attempt(4, ['total' => Formula::of('1', { cached: 9223372036854775807 })]);

@@ -1,0 +1,12 @@
+<?nvs
+// Shows how to make a canvas of one colour and read its first pixel.
+use Novis\Image\Image;
+use Novis\Image\Color;
+
+var $canvas = Image::create(800, 600, Color::hex("#336699"))->raw();
+// This prints 800x600.
+echo $canvas->width, "x", $canvas->height, "\n";
+
+// `#336699` is red 51, green 102 and blue 153. The alpha 255 means not transparent.
+array<mixed> $pixel = Core\Bytes::unpack(Core\Bytes::slice($canvas->pixels, 0, 4), "C4");
+echo $pixel[0], " ", $pixel[1], " ", $pixel[2], " ", $pixel[3], "\n";

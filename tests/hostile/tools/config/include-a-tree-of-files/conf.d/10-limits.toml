@@ -1,0 +1,6 @@
+# Replaces the memory limit of the main file, and sets the highest limit a program may choose.
+[limits]
+memory = "96M"
+
+[limits.hard]
+memory = "128M"

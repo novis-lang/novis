@@ -1,0 +1,20 @@
+<?nvs
+// Measures rounding a number up, as a list does when it finds how many pages it needs.
+// bench: iterations 2048
+// bench: allocations 0
+// bench: complexity constant
+
+class Bench {
+    public static function run(int $rounds): float {
+        float $total = 1.0;
+        int $i = 0;
+        while ($i < $rounds) {
+            // Chained: the number used this round depends on last round's total.
+            $total = $total + Core\Math::ceil($total * 0.0000001);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(2048), "\n";

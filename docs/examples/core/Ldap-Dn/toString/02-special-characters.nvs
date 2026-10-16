@@ -1,0 +1,9 @@
+<?nvs
+// Shows how special characters in a value are written in the text.
+
+// A `,`, a `+` and a space at the start each get a `\` in front.
+array<string> $names = ['Lee, Ann', 'A+B', ' Ann'];
+// This prints CN=Lee\, Ann, then CN=A\+B, then CN=\ Ann.
+foreach ($names as string $name) {
+    echo Core\Ldap\Dn::of('CN', $name)->toString(), "\n";
+}

@@ -1,0 +1,14 @@
+<?nvs
+// Shows that a whole number and the text of that number are one key. The
+// method looks at the keys, so the values do not matter.
+
+array<string> $rows = [1 => "first", 2 => "second"];
+
+// The key was written as the number 1, and "1" names the same entry. This prints yes.
+echo Core\Arr::hasKey($rows, "1") ? "yes" : "no", "\n";
+
+// The number 2 names the entry written as 2. This prints yes.
+echo Core\Arr::hasKey($rows, 2) ? "yes" : "no", "\n";
+
+// "first" is a value, not a key. This prints no.
+echo Core\Arr::hasKey($rows, "first") ? "yes" : "no", "\n";

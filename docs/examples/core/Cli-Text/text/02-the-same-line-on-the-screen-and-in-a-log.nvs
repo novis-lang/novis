@@ -1,0 +1,19 @@
+<?nvs
+// Shows one line going to the screen with colour, and the same line going to a
+// log, where colour has no meaning. This example does not run in a terminal,
+// so the colour is dropped and only the text prints.
+
+var $failed = Core\Cli\Style::of({color: Core\Cli\Color::RED, bold: true});
+array<string> $files = ["invoices.csv", "orders.csv"];
+string $log = "";
+
+foreach ($files as string $file) {
+    var $line = Core\Cli\Text::styled("failed", $failed)
+        + Core\Cli\Text::plain(Core\Str::format("  %s", $file));
+    echo $line, "\n";
+
+    // `text()` gives the string a log file can keep.
+    $log = Core\Str::format("%s%s\n", $log, $line->text());
+}
+
+echo "--- the log ---\n", $log;

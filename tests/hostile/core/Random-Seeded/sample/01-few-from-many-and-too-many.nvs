@@ -1,0 +1,61 @@
+<?nvs
+// Attack: a request uses one seeded generator to draw a few values from a very large array
+// many times. It also draws every value at once, and asks for more values than exist.
+// Each draw should be correct, the last request should throw an error, and the program
+// must not crash.
+
+Core\Random\Seeded $generator = new Core\Random\Seeded(0);
+
+// 1. One million entries, one value drawn one hundred thousand times. Every result is in the range.
+array<int> $large = Core\Arr::range(0, 999999);
+uint $outside = 0;
+uint $round = 0;
+while ($round < 100000) {
+    array<int> $one = $generator->sample($large, 1);
+    if (Core\Arr::count($one) != 1 || $one[0] < 0 || $one[0] > 999999) {
+        $outside = $outside + 1;
+    }
+    $round = $round + 1;
+}
+echo '1 outside the range: ', $outside, "\n";
+
+// 2. Half of the million, and then one more than half. Each result has no value twice.
+echo '2 half: ', Core\Arr::count(Core\Arr::unique($generator->sample($large, 500000))), "\n";
+echo '2 past half: ', Core\Arr::count(Core\Arr::unique($generator->sample($large, 500001))), "\n";
+
+// 3. Every value of the million at once. The result has every value.
+echo '3 all: ', Core\Arr::count(Core\Arr::unique($generator->sample($large, 1000000))), "\n";
+$large = [];
+
+// 4. Two keys at the two ends of `int`, both drawn one thousand times.
+array<string> $far = [-9223372036854775807 - 1 => 'low', 9223372036854775807 => 'high'];
+uint $both = 0;
+$round = 0;
+while ($round < 1000) {
+    array<string> $two = $generator->sample($far, 2);
+    if (Core\Arr::contains($two, 'low') && Core\Arr::contains($two, 'high')) {
+        $both = $both + 1;
+    }
+    $round = $round + 1;
+}
+echo '4 both ends: ', $both, ' of 1000', "\n";
+
+// 5. The largest count a `uint` can have, from an array of three. This throws an error.
+try {
+    $generator->sample(['a', 'b', 'c'], 18446744073709551615);
+    echo '5 not refused', "\n";
+} catch (Throwable $e) {
+    echo '5 refused', "\n";
+}
+
+// 6. One string of one megabyte is drawn one thousand times and every result is kept.
+// A copy for each draw would need one gigabyte, which is more than the memory limit.
+array<string> $text = [Core\Str::repeat('x', 1048576)];
+array<string> $kept = [];
+$round = 0;
+while ($round < 1000) {
+    array<string> $drawn = $generator->sample($text, 1);
+    $kept[] = $drawn[0];
+    $round = $round + 1;
+}
+echo '6 kept: ', Core\Arr::count($kept), "\n";

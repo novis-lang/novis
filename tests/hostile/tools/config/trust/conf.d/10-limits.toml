@@ -1,0 +1,3 @@
+# Replaces the memory limit of the main file.
+[limits]
+memory = "96M"

@@ -1,0 +1,40 @@
+<?nvs
+// Attack: a request adds very many series to one chart, and series whose values are formulas or markup.
+// Building the chart should finish, and each value that is not a range should throw an error.
+use Novis\Spreadsheet\Chart;
+use Novis\Spreadsheet\Workbook;
+
+class Attack
+{
+    // This method adds `$chart` at E2 and prints whether the file was written, or the class of the error.
+    public static function attempt(int $step, Chart $chart): void
+    {
+        try {
+            var $book = Workbook::createInMemory();
+            var $sheet = $book->sheet('Sales');
+            $sheet->addAll([['month' => 'January', 'sales' => 1200], ['month' => 'February', 'sales' => 1450]]);
+            $sheet->chart('E2', $chart);
+            bytes $file = $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
+            echo 'step ', $step, ' wrote ', Core\Bytes::length($file) > 0 ? 'a file' : 'nothing', "\n";
+        } catch (Throwable $e) {
+            echo 'step ', $step, ' stopped ', $e::class, "\n";
+        }
+    }
+}
+
+// 1. One chart with 5,000 series, each with a name and a color.
+var $many = Chart::column();
+for (int $n = 0; $n < 5000; $n++) {
+    $many = $many->series('B2:B3', { name: "Series {$n}", color: '#1F77B4' });
+}
+echo 'step 1 has ', Core\Arr::count($many->series), " series\n";
+Attack::attempt(1, $many);
+
+// 2. Values that are formulas, a defined name, and markup.
+Attack::attempt(2, Chart::column()->series('=SUM(B2:B3)'));
+Attack::attempt(2, Chart::column()->series('Sales'));
+Attack::attempt(2, Chart::column()->series('</c:f><c:f>B2:B3'));
+
+// 3. Values of 1,000,000 characters and a name of 1,000,000 characters.
+Attack::attempt(3, Chart::column()->series(Core\Str::repeat('B', 1000000)));
+Attack::attempt(3, Chart::column()->series('B2:B3', { name: Core\Str::repeat('<', 1000000) }));

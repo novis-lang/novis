@@ -1,0 +1,14 @@
+<?nvs
+// An array of `int` values. `[]` adds an item at the end.
+array<int> $scores = [10, 20];
+$scores[] = 30;
+
+// An array with string keys.
+array<string> $user = ["name" => "Ada", "city" => "Vienna"];
+
+echo $scores[2], " ", $user["name"], " ", Core\Arr::count($scores), "\n";
+
+// `foreach` gives each key and value. A key is always a `string`.
+foreach ($user as string $key => string $value) {
+    echo $key, "=", $value, "\n";
+}

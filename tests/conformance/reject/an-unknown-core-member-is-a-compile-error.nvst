@@ -1,0 +1,13 @@
+--TEST--
+`Core`'s member list is closed and known while compiling, so a misspelled member is named rather than waved through — `rule:core-api/reserved-namespace`
+--FILE--
+<?nvs
+echo Core\Str::nosuchmember("x"), "\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0405]: `Core\Str` has no member named `nosuchmember`
+  --> case.nvs:2:6
+%A
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

@@ -1,0 +1,12 @@
+<?nvs
+// Shows how to read a CSV document. `Core\Csv::parse` gives you one array per
+// record, holding the fields in the order they are written.
+
+string $document = "fig,2,3.50\napple,10,0.40\n";
+
+var $records = Core\Csv::parse($document);
+
+// This prints `fig sold 2` and `apple sold 10`.
+foreach ($records as array<string> $record) {
+    echo $record[0], ' sold ', $record[1], "\n";
+}

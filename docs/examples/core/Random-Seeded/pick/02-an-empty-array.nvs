@@ -1,0 +1,11 @@
+<?nvs
+// Shows what `pick` returns when the array is empty.
+
+Core\Random\Seeded $generator = new Core\Random\Seeded(42);
+
+// No names were entered, so the list is empty.
+array<string> $names = [];
+
+// There is nothing to choose, so the result is `null`. This prints `nobody`.
+?string $winner = $generator->pick($names);
+echo $winner ?? "nobody", "\n";

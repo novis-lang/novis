@@ -1,0 +1,4 @@
+https://example.com/help: full address
+/help: no scheme
+//cdn.example.com/logo.png: no scheme
+help.html: no scheme

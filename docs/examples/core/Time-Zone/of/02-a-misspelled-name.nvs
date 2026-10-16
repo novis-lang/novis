@@ -1,0 +1,11 @@
+<?nvs
+// Shows what happens when a zone name is misspelled.
+
+// "Europe/Berln" is not in the database, so `Core\Time\Zone::of` throws a `RuntimeError`.
+try {
+    Core\Time\Zone $zone = Core\Time\Zone::of("Europe/Berln");
+    echo "found the zone", "\n";
+} catch (RuntimeError $e) {
+    // This prints the error message. It contains the name that was not found.
+    echo $e->message, "\n";
+}

@@ -1,0 +1,38 @@
+<?nvs
+// Attack: a program keeps every message after the client has closed the connection.
+// Then it reads the text of each message many times. Every read should give the same text.
+Core\Socket $conn = Core\Socket::current();
+
+// 1. Keep every message until the client closes. One is empty, one has emoji, one is long.
+array<Core\Socket\Message> $kept = [];
+?Core\Socket\Message $message = $conn->receive();
+while ($message != null) {
+    $kept[] = $message;
+    $message = $conn->receive();
+}
+
+// 2. Read the text of every kept message 20000 times, and keep every copy in one list.
+array<tainted string> $copies = [];
+uint $round = 0;
+while ($round < 20000) {
+    foreach ($kept as Core\Socket\Message $old) {
+        $copies[] = $old->text() ?? '';
+    }
+    $round = $round + 1;
+}
+
+// 3. Count the characters of every copy. Each round should count the same number.
+uint $characters = 0;
+foreach ($copies as tainted string $copy) {
+    $characters = $characters + Core\Str::length($copy);
+}
+echo $characters / 20000, " characters in each round\n";
+
+// 4. Read `bytes()` and `value()` of the same messages. Both are `null` for a text message.
+uint $nulls = 0;
+foreach ($kept as Core\Socket\Message $old) {
+    if ($old->bytes() == null && $old->value() == null) {
+        $nulls = $nulls + 1;
+    }
+}
+echo $nulls, " of the messages have no bytes and no value\n";

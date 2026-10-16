@@ -1,0 +1,27 @@
+<?nvs
+// The file a mount runs, as a program.
+//
+// `rule:http-server/a-request-resolves-in-five-steps`'s
+// five steps all end in the same place: step 5 runs **the mount's entry**, and
+// this is one. Nothing here derives that path. § 2 is the server's governing
+// rule — a request *selects* an entry point from a set enumerated before it
+// arrived and may never construct one — so the table this file is in was
+// expanded against disk at boot and no line below could route to another file
+// even if it wanted to.
+//
+// The same file runs under `nvs run` and under `nvs serve`, because of
+// `rule:tooling/echo-always-has-a-sink`:
+// `echo` always has a sink and the *context* attaches it. Under `nvs run`
+// that is the terminal and these lines are stdout; under `nvs serve` it is the
+// response body, carried by `Core\Html\Markup` and auto-escaping. The program
+// does not branch on which, and there is no member here that would have to.
+
+// A body is text this program built. The server fills no variable for you,
+// so every value here was written by this program.
+string $body = 'novis' . ' ' . 'serves this file';
+echo $body, "\n";
+
+// One entry answers whatever its mount was given, which is why the mount
+// table is a table of prefixes and not a table of files: the second line is the
+// same line for every path this mount matched.
+echo 'entry=examples/serve.nvs', "\n";

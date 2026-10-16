@@ -1,0 +1,8 @@
+<?nvs
+// Attack: `nvs.toml` spells the memory limit with a typo, and the program uses far more memory.
+// Novis should stop with an error about the unknown key, and the program should not start.
+// hostile: expect-refusal
+
+// 1. Build a text of one gigabyte. This line should never run.
+string $large = Core\Str::repeat('x', 1073741824);
+echo Core\Str::length($large), "\n";

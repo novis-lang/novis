@@ -1,0 +1,13 @@
+{
+  "title": "`[[include]]` takes a `path` or a `dir`, never both and never neither, and a `dir` is not a glob",
+  "status": "shipped",
+  "seeAlso": [
+    "config/an-include-cycle-is-refused-and-nesting-is-capped-at-eight",
+    "config/later-wins-and-every-override-is-recorded",
+    "config/optional-covers-absence-and-moves-the-check-to-the-directory",
+    "config/a-relative-path-resolves-against-the-file-it-is-written-in"
+  ],
+  "guardedBy": [
+    "crates/nvs-config/tests/resolve.rs"
+  ]
+}

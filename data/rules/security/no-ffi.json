@@ -1,0 +1,11 @@
+{
+  "title": "No userland mechanism loads native code into the process",
+  "status": "shipped",
+  "seeAlso": [
+    "security/closed-doors",
+    "security/extension-manifest-only-tightens"
+  ],
+  "guardedBy": [
+    "crates/nvs-stdlib/tests/capability.rs"
+  ]
+}

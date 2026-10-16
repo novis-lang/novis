@@ -1,0 +1,86 @@
+--TEST--
+`object` is opened by `is` and by `as` onto the same object: a method call compiles inside either narrowing, both spellings answer the same thing, and a name the concrete class does not carry throws at the read — `rule:types/narrowing`, `rule:types/erased-member-access`
+--FILE--
+<?nvs
+// covers: lang:classes/object-the-top-of-every-class-type
+// A method call through `object` is refused "until `is` or `as` narrows it", and
+// the refusal has its own case under `tests/conformance/reject/`. What is asked
+// here is the other half: that both spellings open the call, that they open it
+// onto one object, and that neither is needed to read a property.
+
+class Tag {
+    public function constructor(public string $text) {}
+
+    public function shout(): string {
+        return Core\Str::upper($this->text);
+    }
+}
+
+class Plain {
+    public function constructor(public string $text) {}
+}
+
+class Pick {
+    public static function any(bool $tag): object {
+        if ($tag) {
+            return new Tag("x");
+        }
+        return new Plain("y");
+    }
+}
+
+object $tagged = Pick::any(true);
+object $plain = Pick::any(false);
+
+// `rule:types/erased-member-access`: a property read needs no narrowing at all,
+// because it is keyed on the written name and resolved at run time.
+echo "read=", $tagged->text as string, ",", $plain->text as string, "\n";
+
+// `rule:types/narrowing`: `is` narrows for the branch, so the call compiles inside it.
+if ($tagged is Tag) {
+    echo "is=", $tagged->shout(), "\n";
+}
+
+// `as` narrows into a named variable, which is then an ordinary `Tag`.
+Tag $narrowed = $tagged as Tag;
+echo "as=", $narrowed->shout(), "\n";
+
+// The agreement, counted rather than read off two lines: the two spellings
+// reached one object, so a narrowing that copied or re-created it fails here.
+int $agreed = 0;
+if ($tagged is Tag) {
+    if ($tagged->shout() == $narrowed->shout()) {
+        $agreed = $agreed + 1;
+    }
+    if ($tagged == $narrowed) {
+        $agreed = $agreed + 1;
+    }
+    if ($tagged->text as string == $narrowed->text) {
+        $agreed = $agreed + 1;
+    }
+}
+echo "agreed=", $agreed, " of 3\n";
+
+// `is` answers false for a class the object does not have, so the branch that
+// would call the method is not entered.
+int $entered = 0;
+if ($plain is Tag) {
+    $entered = $entered + 1;
+}
+echo "entered=", $entered, "\n";
+
+// A name the concrete class does not carry throws at the read rather than
+// answering anything.
+try {
+    mixed $absent = $plain->shout;
+    echo "never reached\n";
+} catch (Throwable $missing) {
+    echo "missing name threw\n";
+}
+--EXPECT--
+read=x,y
+is=X
+as=X
+agreed=3 of 3
+entered=0
+missing name threw

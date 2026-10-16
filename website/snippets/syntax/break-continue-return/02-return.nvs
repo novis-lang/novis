@@ -1,0 +1,18 @@
+<?nvs
+class Find {
+    // `return` ends the method. The method returns the value after `return`.
+    public static function first(array<int> $xs, int $min): ?int {
+        foreach ($xs as int $x) {
+            if ($x >= $min) {
+                return $x;
+            }
+        }
+        return null;
+    }
+}
+
+echo Find::first([1, 5, 9], 4) as string, "\n";
+
+// At the top level of a file, `return` ends the file. The next line does not run.
+return;
+echo "not reached\n";

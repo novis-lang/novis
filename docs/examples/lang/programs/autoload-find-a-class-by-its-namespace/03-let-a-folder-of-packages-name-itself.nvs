@@ -1,0 +1,12 @@
+<?nvs
+// A project split into packages, each with its own `src` folder. `discover`
+// takes the pattern once, and every folder that matches becomes the home of
+// the namespace the `*` stands for. Adding a package needs no new line here.
+
+autoload discover './packages/*/src';
+
+use Billing\Invoice;
+use Shipping\Label;
+
+echo Invoice::number(1042), "\n";
+echo Label::forOrder(1042, "Lyon"), "\n";

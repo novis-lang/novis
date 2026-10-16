@@ -1,0 +1,14 @@
+<?nvs
+// Shows what an amount grows to when interest is added every year. The growth
+// factor is raised to the number of years, and the balance is rounded to
+// cents at the end.
+
+decimal $deposit = 2500.00;
+decimal $factor = 1.05;
+array<uint> $years = [2, 5, 10];
+
+foreach ($years as uint $count) {
+    decimal $grown = $deposit * Core\Decimal::pow($factor, $count);
+    // Round once, at the end. Rounding every year would move the answer.
+    echo $count, " years: ", Core\Decimal::divRound($grown, 1, 2, Core\RoundMode::HalfUp), "\n";
+}

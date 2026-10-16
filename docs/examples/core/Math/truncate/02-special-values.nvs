@@ -1,0 +1,12 @@
+<?nvs
+// Shows the result for small negative numbers, very large numbers, infinity and `NaN`.
+
+// A number between -1.0 and 0.0 gives negative zero. This prints -0.
+echo Core\Math::truncate(-0.5), "\n";
+
+// A very large `float` has no fractional part, so it stays the same. This prints 1.0E+20.
+echo Core\Math::truncate(1e20), "\n";
+
+// Infinity and `NaN` stay the same. This prints INF, then NAN.
+echo Core\Math::truncate(Core\Math::INFINITY), "\n";
+echo Core\Math::truncate(Core\Math::NAN), "\n";

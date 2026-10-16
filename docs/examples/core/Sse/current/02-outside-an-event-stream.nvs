@@ -1,0 +1,11 @@
+<?nvs
+// Shows what `current()` does in a program that has not opened an event stream.
+
+// Nothing opened a stream here, so `current()` throws a `LogicError`.
+// This prints `no event stream here`.
+try {
+    Core\Sse $sse = Core\Sse::current();
+    echo "stream found\n";
+} catch (LogicError $e) {
+    echo "no event stream here\n";
+}

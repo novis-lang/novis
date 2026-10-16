@@ -1,0 +1,31 @@
+<?nvs
+// Attack: a program checks very long texts where the one non-ASCII character is at the very end.
+// `isAscii` should read every byte, give the right answer and free every text.
+// hostile: timeout-ms 20000
+
+// 1. A text of 64 million "a" characters is ASCII. This prints yes.
+string $long = Core\Str::repeat('a', 64000000);
+echo Core\Validate::isAscii($long) ? 'yes' : 'no', "\n";
+
+// 2. The same text with one "é" after the last "a" is not ASCII. This prints no.
+string $spoiled = $long . 'é';
+echo Core\Validate::isAscii($spoiled) ? 'yes' : 'no', "\n";
+$long = '';
+$spoiled = '';
+
+// 3. Null bytes and the DEL character are ASCII, even one million of them. This prints yes.
+string $controls = Core\Str::repeat("\0\x7f", 500000);
+echo Core\Validate::isAscii($controls) ? 'yes' : 'no', "\n";
+
+// 4. One million new texts are checked and freed at once. Every second text ends with "ü".
+// This prints 500000.
+int $ascii = 0;
+int $i = 0;
+while ($i < 1000000) {
+    string $text = $i % 2 == 0 ? 'name-' . $i as string : 'name-' . $i as string . 'ü';
+    if (Core\Validate::isAscii($text)) {
+        $ascii = $ascii + 1;
+    }
+    $i = $i + 1;
+}
+echo $ascii, "\n";

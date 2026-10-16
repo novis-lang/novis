@@ -1,0 +1,33 @@
+<?nvs
+// Shows a function that sends a whole message, because one `write` may send only part of it.
+
+class Sender {
+    // `write` returns how many bytes it sent. The loop sends the rest until nothing is left.
+    public static function sendAll(Core\Net\Stream $stream, bytes $message): void {
+        uint $sent = 0;
+        while ($sent < Core\Bytes::length($message)) {
+            $sent = $sent + $stream->write(Core\Bytes::slice($message, $sent as int), 5s);
+        }
+    }
+}
+
+Core\Net\Listener $server = Core\Net::listen("127.0.0.1", 0);
+Core\Net\Stream $client = Core\Net::connect("127.0.0.1", $server->port(), 5s);
+Core\Net\Stream $connection = $server->accept(5s);
+
+// The client sends a request of three lines and then closes its side.
+Sender::sendAll($client, "GET /orders/42 HTTP/1.1\r\nHost: shop.example.com\r\n\r\n" as bytes);
+$client->close();
+
+// The server reads until the client has closed. This prints `request: 51 bytes`.
+uint $size = 0;
+bool $open = true;
+while ($open) {
+    uint $got = Core\Bytes::length($connection->read(16, 5s));
+    $size = $size + $got;
+    $open = $got > 0;
+}
+echo "request: ", $size, " bytes\n";
+
+$connection->close();
+$server->close();

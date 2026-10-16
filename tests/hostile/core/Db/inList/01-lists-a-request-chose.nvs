@@ -1,0 +1,100 @@
+<?nvs
+// Attack: a program marks lists a visitor chose. It marks a hundred thousand of
+// them and hands over twenty thousand empty ones. It binds lists that are very
+// long, lists of many different lengths, and a list holding another marker.
+// Every attempt has to work or throw an error, and none may stop the program.
+// hostile: timeout-ms 60000
+
+var $db = Core\Db::open({ driver: Core\Db\Driver::Sqlite, path: ':memory:' });
+$db->execute('create table item (id integer primary key)', []);
+$db->executeMany('insert into item (id) values (?)', [[1], [2], [3]]);
+
+// 1. A hundred thousand markers. Each one keeps the list it was given, so a
+// marker nobody holds any more may not pile up.
+array<int> $ids = [1, 2, 3];
+uint $marked = 0;
+uint $i = 0;
+while ($i < 100000) {
+    Core\Db::inList($ids);
+    $marked = $marked + 1;
+    $i = $i + 1;
+}
+echo '1 marked ', $marked, " lists\n";
+
+// 2. Twenty thousand empty lists. Every one of them throws, and a throw may not
+// leave anything behind.
+array<int> $none = [];
+uint $refused = 0;
+$i = 0;
+while ($i < 20000) {
+    try {
+        Core\Db::inList($none);
+    } catch (LogicError $empty) {
+        $refused = $refused + 1;
+    }
+    $i = $i + 1;
+}
+echo '2 refused ', $refused, " empty lists\n";
+
+// 3. One list of a hundred thousand values, bound into a statement. The database
+// may have a smaller limit than that, so an error here is a good answer too.
+array<int> $many = [];
+$i = 0;
+while ($i < 100000) {
+    $many[] = ($i as int);
+    $i = $i + 1;
+}
+try {
+    var $wide = $db->query('select id from item where id in ?', [Core\Db::inList($many)]);
+    echo '3 bound a list of ', Core\Arr::count($many), ' and read ', $wide->count(), " rows\n";
+} catch (Throwable $error) {
+    echo "3 the wide list was refused\n";
+}
+
+// 4. A thousand lists of different lengths, all with the same SQL text. Each
+// length is a different statement for the database to keep.
+uint $widths = 0;
+uint $width = 1;
+while ($width <= 1000) {
+    array<int> $run = [];
+    $i = 0;
+    while ($i < $width) {
+        $run[] = 1;
+        $i = $i + 1;
+    }
+    try {
+        $db->query('select id from item where id in ?', [Core\Db::inList($run)]);
+        $widths = $widths + 1;
+    } catch (Throwable $error) {
+        $widths = $widths + 1;
+    }
+    $width = $width + 1;
+}
+echo '4 bound ', $widths, " lengths of the same statement\n";
+
+// 5. A list of ten thousand long texts. Nothing in the list matches a row, so
+// the work is all in carrying the values.
+array<string> $texts = [];
+$i = 0;
+while ($i < 10000) {
+    $texts[] = Core\Str::repeat('a', 200);
+    $i = $i + 1;
+}
+try {
+    var $wordy = $db->query('select id from item where id in ?', [Core\Db::inList($texts)]);
+    echo '5 read ', $wordy->count(), " rows for ten thousand texts\n";
+} catch (Throwable $error) {
+    echo "5 the long texts were refused\n";
+}
+
+// 6. A list holding another marker. A marker is not a value a placeholder can
+// bind, so this has to throw.
+array<mixed> $nested = [Core\Db::inList($ids)];
+try {
+    $db->query('select id from item where id in ?', [Core\Db::inList($nested)]);
+    echo "6 a marker inside a list was bound\n";
+} catch (Throwable $error) {
+    echo "6 a marker inside a list was refused\n";
+}
+
+$db->close();

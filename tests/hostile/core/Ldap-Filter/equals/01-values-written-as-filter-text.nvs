@@ -1,0 +1,41 @@
+<?nvs
+// Attack: a login name from a form is written to look like filter text, to
+// widen a search. Each value must stay one value, and nothing may crash.
+
+// 1. Values that would close the filter and open a new one, if they were text.
+array<string> $values = ['*', '*)(objectClass=*', 'anna)(|(cn=*', ')', "\\2a", "\x00", "\n"];
+foreach ($values as string $value) {
+    try {
+        echo '1 ', Core\Ldap\Filter::equals('sAMAccountName', $value)->toString(), "\n";
+    } catch (Throwable $error) {
+        echo "1 threw\n";
+    }
+}
+
+// 2. A value of one million characters.
+try {
+    var $long = Core\Ldap\Filter::equals('cn', Core\Str::repeat('a', 1000000));
+    echo '2 length: ', Core\Str::length($long->toString()), "\n";
+} catch (Throwable $error) {
+    echo "2 threw\n";
+}
+
+// 3. Attribute names that try to carry filter text. Each one must throw an error.
+array<string> $names = ['', ' ', 'cn=x', 'cn)(objectClass', '(cn', 'cn*', "cn\n", '-cn', 'c n'];
+uint $refused = 0;
+foreach ($names as string $name) {
+    try {
+        Core\Ldap\Filter::equals($name, 'anna');
+    } catch (LogicError $notAName) {
+        $refused = $refused + 1;
+    }
+}
+echo '3 refused: ', $refused, ' of ', Core\Arr::count($names), "\n";
+
+// 4. One hundred thousand filters, one after another. Nothing may be left behind.
+uint $i = 0;
+while ($i < 100000) {
+    Core\Ldap\Filter::equals('cn', $i as string);
+    $i = $i + 1;
+}
+echo "4 built\n";

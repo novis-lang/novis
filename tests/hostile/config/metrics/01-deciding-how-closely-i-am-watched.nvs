@@ -1,0 +1,101 @@
+<?nvs
+// Attack: a program tries to change `[metrics]` and `[trace]`, which control how it
+// is measured. Only the person who runs the server may set them, so every write
+// below should fail.
+// hostile: timeout-ms 20000
+// hostile: ends-early 4 FATAL
+
+// 1. Tries the `[metrics]` and `[trace]` keys and keys that are almost the same.
+array<string> $names = [
+    'metrics',
+    'metrics.exporter',
+    'metrics.listen',
+    'metrics.endpoint',
+    'metrics.max_series',
+    'exporter',
+    'METRICS.EXPORTER',
+    'Metrics.Exporter',
+    'metrics..exporter',
+    '.metrics.exporter',
+    'metrics.exporter.',
+    'metrics.exporter.protocol',
+    'metrics.max_series.hard',
+    'app.metrics.exporter',
+    'app.0.metrics.max_series',
+    'trace.exporter',
+    'trace.sample',
+    "metrics.exporter\u{0000}",
+    "trace.sample\u{0000}metrics.exporter",
+    'trace.exporter/../../metrics/exporter',
+    'metrics.' . Core\Str::repeat('sub.', 20000) . 'exporter',
+];
+foreach ($names as string $key) {
+    Core\Config::set($key, 'false');
+    Core\Config::set($key, '0');
+    Core\Config::get($key);
+    Core\Config::restore($key);
+}
+
+// 2. Tries many destinations: unknown exporters, local ports, all network
+//    interfaces, files and bad URLs. Every write should fail.
+array<string> $destinations = [
+    '',
+    ' ',
+    'true',
+    'false',
+    'prometheus',
+    'PROMETHEUS',
+    'otlp ',
+    'graphite',
+    '0.0.0.0:9090',
+    '[::]:0',
+    'http://127.0.0.1:1/v1/metrics',
+    'file:///etc/passwd',
+    'unix:/tmp/collector.sock',
+    "https://collector.test/v1\u{0000}.evil",
+    'https://collector.test:99999/v1',
+    'https://' . Core\Str::repeat('a.', 32768) . 'test/v1',
+];
+foreach ($destinations as string $destination) {
+    Core\Config::set('metrics.exporter', $destination);
+    Core\Config::set('metrics.listen', $destination);
+    Core\Config::set('metrics.endpoint', $destination);
+    Core\Config::set('trace.endpoint', $destination);
+}
+
+// 3. Tries very small, very large and invalid values for `metrics.max_series`
+//    and `trace.sample`. Every write should fail.
+array<string> $bounds = [
+    '0',
+    '-1',
+    '1',
+    '0.5',
+    'false',
+    'true',
+    '18446744073709551615',
+    '99999999999999999999999999999999',
+    '1e309',
+    'NaN',
+    '10_000',
+    '  10000  ',
+];
+foreach ($bounds as string $bound) {
+    Core\Config::set('metrics.max_series', $bound);
+    Core\Config::set('trace.sample', $bound);
+}
+Core\Config::restore('metrics.max_series');
+Core\Config::restore('metrics.exporter');
+
+echo 'exporter on duty: ', Core\Config::get('metrics.exporter') ?? '(no value)', "\n";
+
+// 4. Lowers the memory limit to `8M` and builds strings until it is used up.
+//    The server should report the failure and keep running.
+echo "step 4\n";
+Core\Config::set('limits.memory', '8M');
+array<string> $hoard = [];
+uint $i = 0;
+while ($i < 4000000) {
+    $hoard[] = 'series_' . Core\Str::repeat('label', $i % 64 + 1);
+    $i = $i + 1;
+}
+echo 'the label loop ran to its end: ', Core\Arr::count($hoard), "\n";

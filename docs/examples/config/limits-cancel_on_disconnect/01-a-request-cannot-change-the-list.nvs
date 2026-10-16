@@ -1,0 +1,11 @@
+<?nvs
+// Shows that a request cannot change `limits.cancel_on_disconnect`.
+
+// Each change returns `false`, so this prints `refused` three times.
+array<string> $lists = ['[]', '["POST"]', '["GET", "HEAD", "POST"]'];
+foreach ($lists as string $list) {
+    echo 'set to ', $list, ': ', Core\Config::set('limits.cancel_on_disconnect', $list) ? 'accepted' : 'refused', "\n";
+}
+
+// `limits.memory` is in the same block, and a request may lower it. This prints `accepted`.
+echo 'lower the memory: ', Core\Config::set('limits.memory', '64M') ? 'accepted' : 'refused', "\n";

@@ -1,0 +1,25 @@
+<?nvs
+// Keeps the EXIF data of a small JPEG photo in a new file, as a photo archive does with every upload.
+// bench: iterations 256
+// bench: complexity constant
+use Novis\Image\Image;
+use Novis\Image\Color;
+use Novis\Image\Format;
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        bytes $jpeg = Image::create(4, 4, Color::hex("#336699"))->format(Format::Jpeg)->encode();
+        bytes $exif = Core\Encoding::fromHex("ffe1002245786966000049492a0008000000010012010300010000000600000000000000");
+        Image $photo = Image::open(Core\Bytes::join([Core\Bytes::slice($jpeg, 0, 2), $exif, Core\Bytes::slice($jpeg, 2)]), {autoOrient: false});
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            bool $keep = ($total + $i) % 2 == 0;
+            $total = $total + Image::info($photo->metadata({keep: $keep})->encode())->orientation;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

@@ -1,0 +1,21 @@
+<?nvs
+// Shows how to check whether a coupon is still valid on the day of an order.
+
+// The coupon can be used up to and including its last day.
+var $lastDay = Core\Time\Date::at(2024, 6, 30);
+
+array<Core\Time\Date> $orders = [
+    Core\Time\Date::at(2024, 6, 29),
+    Core\Time\Date::at(2024, 6, 30),
+    Core\Time\Date::at(2024, 7, 1),
+];
+
+// A result of 0 or less means the order is not later than the last day.
+// This prints "valid" twice and then "expired".
+foreach ($orders as Core\Time\Date $ordered) {
+    if ($ordered->compareTo($lastDay) <= 0) {
+        echo $ordered->format("yyyy-MM-dd"), ": valid\n";
+    } else {
+        echo $ordered->format("yyyy-MM-dd"), ": expired\n";
+    }
+}

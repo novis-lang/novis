@@ -1,0 +1,54 @@
+<?nvs
+// Attack: a request makes canvases that are empty or far too large.
+// Each attempt should throw an error before any memory is used, and the server keeps running.
+use Novis\Image\Color;
+use Novis\Image\Image;
+
+// 1. A canvas of 0 by 0 pixels.
+try {
+    Image::create(0, 0)->raw();
+    echo "step 1 ran\n";
+} catch (Throwable $e) {
+    echo "step 1 stopped\n";
+}
+
+// 2. A canvas of 100000 by 100000 pixels.
+try {
+    Image::create(100000, 100000, Color::hex('#ff0000'))->raw();
+    echo "step 2 ran\n";
+} catch (Throwable $e) {
+    echo "step 2 stopped\n";
+}
+
+// 3. A width of the largest whole number, so width times height is too large to count.
+try {
+    Image::create(18446744073709551615, 18446744073709551615)->raw();
+    echo "step 3 ran\n";
+} catch (Throwable $e) {
+    echo "step 3 stopped\n";
+}
+
+// 4. A canvas one pixel high and very wide.
+try {
+    Image::create(4000000000, 1)->raw();
+    echo "step 4 ran\n";
+} catch (Throwable $e) {
+    echo "step 4 stopped\n";
+}
+
+// 5. A canvas over the limit, made many times in a row.
+try {
+    uint $i = 0;
+    uint $stopped = 0;
+    while ($i < 20) {
+        try {
+            Image::create(10000, 10000 + $i)->raw();
+        } catch (Throwable $e) {
+            $stopped = $stopped + 1;
+        }
+        $i = $i + 1;
+    }
+    echo 'step 5 stopped ', $stopped, "\n";
+} catch (Throwable $e) {
+    echo "step 5 stopped\n";
+}

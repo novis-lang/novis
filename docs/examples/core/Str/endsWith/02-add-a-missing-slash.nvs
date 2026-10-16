@@ -1,0 +1,13 @@
+<?nvs
+// Shows how to make sure every web address ends with one `/`.
+
+array<string> $addresses = ["https://example.com/shop", "https://example.com/blog/"];
+
+foreach ($addresses as string $address) {
+    // Only the address without a `/` at the end gets one added.
+    if (!Core\Str::endsWith($address, "/")) {
+        $address = $address . "/";
+    }
+    // Both lines end with exactly one `/`.
+    echo $address, "\n";
+}

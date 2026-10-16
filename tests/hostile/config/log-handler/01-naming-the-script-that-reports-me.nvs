@@ -1,0 +1,79 @@
+<?nvs
+// Attack: a program tries to change `log.handler`, the script that reports its
+// failure. Every write should fail. The program then fails for real, and the
+// failure should still be reported.
+// hostile: timeout-ms 30000
+// hostile: ends-early 4 FATAL
+
+// 1. Tries `log.handler`, its two reserve keys, and keys that are almost the same.
+array<string> $names = [
+    'log.handler',
+    'handler',
+    'log.handler_reserve_memory',
+    'log.handler_reserve_time',
+    'LOG.HANDLER',
+    'Log.Handler',
+    'log..handler',
+    '.log.handler',
+    'log.handler.',
+    'log.handler.path',
+    'app.log.handler',
+    'app.0.log.handler',
+    'app.log.handler_reserve_memory',
+    "log.handler\u{0000}",
+    "log.format\u{0000}log.handler",
+    'log.format/../handler',
+    'log.' . Core\Str::repeat('sub.', 20000) . 'handler',
+];
+foreach ($names as string $key) {
+    Core\Config::set($key, 'tests/hostile/config/log-handler/01-naming-the-script-that-reports-me.nvs');
+    Core\Config::set($key, 'false');
+    Core\Config::get($key);
+    Core\Config::restore($key);
+}
+
+// 2. Tries paths to a device, a directory, this file, a URL and paths outside
+//    the project. It also sets both reserves to `0`. Every write should fail.
+array<string> $paths = [
+    '',
+    ' ',
+    '.',
+    '..',
+    '/',
+    'C:\\',
+    'nul',
+    '/dev/null',
+    '\\\\?\\C:\\Windows\\System32\\drivers\\etc\\hosts',
+    '../../../../etc/passwd',
+    'scripts/../../../on-error.nvs',
+    "scripts/on-error.nvs\u{0000}.txt",
+    'https://example.test/on-error.nvs',
+    'tests/hostile/config/log-handler/01-naming-the-script-that-reports-me.nvs',
+    Core\Str::repeat('a/', 16384) . 'on-error.nvs',
+];
+foreach ($paths as string $path) {
+    Core\Config::set('log.handler', $path);
+    Core\Config::set('log.handler_reserve_memory', '0');
+    Core\Config::set('log.handler_reserve_time', '0');
+}
+Core\Config::restore('log.handler');
+
+// 3. Registers the program's own handler, which a program may do. This handler
+//    throws an error, so the `log.handler` script must report the failure.
+Core\Fatal::onLimit(fn (): void => {
+    throw new RuntimeError('the handler this program arranged threw as well');
+});
+
+echo 'handler on duty: ', Core\Config::get('log.handler') ?? '(nothing written)', "\n";
+
+// 4. Lowers the memory limit to `8M` and then uses more. Nothing catches the
+//    error. The server should report it and keep running.
+echo "step 4\n";
+Core\Config::set('limits.memory', '8M');
+array<string> $hoard = [];
+uint $i = 0;
+while ($i < 4000000) {
+    $hoard[] = Core\Str::repeat('x', 1024);
+    $i = $i + 1;
+}
+echo 'the allocation loop ran to its end: ', Core\Arr::count($hoard), "\n";

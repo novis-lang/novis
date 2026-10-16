@@ -1,0 +1,15 @@
+<?nvs
+// Shows how to read who signed the certificate of the server that sent a reply.
+
+// `Core\Test::tlsSession` builds a TLS connection for a test, so the example runs
+// without a network. `Core\Test::answerHttp` gives a fixed reply that reports it.
+var $session = Core\Test::tlsSession({issuer: "CN=Example Root CA, O=Example Trust"});
+Core\Test::answerHttp("https://api.example.com/health", 200, {tls: $session});
+
+?Core\Http\TlsInfo $info = Core\Http\Client::get("https://api.example.com/health")->tls();
+
+// `issuer()` returns the name of the certificate authority that signed the
+// server's certificate. This prints `CN=Example Root CA, O=Example Trust`.
+if ($info != null) {
+    echo $info->issuer(), "\n";
+}

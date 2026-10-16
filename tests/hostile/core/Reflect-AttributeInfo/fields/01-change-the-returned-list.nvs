@@ -1,0 +1,43 @@
+<?nvs
+// Attack: the program changes the list that `fields` returns, to add a field to the attribute.
+// The attribute should not change, and the next call should return the original two names.
+
+#[{path: "/admin", role: "editor"}]
+class AdminController
+{
+}
+
+var $info = Core\Reflect::forObject(new AdminController());
+
+foreach ($info->attributes() as Core\Reflect\AttributeInfo $attribute) {
+    // 1. Add a name to the returned list, and replace the first name.
+    array<string> $names = $attribute->fields();
+    $names[] = 'debug';
+    $names[0] = 'role';
+    echo Core\Arr::count($names), ' ', Core\Str::join($attribute->fields(), ','), "\n";
+
+    // 2. The added name is not a field of the attribute, so `field` throws an error.
+    try {
+        echo $attribute->field('debug') as string, "\n";
+    } catch (LogicError $error) {
+        echo "no field named debug\n";
+    }
+
+    // 3. Add one million names to a copy of the list.
+    array<string> $large = $attribute->fields();
+    uint $i = 0;
+    while ($i < 1000000) {
+        $large[] = 'extra';
+        $i = $i + 1;
+    }
+    echo Core\Arr::count($large), ' ', Core\Arr::count($attribute->fields()), "\n";
+
+    // 4. Read the list 200000 times. Each list is freed before the next one.
+    uint $total = 0;
+    uint $j = 0;
+    while ($j < 200000) {
+        $total = $total + Core\Arr::count($attribute->fields()) as uint;
+        $j = $j + 1;
+    }
+    echo $total, "\n";
+}

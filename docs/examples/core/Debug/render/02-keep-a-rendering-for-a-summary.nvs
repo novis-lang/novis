@@ -1,0 +1,24 @@
+<?nvs
+// Shows how to keep a rendering and print it later. The rows that fail a check
+// are rendered and collected, and the summary is printed at the end.
+
+array<array<string>> $rows = [
+    ["Ada Lovelace", "ada@example.com"],
+    ["Grace Hopper", ""],
+    ["Alan Turing", ""],
+];
+
+array<string> $failed = [];
+
+foreach ($rows as array<string> $row) {
+    if (Core\Str::length($row[1]) == 0) {
+        // `as string` turns the rendering into plain text you can store.
+        $failed[] = Core\Debug::render($row) as string;
+    }
+}
+
+echo Core\Arr::count($failed), " rows have no email address\n";
+
+foreach ($failed as string $one) {
+    echo $one, "\n";
+}

@@ -1,0 +1,4 @@
+ok: false
+error: RuntimeError: row 3 has no price
+output: read 2 orders
+this program is still running

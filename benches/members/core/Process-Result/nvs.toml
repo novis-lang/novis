@@ -1,0 +1,3 @@
+# The benches start `/bin/sh` on Linux and macOS, and `cmd.exe` on Windows.
+[capabilities.process]
+exec = true

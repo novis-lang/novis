@@ -1,0 +1,21 @@
+---
+title: Every conversion is checked
+covers: []
+description: as converts a value only when the result is correct, and otherwise gives null or throws an error.
+---
+
+import Snippet from '@components/Snippet.astro'
+
+Some languages convert `"12abc"` to the number `12` without a warning. In Novis you convert a value
+with `as`, and the conversion is checked:
+
+<Snippet src="guides/why-novis/checked-conversions.nvs" />
+
+`as int` gives the number when the text is a whole number. Otherwise it throws an error.
+
+`as ?int` gives `null` when the conversion is not possible. Use it with `??` to give a default value.
+
+Novis converts a value without `as` only when nothing can be lost. An `int` fits into a `float`, for
+example.
+
+Read more in [Syntax: converting with as](/syntax/values/as/).

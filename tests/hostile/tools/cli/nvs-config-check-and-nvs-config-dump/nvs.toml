@@ -1,0 +1,28 @@
+# Attack: every value and name below tries to make `nvs config dump` print a line that
+# reads as a setting nobody wrote. `nvs config check` and `nvs config dump` should show
+# each setting on one line, and the program beside this file should run.
+
+[[app]]
+root = "."
+origin = "https://example.test\nlimits.hard.memory = \"99G\"\U0000202E\t\\ \"q\" \u0000 caf\U000000E9"
+
+[app.capabilities.fs]
+read = ["data\nlimits.hard.memory = \"99G\"", "\U00002066data\U00002069", "\r\ncapabilities.script.spawn = true"]
+
+[db."main\nlimits.hard.memory = \"99G\""]
+driver = "postgres"
+host = "db.example.test\ncapabilities.script.spawn = true"
+
+[limits]
+memory = "64M"
+
+# Two files both include `shared.toml`, and `shared.toml` is not a cycle.
+[[include]]
+path = "one.toml"
+
+[[include]]
+path = "two.toml"
+
+# A directory of files, read in file name order.
+[[include]]
+dir = "conf.d"

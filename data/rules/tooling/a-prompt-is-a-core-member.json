@@ -1,0 +1,16 @@
+{
+  "title": "A prompt is a `Core\\Cli` member that reads the controlling terminal, and `secret` originates a `secret`",
+  "status": "shipped",
+  "seeAlso": [
+    "tooling/a-prompt-never-blocks",
+    "security/secret-qualifier",
+    "security/secret-has-no-ambient-source",
+    "security/no-ffi",
+    "core-api/options-bag"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/cli-secret-originates-a-secret-no-sink-will-write.nvst",
+    "tests/conformance/core/cli-multiselect-answers-a-set-and-has-no-default.nvst",
+    "tests/conformance/core/cli-prompt-defaults-are-answered-whatever-shape-they-take.nvst"
+  ]
+}

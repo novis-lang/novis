@@ -1,0 +1,54 @@
+<?nvs
+// This program seals a session id into a cookie with a list of keys, then opens it again.
+// `seal` uses the first key in the list. `open` tries each key in the list, in order.
+// A cookie still opens after a new key is added at the front. It does not open after its key is removed.
+// `open` returns the session id without `tainted`, because this program sealed it.
+
+// A ring of one, which is the ordinary case spelled `[$key]`. The key is
+// generated rather than configured because what this fixture is about is the
+// ring's *order*, and `[secrets]` would only make the same two keys harder to
+// see.
+secret bytes $key = Core\Crypto::generateKey();
+array<secret bytes> $ring = [$key];
+
+string $sid = 's-0f3a9c';
+string $cookie = Core\SignedCookie::seal($sid, $ring);
+
+// The round trip. The cookie itself is different on every call — each seals
+// under its own nonce — so what is printed is the value that came back, never
+// the carrier that brought it.
+if (Core\SignedCookie::open($cookie, $ring) == $sid) {
+    echo 'opened', "\n";
+} else {
+    echo 'opened a different value', "\n";
+}
+
+// The forgery, and the refusal that is what makes a session id worth trusting.
+// Altered, not base64 at all, or sealed under a retired key are deliberately
+// one message: telling them apart tells a forger which half landed.
+try {
+    string $forged = Core\SignedCookie::open($cookie . 'x', $ring);
+    echo 'opened a forged cookie', "\n";
+} catch (RuntimeError $refused) {
+    echo 'forgery refused', "\n";
+}
+
+// Rotation: a new key on the front, the old one still behind it. A cookie
+// sealed before the rotation still opens, which is what makes a slow deploy
+// possible without a hand-written fallback.
+secret bytes $next = Core\Crypto::generateKey();
+array<secret bytes> $rotated = [$next, $key];
+if (Core\SignedCookie::open($cookie, $rotated) == $sid) {
+    echo 'opens across a rotation', "\n";
+} else {
+    echo 'lost a session across a rotation', "\n";
+}
+
+// Retirement: drop the tail and the same cookie is a forgery, on the same
+// message as any other.
+try {
+    string $stale = Core\SignedCookie::open($cookie, [$next]);
+    echo 'opened under a retired key', "\n";
+} catch (RuntimeError $refused) {
+    echo 'retired key refused', "\n";
+}

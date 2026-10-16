@@ -1,0 +1,23 @@
+<?nvs
+// `[http.client.proxy]` is the forward proxy that outbound calls use. Only the configuration
+// file can set it. This file has no such block, so no proxy is used.
+
+echo 'proxy:          ', Core\Config::get('http.client.proxy.url') ?? '(no block, so no proxy at all)', "\n";
+echo 'who resolves:   ', Core\Config::get('http.client.proxy.resolve') ?? '(nothing — the block has no default for it)', "\n";
+echo 'reached direct: ', Core\Config::get('http.client.proxy.bypass') ?? '(nothing — with no proxy there is nothing to go around)', "\n";
+
+// A program cannot set a proxy, so both lines print `no`. Novis checks the address
+// of every outbound call, and a proxy chosen by a program could avoid that check.
+echo 'point it at me: ', Core\Config::set('http.client.proxy.url', 'http://somewhere-else.test:8080') ? 'yes' : 'no', "\n";
+echo 'let it resolve: ', Core\Config::set('http.client.proxy.resolve', 'proxy') ? 'yes' : 'no', "\n";
+
+// Novis does not read proxy settings from environment variables such as `HTTPS_PROXY`.
+// Every request shares them, and no configuration file records them.
+echo 'HTTPS_PROXY:    ', Core\Env::get('HTTPS_PROXY') ?? '(unset here, and it would change nothing either way)', "\n";
+
+// A program cannot set any key of the block, including the password.
+// `Core\Config::set` returns `false` for each one, so every line prints `no`.
+array<string> $keys = ['url', 'resolve', 'bypass', 'username', 'password', 'password_file'];
+foreach ($keys as string $key) {
+    echo 'writable by me: ', $key, ' -> ', Core\Config::set('http.client.proxy.' . $key, 'anything') ? 'yes' : 'no', "\n";
+}

@@ -1,0 +1,13 @@
+<?nvs
+// Shows how to add values at the end of an array until it has the length you
+// want.
+
+array<string> $picked = ["red", "blue"];
+
+// `Core\Arr::padEnd` adds copies of "free" at the end until there are five
+// entries. This prints "red blue free free free".
+array<string> $slots = Core\Arr::padEnd($picked, 5, "free");
+echo Core\Str::join($slots, " "), "\n";
+
+// Your own array is not changed, so this prints 2.
+echo Core\Arr::count($picked), "\n";

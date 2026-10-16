@@ -1,0 +1,4 @@
+exports/customers.csv: will be emptied first, so keep a copy of last night's
+var/log/nightly.log: safe, nothing already in it is lost
+config/settings.json: has to be there already, or the job stops
+var/run/last-export.txt: safe, nothing already in it is lost

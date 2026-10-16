@@ -1,0 +1,22 @@
+--TEST--
+a property with no default that the constructor leaves unassigned on some path is a compile error — `rule:classes/no-undefined-value`
+--FILE--
+<?nvs
+class Box {
+    public int $n;
+    public string $label;
+
+    public function constructor(int $n) {
+        $this->n = $n;
+    }
+}
+echo "unreachable\n";
+// covers: lang:classes/properties
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0409]: `$label` is not assigned on every path out of the constructor
+  --> case.nvs:4:19
+%A
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

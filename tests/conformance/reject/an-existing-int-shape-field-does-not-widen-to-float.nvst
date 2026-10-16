@@ -1,0 +1,72 @@
+--TEST--
+A shape value that already exists, or a class instance, whose field is an `int` does not satisfy a shape whose field is a `float`, at any depth of the field type, because the value is shared and its field is not converted — `rule:types/shape-type`, `rule:types/conversion`
+--FILE--
+<?nvs
+// covers: lang:types/callable-classes-object-shapes
+
+type Whole = {amount: int};
+type Price = {amount: float};
+
+class Stock
+{
+    public int $amount = 2;
+}
+
+class Shop
+{
+    public static function read(Price $p): float
+    {
+        return $p->amount;
+    }
+}
+
+// An existing `{amount: int}` value is not a `{amount: float}` value.
+Whole $whole = {amount: 2};
+Price $price = $whole;
+
+// A class with an `int` property is not one either.
+echo Shop::read(new Stock()), "\n";
+
+// The same holds when the field type is nullable or a union.
+({amount: ?float}) $maybe = $whole;
+({amount: float|string}) $either = $whole;
+
+// A shape nested in a field is checked the same way.
+({inner: Price}) $outer = {inner: $whole};
+
+// An `array<int>` field is not an `array<float>` field.
+array<int> $counts = [1, 2];
+var $list = {items: $counts};
+({items: array<float>}) $floats = $list;
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `{amount: float}`, found `{amount: int}`
+   --> case.nvs:22:16
+%A
+   = help: the field `amount` is `int` in this value, and a value that already exists keeps its field types, so it is not converted to `float`. Build a new value instead: `{amount: $value->amount}`
+%A
+error[E0401]: expected `{amount: float}`, found `Stock`
+   --> case.nvs:25:17
+%A
+   = help: the field `amount` is `int` in this value, and a value that already exists keeps its field types, so it is not converted to `float`. Build a new value instead: `{amount: $value->amount}`
+%A
+error[E0401]: expected `{amount: null|float}`, found `{amount: int}`
+   --> case.nvs:28:29
+%A
+   = help: the field `amount` is `int` in this value, and a value that already exists keeps its field types, so it is not converted to `null|float`. Build a new value instead: `{amount: $value->amount}`
+%A
+error[E0401]: expected `{amount: string|float}`, found `{amount: int}`
+   --> case.nvs:29:36
+%A
+   = help: the field `amount` is `int` in this value, and a value that already exists keeps its field types, so it is not converted to `string|float`. Build a new value instead: `{amount: $value->amount}`
+%A
+error[E0401]: expected `{inner: {amount: float}}`, found `{inner: {amount: int}}`
+   --> case.nvs:32:27
+%A
+error[E0401]: expected `{items: array<float>}`, found `{items: array<int>}`
+   --> case.nvs:37:35
+%A
+error: aborting due to 6 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

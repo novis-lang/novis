@@ -1,0 +1,10 @@
+{
+  "manifest": 1,
+  "world": "1.0.0",
+  "class": "Shop\\Vault",
+  "interface": "shop:vault/api",
+  "methods": [
+    {"name": "token", "params": [], "returns": "string", "secret": true,
+     "help": "Returns the stored access token."}
+  ]
+}

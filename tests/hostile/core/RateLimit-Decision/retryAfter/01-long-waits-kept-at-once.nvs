@@ -1,0 +1,32 @@
+<?nvs
+// Attack: a program asks for the longest wait it can get, then keeps 200000 refused
+// decisions and reads each wait many times. Memory should stay bounded, and nothing should crash.
+
+// 1. 1 call per 100000 hours. The second call must wait almost 100000 hours.
+Core\RateLimit::shed('slow', 1, 100000h);
+var $longest = Core\RateLimit::shed('slow', 1, 100000h)->retryAfter();
+echo $longest?->toSeconds() ?? 0, "\n";
+
+// 2. 200000 decisions for one key, all kept. Only the first is allowed,
+//    so every other one has a wait.
+array<Core\RateLimit\Decision> $kept = [];
+uint $i = 0;
+while ($i < 200000) {
+    $kept[] = Core\RateLimit::shed('hot', 1, 1h);
+    $i = $i + 1;
+}
+
+// 3. Each wait is read 5 times and added up.
+int $seconds = 0;
+uint $round = 0;
+while ($round < 5) {
+    foreach ($kept as Core\RateLimit\Decision $decision) {
+        $seconds = $seconds + ($decision->retryAfter()?->toSeconds() ?? 0);
+    }
+    $round = $round + 1;
+}
+echo $seconds > 0 ? 'waited' : 'no wait', "\n";
+
+// 4. The array is emptied, and every decision and wait is freed.
+$kept = [];
+echo Core\Arr::count($kept), "\n";

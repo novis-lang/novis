@@ -1,0 +1,46 @@
+--TEST--
+Core\IO::within throws an IOError for a base that does not exist or is a file, where a missing `$path` is still answered — spec § 14 *Resolution*, `rule:security/launderers-are-sink-named`
+--FILE--
+<?nvs
+// A missing `$path` resolves through its deepest existing ancestor, so a
+// program can check a name before it creates the file. A missing `$base` is
+// not answered the same way: a folder that is not there contains nothing.
+string $dir = Core\IO::temporaryDir();
+string $file = Core\Path::join($dir, "note.txt");
+Core\IO::write($file, "x\n");
+
+array<string> $bases = [
+    Core\Path::join($dir, "missing"),
+    Core\Path::join($dir, "missing", "deeper"),
+    $file,
+];
+int $total = Core\Arr::count($bases) as int;
+int $io = 0;
+int $escape = 0;
+int $answered = 0;
+
+int $i = 0;
+for (; $i < $total; $i = $i + 1) {
+    try {
+        string $answer = Core\IO::within($bases[$i], "a.txt");
+        $answered = $answered + 1;
+    } catch (IOError $failed) {
+        $io = $io + 1;
+    } catch (RuntimeError $denied) {
+        $escape = $escape + 1;
+    }
+}
+
+echo "bases: ", $total as string, ", io errors: ", $io as string,
+     ", escapes: ", $escape as string, ", answered: ", $answered as string, "\n";
+
+// The name under an existing base is still answered when it is missing.
+string $fresh = Core\IO::within($dir, "not-yet.txt");
+echo "missing name answered: ", Core\Path::basename($fresh), "\n";
+--FILE nvs.toml--
+[capabilities.fs]
+read = true
+write = true
+--EXPECT--
+bases: 3, io errors: 3, escapes: 0, answered: 0
+missing name answered: not-yet.txt

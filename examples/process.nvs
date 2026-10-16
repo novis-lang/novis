@@ -1,0 +1,47 @@
+<?nvs
+// Running another program, as a program: an argv, a result, and the target
+// this language will not run at all.
+//
+// `Core\Process::run` takes a path and an `array<string>`, and
+// there is no shell-string form *anywhere* in the surface — nothing to
+// escape, because there is nothing to escape into. A tainted `$path` or
+// `$argv` element is a compile-time diagnostic, which is why this fixture
+// cannot demonstrate that half: a program that tried would not compile.
+//
+// What it can demonstrate is the runtime half of the same rule. A Windows
+// batch or PowerShell target is refused by the API, because `cmd.exe`
+// re-parses its own arguments after we have finished quoting them — an
+// argv Novis built correctly is a shell string again by the time the batch
+// file sees it. The refusal is by target kind and not by content, so
+// `examples/process/say.bat` exists on disk: the third line below is
+// evidence about what the target *is*, not about whether it is there.
+//
+// The child is this repository's own `nvs`: the one the pipeline runs this
+// fixture with, which it names in `NVS_BIN` on every leg. The environment is
+// outside the program's text, so the name comes back `tainted`, and
+// `Core\Taint::assertTrusted` carries the reason it may name a target. With
+// `NVS_BIN` unset, the name is one no grant covers, and the first call stops
+// the program with a capability denial that names it.
+
+
+?tainted string $named = Core\Env::get('NVS_BIN');
+string $nvs = Core\Taint::assertTrusted($named ?? 'NVS_BIN is not set', 'the pipeline that runs this fixture names its own binary');
+
+// argv only: the subcommand and the script are elements, never a line.
+//
+// The captured streams are `bytes` and not `string`: a child
+// process makes no UTF-8 promise, so `as string` is the checked conversion
+// that throws rather than a silent mangling.
+var $result = Core\Process::run($nvs, ['run', 'examples/process/hello.nvs']);
+echo 'exit=', $result->exitCode(), "\n";
+echo 'stdout=', Core\Str::trim($result->stdout() as string), "\n";
+
+// The target kind this API declines to run. The clause is `RuntimeError`
+// and not `Throwable`, so a missing file or a capability denial would not
+// have been quietly counted as this refusal.
+try {
+    Core\Process::run('examples/process/say.bat', []);
+    echo 'accepted: a batch target', "\n";
+} catch (RuntimeError $refused) {
+    echo 'refused: no shell form', "\n";
+}

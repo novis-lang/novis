@@ -1,0 +1,13 @@
+<?nvs
+// Builds the points of a chart for a web page. JavaScript counts time in milliseconds.
+
+array<int> $visitors = [
+    "2024-03-01T12:00:00Z" => 12,
+    "2024-03-01T12:05:00Z" => 19,
+    "2024-03-01T12:10:00Z" => 7,
+];
+
+foreach ($visitors as string $at => int $count) {
+    echo "{x: ", Core\Time::fromIso($at)->toEpochMillis(), ", y: ", $count, "}\n";
+}
+// The browser reads each x with `new Date(x)`.

@@ -1,0 +1,17 @@
+--TEST--
+inside an `autoload` root literal the list is the directories its text reaches, resolved against the declaring file's directory, and no file, since a root names a directory — `rule:programs/autoload`
+--FILE--
+<?nvs
+autoload 'App' from 'src/<|>';
+--FILE src/Models/User.nvs--
+<?nvs
+namespace App\Models;
+class User { }
+--FILE src/Shop.nvs--
+<?nvs
+namespace App;
+class Shop { }
+--REQUEST--
+completion
+--EXPECT--
+Models/ folder

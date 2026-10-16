@@ -1,0 +1,24 @@
+--TEST--
+A call to a loaded extension is type-checked against its manifest, so an argument of the wrong type does not compile — `rule:packaging/extension-calls-are-statically-typed`
+--EXTENSION--
+ledger
+--FILE--
+<?nvs
+// `Shop\Ledger::echoInt` takes an `int`, and `echoList` takes an `array<int>`.
+// Both calls below pass a string, so the program does not compile.
+echo Shop\Ledger::echoInt("three"), "\n";
+var $numbers = Shop\Ledger::echoList(["one", "two"]);
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `int`, found `string`
+  --> case.nvs:4:27
+%A
+error[E0401]: expected `int`, found `string`
+  --> case.nvs:5:39
+%A
+error[E0401]: expected `int`, found `string`
+  --> case.nvs:5:46
+%A
+error: aborting due to 3 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

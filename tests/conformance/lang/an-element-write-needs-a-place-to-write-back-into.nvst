@@ -1,0 +1,61 @@
+--TEST--
+An array-element write whose root is only a temporary is refused, whichever write spelling and whichever root — `rule:types/arrays` and § 7 row 15
+--FILE--
+<?nvs
+// `rule:types/arrays` separates the array before an element is written, and
+// `nvs_ir::lower::Lowering::write_back_array` has to put the separated copy
+// back into whatever held it — a local, a property, or a static property. A
+// root that is none of those holds it nowhere, so the write would be
+// discarded: PHP 8.5 accepts every line below and drops it silently, which is
+// `rule:types/an-element-write-needs-storage-to-write-back-into`'s divergence and `E0700` here. What this pins is that
+// the four write spellings *agree* — `=`, `⊕=`, `$x++` and `--$x` all reach
+// the rule through `nvs_types::expr::assign`'s one `check_write_target` — and
+// that the root's own shape does not matter, only that it is not a place.
+class Holder {
+    public array<string> $rows;
+
+    public function constructor() {
+        array<string> $seed = ["a" => "x"];
+        $this->rows = $seed;
+    }
+
+    public function rows(): array<string> {
+        return $this->rows;
+    }
+}
+
+Holder $h = new Holder();
+array<string> $left = ["0" => "l"];
+array<string> $right = ["0" => "r"];
+bool $pick = true;
+
+$h->rows()["a"] = "y";
+$h->rows()["a"] .= "z";
+$h->rows()["a"]++;
+--$h->rows()["a"];
+["q"]["0"] = "z";
+($pick ? $left : $right)["0"] = "z";
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0700]: an array element cannot be written through a temporary
+   --> case.nvs:29:1
+%A
+error[E0700]: an array element cannot be written through a temporary
+   --> case.nvs:30:1
+%A
+error[E0700]: an array element cannot be written through a temporary
+   --> case.nvs:31:1
+%A
+error[E0700]: an array element cannot be written through a temporary
+   --> case.nvs:32:3
+%A
+error[E0700]: an array element cannot be written through a temporary
+   --> case.nvs:33:1
+%A
+error[E0700]: an array element cannot be written through a temporary
+   --> case.nvs:34:2
+%A
+error: aborting due to 6 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

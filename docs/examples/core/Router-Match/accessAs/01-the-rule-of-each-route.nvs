@@ -1,0 +1,34 @@
+<?nvs
+// Shows how to read the access rule of the route that matched as an enum case.
+namespace App;
+
+enum Role { Admin }
+
+class Site {
+    #[Core\Route(path: "/", method: Core\Http\Method::Get, name: "Site::home")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function home(): string { return "home"; }
+
+    #[Core\Route(path: "/admin", method: Core\Http\Method::Get, name: "Site::admin")]
+    #[Core\Access(allow: Role::Admin)]
+    public function admin(): string { return "admin"; }
+}
+
+// `accessAs<Core\Audience>()` returns the case `Core\Audience::Public`.
+// This prints `home is public`.
+?Core\Router\Match $home = Core\Router::match(Core\Http\Method::Get, "/");
+if ($home != null && $home->accessAs<Core\Audience>() == Core\Audience::Public) {
+    echo "home is public\n";
+}
+
+// The rule of `/admin` is a case of `Role`, not of `Core\Audience`.
+// So `accessAs<Core\Audience>()` returns `null`, and this prints `admin is not public`.
+?Core\Router\Match $admin = Core\Router::match(Core\Http\Method::Get, "/admin");
+if ($admin != null && $admin->accessAs<Core\Audience>() == null) {
+    echo "admin is not public\n";
+}
+
+// `accessAs<Role>()` returns `Role::Admin`. This prints `admin needs Admin`.
+if ($admin != null && $admin->accessAs<Role>() == Role::Admin) {
+    echo "admin needs Admin\n";
+}

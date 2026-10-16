@@ -1,0 +1,12 @@
+<?nvs
+// The one class the rule below allows to be found.
+
+namespace App\Text;
+
+class Greeter
+{
+    public static function hello(string $who): string
+    {
+        return 'hello ' . $who;
+    }
+}

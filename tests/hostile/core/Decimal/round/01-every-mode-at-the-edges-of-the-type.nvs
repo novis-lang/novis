@@ -1,0 +1,77 @@
+<?nvs
+// Attack: every rounding mode gets scales that a `decimal` cannot have, and the
+// largest and smallest values of the type. Every call should return a value or
+// throw an error. The runtime should not crash.
+// hostile: timeout-ms 30000
+
+array<Core\RoundMode> $modes = [
+    Core\RoundMode::HalfUp,
+    Core\RoundMode::HalfDown,
+    Core\RoundMode::HalfEven,
+    Core\RoundMode::HalfOdd,
+    Core\RoundMode::Up,
+    Core\RoundMode::Down,
+];
+
+// 1. Scale 29 is one digit more than a `decimal` can have. Every mode throws an
+// error. The program catches each error, so the next steps still run.
+uint $refused = 0;
+foreach ($modes as Core\RoundMode $mode) {
+    try {
+        Core\Decimal::round(1.5, $mode, 29);
+    } catch (ArithmeticError $tooManyDigits) {
+        $refused = $refused + 1;
+    }
+}
+echo 'step 1: ', $refused, " of 6 modes refused scale 29\n";
+
+// 2. The largest `uint` as the scale. This should also throw an error.
+try {
+    Core\Decimal::round(1.5, Core\RoundMode::HalfUp, 18446744073709551615);
+    echo "step 2: the value was rounded\n";
+} catch (ArithmeticError $far) {
+    echo 'step 2 stopped: ', $far->message, "\n";
+}
+
+// 3. The largest `decimal` value, rounded to a whole number. It is already
+// whole, so `Up` returns the same value.
+decimal $wide = 79228162514264337593543950335;
+echo 'step 3: ', Core\Decimal::round($wide, Core\RoundMode::Up), "\n";
+
+// 4. The same value rounded to 28 digits after the point. The digits before and
+// after the point together do not fit in a `decimal`.
+try {
+    Core\Decimal::round($wide, Core\RoundMode::HalfEven, 28);
+    echo "step 4: the value was rounded\n";
+} catch (ArithmeticError $doesNotFit) {
+    echo 'step 4 stopped: ', $doesNotFit->message, "\n";
+}
+
+// 5. The smallest positive `decimal`, and the same value below zero. `Up` rounds
+// away from zero, so the results are a whole `1` and `-1`.
+decimal $tiny = 0.0000000000000000000000000001;
+echo 'step 5: ', Core\Decimal::round($tiny, Core\RoundMode::Up), ' ',
+    Core\Decimal::round(-$tiny, Core\RoundMode::Up), "\n";
+
+// 6. A value with 28 nines is rounded at every scale from 28 down to 0. Each
+// step keeps one digit fewer. Rounding up carries 1 through all the nines.
+decimal $long = -0.9999999999999999999999999999;
+uint $scale = 29;
+while ($scale > 0) {
+    $scale = $scale - 1;
+    $long = Core\Decimal::round($long, Core\RoundMode::HalfUp, $scale);
+}
+echo 'step 6: ', $long, "\n";
+
+// 7. One million roundings in a row. Each one rounds the result of the one
+// before it.
+decimal $carried = 0.0;
+decimal $added = 1.9995;
+uint $round = 0;
+while ($round < 1000000) {
+    $carried = Core\Decimal::round($carried + $added, Core\RoundMode::HalfEven, 3);
+    $round = $round + 1;
+}
+echo 'step 7: ', $round, ' roundings made, last answer ', $carried, "\n";
+
+echo "the runtime is still standing\n";

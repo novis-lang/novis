@@ -1,0 +1,3 @@
+# Each use of deprecated code throws `Core\DeprecatedError`.
+[errors]
+deprecated = "throw"

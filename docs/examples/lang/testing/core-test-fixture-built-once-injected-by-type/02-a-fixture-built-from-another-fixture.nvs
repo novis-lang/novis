@@ -1,0 +1,47 @@
+<?nvs
+// Shows a fixture built from another fixture. A `#[Fixture]` method may declare
+// a parameter too, and it is filled the same way a test's parameter is.
+
+use Core\Test;
+use Core\Test\Fixture;
+
+class Settings {
+    public function constructor(public string $host) {}
+}
+
+class Mailer {
+    public function constructor(public Settings $settings) {}
+
+    public function route(string $address): string {
+        return $address . " via " . $this->settings->host;
+    }
+}
+
+class MailerTest {
+    #[Fixture]
+    public static function settings(): Settings {
+        return new Settings("smtp.example.com");
+    }
+
+    // This fixture needs a `Settings`, so it is built after the one above. The
+    // order you write the two methods in does not matter.
+    #[Fixture]
+    public static function mailer(Settings $settings): Mailer {
+        return new Mailer($settings);
+    }
+
+    #[Test]
+    public function itRoutesThroughTheConfiguredHost(Mailer $mailer): void {
+        Test::assertSame($mailer->route("ana@example.com"), "ana@example.com via smtp.example.com");
+    }
+
+    // A test may declare both. Each parameter is filled from its own type.
+    #[Test]
+    public function bothFixturesReachOneTest(Mailer $mailer, Settings $settings): void {
+        Test::assertSame($mailer->settings->host, $settings->host);
+    }
+}
+
+// This prints `ana@example.com via smtp.example.com`.
+Mailer $mailer = new Mailer(new Settings("smtp.example.com"));
+echo $mailer->route("ana@example.com"), "\n";

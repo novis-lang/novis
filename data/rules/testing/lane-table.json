@@ -1,0 +1,13 @@
+{
+  "title": "One table decides what a diff runs, and the platform matrix is never one of the gates",
+  "status": "shipped",
+  "seeAlso": [
+    "testing/ci-lanes",
+    "testing/unknown-base-runs-everything",
+    "testing/perf-two-mechanisms"
+  ],
+  "guardedBy": [
+    "tools/nv/cmd/ci-changes.ts",
+    ".github/workflows/ci.yml"
+  ]
+}

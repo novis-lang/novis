@@ -1,0 +1,118 @@
+--TEST--
+An `Export` writes the same file through each of its four methods: `bytes`, `save`, `to` and `download` give the same bytes for the same rows, for `fromRows`, for `new Export` with two sheets and for a filled template; `save` and `to` return the row counts and the size with no bytes, `to` leaves the open file open and writes from its position, the export's function runs once per call, and a filled template is written once: rule:core-classes/spreadsheet-writes-as-a-stream
+--FILE--
+<?nvs
+// covers: Novis\Spreadsheet\Export::constructor
+// covers: Novis\Spreadsheet\Export::bytes
+// covers: Novis\Spreadsheet\Export::save
+// covers: Novis\Spreadsheet\Export::to
+// covers: Novis\Spreadsheet\Export::download
+use Novis\Spreadsheet\Export;
+use Novis\Spreadsheet\Template;
+use Novis\Spreadsheet\Workbook;
+use Novis\Spreadsheet\Written;
+
+final class Check
+{
+    public static int $runs = 0;
+
+    // Writes the export `$make` returns through each method, and prints what differs from `bytes`.
+    // A filled template is written once, so `$make` is called before each method.
+    public static function targets(string $label, callable(): Export $make, bool $csv): void
+    {
+        bytes $memory = $make()->bytes();
+        Written $saved = $csv ? $make()->save("saved.csv") : $make()->save("saved.xlsx");
+        // Latin-1 reads each byte of a file as one character, so encoding the text again gives the bytes of the file.
+        string $text = $csv ? Core\IO::readText("saved.csv", {charset: Core\Charset::Latin1}) : Core\IO::readText("saved.xlsx", {charset: Core\Charset::Latin1});
+        bytes $file = Core\Encoding::encodeText($text, Core\Charset::Latin1);
+        Core\IO\File $open = Core\IO::open("open.bin", Core\IO::FileMode::Write);
+        Written $streamed = $make()->to($open);
+        $open->write("");
+        $open->close();
+        bytes $streamedFile = Core\Encoding::encodeText(Core\IO::readText("open.bin", {charset: Core\Charset::Latin1}), Core\Charset::Latin1);
+        var $sent = Core\Out::capture(fn (): void => {
+            $make()->download($csv ? "sent.csv" : "sent.xlsx");
+        });
+        echo $label, ": save ", $file == $memory ? "same" : "differs",
+            ", to ", $streamedFile == $memory ? "same" : "differs",
+            ", download ", ($sent as string as bytes) == $memory ? "same" : "differs", "\n";
+        echo $label, ": sizes ", $saved->size == Core\Bytes::length($memory) ? "match" : "differ",
+            " ", $streamed->size == Core\Bytes::length($memory) ? "match" : "differ",
+            ", bytes ", $saved->bytes == null && $streamed->bytes == null ? "null" : "kept", "\n";
+    }
+}
+
+array<array<mixed>> $rows = [["order" => 1042, "total" => 19.5], ["order" => 1043, "total" => 5.0]];
+
+var $csv = Workbook::fromRows($rows, {format: "csv"});
+Check::targets("csv", fn (): Export => $csv, true);
+
+// The function of `new Export` runs once for each call.
+var $two = new Export(fn (Workbook $book): void => {
+    Check::$runs = Check::$runs + 1;
+    $book->sheet("Orders")->addAll([["order" => 1042], ["order" => 1043]]);
+    $book->sheet("Returns")->add(["order" => 1042]);
+}, null);
+Check::targets("two sheets", fn (): Export => $two, false);
+echo "the function ran ", Check::$runs, " times\n";
+
+// `save` counts the rows of each sheet.
+Written $counted = $two->save("counted.xlsx");
+echo "rows ", $counted->rows["Orders"], " ", $counted->rows["Returns"], "\n";
+
+// A CSV file has one sheet, so a second sheet throws.
+try {
+    new Export(fn (Workbook $book): void => {
+        $book->sheet("Orders");
+        $book->sheet("Returns");
+    }, {format: "csv"})->bytes();
+    echo "not reached\n";
+} catch (LogicError $e) {
+    echo "a second csv sheet throws\n";
+}
+
+// `to` writes from the position of the open file, and does not close it.
+Core\IO\File $log = Core\IO::open("log.csv", Core\IO::FileMode::Write);
+$log->write("# first\n");
+Workbook::fromRows([["order" => 1]], {format: "csv"})->to($log);
+$log->write("# second\n");
+Workbook::fromRows([["order" => 2]], {format: "csv"})->to($log);
+$log->close();
+echo Core\IO::readText("log.csv");
+
+// A filled template writes the same bytes through `save`, `to` and `download`.
+var $design = Workbook::createInMemory();
+$design->sheet("Invoice")->add(["Invoice for {{shop}}"]);
+bytes $template = $design->finish()->bytes ?? Core\Bytes::fill(0, 0);
+Check::targets("template", fn (): Export => Template::open($template)->fill(["shop" => "Shop"]), false);
+
+// The same filled template a second time throws.
+var $filled = Template::open($template)->fill(["shop" => "Shop"]);
+$filled->bytes();
+try {
+    $filled->bytes();
+    echo "not reached\n";
+} catch (LogicError $e) {
+    echo "a filled template is written once\n";
+}
+--FILE nvs.toml--
+[capabilities.fs]
+read = ["."]
+write = ["."]
+--EXPECT--
+csv: save same, to same, download same
+csv: sizes match match, bytes null
+two sheets: save same, to same, download same
+two sheets: sizes match match, bytes null
+the function ran 4 times
+rows 2 1
+a second csv sheet throws
+# first
+order
+1
+# second
+order
+2
+template: save same, to same, download same
+template: sizes match match, bytes null
+a filled template is written once

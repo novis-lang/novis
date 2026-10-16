@@ -1,0 +1,67 @@
+<?nvs
+// Attack: a request uploads bytes that are not an image, or only part of one.
+// Each attempt should throw an error, and the server keeps running.
+use Novis\Image\Color;
+use Novis\Image\Format;
+use Novis\Image\Image;
+
+bytes $png = Image::create(64, 64, Color::hex('#ff0000'))->format(Format::Png)->encode();
+
+// 1. An empty upload.
+try {
+    Image::open('' as bytes)->raw();
+    echo "step 1 ran\n";
+} catch (Throwable $e) {
+    echo "step 1 stopped\n";
+}
+
+// 2. Text that is not an image.
+try {
+    Image::open('<html><body>hello</body></html>' as bytes)->raw();
+    echo "step 2 ran\n";
+} catch (Throwable $e) {
+    echo "step 2 stopped\n";
+}
+
+// 3. A PNG that is cut off after its first 40 bytes.
+try {
+    Image::open(Core\Bytes::slice($png, 0, 40))->raw();
+    echo "step 3 ran\n";
+} catch (Throwable $e) {
+    echo "step 3 stopped\n";
+}
+
+// 4. A JPEG with an EXIF block whose list of tags ends before it should.
+try {
+    bytes $jpeg = Image::create(8, 8, Color::hex('#ff0000'))->format(Format::Jpeg)->encode();
+    bytes $exif = Core\Encoding::fromHex('ffe1002245786966000049492a00ffffff7f010012010300010000000600000000000000');
+    Image::open(Core\Bytes::join([Core\Bytes::slice($jpeg, 0, 2), $exif, Core\Bytes::slice($jpeg, 2)]))->raw();
+    echo "step 4 ran\n";
+} catch (Throwable $e) {
+    echo "step 4 stopped\n";
+}
+
+// 5. A pixel limit of 1 for a real image.
+try {
+    Image::open($png, { maxPixels: 1 })->raw();
+    echo "step 5 ran\n";
+} catch (Throwable $e) {
+    echo "step 5 stopped\n";
+}
+
+// 6. The same broken upload opened many times in a row.
+try {
+    int $i = 0;
+    uint $stopped = 0;
+    while ($i < 50) {
+        try {
+            Image::open(Core\Bytes::slice($png, 0, 20 + $i))->raw();
+        } catch (Throwable $e) {
+            $stopped = $stopped + 1;
+        }
+        $i = $i + 1;
+    }
+    echo 'step 6 stopped ', $stopped, "\n";
+} catch (Throwable $e) {
+    echo "step 6 stopped\n";
+}

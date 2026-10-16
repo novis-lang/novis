@@ -1,0 +1,45 @@
+<?nvs
+// Attack: zone names are made to look like file paths, offsets and very long text.
+// Every name that is not a zone should throw an error, and nothing should crash or leak.
+
+final class Try
+{
+    // This finds the zone `$name`. It returns the offset in seconds, or "error" when it throws.
+    public static function of(string $name): string
+    {
+        try {
+            Core\Time\Zone $zone = Core\Time\Zone::of($name);
+            return $zone->offsetAt(Core\Time::fromEpoch(0))->toSeconds() as string;
+        } catch (RuntimeError $e) {
+            return 'error';
+        }
+    }
+}
+
+// 1. Names that look like paths to files on the computer.
+echo Try::of('../../../../etc/passwd'), ' ', Try::of('/etc/localtime'), ' ', Try::of('Europe/../Europe/Berlin'), "\n";
+echo Try::of('Europe//Berlin'), ' ', Try::of('Europe/Berlin/'), ' ', Try::of('C:\\Windows\\win.ini'), "\n";
+
+// 2. Names with a zero byte, a space or other letter case.
+echo Try::of("Europe/Berlin\x00"), ' ', Try::of(' Europe/Berlin'), ' ', Try::of('EUROPE/BERLIN'), "\n";
+
+// 3. Offsets, which only `Core\Time\Zone::fixed` accepts.
+echo Try::of('+02:00'), ' ', Try::of('-00:00'), ' ', Try::of('+99:99'), "\n";
+
+// 4. A name of about one million characters.
+echo Try::of(Core\Str::repeat('Europe/', 142857)), "\n";
+
+// 5. Many zones are found and thrown away, and every second name is wrong.
+array<string> $names = ['Europe/Berlin', 'Europe/Berln', 'Asia/Tokyo', 'Asia/Tokio'];
+int $found = 0;
+int $refused = 0;
+int $n = 0;
+while ($n < 20000) {
+    if (Try::of($names[$n % 4]) == 'error') {
+        $refused = $refused + 1;
+    } else {
+        $found = $found + 1;
+    }
+    $n = $n + 1;
+}
+echo $found, ' found, ', $refused, " refused\n";

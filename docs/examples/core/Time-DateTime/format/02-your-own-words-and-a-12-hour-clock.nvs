@@ -1,0 +1,21 @@
+<?nvs
+// Shows how to put your own words in a pattern, and how to use a 12-hour clock.
+
+var $start = Core\Time::at(2024, 11, 8, Core\Time\Zone::of("America/New_York"), {hour: 19, minute: 30});
+
+// Text in single quotes is printed as it is. Two single quotes print one quote.
+// `h` is the hour from 1 to 12, and `a` is AM or PM. This prints It's Friday, doors open at 7:30 PM.
+echo $start->format("'It''s' EEEE', doors open at' h:mm a"), "\n";
+
+// `XXX` prints the offset from UTC. New York is 5 hours behind UTC in November.
+// This prints 2024-11-08T19:30:00-05:00.
+echo $start->format("yyyy-MM-dd'T'HH:mm:ssXXX"), "\n";
+
+// `j` is not a pattern letter. A wrong pattern written in the code does not compile.
+// A pattern made while the program runs is checked by `format`, which throws a `LogicError`.
+string $pattern = "j";
+try {
+    echo $start->format($pattern), "\n";
+} catch (LogicError $error) {
+    echo $error->message, "\n";
+}

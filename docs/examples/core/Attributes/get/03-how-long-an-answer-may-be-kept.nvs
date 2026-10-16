@@ -1,0 +1,35 @@
+<?nvs
+// Shows a setting you can write next to a handler: the handler says how long its
+// answer may be reused, and the program reads that setting back.
+
+type Cache = {seconds: int};
+
+class Reports {
+    #[Cache(seconds: 300)]
+    public static function monthly(): string {
+        return "the monthly report";
+    }
+
+    public static function live(): string {
+        return "the live report";
+    }
+}
+
+class Answer {
+    public static function send(string $body, ?Cache $cache): void {
+        echo $body;
+        if ($cache == null) {
+            echo " (do not keep)\n";
+        } else {
+            echo " (keep for ", $cache->seconds, " seconds)\n";
+        }
+    }
+}
+
+// `Reports::monthly(...)` names the method, so this prints
+// `the monthly report (keep for 300 seconds)`.
+Answer::send(Reports::monthly(), Core\Attributes::get<Cache>(Reports::monthly(...)));
+
+// `live` carries no `Cache`, so the result is `null` and this prints
+// `the live report (do not keep)`.
+Answer::send(Reports::live(), Core\Attributes::get<Cache>(Reports::live(...)));

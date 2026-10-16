@@ -1,0 +1,19 @@
+<?nvs
+// Shows how to build one filter from a list of conditions a program collected.
+
+array<string> $wanted = ['department' => 'Sales', 'l' => 'Vienna', 'title' => 'Manager'];
+array<Core\Ldap\Filter> $parts = [];
+foreach ($wanted as string $attribute => string $value) {
+    $parts[] = Core\Ldap\Filter::equals($attribute, $value);
+}
+// `...` passes the array as separate filters.
+// This prints (&(department=Sales)(l=Vienna)(title=Manager)).
+echo Core\Ldap\Filter::all(...$parts)->toString(), "\n";
+
+try {
+    // With no filter at all, `all` throws an error.
+    array<Core\Ldap\Filter> $none = [];
+    Core\Ldap\Filter::all(...$none);
+} catch (LogicError $error) {
+    echo "No conditions.\n";
+}

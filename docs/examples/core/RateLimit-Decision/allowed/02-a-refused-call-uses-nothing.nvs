@@ -1,0 +1,20 @@
+<?nvs
+// Shows that a refused call uses no units. A smaller call can still be allowed after it.
+
+class Upload {
+    public static function send(uint $megabytes): void {
+        // Each user may upload 5 megabytes per hour.
+        var $decision = Core\RateLimit::shed("upload:user:9", 5, 1h, {cost: $megabytes});
+        if ($decision->allowed()) {
+            echo $megabytes, " MB: allowed\n";
+        } else {
+            echo $megabytes, " MB: refused\n";
+        }
+    }
+}
+
+// 4 MB is allowed and leaves 1 MB. 3 MB is refused and uses nothing,
+// so the last 1 MB is still allowed.
+Upload::send(4);
+Upload::send(3);
+Upload::send(1);

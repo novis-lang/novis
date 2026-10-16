@@ -1,0 +1,15 @@
+<?nvs
+// Shows when each order was placed, in the time zone of the customer who placed it.
+
+// The shop saves every order time in UTC. Each customer has a time zone in their profile.
+array<string> $placed = [
+    "2024-03-01T23:30:00Z" => "Europe/Vienna",
+    "2024-03-02T01:15:00Z" => "America/Los_Angeles",
+    "2024-03-02T08:00:00Z" => "Asia/Tokyo",
+];
+
+foreach ($placed as string $at => string $zone) {
+    Core\Time\DateTime $local = Core\Time::fromIso($at)->in(Core\Time\Zone::of($zone));
+    echo "Ordered on ", $local->format("d MMMM yyyy 'at' HH:mm"), " (", $zone, ")\n";
+}
+// The first order is on 2 March in Vienna. It is still 1 March in UTC.

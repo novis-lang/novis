@@ -1,0 +1,13 @@
+<?nvs
+// Shows how to read a document whose first record holds the column names. With
+// `{header: true}` every later record is keyed by those names, and the first
+// record is not part of the result.
+
+string $document = "name,qty,price\nfig,2,3.50\napple,10,0.40\n";
+
+var $records = Core\Csv::parse($document, {header: true});
+
+// This prints `fig costs 3.50` and `apple costs 0.40`.
+foreach ($records as array<string> $record) {
+    echo $record['name'], ' costs ', $record['price'], "\n";
+}

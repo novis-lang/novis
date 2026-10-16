@@ -1,0 +1,9 @@
+{
+  "title": "Queued work is durable, retried and declared by the application; scheduled work is a clock tick and none of those",
+  "status": "shipped",
+  "seeAlso": [
+    "concurrency/delivery-is-at-least-once",
+    "concurrency/attempts-are-finite-and-a-dead-letter-is-kept"
+  ],
+  "guardedBy": []
+}

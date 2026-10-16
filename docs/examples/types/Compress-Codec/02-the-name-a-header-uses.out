@@ -1,0 +1,5 @@
+Content-Encoding: gzip -> 33 octets of JSON
+Content-Encoding: deflate -> 33 octets of JSON
+Content-Encoding: br -> 33 octets of JSON
+Content-Encoding: zstd -> 33 octets of JSON
+Content-Encoding: exi -> no case reads that

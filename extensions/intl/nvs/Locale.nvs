@@ -1,0 +1,20 @@
+<?nvs
+namespace Novis\Intl;
+
+/// Chooses a language for a request, and shows which language data a locale tag uses.
+final class Locale
+{
+    /// `Locale::negotiate` returns the best of `$offered` for an `Accept-Language` value. `"de-AT"`
+    /// matches `"de"`. An empty, malformed or unmatched value gives `$default` and does not throw.
+    public static function negotiate(string $acceptLanguage, array<string> $offered, string $default): string
+    {
+        return Icu::negotiate($acceptLanguage, $offered, $default);
+    }
+
+    /// `Locale::resolve` returns, for each tag, the locale whose data is used for `$service`.
+    /// For `"de-AT"` with `Service::Lists` the result is `"de"`. `"und"` means only the general rules are used.
+    public static function resolve(array<string> $tags, Service $service): array<string>
+    {
+        return Icu::resolveLocales($tags, $service);
+    }
+}

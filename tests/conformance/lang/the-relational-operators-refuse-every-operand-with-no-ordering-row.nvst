@@ -1,0 +1,133 @@
+--TEST--
+The five relational operators agree on refusing every operand `rule:types/arithmetic` gives no ordering row for, and the object family keeps its own code — `rule:types/arithmetic`, `rule:classes/comparable`, `rule:enums/closed-integer-type`
+--FILE--
+<?nvs
+// Every spelling in `rule:types/arithmetic`'s `< <= > >= <=>` row, over the operand
+// domains that row has no entry for. What is asserted is that the five
+// *agree* — one code and one sentence per domain, whatever the operator —
+// rather than that any one of them reports, and that the object family
+// keeps its own code (`E0411`) however the receiver was spelled.
+enum Rank {
+    Bronze,
+    Silver,
+}
+
+class Plain {}
+
+string $s = "ab";
+bytes $y = "ab" as bytes;
+array<int> $xs = [1];
+callable $f = fn (): int => 1;
+Rank $r = Rank::Bronze;
+object $o = new Plain();
+
+// PHP orders every one of these by converting an operand first — two
+// strings byte by byte, an array by length, `null` against `false`.
+// `rule:types/implicit-widening` allows no implicit conversion for any of them, so the
+// ordering does not exist rather than answering something plausible.
+mixed $a1 = $s < $s;
+mixed $a2 = $s <= $s;
+mixed $a3 = $s > $s;
+mixed $a4 = $s >= $s;
+mixed $a5 = $s <=> $s;
+
+// One spelling each for the four remaining domains: the operator is not
+// what decides, the operand is.
+mixed $b1 = $y < $y;
+mixed $c1 = $xs <=> $xs;
+mixed $d1 = $f > $f;
+mixed $e1 = null <= null;
+
+// An enum case is a name, not its backing number (`rule:enums/closed-integer-type`), so it takes
+// the same refusal with its own help.
+mixed $r1 = $r < $r;
+
+// The object family is `rule:classes/comparable`'s, and an erased receiver names no class
+// to ask `Comparable` about — the same code the named-class refusal takes,
+// so that "these two do not order" reads as one diagnostic.
+mixed $g1 = $o < $o;
+
+// Equality is untouched on every one of these domains: it is answered
+// rather than ordered, and `rule:expressions/one-equality-operator` owns it.
+echo ($s == $s) as string, ($xs == $xs) as string, (null == null) as string;
+echo $a1, $a2, $a3, $a4, $a5, $b1, $c1, $d1, $e1, $r1, $g1;
+--EXPECTF-ERROR--
+error[E0715]: `<` has no meaning for `string`
+   --> %s:25:13
+   |
+25 | mixed $a1 = $s < $s;
+   |             ^^^^^^^ ordered here
+   = help: `Core\Str::compare` is the ordering two strings have; `rule:types/arithmetic` tabulates no `<` for text, because PHP's own answer there is a conversion Novis never makes by itself
+
+error[E0715]: `<=` has no meaning for `string`
+   --> %s:26:13
+   |
+26 | mixed $a2 = $s <= $s;
+   |             ^^^^^^^^ ordered here
+   = help: `Core\Str::compare` is the ordering two strings have; `rule:types/arithmetic` tabulates no `<` for text, because PHP's own answer there is a conversion Novis never makes by itself
+
+error[E0715]: `>` has no meaning for `string`
+   --> %s:27:13
+   |
+27 | mixed $a3 = $s > $s;
+   |             ^^^^^^^ ordered here
+   = help: `Core\Str::compare` is the ordering two strings have; `rule:types/arithmetic` tabulates no `<` for text, because PHP's own answer there is a conversion Novis never makes by itself
+
+error[E0715]: `>=` has no meaning for `string`
+   --> %s:28:13
+   |
+28 | mixed $a4 = $s >= $s;
+   |             ^^^^^^^^ ordered here
+   = help: `Core\Str::compare` is the ordering two strings have; `rule:types/arithmetic` tabulates no `<` for text, because PHP's own answer there is a conversion Novis never makes by itself
+
+error[E0715]: `<=>` has no meaning for `string`
+   --> %s:29:13
+   |
+29 | mixed $a5 = $s <=> $s;
+   |             ^^^^^^^^^ ordered here
+   = help: `Core\Str::compare` is the ordering two strings have; `rule:types/arithmetic` tabulates no `<` for text, because PHP's own answer there is a conversion Novis never makes by itself
+
+error[E0715]: `<` has no meaning for `bytes`
+   --> %s:33:13
+   |
+33 | mixed $b1 = $y < $y;
+   |             ^^^^^^^ ordered here
+   = help: `rule:types/arithmetic`'s `< <= > >= <=>` row is the numeric types, plus two objects of one `Comparable` class (`rule:classes/comparable`); this operand is on neither half
+
+error[E0715]: `<=>` has no meaning for `array<int>`
+   --> %s:34:13
+   |
+34 | mixed $c1 = $xs <=> $xs;
+   |             ^^^^^^^^^^^ ordered here
+   = help: `rule:types/arithmetic`'s `< <= > >= <=>` row is the numeric types, plus two objects of one `Comparable` class (`rule:classes/comparable`); this operand is on neither half
+
+error[E0715]: `>` has no meaning for `callable`
+   --> %s:35:13
+   |
+35 | mixed $d1 = $f > $f;
+   |             ^^^^^^^ ordered here
+   = help: `rule:types/arithmetic`'s `< <= > >= <=>` row is the numeric types, plus two objects of one `Comparable` class (`rule:classes/comparable`); this operand is on neither half
+
+error[E0715]: `<=` has no meaning for `null`
+   --> %s:36:13
+   |
+36 | mixed $e1 = null <= null;
+   |             ^^^^^^^^^^^^ ordered here
+   = help: `rule:types/arithmetic`'s `< <= > >= <=>` row is the numeric types, plus two objects of one `Comparable` class (`rule:classes/comparable`); this operand is on neither half
+
+error[E0715]: `<` has no meaning for `Rank`
+   --> %s:40:13
+   |
+40 | mixed $r1 = $r < $r;
+   |             ^^^^^^^ ordered here
+   = help: an enum case is a name rather than a number (`rule:enums/closed-integer-type`); order the backing values instead — `($a as int) < ($b as int)`
+
+error[E0411]: `object` names no class to check `Comparable` on; ordering two objects with `<`/`<=`/`>`/`>=`/`<=>` requires a class that implements it
+   --> %s:45:13
+   |
+45 | mixed $g1 = $o < $o;
+   |             ^^^^^^^ compared here
+   = help: implement `Comparable`'s `compareTo(self $other): int` on the class
+
+error: aborting due to 11 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

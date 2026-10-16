@@ -1,0 +1,4957 @@
+//! `Core\Json` — [docs/spec/01-core-library.md](/docs/spec/01-core-library.md)
+//! § 6, over `serde_json`.
+//!
+//! That section is authoritative for every signature; what belongs here is the
+//! crate choice, the two shapes JSON has that Novis does not, and the places
+//! this module refuses a value the C `json_encode`/`json_decode` would have
+//! degraded instead.
+//!
+//! # The crate, and why this one
+//!
+//! RFC 8259 is an external specification, so [AGENTS.md](/AGENTS.md)
+//! § *Implementation invariants* makes it a dependency rather than a
+//! hand-written parser. `serde_json` is the pick, for two properties no other
+//! Rust JSON crate has both of:
+//!
+//! * **It can be driven without its own `Value` tree.** [`Decode`] is a
+//!   `serde::de::Visitor`, so a document becomes [`nvs_runtime::NvsArray`]s and
+//!   [`Value`]s *directly* — nothing is ever materialized twice. That is what
+//!   keeps latency, in `rule:programs/memory-priority`'s
+//!   ordering, honest on a member every request path uses.
+//! * **Every byte of the document is the crate's.** Novis writes no JSON
+//!   grammar of its own at all: one scalar at a time goes through the crate's
+//!   serializer for its escaping and its number formatting, and the structure
+//!   around them — the braces, the commas, the `pretty` profile's indentation —
+//!   is `serde_json`'s own [`Formatter`]. What [`Encodable`] owns is the
+//!   *order* values are visited in, which is what § *The walk carries its own
+//!   stack* is about.
+//!
+//! Pure Rust, no build script, no C — `rule:packaging/a-c-dependency-answers-two-questions`'s two questions do not even
+//! arise.
+//!
+//! # `escapeUnicode` is a post-pass, not a formatter
+//!
+//! `serde_json` never escapes a non-ASCII character, and overriding that means
+//! implementing the whole `Formatter` trait twice — once over the compact
+//! writer and once over the pretty one. [`escape_non_ascii`] does it in one
+//! pass over the finished document instead, and is exactly as correct: **in
+//! JSON, a non-ASCII byte can only occur inside a string**, since every
+//! structural character, every number and every keyword is ASCII. So a scan
+//! that rewrites each non-ASCII `char` as its `\uXXXX` escape cannot touch
+//! anything it should not.
+//!
+//! **What it spends:** one extra `String` the size of the document, on the
+//! `{escapeUnicode: true}` path only — an option a call has to ask for.
+//!
+//! # The refusals
+//!
+//! Each is `rule:core-api/shape-rules` R4
+//! ("failure throws") applied where PHP's `json_encode`/`json_decode` returned
+//! a degraded value instead:
+//!
+//! * **Nesting past `maxDepth` throws**, and the cap is on by default at
+//!   [`DEFAULT_MAX_DEPTH`] rather than opt-in — nesting is the one JSON input
+//!   that costs unbounded work before any value exists. [`DEPTH_CEILING`] is
+//!   the hard bound a call cannot raise past, because the parse recurses. What
+//!   it bounds is structure that is legal and merely deep: a value that
+//!   encloses itself is refused by the entry below before this one can be
+//!   reached, so the two failures name themselves rather than both reading as
+//!   nesting.
+//! * **A value the walk is already inside throws**, naming the dotted chain of
+//!   keys that closed the cycle —
+//!   `rule:classes/an-encoder-ends-a-cycle-by-identity`, decided against the
+//!   [`Stack`] the walk descends on. The chain is what encloses the value and
+//!   not everything already written, so an object two properties both hold is
+//!   written out twice: JSON can express repetition and not sharing. Nothing
+//!   is substituted into the document to stand for the cycle, because this
+//!   document is somebody else's contract rather than our own diagnostic
+//!   format.
+//! * **An integer literal too large for `int` throws**, rather than
+//!   degrading to `float`: silent precision loss on a wire format is the bug
+//!   `JSON_BIGINT_AS_STRING` exists to work around. The refusal reaches
+//!   `i64::MAX`..=`u64::MAX` and no further: `serde_json` has already widened a
+//!   longer literal to `f64` by the time [`Decode::visit_f64`] sees it, and the
+//!   two are indistinguishable there, since the raw token is not in the
+//!   visitor's hands. Reaching past that band means either the
+//!   `arbitrary_precision` feature, which routes *every* number through a
+//!   private map token and is a workspace-wide switch, or a `RawValue`
+//!   pre-pass — neither worth a whole document's re-scan for a band that starts
+//!   at 1.8e19.
+//! * **A non-finite `float` refuses to encode.** JSON has no `NaN` and no
+//!   `Infinity`; PHP's `json_encode` fails too, but only if
+//!   `JSON_PARTIAL_OUTPUT_ON_ERROR` was not passed, and there is no such flag
+//!   here.
+//!
+//! # A shape is a second contract, not a second walk
+//!
+//! `rule:types/shape-type`'s `{n: int}` may be written where `decodeAs<T>`
+//! takes its type argument, and what reaches this module is two things: the
+//! class the compiler synthesized for the shape's *field names*, and a
+//! [`nvs_runtime::ShapeCodec`] carrying the field *types*. They are separate
+//! because `{n: int}` and `{n: string}` share one class, so a shape's wire
+//! types have nowhere on a descriptor to live — `nvs-ir`'s module docs own that
+//! fork and what it costs.
+//!
+//! [`Contract`] is the join. It answers the field list either way, so
+//! [`decode_fields`] and everything under it is one walk over one
+//! [`nvs_runtime::CodecField`] list rather than a decoder per door — and a
+//! program catching a decode failure catches one shape of report whichever door
+//! it wrote.
+//!
+//! **Both halves walk that list rather than code emitted per class.** A
+//! compile-time pass records a deriving class's fields on its own descriptor,
+//! down to the constant an absent optional key is filled with, and the walks
+//! here read them off the class table they are already holding —
+//! `rule:core-classes/derive-generates-what-is-missing` owns what that costs
+//! and what it stores, which is nothing per object.
+//!
+//! Two answers differ, and each is the shape's own type saying so rather than a
+//! second convention: a shape is built slot by slot ([`build_shape`]), because
+//! it declares no constructor to run, and an absent optional key of one is
+//! `rule:core-api/a-nullable-field-omits-as-the-never-written-marker`'s marker
+//! rather than the constructor default there is no constructor to have
+//! declared — [`decode_field`]'s own doc comment owns which and why.
+//!
+//! # An issue's `path` is the wire key, under every nesting that encloses it
+//!
+//! A `decodeAs<array<C>>` reports `2.name`, a nested class's field
+//! `address.city` and a list field's bad element `tags.3` — `rule:core-classes/derive-reports-every-field`'s own spelling,
+//! and `rule:core-classes/derive-reports-every-field`'s dotted path, built by
+//! [`path_of`] out of a prefix each nesting extends by one segment.
+//! [`decode_nested`] runs the nested class's own field list under an `address.`
+//! prefix and its issues join the enclosing object's rather than throwing where
+//! they were found; [`decode_list`] does the same under `tags.3.`. An enum
+//! costs no nesting at all: a case is its backing integer, so [`scalar`]
+//! answers it as a membership test against the roster
+//! [`nvs_runtime::CodecField::cases`] carries.
+//!
+//! # `isValid` decodes and discards
+//!
+//! It answers exactly what [`nvs_core_json_decode`] would accept, which is the
+//! property that matters, and it allocates the document to do it. A second
+//! `()`-producing visitor would avoid that, and it is a duplicate of [`Decode`]
+//! with every body replaced by `Ok(())` — a second walk to keep in step with
+//! the first, against a cost nothing has measured.
+//!
+//! # A value type crosses as text, not as its slots
+//!
+//! `rule:core-classes/derive-field-list` admits the named `Core` value types as
+//! fields and JSON has a type for none of them. Two of them carry a wire form
+//! here, and both of them are a **string** — written by [`Encodable`] and read
+//! by [`scalar`], so a document this crate writes is one it accepts back.
+//!
+//! A `decimal` is `"19.99"`. JSON has one number type and every consumer reads
+//! it as an `f64`, including [`Decode`], so a `decimal` written as a number
+//! comes back rounded — the degradation the integer band above already refuses.
+//! The cost is that a client sees a string where it may have expected a number,
+//! spent under `rule:programs/memory-priority` to buy exactness, which is
+//! the whole of what `rule:types/decimal` makes the type for.
+//!
+//! An `Instant` is RFC 3339: `"2024-03-01T12:00:00Z"`, the spelling
+//! `$i->toIso()` renders and `Core\Time::fromIso` reads, so the wire carries
+//! what a reader of the document already agrees a timestamp looks like. It is
+//! **not** the two-slot object its storage is — an epoch second and a subsecond
+//! nanosecond are this runtime's representation of the type and no part of what
+//! a document promises. `crate::db` answers the same question at the other door
+//! and answers it differently, because a column has its own components to build
+//! one out of.
+//!
+//! `rule:core-api/required-optional-and-nullable`'s three shipped rows are
+//! answered here, and on the field itself: `nvs_runtime::CodecField::default`
+//! carries the constructor parameter's own constant beside `required`, so an
+//! absent optional key is filled rather than reported missing. That table's
+//! fourth row is another door's — a written `= null` parameter default is
+//! refused while checking, which is `nvs_types::defaults`' own gap. A **shape**
+//! is in neither and never will be: it declares no constructor, so there is no
+//! default to be missing, and [`decode_field`] answers an absent optional key
+//! with the never-written marker instead.
+//!
+//! A constructor position **no field names** is not that question at all: a
+//! property `#[Json\Field(skip: true)]` took off the contract while its
+//! parameter stayed, so there is no field to read a constant off.
+//! `nvs_types::derive`'s `check_json_sites` refuses the call that asks for an
+//! instance out of a document over such a class — `E0820`, at every member that
+//! writes one, and over every deriving class the written one reaches, since a
+//! document is a tree. [`Fields::finish`]'s engine fault for the same shape
+//! stays under it as the backstop for a class built by hand, as the row door's
+//! does.
+//!
+//! A class that declared **no codec at all** is refused by that same pass, one
+//! condition earlier and as `E0821`: `rule:core-classes/derive-attribute` makes
+//! participation opt-in, so a call naming a class that carries neither
+//! `#[Json\Derive]` nor a written `fromJson` names something no document can be
+//! read into, and the call is where that is known. [`check_codec`]'s
+//! `LogicError` stays under it on the same terms — the backstop for a
+//! descriptor built by hand, which no call site named.
+//!
+//! **A class that wrote `fromJson` is decoded through that member**, which is
+//! `rule:core-classes/derive-generates-what-is-missing` at run time: the derive
+//! fills in the half a class does not write, so where the class wrote the
+//! decoding half the decode **is** that member — and a field list recorded
+//! beside it, the class carrying the attribute as well, is the encoder's alone.
+//! [`hand_written`] is that call, and every decode reaches it —
+//! the class a call site named, each element of an `array<T>` of one, and a
+//! field or a list element typed as one, since a document is a tree and a door
+//! at its root only is not a door. What the member is handed is the value as it
+//! arrived, § 6 declaring it over `mixed`, so this door reads a document the
+//! field walk would refuse for not being an object.
+//!
+//! **The encoding half parts at the same place, one condition ahead of the
+//! field list.** [`Stack::object`] asks the class table for
+//! [`ENCODE`] before it reads the derived codec, so a class that wrote `toJson`
+//! encodes as that member answers, and one carrying `#[Json\Derive]` as well
+//! keeps its own encoder while the derived field list stays the decoder's. What
+//! the member answers with is written at the value's own position by this same
+//! walk, so a member answering with an object that wrote one of its own is one
+//! more level of the same descent — counted against [`DEPTH_CEILING`], and a
+//! member answering with the object it was called on is the cycle
+//! `rule:classes/an-encoder-ends-a-cycle-by-identity` already ends.
+//!
+//! **That call is the one place this walk runs compiled code, and the walk is
+//! held still across it.** [`Encodable`] descends through borrowed handles that
+//! take no reference of their own, so a member free to reassign the static
+//! property the document was reached through, or to write to a container the
+//! walk is inside, would otherwise leave a handle over freed memory. [`Standing`]
+//! retains every value the walk is standing on — this value and each of its
+//! ancestors — for the length of the call and releases them after. A retained
+//! array is a shared one, so a write a member makes to a container above it
+//! takes the copy-on-write path and the document stays the snapshot the encode
+//! began on. What that spends is a refcount pair per level per hand-written
+//! member, and nothing at all on a document with none. The [`Fault`] such a
+//! member raises travels out on [`Reentry`] rather than as `serde`'s own error,
+//! which is a string and would lose the class a `catch` names.
+//!
+//! # The walk carries its own stack
+//!
+//! The encoder descends on a `Vec` of [`Frame`]s rather than on native ones:
+//! one value is written per turn of a loop, and a container pushes a frame the
+//! next turn steps into. So [`DEPTH_CEILING`] is a bound the encoder actually
+//! keeps — a document nested past it is a catchable throw whatever thread the
+//! request is running on, rather than an abort once that thread's stack happens
+//! to run out, which is a process-wide failure on behalf of one request.
+//!
+//! **What it spends:** one `Vec` per encode, at most `DEPTH_CEILING - 1` frames
+//! long and each frame under 64 bytes — the `const` assertion beside [`Frame`]
+//! is what keeps that second half true. So tens of kilobytes for a document
+//! actually nested to the ceiling, a few frames for the ones programs write,
+//! and nothing at all left behind: it is released with the call, which is the
+//! O(in-flight) shape `rule:programs/memory-priority` asks for.
+//!
+//! The stack is the ancestor chain as well, so the cycle test and the path a
+//! message names a value with read off it rather than out of a second
+//! structure.
+//!
+//! **The decoder builds objects the same way.** The parse runs on the spare
+//! stack, and what it reads is turned into instances by [`walk`]: an object or
+//! a list nested in the document pushes a [`Build`] frame, and an object's
+//! constructor runs when its frame is popped, once every field is a value. So
+//! a document inside `maxDepth` is built whatever the build's native frames
+//! weigh, and `maxDepth` is the only bound on its depth. Two calls still take
+//! native stack, and each is compiled code with its own check: a constructor,
+//! which [`Fields::finish`] compares the stack against first, and a written
+//! `fromJson`.
+//!
+//! **What it spends:** one `Vec` per object the call site names, one frame per
+//! level, and a frame is 152 bytes — the `const` assertion beside [`Build`]
+//! keeps it at most 160. So about 160 KB at [`DEPTH_CEILING`], freed with the
+//! call. Each open object also holds its argument vector and its issue-path
+//! prefix, as it did on the native stack. A prefix is as long as the keys
+//! above it, so their total grows with the square of the depth.
+//!
+//! # What a list decode costs
+//!
+//! **A decode is linear in the document, and so is its issue list.** An
+//! `array<T>` field reports every bad position, as
+//! `rule:core-classes/derive-reports-every-field` asks, so a list of n bad
+//! elements throws with n issues, each path the field's own plus one position.
+//! That is work in proportion to what the sender wrote, which the decode
+//! already does by reading it, and the request body's cap bounds both. A
+//! position's path is formatted only where it is needed — an issue, or the
+//! prefix a nested class, shape or list reports its own issues under — so a
+//! list of scalars that decodes cleanly formats none. A whole document that is
+//! a list, [`decode_each`], stops at the first bad element instead: which of the
+//! two a list field should do is not a cost question, and it stays as written.
+//!
+//! # Known gaps
+//!
+//! Each gap is a record, and `bun nv gaps --module crates/nvs-stdlib/src/json.rs` lists them.
+
+use std::fmt;
+
+use nvs_runtime::{
+    ClassDesc, CodecTy, EnumCases, Fault, NvsArray, NvsObj, NvsStr, Tag, ThrownClass, Value,
+};
+use serde::de::{DeserializeSeed, Deserializer, MapAccess, SeqAccess, Visitor};
+use serde::ser::{Error as _, Serialize};
+use serde_json::ser::{CompactFormatter, Formatter, PrettyFormatter};
+
+use crate::registry::{
+    ClassDoc, Const, CoreClass, CoreMethod, CoreOption, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
+};
+
+// ============================================================================
+// Registration — this class's rows, and where its symbols live
+// ============================================================================
+
+/// `Core\Json`'s registry rows, in the spec's own order — all four of § 6's
+/// members.
+///
+/// `decodeAs` is one of the rows whose helper takes arguments its `params` does
+/// not declare: `registry::WRITTEN_CLASS_MEMBERS` puts the class its call site
+/// wrote in slot 0, and that roster owns why. `Core\Request::jsonAs` is the
+/// same decode over a request body and reaches it through [`check_codec`] and
+/// [`hydrate`] rather than through [`decode_as`].
+pub const CLASS: CoreClass = CoreClass {
+    name: r"Core\Json",
+    doc: Some(&CARD),
+    methods: &[
+        CoreMethod {
+            name: "encode",
+            names: &["value"],
+            params: &[CoreTy::Mixed, CoreTy::Options(ENCODE_OPTIONS)],
+            defaults: &[],
+            return_ty: CoreTy::Str,
+            symbol: "nvs_core_json_encode",
+            doc: Some(&ENCODE_DOC),
+        },
+        CoreMethod {
+            name: "decode",
+            names: &["json"],
+            params: &[
+                CoreTy::Text(Qual::Contagious),
+                CoreTy::Options(DECODE_OPTIONS),
+            ],
+            defaults: &[],
+            return_ty: CoreTy::Mixed,
+            symbol: "nvs_core_json_decode",
+            doc: Some(&DECODE_DOC),
+        },
+        CoreMethod {
+            name: "decodeAs",
+            names: &["json"],
+            params: &[
+                CoreTy::Text(Qual::Contagious),
+                CoreTy::Options(DECODE_OPTIONS),
+            ],
+            defaults: &[],
+            return_ty: CoreTy::Written("T"),
+            symbol: "nvs_core_json_decode_as",
+            doc: Some(&DECODE_AS_DOC),
+        },
+        CoreMethod {
+            name: "isValid",
+            names: &["json"],
+            params: &[CoreTy::Text(Qual::Neutral)],
+            defaults: &[],
+            return_ty: CoreTy::Bool,
+            symbol: "nvs_core_json_is_valid",
+            doc: Some(&IS_VALID_DOC),
+        },
+    ],
+    instance: &[],
+    slots: &[],
+    constants: &[],
+};
+
+/// `Core\Json`'s class card — `rule:core-api/reference-card`.
+const CARD: ClassDoc = ClassDoc {
+    short: "Converts values to JSON text and back. `encode` writes a value as JSON, `decode` reads \
+            JSON into arrays and scalars, and `decodeAs` reads it into a class or a shape. A \
+            document that is not valid JSON throws a `ParseError`.",
+};
+
+/// `Core\Json::encode`'s `{pretty?: bool, escapeUnicode?: bool}` — the two
+/// options that survive `json_encode`'s fifteen `JSON_*` flags.
+///
+/// Both default to `false`, which is `json_encode`'s own no-flags behaviour:
+/// the compact document, and UTF-8 written through. The other thirteen flags
+/// are gone rather than moved here — `rule:core-api/shape-rules` R20 leaves no room for a second
+/// spelling of an escaping rule that is already the crate's.
+/// `Core\Json::encode`'s reference card (`rule:core-api/reference-card`): each option is its own
+/// [`ParamDoc`] under the option's name, which is how [`MethodDoc::params`]
+/// says a bag is documented. What is stated here is what
+/// [`nvs_core_json_encode`] and [`Encodable`] do, and nothing the spec's § 6
+/// promises beyond them.
+const ENCODE_DOC: MethodDoc = MethodDoc {
+    short: "Serializes `$value` as JSON text. It can be a scalar, an array, an anonymous object \
+            or an instance of a class with `#[Json\\Derive]`. The text is on one line unless \
+            `pretty` is set.",
+    params: &[
+        ParamDoc {
+            name: "value",
+            desc: "The value to encode: `null`, `bool`, `int`, `uint`, `float`, `decimal`, \
+                   `string`, an array, a `{name: value}` shape, or an instance of a class \
+                   carrying `#[Json\\Derive]`.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "pretty",
+            desc: "Writes the output across several lines, with indentation. By default, the \
+                   output is on one line.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "escapeUnicode",
+            desc: "Writes every non-ASCII character as a `\\uXXXX` escape. By default, UTF-8 text \
+                   is written as it is.",
+            shape: &[],
+        },
+    ],
+    ret: "The JSON text. It is a `tainted string` when `$value` can contain text from outside \
+          the program. That is a `tainted` string, or a `mixed` or `object` value, anywhere \
+          inside it.",
+    errors: &[ErrorDoc {
+        error: "LogicError",
+        desc: "`$value` holds something JSON cannot spell: a `NaN` or infinite `float`, a value \
+               of a type with no JSON encoding, an instance of a class without \
+               `#[Json\\Derive]`, or nesting past 1024 levels.",
+    }],
+};
+
+/// `Core\Json::decode`'s reference card — `rule:core-api/reference-card`.
+const DECODE_DOC: MethodDoc = MethodDoc {
+    short: "Parses the JSON text `$json` into a value. A JSON object becomes a string-keyed \
+            array, a JSON array becomes a list, and a scalar stays a scalar. Text that is not \
+            valid JSON throws an error.",
+    params: &[
+        ParamDoc {
+            name: "json",
+            desc: "The JSON text to parse.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "maxDepth",
+            desc: "The deepest nesting allowed. A scalar document is depth 1, and `[1]` is depth \
+                   2. The default is `512`, and the largest value is `1024`.",
+            shape: &[],
+        },
+    ],
+    ret: "The decoded value: `null`, `bool`, `int`, `float`, `string`, or an array; a JSON object \
+          is always a string-keyed array, never an object.",
+    errors: &[
+        ErrorDoc {
+            error: "ParseError",
+            desc: "`$json` is not a valid JSON document, nests deeper than `maxDepth`, or contains \
+                   a whole number too large for `int`; the one issue it carries has an empty \
+                   path.",
+        },
+        ErrorDoc {
+            error: "LogicError",
+            desc: "`maxDepth` is `0` or above `1024`.",
+        },
+    ],
+};
+
+/// `Core\Json::decodeAs`'s reference card — `rule:core-api/reference-card`.
+const DECODE_AS_DOC: MethodDoc = MethodDoc {
+    short: "Parses the JSON object `$json` into an instance of `T`, a class carrying \
+            `#[Json\\Derive]`, reading every declared field and running the constructor only \
+            when all of them matched; write `array<T>` to read a JSON array as one instance \
+            per element instead. It replaces hand-written hydration.",
+    params: &[
+        ParamDoc {
+            name: "json",
+            desc: "The JSON text to parse, whose top level must be an object — or an array, \
+                   where `T` is written `array<C>`.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "maxDepth",
+            desc: "The deepest nesting allowed. A scalar document is depth 1, and `[1]` is depth \
+                   2. The default is `512`, and the largest value is `1024`.",
+            shape: &[],
+        },
+    ],
+    ret: "A new `T` built from the document's fields, or — for an `array<C>` — one new `C` per \
+          element, in the document's own order.",
+    errors: &[
+        ErrorDoc {
+            error: "ParseError",
+            desc: "`$json` is not a valid JSON document, nests deeper than `maxDepth`, contains \
+                   a whole number too large for `int`, is not an object at the top level (an \
+                   array, for an `array<C>`), or has fields that are missing or of the wrong \
+                   type — every failed field is one issue on the error, at its own path, and the \
+                   message counts them. A list stops at its first bad element, and each of its \
+                   paths carries that element's position.",
+        },
+        ErrorDoc {
+            error: "LogicError",
+            desc: "`T` has no JSON codec because it does not carry `#[Json\\Derive]`, or \
+                   `maxDepth` is `0` or above `1024`.",
+        },
+        ErrorDoc {
+            error: "RecursionError",
+            desc: "The call stack is full when a constructor runs. This happens when the call \
+                   starts with the stack almost full, or when a constructor recurses deeply. A \
+                   deep document within `maxDepth` does not throw this error.",
+        },
+    ],
+};
+
+/// `Core\Json::isValid`'s reference card — `rule:core-api/reference-card`.
+const IS_VALID_DOC: MethodDoc = MethodDoc {
+    short: "Checks whether `decode` accepts `$json` at the default depth of `512`. It parses the \
+            text to check it.",
+    params: &[ParamDoc {
+        name: "json",
+        desc: "The JSON text to check.",
+        shape: &[],
+    }],
+    ret: "`true` when `$json` parses; `false` for malformed text, nesting past `512`, or \
+          a whole number too large for `int`.",
+    errors: &[],
+};
+
+const ENCODE_OPTIONS: &[CoreOption] = &[
+    CoreOption {
+        name: "pretty",
+        ty: CoreTy::Bool,
+        default: Const::Bool(false),
+    },
+    CoreOption {
+        name: "escapeUnicode",
+        ty: CoreTy::Bool,
+        default: Const::Bool(false),
+    },
+];
+
+/// `Core\Json::decode`'s `{maxDepth?: uint}` — see [`DEFAULT_MAX_DEPTH`].
+///
+/// `pub(crate)` because `Core\Request::json` reads a document out of a request
+/// body and carries the same bag: one default for the depth of a JSON document,
+/// wherever the octets came from.
+pub(crate) const DECODE_OPTIONS: &[CoreOption] = &[CoreOption {
+    name: "maxDepth",
+    ty: CoreTy::Uint,
+    default: Const::Uint(DEFAULT_MAX_DEPTH),
+}];
+
+/// The address of one of *this* module's symbols, or `None` for a symbol that
+/// belongs to another domain. See [`crate::symbols`].
+pub(crate) fn address(symbol: &str) -> Option<*const u8> {
+    Some(match symbol {
+        "nvs_core_json_encode" => (nvs_core_json_encode as *const ()).cast(),
+        "nvs_core_json_decode" => (nvs_core_json_decode as *const ()).cast(),
+        "nvs_core_json_decode_as" => (nvs_core_json_decode_as as *const ()).cast(),
+        "nvs_core_json_is_valid" => (nvs_core_json_is_valid as *const ()).cast(),
+        _ => return None,
+    })
+}
+
+// ============================================================================
+// Depth
+// ============================================================================
+
+/// Spec § 6's default `maxDepth`, which is also PHP's `$depth` default.
+///
+/// Counted PHP's way: a scalar document is depth 1, so `[1]` is depth 2 and a
+/// `maxDepth` of 1 rejects it. That is the same arithmetic a program migrating
+/// from `json_decode` already has in its head.
+pub const DEFAULT_MAX_DEPTH: u64 = 512;
+
+/// The largest `maxDepth` a call may ask for.
+///
+/// The parse recurses — one Rust frame per JSON nesting level — so `maxDepth`
+/// is a bound on *stack*, and a `uint` option is user input, so the bound is a
+/// security one. A request past this
+/// throws rather than being silently clamped, because a clamp would make a
+/// document's acceptance depend on a number the call site never sees.
+///
+/// Twice [`DEFAULT_MAX_DEPTH`], which is the deepest anything real nests by
+/// four orders of magnitude. [`read`] parses a deep document on the thread's
+/// spare stack, and `a_document_at_the_ceiling_decodes_whatever_stack_the_caller_has`
+/// is the test that checks this many levels fit on it.
+pub const DEPTH_CEILING: u64 = 1024;
+
+/// The default is a depth a call may actually ask for, and both fit the `u32`
+/// the counters are — checked here rather than in a test, because a `const`
+/// assertion cannot be forgotten to run.
+const _: () = assert!(DEFAULT_MAX_DEPTH < DEPTH_CEILING);
+const _: () = assert!(DEPTH_CEILING < u32::MAX as u64);
+
+/// The `maxDepth` option, checked, for the member `who` names.
+///
+/// The member is a parameter because [`DECODE_OPTIONS`] is carried by every
+/// reader of a JSON document, including `Core\Request::json`, and a refusal
+/// that named this class regardless would send a program looking at a call it
+/// did not write.
+pub(crate) fn max_depth(value: &Value, who: &str) -> Result<u32, Fault> {
+    // Unreachable from source: `maxDepth` is a `CoreTy::Uint` option in
+    // `DECODE_OPTIONS` below, so `{maxDepth: $m}` over a `mixed` is `E0401:
+    // expected uint, found mixed` at the checker and the bag a call that
+    // omits it passes carries the `Const::Uint` default. The `1..=1024`
+    // refusal underneath is the reachable half, and it throws.
+    let asked = value.as_uint().ok_or_else(|| {
+        Fault::fatal(format!(
+            "{who} expected {:?} for the `maxDepth` option, got tag {}",
+            Tag::Uint,
+            value.tag_byte()
+        ))
+    })?;
+    if asked == 0 || asked > DEPTH_CEILING {
+        return Err(Fault::thrown_as(
+            ThrownClass::Logic,
+            format!("{who}(): a `maxDepth` of {asked} is outside 1..={DEPTH_CEILING}"),
+        ));
+    }
+    // The `1..=DEPTH_CEILING` refusal above is the boundary and it throws; this
+    // is its post-condition and is unreachable from source, since a value that
+    // got past it is at most 1024 and every `u64` that small is a `u32`.
+    u32::try_from(asked)
+        .map_err(|_| Fault::fatal(format!("{who}(): a checked `maxDepth` always fits a `u32`")))
+}
+
+// ============================================================================
+// Encoding
+// ============================================================================
+
+/// The encoding half of spec § 6's `Core\Json\Codec` — `toJson(): mixed`.
+/// `nvs_types::derive` owns the spelling as the half a `#[Json\Derive]`
+/// generates where the class does not write it, and `E0757` refuses an
+/// attribute on a class that wrote both. [`DECODE`] is its twin, and the two
+/// doors are read the same way: off the flattened method table, so a class
+/// inheriting the member is encoded through it.
+const ENCODE: &str = "toJson";
+
+/// The walk's door back into compiled code, and the way a [`Fault`] raised
+/// behind it gets out.
+///
+/// Two things the walk cannot hold for itself. The context is a **pointer**
+/// because one [`Reentry`] is shared by every level of a descent and by a
+/// hand-written [`ENCODE`] running inside it, so there is no `&mut` to thread
+/// down; it is re-derived for exactly the length of one call and never held
+/// across a nested walk, which is the same shape every helper's own ABI
+/// boundary gives a `Ctx`. The fault is behind a cell because a
+/// `serde_json::Error` is a string and a thrown class is not: the walk stops
+/// with an ordinary one and the [`Fault`] — a [`Fault::Pending`] whose
+/// exception object is already recorded on the context — is picked up by
+/// [`rendered`] on the way out.
+#[derive(Debug)]
+pub(crate) struct Reentry {
+    /// The context the member that is encoding holds.
+    ///
+    /// A reference is built from it for the length of one call into compiled
+    /// code and no longer, which is what makes a
+    /// [`Core\Json::encode`](nvs_core_json_encode) reached from inside a
+    /// `toJson` an ordinary nested walk rather than an alias: this walk is not
+    /// holding a reference of its own while that one runs.
+    ctx: *mut nvs_runtime::Ctx,
+    /// What a hand-written [`ENCODE`] raised, where that is what stopped the
+    /// walk, and `None` where the refusal was this encoder's own.
+    raised: std::cell::RefCell<Option<Fault>>,
+}
+
+impl Reentry {
+    /// The door, opened on the context of the member that is encoding.
+    fn new(ctx: &mut nvs_runtime::Ctx) -> Self {
+        Self {
+            ctx: std::ptr::from_mut(ctx),
+            raised: std::cell::RefCell::new(None),
+        }
+    }
+
+    /// Records `fault` and answers the `serde` error that stops the walk.
+    ///
+    /// The message is what a caller that never asks [`Self::raised`] would
+    /// render, so it names the member rather than describing the machinery;
+    /// every caller in this crate asks, and gets the class the member threw.
+    fn stopped_by<E: serde::ser::Error>(&self, fault: Fault, class: &str) -> E {
+        *self.raised.borrow_mut() = Some(fault);
+        E::custom(format!("`{class}::{ENCODE}()` did not answer a document"))
+    }
+
+    /// The fault a member raised, taken, and `None` where the walk stopped on
+    /// something this encoder itself refused.
+    fn raised(&self) -> Option<Fault> {
+        self.raised.take()
+    }
+}
+
+/// One whole document being written as JSON: the value at its root, and the
+/// door back into compiled code every level under it shares.
+///
+/// `Copy`, and holding the [`Value`] by value rather than by reference: a
+/// `Value` is sixteen bytes the caller owns for the length of the call, and
+/// every array this walks into is reached through a *borrowed* handle
+/// ([`crate::arr::borrowed`]) that takes no reference of its own. Where the
+/// walk has got to lives on [`Stack`] rather than here.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct Encodable<'a> {
+    value: Value,
+    /// The door a class that wrote [`ENCODE`] is encoded through. Borrowed
+    /// rather than held, so every level of one walk shares the one context and
+    /// the one place a raised fault lands.
+    walk: &'a Reentry,
+}
+
+/// One container the walk is inside, and where it has got to in it.
+///
+/// The stack of these **is** the descent: a document's nesting is a `Vec` on
+/// the heap rather than a chain of native frames, so what bounds an encode is
+/// [`DEPTH_CEILING`] and not whatever stack the thread happens to have been
+/// given. It is also the ancestor chain
+/// `rule:classes/an-encoder-ends-a-cycle-by-identity` decides a cycle against,
+/// and the path a message names a value with.
+#[derive(Debug)]
+struct Frame {
+    /// The allocation's address, which is a live value's identity. An object
+    /// and an array are distinct allocations, so one `usize` answers for both.
+    id: usize,
+    /// The container as the value that holds a reference to it — what
+    /// [`Standing`] retains before a hand-written member runs, and the handle
+    /// every step of this frame is re-borrowed from, so the frame holds no
+    /// borrow of its own and the `Vec` stays plain data.
+    value: Value,
+    /// Where the walk has got to inside it.
+    at: Cursor,
+    /// Whether an entry has been written already, which is the `first` every
+    /// [`Formatter`] separator asks for.
+    wrote: bool,
+}
+
+/// A frame at its widest, which is the half of [`Stack`]'s per-request cost
+/// the code enforces — this module's § *The walk carries its own stack* states
+/// the product.
+const _: () = assert!(std::mem::size_of::<Frame>() <= 64);
+
+/// Where a [`Frame`] has got to: the entry it is in, and the one to look at
+/// next.
+///
+/// The entry it is in is held as a *position* rather than as a key, because
+/// the key is the array's or the descriptor's own and re-reading it costs
+/// nothing until a message asks for a path, which almost no encode does.
+#[derive(Debug)]
+enum Cursor {
+    /// An array's entries: the slot to look at next, the slot the walk is in,
+    /// and whether this array's keys made it a JSON array rather than a JSON
+    /// object.
+    Entries { next: usize, at: usize, list: bool },
+    /// An `rule:types/anonymous-object` shape's slots, written under each field's
+    /// own name.
+    Shape { next: usize, at: usize },
+    /// A declared class's derived codec fields, by position in
+    /// [`ClassDesc::codec`].
+    Fields { next: usize, at: usize },
+    /// What a hand-written [`ENCODE`] answered, written where the object was:
+    /// one value, no punctuation of its own, and no path segment either.
+    Returned { produced: Value, written: bool },
+}
+
+/// The document being written, and the crate's own writer for every byte of it.
+///
+/// `serde_json`'s [`Formatter`] decides each structural byte — the braces, the
+/// commas, the `pretty` profile's indentation — and one scalar at a time goes
+/// through the crate's serializer for its escaping and its number formatting.
+/// The calls below are made in the order `serde_json`'s own serializer makes
+/// them, so a [`PrettyFormatter`], whose indentation is state it carries
+/// between them, writes what `serde_json::to_string_pretty` would have.
+struct Sink<F> {
+    out: Vec<u8>,
+    fmt: F,
+}
+
+/// What a write into [`Sink`]'s buffer cannot be.
+const INFALLIBLE: &str = "a `Vec<u8>` sink never fails a write";
+
+impl<F: Formatter> Sink<F> {
+    /// One scalar, spelled by the crate: its escaping, its number formatting.
+    ///
+    /// A fresh serializer per scalar rather than one held across the walk,
+    /// which is what lets the structure above it be a loop instead of a
+    /// recursion. The bytes are the same either way — a scalar has no
+    /// punctuation for a formatter to profile.
+    ///
+    /// # Errors
+    ///
+    /// Whatever the crate refuses to write, which for the tags reaching here is
+    /// nothing.
+    fn scalar<T: Serialize + ?Sized>(&mut self, value: &T) -> Result<(), serde_json::Error> {
+        serde_json::to_writer(&mut self.out, value)
+    }
+
+    fn open_array(&mut self) {
+        self.fmt.begin_array(&mut self.out).expect(INFALLIBLE);
+    }
+
+    fn close_array(&mut self) {
+        self.fmt.end_array(&mut self.out).expect(INFALLIBLE);
+    }
+
+    fn open_element(&mut self, first: bool) {
+        self.fmt
+            .begin_array_value(&mut self.out, first)
+            .expect(INFALLIBLE);
+    }
+
+    fn close_element(&mut self) {
+        self.fmt.end_array_value(&mut self.out).expect(INFALLIBLE);
+    }
+
+    fn open_object(&mut self) {
+        self.fmt.begin_object(&mut self.out).expect(INFALLIBLE);
+    }
+
+    fn close_object(&mut self) {
+        self.fmt.end_object(&mut self.out).expect(INFALLIBLE);
+    }
+
+    /// The separator, the key and the colon that reach one entry's value.
+    ///
+    /// # Errors
+    ///
+    /// As [`Sink::scalar`]'s, the key being a string like any other.
+    fn key(&mut self, first: bool, name: &str) -> Result<(), serde_json::Error> {
+        self.fmt
+            .begin_object_key(&mut self.out, first)
+            .expect(INFALLIBLE);
+        self.scalar(name)?;
+        self.fmt.end_object_key(&mut self.out).expect(INFALLIBLE);
+        self.fmt
+            .begin_object_value(&mut self.out)
+            .expect(INFALLIBLE);
+        Ok(())
+    }
+
+    fn close_entry(&mut self) {
+        self.fmt.end_object_value(&mut self.out).expect(INFALLIBLE);
+    }
+}
+
+/// The walk's own stack, on the heap.
+///
+/// Empty at the document and never longer than [`DEPTH_CEILING_FRAMES`],
+/// because the arms refuse to descend past that — so the walk's native cost is
+/// one frame whatever the document does, and the ceiling is a bound the encoder
+/// keeps rather than a number the thread's stack decides first.
+#[derive(Debug)]
+struct Stack {
+    frames: Vec<Frame>,
+}
+
+impl Drop for Stack {
+    /// What a [`Cursor::Returned`] still holds, released.
+    ///
+    /// The ordinary path releases as it pops ([`Stack::close`]); this is the
+    /// refusal path, where the walk stops with frames still open. A popped
+    /// frame is gone from the `Vec`, so nothing is released twice.
+    fn drop(&mut self) {
+        for frame in self.frames.drain(..) {
+            if let Cursor::Returned { produced, .. } = frame.at {
+                #[expect(
+                    unsafe_code,
+                    reason = "`call_method` handed this frame a fresh reference and \
+                              the walk above it kept none of it"
+                )]
+                unsafe {
+                    produced.release();
+                }
+            }
+        }
+    }
+}
+
+impl<'a> Encodable<'a> {
+    /// A whole document — the value at the top level, which is where
+    /// [`DEFAULT_MAX_DEPTH`] counts from.
+    ///
+    /// A constructor rather than public fields because a document is the only
+    /// thing this may be: a caller outside this module has no business starting
+    /// a walk part-way down, and [`crate::log`] — the second writer of a JSON
+    /// value in this crate, and the reason this type is `pub(crate)` at all —
+    /// writes a `fields` bag that is a document exactly as `Core\Json::encode`'s
+    /// argument is. One encoder, so a `float` or a nested array cannot be
+    /// spelled two ways depending on which member wrote it.
+    pub(crate) fn document(walk: &'a Reentry, value: Value) -> Self {
+        Self { value, walk }
+    }
+
+    /// The whole document, written through `fmt`'s punctuation.
+    ///
+    /// A loop over [`Stack`] rather than a recursion: one value is written per
+    /// turn, and a container pushes a frame the next turn steps into, so the
+    /// only thing a document's nesting spends is that `Vec`. Every
+    /// [`Formatter`] call is made in the order `serde_json`'s own serializer
+    /// makes it — separator, key, colon, value, end — because a
+    /// [`PrettyFormatter`] carries its indentation between them.
+    ///
+    /// # Errors
+    ///
+    /// The refusal that stopped the walk. Where a hand-written [`ENCODE`] is
+    /// what refused, its [`Fault`] is on [`Reentry`] for [`rendered`] to
+    /// prefer, and this is the message nobody reads.
+    fn written<F: Formatter>(self, fmt: F) -> Result<String, serde_json::Error> {
+        let mut sink = Sink {
+            out: Vec::new(),
+            fmt,
+        };
+        let mut stack = Stack { frames: Vec::new() };
+        let mut next = Some(self.value);
+        loop {
+            if let Some(value) = next.take() {
+                if !stack.value(self.walk, value, &mut sink)? {
+                    stack.finished(&mut sink);
+                }
+            } else if stack.frames.is_empty() {
+                break;
+            } else if let Some(value) = stack.advance(&mut sink)? {
+                next = Some(value);
+            } else {
+                stack.close(&mut sink);
+                stack.finished(&mut sink);
+            }
+        }
+        #[expect(
+            unsafe_code,
+            reason = "every byte above came from `serde_json`, which emits UTF-8 \
+                      — the same step and the same reason as that crate's own \
+                      `to_string`"
+        )]
+        let written = unsafe { String::from_utf8_unchecked(sink.out) };
+        Ok(written)
+    }
+}
+
+/// Every value the walk is standing on, held for the length of one call into
+/// compiled code.
+///
+/// What the walk is still reading through, at every level, is a *borrowed*
+/// handle over an allocation and a cursor into it — [`crate::arr::borrowed`]
+/// and the `ManuallyDrop<NvsObj>` beside it, neither of which takes a reference
+/// of its own. A member free to run any code at all can drop the last reference
+/// to any of them: a static property reassigned, a property overwritten, a
+/// local released. So each is retained before the call and released after, and
+/// a retained array is a **shared** one, which sends a write the member makes
+/// to a container the walk is inside down the copy-on-write path and leaves
+/// this walk's own allocation alone.
+///
+/// A guard rather than two loops around the call site, so an unwind releases
+/// exactly what it took.
+struct Standing<'a> {
+    /// The value the member is about to be called on.
+    value: Value,
+    /// Every container it is inside, which is the walk's own stack.
+    frames: &'a [Frame],
+}
+
+impl<'a> Standing<'a> {
+    /// The path under `value`, retained — `value` itself included, since the
+    /// member is about to be called on it.
+    fn under(value: Value, frames: &'a [Frame]) -> Self {
+        for held in standing_on(value, frames) {
+            #[expect(
+                unsafe_code,
+                reason = "every value on the path is live where this walk reached \
+                          it, and the reference taken here is dropped in `drop`"
+            )]
+            unsafe {
+                held.retain();
+            }
+        }
+        Self { value, frames }
+    }
+}
+
+impl Drop for Standing<'_> {
+    fn drop(&mut self) {
+        for held in standing_on(self.value, self.frames) {
+            #[expect(
+                unsafe_code,
+                reason = "exactly the references `under` took, dropped once: the \
+                          stack is not edited while a member runs"
+            )]
+            unsafe {
+                held.release();
+            }
+        }
+    }
+}
+
+/// Every value the walk is standing on, innermost first: `value`, then each
+/// container it is inside up to the document.
+///
+/// The stack is the path and not everything already written, so this is as long
+/// as the nesting level and no longer — [`DEPTH_CEILING`], which the arms check
+/// before they descend.
+fn standing_on(value: Value, frames: &[Frame]) -> impl Iterator<Item = Value> + '_ {
+    std::iter::once(value).chain(frames.iter().rev().map(|frame| frame.value))
+}
+
+/// [`DEPTH_CEILING`] as the length [`Stack`] is capped at: the document is
+/// level 1, so the deepest container allowed to descend leaves one frame short
+/// of the ceiling.
+#[expect(
+    clippy::cast_possible_truncation,
+    reason = "DEPTH_CEILING is a small constant; `a_document_at_the_ceiling_decodes` \
+              pins its value"
+)]
+const DEPTH_CEILING_FRAMES: usize = DEPTH_CEILING as usize - 1;
+
+/// One refusal, as the error every door into this encoder answers with.
+///
+/// The walk writes the document's structure itself, so no serializer is left to
+/// raise this — the type stays `serde_json`'s because a caller words its own
+/// message out of one ([`document`]) and because a scalar the crate itself
+/// refuses arrives as the same type.
+fn refuse(why: impl fmt::Display) -> serde_json::Error {
+    serde_json::Error::custom(why)
+}
+
+/// A live object's handle and the descriptor its class compiled in, and `None`
+/// where `value` is not an object.
+///
+/// Both are borrows nothing here drops: the handle takes no reference of its
+/// own, and a descriptor is owned by the compiled unit that defined the class,
+/// which outlives every instance of it.
+fn described(value: Value) -> Option<(std::mem::ManuallyDrop<NvsObj>, &'static ClassDesc)> {
+    let ptr = value.obj_ptr()?;
+    #[expect(
+        unsafe_code,
+        reason = "the value owns a reference to a live allocation, so it is live \
+                  for this borrow; the handle is never dropped, so the reference \
+                  is not released twice"
+    )]
+    let object = std::mem::ManuallyDrop::new(unsafe { NvsObj::from_raw(ptr) });
+    #[expect(
+        unsafe_code,
+        reason = "a live object's descriptor is owned by the compiled unit that \
+                  defined its class, which outlives every instance of it"
+    )]
+    let desc = unsafe { &*object.class() };
+    Some((object, desc))
+}
+
+/// One more segment on a dotted path.
+fn step(path: &mut String, name: &str) {
+    if !path.is_empty() {
+        path.push('.');
+    }
+    path.push_str(name);
+}
+
+impl Frame {
+    /// The next value this frame has for the walk, with everything that reaches
+    /// it already written: the separator, and for an object the key and the
+    /// colon. `None` once the frame is spent.
+    ///
+    /// # Errors
+    ///
+    /// An array key that is not UTF-8 — JSON has nowhere to put one — and a
+    /// slot the class descriptor does not name.
+    fn advance<F: Formatter>(
+        &mut self,
+        sink: &mut Sink<F>,
+    ) -> Result<Option<Value>, serde_json::Error> {
+        let first = !self.wrote;
+        let held = self.value;
+        match &mut self.at {
+            Cursor::Returned { produced, written } => {
+                if *written {
+                    return Ok(None);
+                }
+                *written = true;
+                Ok(Some(*produced))
+            }
+            Cursor::Entries { next, at, list } => {
+                let ptr = held
+                    .array_ptr()
+                    .ok_or_else(|| refuse("a `Tag::Array` value is always an array"))?;
+                let array = crate::arr::borrowed(ptr);
+                let Some(slot) = array.next_slot(*next) else {
+                    return Ok(None);
+                };
+                let value = array
+                    .value_at(slot)
+                    .expect("next_slot only names live entries");
+                *at = slot;
+                *next = slot + 1;
+                if *list {
+                    sink.open_element(first);
+                } else {
+                    let key = array
+                        .key_at(slot)
+                        .expect("next_slot only names live entries");
+                    let name = std::str::from_utf8(key.as_bytes()).map_err(|_| {
+                        refuse("an array key that is not UTF-8 has no JSON encoding")
+                    })?;
+                    sink.key(first, name)?;
+                }
+                Ok(Some(value))
+            }
+            Cursor::Shape { next, at } => {
+                let (object, desc) = described(held)
+                    .ok_or_else(|| refuse("a `Tag::Object` value is always an object"))?;
+                while *next < desc.field_count() {
+                    let slot = *next;
+                    *next += 1;
+                    let value = object.field(slot);
+                    // An optional field the document a hydration read did not
+                    // carry (`rule:types/shape-type`) is the never-written
+                    // storage state, so the key that was absent on the way in
+                    // is absent on the way out. Nothing else can put a slot in
+                    // that state — an anonymous object writes every one of its
+                    // fields — and reading it from Novis is that rule's own
+                    // catchable throw, which is not this encoder's answer to
+                    // give.
+                    if value.tag() == Some(Tag::Unset) {
+                        continue;
+                    }
+                    let name = desc
+                        .field_name(slot)
+                        .ok_or_else(|| refuse("a slot below the field count is named"))?;
+                    *at = slot;
+                    sink.key(first, name)?;
+                    return Ok(Some(value));
+                }
+                Ok(None)
+            }
+            Cursor::Fields { next, at } => {
+                let (object, desc) = described(held)
+                    .ok_or_else(|| refuse("a `Tag::Object` value is always an object"))?;
+                let Some(field) = desc.codec().get(*next) else {
+                    return Ok(None);
+                };
+                *at = *next;
+                *next += 1;
+                sink.key(first, &field.key)?;
+                // A borrowed read, exactly as `nvs_ir::InstKind::FieldGet` is:
+                // the object holds the reference for the length of this call
+                // and nothing here hands the value on to Novis code.
+                Ok(Some(object.field(field.slot)))
+            }
+        }
+    }
+
+    /// This frame's step towards the value inside it, appended to `path`.
+    ///
+    /// Read off the cursor rather than held beside it, so a walk no message
+    /// ever asks a path of spends nothing on one. A [`Cursor::Returned`]
+    /// contributes nothing: the document holds the member's answer where the
+    /// object was, so a value inside it is named by the object's own path and
+    /// not by a step no key spells.
+    fn segment(&self, path: &mut String) {
+        match self.at {
+            Cursor::Returned { .. } => {}
+            Cursor::Entries { at, .. } => {
+                let Some(ptr) = self.value.array_ptr() else {
+                    return;
+                };
+                let array = crate::arr::borrowed(ptr);
+                let Some(key) = array.key_at(at) else {
+                    return;
+                };
+                if let Ok(name) = std::str::from_utf8(key.as_bytes()) {
+                    step(path, name);
+                }
+            }
+            Cursor::Shape { at, .. } => {
+                let Some((_, desc)) = described(self.value) else {
+                    return;
+                };
+                if let Some(name) = desc.field_name(at) {
+                    step(path, name);
+                }
+            }
+            Cursor::Fields { at, .. } => {
+                let Some((_, desc)) = described(self.value) else {
+                    return;
+                };
+                if let Some(field) = desc.codec().get(at) {
+                    step(path, &field.key);
+                }
+            }
+        }
+    }
+}
+
+impl Stack {
+    /// One value written where the walk has reached, answering whether it
+    /// opened a frame of its own rather than writing a whole value.
+    ///
+    /// The scalar arms are the crate's spelling of each tag; the two container
+    /// arms push and let the loop step in.
+    ///
+    /// # Errors
+    ///
+    /// A value with no JSON encoding at all — a `bytes` buffer, a non-finite
+    /// `float`, an instance of a class that declared no codec — and whatever
+    /// the descent itself refuses.
+    fn value<F: Formatter>(
+        &mut self,
+        walk: &Reentry,
+        value: Value,
+        sink: &mut Sink<F>,
+    ) -> Result<bool, serde_json::Error> {
+        match value.tag() {
+            Some(Tag::Null) => sink.scalar(&())?,
+            Some(Tag::Bool) => sink.scalar(&value.as_bool().unwrap_or(false))?,
+            Some(Tag::Int) => sink.scalar(&value.as_int().unwrap_or(0))?,
+            Some(Tag::Uint) => sink.scalar(&value.as_uint().unwrap_or(0))?,
+            Some(Tag::Float) => {
+                let number = value.as_float().unwrap_or(0.0);
+                if !number.is_finite() {
+                    // Spelled the way `echo` would spell it — `INF`, not
+                    // Rust's `inf` — so the value the message quotes back is
+                    // the one the program can see for itself.
+                    return Err(refuse(format!(
+                        "`{}` has no JSON spelling — JSON has no `NaN` and no `Infinity`",
+                        nvs_runtime::php_float_to_string(number)
+                    )));
+                }
+                sink.scalar(&number)?;
+            }
+            // `rule:types/decimal`'s scalar is exact and JSON's one number type is
+            // an `f64` in every consumer that reads it — this module's own, in
+            // [`Decode`], as much as a browser's — so a `decimal` is written as
+            // a **string**: `"19.99"`, digits and scale intact. That is the
+            // spelling [`scalar`] reads back, so `Core\Json::encode` and
+            // `decodeAs<T>` are one round trip rather than a pair that loses
+            // digits at the seam, which is the same refusal to degrade the
+            // integer band above is written for.
+            Some(Tag::Decimal) => {
+                let text = value
+                    .as_decimal()
+                    .ok_or_else(|| refuse("a `Tag::Decimal` value is always a decimal"))?
+                    .to_string();
+                sink.scalar(text.as_str())?;
+            }
+            // `rule:types/bytes` makes a `string` guaranteed-valid UTF-8 and
+            // [`Tag::Bytes`] is its own tag over the shared allocation, so "the
+            // caller passed binary data into a text format" is the arm below
+            // rather than a failure here — what is left is the tag check
+            // itself, which is exactly what [`Value::as_text`] is.
+            Some(Tag::Str) => {
+                let text = value
+                    .as_text()
+                    .ok_or_else(|| refuse("a `Tag::Str` value always has text"))?;
+                sink.scalar(text)?;
+            }
+            Some(Tag::Array) => return self.array(value, sink),
+            Some(Tag::Object) => return self.object(walk, value, sink),
+            // The tag is named rather than numbered: `bytes` is the arm a
+            // program actually reaches, and a caller who handed a buffer to a
+            // text format needs to be told *that* rather than told a number
+            // only this crate can read.
+            Some(tag) => {
+                return Err(refuse(format!(
+                    "a `{}` value has no JSON encoding",
+                    tag.describe()
+                )));
+            }
+            None => {
+                return Err(refuse(format!(
+                    "tag {} has no JSON encoding",
+                    value.tag_byte()
+                )));
+            }
+        }
+        Ok(false)
+    }
+
+    /// An object, as the document its class declares: the [`ENCODE`] it wrote
+    /// itself, and where it wrote none its
+    /// `rule:core-classes/derive-attribute` derived codec — one entry per
+    /// field, in declaration order, under the field's own wire key.
+    ///
+    /// The field list is compiled in — `nvs_runtime::ClassDesc::codec`, filled
+    /// by `nvs-codegen` from what `nvs_types::derive` read off the declaration
+    /// — so the one question this asks the program at run time is the one a
+    /// class that wrote its own encoder answers, and [`Self::answered`] is
+    /// where that goes. Neither a member nor a field list means the class
+    /// carries no `#[Json\Derive]` and wrote nothing either, which is the
+    /// refusal `rule:core-api/written-participation` asks
+    /// for: participation in a wire format is written, never inferred.
+    ///
+    /// Two instances are not declared classes and answer before either is
+    /// read. An `rule:types/anonymous-object` shape encodes as a JSON object
+    /// keyed by its own field names, and a `Core\Time\Instant` as the RFC 3339
+    /// string this module's § *A value type crosses as text* fixes it at;
+    /// neither is an exception to the rule above, because neither has a
+    /// declaration to carry an attribute and both are wire forms the language
+    /// names rather than a program does —
+    /// `rule:core-classes/derive-generates-what-is-missing` owns the first and
+    /// that section the second.
+    fn object<F: Formatter>(
+        &mut self,
+        walk: &Reentry,
+        value: Value,
+        sink: &mut Sink<F>,
+    ) -> Result<bool, serde_json::Error> {
+        self.room()?;
+        let ptr = value
+            .obj_ptr()
+            .ok_or_else(|| refuse("a `Tag::Object` value is always an object"))?;
+        // Before a field is read, so the walk turns back at the first repeat
+        // rather than at the ceiling above —
+        // `rule:classes/an-encoder-ends-a-cycle-by-identity`. An instance is
+        // the half of the graph that can close a cycle at all: a property
+        // holds a reference, where an array entry holds a copy.
+        let id = ptr as usize;
+        if let Some(cycle) = self.cycle(id) {
+            return Err(cycle);
+        }
+        let (_, desc) =
+            described(value).ok_or_else(|| refuse("a `Tag::Object` value is always an object"))?;
+        // `rule:types/anonymous-object`'s shape, before the codec is read: a shape is a bag of
+        // named fields with no declaration to hang `#[Json\Derive]` on, so the
+        // refusal below has nothing to ask it for — `rule:core-classes/derive-generates-what-is-missing`. Its slots are
+        // walked the way an array's entries are, each value spelled by its own
+        // tag, because the class is keyed on field *names* alone
+        // (`nvs_ir::lower::shape_class_label`) and so has no per-field wire
+        // type a `CodecField` could honestly carry: `{n: 1}` and `{n: "s"}` are
+        // one class. Key order is that label's, which is sorted, so a shape's
+        // document is byte-deterministic on `rule:core-classes/derive-field-list`'s terms.
+        if desc.is_shape() {
+            sink.open_object();
+            self.frames.push(Frame {
+                id,
+                value,
+                at: Cursor::Shape { next: 0, at: 0 },
+                wrote: false,
+            });
+            return Ok(true);
+        }
+        // `Core\Time\Instant`, whose wire form is RFC 3339 text rather than the
+        // object its two slots would spell — this module's § *A value type
+        // crosses as text* owns the decision and
+        // [`crate::time::instant_from_iso`] is the half that reads it back. A `Core` value type declares no member a codec could be
+        // generated from, so the refusal below would otherwise be the only
+        // answer a wire type of its own already has.
+        if crate::instance::is_instance(value, &crate::time::INSTANT) {
+            let text = crate::time::instant_iso(value).ok_or_else(|| {
+                refuse(
+                    "a `Core\\Time\\Instant` holds a second and a nanosecond that are \
+                     no point on the timeline",
+                )
+            })?;
+            sink.scalar(text.as_str())?;
+            return Ok(false);
+        }
+        // `rule:core-classes/derive-generates-what-is-missing` read at the one
+        // place the two encoders part, and read first: the derive fills in the
+        // half the class does not write, so where the class wrote this half the
+        // encoding **is** that member, and a field list recorded beside it —
+        // the class carrying the attribute as well — is the decoder's alone.
+        // The table is the flattened chain, so a class inheriting the member
+        // encodes through it.
+        if desc.method(ENCODE).is_some() {
+            let produced = self.answered(walk, value, desc.name())?;
+            self.frames.push(Frame {
+                id,
+                value,
+                at: Cursor::Returned {
+                    produced,
+                    written: false,
+                },
+                wrote: false,
+            });
+            return Ok(true);
+        }
+        if desc.codec().is_empty() {
+            return Err(refuse(format!(
+                "an instance of `{}` has no JSON encoding — a class participates by \
+                 carrying `#[Json\\Derive]` or by writing `{ENCODE}` itself",
+                desc.name()
+            )));
+        }
+        sink.open_object();
+        self.frames.push(Frame {
+            id,
+            value,
+            at: Cursor::Fields { next: 0, at: 0 },
+            wrote: false,
+        });
+        Ok(true)
+    }
+
+    /// What this value's class answers for it through the [`ENCODE`] it wrote
+    /// itself.
+    ///
+    /// The receiver goes over **borrowed**: `nvs_runtime::call_method` retains
+    /// it and every argument before it calls, because a compiled function
+    /// releases its parameters, and what comes back is a fresh reference this
+    /// frame owns. The walk is held still across the call ([`Standing`]),
+    /// because the member runs while every handle above it is still being read
+    /// through.
+    ///
+    /// # Errors
+    ///
+    /// The `serde` error that stops the walk, with the member's own [`Fault`]
+    /// left on [`Reentry`] for [`rendered`] to answer with — so a `LogicError` a
+    /// `toJson` threw reaches the program as that class rather than as this
+    /// encoder's refusal.
+    fn answered(
+        &self,
+        walk: &Reentry,
+        value: Value,
+        class: &str,
+    ) -> Result<Value, serde_json::Error> {
+        let standing = Standing::under(value, &self.frames);
+        let called = {
+            #[expect(
+                unsafe_code,
+                reason = "the pointer is the `&mut Ctx` the encoding member holds \
+                          for the whole walk, and this walk holds no reference of \
+                          its own: the one built here lives for this call alone"
+            )]
+            let ctx = unsafe { &mut *walk.ctx };
+            nvs_runtime::call_method(ctx, value, ENCODE, &[], "Core\\Json::encode")
+        };
+        drop(standing);
+        match called {
+            Ok(Some(produced)) => Ok(produced),
+            // Unreachable from source with no diagnostic to name: `None` is the
+            // answer for a class with no such method, and the arm that reached
+            // this door read that same method table one condition earlier.
+            Ok(None) => Err(refuse(format!(
+                "internal error: `{class}` answers `{ENCODE}` where the encoder asked its \
+                 class table and not where it called"
+            ))),
+            Err(fault) => Err(walk.stopped_by(fault, class)),
+        }
+    }
+
+    /// An array, as a JSON array if its keys are `0, 1, …, n-1` and a JSON
+    /// object otherwise — `Core\Arr::isList`'s rule, reached from here rather
+    /// than through a helper call.
+    ///
+    /// One rule, not an option: an Novis array is PHP's one ordered-map type, so
+    /// *something* has to decide, and `json_encode`'s own list test is the
+    /// answer every program migrating from PHP already expects.
+    fn array<F: Formatter>(
+        &mut self,
+        value: Value,
+        sink: &mut Sink<F>,
+    ) -> Result<bool, serde_json::Error> {
+        use std::fmt::Write as _;
+
+        self.room()?;
+        let ptr = value
+            .array_ptr()
+            .ok_or_else(|| refuse("a `Tag::Array` value is always an array"))?;
+        // An array is copied where an object is referenced, so this arm alone
+        // cannot close a cycle — but the allocation copy-on-write shares is
+        // reachable from an object that is inside it, and then the walk does
+        // not end. What the ancestor chain answers is that walk, not the
+        // language's value semantics: an address repeating on the current path
+        // is a descent with no bottom whichever tag it wears.
+        let id = ptr as usize;
+        if let Some(cycle) = self.cycle(id) {
+            return Err(cycle);
+        }
+        let array = crate::arr::borrowed(ptr);
+
+        let mut list = true;
+        let mut expected = String::new();
+        let mut index = 0usize;
+        let mut from = 0usize;
+        while let Some(slot) = array.next_slot(from) {
+            let key = array
+                .key_at(slot)
+                .expect("next_slot only names live entries");
+            expected.clear();
+            write!(expected, "{index}").expect("writing a usize into a String never fails");
+            if key.as_bytes() != expected.as_bytes() {
+                list = false;
+                break;
+            }
+            from = slot + 1;
+            index += 1;
+        }
+
+        if list {
+            sink.open_array();
+        } else {
+            sink.open_object();
+        }
+        self.frames.push(Frame {
+            id,
+            value,
+            at: Cursor::Entries {
+                next: 0,
+                at: 0,
+                list,
+            },
+            wrote: false,
+        });
+        Ok(true)
+    }
+
+    /// Room for one more level.
+    ///
+    /// # Errors
+    ///
+    /// The nesting refusal past [`DEPTH_CEILING`], which is a throw and never
+    /// an abort: what this bounds is the `Vec` above and not the thread's own
+    /// stack.
+    fn room(&self) -> Result<(), serde_json::Error> {
+        if self.frames.len() >= DEPTH_CEILING_FRAMES {
+            return Err(refuse(format!(
+                "a value nested past {DEPTH_CEILING} levels has no JSON encoding"
+            )));
+        }
+        Ok(())
+    }
+
+    /// The refusal `rule:classes/an-encoder-ends-a-cycle-by-identity` asks for
+    /// when the allocation at `id` is one this walk is already inside, and
+    /// `None` when it is not.
+    ///
+    /// The test is against the stack and never against everything already
+    /// written: an object two properties both hold is shared rather than
+    /// cyclic, and a format that cannot express sharing has no answer but to
+    /// write it twice. Only a repeat on the current path is a walk that would
+    /// not end, and it ends here — named by the chain that closed it, with no
+    /// marker invented in a document somebody else's reader parses.
+    fn cycle(&self, id: usize) -> Option<serde_json::Error> {
+        if !self.frames.iter().any(|frame| frame.id == id) {
+            return None;
+        }
+        // The document itself where there is no path to name, which is the
+        // value a hand-written [`ENCODE`] answered with at the top level: a
+        // [`Cursor::Returned`] contributes no segment, so the whole chain to it
+        // can be empty where an element's never is.
+        let path = self.path();
+        let at = if path.is_empty() {
+            "the document".to_owned()
+        } else {
+            format!("`{path}`")
+        };
+        Some(refuse(format!(
+            "a value that holds itself has no JSON encoding — {at} is a value \
+             it is already inside"
+        )))
+    }
+
+    /// The dotted chain of keys and positions from the document to the value
+    /// the walk is at, spelled as a decode's issue path is ([`path_of`]).
+    fn path(&self) -> String {
+        let mut path = String::new();
+        for frame in &self.frames {
+            frame.segment(&mut path);
+        }
+        path
+    }
+
+    /// The next value the innermost frame has, and `None` where it is spent.
+    ///
+    /// # Errors
+    ///
+    /// As [`Frame::advance`]'s.
+    fn advance<F: Formatter>(
+        &mut self,
+        sink: &mut Sink<F>,
+    ) -> Result<Option<Value>, serde_json::Error> {
+        match self.frames.last_mut() {
+            Some(frame) => frame.advance(sink),
+            None => Ok(None),
+        }
+    }
+
+    /// One whole value written, told to the level it belongs to — the comma the
+    /// next entry needs, and the `has_value` a [`PrettyFormatter`] closes a
+    /// container on.
+    fn finished<F: Formatter>(&mut self, sink: &mut Sink<F>) {
+        let Some(frame) = self.frames.last_mut() else {
+            return;
+        };
+        match frame.at {
+            Cursor::Returned { .. } => {}
+            Cursor::Entries { list: true, .. } => sink.close_element(),
+            _ => sink.close_entry(),
+        }
+        frame.wrote = true;
+    }
+
+    /// The innermost frame closed and popped: its own closing bracket, and what
+    /// a [`Cursor::Returned`] owns released.
+    ///
+    /// The member's answer is a reference that frame owns and the walk above it
+    /// kept none of, so it goes here whether that walk wrote a document or
+    /// refused one — [`Stack`]'s own `drop` is the refusing half.
+    fn close<F: Formatter>(&mut self, sink: &mut Sink<F>) {
+        let Some(frame) = self.frames.pop() else {
+            return;
+        };
+        match frame.at {
+            Cursor::Entries { list: true, .. } => sink.close_array(),
+            Cursor::Returned { produced, .. } => {
+                #[expect(
+                    unsafe_code,
+                    reason = "`call_method` hands back a fresh reference this frame \
+                              owns, and nothing else released it"
+                )]
+                unsafe {
+                    produced.release();
+                }
+            }
+            _ => sink.close_object(),
+        }
+    }
+}
+
+/// Every non-ASCII `char` of `text` rewritten as its `\uXXXX` escape —
+/// `{escapeUnicode: true}`. This module's own docs own why a post-pass is
+/// sound.
+fn escape_non_ascii(text: &str) -> String {
+    if text.is_ascii() {
+        return text.to_owned();
+    }
+    let mut out = String::with_capacity(text.len());
+    let mut buffer = [0u16; 2];
+    for ch in text.chars() {
+        if ch.is_ascii() {
+            out.push(ch);
+            continue;
+        }
+        for unit in ch.encode_utf16(&mut buffer) {
+            out.push_str("\\u");
+            for shift in [12, 8, 4, 0] {
+                let nibble = u32::from(*unit) >> shift & 0xf;
+                out.push(char::from_digit(nibble, 16).expect("a nibble is always a hex digit"));
+            }
+        }
+    }
+    out
+}
+
+/// `value` as one compact JSON document, refused under `member` where it holds
+/// something JSON cannot write.
+///
+/// [`Encodable`] and not a second walk, for that type's own reason: a `float`,
+/// a nested array and a cycle are spelled the same however the document was
+/// asked for. The caller outside this module is `Core\Test::answerHttp`, whose
+/// `json` option is a document exactly as [`nvs_core_json_encode`]'s argument
+/// is — a faked reply that spelled a number differently from a real one would
+/// be a fixture that passes against a client the wire would fail.
+///
+/// # Errors
+///
+/// A `LogicError`, named after `member`, for a value this encoder refuses —
+/// the program built it, so an unencodable one is a bug in the program. What a
+/// hand-written [`ENCODE`] raised instead travels out unchanged, so the class a
+/// `catch` names is the one that member threw.
+pub(crate) fn written(
+    ctx: &mut nvs_runtime::Ctx,
+    value: Value,
+    member: &str,
+) -> Result<String, Fault> {
+    document(ctx, value, |why| {
+        Fault::thrown_as(ThrownClass::Logic, format!("{member}(): {why}"))
+    })
+}
+
+/// [`written`] for a caller that words its own refusal — the members that write
+/// a document into something of their own (a claims payload, a job's `args`, an
+/// event's `data`) and say so in the message.
+///
+/// # Errors
+///
+/// `refused`'s fault for a value this encoder refuses, and whatever a
+/// hand-written [`ENCODE`] raised where that is what stopped the walk.
+pub(crate) fn document(
+    ctx: &mut nvs_runtime::Ctx,
+    value: Value,
+    refused: impl FnOnce(&serde_json::Error) -> Fault,
+) -> Result<String, Fault> {
+    rendered(ctx, value, false, refused)
+}
+
+/// The whole encoding half in one call: the walk, the option that frames it,
+/// and the one place a [`Fault`] a member raised is preferred to `serde`'s
+/// error.
+///
+/// Every door into this encoder comes through here, which is what makes the
+/// module's "one encoder" claim true of the hand-written half as well: a class
+/// that wrote `toJson` is called wherever a document is written, not only where
+/// `Core\Json::encode` wrote it.
+///
+/// # Errors
+///
+/// As [`document`]'s.
+fn rendered(
+    ctx: &mut nvs_runtime::Ctx,
+    value: Value,
+    pretty: bool,
+    refused: impl FnOnce(&serde_json::Error) -> Fault,
+) -> Result<String, Fault> {
+    let walk = Reentry::new(ctx);
+    let subject = Encodable::document(&walk, value);
+    let written = if pretty {
+        subject.written(PrettyFormatter::new())
+    } else {
+        subject.written(CompactFormatter)
+    };
+    written.map_err(|why| walk.raised().unwrap_or_else(|| refused(&why)))
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Json::encode(mixed $value, {pretty?: bool, escapeUnicode?: bool}): string`
+    /// — replacing `json_encode` and its fifteen `JSON_*` flags.
+    ///
+    /// Anything it cannot write throws a `LogicError`: the value was built by
+    /// the program, so an unencodable one is a bug in it rather than something
+    /// the world did. This module's own docs list what those are.
+    fn nvs_core_json_encode(ctx, args: [3]) {
+        let pretty = flag(&args[1], "pretty")?;
+        let escape = flag(&args[2], "escapeUnicode")?;
+        let written = rendered(ctx, args[0], pretty, |why| Fault::thrown_as(
+            ThrownClass::Logic,
+            format!("Core\\Json::encode(): {why}"),
+        ))?;
+        let written = if escape { escape_non_ascii(&written) } else { written };
+        Ok(Value::str(NvsStr::new(written.as_bytes())))
+    }
+}
+
+/// One `bool` option.
+fn flag(value: &Value, option: &str) -> Result<bool, Fault> {
+    // Unreachable from source: both callers pass an `ENCODE_OPTIONS` slot and
+    // both of those are `CoreTy::Bool`, so `{pretty: $m}` over a `mixed` is
+    // `E0401: expected bool, found mixed` at the checker.
+    value.as_bool().ok_or_else(|| {
+        Fault::fatal(format!(
+            "Core\\Json::encode expected {:?} for the `{option}` option, got tag {}",
+            Tag::Bool,
+            value.tag_byte()
+        ))
+    })
+}
+
+// ============================================================================
+// Decoding
+// ============================================================================
+
+/// The seed that turns one JSON value into one Novis [`Value`], at a known
+/// nesting level.
+///
+/// `Copy` and carried by value: a child is `Decode { depth: depth + 1, .. }`,
+/// so the recursion needs no borrow of a shared counter and no reset on the
+/// way back out.
+#[derive(Clone, Copy, Debug)]
+struct Decode {
+    /// This value's own nesting level; the document is 1.
+    depth: u32,
+    /// The level past which nothing is read — [`max_depth`]'s answer.
+    max: u32,
+}
+
+impl Decode {
+    /// This value's elements, one level deeper.
+    fn child(self) -> Self {
+        Self {
+            depth: self.depth + 1,
+            max: self.max,
+        }
+    }
+
+    /// The refusal a container at this level makes when its *contents* would
+    /// be past the cap.
+    fn too_deep<E: serde::de::Error>(self) -> E {
+        E::custom(format!(
+            "nesting is deeper than the `maxDepth` of {}",
+            self.max
+        ))
+    }
+}
+
+impl<'de> DeserializeSeed<'de> for Decode {
+    type Value = Value;
+
+    fn deserialize<D: Deserializer<'de>>(self, deserializer: D) -> Result<Value, D::Error> {
+        deserializer.deserialize_any(self)
+    }
+}
+
+impl<'de> Visitor<'de> for Decode {
+    type Value = Value;
+
+    fn expecting(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("a JSON value")
+    }
+
+    fn visit_unit<E: serde::de::Error>(self) -> Result<Value, E> {
+        Ok(Value::null())
+    }
+
+    fn visit_bool<E: serde::de::Error>(self, value: bool) -> Result<Value, E> {
+        Ok(Value::bool(value))
+    }
+
+    fn visit_i64<E: serde::de::Error>(self, value: i64) -> Result<Value, E> {
+        Ok(Value::int(value))
+    }
+
+    /// The one number arm that can refuse: a positive literal past
+    /// `i64::MAX` is spec § 6's "too large for `int`", and this module's
+    /// § *The refusals* owns how much further that band reaches.
+    fn visit_u64<E: serde::de::Error>(self, value: u64) -> Result<Value, E> {
+        i64::try_from(value)
+            .map(Value::int)
+            .map_err(|_| E::custom(format!("the integer {value} is too large for `int`")))
+    }
+
+    fn visit_f64<E: serde::de::Error>(self, value: f64) -> Result<Value, E> {
+        Ok(Value::float(value))
+    }
+
+    fn visit_str<E: serde::de::Error>(self, value: &str) -> Result<Value, E> {
+        Ok(Value::str(NvsStr::new(value.as_bytes())))
+    }
+
+    fn visit_seq<A: SeqAccess<'de>>(self, mut seq: A) -> Result<Value, A::Error> {
+        if self.depth >= self.max {
+            return Err(self.too_deep());
+        }
+        // The handle owns every element it is given, and releases them all if
+        // an element further along refuses — so a failed decode leaks nothing
+        // even though it stops half way.
+        let mut array = NvsArray::new();
+        while let Some(value) = seq.next_element_seed(self.child())? {
+            array.append(value);
+        }
+        Ok(Value::array(array))
+    }
+
+    fn visit_map<A: MapAccess<'de>>(self, mut map: A) -> Result<Value, A::Error> {
+        if self.depth >= self.max {
+            return Err(self.too_deep());
+        }
+        let mut array = NvsArray::new();
+        while let Some(key) = map.next_key::<String>()? {
+            let value = map.next_value_seed(self.child())?;
+            // A repeated key overwrites, exactly as `json_decode` into an
+            // associative array does.
+            array.set(NvsStr::new(key.as_bytes()), value);
+        }
+        Ok(Value::array(array))
+    }
+}
+
+/// The longest text [`read`] parses on the caller's own stack.
+///
+/// Each nesting level takes at least one byte, so a text this short nests at
+/// most this deep. A helper is entered with at least `nvs_runtime`'s
+/// `STACK_RESERVE` of stack left, and
+/// `the_deepest_short_text_parses_in_the_unwinding_reserve` checks that this many
+/// levels fit in it on the debug profile.
+const IN_PLACE_BYTES: usize = 64;
+
+/// Reads one whole document, refusing anything after it.
+///
+/// The parse takes one native frame per nesting level, so a text that could
+/// nest deeper than [`IN_PLACE_BYTES`] is parsed on the thread's spare stack
+/// (`nvs_host::on_spare_stack`), which holds [`DEPTH_CEILING`] levels on every
+/// profile. The parse calls no compiled code, which is what that stack needs.
+pub(crate) fn read(text: &str, max: u32) -> Result<Value, serde_json::Error> {
+    if text.len() <= IN_PLACE_BYTES {
+        parse(text, max)
+    } else {
+        nvs_host::on_spare_stack(|| parse(text, max))
+    }
+}
+
+/// [`read`]'s parse, on whatever stack it is called on.
+///
+/// `disable_recursion_limit` is deliberate and is what [`DEPTH_CEILING`]
+/// exists to make safe: `serde_json`'s own limit is 128, which is below spec
+/// § 6's default of [`DEFAULT_MAX_DEPTH`], so leaving it on would make the
+/// declared default unreachable. [`Decode`]'s own counter is the bound
+/// instead, and it is checked against a ceiling the call cannot raise.
+fn parse(text: &str, max: u32) -> Result<Value, serde_json::Error> {
+    let mut deserializer = serde_json::Deserializer::from_str(text);
+    deserializer.disable_recursion_limit();
+    let value = Decode { depth: 1, max }.deserialize(&mut deserializer)?;
+    match deserializer.end() {
+        Ok(()) => Ok(value),
+        Err(why) => {
+            #[expect(
+                unsafe_code,
+                reason = "the decoded value owns exactly the one reference `read` \
+                          would have handed back, and nothing else holds it"
+            )]
+            unsafe {
+                value.release();
+            }
+            Err(why)
+        }
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Json::decode(string $json, {maxDepth?: uint}): mixed` — replacing
+    /// `json_decode`, `json_last_error`, `json_last_error_msg` and `$depth`.
+    ///
+    /// Always the associative shape: there is no `$associative` flag, because
+    /// `rule:types/object-top`'s anonymous object is not what a JSON object decodes to —
+    /// `decodeAs<T>` is.
+    fn nvs_core_json_decode(_ctx, args: [2]) {
+        let text = text_of(&args[0], "decode")?;
+        let max = max_depth(&args[1], "Core\\Json::decode")?;
+        read(text, max).map_err(|why| {
+            // `rule:core-classes/derive-reports-every-field`'s last sentence: a malformed document records one
+            // issue, so a `catch (ParseError $e)` reads the same shape whether
+            // the failure was the syntax or the fields. Its `path` is empty —
+            // there is no field to point at when the document did not parse.
+            let message = format!("Core\\Json::decode(): {why}");
+            let issues = crate::issue::list([("", message.as_str())]);
+            Fault::thrown_with_issues(ThrownClass::Parse, message, issues)
+        })
+    }
+}
+
+// ============================================================================
+// Decoding into a class — `rule:core-classes/derive-attribute`'s generated decoder
+// ============================================================================
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Json::decodeAs<T>(string $json, {maxDepth?: uint}): T` — replacing
+    /// hand-written hydration.
+    ///
+    /// **Arguments 0 to 2 are what the call site wrote as its type argument**,
+    /// not values: `nvs_stdlib::registry::WRITTEN_CLASS_MEMBERS` puts this
+    /// member on the roster whose helper is handed a `nvs_runtime::ClassDesc`,
+    /// the `array<...>` flag and an inline shape's wire contract ahead of its
+    /// declared parameters, and that roster's docs own why. So the arity here
+    /// is three more than the registry row's.
+    fn nvs_core_json_decode_as(ctx, args: [5]) {
+        // Unreachable from source, because arguments 0 to 2 are not a
+        // program's values: `crate::registry::WRITTEN_CLASS_MEMBERS` is what
+        // puts the resolved `ClassDesc` in slot 0 and the list flag in slot 1,
+        // and `nvs_ir::lower` writes both out of the type argument at the call
+        // site. A call naming none is `E0442` — `takes 1 type argument(s)` —
+        // before any of this runs.
+        let class = args[0].as_class_desc().ok_or_else(|| Fault::fatal(
+            "internal error: `Core\\Json::decodeAs` was called with no class in argument 0",
+        ))?;
+        // Unreachable from source for the same reason and refused by the same
+        // `E0442`: slot 1 is the `ConstBool` the lowering emits beside the
+        // descriptor, so a call that has one has the other.
+        let list = args[1].as_bool().ok_or_else(|| Fault::fatal(
+            "internal error: `Core\\Json::decodeAs` was called with no list flag in argument 1",
+        ))?;
+        // Slot 2 is an inline shape's wire contract, and a written *class* gets
+        // the zero word there — which is the whole of what tells the two apart,
+        // since `Value::as_shape_codec` answers `None` for a zero payload. A
+        // shape class carries no codec of its own, so this is the only thing
+        // that says what `{n: int}`'s `n` is on the wire.
+        let shape = args[2].as_shape_codec();
+        let text = text_of(&args[3], "decodeAs")?;
+        let max = max_depth(&args[4], "Core\\Json::decodeAs")?;
+        #[expect(
+            unsafe_code,
+            reason = "the descriptor and the contract came out of the constants a \
+                      compiled unit owns, so both outlive this call and every \
+                      object made from it"
+        )]
+        unsafe {
+            decode_as(ctx, class, shape, text, max, list, "Core\\Json::decodeAs")
+        }
+    }
+}
+
+/// `rule:core-classes/derive-field-list`'s decode: the
+/// contract checked once, the document read once, and then one instance —
+/// or, for `list`, one per element of a JSON array.
+///
+/// The two shapes share this frame because the codec questions are the
+/// contract's and not the document's: an `Opaque` field is a decoder this crate
+/// has not written, whether it is asked for once or a thousand times.
+///
+/// `shape` is the wire contract where the call site wrote an inline shape
+/// rather than a class name, and `None` where it wrote one — [`Contract`] owns
+/// what the two answer differently.
+///
+/// `Core\Jwt::verifyIssued` is the one caller outside this module: a token's
+/// payload is a JSON document by the time its signature has held, so what that
+/// member owes its `T` is exactly this decode and not a second one written
+/// beside it.
+///
+/// # Safety
+///
+/// `class` must refer to a live descriptor whose method table `nvs-codegen`
+/// has filled, and `shape` to a live contract where it is `Some`.
+#[expect(
+    unsafe_code,
+    reason = "the caller owes the liveness of a descriptor no signature can express"
+)]
+pub(crate) unsafe fn decode_as(
+    ctx: &mut nvs_runtime::Ctx,
+    class: *const nvs_runtime::ClassDesc,
+    shape: Option<*const nvs_runtime::ShapeCodec>,
+    text: &str,
+    max: u32,
+    list: bool,
+    member: &str,
+) -> Result<Value, Fault> {
+    #[expect(unsafe_code, reason = "the caller guarantees the descriptor is live")]
+    unsafe {
+        check_codec(class, shape, member)?;
+    }
+    let document = read(text, max).map_err(|why| {
+        let message = format!("{member}(): {why}");
+        let issues = crate::issue::list([("", message.as_str())]);
+        Fault::thrown_with_issues(ThrownClass::Parse, message, issues)
+    })?;
+    #[expect(
+        unsafe_code,
+        reason = "the same live descriptor the caller vouched for"
+    )]
+    unsafe {
+        hydrate(ctx, class, shape, document, list, Reading::Wire, member)
+    }
+}
+
+/// The field list one decode walks and the class it fills: a class's own
+/// derived codec, or the wire contract an inline shape was written as at the
+/// call site.
+///
+/// One type rather than two decoders, because the two agree everywhere the
+/// document is concerned — `rule:types/shape-type`'s structural type is the
+/// same field list a `#[Json\Derive]` class carries, read off the type instead
+/// of off a declaration. Three questions have two answers, and every one of
+/// them is a caller of this:
+///
+/// * **Where the fields come from.** A shape class is keyed on its field names
+///   alone, so `{n: int}` and `{n: string}` are one
+///   [`nvs_runtime::ClassDesc`] and the per-field wire types live beside it in
+///   a [`nvs_runtime::ShapeCodec`].
+/// * **How the object is built** — [`build_shape`] against
+///   [`nvs_runtime::construct`].
+/// * **What an absent optional key and a `?T` mean** — [`decode_field`].
+#[derive(Clone, Copy)]
+struct Contract<'a> {
+    /// The class an instance is made of, kept as the pointer the two builders
+    /// take rather than only as the reference below.
+    class: *const nvs_runtime::ClassDesc,
+    /// That same descriptor, dereferenced once for every message and every
+    /// field-count question under this walk.
+    desc: &'a nvs_runtime::ClassDesc,
+    /// The wire contract, where a call site wrote an inline shape — and `None`
+    /// where it wrote a class name, which is the one bit everything above
+    /// branches on.
+    shape: Option<&'a nvs_runtime::ShapeCodec>,
+    /// What the values under this walk are, which is [`scalar`]'s one
+    /// question and no other caller's.
+    reading: Reading,
+}
+
+/// What the values one walk is handed already are — the second axis
+/// [`Contract`] carries, and the only one [`scalar`] reads.
+///
+/// A JSON document arrives *typed*: `1` is a number and `"1"` is a string,
+/// because the wire spelled them apart, so a `"1"` reaching an `int` field is
+/// a document that disagrees with the class it claims to be. A form, a query
+/// string and an array a program built arrive as whatever is in them — every
+/// value of a query string is text, and a field declaring `int` is asking for
+/// `rule:types/conversion`'s `string → int` row rather than for a wire type
+/// that was never there.
+///
+/// So the two doors differ in one place and share everything else: the field
+/// list, the presence column, the nesting, and — the reason this is one walk
+/// rather than two — the issue list a failure arrives as, which is what a
+/// program catches. Nothing new enters the conversion table for either;
+/// [`Values`] applies the rows `nvs_runtime::to_int` and its two siblings
+/// already answer for `$mixed as int`.
+///
+/// [`Values`]: Reading::Values
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Reading {
+    /// A JSON document's own types, matched exactly — `Core\Json::decodeAs`
+    /// and `Core\Request::jsonAs`.
+    Wire,
+    /// Loose values converted per field by `rule:types/conversion`'s table —
+    /// `Core\Arr::shapeAs` and the request wrappers over it.
+    Values,
+}
+
+impl<'a> Contract<'a> {
+    /// The contract for `class`, read against `shape` where the call site wrote
+    /// an inline shape rather than a class name.
+    ///
+    /// # Safety
+    ///
+    /// As [`decode_as`]'s: `class` must be live, and `shape` where it is
+    /// `Some`. `nvs-codegen` defines the two beside each other and the compiled
+    /// unit owns both for its life.
+    #[expect(
+        unsafe_code,
+        reason = "the caller owes the liveness of two addresses no signature can express"
+    )]
+    unsafe fn new(
+        class: *const nvs_runtime::ClassDesc,
+        shape: Option<*const nvs_runtime::ShapeCodec>,
+    ) -> Self {
+        #[expect(unsafe_code, reason = "the caller guarantees the descriptor is live")]
+        let desc = unsafe { &*class };
+        #[expect(unsafe_code, reason = "the caller guarantees the contract is live")]
+        let shape = shape.map(|codec| unsafe { &*codec });
+        Self {
+            class,
+            desc,
+            shape,
+            reading: Reading::Wire,
+        }
+    }
+
+    /// The same contract over values of `reading`.
+    ///
+    /// Set here rather than in [`Contract::new`] because [`check_codec`] asks
+    /// only what the *declaration* says, and a parameter it never reads on the
+    /// call every door already makes would be one more thing to get right for
+    /// nothing.
+    const fn over(self, reading: Reading) -> Self {
+        Self {
+            class: self.class,
+            desc: self.desc,
+            shape: self.shape,
+            reading,
+        }
+    }
+
+    /// Every field this decode walks, in the order the class lays its slots
+    /// out.
+    fn fields(&self) -> &'a [nvs_runtime::CodecField] {
+        match self.shape {
+            Some(codec) => codec.fields(),
+            None => self.desc.codec(),
+        }
+    }
+
+    /// The descriptor the `index`th field decodes into, or `None` where that
+    /// field names no class — [`nvs_runtime::ClassDesc::codec_class`] and
+    /// [`nvs_runtime::ShapeCodec::class`] being one question asked of two
+    /// tables.
+    fn class_at(&self, index: usize) -> Option<*const nvs_runtime::ClassDesc> {
+        match self.shape {
+            Some(codec) => codec.class(index),
+            None => self.desc.codec_class(index),
+        }
+    }
+
+    /// The contract the `index`th field decodes against, or `None` where that
+    /// field names no inline shape — [`Self::class_at`]'s question asked of the
+    /// same two tables for the second pointer a `CodecTy::Shape` needs, which
+    /// `nvs_runtime::CodecTy::Shape`'s own docs say why it needs.
+    fn shape_at(&self, index: usize) -> Option<*const nvs_runtime::ShapeCodec> {
+        match self.shape {
+            Some(codec) => codec.shape(index),
+            None => self.desc.codec_shape(index),
+        }
+    }
+
+    /// How many positions the walk fills: a shape's own field count, since it
+    /// writes slots, and a derived class's declared constructor arity.
+    fn arity(&self) -> usize {
+        match self.shape {
+            Some(codec) => codec.fields().len(),
+            None => self.desc.ctor_arity(),
+        }
+    }
+
+    /// The class's rendered name, which is what a message names — `$shape{n}`
+    /// for a shape, since that label is the only name it has.
+    fn name(&self) -> &'a str {
+        self.desc.name()
+    }
+
+    /// The descriptor an instance is made of.
+    const fn class(&self) -> *const nvs_runtime::ClassDesc {
+        self.class
+    }
+
+    /// Whether an inline shape's contract is what this walks.
+    const fn is_shape(&self) -> bool {
+        self.shape.is_some()
+    }
+
+    /// Whether the class wrote [`DECODE`] itself, which is the door a decode
+    /// takes instead of the field list —
+    /// `rule:core-classes/derive-generates-what-is-missing`'s "only the half
+    /// the class does not write", read at the one place the two doors part.
+    ///
+    /// Asked of a class only: an inline shape is a wire contract and has no
+    /// declaration a member could have been written on. Asked of the *whole*
+    /// chain, [`nvs_runtime::ClassDesc::method`] answering with the nearest
+    /// ancestor's body where the class declares no override, so a class
+    /// inheriting the member is decoded through it and builds itself —
+    /// `call_static_on` fills the called class, which is what `static` means
+    /// in the return the member declares.
+    fn writes_decoder(&self) -> bool {
+        self.shape.is_none() && self.desc.method(DECODE).is_some()
+    }
+}
+
+/// The questions `class` answers about itself before a document is read, for
+/// `member`.
+///
+/// Split out of [`decode_as`] because a caller that reads the document itself
+/// still owes them, and owes them in this order: `Core\Request::jsonAs` asks
+/// here before it claims the request body, so a class that could never have
+/// been built refuses without spending a reading on it.
+///
+/// A class that wrote [`DECODE`] itself answers none of them: that member is
+/// the decoder, so there is no field list under this call to have questions
+/// about, and [`hand_written`] is where the value goes instead.
+///
+/// # Safety
+///
+/// As [`decode_as`]'s.
+///
+/// # Errors
+///
+/// `LogicError` where `class` carries no codec at all — neither a derived field
+/// list nor a written [`DECODE`] — which is a defect in the program.
+/// `nvs_types::derive`'s `check_json_sites` says the same thing as `E0821`
+/// while compiling, so what is left here is the backstop for a descriptor built
+/// by hand, which no call site named.
+#[expect(
+    unsafe_code,
+    reason = "the caller owes the liveness of a descriptor no signature can express"
+)]
+pub(crate) unsafe fn check_codec(
+    class: *const nvs_runtime::ClassDesc,
+    shape: Option<*const nvs_runtime::ShapeCodec>,
+    member: &str,
+) -> Result<(), Fault> {
+    #[expect(
+        unsafe_code,
+        reason = "the caller guarantees the descriptor and the contract are live"
+    )]
+    let contract = unsafe { Contract::new(class, shape) };
+    if contract.writes_decoder() {
+        return Ok(());
+    }
+    let fields = contract.fields();
+    // Asked of a class only. An inline shape *is* a wire contract — there is no
+    // declaration it could have opted in on and nothing for this to send the
+    // reader to write, which is why the message names the two spellings a
+    // declaration has.
+    if fields.is_empty() && !contract.is_shape() {
+        return Err(Fault::thrown_as(
+            ThrownClass::Logic,
+            format!(
+                "{member}(): `{}` has no JSON codec — a class participates by \
+                 carrying `#[Json\\Derive]` or by writing `{DECODE}` itself",
+                contract.name()
+            ),
+        ));
+    }
+    // Checked before the document is even read: an undecoded field is a
+    // declared type `rule:core-classes/derive-field-list`'s reachable test
+    // already refused, not something the input did, so it is an engine fault
+    // rather than an issue in a list a program shows a user.
+    if let Some(field) = fields.iter().find(|field| {
+        undecoded(field.ty)
+            || field
+                .element
+                .as_ref()
+                .is_some_and(|element| element.any(undecoded))
+    }) {
+        return Err(Fault::fatal(format!(
+            "{member}(): `{}`'s `{}` field has a declared type no wire type describes — \
+             `rule:core-classes/derive-field-list`'s reachable test refuses that declaration, \
+             so reaching it here is the compiler disagreeing with itself",
+            contract.name(),
+            field.key
+        )));
+    }
+    Ok(())
+}
+
+/// Whether a wire type is one no JSON document can carry — written once so
+/// [`decode_as`]'s pre-check and [`decode_field`]'s own arm cannot come to hold
+/// different rosters.
+///
+/// Neither is reachable from a program `nvs_types::derive` accepted: an
+/// `Opaque` is a declared type its reachable test refuses outright, and a
+/// `bytes` is on the roster for completeness, `rule:types/bytes` giving it no
+/// JSON spelling at all. So both are a backstop against a descriptor built by
+/// hand rather than a decoder this crate still owes.
+const fn undecoded(ty: CodecTy) -> bool {
+    matches!(ty, CodecTy::Opaque | CodecTy::Bytes)
+}
+
+/// The decoding half of spec § 6's `Core\Json\Codec` —
+/// `static fromJson(mixed $value): static`. `nvs_types::derive` owns the
+/// spelling as the half a `#[Json\Derive]` generates where the class does not
+/// write it, and `E0757` refuses an attribute on a class that wrote both.
+const DECODE: &str = "fromJson";
+
+/// The other door out of [`decode_object`]: the value handed to the [`DECODE`]
+/// the class wrote itself, and whatever that member built is the instance.
+///
+/// **The value goes over as it arrived.** § 6 declares the member over `mixed`,
+/// so a document this door reads is not required to be a JSON object the way a
+/// field walk's is — what a `"1.2"` or a `[1, 2]` means to the class is the
+/// class's own business. The reference is borrowed rather than owned:
+/// [`nvs_runtime::call_static_on`] retains every argument it passes, so the
+/// callee's reference is its own and the reader that owns this one still
+/// releases it.
+///
+/// # Safety
+///
+/// As [`decode_as`]'s, and `value` must be a reference this frame's caller
+/// keeps alive across the call.
+///
+/// # Errors
+///
+/// [`Fault::Pending`] where the member itself threw, and a fatal where the
+/// descriptor answered [`DECODE`] at [`Contract::writes_decoder`] and not at
+/// the call, which is one method table read two ways.
+#[expect(
+    unsafe_code,
+    reason = "the caller owes the liveness of a descriptor no signature can express"
+)]
+unsafe fn hand_written(
+    ctx: &mut nvs_runtime::Ctx,
+    contract: Contract<'_>,
+    value: Value,
+    member: &str,
+) -> Result<Value, Fault> {
+    #[expect(
+        unsafe_code,
+        reason = "the caller vouched for the descriptor, and the value is a \
+                  reference that caller holds across this call"
+    )]
+    let called = unsafe { nvs_runtime::call_static_on(ctx, contract.class(), DECODE, &[value])? };
+    // Unreachable from source with no diagnostic to name: `None` is the answer
+    // for a class with no such method, and [`Contract::writes_decoder`] read
+    // that same method table one condition earlier to reach this door at all.
+    called.ok_or_else(|| {
+        Fault::fatal(format!(
+            "internal error: `{}` answers `{DECODE}` where `{member}` asked its class table and \
+             not where it called",
+            contract.name()
+        ))
+    })
+}
+
+/// One instance of `class` out of a document already read — or, for `list`, one
+/// per element of it.
+///
+/// Split out of [`decode_as`] for a borrow: `Core\Request::jsonAs` reads its
+/// document out of the octets the request holds, and the `&mut Ctx` this half
+/// needs cannot be taken while that borrow is live. Reading is the half that
+/// needs no context, so the two halves are two calls. The caller owes
+/// [`check_codec`] first.
+///
+/// `document` is transferred: this releases it whichever branch ran and whether
+/// or not it failed.
+///
+/// `reading` is what the values in it already are — [`Reading`] owns the one
+/// place the two answers differ, and every door but `Core\Arr::shapeAs` and
+/// its wrappers is a [`Reading::Wire`] one.
+///
+/// # Safety
+///
+/// As [`decode_as`]'s.
+///
+/// # Errors
+///
+/// `ParseError` where the document is not the shape `class` decodes from, or
+/// its fields are not what the class declared.
+#[expect(
+    unsafe_code,
+    reason = "the caller owes the liveness of a descriptor no signature can express"
+)]
+pub(crate) unsafe fn hydrate(
+    ctx: &mut nvs_runtime::Ctx,
+    class: *const nvs_runtime::ClassDesc,
+    shape: Option<*const nvs_runtime::ShapeCodec>,
+    document: Value,
+    list: bool,
+    reading: Reading,
+    member: &str,
+) -> Result<Value, Fault> {
+    #[expect(
+        unsafe_code,
+        reason = "the caller guarantees the descriptor and the contract are live"
+    )]
+    let contract = unsafe { Contract::new(class, shape) }.over(reading);
+    #[expect(
+        unsafe_code,
+        reason = "the same live descriptor the caller vouched for"
+    )]
+    let decoded = unsafe {
+        if list {
+            decode_each(ctx, contract, document, member)
+        } else {
+            decode_object(ctx, contract, document, None, member)
+        }
+    };
+    // Released here whichever branch ran and whether or not it failed: every
+    // value either half kept out of the document was retained on its way past,
+    // so this frees exactly what nothing else holds.
+    #[expect(
+        unsafe_code,
+        reason = "this frame holds the only reference the caller handed over"
+    )]
+    unsafe {
+        document.release();
+    }
+    decoded
+}
+
+/// `rule:core-classes/derive-field-list`'s decode run once per element: a JSON array in, one instance of
+/// `class` per element out, in the document's own order.
+///
+/// An element that is not an object, or a field that does not match, refuses
+/// the **whole** list rather than the element — a partial `array<T>` would be
+/// a shorter list than the document held, which is a lie no caller can see.
+///
+/// **The refusal stops at the first bad element**, so the issue list is one
+/// element's fields with that element's position on each path. `rule:core-classes/derive-reports-every-field`
+/// accumulates *within* an object because a class's field count is a bound the
+/// program wrote; a list's length is a bound the document wrote, and a decode
+/// of untrusted input that reported an issue per element would do work in
+/// proportion to what an attacker sent.
+///
+/// # Safety
+///
+/// As [`decode_as`]'s, and `document` must be a reference this frame's caller
+/// keeps alive across the call.
+#[expect(
+    unsafe_code,
+    reason = "the caller owes the liveness of a descriptor no signature can express"
+)]
+unsafe fn decode_each(
+    ctx: &mut nvs_runtime::Ctx,
+    contract: Contract<'_>,
+    document: Value,
+    member: &str,
+) -> Result<Value, Fault> {
+    let refusal = || {
+        let message = format!(
+            "{member}(): an `array<{}>` decodes from a JSON array",
+            contract.name()
+        );
+        let issues = crate::issue::list([("", message.as_str())]);
+        Fault::thrown_with_issues(ThrownClass::Parse, message, issues)
+    };
+    let Some(ptr) = document.array_ptr() else {
+        return Err(refusal());
+    };
+    let source = crate::arr::borrowed(ptr);
+    let mut decoded = NvsArray::new();
+    for index in 0..source.count() {
+        // A JSON array reads back as a *packed* array, so a position that is
+        // not there is a JSON object arriving at a list decode: `{"a": 1}` has
+        // a count of one and no index 0. This is the only place the two are
+        // told apart, since both are one `NvsArray`.
+        let element = i64::try_from(index)
+            .ok()
+            .and_then(|position| source.get_index(position))
+            .ok_or_else(refusal)?;
+        // Dropping `decoded` on the way out releases every instance already
+        // built, which is what the early return owes.
+        #[expect(
+            unsafe_code,
+            reason = "the same live descriptor, and the document's own element"
+        )]
+        let value = unsafe { decode_object(ctx, contract, element, Some(index), member)? };
+        decoded.append(value);
+    }
+    Ok(Value::array(decoded))
+}
+
+/// `rule:core-classes/derive-reports-every-field`'s decode of one
+/// object: every field read into a local, **every** failure accumulated, and
+/// the constructor run only if none was.
+///
+/// `at` is the element's position when this object came out of a list, and is
+/// the whole of what a list adds to `rule:core-classes/derive-reports-every-field`'s issue paths — `2.name` rather than
+/// `name`.
+///
+/// # Safety
+///
+/// As [`decode_as`]'s, and `document` must be a reference this frame's caller
+/// keeps alive across the call.
+#[expect(
+    unsafe_code,
+    reason = "the caller owes the liveness of a descriptor no signature can express"
+)]
+unsafe fn decode_object(
+    ctx: &mut nvs_runtime::Ctx,
+    contract: Contract<'_>,
+    document: Value,
+    at: Option<usize>,
+    member: &str,
+) -> Result<Value, Fault> {
+    // `rule:core-classes/derive-generates-what-is-missing`'s written half,
+    // asked before the object test below because that test is the field walk's
+    // question: [`DECODE`] takes a `mixed`, and a list decode reaches here once
+    // per element, so each element goes over on its own.
+    if contract.writes_decoder() {
+        #[expect(
+            unsafe_code,
+            reason = "the same live descriptor, and the caller's own reference \
+                      to the value"
+        )]
+        return unsafe { hand_written(ctx, contract, document, member) };
+    }
+    let prefix = match at {
+        None => String::new(),
+        Some(index) => format!("{index}."),
+    };
+    let Some(ptr) = document.array_ptr() else {
+        let message = match at {
+            None => format!(
+                "{member}(): a `{}` decodes from a JSON object",
+                contract.name()
+            ),
+            Some(index) => format!(
+                "{member}(): element {index} is not a JSON object, and a `{}` \
+                 decodes from one",
+                contract.name()
+            ),
+        };
+        let issues = crate::issue::list([(path_of(&prefix, None).as_str(), message.as_str())]);
+        return Err(Fault::thrown_with_issues(
+            ThrownClass::Parse,
+            message,
+            issues,
+        ));
+    };
+
+    let source = crate::arr::borrowed(ptr);
+    #[expect(
+        unsafe_code,
+        reason = "the same live descriptor, and a borrow of the document's own object"
+    )]
+    match unsafe { decode_fields(ctx, contract, source, prefix) } {
+        Ok(value) => Ok(value),
+        Err(DecodeFailure::Fault(fault)) => Err(fault),
+        Err(DecodeFailure::Issues(issues)) => Err(Fault::thrown_with_issues(
+            ThrownClass::Parse,
+            format!(
+                "{member}(): {} field(s) of `{}` did not match",
+                issues.len(),
+                contract.name()
+            ),
+            crate::issue::list(
+                issues
+                    .iter()
+                    .map(|(path, message)| (path.as_str(), message.as_str())),
+            ),
+        )),
+    }
+}
+
+/// How one field, or one whole nested object, failed.
+///
+/// The two are not the same failure: `rule:core-classes/derive-reports-every-field` **accumulates** issues
+/// across an object's fields, so a nested object's issues have to travel back
+/// up and join the enclosing object's list rather than throwing where they were
+/// found — while a [`Fault`] is the decoder admitting a gap of its own and ends
+/// the decode wherever it happens.
+enum DecodeFailure {
+    /// `rule:core-classes/derive-reports-every-field` issues, each an already-rooted path and its message.
+    Issues(Vec<(String, String)>),
+    /// A fault that ends the whole decode — an engine gap, never the
+    /// document's doing.
+    Fault(Fault),
+}
+
+/// One object's fields decoded into the positions that fill them, and the
+/// instance built — `rule:core-classes/derive-reports-every-field`'s
+/// accumulate-then-construct, over an object whose JSON shape a caller has
+/// already checked.
+///
+/// A position is a constructor parameter under a class contract and a field
+/// slot under a shape's, which is the whole of what [`build_shape`] is for: the
+/// accumulation is one vector either way, and only the last statement knows
+/// which door it goes out of.
+///
+/// `prefix` is what `rule:core-classes/derive-reports-every-field`'s issue paths are rooted at: `""` at the top, `2.`
+/// inside a list's third element, `2.address.` inside that element's nested
+/// `address`. It is a string rather than an index because nesting is
+/// unbounded and a list position is only its first level.
+///
+/// The objects and lists nested under this one are built by [`walk`], on
+/// frames it keeps on the heap, so this call takes the same native stack
+/// however deep the document is.
+///
+/// # Safety
+///
+/// As [`decode_as`]'s, and `source` must be a borrow the caller keeps alive
+/// across the call.
+#[expect(
+    unsafe_code,
+    reason = "the caller owes the liveness of a descriptor no signature can express"
+)]
+unsafe fn decode_fields(
+    ctx: &mut nvs_runtime::Ctx,
+    contract: Contract<'_>,
+    source: std::mem::ManuallyDrop<NvsArray>,
+    prefix: String,
+) -> Result<Value, DecodeFailure> {
+    #[expect(
+        unsafe_code,
+        reason = "the caller's descriptor, and a borrow the caller keeps alive"
+    )]
+    unsafe {
+        walk(ctx, Build::Fields(Fields::new(contract, source, prefix)))
+    }
+}
+
+/// What one step of [`walk`] gives: a frame for a nested object or list to
+/// step into, or the finished value of the object, list or field it read.
+enum Step<'a> {
+    /// A nested object or list, whose value the frame that pushed it waits for.
+    Enter(Build<'a>),
+    /// The value, or how it failed.
+    Done(Result<Value, DecodeFailure>),
+}
+
+/// One frame of [`walk`]: an object or a list the document nests, part read.
+enum Build<'a> {
+    /// An object, read against a class's or a shape's field list.
+    Fields(Fields<'a>),
+    /// An array, read against a list field's element.
+    Positions(Positions<'a>),
+}
+
+// What § *The walk carries its own stack* says one level of the build walk
+// costs, kept true.
+const _: () = assert!(std::mem::size_of::<Build<'static>>() <= 160);
+
+/// The build walk: [`decode_fields`]'s object and every object and list nested
+/// under it, built on a `Vec` of frames rather than on native ones — the
+/// encoder's own shape, which § *The walk carries its own stack* describes.
+///
+/// Each turn resumes the innermost frame, handing it the value of the child it
+/// stepped into, if there was one. The frame then reads fields or positions
+/// until one nests, and pushes the frame for it, or until it has read them
+/// all, and is popped with its value. So an object's constructor runs once
+/// every field is a value, in the same order the native recursion ran them, and
+/// this function's native stack is one turn deep at any depth. The parse's
+/// `maxDepth` is what bounds how many frames a JSON document pushes.
+///
+/// A [`DecodeFailure::Fault`] passes up through every frame unchanged, and each
+/// frame popped on the way releases what it had built.
+///
+/// # Safety
+///
+/// As [`decode_fields`]'s, for the root frame's descriptor and its borrow.
+#[expect(
+    unsafe_code,
+    reason = "the caller owes the liveness of a descriptor no signature can express"
+)]
+unsafe fn walk<'a>(ctx: &mut nvs_runtime::Ctx, root: Build<'a>) -> Result<Value, DecodeFailure> {
+    // The innermost frame is held apart from its ancestors, so the root
+    // finishing is the one way out of the loop.
+    let mut ancestors: Vec<Build<'a>> = Vec::new();
+    let mut top = root;
+    let mut finished = None;
+    loop {
+        #[expect(
+            unsafe_code,
+            reason = "every frame's descriptor is the caller's or one `nvs-codegen` \
+                      resolved out of the same class table, and every borrow is of \
+                      the document the caller keeps alive"
+        )]
+        let step = unsafe {
+            match &mut top {
+                Build::Fields(fields) => fields.resume(ctx, finished.take()),
+                Build::Positions(positions) => positions.resume(ctx, finished.take()),
+            }
+        };
+        match step {
+            Step::Enter(frame) => ancestors.push(std::mem::replace(&mut top, frame)),
+            // Replacing `top` drops the finished frame, which releases
+            // whatever it still owns.
+            Step::Done(outcome) => match ancestors.pop() {
+                Some(parent) => {
+                    top = parent;
+                    finished = Some(outcome);
+                }
+                None => return outcome,
+            },
+        }
+    }
+}
+
+/// One object [`walk`] is inside: the fields read so far, in the positions
+/// they fill, and the issues they raised.
+struct Fields<'a> {
+    /// The class or shape the object builds.
+    contract: Contract<'a>,
+    /// The document's object. It is borrowed, because [`hydrate`]'s caller
+    /// keeps the whole document alive across the walk.
+    source: std::mem::ManuallyDrop<NvsArray>,
+    /// [`decode_fields`]'s `prefix`.
+    prefix: String,
+    /// The index of the next field to read.
+    next: usize,
+    /// One owned reference per position filled, and `null` in the others.
+    args: Vec<Value>,
+    /// Which positions a field has filled.
+    filled: Vec<bool>,
+    /// `rule:core-classes/derive-reports-every-field`'s accumulation.
+    issues: Vec<(String, String)>,
+}
+
+impl Drop for Fields<'_> {
+    // A frame popped by a fault or by its issues still owns every value it
+    // read, and a finished one has handed them all over already.
+    fn drop(&mut self) {
+        release_all(&self.args);
+    }
+}
+
+impl<'a> Fields<'a> {
+    /// A frame for `source`, with no field read yet.
+    fn new(
+        contract: Contract<'a>,
+        source: std::mem::ManuallyDrop<NvsArray>,
+        prefix: String,
+    ) -> Self {
+        let arity = contract.arity();
+        Self {
+            contract,
+            source,
+            prefix,
+            next: 0,
+            args: vec![Value::null(); arity],
+            filled: vec![false; arity],
+            issues: Vec::new(),
+        }
+    }
+
+    /// Reads fields until one nests or none is left — `finished` being the
+    /// value of the nested field this frame stepped into last.
+    ///
+    /// # Safety
+    ///
+    /// As [`walk`]'s.
+    #[expect(
+        unsafe_code,
+        reason = "the caller owes the liveness of a descriptor no signature can express"
+    )]
+    unsafe fn resume(
+        &mut self,
+        ctx: &mut nvs_runtime::Ctx,
+        finished: Option<Result<Value, DecodeFailure>>,
+    ) -> Step<'a> {
+        if let Some(outcome) = finished {
+            // The child is the field read last. Its presence was answered
+            // before the step into it, so what comes back is a conversion.
+            let index = self.next.saturating_sub(1);
+            if let Err(fault) = self.place(index, nullable(self.contract, index, outcome)) {
+                return Step::Done(Err(fault));
+            }
+        }
+        while self.next < self.contract.fields().len() {
+            let index = self.next;
+            self.next += 1;
+            #[expect(
+                unsafe_code,
+                reason = "the descriptor is the caller's, and a nested field's is one \
+                          `nvs-codegen` resolved out of the same class table"
+            )]
+            let step =
+                unsafe { decode_field(ctx, self.contract, index, &self.source, &self.prefix) };
+            match step {
+                Step::Enter(frame) => return Step::Enter(frame),
+                Step::Done(outcome) => {
+                    if let Err(fault) = self.place(index, outcome) {
+                        return Step::Done(Err(fault));
+                    }
+                }
+            }
+        }
+        #[expect(unsafe_code, reason = "the same live descriptor")]
+        Step::Done(unsafe { self.finish(ctx) })
+    }
+
+    /// The `index`th field's value written into the position it fills, or its
+    /// issues added to this object's. The error is a [`DecodeFailure::Fault`],
+    /// which ends the walk.
+    fn place(
+        &mut self,
+        index: usize,
+        outcome: Result<Value, DecodeFailure>,
+    ) -> Result<(), DecodeFailure> {
+        let contract = self.contract;
+        let field = &contract.fields()[index];
+        match outcome {
+            Ok(value) => match self.args.get_mut(field.param) {
+                Some(slot) => {
+                    *slot = value;
+                    self.filled[field.param] = true;
+                    Ok(())
+                }
+                None => {
+                    #[expect(
+                        unsafe_code,
+                        reason = "this frame holds this value's only reference, and \
+                                  the argument vector it was destined for has no room"
+                    )]
+                    unsafe {
+                        value.release();
+                    }
+                    // Unreachable from source with no diagnostic to name:
+                    // `field.param` and the arity are two readings of one
+                    // contract, both written while compiling the call site or
+                    // the class, so a field naming a position it does not have
+                    // is a generated table disagreeing with itself rather than
+                    // anything a program can write.
+                    Err(DecodeFailure::Fault(Fault::fatal(format!(
+                        "internal error: `{}`'s `{}` field names position {} of {}",
+                        contract.name(),
+                        field.key,
+                        field.param,
+                        self.args.len()
+                    ))))
+                }
+            },
+            // `rule:core-classes/derive-reports-every-field`'s accumulation, and the one place a nested object's issues
+            // join the enclosing object's: they already carry their own rooted
+            // paths, so this is an append rather than a re-rooting.
+            Err(DecodeFailure::Issues(mut nested)) => {
+                self.issues.append(&mut nested);
+                Ok(())
+            }
+            Err(fault @ DecodeFailure::Fault(_)) => Err(fault),
+        }
+    }
+
+    /// The instance, built once every field has been read.
+    ///
+    /// # Safety
+    ///
+    /// As [`walk`]'s.
+    #[expect(
+        unsafe_code,
+        reason = "the caller owes the liveness of a descriptor no signature can express"
+    )]
+    unsafe fn finish(&mut self, ctx: &mut nvs_runtime::Ctx) -> Result<Value, DecodeFailure> {
+        if !self.issues.is_empty() {
+            return Err(DecodeFailure::Issues(std::mem::take(&mut self.issues)));
+        }
+        // `rule:core-classes/derive-field-list`'s skipped field is the one shape
+        // that leaves a position unfilled: a field the contract carries took its
+        // own default above, and a property `skip: true` removed from the contract
+        // leaves a parameter no field names, so there is no field here to read a
+        // constant off. `nvs_types::derive`'s `check_json_sites` refuses a call
+        // naming such a class while compiling, so this is unreachable from source
+        // — `E0820` gets there first — and is the backstop for a descriptor built
+        // by hand. Loud rather than passing `null`, which would be
+        // right for `?T $x = null` and silently wrong for everything else. A shape
+        // reaches this with every position filled, an absent optional key included:
+        // what fills that one is the never-written marker.
+        if let Some(index) = self.filled.iter().position(|done| !done) {
+            return Err(DecodeFailure::Fault(Fault::fatal(format!(
+                "Core\\Json::decodeAs(): `{}`'s constructor parameter {index} is not a codec \
+                 field, which `E0820` refuses at the call that names such a class",
+                self.contract.name()
+            ))));
+        }
+        if self.contract.is_shape() {
+            #[expect(
+                unsafe_code,
+                reason = "the same live descriptor, and every value is one this frame \
+                          owns and hands over"
+            )]
+            return unsafe { build_shape(self.contract, std::mem::take(&mut self.args)) };
+        }
+        // `rule:errors/on-limit`'s soft address, compared before each
+        // constructor. The walk itself takes no native frame per level, but a
+        // constructor is compiled code on the task's stack, so a decode entered
+        // with little stack left throws here, where it can still be caught.
+        if nvs_runtime::stack_pointer() < ctx.stack_bounds().0 {
+            return Err(DecodeFailure::Fault(Fault::thrown_as(
+                ThrownClass::Recursion,
+                "the call stack is too deep",
+            )));
+        }
+        let args = std::mem::take(&mut self.args);
+        #[expect(
+            unsafe_code,
+            reason = "the same live descriptor, and every argument is one this frame \
+                      owns and hands over"
+        )]
+        unsafe { nvs_runtime::construct(ctx, self.contract.class(), &args) }
+            .map_err(DecodeFailure::Fault)
+    }
+}
+
+/// One array [`walk`] is inside, read against a list field's `element`: the
+/// values built so far and the issues the positions raised.
+struct Positions<'a> {
+    /// The contract whose field this list is.
+    contract: Contract<'a>,
+    /// That field's index, which every label at every depth is read through.
+    index: usize,
+    /// The link of the field's element chain this array is read against.
+    element: &'a nvs_runtime::CodecElement,
+    /// The field's enum roster, where `element` is an enum.
+    cases: Option<&'a EnumCases>,
+    /// The array itself, which a message describes.
+    found: Value,
+    /// The same array, borrowed as [`Fields::source`] is.
+    source: std::mem::ManuallyDrop<NvsArray>,
+    /// The array's own issue path.
+    path: String,
+    /// The next position to read.
+    next: usize,
+    /// The values built so far. Dropping it releases every one.
+    decoded: NvsArray,
+    /// Every bad position's issues, as [`Fields::issues`] are.
+    issues: Vec<(String, String)>,
+}
+
+impl<'a> Positions<'a> {
+    /// Reads positions until one nests or none is left — `finished` being the
+    /// value of the nested position this frame stepped into last.
+    ///
+    /// # Safety
+    ///
+    /// As [`walk`]'s.
+    #[expect(
+        unsafe_code,
+        reason = "the caller owes the liveness of a descriptor no signature can express"
+    )]
+    unsafe fn resume(
+        &mut self,
+        ctx: &mut nvs_runtime::Ctx,
+        finished: Option<Result<Value, DecodeFailure>>,
+    ) -> Step<'a> {
+        if let Some(outcome) = finished
+            && let Err(fault) = self.receive(outcome)
+        {
+            return Step::Done(Err(fault));
+        }
+        let contract = self.contract;
+        let field = &contract.fields()[self.index];
+        while self.next < self.source.count() {
+            let at = self.next;
+            self.next += 1;
+            // A JSON object reads back as one `NvsArray` too, so a position that
+            // is not there is `{"a": 1}` arriving where a list was declared —
+            // `decode_each` tells the two apart the same way.
+            let Some(item) = i64::try_from(at)
+                .ok()
+                .and_then(|position| self.source.get_index(position))
+            else {
+                return Step::Done(Err(DecodeFailure::Issues(vec![(
+                    self.path.clone(),
+                    format!("expected an array, found {}", describe(self.found)),
+                )])));
+            };
+            // A nested object at a position, whichever of the two kinds it is: a
+            // declared class and an inline shape are one walk over two tables, and
+            // [`decode_element`] reads both out of the field's own index. A nested
+            // element is handed its path as the prefix of its own issues; a scalar
+            // builds its path only when it fails, so a list that decodes cleanly
+            // formats none.
+            let nested = match self.element.ty {
+                CodecTy::Class | CodecTy::Shape =>
+                {
+                    #[expect(
+                        unsafe_code,
+                        reason = "the element descriptor `nvs-codegen` resolved out of the \
+                                  owner's own class table"
+                    )]
+                    Some(unsafe {
+                        decode_element(
+                            ctx,
+                            contract,
+                            self.index,
+                            item,
+                            format!("{}.{at}", self.path),
+                        )
+                    })
+                }
+                CodecTy::List => Some(match self.element.element.as_deref() {
+                    Some(inner) => decode_positions(
+                        contract,
+                        self.index,
+                        inner,
+                        item,
+                        format!("{}.{at}", self.path),
+                    ),
+                    // Unreachable from source, as [`decode_list`]'s own missing
+                    // element is: `nvs_types::derive` writes a `List` and the link
+                    // under it in one expression.
+                    None => Step::Done(Err(DecodeFailure::Fault(Fault::fatal(format!(
+                        "internal error: `{}`'s `{}` field nests a list with no element wire type",
+                        contract.name(),
+                        field.key
+                    ))))),
+                }),
+                _ => None,
+            };
+            match nested {
+                Some(Step::Enter(frame)) => return Step::Enter(frame),
+                Some(Step::Done(outcome)) => {
+                    if let Err(fault) = self.receive(outcome) {
+                        return Step::Done(Err(fault));
+                    }
+                }
+                None => {
+                    #[expect(
+                        unsafe_code,
+                        reason = "the document owns this element for the length of the walk"
+                    )]
+                    let converted =
+                        unsafe { scalar(self.element.ty, self.cases, item, contract.reading) };
+                    // As [`decode_field`]'s tail: [`scalar`] answered with a
+                    // reference of its own, and the document is released before
+                    // the constructor runs.
+                    match converted {
+                        Some(value) => self.decoded.append(value),
+                        None => self.issues.push((
+                            format!("{}.{at}", self.path),
+                            format!(
+                                "expected {}, found {}",
+                                wanted(self.element.ty),
+                                describe(item)
+                            ),
+                        )),
+                    }
+                }
+            }
+        }
+        if !self.issues.is_empty() {
+            return Step::Done(Err(DecodeFailure::Issues(std::mem::take(&mut self.issues))));
+        }
+        Step::Done(Ok(Value::array(std::mem::replace(
+            &mut self.decoded,
+            NvsArray::new(),
+        ))))
+    }
+
+    /// A nested position's value appended, or its issues added to this
+    /// array's. The error is a [`DecodeFailure::Fault`], which ends the walk.
+    fn receive(&mut self, outcome: Result<Value, DecodeFailure>) -> Result<(), DecodeFailure> {
+        match outcome {
+            Ok(value) => self.decoded.append(value),
+            Err(DecodeFailure::Issues(mut nested)) => self.issues.append(&mut nested),
+            Err(fault @ DecodeFailure::Fault(_)) => return Err(fault),
+        }
+        Ok(())
+    }
+}
+
+/// One shape's decoded fields written into a fresh instance of its class — the
+/// half a derived class gets by running its own constructor.
+///
+/// A shape class declares none: `rule:types/anonymous-object` gives an anonymous
+/// object no constructor to write, so the class `nvs-ir` synthesizes lays its
+/// slots out in the shape's sorted field-name order and every writer fills them
+/// one at a time. That order is why a shape's
+/// [`nvs_runtime::CodecField::param`] and `slot` are the same number, and why
+/// [`decode_fields`] can accumulate into one vector for both doors.
+///
+/// `values` is transferred: every reference in it is written into the object or
+/// released.
+///
+/// # Safety
+///
+/// As [`decode_as`]'s.
+#[expect(
+    unsafe_code,
+    reason = "the caller owes the liveness of a descriptor no signature can express"
+)]
+unsafe fn build_shape(
+    contract: Contract<'_>,
+    mut values: Vec<Value>,
+) -> Result<Value, DecodeFailure> {
+    #[expect(unsafe_code, reason = "the caller guarantees the descriptor is live")]
+    let object = unsafe { NvsObj::new(contract.class()) };
+    for field in contract.fields() {
+        // Unreachable from source with no diagnostic to name: a shape class's
+        // slots are the sorted field names its contract was built from, so a
+        // slot past the end is `nvs-ir`'s two halves disagreeing about one
+        // written shape. Checked here rather than left to
+        // `nvs_runtime::NvsObj::set_field`, whose answer is a panic and so
+        // costs the process rather than the request.
+        if field.param >= values.len() || field.slot >= object.field_count() {
+            release_all(&values);
+            return Err(DecodeFailure::Fault(Fault::fatal(format!(
+                "internal error: `{}`'s `{}` field names position {} and slot {} of {}",
+                contract.name(),
+                field.key,
+                field.param,
+                field.slot,
+                object.field_count()
+            ))));
+        }
+        // Left `null` behind so the release above frees each value exactly
+        // once, whichever field a later failure stops at.
+        let value = std::mem::replace(&mut values[field.param], Value::null());
+        object.set_field(field.slot, value);
+    }
+    Ok(Value::object(object))
+}
+
+/// The `index`th field of `contract`, taken over, or how it failed.
+///
+/// `rule:core-api/required-optional-and-nullable`'s table, and which of its
+/// rows are answered here is the one place the two contracts part.
+///
+/// A **class** gets every row a program can write. An absent key is that rule's
+/// first column alone — `nvs_runtime::CodecField::required` carries it down
+/// from the declaration — and an absent *optional* key is filled from
+/// `nvs_runtime::CodecField::default`, the constant beside it, which is the
+/// constructor parameter's own default carried here because this decoder is not
+/// the call site that would otherwise emit it. The row left out is
+/// `?T $x = null`, which no program can write: a written `= null` parameter
+/// default is refused while checking (`nvs_types::defaults`).
+///
+/// A **shape** has no constructor and therefore no default to be missing, so
+/// both columns are answered rather than deferred:
+///
+/// * **An absent optional key** answers the never-written marker
+///   ([`nvs_runtime::Value::unset`]), which is the storage state
+///   `rule:types/shape-type`'s "an absent key is that same rule's checked,
+///   catchable throw" is read back out of. Writing `null` would instead make
+///   `{a?: int}` and `{a: ?int}` — two types that intern apart — hold the same
+///   thing.
+/// * **A `?T` field is `expr as ?T`**, which answers `null` exactly where
+///   `as T` would throw (`rule:expressions/nullable-conversion`), so a value
+///   the wire type refuses is that `null` rather than an issue. Only the
+///   *conversion* is answered that way: presence is the other column, kept
+///   independent of the type, so a required `?T` whose key is missing still
+///   fails.
+///
+/// Takes the contract and a position rather than the
+/// [`nvs_runtime::CodecField`] alone because a nested field's class is
+/// [`Contract::class_at`]'s answer, indexed the same way — the field itself
+/// carries the label and never the descriptor.
+///
+/// # Safety
+///
+/// As [`decode_as`]'s, for the contract's own descriptor and for the nested one
+/// it hands out.
+#[expect(
+    unsafe_code,
+    reason = "the caller owes the liveness of a descriptor no signature can express"
+)]
+unsafe fn decode_field<'a>(
+    ctx: &mut nvs_runtime::Ctx,
+    contract: Contract<'a>,
+    index: usize,
+    source: &NvsArray,
+    prefix: &str,
+) -> Step<'a> {
+    let field = &contract.fields()[index];
+    let issue = |why: String| {
+        Step::Done(Err(DecodeFailure::Issues(vec![(
+            path_of(prefix, Some(&field.key)),
+            why,
+        )])))
+    };
+    let Some(found) = source.get(field.key.as_bytes()) else {
+        // `nvs_runtime::CodecField::required` is what tells the two absences
+        // apart, and this is the presence column alone: a required field fails
+        // whatever its type admits.
+        if field.required {
+            return issue("required field missing".to_owned());
+        }
+        // An optional key is filled by the declaration that made it optional —
+        // the constructor parameter's default, evaluated while compiling and
+        // carried onto the field because this decoder is not a call site.
+        if let Some(default) = &field.default {
+            return Step::Done(Ok(default.materialize()));
+        }
+        if contract.is_shape() {
+            return Step::Done(Ok(Value::unset()));
+        }
+        // A class field is optional exactly when its parameter declares a
+        // default, and this is reached when that default arrived as no
+        // constant: a position a `skip: true` left with no field to carry a
+        // constant on (the module's own gap 1), or a descriptor built by hand
+        // rather than by `nvs_types::derive`.
+        return issue(
+            "optional field missing, and its constructor parameter carries no constant \
+             to fill it with"
+                .to_owned(),
+        );
+    };
+    #[expect(
+        unsafe_code,
+        reason = "the contract's descriptor is the caller's, and a nested field's \
+                  is one `nvs-codegen` resolved out of the same class table"
+    )]
+    let converted = unsafe { convert_field(ctx, contract, index, found, prefix) };
+    match converted {
+        Step::Done(outcome) => Step::Done(nullable(contract, index, outcome)),
+        // A nested object or list: [`Fields::resume`] applies [`nullable`] to
+        // its value when [`walk`] hands it back.
+        enter @ Step::Enter(_) => enter,
+    }
+}
+
+/// The `as ?T` [`decode_field`] describes, applied to the outcome of the
+/// `index`th field's conversion — a nested object's issue list included, since
+/// what failed is the whole conversion and `as ?T` has one answer for that. A
+/// `Fault` is the decoder admitting a gap of its own and is never a
+/// conversion's answer, so it passes through untouched.
+fn nullable(
+    contract: Contract<'_>,
+    index: usize,
+    outcome: Result<Value, DecodeFailure>,
+) -> Result<Value, DecodeFailure> {
+    match outcome {
+        Err(DecodeFailure::Issues(_))
+            if contract.is_shape() && contract.fields()[index].nullable =>
+        {
+            Ok(Value::null())
+        }
+        outcome => outcome,
+    }
+}
+
+/// The `index`th field's value converted, for a key the document carries —
+/// [`decode_field`]'s second half.
+///
+/// Split from it so that the presence column is answered once, above, and every
+/// path a *conversion* can fail on comes back through one place — which is what
+/// lets a shape's `?T` field answer `null` without also swallowing an absent
+/// key.
+///
+/// # Safety
+///
+/// As [`decode_field`]'s.
+#[expect(
+    unsafe_code,
+    reason = "the caller owes the liveness of a descriptor no signature can express"
+)]
+unsafe fn convert_field<'a>(
+    ctx: &mut nvs_runtime::Ctx,
+    contract: Contract<'a>,
+    index: usize,
+    found: Value,
+    prefix: &str,
+) -> Step<'a> {
+    let field = &contract.fields()[index];
+    let issue = |why: String| {
+        Step::Done(Err(DecodeFailure::Issues(vec![(
+            path_of(prefix, Some(&field.key)),
+            why,
+        )])))
+    };
+    if found.tag() == Some(Tag::Null) {
+        if field.nullable {
+            return Step::Done(Ok(Value::null()));
+        }
+        return issue("null is not permitted".to_owned());
+    }
+    let converted = match field.ty {
+        // `rule:core-classes/derive-field-list`'s nested class and its inline
+        // shape, both decoded by running a field list over this key's object —
+        // which is why `rule:core-classes/derive-reports-every-field`'s paths are dotted in the first place. What differs
+        // is only where that list is read from, which [`Contract`] answers.
+        CodecTy::Class | CodecTy::Shape => {
+            #[expect(
+                unsafe_code,
+                reason = "`nvs-codegen` resolved this out of the same class table \
+                          the contract came from, so it lives exactly as long"
+            )]
+            return unsafe { decode_nested(ctx, contract, index, found, prefix) };
+        }
+        // `rule:core-classes/derive-field-list`'s list field, decoded one element at a time under a
+        // path this key extends — the second nesting `rule:core-classes/derive-reports-every-field`'s dotted path covers.
+        CodecTy::List => return decode_list(contract, index, found, prefix),
+        CodecTy::Mixed
+        | CodecTy::Bool
+        | CodecTy::Int
+        | CodecTy::Uint
+        | CodecTy::Float
+        | CodecTy::Str
+        | CodecTy::Decimal
+        | CodecTy::Instant => {
+            #[expect(
+                unsafe_code,
+                reason = "the document owns this value for the length of this call"
+            )]
+            unsafe {
+                scalar(field.ty, None, found, contract.reading)
+            }
+        }
+        // `rule:core-classes/derive-field-list`'s enum field: the roster travels with the field and the
+        // decode is a membership test over it, so this is a scalar with one
+        // more thing in hand rather than a nesting of its own.
+        CodecTy::Enum => {
+            let cases = match cases_of(contract, field) {
+                Ok(cases) => cases,
+                Err(fault) => return Step::Done(Err(fault)),
+            };
+            #[expect(
+                unsafe_code,
+                reason = "the document owns this value for the length of this call"
+            )]
+            unsafe {
+                scalar(field.ty, Some(cases), found, contract.reading)
+            }
+        }
+        // Met only through a *nested* class, whose own fields [`decode_as`]'s
+        // pre-check never saw — and unreachable from source even there: an
+        // [`undecoded`] wire type is a declaration
+        // `rule:core-classes/derive-field-list`'s reachable test refuses at
+        // `E0756`, so it is an engine fault wherever it is met and never an
+        // issue in a list a program shows a user.
+        CodecTy::Opaque | CodecTy::Bytes => {
+            return Step::Done(Err(DecodeFailure::Fault(Fault::fatal(format!(
+                "Core\\Json::decodeAs(): `{}`'s `{}` field has a declared type no wire type \
+                 describes — `rule:core-classes/derive-field-list`'s reachable test refuses \
+                 that declaration, so reaching it here is the compiler disagreeing with itself",
+                contract.name(),
+                field.key
+            )))));
+        }
+    };
+    let Some(value) = converted else {
+        return issue(format!(
+            "expected {}, found {}",
+            wanted(field.ty),
+            describe(found)
+        ));
+    };
+    // [`scalar`] answered with a reference of its own, which is what the
+    // object being built needs: the document is released before the
+    // constructor runs.
+    Step::Done(Ok(value))
+}
+
+/// One field of a nested class decoded — `rule:core-classes/derive-field-list`'s "another class that
+/// itself has a codec", run over the object this key holds.
+///
+/// The class is the compiler's answer and never the document's: the descriptor
+/// comes out of [`Contract::class_at`], which `nvs-codegen` resolved from the
+/// declared type. A decoder that read a class name out of the JSON would let
+/// untrusted input choose which constructor runs.
+///
+/// What it nests into is a class's contract or an inline shape's, which are one
+/// walk over two tables: a shape field's descriptor is the class an anonymous object of
+/// those same field names builds, and the per-field wire types that label cannot
+/// carry come from the [`nvs_runtime::ShapeCodec`] beside it
+/// ([`Contract::shape_at`]).
+///
+/// # Safety
+///
+/// As [`decode_as`]'s, for the contract's own descriptor and for the one it
+/// names at `index`.
+#[expect(
+    unsafe_code,
+    reason = "the caller owes the liveness of a descriptor no signature can express"
+)]
+unsafe fn decode_nested<'a>(
+    ctx: &mut nvs_runtime::Ctx,
+    contract: Contract<'a>,
+    index: usize,
+    found: Value,
+    prefix: &str,
+) -> Step<'a> {
+    let field = &contract.fields()[index];
+    let Some(class) = contract.class_at(index) else {
+        // Unreachable from source: `nvs_types::derive` refused a field type
+        // with no codec at the declaration, so a label with no descriptor is
+        // `nvs-codegen`'s join disagreeing with the class table it built.
+        return Step::Done(Err(DecodeFailure::Fault(Fault::fatal(format!(
+            "internal error: `{}`'s `{}` field decodes into `{}`, which this unit's class \
+             table has no descriptor for",
+            contract.name(),
+            field.key,
+            field.class.as_deref().unwrap_or("<unnamed>")
+        )))));
+    };
+    #[expect(unsafe_code, reason = "the descriptor `nvs-codegen` resolved is live")]
+    // The reading carries down: what the values are is a property of the door
+    // the whole call came through, not of how deep the field sits.
+    let nested = unsafe { Contract::new(class, contract.shape_at(index)) }.over(contract.reading);
+    // A document is a tree, so the written half is a door at every level of it
+    // and not only at the one the call site named: a field typed as a class
+    // that wrote [`DECODE`] hands that member the value this key holds, whole.
+    if nested.writes_decoder() {
+        #[expect(
+            unsafe_code,
+            reason = "the resolved descriptor, and the document's own value"
+        )]
+        return Step::Done(
+            unsafe { hand_written(ctx, nested, found, "Core\\Json::decodeAs") }
+                .map_err(DecodeFailure::Fault),
+        );
+    }
+    // Asked of a class only, on [`check_codec`]'s terms: an inline shape *is* a
+    // wire contract, and `{}` is an empty one rather than a missing one. A
+    // field typed as a class that took neither door is unreachable from source
+    // — `E0756` refuses that declaration — so this is the backstop for a
+    // descriptor built by hand.
+    if nested.fields().is_empty() && !nested.is_shape() {
+        return Step::Done(Err(DecodeFailure::Fault(Fault::fatal(format!(
+            "Core\\Json::decodeAs(): `{}`'s `{}` field decodes into `{}`, which carries no \
+             `#[Json\\Derive]` and declares no `{DECODE}`",
+            contract.name(),
+            field.key,
+            nested.name()
+        )))));
+    }
+    let Some(ptr) = found.array_ptr() else {
+        return Step::Done(Err(DecodeFailure::Issues(vec![(
+            path_of(prefix, Some(&field.key)),
+            format!(
+                "expected an object for `{}`, found {}",
+                nested.name(),
+                describe(found)
+            ),
+        )])));
+    };
+    Step::Enter(Build::Fields(Fields::new(
+        nested,
+        crate::arr::borrowed(ptr),
+        format!("{prefix}{}.", field.key),
+    )))
+}
+
+/// One value read as a scalar wire type, or `None` when it is not one and
+/// `reading` gives no row that makes it one.
+///
+/// Split out of [`decode_field`] because [`decode_list`] asks the same
+/// question of every element, and a list whose elements converted by their own
+/// rules would be a second answer to "what is an `int` here".
+///
+/// A [`CodecTy::Class`], a [`CodecTy::List`] and every [`undecoded`] wire type
+/// are not scalars this reads and answer `None`; each has a caller that handles
+/// it before reaching here.
+///
+/// `cases` is [`nvs_runtime::CodecField::cases`], and is read only for a
+/// [`CodecTy::Enum`] — the one wire type whose accepted values are a property
+/// of the field rather than of the type. Both callers resolve it before
+/// asking, so a `None` here is an already-diagnosed program and refuses.
+///
+/// **The answer is an owned reference.** A pass-through arm retains the
+/// document's own value on the way out and a converting arm hands over the one
+/// it built, so a caller adds the value to what it is assembling and never
+/// asks which happened — which it could not answer anyway once
+/// [`Reading::Values`]'s `→ string` row builds a string where the strict read
+/// would have refused outright.
+///
+/// # Safety
+///
+/// `found` must be a reference the caller keeps alive across the call, since a
+/// pass-through arm takes a second one to it.
+#[expect(
+    unsafe_code,
+    reason = "the caller owes the liveness of the value it borrowed from the document"
+)]
+unsafe fn scalar(
+    ty: CodecTy,
+    cases: Option<&EnumCases>,
+    found: Value,
+    reading: Reading,
+) -> Option<Value> {
+    let coerce = reading == Reading::Values;
+    let kept = match ty {
+        // A `mixed` field is exactly as checked as `mixed` ever is (`rule:core-classes/derive-field-list`), so whatever the document held is the value.
+        CodecTy::Mixed => Some(found),
+        // No row of `rule:types/conversion` lands on `bool` — PHP's truthy
+        // table is a *condition*'s answer and not a conversion's — so both
+        // readings want the value to be one already. A `"1"` from a checkbox
+        // is therefore a failed field and not a `true`, which is the whole
+        // point of the table being closed.
+        CodecTy::Bool => found.as_bool().map(Value::bool),
+        CodecTy::Int if coerce => nvs_runtime::to_int(found).map(Value::int),
+        CodecTy::Int => found.as_int().map(Value::int),
+        CodecTy::Uint if coerce => nvs_runtime::to_uint(found).map(Value::uint),
+        CodecTy::Uint => found
+            .as_int()
+            .and_then(|number| u64::try_from(number).ok())
+            .map(Value::uint),
+        CodecTy::Float if coerce => nvs_runtime::to_float(found).map(Value::float),
+        // A JSON `1` reaching a `float` field widens, which is the one place
+        // Novis does that — `rule:types/conversion` has no int-to-float widening in the
+        // language, but a wire format has one number type and refusing an
+        // unfractional literal would make `1.0` and `1` different documents.
+        CodecTy::Float => found
+            .as_float()
+            .or_else(|| found.as_int().map(|number| number as f64))
+            .map(Value::float),
+        // `rule:types/conversion`'s "anything → `string`: total for scalars",
+        // which is the one converting row that allocates. An array or an
+        // object is not a scalar and needs `Stringable`, so both refuse here
+        // rather than reaching for a method a value read out of a form has no
+        // business having.
+        CodecTy::Str if coerce && found.tag() != Some(Tag::Str) => {
+            return nvs_runtime::value_to_string(found).ok();
+        }
+        CodecTy::Str => (found.tag() == Some(Tag::Str)).then_some(found),
+        // A case is its backing integer under the enum tag
+        // (`rule:enums/representation`), so a decode reads the integer, tests
+        // it against the declared cases, and writes the tag. An integer
+        // outside the roster is a bad document rather than a case this build
+        // forgot.
+        CodecTy::Enum => {
+            let cases = cases?;
+            // The backing value first and the membership test after, which is
+            // `rule:types/conversion`'s "backing type / `mixed` → `EnumName`"
+            // read in the order it is written. Under `Values` the backing
+            // value is `"2"` as often as `2`, so the row that reaches it is
+            // the same one an `int` field's is. Either reading takes a `uint`
+            // as it is, which is how a `uint`-backed case that already is one
+            // reaches `Core\Arr::shapeAs`.
+            let number = match found.as_uint() {
+                Some(number) => i128::from(number),
+                None if coerce => i128::from(nvs_runtime::to_int(found)?),
+                None => i128::from(found.as_int()?),
+            };
+            if cases.values.binary_search(&number).is_err() {
+                return None;
+            }
+            // The tag a written `Role::Admin` carries, so a decoded case is
+            // the same value and passes every reader that checks the tag: a
+            // callable's enum parameter, `is`, a condition.
+            return if cases.unsigned {
+                u64::try_from(number).ok().map(Value::enum_uint)
+            } else {
+                i64::try_from(number).ok().map(Value::enum_int)
+            };
+        }
+        // `rule:types/decimal`'s exactness is why the wire form is a **string**:
+        // JSON has one number type, and a document's number is an `f64` by the
+        // time this sees it, so a `decimal` spelled as a number could not be
+        // read back as the value that was written. [`Encodable`] writes the
+        // same spelling, so the two halves are one round trip. A `Values`
+        // reading wants a string too — a form field is text — and a value that
+        // already is a `decimal` passes through, which is the only way
+        // `Core\Arr::shapeAs` meets one here at all.
+        CodecTy::Decimal => match found.tag() {
+            Some(Tag::Decimal) => Some(found),
+            Some(Tag::Str) => found
+                .as_text()
+                .and_then(nvs_runtime::Decimal::parse)
+                .map(Value::decimal),
+            _ => None,
+        },
+        // `Core\Time\Instant`'s wire form, fixed at RFC 3339 text by this
+        // module's gap 1: the type is a point on the timeline and the string is
+        // what every other reader of the document already agrees that is. The
+        // instance it builds owns the one reference it was made with, so that
+        // arm returns rather than reaching the retain below; an `Instant` the
+        // caller already holds is a pass-through, which is the only way
+        // `Core\Arr::shapeAs` meets the type.
+        CodecTy::Instant => match found.tag() {
+            Some(Tag::Object) if crate::instance::is_instance(found, &crate::time::INSTANT) => {
+                Some(found)
+            }
+            Some(Tag::Str) => return found.as_text().and_then(crate::time::instant_from_iso),
+            _ => None,
+        },
+        CodecTy::Class | CodecTy::Shape | CodecTy::List | CodecTy::Opaque | CodecTy::Bytes => None,
+    }?;
+    // Every arm reaching here either passed the document's own value through
+    // or built an unrefcounted scalar, and a retain on the second is the
+    // no-op `Value::retain` documents. The two arms that allocate return
+    // above, holding the one reference they made.
+    #[expect(
+        unsafe_code,
+        reason = "the caller guarantees the document owns this value for the \
+                  length of the call, so a second reference to it is sound"
+    )]
+    unsafe {
+        kept.retain();
+    }
+    Some(kept)
+}
+
+/// The enum roster `field` carries, or the engine fault a missing one is.
+///
+/// Unreachable from source: `nvs_types::derive` writes the roster beside the
+/// [`CodecTy::Enum`] in one expression, so an enum field without one is that
+/// erasure disagreeing with itself — the same shape [`decode_list`] gives a
+/// list with no element wire type.
+fn cases_of<'a>(
+    contract: Contract<'_>,
+    field: &'a nvs_runtime::CodecField,
+) -> Result<&'a EnumCases, DecodeFailure> {
+    // Unreachable from source, as the doc comment above says: the roster is
+    // written beside the `CodecTy::Enum` in one expression.
+    field.cases.as_ref().ok_or_else(|| {
+        DecodeFailure::Fault(Fault::fatal(format!(
+            "internal error: `{}`'s `{}` field is an enum with no case roster",
+            contract.name(),
+            field.key
+        )))
+    })
+}
+
+/// One `array<T>` field decoded — `rule:core-classes/derive-field-list`'s list field, every position
+/// read through [`nvs_runtime::CodecField::element`] and **every** bad one
+/// accumulated, so a list reports like an object rather than at its first
+/// failure.
+///
+/// The element's issue path is the field's own path with the position appended
+/// — `tags.3`, which is `rule:core-classes/derive-reports-every-field`'s own example — and an element that is a class, a
+/// shape or a list of either nests once further, `authors.1.name` and
+/// `grid.2.0`.
+fn decode_list<'a>(contract: Contract<'a>, index: usize, found: Value, prefix: &str) -> Step<'a> {
+    let field = &contract.fields()[index];
+    let path = path_of(prefix, Some(&field.key));
+    let Some(element) = field.element.as_ref() else {
+        // Unreachable from source: `nvs_types::derive` writes the element
+        // beside the `List` in one expression, so a list with no element is
+        // that erasure disagreeing with itself.
+        return Step::Done(Err(DecodeFailure::Fault(Fault::fatal(format!(
+            "internal error: `{}`'s `{}` field is a list with no element wire type",
+            contract.name(),
+            field.key
+        )))));
+    };
+    decode_positions(contract, index, element, found, path)
+}
+
+/// The frame for one array's positions, read against `element` —
+/// [`decode_list`]'s body, split out so that a nested `array<array<T>>` is
+/// this same frame one link further down the chain rather than a second
+/// reading of what a list is. [`Positions::resume`] reads the positions.
+///
+/// The labels stay on the *field* at every depth
+/// ([`nvs_runtime::CodecElement`]), so a class element four lists deep resolves
+/// through the same [`Contract::class_at`] the outermost one does: what each
+/// frame carries is the chain, and what it does not carry is a second
+/// resolution.
+fn decode_positions<'a>(
+    contract: Contract<'a>,
+    index: usize,
+    element: &'a nvs_runtime::CodecElement,
+    found: Value,
+    path: String,
+) -> Step<'a> {
+    let field = &contract.fields()[index];
+    let Some(ptr) = found.array_ptr() else {
+        return Step::Done(Err(DecodeFailure::Issues(vec![(
+            path,
+            format!("expected an array, found {}", describe(found)),
+        )])));
+    };
+    // Resolved once rather than per position: an element's roster is the
+    // field's own, as its class label is.
+    let cases = if element.ty == CodecTy::Enum {
+        match cases_of(contract, field) {
+            Ok(cases) => Some(cases),
+            Err(fault) => return Step::Done(Err(fault)),
+        }
+    } else {
+        None
+    };
+    Step::Enter(Build::Positions(Positions {
+        contract,
+        index,
+        element,
+        cases,
+        found,
+        source: crate::arr::borrowed(ptr),
+        path,
+        next: 0,
+        decoded: NvsArray::new(),
+        issues: Vec::new(),
+    }))
+}
+
+/// One element of a list whose element type is another derived class or an
+/// inline shape, decoded under `path` — [`decode_nested`] for a position
+/// rather than a key.
+///
+/// Both pointers are read at the *field's* index, because a list field carries
+/// its terminal element's labels rather than its own
+/// ([`nvs_runtime::CodecElement`]): the two halves of
+/// [`nvs_runtime::CodecField::class`] meet here, and a shape element's
+/// contract joins them from [`nvs_runtime::CodecField::shape`] on the same
+/// terms.
+///
+/// # Safety
+///
+/// As [`decode_as`]'s, for the contract's own descriptor and for the one it
+/// names at `index`.
+#[expect(
+    unsafe_code,
+    reason = "the caller owes the liveness of a descriptor no signature can express"
+)]
+unsafe fn decode_element<'a>(
+    ctx: &mut nvs_runtime::Ctx,
+    contract: Contract<'a>,
+    index: usize,
+    item: Value,
+    path: String,
+) -> Step<'a> {
+    let field = &contract.fields()[index];
+    let Some(class) = contract.class_at(index) else {
+        // Unreachable from source, as [`decode_nested`]'s twin: the element
+        // type was refused at the declaration if it had no codec, so a label
+        // with no descriptor is `nvs-codegen`'s join disagreeing with the
+        // class table it built.
+        return Step::Done(Err(DecodeFailure::Fault(Fault::fatal(format!(
+            "internal error: `{}`'s `{}` field holds `{}`, which this unit's class table \
+             has no descriptor for",
+            contract.name(),
+            field.key,
+            field.class.as_deref().unwrap_or("<unnamed>")
+        )))));
+    };
+    #[expect(unsafe_code, reason = "the descriptor `nvs-codegen` resolved is live")]
+    // [`decode_nested`]'s reason, for a list's element class — and its second
+    // pointer too, since an element is an inline shape as readily as a field
+    // is and the contract holding that shape's field types is resolved beside
+    // the class at the same index.
+    let element = unsafe { Contract::new(class, contract.shape_at(index)) }.over(contract.reading);
+    // [`decode_nested`]'s written half too, for a list's element class: the
+    // member is handed one element at a time, as the enclosing walk hands it
+    // one key's value.
+    if element.writes_decoder() {
+        #[expect(
+            unsafe_code,
+            reason = "the resolved descriptor, and the document's own element"
+        )]
+        return Step::Done(
+            unsafe { hand_written(ctx, element, item, "Core\\Json::decodeAs") }
+                .map_err(DecodeFailure::Fault),
+        );
+    }
+    // [`decode_nested`]'s judgement too: an element class that took neither
+    // door is unreachable from source, `E0756` refusing that declaration, so
+    // this is the backstop for a descriptor built by hand.
+    if element.fields().is_empty() && !element.is_shape() {
+        return Step::Done(Err(DecodeFailure::Fault(Fault::fatal(format!(
+            "Core\\Json::decodeAs(): `{}`'s `{}` field holds `{}`, which carries no \
+             `#[Json\\Derive]` and declares no `{DECODE}`",
+            contract.name(),
+            field.key,
+            element.name()
+        )))));
+    }
+    let Some(ptr) = item.array_ptr() else {
+        return Step::Done(Err(DecodeFailure::Issues(vec![(
+            path,
+            format!(
+                "expected an object for `{}`, found {}",
+                element.name(),
+                describe(item)
+            ),
+        )])));
+    };
+    Step::Enter(Build::Fields(Fields::new(
+        element,
+        crate::arr::borrowed(ptr),
+        format!("{path}."),
+    )))
+}
+
+/// `rule:core-classes/derive-reports-every-field`'s issue path for a field, rooted at whatever encloses it:
+/// `name` alone at the top, `2.name` inside a list's third element,
+/// `2.address.city` inside that element's nested `address`.
+///
+/// `prefix` is that rooting, dot-terminated where it is not empty, so a field
+/// path is one concatenation. With no field it names the enclosing object
+/// itself, which is the prefix with its trailing dot dropped.
+///
+/// The dotted spelling is the one the `rule:core-classes/derive-reports-every-field` example already uses for a nested
+/// field, so a caller walking a list's issues reads the same path grammar it
+/// reads for `address.city`.
+fn path_of(prefix: &str, field: Option<&str>) -> String {
+    match field {
+        Some(key) => format!("{prefix}{key}"),
+        None => prefix.strip_suffix('.').unwrap_or(prefix).to_owned(),
+    }
+}
+
+/// What a [`CodecTy`] is called in an issue message — the Novis type name, since
+/// that is what the reader has in front of them in the class declaration.
+const fn wanted(ty: CodecTy) -> &'static str {
+    match ty {
+        CodecTy::Bool => "bool",
+        CodecTy::Int => "int",
+        CodecTy::Uint => "uint",
+        CodecTy::Float => "float",
+        CodecTy::Str => "string",
+        CodecTy::Mixed => "mixed",
+        // The two entries that name their wire form rather than only the
+        // declared type, because for both of them the document's own spelling is
+        // the thing the reader has to change: `rule:types/decimal` is exact and
+        // JSON's number is not, and an `Instant` crosses as text JSON has no
+        // type for at all. [`scalar`]'s own arms own why each is what it is.
+        CodecTy::Decimal => "a decimal as a JSON string",
+        CodecTy::Instant => "an instant as an RFC 3339 string",
+        // Named for the roster's sake: an [`undecoded`] wire type faults before
+        // a document is read, so no issue message reaches for one of these.
+        CodecTy::Bytes => "bytes",
+        // Never reached through a field: `decode_nested` names the class
+        // itself, which is what the reader wrote. Here for the roster.
+        CodecTy::Class => "an object",
+        // Never reached for [`CodecTy::Class`]'s reason exactly: `decode_nested`
+        // names the shape's own label, which is the nearest thing a shape has to
+        // what the reader wrote.
+        CodecTy::Shape => "an object",
+        // Likewise: `decode_list` reports the array itself, and an element is
+        // named by its own wire type.
+        CodecTy::List => "an array",
+        // The enum's own name never reaches the runtime — `CodecTy::Enum`'s
+        // docs say why — so the message names the shape rather than the type,
+        // and the issue's path names the field the declaration is written on.
+        CodecTy::Enum => "a declared enum case",
+        CodecTy::Opaque => "a decodable type",
+    }
+}
+
+/// What the document actually held there, named the way JSON names it.
+const fn describe(value: Value) -> &'static str {
+    match value.tag() {
+        Some(Tag::Null) => "null",
+        Some(Tag::Bool) => "a boolean",
+        Some(Tag::Int | Tag::Uint | Tag::Float) => "a number",
+        Some(Tag::Str) => "a string",
+        Some(Tag::Array) => "an object or array",
+        _ => "an unrepresentable value",
+    }
+}
+
+/// Releases every value in `values` — what a decode that is about to throw
+/// owes for the fields it had already decoded.
+fn release_all(values: &[Value]) {
+    for value in values {
+        #[expect(
+            unsafe_code,
+            reason = "each entry is either `null` or a value this frame took a \
+                      reference to in `decode_field`"
+        )]
+        unsafe {
+            value.release();
+        }
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Json::isValid(string $json): bool` — replacing `json_validate`.
+    ///
+    /// Answers exactly what [`nvs_core_json_decode`] would accept at the
+    /// default depth, by doing it; this module's § *`isValid` decodes and
+    /// discards* owns what that costs.
+    fn nvs_core_json_is_valid(_ctx, args: [1]) {
+        let text = text_of(&args[0], "isValid")?;
+        let Ok(value) = read(text, DEFAULT_MAX_DEPTH_U32) else {
+            return Ok(Value::bool(false));
+        };
+        #[expect(
+            unsafe_code,
+            reason = "the decoded value owns one reference and this frame is its \
+                      only holder; nothing is handed back"
+        )]
+        unsafe {
+            value.release();
+        }
+        Ok(Value::bool(true))
+    }
+}
+
+/// [`DEFAULT_MAX_DEPTH`] as the counter's own width.
+#[expect(
+    clippy::cast_possible_truncation,
+    reason = "DEFAULT_MAX_DEPTH is a small constant; `the_default_depth_is_below_the_ceiling` \
+              pins it under DEPTH_CEILING"
+)]
+pub(crate) const DEFAULT_MAX_DEPTH_U32: u32 = DEFAULT_MAX_DEPTH as u32;
+
+/// One `string` argument, as text.
+///
+/// One failure, the wrong tag: the tag [`Value::as_text`] checks is itself
+/// `rule:types/bytes`'s UTF-8 guarantee, so there is no encoding outcome left to report.
+/// `crate::str`'s own `text` states why re-deriving it would be an O(n) pass
+/// per argument.
+fn text_of<'a>(value: &'a Value, member: &str) -> Result<&'a str, Fault> {
+    value.as_text().ok_or_else(|| {
+        Fault::fatal(format!(
+            "Core\\Json::{member} expected {:?}, got tag {}",
+            Tag::Str,
+            value.tag_byte()
+        ))
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use nvs_runtime::{ClassDesc, ClassTable, CodecField};
+
+    use super::*;
+
+    /// A helper that releases what it built, for a test that only wants the
+    /// text of a decode.
+    fn decoded(text: &str, max: u32) -> Result<Value, String> {
+        read(text, max).map_err(|why| why.to_string())
+    }
+
+    /// `levels` arrays in JSON text, the innermost holding `1`.
+    fn nested_text(levels: usize) -> String {
+        format!("{}1{}", "[".repeat(levels), "]".repeat(levels))
+    }
+
+    /// Decodes `text` at the ceiling on a thread whose own stack is `stack`
+    /// bytes, releasing the value inside that thread: a refcount is a
+    /// per-thread fact.
+    fn decoded_on_a_thread(text: String, stack: usize) -> Result<(), String> {
+        let max = u32::try_from(DEPTH_CEILING).expect("the ceiling fits a u32");
+        std::thread::Builder::new()
+            .stack_size(stack)
+            .spawn(move || {
+                let value = decoded(&text, max)?;
+                #[expect(unsafe_code, reason = "this thread holds the only reference")]
+                unsafe {
+                    value.release();
+                }
+                Ok(())
+            })
+            .expect("a test thread is spawnable")
+            .join()
+            .expect("the decoding thread does not panic")
+    }
+
+    /// The ceiling is a promise about *stack*, so the deepest document a call
+    /// may ask for has to decode on the debug profile, whose frames are the
+    /// fattest. The calling thread's stack is far too small for that parse, so
+    /// the test also shows the parse runs on the spare stack.
+    #[test]
+    fn a_document_at_the_ceiling_decodes_whatever_stack_the_caller_has() {
+        let levels = usize::try_from(DEPTH_CEILING).expect("the ceiling fits a usize") - 1;
+        decoded_on_a_thread(nested_text(levels), 64 << 10).expect("the ceiling is decodable");
+    }
+
+    /// The deepest text [`read`] parses in place fits in the stack a helper is
+    /// always entered with. That text is all opening brackets: it nests one
+    /// level per byte and fails only at its end.
+    #[test]
+    fn the_deepest_short_text_parses_in_the_unwinding_reserve() {
+        let why = decoded_on_a_thread("[".repeat(IN_PLACE_BYTES), nvs_runtime::STACK_RESERVE)
+            .expect_err("an unclosed list is not a document");
+        assert!(why.contains("EOF while parsing a list"), "{why}");
+    }
+
+    #[test]
+    fn nesting_past_the_cap_is_refused() {
+        // Verified against `json_decode($j, true, $d)` case for case: a scalar
+        // document is depth 1, so `[]` needs 2 and `[[1]]` needs 3.
+        assert!(decoded("1", 1).is_ok());
+        assert!(decoded("[]", 1).is_err());
+        assert!(decoded("[]", 2).is_ok());
+        assert!(decoded("[1]", 2).is_ok());
+        assert!(decoded("[[1]]", 3).is_ok());
+        let why = decoded("[[1]]", 2).expect_err("two levels is past a cap of two");
+        assert!(why.contains("maxDepth"), "{why}");
+    }
+
+    #[test]
+    fn an_integer_past_int_is_refused_rather_than_widened() {
+        let why = decoded("9223372036854775808", 8).expect_err("2^63 is past `int`");
+        assert!(why.contains("too large for `int`"), "{why}");
+    }
+
+    /// The member as a program calls it, option bag included: a document
+    /// comes back as the value it spells, the `maxDepth` it was handed is the
+    /// one applied, and a `maxDepth` outside `1..=DEPTH_CEILING` is refused
+    /// before the text is read at all.
+    // covers: Core\Json::decode
+    #[test]
+    fn decode_applies_the_depth_it_is_handed_and_refuses_one_outside_the_ceiling() {
+        let mut ctx = nvs_runtime::Ctx::buffered();
+        let mut ask = |text: &str, max: u64| {
+            let args = [Value::str(NvsStr::new(text.as_bytes())), Value::uint(max)];
+            let answer = nvs_runtime::call(nvs_core_json_decode, &mut ctx, &args);
+            let why = ctx
+                .take_pending()
+                .map(std::borrow::Cow::into_owned)
+                .unwrap_or_default();
+            for argument in args {
+                #[expect(unsafe_code, reason = "the argument list owns the one reference")]
+                unsafe {
+                    argument.release();
+                }
+            }
+            (answer, why)
+        };
+
+        let (answer, _) = ask(r#"{"id":7,"tags":["a","b"],"ok":true,"none":null}"#, 3);
+        let value = answer.expect("a document inside its depth decodes");
+        assert_eq!(
+            encoded(value).as_deref(),
+            Ok(r#"{"id":7,"tags":["a","b"],"ok":true,"none":null}"#)
+        );
+        #[expect(unsafe_code, reason = "this frame holds the only reference")]
+        unsafe {
+            value.release();
+        }
+
+        // The same document one level short of what it needs.
+        let (answer, _) = ask(r#"{"tags":["a"]}"#, 2);
+        assert!(answer.is_err(), "a list inside an object is depth 3");
+
+        for outside in [0, DEPTH_CEILING + 1] {
+            let (answer, why) = ask("1", outside);
+            assert!(answer.is_err(), "a `maxDepth` of {outside} was accepted");
+            assert!(why.contains("outside 1..=1024"), "{why}");
+        }
+    }
+
+    /// The member as a program calls it, option bag included: `pretty` is
+    /// `serde_json`'s own two-space profile, `escapeUnicode` rewrites each
+    /// non-ASCII character as its `\u` escape and nothing else, and a
+    /// non-finite `float` is refused rather than written as text no JSON
+    /// reader accepts.
+    // covers: Core\Json::encode
+    #[test]
+    fn encode_applies_both_options_and_refuses_a_non_finite_float() {
+        let mut ctx = nvs_runtime::Ctx::buffered();
+        let mut ask = |value: Value, pretty: bool, escape: bool| {
+            let args = [value, Value::bool(pretty), Value::bool(escape)];
+            let answer = nvs_runtime::call(nvs_core_json_encode, &mut ctx, &args);
+            let why = ctx
+                .take_pending()
+                .map(std::borrow::Cow::into_owned)
+                .unwrap_or_default();
+            let text = answer.map(|written| {
+                let text = String::from_utf8(
+                    written
+                        .as_str_bytes()
+                        .expect("encode answers a string")
+                        .to_vec(),
+                )
+                .expect("a JSON document is UTF-8");
+                #[expect(unsafe_code, reason = "this frame holds the only reference")]
+                unsafe {
+                    written.release();
+                }
+                text
+            });
+            for argument in args {
+                #[expect(unsafe_code, reason = "the argument list owns the one reference")]
+                unsafe {
+                    argument.release();
+                }
+            }
+            (text, why)
+        };
+        let document = |text: &str| decoded(text, 8).expect("the fixture is valid JSON");
+
+        let (text, _) = ask(document("{\"a\":[1,\"\u{e9}\"]}"), false, false);
+        assert_eq!(text.as_deref(), Ok("{\"a\":[1,\"\u{e9}\"]}"));
+
+        let (text, _) = ask(document("{\"a\":[1,\"\u{e9}\"]}"), true, false);
+        assert_eq!(
+            text.as_deref(),
+            Ok("{\n  \"a\": [\n    1,\n    \"\u{e9}\"\n  ]\n}")
+        );
+
+        let (text, _) = ask(document("{\"a\":[1,\"\u{e9}\"]}"), false, true);
+        assert_eq!(text.as_deref(), Ok("{\"a\":[1,\"\\u00e9\"]}"));
+
+        for bad in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+            let (text, why) = ask(Value::float(bad), false, false);
+            assert!(text.is_err(), "{bad} was written as {text:?}");
+            assert!(why.starts_with("Core\\Json::encode(): "), "{why}");
+        }
+    }
+
+    /// The member as a program calls it: a well-formed document answers
+    /// `true`, and malformed text, a nesting one level past the default depth
+    /// and an integer past `int` each answer `false` without a throw — the
+    /// depth asserted on both sides of `DEFAULT_MAX_DEPTH`.
+    // covers: Core\Json::isValid
+    #[test]
+    fn is_valid_answers_false_rather_than_throwing_and_holds_the_default_depth() {
+        let mut ctx = nvs_runtime::Ctx::buffered();
+        let mut ask = |text: &str| {
+            let args = [Value::str(NvsStr::new(text.as_bytes()))];
+            let answer = nvs_runtime::call(nvs_core_json_is_valid, &mut ctx, &args)
+                .expect("isValid never throws for text");
+            assert!(
+                ctx.take_pending().is_none(),
+                "{text:?} left a pending throw"
+            );
+            for argument in args {
+                #[expect(unsafe_code, reason = "the argument list owns the one reference")]
+                unsafe {
+                    argument.release();
+                }
+            }
+            answer.as_bool()
+        };
+
+        assert_eq!(ask(r#"{"id":7,"tags":["a","b"],"ok":true}"#), Some(true));
+        assert_eq!(ask("9223372036854775807"), Some(true));
+        for bad in ["", "{id:7}", "[1,]", "{} {}", "9223372036854775808"] {
+            assert_eq!(ask(bad), Some(false), "{bad:?} was called valid");
+        }
+
+        // A scalar is depth 1 and each bracket adds one.
+        let nest = |brackets: usize| format!("{}1{}", "[".repeat(brackets), "]".repeat(brackets));
+        assert_eq!(ask(&nest(DEFAULT_MAX_DEPTH_U32 as usize - 1)), Some(true));
+        assert_eq!(ask(&nest(DEFAULT_MAX_DEPTH_U32 as usize)), Some(false));
+    }
+
+    #[test]
+    fn trailing_content_is_refused() {
+        assert!(decoded("{} {}", 8).is_err());
+        assert!(decoded("{oops}", 8).is_err());
+    }
+
+    #[test]
+    fn escaping_touches_only_what_is_outside_ascii() {
+        assert_eq!(escape_non_ascii(r#"{"a":1}"#), r#"{"a":1}"#);
+        assert_eq!(
+            escape_non_ascii("{\"a\":\"\u{e9}\"}"),
+            "{\"a\":\"\\u00e9\"}"
+        );
+        // Outside the BMP, so a surrogate pair — which is the only escape a
+        // JSON `\u` can spell.
+        assert_eq!(escape_non_ascii("\"\u{1f600}\""), "\"\\ud83d\\ude00\"");
+    }
+
+    /// One Novis value as the JSON document `Core\Json::encode($v)` writes,
+    /// with the member's option bag and `Fault` wrapping left out: what these
+    /// tests ask about is the walk and the message it produces.
+    fn encoded(value: Value) -> Result<String, String> {
+        let mut ctx = nvs_runtime::Ctx::buffered();
+        let walk = Reentry::new(&mut ctx);
+        Encodable::document(&walk, value)
+            .written(CompactFormatter)
+            .map_err(|why| why.to_string())
+    }
+
+    /// A class whose slots are `fields`, each carrying a `mixed` wire key of
+    /// its own name — the smallest thing [`Stack::object`] will walk, since a
+    /// class with an empty codec is refused before a field is read.
+    ///
+    /// The table is leaked because a [`ClassDesc`]'s *address* is its identity
+    /// and has to outlive every instance made from it; `crate::request`'s
+    /// `reading_class` leaks its own for that reason.
+    fn holder_class(name: &str, fields: &[&str]) -> *const ClassDesc {
+        declared(name, fields, Vec::new())
+    }
+
+    /// [`holder_class`]'s class with a `toJson` of its own, whose body is
+    /// `code` — the smallest thing the encoder's hand-written door will call.
+    ///
+    /// The derived field list is recorded beside it exactly as
+    /// [`holder_class`]'s is, because a class carrying `#[Json\Derive]` *and*
+    /// writing this half is the case the precedence is about: the member is
+    /// read first and that list is never reached.
+    fn writing_class(name: &str, fields: &[&str], code: nvs_runtime::NvsFn) -> *const ClassDesc {
+        declared(
+            name,
+            fields,
+            vec![nvs_runtime::MethodRow {
+                name: ENCODE.to_owned(),
+                code: (code as *const ()).cast::<u8>(),
+                // The receiver is slot 0 and is not a declared parameter, so a
+                // nullary member declares none — `nvs_runtime::MethodRow`'s
+                // own terms, and what `toJson(): mixed` is.
+                arity: 0,
+                param_tags: 0,
+                param_names: Vec::new(),
+                param_types: Vec::new(),
+                public: true,
+                protected: false,
+                native: false,
+            }],
+        )
+    }
+
+    /// The class both of those are: `fields` as the object's slots and as its
+    /// derived codec, `methods` as its method table, leaked for the reason
+    /// below.
+    fn declared(
+        name: &str,
+        fields: &[&str],
+        methods: Vec<nvs_runtime::MethodRow>,
+    ) -> *const ClassDesc {
+        let mut table = ClassTable::new();
+        let id = table.define(name, fields, &[]);
+        let codec: Vec<CodecField> = fields
+            .iter()
+            .enumerate()
+            .map(|(slot, key)| CodecField {
+                key: (*key).to_owned(),
+                slot,
+                param: slot,
+                ty: CodecTy::Mixed,
+                element: None,
+                class: None,
+                cases: None,
+                shape: None,
+                nullable: true,
+                required: true,
+                default: None,
+            })
+            .collect();
+        // One entry per field, null throughout: the encoder reads a field's key
+        // and slot and never its class or its contract, so nothing here
+        // resolves either.
+        let classes = vec![std::ptr::null(); codec.len()];
+        let shapes = vec![std::ptr::null(); codec.len()];
+        table.set_codec(id, codec, fields.len(), classes, shapes);
+        table.set_methods(id, methods);
+        let table: &'static ClassTable = Box::leak(Box::new(table));
+        table.desc(id)
+    }
+
+    /// A method body in the shape `nvs-codegen` emits one: slot 0 is the
+    /// receiver, a compiled function **owns** its parameters — so this releases
+    /// the reference it was handed, exactly as an emitted epilogue would — and
+    /// what it writes to `out` is a reference the caller owns.
+    #[expect(
+        unsafe_code,
+        reason = "a method body's signature is `nvs_runtime::NvsFn`, whose pointer \
+                  contract cannot be expressed in the type"
+    )]
+    unsafe extern "C" fn answers_a_number(
+        _ctx: *mut nvs_runtime::Ctx,
+        args: *const Value,
+        out: *mut Value,
+    ) -> i32 {
+        #[expect(
+            unsafe_code,
+            reason = "`call_at` passes one live slot and a writable out-pointer"
+        )]
+        unsafe {
+            (*args).release();
+            *out = Value::int(7);
+        }
+        nvs_runtime::OK
+    }
+
+    /// The same shape, answering with the receiver itself — so the reference it
+    /// arrived with is the one that leaves and nothing is released here.
+    #[expect(unsafe_code, reason = "as `answers_a_number`'s")]
+    unsafe extern "C" fn answers_its_receiver(
+        _ctx: *mut nvs_runtime::Ctx,
+        args: *const Value,
+        out: *mut Value,
+    ) -> i32 {
+        #[expect(
+            unsafe_code,
+            reason = "`call_at` passes one live slot and a writable out-pointer"
+        )]
+        unsafe {
+            *out = *args;
+        }
+        nvs_runtime::OK
+    }
+
+    /// `rule:core-classes/derive-generates-what-is-missing`'s encoding half at
+    /// run time: a class that wrote `toJson` is written as that member answers,
+    /// and what it answers with is spelled by this same walk — a `7` and not a
+    /// `{"n": …}` the field list would have produced.
+    #[test]
+    fn a_class_that_wrote_the_encoder_is_written_through_that_member() {
+        let value = instance(writing_class("Ticket", &["n"], answers_a_number));
+        assert_eq!(
+            encoded(value).expect("a class that wrote the encoder encodes"),
+            "7"
+        );
+        #[expect(unsafe_code, reason = "this frame holds the only reference")]
+        unsafe {
+            value.release();
+        }
+    }
+
+    /// The precedence, asserted where the two answers differ: the class carries
+    /// a derived field list **and** the member, the slot behind that list holds
+    /// a value the document would show, and the document is the member's answer
+    /// — so a walk that read the list first fails here while still looking
+    /// right on a class that has only one of the two.
+    #[test]
+    fn a_written_encoder_is_read_before_the_derived_field_list() {
+        let value = instance(writing_class("Row", &["n"], answers_a_number));
+        set_property(value, 0, Value::int(3));
+        let document = encoded(value).expect("a class that wrote the encoder encodes");
+        assert_eq!(
+            document, "7",
+            "the derived field list would have written `n`"
+        );
+        #[expect(unsafe_code, reason = "this frame holds the only reference")]
+        unsafe {
+            value.release();
+        }
+    }
+
+    /// A member answering with the object it was called on is the cycle
+    /// `rule:classes/an-encoder-ends-a-cycle-by-identity` already ends, because
+    /// the answer is walked as a *child* of the value it came from. What this
+    /// pins is that the walk ends at all: the alternative is a descent with no
+    /// bottom, which is the native stack and not a refusal.
+    #[test]
+    fn a_member_answering_with_its_own_receiver_ends_at_the_cycle() {
+        let value = instance(writing_class("Loop", &["n"], answers_its_receiver));
+        let why = encoded(value).expect_err("a member answering with its receiver has no encoding");
+        assert!(why.contains("the document"), "{why}");
+        assert!(why.contains("already inside"), "{why}");
+        #[expect(unsafe_code, reason = "this frame holds the only reference")]
+        unsafe {
+            value.release();
+        }
+    }
+
+    /// A class of one field of wire type `ty`, carrying that field twice: as
+    /// the class's own derived codec, which is what [`Encodable`] reads, and
+    /// as the inline-shape contract handed to [`decode_as`].
+    ///
+    /// The contract is what makes the pair testable in one frame. It sends the
+    /// decode through [`build_shape`], which writes slots directly, so nothing
+    /// here needs the compiled constructor the class door would call.
+    ///
+    /// Leaked for [`holder_class`]'s reason: a [`ClassDesc`]'s address is its
+    /// identity, and it has to outlive every instance made from it.
+    fn codec_class(
+        name: &str,
+        key: &str,
+        ty: CodecTy,
+    ) -> (*const ClassDesc, *const nvs_runtime::ShapeCodec) {
+        let field = || CodecField {
+            key: key.to_owned(),
+            slot: 0,
+            param: 0,
+            ty,
+            element: None,
+            class: None,
+            cases: None,
+            shape: None,
+            nullable: false,
+            required: true,
+            default: None,
+        };
+        let mut table = ClassTable::new();
+        let id = table.define(name, &[key], &[]);
+        table.set_codec(
+            id,
+            vec![field()],
+            1,
+            vec![std::ptr::null()],
+            vec![std::ptr::null()],
+        );
+        // The contract is boxed inside the table, so its address survives the
+        // leak below unchanged — which is what lets it be taken first.
+        let shape = table.define_shape_codec(
+            vec![field()],
+            vec![std::ptr::null()],
+            vec![std::ptr::null()],
+        );
+        let table: &'static ClassTable = Box::leak(Box::new(table));
+        (table.desc(id), shape)
+    }
+
+    /// A shape of one field that is itself a shape: the outer descriptor and
+    /// contract, with the inner pair resolved into the outer field the way
+    /// `nvs-codegen` resolves a [`CodecTy::Shape`]'s two pointers.
+    ///
+    /// [`nvs_runtime::CodecField::shape`] is written as the key a compiled unit
+    /// would carry, though nothing reads it here: at run time the field is the
+    /// resolved address beside it, and the key is what the relocation was
+    /// derived from a crate earlier.
+    ///
+    /// Leaked for [`holder_class`]'s reason, which both contracts inherit: they
+    /// are boxed inside the table that owns them.
+    fn nested_shape_class() -> (*const ClassDesc, *const nvs_runtime::ShapeCodec) {
+        let field = |key: &str, ty, class: Option<&str>, shape: Option<&str>| CodecField {
+            key: key.to_owned(),
+            slot: 0,
+            param: 0,
+            ty,
+            element: None,
+            class: class.map(str::to_owned),
+            cases: None,
+            shape: shape.map(str::to_owned),
+            nullable: false,
+            required: true,
+            default: None,
+        };
+        let mut table = ClassTable::new();
+        let inner_id = table.define("$shape{n}", &["n"], &[]);
+        let inner = table.define_shape_codec(
+            vec![field("n", CodecTy::Int, None, None)],
+            vec![std::ptr::null()],
+            vec![std::ptr::null()],
+        );
+        let outer_id = table.define("$shape{meta}", &["meta"], &[]);
+        let inner_desc = table.desc(inner_id);
+        let outer = table.define_shape_codec(
+            vec![field(
+                "meta",
+                CodecTy::Shape,
+                Some("$shape{n}"),
+                Some("$codec{n:Int}"),
+            )],
+            vec![inner_desc],
+            vec![inner],
+        );
+        let table: &'static ClassTable = Box::leak(Box::new(table));
+        (table.desc(outer_id), outer)
+    }
+
+    /// `rule:types/decimal`'s exactness reaches roughly 29 significant digits and
+    /// a JSON number is an `f64` in every reader there is, so the wire form is
+    /// a string — asserted at a width the `f64` spelling demonstrably cannot
+    /// hold, decoded into a `decimal` field and written back byte for byte.
+    // covers: Core\Json::decodeAs
+    #[test]
+    fn decode_as_fills_a_decimal_field_from_the_numbers_own_digits() {
+        const DIGITS: &str = "1234567890123456789.012345";
+
+        // The bound this spelling exists for, on the other side: these digits
+        // through a `float` are a different number, so a document holding them
+        // as one could not be read back as what was written.
+        assert_ne!(
+            DIGITS
+                .parse::<f64>()
+                .expect("the digits are a float too")
+                .to_string(),
+            DIGITS,
+            "an `f64` that held these digits would make the string spelling pointless"
+        );
+
+        let (class, shape) = codec_class("Money", "amount", CodecTy::Decimal);
+        let document = format!("{{\"amount\":\"{DIGITS}\"}}");
+        let mut ctx = nvs_runtime::Ctx::buffered();
+        #[expect(
+            unsafe_code,
+            reason = "`codec_class` leaks its table, so both addresses outlive \
+                      every object decoded against them"
+        )]
+        let decoded = unsafe {
+            decode_as(
+                &mut ctx,
+                class,
+                Some(shape),
+                &document,
+                DEFAULT_MAX_DEPTH_U32,
+                false,
+                r"Core\Json::decodeAs",
+            )
+        };
+        let Ok(value) = decoded else {
+            panic!("a `decimal` field decodes from the string spelling it is written as");
+        };
+
+        let ptr = value
+            .obj_ptr()
+            .expect("a decoded shape is always an object");
+        #[expect(
+            unsafe_code,
+            reason = "the value owns a reference to a live allocation, and the \
+                      rebuilt handle is never dropped, so nothing is released twice"
+        )]
+        let object = std::mem::ManuallyDrop::new(unsafe { NvsObj::from_raw(ptr) });
+        let held = object
+            .field(0)
+            .as_decimal()
+            .expect("a `decimal` field holds a decimal");
+        assert_eq!(held.to_string(), DIGITS);
+
+        // Both halves, one spelling: what the encoder writes is the document
+        // the decoder was handed, down to the scale.
+        assert_eq!(
+            encoded(value).expect("a decoded shape re-encodes"),
+            document
+        );
+
+        #[expect(unsafe_code, reason = "this frame holds the only reference")]
+        unsafe {
+            value.release();
+        }
+    }
+
+    /// `rule:core-classes/derive-field-list`'s inline shape reached as a
+    /// *field*, which is the one wire type needing **two** resolved pointers: a
+    /// shape class is keyed on its field names alone, so the descriptor says
+    /// which object to build and says nothing about what goes in it, and the
+    /// contract beside it is the half that does.
+    ///
+    /// Asserted through the nested object's own slot rather than through the
+    /// re-encoding alone: an encode walks the value and would print the same
+    /// document for a field the decode had filled by luck.
+    #[test]
+    fn decode_as_fills_an_inline_shape_field() {
+        let (class, shape) = nested_shape_class();
+        let document = "{\"meta\":{\"n\":7}}";
+        let mut ctx = nvs_runtime::Ctx::buffered();
+        #[expect(
+            unsafe_code,
+            reason = "`nested_shape_class` leaks its table, so every address in it \
+                      outlives the object decoded against them"
+        )]
+        let decoded = unsafe {
+            decode_as(
+                &mut ctx,
+                class,
+                Some(shape),
+                document,
+                DEFAULT_MAX_DEPTH_U32,
+                false,
+                r"Core\Json::decodeAs",
+            )
+        };
+        let Ok(value) = decoded else {
+            panic!("a shape field decodes against the contract beside its class label");
+        };
+
+        let ptr = value
+            .obj_ptr()
+            .expect("a decoded shape is always an object");
+        #[expect(
+            unsafe_code,
+            reason = "the value owns a reference to a live allocation, and the \
+                      rebuilt handle is never dropped, so nothing is released twice"
+        )]
+        let object = std::mem::ManuallyDrop::new(unsafe { NvsObj::from_raw(ptr) });
+        let inner = object
+            .field(0)
+            .obj_ptr()
+            .expect("a shape field holds the object its own contract built");
+        #[expect(
+            unsafe_code,
+            reason = "the outer object owns this reference for as long as it lives, \
+                      and this handle is never dropped either"
+        )]
+        let inner = std::mem::ManuallyDrop::new(unsafe { NvsObj::from_raw(inner) });
+        assert_eq!(inner.field(0).as_int(), Some(7));
+
+        // Both halves, one spelling: what the encoder writes is the document the
+        // decoder was handed, nesting included.
+        assert_eq!(
+            encoded(value).expect("a decoded shape re-encodes"),
+            document
+        );
+
+        #[expect(unsafe_code, reason = "this frame holds the only reference")]
+        unsafe {
+            value.release();
+        }
+    }
+
+    /// An `Instant` crosses as the RFC 3339 text `$i->toIso()` renders, so the
+    /// two halves are one spelling: the document names a point on the timeline,
+    /// the field holds an `Instant` of exactly that point, and the encoder
+    /// writes the document back. The object its two slots would spell is this
+    /// runtime's storage and never the contract — the module's own
+    /// *A value type crosses as text* section owns why.
+    #[test]
+    fn decode_as_fills_an_instant_field_from_an_rfc_3339_string() {
+        const AT: &str = "2024-03-01T12:00:00Z";
+
+        let (class, shape) = codec_class("Event", "at", CodecTy::Instant);
+        let document = format!("{{\"at\":\"{AT}\"}}");
+        let mut ctx = nvs_runtime::Ctx::buffered();
+        #[expect(
+            unsafe_code,
+            reason = "`codec_class` leaks its table, so both addresses outlive \
+                      every object decoded against them"
+        )]
+        let decoded = unsafe {
+            decode_as(
+                &mut ctx,
+                class,
+                Some(shape),
+                &document,
+                DEFAULT_MAX_DEPTH_U32,
+                false,
+                r"Core\Json::decodeAs",
+            )
+        };
+        let Ok(value) = decoded else {
+            panic!("an `Instant` field decodes from the RFC 3339 spelling it is written as");
+        };
+
+        let ptr = value
+            .obj_ptr()
+            .expect("a decoded shape is always an object");
+        #[expect(
+            unsafe_code,
+            reason = "the value owns a reference to a live allocation, and the \
+                      rebuilt handle is never dropped, so nothing is released twice"
+        )]
+        let object = std::mem::ManuallyDrop::new(unsafe { NvsObj::from_raw(ptr) });
+        let held = object.field(0);
+        assert!(
+            crate::instance::is_instance(held, &crate::time::INSTANT),
+            "the field holds an `Instant` rather than the text it was read from"
+        );
+        assert_eq!(
+            crate::time::instant_iso(held).expect("a decoded `Instant` renders"),
+            AT
+        );
+
+        // The other half, one spelling: what the encoder writes is the document
+        // the decoder was handed.
+        assert_eq!(
+            encoded(value).expect("a decoded shape re-encodes"),
+            document
+        );
+
+        #[expect(unsafe_code, reason = "this frame holds the only reference")]
+        unsafe {
+            value.release();
+        }
+    }
+
+    /// A document that spells the timestamp any other way is a **bad
+    /// document** and not an engine gap: a JSON number is what an epoch second
+    /// would arrive as, and a civil date is text that is not RFC 3339, so both
+    /// come back as the reported `ParseError` the field list accumulates rather
+    /// than as the fault an undecodable wire type ends the walk with.
+    #[test]
+    fn an_instant_field_refuses_every_spelling_but_the_one_it_writes() {
+        let (class, shape) = codec_class("Event", "at", CodecTy::Instant);
+        let mut ctx = nvs_runtime::Ctx::buffered();
+        let mut refused = |text: &str| {
+            #[expect(
+                unsafe_code,
+                reason = "`codec_class` leaks its table, so both addresses outlive \
+                          every object decoded against them"
+            )]
+            let outcome = unsafe {
+                decode_as(
+                    &mut ctx,
+                    class,
+                    Some(shape),
+                    text,
+                    DEFAULT_MAX_DEPTH_U32,
+                    false,
+                    r"Core\Json::decodeAs",
+                )
+            };
+            match outcome {
+                Ok(_) => panic!("`{text}` is not an `Instant`'s spelling"),
+                Err(why) => format!("{why:?}"),
+            }
+        };
+
+        for document in [r#"{"at":1709294400}"#, r#"{"at":"2024-03-01"}"#] {
+            let why = refused(document);
+            assert!(why.contains("Parse"), "{why}");
+            assert!(why.contains("did not match"), "{why}");
+        }
+    }
+
+    /// An instance of `class` with every slot null, as the value holding the
+    /// only reference to it.
+    fn instance(class: *const ClassDesc) -> Value {
+        #[expect(
+            unsafe_code,
+            reason = "`holder_class` leaks the table, so the descriptor outlives \
+                      every instance made from it — `NvsObj::new`'s whole \
+                      obligation"
+        )]
+        let object = unsafe { NvsObj::new(class) };
+        Value::object(object)
+    }
+
+    /// Writes `held` into `object`'s `slot`, taking over its reference.
+    ///
+    /// A cycle is built value-first and property-second, so the handle has to
+    /// be rebuilt from the value's own address. It is never dropped, exactly as
+    /// the encoder's is: the value still owns that reference.
+    fn set_property(object: Value, slot: usize, held: Value) {
+        let ptr = object
+            .obj_ptr()
+            .expect("a `Tag::Object` value is always an object");
+        #[expect(
+            unsafe_code,
+            reason = "the value owns a reference to a live allocation, and the \
+                      rebuilt handle is never dropped, so nothing is released twice"
+        )]
+        let object = std::mem::ManuallyDrop::new(unsafe { NvsObj::from_raw(ptr) });
+        object.set_field(slot, held);
+    }
+
+    /// `rule:classes/an-encoder-ends-a-cycle-by-identity`: the walk turns back
+    /// at the first value it is already inside, and the refusal names the
+    /// property that closed it rather than the depth it would have reached.
+    #[test]
+    fn an_object_that_holds_itself_is_refused_at_the_property_that_closes_the_cycle() {
+        let holder = instance(holder_class("Holder", &["self"]));
+        #[expect(unsafe_code, reason = "the property below owns a second reference")]
+        unsafe {
+            holder.retain();
+        }
+        set_property(holder, 0, holder);
+
+        let why = encoded(holder).expect_err("a value that holds itself has no JSON encoding");
+        assert!(why.contains("`self`"), "{why}");
+        assert!(why.contains("already inside"), "{why}");
+
+        // Nothing can drop a cycle, so the property holding the object is
+        // cleared before the last reference to it goes.
+        set_property(holder, 0, Value::null());
+        #[expect(unsafe_code, reason = "this frame now holds the only reference")]
+        unsafe {
+            holder.release();
+        }
+    }
+
+    /// The message is the chain of keys from the document to the value that
+    /// closed the cycle — the thing a program can go and look at — and never
+    /// the level count a depth cap would have reported.
+    #[test]
+    fn the_refusal_names_the_property_chain_rather_than_a_count_of_levels() {
+        let outer = instance(holder_class("Outer", &["child"]));
+        let inner = instance(holder_class("Inner", &["back"]));
+        #[expect(unsafe_code, reason = "`inner`'s property owns a second reference")]
+        unsafe {
+            outer.retain();
+        }
+        set_property(inner, 0, outer);
+        set_property(outer, 0, inner);
+
+        let why = encoded(outer).expect_err("a two-object cycle has no JSON encoding");
+        assert!(why.contains("`child.back`"), "{why}");
+        assert!(!why.contains("levels"), "{why}");
+
+        set_property(inner, 0, Value::null());
+        #[expect(unsafe_code, reason = "this frame now holds the only reference")]
+        unsafe {
+            outer.release();
+        }
+    }
+
+    /// An array is copied where an object is referenced, so this cycle needs
+    /// both: the allocation copy-on-write shares is reachable from an object
+    /// inside it, and the walk ends at the array arm's own guard.
+    #[test]
+    fn a_cycle_that_closes_through_an_array_is_refused_at_the_same_place() {
+        let holder = instance(holder_class("Row", &["items"]));
+        let mut list = NvsArray::new();
+        // The array takes over the reference `instance` handed back.
+        list.set(NvsStr::new(b"0"), holder);
+        let document = Value::array(list);
+        #[expect(unsafe_code, reason = "the property below owns a second reference")]
+        unsafe {
+            document.retain();
+        }
+        set_property(holder, 0, document);
+
+        let why = encoded(document).expect_err("an array inside itself has no JSON encoding");
+        assert!(why.contains("`0.items`"), "{why}");
+        assert!(why.contains("already inside"), "{why}");
+
+        set_property(holder, 0, Value::null());
+        #[expect(unsafe_code, reason = "this frame now holds the only reference")]
+        unsafe {
+            document.release();
+        }
+    }
+
+    /// The set is the ancestor chain and never everything seen, so one object
+    /// two properties hold is shared rather than cyclic — and JSON, which has
+    /// no way to express sharing, writes it twice.
+    #[test]
+    fn one_object_held_by_two_properties_is_written_twice_rather_than_refused() {
+        let pair = instance(holder_class("Pair", &["left", "right"]));
+        let leaf = instance(holder_class("Leaf", &["n"]));
+        set_property(leaf, 0, Value::int(7));
+        #[expect(unsafe_code, reason = "the second property owns a second reference")]
+        unsafe {
+            leaf.retain();
+        }
+        set_property(pair, 0, leaf);
+        set_property(pair, 1, leaf);
+
+        assert_eq!(
+            encoded(pair).expect("a shared value is not a cycle"),
+            r#"{"left":{"n":7},"right":{"n":7}}"#
+        );
+
+        #[expect(
+            unsafe_code,
+            reason = "this frame holds the only reference to the pair"
+        )]
+        unsafe {
+            pair.release();
+        }
+    }
+
+    /// `levels` arrays nested one inside the next, the innermost holding `1`.
+    ///
+    /// Building and freeing are both iterative in the runtime
+    /// (`nvs_runtime::array`'s § *freeing is iterative*), so a depth like this
+    /// costs a test nothing but the encoder's own descent.
+    fn nested_arrays(levels: usize) -> Value {
+        let mut value = Value::int(1);
+        for _ in 0..levels {
+            let mut level = NvsArray::new();
+            level.set(NvsStr::new(b"0"), value);
+            value = Value::array(level);
+        }
+        value
+    }
+
+    /// The depth cap still bounds what the ancestor chain does not: a document
+    /// that is acyclic and merely deeper than any encoder should walk is
+    /// refused as nesting, and never reported as a cycle.
+    #[test]
+    fn a_document_deeper_than_the_ceiling_still_reports_depth_and_not_a_cycle() {
+        let depth = usize::try_from(DEPTH_CEILING).expect("the ceiling fits a usize");
+        let value = nested_arrays(depth);
+        let why = encoded(value).expect_err("a document past the ceiling has no JSON encoding");
+        #[expect(unsafe_code, reason = "this frame holds the only reference")]
+        unsafe {
+            value.release();
+        }
+        assert!(
+            why.contains(&format!("nested past {DEPTH_CEILING} levels")),
+            "{why}"
+        );
+        assert!(!why.contains("already inside"), "{why}");
+    }
+
+    /// The deepest document the ceiling admits encodes on a thread whose native
+    /// stack could not have held one frame per level, because the levels are a
+    /// `Vec` on the heap and the walk's native cost is one frame.
+    ///
+    /// The stack here is a fraction of what a recursion through `serde_json`'s
+    /// serializer needed for the same document, which is the claim; what pins
+    /// the answer is the text, so a walk that ended early fails rather than
+    /// merely survives. Every value is built and released inside that thread: a
+    /// refcount is a per-thread fact.
+    #[test]
+    fn json_nesting_is_bounded_by_the_heap_stack_not_the_native_one() {
+        // The deepest legal document: the innermost scalar sits at the ceiling,
+        // so the arrays above it are one fewer.
+        let levels = usize::try_from(DEPTH_CEILING).expect("the ceiling fits a usize") - 1;
+        let walk = std::thread::Builder::new()
+            .stack_size(256 << 10)
+            .spawn(move || {
+                let value = nested_arrays(levels);
+                let written = encoded(value);
+                #[expect(unsafe_code, reason = "this thread holds the only reference")]
+                unsafe {
+                    value.release();
+                }
+                written
+            })
+            .expect("a test thread is spawnable");
+
+        let text = walk
+            .join()
+            .expect("the walk has no native stack to run out of")
+            .expect("the deepest document the ceiling admits has a JSON encoding");
+        assert_eq!(
+            text,
+            format!("{}1{}", "[".repeat(levels), "]".repeat(levels))
+        );
+    }
+
+    /// The audit's finding, asserted rather than described: one cyclic object
+    /// graph is handed to every `Core` member whose walk could meet an object,
+    /// and each of them ends where it stands.
+    ///
+    /// [`nvs_core_json_encode`] is the only one that descends into an object,
+    /// so it is the only one a cycle can close inside — and it answers with the
+    /// property that closed it. `Core\Csv::format`, `Core\Uri::buildQuery` and
+    /// `Core\Encoding::toHex` are handed that same object as a **leaf** and
+    /// refuse it by tag where it sits, which is what each of those modules' own
+    /// docs records about its walk. `Core\Serialize` is not asked here: it
+    /// reaches the same property through `rule:classes/graph-copy`.
+    #[test]
+    fn every_encoder_that_reaches_an_object_graph_refuses_a_cycle_rather_than_recursing() {
+        /// One member the question is put to: the argument list it takes the
+        /// object in, and the words its own refusal is written with.
+        struct Asked {
+            member: &'static str,
+            function: nvs_runtime::NvsFn,
+            refusal: &'static str,
+            args: fn(Value) -> Vec<Value>,
+        }
+
+        let holder = instance(holder_class("Holder", &["self"]));
+        #[expect(unsafe_code, reason = "the property below owns a second reference")]
+        unsafe {
+            holder.retain();
+        }
+        set_property(holder, 0, holder);
+
+        let asked = [
+            Asked {
+                member: r"Core\Json::encode",
+                function: nvs_core_json_encode,
+                refusal: "`self`",
+                args: |object| vec![object, Value::bool(false), Value::bool(false)],
+            },
+            Asked {
+                member: r"Core\Csv::format",
+                function: crate::csv::nvs_core_csv_format,
+                refusal: "is not a `string`",
+                args: |object| {
+                    let mut record = NvsArray::new();
+                    record.set(NvsStr::new(b"0"), object);
+                    let mut rows = NvsArray::new();
+                    rows.set(NvsStr::new(b"0"), Value::array(record));
+                    vec![
+                        Value::array(rows),
+                        Value::str(NvsStr::new(b",")),
+                        Value::str(NvsStr::new(b"\"")),
+                        Value::null(),
+                    ]
+                },
+            },
+            Asked {
+                member: r"Core\Uri::buildQuery",
+                function: crate::uri::nvs_core_uri_build_query,
+                refusal: "neither a scalar nor a nested array",
+                args: |object| {
+                    let mut parameters = NvsArray::new();
+                    parameters.set(NvsStr::new(b"a"), object);
+                    vec![Value::array(parameters)]
+                },
+            },
+            Asked {
+                member: r"Core\Encoding::toHex",
+                function: crate::encoding::nvs_core_encoding_to_hex,
+                refusal: "expected a `bytes`",
+                args: |object| vec![object],
+            },
+        ];
+
+        let mut ctx = nvs_runtime::Ctx::buffered();
+        let mut answers: Vec<(&str, String)> = Vec::new();
+        for asked in asked {
+            #[expect(unsafe_code, reason = "the argument list below owns this reference")]
+            unsafe {
+                holder.retain();
+            }
+            let args = (asked.args)(holder);
+            let refused = nvs_runtime::call(asked.function, &mut ctx, &args).is_err();
+            let why = ctx
+                .take_pending()
+                .map(std::borrow::Cow::into_owned)
+                .unwrap_or_default();
+            for argument in args {
+                #[expect(
+                    unsafe_code,
+                    reason = "the argument list holds exactly the references its \
+                              builder took, and the cycle keeps the object alive"
+                )]
+                unsafe {
+                    argument.release();
+                }
+            }
+
+            assert!(refused, "{} encoded a cyclic object", asked.member);
+            assert!(why.contains(asked.member), "{why}");
+            assert!(why.contains(asked.refusal), "{why}");
+            answers.push((asked.member, why));
+        }
+
+        // The agreement, counted rather than read off a line: only a walk that
+        // is *inside* an object can meet it again, so exactly one of these
+        // answers by identity and the rest never entered it at all.
+        let by_identity: Vec<&str> = answers
+            .iter()
+            .filter(|(_, why)| why.contains("already inside"))
+            .map(|(member, _)| *member)
+            .collect();
+        assert_eq!(by_identity, [r"Core\Json::encode"], "{answers:?}");
+
+        set_property(holder, 0, Value::null());
+        #[expect(unsafe_code, reason = "this frame now holds the only reference")]
+        unsafe {
+            holder.release();
+        }
+    }
+}

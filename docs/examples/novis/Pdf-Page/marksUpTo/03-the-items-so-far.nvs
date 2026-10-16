@@ -1,0 +1,21 @@
+<?nvs
+// Shows a packing list that says which items each page lists, such as "items 1 to 39 of 50".
+use Novis\Pdf\Document;
+use Novis\Pdf\Page;
+
+string $rows = "";
+for (int $n = 1; $n <= 50; $n++) {
+    $rows .= "<tr data-mark=\"item:{$n}\"><td>Item {$n}</td><td>Box A</td></tr>";
+}
+var $html = "<h1>Packing list</h1><table><tbody>{$rows}</tbody></table>";
+
+// The last value up to this page is the number of the last item on this page.
+var $footer = fn(Page $page): Core\Html\Markup => {
+    array<string> $soFar = $page->marksUpTo("item");
+    uint $last = Core\Arr::count($soFar);
+    uint $first = $last - Core\Arr::count($page->marks("item")) + 1;
+    echo "page ", $page->number, ": items ", $first, " to ", $last, " of 50\n";
+    return html`<p>Items {$first} to {$last} of 50</p>`;
+};
+
+Document::fromHtml($html)->footer($footer)->render();

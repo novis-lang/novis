@@ -1,0 +1,53 @@
+<?nvs
+// Attack: a request asks for a great many files, or for entries that cannot be written.
+// Each attempt should throw an error or return files, and the server keeps running.
+use Novis\Image\Color;
+use Novis\Image\Format;
+use Novis\Image\Image;
+
+Image $small = Image::create(16, 16, Color::hex('#ff0000'));
+
+// 1. A thousand entries in one call.
+try {
+    array<{width?: uint}> $set = [];
+    uint $i = 0;
+    while ($i < 1000) {
+        $set[] = { width: 1 + $i % 16 };
+        $i = $i + 1;
+    }
+    echo 'step 1 ran ', Core\Arr::count($small->variants($set)), "\n";
+} catch (Throwable $e) {
+    echo "step 1 stopped\n";
+}
+
+// 2. An entry with a width of 0.
+try {
+    $small->variants([{ width: 0 }]);
+    echo "step 2 ran\n";
+} catch (Throwable $e) {
+    echo "step 2 stopped\n";
+}
+
+// 3. A valid entry, and then an entry in a format Novis cannot write.
+try {
+    $small->variants([{ width: 8, format: Format::Png }, { width: 8, format: Format::Pdf }]);
+    echo "step 3 ran\n";
+} catch (Throwable $e) {
+    echo "step 3 stopped\n";
+}
+
+// 4. An entry of 100000 by 100000 pixels, far larger than the image.
+try {
+    $small->variants([{ width: 100000, height: 100000 }]);
+    echo "step 4 ran\n";
+} catch (Throwable $e) {
+    echo "step 4 stopped\n";
+}
+
+// 5. An entry with a quality and no format.
+try {
+    $small->variants([{ quality: 18446744073709551615 }]);
+    echo "step 5 ran\n";
+} catch (Throwable $e) {
+    echo "step 5 stopped\n";
+}

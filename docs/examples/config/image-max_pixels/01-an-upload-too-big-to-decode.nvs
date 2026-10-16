@@ -1,0 +1,28 @@
+<?nvs
+// Shows how `max_pixels` stops a huge image before it is decoded.
+
+use Novis\Image\Image;
+
+// A PNG of 3 by 2 pixels, written as hex.
+bytes $avatar = Core\Encoding::fromHex(
+    "89504e470d0a1a0a0000000d49484452000000030000000208060000009d74661a"
+    . "0000000b49444154789c6360c00500001a0001bc3ce0410000000049454e44ae426082"
+);
+
+// The header of this PNG says it is 16384 by 16384 pixels. The file is
+// only 62 bytes long, but decoding it would need 1 GB of memory.
+bytes $bomb = Core\Encoding::fromHex(
+    "89504e470d0a1a0a0000000d4948445200004000000040000806000000a9c81084"
+    . "000000044944415478010000456a05430000000049454e44ae426082"
+);
+
+var $uploads =["avatar.png" => $avatar, "bomb.png" => $bomb];
+foreach ($uploads as string $name => bytes $data) {
+    try {
+        bytes $png = Image::open($data)->encode();
+        echo $name, ": decoded\n";
+    } catch (RuntimeError $tooBig) {
+        // The cap in `nvs.toml` is 1K, so this image is refused.
+        echo $name, ": ", $tooBig->message, "\n";
+    }
+}

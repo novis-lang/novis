@@ -1,0 +1,31 @@
+<?nvs
+// Shows two generators working together: one reads the lines of a report, the other
+// keeps the lines that matter. A program uses this shape to scan a long report while
+// holding one line at a time.
+
+class Report {
+    // Gives out the lines of the text, one per `yield`.
+    public static function lines(string $text): Iterator<string> {
+        foreach (Core\Str::lines($text) as string $line) {
+            yield $line;
+        }
+    }
+
+    // Reads the generator above and keeps only the failures. A `foreach` with a
+    // `yield` inside it is how one generator reads another.
+    public static function failures(Iterator<string> $lines): Iterator<string> {
+        foreach ($lines as string $line) {
+            if (Core\Str::startsWith($line, "ERROR")) {
+                yield $line;
+            }
+        }
+    }
+}
+
+string $log = "INFO started\nERROR disk full\nINFO retry\nERROR timeout\nINFO done\n";
+
+// This prints the two `ERROR` lines. The report is walked once, and neither
+// generator builds a list of its own.
+foreach (Report::failures(Report::lines($log)) as string $failure) {
+    echo $failure, "\n";
+}

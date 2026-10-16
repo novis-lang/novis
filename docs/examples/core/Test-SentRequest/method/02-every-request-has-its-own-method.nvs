@@ -1,0 +1,20 @@
+<?nvs
+// Shows the method of each request when a program sends several requests.
+
+use Core\Http\Client;
+use Core\Http\Method;
+use Core\Test;
+use Core\Test\SentRequest;
+
+Test::answerHttp("https://api.example.com/*", 200);
+
+Client::get("https://api.example.com/users/7");
+Client::put("https://api.example.com/users/7", {json: ["name" => "Ada"]});
+// `Client::request` takes the method as its first argument.
+Client::request(Method::Options, "https://api.example.com/users");
+
+// `Core\Http::methodName` converts each method to text.
+// This prints `GET`, `PUT` and `OPTIONS`, one on each line.
+foreach (Test::sentHttp() as SentRequest $request) {
+    echo Core\Http::methodName($request->method()), "\n";
+}

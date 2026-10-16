@@ -1,0 +1,12 @@
+{
+  "title": "A method carrying `#[Route]` carries `#[Access]`, and an omission does not compile",
+  "status": "shipped",
+  "seeAlso": [
+    "attributes/access-payload",
+    "attributes/api-adds-and-cannot-contradict"
+  ],
+  "guardedBy": [
+    "tests/conformance/reject/a-stray-access-attribute-is-refused.nvst",
+    "crates/nvs-types/tests/routes.rs"
+  ]
+}

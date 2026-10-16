@@ -1,0 +1,25 @@
+--TEST--
+`int ** int` with a negative exponent throws an error, because the result is not a whole number, and a `float` operand gives the `float` result, `rule:types/arithmetic`
+--FILE--
+<?nvs
+// The exponent is negative, so the result is not a whole number and the
+// operator throws an error. The exponent is a variable, so the compiler cannot
+// compute the result in advance.
+int $reciprocal = -1;
+try { echo 2 ** $reciprocal, "\n"; }
+catch (Throwable $e) { echo "refused|", $e->message, "\n"; }
+
+// A negative base throws the same error.
+try { echo (-2) ** $reciprocal, "\n"; }
+catch (Throwable $negative) { echo "refused|", $negative->message, "\n"; }
+
+// An exponent of zero or more gives an `int`.
+echo 2 ** 0, " ", 2 ** 1, " ", 2 ** 10, "\n";
+
+// To get a `float` result, write one operand as a `float`.
+echo 2.0 ** $reciprocal, " ", 1.0 / (2 ** 1), "\n";
+--EXPECT--
+refused|Negative exponent has no integer result
+refused|Negative exponent has no integer result
+1 2 1024
+0.5 0.5

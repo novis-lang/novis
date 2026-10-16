@@ -1,0 +1,13 @@
+<?nvs
+// Shows an order time in each customer's own time, from an offset saved in minutes.
+
+// Each customer saved the distance from UTC of their clock, in minutes.
+array<int> $customers = ["Ana" => -180, "Ben" => 0, "Chitra" => 330];
+Core\Time\Instant $ordered = Core\Time::fromIso("2024-11-20T18:45:00Z");
+
+// `Core\Time\Duration::minutes` turns the saved number into an offset.
+// This prints 15:45, 18:45 and 00:15 on the next day.
+foreach ($customers as string $name => int $minutes) {
+    Core\Time\Zone $zone = Core\Time\Zone::fixed(Core\Time\Duration::minutes($minutes));
+    echo $name, ": ", $ordered->in($zone)->format("uuuu-MM-dd HH:mm xxx"), "\n";
+}

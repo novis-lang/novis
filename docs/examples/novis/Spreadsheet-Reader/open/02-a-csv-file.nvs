@@ -1,0 +1,13 @@
+<?nvs
+// Shows that `Reader::open` also reads a CSV file, with the same calls as an xlsx file.
+use Novis\Spreadsheet\Reader;
+
+// A CSV file has one sheet, `Sheet1`.
+bytes $file = "Item,Price\nWidget,2.50\nGadget,4\n" as bytes;
+var $reader = Reader::open($file);
+echo $reader->sheets()[0]->name, "\n";
+
+// Each value in a CSV file is a string. So `2.50` stays `2.50`.
+foreach ($reader->rows(0, { header: true }) as var $row) {
+    echo $row->values['Item'], ' costs ', $row->values['Price'], "\n";
+}

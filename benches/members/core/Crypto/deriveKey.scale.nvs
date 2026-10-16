@@ -1,0 +1,23 @@
+<?nvs
+// Measures `Core\Crypto::deriveKey` on one password, at growing password lengths.
+// bench: start 256
+// bench: max 4096
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        bytes $salt = Core\Bytes::fill(16, 65);
+        string $password = Core\Str::repeat('a', $size);
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 2) {
+            secret bytes $key = Core\Crypto::deriveKey($password, $salt, 100000);
+            $total = $total + (($key == $key ? 1 : 0) as uint);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

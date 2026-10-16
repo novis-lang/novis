@@ -1,0 +1,76 @@
+--TEST--
+Core\Arr::min and ::max return `null` for an empty array, compare numeral strings bytewise, and throw when two entries have no order: an `int` beside a `string`, or `null` beside a number
+--FILE--
+<?nvs
+final class Show {
+    public static function text(?string $found): string {
+        if ($found == null) {
+            return "none";
+        }
+        return $found as string;
+    }
+
+    public static function num(?int $found): string {
+        if ($found == null) {
+            return "none";
+        }
+        return $found as string;
+    }
+}
+
+// An empty array has no smallest or largest entry, so both return `null`.
+array<int> $empty = [];
+echo Show::num(Core\Arr::min($empty)), " ", Show::num(Core\Arr::max($empty)), "\n";
+
+// Strings are compared byte by byte, even when they look like numbers.
+// `"1"` comes before `"5"`, so `"1e2"` is the smallest.
+array<string> $exponent = ["1e2", "50"];
+echo Show::text(Core\Arr::min($exponent)), " ", Show::text(Core\Arr::max($exponent)), "\n";
+
+array<string> $digits = ["10", "9", "100"];
+echo Show::text(Core\Arr::min($digits)), " ", Show::text(Core\Arr::max($digits)), "\n";
+
+// `"01"` and `"1"` are two different strings, so `min` and `max` differ.
+array<string> $leadingZero = ["01", "1"];
+echo Show::text(Core\Arr::min($leadingZero)), " ", Show::text(Core\Arr::max($leadingZero)), "\n";
+
+// An `int` and a `string` have no order, so `min` throws.
+array<int|string> $wordAndNumber = [0, "a"];
+try {
+    var $extreme = Core\Arr::min($wordAndNumber);
+    echo "ordered\n";
+} catch (Throwable $unordered) {
+    echo "refused\n";
+}
+
+// The string `"10"` looks like a number, but it is still a string. `max` throws.
+array<int|string> $numeralAndNumber = ["10", 9];
+try {
+    var $crossed = Core\Arr::max($numeralAndNumber);
+    echo "ordered\n";
+} catch (Throwable $notNumeric) {
+    echo "refused\n";
+}
+
+// `null` beside a number has no order either, so `min` throws.
+array<?int> $withNull = [null, 1];
+try {
+    var $lowest = Core\Arr::min($withNull);
+    echo "ordered\n";
+} catch (Throwable $nullPresent) {
+    echo "refused\n";
+}
+
+// One type, and no numeral strings: both members return a value.
+array<string> $words = ["pear", "apple", "fig"];
+array<int> $ints = [3, 1, 4, 1, 5];
+echo Show::text(Core\Arr::min($words)), " ", Show::num(Core\Arr::max($ints)), "\n";
+--EXPECT--
+none none
+1e2 50
+10 9
+01 1
+refused
+refused
+refused
+apple 5

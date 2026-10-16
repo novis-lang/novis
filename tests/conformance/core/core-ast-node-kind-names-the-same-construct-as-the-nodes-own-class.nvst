@@ -1,0 +1,48 @@
+--TEST--
+A Core\Ast\Node's kind names the same construct as that node's own runtime class, at every node of a walk — `rule:core-classes/ast-is-inert`, `rule:core-api/reference-card`
+--FILE--
+<?nvs
+// covers: Core\Ast\Node::kind
+// The *agreement* shape, over every node of one tree. `kind()` is the short
+// name a program branches on and the node's runtime class is the identity
+// behind it, so the two name the same construct at every node or one of them
+// is wrong. The assertion counts rather than reading a line off the walk, so a
+// tree answering plausibly node by node still fails here — and the count is
+// named too, so a walk that agreed by visiting nothing fails as well.
+var $src = <<<'NVS'
+<?nvs
+int $count = 2;
+if ($count > 1) {
+    foreach ([1, 2] as int $n) {
+        echo $n;
+    }
+}
+NVS;
+var $file = Core\Ast::parse($src);
+
+uint $checked = 0;
+uint $agreed = 0;
+foreach ($file->nodes() as Core\Ast\Node $node) {
+    $checked = $checked + 1;
+    if (Core\Reflect::forObject($node)->name() == "Core\\Ast\\" . $node->kind()) {
+        $agreed = $agreed + 1;
+    }
+}
+
+echo "checked ", $checked, " agreed ", $agreed, "\n";
+echo $checked == $agreed ? "every node agrees" : "a node named two constructs", "\n";
+
+// The root is a node too, and it is not part of its own walk.
+echo $file->kind(), " ", Core\Reflect::forObject($file)->name(), "\n";
+
+// The name is the grammar's, not the source's: these parts are written with
+// construct names in them and answer what they are.
+foreach (Core\Ast::parse('<?nvs string $ClassDecl = "Foreach"; echo "File";')->children() as Core\Ast\Node $part) {
+    echo $part->kind(), " ";
+}
+echo "\n";
+--EXPECT--
+checked 14 agreed 14
+every node agrees
+File Core\Ast\File
+LocalDecl Echo

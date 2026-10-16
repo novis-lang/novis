@@ -1,0 +1,104 @@
+<?nvs
+// Attack: a number column holding something that is not a number, and a column
+// of another type. Then names that belong to no column, and a million reads of
+// one row. Every step has to answer or throw an error, and none may stop the
+// program.
+// hostile: timeout-ms 60000
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table order_lines (id integer primary key, amount decimal(10,2) not null, rate real not null, item text not null)', []);
+decimal $amount = 19.95;
+$db->execute('insert into order_lines (amount, rate, item) values (?, ?, ?)', [$amount, 0.19, 'teapot']);
+
+array<Core\Db\Row> $one = $db->query('select amount, rate, item from order_lines', [])->all();
+var $row = $one[0];
+
+// 1. Columns of another type. An exact number is not a `float` and not a text,
+// so both of these throw an error.
+uint $refused = 0;
+array<string> $others = ['rate', 'item'];
+foreach ($others as string $column) {
+    try {
+        $row->decimal($column);
+    } catch (Throwable $error) {
+        $refused = $refused + 1;
+    }
+}
+echo '1 refused: ', $refused, "\n";
+
+// 2. Ten thousand reads of a name that belongs to no column. Every one throws
+// an error, and ten thousand errors may not fill the memory.
+$refused = 0;
+uint $i = 0;
+while ($i < 10000) {
+    try {
+        $row->decimal('missing');
+    } catch (Throwable $error) {
+        $refused = $refused + 1;
+    }
+    $i = $i + 1;
+}
+echo '2 refused: ', $refused, "\n";
+
+// 3. A column name of ten million characters. No row has such a column, so the
+// read throws and the row still works after it.
+try {
+    $row->decimal(Core\Str::repeat('a', 10000000));
+    echo "3 the long name found a column\n";
+} catch (Throwable $error) {
+    echo "3 refused\n";
+}
+
+// 4. A million reads of the same number. An exact number is a value and not an
+// object, so nothing may pile up over a million of them.
+uint $read = 0;
+$i = 0;
+while ($i < 1000000) {
+    if ($row->decimal('amount') != null) {
+        $read = $read + 1;
+    }
+    $i = $i + 1;
+}
+echo '4 read: ', $read, "\n";
+
+// 5. Fifty thousand rows kept at once, and the number of every one of them
+// read. A row a program still holds may not be freed under it.
+array<array<Core\Db\Row>> $kept = [];
+$i = 0;
+while ($i < 50000) {
+    $kept[] = $db->query('select amount from order_lines where id = ?', [1])->all();
+    $i = $i + 1;
+}
+$read = 0;
+foreach ($kept as array<Core\Db\Row> $rows) {
+    foreach ($rows as Core\Db\Row $held) {
+        if ($held->decimal('amount') != null) {
+            $read = $read + 1;
+        }
+    }
+}
+echo '5 read: ', $read, "\n";
+
+// 6. A number column holding `about three`, which is no number at all. Reading
+// the row throws, and the connection has to work after that.
+$db->execute('insert into order_lines (amount, rate, item) values (?, ?, ?)', ['about three', 0.19, 'broken']);
+try {
+    $db->query('select amount from order_lines order by id', []);
+    echo "6 the text was read as a number\n";
+} catch (Throwable $error) {
+    echo "6 refused\n";
+}
+
+// 7. Forty digits, which is more than a `decimal` holds. The read throws, and
+// the connection still answers after it.
+$db->execute(
+    'insert into order_lines (amount, rate, item) values (?, ?, ?)',
+    ['1234567890123456789012345678901234567890', 0.19, 'too many digits'],
+);
+try {
+    $db->query('select amount from order_lines where item = ?', ['too many digits']);
+    echo "7 forty digits were read as a number\n";
+} catch (Throwable $error) {
+    echo "7 refused\n";
+}
+echo '8 still there: ', $db->query('select amount from order_lines where id = ?', [1])->count(), "\n";

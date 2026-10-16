@@ -1,0 +1,21 @@
+--TEST--
+a `foreach` binding is a use site like any other, so iterating an `array<tainted string>` colours the binding — and the local it goes on to name — `tainted`, while the array holding them carries nothing itself, `rule:security/tainted-qualifier`, `rule:ide/semantic-tokens-carry-the-qualifiers`
+--FILE--
+<?nvs
+class Handler {
+    public function handle(array<tainted string> $chunks): void {
+        foreach ($chunks as tainted string $chunk) {
+            var $seen = $chunk;
+        }
+    }
+}
+--REQUEST--
+semanticTokens
+--EXPECT--
+2:7+7 class
+3:21+6 method
+3:50+7 parameter
+4:18+7 variable
+4:44+6 variable tainted
+5:17+5 variable tainted
+5:25+6 variable tainted

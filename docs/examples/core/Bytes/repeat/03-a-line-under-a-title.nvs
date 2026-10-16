@@ -1,0 +1,18 @@
+<?nvs
+// Shows how a program draws a line under a title in a report. The line has the
+// same length as the title, so it fits whatever the title says.
+
+final class Report {
+    // Returns the title with a line of "=" of the same length under it.
+    public static function heading(bytes $title): bytes {
+        uint $width = Core\Bytes::length($title);
+        bytes $rule = Core\Bytes::repeat("=" as bytes, $width);
+        return Core\Bytes::join([$title, "\n" as bytes, $rule]);
+    }
+}
+
+// The title has 12 bytes, so the line under it has 12 as well.
+echo Report::heading("Orders today" as bytes) as string, "\n";
+
+// A shorter title gives a shorter line.
+echo Report::heading("Total" as bytes) as string, "\n";

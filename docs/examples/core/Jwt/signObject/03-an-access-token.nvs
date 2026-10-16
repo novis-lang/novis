@@ -1,0 +1,57 @@
+<?nvs
+// Shows an access token: a login server signs it, and another service checks it with the public key.
+
+#[Core\Json\Derive]
+final class Access {
+    public string $iss;
+    public string $aud;
+    public string $sub;
+    public array<string> $scopes;
+
+    public function constructor(string $iss, string $aud, string $sub, array<string> $scopes) {
+        $this->iss = $iss;
+        $this->aud = $aud;
+        $this->sub = $sub;
+        $this->scopes = $scopes;
+    }
+}
+
+// The login server keeps the key pair. It gives only the public key to other services.
+Core\Crypto\KeyPair $loginServer = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::Ed25519);
+Core\Crypto\PublicKey $published = $loginServer->publicKey();
+
+// `iss` names the server that signed the token. `aud` names the service that may use it.
+// `at+jwt` is the standard `typ` for an access token.
+string $token = Core\Jwt::signObject(
+    new Access("https://login.example.com", "orders-api", "1042", ["orders:read"]),
+    10m,
+    $loginServer,
+    {typ: "at+jwt"}
+);
+
+// This method runs in the orders service. `Core\Jwt::verifyIssued` checks the signature,
+// the expiry, `iss` and `aud`. A token that is not valid throws a `RuntimeError`.
+class Orders {
+    // The claims are `tainted` because they come from outside the program.
+    public static function user(string $token, Core\Crypto\PublicKey $key): tainted string {
+        try {
+            var $access = Core\Jwt::verifyIssued<
+                tainted {iss: string, aud: string, sub: string, scopes: array<string>, iat: int, exp: int}
+            >($token, $key, "https://login.example.com", "orders-api");
+            return "user " . $access->sub . " may use " . $access->scopes[0];
+        } catch (RuntimeError $invalid) {
+            return "not allowed";
+        }
+    }
+}
+
+// This prints `user 1042 may use orders:read`.
+echo Orders::user($token, $published), "\n";
+
+// A token for a different service has another `aud`. This prints `not allowed`.
+string $billing = Core\Jwt::signObject(
+    new Access("https://login.example.com", "billing-api", "1042", ["billing:read"]),
+    10m,
+    $loginServer
+);
+echo Orders::user($billing, $published), "\n";

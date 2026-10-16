@@ -1,0 +1,30 @@
+<?nvs
+// Measures one batch insert inside a transaction, at growing numbers of rows in the batch.
+// bench: start 64
+// bench: max 512
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        var $db = Core\Db::connect('notes');
+        $db->execute('create table notes (id integer primary key, n int not null)', []);
+        array<array<mixed>> $sets = [];
+        uint $row = 0;
+        while ($row < $size) {
+            $sets[] = [$row as int];
+            $row = $row + 1;
+        }
+        return $db->transaction(fn (Core\Db\Transaction $tx): uint => {
+            uint $total = 0;
+            uint $i = 0;
+            while ($i < 16) {
+                $total = $total + $tx->executeMany('insert into notes (n) values (?)', $sets);
+                $i = $i + 1;
+            }
+            return $total;
+        });
+    }
+}
+
+echo Bench::run(64), "\n";

@@ -1,0 +1,11 @@
+{
+  "title": "A run on `main` is never cancelled by the next commit",
+  "status": "shipped",
+  "seeAlso": [
+    "testing/ci-lanes",
+    "testing/lane-table"
+  ],
+  "guardedBy": [
+    ".github/workflows/ci.yml"
+  ]
+}

@@ -1,0 +1,15 @@
+<?nvs
+// Shows the body of a form request and of a request that has no body.
+
+use Core\Http\Client;
+use Core\Test;
+
+Test::answerHttp("https://api.example.com/*", 200);
+Client::post("https://api.example.com/login", {form: ["user" => "ada", "note" => "a b"]});
+Client::get("https://api.example.com/home");
+
+// A form body is encoded text. This prints `user=ada&note=a+b`.
+echo Test::sentHttp()[0]->body() as string, "\n";
+
+// A GET request has no body, so the result is empty. This prints `0`.
+echo Core\Bytes::length(Test::sentHttp()[1]->body()), "\n";

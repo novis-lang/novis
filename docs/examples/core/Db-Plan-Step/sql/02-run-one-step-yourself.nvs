@@ -1,0 +1,33 @@
+<?nvs
+// Shows how a program runs one step of a plan itself. The statement is
+// complete, so `Core\Db\Connection::execute` runs it as it stands.
+
+use Core\Db;
+use Core\Db\Schema;
+
+var $db = Db::connect('notes');
+
+var $schema = Schema::fromArray([
+    'tables' => [
+        [
+            'name' => 'notes',
+            'columns' => [
+                ['name' => 'id', 'type' => 'int64', 'identity' => true],
+                ['name' => 'title', 'type' => 'text(200)'],
+            ],
+            'primary_key' => ['id'],
+        ],
+    ],
+]);
+
+var $steps = $schema->planAgainst($db)->steps();
+echo Core\Arr::count($steps), " step to run\n";
+
+// `execute` runs one statement per call. This step is one statement, so it
+// can be handed over as it is.
+$db->execute($steps[0]->sql(), []);
+
+// The database now matches the schema, so the next plan has nothing in it.
+echo Core\Arr::count($schema->planAgainst($db)->steps()), " steps left\n";
+
+$db->close();

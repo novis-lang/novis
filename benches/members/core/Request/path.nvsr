@@ -1,0 +1,8 @@
+--METHOD--
+GET
+--PATH--
+/api/orders/1042/items
+--HEADERS--
+host: shop.example.com
+user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko)
+accept: application/json

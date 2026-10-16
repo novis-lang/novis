@@ -1,0 +1,21 @@
+--TEST--
+a misspelled segment of a `propertyPath<T>` literal is underlined alone, not the whole string, because the checker reports it at that segment's span — `rule:ide/a-field-path-completes-one-segment-at-a-time`, `rule:types/property-path`
+--FILE--
+<?nvs
+class Customer {
+    public string $name = "Ada";
+}
+class Order {
+    public ?Customer $customer = null;
+}
+class Grid {
+    public static function sortBy(propertyPath<Order> $column): string {
+        return $column as string;
+    }
+}
+
+echo Grid::sortBy("customer.nmae");
+--REQUEST--
+diagnostics
+--EXPECT--
+14:29-14:33 error E0405 `Customer` has no public property `$nmae`

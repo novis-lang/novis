@@ -1,0 +1,56 @@
+<?nvs
+// Attack: a program saves uploaded files to places that should not accept them.
+// It also saves one file twice and saves a file after the loop moved on.
+// Each wrong save should throw an error and leave no partial file behind.
+
+string $folder = Core\IO::temporaryDir();
+array<Core\Request\Part> $parts = [];
+foreach (Core\Request::files() as Core\Request\Part $part) {
+    $parts[] = $part;
+    string $path = Core\Path::join($folder, 'upload-' . Core\Arr::count($parts) . '.bin');
+
+    // 1. Saves to the folder itself, which is not a file. This throws an error.
+    try {
+        $part->saveTo($folder);
+        echo "saved over a folder\n";
+    } catch (RuntimeError $error) {
+        echo "folder as path: an error\n";
+    }
+
+    // 2. Saves the file, then saves it again to the same path. The second save throws an error.
+    try {
+        $part->saveTo($path);
+        echo 'saved ', Core\IO::size($path), " bytes\n";
+        $part->saveTo($path);
+        echo "saved twice\n";
+    } catch (RuntimeError $error) {
+        echo 'second save: an error, the file still has ', Core\IO::size($path), " bytes\n";
+    }
+
+    // 3. Saves the same file a third time and allows it to replace the first copy.
+    //    The content was already read, so the new copy is empty.
+    try {
+        $part->saveTo($path, { overwrite: true });
+        echo 'replaced, the file now has ', Core\IO::size($path), " bytes\n";
+    } catch (RuntimeError $error) {
+        echo "replace: an error\n";
+    }
+
+    // 4. Uses the name the client sent. The first name leaves the folder, so `within` throws an error.
+    //    The second name loses its backslashes when the form is read, so it stays inside the folder.
+    try {
+        $part->saveTo(Core\IO::within($folder, $part->filename()));
+        echo 'saved under the name ', Core\Str::length($part->filename()), " characters long\n";
+    } catch (RuntimeError $error) {
+        echo "client name: an error\n";
+    }
+}
+
+// 5. Saves the first file after the loop ended. This throws a `LogicError` and creates no file.
+string $late = Core\Path::join($folder, 'late.bin');
+try {
+    $parts[0]->saveTo($late);
+    echo "an old file was saved\n";
+} catch (LogicError $gone) {
+    echo 'old file: LogicError, file exists: ', Core\IO::exists($late) ? 'yes' : 'no', "\n";
+}

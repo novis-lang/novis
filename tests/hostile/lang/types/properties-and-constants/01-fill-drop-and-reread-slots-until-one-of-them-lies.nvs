@@ -1,0 +1,92 @@
+<?nvs
+// Attack: the program creates and frees objects very fast, to make a property return a wrong value.
+// It walks a chain of 50,000 objects and checks that 20,000 objects do not share one array.
+// Then it creates and frees one million objects. Every one adds 1 to the static property `Node::$made`.
+// hostile: timeout-ms 20000
+
+class Limits
+{
+    public const uint DEPTH = 50000;
+    public const string TAG = 'limits';
+}
+
+class Node
+{
+    public ?Node $next = null;
+    public string $tag = Limits::TAG;
+    public array<int> $marks = [];
+    public uint $depth;
+    public static uint $made = 0;
+
+    public function constructor(uint $depth)
+    {
+        $this->depth = $depth;
+        Node::$made = Node::$made + 1;
+    }
+}
+
+class Walk
+{
+    public static function length(?Node $from): uint
+    {
+        uint $seen = 0;
+        ?Node $at = $from;
+
+        while ($at != null) {
+            $seen = $seen + 1;
+            $at = $at?->next;
+        }
+
+        return $seen;
+    }
+}
+
+// 1. Build a chain of `Limits::DEPTH` objects, then count them by following `$next`.
+Node $head = new Node(0);
+Node $cursor = $head;
+uint $built = 1;
+
+while ($built < Limits::DEPTH) {
+    Node $link = new Node($built);
+    $cursor->next = $link;
+    $cursor = $link;
+    $built = $built + 1;
+}
+
+echo Walk::length($head), "\n";
+
+// 2. Each object gets its own `$marks` array. Changing one array must not change
+// another, so `$shared` should be `0`.
+array<Node> $held = [];
+uint $made = 0;
+
+while ($made < 20000) {
+    Node $fresh = new Node($made);
+    $fresh->marks = [$made as int];
+    $held[] = $fresh;
+    $made = $made + 1;
+}
+
+uint $shared = 0;
+
+foreach ($held as Node $node) {
+    if (Core\Arr::count($node->marks) != 1) {
+        $shared = $shared + 1;
+    }
+}
+
+echo $shared, "\n";
+
+// 3. Create two objects in each round and free them in the next round.
+// Each constructor adds 1 to `Node::$made`.
+uint $churn = 0;
+
+while ($churn < 500000) {
+    Node $throwaway = new Node($churn);
+    $throwaway->next = new Node($churn);
+    $throwaway->marks = [1, 2, 3];
+    $churn = $churn + 1;
+}
+
+echo Node::$made > 1000000 ? "counted\n" : "undercounted\n";
+echo Core\Str::length($head->tag), "\n";

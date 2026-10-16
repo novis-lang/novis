@@ -1,0 +1,10 @@
+<?nvs
+use Core\Test;
+use Shop\Cart;
+
+final class CartTest {
+    #[Test]
+    public function totalIsThree(): void {
+        Test::assertSame(3, (new Cart())->total());
+    }
+}

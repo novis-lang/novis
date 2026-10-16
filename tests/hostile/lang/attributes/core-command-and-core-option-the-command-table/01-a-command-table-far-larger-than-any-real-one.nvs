@@ -1,0 +1,173 @@
+<?nvs
+// Attack: a command table far larger than anything a real program declares.
+// Novis collects every command while it compiles the program and checks the
+// names and the spellings against each other. The program below should compile
+// and run to its last line.
+
+type Command = {name: string, about: string};
+type Option = {long: string};
+
+// 1. One command carrying 32 options. Every spelling is compared with every
+//    other one, so this tries to make that comparison slow.
+class Crowded
+{
+    #[Core\Command(name: "crowded", about: "A command with many options")]
+    public static function crowded(
+        #[Core\Option(long: "opt01")] bool $o01,
+        #[Core\Option(long: "opt02")] bool $o02,
+        #[Core\Option(long: "opt03")] bool $o03,
+        #[Core\Option(long: "opt04")] bool $o04,
+        #[Core\Option(long: "opt05")] bool $o05,
+        #[Core\Option(long: "opt06")] bool $o06,
+        #[Core\Option(long: "opt07")] bool $o07,
+        #[Core\Option(long: "opt08")] bool $o08,
+        #[Core\Option(long: "opt09")] bool $o09,
+        #[Core\Option(long: "opt10")] bool $o10,
+        #[Core\Option(long: "opt11")] bool $o11,
+        #[Core\Option(long: "opt12")] bool $o12,
+        #[Core\Option(long: "opt13")] bool $o13,
+        #[Core\Option(long: "opt14")] bool $o14,
+        #[Core\Option(long: "opt15")] bool $o15,
+        #[Core\Option(long: "opt16")] bool $o16,
+        #[Core\Option(long: "opt17")] bool $o17,
+        #[Core\Option(long: "opt18")] bool $o18,
+        #[Core\Option(long: "opt19")] bool $o19,
+        #[Core\Option(long: "opt20")] bool $o20,
+        #[Core\Option(long: "opt21")] bool $o21,
+        #[Core\Option(long: "opt22")] bool $o22,
+        #[Core\Option(long: "opt23")] bool $o23,
+        #[Core\Option(long: "opt24")] bool $o24,
+        #[Core\Option(long: "opt25")] bool $o25,
+        #[Core\Option(long: "opt26")] bool $o26,
+        #[Core\Option(long: "opt27")] bool $o27,
+        #[Core\Option(long: "opt28")] bool $o28,
+        #[Core\Option(long: "opt29")] bool $o29,
+        #[Core\Option(long: "opt30")] bool $o30,
+        #[Core\Option(long: "opt31")] bool $o31,
+        #[Core\Option(long: "opt32")] bool $o32,
+    ): void
+    {
+        if ($o01 && $o32) { echo 'both', "\n"; }
+    }
+}
+
+// 2. A description long enough to be worth copying. This tries to make one
+//    payload large.
+class Bulky
+{
+    #[Core\Command(
+        name: "bulky",
+        about: "00000000001111111111222222222233333333334444444444555555555566666666667777777777888888888899999999990000000000111111111122222222223333333333444444444455555555556666666666777777777788888888889999999999",
+    )]
+    public static function bulky(): void
+    {}
+}
+
+// 3. Twenty-four more commands, so the table holds many rows rather than one
+//    large one. Every name is compared with every other name.
+class Many
+{
+    #[Core\Command(name: "c01", about: "one")]
+    public static function c01(): void
+    {}
+    #[Core\Command(name: "c02", about: "two")]
+    public static function c02(): void
+    {}
+    #[Core\Command(name: "c03", about: "three")]
+    public static function c03(): void
+    {}
+    #[Core\Command(name: "c04", about: "four")]
+    public static function c04(): void
+    {}
+    #[Core\Command(name: "c05", about: "five")]
+    public static function c05(): void
+    {}
+    #[Core\Command(name: "c06", about: "six")]
+    public static function c06(): void
+    {}
+    #[Core\Command(name: "c07", about: "seven")]
+    public static function c07(): void
+    {}
+    #[Core\Command(name: "c08", about: "eight")]
+    public static function c08(): void
+    {}
+    #[Core\Command(name: "c09", about: "nine")]
+    public static function c09(): void
+    {}
+    #[Core\Command(name: "c10", about: "ten")]
+    public static function c10(): void
+    {}
+    #[Core\Command(name: "c11", about: "eleven")]
+    public static function c11(): void
+    {}
+    #[Core\Command(name: "c12", about: "twelve")]
+    public static function c12(): void
+    {}
+    #[Core\Command(name: "c13", about: "thirteen")]
+    public static function c13(): void
+    {}
+    #[Core\Command(name: "c14", about: "fourteen")]
+    public static function c14(): void
+    {}
+    #[Core\Command(name: "c15", about: "fifteen")]
+    public static function c15(): void
+    {}
+    #[Core\Command(name: "c16", about: "sixteen")]
+    public static function c16(): void
+    {}
+    #[Core\Command(name: "c17", about: "seventeen")]
+    public static function c17(): void
+    {}
+    #[Core\Command(name: "c18", about: "eighteen")]
+    public static function c18(): void
+    {}
+    #[Core\Command(name: "c19", about: "nineteen")]
+    public static function c19(): void
+    {}
+    #[Core\Command(name: "c20", about: "twenty")]
+    public static function c20(): void
+    {}
+    #[Core\Command(name: "c21", about: "twenty one")]
+    public static function c21(): void
+    {}
+    #[Core\Command(name: "c22", about: "twenty two")]
+    public static function c22(): void
+    {}
+    #[Core\Command(name: "c23", about: "twenty three")]
+    public static function c23(): void
+    {}
+    #[Core\Command(name: "c24", about: "twenty four")]
+    public static function c24(): void
+    {}
+}
+
+// 4. Reading all of it back 200000 times. The table is built while the program
+//    compiles, so the running program must not keep a copy of any payload.
+class Attack
+{
+    public static function run(uint $rounds): uint
+    {
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            ?Command $bulky = Core\Attributes::get<Command>(Bulky::bulky(...));
+            if ($bulky != null) {
+                $total = $total + Core\Str::length($bulky->about);
+            }
+            ?Option $first = Core\Attributes::get<Option>(Crowded::crowded(...), 'o01');
+            ?Option $last = Core\Attributes::get<Option>(Crowded::crowded(...), 'o32');
+            if ($first != null) {
+                if ($last != null) {
+                    $total = $total + Core\Str::length($first->long) + Core\Str::length($last->long);
+                }
+            }
+            array<Command> $rows = Core\Attributes::all<Command>(Many::c24(...));
+            $total = $total + Core\Arr::count($rows) + $total % 2;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Attack::run(200000), "\n";
+echo "still standing\n";

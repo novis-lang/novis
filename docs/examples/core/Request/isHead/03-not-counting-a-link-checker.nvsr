@@ -1,0 +1,7 @@
+--METHOD--
+HEAD
+--PATH--
+/blog/welcome
+--HEADERS--
+host: example.com
+user-agent: LinkChecker/2.1

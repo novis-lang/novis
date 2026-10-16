@@ -1,0 +1,42 @@
+--TEST--
+`Core\Zip::extract` judges the whole archive before it creates anything, so a hostile entry refuses with nothing on the disk and no destination — `rule:security/path-scope-canonicalise-then-prefix`
+--FILE--
+<?nvs
+// `notes/one.txt` beside `../../etc/passwd`: an archive that is harmless right
+// up until somebody extracts it, which is where PHP's shape left the check.
+bytes $traversing = Core\Encoding::fromBase64("UEsDBBQAAAAAAAAAAABX7nGSBQAAAAUAAAANAAAAbm90ZXMvb25lLnR4dGZpcnN0UEsDBBQAAAAAAAAAAADMqc5XCgAAAAoAAAAQAAAALi4vLi4vZXRjL3Bhc3N3ZHJvb3Q6eDowOjBQSwECHgMUAAAAAAAAAAAAV+5xkgUAAAAFAAAADQAAAAAAAAAAAAAApIEAAAAAbm90ZXMvb25lLnR4dFBLAQIeAxQAAAAAAAAAAADMqc5XCgAAAAoAAAAQAAAAAAAAAAAAAACkgTAAAAAuLi8uLi9ldGMvcGFzc3dkUEsFBgAAAAACAAIAeQAAAGgAAAAAAA==");
+
+// The refusal is the reader's, so it is the same sentence `entries` and `read`
+// answer with — an extraction is not a second place where a name is judged.
+try {
+    Core\Zip::extract($traversing, "out");
+    echo "extracted\n";
+} catch (ParseError $refused) {
+    echo $refused->message, "\n";
+}
+
+// And it refused before it reached a door: the destination the call named was
+// never created, so an archive that is refused leaves nothing at all behind —
+// not even the empty directory it would have written into.
+if (Core\IO::isDir("out")) {
+    echo "out: created\n";
+} else {
+    echo "out: never created\n";
+}
+
+// The harmless entry of that archive is not extracted on its own either, for
+// the reason `read` will not answer it: an archive carrying one traversing
+// entry is not a well-meaning archive with a bad row in it.
+if (Core\IO::exists("out/notes/one.txt")) {
+    echo "out/notes/one.txt: written\n";
+} else {
+    echo "out/notes/one.txt: never written\n";
+}
+--FILE nvs.toml--
+[capabilities.fs]
+read = ["."]
+write = ["."]
+--EXPECT--
+Core\Zip refuses an entry when the archive is read: it traverses out of the archive with a `..` component: "../../etc/passwd" (rule:security/path-scope-canonicalise-then-prefix). The refusal is the archive's rather than the extraction's, so a program that walks the entries itself has nothing left it could have checked.
+out: never created
+out/notes/one.txt: never written

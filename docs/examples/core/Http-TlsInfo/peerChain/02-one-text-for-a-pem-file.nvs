@@ -1,0 +1,28 @@
+<?nvs
+// Shows how to join the certificates into one text. A `.pem` file has this form,
+// so other tools can read it.
+
+// A TLS connection built for a test, so the example runs without a network.
+var $session = Core\Test::tlsSession({subject: "CN=shop.example.com, O=Shop"});
+
+// The loop puts the certificates one after the other.
+// Each certificate already ends with a line break.
+tainted string $bundle = "";
+foreach ($session->peerChain() as tainted string $pem) {
+    $bundle = $bundle . $pem;
+}
+array<tainted string> $lines = Core\Str::lines($bundle);
+
+// Each certificate starts with a `BEGIN CERTIFICATE` line, so this counts them.
+// This prints `certificates: 2`.
+uint $count = 0;
+foreach ($lines as tainted string $line) {
+    if ($line == "-----BEGIN CERTIFICATE-----") {
+        $count = $count + 1;
+    }
+}
+echo "certificates: ", $count, "\n";
+
+// This prints the first line and the last line of the whole text.
+echo $lines[0], "\n";
+echo $lines[Core\Arr::count($lines) - 1], "\n";

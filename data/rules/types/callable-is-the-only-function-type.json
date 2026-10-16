@@ -1,0 +1,15 @@
+{
+  "title": "`callable` is the only type name for a function value, and a callable is invoked directly",
+  "status": "shipped",
+  "seeAlso": [
+    "types/callable-values",
+    "types/anonymous-function",
+    "types/grammar"
+  ],
+  "guardedBy": [
+    "crates/nvs-types/tests/callable.rs",
+    "crates/nvs-syntax/src/parser/tests/expr.rs",
+    "tests/conformance/callables/bind-bindto-and-call-rebind-this-to-the-same-class-or-a-subclass.nvst",
+    "tests/conformance/reject/a-callable-rebind-takes-one-object-and-no-scope.nvst"
+  ]
+}

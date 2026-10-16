@@ -1,0 +1,4 @@
+0: finite
+FLOAT_MAX: finite
+FLOAT_MAX * 2: not finite
+0 / 0: not finite

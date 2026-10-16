@@ -1,0 +1,15 @@
+--TEST--
+A bare literal at a call site says nothing about which parameter it filled, so it is the one argument that gets the name — read off the slots the checker recorded for that call, `rule:ide/completion-offers-only-what-the-compiler-derived`
+--FILE--
+<?nvs
+class Greeter {
+    public function greet(string $name, string $tone): string { return $name; }
+}
+var $g = new Greeter();
+$g->greet("world", "warm");
+--REQUEST--
+inlayHint
+--EXPECT--
+5:7 type : Greeter
+6:11 parameter name:
+6:20 parameter tone:

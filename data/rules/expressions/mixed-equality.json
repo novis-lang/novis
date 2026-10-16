@@ -1,0 +1,14 @@
+{
+  "title": "A `mixed` or union operand resolves at run time, and a mismatched pair answers `false`",
+  "status": "shipped",
+  "seeAlso": [
+    "expressions/disjoint-comparison-refused",
+    "expressions/equality-semantics",
+    "expressions/truthy-table"
+  ],
+  "guardedBy": [
+    "tests/conformance/lang/numeric-identity-is-one-domain-at-runtime.nvst",
+    "tests/conformance/lang/equality-over-arrays-objects-and-mixed.nvst",
+    "crates/nvs-types/tests/equality.rs"
+  ]
+}

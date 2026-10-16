@@ -1,0 +1,9 @@
+error[E0405]: `User` has no public property `$emial`
+  --> property-key-typo.nvs:8:23
+  |
+8 | property<User> $key = 'emial' as property<User>;
+  |                       ^^^^^^^^^^^^^^^^^^^^^^^^^ converted here
+  = help: `rule:types/property-key` decides a written-out operand where it is written, and a key's values are `User`'s public declared properties: `$email`, `$name`
+
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

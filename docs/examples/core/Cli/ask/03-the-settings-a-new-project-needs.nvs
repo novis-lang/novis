@@ -1,0 +1,12 @@
+<?nvs
+// Shows the everyday use: a setup script asks for what it cannot guess. Every
+// question has a default, so pressing `Enter` at a terminal takes it. There is
+// no terminal here, so all three answers are the defaults.
+
+tainted string $name = Core\Cli::ask("Project name?", {default: "shop"});
+tainted string $host = Core\Cli::ask("Database host?", {default: "localhost"});
+tainted string $port = Core\Cli::ask("Database port?", {default: "5432"});
+
+echo "writing nvs.toml\n";
+echo "  name = ", $name, "\n";
+echo "  database = ", $host, ":", $port, "\n";

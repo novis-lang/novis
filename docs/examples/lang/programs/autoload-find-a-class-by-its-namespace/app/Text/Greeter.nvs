@@ -1,0 +1,11 @@
+<?nvs
+// `App\Text\Greeter` lives here because of where the file is: the `App` prefix
+// points at `app/`, and `Text\Greeter` is the rest of the way.
+
+namespace App\Text;
+
+class Greeter {
+    public static function hello(string $who): string {
+        return "Hello, " . $who . "!";
+    }
+}

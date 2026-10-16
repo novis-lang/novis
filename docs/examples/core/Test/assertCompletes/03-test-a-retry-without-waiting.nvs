@@ -1,0 +1,38 @@
+<?nvs
+// Shows a test of a retry loop that gives up after 30 seconds. The test does not wait 30 seconds.
+
+use Core\Test;
+use Core\Time;
+use Core\Time\Instant;
+
+class Payment {
+    // Tries to send the payment until it works or the deadline has passed.
+    // Returns how many times it tried.
+    public static function sendUntil(Instant $deadline, bool $gatewayIsUp): int {
+        int $tries = 0;
+        while (Time::now()->compareTo($deadline) < 0) {
+            $tries = $tries + 1;
+            if ($gatewayIsUp) {
+                return $tries;
+            }
+        }
+        return $tries;
+    }
+}
+
+class PaymentTest {
+    #[Test(at: "2026-03-01T09:00:00Z")]
+    public function itGivesUpWhenTheGatewayIsDown(): void {
+        Instant $deadline = Time::now()->plus(30s);
+        // The check moves the clock forward by 30 seconds before the loop starts.
+        // The deadline has already passed, so the loop ends at once.
+        Test::assertCompletes(
+            fn (): void => { Payment::sendUntil($deadline, false); },
+            {within: 30s},
+        );
+    }
+}
+
+// `nvs test` runs the test above. This line runs under `nvs run`. The gateway
+// is up, so the first try works and this prints `1`.
+echo Payment::sendUntil(Time::now()->plus(30s), true), "\n";

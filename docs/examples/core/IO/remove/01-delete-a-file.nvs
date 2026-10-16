@@ -1,0 +1,13 @@
+<?nvs
+// Shows how to delete a file with `Core\IO::remove`.
+
+string $path = Core\Path::join(Core\IO::temporaryDir(), "report.txt");
+Core\IO::write($path, "Sales: 1200\n");
+
+// The file exists now, so this prints "before: true".
+echo "before: ", Core\IO::exists($path) ? "true" : "false", "\n";
+
+Core\IO::remove($path);
+
+// The file is deleted, so this prints "after: false".
+echo "after: ", Core\IO::exists($path) ? "true" : "false", "\n";

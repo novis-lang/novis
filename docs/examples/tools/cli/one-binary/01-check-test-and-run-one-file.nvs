@@ -1,0 +1,25 @@
+<?nvs
+// Shows one file that the same `nvs` program checks, tests and runs.
+// `nvs check`, `nvs test` and `nvs run` each take this file. You install nothing else.
+use Core\Test;
+
+class Greeting
+{
+    public static function to(string $name): string
+    {
+        return "Hello, " . $name . "!";
+    }
+}
+
+// `nvs test 01-check-test-and-run-one-file.nvs` runs this method. `nvs run` does not.
+final class GreetingTest
+{
+    #[Test]
+    public function addsTheName(): void
+    {
+        Test::assertSame(Greeting::to("Ada"), "Hello, Ada!");
+    }
+}
+
+// `nvs run 01-check-test-and-run-one-file.nvs` prints `Hello, Ada!`.
+echo Greeting::to("Ada"), "\n";

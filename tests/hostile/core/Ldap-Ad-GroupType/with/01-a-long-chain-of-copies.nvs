@@ -1,0 +1,36 @@
+<?nvs
+// Attack: a program builds a chain of a million copies with `with`, and keeps a list of many of
+// them. The program must finish or stop at its memory limit, and nothing may crash.
+// hostile: timeout-ms 60000
+// requires: samba-ad
+
+var $corp = Core\Ldap::connect('corp');
+
+try {
+    var $found = $corp->read('CN=Managers,OU=Company,DC=example,DC=test', { select: ['groupType'] })?->groupType();
+    if ($found != null) {
+        Core\Ldap\Ad\GroupType $type = $found;
+        // 1. Each copy is made from the copy before it, one million times.
+        Core\Ldap\Ad\GroupType $changed = $type;
+        uint $i = 0;
+        while ($i < 1000000) {
+            $changed = $changed->with({ universal: $i % 2 == 0, global: $i % 2 == 1 });
+            $i = $i + 1;
+        }
+        echo '1 bits: ', $changed->bits(), "\n";
+
+        // 2. Two hundred thousand copies kept in a list at the same time.
+        array<Core\Ldap\Ad\GroupType> $kept = [];
+        uint $round = 0;
+        while ($round < 200000) {
+            $kept[] = $type->with({ system: $round % 5 == 0 });
+            $round = $round + 1;
+        }
+        echo '2 kept: ', Core\Arr::count($kept), ' original: ', $type->bits(), "\n";
+
+        // 3. An empty set of options. The copy is the same group type.
+        echo '3 same: ', $type->with({})->bits() == $type->bits() ? 'yes' : 'no', "\n";
+    }
+} catch (Throwable $error) {
+    echo "threw\n";
+}

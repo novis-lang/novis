@@ -1,0 +1,14 @@
+<?nvs
+// Shows that `send` throws a `RuntimeError` when the host is not allowed in `nvs.toml`.
+
+Core\Net\Datagram $socket = Core\Net::bindDatagram("127.0.0.1", 0);
+
+// The `nvs.toml` beside this example allows sending only to `127.0.0.1`.
+// `10.0.0.5` is not in that list, so nothing is sent and the call throws.
+try {
+    $socket->send("10.0.0.5", 514, "hello" as bytes, 1s);
+} catch (RuntimeError $refused) {
+    echo $refused->message, "\n";
+}
+
+$socket->close();

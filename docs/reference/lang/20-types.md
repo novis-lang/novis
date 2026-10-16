@@ -1,0 +1,1448 @@
+---
+id: types
+title: Types, declarations and conversions
+summary: every type, how a binding declares one, every value written in the code, the `as` conversion and its table, implicit widening, narrowing, truthiness, and the `tainted`/`secret` qualifiers
+keywords: bool, int, uint, float, decimal, string, bytes, array<T>, callable, class<T>, class reference, property<T>, property key, property name, propertyPath<T>, property path, field path, dynamic property, mixed, object, nullable, ?T, union, single-value type, enum, shape, anonymous object, type alias, void, never, self, static, iterable, intersection, var, declaration, inout, variadic, default parameter, constant, string literal, numeric literal, heredoc, nowdoc, interpolation, duration, html, markup, template, html template, page, escape, xss, as, conversion, cast, convert to int, convert to string, type check, type of a value, widening, narrowing, is, truthy, falsy, tainted, secret
+---
+
+# Every binding has a type
+
+Nothing in Novis is untyped. A local, a parameter, a return, a property, a constant and a `foreach`
+binding each write a type, and a binding's type never changes after its declaration.
+
+```nvs
+<?nvs
+int $count = 1;
+string $label;
+$label = "n=";
+$count = $count + 1;
+var $ratio = 0.5;
+$ratio = $ratio * 2;
+echo $label, $count, " ", $ratio, "\n";
+```
+```output
+n=2 1
+```
+
+- `T $x = expr;` declares `$x` with type `T`. `T $x;` declares it without a value; reading it before
+  every path has assigned it is a compile error.
+- A local is declared once. Every later `$x = …` is an assignment and carries no type. Declaring the
+  same name again is refused, and so is assigning a name that was never declared.
+- `var $x = expr;` infers the type from the initializer and fixes it forever: `var $n = 41;` makes an
+  `int`, and `$n = "x"` is then refused. `var $xs = [1, 2];` makes an `array<int>`, because every
+  element is an `int`. An array whose elements have different types, such as `[1, "a"]`, or an
+  empty array is refused. Write its type instead: `array<int|string> $xs = [1, "a"];`.
+- Locals are function-scoped: a name declared inside an `if` or a loop body is visible after it, and
+  the counter a `for` header declares stays visible after the loop. A `catch (T $e)` binding is a
+  declaration too, so two `catch` blocks in one function name two different variables.
+- A value that does not match the declared type is refused where it is written — `int $i = null;`,
+  `uint $u = -1;`, `int $i = 3; string $s = $i;` are all compile errors. The one implicit
+  conversion is listed under `Widening without as` below; everything else is spelled `as`.
+
+```nvs error
+<?nvs
+int $x = 1;
+int $x = 2;
+```
+```output
+already declared
+```
+
+```nvs error
+<?nvs
+int $count = 1;
+$count = "two";
+```
+```output
+expected `int`, found `string`
+```
+
+```nvs error
+<?nvs
+var $xs = [1, "two", 3];
+```
+```output
+cannot infer an array whose elements have different types
+```
+
+# Numbers: `bool`, `int`, `uint`, `float`, `decimal`
+
+| Type | Holds | Notes |
+|---|---|---|
+| `bool` | `true`, `false` | `true` and `false` are also single-value types of their own |
+| `int` | 64-bit signed integer | overflow throws `ArithmeticError`, never wraps |
+| `uint` | 64-bit unsigned integer | `0` to `18446744073709551615`; underflow throws |
+| `float` | IEEE 754 double | prints without a trailing `.0`; `7 / 2` is `3.5`, `6 / 3` is `2` |
+| `decimal` | exact decimal, 28 places | keeps its scale: `1.10 * 3` is `3.30`; division rounds at the 28th place |
+
+- A numeric literal is untyped until it is placed: `uint $u = 6;` and `float $f = 3;` and
+  `decimal $d = 1.10;` each read the number at the declared type. Beside a `uint` operand a bare
+  digit run is a `uint` too, so `$u + 1` compiles. A leading `-` is an operator, so `-1` is never a
+  `uint`.
+- `int` and `uint` never mix: `$i + $u` is a compile error, and neither assigns to the other —
+  convert one side with `as`.
+- Arithmetic with a `float` on either side promotes the other side to `float`. Arithmetic between
+  `decimal` and `float` is a compile error; `decimal` and `int` mix, answering `decimal`.
+- `bool` takes part in no arithmetic and converts to nothing but `string` and `bool`;
+  `true as int` is a compile error — write `$b ? 1 : 0`.
+
+```nvs
+<?nvs
+int $i = 9223372036854775807;
+uint $u = 18446744073709551615;
+float $f = 7 / 2;
+echo $i, " ", $u, " ", $f, "\n";
+try {
+    echo $i + 1, "\n";
+} catch (ArithmeticError $e) {
+    echo $e->message, "\n";
+}
+decimal $price = 19.99;
+echo $price * 3, " ", 1 as decimal / 3, " ", "0.1" as decimal + "0.2" as decimal, "\n";
+```
+```output
+9223372036854775807 18446744073709551615 3.5
+Integer addition overflowed
+59.97 0.3333333333333333333333333333 0.3
+```
+
+```nvs error
+<?nvs
+decimal $d = 1.10;
+float $f = 0.5;
+echo $d + $f, "\n";
+```
+```output
+`decimal` and `float` have no representable common type
+```
+
+# Text: `string` and `bytes`
+
+A `string` is always valid UTF-8 and is measured in graphemes — user-perceived characters — so a
+combining sequence counts once. A `string` has no subscript: `$s[0]` is a compile error, and a
+character or a range is `Core\Str::at` / `Core\Str::slice`. Binary data is the separate `bytes`
+type, measured in bytes. A `bytes` value cannot be written directly in the code. A UTF-8 constant is `"…" as bytes`, and
+arbitrary octets come from `Core\Encoding::fromHex` or `Core\Encoding::fromBase64`.
+
+```nvs
+<?nvs
+string $s = "grüße";
+echo Core\Str::length($s), " ", Core\Bytes::length($s as bytes), " ", Core\Str::length("e\u{301}"), "\n";
+bytes $b = "nvs" as bytes;
+bytes $raw = Core\Encoding::fromHex("ff00");
+echo Core\Encoding::toHex($b), " ", Core\Bytes::length($raw), " ", $b as string, "\n";
+try {
+    echo $raw as string, "\n";
+} catch (RuntimeError $e) {
+    echo $e->message, "\n";
+}
+```
+```output
+5 7 1
+6e7673 2 nvs
+cannot convert `bytes` to `string`: not well-formed UTF-8 at byte 0
+```
+
+`string as bytes` always succeeds; `bytes as string` checks the encoding and throws on malformed
+input. A `bytes` value has no string form of its own: `echo $b` is refused, `echo $b as string`
+is the spelling. Strings compare with `==` only for equality; ordering is `Core\Str::compare`, and
+`"a" < "b"` is a compile error. `"3" * 2` is refused: no arithmetic on text.
+
+# `array<T>`
+
+An `array<T>` is an ordered hash with `string` keys and values of one type `T`. It nests to any
+depth (`array<array<int>>`), and it has value semantics: assigning or passing one copies it as far
+as anyone can observe, and a write through one binding never shows through another.
+
+```nvs
+<?nvs
+array<int> $a = [10, 20];
+$a[5] = 50;
+$a[] = 60;
+foreach ($a as string $k => int $v) {
+    echo $k, "=", $v, ";";
+}
+echo "\n", $a[1], $a["1"], "\n";
+array<int> $copy = $a;
+$copy["x"] = 1;
+echo Core\Arr::count($a), " ", Core\Arr::count($copy), "\n";
+array<array<int>> $grid = [[1, 2], [3]];
+echo $grid[0][1], " ", Core\Json::encode($a), "\n";
+```
+```output
+0=10;1=20;5=50;6=60;
+2020
+4 5
+2 {"0":10,"1":20,"5":50,"6":60}
+```
+
+- An `int` subscript is the same key as its decimal spelling: `$a[1]` and `$a["1"]` name one
+  element, and a `foreach` key binding is always `string`.
+- Every element must match `T` where the array literal is written: `array<int> $a = [1, "two"];` is a
+  compile error. `array<mixed>` holds anything.
+- An `array<T>` has no string form (`echo $a` is refused — render it with `Core\Json::encode`), and
+  `$a + $b` is a compile error (`Core\Arr::underlay`).
+
+# `callable`, classes, `object`, shapes
+
+- A `callable` is a value you can call with `()`. An anonymous function, `fn (…) => …`, makes one,
+  and so does a method reference such as `Core\Str::length(...)`. There is no callable string. A call through a `callable` variable answers `mixed`, so its result is converted:
+  `$f(4) as int`.
+- A class, interface or enum name is a type wherever a type is written. `object` is the top of every
+  class type: any instance assigns to it, a property is read through it by name, and `is` or
+  `as ClassName` gets the class back.
+- `class<T>` is a **class reference**: not an instance, but a class itself, where `T` is the class or
+  interface every value of the type names. `class<Dog>` widens to `class<Animal>`. Three sites take
+  one and nothing else — `new $cls(...)`, `$cls::f(...)` and `$x is $cls`, each refusing a
+  bare `string` — and `as` is its only source (below). `Foo::class` is a `string` and stays one. Two
+  class references are equal when they are the same class; nothing else is ever equal to one.
+- A **shape** `{x: int, y: string}` is a structural object type, and an **anonymous object**
+  `{x: 1, y: "two"}` is an instance with exactly those fields. An anonymous object with more fields
+  than a shape names still satisfies it. A shape type cannot open a statement (`{` there is a block), so
+  name it with a `type` alias and declare through the alias.
+- `$v as Point` checks at run time that `$v` is an object with every field `Point` names, at the
+  type `Point` gives it. If the check passes, the result is a `Point`. If it fails, `as` throws a
+  `RuntimeError`. `$v is Point` runs the same check and returns `true` or `false`.
+
+```nvs
+<?nvs
+type Point = {x: int, y: int};
+class Geo {
+    public static function sum(Point $p): int {
+        return $p->x + $p->y;
+    }
+}
+class Cell {
+    public int $n = 1;
+}
+Point $p = {x: 1, y: 2};
+var $q = {x: 3, y: 4, z: "extra"};
+$q->x = 30;
+echo Geo::sum($p), " ", Geo::sum($q), " ", $q->z, "\n";
+object $o = new Cell();
+echo $o->n, " ", ($o is Cell) ? "cell" : "other", " ", ($o as Cell)->n, "\n";
+callable $double = fn(int $x): int => $x * 2;
+echo $double(4) as int, "\n";
+mixed $raw = {x: 5, y: 6};
+Point $checked = $raw as Point;
+echo $checked->x + $checked->y, "\n";
+```
+```output
+3 34 extra
+1 cell 1
+8
+11
+```
+
+# `mixed`
+
+`mixed` is the one unchecked position: it holds a value of any type, and what is done with it is
+decided at run time from the value's own tag. A `mixed` may be an operand of arithmetic, a
+condition, a subscript base, a receiver of `->`, a `.` operand and the subject of `is` or
+`as`. It does **not** widen into anything narrower: a `mixed` handed to a `string` parameter is a
+compile error until it is converted.
+
+```nvs
+<?nvs
+mixed $m = 5;
+mixed $row = ["k" => "v"];
+mixed $text = "x";
+echo $m + 1, " ", $m as string, " ", $row["k"], " ", $text . "y", " ", Core\Str::upper($text as string), "\n";
+mixed $bad = "abc";
+try {
+    echo $bad + 1, "\n";
+} catch (Throwable $e) {
+    echo "no arithmetic on text\n";
+}
+```
+```output
+6 5 v xy X
+no arithmetic on text
+```
+
+```nvs error
+<?nvs
+mixed $text = "x";
+echo Core\Str::upper($text), "\n";
+```
+```output
+expected `string`, found `mixed`
+```
+
+# Nullable, union, single-value and enum-case types
+
+- `?T` holds `T` or `null`. `null` on its own is a type too, and `int $i = null;` is refused.
+- `A|B` holds either. `int|string $id` takes an `int` or a `string`; `object|int` is legal.
+- A **single-value type** is one value written as a type: `"read"`, `3`, `true`, `false`. A union
+  of them, such as `"read"|"write"` or `1|2|3`, is a set of allowed values. A binding of that type
+  accepts only those values. A value written directly in the code is checked at compile time, and
+  an `as` is checked at run time.
+- An **enum case** is a type of its own: `Mode::Read|Mode::Write $m`. Enums are named integers —
+  `enum Mode { Read, Write }` counts from `0`, `enum Mode: int { Read = 1 }` declares the values —
+  and `$m as int` reads the number, `1 as Mode` converts back (throwing when no case matches).
+  `Mode::Read as string` is refused.
+- `iterable` and an intersection `A&B` are accepted in a parameter or return position, but no value
+  is assignable to either, so neither can hold anything.
+
+```nvs
+<?nvs
+enum Mode: int {
+    Read = 1,
+    Write = 2,
+}
+?int $maybe = null;
+int|string $id = "abc";
+"read"|"write" $mode = "read";
+1|2|3 $level = 2;
+Mode::Read|Mode::Write $m = Mode::Write;
+echo $maybe ?? -1, " ", $id, " ", $mode, $level, " ", $m as int, " ", (1 as Mode) == Mode::Read ? "read" : "other", "\n";
+try {
+    Mode $none = 9 as Mode;
+} catch (RuntimeError $e) {
+    echo $e->message, "\n";
+}
+echo (9 as ?Mode) == null ? "null" : "case", "\n";
+```
+```output
+-1 abc read2 2 read
+`9` is not one of `Mode::Read`, `Mode::Write`
+null
+```
+
+```nvs error
+<?nvs
+"read"|"write" $mode = "read";
+$mode = "delete";
+```
+```output
+expected `"read"|"write"`, found `string`
+```
+
+```nvs error
+<?nvs
+array<int> $xs = [1, 2];
+iterable $i = $xs;
+```
+```output
+expected `iterable`, found `array<int>`
+```
+
+# `void`, `never`, `self`, `static`
+
+`void` and `never` are return types only; neither names a parameter or a binding, and `var` is
+refused the type of a call that hands nothing back. A `void` call is not an operand: `echo
+Helper::nothing()` is a compile error. `never` declares a method that does not come back — it throws,
+or it ends the program — and a call to one is not read as an exit, so a caller with another path
+still has to return a value on that one. `self` is the declaring class and `static` the called class,
+in a return position; neither is a value (`return self;` is refused — write `self::member`).
+
+```nvs
+<?nvs
+class Base {
+    public static function make(): static {
+        return new static();
+    }
+    public function same(): self {
+        return $this;
+    }
+    public function name(): string {
+        return "base";
+    }
+    public static function log(string $m): void {
+        echo $m, "\n";
+    }
+}
+final class Child extends Base {
+    public function name(): string {
+        return "child";
+    }
+}
+Base::log("start");
+echo Child::make()->name(), " ", Base::make()->same()->name(), "\n";
+```
+```output
+start
+child base
+```
+
+```nvs error
+<?nvs
+class Helper {
+    public static function nothing(): void {}
+}
+echo Helper::nothing();
+```
+```output
+`void` has no string form
+```
+
+# `type` aliases
+
+`type Name = T;` gives a type expression a `PascalCase` name, written at file scope beside `namespace`
+and `use` or as a member of a class, interface or enum body — never inside a method body, a block or an
+anonymous function, where it is refused by name. A body's alias takes no visibility modifier, is reached as
+`Owner::Name` from anywhere and as a bare `Name` inside its owner, and is not inherited, the same
+way as an enum declared in a class body (see [An enum inside a class](55-enums.md#an-enum-inside-a-class)). The alias is
+a compile-time name only. It may not name a single bare class, interface or enum (`type Bar = Foo;` is
+refused: a class has its own name); `?Foo`, a union, a shape and an `array<…>` are all allowed.
+
+```nvs
+<?nvs
+class User {
+    public int $n = 7;
+}
+type Id = int|string;
+type MaybeUser = ?User;
+Id $a = 1;
+Id $b = "x";
+MaybeUser $u = new User();
+echo $a, $b, " ", $u?->n, "\n";
+```
+```output
+1x 7
+```
+
+```nvs error
+<?nvs
+class Foo {
+    public int $n = 1;
+}
+type Bar = Foo;
+```
+```output
+may not name a single class
+```
+
+# Values written in the code
+
+**Numbers.** `1_000`, `0x1F`, `0b101`, `0o17`; `1.5`, `.5`, `5.`, `1e3`, `1E-2`, `1_000.5`. A
+leading-zero form `017` is decimal seventeen, not octal. `true`, `false`, `null`.
+
+**Strings.** A single-quoted string interpolates nothing and has exactly two escapes, `\\` and
+`\'` — every other backslash stands for itself. A double-quoted string interpolates `$x`, `$a[k]`,
+`$a[0]` — the bare form reaches one level, no further — and in braces any expression whose first
+token is a variable: `{$o->p}`, `{$a["k"]["j"]}`, `{$o->m()}`, `{$a + $b}` — the braces take
+the whole expression grammar, not only a chain of members. A `{` not followed by `$` is plain
+text, and there is no `${name}` form. Its escapes are
+`\\ \" \$ \n \t \r \v \f`, an octal `\0` through `\777`, `\xHH` and
+`\u{HHHH}`; an unrecognized one such as `\q` keeps its backslash. A literal whose text contains
+`ESC` does not compile (`E0011`), whether the byte is written raw or by `\e`, `\x1b`, `\033` or
+`\u{1b}`; terminal styling is `Core\Cli\Text`. An interpolated value takes the
+same rule as `echo`: scalars and `null` render, `bytes`, arrays, enum cases and objects without
+`Stringable` are refused.
+
+```nvs
+<?nvs
+class Tag {
+    public string $name = "div";
+    public function upper(): string {
+        return Core\Str::upper($this->name);
+    }
+}
+string $who = "world";
+array<string> $row = ["name" => "ann"];
+array<int> $n = [10, 20];
+Tag $t = new Tag();
+echo "hi $who, $row[name], $n[1], {$row["name"]}, {$t->name}, {$t->upper()}, {$n[0] + $n[1]}\n";
+echo 'raw $who \t', ' ', 'it\'s', "\n";
+echo "tab[\t] quote[\"] dollar[\$who] backslash[\\] cp[\u{41}]\n";
+echo "oct[\101] hex[\x41] unknown[\q]\n";
+```
+```output
+hi world, ann, 20, ann, div, DIV, 30
+raw $who \t it's
+tab[	] quote["] dollar[$who] backslash[\] cp[A]
+oct[A] hex[A] unknown[\q]
+```
+
+**Heredoc and nowdoc.** `<<<TXT … TXT;` interpolates like a double-quoted string; `<<<'TXT'` keeps
+every character. The closing marker's indentation is removed from every line.
+
+```nvs
+<?nvs
+string $who = "Ada";
+echo <<<TXT
+    Name: $who
+      indented
+    TXT;
+echo "|\n";
+echo <<<'TXT'
+  as written: $who
+  TXT;
+echo "|\n";
+```
+```output
+Name: Ada
+  indented|
+as written: $who|
+```
+
+**Durations.** A number followed by a unit — `ns`, `us`, `ms`, `s`, `m`, `h`, `d`, `w` — is a
+`Core\Time\Duration`, and units chain: `1h30m`. It is an object, so `==` between two durations is
+identity; compare with `compareTo`.
+
+```nvs
+<?nvs
+Core\Time\Duration $wait = 1h30m;
+echo $wait, " ", $wait->toSeconds(), " ", 250us->toNanoseconds(), " ", 1d->toSeconds(), " ", $wait->compareTo(90m), "\n";
+```
+```output
+1h30m 5400 250000 86400 0
+```
+
+**Arrays and objects.** `[1, 2]` is positional (keys `"0"`, `"1"`), `["k" => $v]` is keyed, and
+the two mix. `{x: 1, y: "two"}` is an anonymous object; as a statement or an arrow body it is written
+`({…})`. Both are covered above.
+
+## Markup: the `html` template
+
+``html`…` `` is a `Core\Html\Markup`. The text between the backticks is written to a page exactly
+as it is, and every hole in it is escaped. It is the way to build a page, or one fragment of a page,
+as a value. `Core\Html\Markup` is the only type an HTTP request's `echo`, `<?= ?>` and
+`Core\Response::html` write raw; a `string` written there is escaped.
+
+- An html template has two kinds of hole. `$name` and `{$…}` are a double-quoted string's: the expression
+  in braces must **begin with a variable** — `{$user->name()}`, `{$row["title"]}`, `{$a + $b}` —
+  and a `{` not followed by `$` is text, so a `<style>` or `<script>` block needs no escape.
+  `{Page::TITLE}` is therefore printed as written, and the compiler warns (`W1012`), because a
+  page that prints that text is almost never what was meant. The second kind of hole is the
+  output tag, below.
+- Both holes follow one rule. A `string` is escaped, `tainted` or not. A `Core\Html\Markup` is
+  written raw. A `secret` value is a compile error, and so is a value with no string form.
+- `+` joins two `Markup` values; `Core\Html::join` joins a list of them. `.` on a `Markup` is a
+  compile error, because the text it would make is escaped again at the sink.
+- Every byte between the backticks is kept, indentation and newlines included; nothing is stripped
+  the way a heredoc's closing marker strips it. A backtick inside the template is written
+  `` \` ``, and `\{` is a plain `{` that opens no hole; a `$name` after it still interpolates, so `\{$n}` prints `{`,
+  the value and `}`.
+- The delimiter is the backtick, always: `html"…"` is a compile error naming the backtick form.
+  `"<p>…</p>" as Core\Html\Markup` converts a string written directly in the code and nothing else;
+  `Core\Html::escape` and `Core\Html::sanitize` are the two ways a computed string becomes a
+  `Markup`.
+
+```nvs
+<?nvs
+class Page {
+    public const string TITLE = "News";
+
+    public static function badge(): Core\Html\Markup {
+        return html`<span class="badge">new</span>`;
+    }
+}
+tainted string $name = "<b>Ann</b>";
+bool $fresh = true;
+Core\Html\Markup $head = html`<h1><?= Page::TITLE ?> <?= $fresh ? Page::badge() : html`` ?></h1>`;
+Core\Html\Markup $body = html`<p>posted by {$name} {not a hole}</p>`;
+echo $head + $body, "\n";
+echo html`<pre>
+  kept as written \`</pre>`, "\n";
+```
+```output
+<h1>News <span class="badge">new</span></h1><p>posted by &lt;b&gt;Ann&lt;/b&gt; {not a hole}</p>
+<pre>
+  kept as written `</pre>
+```
+
+```nvs error
+<?nvs
+Core\Html\Markup $m = html`<p>x</p>`;
+string $s = $m . "!";
+```
+```output
+escaping is not idempotent
+```
+
+```nvs error
+<?nvs
+Core\Html\Markup $m = html"<p>x</p>";
+```
+```output
+written with backticks
+```
+
+### `<?= expr ?>`: a hole for any expression
+
+`<?= expr ?>` is a page's output tag, and inside an html template it is a hole that takes **any**
+expression: a class constant, a static call, a condition, a nested template. It is the hole to
+write when the value has no variable in front of it, which is every `Class::` value, since Novis
+has no free functions and no global constants. Spaces around the expression are allowed, a `}`
+inside it is an ordinary brace, and the first `?>` outside a nested string or template closes it. The
+value is escaped by the same rule as a brace hole. A `<?nvs` block inside a template is a compile
+error. A template is one expression, and a loop around markup is written in code mode outside it.
+
+```nvs
+<?nvs
+class Page {
+    public const string TITLE = "News";
+}
+bool $on = true;
+echo html`<h1><?= Page::TITLE ?> <?= $on ? html`<b>on</b>` : html`<i>off</i>` ?></h1>`, "\n";
+```
+```output
+<h1>News <b>on</b></h1>
+```
+
+# Widening without `as`
+
+At a binding — an assignment, an argument, a return, an element — these conversions happen without
+being written:
+
+| From | Into |
+|---|---|
+| `int`, `uint` | `float` (exact; a value above 2^53 throws `ArithmeticError`) |
+| `T` | `?T`, any union containing `T`, `mixed` |
+| a class | `object`, any parent class or interface it implements |
+| a single-value type | its base (`"read"` into `string`, `true` into `bool`) |
+| an untyped numeric literal | `int`, `uint`, `float` or `decimal`, from the target |
+
+Nothing else is implicit: `int` into `uint` (either way), a number into `string`, a `string` into
+a number, a `mixed` into anything, `?T` into `T` — each needs `as` or a narrowing test.
+
+The `int` row also converts a field of an anonymous object written where a shape is declared:
+`{x: 2}` at `{x: float}` stores `2.0`. It does not convert the field of a shape value or an object
+that already exists, so a `{x: int}` value is not a `{x: float}` value. Build a new value instead:
+`{x: $old->x}`.
+
+```nvs
+<?nvs
+class Q {
+    public static function show(?int $n, int|string $u, mixed $m, float $x): tainted string {
+        return (($n ?? 0) as string) . ($u as string) . ($m as string) . ($x as string);
+    }
+}
+int $i = 3;
+float $f = $i;
+float $g = 3;
+echo Q::show(1, 2, 3, 4), " ", $f, $g, "\n";
+```
+```output
+1234 33
+```
+
+```nvs error
+<?nvs
+int $i = 3;
+uint $u = $i;
+```
+```output
+expected `uint`, found `int`
+```
+
+# The conversion operator `as`
+
+`expr as T` is the only conversion spelling. It binds tighter than every binary operator —
+`7 / 2 as int` is `7 / (2 as int)` — and chains: `$m as int as string`. A conversion that exists
+but fails at run time throws: `ArithmeticError` when a number does not fit (a fractional `float`
+into `int`, a negative into `uint`, an `int` past 2^53 into `float`, a non-integral `decimal` into
+`int`), `RuntimeError` for everything else (a string that is not a number, malformed `bytes`, a
+`mixed` of the wrong tag, a value outside a set of allowed values or enum cases, an object of another class, an
+object without the fields a shape names, a name that denotes no class this program declares to be a
+`T` when the target is `class<T>`).
+
+`expr as ?T` is the same conversion answering `null` instead of throwing. It is refused where
+`as T` cannot fail (`$i as ?int` on an `int`) and for a class target (`$o as ?Foo`): an object is
+tested with `is`. A `class<T>` target is not a class target and is available: `$name as
+?class<Animal>` answers `null` for every name `as class<Animal>` would throw for — one that denotes
+no class, and one that denotes a class outside `Animal`'s hierarchy. A written-out `Foo::class` or
+string-literal operand stays decided at compile time under both spellings, so `Rock::class as
+?class<Animal>` and `'Rock' as ?class<Animal>` are refused rather than answering `null`.
+
+```nvs
+<?nvs
+echo 7 / 2 as int, " ", (7 / 2) as string, " ", 1 + 2 as float, "\n";
+string $digits = "42";
+int $n = $digits as int;
+echo $n + 1, " ", "1e3" as float, " ", 3.0 as int, " ", true as string, "|", false as string, "|", null as string, "|\n";
+float $f = 3.9;
+string $word = "abc";
+int $neg = -1;
+try {
+    echo $f as int, "\n";
+} catch (ArithmeticError $e) {
+    echo $e->message, "\n";
+}
+try {
+    echo $neg as uint, "\n";
+} catch (ArithmeticError $under) {
+    echo $under->message, "\n";
+}
+try {
+    echo $word as int, "\n";
+} catch (RuntimeError $text) {
+    echo $text->message, "\n";
+}
+echo ($word as ?int) ?? -1, " ", ($f as ?int) ?? -1, " ", ($digits as ?int) ?? -1, "\n";
+```
+```output
+3.5 3.5 3
+43 1000 3 1|||
+cannot convert `float` 3.9 to `int`
+cannot convert `int` -1 to `uint`
+cannot convert string "abc" to `int`
+-1 -1 42
+```
+
+`as` is also the only way to obtain a `class<T>`, and there are two doors. A class name written out
+in the source — a `Foo::class` operand, or a plain string literal such as `'Shop\Dog'` — is decided
+where it is written: a compile error when it names no class (`E0303`) or a class that is not a `T`
+(`E0708`), never a throw the program has to reach. A string literal is the class's whole name, with
+no `namespace` or `use` applied, and its class is loaded through the `autoload` map the way
+`Foo::class` loads one. Any other `string` — a variable, a concatenation, a class constant — is
+checked at run time against the classes this program declares to be `T`s.
+
+```nvs
+<?nvs
+class Animal {
+    public function speak(): string {
+        return "...";
+    }
+}
+class Dog extends Animal {
+    public function speak(): string {
+        return "woof";
+    }
+}
+class<Animal> $folded = Dog::class as class<Animal>;
+string $name = "Dog";
+class<Animal> $picked = $name as class<Animal>;
+Animal $pet = new $picked();
+echo $pet->speak(), " ", ($pet is $folded) ? "a Dog" : "not", "\n";
+string $missing = "Cat";
+try {
+    class<Animal> $bad = $missing as class<Animal>;
+    echo (new $bad())->speak(), "\n";
+} catch (RuntimeError $e) {
+    echo $e->message, "\n";
+}
+```
+```output
+woof a Dog
+cannot convert to `class<Animal>`: the value does not denote a class that is a `Animal`
+```
+
+The usual pairing is a default written directly in the code, checked while compiling, and a configured name checked while
+running, with `as ?class<T>` and `??` falling back from one to the other.
+
+```nvs
+<?nvs
+interface Renders {
+    public static function extension(): string;
+}
+class CsvReport implements Renders {
+    public static function extension(): string {
+        return "csv";
+    }
+}
+class<Renders> $fallback = 'CsvReport' as class<Renders>;
+string $setting = "PdfReport";
+class<Renders> $format = ($setting as ?class<Renders>) ?? $fallback;
+echo $format::extension(), "\n";
+```
+```output
+csv
+```
+
+```nvs error
+<?nvs
+class Animal {}
+class Rock {}
+class<Animal> $c = 'Rock' as class<Animal>;
+```
+```output
+`Rock` is not a `Animal`, so this can never be a `class<Animal>`
+```
+
+```nvs error
+<?nvs
+int $n = 3;
+echo (int)$n, "\n";
+```
+```output
+`(int)expr` is not supported
+```
+
+```nvs error
+<?nvs
+int $i = 7;
+?int $a = $i as ?int;
+```
+```output
+cannot fail, so it never answers `null`
+```
+
+The conversion table. A pair not listed is a compile error naming both types.
+
+| From | To | Rule |
+|---|---|---|
+| `int` ↔ `uint` | | in range, or throws |
+| `int`, `uint` | `float` | exact, or throws above 2^53 |
+| `float` | `int`, `uint` | integral and in range, or throws — `3.9 as int` throws, it never truncates |
+| `int`, `float`, `string` | `decimal` | exact: a `float` is read at the value it prints as, a `string` must be a whole decimal spelling |
+| `decimal` | `int`, `float`, `string` | integral for `int`; exact for the others, or throws |
+| `string` | `int`, `uint`, `float` | the whole string must be one numeric spelling: `" 42"`, `"42 "`, `""`, `"0x1A"`, `"12.0" as int` all throw; `"1e3" as float` is `1000` |
+| `string`, numbers, `bool`, `null` | `bool` | the truthiness table below, never throws |
+| `bool` | `string` | `"1"` / `""` |
+| `bool` | `int`, `float` | refused — `$b ? 1 : 0` |
+| `int`, `uint`, `float`, `decimal`, `null` | `string` | total; `null` is `""`, a float prints as `echo` prints it |
+| `string` ↔ `bytes` | | `string as bytes` total; `bytes as string` throws on malformed UTF-8 |
+| `bytes`, `array<T>`, an enum case, `void` | `string` | refused |
+| enum | `int`, `uint` | the case's number; `int as Enum` throws when no case has that value |
+| enum | `string` | refused |
+| `mixed` | anything | by the value's runtime tag; a class target throws when the value is another class |
+| `array<T>` | `array<U>` | element by element, throwing at the first element `U` refuses; `array<mixed>` accepts every element |
+| `?T` | `T` | throws on `null` |
+| a class | `object`, a parent, an interface | free; `object as Foo` tests the runtime class |
+| `mixed`, `object`, a union, a class | a shape | the value must have every field the shape names, at the named types, or it throws; a value whose type already has them converts for free |
+| `string` | `class<T>` | the name must denote `T` or a class that is one, or it throws; a written `Foo::class` operand is decided at compile time and never throws |
+| `class<U>` | `class<T>` | `U` must be a `T`, tested against the class the reference holds |
+| `string` | `property<T>` | the name of a public property of `T`, or it throws; a name written directly in the code is checked while compiling |
+| `property<U>` | `property<T>` | the name must also be a public property of `T`, or it throws |
+| `property<T>` | `string` | total: the property's name |
+| `string` | `propertyPath<T>` | each part must name a public property, starting at `T`, or it throws; a path written directly in the code is checked while compiling |
+| `propertyPath<U>` | `propertyPath<T>` | the path must also be a path of `T`, or it throws |
+| `propertyPath<T>` | `string` | total: the path's text |
+| any | a set of allowed values or an enum-case union | a `mixed` must equal a member; a typed operand converts first, then is tested |
+| any | `mixed` | free |
+
+# Property keys
+
+`property<T>` is a type. Its values are the names of the public properties of the class `T`, and of
+the public properties `T` inherits. A value of this type is called a property key. A key reads or
+writes a property whose name is known only while the program runs, such as a sort column from a
+request or a field in a form.
+<!-- src: `rule:types/property-key`, `rule:types/property-key-access`, `rule:types/property-key-variance` -->
+
+- `as` makes a key. A name written directly in the code is checked while compiling:
+  `"emial" as property<User>` does not compile (`E0405`).
+- A string literal at a parameter typed `property<T>` is also a key. It needs no `as`, and it is
+  checked while compiling.
+- Any other string is checked by `as` while the program runs. If it is not the name of a public
+  property of `T`, `as` throws a `RuntimeError`. `as` also throws for the name of a `private` or
+  `protected` property.
+- `as ?property<T>` gives `null` in every case where `as property<T>` throws.
+- `$obj->$key` and `$obj->{$expr}` read or write the property that the key names. A plain `string`
+  is not allowed there (`E0235`).
+- A read through a key has the type of every property the key can name, as a union. For a class with
+  a `string` and an `int` property, that type is `string|int`.
+- A write through a key is checked while the program runs. A value of the wrong type for that
+  property throws a `RuntimeError`. If `T` has a public `readonly` property, a write through a key
+  does not compile (`E0782`).
+- A `property<Animal>` key works on a `Dog`, because a `Dog` has every property of an `Animal`. A
+  `property<Dog>` key does not work on an `Animal`.
+- A parameter typed `property<T>|string` accepts a key or any string. Inside the function,
+  `as ?property<T>` checks the string. In the editor, a string at such a parameter, and the string in
+  `"…" as property<T>`, offer the property names of `T`.
+- `$key as string` gives the name. Two keys are equal when they name the same property.
+
+```nvs
+<?nvs
+class User {
+    public string $email = "ada@example.com";
+    public int $age = 36;
+    private string $password = "secret";
+}
+
+User $user = new User();
+property<User> $written = "email" as property<User>;
+echo $user->$written, "\n";
+
+string $field = "age";
+property<User> $key = $field as property<User>;
+$user->$key = 37;
+echo $user->age, " ", $key as string, "\n";
+
+string|int $value = $user->$key;
+echo $value is int ? "an int" : "a string", "\n";
+
+string $hidden = "password";
+?property<User> $none = $hidden as ?property<User>;
+echo $none == null ? "null" : "a key", "\n";
+try {
+    property<User> $bad = $hidden as property<User>;
+} catch (RuntimeError $e) {
+    echo $e->message, "\n";
+}
+try {
+    $user->$key = "old";
+} catch (RuntimeError $e) {
+    echo $e->message, "\n";
+}
+```
+```output
+ada@example.com
+37 age
+an int
+null
+`"password"` is not one of `User`'s public declared properties: `$age`, `$email`
+`User` declares field `age` as int, so a string cannot be written to it
+```
+
+```nvs
+<?nvs
+class Animal {
+    public string $name = "Rex";
+}
+class Dog extends Animal {
+    public string $breed = "beagle";
+}
+
+class Show {
+    public static function field(Dog $dog, property<Dog>|string $name): string {
+        ?property<Dog> $key = $name as ?property<Dog>;
+        if ($key == null) {
+            return "no such field";
+        }
+        return $dog->$key;
+    }
+}
+
+Dog $dog = new Dog();
+property<Animal> $key = "name" as property<Animal>;
+echo $dog->$key, "\n";
+echo Show::field($dog, "breed"), "\n";
+echo Show::field($dog, "colour"), "\n";
+```
+```output
+Rex
+beagle
+no such field
+```
+
+```nvs error
+<?nvs
+class Order {
+    public readonly int $id;
+    public string $status = "new";
+
+    public function constructor(int $id) {
+        $this->id = $id;
+    }
+}
+
+Order $order = new Order(7);
+property<Order> $key = "status" as property<Order>;
+$order->$key = "paid";
+```
+```output
+`Order::$id` is `readonly`, so only `Order`'s constructor writes it
+```
+
+# Property paths
+
+`propertyPath<T>` is a type. Its values are public property names joined with dots, such as
+`customer.address.city`. The first name is a property of the class `T`. Each name after it is a
+property of the class that the name before it reaches. A path names a field across related objects,
+such as a sort column `customer.name` from a request.
+<!-- src: `rule:types/property-path` -->
+
+- Every name but the last must be a property whose type is a class `C`, a `?C` or an `array<C>`. The
+  next name is a property of `C`. The last name can be any public property.
+- A path written directly in the code is checked while compiling, one name at a time. A wrong name
+  does not compile (`E0405`), and the error points at that name.
+- A string literal at a parameter typed `propertyPath<T>` is also a path. It needs no `as`.
+- Any other string is checked by `as` while the program runs. If a name is wrong, `as` throws a
+  `RuntimeError` that names it. `as ?propertyPath<T>` gives `null` instead.
+- A path has no length limit. A path that comes back to the same class, such as
+  `category.parent.parent.name`, is valid.
+- `$path as string` gives the text. Two paths are equal when their text is equal.
+
+```nvs
+<?nvs
+class Address {
+    public string $city = "Graz";
+}
+
+class Customer {
+    public string $name = "Ada";
+    public ?Address $address = null;
+}
+
+class Order {
+    public Customer $customer;
+    public int $total = 40;
+
+    public function constructor() {
+        $this->customer = new Customer();
+    }
+}
+
+class Report {
+    public static function sortBy(propertyPath<Order> $path): string {
+        return "sorted by " . ($path as string);
+    }
+}
+
+echo Report::sortBy("customer.address.city"), "\n";
+
+string $field = "customer.age";
+?propertyPath<Order> $none = $field as ?propertyPath<Order>;
+echo $none == null ? "null" : "a path", "\n";
+try {
+    propertyPath<Order> $bad = $field as propertyPath<Order>;
+} catch (RuntimeError $e) {
+    echo $e->message, "\n";
+}
+```
+```output
+sorted by customer.address.city
+null
+`"customer.age"` is not a property path of `Order`: `Customer` has no public property `$age`
+```
+
+# Strings with holes
+
+`string<K>` is a string with holes. A hole is a name between `{` and `}`, such as `{customer.name}`.
+`K` says what a hole may contain. `string<K>` is one string. It is not a collection like `array<K>`.
+<!-- src: `rule:types/string-holes` -->
+
+- `K` is `property<T>`, `propertyPath<T>` or a set of strings, such as `'asc'|'desc'`. Any other `K`
+  does not compile (`E0860`).
+- `{{` is a `{` and `}}` is a `}`. They are text, not holes.
+- An empty hole `{}`, a `{` with no `}` and a `}` with no `{` do not compile (`E0861`).
+- A string written directly in the code is checked while compiling, one hole at a time. A wrong name
+  does not compile (`E0405`), and the error points at that name.
+- A string literal at a parameter typed `string<K>` needs no `as`.
+- Any other string is checked by `as` while the program runs. A wrong hole throws a `RuntimeError`.
+  `as ?string<K>` gives `null` instead.
+- `as string<K>` keeps `tainted`. A `tainted string` converts to a `tainted string<K>`, because the
+  text between the holes still comes from outside.
+- `$text as string` gives the text as written, with its braces. Two values are equal when their
+  text is equal.
+
+```nvs
+<?nvs
+class Customer {
+    public string $name = "Ada";
+}
+
+class Order {
+    public Customer $customer;
+    public int $total = 40;
+
+    public function constructor() {
+        $this->customer = new Customer();
+    }
+}
+
+class Query {
+    public static function where(string<propertyPath<Order>> $condition): string {
+        return "WHERE " . ($condition as string);
+    }
+}
+
+echo Query::where("{customer.name} = ? AND {total} > 10"), "\n";
+
+string $built = "{customer.nmae} = ?";
+try {
+    var $bad = $built as string<propertyPath<Order>>;
+} catch (RuntimeError $e) {
+    echo $e->message, "\n";
+}
+```
+```output
+WHERE {customer.name} = ? AND {total} > 10
+`"{customer.nmae} = ?"` is not a string with holes of `Order`: in the hole `{customer.nmae}`, `Customer` has no public property `$nmae`
+```
+
+# Narrowing
+
+Inside the branch a test proves, a binding is read at the narrower type. Four spellings narrow:
+
+- `$x == null` / `$x != null` on a `?T`, on whichever edge proves the value present (`!` inverts).
+- `$x is C` on a `?C`, a union, `object` or `mixed`, on the true edge only: after
+  `if ($pet is Cat) { return …; }` the binding is still `Dog|Cat`, not `Dog`.
+- `$x == "read"` or `$x == Mode::Read` on a set of allowed values or an enum-case union, on the
+  edge that proves it. The right side is a value written directly in the code, or an enum case.
+- `match (true)` and `switch (true)`: each arm's label is one of the tests above and narrows its
+  own body. `default` narrows nothing.
+
+A ternary's arms and the right operand of `&&` and `||` are branches too, so the short forms need no
+`if`: `$c ? $a : $b` narrows its arms as `if ($c)` and its `else` would, `&&` narrows its right
+operand as the `if` block of its left, and `||` as the `else` block. Nothing proved holds after the
+expression.
+
+```nvs
+<?nvs
+class User {
+    public function constructor(public string $name, public bool $active) {}
+}
+class Admin {
+    public function canDelete(): bool {
+        return true;
+    }
+}
+class Check {
+    public static function label(?User $user): string {
+        return $user != null ? $user->name : "guest";
+    }
+    public static function on(?User $user): string {
+        return ($user != null && $user->active) ? "on" : "off";
+    }
+    public static function allowed(?User $user): string {
+        return ($user == null || $user->active) ? "yes" : "no";
+    }
+    public static function deletes(mixed $x): string {
+        return ($x is Admin && $x->canDelete()) ? "deletes" : "reads";
+    }
+}
+User $ada = new User("Ada", false);
+echo Check::label($ada), " ", Check::label(null), " ", Check::on($ada), " ", Check::allowed(null), " ", Check::allowed($ada), " ", Check::deletes(new Admin()), " ", Check::deletes($ada), "\n";
+```
+```output
+Ada guest off yes no deletes reads
+```
+
+The block of `if (A && B)` runs only when both tests are true, so it sees what each test proves. In
+`if ($a != null && $b != null)`, both `$a` and `$b` are narrowed inside the block. In the same way, the
+code after `if ($a == null || $b == null) { return; }` sees both variables narrowed. The `else` of an
+`&&` and the block of an `||` narrow nothing, because there only one of the two tests is known.
+
+```nvs
+<?nvs
+class Sum {
+    public static function both(?float $a, ?float $b): float {
+        if ($a != null && $b != null) {
+            return $a + $b;
+        }
+        return 0.0;
+    }
+    public static function guarded(?float $a, ?float $b): float {
+        if ($a == null || $b == null) {
+            return -1.0;
+        }
+        return $a + $b;
+    }
+}
+echo Sum::both(1.5, 2.0), " ", Sum::both(null, 2.0), " ", Sum::guarded(1.0, 2.0), " ", Sum::guarded(1.0, null), "\n";
+```
+```output
+3.5 0 3 -1
+```
+
+A write to the binding inside the branch drops the narrowing. Narrowing is branch-local; a `?T`
+that was tested in one `if` is still `?T` after it, and `->` on an un-narrowed `?C` is refused.
+
+```nvs
+<?nvs
+class Dog {
+    public function speak(): string {
+        return "woof";
+    }
+}
+class Cat {
+    public function purr(): string {
+        return "prr";
+    }
+}
+class Ask {
+    public static function nullable(?Dog $d): string {
+        if ($d == null) {
+            return "none";
+        }
+        return $d->speak();
+    }
+    public static function either(Dog|Cat $pet): string {
+        if ($pet is Cat) {
+            return $pet->purr();
+        }
+        return ($pet as Dog)->speak();
+    }
+    public static function mode("read"|"write" $m): string {
+        if ($m == "read") {
+            "read" $only = $m;
+            return $only;
+        }
+        return "other";
+    }
+    public static function viaMatch(mixed $v): string {
+        return match (true) {
+            $v is Dog => $v->speak(),
+            $v is Cat => $v->purr(),
+            default => "other",
+        };
+    }
+}
+echo Ask::nullable(new Dog()), " ", Ask::nullable(null), " ", Ask::either(new Cat()), " ", Ask::either(new Dog()), "\n";
+echo Ask::mode("read"), " ", Ask::mode("write"), " ", Ask::viaMatch(new Cat()), " ", Ask::viaMatch(1), "\n";
+```
+```output
+woof none prr woof
+read other prr other
+```
+
+```nvs error
+<?nvs
+class Dog {
+    public function speak(): string {
+        return "woof";
+    }
+}
+?Dog $d = new Dog();
+echo $d->speak(), "\n";
+```
+```output
+may be `null`, so `->` cannot reach a member of it
+```
+
+# Truthiness
+
+A condition — `if`, `while`, `for`'s middle clause, the ternary `?:` and its short form, and the
+operands of `&&`, `||` and `!` — is the one place a value is tested without `as`, and it uses this
+table: `false`, `0`, `0.0`, `""`, `"0"`, `[]`, an empty `bytes` and `null` are falsy; every other
+value, including `"0.0"`, `" "`, every object and every enum case whatever integer backs it, is
+truthy. `x as bool` answers the same table. A `mixed` is tested on its runtime tag. `empty($x)` is
+the same test negated and `isset($x)` is a `null` test. Those positions are the whole list: a
+`match (true)` label is compared against `true` rather than tested, and every other `bool` position
+— a binding, an argument, a return — still wants `as bool`.
+
+```nvs
+<?nvs
+array<int> $empty = [];
+?int $none = null;
+echo "0" ?: "falsy", " ", "" ?: "falsy", " ", 0 ?: "falsy", " ", 0.0 ?: "falsy", " ", $empty ? "t" : "falsy", " ", $none ? "t" : "falsy", "\n";
+echo "0.0" ?: "falsy", " [", " " ?: "falsy", "] ", -1 ? "t" : "falsy", " ", ("abc" as bool) ? "t" : "falsy", " ", ("0" as bool) ? "t" : "falsy", "\n";
+int $i = -1;
+if ($i && !$empty) {
+    echo "truthy\n";
+}
+```
+```output
+falsy falsy falsy falsy falsy falsy
+0.0 [ ] t t falsy
+truthy
+```
+
+# Parameters
+
+A parameter is `T $name`, with an optional default `= value` written directly in the code, and the last may be variadic —
+`T ...$rest`, an `array<T>` inside the body. Arguments may be passed by name:
+`Sum::bump(inout n: $count)`.
+
+## `inout`: a parameter that writes back
+
+`inout T $name` binds the caller's variable rather than a copy, so what the method assigns to
+`$name` is what the caller holds afterwards. The call writes `inout` again in front of the
+argument — `Sum::bump(inout $count)` — so a reader sees at the call site which variable may
+change. Only a local can be passed `inout`: not an array element and not a property. `&` is not a
+by-reference marker anywhere. A `foreach` value binding may be `inout` too, and an anonymous function
+has no `inout` parameter.
+
+```nvs
+<?nvs
+class Sum {
+    public static function of(int $first, int $second = 2, int ...$rest): int {
+        int $total = $first + $second;
+        foreach ($rest as int $r) {
+            $total = $total + $r;
+        }
+        return $total;
+    }
+    public static function bump(inout int $n): void {
+        $n = $n + 1;
+    }
+}
+echo Sum::of(1), " ", Sum::of(1, 1), " ", Sum::of(1, 1, 5, 6), "\n";
+int $count = 5;
+Sum::bump(inout $count);
+Sum::bump(inout n: $count);
+echo $count, "\n";
+array<int> $xs = [1, 2];
+foreach ($xs as inout int $v) {
+    $v = $v * 10;
+}
+echo Core\Json::encode($xs), "\n";
+```
+```output
+3 2 13
+7
+[10,20]
+```
+
+# Properties and constants
+
+A property is `visibility [static] T $name [= default];` — the default is a scalar literal, `[]`,
+an enum case or a class constant, and a union takes whichever of those its own members admit:
+`?string $label = null`, `?string $label = "plain"`, `"read"|"write" $mode = "read"`. A class constant is `visibility const T NAME = value;`, and the type is written there as it is
+everywhere else (`E0246`). Constants are read at their declared type — `const uint WIDTH = 5` is
+a `uint`. The classes chapter owns everything else about members.
+
+```nvs
+<?nvs
+class Limits {
+    public const uint WIDTH = 5;
+    public const string LABEL = "limits";
+    public int $n = 1;
+    public ?string $label;
+    private static uint $made = 0;
+    public function constructor() {
+        $this->label = null;
+        Limits::$made = Limits::$made + 1;
+    }
+    public static function made(): uint {
+        return self::$made;
+    }
+}
+Limits $l = new Limits();
+uint $w = Limits::WIDTH;
+echo $w + 1, " ", Limits::LABEL, " ", $l->n, " ", $l->label ?? "none", " ", Limits::made(), "\n";
+```
+```output
+6 limits 1 none 1
+```
+
+# Qualifiers: `tainted` and `secret`
+
+A qualifier is written before the type, and only on `string` and `bytes`: `tainted string`,
+`secret bytes`, `secret tainted string` (that order only). It is checked at compile time and costs
+nothing at run time: a qualified value answers every operation exactly as its plain twin does.
+
+**`tainted`** marks untrusted input. A value is tainted where a declaration says so — a parameter
+such as a `#[Command]` method's positional argument declared `tainted string $target`, a local, a
+property, a return type. It spreads: concatenation, interpolation and any `Core` member whose
+answer is built from the input (`Core\Str::upper`, `slice`, `trim`, `replace`, `split`, …) answer
+`tainted` when given `tainted`. A member answering a count or a truth (`Core\Str::length`,
+`contains`) takes it and answers plain. A parameter whose content is an instruction — a regex
+pattern, a `Core\Str::format` template, a `Core\Bytes::pack` format, a date pattern — refuses it,
+and so does every `Core` `string` parameter that is not classified either way. A `tainted` value
+is removed by a checked conversion — `as int`, `as uint`, `as float`, `as bool`, `as` an enum —
+or by a laundering member for one sink (`Core\Regex::quote`, `Core\Uri::encodeComponent`).
+`as string` and `as bytes` keep it. Assigning a `tainted string` to a plain `string` is a compile
+error.
+
+```nvs
+<?nvs
+tainted string $input = "42 apples";
+tainted string $upper = Core\Str::upper($input);
+tainted string $joined = "got: " . $input;
+uint $length = Core\Str::length($input);
+string $quoted = Core\Regex::quote($input);
+echo $upper, " | ", $joined, " | ", $length, " | ", $quoted, "\n";
+tainted string $digits = "42";
+int $n = $digits as int;
+echo $n + 1, "\n";
+```
+```output
+42 APPLES | got: 42 apples | 9 | 42 apples
+43
+```
+
+```nvs error
+<?nvs
+tainted string $input = "a";
+string $plain = $input;
+```
+```output
+expected `string`, found `tainted string`
+```
+
+```nvs error
+<?nvs
+tainted string $pattern = "a+";
+Core\Regex\Pattern $p = Core\Regex::compile($pattern);
+```
+```output
+expected `string`, found `tainted string`
+```
+
+**`secret`** marks a confidential value. Nothing grants it: it exists only where a declaration
+spells it. It spreads through concatenation and interpolation the same way, independently of
+`tainted`, and the same checked conversions remove it. What refuses a `secret` value at compile
+time: `echo` and `print`, a `Throwable`'s message, `Core\Debug::dump` and `Core\Debug::render`,
+`Core\Json::encode`, and every `Core` parameter typed plain `string` or `bytes` — including the
+ones that admit `tainted` (`Core\Str::length($secret)` is refused). Interpolation and `.` spread
+the qualifier to their result, so `echo "Bearer {$token}"` is refused for the same reason the bare
+`echo $token` is. What still compiles: `==` between two secrets, or a secret and a string; and an
+array literal, which infers `array<mixed>` and drops the qualifier, where a declared
+`array<secret string>` keeps it and is refused at `Core\Json::encode` with everything else. Beside a
+conversion there is exactly one member that removes it, `Core\Secret::reveal($value, $reason)` with
+a `bytes` twin `revealBytes`, which writes down why at the call site and removes `secret` alone — a
+value that was also `tainted` stays `tainted`.
+
+```nvs
+<?nvs
+secret string $token = "hunter2";
+secret string $header = "Bearer " . $token;
+tainted string $input = "x";
+secret tainted string $both = $header . $input;
+echo $header == "Bearer hunter2" ? "matches" : "differs", "\n";
+secret string $digits = "17";
+int $n = $digits as int;
+echo $n, "\n";
+string $shown = Core\Secret::reveal($token, "showing it in the reference");
+echo $shown, "\n";
+```
+```output
+matches
+17
+hunter2
+```
+
+```nvs error
+<?nvs
+secret string $token = "hunter2";
+throw new RuntimeError("bad token " . $token);
+```
+```output
+cannot be passed as a `Throwable` message
+```
+
+```nvs error
+<?nvs
+secret string $token = "hunter2";
+Core\Debug::dump($token);
+```
+```output
+cannot be passed to `Core\Debug::dump`
+```
+
+```nvs error
+<?nvs
+secret string $token = "hunter2";
+echo "Bearer {$token}\n";
+```
+```output
+`echo` cannot print a `secret` value
+```
+
+```nvs error
+<?nvs
+secret string $token = "hunter2";
+echo Core\Json::encode($token), "\n";
+```
+```output
+cannot be passed to `Core\Json::encode`
+```
+
+# What does not exist
+
+- A cast in parentheses — `(int)$x`, `(string)$x`, `(float)$x`, `(bool)$x`, `(array)$x` — is a
+  compile error, and the diagnostic names `as`. Write `$x as int`.
+- No free function converts a value or tests its type. A variable's type never changes, so a
+  conversion goes into a new variable. A `mixed` is tested with `is` for a class,
+  `($m as ?int) != null` for a scalar and `== null` for `null`.
+- A handle, such as an open file or a connection, is a `Core` object.
+- A string or an array is never a `callable`. A `callable` comes from an anonymous function
+  `fn (…) => …` or a method reference such as `Foo::bar(...)`.
+- `$s[0]` on a string is a compile error. Write `Core\Str::at` or `Core\Str::slice`.
+- Arithmetic and comparison never convert a string: `"3" * 2`, `"3" == 3` and `"a" < "b"` are
+  compile errors. Convert with `as`, and order strings with `Core\Str::compare`.
+- `list($a, $b) = …` does not parse. Write `[int $a, int $b] = $pair;`, with every part typed.
+- A conversion never cuts off a fraction. `3.9 as int` throws, and `3.9 as ?int` is `null`.
+
+```nvs error
+<?nvs
+mixed $m = 1;
+settype($m, "string");
+```
+```output
+`settype` is not supported
+```
+
+```nvs error
+<?nvs
+mixed $m = 1;
+echo gettype($m), "\n";
+```
+```output
+no free function has this name
+```

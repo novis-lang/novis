@@ -1,0 +1,17 @@
+<?nvs
+// Shows what happens when a cookie value contains a character that is not allowed.
+
+// A space, a comma, a semicolon, a backslash and a quote are not allowed in a value.
+// `addCookie` throws a `LogicError`, and no cookie is added.
+string $answer = "";
+try {
+    Core\Response::addCookie("name", "Ada Lovelace");
+    $answer = "saved";
+} catch (LogicError $error) {
+    $answer = $error->message;
+}
+
+// This value has no space, so the cookie is added.
+Core\Response::addCookie("name", "Ada_Lovelace");
+
+Core\Response::text($answer . "\n");

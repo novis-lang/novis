@@ -1,0 +1,31 @@
+<?nvs
+// Shows the two ways to write one of the attributes Novis owns. Novis reads the
+// name after it works out which declaration it points to. `#[Core\Command]` and
+// an imported `#[Command]` point to the same declaration, so both methods below
+// are commands.
+
+use Core\Command;
+
+type Row = {name: string, about: string};
+
+class Jobs {
+    #[Core\Command(name: "import", about: "Read rows from a file")]
+    public static function import(): void {}
+
+    // The `use Core\Command;` above makes this short spelling the same attribute.
+    #[Command(name: "export", about: "Write rows to a file")]
+    public static function export(): void {}
+}
+
+class Help {
+    public static function line(?Row $row): string {
+        if ($row == null) {
+            return "(no command here)";
+        }
+        return $row->name . ": " . $row->about;
+    }
+}
+
+// This prints one line per command.
+echo Help::line(Core\Attributes::get<Row>(Jobs::import(...))), "\n";
+echo Help::line(Core\Attributes::get<Row>(Jobs::export(...))), "\n";

@@ -1,0 +1,17 @@
+<?nvs
+// Shows how to split a yearly subscription price into a price per day.
+
+// The price is in cents, so every result is a whole number.
+int $yearlyCents = 3660000;
+
+// A leap year has 366 days and other years have 365. `Core\Math::intDiv` divides
+// and drops the fraction. This prints 10000 cents per day in 2024 and 10027 in 2025.
+array<int> $years = [2024, 2025];
+foreach ($years as int $year) {
+    var $start = Core\Time::at($year, 1, 1, Core\Time\Zone::of("Europe/Paris"));
+    int $days = 365;
+    if ($start->isLeapYear()) {
+        $days = 366;
+    }
+    echo $year, ": ", Core\Math::intDiv($yearlyCents, $days), " cents per day\n";
+}

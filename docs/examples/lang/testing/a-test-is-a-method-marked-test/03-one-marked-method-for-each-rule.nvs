@@ -1,0 +1,45 @@
+<?nvs
+// Shows a test class written the way you would write one at work. Every rule
+// gets its own marked method, and the name of the method says what the rule
+// is. A method without `#[Test]` is an ordinary method.
+
+use Core\Test;
+
+class PasswordPolicy {
+    public static function problem(string $password): string {
+        if (Core\Str::length($password) < 12) {
+            return "too short";
+        }
+        if (Core\Str::lower($password) == $password) {
+            return "needs a capital letter";
+        }
+        return "none";
+    }
+}
+
+class PasswordPolicyTest {
+    #[Test]
+    public function aShortPasswordIsRefused(): void {
+        Test::assertSame($this->problemFor("Short1"), "too short");
+    }
+
+    #[Test]
+    public function aPasswordWithoutCapitalsIsRefused(): void {
+        Test::assertSame($this->problemFor("correcthorsebattery"), "needs a capital letter");
+    }
+
+    #[Test]
+    public function aLongPasswordWithACapitalLetterPasses(): void {
+        Test::assertSame($this->problemFor("CorrectHorseBattery"), "none");
+    }
+
+    // This method has no `#[Test]`, so `nvs test` does not run it. The tests
+    // above call it like any other method.
+    private function problemFor(string $password): string {
+        return PasswordPolicy::problem($password);
+    }
+}
+
+// This prints `too short` and then `none`.
+echo PasswordPolicy::problem("Short1"), "\n";
+echo PasswordPolicy::problem("CorrectHorseBattery"), "\n";

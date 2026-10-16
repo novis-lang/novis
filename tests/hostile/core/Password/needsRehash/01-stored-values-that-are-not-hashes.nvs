@@ -1,0 +1,43 @@
+<?nvs
+// Attack: the stored hashes are replaced with broken or extreme values. Each
+// check should return `true` or throw a `LogicError`, and should never crash.
+
+class Probe
+{
+    public static function check(string $stored): string
+    {
+        try {
+            return Core\Password::needsRehash($stored) ? 'true' : 'false';
+        } catch (LogicError $broken) {
+            return 'not a hash';
+        }
+    }
+}
+
+string $tail = 'jJ+hokoSJRsAzYsgfwhV6g$BGyWXoH11l0/GF4ezLqvtQgPY0T/4fv4DukErq9R0cI';
+
+// 1. The stored value is empty.
+echo Probe::check(''), "\n";
+
+// 2. The stored value is 8 MiB of `$` signs.
+echo Probe::check(Core\Str::repeat('$', 8388608)), "\n";
+
+// 3. The numbers in the hash are far larger than any number type.
+echo Probe::check('$argon2id$v=19$m=99999999999999999999,t=99999999999999999999,p=1$' . $tail), "\n";
+
+// 4. The numbers are zero.
+echo Probe::check('$argon2id$v=19$m=0,t=0,p=0$' . $tail), "\n";
+
+// 5. The hash names a version that does not exist.
+echo Probe::check('$argon2id$v=4294967295$m=19456,t=2,p=1$' . $tail), "\n";
+
+// 6. A bcrypt hash asks for cost 99. This method runs no rounds, so it only
+// needs to answer.
+echo Probe::check('$2y$99$PE6UB/yJ1bk1dIwtgHee0es/SxguHDHJgvcdKauDX66xu84voItOi'), "\n";
+
+// 7. A value has a bcrypt tag and nothing else.
+echo Probe::check('$2y$'), "\n";
+
+// 8. A hash has 10000 parameters.
+string $params = Core\Str::repeat('x=1,', 10000);
+echo Probe::check('$argon2id$v=19$' . $params . 'm=19456$' . $tail), "\n";

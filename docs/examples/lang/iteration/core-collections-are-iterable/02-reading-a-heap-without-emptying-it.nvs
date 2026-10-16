@@ -1,0 +1,19 @@
+<?nvs
+// Shows how to read every element of a `Core\Heap` in priority order.
+
+var $costs = new Core\Heap<int>();
+$costs->push(30);
+$costs->push(5);
+$costs->push(17);
+
+// The loop gives you the elements smallest first. This prints 5, 17 and 30.
+foreach ($costs as int $cost) {
+    echo $cost, "\n";
+}
+
+// The loop takes nothing out of the heap. All three elements are still there,
+// so this prints 3.
+echo $costs->count(), "\n";
+
+// `pop` is what removes one. This prints 5, the same element the loop saw first.
+echo $costs->pop(), "\n";

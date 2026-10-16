@@ -1,0 +1,27 @@
+<?nvs
+// After a call finishes, its connection stays open. The next call to the same server
+// then needs no new connection and no new TLS handshake. `[http.client] pool_idle` is
+// how many of these open connections one core keeps. This file sets it:
+//
+//     [http.client]
+//     pool_idle = 16
+
+echo 'idle connections per core: ', Core\Config::get('http.client.pool_idle') ?? '(no value)', "\n";
+
+// Each core keeps its own connections. A host with 16 cores keeps up to 16 times
+// this number, so this prints `256`.
+echo 'so a 16-core host holds:   ', 16 * 16, "\n";
+
+// The right number depends on the size of the machine, so a program cannot change it.
+// `Core\Config::set` returns `false`, so this prints `no`.
+echo 'raise it from code:        ', Core\Config::set('http.client.pool_idle', '512') ? 'yes' : 'no', "\n";
+
+// A program may change the settings in this block that affect only its own call.
+// `http.client.deadline` is one of them, so this prints `yes` and then `2s`.
+echo 'shorten my own call:       ', Core\Config::set('http.client.deadline', '2s') ? 'yes' : 'no', "\n";
+echo 'now in force:              ', Core\Config::get('http.client.deadline') ?? '(nothing)', "\n";
+
+// `Core\Config::restore` deletes the value this program set. This file sets no
+// deadline, so `get` returns the default, `30s`.
+Core\Config::restore('http.client.deadline');
+echo 'back to the file:          ', Core\Config::get('http.client.deadline') ?? '(no value)', "\n";

@@ -1,0 +1,35 @@
+--TEST--
+An `Instant` written to a workbook with no `zone` throws a `LogicError` naming its column, and with `zone` set the cell is the serial of the clock time in that zone: rule:core-classes/spreadsheet-value-types
+--FILE--
+<?nvs
+// covers: Novis\Spreadsheet\Sheet::add
+use Novis\Spreadsheet\Workbook;
+
+var $noon = Core\Time::fromIso("2024-01-15T12:00:00Z");
+
+// The workbook has no `zone`, so the `Instant` in column `C` has no clock time.
+try {
+    Workbook::createInMemory()->sheet("Orders")->add(["Widget", 3, $noon]);
+    echo "not reached\n";
+} catch (LogicError $e) {
+    echo $e->message, "\n";
+}
+
+// Berlin is one hour ahead of UTC in January, so 12:00 UTC is 13:00 there.
+// 13:00 is 13/24 of a day, so the serial is 45306.541666666664.
+var $book = Workbook::createInMemory({zone: "Europe/Berlin"});
+$book->sheet("Orders")->add(["Widget", 3, $noon]);
+bytes $file = $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
+var $xml = Core\Zip::read($file, "xl/worksheets/sheet1.xml") as string;
+echo Core\Str::contains($xml, "<v>45306.541666666664</v>") ? "13:00 in Berlin" : "another time", "\n";
+
+// A `DateTime` already has a clock time, so it needs no `zone`.
+var $local = Workbook::createInMemory();
+$local->sheet("Orders")->add([Core\Time::at(2024, 1, 15, Core\Time\Zone::of("Asia/Tokyo"), {hour: 18})]);
+bytes $second = $local->finish()->bytes ?? Core\Bytes::fill(0, 0);
+var $sheet = Core\Zip::read($second, "xl/worksheets/sheet1.xml") as string;
+echo Core\Str::contains($sheet, "<v>45306.75</v>") ? "18:00 as written" : "another time", "\n";
+--EXPECT--
+The column `C` has an `Instant`, and the workbook has no `zone`. Set `zone` in the workbook options, such as `zone: 'Europe/Berlin'`.
+13:00 in Berlin
+18:00 as written

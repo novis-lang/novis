@@ -1,0 +1,9 @@
+<?nvs
+namespace App;
+
+// The interface that `Core\Program::implementing<T>()` lists. `T` is an
+// interface or a class, so you can call methods on each result.
+interface Module
+{
+    public function name(): string;
+}

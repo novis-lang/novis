@@ -1,0 +1,21 @@
+--TEST--
+there is no `__call` fallback, so a method the class does not declare is refused before anything runs — `rule:classes/property-observer-costs-nothing-when-unused`
+--FILE--
+<?nvs
+class Box {
+    public int $n;
+
+    public function constructor(int $n) {
+        $this->n = $n;
+    }
+}
+var $b = new Box(1);
+echo $b->widen(2), "\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0405]: `Box` has no method named `widen`
+   --> case.nvs:10:6
+%A
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

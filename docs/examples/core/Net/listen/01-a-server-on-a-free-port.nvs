@@ -1,0 +1,13 @@
+<?nvs
+// Shows how to start a TCP server on a port the operating system picks.
+
+// `Core\Net::listen` opens a listening socket and returns a `Core\Net\Listener`.
+// Port `0` means "pick any free port".
+Core\Net\Listener $server = Core\Net::listen("127.0.0.1", 0);
+
+// `port()` returns the port that was picked. It is different on every run.
+// So this prints `listening: yes` rather than the number.
+uint $port = $server->port();
+echo "listening: ", $port > 0 ? "yes" : "no", "\n";
+
+$server->close();

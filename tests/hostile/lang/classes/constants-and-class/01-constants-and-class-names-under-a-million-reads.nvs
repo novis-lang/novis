@@ -1,0 +1,89 @@
+<?nvs
+// Attack: constants and class names are read far more often than a program
+// would read them. A constant list is copied ten thousand times. A class name
+// is read off a million objects, and then kept a million times. One name is
+// three hundred characters long. The runtime should stay standing.
+// covers: lang:classes/constants-and-class
+
+class Limits
+{
+    public const array<int> STEPS = [1, 2, 3];
+}
+
+// 1. Every read of a constant list gives a new list. This writes to ten
+// thousand of them and then reads the constant again.
+int $round = 0;
+int $entries = 0;
+while ($round < 10000) {
+    array<int> $copy = Limits::STEPS;
+    $copy[] = $round;
+    $entries = $entries + (Core\Arr::count($copy) as int);
+    $round = $round + 1;
+}
+echo '1: ', $entries, " entries across the copies\n";
+echo '1: the constant still holds ', Core\Arr::count(Limits::STEPS), "\n";
+
+class Thing
+{}
+
+// 2. A million objects are created, asked which class they are, and dropped.
+int $i = 0;
+int $chars = 0;
+while ($i < 1000000) {
+    var $thing = new Thing();
+    $chars = $chars + (Core\Str::length($thing::class) as int);
+    $i = $i + 1;
+}
+echo '2: ', $chars, " characters read\n";
+
+// 3. A million class names are kept instead of being dropped.
+try {
+    array<string> $names = [];
+    int $k = 0;
+    while ($k < 1000000) {
+        $names[] = Thing::class;
+        $k = $k + 1;
+    }
+    echo '3: ', Core\Arr::count($names), " names held\n";
+} catch (Throwable $e) {
+    echo '3: caught ', $e->message, "\n";
+}
+
+// 4. A class name of three hundred characters, read through twelve levels of
+// inheritance. `static::class` should name the class the call was made on.
+class Aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+{
+    public const int DEPTH = 12;
+
+    public static function which(): string
+    {
+        return static::class;
+    }
+}
+class L1 extends Aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+{}
+class L2 extends L1
+{}
+class L3 extends L2
+{}
+class L4 extends L3
+{}
+class L5 extends L4
+{}
+class L6 extends L5
+{}
+class L7 extends L6
+{}
+class L8 extends L7
+{}
+class L9 extends L8
+{}
+class L10 extends L9
+{}
+class L11 extends L10
+{}
+class L12 extends L11
+{}
+
+echo '4: ', Core\Str::length(Aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa::class), " characters in the longest name\n";
+echo '4: ', L12::which(), ' answered from depth ', Aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa::DEPTH, "\n";

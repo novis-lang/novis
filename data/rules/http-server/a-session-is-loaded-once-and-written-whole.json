@@ -1,0 +1,14 @@
+{
+  "title": "A session record is loaded once at `start`, written back whole only when it changed, and never locked",
+  "status": "shipped",
+  "seeAlso": [
+    "http-server/a-session-store-answers-four-operations",
+    "security/closed-doors",
+    "concurrency/cross-request-state-is-explicit",
+    "core-api/session-roster",
+    "http-server/a-requests-blast-radius-is-bounded-at-four-tiers"
+  ],
+  "guardedBy": [
+    "crates/nvs-stdlib/src/session.rs"
+  ]
+}

@@ -1,0 +1,11 @@
+<?nvs
+// Shows how to find out which of two dates comes first.
+
+var $start = Core\Time\Date::at(2024, 3, 1);
+var $end = Core\Time\Date::at(2024, 3, 15);
+
+// `compareTo` returns -1 for an earlier date, 0 for the same day and 1 for a later date.
+// This prints -1, then 0, then 1.
+echo $start->compareTo($end), "\n";
+echo $start->compareTo(Core\Time\Date::at(2024, 3, 1)), "\n";
+echo $end->compareTo($start), "\n";

@@ -1,0 +1,18 @@
+<?nvs
+// Shows a function that reports a limit from the decision alone. It does not
+// need to know which plan the user has.
+
+class Quota {
+    public static function check(string $user, uint $perHour): Core\RateLimit\Decision {
+        return Core\RateLimit::shed("api:" . $user, $perHour, 1h);
+    }
+
+    public static function report(Core\RateLimit\Decision $decision): void {
+        echo "limit: ", $decision->limit(), " calls per hour\n";
+    }
+}
+
+// A free user may make 100 calls per hour, and a paid user 5000.
+// This prints `100` and then `5000`.
+Quota::report(Quota::check("free:12", 100));
+Quota::report(Quota::check("paid:7", 5000));

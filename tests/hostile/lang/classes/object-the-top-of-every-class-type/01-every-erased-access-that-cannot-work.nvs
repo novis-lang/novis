@@ -1,0 +1,63 @@
+<?nvs
+// Attack: a value typed `object` is asked for names its class does not have and
+// converted to a class it is not. Every attempt throws, and every throw is
+// caught so the step after it still runs. Memory should stay steady.
+// hostile: timeout-ms 30000
+// covers: lang:classes/object-the-top-of-every-class-type
+
+class Tag
+{
+    public function constructor(public string $text)
+    {}
+}
+
+class Other
+{}
+
+class Attack
+{
+    public static function make(): object
+    {
+        return new Tag('x');
+    }
+}
+
+object $erased = Attack::make();
+
+// 1. A name the class does not carry, a hundred thousand times.
+int $caught = 0;
+int $i = 0;
+for (; $i < 100000; $i = $i + 1) {
+    try {
+        mixed $absent = $erased->thisNameIsNotDeclaredOnTagAndNeverWillBe;
+    } catch (Throwable $missing) {
+        $caught = $caught + 1;
+    }
+}
+echo 'missing names caught ', $caught, "\n";
+
+// 2. A conversion to a class the object is not. Every one of these should throw.
+int $refused = 0;
+$i = 0;
+for (; $i < 100000; $i = $i + 1) {
+    try {
+        Other $wrong = $erased as Other;
+    } catch (Throwable $badConversion) {
+        $refused = $refused + 1;
+    }
+}
+echo 'wrong conversions caught ', $refused, "\n";
+
+// 3. A write of a value the declared property cannot hold.
+int $rejected = 0;
+$i = 0;
+for (; $i < 100000; $i = $i + 1) {
+    try {
+        $erased->text = $i;
+    } catch (Throwable $badWrite) {
+        $rejected = $rejected + 1;
+    }
+}
+echo 'wrong writes caught ', $rejected, "\n";
+
+echo "still running\n";

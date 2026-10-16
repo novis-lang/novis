@@ -1,0 +1,62 @@
+--TEST--
+Core\Str::chunk counts graphemes, so no piece splits a code point or a cluster of code points, and the pieces always join back to the text
+--FILE--
+<?nvs
+final class Show {
+    // Returns the bytes of the text in hex.
+    public static function bytes(string $text): string {
+        return Core\Encoding::toHex($text as bytes);
+    }
+
+    // Returns every piece of the chunks in hex, each after a `|`.
+    public static function pieces(string $text, int $size): string {
+        string $out = "";
+        foreach (Core\Str::chunk($text, $size as uint) as string $piece) {
+            $out = $out . "|" . Core\Encoding::toHex($piece as bytes);
+        }
+        return $out;
+    }
+}
+
+// The first text has characters of 1, 2, 3 and 4 bytes. The second has an
+// emoji with a skin tone, and the third has an `e` with a combining accent.
+// Each of those is one grapheme (what a person counts as one character)
+// made of two code points.
+array<string> $subjects = ["aé中👍", "a👍🏽b", "cafe\u{0301}"];
+array<int> $sizes = [1, 2, 3];
+
+// Each cell prints the number of pieces, then every piece in hex.
+// Pieces have the same number of graphemes, not the same number of bytes.
+foreach ($subjects as string $subject) {
+    foreach ($sizes as int $size) {
+        echo "[", Core\Arr::count(Core\Str::chunk($subject, $size as uint)), Show::pieces($subject, $size), "]";
+    }
+    echo "\n";
+}
+
+// Two of the chunkings, printed as text.
+echo "[", Core\Str::join(Core\Str::chunk("aé中👍", 2), "|"), "][", Core\Str::join(Core\Str::chunk("a👍🏽b", 2), "|"), "]\n";
+
+// The first count checks that the pieces join back to the text, for every size.
+// The second checks that a size of 1 gives one piece per grapheme.
+int $held = 0;
+int $ones = 0;
+int $cells = 0;
+foreach ($subjects as string $text) {
+    if (Core\Arr::count(Core\Str::chunk($text, 1)) == Core\Str::length($text)) {
+        $ones = $ones + 1;
+    }
+    foreach ($sizes as int $span) {
+        $cells = $cells + 1;
+        if (Core\Str::join(Core\Str::chunk($text, $span as uint), "") == $text) {
+            $held = $held + 1;
+        }
+    }
+}
+echo $held, " of ", $cells, ", ", $ones, " of 3\n";
+--EXPECT--
+[4|61|c3a9|e4b8ad|f09f918d][2|61c3a9|e4b8adf09f918d][2|61c3a9e4b8ad|f09f918d]
+[3|61|f09f918df09f8fbd|62][2|61f09f918df09f8fbd|62][1|61f09f918df09f8fbd62]
+[4|63|61|66|65cc81][2|6361|6665cc81][2|636166|65cc81]
+[aé|中👍][a👍🏽|b]
+9 of 9, 3 of 3

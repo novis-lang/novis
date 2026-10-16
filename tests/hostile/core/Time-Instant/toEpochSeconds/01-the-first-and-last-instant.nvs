@@ -1,0 +1,21 @@
+<?nvs
+// Attack: the seconds of the first and the last instant are read, and the reading is repeated
+// one million times. Every reading should give a number. Nothing should crash or leak.
+
+// 1. The first and the last instant give the smallest and the largest number.
+Core\Time\Instant $first = Core\Time::fromIso('-009999-01-02T01:59:59Z');
+Core\Time\Instant $last = Core\Time::fromIso('9999-12-30T22:00:00.999999999Z');
+echo $first->toEpochSeconds(), ' ', $last->toEpochSeconds(), "\n";
+
+// 2. A reading of the largest number is turned back into an instant.
+echo Core\Time::fromEpoch($last->toEpochSeconds())->toIso(), "\n";
+
+// 3. One million instants are made and read. Each one is freed again.
+int $sum = 0;
+int $round = 0;
+while ($round < 1000000) {
+    Core\Time\Instant $at = Core\Time::fromEpoch($round * 253402, { nanos: 999999999 });
+    $sum = $sum + $at->toEpochSeconds() % 7;
+    $round = $round + 1;
+}
+echo $sum, "\n";

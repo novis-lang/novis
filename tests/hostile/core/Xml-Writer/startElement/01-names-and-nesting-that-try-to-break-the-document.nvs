@@ -1,0 +1,71 @@
+<?nvs
+// Attack: a program opens elements with names that contain markup, nests elements far too deep, and opens a second root.
+// Each bad call should throw a `LogicError`, and the finished document should still be valid XML.
+// hostile: timeout-ms 20000
+
+class Try
+{
+    // Runs one call and prints `ok`, or the class of the error it throws.
+    public static function call(callable $step): void
+    {
+        try {
+            $step();
+            echo "ok\n";
+        } catch (LogicError $error) {
+            echo "LogicError\n";
+        }
+    }
+}
+
+Core\Xml\Writer $out = Core\Xml::writer({ indent: ' ' });
+$out->startDocument();
+
+// 1. Names that contain markup or are not names. Each prints LogicError.
+array<string> $names = ['a><admin/', 'a b', 'a/', 'a"x', '', '1a', '-a', "a\x00", 'a=', '<!--'];
+foreach ($names as string $name) {
+    Try::call(fn(): void => { $out->startElement($name); });
+}
+
+// 2. A root element with a name of one million characters. This prints ok.
+Try::call(fn(): void => { $out->startElement(Core\Str::repeat('n', 1000000)); });
+
+// 3. Elements nested one past the limit. This prints LogicError after 1023 elements are opened.
+Try::call(fn(): void => {
+    int $i = 0;
+    while ($i < 5000) {
+        $out->startElement('d');
+        $i = $i + 1;
+    }
+});
+
+// 4. Every open element is closed again. This prints ok.
+Try::call(fn(): void => {
+    int $i = 0;
+    while ($i < 1024) {
+        $out->endElement();
+        $i = $i + 1;
+    }
+});
+
+// 5. A second root element after the first one is closed. This prints LogicError.
+Try::call(fn(): void => { $out->startElement('admin'); });
+
+// 6. The document is finished and parsed again. This prints its length.
+string $document = $out->endDocument();
+Core\Xml::parse($document);
+echo Core\Str::length($document), "\n";
+
+// 7. 100,000 empty elements side by side in a new document. This prints ok.
+Core\Xml\Writer $wide = Core\Xml::writer();
+$wide->startDocument();
+$wide->startElement('list');
+Try::call(fn(): void => {
+    int $i = 0;
+    while ($i < 100000) {
+        $wide->startElement('item');
+        $wide->endElement();
+        $i = $i + 1;
+    }
+});
+$wide->endElement();
+echo Core\Str::length($wide->endDocument()), "\n";

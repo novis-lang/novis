@@ -1,0 +1,15 @@
+<?nvs
+// Shows how to pick the first entry of an array that meets a condition.
+// `Core\Arr::find` returns that entry and reads no entry after it.
+
+array<int> $totals = [12, 40, 130, 95, 210];
+
+// The first total above 100 is 130. This prints 130.
+?int $large = Core\Arr::find($totals, fn(int $total) => $total > 100);
+echo $large ?? 0, "\n";
+
+// No total is above 1000, so the result is `null`. This prints "none".
+?int $huge = Core\Arr::find($totals, fn(int $total) => $total > 1000);
+if ($huge == null) {
+    echo "none", "\n";
+}

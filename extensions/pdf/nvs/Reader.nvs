@@ -1,0 +1,45 @@
+<?nvs
+namespace Novis\Pdf;
+
+/// An existing PDF file opened for reading: its page count, its metadata, its attached files and its text.
+final class Reader
+{
+    type Metadata = {title: ?string, author: ?string, subject: ?string, keywords: ?string, creator: ?string, producer: ?string};
+    type Attachment = {name: string, data: bytes};
+
+    private function constructor(
+        private readonly bytes $pdf,
+        public readonly uint $pageCount,
+        public readonly Metadata $metadata,
+        private readonly array<Attachment> $files,
+        private readonly ?string $invoice,
+    ) {}
+
+    /// `Reader::open` reads the page count, the metadata and the attached files of a PDF file.
+    /// A file that is encrypted or does not parse throws a `ParseError`.
+    public static function open(bytes $pdf): Reader
+    {
+        var $info = Engine::read($pdf);
+        return new Reader($pdf, $info->pageCount, $info->metadata, $info->attachments, $info->invoiceXml);
+    }
+
+    /// `attachments` returns the files attached to the PDF file, each with its name and its bytes.
+    public function attachments(): array<Attachment>
+    {
+        return $this->files;
+    }
+
+    /// `invoiceXml` returns the XML of an electronic invoice attached to the file.
+    /// If the file is not an electronic invoice, the result is `null`.
+    public function invoiceXml(): ?string
+    {
+        return $this->invoice;
+    }
+
+    /// `text` returns the text of one page, in the order the file stores it. Pages count from 1.
+    /// Tables and columns are not rebuilt. A page number past the end throws a `LogicError`.
+    public function text(uint $page): string
+    {
+        return Engine::readText($this->pdf, [$page])[0];
+    }
+}

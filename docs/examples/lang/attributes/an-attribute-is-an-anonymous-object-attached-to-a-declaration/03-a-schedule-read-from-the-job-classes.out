@@ -1,0 +1,3 @@
+send invoices: every 60 minutes
+clean sessions: every 15 minutes
+charge cards: every 60 minutes (urgent)

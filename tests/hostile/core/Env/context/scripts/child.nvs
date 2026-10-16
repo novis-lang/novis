@@ -1,0 +1,3 @@
+<?nvs
+// A child script that a request starts. It returns its own kind of run.
+return Core\Env::context();

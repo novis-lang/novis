@@ -1,0 +1,14 @@
+<?nvs
+// Shows the error `Image::compare` throws for two images of different sizes.
+use Novis\Image\Color;
+use Novis\Image\Image;
+
+Image $small = Image::create(32, 32, Color::hex("#2563eb"));
+Image $large = Image::create(64, 64, Color::hex("#2563eb"));
+
+// The sizes are different, so this throws a `LogicError`.
+try {
+    echo Image::compare($small, $large)->ssim, "\n";
+} catch (LogicError $e) {
+    echo "LogicError: ", $e->message, "\n";
+}

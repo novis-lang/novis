@@ -1,0 +1,11 @@
+<?nvs
+// Shows how to put a few HTML links in one line, with a separator between them.
+
+array<Core\Html\Markup> $links = [
+    "<a href=\"/\">Home</a>" as Core\Html\Markup,
+    "<a href=\"/blog\">Blog</a>" as Core\Html\Markup,
+    "<a href=\"/about\">About</a>" as Core\Html\Markup,
+];
+
+// The separator ` | ` goes between two links, and not after the last one.
+echo Core\Html::join($links, " | " as Core\Html\Markup), "\n";

@@ -1,0 +1,44 @@
+<?nvs
+// Attack: the keys of very large arrays are copied out, again and again. Every
+// step should finish or throw an error, and the runtime must not crash.
+// hostile: timeout-ms 60000
+
+// 1. The keys of a list of 400000 entries, so 400000 keys are built at once.
+array<int> $long = [];
+int $i = 0;
+while ($i < 400000) {
+    $long[] = $i;
+    $i = $i + 1;
+}
+echo 'step 1: ', Core\Arr::count(Core\Arr::keys($long)), '|', "\n";
+
+// 2. A key of one million characters is copied out whole.
+array<int> $wide = [];
+$wide[Core\Str::repeat('k', 1000000)] = 1;
+echo 'step 2: ', Core\Str::length(Core\Arr::keys($wide)[0]), '|', "\n";
+
+// 3. A key that contains a zero byte in the middle.
+array<int> $odd = [];
+$odd["a\0b"] = 1;
+echo 'step 3: ', Core\Str::length(Core\Arr::keys($odd)[0]), '|', "\n";
+
+// 4. An array with no entries has no keys.
+array<int> $empty = [];
+echo 'step 4: ', Core\Arr::count(Core\Arr::keys($empty)), '|', "\n";
+
+// 5. The keys of 2000 entries built 1000 times, and dropped each time.
+array<int> $mid = [];
+int $k = 0;
+while ($k < 2000) {
+    $mid[] = $k;
+    $k = $k + 1;
+}
+uint $built = 0;
+int $r = 0;
+while ($r < 1000) {
+    $built = $built + Core\Arr::count(Core\Arr::keys($mid));
+    $r = $r + 1;
+}
+echo 'step 5: ', $built, '|', "\n";
+
+echo 'the runtime is still standing', "\n";

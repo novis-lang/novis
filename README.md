@@ -1,0 +1,135 @@
+# Novis — The Web-Native Programming Language
+
+A programming language for the web. Secure by design, not by discipline. Untrusted data: tracked, and
+blocked from anywhere dangerous. Secrets: can't leak into logs or screens, not even by accident.
+Downloaded code: does only what you allow. Fast, like you would expect. Easy to write, easy to scale.
+For web servers and the command line. Familiar syntax (Hello PHP).
+
+> **Status: pre-alpha, not released.** The language, its standard library, the HTTP server, the
+> extension system and the editor support are built and tested. There is no release yet, and nothing
+> here is stable.
+
+## What it is trying to be
+
+- **Injection and secret leakage are compile errors.** Untrusted input carries a `tainted` type from the
+  moment it enters, credentials carry `secret`, and every sink that could leak either one refuses them — so
+  the whole class fails the build instead of a scan afterwards
+  ([why, and how the other web languages compare](docs/why-tainted-and-secret.md)).
+- **No build step.** Edit a `.nvs` file and run it. Compilation happens on load and is cached.
+- **Actually compiled.** Cranelift emits native code. There is no interpreter tier.
+- **Parallel in-language.** `async`/`await` for overlapping I/O plus isolated workers for real multicore
+  CPU work — with no `async` function colouring, so any function may do I/O.
+- **One process, many requests.** A single server process handles as many concurrent requests as its
+  memory holds at each request's limit (128M unless you set one), each fully isolated, all sharing one
+  in-memory compiled-code cache.
+- **Isolation you can reach from the language.** `spawn script 'job.nvs'` runs another file with its own
+  heap, its own globals and its own slice of the caller's budget, and starts in microseconds
+  ([`security/isolate-shares-nothing`](docs/rules/security.md#security-isolate-shares-nothing)).
+- **Typed on purpose.** Every parameter, property and variable declares its type, and no value changes
+  type behind your back: conversions are explicit and throw rather than quietly yielding `0`. Unions and
+  `mixed` are there for the cases that genuinely are dynamic. `uint` gives you the whole unsigned 64-bit
+  range, and arrays are ordered hashes with declarable, nestable element types — `array<array<uint>>`
+  ([the type rules](docs/rules/types.md)).
+- **Memory-safe and contained.** Written in Rust. `unsafe` is forbidden in every crate but seven, and
+  each `unsafe` block in those seven is audited and states its reason. A
+  runtime bug or a resource-limit breach kills one request, never the process.
+- **Fast and simple first; memory is what pays for that.** Novis targets server-class hardware, so where a
+  design can be safer, faster or simpler by holding more memory, it holds more memory — deliberately, within
+  an enforced per-request cap ([the memory rule](docs/rules/programs.md#programs-memory-priority)). It is not a
+  low-footprint runtime, and sizing it means sizing for concurrency.
+- **Extensible without giving up any of that.** Extensions are sandboxed WebAssembly components: one
+  precompiled binary runs on every platform, written in whatever language you like, and a crashing or
+  hostile extension harms one request rather than the process.
+
+Coming from PHP? [How Novis is different, and how to port a program](docs/reference/tools/30-php-differences.md).
+
+## Roadmap
+
+**Built:**
+
+- The language: parser, type checker, the Cranelift backend, and the test runner.
+- The `Core` library, concurrency (coroutines, channels, workers and script isolates), and `nvs.toml`
+  with its capabilities, limits and artifact cache.
+- The built-in HTTP server.
+- The standard library, five SQL database drivers, and LDAP.
+- The extension system, with the built-in image, intl, PDF and spreadsheet components.
+- The language server and the VS Code extension.
+
+**Planned** ([docs/implementation-plan.md](docs/implementation-plan.md) has each milestone, its
+deliverables and how it is verified):
+
+| | Milestone |
+|---|---|
+| M10 | Developer tooling: the debugger, the profiler, property tests and the rest of the editor features |
+| M12 | Optimising JIT tier |
+| M15 | Packages, the registry and the supply chain |
+| M16 | `nvs/web`, the first-party framework, and `nvs new` |
+| M17 | The image component's second wave |
+
+## Contributing
+
+Novis is early enough that an opinion is worth more than a patch. Ideas, questions and disagreements go to
+[Discussions](https://github.com/novis-lang/novis/discussions), bugs and concrete proposals to
+[Issues](https://github.com/novis-lang/novis/issues), and [Discord](https://discord.gg/8ftMjPeH8h) is
+where the day-to-day conversation happens — all of that is open to anyone, at any time.
+
+**Pull requests are the exception: they are not open yet.** The core team is building the language out to
+one vision first, and they open once it is settled, so that maintenance becomes a shared job between the
+community and the core team. Code contributions are the only thing this affects.
+
+[CONTRIBUTING.md](CONTRIBUTING.md) routes all of that, and its second half is the developer's half of this
+file: the design in one page, the repository layout, how to build and check the tree, and the conventions a
+change is expected to follow. Start there, then [AGENTS.md](AGENTS.md) — it carries the priority ordering
+every design choice is judged against, the invariants that are easy to break, and a table pointing at the
+*one* document to open for a given piece of work.
+
+## Sponsoring
+
+Novis is open source and free, and it always will be. What it costs is time — and time is exactly what we
+are willing to invest to reach our goal. But some things already cost real money: servers, licences,
+hardware. Novis has a baseline that is paid every month.
+
+That is where sponsors come in — maybe you?! Sponsors help us cover those fixed costs. Novis is already run
+by a company: a sole proprietorship (*Einzelunternehmen*) in Austria, owned and run by Roland, the creator
+of Novis. When the team is bigger and sponsoring makes it possible, we will found a *FlexCo* named
+Novis-Lang — the *Flexible Kapitalgesellschaft*, a form of company Austria introduced in 2024 for startups
+and growing companies — so that we can employ people and rent an office. You can give through GitHub
+Sponsors, Polar or a bank transfer. The website's sponsoring page lists the tiers, and
+publishes a report every quarter: how many gave, the total, and what we spent it on. By default, nothing
+about you is published — not your name and not your amount. We show them only if you ask us to.
+
+Whatever form the company takes, Novis is open source and always will be, it is under the MIT licence and
+always will be, and the open-source code is all of Novis — there is no paid edition or paywalls. We may sell additional services
+around Novis one day, consulting for example, but a service never takes a feature away from the free Novis just to make money out of it.
+And we do our best to keep Novis the best and simplest way to run the web applications of today and of
+the future.
+
+Novis-Lang® is a registered EU trademark.
+
+Every donation helps, no matter how large, how small, how long or how short. Ask on
+[Discord](https://discord.gg/8ftMjPeH8h) and we will tell you how — the full story is on the website's
+sponsoring page.
+
+And if you would rather not donate, or cannot: come to us with ideas and discussion instead, any time.
+That is what [CONTRIBUTING.md](CONTRIBUTING.md) is for.
+
+## Licence
+
+Novis is [MIT](LICENSE). Contributions are accepted under the same licence.
+
+Every third-party component compiled into the `nvs` binary is permissively licensed and attributed in
+[THIRD-PARTY-LICENSES.txt](THIRD-PARTY-LICENSES.txt), with each component's own copyright notice and
+licence text reproduced in full. That file is **generated** from the resolved dependency graph and
+**embedded in the binary**, so a copy of `nvs` carries its notices without the repository:
+
+```sh
+nvs info                # build and host facts, plus every component and its licence
+nvs info --licenses     # the same, plus every licence text in full
+
+bun nv gen-attribution           # regenerate after changing a dependency
+bun nv gen-attribution --check   # what CI runs; fails if the notice is stale
+```
+
+The generator fails closed: a licence it has no policy for, or one missing from
+[deny.toml](deny.toml)'s allow list, stops the build instead of quietly omitting a notice. `cargo deny`
+decides what may be *linked*; this decides what must be *shipped*.

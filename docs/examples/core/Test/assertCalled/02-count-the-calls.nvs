@@ -1,0 +1,27 @@
+<?nvs
+// Shows how to check how many times a method was called.
+
+interface Logger {
+    public function write(string $line): void;
+}
+
+Logger $logger = Core\Test::double<Logger>({
+    write: fn(string $line): void => {},
+});
+
+array<string> $lines = ["start", "working", "done"];
+foreach ($lines as string $line) {
+    $logger->write($line);
+}
+
+// `times` is the exact number of calls. This check passes.
+Core\Test::assertCalled($logger, Logger::write, {times: 3});
+echo "3 calls\n";
+
+// The number is wrong here, so the check throws a `Core\Test\Failure`.
+// The message lists every call that was made.
+try {
+    Core\Test::assertCalled($logger, Logger::write, {times: 2});
+} catch (Core\Test\Failure $failure) {
+    echo $failure->message, "\n";
+}

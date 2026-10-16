@@ -1,0 +1,24 @@
+<?nvs
+// Shows how to read the request your program sent to a fake web service.
+
+use Core\Http\Client;
+use Core\Http\Method;
+use Core\Test;
+use Core\Test\SentRequest;
+
+Test::answerHttp("https://api.example.com/notes", 201);
+
+Client::post("https://api.example.com/notes", {json: ["title" => "Shopping"]});
+
+// `sentHttp()` returns a list with one item for each request.
+// Here the list has one item.
+SentRequest $request = Test::sentHttp()[0];
+
+// This prints `POST https://api.example.com/notes`.
+echo $request->method() == Method::Post ? "POST " : "other ", $request->url(), "\n";
+
+// `header` reads one header of the request. This prints `application/json`.
+echo $request->header("content-type") ?? "no content type", "\n";
+
+// `body()` returns bytes. This prints `{"title":"Shopping"}`.
+echo $request->body() as string, "\n";

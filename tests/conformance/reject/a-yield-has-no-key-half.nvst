@@ -1,0 +1,25 @@
+--TEST--
+`Iterator<T>` is `advance()`/`current()` and nothing else, so `yield $k => $v` has no key to carry — `rule:iteration/two-interfaces`
+--FILE--
+<?nvs
+class Feed {
+    public static function pairs(): Iterator<string> {
+        yield "a" => "one";
+        yield "b" => "two";
+    }
+}
+
+foreach (Feed::pairs() as string $k => string $v) {
+    echo $k, "=", $v, "\n";
+}
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0448]: a `yield` has no key half in Novis
+  --> case.nvs:4:15
+%A
+error[E0448]: a `yield` has no key half in Novis
+  --> case.nvs:5:15
+%A
+error: aborting due to 3 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

@@ -1,0 +1,71 @@
+--TEST--
+The two halves of `Core\Xml`'s stream meet: what the writer escapes, the reader hands back unescaped, and the one construct the writer will not read back is named — `rule:core-classes/xml-tree-and-stream`, `rule:core-classes/xml-refuses-by-construction`
+--FILE--
+<?nvs
+// A writer builds a document a node at a time and a reader walks one a node at
+// a time, so the strongest thing to ask is that they agree. Every character
+// that would otherwise be markup is escaped by the member that took it — the
+// program never writes an escape — and the walk on the other side sees the
+// characters that went in.
+class Walk {
+    public static function over(string $document): void {
+        Core\Xml\Reader $reader = Core\Xml::reader($document);
+        while (true) {
+            ?Core\Xml\Node $node = $reader->read();
+            if ($node != null) {
+                echo "  ", $reader->depth(), " \"", $node->name(), "\" \"", $node->text(), "\"\n";
+            } else {
+                break;
+            }
+        }
+    }
+}
+
+Core\Xml\Writer $out = Core\Xml::writer();
+$out->startDocument();
+$out->comment("an order, written a node at a time");
+$out->instruction("render", "mode=compact");
+$out->startElement("order");
+$out->attribute("id", "A&B \"7\"");
+$out->startElement("line");
+$out->content("2 < 3 & \"quoted\"");
+$out->endElement();
+$out->startElement("note");
+$out->cdata("<em>as written</em>");
+$out->endElement();
+$out->startElement("empty");
+$out->endElement();
+$out->endElement();
+string $document = $out->endDocument();
+echo $document, "\n";
+echo "read back:\n";
+Walk::over($document);
+
+// The one construct this class writes and will not read back. Naming a
+// document type is not resolving one, so the writer has the member; the parser
+// refuses a `<!DOCTYPE …>` whole rather than reading far enough to decide, so
+// a document carrying one is written for a reader outside Novis.
+Core\Xml\Writer $typed = Core\Xml::writer();
+$typed->startDocument();
+$typed->doctype("order");
+$typed->startElement("order");
+$typed->endElement();
+echo $typed->endDocument(), "\n";
+try {
+    Core\Xml::parse("<!DOCTYPE order><order/>");
+} catch (ParseError $refused) {
+    echo "read back: ", $refused->message, "\n";
+}
+--EXPECT--
+<?xml version="1.0" encoding="UTF-8"?><!--an order, written a node at a time--><?render mode=compact?><order id="A&amp;B &quot;7&quot;"><line>2 &lt; 3 &amp; "quoted"</line><note><![CDATA[<em>as written</em>]]></note><empty/></order>
+read back:
+  0 "" "an order, written a node at a time"
+  0 "render" "mode=compact"
+  0 "order" ""
+  1 "line" ""
+  2 "" "2 < 3 & "quoted""
+  1 "note" ""
+  2 "" "<em>as written</em>"
+  1 "empty" ""
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE order><order/>
+read back: Core\Xml::parse(): a document type declaration is not read at all — no entity is resolved from an external subset, from an internal subset or from the network, so there is nothing a `<!DOCTYPE …>` could mean here.

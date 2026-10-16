@@ -1,0 +1,16 @@
+<?nvs
+// Shows how to read one file out of a zip archive.
+
+// A small archive, written as base64 text so it fits in this file. It contains
+// `readme.txt` and `data/sales.csv`, both compressed.
+bytes $archive = Core\Encoding::fromBase64("UEsDBBQAAAAIAAAAIVykiLt8KQAAACcAAAAKAAAAcmVhZG1lLnR4dAvJSMzLVqjML1VIyy9SSMkvz8vJT0zJzEtXKMnILFYoSi3ILyrR4wIAUEsDBBQAAAAIAAAAIVx17X2pLgAAADIAAAAOAAAAZGF0YS9zYWxlcy5jc3bLzc8rydApyS9JzOHySswrTSyq1DE0MjDgcktNKoLwjE0NuHwTi5IzdAwNgRIAUEsBAhQAFAAAAAgAAAAhXKSIu3wpAAAAJwAAAAoAAAAAAAAAAAAAAKSBAAAAAHJlYWRtZS50eHRQSwECFAAUAAAACAAAACFcde19qS4AAAAyAAAADgAAAAAAAAAAAAAApIFRAAAAZGF0YS9zYWxlcy5jc3ZQSwUGAAAAAAIAAgB0AAAAqwAAAAAA");
+
+// `Core\Zip::read` returns the file's content as bytes, already decompressed.
+// This prints 39, the size of `readme.txt` in bytes.
+tainted bytes $readme = Core\Zip::read($archive, "readme.txt");
+echo Core\Bytes::length($readme), "\n";
+
+// A file in a folder is read by its full name, exactly as `Core\Zip::entries`
+// lists it. This prints the four lines of the CSV file.
+tainted bytes $sales = Core\Zip::read($archive, "data/sales.csv");
+echo $sales as string;

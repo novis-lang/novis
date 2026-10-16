@@ -1,0 +1,15 @@
+<?nvs
+// Shows which line endings `lines()` removes, and what it does with the last line.
+
+// The first line ends with "\r\n", the second with "\n". The third line is empty.
+// The last line has no line ending at all.
+Core\Test::answerHttp("https://data.example.com/names.txt", 200, {
+    body: "Ada\r\nGrace\n\nLinus",
+});
+
+Core\Http\Stream $names = Core\Http\Client::stream(Core\Http\Method::Get, "https://data.example.com/names.txt");
+// Both line endings are removed, and the last line is given when the body ends.
+// This prints [Ada], [Grace], [] and [Linus].
+foreach ($names->lines() as tainted string $line) {
+    echo "[", $line, "]\n";
+}

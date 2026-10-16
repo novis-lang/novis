@@ -1,0 +1,105 @@
+<?nvs
+// Attack: a hundred thousand transactions are given up in a row, with reasons
+// written to break whatever reads them. Then the failure is caught inside the
+// work. One transaction is given up after it ended, and one in the middle of a
+// walk. Every call must throw, and nothing here may crash.
+// hostile: timeout-ms 60000
+use Core\Db\RolledBack;
+use Core\Db\Row;
+use Core\Db\Transaction;
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table notes (id integer primary key, text text not null)', []);
+$db->execute('insert into notes (text) values (?), (?), (?)', ['buy milk', 'call Ana', 'book train']);
+
+// 1. A hundred thousand transactions, each one written to and then given up.
+// Every one of them throws, and none of the writes is kept.
+uint $given = 0;
+uint $i = 0;
+while ($i < 100000) {
+    try {
+        $db->transaction(fn (Transaction $tx): void => {
+            $tx->execute('insert into notes (text) values (?)', ['never saved']);
+            $tx->rollBack('number ' . $i);
+        });
+    } catch (RolledBack $gaveUp) {
+        $given = $given + 1;
+    }
+    $i = $i + 1;
+}
+echo '1 given up: ', $given, ', rows kept: ', $db->query('select id from notes', [])->count(), "\n";
+
+// 2. A reason of ten million characters. It is carried on the error, so either
+// the limit stops it or it arrives whole.
+try {
+    $db->transaction(fn (Transaction $tx): void => {
+        $tx->rollBack(Core\Str::repeat('a', 10000000));
+    });
+    echo "2 the huge reason went through\n";
+} catch (RolledBack $huge) {
+    echo '2 the huge reason came back, length ', Core\Str::length($huge->reason), "\n";
+} catch (Throwable $stopped) {
+    echo "2 the huge reason was stopped\n";
+}
+
+// 3. Reasons written to look like a statement, or to be hard to print. A reason
+// reaches no parser, so each one must come back exactly as it went in.
+array<string> $attempts = [
+    "'; drop table notes; --",
+    "\x00\x01\x7f ends the text early",
+    Core\Str::repeat("\n", 100000),
+];
+uint $matched = 0;
+foreach ($attempts as string $attempt) {
+    try {
+        $db->transaction(fn (Transaction $tx): void => {
+            $tx->rollBack($attempt);
+        });
+    } catch (RolledBack $back) {
+        if ($back->reason == $attempt) {
+            $matched = $matched + 1;
+        }
+    }
+}
+echo '3 reasons unchanged: ', $matched, ', table still there: ', $db->query('select id from notes', [])->count(), "\n";
+
+// 4. The failure is caught inside the work, which then returns as if it had
+// succeeded. The transaction is already given up, so its write must not be kept.
+try {
+    $db->transaction(fn (Transaction $tx): void => {
+        $tx->execute('insert into notes (text) values (?)', ['caught and carried on']);
+        try {
+            $tx->rollBack('caught inside the work');
+        } catch (RolledBack $inside) {
+            echo "4 the failure was caught inside\n";
+        }
+    });
+    echo "4 the work returned\n";
+} catch (Throwable $after) {
+    echo "4 the work was stopped\n";
+}
+echo '4 rows kept: ', $db->query('select id from notes', [])->count(), "\n";
+
+// 5. The transaction is carried out of the work that owned it and given up
+// afterwards. There is nothing left to give up, so the call must be refused.
+var $escaped = $db->transaction(fn (Transaction $tx): Transaction => $tx);
+try {
+    $escaped->rollBack('the work is long over');
+    echo "5 the late rollback went through\n";
+} catch (Throwable $late) {
+    echo "5 the late rollback was refused\n";
+}
+
+// 6. The work is given up in the middle of a walk, so the connection is still
+// held when the transaction is asked to end. That is why this is the last step.
+try {
+    $db->transaction(fn (Transaction $tx): void => {
+        foreach ($tx->stream('select id from notes order by id', []) as Row $row) {
+            $tx->rollBack('given up while rows remain');
+        }
+    });
+    echo "6 the work returned\n";
+} catch (Throwable $during) {
+    echo "6 the walk was given up\n";
+}
+echo '7 still connected: ', $db->isOpen() ? 'yes' : 'no', "\n";

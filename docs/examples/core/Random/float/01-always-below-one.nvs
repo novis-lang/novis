@@ -1,0 +1,15 @@
+<?nvs
+// Shows that `Core\Random::float` always returns a value from 0 up to, but not including, 1.
+
+uint $inRange = 0;
+uint $i = 0;
+while ($i < 1000) {
+    float $value = Core\Random::float();
+    if ($value >= 0.0 && $value < 1.0) {
+        $inRange = $inRange + 1;
+    }
+    $i = $i + 1;
+}
+
+// Every one of the 1000 values is in the range. This prints 1000.
+echo $inRange, "\n";

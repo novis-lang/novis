@@ -1,0 +1,21 @@
+<?nvs
+// Shows one statement running once for each set of values, inside a
+// transaction. The result is the number of rows the whole batch wrote.
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table notes (id integer primary key, text text not null)', []);
+
+// One array per row. Each inner array holds the values of one `?` in order.
+array<array<mixed>> $rows = [
+    ['buy milk'],
+    ['call Ana'],
+    ['book train'],
+];
+
+uint $written = $db->transaction(fn (Core\Db\Transaction $tx): uint =>
+    $tx->executeMany('insert into notes (text) values (?)', $rows));
+
+// This prints `3 rows written`.
+echo $written, " rows written\n";
+
+$db->close();

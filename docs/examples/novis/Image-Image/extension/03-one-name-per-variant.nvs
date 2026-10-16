@@ -1,0 +1,15 @@
+<?nvs
+// Shows how to name the files when one photo is saved in two formats.
+use Novis\Image\Image;
+use Novis\Image\Color;
+use Novis\Image\Format;
+
+Image $photo = Image::create(64, 32, Color::hex("#669933"));
+array<Format> $formats = [Format::Webp, Format::Png];
+
+// Each file gets the extension of its own format.
+// This prints product-7.webp and product-7.png.
+foreach ($formats as Format $format) {
+    bytes $file = $photo->format($format)->encode();
+    echo "product-7.", Image::extension(Image::info($file)->format), "\n";
+}

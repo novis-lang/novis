@@ -1,0 +1,15 @@
+{
+  "title": "The resilient parse is the one grammar's AST plus a trivia layer and an offset index, never a second tree",
+  "status": "shipped",
+  "seeAlso": [
+    "ide/tokens-plus-trivia-reproduce-the-file",
+    "ide/recovery-is-explicit",
+    "ide/the-index-answers-the-cursor",
+    "ide/a-full-reanalysis-stays-under-a-bound",
+    "tooling/fmt-quotes",
+    "ide/the-tree-survives-a-syntax-error"
+  ],
+  "guardedBy": [
+    "crates/nvs-syntax/tests/trivia.rs"
+  ]
+}

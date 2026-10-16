@@ -1,0 +1,1263 @@
+name: CI
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+  workflow_dispatch:
+  # The deep lane, nightly: every job, unconditionally. A push runs only what its own diff can break
+  # (`rule:testing/ci-lanes`) — never a narrower set of platforms, only a narrower set of jobs — so what this
+  # catches is what no push runs at all: Miri, the fuzzers and the unsafe audit. GitHub reads
+  # `schedule` only from the default branch, `landing`, whose `ci.yml` has this same cron and
+  # dispatches this workflow on `main`. A `workflow_dispatch` is the deep lane too (`FULL` below).
+  schedule:
+    - cron: '0 3 * * *'
+  # `release.yml` calls this workflow rather than restating any of it. The full suite is what a
+  # release must clear, and a release that ran a *copy* of these jobs would be proving something
+  # subtly different from what every push proves — the second copy drifts, and it drifts silently
+  # because nothing compares them. One home for "what must be green", per AGENTS.md. It calls it
+  # with `full: true`, which forces every gate below on — so the release gate is the same definition
+  # a push runs a slice of, and cannot drift from it either.
+  workflow_call:
+    inputs:
+      full:
+        description: 'Run every job, whatever the diff touched'
+        type: boolean
+        required: false
+        default: false
+
+# Read-only, for every job, and stated here rather than left to the repository default — which is
+# a setting in the web UI that nothing in this tree can see and that a fork's pull request also
+# runs under. Nothing in this file needs to write: `unsafe-audit` appends to the run summary,
+# which is a file on the runner and not a permission. The one workflow that does need to write is
+# `release.yml`, which grants it to a single job.
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0        # incremental compilation is noise in CI
+  RUST_BACKTRACE: 1
+
+# `github.event_name` is in the group so a 25-minute nightly never sits in front of an 8-minute
+# push. Cancellation is for pull requests only: a run on `main` is what a bisect reads later, and
+# the loop commits one slice at a time, so cancelling the previous commit's run throws away the
+# verdict on the very commit someone will want one for. `rule:testing/every-push-gets-a-verdict`.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+# Every job below carries a `timeout-minutes`, and this is the one home for why. GitHub's own
+# default is 360 minutes, which is not a bound anyone chose: a wedged job can sit idle for that
+# whole stretch before anyone notices, billed the entire time at whatever the runner costs, and
+# reporting nothing at the end that the first minute had not already reported.
+#
+# The numbers are roughly twice each job's measured wall clock on a warm cache, which leaves room
+# for a cold one and still turns a wedged test into a red build inside the hour. They bound the
+# bill; they are not a performance budget. A job that starts timing out is a regression to
+# investigate, never a number to raise here without one.
+jobs:
+  # ---------------------------------------------------------------------------
+  # Which lanes this run needs. Every gated job below reads one boolean from
+  # here, and the table deciding them is `tools/nv/cmd/ci-changes.ts` — one home, and
+  # answerable locally with `--base HEAD~1` without pushing anything. `rule:testing/lane-table`.
+  #
+  # `blob:none` is what keeps the full history cheap: `git diff --name-only`
+  # reads trees, never file contents, so no blob older than HEAD is fetched.
+  # ---------------------------------------------------------------------------
+  changes:
+    name: what changed
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      code: ${{ steps.lanes.outputs.code }}
+      native: ${{ steps.lanes.outputs.native }}
+      probe: ${{ steps.lanes.outputs.probe }}
+      ext: ${{ steps.lanes.outputs.ext }}
+      editor: ${{ steps.lanes.outputs.editor }}
+      deps: ${{ steps.lanes.outputs.deps }}
+      refdoc: ${{ steps.lanes.outputs.refdoc }}
+      proofs: ${{ steps.lanes.outputs.proofs }}
+      db: ${{ steps.lanes.outputs.db }}
+      browser: ${{ steps.lanes.outputs.browser }}
+      docker: ${{ steps.lanes.outputs.docker }}
+      deep: ${{ steps.lanes.outputs.deep }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+          filter: blob:none
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version-file: package.json
+      - name: Install tool dependencies
+        run: bun install --frozen-lockfile
+      - id: lanes
+        name: Which lanes this diff needs
+        # An empty, zeroed or unreachable BASE means every lane: a first push, a force push and a
+        # shallow clone all land there, and a commit nothing checked is the worse mistake.
+        env:
+          BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+          FULL: ${{ inputs.full || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' }}
+        run: bun nv ci-changes
+
+  # ---------------------------------------------------------------------------
+  # The matrix that matters: Novis generates native code, so "it compiles" is not
+  # the same claim on each platform. Windows uses SEH and a different calling
+  # convention; aarch64 is a different backend in Cranelift entirely.
+  #
+  # All three run whenever any code changes, and the lane gate never narrows
+  # them. This is a public repository: which host a contributor pushes from is
+  # unknowable, so no platform's coverage may rest on an assumption about who is
+  # developing on what. What the gate skips is a run that changed no build input
+  # at all — an ADR, a plan status block, a playbook bullet. `rule:testing/lane-table`.
+  # ---------------------------------------------------------------------------
+  test:
+    name: test / ${{ matrix.name }}
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ${{ matrix.os }}
+    # Debug only: one build of the workspace, its tests, the doc tests and the conformance suite.
+    # The release-profile guards are the `cost-guards` job, so the two profiles never share a
+    # deadline or a cache. The limit is sized for a cold cache, which every dependency bump causes:
+    # a job cut off by its limit skips rust-cache's post step and saves nothing, so a limit only a
+    # warm cache fits keeps the leg cold and red on every later run. A cold Windows or macOS leg
+    # spends most of it in the build and in `nvs-ext`'s pdf and spreadsheet tests.
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux-x86_64
+            os: ubuntu-latest
+          - name: windows-x86_64
+            os: windows-latest
+          - name: macos-aarch64
+            os: macos-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      # rust-toolchain.toml pins the version, the components and the targets, and a bare
+      # `rustup toolchain install` installs exactly what it names. Passing `toolchain: none`
+      # to dtolnay/rust-toolchain does not mean "read the file" -- the action has no such
+      # case and hands the literal word to rustup, which rejects it.
+      - name: Install toolchain
+        run: rustup toolchain install --no-self-update
+
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          key: ${{ matrix.name }}
+
+      # Some Rust tests check the tree through `bun nv` (`nvs-ir`'s refusal roster reads
+      # `bun nv holes`), so the test job needs Bun and the tools' dependencies too.
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version-file: package.json
+      - name: Install tool dependencies
+        run: bun install --frozen-lockfile
+
+      # The servers the server-backed tests and conformance cases dial: `tests/db/compose.yaml`'s
+      # `redis` for `Core\Session` and `Core\Cache::shared()`, and its `samba-ad` for `Core\Ldap`. On
+      # Linux they are the compose file's own containers, started before the build so Samba's
+      # first-boot provisioning runs while the workspace compiles. `up -d` returns once the `certs`
+      # service has issued the CA, so the anchor the cases verify against is copied out here, to the
+      # path the repository's `nvs.toml` and the cases' `--COPY--` sections name.
+      - name: The compose servers (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          docker compose -f tests/db/compose.yaml up -d redis samba-ad
+          docker compose -f tests/db/compose.yaml cp samba-ad:/certs/ca.crt tests/db/ca.crt
+
+      # macOS and Windows runners cannot run the compose file's Linux containers, so each starts a
+      # Redis on the port the compose file publishes, as the `proofs` job does: Homebrew's build on
+      # macOS, and Memurai, a Redis-compatible server, on Windows, which has no Redis build of its own.
+      - name: A Redis server (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          brew install redis
+          redis-server --port 16379 --daemonize yes
+      - name: A Redis server (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          choco install memurai-developer -y --no-progress
+          Start-Process "C:\Program Files\Memurai\memurai.exe" -ArgumentList '--port', '16379'
+
+      # The repository's `nvs.toml` names `tests/db/ca.crt` in its server-backed `[db]` blocks, and a
+      # resolve refuses a `tls_ca_file` that is not there (`E0605`), so without one every run from the
+      # repository root stops at the door. Where no compose stack issued the real CA, this step issues
+      # a throwaway CA in its place. Nothing on these legs verifies a server against it; its key is
+      # written outside the tree and dropped with the runner. `MSYS_NO_PATHCONV` keeps Git Bash on
+      # Windows from rewriting the `-subj` value as a path.
+      - name: A placeholder for the compose CA
+        if: runner.os != 'Linux'
+        shell: bash
+        env:
+          MSYS_NO_PATHCONV: '1'
+        run: >
+          openssl req -x509 -newkey rsa:2048 -nodes -days 1
+          -subj "/CN=Novis CI placeholder CA"
+          -keyout "$RUNNER_TEMP/ca.key" -out tests/db/ca.crt
+
+      - run: cargo build --workspace --all-targets
+
+      # `--wait` makes "up" mean healthy, so no test races Samba's provisioning. `NVS_LDAP_SAMBA`
+      # makes the LDAP tests fail when they cannot reach the server, and not skip.
+      - name: Wait for the compose servers (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          docker compose -f tests/db/compose.yaml up -d --wait redis samba-ad
+          echo "NVS_LDAP_SAMBA=1" >> "$GITHUB_ENV"
+
+      - run: cargo test --workspace --all-targets
+      # Doc tests are excluded from --all-targets and are real tests for a
+      # library this API-heavy.
+      - run: cargo test --workspace --doc
+
+      # The `.nvst` conformance suite, on every platform for the reason the
+      # `cost-guards` job is: each case runs generated machine code, and code
+      # generation is what differs per target.
+      - name: Conformance suite
+        run: cargo run --quiet -p nvs-cli -- test tests/conformance/
+      - name: Stop the compose servers (Linux)
+        if: always() && runner.os == 'Linux'
+        run: docker compose -f tests/db/compose.yaml down --volumes
+
+  # ---------------------------------------------------------------------------
+  # The release-profile guards, on the same three platforms as `test`. A job of
+  # its own, beside `test` rather than inside it, so the release compile has its
+  # own deadline and its own cache: inside `test`, a Windows leg that timed out
+  # skipped the cache's save step and started cold on every run after it.
+  # ---------------------------------------------------------------------------
+  cost-guards:
+    name: cost guards / ${{ matrix.name }}
+    needs: changes
+    if: needs.changes.outputs.native == 'true'
+    runs-on: ${{ matrix.os }}
+    # Windows is the slow leg. On a partial cache hit the probe's step took 10 minutes, and the
+    # `nvs-cli` release build after it was still compiling 12 minutes in. That is at least 25 minutes
+    # for the whole job before its cache is warm, so 60 is roughly twice.
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux-x86_64
+            os: ubuntu-latest
+          - name: windows-x86_64
+            os: windows-latest
+          - name: macos-aarch64
+            os: macos-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Install toolchain
+        run: rustup toolchain install --no-self-update
+
+      # A key of its own: these are release artifacts, and `test` caches debug ones.
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          key: cost-guards-${{ matrix.name }}
+
+      # The warm-start budget runs through `bun nv`, so this job needs Bun and the tools' dependencies.
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version-file: package.json
+      - name: Install tool dependencies
+        run: bun install --frozen-lockfile
+
+      # The same placeholder the `test` job writes, so a guard that resolves the repository's
+      # `nvs.toml` finds the CA file it names.
+      - name: A placeholder for the compose CA
+        shell: bash
+        env:
+          MSYS_NO_PATHCONV: '1'
+        run: >
+          openssl req -x509 -newkey rsa:2048 -nodes -days 1
+          -subj "/CN=Novis CI placeholder CA"
+          -keyout "$RUNNER_TEMP/ca.key" -out tests/db/ca.crt
+
+      # Runs on every platform in the matrix, on purpose. These are the invariants
+      # Novis's execution model rests on, they are properties of native code
+      # generation, and they differ per platform: Windows unwinds through SEH, and
+      # aarch64 is a different Cranelift backend entirely. The cost guards only run
+      # in release, because the baselines they compare against are release figures
+      # — a full compile of the workspace beside the debug one `test` does, and why a
+      # diff that cannot move a baseline does not pay for it (`rule:testing/lane-table`, `rule:testing/perf-two-mechanisms`).
+      - name: Architecture invariants and cost guards
+        run: cargo test --release -p nvs-abi-probe
+
+      # The binary's own cost guards, in release for the reason the probe's are, and on the same lane:
+      # its inputs are the code generator and the runtime, and the nightly turns every lane on, so a
+      # change under `crates/nvs-cli/` alone is measured there. The binary is built first because the
+      # budget below times it. The test filter is the suffix both margin tests share: a warm start over
+      # a cold one in `cache.rs`, and four cores over one in `serve.rs`. Both are ratios, so they hold
+      # on all three runners, and the scaling test measures nothing on a runner with fewer than four
+      # logical CPUs.
+      - name: Warm-start and core-scaling margins
+        shell: bash
+        run: |
+          cargo build --release -p nvs-cli
+          cargo test --release -p nvs-cli --bin nvs -- by_the_margin_this_test_names
+
+      # The warm-start budget is absolute where the margins above are ratios, so it is the one guard a
+      # hosted runner can fail by being slow rather than by the tree having moved. It runs here with the
+      # same `--max-work-ms 6` a development machine is held to, unrelaxed, because the leg abstains on a
+      # busy box by itself: when `nvs --version` alone is over its quiet floor it prints "not measured"
+      # and passes (`tools/nv/cmd/bench.ts` § *The warm-start figure*). A runner under that floor is as
+      # quiet as a development machine, and a figure over budget there is a regression in the tree.
+      - name: Warm-start budget
+        run: bun nv bench --warm-start --max-work-ms 6
+
+  # ---------------------------------------------------------------------------
+  # Every feature's examples and attacks, run once each on the proof binary, after the gate that
+  # says no feature owes a proof (`tools/nv/cmd/proofs.ts`). This is the one suite that runs them:
+  # `nv verify` marks a proof program the change reaches as owed and leaves it there. A job of its
+  # own, beside `test` rather than inside it, so the proof build and the whole roster's run do not
+  # lengthen the Windows leg, and so a change to an example alone runs this job and nothing else.
+  # ---------------------------------------------------------------------------
+  proofs:
+    name: proofs / ${{ matrix.name }}
+    needs: changes
+    if: needs.changes.outputs.proofs == 'true'
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux-x86_64
+            os: ubuntu-latest
+          - name: windows-x86_64
+            os: windows-latest
+          - name: macos-aarch64
+            os: macos-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Install toolchain
+        run: rustup toolchain install --no-self-update
+
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          key: proofs-${{ matrix.name }}
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version-file: package.json
+      - name: Install tool dependencies
+        run: bun install --frozen-lockfile
+
+      # The same placeholder the `test` job writes, for the same reason: a program run from the
+      # repository root resolves its `nvs.toml`, which names this file.
+      - name: A placeholder for the compose CA
+        shell: bash
+        env:
+          MSYS_NO_PATHCONV: '1'
+        run: >
+          openssl req -x509 -newkey rsa:2048 -nodes -days 1
+          -subj "/CN=Novis CI placeholder CA"
+          -keyout "$RUNNER_TEMP/ca.key" -out tests/db/ca.crt
+
+      # The `Core\Session` proofs keep their data in the Redis server `tests/db/compose.yaml`
+      # publishes on 127.0.0.1:16379, plain and with no password. A hosted runner has no compose
+      # stack, so each leg starts a server on that port itself: the compose file's image on Linux,
+      # Homebrew's build on macOS, and on Windows, which has no Redis build of its own, Memurai, a
+      # Redis-compatible server. The proof build below takes minutes, so each is up before it is dialled.
+      - name: A Redis server for the session proofs (Linux)
+        if: runner.os == 'Linux'
+        run: docker run -d --name redis -p 127.0.0.1:16379:6379 redis:8.10.2
+      - name: A Redis server for the session proofs (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          brew install redis
+          redis-server --port 16379 --daemonize yes
+      - name: A Redis server for the session proofs (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          choco install memurai-developer -y --no-progress
+          Start-Process "C:\Program Files\Memurai\memurai.exe" -ArgumentList '--port', '16379'
+
+      - run: cargo build --profile proof --bin nvs
+
+      - name: Feature proofs
+        run: bun nv proofs --verify --nvs target/proof/nvs${{ runner.os == 'Windows' && '.exe' || '' }}
+
+      # The website's stale guard, against the same binary: the nav and sidebars, every snippet run
+      # against its `.out`, no broken id or stale page, every page's search questions, and the
+      # countable prose bounds. `tools/nv/cmd/site.ts` is what each part asserts.
+      - name: Website stale guard
+        run: bun nv site --check structure snippets stale questions prose --nvs target/proof/nvs${{ runner.os == 'Windows' && '.exe' || '' }}
+
+  # ---------------------------------------------------------------------------
+  # The database matrix, against real servers rather than mocks, which is what
+  # `rule:core-classes/db-one-api`'s *Verification* section asks for.
+  # `tests/db/compose.yaml` holds the servers, `bun nv db-matrix` brings them
+  # up and reads their ports and credentials back out of that file, and one
+  # `cargo test` process per driver makes "which server failed" that process's
+  # exit status. The three drivers with a Unix-domain transport then answer the
+  # same case list again over it.
+  #
+  # Linux alone, and deliberately not a row in the platform matrix above: the
+  # servers are Linux containers, a hosted Windows or macOS runner has no daemon
+  # to run them on, and what this job questions is a wire protocol rather than
+  # the code generation those platforms differ in.
+  # ---------------------------------------------------------------------------
+  database:
+    name: five-driver matrix
+    needs: changes
+    if: needs.changes.outputs.db == 'true'
+    runs-on: ubuntu-latest
+    # Every image pulled, five first-boot databases and a workspace build, then the drivers twice
+    # over for the three with a second transport.
+    timeout-minutes: 45
+    env:
+      # Where the compose file publishes the three Unix sockets, and where the legs dial them: one
+      # directory, because the runner is the Docker host. `bun nv db-matrix` reads this same field
+      # for the client end, and its header owns why the two spellings differ on Docker Desktop.
+      NOVIS_DB_SOCKET_DIR: /tmp/novis-db
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Install toolchain
+        run: rustup toolchain install --no-self-update
+
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          key: database
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version-file: package.json
+      - name: Install tool dependencies
+        run: bun install --frozen-lockfile
+
+      # The harness brings the servers up itself -- `up -d --wait`, so "up" means healthy -- and
+      # takes them down again whatever the verdict, because a runner that leaks containers is a
+      # runner the next job on it inherits.
+      - name: The five drivers, and the three that answer over a socket too
+        run: bun nv db-matrix --all
+      # `nvs-ldap` against the Samba domain controller in the same compose file. Its tests read the
+      # anchor at `tests/db/ca.crt`, copied out of the `certs` volume here, and `NVS_LDAP_SAMBA`
+      # makes a server they cannot reach a failure rather than a skip.
+      - name: The LDAP client against Samba AD
+        env:
+          NVS_LDAP_SAMBA: "1"
+        run: |
+          docker compose -f tests/db/compose.yaml up -d --wait samba-ad
+          docker compose -f tests/db/compose.yaml cp samba-ad:/certs/ca.crt tests/db/ca.crt
+          cargo test --test samba
+      - name: Stop the servers
+        if: always()
+        run: bun nv db-matrix --down
+
+  # ---------------------------------------------------------------------------
+  # The slotted response's polyfill in a real Chromium, launched once with
+  # native `<template for>` and once without (`rule:core-classes/html-later`),
+  # and a website replay's player
+  # (`rule:testing/a-replay-plays-what-the-language-server-returned`).
+  # Linux only: what is tested is the browser's parser and DOM, not the host.
+  # The browser is the headless shell the locked Playwright release pins, put
+  # in `node_modules` and downloaded by Node, because Bun's fetch fails the
+  # download on some hosts. `NV_BROWSER` turns a missing browser into a failure
+  # rather than a skipped suite.
+  # ---------------------------------------------------------------------------
+  browser:
+    name: browser
+    needs: changes
+    if: needs.changes.outputs.browser == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version-file: package.json
+      - name: Install tool dependencies
+        run: bun install --frozen-lockfile
+      - name: Install Chromium
+        env:
+          PLAYWRIGHT_BROWSERS_PATH: "0"
+        run: node node_modules/playwright-core/cli.js install --with-deps --only-shell chromium
+      - name: The polyfill in Chromium
+        env:
+          NV_BROWSER: "1"
+        run: bun test tools/nv/test/html-later-polyfill.test.ts
+      - name: A website replay in Chromium
+        env:
+          NV_BROWSER: "1"
+        run: bun test tools/nv/test/replay-browser.test.ts
+
+  # ---------------------------------------------------------------------------
+  # Separated because it pulls in Wasmtime, which is minutes of build time that
+  # the front-end crates should not pay on every run before M9.
+  # ---------------------------------------------------------------------------
+  extension-sandbox:
+    name: extension sandbox probes
+    needs: changes
+    if: needs.changes.outputs.probe == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Install toolchain
+        run: rustup toolchain install --no-self-update
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          key: wasm-probe
+      - name: Sandbox containment and boundary costs
+        run: cargo test --release -p nvs-abi-probe --features wasm-probe
+      - name: Lint with the feature enabled
+        run: |
+          cargo clippy --workspace --all-targets \
+            --features nvs-abi-probe/wasm-probe -- -D warnings
+
+  # ---------------------------------------------------------------------------
+  # Both `nvs ext new` templates, as an extension author meets them: written, built for
+  # wasm32-wasip2 with their README's commands, run through `nvs ext build`, `verify` and `test`,
+  # and called from a program. Three platforms, because an author builds on any of them.
+  # `tools/nv/cmd/ext-templates.ts` is every step, so a contributor runs the same definition; under
+  # CI its C leg fails rather than skipping when wasi-sdk or `wit-bindgen` is missing.
+  # ---------------------------------------------------------------------------
+  ext-templates:
+    name: ext templates / ${{ matrix.name }}
+    needs: changes
+    if: needs.changes.outputs.ext == 'true'
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux-x86_64
+            os: ubuntu-latest
+            wasi-sdk: x86_64-linux
+          - name: windows-x86_64
+            os: windows-latest
+            wasi-sdk: x86_64-windows
+          - name: macos-aarch64
+            os: macos-latest
+            wasi-sdk: arm64-macos
+    env:
+      WASI_SDK_VERSION: '34'
+      NVS_BIN: ${{ github.workspace }}/target/debug/nvs${{ matrix.os == 'windows-latest' && '.exe' || '' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Install toolchain
+        run: rustup toolchain install --no-self-update
+
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          key: ext-templates-${{ matrix.name }}
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version-file: package.json
+      - name: Install tool dependencies
+        run: bun install --frozen-lockfile
+
+      # The C template's two tools, as its README tells an author to install them. tar runs inside
+      # the folder because GNU tar reads `D:` in a Windows path as a remote host.
+      - name: wasi-sdk
+        shell: bash
+        run: |
+          cd "$RUNNER_TEMP"
+          curl -fsSL -o wasi-sdk.tar.gz \
+            "https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-${WASI_SDK_VERSION}/wasi-sdk-${WASI_SDK_VERSION}.0-${{ matrix.wasi-sdk }}.tar.gz"
+          tar -xzf wasi-sdk.tar.gz
+          echo "WASI_SDK_PATH=$RUNNER_TEMP/wasi-sdk-${WASI_SDK_VERSION}.0-${{ matrix.wasi-sdk }}" >> "$GITHUB_ENV"
+      - name: wit-bindgen
+        run: cargo install wit-bindgen-cli --version 0.63.0 --locked
+
+      - run: cargo build --bin nvs
+
+      - name: The Rust template
+        run: bun nv ext-templates --lang rust
+      - name: The C template
+        run: bun nv ext-templates --lang c
+
+  # libwebp's prebuilt wasm library, rebuilt from the source and the wasi-sdk
+  # release `extensions/image/libwebp/SOURCE.json` pins, and compared byte for
+  # byte with the committed file (`rule:packaging/a-prebuilt-wasm-library-is-rebuilt-in-ci`).
+  # Linux is the reference build, so one leg is the whole check.
+  webp-lib:
+    name: libwebp rebuild
+    needs: changes
+    if: needs.changes.outputs.ext == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version-file: package.json
+      - name: Install tool dependencies
+        run: bun install --frozen-lockfile
+      - run: bun nv webp-lib --check
+      - run: bun nv webp-lib --verify
+
+  # ---------------------------------------------------------------------------
+  # The VS Code client, built the way a user installs it and then tested without
+  # an editor. "Extension" here is the editor one; `extension-sandbox` above is
+  # Novis's own wasm extension boundary, and the two share nothing but the word.
+  #
+  # Three platforms, because a `.vsix` is cross-platform and a path bug is not:
+  # the protocol suite spawns the real `nvs lsp` binary, so how a process is
+  # started and how a path is spelled is exactly what differs per host. These
+  # are the headless tiers alone — the extension host runs in the job below, on
+  # Linux, for what only a running editor can answer
+  # (`rule:ide/headless-gates-the-loop-the-host-run-gates-the-milestone`).
+  #
+  # The `.vsix` is a build artifact and is published nowhere: no Marketplace, no
+  # release asset (`rule:ide/the-extension-runs-where-the-binary-is`). One leg
+  # uploads it, since the package is the same bytes on all three.
+  # ---------------------------------------------------------------------------
+  extension:
+    name: extension / ${{ matrix.name }}
+    needs: changes
+    if: needs.changes.outputs.editor == 'true'
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux-x86_64
+            os: ubuntu-latest
+          - name: windows-x86_64
+            os: windows-latest
+          - name: macos-aarch64
+            os: macos-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Install toolchain
+        run: rustup toolchain install --no-self-update
+      # Its own cache key rather than `test`'s: this leg builds one package, and
+      # resolving features over `nvs-cli` alone into the workspace build's target
+      # directory would leave a second copy of every crate beside the first.
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          key: extension-${{ matrix.name }}
+
+      # The binary the suites drive is the one this run built, never one already
+      # on the runner: the protocol suite asserts against this tree's `nvs lsp`.
+      - name: Build nvs
+        run: cargo build -p nvs-cli
+
+      # `editors/vscode/.nvmrc` is the one home for the Node version, read the
+      # way `website/.nvmrc` is. `npm ci` installs exactly `package-lock.json`,
+      # which is what the cache keys on.
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version-file: editors/vscode/.nvmrc
+          cache: npm
+          cache-dependency-path: editors/vscode/package-lock.json
+      - name: Install
+        working-directory: editors/vscode
+        run: npm ci
+
+      - name: Lint
+        working-directory: editors/vscode
+        run: npm run lint
+
+      # The grammar snapshots, the contributions and dependency-allowlist test,
+      # and the protocol round-trip against the binary above.
+      - name: Headless suites
+        working-directory: editors/vscode
+        env:
+          NVS_BIN: ${{ github.workspace }}/target/debug/nvs${{ runner.os == 'Windows' && '.exe' || '' }}
+        run: npm run test:headless
+
+      - name: Package
+        working-directory: editors/vscode
+        run: npm run package
+
+      - name: The installable extension
+        if: matrix.os == 'ubuntu-latest'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: nvs-vsix
+          path: editors/vscode/nvs.vsix
+
+  # ---------------------------------------------------------------------------
+  # The tier that needs a running editor: activation on `.nvs`, the Tasks, the
+  # status item, the AST panel, the token legend and the concealment of a
+  # `secret`. Linux only — this observes the client's own behaviour inside the
+  # extension host, which is the same host on every platform, and the per-host
+  # differences are the process and path ones the matrix above already covers.
+  #
+  # `xvfb-run` because the host is a real Electron window. Isolation is the
+  # launcher's, not this file's: `scripts/host.mjs` downloads the pinned build,
+  # points a throwaway profile and extensions directory at it, disables every
+  # other extension and opens a copy of the fixture rather than this repository.
+  # ---------------------------------------------------------------------------
+  extension-host:
+    name: extension host
+    needs: changes
+    if: needs.changes.outputs.editor == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Install toolchain
+        run: rustup toolchain install --no-self-update
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          key: extension-host
+      - name: Build nvs
+        run: cargo build -p nvs-cli
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version-file: editors/vscode/.nvmrc
+          cache: npm
+          cache-dependency-path: editors/vscode/package-lock.json
+      - name: Install
+        working-directory: editors/vscode
+        run: npm ci
+
+      # The editor build is a few hundred megabytes and the pin lives in
+      # `scripts/host.mjs`, so the key is that file's hash rather than a version
+      # restated here: bumping the pin misses and downloads once, and an
+      # unrelated edit to the launcher costs one download rather than a second
+      # home for the number. Only the downloaded build is cached — the profile
+      # and the workspace under `.vscode-test/` are rebuilt every run on purpose.
+      - name: The pinned editor build
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: editors/vscode/.vscode-test/vscode-*
+          key: vscode-${{ hashFiles('editors/vscode/scripts/host.mjs') }}
+
+      - name: Host suite
+        working-directory: editors/vscode
+        run: xvfb-run -a npm run test:host -- --nvs ${{ github.workspace }}/target/debug/nvs
+
+  # ---------------------------------------------------------------------------
+  # Both release images, built from `docker/Dockerfile` around a binary this job compiles and
+  # run through `tests/docker/smoke.sh`. The release does the same with the binary it ships.
+  #
+  # ubuntu-22.04 rather than -latest, because the release binaries link against its glibc 2.35, and
+  # this job builds the binary the way a release does. A debug build is enough, because what is
+  # under test is the image around the binary.
+  # ---------------------------------------------------------------------------
+  docker:
+    name: container images
+    needs: changes
+    if: needs.changes.outputs.docker == 'true'
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Install toolchain
+        run: rustup toolchain install --no-self-update
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          key: docker
+      - name: Build nvs
+        run: cargo build -p nvs-cli
+
+      # The layout the release's `Stage the release binaries` step makes, for one architecture.
+      - name: Stage the binary
+        run: |
+          set -euo pipefail
+          mkdir -p docker/bin/amd64 docker/bin/notices
+          cp target/debug/nvs docker/bin/amd64/nvs
+          cp LICENSE THIRD-PARTY-LICENSES.txt README.md CHANGELOG.md docker/bin/notices/
+
+      - name: Smoke test both images
+        run: |
+          set -euo pipefail
+          for variant in distroless debian; do
+            docker build docker --target "$variant" --platform linux/amd64 -t "novis-smoke:$variant"
+            bash tests/docker/smoke.sh "novis-smoke:$variant"
+          done
+
+  # There is deliberately no doc-size job. Length guidance for a status field, a
+  # milestone heading or an ADR decision cell is in AGENTS.md, addressed to the
+  # author — never a CI gate. A tripwire here bought nothing and cost whole
+  # sessions spent trimming bytes to clear it; see AGENTS.md § Writing docs here.
+
+  lint:
+    name: lint
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      # rustfmt and clippy are in rust-toolchain.toml's `components`; naming them here too
+      # would be a second home for the same fact.
+      - name: Install toolchain
+        run: rustup toolchain install --no-self-update
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+      - name: rustfmt
+        run: cargo fmt --all --check
+      # Before clippy, because it decides what clippy enforces. The crates that hold `unsafe`
+      # cannot inherit `[workspace.lints]` -- cargo refuses a manifest that inherits the
+      # workspace table and overrides one entry of it -- so they restate it, and a restated
+      # table drifts without failing anything. `bun nv lints` generates those copies and
+      # this checks they are still copies.
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version-file: package.json
+      - name: Install tool dependencies
+        run: bun install --frozen-lockfile
+      - name: Lint tables match the workspace
+        run: bun nv lints --check
+      # A Windows child that writes with a `for /l` echo loop drains at a few kilobytes a second,
+      # so the case or attack waiting on it is killed at its deadline on every Windows run. The
+      # test's header says what to write instead.
+      - name: No Windows child writes with an echo loop
+        run: bun test tools/nv/test/no-echo-loop-child.test.ts
+      - name: clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+      # Every `[`Foo::bar`]` in a doc comment resolves. This crate set states its
+      # architecture in its doc comments and cross-references it by name, and
+      # `broken_intra_doc_links` is warn-by-default and invisible to both steps
+      # above, so a dangling reference accumulates silently without this gate.
+      # `private_intra_doc_links` is allowed rather than fixed:
+      # these are internal crates nobody publishes, so a link to a crate-private
+      # item is a correct reference rustdoc simply will not turn into an anchor.
+      - name: rustdoc links
+        run: cargo doc --no-deps --workspace
+        env:
+          RUSTDOCFLAGS: -A rustdoc::private_intra_doc_links -D warnings
+
+  # ---------------------------------------------------------------------------
+  # No C dependency enters the trusted core without the answer
+  # `rule:packaging/a-c-dependency-answers-two-questions` asks for, and no
+  # yanked or vulnerable dependency is admitted. No unsafe outside the audited
+  # crates is the `lint` job's `bun nv lints --check`, which holds their roster:
+  # a crate off it keeps `[workspace.lints]`'s `forbid`, which no `#[allow]` can
+  # relax, so it cannot hold an `unsafe` block at all.
+  # ---------------------------------------------------------------------------
+  supply-chain:
+    name: supply chain
+    needs: changes
+    if: needs.changes.outputs.deps == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Install toolchain
+        run: rustup toolchain install --no-self-update
+      - uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25 # v2
+        with:
+          command: check
+
+  # ---------------------------------------------------------------------------
+  # The other half of `supply-chain`. `cargo deny` decides what Novis may link;
+  # this decides what it must ship. Regenerating the notice and diffing it
+  # catches a dependency added without its licence text — which fails silently
+  # and only at distribution, unlike an unallowed licence, which fails loudly
+  # the moment it enters the tree. Also fails on a licence the generator has no
+  # policy for, so a new one is a decision someone makes rather than a line
+  # that appears in a generated file (`rule:testing/attribution-is-diffed-in-ci`).
+  # The same graph also holds
+  # the default binary's C dependencies against their ledger, so one added
+  # without answering `rule:packaging/a-c-dependency-answers-two-questions`
+  # fails here.
+  # ---------------------------------------------------------------------------
+  attribution:
+    name: third-party attribution
+    needs: changes
+    if: needs.changes.outputs.deps == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Install toolchain
+        run: rustup toolchain install --no-self-update
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version-file: package.json
+      - name: Install tool dependencies
+        run: bun install --frozen-lockfile
+      # The generator reads each dependency's own LICENSE file out of its
+      # source, so the sources have to be on disk. `cargo fetch` is enough —
+      # nothing here compiles.
+      - name: Fetch dependency sources
+        run: cargo fetch --locked
+      - name: THIRD-PARTY-LICENSES.txt matches Cargo.lock
+        run: bun nv gen-attribution --check
+      - name: Every C dependency of the default binary is recorded
+        run: bun nv gen-attribution --check-c-deps
+
+
+  # ---------------------------------------------------------------------------
+  # docs/novis.md is generated from the binary's own registry (`nvs meta
+  # --json`) and the chapters under docs/reference/, and every example in it
+  # runs against the binary -- so the check needs a built CLI, which is why
+  # this is not a step of the `docs` job below. The website's `Core` pages read
+  # the same registry, so `nv render --website --check` runs here too. A stale
+  # committed file, or an example the compiler no longer agrees with, fails here.
+  # ---------------------------------------------------------------------------
+  reference:
+    name: docs/novis.md is current and its examples run
+    needs: changes
+    if: needs.changes.outputs.refdoc == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Install toolchain
+        run: rustup toolchain install --no-self-update
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          key: reference
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version-file: package.json
+      - name: Install tool dependencies
+        run: bun install --frozen-lockfile
+      - run: cargo build -p nvs-cli
+      # `nv reference` runs the pipeline's covws build unless `NVS_BIN` names another, and this
+      # job builds the plain debug `nvs` instead.
+      - name: docs/novis.md matches the binary and the chapters, and every example holds
+        run: bun nv reference --check
+        env:
+          NVS_BIN: ${{ github.workspace }}/target/debug/nvs
+      # The website's `Core` pages read the same registry, which is why `website-core` is in
+      # `nv render --website` alone and is checked here rather than in the `docs` job.
+      - name: Every website page matches the records and the binary it is rendered from
+        run: bun nv render --website --check
+        env:
+          NVS_BIN: ${{ github.workspace }}/target/debug/nvs
+
+  # ---------------------------------------------------------------------------
+  # The docs have linters of their own. Every command here needs Bun and no
+  # Rust toolchain, and they run quickly together, which is why they are one job
+  # rather than steps bolted onto a build.
+  #
+  # Each of these gates on *structure* and never on a length: a stale index row,
+  # a table row that does not parse, a layout row naming a crate that is not on
+  # disk, a playbook selector that resolves to two bullets or none, a `rule:`
+  # citation naming a rule the rulebook does not carry. Sizes stay
+  # reports in every one of them, for the reason
+  # docs/agent/doc-style.md gives — a number is weighed, not enforced — so a
+  # green run here never means the docs are short, only that the tools can still
+  # read them and that what they derive still agrees with what is committed.
+  # ---------------------------------------------------------------------------
+  docs:
+    name: docs
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version-file: package.json
+      - name: Install tool dependencies
+        run: bun install --frozen-lockfile
+      # The records under data/ first, because every generated page is rendered from them.
+      # `nv check` holds each record to its schema, its foreign keys and its invariants;
+      # `nv render --check` writes nothing and fails when a committed rendered file no longer
+      # matches the records it is rendered from, or a spec record no longer matches its chapter's tables.
+      - name: Every record matches its schema, its foreign keys and its invariants
+        run: bun nv check
+      - name: Every rendered file matches the records it is rendered from
+        run: bun nv render --check
+      # The rulebook next, because it is the authority the rest of the tree cites. `--check`
+      # reads every topic JSON against its fragments, resolves every `rule:` citation, and fails
+      # on a decision record directory or a citation of one, since a rule carries its own reasons;
+      # `--render --check` fails when a committed generated page — docs/rules/<topic>.md or
+      # ground-rules.md — no longer matches what the fragments and the JSON say.
+      - name: Every rule loads, every `rule:` citation resolves, and no decision record is left
+        run: bun nv rules --check
+      - name: The generated rulebook pages match the fragments they are rendered from
+        run: bun nv rules --render --check
+      - name: Every markdown link resolves, with matching case
+        run: bun nv links
+      - name: CONTRIBUTING.md's layout listing still describes the tree
+        run: bun nv layout --check
+      - name: Every milestone row parses and agrees with the file it names
+        run: bun nv plan --check
+      # The workspace version, the `[workspace.dependencies]` pins that restate it and the newest
+      # release tag all agree, and a released version has a changelog section. It runs here
+      # because no `nv verify` step runs it: verify runs the steps whose footprint in the
+      # selection store a change reaches, and this check is not one of its steps.
+      - name: The version is consistent across the manifest, the tags and the changelog
+        run: bun nv release --check
+
+  # Nightly and at release only. The counts it writes gate nothing, and a `cargo install
+  # cargo-geiger` per push bought a number no push was ever blocked by. It becomes a push-lane job
+  # again on the day it becomes a hard gate. `rule:testing/the-deep-lane`.
+  unsafe-audit:
+    name: unsafe audit
+    needs: changes
+    if: needs.changes.outputs.deep == 'true'
+    runs-on: ubuntu-latest
+    # Geiger builds every member under its own feature set, so the scan grows with the workspace.
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Install toolchain
+        run: rustup toolchain install --no-self-update
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+      - name: Install cargo-geiger
+        run: cargo install cargo-geiger --version 0.14.0 --locked
+      # One `cargo geiger` per workspace member, because geiger will not run against the root
+      # manifest: it lists members and is no package itself, and `--workspace` does not change that.
+      # A member geiger cannot scan is a warning annotation naming it, and the step goes on to the
+      # next one, so the counts stay informational and a broken scan is still seen. The counts
+      # become a hard gate once the unsafe modules in nvs-runtime and nvs-codegen are written and
+      # their expected counts known.
+      - name: Count unsafe
+        run: |
+          cargo metadata --no-deps --format-version 1 \
+            | jq -r '.packages[] | "\(.name) \(.manifest_path)"' \
+            | while read -r name manifest; do
+                echo "### $name" >> "$GITHUB_STEP_SUMMARY"
+                cargo geiger --manifest-path "$manifest" --output-format GitHubMarkdown >> "$GITHUB_STEP_SUMMARY" \
+                  || echo "::warning title=unsafe audit::cargo geiger could not scan $name"
+              done
+
+  # ---------------------------------------------------------------------------
+  # libFuzzer isn't supported on Windows, so this only ever runs here (or in
+  # a contributor's WSL/Linux/macOS setup — AGENTS.md's WSL section covers
+  # first-time setup on Windows). Nightly and at release rather than per push,
+  # and carrying its corpus between runs: 60s against a corpus that starts empty
+  # every time is the same 60s repeated, while 300s starting from everything
+  # every previous night found is coverage that accumulates. Neither is the full
+  # 1h M1 corpus/fuzz verification run, which is a one-time gate recorded in
+  # docs/implementation-plan.md's status block. `rule:testing/the-deep-lane`.
+  # ---------------------------------------------------------------------------
+  fuzz-smoke:
+    name: fuzz smoke / ${{ matrix.target }}
+    needs: changes
+    if: needs.changes.outputs.deep == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [ast, image_path, lex, parse, prefix, uri]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: dtolnay/rust-toolchain@2c76c034f9e32a5d6e2c104dc4df23a22476db04 # nightly branch
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          key: fuzz-${{ matrix.target }}
+          workspaces: fuzz -> target
+      - name: Install cargo-fuzz
+        run: cargo install cargo-fuzz --locked
+      # The key carries the run id so every night saves a new entry, and the prefix restores the
+      # newest one that exists — the accumulate-forever shape, not the write-once shape.
+      - name: Last night's corpus
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: fuzz/corpus/${{ matrix.target }}
+          key: fuzz-corpus-${{ matrix.target }}-${{ github.run_id }}
+          restore-keys: fuzz-corpus-${{ matrix.target }}-
+      # `fuzz/corpus/` is the accumulated corpus and is not in the repository, so
+      # a target's hand-written seeds live in `fuzz/seeds/<target>/` and are
+      # copied in here. `ast` reads `parse`'s, because both take one source text
+      # and a second copy of the same files is a second thing to keep true.
+      # Nothing the cache restored is at risk: libFuzzer names what it saves
+      # after the input's hash, so a seed can only overwrite itself. The guard is
+      # for a target with no seeds of its own, as `lex` and `uri` are.
+      - name: Seed corpus for ${{ matrix.target }}
+        run: |
+          seeds=fuzz/seeds/${{ matrix.target }}
+          if [ "${{ matrix.target }}" = ast ]; then seeds=fuzz/seeds/parse; fi
+          if [ -d "$seeds" ]; then
+            mkdir -p fuzz/corpus/${{ matrix.target }}
+            cp "$seeds"/* fuzz/corpus/${{ matrix.target }}/
+          fi
+      - name: Fuzz ${{ matrix.target }} for 300s
+        run: cargo +nightly fuzz run ${{ matrix.target }} -- -max_total_time=300
+
+  # ---------------------------------------------------------------------------
+  # Three jobs share the memory-safety work and none of them covers another's
+  # ground. Miri validates the safe subset, by interpreting it, over the crates
+  # that execute no generated machine code. ASAN below takes the crates Miri
+  # cannot reach — the ones that run the JIT's output — and looks for a
+  # use-after-free. TSAN under it takes the crates that start threads and looks
+  # for a race, which neither of the other two can see at all.
+  # ---------------------------------------------------------------------------
+  miri:
+    name: miri
+    needs: changes
+    if: needs.changes.outputs.deep == 'true'
+    runs-on: ubuntu-latest
+    # Generous: Miri interprets rather than executes, and the fixture trees below now really touch
+    # the filesystem, so this job grows with the front end's test count rather than its code size.
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: dtolnay/rust-toolchain@2c76c034f9e32a5d6e2c104dc4df23a22476db04 # nightly branch
+        with:
+          components: miri
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          key: miri
+      # Cranelift-dependent crates cannot run under Miri (they execute JIT
+      # code), so the front-end crates are tested here and the backend relies
+      # on ASAN instead.
+      # Isolation off, and this is the trade. Miri's isolation refuses the host's clock, its
+      # randomness and its filesystem so that a run is reproducible; it does not change what Miri
+      # *checks*, which is undefined behaviour. `nvs-hir`'s `requires` and `autoload` tests build
+      # real fixture directories — twenty-odd of them — and the first `remove_dir_all` to reach
+      # `statx` aborts the whole binary, taking the other four crates' results down with it. That
+      # is how the first nightly run of this job ended, having reported on none of them.
+      #
+      # The alternative was `#[cfg_attr(miri, ignore)]` on every filesystem test, which gives up
+      # the same coverage and has to be remembered again by every test written after it. This
+      # gives it up once, in a place a reader can see.
+      #
+      # `INSTA_WORKSPACE_ROOT` is set because Miri cannot start a process. Without it, the first
+      # snapshot assertion asks `cargo metadata` where the workspace is, and the `socketpair` that
+      # spawn opens is an operation Miri does not emulate, which aborts the whole binary. Named
+      # here, `insta` reads the root from the variable and starts nothing.
+      #
+      # `nvs-types` and `nvs-ir` run a sample, not their whole suites. Every test in them that
+      # type-checks a program first builds the checker's signature table for the whole `Core`
+      # library, and under Miri that table alone takes minutes. Both crates hold hundreds of such
+      # tests, so their suites would take Miri more than a day. Neither crate may contain `unsafe`
+      # (the workspace forbids it), so what Miri checks there is the standard library, the
+      # dependencies and the global allocator underneath them, and one program taken through parse,
+      # check and lowering reaches all of that. The sample is the `nvs-types` unit tests of its
+      # types, class layouts, generics and type annotations, which build no table, and two `nvs-ir`
+      # tests that take a generator and an anonymous function through the whole pipeline. The integration tests
+      # of both crates do not run under Miri at all, for the same reason.
+      #
+      # A filter that matches nothing is not an error to libtest, so a renamed test would drop out
+      # of the sample in silence. `sample` fails the step when a filtered run passes no test.
+      - name: miri test (front end)
+        env:
+          MIRIFLAGS: -Zmiri-disable-isolation
+          INSTA_WORKSPACE_ROOT: ${{ github.workspace }}
+        shell: bash
+        run: |
+          cargo +nightly miri test \
+            -p nvs-diagnostics \
+            -p nvs-syntax \
+            -p nvs-hir
+          sample() {
+            cargo +nightly miri test "$@" | tee "$RUNNER_TEMP/miri-sample.log"
+            grep -q '^test result: ok\. [1-9]' "$RUNNER_TEMP/miri-sample.log"
+          }
+          sample -p nvs-types --lib -- ty::tests:: layout::tests:: generics::tests:: lower::tests::
+          sample -p nvs-ir --lib -- --exact \
+            lower::tests::a_generator_lowers_to_a_factory_a_state_class_and_a_resumption_switch \
+            lower::tests::an_anon_fn_lowers_to_a_captured_environment_object_and_an_invoke_method
+
+  # ---------------------------------------------------------------------------
+  # The half Miri cannot reach: the crates that execute generated machine code,
+  # where the refcount and COW protocols compiled code manipulates by raw
+  # pointer actually run. Nothing here overlaps the loop's valgrind check —
+  # that runs the `examples/` fixtures end to end through the release binary,
+  # and never runs a crate's own tests.
+  #
+  # `nvs-codegen` and `nvs-stdlib` link `nvs-runtime` as an ordinary dependency,
+  # so it compiles with `debug_assertions` on and `cfg(test)` off and takes the
+  # platform heap — which is what ASAN has to interpose on to see anything.
+  # `nvs-runtime`'s own test binary is the one build that does not: `cfg(test)`
+  # installs `counting_alloc` over the size-class cache, and a recycled block is
+  # never freed, so ASAN cannot poison it and a use-after-free reads live
+  # memory. Hence `--features nvs-runtime/sanitizer`, which swaps that cache
+  # back out for the platform heap. `counting_alloc`'s module doc is the home of
+  # the reasoning; without the feature this job is silently weaker than it looks
+  # on exactly the crate holding most of the unsafe.
+  #
+  # `--target` is load-bearing: without it, build scripts and proc macros are
+  # instrumented too and the run dies before a test starts.
+  #
+  # Leak detection is off on purpose. LSAN is not what this job is for, the
+  # valgrind sweep already owns leaks, and a JIT that holds its compiled code
+  # for the life of the process reports as a leak either way — that noise would
+  # bury the use-after-free signal this job exists for.
+  # ---------------------------------------------------------------------------
+  asan:
+    name: asan
+    needs: changes
+    if: needs.changes.outputs.native == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: dtolnay/rust-toolchain@2c76c034f9e32a5d6e2c104dc4df23a22476db04 # nightly branch
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          key: asan
+      # `--tests`, and not the default target set, because a doctest cannot be one of them here:
+      # `RUSTFLAGS` instruments the crate, but rustdoc links a doctest binary under `RUSTDOCFLAGS`,
+      # so that binary pulls in an instrumented rlib and resolves no `__asan_*` symbol against it —
+      # `undefined symbol: __asan_memcpy` at link time, on every doctest, whatever the code under it
+      # does. Instrumenting them too would only buy ASAN over the examples in doc comments, which is
+      # not where either of these crates keeps its unsafe code.
+      - name: ASAN test (runtime and library)
+        env:
+          RUSTFLAGS: -Zsanitizer=address
+          ASAN_OPTIONS: detect_leaks=0:detect_stack_use_after_return=1
+        run: |
+          cargo +nightly test --target x86_64-unknown-linux-gnu \
+            --features nvs-runtime/sanitizer \
+            --tests \
+            -p nvs-runtime \
+            -p nvs-stdlib
+      # The backend runs in the same sanitizer with one option off, and it is not a preference.
+      # `detect_stack_use_after_return` moves an address-taken local into a heap fake frame, and
+      # `nvs-codegen`'s `stack_limit` tests arm `rule:errors/stack-depth`'s window from the address of one — so
+      # with it on, the window lands megabytes away from the stack the JIT'd frames actually walk
+      # down, and a runaway recursion either trips on its first frame or overflows for real. A JIT
+      # frame is not instrumented, so there is no spelling of that measurement the fake stack does
+      # not break. Everything else ASAN checks is still on here; only this crate loses the
+      # use-after-return half, which is the half that cannot coexist with measuring a real stack.
+      - name: ASAN test (backend)
+        env:
+          RUSTFLAGS: -Zsanitizer=address
+          ASAN_OPTIONS: detect_leaks=0:detect_stack_use_after_return=0
+        run: |
+          cargo +nightly test --target x86_64-unknown-linux-gnu \
+            --features nvs-runtime/sanitizer \
+            --tests \
+            -p nvs-codegen
+
+  # ---------------------------------------------------------------------------
+  # The half ASAN cannot see: a race rather than a use-after-free. `nvs-host` and
+  # `nvs-runtime` are the two crates a thread boundary runs through — the worker
+  # cores, the blocking pool, the watchdog and the reactor's cross-thread wake on
+  # one side, and the per-request state a task reaches on the other — and nothing
+  # above them starts a thread of its own.
+  #
+  # The job is one line because `tools/tsan.sh` is the whole of it: the flags —
+  # `-Zsanitizer=thread`, the `-Zbuild-std` that instruments `std` along with it,
+  # `--target`, and the feature that compiles the fiber annotations in — are
+  # subtle enough that a copy here and a copy in the script would drift, and a
+  # contributor who cannot run exactly what CI ran debugs a report twice. That
+  # script's header owns what each of them buys.
+  #
+  # A task is a stackful coroutine, so this leg is clean only because the
+  # scheduler tells the sanitizer that a thread's stack changed underneath it —
+  # `crates/nvs-host/src/tsan.rs`, compiled into no other build.
+  # ---------------------------------------------------------------------------
+  tsan:
+    name: tsan
+    needs: changes
+    if: needs.changes.outputs.native == 'true'
+    runs-on: ubuntu-latest
+    # Generous: instrumenting `std` means this leg builds its own standard
+    # library before it builds anything of Novis's.
+    timeout-minutes: 45
+    env:
+      # Inside the checkout, which is the only place the cache action can see.
+      # The script's own default is a path that survives a WSL reboot, which is
+      # the opposite requirement.
+      CARGO_TARGET_DIR: target
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: dtolnay/rust-toolchain@2c76c034f9e32a5d6e2c104dc4df23a22476db04 # nightly branch
+        with:
+          # `-Zbuild-std` compiles the standard library from source, and this is
+          # that source.
+          components: rust-src
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          key: tsan
+      - name: TSAN test (host and runtime)
+        run: bash tools/tsan.sh

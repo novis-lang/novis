@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-ir/src/lower/convert.rs",
+  "title": "A failed `class<T>` conversion names the bound and not the class name that failed to resolve.",
+  "text": "The error a `class<T>` conversion throws names the bound `T` (`crates/nvs-ir/src/lower/convert.rs:1070-1074`). `rule:types/conversion` asks for the offending class name in it, so a user reading the error cannot see which string failed. Closing it means the refused edge concatenates the operand's own string into the message.",
+  "goal": "completeness-holes"
+}

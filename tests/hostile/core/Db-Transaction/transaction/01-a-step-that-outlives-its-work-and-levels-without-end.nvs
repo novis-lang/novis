@@ -1,0 +1,112 @@
+<?nvs
+// Attack: a step is kept after its work returned, and asked for another step.
+// Ten thousand steps are opened and given up. A step asks for its own isolation
+// level, one asks to be read-only, and one gives up on the level above it. The
+// last step leaves a walk unfinished. Every bad call must throw.
+// hostile: timeout-ms 120000
+use Core\Db\Isolation;
+use Core\Db\RolledBack;
+use Core\Db\Transaction;
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table notes (id integer primary key, text text not null)', []);
+
+// 1. The step is carried out of the work that owned it, and then asked for a
+// step of its own. Its level is over, so it must be refused.
+var $escaped = $db->transaction(fn (Transaction $work): Transaction =>
+    $work->transaction(fn (Transaction $step): Transaction => $step));
+try {
+    $escaped->transaction(fn (Transaction $late): void => {
+        $late->execute('insert into notes (text) values (?)', ['written too late']);
+    });
+    echo "1 the late step went through\n";
+} catch (Throwable $late) {
+    echo "1 the late step was refused\n";
+}
+
+// 2. Ten thousand steps inside one transaction, each writing and then giving
+// up. Every one throws, and the transaction keeps only its own row.
+uint $given = $db->transaction(fn (Transaction $work): uint => {
+    $work->execute('insert into notes (text) values (?)', ['the only row kept']);
+    uint $gaveUp = 0;
+    uint $i = 0;
+    while ($i < 10000) {
+        try {
+            $work->transaction(fn (Transaction $step): void => {
+                $step->execute('insert into notes (text) values (?)', ['never saved']);
+                $step->rollBack('step ' . $i);
+            });
+        } catch (RolledBack $back) {
+            $gaveUp = $gaveUp + 1;
+        }
+        $i = $i + 1;
+    }
+    return $gaveUp;
+});
+echo '2 steps given up: ', $given, ', rows kept: ', $db->query('select id from notes', [])->count(), "\n";
+
+// 3. A step asks for its own isolation level, and another asks to be read-only.
+// A level is settled for the whole transaction, so both must be refused.
+uint $refused = $db->transaction(fn (Transaction $work): uint => {
+    uint $stopped = 0;
+    try {
+        $work->transaction(fn (Transaction $step): void => {
+            $step->execute('insert into notes (text) values (?)', ['own level']);
+        }, { isolation: Isolation::Serializable });
+    } catch (Throwable $level) {
+        $stopped = $stopped + 1;
+    }
+    try {
+        $work->transaction(fn (Transaction $step): void => {
+            $step->execute('insert into notes (text) values (?)', ['read only']);
+        }, { readOnly: true });
+    } catch (Throwable $only) {
+        $stopped = $stopped + 1;
+    }
+    return $stopped;
+});
+echo '3 options refused: ', $refused, "\n";
+
+// 4. A step gives up on the level above it, through the handle it captured. The
+// work above is the one that is given up, so nothing here is saved.
+try {
+    $db->transaction(fn (Transaction $work): void => {
+        $work->execute('insert into notes (text) values (?)', ['from the level above']);
+        $work->transaction(fn (Transaction $step): void => {
+            $step->execute('insert into notes (text) values (?)', ['from the step']);
+            $work->rollBack('the step gave up on the work around it');
+        });
+    });
+    echo "4 the work ended\n";
+} catch (RolledBack $above) {
+    echo '4 the work gave up: ', $above->reason, "\n";
+} catch (Throwable $other) {
+    echo "4 the give-up was refused\n";
+}
+echo '4 rows kept: ', $db->query('select id from notes', [])->count(), "\n";
+
+// 5. The connection after all of that. An ordinary write still works, so no
+// transaction was left open.
+$db->execute('insert into notes (text) values (?)', ['the last row']);
+echo "5 still usable\n";
+
+// 6. A step reads ten million rows and is left after a hundred. The walk still
+// holds the connection, so the step cannot end.
+try {
+    $db->transaction(fn (Transaction $work): void => {
+        $work->transaction(fn (Transaction $step): void => {
+            uint $read = 0;
+            foreach ($step->stream('with recursive many(n) as (select 1 union all select n + 1 from many where n < 10000000) select n as id from many', []) as Core\Db\Row $row) {
+                $read = $read + 1;
+                if ($read == 100) {
+                    echo '6 rows read: ', $read, "\n";
+                    break;
+                }
+            }
+        });
+    });
+    echo "6 the step ended\n";
+} catch (Throwable $busy) {
+    echo "6 the end was refused\n";
+}
+echo '6 still connected: ', $db->isOpen() ? 'yes' : 'no', "\n";

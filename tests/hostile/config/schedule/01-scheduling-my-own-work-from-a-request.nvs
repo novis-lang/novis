@@ -1,0 +1,119 @@
+<?nvs
+// Attack: a request tries to add or change a `[[schedule]]` entry. The server would
+// then run a script the attacker chose, again and again. Every write should fail,
+// and a program should not be able to read the schedule.
+// hostile: timeout-ms 20000
+
+// 1. Tries every key of an entry, with an index like `schedule.0.script` and
+//    without one. Every write should fail.
+array<string> $keys = [
+    'schedule',
+    'schedule.0',
+    'schedule.0.name',
+    'schedule.0.cron',
+    'schedule.0.script',
+    'schedule.0.scope',
+    'schedule.0.timezone',
+    'schedule.0.overlap',
+    'schedule.0.limits',
+    'schedule.0.grants',
+    'schedule.1.script',
+    'schedule.-1.script',
+    'schedule..script',
+    'schedule.script',
+    'SCHEDULE.0.SCRIPT',
+    'app.0.schedule.0.script',
+    "schedule.0.script\u{0000}",
+];
+foreach ($keys as string $key) {
+    Core\Config::set($key, 'jobs/mine.nvs');
+    Core\Config::get($key);
+    Core\Config::restore($key);
+}
+
+// 2. Tries script paths that start inside the project but point outside it,
+//    with `..`, null bytes or line breaks. Every write should fail.
+array<string> $scripts = [
+    'jobs/report.nvs',
+    'jobs/../../../etc/nvs.toml',
+    'jobs/./././mine.nvs',
+    '/etc/passwd',
+    'C:\\Windows\\System32\\cmd.exe',
+    '\\\\server\\share\\mine.nvs',
+    'jobs/mine.nvs' . "\u{0000}" . '/etc/passwd',
+    "jobs/mine.nvs\n[[schedule]]\nscript = \"anything.nvs\"",
+    'jobs/' . Core\Str::repeat('../', 100000) . 'mine.nvs',
+    Core\Str::repeat('a/', 100000) . 'mine.nvs',
+];
+foreach ($scripts as string $script) {
+    Core\Config::set('schedule.0.script', $script);
+    Core\Config::set('schedule.script', $script);
+    Core\Config::restore('schedule.0.script');
+}
+
+// 3. Tries values for `scope`, `overlap` and `timezone`. These change where,
+//    how often and at what hour a job runs. Every write should fail.
+array<string> $words = [
+    'fleet',
+    'host',
+    'HOST',
+    'cluster',
+    'queue',
+    'kill',
+    'skip',
+    'UTC',
+    'Europe/Vienna',
+    'Not/A_Zone',
+    '../../etc/localtime',
+    '',
+];
+foreach ($words as string $word) {
+    Core\Config::set('schedule.0.scope', $word);
+    Core\Config::set('schedule.0.overlap', $word);
+    Core\Config::set('schedule.0.timezone', $word);
+    Core\Config::restore('schedule.0.scope');
+}
+
+// 4. Tries cron expressions that run a job every minute or every second.
+//    Every write should fail.
+array<string> $crons = [
+    '* * * * *',
+    '0 3 * * *',
+    '*/1 * * * *',
+    '* * * * * *',
+    '@reboot',
+    '@every 1s',
+    Core\Str::repeat('*/1,', 100000) . '* * * *',
+];
+foreach ($crons as string $cron) {
+    Core\Config::set('schedule.0.cron', $cron);
+    Core\Config::restore('schedule.0.cron');
+}
+
+// 5. Writes and reads the schedule 200,000 times. Every read should return
+//    `null`, so this prints `0`.
+uint $visible = 0;
+uint $i = 0;
+while ($i < 200000) {
+    Core\Config::set('schedule', 'jobs/mine.nvs');
+    Core\Config::set('schedule.0.script', 'jobs/mine.nvs');
+    Core\Config::restore('schedule');
+    if (Core\Config::get('schedule') != null) {
+        $visible = $visible + 1;
+    }
+    $i = $i + 1;
+}
+
+// 6. Builds 20,000 strings, as a real request would. The schedule should still
+//    be hidden after this work.
+array<string> $entries = [];
+uint $j = 0;
+while ($j < 20000) {
+    $entries[] = 'entry-' . $j . '-' . Core\Str::repeat('s', $j % 64);
+    $j = $j + 1;
+}
+
+echo 'visible: ', $visible, "\n";
+echo 'entries built: ', Core\Arr::count($entries), "\n";
+echo 'schedule: ', Core\Config::get('schedule') ?? "(nothing — not a program's to see)", "\n";
+echo 'script:   ', Core\Config::get('schedule.0.script') ?? "(nothing — not a program's to see)", "\n";

@@ -1,0 +1,17 @@
+{
+  "title": "A request whose client goes away runs to its end under its `wall_time`, or `disconnect_grace` when it has none, unless its method is listed in `cancel_on_disconnect`",
+  "status": "shipped",
+  "seeAlso": [
+    "concurrency/cancellation-runs-no-user-code",
+    "concurrency/after-response-outlives-the-connection",
+    "concurrency/nothing-is-still-running-when-a-call-returns",
+    "http-server/a-core-is-never-blocked-on-a-syscall",
+    "http-server/admission-is-arithmetic-not-a-number",
+    "http-server/an-unsafe-or-unbounded-default-is-a-defect"
+  ],
+  "guardedBy": [
+    "crates/nvs-server/src/serve.rs",
+    "crates/nvs-stdlib/src/response.rs",
+    "crates/nvs-config/tests/app.rs"
+  ]
+}

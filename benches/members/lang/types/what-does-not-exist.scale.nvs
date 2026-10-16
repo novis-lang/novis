@@ -1,0 +1,24 @@
+<?nvs
+// Measures `Core\Str::at` and `Core\Str::compare` on two long strings, at growing string lengths.
+// The strings differ only in the last character, so the comparison reads all of them.
+// bench: start 256
+// bench: max 4096
+
+class Bench {
+    public static function run(uint $size): uint {
+        string $field = Core\Str::repeat('4', $size) . "1";
+        string $other = Core\Str::repeat('4', $size) . "2";
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            $total = $total + Core\Str::length(Core\Str::at($field, 0));
+            if (Core\Str::compare($field, $other) < 0) {
+                $total = $total + 1;
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

@@ -1,0 +1,23 @@
+<?nvs
+// Work that runs after the response is sent has a deadline. `[deferred] deadline` is
+// the deadline when a call does not give its own. This file sets nothing, so the
+// built-in default is used. It is the same as this block:
+//
+//     [deferred]
+//     deadline = "30s"
+
+echo 'written here:  ', Core\Config::get('deferred.deadline') ?? '(nothing, so the built-in default)', "\n";
+
+// Your program may change this setting while it runs. Most settings do not allow that.
+// A job with quick work can set a shorter deadline, so this prints `yes`.
+echo 'give it 5s:    ', Core\Config::set('deferred.deadline', '5s') ? 'yes' : 'no', "\n";
+echo 'now in force:  ', Core\Config::get('deferred.deadline') ?? '(nothing)', "\n";
+
+// `max_concurrent` is how many requests each core keeps open for this work at one time.
+// It depends on the size of the machine, so a program cannot change it. This prints `no`.
+echo 'raise the cap: ', Core\Config::set('deferred.max_concurrent', '4096') ? 'yes' : 'no', "\n";
+
+// `Core\Config::restore` deletes the value this program set. `get` then returns the value
+// from the configuration file. This file sets nothing, so `get` returns `null`.
+Core\Config::restore('deferred.deadline');
+echo 'restored to:   ', Core\Config::get('deferred.deadline') ?? '(nothing, so the built-in default)', "\n";

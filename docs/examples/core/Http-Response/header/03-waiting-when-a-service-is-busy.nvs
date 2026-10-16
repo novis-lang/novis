@@ -1,0 +1,25 @@
+<?nvs
+// Shows a program that calls a service which limits how often it may be called.
+// When the service is busy, its reply says how many seconds to wait.
+
+class Orders {
+    // Returns how many seconds to wait before the next call, or 0 when the call worked.
+    public static function send(string $url): int {
+        Core\Http\Response $response = Core\Http\Client::post($url, {json: ["id" => 1042]});
+        if ($response->status() != 429) {
+            return 0;
+        }
+        // Status 429 means "too many requests". `Retry-After` gives the seconds to wait.
+        // When it is missing or not a number, the program waits 60 seconds.
+        ?tainted string $wait = $response->header("Retry-After");
+        return ($wait as ?int) ?? 60;
+    }
+}
+
+// Two fixed replies, so the example runs without a network.
+Core\Test::answerHttp("https://api.example.com/orders", 201, {});
+Core\Test::answerHttp("https://busy.example.com/orders", 429, {headers: ["Retry-After" => "30"]});
+
+// This prints `wait 0 seconds`, then `wait 30 seconds`.
+echo "wait ", Orders::send("https://api.example.com/orders"), " seconds", "\n";
+echo "wait ", Orders::send("https://busy.example.com/orders"), " seconds", "\n";

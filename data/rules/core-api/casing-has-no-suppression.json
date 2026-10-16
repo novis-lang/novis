@@ -1,0 +1,12 @@
+{
+  "title": "There is no suppression mechanism for a casing error, in any category",
+  "status": "shipped",
+  "seeAlso": [
+    "core-api/identifier-casing",
+    "core-api/written-visibility"
+  ],
+  "guardedBy": [
+    "crates/nvs-syntax/src/casing.rs",
+    "crates/nvs-syntax/src/lexer.rs"
+  ]
+}

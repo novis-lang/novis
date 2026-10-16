@@ -1,0 +1,11 @@
+<?nvs
+// Shows how to divide a string into pieces of the same size.
+
+// Each piece has 2 characters. The last piece has only 1, because 7 is odd.
+// This prints `ab`, `cd`, `ef` and `g`, one on each line.
+foreach (Core\Str::chunk("abcdefg", 2) as string $piece) {
+    echo $piece, "\n";
+}
+
+// An empty string gives no pieces. This prints `0`.
+echo Core\Arr::count(Core\Str::chunk("", 2)), "\n";

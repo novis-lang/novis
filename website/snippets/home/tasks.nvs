@@ -1,0 +1,10 @@
+<?nvs
+// This program runs three jobs at the same time and reads each result by name.
+var $page = Core\Task::all({
+    rows:  fn(): array<int> => [10, 20, 30],
+    label: fn(): string     => "orders",
+    total: fn(): int        => 60,
+});
+
+// Each result has the type that its function returns.
+echo $page->label, ": ", Core\Arr::count($page->rows), " rows, ", $page->total, " in total\n";

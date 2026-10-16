@@ -1,0 +1,34 @@
+<?nvs
+// This file fixes the clock, seeds the random numbers and retries a test.
+
+use Core\Test;
+use Core\Time;
+use Core\Random;
+
+final class OptionsTest {
+    // `at:` sets the time that `Core\Time::now()` returns in this test.
+    #[Test(at: "2026-01-01T00:00:00Z")]
+    public function theClockIsFixed(): void {
+        Test::assertSame(Time::now()->toIso(), "2026-01-01T00:00:00Z");
+        Test::advance(90m);
+        Test::assertSame(Time::now()->toIso(), "2026-01-01T01:30:00Z");
+    }
+
+    // `seed:` makes `Core\Random` return the same numbers on every run.
+    #[Test(seed: 42)]
+    public function aSeedIsRepeatable(): void {
+        int $first = Random::int(0, 999);
+        Test::assertTrue($first >= 0);
+    }
+
+    // This test fails once and passes on the second attempt, so it is reported as flaky.
+    #[Test(retries: 2, because: "a counter replaces a slow network here")]
+    public function itPassesOnTheSecondAttempt(): void {
+        Attempts::$n = Attempts::$n + 1;
+        Test::assertSame(Attempts::$n, 2);
+    }
+}
+
+final class Attempts {
+    public static int $n = 0;
+}

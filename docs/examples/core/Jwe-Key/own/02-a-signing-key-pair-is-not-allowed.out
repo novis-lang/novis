@@ -1,0 +1,2 @@
+Core\Jwe\Key::own(): ECDH-ES agrees over P-256 and X25519, and this key is neither. An Ed25519 key signs and an RSA key has no agreement at all, so there is no shared secret for a content key to come out of.
+ok

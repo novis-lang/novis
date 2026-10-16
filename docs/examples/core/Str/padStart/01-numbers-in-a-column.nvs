@@ -1,0 +1,10 @@
+<?nvs
+// Shows how to line up numbers on the right, so their last digits are in one column.
+
+array<string> $amounts = ["7", "120", "4500"];
+
+// `Core\Str::padStart` adds spaces before each number until it is 6 characters long.
+// This prints `     7`, `   120` and `  4500`.
+foreach ($amounts as string $amount) {
+    echo Core\Str::padStart($amount, 6), "\n";
+}

@@ -1,0 +1,29 @@
+<?nvs
+// Shows how `cdata` writes a text unchanged, and how `content` escapes the same text.
+
+string $code = "if (a < b && b < c) { ok(); }";
+
+Core\Xml\Writer $writer = Core\Xml::writer();
+$writer->startDocument();
+$writer->startElement("snippets");
+
+// `content` writes `<` as `&lt;` and `&` as `&amp;`.
+$writer->startElement("escaped");
+$writer->content($code);
+$writer->endElement();
+
+// `cdata` writes the text unchanged, inside `<![CDATA[` and `]]>`.
+$writer->startElement("unchanged");
+$writer->cdata($code);
+$writer->endElement();
+
+$writer->endElement();
+string $document = $writer->endDocument();
+echo $document, "\n";
+
+// A parser reads both elements as the same text. This prints the code, and then `true`.
+Core\Xml\Node $root = Core\Xml::parse($document)->children()[0];
+tainted string $escaped = $root->children()[0]->children()[0]->text();
+tainted string $unchanged = $root->children()[1]->children()[0]->text();
+echo $unchanged, "\n";
+echo $escaped == $unchanged ? "true" : "false", "\n";

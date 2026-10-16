@@ -1,0 +1,12 @@
+<?nvs
+// Attack: use folder names to build a namespace prefix that is not allowed.
+// A folder name can contain dashes and dots, so both lines below must not compile.
+// hostile: expect-refusal
+
+// `{.}` is the name of this file's folder. That name contains dashes.
+autoload 'App\{.}' from './app';
+
+// A prefix may take its name from one folder only. This one tries two.
+autoload 'Site\{.}\{..}' from './app';
+
+echo App\Text\Greeter::hello('first'), "\n";

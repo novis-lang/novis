@@ -1,0 +1,25 @@
+<?nvs
+// Shows how to add up a column. Every size is a whole number that is never
+// negative, so the total is one too.
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table uploads (name text not null, folder text not null, size bigint not null)', []);
+$db->execute(
+    'insert into uploads (name, folder, size) values (?, ?, ?), (?, ?, ?), (?, ?, ?)',
+    ['logo.png', 'pictures', 18432, 'map.png', 'pictures', 40960, 'report.pdf', 'papers', 1048576]
+);
+
+uint $total = 0;
+uint $files = 0;
+foreach ($db->query('select size from uploads where folder = ?', ['pictures']) as Core\Db\Row $row) {
+    ?uint $size = $row->uint('size');
+    if ($size != null) {
+        $total = $total + $size;
+        $files = $files + 1;
+    }
+}
+
+// This prints `2 files, 59392 bytes`.
+echo $files, ' files, ', $total, " bytes\n";
+
+$db->close();

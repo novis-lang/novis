@@ -1,0 +1,25 @@
+<?nvs
+// After a call, the connection stays open for the next call. The other server closes unused
+// connections and does not say so. `[http.client] pool_idle_timeout` is how long a
+// connection may stay unused before Novis closes it first. This file sets both values:
+//
+//     [http.client]
+//     pool_idle = 16
+//     pool_idle_timeout = "30s"
+
+echo 'how many may be kept: ', Core\Config::get('http.client.pool_idle') ?? '(no value)', "\n";
+echo 'how long one may sit: ', Core\Config::get('http.client.pool_idle_timeout') ?? '(no value)', "\n";
+
+// `Core\Time\Duration::parse` reads the timeout as a duration. This prints `30 seconds`. Without
+// a timeout, a connection the other server closed stays open here, and the next call on it fails.
+Core\Time\Duration $window = Core\Time\Duration::parse(Core\Config::get('http.client.pool_idle_timeout') ?? '30s');
+echo 'which is:             ', $window->toSeconds(), " seconds\n";
+
+// A duration with no unit is in seconds, so `30` and `"30s"` are the same. `pool_idle`
+// is a count and takes no unit. This prints `30000`.
+echo 'and in milliseconds:  ', $window->toMilliseconds(), "\n";
+
+// Many requests use these connections, so a program cannot change either setting.
+// `Core\Config::set` returns `false`, and the timeout is still `30s`.
+echo 'hold them longer:     ', Core\Config::set('http.client.pool_idle_timeout', '24h') ? 'yes' : 'no', "\n";
+echo 'still in force:       ', Core\Config::get('http.client.pool_idle_timeout') ?? '(nothing)', "\n";

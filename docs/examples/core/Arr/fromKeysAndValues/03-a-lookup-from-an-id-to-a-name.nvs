@@ -1,0 +1,16 @@
+<?nvs
+// Shows how to turn the rows of a database query into a lookup. Finding a name
+// by its id then needs no loop over the rows.
+
+array<array<string>> $rows = [
+    ['id' => '7', 'name' => 'Ada'],
+    ['id' => '9', 'name' => 'Grace'],
+];
+
+array<string> $names = Core\Arr::fromKeysAndValues(
+    Core\Arr::column($rows, 'id'),
+    Core\Arr::column($rows, 'name'),
+);
+
+// This prints "Grace".
+echo $names['9'], "\n";

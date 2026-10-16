@@ -1,0 +1,3 @@
+<?nvs
+echo Core\Str::length("hello"), "\n";
+echo Core\Str::length(""), "\n";

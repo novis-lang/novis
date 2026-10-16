@@ -1,0 +1,8 @@
+--METHOD--
+GET
+--PATH--
+/orders
+--CLIENT_IP--
+203.0.113.7
+--HEADERS--
+host: example.com

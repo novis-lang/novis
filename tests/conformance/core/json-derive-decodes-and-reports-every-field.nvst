@@ -1,0 +1,77 @@
+--TEST--
+`Core\Json::decodeAs<T>` runs the class's own constructor, and one failed decode reports every bad field at once — `rule:core-classes/derive-field-list`, `rule:core-api/required-optional-and-nullable`, `rule:core-classes/derive-reports-every-field`
+--FILE--
+<?nvs
+// covers: lang:attributes/core-json-derive-and-core-json-field-a-class-with-a-json-codec
+#[Core\Json\Derive]
+class Row {
+    public string $name;
+    // `rule:core-api/required-optional-and-nullable`: nullability is a property of the *type*, so `null` is a
+    // legal value here and an issue on every other field.
+    public ?int $rank;
+    #[Core\Json\Field(name: "is_live")]
+    public bool $live;
+
+    public function constructor(string $name, ?int $rank, bool $live) {
+        $this->name = $name;
+        $this->rank = $rank;
+        $this->live = $live;
+    }
+}
+
+// `rule:core-classes/derive-field-list`: a decode is an ordinary `new`, so the decoded object is the one the
+// constructor built and encodes back to the document it came from.
+var $row = Core\Json::decodeAs<Row>("{\"name\":\"ada\",\"rank\":1,\"is_live\":true}");
+echo "name=", $row->name, "\n";
+echo "round=", Core\Json::encode($row), "\n";
+
+// `rule:core-api/required-optional-and-nullable`'s third row: `?T` accepts a present `null`.
+var $blank = Core\Json::decodeAs<Row>("{\"name\":\"ada\",\"rank\":null,\"is_live\":false}");
+echo "blank=", Core\Json::encode($blank), "\n";
+
+// `rule:core-classes/derive-reports-every-field`: one throw, carrying every field that failed — a missing key, a wrong
+// type and a `null` where the type does not admit one.
+try {
+    Core\Json::decodeAs<Row>("{\"rank\":\"first\",\"is_live\":null}");
+    echo "not reached\n";
+} catch (ParseError $bad) {
+    echo "issues=", Core\Arr::count($bad->issues), "\n";
+    // `rule:core-classes/derive-reports-every-field`'s whole point is *which* fields, in declaration order — which needs
+    // the issue's own `path`, read off an `rule:types/erased-member-access` shape receiver.
+    foreach ($bad->issues as {path: string, message: string} $issue) {
+        echo "  bad=", $issue->path, "\n";
+    }
+}
+
+// A renamed field is read under its wire key and nothing else: `live` is not
+// `is_live`, so this is one missing field rather than none.
+try {
+    Core\Json::decodeAs<Row>("{\"name\":\"ada\",\"rank\":1,\"live\":true}");
+    echo "not reached\n";
+} catch (ParseError $renamed) {
+    echo "renamed=", Core\Arr::count($renamed->issues), "\n";
+    // The path is the *wire* key, so the missing field is reported under the
+    // name the document was supposed to carry rather than the property's.
+    var $only = $renamed->issues["0"];
+    echo "renamed-path=", $only->path, "\n";
+}
+
+// A malformed document is one issue with no field to point at, so a caller
+// reads the same shape whichever half failed.
+try {
+    Core\Json::decodeAs<Row>("{oops}");
+    echo "not reached\n";
+} catch (ParseError $malformed) {
+    echo "malformed=", Core\Arr::count($malformed->issues), "\n";
+}
+--EXPECT--
+name=ada
+round={"name":"ada","rank":1,"is_live":true}
+blank={"name":"ada","rank":null,"is_live":false}
+issues=3
+  bad=name
+  bad=rank
+  bad=is_live
+renamed=1
+renamed-path=is_live
+malformed=1

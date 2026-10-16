@@ -1,0 +1,5 @@
+<?nvs
+// Shows the text of the filter for accounts that are not disabled.
+
+// This prints (!(userAccountControl:1.2.840.113556.1.4.803:=2)).
+echo Core\Ldap\Ad::enabled()->toString(), "\n";

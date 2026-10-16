@@ -1,0 +1,11 @@
+<?nvs
+// Shows that `path` returns the path exactly as it was written.
+
+// Escapes and `..` parts stay in the path. This prints /files/../my%20notes.txt.
+echo Core\Uri::parse("https://example.com/files/../my%20notes.txt")->path(), "\n";
+
+// An address with nothing after the host has an empty path. This prints "".
+echo "\"", Core\Uri::parse("https://example.com")->path(), "\"\n";
+
+// An address without `//` has a path too. This prints someone@example.com.
+echo Core\Uri::parse("mailto:someone@example.com")->path(), "\n";

@@ -1,0 +1,10 @@
+# This is the entry that `nvs ext pin` printed for the extension `Geo\Atlas`.
+# `nvs ext pin` prints an absolute `path`. Here it is relative to this file.
+# The entry has no `grants`, so the extension may not read files or connect to hosts.
+[[extension]]
+path = "../../config/extension-grants-what-a-component-may-reach/atlas.nvsx"
+sha256 = "e05d5aefc48218c936ce53aa42030872f4e16f4687284a00df8bc6be9a2af72a"
+
+# The program in this folder may read the folder `data/`.
+[capabilities.fs]
+read = ["data/"]

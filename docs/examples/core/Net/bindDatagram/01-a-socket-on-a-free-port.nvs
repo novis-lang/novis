@@ -1,0 +1,13 @@
+<?nvs
+// Shows how to open a UDP socket on a port the operating system picks.
+
+// `Core\Net::bindDatagram` opens a UDP socket and returns a `Core\Net\Datagram`.
+// Port `0` means "pick any free port".
+Core\Net\Datagram $socket = Core\Net::bindDatagram("127.0.0.1", 0);
+
+// `port()` returns the port that was picked. It is different on every run.
+// So this prints `bound: yes` and not the number.
+uint $port = $socket->port();
+echo "bound: ", $port > 0 ? "yes" : "no", "\n";
+
+$socket->close();

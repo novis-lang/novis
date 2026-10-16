@@ -1,0 +1,27 @@
+<?nvs
+// Measures how fast `bytes` returns the binary form of a SID, as a program does to compare it with `objectSid`.
+// bench: iterations 100000
+// bench: calls 0
+// bench: complexity constant
+
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        // The total so far chooses the SID, so the loop cannot be left out.
+        array<Core\Ldap\Sid> $sids = [
+            Core\Ldap\Sid::parse('S-1-5-32-544'),
+            Core\Ldap\Sid::parse('S-1-5-21-1004336348-1177238915-682003330-1105'),
+            Core\Ldap\Sid::parse('S-1-1-0'),
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            $total = $total + Core\Bytes::length($sids[($total % 3) as int]->bytes());
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(100000), "\n";

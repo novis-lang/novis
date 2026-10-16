@@ -1,0 +1,73 @@
+<?nvs
+// Attack: a program offers subprotocol names that could break the handshake header.
+// It also offers very long names and very many names. Then a server chooses a name
+// that nobody offered. Each step must throw an error or return an offered name.
+
+// 1. Names with line breaks, commas, spaces and control characters.
+//    Each one must throw an error, or `protocol()` must return exactly the name.
+array<string> $names = [
+    "chat\r\nX-Injected: yes",
+    'a,b',
+    'two words',
+    "tab\there",
+    "nul\0byte",
+    '',
+    'é',
+];
+uint $n = 0;
+uint $accepted = 0;
+foreach ($names as string $name) {
+    string $url = 'wss://chat.example.com/odd/' . $n;
+    $n = $n + 1;
+    try {
+        Core\Test::answerSocket($url, [], { protocol: $name });
+        Core\Http\Socket $odd = Core\Http\Client::openSocket($url, { protocols: [$name] });
+        if ($odd->protocol() != $name) {
+            throw new LogicError('the chosen name changed: ' . $n);
+        }
+        $accepted = $accepted + 1;
+    } catch (RuntimeError $notAllowed) {
+        // An error is also a pass.
+    }
+}
+echo 'step 1: ', $accepted, ' of ', $n, ' names accepted', "\n";
+
+// 2. A name of one megabyte, and ten thousand names offered at once.
+string $huge = Core\Str::repeat('p', 1048576);
+array<string> $many = [];
+uint $i = 0;
+while ($i < 10000) {
+    $many[] = 'proto.' . $i;
+    $i = $i + 1;
+}
+try {
+    Core\Test::answerSocket('wss://chat.example.com/huge', [], { protocol: $huge });
+    Core\Http\Socket $big = Core\Http\Client::openSocket('wss://chat.example.com/huge', { protocols: [$huge] });
+    echo 'step 2a: ', Core\Str::length($big->protocol() ?? ''), "\n";
+} catch (RuntimeError $tooBig) {
+    echo 'step 2a: refused', "\n";
+}
+try {
+    Core\Test::answerSocket('wss://chat.example.com/many', [], { protocol: 'proto.9999' });
+    Core\Http\Socket $wide = Core\Http\Client::openSocket('wss://chat.example.com/many', { protocols: $many });
+    echo 'step 2b: ', $wide->protocol() ?? 'none', "\n";
+} catch (RuntimeError $tooMany) {
+    echo 'step 2b: refused', "\n";
+}
+
+// 3. A server chooses a name that differs from the offered one by one character.
+//    Opening the connection must throw an error each time.
+array<string> $near = ['chat.v1 ', 'Chat.v1', 'chat.v', 'chat.v11'];
+uint $refused = 0;
+foreach ($near as string $choice) {
+    Core\Test::answerSocket('wss://chat.example.com/near', [], { protocol: $choice });
+    try {
+        Core\Http\Client::openSocket('wss://chat.example.com/near', { protocols: ['chat.v1'] });
+    } catch (RuntimeError $unoffered) {
+        $refused = $refused + 1;
+    }
+}
+if ($refused != 4) {
+    throw new LogicError('a name nobody offered was accepted');
+}
+echo 'step 3: ', $refused, ' refused', "\n";

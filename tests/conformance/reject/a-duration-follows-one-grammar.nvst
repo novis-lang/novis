@@ -1,0 +1,12 @@
+--TEST--
+duration units strictly descend and may not repeat — `rule:types/duration`
+--FILE--
+<?nvs
+var $backwards = 30m1h;
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0007]: `30m1h` is not a valid duration
+  --> case.nvs:2:18
+%A

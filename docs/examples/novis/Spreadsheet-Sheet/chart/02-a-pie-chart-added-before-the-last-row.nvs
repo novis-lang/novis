@@ -1,0 +1,18 @@
+<?nvs
+// Shows that a chart added before the last row still shows every row.
+use Novis\Spreadsheet\Chart;
+use Novis\Spreadsheet\Workbook;
+
+var $book = Workbook::createInMemory();
+var $sheet = $book->sheet('Shops');
+$sheet->add(['shop' => 'North', 'sales' => 340]);
+
+// Here `column('sales')` is `B2:B2`. A range from `column` grows to the last row of the sheet.
+$sheet->chart('D2', Chart::pie({ title: 'Sales by shop' })->series($sheet->column('sales'), { categories: $sheet->column('shop') }));
+$sheet->addAll([['shop' => 'South', 'sales' => 210], ['shop' => 'East', 'sales' => 95]]);
+bytes $file = $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
+
+// `Core\Zip::read` returns the XML of the chart. These lines check its ranges.
+var $xml = Core\Zip::read($file, 'xl/charts/chart1.xml') as string;
+echo Core\Str::contains($xml, '<c:f>Shops!$B$2:$B$4</c:f>') ? 'the values are B2:B4' : 'other values', "\n";
+echo Core\Str::contains($xml, '<c:f>Shops!$A$2:$A$4</c:f>') ? 'the names are A2:A4' : 'other names', "\n";

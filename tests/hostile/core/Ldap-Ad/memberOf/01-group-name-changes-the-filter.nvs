@@ -1,0 +1,29 @@
+<?nvs
+// Attack: a group name from a request tries to add its own test to the filter.
+// The name should stay one value in the DN, and the program must keep running.
+// hostile: timeout-ms 60000
+
+// 1. A name with the characters that end a filter and start a new test.
+tainted string $name = 'Staff)(objectClass=*))(|(cn=*';
+try {
+    var $group = Core\Ldap\Dn::parse('OU=Groups,DC=example,DC=test')->child('CN', $name);
+    echo '1 ', Core\Ldap\Ad::memberOf($group, { nested: true })->toString(), "\n";
+} catch (Throwable $error) {
+    echo "1 threw\n";
+}
+
+// 2. A group DN of two thousand parts.
+try {
+    string $long = Core\Str::repeat('OU=a,', 1999) . 'DC=test';
+    var $filter = Core\Ldap\Ad::memberOf($long, { nested: true });
+    echo '2 length: ', Core\Str::length($filter->toString()), "\n";
+} catch (Throwable $error) {
+    echo "2 threw\n";
+}
+
+// 3. A string that is not a DN.
+try {
+    echo '3 ', Core\Ldap\Ad::memberOf('not a DN')->toString(), "\n";
+} catch (LogicError $refusal) {
+    echo "3 refused\n";
+}

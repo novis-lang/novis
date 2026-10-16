@@ -1,0 +1,51 @@
+--TEST--
+`&&` and `||` evaluate the right operand only when the left did not decide the answer, and each answers a `bool` rather than the operand that decided it, so `"abc" || false` is `true` and not `"abc"`, `rule:expressions/truthy-table`
+--FILE--
+<?nvs
+// covers: lang:expressions/logical-operators-and-truth
+// Each line prints the operands it actually evaluated and then the answer,
+// so a `&&` that evaluated both sides is visible in the trace rather than
+// only in the result. `Trace::at` is what makes an evaluation observable.
+
+class Trace {
+    public static function at(string $mark, mixed $value): mixed {
+        echo $mark;
+        return $value;
+    }
+}
+
+// `&&` stops at the first operand that is false, and runs the right one only
+// when the left was true.
+echo (Trace::at("L", false) && Trace::at("R", true)) as string, "\n";
+echo (Trace::at("L", true) && Trace::at("R", false)) as string, "\n";
+
+// `||` stops at the first operand that is true.
+echo (Trace::at("L", true) || Trace::at("R", false)) as string, "\n";
+echo (Trace::at("L", false) || Trace::at("R", true)) as string, "\n";
+
+// The operands are read as conditions, so the one-character text `"0"` is
+// false and stops the `&&` before the right side runs.
+echo (Trace::at("L", "0") && Trace::at("R", 1)) as string, "\n";
+
+// The answer is a `bool`, not the operand that decided it: this prints 1 and
+// not `abc`. A `bool` binding takes it with no conversion written.
+bool $decided = "abc" || false;
+echo $decided as string, "\n";
+
+// `!` reads its operand as a condition too, and answers a `bool`.
+bool $negated = !"0";
+echo $negated as string, "|", (!"x") as string, "|", (!0.0) as string, "\n";
+
+// A chain stops at the first operand that settles it, however long it is.
+echo (Trace::at("A", true) && Trace::at("B", true) && Trace::at("C", false) && Trace::at("D", true)) as string, "\n";
+echo (Trace::at("A", false) || Trace::at("B", false) || Trace::at("C", true) || Trace::at("D", true)) as string, "\n";
+--EXPECT--
+L
+LR
+L1
+LR1
+L
+1
+1||1
+ABC
+ABC1

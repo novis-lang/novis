@@ -1,0 +1,13 @@
+<?nvs
+// Shows how a program reads settings from different blocks of `nvs.toml`.
+
+// A name is the block and the key, joined by dots. This prints `info`.
+echo Core\Config::get("log.level"), "\n";
+
+// A block with a name, such as `[mail.orders]`, adds that name.
+// These lines print `smtp.example.com` and `587`.
+echo Core\Config::get("mail.orders.host"), "\n";
+echo Core\Config::get("mail.orders.port"), "\n";
+
+// The file has no `[mail.news]` block, so the result is `null`. This prints `none`.
+echo Core\Config::get("mail.news.host") ?? "none", "\n";

@@ -1,0 +1,42 @@
+--METHOD--
+POST
+--PATH--
+/upload
+--CLIENT_IP--
+198.51.100.57
+--HEADERS--
+host: example.com
+content-type: multipart/form-data; boundary=bnd
+--BODY_CRLF--
+--bnd
+Content-Disposition: form-data; name="file"; filename="long.png"
+Content-Type: image/pngggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg
+
+a type much longer than any real one
+--bnd
+Content-Disposition: form-data; name="file"; filename="empty.png"
+Content-Type:
+
+a type that is empty
+--bnd
+Content-Disposition: form-data; name="file"; filename="params.png"
+Content-Type: image/png;a=1;a=1;a=1;a=1;a=1;a=1;a=1;a=1;a=1;a=1;a=1;a=1;a=1;a=1;a=1;a=1;a=1;a=1;a=1;a=1;a=1;a=1;a=1;a=1;a=1;a=1;a=1;a=1;a=1;a=1;a=1;a=1;a=1;a=1;a=1;a=1;a=1;a=1;a=1;a=1;a=1;a=1;a=1;a=1;a=1;a=1;a=1;a=1;a=1;a=1;a=1;a=1;a=1;a=1;a=1;a=1;a=1;a=1;a=1;a=1;a=1;a=1;a=1;a=1
+
+a type with the same parameter many times
+--bnd
+Content-Disposition: form-data; name="file"; filename="two.png"
+Content-Type: image/png, text/html
+
+a type that names two types
+--bnd
+Content-Disposition: form-data; name="file"; filename="spaces.png"
+Content-Type:    IMAGE/PNG
+
+a type in capital letters with spaces around it
+--bnd
+Content-Disposition: form-data; name="file"; filename="twice.png"
+Content-Type: image/png
+Content-Type: text/html
+
+a part that gives its type twice
+--bnd--

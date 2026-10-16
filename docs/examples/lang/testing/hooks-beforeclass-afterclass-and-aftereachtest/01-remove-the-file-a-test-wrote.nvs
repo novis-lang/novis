@@ -1,0 +1,41 @@
+<?nvs
+// Shows `#[AfterEachTest]` removing the file a test wrote, so the next run starts
+// without it.
+
+use Core\IO;
+use Core\Path;
+use Core\Test;
+use Core\Test\AfterEachTest;
+
+class ShoppingList {
+    public static function text(array<string> $items): string {
+        string $text = "";
+        foreach ($items as string $item) {
+            $text = $text . "- " . $item . "\n";
+        }
+        return $text;
+    }
+}
+
+class ShoppingListTest {
+    public string $file;
+
+    public function constructor() {
+        $this->file = Path::fromCwd("shopping-list-test.txt");
+    }
+
+    #[Test]
+    public function itWritesOneLinePerItem(): void {
+        IO::write($this->file, ShoppingList::text(["bread", "milk"]));
+        Test::assertSame(IO::readText($this->file), "- bread\n- milk\n");
+    }
+
+    // This runs after the test, also when the test fails.
+    #[AfterEachTest]
+    public function removeTheFile(): void {
+        IO::remove($this->file);
+    }
+}
+
+// This prints `- bread`, then `- milk`.
+echo ShoppingList::text(["bread", "milk"]);

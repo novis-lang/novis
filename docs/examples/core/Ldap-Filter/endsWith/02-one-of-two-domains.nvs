@@ -1,0 +1,12 @@
+<?nvs
+// Shows how to find the mail addresses that end with one of two domains.
+
+array<string> $domains = ['@example.test', '@shop.example.test'];
+array<Core\Ldap\Filter> $parts = [];
+foreach ($domains as string $domain) {
+    $parts[] = Core\Ldap\Filter::endsWith('mail', $domain);
+}
+// `any` takes the filters one by one, so `...` passes the array as separate values.
+var $filter = Core\Ldap\Filter::any(...$parts);
+// This prints (|(mail=*@example.test)(mail=*@shop.example.test)).
+echo $filter->toString(), "\n";

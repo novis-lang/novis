@@ -1,0 +1,22 @@
+<?nvs
+// Shows how to remove every entry from a map with `clear`.
+
+final class Order {
+    public string $number;
+
+    public function constructor(string $number) {
+        $this->number = $number;
+    }
+}
+
+Core\ObjectMap<Order, string> $status = new Core\ObjectMap<Order, string>();
+$status->set(new Order("A-100"), "paid");
+$status->set(new Order("A-101"), "shipped");
+$status->set(new Order("A-102"), "open");
+// This prints 3.
+echo $status->count(), "\n";
+
+// `clear` removes all three entries. The map is now empty, so this prints 0 and `true`.
+$status->clear();
+echo $status->count(), "\n";
+echo $status->isEmpty() ? "true" : "false", "\n";

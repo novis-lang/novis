@@ -1,0 +1,3 @@
+Core\Xml\Writer::cdata(): character data belongs inside an element, and none is open.
+Core\Xml\Writer::cdata(): a CDATA section has no escape grammar, so it cannot hold `]]>`.
+<?xml version="1.0" encoding="UTF-8"?><note>The end marker is ]]&gt; in XML.</note>

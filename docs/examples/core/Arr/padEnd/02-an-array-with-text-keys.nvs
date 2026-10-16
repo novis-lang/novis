@@ -1,0 +1,15 @@
+<?nvs
+// Shows the result for an array whose keys are words, and what happens when
+// the array is already long enough.
+
+array<string> $named = ["a" => "one", "b" => "two"];
+
+// The keys of the result are numbers, so the words are gone.
+// This prints "0 1 2".
+array<string> $padded = Core\Arr::padEnd($named, 3, "");
+echo Core\Str::join(Core\Arr::keys($padded), " "), "\n";
+
+// The array already has two entries, so nothing is added. You get its values
+// back as a list. This prints "one two".
+array<string> $same = Core\Arr::padEnd($named, 2, "");
+echo Core\Str::join($same, " "), "\n";

@@ -1,0 +1,13 @@
+<?nvs
+// Shows how `Core\Str::replaceAll` chooses what to replace.
+
+// "left" becomes "right", and "right" becomes "left".
+// The new text is not searched again, so the two words change places.
+echo Core\Str::replaceAll("turn left, then right", ["left" => "right", "right" => "left"]), "\n";
+
+// "New" and "New York" both match at the start. The longest key is used,
+// so the result is "NYC".
+echo Core\Str::replaceAll("New York", ["New" => "Old", "New York" => "NYC"]), "\n";
+
+// With `caseInsensitive: true`, "YES" and "Yes" also match the key "yes".
+echo Core\Str::replaceAll("yes, YES, Yes", ["yes" => "no"], {caseInsensitive: true}), "\n";

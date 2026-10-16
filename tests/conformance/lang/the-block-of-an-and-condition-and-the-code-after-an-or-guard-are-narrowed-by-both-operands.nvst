@@ -1,0 +1,65 @@
+--TEST--
+The block of `if (A && B)` sees what both operands prove, and so does the code after `if (A || B) { return; }`; the other edge of each narrows nothing — `rule:types/narrowing`
+--FILE--
+<?nvs
+// covers: lang:types/narrowing
+// Each method is called with values and with `null`, so every edge runs.
+final class Box
+{
+    public float $top = 1.5;
+}
+
+final class Pair
+{
+    public static function sum(?float $a, ?float $b): float
+    {
+        if ($a != null && $b != null) {
+            return $a + $b;
+        }
+        return 0.0;
+    }
+
+    public static function text(?string $s): string
+    {
+        if ($s != null && $s != '') {
+            return $s;
+        }
+        return 'empty';
+    }
+
+    public static function guard(?Box $a, ?Box $b): float
+    {
+        if ($a == null || $b == null) {
+            return -1.0;
+        }
+        return $a->top + $b->top;
+    }
+
+    public static function negated(?Box $a, mixed $b): float
+    {
+        if (!($a == null || !($b is Box))) {
+            return $a->top + $b->top;
+        }
+        return -1.0;
+    }
+
+    public static function three(?float $a, ?float $b, ?float $c): float
+    {
+        if ($a != null && ($b != null && $c != null)) {
+            return $a + $b + $c;
+        }
+        return 0.0;
+    }
+}
+
+echo Pair::sum(1.5, 2.0), ' ', Pair::sum(null, 2.0), ' ', Pair::sum(1.5, null), "\n";
+echo Pair::text('abc'), ' ', Pair::text(''), ' ', Pair::text(null), "\n";
+echo Pair::guard(new Box(), new Box()), ' ', Pair::guard(null, new Box()), ' ', Pair::guard(new Box(), null), "\n";
+echo Pair::negated(new Box(), new Box()), ' ', Pair::negated(new Box(), 'x'), ' ', Pair::negated(null, new Box()), "\n";
+echo Pair::three(1.0, 2.0, 3.0), ' ', Pair::three(1.0, null, 3.0), "\n";
+--EXPECT--
+3.5 0 0
+abc empty empty
+3 -1 -1
+3 -1 -1
+6 0

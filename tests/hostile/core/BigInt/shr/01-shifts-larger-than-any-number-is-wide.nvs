@@ -1,0 +1,39 @@
+<?nvs
+// Attack: `shr` is asked to shift by distances far larger than any number is
+// wide. It is also asked to shift the widest number away, one block of bits at
+// a time. Every shift should answer at once. The program should run to its
+// last line.
+// hostile: timeout-ms 20000
+
+// 1. Distances far past the width of the number. A positive number gives 0 and
+//    a negative number gives -1, and neither builds anything large.
+array<uint> $places = [1048577, 4294967296, 9223372036854775807];
+foreach ($places as uint $by) {
+    echo Core\BigInt::of(1)->shr($by), ' ', Core\BigInt::of(-1)->shr($by), "\n";
+}
+
+// 2. The widest number one call may build, shifted away in one step. The same
+//    number with a sign, which rounds down to -1.
+var $widest = Core\BigInt::of(1)->shl(1048575);
+echo $widest->shr(9223372036854775807), "\n";
+echo $widest->neg()->shr(9223372036854775807), "\n";
+
+// 3. That same number shifted down 1024 bits at a time until nothing is left.
+//    Each round builds a new number and drops the one before it.
+var $left = $widest;
+uint $rounds = 0;
+while ($left->sign() != 0) {
+    $left = $left->shr(1024);
+    $rounds = $rounds + 1;
+}
+echo $rounds, "\n";
+
+// 4. Two hundred thousand small shifts, each thrown away again. The memory the
+//    program holds must not grow with the rounds.
+uint $round = 0;
+int $signs = 0;
+while ($round < 200000) {
+    $signs = $signs + Core\BigInt::of(-7)->shr(1)->sign();
+    $round = $round + 1;
+}
+echo $signs, "\n";

@@ -1,0 +1,15 @@
+<?nvs
+// Shows the result for a negative number, negative zero and infinity.
+
+// A negative number has no square root. The result is `NaN`, and this prints NAN.
+float $root = Core\Math::sqrt(-4.0);
+echo $root, "\n";
+
+// `Core\Math::isNan` checks the result. This prints "No square root".
+if (Core\Math::isNan($root)) {
+    echo "No square root\n";
+}
+
+// Negative zero stays negative zero, and infinity stays infinity. This prints -0, then INF.
+echo Core\Math::sqrt(-0.0), "\n";
+echo Core\Math::sqrt(Core\Math::INFINITY), "\n";

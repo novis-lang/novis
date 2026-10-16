@@ -1,0 +1,11 @@
+<?nvs
+// Shows that the same list sorts in a different order for each language.
+use Novis\Intl\Collator;
+
+array<string> $words = ["äpple", "zebra", "apple"];
+
+// In German, `ä` sorts next to `a`. This prints apple äpple zebra.
+echo Core\Str::join(Collator::sort($words, "de"), " "), "\n";
+
+// In Swedish, `ä` is a letter after `z`. This prints apple zebra äpple.
+echo Core\Str::join(Collator::sort($words, "sv"), " "), "\n";

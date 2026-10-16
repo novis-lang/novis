@@ -1,0 +1,23 @@
+--TEST--
+an enum a class declares carries its `///` run on the member, and hovering its name in a type answers the enum's name with its owner and then that run, `rule:enums/class-scoped-enum`
+--FILE--
+<?nvs
+namespace Shop;
+class Order {
+    /// Where an order is on its way to the customer.
+    enum Status { Draft, Paid }
+}
+
+class Receipt {
+    public function show(Order::Sta<|>tus $s): void {
+        echo $s;
+    }
+}
+--REQUEST--
+hover
+--EXPECT--
+```nvs
+enum Shop\Order::Status
+```
+
+Where an order is on its way to the customer.

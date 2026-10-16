@@ -1,0 +1,10 @@
+--TEST--
+a scalar written as a local's type is no name — `string` is its own type atom and never a class name — so the walk over written types answers nothing for it, and the declaration the index places the cursor in names nothing to jump to either, `rule:ide/the-index-answers-the-cursor`
+--FILE--
+<?nvs
+stri<|>ng $name = "hi";
+echo $name;
+--REQUEST--
+definition
+--EXPECT--
+none

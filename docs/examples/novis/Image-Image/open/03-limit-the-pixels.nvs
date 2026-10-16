@@ -1,0 +1,16 @@
+<?nvs
+// Shows how to stop an upload that has more pixels than your page needs.
+use Novis\Image\Image;
+use Novis\Image\Color;
+use Novis\Image\Format;
+
+// A 3000 by 2000 PNG has 6 million pixels.
+bytes $upload = Image::create(3000, 2000, Color::hex("#336699"))->format(Format::Png)->encode();
+
+// `maxPixels` allows at most 2 million pixels. `raw` throws an error before it decodes a pixel.
+try {
+    Image::open($upload, {maxPixels: 2000000})->raw();
+    echo "decoded\n";
+} catch (Throwable $e) {
+    echo "too large: ", $e->message, "\n";
+}

@@ -1,0 +1,38 @@
+<?nvs
+// Shows how a program rebuilds a cached file only when its source file has changed.
+
+class Page {
+    // The cache is out of date when it is missing, or when the source was changed after it.
+    public static function isStale(string $source, string $cache): bool {
+        if (!Core\IO::exists($cache)) {
+            return true;
+        }
+        return Core\IO::modifiedAt($source)->compareTo(Core\IO::modifiedAt($cache)) > 0;
+    }
+
+    public static function render(string $source, string $cache): void {
+        if (Page::isStale($source, $cache)) {
+            Core\IO::write($cache, Core\Str::upper(Core\IO::read($source)));
+            echo "rebuilt the cache", "\n";
+        } else {
+            echo "used the cache", "\n";
+        }
+    }
+}
+
+string $dir = Core\IO::temporaryDir();
+string $source = Core\Path::join($dir, "page.txt");
+string $cache = Core\Path::join($dir, "page.cache");
+Core\IO::write($source, "hello\n");
+
+// There is no cache yet, so this prints "rebuilt the cache".
+Page::render($source, $cache);
+
+// Nothing has changed, so this prints "used the cache".
+Page::render($source, $cache);
+
+// The program waits a moment and then changes the source.
+// The source is now newer than the cache, so this prints "rebuilt the cache".
+Core\Time::sleep(Core\Time\Duration::milliseconds(50));
+Core\IO::write($source, "hello again\n");
+Page::render($source, $cache);

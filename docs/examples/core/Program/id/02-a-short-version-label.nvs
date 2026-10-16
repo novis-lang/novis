@@ -1,0 +1,12 @@
+<?nvs
+// Shows how to make a short version label, for example for a log line or the
+// footer of an admin page.
+
+// `Core\Str::slice` takes the first 12 characters of the id.
+string $version = Core\Str::slice(Core\Program::id(), 0, 12);
+
+// This prints `12`.
+echo Core\Str::length($version), "\n";
+
+// The label is the start of the full id. This prints `true`.
+echo Core\Str::startsWith(Core\Program::id(), $version) ? "true" : "false", "\n";

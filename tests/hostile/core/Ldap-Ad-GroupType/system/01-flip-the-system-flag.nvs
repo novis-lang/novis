@@ -1,0 +1,44 @@
+<?nvs
+// Attack: a program flips the system flag of a built-in group and of a created group many times.
+// The answer must always match the flag that was set, and nothing may crash.
+// hostile: timeout-ms 60000
+// requires: samba-ad
+
+var $corp = Core\Ldap::connect('corp');
+array<string> $dns = [
+    'CN=Administrators,CN=Builtin,DC=example,DC=test',
+    'CN=Employees,OU=Company,DC=example,DC=test',
+];
+
+// 1. The flag set and cleared fifty thousand times on each group. A wrong answer is counted.
+uint $wrong = 0;
+foreach ($dns as string $dn) {
+    try {
+        var $found = $corp->read($dn, { select: ['groupType'] })?->groupType();
+        if ($found != null) {
+            Core\Ldap\Ad\GroupType $type = $found;
+            uint $i = 0;
+            while ($i < 50000) {
+                bool $on = $i % 3 == 0;
+                if ($type->with({ system: $on })->system() != $on) {
+                    $wrong = $wrong + 1;
+                }
+                $i = $i + 1;
+            }
+        }
+    } catch (Throwable $error) {
+        echo "1 threw\n";
+    }
+}
+echo '1 wrong: ', $wrong, "\n";
+
+// 2. Every other flag cleared at once. The system flag of the built-in group must stay set.
+try {
+    var $builtin = $corp->read('CN=Administrators,CN=Builtin,DC=example,DC=test', { select: ['groupType'] })?->groupType();
+    if ($builtin != null) {
+        var $bare = $builtin->with({ global: false, domainLocal: false, universal: false, appBasic: false, appQuery: false, security: false });
+        echo '2 system: ', $bare->system() ? 'yes' : 'no', ' bits: ', $bare->bits(), "\n";
+    }
+} catch (Throwable $error) {
+    echo "2 threw\n";
+}

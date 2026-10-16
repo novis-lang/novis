@@ -1,0 +1,27 @@
+<?nvs
+// Shows the two things that make this form different from `fromBase64`, and
+// what happens when text from that other form arrives here.
+
+// `-` and `_` stand where the other form writes `+` and `/`. This prints
+// 68656c6c6f3e776f726c643f.
+echo Core\Encoding::toHex(Core\Encoding::fromBase64Url("aGVsbG8-d29ybGQ_")), "\n";
+
+// There is no padding. A last group of one or two bytes simply stops, so
+// these two lines print 616263 and 6162.
+echo Core\Encoding::toHex(Core\Encoding::fromBase64Url("YWJj")), "\n";
+echo Core\Encoding::toHex(Core\Encoding::fromBase64Url("YWI")), "\n";
+
+// An `=` at the end is not part of this form.
+try {
+    Core\Encoding::fromBase64Url("YWJjZA==");
+} catch (RuntimeError $padded) {
+    echo "refused: ", $padded->message, "\n";
+}
+
+// Neither are `+` and `/`. Text written that way is
+// `Core\Encoding::fromBase64`'s to read.
+try {
+    Core\Encoding::fromBase64Url("aGVsbG8+d29ybGQ/");
+} catch (RuntimeError $standard) {
+    echo "refused: ", $standard->message, "\n";
+}

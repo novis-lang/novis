@@ -1,0 +1,501 @@
+// Whether a test binary can read a file outside its package without saying so through `nvs_repo`. A
+// test binary's footprint holds what it ran and the paths it asked `nvs_repo` for, and nothing records
+// a file it opens any other way, so a binary that can is **wide**: its footprint holds `*`, which every
+// change moves (`select/seed.ts` `testKeys`), and `tools/data/impact-wide.txt` lists it with the reason.
+// `verify`'s `test` step fails on a wide binary the list does not name, and on a listed one that is
+// narrow now, so the list and the code cannot drift apart.
+//
+// The sources judged are the ones rustc's dep-info names for the binary, less `nvs_repo`'s own, which
+// records every path it builds. Each source is test code or product code. Test code is a file under
+// a package's `tests/`, `benches/` or `examples/`, a file a test-only `mod name;` declares, and an
+// item under `#[test]` or a `#[cfg(…)]` that names `test`. The ways out:
+//
+// - test code starts a process that is not its package's own binary, which reads what it likes;
+// - test code reads its working directory, or product code reads it in a function that also climbs
+//   a path, since a test binary starts in its package;
+// - any code sets the working directory;
+// - a string literal climbs out of the directory it starts in, or names `target/debug`. A bare `".."`
+//   counts only where it is joined, pushed or sits beside the manifest directory;
+// - it reads `CARGO_MANIFEST_DIR` and also holds a `..` segment in any literal, or climbs with
+//   `.parent()`, `.ancestors()` or `.pop()`.
+//
+// Product code starting a process or reading the working directory is not a way out, because a test
+// that drives it hands it every path it opens, and that test's own code is judged here. What this
+// does not see is product code that finds a path in the tree by itself, through a helper function
+// the working directory is handed to.
+//
+// A climbing literal that is data -- a path a pure function takes apart, an entry name in an archive
+// built in memory, an escape the code under test is expected to refuse, a detour that stays inside
+// the package -- opens nothing outside the package, and `impact-data-literals.txt` lists each one
+// with the reason. No other way out can be listed there.
+//
+// Read off `scan` below, a lexer that separates comments and literals from code, so a comment is never
+// matched and a literal never splits. A literal rustc opens itself (`include_str!`, `#[path]`) is in the
+// dep-info already and is not a way out.
+
+import { existsSync, readFileSync } from "node:fs";
+import { isAbsolute, posix, relative, resolve } from "node:path";
+
+const { basename, dirname } = posix;
+import { ROOT } from "../lib/paths.ts";
+
+
+export const WIDE_LIST = "tools/data/impact-wide.txt";
+export const DATA_LIST = "tools/data/impact-data-literals.txt";
+
+const TOKEN =
+  /(?<doc>\/\/(?:\/(?!\/)|!)[^\n]*)|(?<line>\/\/[^\n]*)|(?<block>\/\*)|(?<raw>(?<![A-Za-z0-9_])(?:b|c)?r(?<hashes>#*)"[\s\S]*?"\k<hashes>)|(?<str>(?:(?<![A-Za-z0-9_])(?:b|c))?"(?:\\[\s\S]|[^"\\])*")|(?<chr>(?:(?<![A-Za-z0-9_])b)?'(?:\\(?:u\{[^}\n]*\}|x[0-9a-fA-F]{2}|[^\n])|[^\\'\n])')/g;
+const NEST = /\/\*|\*\//g;
+const WORD = "[\\p{L}\\p{N}_]";
+const NOT_WORD = "[^\\p{L}\\p{N}_]";
+const GLUE = new RegExp(
+  `(?<=${WORD}) (?=${NOT_WORD})|(?<=${NOT_WORD}) (?=${WORD})|(?<=[()\\[\\]{},;\\x01\\x02]) | (?=[()\\[\\]{},;\\x01\\x02])`,
+  "gu",
+);
+const DOC_RUN = /\x01(?: ?\x01)+/g;
+
+/** A `.rs` file's code with layout and comments removed, `\x01` for a run of doc comments and `\x02`
+ * for each literal, and the literals in order. */
+function scan(text: string): { code: string; literals: string[] } {
+  const code: string[] = [];
+  const literals: string[] = [];
+  let pos = 0;
+  for (;;) {
+    TOKEN.lastIndex = pos;
+    const m = TOKEN.exec(text);
+    if (m === null) {
+      code.push(text.slice(pos));
+      break;
+    }
+    code.push(text.slice(pos, m.index));
+    let end = m.index + m[0].length;
+    const g = m.groups!;
+    if (g.block !== undefined) {
+      // Block comments nest, which no regular expression follows. An unclosed one runs to the end
+      // of the file, as it does for rustc.
+      let depth = 1;
+      let at = end;
+      while (depth > 0) {
+        NEST.lastIndex = at;
+        const n = NEST.exec(text);
+        if (n === null) {
+          at = text.length;
+          break;
+        }
+        depth += n[0] === "/*" ? 1 : -1;
+        at = n.index + 2;
+      }
+      end = at;
+      const body = text.slice(m.index, end);
+      const isDoc = body.startsWith("/*!") || (body.startsWith("/**") && !body.startsWith("/***") && !body.startsWith("/**/"));
+      code.push(isDoc ? " \x01 " : " ");
+    } else if (g.doc !== undefined) {
+      code.push(" \x01 ");
+    } else if (g.line !== undefined) {
+      code.push(" ");
+    } else {
+      literals.push(m[0]);
+      code.push("\x02");
+    }
+    pos = end;
+  }
+  const flat = code.join("").replace(/\s+/g, " ").trim().replace(GLUE, "");
+  return { code: flat.replace(DOC_RUN, "\x01"), literals };
+}
+
+const SPAWN = /Command::new\(/g;
+/** `Command::new(env!("CARGO_BIN_EXE_..."))`: the package's own binary, compiled from what the key holds. */
+const OWN_BIN = /Command::new\(env!\(\x02\)\)/y;
+const CLIMBS = /\.parent\(\)|\.ancestors\(\)|\.pop\(\)/;
+/** The code in front of a literal rustc opens itself. */
+const RUSTC_OPENS = /(?:include_str!\(|include_bytes!\(|include!\(|path=)$/;
+const SEGMENT = /[\\/]/;
+const JOINS = /(?:join|push|from|new)\($/;
+
+/** A string literal's text without its prefix, hashes and quotes. */
+function body(literal: string): string {
+  const start = literal.indexOf('"');
+  const end = literal.lastIndexOf('"');
+  return start >= 0 && start < end ? literal.slice(start + 1, end) : "";
+}
+
+/** A literal's path segments. In a raw literal a backslash is a separator. In any other literal `\\` is
+ * one, and a single backslash starts an escape such as `\n` or `\u{…}`, which is not. */
+function segments(literal: string): string[] {
+  const b = body(literal);
+  return /^(?:b|c)?r/.test(literal) ? b.split(SEGMENT) : b.split("\\\\").join("/").split("/");
+}
+
+/** Does this relative path climb above the directory it starts in? An absolute one names nothing in
+ * the tree, so it does not. */
+function leaves(literal: string): boolean {
+  const path = body(literal);
+  if (!path || path[0] === "/" || path[0] === "\\" || path.slice(1, 2) === ":") return false;
+  let depth = 0;
+  for (const part of segments(literal)) {
+    depth += part === ".." ? -1 : part === "" || part === "." ? 0 : 1;
+    if (depth < 0) return true;
+  }
+  return false;
+}
+
+export interface WayOut {
+  how: string;
+  /** The literal that climbs out of its directory, as the source writes it. Only this kind of way
+   * out can be cleared, by a line in `DATA_LIST` that says the literal is data and opens nothing. */
+  climbs?: string;
+}
+
+/** Each `{` in `code` at the index of its matching `}`, or the end of the code for one never closed. */
+function braces(code: string): Map<number, number> {
+  const out = new Map<number, number>();
+  const open: number[] = [];
+  for (let i = 0; i < code.length; i++) {
+    if (code[i] === "{") open.push(i);
+    else if (code[i] === "}" && open.length > 0) out.set(open.pop()!, i);
+  }
+  for (const i of open) out.set(i, code.length);
+  return out;
+}
+
+/** An outer attribute that compiles its item for tests only: `#[test]`, or a `#[cfg(…)]` naming
+ * `test` anywhere, `not(test)` included, since reading one of those as test code is the strict side. */
+const TEST_ATTR = /#\[(?:test|cfg\((?:[^\]]*[^\p{L}\p{N}_])?test(?:[^\p{L}\p{N}_][^\]]*)?\))\]/gu;
+const MOD_DECL = /^(?:pub(?:\([^)]*\))?)?mod([\p{L}\p{N}_]+)$/u;
+
+/** Where the test-only items of `code` are, and the modules declared test-only whose files are
+ * elsewhere. An item runs from its attribute to its closing brace, or to its `;`. */
+function testItems(code: string): { ranges: [number, number][]; mods: string[] } {
+  const close = braces(code);
+  const ranges: [number, number][] = [];
+  const mods: string[] = [];
+  for (const m of code.matchAll(TEST_ATTR)) {
+    let at = m.index + m[0].length;
+    // Further attributes on the same item.
+    while (code.startsWith("#[", at)) {
+      const end = code.indexOf("]", at);
+      if (end < 0) break;
+      at = end + 1;
+    }
+    let depth = 0;
+    let end = code.length;
+    for (let i = at; i < code.length; i++) {
+      const c = code[i];
+      if (c === "(" || c === "[") depth++;
+      else if (c === ")" || c === "]") depth--;
+      else if (depth === 0 && c === ";") {
+        end = i;
+        const decl = MOD_DECL.exec(code.slice(at, i).replace(/\s+/g, ""));
+        if (decl) mods.push(decl[1]!);
+        break;
+      } else if (depth === 0 && c === "{") {
+        end = close.get(i)!;
+        break;
+      }
+    }
+    ranges.push([m.index, end]);
+  }
+  return { ranges, mods };
+}
+
+const FN = /(?<![\p{L}\p{N}_])fn [\p{L}\p{N}_]+/gu;
+const CWD_READ = /(?<![\p{L}\p{N}_])current_dir\(\)/gu;
+
+/** Does the innermost function around `at` climb a path? Code outside every function counts as one
+ * that does. */
+function climbsAround(code: string, at: number): boolean {
+  const close = braces(code);
+  let body: [number, number] | null = null;
+  for (const m of code.matchAll(FN)) {
+    if (m.index > at) break;
+    const semi = code.indexOf(";", m.index);
+    const open = code.indexOf("{", m.index);
+    if (open < 0 || (semi >= 0 && semi < open)) continue;
+    const end = close.get(open)!;
+    if (open < at && at < end) body = [open, end];
+  }
+  return body === null || CLIMBS.test(code.slice(body[0], body[1]));
+}
+
+/**
+ * Every way this source can reach a file outside its package without `nvs_repo`. `test` says which of
+ * its code the binary's tests are: the whole file, or only its test-only items.
+ *
+ * Test code is judged on everything below. Product code is not judged on starting a process, or on
+ * reading the working directory unless the function that reads it also climbs a path: a test that
+ * drives it hands it every path it opens, and that test's own code is judged here. Everything else
+ * counts in product code too.
+ */
+export function waysOut(text: string, test: "whole" | "items" = "whole"): WayOut[] {
+  const { code, literals } = scan(text);
+  const out: WayOut[] = [];
+  const items = test === "items" && !/#!\[cfg\([^\]]*test/.test(code) ? testItems(code).ranges : null;
+  const isTest = (at: number) => items === null || items.some(([a, b]) => a <= at && at <= b);
+  const count = (s: string) => s.split("\x02").length - 1;
+  for (const m of code.matchAll(SPAWN)) {
+    const index = count(code.slice(0, m.index));
+    OWN_BIN.lastIndex = m.index;
+    const own = OWN_BIN.test(code) && index < literals.length;
+    if (!(own && literals[index]!.includes("CARGO_BIN_EXE_")) && isTest(m.index)) {
+      out.push({ how: "starts a process with `Command::new`" });
+      break;
+    }
+  }
+  // `Command::current_dir(dir)` takes an argument and moves a child, which was judged above.
+  if (code.includes("set_current_dir")) out.push({ how: "sets the working directory" });
+  for (const m of code.matchAll(CWD_READ)) {
+    if (isTest(m.index)) {
+      out.push({ how: "reads the working directory" });
+      break;
+    }
+    if (climbsAround(code, m.index)) {
+      out.push({ how: "reads the working directory in a function that climbs a path" });
+      break;
+    }
+  }
+  const rustcOpens = new Set<number>();
+  const starts: number[] = [];
+  for (let at = code.indexOf("\x02"); at >= 0; at = code.indexOf("\x02", at + 1)) {
+    if (RUSTC_OPENS.test(code.slice(Math.max(0, at - 20), at))) rustcOpens.add(starts.length);
+    starts.push(at);
+  }
+  if (starts.length !== literals.length) return [...out, { how: "its literals could not be placed" }];
+  const manifest = literals.some((l) => l.includes("CARGO_MANIFEST_DIR"));
+  for (const [index, lit] of literals.entries()) {
+    const b = body(lit);
+    if (rustcOpens.has(index) || !b) continue;
+    if (b.includes("target/debug") || b.includes("target\\\\debug")) out.push({ how: `names the target directory in ${lit.slice(0, 60)}` });
+    const at = starts[index]!;
+    const bare = b === ".." && !manifest && !JOINS.test(code.slice(Math.max(0, at - 12), at));
+    if (leaves(lit) && !bare) out.push({ how: `the literal ${lit.slice(0, 60)} climbs out of its directory`, climbs: lit });
+    if (manifest && segments(lit).includes("..")) out.push({ how: `\`CARGO_MANIFEST_DIR\` beside the literal ${lit.slice(0, 60)}` });
+  }
+  if (manifest && CLIMBS.test(code)) out.push({ how: "`CARGO_MANIFEST_DIR` beside `.parent()`, `.ancestors()` or `.pop()`" });
+  return out;
+}
+
+/** How this source can reach a file outside its package without `nvs_repo`, or "". A climbing
+ * literal in `data` is not a way out. */
+export function wayOut(text: string, data: ReadonlySet<string> = new Set(), test: "whole" | "items" = "whole"): string {
+  return waysOut(text, test).find((w) => w.climbs === undefined || !data.has(w.climbs))?.how ?? "";
+}
+
+/** The bodies of this source's string literals, with `\\` read as `/`. */
+export function literalPaths(text: string): string[] {
+  return scan(text).literals.map((l) => segments(l).join("/"));
+}
+
+/** The sources rustc compiled the executable at `exe` from, repo-relative, or `null` when its dep-info
+ * is missing or unreadable. The file sits beside the executable under the same stem. A path outside
+ * the repository is a registry crate, which `Cargo.lock` stands for, and is left out. */
+export function depInfo(exe: string): string[] | null {
+  const path = exe.replace(/\.[^./\\]*$/, "") + ".d";
+  let text: string;
+  try {
+    text = readFileSync(path, "utf8");
+  } catch {
+    return null;
+  }
+  const head = text.split("\n\n")[0]!.split("\\\n").join(" ");
+  const colon = head.indexOf(": ");
+  const tail = colon < 0 ? "" : head.slice(colon + 2).trim();
+  const out: string[] = [];
+  for (const raw of tail.split(/(?<!\\) /)) {
+    if (!raw) continue;
+    const full = resolve(ROOT, raw.split("\\ ").join(" "));
+    const rel = relative(ROOT, full);
+    if (rel.startsWith("..") || isAbsolute(rel)) continue;
+    out.push(rel.replace(/\\/g, "/"));
+  }
+  return out.length > 0 ? out : null;
+}
+
+/** `nvs_repo` itself: every path it builds outside its package is one it records first. */
+const RECORDER = "crates/nvs-repo/src/lib.rs";
+
+/** The directory of the package `rel` belongs to: the nearest one above it holding a `Cargo.toml`. */
+function packageOf(rel: string): string {
+  for (let dir = dirname(rel); dir !== "." && dir !== ""; dir = dirname(dir)) {
+    if (existsSync(resolve(ROOT, dir, "Cargo.toml"))) return dir;
+  }
+  return "";
+}
+
+/** The files a `mod name;` in `rel` can be, among `sources`. Both layouts are tried, a crate root's
+ * and a module file's, since which one `rel` is does not show in its path. */
+function modFiles(rel: string, name: string, sources: Set<string>): string[] {
+  const dir = dirname(rel);
+  const stem = basename(rel, ".rs");
+  const tries = [`${dir}/${name}.rs`, `${dir}/${name}/mod.rs`, `${dir}/${stem}/${name}.rs`, `${dir}/${stem}/${name}/mod.rs`];
+  return tries.map((p) => p.replace(/^\.\//, "")).filter((p) => sources.has(p));
+}
+
+/** The sources that are test code whole: under a package's `tests/`, `benches/` or `examples/`,
+ * declared by a test-only `mod name;`, or declared by a file that is test code whole. A test-only
+ * `mod name;` whose file is not among `sources` is returned as `lost`. */
+function testFiles(texts: Map<string, string>): { files: Set<string>; lost: string } {
+  const all = new Set(texts.keys());
+  const files = new Set<string>();
+  for (const rel of all) {
+    const pkg = packageOf(rel);
+    const inside = pkg ? rel.slice(pkg.length + 1) : rel;
+    if (/^(?:tests|benches|examples)\//.test(inside)) files.add(rel);
+  }
+  for (const [rel, text] of texts) {
+    for (const name of testItems(scan(text).code).mods) {
+      const found = modFiles(rel, name, all);
+      if (found.length === 0) return { files, lost: `${rel}: the test-only module \`${name}\` has no file among the binary's sources` };
+      for (const f of found) files.add(f);
+    }
+  }
+  // A module a test-only file declares is test-only too.
+  for (let grew = true; grew; ) {
+    grew = false;
+    for (const rel of [...files]) {
+      for (const m of scan(texts.get(rel) ?? "").code.matchAll(/(?:^|[;{}\x01\]])(?:pub(?:\([^)]*\))?)?mod ([\p{L}\p{N}_]+);/gu)) {
+        for (const f of modFiles(rel, m[1]!, all)) {
+          if (!files.has(f)) {
+            files.add(f);
+            grew = true;
+          }
+        }
+      }
+    }
+  }
+  return { files, lost: "" };
+}
+
+/** The first of these sources with a way out, as `file: how`, or "". One that cannot be read counts.
+ * A climbing literal `data` names for its file is not a way out. Test code and product code are
+ * judged apart (`waysOut`), and `nvs_repo`'s own source is not judged. */
+export function escapes(sources: string[], data: Map<string, Set<string>> = dataLiterals()): string {
+  const texts = new Map<string, string>();
+  for (const rel of sources) {
+    if (!rel.endsWith(".rs") || rel === RECORDER) continue;
+    try {
+      texts.set(rel, readFileSync(resolve(ROOT, rel), "utf8"));
+    } catch {
+      return `${rel}: could not be read`;
+    }
+  }
+  const { files, lost } = testFiles(texts);
+  if (lost) return lost;
+  for (const [rel, text] of texts) {
+    const how = wayOut(text, data.get(rel), files.has(rel) ? "whole" : "items");
+    if (how) return `${rel}: ${how}`;
+  }
+  return "";
+}
+
+/** The binaries the wide list names. */
+export function allowedWide(): Set<string> {
+  const path = resolve(ROOT, WIDE_LIST);
+  if (!existsSync(path)) return new Set();
+  const out = new Set<string>();
+  for (const line of readFileSync(path, "utf8").split(/\r?\n/)) {
+    if (line.trim() && !line.startsWith("#")) out.add(line.split("  --  ")[0]!.trim());
+  }
+  return out;
+}
+
+/** The climbing literals `DATA_LIST` clears, by source file, each written as the source writes it. */
+export function dataLiterals(): Map<string, Set<string>> {
+  const path = resolve(ROOT, DATA_LIST);
+  const out = new Map<string, Set<string>>();
+  if (!existsSync(path)) return out;
+  for (const line of readFileSync(path, "utf8").split(/\r?\n/)) {
+    if (!line.trim() || line.startsWith("#")) continue;
+    const m = /^(\S+)\s+(.+)$/.exec(line.split("  --  ")[0]!.trim());
+    if (!m) continue;
+    let set = out.get(m[1]!);
+    if (!set) out.set(m[1]!, (set = new Set()));
+    set.add(m[2]!);
+  }
+  return out;
+}
+
+/** A line of `DATA_LIST` whose literal no longer climbs out of its file, one finding each. */
+function staleData(data: Map<string, Set<string>>): string[] {
+  const out: string[] = [];
+  for (const [rel, literals] of [...data].sort()) {
+    let text = "";
+    try {
+      text = readFileSync(resolve(ROOT, rel), "utf8");
+    } catch {
+      // A file that is gone climbs nowhere: every line naming it is stale.
+    }
+    const climbs = new Set(waysOut(text).flatMap((w) => (w.climbs === undefined ? [] : [w.climbs])));
+    for (const lit of [...literals].sort()) {
+      if (!climbs.has(lit)) out.push(`${rel}  ${lit} is listed in ${DATA_LIST} and no longer climbs out of its directory there: delete its line.`);
+    }
+  }
+  return out;
+}
+
+export interface Judged {
+  name: string;
+  owner: string;
+  /** Its executable, or "" when the run asking did not build it. */
+  exe: string;
+  /** Its recorded run-time reads, or `undefined` when no run has recorded any. */
+  reads: string[] | undefined;
+  /** Is `owner` a workspace package? */
+  known: boolean;
+}
+
+/** Why a binary is wide, "" when it is narrow, or `null` when it cannot be judged yet: the run asking
+ * did not build it, or it reads through `nvs_repo` and no run has recorded what, which the run asking
+ * is about to do. */
+export function wideWhy(b: Judged): string | null {
+  if (!b.known) return `no workspace package is named ${JSON.stringify(b.owner)}`;
+  if (!b.exe) return null;
+  const sources = depInfo(b.exe);
+  if (sources === null) return "its dep-info could not be read";
+  const how = escapes(sources);
+  if (how) return `leaves its package without \`nvs_repo\` -- ${how}`;
+  if (b.reads?.includes(".")) return "it asked `nvs_repo::root` for the whole tree";
+  if (b.reads === undefined) {
+    for (const rel of sources) {
+      try {
+        if (rel.endsWith(".rs") && /\bnvs_repo::/.test(readFileSync(resolve(ROOT, rel), "utf8"))) return null;
+      } catch {
+        // Unreadable sources were judged by `escapes` above.
+      }
+    }
+  }
+  return "";
+}
+
+/** What the `test` step fails on: a wide binary the list does not name, and a listed one that is narrow
+ * or is no test binary of this build. */
+export function findings(binaries: Judged[]): string[] {
+  const allowed = allowedWide();
+  const out: string[] = [];
+  const wide = new Set<string>();
+  const pending = new Set<string>();
+  for (const b of binaries) {
+    const why = wideWhy(b);
+    if (why === null) {
+      pending.add(b.name);
+      continue;
+    }
+    if (!why) continue;
+    wide.add(b.name);
+    if (!allowed.has(b.name)) {
+      out.push(
+        `\`${b.name}\` ${why}.\n    Reach the file through \`nvs_repo::path\`, or a child process through ` +
+          `\`nvs_repo::spawn\`, so the binary is run when what it reads changes and not on every change. A ` +
+          `climbing literal that is data and opens nothing gets a line in ${DATA_LIST}. If the binary ` +
+          `cannot be narrow, give it a line in ${WIDE_LIST}.`,
+      );
+    }
+  }
+  out.push(...staleData(dataLiterals()));
+  const names = new Set(binaries.map((b) => b.name));
+  for (const name of [...allowed].sort()) {
+    if (wide.has(name) || pending.has(name)) continue;
+    const state = names.has(name) ? "has a narrow key now" : "is not a test binary of this build";
+    out.push(`\`${name}\` is listed in ${WIDE_LIST} and ${state}: delete its line.`);
+  }
+  return out;
+}

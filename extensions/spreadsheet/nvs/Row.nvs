@@ -1,0 +1,13 @@
+<?nvs
+namespace Novis\Spreadsheet;
+
+/// One row that `Reader::rows` read. `number` is the row number in the file, and the first row is 1.
+/// `values` has the values of the row, by header text or by column letter.
+final class Row
+{
+    /// `new Row` makes a row from its values. `Reader::rows` makes one for you.
+    public function constructor(
+        public readonly uint $number,
+        public readonly array<mixed> $values,
+    ) {}
+}

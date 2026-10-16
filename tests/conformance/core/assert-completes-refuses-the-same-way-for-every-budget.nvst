@@ -1,0 +1,43 @@
+--TEST--
+`Core\Test::assertCompletes` asks whether there is a clock before it looks at the budget, so every `within` is refused identically -- `rule:testing/task-tree-and-virtual-clock`
+--FILE--
+<?nvs
+// The ordering, counted rather than read off a line. A member that validated
+// its budget first would answer something *else* for at least one of these: the
+// zero, the negative, and the one long enough to leave an `Instant`'s range are
+// each a different answer in a member that has a clock to spend against, and
+// only the absent clock makes them one answer here.
+//
+// Counting is what makes that a claim about the table rather than about a row:
+// six plausible-looking refusals read the same as six identical ones on any
+// single line. `test-advance-refuses-the-same-way-for-every-duration` asks the
+// same question of the member that moves the same clock, and the two agree.
+
+use Core\Test;
+use Core\Time\Duration;
+
+array<Duration> $budgets = [
+    0s,
+    1ns,
+    Duration::hours(-2),
+    2h,
+    4000d,
+    Duration::days(36500),
+];
+
+int $refused = 0;
+int $other = 0;
+foreach ($budgets as Duration $budget) {
+    try {
+        Core\Test::assertCompletes(fn (): void => {}, {within: $budget});
+    } catch (LogicError $one) {
+        $refused = $refused + 1;
+    } catch (Throwable $two) {
+        $other = $other + 1;
+    }
+}
+echo "refused=", $refused, "/6\n";
+echo "other=", $other, "\n";
+--EXPECT--
+refused=6/6
+other=0

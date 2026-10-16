@@ -1,0 +1,9 @@
+<?nvs
+// hostile: expect-refusal
+//
+// Attack: parentheses nested 98 levels deep, more than the parser allows. The parser
+// must stop with an error at its depth limit, and the language server must not crash.
+
+var $deep = ((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((7))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))));
+
+echo $deep, "\n";

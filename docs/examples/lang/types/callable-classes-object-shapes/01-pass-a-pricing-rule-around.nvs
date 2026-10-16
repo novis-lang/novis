@@ -1,0 +1,21 @@
+<?nvs
+// A discount rule written once and then handed around like any other value.
+// A `callable` is an anonymous function or a method reference. A call through one
+// returns `mixed`, so the code says the type of the result where it is used.
+
+callable $tenPercentOff = fn(int $cents): int => $cents - Core\Math::intDiv($cents, 10);
+
+class Till {
+    public static function apply(callable $rule, array<int> $prices): int {
+        int $total = 0;
+        foreach ($prices as int $price) {
+            int $charged = $rule($price) as int;
+            $total = $total + $charged;
+        }
+        return $total;
+    }
+}
+
+array<int> $basket = [1000, 2500];
+echo Till::apply($tenPercentOff, $basket), "\n";
+echo $tenPercentOff(500) as int, "\n";

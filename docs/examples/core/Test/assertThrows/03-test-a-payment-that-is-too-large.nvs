@@ -1,0 +1,29 @@
+<?nvs
+// Shows a test that a payment larger than the balance throws your own error class.
+
+class PaymentError extends RuntimeError {}
+
+class NotEnoughMoney extends PaymentError {}
+
+class Account {
+    public int $balance = 100;
+
+    public function pay(int $amount): void {
+        if ($amount > $this->balance) {
+            throw new NotEnoughMoney("the balance is " . $this->balance);
+        }
+        $this->balance = $this->balance - $amount;
+    }
+}
+
+Account $account = new Account();
+
+// A payment of 250 is more than the balance, so `pay` throws `NotEnoughMoney`.
+Core\Test::assertThrows(fn (): void => { $account->pay(250); }, NotEnoughMoney::class);
+
+// `NotEnoughMoney` extends `PaymentError`, so a check for the parent class passes too.
+Core\Test::assertThrows(fn (): void => { $account->pay(250); }, PaymentError::class);
+
+// The failed payments did not change the balance.
+Core\Test::assertSame($account->balance, 100);
+echo "balance: ", $account->balance, "\n";

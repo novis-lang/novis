@@ -1,0 +1,33 @@
+--TEST--
+Spec § 4: `Core\Time::fromEpoch` refuses a second past either end of the timestamp range with one sentence of its own that names the range in seconds, and never the calendar library's parameter name, `rule:core-api/shape-rules`
+--FILE--
+<?nvs
+// covers: Core\Time::fromEpoch
+// The first refused second at each end, and the two ends of `int` itself.
+// All four throw the same sentence, so the text is printed once and the
+// sentences are counted for agreement.
+array<int> $past = [253402207201, 0 - 377705023202, 9223372036854775807, 0 - 9223372036854775807];
+array<string> $sentences = [];
+foreach ($past as int $seconds) {
+    try {
+        var $at = Core\Time::fromEpoch($seconds);
+        $sentences[] = "accepted " . $at->toIso();
+    } catch (RuntimeError $outside) {
+        $sentences[] = $outside->message;
+    }
+}
+echo $sentences[0], "\n";
+int $same = 0;
+foreach ($sentences as string $sentence) {
+    if ($sentence == $sentences[0]) {
+        $same = $same + 1;
+    }
+}
+echo $same as string, " of 4 agree\n";
+
+// The last accepted second at each end, beside them, still builds.
+echo Core\Time::fromEpoch(253402207200)->toIso(), "|", Core\Time::fromEpoch(0 - 377705023201)->toIso(), "\n";
+--EXPECT--
+Core\Time::fromEpoch(): `seconds` is outside -377705023201..=253402207200
+4 of 4 agree
+9999-12-30T22:00:00Z|-009999-01-02T01:59:59Z

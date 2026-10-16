@@ -1,0 +1,27 @@
+--TEST--
+A written-out name under `as ?property<T>` is decided where it is written, and a public property's name gives its key — `rule:types/property-key`
+--FILE--
+<?nvs
+class Profile {
+    public string $city = "Vienna";
+    public int $age = 30;
+    private string $secret = "shut";
+}
+
+Profile $p = new Profile();
+
+// The checker already knows `city` is a public property, so this is a key.
+?property<Profile> $key = "city" as ?property<Profile>;
+if ($key == null) {
+    echo "null\n";
+} else {
+    echo $key as string, " ", $p->$key as string, "\n";
+}
+
+// A name in parentheses is tested when the statement runs, and gives a key too.
+?property<Profile> $age = ("age") as ?property<Profile>;
+echo $age == null ? "null" : $age as string, "\n";
+// covers: lang:types/property-keys
+--EXPECT--
+city Vienna
+age

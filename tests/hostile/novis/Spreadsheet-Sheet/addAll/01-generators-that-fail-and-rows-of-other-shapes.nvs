@@ -1,0 +1,46 @@
+<?nvs
+// Attack: a request adds rows from a generator that throws, a generator with very many rows, and rows of different shapes.
+// `addAll` should stop at the error, write the rows one at a time, and throw an error for a row it cannot write.
+use Novis\Spreadsheet\Workbook;
+
+class Attack
+{
+    // This generator gives `$count` rows, and throws after `$failAt` rows when `$failAt` is above 0.
+    public static function rows(int $count, int $failAt): Iterator<array<mixed>>
+    {
+        int $n = 0;
+        while ($n < $count) {
+            if ($failAt > 0 && $n == $failAt) {
+                throw new RuntimeError('the database stopped');
+            }
+            yield ['order' => $n, 'total' => $n * 2.5];
+            $n = $n + 1;
+        }
+    }
+
+    // This method adds `$rows` to a new sheet and prints the number of rows, or the class of the error.
+    public static function attempt(int $step, array<array<mixed>>|Iterator<array<mixed>> $rows): void
+    {
+        try {
+            var $book = Workbook::createInMemory({ format: 'csv' });
+            $book->sheet('Shop')->addAll($rows);
+            echo 'step ', $step, ' wrote ', $book->finish()->rows['Shop'], " rows\n";
+        } catch (Throwable $e) {
+            echo 'step ', $step, ' stopped ', $e::class, "\n";
+        }
+    }
+}
+
+// 1. A generator that throws after 1,000 rows.
+Attack::attempt(1, Attack::rows(5000, 1000));
+
+// 2. A generator of 200,000 rows. The rows are written one at a time.
+Attack::attempt(2, Attack::rows(200000, 0));
+
+// 3. Rows with keys the header row does not have, and rows with and without keys.
+Attack::attempt(3, [['order' => 1], ['customer' => 'Ann'], ['order' => 2, 'secret' => 'x']]);
+Attack::attempt(3, [['order' => 1], [5, 6, 7]]);
+
+// 4. An empty array, and rows that are all empty.
+Attack::attempt(4, []);
+Attack::attempt(4, [[], [], []]);

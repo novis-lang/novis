@@ -1,0 +1,8 @@
+--METHOD--
+GET
+--PATH--
+/orders
+--QUERY--
+where[]=%7B%7D&where[]=%7Btotal&where[]=total%7D&where[]=%7Bcustomer.%7Bname%7D%7D&where[]=%7B%20total%7D&where[]=%7Bpassword%7D&where[]=%7Bcustomer.password%7D&where[]=%7BTotal%7D&where[]=%7Btotal.%7D&where[]=%7Btotal%7D%7D&where[]=%7Bto%00tal%7D
+--HEADERS--
+host: shop.example.com

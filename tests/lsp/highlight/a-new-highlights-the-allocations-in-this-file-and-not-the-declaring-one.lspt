@@ -1,0 +1,19 @@
+--TEST--
+a cursor on a `new` highlights every allocation in the open file and nothing in the file that declares the class, which is the narrowing this request is, `rule:ide/five-features-are-one-reference-index`
+--FILE--
+<?nvs
+require 'lib/user.nvs';
+
+var $u = new Us<|>er();
+var $v = new User();
+--FILE lib/user.nvs--
+<?nvs
+class User
+{
+    public string $name = "";
+}
+--REQUEST--
+documentHighlight
+--EXPECT--
+case.nvs:4:14
+case.nvs:5:14

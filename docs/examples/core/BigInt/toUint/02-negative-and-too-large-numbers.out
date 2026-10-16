@@ -1,0 +1,3 @@
+Core\BigInt::toUint(): -1 is outside the `uint` range
+Core\BigInt::toUint(): 18446744073709551616 is outside the `uint` range
+negative

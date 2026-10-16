@@ -1,0 +1,12 @@
+<?nvs
+// Shows how to split a text into pieces at every match of a pattern.
+
+string $colors = "red, green,blue ,  yellow";
+
+// `\s*,\s*` matches a comma and the spaces around it. The matches are removed.
+// This prints ["red","green","blue","yellow"].
+echo Core\Json::encode(Core\Regex::split($colors, '\s*,\s*')), "\n";
+
+// There is no match here, so the array has one piece: the whole text.
+// This prints ["red, green,blue ,  yellow"].
+echo Core\Json::encode(Core\Regex::split($colors, ';')), "\n";

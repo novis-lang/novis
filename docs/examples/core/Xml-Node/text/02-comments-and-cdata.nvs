@@ -1,0 +1,14 @@
+<?nvs
+// Shows the text of a comment and of a CDATA section.
+
+// A CDATA section is a way to write `<` and `&` without entities.
+string $xml = '<snippet><!-- runs in the browser --><![CDATA[if (a < b && b < c) { ok(); }]]></snippet>';
+
+Core\Xml\Node $document = Core\Xml::parse($xml);
+
+foreach ($document->children() as Core\Xml\Node $snippet) {
+    // This prints the comment's content with its spaces. Then it prints the code exactly as it is written.
+    foreach ($snippet->children() as Core\Xml\Node $child) {
+        echo $child->text(), "\n";
+    }
+}

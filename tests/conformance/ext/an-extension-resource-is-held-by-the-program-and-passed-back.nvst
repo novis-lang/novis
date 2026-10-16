@@ -1,0 +1,32 @@
+--TEST--
+A resource the fixture extension returns is an object of its class, which the program keeps in a typed variable and passes back to the extension — `rule:packaging/a-value-crosses-as-its-wit-type`
+--EXTENSION--
+ledger
+--FILE--
+<?nvs
+use Shop\Ledger;
+use Shop\Route;
+
+// This method takes a `Shop\Route`. You write the type the same way as any other class.
+class Trip {
+    public static function stopOf(Route $route): int {
+        return Ledger::routeStop($route);
+    }
+}
+
+// `openRoute` returns a new `Shop\Route` each time.
+var $north = Ledger::openRoute(3);
+var $south = Ledger::openRoute(5);
+
+// Each route gives back the stop it was opened with.
+echo Trip::stopOf($north), "\n";
+echo Trip::stopOf($south), "\n";
+
+// A route can be used again, and `is` tests its class.
+echo Ledger::routeStop($north), "\n";
+echo $north is Route ? "a route" : "not a route", "\n";
+--EXPECT--
+3
+5
+3
+a route

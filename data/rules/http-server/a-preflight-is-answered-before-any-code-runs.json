@@ -1,0 +1,13 @@
+{
+  "title": "A CORS preflight is answered from `[http.cors]` before the unit is loaded, and a plain `OPTIONS` is passed through",
+  "status": "shipped",
+  "seeAlso": [
+    "http-server/head-runs-as-get",
+    "routing/matched-once-before-the-handler",
+    "security/csrf-is-on-by-default",
+    "http-server/cors-is-closed-until-origins-are-named"
+  ],
+  "guardedBy": [
+    "crates/nvs-server/src/cors.rs"
+  ]
+}

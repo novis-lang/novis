@@ -1,0 +1,11 @@
+{
+  "title": "An asymmetric property writes both halves, so a bare `private(set)` does not compile",
+  "status": "shipped",
+  "seeAlso": [
+    "core-api/written-visibility"
+  ],
+  "guardedBy": [
+    "crates/nvs-syntax/src/casing.rs",
+    "crates/nvs-types/src/signatures.rs"
+  ]
+}

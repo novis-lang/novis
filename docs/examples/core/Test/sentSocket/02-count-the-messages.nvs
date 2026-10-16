@@ -1,0 +1,20 @@
+<?nvs
+// Shows that the list starts empty and grows with each message your program sends.
+
+use Core\Http\Client;
+use Core\Test;
+
+Test::answerSocket("wss://feed.example.com/*", []);
+
+// Nothing was sent yet, so this prints `0`.
+echo Core\Arr::count(Test::sentSocket()), "\n";
+
+// Two sockets send one message each. The list contains the messages of both.
+var $first = Client::openSocket("wss://feed.example.com/news");
+var $second = Client::openSocket("wss://feed.example.com/sport");
+$first->send("follow news");
+$second->send("follow sport");
+
+// This prints `2`, and then `2` again, because reading the list does not clear it.
+echo Core\Arr::count(Test::sentSocket()), "\n";
+echo Core\Arr::count(Test::sentSocket()), "\n";

@@ -1,0 +1,11 @@
+<?nvs
+// Shows how to change a text to lower case.
+
+// This prints `hello, world!`. The comma, the space and the `!` do not change.
+echo Core\Str::lower("Hello, WORLD!"), "\n";
+
+// Letters with accents change too. This prints `ärger über öl`.
+echo Core\Str::lower("ÄRGER ÜBER ÖL"), "\n";
+
+// Digits have no case. This prints `room 42b`.
+echo Core\Str::lower("ROOM 42B"), "\n";

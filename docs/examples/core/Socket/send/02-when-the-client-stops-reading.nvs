@@ -1,0 +1,18 @@
+<?nvs
+// Shows what happens when the client stops reading the messages you send.
+
+// The `.nvsp` file beside this example plays a client that reads two messages and then stops.
+Core\Socket $conn = Core\Socket::current();
+
+// `send()` throws a `RuntimeError` when a message cannot be written in time.
+// This prints two `sent:` lines, then the error, then `stopped after 2 messages`.
+uint $sent = 0;
+try {
+    while ($sent < 5) {
+        $conn->send("update number " . (($sent + 1) as string));
+        $sent = $sent + 1;
+    }
+} catch (RuntimeError $e) {
+    echo "error: ", $e->message, "\n";
+}
+echo "stopped after ", $sent, " messages\n";

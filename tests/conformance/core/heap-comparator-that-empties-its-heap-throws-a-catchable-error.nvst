@@ -1,0 +1,48 @@
+--TEST--
+A `Core\Heap` comparator that pops the heap it is ordering makes the outer `pop` throw a catchable `RuntimeError` once a position it compares is gone, and the heap is still usable afterwards — docs/spec/01-core-library.md § 9
+--FILE--
+<?nvs
+// covers: Core\Heap::pop, Core\Heap::isEmpty
+final class Drain {
+    public static ?Core\Heap<int> $heap = null;
+
+    public static function empties(int $a, int $b): int {
+        var $heap = Drain::$heap;
+        if ($heap != null) {
+            if (!$heap->isEmpty()) {
+                $heap->pop();
+            }
+        }
+        return $a - $b;
+    }
+}
+
+var $h = new Core\Heap<int>(Drain::empties(...));
+int $i = 0;
+while ($i < 8) {
+    $h->push(8 - $i);
+    $i = $i + 1;
+}
+
+// Every comparison takes one more element out, so the sift that follows a
+// pop runs out of positions to compare. The request goes on.
+Drain::$heap = $h;
+try {
+    while (!$h->isEmpty()) {
+        $h->pop();
+    }
+    echo "drained without a throw\n";
+} catch (RuntimeError $e) {
+    echo $e->message, "\n";
+}
+Drain::$heap = null;
+
+// Whatever is left can still be counted, emptied and reused.
+while (!$h->isEmpty()) {
+    $h->pop();
+}
+$h->push(3);
+echo $h->count(), " ", $h->peek(), "\n";
+--EXPECT--
+Core\Heap::pop() lost positions it was ordering: the comparator took elements out of the heap it compares
+1 3

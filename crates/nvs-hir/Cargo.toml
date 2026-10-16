@@ -1,0 +1,29 @@
+[package]
+name = "nvs-hir"
+description = "HIR for Novis: name resolution, namespaces, class graph, symbol table"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[lib]
+# No doc comment in this crate has a runnable example, so `cargo test` does
+# not run rustdoc over it. A crate that gains one deletes this table.
+doctest = false
+
+[dependencies]
+nvs-diagnostics.workspace = true
+nvs-syntax.workspace = true
+rustc-hash.workspace = true
+# The `require` walk and `autoload` record each path they test and each directory
+# they list when `NVS_FOOTPRINT_LOG` names a log.
+nvs-footprint.workspace = true
+
+[dev-dependencies]
+# The scratch directory under `target/` this crate's tests write fixtures into.
+nvs-repo.workspace = true
+
+[lints]
+workspace = true

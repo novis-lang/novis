@@ -1,0 +1,47 @@
+--TEST--
+Core\Arr::append throws the LogicError `$a[] = $v` throws where the largest integer key is already i64::MAX, spec § 2 and `rule:core-api/shape-rules` R3
+--FILE--
+<?nvs
+// The member is the expression form of `$a[] = $v`, so it owes that
+// statement's refusal too: a subject already holding the largest integer key
+// has no next one to derive.
+array<string> $taken = ["9223372036854775807" => "a"];
+
+try {
+    $taken[] = "b";
+    echo "statement: appended", "\n";
+} catch (LogicError $caught) {
+    echo "statement: ", $caught->message, "\n";
+}
+
+try {
+    Core\Arr::append($taken, "b");
+    echo "member: appended", "\n";
+} catch (LogicError $caught) {
+    echo "member: ", $caught->message, "\n";
+}
+
+// One key below the ceiling still has a free key, and it is the one the
+// counter names.
+array<string> $room = ["9223372036854775806" => "a"];
+echo Core\Str::join(Core\Arr::keys(Core\Arr::append($room, "b")), ","), "\n";
+
+// Nothing is added, so nothing is refused: an empty tail over the same
+// subject is the subject, entry for entry.
+echo Core\Str::join(Core\Arr::keys(Core\Arr::append($taken)), ","), "\n";
+
+// A refused call builds a result and throws it away (`rule:core-api/shape-rules` R3), so the
+// subject still holds its one entry.
+echo Core\Arr::count($taken), "\n";
+
+// The counter is one past the largest integer key present, whatever its sign,
+// and a negative key is as free as any other.
+array<string> $below = ["-5" => "a"];
+echo Core\Str::join(Core\Arr::keys(Core\Arr::append($below, "b")), ","), "\n";
+--EXPECT--
+statement: Cannot add element to the array as the next element is already occupied
+member: Cannot add element to the array as the next element is already occupied
+9223372036854775806,9223372036854775807
+9223372036854775807
+1
+-5,-4

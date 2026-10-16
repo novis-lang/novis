@@ -1,0 +1,43 @@
+<?nvs
+// Attack: a request renders broken and very large `data-mark` attributes, and reads them in a footer.
+// Each attempt should return the values or throw an error, and the server keeps running.
+use Novis\Pdf\Document;
+use Novis\Pdf\Page;
+
+// This footer prints how many `amount` values its page has.
+var $footer = fn(Page $page): Core\Html\Markup => {
+    echo 'page ', $page->number, ': ', Core\Arr::count($page->marks('amount')), "\n";
+    return html`<p>Shop</p>`;
+};
+
+// 1. Marks with no colon, no name, no value, and only separators.
+try {
+    var $broken = '<p data-mark="amount">a</p><p data-mark=":1">b</p><p data-mark="amount:">c</p><p data-mark=";;;;">d</p>';
+    echo 'step 1 ran ', Document::fromHtml($broken)->footer($footer)->render()->pageCount, "\n";
+} catch (Throwable $e) {
+    echo "step 1 stopped\n";
+}
+
+// 2. A value with a colon, markup, a NUL character and a right-to-left mark.
+try {
+    var $odd = "<p data-mark=\"amount:1:2;amount:&lt;script&gt;;amount:\u{0};amount:\u{202E}9.99\">a</p>";
+    echo 'step 2 ran ', Document::fromHtml($odd)->footer($footer)->render()->pageCount, "\n";
+} catch (Throwable $e) {
+    echo "step 2 stopped\n";
+}
+
+// 3. One element with fifty thousand marks.
+try {
+    var $many = '<p data-mark="' . Core\Str::repeat('amount:1;', 50000) . '">a</p>';
+    echo 'step 3 ran ', Document::fromHtml($many)->footer($footer)->render()->pageCount, "\n";
+} catch (Throwable $e) {
+    echo "step 3 stopped\n";
+}
+
+// 4. One mark with a value of one million characters.
+try {
+    var $long = '<p data-mark="amount:' . Core\Str::repeat('9', 1000000) . '">a</p>';
+    echo 'step 4 ran ', Document::fromHtml($long)->footer($footer)->render()->pageCount, "\n";
+} catch (Throwable $e) {
+    echo "step 4 stopped\n";
+}

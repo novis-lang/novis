@@ -1,0 +1,11 @@
+<?nvs
+// Shows how to check if a link is absolute, which means it has a scheme such as `https`.
+
+array<string> $links = ["https://example.com/start", "/docs/start", "https://example.com/a b"];
+
+// `?->` gives `null` when `tryParse` returns `null`.
+// This prints "absolute", then "not absolute" twice.
+foreach ($links as string $link) {
+    bool $absolute = Core\Uri::tryParse($link)?->scheme() != null;
+    echo $absolute ? "absolute" : "not absolute", "\n";
+}

@@ -1,0 +1,126 @@
+<?nvs
+// Attack: requests that must be refused try to run a route method anyway. Some of them
+// reach a gate that throws an error. No step should print `the method ran`.
+// hostile: timeout-ms 60000
+
+use Core\Http\Method;
+use Core\Router\Refusal;
+
+class Accounts
+{
+    #[Core\Route(path: "/accounts/{id}", method: Core\Http\Method::Get, name: "Accounts::show")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function show(uint $id): void
+    {
+        echo 'the method ran';
+    }
+
+    #[Core\Route(path: "/accounts/{id}", method: Core\Http\Method::Post, name: "Accounts::update")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function update(uint $id): void
+    {
+        echo 'the method ran';
+    }
+
+    #[Core\Route(path: "/admin", method: Core\Http\Method::Get, name: "Accounts::admin")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function admin(): void
+    {
+        echo 'the method ran';
+    }
+}
+
+// This gate refuses the admin page, and writes the reason as the page.
+class Gate implements Core\Router\Gate
+{
+    public function allows(Core\Router\Match $route): bool
+    {
+        return $route->name() != 'Accounts::admin';
+    }
+
+    public function refused(Refusal $reason, ?Core\Router\Match $route): void
+    {
+        echo 'refused';
+    }
+
+    public function failed(?Core\Router\Match $route, ?Throwable $error): void
+    {
+        echo 'failed';
+    }
+}
+
+// This gate throws an error in each of its methods.
+class ThrowingGate implements Core\Router\Gate
+{
+    public function allows(Core\Router\Match $route): bool
+    {
+        throw new RuntimeError('allows failed');
+    }
+
+    public function refused(Refusal $reason, ?Core\Router\Match $route): void
+    {
+        throw new RuntimeError('refused failed');
+    }
+
+    public function failed(?Core\Router\Match $route, ?Throwable $error): void
+    {
+        throw new RuntimeError('failed failed');
+    }
+}
+
+if (Core\Env::context() == Core\Env::Context::Request) {
+    if (Core\Request::header('x-gate') == 'throwing') {
+        Core\Router::dispatch(new ThrowingGate());
+    } else {
+        Core\Router::dispatch(new Gate());
+    }
+} else {
+    // A form from another website has that website in its `Origin` header.
+    array<string> $forged = ['Origin' => 'https://attacker.example.com'];
+    array<string> $throwing = ['X-Gate' => 'throwing'];
+    array<string> $forgedThrowing = ['Origin' => 'https://attacker.example.com', 'X-Gate' => 'throwing'];
+
+    // 1. A path that no route has. The status should be 404.
+    var $missing = Core\Test::request(Method::Get, '/accounts');
+    echo '1: ', $missing->status(), ' ', $missing->body(), "\n";
+
+    // 2. A method that the path does not accept. The status should be 405.
+    var $verb = Core\Test::request(Method::Delete, '/accounts/7');
+    echo '2: ', $verb->status(), ' ', $verb->body(), "\n";
+
+    // 3. A `POST` from a form on another website. The status should be 403.
+    var $csrf = Core\Test::request(Method::Post, '/accounts/7', { headers: $forged, body: 'name=x' });
+    echo '3: ', $csrf->status(), ' ', $csrf->body(), "\n";
+
+    // 4. The route that the gate refuses. The status should be 403.
+    var $denied = Core\Test::request(Method::Get, '/admin');
+    echo '4: ', $denied->status(), ' ', $denied->body(), "\n";
+
+    // 5. A number that is too large for `uint`, and a very long one.
+    var $big = Core\Test::request(Method::Get, '/accounts/99999999999999999999999');
+    echo '5: ', $big->status(), ' ', $big->body(), "\n";
+    var $long = Core\Test::request(Method::Get, '/accounts/' . Core\Str::repeat('9', 100000));
+    echo '5: ', $long->status(), ' ', $long->body(), "\n";
+
+    // 6. A gate whose `allows` throws. The method should not run.
+    var $allows = Core\Test::request(Method::Get, '/accounts/7', { headers: $throwing });
+    echo '6: ', $allows->status(), ' ', $allows->body(), "\n";
+
+    // 7. A gate whose `refused` throws, for a missing path and for a form from another website.
+    var $refused = Core\Test::request(Method::Get, '/nothing', { headers: $throwing });
+    echo '7: ', $refused->status(), ' ', $refused->body(), "\n";
+    var $csrfThrows = Core\Test::request(Method::Post, '/accounts/7', { headers: $forgedThrowing });
+    echo '7: ', $csrfThrows->status(), ' ', $csrfThrows->body(), "\n";
+
+    // 8. Many refused requests, to test that no memory is lost.
+    uint $ran = 0;
+    uint $i = 0;
+    while ($i < 2000) {
+        var $again = Core\Test::request(Method::Post, '/accounts/7', { headers: $forgedThrowing });
+        if ($again->body() == 'the method ran') {
+            $ran = $ran + 1;
+        }
+        $i = $i + 1;
+    }
+    echo '8: ', $ran, " methods ran\n";
+}

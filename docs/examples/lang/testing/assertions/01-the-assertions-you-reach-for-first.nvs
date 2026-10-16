@@ -1,0 +1,43 @@
+<?nvs
+// Shows the four assertions you reach for first. Each one takes the value your
+// code produced, and then the value you expect. `nvs test` on this file runs
+// the marked methods.
+
+use Core\Test;
+
+class Order {
+    public array<string> $lines = [];
+    public ?string $couponCode = null;
+
+    public function add(string $line): void {
+        $this->lines[] = $line;
+    }
+
+    public function isEmpty(): bool {
+        return Core\Arr::count($this->lines) == 0;
+    }
+}
+
+class OrderTest {
+    #[Test]
+    public function aNewOrderIsEmpty(): void {
+        var $order = new Order();
+        Test::assertTrue($order->isEmpty());
+        Test::assertCount($order->lines, 0);
+        Test::assertNull($order->couponCode);
+    }
+
+    #[Test]
+    public function addingALineKeepsItsText(): void {
+        var $order = new Order();
+        $order->add("2 x Coffee");
+        Test::assertCount($order->lines, 1);
+        Test::assertSame($order->lines[0], "2 x Coffee");
+    }
+}
+
+var $order = new Order();
+$order->add("2 x Coffee");
+
+// This prints `2 x Coffee`.
+echo $order->lines[0], "\n";

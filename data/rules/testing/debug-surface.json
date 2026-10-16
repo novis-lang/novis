@@ -1,0 +1,11 @@
+{
+  "title": "Each probe starts and stops mid-request, and exports what existing tooling already reads",
+  "status": "designed",
+  "seeAlso": [
+    "testing/debug-probes",
+    "testing/debug-mode-directive",
+    "testing/report-formats"
+  ],
+  "guardedBy": [],
+  "goal": "trace-timeline"
+}

@@ -1,0 +1,31 @@
+<?nvs
+// Lists the attached files of an opened PDF invoice, as a shop does to find the XML of each received invoice.
+// bench: iterations 4096
+// bench: complexity constant
+use Novis\Pdf\Document;
+use Novis\Pdf\Reader;
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        string $xml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
+            . "<rsm:CrossIndustryInvoice xmlns:rsm=\"urn:un:unece:uncefact:data:standard:CrossIndustryInvoice:100\">"
+            . "</rsm:CrossIndustryInvoice>";
+        bytes $invoice = Document::fromHtml("<html lang=\"en\"><head><title>Invoice</title></head><body><p>Invoice</p></body></html>")
+            ->standard(Document::Standard::PdfA3b)
+            ->created(Core\Time::fromIso("2026-01-01T00:00:00Z"))
+            ->invoiceXml($xml)
+            ->render()->bytes;
+        array<Reader> $readers = [Reader::open($invoice), Reader::open(Document::fromHtml("<p>Letter</p>")->render()->bytes)];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            uint $files = Core\Arr::count($readers[($total % 2) as int]->attachments());
+            uint $step = $files == 1 ? 1 : 3;
+            $total = $total + $step;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(4096), "\n";

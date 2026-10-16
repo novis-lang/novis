@@ -1,0 +1,3 @@
+moving money between accounts -> Serializable
+the month-end report -> RepeatableRead
+counting today's orders -> ReadCommitted

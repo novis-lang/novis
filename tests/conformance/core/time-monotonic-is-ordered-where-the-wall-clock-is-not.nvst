@@ -1,0 +1,59 @@
+--TEST--
+Spec § 4: a sweep of `Core\Time::monotonic` readings never steps backwards, and what separates two of them is a `Duration`
+--FILE--
+<?nvs
+// `Core\Time::monotonic(): Duration` has no reading a case could pin — the
+// value means nothing except against another reading of the same clock. So
+// every row here is a property of the *sweep*, counted rather than printed: a
+// clock that stepped backwards once in twelve reads fails the tally while
+// every individual line still looks like a plausible number.
+var $origin = Core\Time::monotonic();
+var $prev = $origin;
+int $reads = 1;
+int $ordered = 0;   // no reading is behind the one before it
+int $forward = 0;   // so no difference between two of them is negative
+int $closes = 0;    // and the difference is exactly what closes the gap
+int $duration = 0;  // which makes it a `Duration`, in `Duration`'s own algebra
+int $i = 0;
+while ($i < 11) {
+    var $cur = Core\Time::monotonic();
+    $reads = $reads + 1;
+    if ($cur->compareTo($prev) >= 0) {
+        $ordered = $ordered + 1;
+    }
+    var $step = $cur->minus($prev);
+    if ($step->toNanoseconds() >= 0) {
+        $forward = $forward + 1;
+    }
+    if ($prev->plus($step)->compareTo($cur) == 0) {
+        $closes = $closes + 1;
+    }
+    if ($step->plus($step->negated())->toNanoseconds() == 0) {
+        $duration = $duration + 1;
+    }
+    $prev = $cur;
+    $i = $i + 1;
+}
+echo $reads as string, "|", $ordered as string, "|", $forward as string, "|", $closes as string, "|", $duration as string, "|\n";
+
+// The ordering holds over the whole sweep and not just pair by pair, which is
+// the promise `Core\Time::now` cannot make: a wall clock may be stepped by the
+// operating system between any two of these reads.
+echo $prev->compareTo($origin) >= 0 ? "yes" : "no", "|\n";
+
+// A wait the clock has to have noticed. `Core\Time::sleep` is asked for a
+// `Duration` and the elapsed reading is one, so the two are the same kind of
+// value and the comparison needs no unit written anywhere but the literal.
+var $before = Core\Time::monotonic();
+Core\Time::sleep(20ms);
+int $slept = Core\Time::monotonic()->minus($before)->toMilliseconds();
+echo $slept >= 20 ? "yes" : "no", "|", $slept < 5000 ? "yes" : "no", "|\n";
+
+// And it is not a clock reading: the count since whatever origin this process
+// fixed at its first call is nowhere near the count since 1970.
+echo Core\Time::monotonic()->toSeconds() < Core\Time::now()->toEpochSeconds() ? "yes" : "no", "|\n";
+--EXPECT--
+12|11|11|11|11|
+yes|
+yes|yes|
+yes|

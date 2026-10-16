@@ -1,0 +1,68 @@
+{
+  "tables": [
+    {
+      "name": "notes",
+      "columns": [
+        {
+          "name": "id",
+          "type": "int64",
+          "null": false,
+          "identity": true
+        },
+        {
+          "name": "title",
+          "type": "text(200)",
+          "null": false,
+          "identity": false
+        },
+        {
+          "name": "body",
+          "type": "text",
+          "null": true,
+          "identity": false
+        },
+        {
+          "name": "created_at",
+          "type": "instant",
+          "null": false,
+          "identity": false,
+          "default": {
+            "now": true
+          }
+        }
+      ],
+      "primary_key": [
+        "id"
+      ],
+      "unique": [
+        {
+          "name": "notes_title",
+          "columns": [
+            "title"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "tags",
+      "columns": [
+        {
+          "name": "note_id",
+          "type": "int64",
+          "null": false,
+          "identity": false
+        },
+        {
+          "name": "tag",
+          "type": "text(40)",
+          "null": false,
+          "identity": false
+        }
+      ],
+      "primary_key": [
+        "note_id",
+        "tag"
+      ]
+    }
+  ]
+}

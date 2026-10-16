@@ -1,0 +1,9 @@
+<?nvs
+// Shows how to find the entries that match none of several filters.
+
+var $filter = Core\Ldap\Filter::not(Core\Ldap\Filter::any(
+    Core\Ldap\Filter::equals('l', 'Vienna'),
+    Core\Ldap\Filter::equals('l', 'Graz'),
+));
+// This prints (!(|(l=Vienna)(l=Graz))).
+echo $filter->toString(), "\n";

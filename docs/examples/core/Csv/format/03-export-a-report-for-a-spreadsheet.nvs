@@ -1,0 +1,16 @@
+<?nvs
+// Shows how to export a report that somebody opens in a spreadsheet. The
+// `header` option writes the column names as the first record. The `separator`
+// option sets the character between the fields, because spreadsheet programs in
+// some countries expect a semicolon.
+
+array<string> $columns = ["order", "customer", "total"];
+array<array<string>> $orders = [
+    ["1042", "Ada Lovelace", "38.90"],
+    ["1043", "Grace Hopper", "12.00"],
+];
+
+string $report = Core\Csv::format($orders, {header: $columns, separator: ";"});
+
+// The first line is the column names, then one line per order.
+echo $report;

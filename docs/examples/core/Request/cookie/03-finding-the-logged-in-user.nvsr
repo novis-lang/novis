@@ -1,0 +1,9 @@
+--METHOD--
+GET
+--PATH--
+/account
+--SCHEME--
+https
+--HEADERS--
+host: example.com
+cookie: __Host-session=k9f2c1d7; theme=dark

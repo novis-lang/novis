@@ -1,0 +1,38 @@
+<?nvs
+// Attack: the function given to `Core\Arr::any` is written to break its walk.
+// Every step should finish or throw an error, and the runtime must not crash.
+// hostile: timeout-ms 60000
+
+// 1. A list of 400000 entries, where no entry matches the test.
+array<int> $long = [];
+int $i = 0;
+while ($i < 400000) {
+    $long[] = $i;
+    $i = $i + 1;
+}
+echo 'step 1: ', Core\Arr::any($long, fn(int $n) => $n < 0) as string, '|', "\n";
+
+// 2. The only matching entry is the last one of those 400000.
+echo 'step 2: ', Core\Arr::any($long, fn(int $n) => $n == 399999) as string, '|', "\n";
+
+// 3. The test reads the key of every one of those entries.
+echo 'step 3: ', Core\Arr::any($long, fn(int $n, string $key) => Core\Str::length($key) > 99) as string, '|', "\n";
+
+// 4. The test throws an error in the middle of the walk.
+try {
+    Core\Arr::any($long, fn(int $n): bool => {
+        if ($n == 200000) {
+            throw new RuntimeError('from the test');
+        }
+        return false;
+    });
+    echo 'step 4: the walk finished', "\n";
+} catch (Throwable $caught) {
+    echo 'step 4 stopped: ', $caught->message, "\n";
+}
+
+// 5. Each call runs `Core\Arr::any` again and builds a string of a million characters.
+array<int> $small = [1, 2, 3];
+echo 'step 5: ', Core\Arr::any($small, fn(int $n) => Core\Arr::any($small, fn(int $m) => Core\Str::length(Core\Str::repeat('a', 1000000)) < 0)) as string, '|', "\n";
+
+echo 'the runtime is still standing', "\n";

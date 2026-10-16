@@ -1,0 +1,30 @@
+<?nvs
+// Shows `parent`. A subclass runs the constructor and the methods of the class
+// it extends, and adds its own work around them.
+
+class Notification {
+    public function constructor(public string $subject) {}
+
+    public function format(): string {
+        return "[note] " . $this->subject;
+    }
+}
+
+class UrgentNotification extends Notification {
+    public function constructor(string $subject, public string $team) {
+        // The parent's constructor assigns the properties the parent declares.
+        parent::constructor($subject);
+    }
+
+    public function format(): string {
+        // `parent::format()` is the version above this one, not this one, so
+        // this method does not call itself.
+        return parent::format() . " for " . $this->team;
+    }
+}
+
+var $normal = new Notification("Backup finished");
+var $urgent = new UrgentNotification("Disk is full", "operations");
+
+echo $normal->format(), "\n";
+echo $urgent->format(), "\n";

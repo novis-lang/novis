@@ -1,0 +1,13 @@
+{
+  "title": "No variable is ever populated by the host; every superglobal is a `Core` class member",
+  "status": "shipped",
+  "seeAlso": [
+    "statements/globals-and-request-are-dropped-outright",
+    "statements/storage-that-outlives-a-call",
+    "errors/cookie-name-bytes"
+  ],
+  "guardedBy": [
+    "tests/conformance/reject/a-superglobal-is-refused-and-names-its-core-class.nvst",
+    "tests/conformance/core/env-get-answers-a-set-variable-and-null-for-everything-else.nvst"
+  ]
+}

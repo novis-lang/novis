@@ -1,0 +1,76 @@
+<?nvs
+// Attack: `==` walks an array's elements, and an element can be another
+// array, so comparing two nested arrays is a walk as deep as the nesting.
+// These are nested and sized far past anything a person writes. The program
+// should finish or stop at its memory limit, and must not crash or hang.
+// hostile: timeout-ms 20000
+
+class Attack
+{
+    // 1. Two arrays nested a hundred thousand levels deep, equal all the way
+    // down, so the walk cannot stop early at any level.
+    public static function deep(uint $levels): bool
+    {
+        mixed $left = 0;
+        mixed $right = 0;
+        uint $i = 0;
+        while ($i < $levels) {
+            array<mixed> $wrapLeft = [$left];
+            array<mixed> $wrapRight = [$right];
+            $left = $wrapLeft;
+            $right = $wrapRight;
+            $i = $i + 1;
+        }
+        return $left == $right;
+    }
+
+    // 2. Two long arrays that differ only in their very last element, so the
+    // walk runs the whole length before it can answer.
+    public static function long(uint $size): bool
+    {
+        array<int> $left = [];
+        array<int> $right = [];
+        uint $i = 0;
+        while ($i < $size) {
+            $left[] = $i as int;
+            $right[] = $i as int;
+            $i = $i + 1;
+        }
+        $right[$size - 1] = -1;
+        return $left == $right;
+    }
+
+    // 3. Two pieces of text a few million characters long that differ in the
+    // last character only.
+    public static function text(uint $rounds): bool
+    {
+        string $left = '';
+        uint $i = 0;
+        while ($i < $rounds) {
+            $left = $left . 'novis-novis-novis-novis-novis-novis-novis-';
+            $i = $i + 1;
+        }
+        string $right = $left . 'x';
+        return $left == ($right . 'y');
+    }
+
+    // 4. A long array of objects, held twice under keys inserted in the
+    // opposite order. The keys differ before any element does.
+    public static function objects(uint $size): bool
+    {
+        array<mixed> $left = [];
+        array<mixed> $right = [];
+        uint $i = 0;
+        while ($i < $size) {
+            $left[$i as string] = new Attack();
+            $right[($size - $i - 1) as string] = new Attack();
+            $i = $i + 1;
+        }
+        return $left == $right;
+    }
+}
+
+echo Attack::deep(100000) as string, "\n";
+echo Attack::long(2000000) as string, "\n";
+echo Attack::text(100000) as string, "\n";
+echo Attack::objects(200000) as string, "\n";

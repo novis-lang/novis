@@ -1,0 +1,36 @@
+---
+/**
+ * A member's changelog: one row per release that changed it, from
+ * src/data/core-changelog.json. The page renders this only when there is a
+ * row, so it never shows an empty table.
+ */
+import { changesFor } from '~/lib/feature'
+
+interface Props {
+  id: string
+}
+
+const list = changesFor(Astro.props.id)
+---
+
+<section class="method-changelog">
+  <h2 id="changelog">Changelog</h2>
+  <table>
+    <thead>
+      <tr>
+        <th scope="col">Version</th>
+        <th scope="col">Change</th>
+      </tr>
+    </thead>
+    <tbody>
+      {list.map((e) => (
+        <tr>
+          <td>
+            <code>{e.version}</code>
+          </td>
+          <td>{e.change}</td>
+        </tr>
+      ))}
+    </tbody>
+  </table>
+</section>

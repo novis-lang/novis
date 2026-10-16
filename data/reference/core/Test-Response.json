@@ -1,0 +1,14 @@
+{
+  "summary": "what `Core\\Test::request` answers — the status and the bytes one in-process request produced",
+  "keywords": [
+    "Core\\Test::request",
+    "in-process request",
+    "HTTP test",
+    "functional test",
+    "route table",
+    "status",
+    "body",
+    "response",
+    "no socket"
+  ]
+}

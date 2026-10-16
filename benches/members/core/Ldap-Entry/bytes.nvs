@@ -1,0 +1,31 @@
+<?nvs
+// Measures how fast `bytes` reads one binary value, as a program does to store an entry's `objectGUID`.
+// bench: iterations 400000
+// bench: calls 0
+// bench: complexity constant
+// requires: samba-ad
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        var $corp = Core\Ldap::connect("corp");
+        var $found = $corp->read("CN=Anna Berg,OU=Company,DC=example,DC=test", {select: ["objectGUID", "objectSid"]});
+        if ($found == null) {
+            return 0;
+        }
+        Core\Ldap\Entry $person = $found;
+        // The count so far chooses the attribute, so the loop cannot be left out.
+        array<string> $names = ["objectGUID", "objectSid"];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            ?tainted bytes $value = $person->bytes($names[($total % 2) as int]);
+            if ($value != null) {
+                $total = $total + Core\Bytes::length($value);
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";

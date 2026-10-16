@@ -1,0 +1,46 @@
+--TEST--
+`Core\Request::jsonAs<array<T>>()` reads a JSON array as one `T` per element, and the `maxDepth` that refuses it is the call's bound rather than the request's `rule:core-classes/derive-field-list`, `rule:http-server/buffering-readers-share-the-body-and-streaming-readers-consume-it`
+--POST_RAW--
+[{"name":"ada","tags":2},{"name":"bo","tags":5}]
+--FILE--
+<?nvs
+#[Core\Json\Derive]
+class Author {
+    public tainted string $name;
+    public int $tags;
+
+    public function constructor(tainted string $name, int $tags) {
+        $this->name = $name;
+        $this->tags = $tags;
+    }
+}
+
+// `array<T>` is the list form: the same decode run once per element, in the
+// document's own order.
+var $authors = Core\Request::jsonAs<array<Author>>();
+echo "count=", Core\Arr::count($authors), "\n";
+foreach ($authors as Author $author) {
+    echo "  ", $author->name, "=", $author->tags, "\n";
+}
+
+// The bag is `Core\Json::decode`'s own, counted its way: a scalar document is
+// depth 1, so an array of objects sits at 3 and a cap of 2 refuses this body.
+// It is the peer's document failing to be what it must be, so the class is
+// `ParseError` -- the same one a malformed body raises.
+try {
+    Core\Request::jsonAs<array<Author>>({maxDepth: 2});
+    echo "not reached\n";
+} catch (ParseError $deep) {
+    echo "too deep\n";
+}
+
+// And the cap is the call's, not the request's: the octets are the ones the
+// peer sent either way, so the same body at the default depth answers as it
+// did before.
+echo "count=", Core\Arr::count(Core\Request::jsonAs<array<Author>>()), "\n";
+--EXPECT--
+count=2
+  ada=2
+  bo=5
+too deep
+count=2

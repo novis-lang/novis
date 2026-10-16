@@ -1,0 +1,14 @@
+<?nvs
+// Shows how to build the link to the next page of a list, and keep the filters the visitor chose.
+
+// In a web request, this text comes from the address of the current page.
+string $current = "category=shoes&sort=price&page=2";
+
+array<mixed> $parameters = Core\Uri::parseQuery($current);
+int $page = ($parameters["page"] as bytes as string) as int;
+
+// Only `page` changes. The other names and values stay as they were.
+$parameters["page"] = $page + 1;
+
+// This prints /products?category=shoes&sort=price&page=3.
+echo "/products?", Core\Uri::buildQuery($parameters), "\n";

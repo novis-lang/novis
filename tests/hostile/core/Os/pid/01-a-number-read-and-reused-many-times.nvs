@@ -1,0 +1,44 @@
+<?nvs
+// Attack: the process number is read many times and used in arithmetic that goes
+// past the ends of `uint`. Every step should give a correct number or throw an
+// error, and the program should run to its last line.
+
+uint $pid = Core\Os::pid();
+
+// 1. The number is read 20000 times. Every reading must be the same. This prints 1.
+uint $same = 0;
+uint $i = 0;
+while ($i < 20000) {
+    if (Core\Os::pid() == $pid) {
+        $same = $same + 1;
+    }
+    $i = $i + 1;
+}
+echo $same == 20000 ? 1 : 0, "\n";
+
+// 2. A larger number is taken away from it. The result would be below 0, so
+//    this throws an `ArithmeticError`.
+try {
+    echo $pid - ($pid + 1), "\n";
+} catch (ArithmeticError $e) {
+    echo "caught\n";
+}
+
+// 3. The number is multiplied past the largest `uint`. This throws an
+//    `ArithmeticError`.
+uint $largest = 18446744073709551615;
+try {
+    echo $pid * $largest, "\n";
+} catch (ArithmeticError $e) {
+    echo "caught\n";
+}
+
+// 4. The number is used as a key in a map, 20000 times. The map must still
+//    have one entry. This prints 1.
+array<uint> $seen = [];
+$i = 0;
+while ($i < 20000) {
+    $seen['' . Core\Os::pid()] = $i;
+    $i = $i + 1;
+}
+echo Core\Arr::count($seen) == 1 ? 1 : 0, "\n";

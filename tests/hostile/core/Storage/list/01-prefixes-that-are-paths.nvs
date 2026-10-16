@@ -1,0 +1,45 @@
+<?nvs
+// Attack: a program tries to list the folders around the disk, with prefixes that are paths.
+// Every such prefix should throw an error. A disk with many files should be listed without a crash.
+// hostile: timeout-ms 60000
+
+final class Attack
+{
+    public static function tryPrefix(string $prefix): uint
+    {
+        try {
+            Core\Storage::list('files', { prefix: $prefix });
+            return 0;
+        } catch (RuntimeError $e) {
+            return 1;
+        }
+    }
+}
+
+// 1. Prefixes that climb out of the folder, point into another folder, or are too long.
+array<string> $prefixes = ['../', '..', '/', "\\", 'sub/', '.', Core\Str::repeat('a', 256)];
+uint $refused = 0;
+foreach ($prefixes as string $prefix) {
+    $refused = $refused + Attack::tryPrefix($prefix);
+}
+echo $refused, ' of ', Core\Arr::count($prefixes), " prefixes throw an error\n";
+
+// 2. The longest prefix that is allowed. No key starts with it, so the result is empty.
+echo Core\Arr::count(Core\Storage::list('files', { prefix: Core\Str::repeat('a', 255) })), " keys\n";
+
+// 3. One thousand files are listed twenty times, and then deleted.
+uint $i = 0;
+while ($i < 1000) {
+    Core\Storage::put('files', "load-{$i}.bin", 'x' as bytes);
+    $i = $i + 1;
+}
+uint $seen = 0;
+$i = 0;
+while ($i < 20) {
+    $seen = $seen + Core\Arr::count(Core\Storage::list('files'));
+    $i = $i + 1;
+}
+echo $seen, " keys seen\n";
+foreach (Core\Storage::list('files') as string $key) {
+    Core\Storage::delete('files', $key);
+}

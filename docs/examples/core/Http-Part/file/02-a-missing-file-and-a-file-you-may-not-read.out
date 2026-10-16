@@ -1,0 +1,2 @@
+invoice-9999.txt: the file does not exist
+Core\Http\Part::file needs the capability `fs.read`

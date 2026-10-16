@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-codegen/src/lib.rs",
+  "title": "The executable pages of a JIT-compiled unit are never freed, so `nvs serve` leaks them on every recompile.",
+  "text": "A `Unit` compiled in this process holds its `JITModule` (`Code::Jit`, `crates/nvs-codegen/src/lib.rs:376-381`), and dropping a `JITModule` does not unmap its code: `cranelift_jit::JITModule::free_memory` is `unsafe` and nothing calls it. Under `nvs serve` an edited file is recompiled and the old unit is dropped from the cache (`crates/nvs-cli/src/script.rs:1263`), so every recompile leaks the old unit's pages, and memory grows with edits rather than with what is in flight. The `Code` doc says both arms free exactly the pages they made (`crates/nvs-codegen/src/lib.rs:362-369`), which is true of the loaded arm only. `rule:config/an-edit-reaches-the-next-request-without-a-restart` owns the reclamation: closing it means freeing a unit's pages once no compiled frame of it is live, behind the proof that pointer-swap reclamation gives, and a test that a recompile loop holds steady.",
+  "goal": "completeness-holes"
+}

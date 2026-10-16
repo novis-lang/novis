@@ -1,0 +1,24 @@
+<?nvs
+// Measures a join with `.` and two appends with `.=`, at growing lengths of one piece.
+// It shows how the cost of building a line grows when its text grows.
+// bench: start 256
+// bench: max 4096
+
+class Bench {
+    public static function run(uint $size): uint {
+        string $customer = Core\Str::repeat('a', $size);
+        uint $width = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            uint $order = $i + $width % 7;
+            string $line = "order " . $order . " for " . $customer;
+            $line .= ": ";
+            $line .= $order * 2;
+            $width = $width + Core\Str::length($line);
+            $i = $i + 1;
+        }
+        return $width;
+    }
+}
+
+echo Bench::run(256), "\n";

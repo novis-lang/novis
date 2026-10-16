@@ -1,0 +1,25 @@
+<?nvs
+// A number can be written in more than one way. Underscores between digits make
+// a long number easier to read, and the value stays the same. You can also write
+// a number in base sixteen (`0x`), base two (`0b`) or base eight (`0o`).
+
+int $seats = 1_000_000;
+int $mask = 0xFF;
+int $flags = 0b1011;
+int $mode = 0o644;
+
+echo $seats, " ", $mask, " ", $flags, " ", $mode, "\n";
+
+// A zero at the front is only a zero, so `017` is seventeen.
+// PHP and C read `017` as base eight, which is fifteen.
+int $seventeen = 017;
+
+echo $seventeen, "\n";
+
+// A number with a dot or an exponent in it is a float. The digits before the
+// dot or after it may be left out.
+float $half = .5;
+float $five = 5.;
+float $thousand = 1e3;
+
+echo $half, " ", $five, " ", $thousand, "\n";

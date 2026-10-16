@@ -1,0 +1,32 @@
+<?nvs
+// Attack: a program sets statuses at the far ends of the number range, a number from the
+// visitor, and a status one million times. Each number outside 100 to 599 should throw an error.
+
+// 1. Numbers just outside the range, and numbers far outside it. 65636 is 100 more than
+// the largest 16-bit number, so a program that cuts the number to 16 bits would read 100.
+array<uint> $bad = [0, 99, 600, 999, 65536, 65636, 4294967396, 18446744073709551615];
+foreach ($bad as uint $code) {
+    try {
+        Core\Response::setStatus($code);
+        throw new RuntimeError('a number outside 100 to 599 was set as the status');
+    } catch (LogicError $notAStatus) {
+    }
+}
+
+// 2. The visitor sends a number as a text. It is converted, and a number that does not
+// fit in a `uint` gives `null`.
+?uint $asked = Core\Request::query('code') as ?uint;
+if ($asked != null) {
+    try {
+        Core\Response::setStatus($asked);
+    } catch (LogicError $fromVisitor) {
+    }
+}
+
+// 3. The status is set one million times. The last call sets it, and nothing grows.
+uint $n = 0;
+while ($n < 1000000) {
+    Core\Response::setStatus(100 + $n % 500);
+    $n = $n + 1;
+}
+Core\Response::text("done\n");

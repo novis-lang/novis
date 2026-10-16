@@ -1,0 +1,26 @@
+--TEST--
+`Core\Request\Part::saveTo`'s path is a sink and `filename()` is the client's claim, so the one line every upload traversal has been written on does not compile — `rule:http-server/a-part-is-a-file-iff-it-carries-a-filename` and `rule:core-classes/io-write-stream`, `rule:security/tainted-qualifier`
+--FILE--
+<?nvs
+// `rule:core-classes/io-write-stream` makes `saveTo` a delegation to `Core\IO::writeStream`, and this
+// is the whole of what that buys: `writeStream`'s path is already an `rule:security/tainted-qualifier`
+// path sink, with no exemption for a name that arrived by way of an upload, so
+// a destination the part chose for itself is refused at the call rather than
+// checked somewhere inside it.
+//
+// What is refused here is `move_uploaded_file($tmp, $dir . $_FILES['x']['name'])`
+// -- one line, reading as obviously correct, and the traversal. `filename()` is
+// `tainted string` because a peer wrote it, the parameter is `string`, and
+// `Core\IO::within` is the only way across.
+foreach (Core\Request::files() as Core\Request\Part $part) {
+    $part->saveTo($part->filename());
+}
+// covers: Core\Request\Part::saveTo
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `string`, found `tainted string`
+   --> case.nvs:13:19
+%A
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

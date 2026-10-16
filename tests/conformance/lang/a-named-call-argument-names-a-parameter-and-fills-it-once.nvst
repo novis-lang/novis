@@ -1,0 +1,36 @@
+--TEST--
+a `name:` call argument is matched against the callee's parameter names, fills exactly one parameter, ends the positional part of the list, and reaches a `Core` member by the spec's own name (`rule:core-api/shape-rules` R2, `rule:classes/no-free-functions-or-constants`)
+--FILE--
+<?nvs
+final class Label {
+    public static function render(int $count, string $text): string {
+        return $text;
+    }
+}
+// The name has to reach a parameter the callee declares.
+echo Label::render(count: 1, caption: "x"), "\n";
+// One parameter, one argument: filled positionally and then again by name.
+echo Label::render(1, count: 2, text: "x"), "\n";
+// Which parameter a positional argument fills is its own place in the list,
+// so there is no position left once a `name:` has been written.
+echo Label::render(count: 1, "x"), "\n";
+// `rule:core-api/shape-rules` R2: a `Core` member's parameters are callable by the spec's
+// `$name`, so a misspelled one is the same unknown-name refusal as above.
+echo Core\Str::repeat(subject: "x", times: 2), "\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0486]: no parameter of this call can be filled by the name `caption`
+  --> case.nvs:8:30
+%A
+error[E0487]: the parameter `$count` is given an argument twice
+   --> case.nvs:10:23
+%A
+error[E0488]: a positional argument cannot follow a `name:` or `...` argument
+   --> case.nvs:13:20
+%A
+error[E0486]: no parameter of this call can be filled by the name `subject`
+   --> case.nvs:16:23
+%A
+error: aborting due to 4 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

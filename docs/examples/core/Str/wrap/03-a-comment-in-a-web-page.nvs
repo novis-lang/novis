@@ -1,0 +1,12 @@
+<?nvs
+// Shows how to break a comment into short lines for a web page.
+
+string $comment = "Great service, fast delivery and the package was very well protected. Will order again!";
+
+// `breakWith` sets the text that is written at each line break.
+// Here it is `<br>`, so a browser shows each part on its own line.
+echo Core\Str::wrap($comment, 30, {breakWith: "<br>"}), "\n";
+
+// The text already has one `<br>`. A new line starts there,
+// so "Thanks!" is not joined to the line after it.
+echo Core\Str::wrap("Thanks!<br>The size was right and the colour is lovely.", 20, {breakWith: "<br>"}), "\n";

@@ -1,0 +1,17 @@
+<?nvs
+// Shows that `Core\Test::serverUrl` returns `null` when no test server is running.
+
+use Core\Test;
+
+// This program runs with `nvs run`, not in a test with `server: true`.
+// So there is no server, and this prints `no server`.
+echo Test::serverUrl() ?? "no server", "\n";
+
+// Code that needs the address can check for `null` first.
+// This prints `this check needs a test with server: true`.
+?string $url = Test::serverUrl();
+if ($url == null) {
+    echo "this check needs a test with server: true\n";
+} else {
+    echo "the server is at ", $url, "\n";
+}

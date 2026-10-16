@@ -1,0 +1,22 @@
+<?nvs
+// Measures `Core\Bytes::pack` writing one text field, at growing field lengths.
+// bench: start 256
+// bench: max 4096
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        string $format = "a" . ($size as string);
+        string $name = Core\Str::repeat('x', $size);
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            $total = $total + Core\Bytes::length(Core\Bytes::pack($format, $name));
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

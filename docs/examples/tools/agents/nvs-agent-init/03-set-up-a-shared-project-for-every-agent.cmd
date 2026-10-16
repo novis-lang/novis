@@ -1,0 +1,1 @@
+nvs agent init --all

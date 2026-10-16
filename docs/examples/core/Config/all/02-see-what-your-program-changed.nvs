@@ -1,0 +1,17 @@
+<?nvs
+// Shows which settings a program has changed. `Core\Config::all` returns the
+// settings in force now, so a copy of it taken before a change can be compared
+// with the settings after the change.
+
+array<string> $before = Core\Config::all();
+
+Core\Config::set("max_tasks", "4");
+Core\Config::set("log.level", "warning");
+
+// The loop prints the names that are new or have a new value. Here that is
+// limits.max_tasks and log.level.
+foreach (Core\Config::all() as string $name => string $value) {
+    if (!Core\Arr::hasKey($before, $name) || $before[$name] != $value) {
+        echo $name, " = ", $value, "\n";
+    }
+}

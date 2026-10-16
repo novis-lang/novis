@@ -1,0 +1,19 @@
+<?nvs
+// Shows how to check that a piece of source is valid, as an editor plugin does
+// before it saves a snippet. `Core\Ast::parse` throws a `ParseError` when the
+// text does not parse.
+
+array<string> $snippets = [
+    "<?nvs echo 1 + 2;",
+    "<?nvs echo 1 +;",
+];
+
+foreach ($snippets as string $snippet) {
+    try {
+        Core\Ast::parse($snippet);
+        echo "valid\n";
+    } catch (ParseError $bad) {
+        // The message names the line and column of the first problem.
+        echo "not valid: ", $bad->message, "\n";
+    }
+}

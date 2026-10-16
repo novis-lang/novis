@@ -1,0 +1,78 @@
+<?nvs
+// Attack: a `catch` arm runs only when the expression in front of it throws.
+// This throws through millions of them, with arms nested inside arms, an error
+// carrying text millions of characters long, and a recursion that never ends.
+// Nothing may crash, hang or lose memory.
+// hostile: timeout-ms 30000
+// covers: lang:statements/catch-as-an-expression
+
+class Attack
+{
+    public static function boom(string $why): int
+    {
+        throw new IOError($why);
+    }
+
+    // 1. Five arms after one expression, and only the last one matches, so
+    // every arm is tried on every throw.
+    public static function lastArm(int $round): int
+    {
+        return Attack::boom('round')
+            catch (ParseError $a) => $round + 1
+            catch (ArithmeticError $b) => $round + 2
+            catch (TimeoutError $c) => $round + 3
+            catch (RecursionError $d) => $round + 4
+            catch (IOError $e) => $round + 5;
+    }
+
+    // 2. Five guards nested inside each other. Each arm throws a new error into
+    // the guard around it, so one failure is handed on five times.
+    public static function nested(int $round): int
+    {
+        return (((((Attack::boom('start')
+            catch (IOError $a) => throw new ParseError('second'))
+            catch (ParseError $b) => throw new TimeoutError('third'))
+            catch (TimeoutError $c) => throw new ArithmeticError('fourth'))
+            catch (ArithmeticError $d) => throw new RecursionError('fifth'))
+            catch (RecursionError $e) => $round + 1);
+    }
+
+    // 3. An error carrying text millions of characters long. The arm reads its
+    // length, so nothing may shorten or copy it away.
+    public static function hugeMessage(string $text): int
+    {
+        return Attack::boom($text) catch (IOError $e) => Core\Str::length($e->message) as int;
+    }
+
+    // 4. A recursion whose whole body is a guard. It runs until the engine
+    // stops it, and every frame on the way out is a guard being left.
+    public static function forever(int $depth): int
+    {
+        return Attack::forever($depth + 1) catch (ParseError $never) => $depth;
+    }
+}
+
+int $total = 0;
+int $i = 0;
+while ($i < 150000) {
+    $total = $total + Attack::lastArm($i % 7);
+    $total = $total + Attack::nested($i % 7);
+    $i = $i + 1;
+}
+echo $total, "\n";
+
+string $text = '';
+int $built = 0;
+while ($built < 200000) {
+    $text = $text . 'novis-';
+    $built = $built + 1;
+}
+echo Attack::hugeMessage($text), "\n";
+
+// The recursion is stopped by the engine, and the error is caught so the
+// program still reaches its last line.
+try {
+    echo Attack::forever(0), "\n";
+} catch (RecursionError $stopped) {
+    echo "stopped\n";
+}

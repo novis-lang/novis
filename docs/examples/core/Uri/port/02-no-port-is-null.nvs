@@ -1,0 +1,11 @@
+<?nvs
+// Shows when `port` returns `null`.
+
+// No port is written. The default port 443 is not filled in, so this prints none.
+echo Core\Uri::parse("https://example.com/")->port() ?? "none", "\n";
+
+// A `:` with no digits after it is not a port. This prints none.
+echo Core\Uri::parse("http://example.com:/")->port() ?? "none", "\n";
+
+// Zeros in front of the port are ignored. This prints 80.
+echo Core\Uri::parse("http://example.com:0080/")->port() ?? "none", "\n";

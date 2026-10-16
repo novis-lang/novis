@@ -1,0 +1,43 @@
+--TEST--
+Core\IO::read and Core\IO::write refuse the same path under their own capability, and a refusal is catchable — being granted a root to read is never permission to write in it, and a denial leaves the program running — `rule:security/capability-check-at-the-door` and `rule:security/denial-is-a-runtime-error`
+--FILE--
+<?nvs
+// Nothing configured this run, so nothing is granted: `rule:security/capability-question-is-grant-and-scope`'s deny-by-
+// default is what both doors answer with here, and the interesting half is
+// *which* capability each one names. The path is identical in both calls on
+// purpose -- what differs between the two lines below is the verb, so a door
+// that checked one capability for both effects would print the same name twice.
+// `Here::path` returns a literal resolved from this file's folder, so the path
+// held in a variable is absolute when it reaches either door.
+class Here {
+    public static function path(#[Core\Path] string $path): string {
+        return $path;
+    }
+}
+string $path = Here::path("report.txt");
+
+try {
+    string $content = Core\IO::read($path);
+    echo "read: allowed, ", $content, "\n";
+} catch (RuntimeError $refused) {
+    echo "read: ", $refused->message, "\n";
+}
+
+try {
+    Core\IO::write($path, "anything at all");
+    echo "write: allowed\n";
+} catch (RuntimeError $refused) {
+    echo "write: ", $refused->message, "\n";
+}
+
+// `rule:security/denial-is-a-runtime-error`: a denial is the world refusing a call, not `rule:errors/escalation-ladder`'s `FATAL`.
+// Both clauses above caught, so this line prints -- which is the whole of what
+// separates a capability refusal from a limit breach, and it is asserted here
+// rather than in a comment because a `FATAL` would take the line with it.
+echo "still running\n";
+--EXPECTF--
+read: Core\IO::read needs the capability `fs.read` for %s%ereport.txt, which is not granted
+help: grant it in nvs.toml under `[capabilities.fs]`
+write: Core\IO::write needs the capability `fs.write` for %s%ereport.txt, which is not granted
+help: grant it in nvs.toml under `[capabilities.fs]`
+still running

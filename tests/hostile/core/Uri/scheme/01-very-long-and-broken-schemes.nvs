@@ -1,0 +1,42 @@
+<?nvs
+// Attack: a request sends addresses with very long or broken schemes, and reads the scheme many times.
+// Each read should return the scheme, `null` or an error, and every value should be freed.
+
+class Scheme
+{
+    public static function length(string $address): string
+    {
+        try {
+            ?string $scheme = Core\Uri::parse($address)->scheme();
+            if ($scheme == null) {
+                return 'none';
+            }
+            return Core\Str::length($scheme) as string;
+        } catch (Throwable $e) {
+            return 'error';
+        }
+    }
+}
+
+// 1. A scheme of one million letters. This prints 1000000.
+echo Scheme::length(Core\Str::repeat('a', 1000000) . '://example.com/'), "\n";
+
+// 2. One million letters and then a space before the `:`. This prints "error".
+echo Scheme::length(Core\Str::repeat('a', 1000000) . ' ://example.com/'), "\n";
+
+// 3. A scheme that starts with a digit is not a scheme.
+// The text is then a path with a `:` in its first part, which is not allowed. This prints "error".
+echo Scheme::length('1http://example.com/'), "\n";
+
+// 4. One million `:` characters. The scheme is empty, which is not allowed. This prints "error".
+echo Scheme::length(Core\Str::repeat(':', 1000000)), "\n";
+
+// 5. The scheme of one address is read 200000 times. It has 5 letters, so this prints 1000000.
+Core\Uri $uri = Core\Uri::parse('HTTPS://example.com/');
+uint $total = 0;
+int $i = 0;
+while ($i < 200000) {
+    $total = $total + Core\Str::length($uri->scheme() ?? '');
+    $i = $i + 1;
+}
+echo $total, "\n";

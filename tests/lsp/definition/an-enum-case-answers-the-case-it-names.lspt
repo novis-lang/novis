@@ -1,0 +1,15 @@
+--TEST--
+`rule:enums/no-class-machinery` makes a case its own constant declared on the enum, so `Status::Live` under the cursor answers the case and leaves `enum Status` to the type request, `rule:ide/the-index-answers-the-cursor`
+--FILE--
+<?nvs
+enum Status: int {
+    case Draft = 1;
+    case Live = 2;
+}
+
+$s = Status::Li<|>ve;
+echo $s;
+--REQUEST--
+definition
+--EXPECT--
+case.nvs:4:10

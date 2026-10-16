@@ -1,0 +1,2 @@
+Core\Http\Response::text: the reply's body is not valid UTF-8, so it is not a `string` — byte 2 is where it stops being text, and `bytes()` reads it whole
+5

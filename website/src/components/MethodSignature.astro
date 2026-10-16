@@ -1,0 +1,147 @@
+---
+/**
+ * The tool-owned technical block on a method page: the declaration alone,
+ * syntax-coloured, every type name a link to its page (`typeLink` in
+ * src/lib/core.ts), each `tainted` or `secret` keyword a link to the page that
+ * explains it, and each `$param` a link to its row under Parameters, which is
+ * the one place its description is printed. A declaration short enough is
+ * also rendered on one line, and the stylesheet shows that form only where the
+ * block is wide enough for it; otherwise the canonical multi-line layout of
+ * `rule:tooling/fmt-a-list-is-one-line-or-one-item-per-line` shows (one
+ * parameter per line, trailing comma), so the block stays valid Novis either
+ * way. A shape type of up to `SHAPE_INLINE_MAX` keys is written inline;
+ * a longer one is `{…}`, linked to the row that lists its keys. Below the
+ * block, when the member has one, the spec note. All rendered from
+ * src/data/core.json, so it stays current without touching the page's prose.
+ */
+import { findMember, typeLink } from '~/lib/core'
+
+interface Props {
+  id: string
+}
+
+const { id } = Astro.props
+const found = findMember(id)
+if (!found) throw new Error(`MethodSignature: unknown member id "${id}" — run \`npm run sync:render\`?`)
+const { cls, member } = found
+
+/** The longest declaration, in characters, that is also rendered on one line. */
+const ONE_LINE_MAX = 72
+/** The most keys a shape type has and is still written inline. */
+const SHAPE_INLINE_MAX = 3
+
+const escape = (s: string) =>
+  s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+
+/** Inline-code markdown (`x`) to HTML. */
+const ticks = (s: string) => escape(s).replace(/`([^`]+)`/g, '<code>$1</code>')
+
+/** The characters a reader sees in a piece of rendered HTML. */
+const visibleLength = (html: string) => html.replace(/<[^>]+>/g, '').replace(/&[a-z]+;/g, 'x').length
+
+const span = (cls: string, s: string) => `<span class="${cls}">${escape(s)}</span>`
+const punct = (s: string) => span('sig-punct', s)
+
+const generics = new Set((member.generics ?? '').match(/[A-Za-z_][A-Za-z0-9_]*/g) ?? [])
+
+/** The page that explains the `tainted` and `secret` keywords. */
+const QUALIFIER_PAGE = '/syntax/values/tainted-and-secret/'
+
+/** One name inside a type: a generic, a qualifier keyword, or a linked type. */
+function nameHtml(name: string): string {
+  if (generics.has(name)) return span('sig-generic', name)
+  if (name === 'secret' || name === 'tainted') {
+    return `<a class="sig-keyword sig-link" href="${QUALIFIER_PAGE}">${name}</a>`
+  }
+  const href = typeLink(name, cls.name)
+  if (!href) return span('sig-generic', name)
+  return `<a class="sig-type sig-link" href="${escape(href)}">${escape(name)}</a>`
+}
+
+/** A type expression, every name in it linked; punctuation left as it is. */
+function typeHtml(type: string): string {
+  const parts = (type || 'mixed').split(/([A-Za-z_][A-Za-z0-9_\\]*)/)
+  return parts
+    .map((part, i) => {
+      if (part === '') return ''
+      if (i % 2 === 0) return punct(part)
+      // A name followed by `:` or `?:` is a key of an inline shape, not a type.
+      if (/^\??:/.test(parts[i + 1] ?? '')) return span('sig-var', part)
+      return nameHtml(part)
+    })
+    .join('')
+}
+
+/** Split `a, b<c, d>, {e, f}` at its top-level commas. */
+function splitTopLevel(s: string): string[] {
+  const out: string[] = []
+  let depth = 0
+  let cur = ''
+  for (const ch of s) {
+    if (ch === '<' || ch === '{' || ch === '(') depth++
+    if (ch === '>' || ch === '}' || ch === ')') depth--
+    if (ch === ',' && depth === 0) {
+      out.push(cur)
+      cur = ''
+    } else {
+      cur += ch
+    }
+  }
+  if (cur.trim()) out.push(cur)
+  return out.map((p) => p.trim()).filter(Boolean)
+}
+
+/** A shape type: inline when it has few keys, otherwise `{…}` linked to `href`. */
+function shapeHtml(type: string, href: string): string {
+  const inner = type.slice(type.indexOf('{') + 1, type.lastIndexOf('}'))
+  if (splitTopLevel(inner).length <= SHAPE_INLINE_MAX) return typeHtml(type)
+  return `${punct('{')}<a class="sig-more sig-link" href="${href}">…</a>${punct('}')}`
+}
+
+const paramAnchor = (name: string) => `#param-${name}`
+
+// Head: `Core\Hash::of` or `$s->length`.
+let head = ''
+if (member.static) {
+  head += `<a class="sig-class sig-link" href="${escape(cls.url)}">${escape(cls.name)}</a>${punct('::')}`
+} else {
+  head += `${span('sig-var', `$${member.receiver ?? 'instance'}`)}${punct('->')}`
+}
+head += span('sig-name', member.name)
+if (member.generics) head += span('sig-generics', member.generics)
+
+// One item per parameter, then the options bag: a trailing anonymous object.
+const items: string[] = member.params.map((p) => {
+  const varName = `${p.variadic ? '...' : ''}$${p.name}`
+  const type = p.type.trim().startsWith('{') ? shapeHtml(p.type, paramAnchor(p.name)) : typeHtml(p.type)
+  let html = `${type} <a class="sig-var sig-link" href="${paramAnchor(p.name)}">${escape(varName)}</a>`
+  if (p.default !== null) html += `${punct(' = ')}${span('sig-default', p.default)}`
+  return html
+})
+if (member.options.length > 0) {
+  const keys = member.options.map((o) => `${o.name}?${o.type ? `: ${o.type}` : ''}`)
+  items.push(shapeHtml(`{${keys.join(', ')}}`, '#options'))
+}
+
+const tail = `${punct('): ')}${typeHtml(member.returnType)}`
+const oneLine = `${head}${punct('(')}${items.join(punct(', '))}${tail}`
+const multiLine =
+  items.length === 0
+    ? null
+    : [`${head}${punct('(')}`, ...items.map((html) => `    ${html}${punct(',')}`), tail].join('\n')
+const oneLineLength = visibleLength(oneLine)
+const showOneLine = multiLine === null || oneLineLength <= ONE_LINE_MAX
+/** The length bucket the stylesheet reads to decide how wide the block must be for one line. */
+const bucket = Math.max(40, Math.ceil(oneLineLength / 8) * 8)
+---
+
+<div class:list={['method-signature', 'method-sig', 'not-content', { [`one-line-${bucket}`]: showOneLine && multiLine }]}>
+  <pre class="method-sig-decl">{showOneLine && <code class="method-sig-one" set:html={oneLine} />}{multiLine && <code class="method-sig-multi" set:html={multiLine} />}</pre>
+</div>
+{
+  member.notes && (
+    <p class="method-sig-note">
+      <strong>Spec note:</strong> <Fragment set:html={ticks(member.notes)} />
+    </p>
+  )
+}

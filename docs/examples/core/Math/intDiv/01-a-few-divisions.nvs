@@ -1,0 +1,11 @@
+<?nvs
+// Shows a few divisions whose result is a whole number.
+
+// 7 divided by 2 is 3.5. The remainder is dropped, so this prints 3.
+echo Core\Math::intDiv(7, 2), "\n";
+
+// 10 divided by 5 has no remainder. This prints 2.
+echo Core\Math::intDiv(10, 5), "\n";
+
+// 9 is smaller than 10, so this prints 0.
+echo Core\Math::intDiv(9, 10), "\n";

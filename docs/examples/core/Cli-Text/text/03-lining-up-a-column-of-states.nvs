@@ -1,0 +1,20 @@
+<?nvs
+// Shows the everyday use: a tool lines up a column of coloured states. This
+// example does not run in a terminal, so the colours are dropped and only the
+// text prints.
+
+var $green = Core\Cli\Style::of({color: Core\Cli\Color::GREEN});
+array<string> $states = ["ok", "skipped", "failed"];
+array<string> $files = ["invoices.csv", "orders.csv", "returns.csv"];
+uint $at = 0;
+
+foreach ($states as string $state) {
+    var $cell = Core\Cli\Text::styled($state, $green);
+
+    // `Core\Cli::displayWidth` counts the columns a string fills on screen. It
+    // takes a string, so the width of the cell is counted on `text()`.
+    uint $spaces = 10 - Core\Cli::displayWidth($cell->text());
+    echo $cell + Core\Cli\Text::plain(Core\Str::repeat(" ", $spaces)),
+        $files[$at as int], "\n";
+    $at = $at + 1;
+}

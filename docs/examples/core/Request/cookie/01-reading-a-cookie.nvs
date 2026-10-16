@@ -1,0 +1,9 @@
+<?nvs
+// Shows how to read the colour theme that a visitor chose, from a cookie.
+
+// `Core\Request::cookie` returns the value of the cookie named "theme".
+// `??` gives "light" when the request has no such cookie.
+tainted string $theme = Core\Request::cookie("theme") ?? "light";
+
+// This prints "theme: dark".
+echo "theme: ", $theme, "\n";

@@ -1,0 +1,8 @@
+<?nvs
+// Shows how to write an instant as text.
+
+// `fromEpoch` takes the seconds since 1 January 1970. This prints 2024-03-01T12:00:00Z.
+echo Core\Time::fromEpoch(1709294400)->toIso(), "\n";
+
+// A fraction of a second is written only when it is not zero. This prints 2024-03-01T12:00:00.25Z.
+echo Core\Time::fromEpoch(1709294400)->plus(250ms)->toIso(), "\n";

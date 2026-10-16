@@ -1,0 +1,17 @@
+<?nvs
+// Shows how to read the whole output of a program, one part at a time.
+// requires: unix
+
+var $program = Core\Process::spawn("/usr/bin/seq", ["1", "5"]);
+string $text = "";
+// `readStdout()` returns the next part of the output. At the end, it returns `null`.
+?bytes $part = $program->readStdout();
+while ($part != null) {
+    // A part is `bytes`. `as string` converts it to text.
+    $text = $text . ($part as string);
+    $part = $program->readStdout();
+}
+$program->wait();
+
+// This prints the numbers 1 to 5, one on each line.
+echo $text;

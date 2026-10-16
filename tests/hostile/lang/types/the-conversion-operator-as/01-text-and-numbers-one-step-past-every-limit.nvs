@@ -1,0 +1,83 @@
+<?nvs
+// Attack: `as` converts broken text and numbers just past every limit, many times.
+// One string has 200,000 digits, and one value is converted through five types in a row.
+// The last step converts an array of 200,000 values. Each error is caught, so the loop continues.
+// hostile: timeout-ms 20000
+
+class Attack
+{
+    public static function digits(uint $count): string
+    {
+        string $out = '';
+        uint $i = 0;
+        while ($i < $count) {
+            $out = $out . '9';
+            $i = $i + 1;
+        }
+        return $out;
+    }
+
+    public static function refusals(array<string> $texts, uint $rounds): uint
+    {
+        uint $refused = 0;
+        uint $round = 0;
+        while ($round < $rounds) {
+            foreach ($texts as string $text) {
+                try {
+                    int $whole = $text as int;
+                    $refused = $refused + ($whole % 2) as uint;
+                } catch (ArithmeticError $tooBig) {
+                    $refused = $refused + 1;
+                } catch (RuntimeError $notANumber) {
+                    $refused = $refused + 1;
+                }
+
+                if (($text as ?uint) == null) {
+                    $refused = $refused + 1;
+                }
+                if (($text as ?decimal) == null) {
+                    $refused = $refused + 1;
+                }
+                if (($text as ?float) == null) {
+                    $refused = $refused + 1;
+                }
+            }
+            $round = $round + 1;
+        }
+        return $refused;
+    }
+}
+
+array<string> $edges = [
+    '9223372036854775808',
+    '-9223372036854775809',
+    ' 1',
+    '1 ',
+    '0x10',
+    '1e1000',
+    '',
+    '-0',
+    '٣',
+    '99999999999999999999999999999999999999',
+];
+
+echo Attack::refusals($edges, 8000), "\n";
+echo Attack::refusals([Attack::digits(200000)], 40), "\n";
+
+uint $chained = 0;
+uint $step = 1;
+while ($step < 40000) {
+    string $text = $step as string;
+    $chained = $chained + ((($text as int) as float) as decimal) as string as uint;
+    $step = $step + 1;
+}
+echo $chained, "\n";
+
+array<mixed> $wide = [];
+uint $k = 0;
+while ($k < 200000) {
+    $wide[] = $k as int;
+    $k = $k + 1;
+}
+array<int> $ints = $wide as array<int>;
+echo Core\Arr::count($ints), "\n";

@@ -1,0 +1,23 @@
+--TEST--
+`unset()` on an object property is a compile error — `rule:classes/definite-property-initialization`'s definite initialization has no way back
+--FILE--
+<?nvs
+class Tag {
+    public string $name;
+
+    public function constructor(string $name) {
+        $this->name = $name;
+    }
+}
+
+var $t = new Tag("div");
+unset($t->name);
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0413]: `unset()` on `Tag::$name` is refused; a declared property can never become uninitialized again
+   --> case.nvs:11:7
+%A
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

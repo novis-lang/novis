@@ -1,0 +1,85 @@
+<?nvs
+// Attack: a request tries to choose the proxy that outbound calls use. It sets the keys of
+// `[http.client.proxy]`, including the password, and keys that are almost those keys.
+// Every change should fail.
+// hostile: timeout-ms 30000
+
+// 1. Set every key of the block to values an attacker wants, such as a proxy they control.
+array<string> $keys = [
+    'http.client.proxy',
+    'http.client.proxy.url',
+    'http.client.proxy.resolve',
+    'http.client.proxy.bypass',
+    'http.client.proxy.username',
+    'http.client.proxy.password',
+    'http.client.proxy.password_file',
+];
+array<string> $values = [
+    'http://attacker.test:8080',
+    'https://attacker.test:8443',
+    'http://user:pass@attacker.test:8080',
+    'http://127.0.0.1:1',
+    'http://[::1]:8080',
+    'http://169.254.169.254/',
+    'proxy',
+    'local',
+    '',
+    'false',
+    '/proc/self/environ',
+    '../../../../etc/shadow',
+    "http://ok.test\u{0000}http://attacker.test",
+    "http://ok.test\r\nHost: attacker.test",
+    'http://' . Core\Str::repeat('a', 100000) . '.test',
+];
+foreach ($keys as string $key) {
+    foreach ($values as string $value) {
+        Core\Config::set($key, $value);
+        Core\Config::get($key);
+    }
+    Core\Config::restore($key);
+}
+
+// 2. Read the usual proxy environment variables. Novis does not use them for outbound calls.
+array<string> $ambient = [
+    'HTTP_PROXY',
+    'HTTPS_PROXY',
+    'http_proxy',
+    'https_proxy',
+    'NO_PROXY',
+    'no_proxy',
+    'ALL_PROXY',
+];
+foreach ($ambient as string $name) {
+    Core\Env::get($name);
+}
+
+// 3. Set keys that are almost the real keys, and a key with 20,000 parts.
+array<string> $nearby = [
+    'http.client.proxyx',
+    'http.client.proxy_url',
+    'http.client.proxy.',
+    'http.client..proxy.url',
+    'HTTP.CLIENT.PROXY.URL',
+    'Http.Client.Proxy.Url',
+    'proxy.url',
+    'client.proxy.url',
+    'app.http.client.proxy.url',
+    'http.client.socket.proxy.url',
+    'http.client.proxy.url.real',
+    'http.client.proxy.' . Core\Str::repeat('sub.', 20000) . 'url',
+];
+foreach ($nearby as string $key) {
+    Core\Config::set($key, 'http://attacker.test:8080');
+    Core\Config::get($key);
+    Core\Config::restore($key);
+}
+
+// 4. Try the same change 100,000 times with no restore. A failed change should use no memory.
+uint $i = 0;
+while ($i < 100000) {
+    Core\Config::set('http.client.proxy.url', 'http://attacker.test:8080');
+    $i = $i + 1;
+}
+Core\Config::restore('http.client.proxy.url');
+
+echo 'proxy: ', Core\Config::get('http.client.proxy.url') ?? '(nothing)', "\n";

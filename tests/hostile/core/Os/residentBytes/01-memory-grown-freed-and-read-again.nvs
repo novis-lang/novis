@@ -1,0 +1,41 @@
+<?nvs
+// Attack: the memory figure is read many times while the program builds and frees
+// large texts. The figure must never get smaller, and no step may crash. The
+// program should run to its last line.
+
+uint $last = Core\Os::residentBytes();
+
+// 1. The figure is read 20000 times. No reading may be smaller than the one
+//    before it. This prints 1.
+uint $ok = 0;
+uint $i = 0;
+while ($i < 20000) {
+    uint $now = Core\Os::residentBytes();
+    if ($now >= $last) {
+        $ok = $ok + 1;
+    }
+    $last = $now;
+    $i = $i + 1;
+}
+echo $ok == 20000 ? 1 : 0, "\n";
+
+// 2. Ten texts of 5 million characters each are built, kept and then freed.
+//    The figure must not be smaller than before. This prints 1.
+array<string> $texts = [];
+$i = 0;
+while ($i < 10) {
+    $texts[] = Core\Str::repeat('y', 5000000);
+    $i = $i + 1;
+}
+$texts = [];
+uint $after = Core\Os::residentBytes();
+echo $after >= $last ? 1 : 0, "\n";
+
+// 3. The figure is multiplied past the largest `uint`. This throws an
+//    `ArithmeticError`.
+uint $largest = 18446744073709551615;
+try {
+    echo $after * $largest, "\n";
+} catch (ArithmeticError $e) {
+    echo "caught\n";
+}

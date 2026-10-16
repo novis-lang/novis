@@ -1,0 +1,10 @@
+<?nvs
+// Shows how to get the time that is a number of minutes before another time.
+
+Core\Time\TimeOfDay $arrive = Core\Time\TimeOfDay::at(9, 0);
+
+// The trip takes 35 minutes. This prints 08:25.
+echo $arrive->minus(35, Core\Unit::Minute)->format("HH:mm"), "\n";
+
+// A negative count moves the time forward. This prints 09:35.
+echo $arrive->minus(-35, Core\Unit::Minute)->format("HH:mm"), "\n";

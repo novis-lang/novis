@@ -1,0 +1,52 @@
+--TEST--
+`Workbook::define` writes each name it allows into the workbook, escapes the reference as text, returns the workbook, and throws `LogicError` for a cell address, a character Excel does not allow, an empty reference and a name used twice in any case: rule:core-classes/spreadsheet-sheet-end-parts
+--FILE--
+<?nvs
+// covers: Novis\Spreadsheet\Workbook::define
+// covers: Novis\Spreadsheet\Reader::names
+use Novis\Spreadsheet\Workbook;
+use Novis\Spreadsheet\Reader;
+
+var $book = Workbook::createInMemory();
+$book->sheet("Shop")->addAll([["qty" => 1], ["qty" => 2]]);
+var $same = $book->define("Quantities", "Shop!\$A\$2:\$A\$3")->define("_first.qty", "Shop!\$A\$2");
+echo $same == $book ? "define returns the workbook" : "define returns another workbook", "\n";
+$book->define("Odd", "Shop!\$A\$1<x>&");
+
+array<array<string>> $refused = [
+    ["C3", "Shop!\$A\$1"],
+    ["XFD1048576", "Shop!\$A\$1"],
+    ["1st", "Shop!\$A\$1"],
+    ["Two words", "Shop!\$A\$1"],
+    ["Empty", ""],
+    ["QUANTITIES", "Shop!\$A\$1"],
+];
+foreach ($refused as array<string> $pair) {
+    try {
+        $book->define($pair[0], $pair[1]);
+        echo $pair[0], ": defined\n";
+    } catch (LogicError $e) {
+        echo $pair[0], ": LogicError\n";
+    }
+}
+
+bytes $file = $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
+var $xml = Core\Zip::read($file, "xl/workbook.xml") as string;
+echo Core\Str::contains($xml, "<definedName name=\"Odd\">Shop!\$A\$1&lt;x&gt;&amp;</definedName>") ? "the reference is escaped" : "the reference is not escaped", "\n";
+foreach (Reader::open($file)->names() as var $name) {
+    if ($name->sheet == null) {
+        echo $name->name, " = ", $name->reference, "\n";
+    }
+}
+--EXPECT--
+define returns the workbook
+C3: LogicError
+XFD1048576: LogicError
+1st: LogicError
+Two words: LogicError
+Empty: LogicError
+QUANTITIES: LogicError
+the reference is escaped
+Quantities = Shop!$A$2:$A$3
+_first.qty = Shop!$A$2
+Odd = Shop!$A$1<x>&

@@ -1,0 +1,4 @@
+Core\Xml\Writer::content(): character data belongs inside an element, and none is open.
+Core\Xml\Writer::content(): the text holds U+0000, which a document has no way to write.
+<?xml version="1.0" encoding="UTF-8"?><note>Hello	World
+</note>

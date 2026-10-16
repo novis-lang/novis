@@ -1,0 +1,18 @@
+<?nvs
+// Shows the options that control how often a `POST` request is tried.
+
+// `retryAttempts` is how many times the request is sent, and the first time counts.
+// So 0 is not allowed. A `POST` with `retryAttempts` also needs `retryIdempotencyKey`.
+try {
+    var $never = Core\Http\Client::post("https://203.0.113.10/messages", {json: ["text" => "hello"], retryAttempts: 0, retryIdempotencyKey: "message-381"});
+} catch (RuntimeError $noAttempts) {
+    echo $noAttempts->message, "\n";
+}
+
+// `retryBackoff` is how long the program waits before it tries again.
+// It must be longer than zero.
+try {
+    var $noWait = Core\Http\Client::post("https://203.0.113.10/messages", {json: ["text" => "hello"], retryAttempts: 3, retryBackoff: 0s, retryIdempotencyKey: "message-381"});
+} catch (RuntimeError $tooShort) {
+    echo $tooShort->message, "\n";
+}

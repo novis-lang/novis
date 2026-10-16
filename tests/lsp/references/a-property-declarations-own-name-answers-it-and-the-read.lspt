@@ -1,0 +1,16 @@
+--TEST--
+a property's own declaration answers itself and the read of it below, the declaration placed at the `$` its own source writes and the read at the name the access writes, `rule:ide/five-features-are-one-reference-index`
+--FILE--
+<?nvs
+class User
+{
+    public string $na<|>me = "";
+}
+
+var $u = new User();
+echo $u->name;
+--REQUEST--
+references
+--EXPECT--
+case.nvs:4:19
+case.nvs:8:10

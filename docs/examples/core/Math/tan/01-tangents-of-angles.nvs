@@ -1,0 +1,13 @@
+<?nvs
+// Shows the tangents of a few angles in radians.
+
+// The tangent of 0 is 0. This prints 0.
+echo Core\Math::tan(0.0), "\n";
+
+// `Core\Math::PI / 4` radians is 45 degrees. Its tangent is 1, and this prints 1.
+echo Core\Math::tan(Core\Math::PI / 4.0), "\n";
+
+// A negative angle gives the same result with the other sign.
+// These lines print 1.5574077246549 and -1.5574077246549.
+echo Core\Math::tan(1.0), "\n";
+echo Core\Math::tan(-1.0), "\n";

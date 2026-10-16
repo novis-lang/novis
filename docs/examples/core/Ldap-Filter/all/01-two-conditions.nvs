@@ -1,0 +1,9 @@
+<?nvs
+// Shows how to find the entries that match two conditions at the same time.
+
+var $filter = Core\Ldap\Filter::all(
+    Core\Ldap\Filter::equals('objectClass', 'user'),
+    Core\Ldap\Filter::equals('department', 'Sales'),
+);
+// This prints (&(objectClass=user)(department=Sales)).
+echo $filter->toString(), "\n";

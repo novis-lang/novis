@@ -1,0 +1,15 @@
+{
+  "title": "Three deny-by-default capabilities gate naming a database, dialling one, and issuing DDL to it",
+  "status": "shipped",
+  "seeAlso": [
+    "core-classes/db-connection-is-named",
+    "core-classes/schema-apply-capability",
+    "core-classes/db-safe-connection-defaults"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/db-connect-refuses-a-name-the-grant-does-not-cover.nvst",
+    "tests/conformance/core/db-open-asks-the-grant-about-the-host-and-then-the-address.nvst",
+    "tests/conformance/core/db-open-asks-the-grant-about-a-sqlite-path-and-not-a-host.nvst",
+    "tests/conformance/core/db-connect-judges-its-options-before-it-consults-the-grant.nvst"
+  ]
+}

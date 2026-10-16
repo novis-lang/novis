@@ -1,0 +1,23 @@
+<?nvs
+// Shows how a program sends a file that a visitor asked for by name, and only from its uploads folder.
+
+class Downloads {
+    // Returns the content of the file, or a message when the name is not allowed.
+    public static function send(string $uploads, string $requested): string {
+        try {
+            string $path = Core\IO::within($uploads, $requested);
+            return Core\IO::readText($path);
+        } catch (RuntimeError $error) {
+            return "403 Forbidden\n";
+        }
+    }
+}
+
+string $uploads = Core\IO::temporaryDir();
+Core\IO::write(Core\Path::join($uploads, "invoice-17.txt"), "Invoice 17: 49.90 EUR\n");
+
+// The first name is a file in the uploads folder. This prints "Invoice 17: 49.90 EUR".
+echo Downloads::send($uploads, "invoice-17.txt");
+
+// The second name tries to leave the uploads folder. This prints "403 Forbidden".
+echo Downloads::send($uploads, "../../config/database.toml");

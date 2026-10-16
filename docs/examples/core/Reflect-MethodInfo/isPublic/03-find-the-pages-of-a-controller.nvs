@@ -1,0 +1,34 @@
+<?nvs
+// Shows how a small web router turns the public methods of a controller into pages.
+
+class ShopController {
+    public function home(): string {
+        return "Welcome to the shop";
+    }
+
+    public function cart(): string {
+        return "Your cart is empty";
+    }
+
+    private function loadPrices(): string {
+        return "prices";
+    }
+}
+
+class Router {
+    public static function pages(Core\Reflect\ClassInfo $info): array<string> {
+        array<string> $pages = [];
+        foreach ($info->methods() as Core\Reflect\MethodInfo $method) {
+            // A private helper is not a page, so nobody can open `/loadPrices`.
+            if ($method->isPublic()) {
+                $pages[] = "/" . $method->name();
+            }
+        }
+        return $pages;
+    }
+}
+
+// This prints `/cart` and `/home`.
+foreach (Router::pages(Core\Reflect::forObject(new ShopController())) as string $page) {
+    echo $page, "\n";
+}

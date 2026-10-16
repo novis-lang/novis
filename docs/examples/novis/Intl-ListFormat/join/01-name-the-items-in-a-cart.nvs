@@ -1,0 +1,13 @@
+<?nvs
+// Shows how to write the items of a list as one sentence, in English and in German.
+use Novis\Intl\ListFormat;
+
+array<array<string>> $carts = [["Shop", "Blog", "Wiki"], ["Shop", "Blog"], ["Shop"]];
+
+// Each list becomes one string. This prints Shop, Blog, and Wiki, then Shop and Blog, then Shop.
+foreach (ListFormat::join($carts, "en") as string $line) {
+    echo $line, "\n";
+}
+
+// German has no comma before "und". This prints Shop, Blog und Wiki.
+echo ListFormat::join([$carts[0]], "de")[0], "\n";

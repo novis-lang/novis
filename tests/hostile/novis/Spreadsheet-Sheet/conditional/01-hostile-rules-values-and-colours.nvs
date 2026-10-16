@@ -1,0 +1,48 @@
+<?nvs
+// Attack: a request builds conditional formats from user data, with hostile values, colours and operators, and very many rules.
+// `conditional` should write each value as data, and throw an error for a rule Excel cannot open.
+use Novis\Spreadsheet\Style;
+use Novis\Spreadsheet\Workbook;
+
+class Attack
+{
+    // This method adds the rule to B2:B9 and prints whether the file was written, or the class of the error.
+    public static function attempt(int $step, Novis\Spreadsheet\Sheet::Conditional $rule): void
+    {
+        try {
+            var $book = Workbook::createInMemory();
+            $book->sheet('Shop')->conditional('B2:B9', $rule)->add(['qty' => 1]);
+            bytes $file = $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
+            echo 'step ', $step, ' wrote ', Core\Bytes::length($file) > 0 ? 'a file' : 'nothing', "\n";
+        } catch (Throwable $e) {
+            echo 'step ', $step, ' stopped ', $e::class, "\n";
+        }
+    }
+}
+
+Style $red = Style::of({ fill: '#FFC7CE' });
+
+// 1. Values with markup, a formula that calls a web address, and 10,000 characters.
+Attack::attempt(1, { kind: 'cell', operator: 'equal', values: ['"</formula><x>"'], style: $red });
+Attack::attempt(1, { kind: 'formula', values: ['WEBSERVICE("https://example.com")'], style: $red });
+Attack::attempt(1, { kind: 'cell', operator: 'greater', values: [Core\Str::repeat('9', 10000)], style: $red });
+
+// 2. An operator and an icon set that do not exist, and colours that are not colours.
+Attack::attempt(2, { kind: 'cell', operator: 'like', values: ['1'], style: $red });
+Attack::attempt(2, { kind: 'iconSet', icons: '"/><x>' });
+Attack::attempt(2, { kind: 'colorScale', colors: ['red', '#12345G'] });
+Attack::attempt(2, { kind: 'dataBar', colors: [Core\Str::repeat('F', 1000)] });
+
+// 3. A style on a colour scale, a `between` rule with one value, and a top rule of 0.
+Attack::attempt(3, { kind: 'colorScale', colors: ['#F8696B', '#63BE7B'], style: $red });
+Attack::attempt(3, { kind: 'cell', operator: 'between', values: ['1'], style: $red });
+Attack::attempt(3, { kind: 'top', rank: 0, style: $red });
+
+// 4. 2,000 rules on one range.
+var $book = Workbook::createInMemory();
+var $sheet = $book->sheet('Shop');
+for (int $n = 0; $n < 2000; $n++) {
+    $sheet->conditional('B2:B9', { kind: 'cell', operator: 'equal', values: ["{$n}"], style: $red });
+}
+$sheet->add(['qty' => 1]);
+echo 'step 4 wrote ', Core\Bytes::length($book->finish()->bytes ?? Core\Bytes::fill(0, 0)) > 0 ? 'a file' : 'nothing', "\n";

@@ -1,0 +1,10 @@
+<?nvs
+// Shows how to replace a word however it is written: "draft", "Draft" or "DRAFT".
+
+string $title = "DRAFT: Price list (Draft 2, draft 3)";
+
+// Only the exact text "draft" matches, so one word changes.
+echo Core\Str::replace($title, "draft", "final"), "\n";
+
+// With `caseInsensitive: true`, all three words match.
+echo Core\Str::replace($title, "draft", "final", {caseInsensitive: true}), "\n";

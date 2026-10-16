@@ -1,0 +1,20 @@
+<?nvs
+// Shows how the values that are not captures become the query string of the link.
+
+class Search {
+    // `#[Core\Query]` says that a parameter comes from the query string.
+    #[Core\Route(path: "/search/{page?}", method: Core\Http\Method::Get, name: "Search::results")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function results(
+        uint $page = 1,
+        #[Core\Query] string $q = "",
+        #[Core\Query] string $sort = "",
+    ): string { return "results"; }
+}
+
+// `q` is not in the path, so it goes after the `?`. There is no `page` value,
+// so the optional `{page?}` is left out. This prints `/search?q=red+shoes`.
+echo Core\Router::url("Search::results", ["q" => "red shoes"]), "\n";
+
+// With `page`, the path has a second segment. This prints `/search/2?q=red+shoes&sort=price`.
+echo Core\Router::url("Search::results", ["page" => 2, "q" => "red shoes", "sort" => "price"]), "\n";

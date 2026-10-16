@@ -1,0 +1,41 @@
+<?nvs
+// `Core\BigInt` is the integer with no width: the same five questions `gmp` and
+// the integer half of `bcmath` were reached for, asked of a `Core`-owned object
+// that is immutable and method-based — `rule:types/arithmetic`, spec § 13.
+
+// A factorial is the shortest program that leaves `int` behind: 20! is the last
+// one an `int` holds, and this one is ten digits past it.
+var $factorial = Core\BigInt::of(1);
+int $n = 2;
+while ($n <= 30) {
+    $factorial = $factorial->mul(Core\BigInt::of($n));
+    $n = $n + 1;
+}
+echo '30! = ', $factorial->toString(), "\n";
+
+// `pow` takes the exponent as a `uint` and answers the whole magnitude, where
+// `bcpow` took two strings and a scale it did not need.
+echo '2^100 = ', Core\BigInt::of(2)->pow(100)->toString(), "\n";
+
+// `powMod` is the member modular exponentiation is written for: it never builds
+// the intermediate power, so the modulus is what bounds the work.
+var $reduced = Core\BigInt::of(4)->powMod(Core\BigInt::of(13), Core\BigInt::of(497));
+echo '4^13 mod 497 = ', $reduced->toString(), "\n";
+
+// `div` truncates and `mod` takes the sign of the dividend, exactly as `intdiv`
+// and `%` do on `int`, so the identity holds on a negative dividend too.
+var $dividend = Core\BigInt::of(-7);
+var $divisor = Core\BigInt::of(2);
+echo $dividend->toString(), ' = ', $divisor->toString(),
+     ' * ', $dividend->div($divisor)->toString(),
+     ' + ', $dividend->mod($divisor)->toString(), "\n";
+
+// Narrowing names both sides of the bound: the last value `int` holds comes
+// back, and the first one it does not refuses rather than truncating.
+var $intMax = Core\BigInt::parse('9223372036854775807');
+echo 'int max = ', $intMax->toInt(), "\n";
+try {
+    $intMax->add(Core\BigInt::of(1))->toInt();
+} catch (ArithmeticError $tooWide) {
+    echo "int max + 1: ArithmeticError\n";
+}

@@ -1,0 +1,12 @@
+<?nvs
+// Shows how to make a small grey PNG file, for a product that has no photo yet.
+use Novis\Image\Image;
+use Novis\Image\Color;
+use Novis\Image\Format;
+
+// A canvas has no format of its own, so `format` chooses PNG.
+bytes $file = Image::create(120, 80, Color::hex("#cccccc"))->format(Format::Png)->encode();
+
+// This prints image/png 120x80.
+var $info = Image::info($file);
+echo Image::mime($info->format), " ", $info->width, "x", $info->height, "\n";

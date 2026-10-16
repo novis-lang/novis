@@ -1,0 +1,2 @@
+not sent: Core\Http\Client::post refuses 192.168.10.4: it is private (10/8, 172.16/12, 192.168/16), which `net.internal` does not except
+order 1042: waiting

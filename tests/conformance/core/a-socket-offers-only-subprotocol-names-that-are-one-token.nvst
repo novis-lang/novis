@@ -1,0 +1,42 @@
+--TEST--
+`Core\Http\Client::openSocket` refuses a `protocols` entry that is not one RFC 6455 subprotocol token — empty, a comma, a space, a control byte or a non-ASCII letter — and a scripted peer refuses it exactly as a live handshake does — `rule:http-server/an-outbound-socket-is-opened-like-an-outbound-call`, `rule:testing/an-outbound-socket-is-answered-by-a-scripted-peer`
+--FILE--
+<?nvs
+// covers: Core\Http\Socket::protocol
+// A bound asserted on both sides: the widest token RFC 7230 allows is offered
+// and read back unchanged, and every entry one character outside it is refused
+// before any peer is asked. The names travel joined by `, ` in one header, so
+// `a,b` offered as one name would reach the peer as two, and a line break
+// would end the header. The scripted peer chooses each bad name, so a
+// refusal here cannot be `settled` refusing a name that was never offered.
+Core\Test::answerSocket("wss://gateway.example.com/wide", [], {protocol: "A-z.0_9!#$%&'*+^`|~"});
+var $wide = Core\Http\Client::openSocket("wss://gateway.example.com/wide", {
+    protocols: ["A-z.0_9!#$%&'*+^`|~"],
+});
+echo "accepted: ", $wide->protocol() ?? "none", "\n";
+
+array<string> $bad = ["", "a,b", "two words", "line\r\nX-Injected: yes", "tab\there", "é", "semi;colon"];
+var $refused = 0;
+var $n = 0;
+foreach ($bad as string $name) {
+    string $url = "wss://gateway.example.com/bad/" . $n;
+    $n = $n + 1;
+    Core\Test::answerSocket($url, [], {protocol: $name});
+    try {
+        Core\Http\Client::openSocket($url, {protocols: ["chat.v1", $name]});
+    } catch (RuntimeError $error) {
+        $refused = $refused + 1;
+    }
+}
+echo "refused: ", $refused, " of ", $n, "\n";
+
+// The refusal names the entry, escaped, so a line break in it is visible.
+try {
+    Core\Http\Client::openSocket("wss://gateway.example.com/bad/3", {protocols: ["line\r\nX: y"]});
+} catch (RuntimeError $shown) {
+    echo $shown->message, "\n";
+}
+--EXPECT--
+accepted: A-z.0_9!#$%&'*+^`|~
+refused: 7 of 7
+Core\Http\Client::openSocket: "line\r\nX: y" is not a subprotocol name — a name is one word of letters, digits and the characters !#$%&'*+-.^_`|~, with no space, comma or control character

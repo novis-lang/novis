@@ -1,0 +1,33 @@
+<?nvs
+// Attack: a program names its own commands `run` and `build`, like the commands of `nvs`.
+// Built into one executable, it gets every word of its command line. `nvs` itself must act on none.
+
+class Tool
+{
+    // 1. `app run report.nvs` must reach this method. It must not start `nvs run`.
+    #[Core\Command(name: "run", about: "Print the file name it is given")]
+    public static function run(string $file): uint
+    {
+        echo 'tool run ', $file, "\n";
+        return 0;
+    }
+
+    // 2. `app build --compile x.nvs -o out` must reach this method. No file `out` is written.
+    #[Core\Command(name: "build", about: "Print the words it is given")]
+    public static function build(
+        string $file,
+        #[Core\Option(about: "A flag with the same name as the flag of `nvs build`")] bool $compile = false,
+        #[Core\Option(short: "o", about: "A path that is only printed")] string $output = '',
+    ): uint
+    {
+        echo 'tool build ', $file, ' compile ', $compile ? 'yes' : 'no', ' output ', $output, "\n";
+        return 0;
+    }
+}
+
+// 3. This text looks like the end of a bundle. The bundle reads its end marker from its last bytes only.
+echo Core\Str::length("NVSB\u{1}\u{0}"), "\n";
+
+// 4. With no words, or with a word no command has, the program prints its usage and returns 2.
+uint $status = Core\Command::run();
+echo 'status ', $status, "\n";

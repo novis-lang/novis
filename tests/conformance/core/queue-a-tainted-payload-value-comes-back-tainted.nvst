@@ -1,0 +1,30 @@
+--TEST--
+A value pushed `tainted` comes back `tainted`: `Core\Script::args()` answers `mixed`, and text read out of `mixed` is `tainted`, so a job cannot hand a payload string to a sink unchecked — `rule:concurrency/a-payload-refuses-secret-and-keeps-its-qualifiers`, `rule:security/taint-propagation`
+--FILE--
+<?nvs
+// The enqueue half: a `tainted` payload is accepted. Only `secret` is refused
+// at the push, by tests/conformance/core/queue-a-secret-payload-value-does-not-compile.nvst.
+tainted string $name = "Robert'); drop table users; --";
+Core\Queue::push("greet.nvs", {args: ["name" => $name]});
+
+// The job half, written the way a job reads its payload. The qualifier is
+// decided while checking and nothing of it is in the row, so what carries it
+// across is that every text read out of `mixed` is `tainted`.
+var $args = Core\Script::args() as array<string>;
+tainted string $back = $args["name"];
+echo $back, "\n";
+
+// The plain type and a sink both refuse it.
+string $plain = $args["name"];
+string $content = Core\IO::read($args["name"]);
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `string`, found `tainted string`
+   --> case.nvs:15:17
+%A
+error[E0401]: expected `string`, found `tainted string`
+   --> case.nvs:16:33
+%A
+error: aborting due to 2 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

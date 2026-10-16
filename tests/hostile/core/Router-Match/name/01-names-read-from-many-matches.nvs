@@ -1,0 +1,56 @@
+<?nvs
+// Attack: a program keeps many matches, and reads their names again and again.
+// Each read should return the same name, and no memory should be lost.
+
+class Pages
+{
+    #[Core\Route(path: "/pages/{slug}", method: Core\Http\Method::Get, name: "Pages::show")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function show(string $slug): string
+    { return 'one page'; }
+
+    #[Core\Route(path: "/pages", method: Core\Http\Method::Post)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function create(): string
+    { return 'a new page'; }
+}
+
+// 1. Ten thousand matches are kept in an array at the same time.
+array<Core\Router\Match> $kept = [];
+uint $i = 0;
+while ($i < 10000) {
+    ?Core\Router\Match $each = Core\Router::match(Core\Http\Method::Get, '/pages/p' . ($i as string));
+    if ($each != null) {
+        $kept[] = $each;
+    }
+    $i = $i + 1;
+}
+echo Core\Arr::count($kept), ' kept', "\n";
+
+// 2. Every kept match is asked for its name one hundred times.
+uint $same = 0;
+foreach ($kept as Core\Router\Match $match) {
+    uint $j = 0;
+    while ($j < 100) {
+        if ($match->name() == 'Pages::show') {
+            $same = $same + 1;
+        }
+        $j = $j + 1;
+    }
+}
+echo $same, ' names read', "\n";
+
+// 3. A route with no name is read one million times. Each result is `null`.
+?Core\Router\Match $unnamed = Core\Router::match(Core\Http\Method::Post, '/pages');
+uint $nulls = 0;
+if ($unnamed != null) {
+    Core\Router\Match $bare = $unnamed;
+    uint $k = 0;
+    while ($k < 1000000) {
+        if ($bare->name() == null) {
+            $nulls = $nulls + 1;
+        }
+        $k = $k + 1;
+    }
+}
+echo $nulls, ' null names', "\n";

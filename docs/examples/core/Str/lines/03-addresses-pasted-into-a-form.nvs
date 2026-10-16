@@ -1,0 +1,19 @@
+<?nvs
+// Shows how to read a list of email addresses that a user pasted into a form, one on each line.
+
+// A browser sends the lines of a text field with `\r\n` between them.
+string $pasted = "anna@example.com\r\n  ben@example.com \r\n\r\ncarla@example.com\r\n";
+
+// `Core\Str::trim` removes the spaces around each address.
+// An empty line is skipped, so it does not become an empty address.
+array<string> $addresses = [];
+foreach (Core\Str::lines($pasted) as string $line) {
+    string $address = Core\Str::trim($line);
+    if (!Core\Str::isEmpty($address)) {
+        $addresses[] = $address;
+    }
+}
+
+// This prints `3 addresses` and then the three addresses, one on each line.
+echo Core\Arr::count($addresses), " addresses\n";
+echo Core\Str::join($addresses, "\n"), "\n";

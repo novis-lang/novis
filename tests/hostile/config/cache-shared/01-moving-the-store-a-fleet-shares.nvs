@@ -1,0 +1,79 @@
+<?nvs
+// Attack: a request tries to change `[cache.shared] url` and the other settings of the block,
+// and to use the shared cache without the right to. Every attempt should fail.
+// Step 3 writes a lot of data, so this test needs more time than usual.
+// hostile: timeout-ms 30000
+
+// 1. Set every key of the block, and the block itself, to an address the attacker controls.
+array<string> $keys = [
+    'cache.shared',
+    'cache.shared.url',
+    'cache.shared.password',
+    'cache.shared.password_file',
+    'cache.shared.database',
+    'cache.shared.timeout',
+];
+foreach ($keys as string $key) {
+    Core\Config::set($key, 'redis://attacker.example:6379');
+    Core\Config::restore($key);
+}
+
+// 2. Set keys that are almost real keys: extra dots, capital letters and unknown names.
+array<string> $nearby = [
+    'cache',
+    'cache.',
+    'cache.shared.',
+    'cache.shared.url.scheme',
+    'cache.shared.url.',
+    'cache.sharedurl',
+    'cache.shared.nvs_no_such_key',
+    'CACHE.SHARED.URL',
+    'cache..shared..url',
+    '.cache.shared.url',
+];
+foreach ($nearby as string $key) {
+    Core\Config::set($key, 'redis://attacker.example:6379');
+    Core\Config::get($key);
+    Core\Config::restore($key);
+}
+
+// 3. Set the address to invalid values and to a 256 KB value, 20,000 times.
+string $enormous = 'redis://' . Core\Str::repeat('a', 262144) . ':6379';
+array<string> $malformed = [
+    '',
+    'redis://',
+    'unix:/proc/self/mem',
+    'unix:',
+    'file:///etc/passwd',
+    'redis://127.0.0.1:99999',
+    'redis://127.0.0.1:-1',
+    'redis://127.0.0.1:16379/../../',
+    "redis://127.0.0.1\u{0000}:16379",
+    $enormous,
+];
+uint $i = 0;
+while ($i < 20000) {
+    foreach ($malformed as string $value) {
+        Core\Config::set('cache.shared.url', $value);
+    }
+    $i = $i + 1;
+}
+
+// 4. Read the password and the password file. `Core\Config::get` should return `null` for both.
+Core\Config::get('cache.shared.password');
+Core\Config::get('cache.shared.password_file');
+
+// 5. Open the shared cache 5,000 times without the right. No attempt should open a connection.
+uint $tries = 0;
+while ($tries < 5000) {
+    try {
+        var $store = Core\Cache::shared();
+        $store->put('claimed:' . $tries, 'mine');
+    } catch (RuntimeError $refused) {
+        // This error is expected. Each attempt should fail quickly.
+    }
+    $tries = $tries + 1;
+}
+
+// The address should still be the value from the file.
+echo 'store: ', Core\Config::get('cache.shared.url') ?? '(no shared tier)', "\n";

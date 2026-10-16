@@ -1,0 +1,11 @@
+<?nvs
+// Shows that `grayscale` keeps the transparency of each pixel.
+use Novis\Image\Image;
+use Novis\Image\Color;
+
+Image $icon = Image::create(4, 4, Color::rgba(255, 255, 255, 0.5));
+
+// White stays white, and the alpha stays half. This prints 255 255 255 128.
+var $raw = $icon->grayscale()->raw();
+array<mixed> $pixel = Core\Bytes::unpack(Core\Bytes::slice($raw->pixels, 0, 4), "C4");
+echo $pixel[0], " ", $pixel[1], " ", $pixel[2], " ", $pixel[3], "\n";

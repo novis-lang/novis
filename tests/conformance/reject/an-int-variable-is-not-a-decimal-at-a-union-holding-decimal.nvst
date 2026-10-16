@@ -1,0 +1,16 @@
+--TEST--
+Only a number literal is placed at the `decimal` member of a union: an `int` variable stored at `?decimal` does not compile, and `3 as ?decimal` cannot fail, as `3 as ?int` cannot — `rule:types/numeric-literal-placement`
+--FILE--
+<?nvs
+int $count = 3;
+?decimal $price = $count;
+var $rate = 3 as ?decimal;
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `null|decimal`, found `int`
+%A
+error[E0709]: `decimal as ?decimal` cannot fail, so it never answers `null`
+%A
+error: aborting due to 2 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

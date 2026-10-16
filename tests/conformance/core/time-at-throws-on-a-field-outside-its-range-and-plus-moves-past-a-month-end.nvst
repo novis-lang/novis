@@ -1,0 +1,50 @@
+--TEST--
+Core\Time::at throws an error for a month, day, hour, minute or year outside its range, and `plus` is the way to move a date past the end of a month or a year
+--FILE--
+<?nvs
+final class Refusal {
+    // Returns `1` when the message starts with the name of `Core\Time::at`.
+    public static function of(string $message): string {
+        return Core\Str::startsWith($message, "Core\\Time::at(): ") as string;
+    }
+}
+
+var $utc = Core\Time\Zone::UTC;
+uint $refused = 0;
+
+// To move a date past the end of a year or a month, use `plus`.
+echo Core\Time::at(2024, 1, 1, $utc)->plus(12, Core\Unit::Month)->format("yyyy-MM-dd"), "\n";
+echo Core\Time::at(2024, 2, 1, $utc)->plus(29, Core\Unit::Day)->format("yyyy-MM-dd"), "\n";
+
+// A month must be from 1 to 12.
+try { Core\Time::at(2024, 13, 1, $utc); } catch (Throwable $e) { $refused = $refused + 1; echo "month=13|", Refusal::of($e->message), "\n"; }
+try { Core\Time::at(2024, 0, 1, $utc); } catch (Throwable $m0) { $refused = $refused + 1; echo "month=0|", Refusal::of($m0->message), "\n"; }
+
+// A day must exist in its month. February 2024 has 29 days, and there is no day 0.
+try { Core\Time::at(2024, 2, 30, $utc); } catch (Throwable $d30) { $refused = $refused + 1; echo "feb=30|", Refusal::of($d30->message), "\n"; }
+try { Core\Time::at(2024, 3, 0, $utc); } catch (Throwable $d0) { $refused = $refused + 1; echo "day=0|", Refusal::of($d0->message), "\n"; }
+
+// The `hour` and `minute` options are checked the same way.
+try { Core\Time::at(2024, 3, 1, $utc, {hour: 25}); } catch (Throwable $h25) { $refused = $refused + 1; echo "hour=25|", Refusal::of($h25->message), "\n"; }
+try { Core\Time::at(2024, 3, 1, $utc, {minute: 60}); } catch (Throwable $mi) { $refused = $refused + 1; echo "minute=60|", Refusal::of($mi->message), "\n"; }
+
+// A much larger month throws the same error.
+try { Core\Time::at(2024, 300, 1, $utc); } catch (Throwable $m300) { $refused = $refused + 1; echo "month=300|", Refusal::of($m300->message), "\n"; }
+
+// A year must be at most 9999.
+try { Core\Time::at(10000, 1, 1, $utc); } catch (Throwable $y) { $refused = $refused + 1; echo "year=10000|", Refusal::of($y->message), "\n"; }
+
+// All eight calls above throw an error.
+echo "refused=", $refused, "/8\n";
+--EXPECT--
+2025-01-01
+2024-03-01
+month=13|1
+month=0|1
+feb=30|1
+day=0|1
+hour=25|1
+minute=60|1
+month=300|1
+year=10000|1
+refused=8/8

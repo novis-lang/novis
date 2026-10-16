@@ -1,0 +1,1 @@
+Status 200. The error was: Core\Response::setStatus(): `600` is not an HTTP status — a status is three digits naming one of five classes, so it is between 100 and 599

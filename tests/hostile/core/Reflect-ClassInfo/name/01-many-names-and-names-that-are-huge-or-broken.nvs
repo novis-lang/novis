@@ -1,0 +1,53 @@
+<?nvs
+// Attack: a program reads class names many times and looks up names that are huge or broken.
+// Every step should return a name or `null`, and the runtime must not crash or leak.
+
+class Target
+{
+    public int $value = 1;
+}
+
+class Child extends Target
+{
+}
+
+// 1. A new object is described and its class name is read, 200000 times.
+uint $length = 0;
+uint $i = 0;
+while ($i < 200000) {
+    Target $subject = new Target();
+    if ($i % 2 == 1) {
+        $subject = new Child();
+    }
+    var $info = Core\Reflect::forObject($subject);
+    $length = $length + Core\Str::length($info->name());
+    $i = $i + 1;
+}
+echo $length, "\n";
+
+// 2. Names that are huge, empty, or almost right are looked up.
+string $huge = 'Target' . Core\Str::repeat('x', 10000000);
+array<string> $names = [$huge, '', "Target\0", "\0Target", 'target', '\\Target', ' Target', 'Target::class'];
+foreach ($names as string $name) {
+    var $found = Core\Reflect::forClass($name);
+    if ($found == null) {
+        echo "null\n";
+    } else {
+        Core\Reflect\ClassInfo $described = $found;
+        echo $described->name(), "\n";
+    }
+}
+
+// 3. The name is used to look up the same class again, 100000 times in a row.
+string $current = 'Child';
+$i = 0;
+while ($i < 100000) {
+    var $again = Core\Reflect::forClass($current);
+    if ($again == null) {
+        break;
+    }
+    Core\Reflect\ClassInfo $next = $again;
+    $current = $next->name();
+    $i = $i + 1;
+}
+echo $current, ' ', $i, "\n";

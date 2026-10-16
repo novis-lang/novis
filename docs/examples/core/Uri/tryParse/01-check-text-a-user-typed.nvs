@@ -1,0 +1,19 @@
+<?nvs
+// Shows how to check if a text is an address, without catching an error.
+
+array<string> $typed = [
+    "https://example.com/my-files",
+    "https://example.com/my files",
+    "https://example.com:99999/",
+];
+
+// The second text has a space, and the third has a port above 65535.
+// This prints the host of the first text, then "not an address" twice.
+foreach ($typed as string $text) {
+    ?Core\Uri $uri = Core\Uri::tryParse($text);
+    if ($uri == null) {
+        echo "not an address", "\n";
+    } else {
+        echo $uri->host(), "\n";
+    }
+}

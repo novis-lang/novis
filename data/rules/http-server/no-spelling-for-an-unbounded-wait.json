@@ -1,0 +1,16 @@
+{
+  "title": "`Core\\Http\\Client` has no spelling for \"wait forever\": every bound is a `Duration`, an omitted one inherits `[http.client]`, and expiry throws `TimeoutError`",
+  "status": "shipped",
+  "seeAlso": [
+    "http-server/one-deadline-covers-the-whole-call",
+    "http-server/retry-is-opt-in-jittered-and-closed",
+    "types/duration",
+    "core-api/failure-throws",
+    "core-classes/process-is-argv-only"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/no-client-member-accepts-an-unbounded-wait.nvst",
+    "crates/nvs-types/tests/core_members.rs",
+    "crates/nvs-config/tests/tree.rs"
+  ]
+}

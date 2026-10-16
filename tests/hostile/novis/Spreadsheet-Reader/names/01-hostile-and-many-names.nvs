@@ -1,0 +1,49 @@
+<?nvs
+// Attack: a request uploads a workbook whose names refer to other files or contain markup, or has very many names.
+// `names` should return each reference as text and open no file. A name the writer does not allow should throw an error.
+use Novis\Spreadsheet\Reader;
+use Novis\Spreadsheet\Workbook;
+
+class Attack
+{
+    // This method writes one name, reads it back and prints whether the reference is the same, or the class of the error.
+    public static function attempt(int $step, string $name, string $reference): void
+    {
+        try {
+            var $book = Workbook::createInMemory();
+            $book->sheet('Shop')->add(['Widget']);
+            $book->define($name, $reference);
+            bytes $file = $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
+            foreach (Reader::open($file)->names() as var $read) {
+                echo 'step ', $step, ' read the reference ', $read->reference == $reference ? 'unchanged' : 'changed', "\n";
+            }
+        } catch (Throwable $e) {
+            echo 'step ', $step, ' stopped ', $e::class, "\n";
+        }
+    }
+}
+
+// 1. References to another workbook, a local file and a command.
+Attack::attempt(1, 'Other', '[other.xlsx]Sheet1!$A$1');
+Attack::attempt(1, 'Local', "'C:\\Windows\\[win.ini]x'!\$A\$1");
+Attack::attempt(1, 'Command', 'cmd|\'/c calc\'!A0');
+
+// 2. References with markup that tries to end the XML early.
+Attack::attempt(2, 'Markup', '</definedName><definedName name="x">Shop!$A$1');
+Attack::attempt(2, 'Quotes', '"><script>alert(1)</script>');
+
+// 3. A reference of 100,000 characters.
+Attack::attempt(3, 'Long', 'Shop!$A$1+' . Core\Str::repeat('1', 100000));
+
+// 4. 5,000 names in one workbook, read 20 times.
+var $book = Workbook::createInMemory();
+$book->sheet('Shop')->add(['Widget']);
+for (int $n = 1; $n <= 5000; $n++) {
+    $book->define("Name{$n}", "Shop!\$A\${$n}");
+}
+Reader $reader = Reader::open($book->finish()->bytes ?? Core\Bytes::fill(0, 0));
+uint $count = 0;
+for (int $round = 0; $round < 20; $round++) {
+    $count = Core\Arr::count($reader->names());
+}
+echo 'step 4 read ', $count, " names\n";

@@ -1,0 +1,16 @@
+{
+  "title": "An enum declares a new, closed, named integer type",
+  "status": "shipped",
+  "seeAlso": [
+    "enums/declaration",
+    "enums/one-backing-type",
+    "enums/no-class-machinery",
+    "enums/representation"
+  ],
+  "guardedBy": [
+    "tests/conformance/enum/an-enum-case-is-its-integer.nvst",
+    "tests/conformance/enum/an-enum-crosses-a-method-boundary.nvst",
+    "tests/conformance/enum/an-enum-typed-property-round-trips.nvst",
+    "tests/conformance/enum/an-enum-is-returned-and-stored-in-an-array.nvst"
+  ]
+}

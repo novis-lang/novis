@@ -1,0 +1,13 @@
+--TEST--
+a directional scope opened in a single-quoted literal and never closed is a compile error — `rule:security/bidi-predicate` and `rule:security/bidi-boundaries`
+--FILE--
+<?nvs
+string $label = 'user ⁦ admin';
+echo $label, "\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0008]: unterminated bidirectional control U+2066 LEFT-TO-RIGHT ISOLATE
+%A
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

@@ -1,0 +1,12 @@
+{
+  "title": "Three connection defaults close holes PHP leaves open, and none can be configured to the unsafe value",
+  "status": "shipped",
+  "seeAlso": [
+    "core-classes/db-capabilities",
+    "core-classes/db-column-types",
+    "types/bytes"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/db-open-refuses-a-tls-mode-weaker-than-verify-full.nvst"
+  ]
+}

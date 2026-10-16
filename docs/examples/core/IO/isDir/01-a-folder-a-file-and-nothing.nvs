@@ -1,0 +1,15 @@
+<?nvs
+// Shows what `Core\IO::isDir` returns for a folder, a file and a path with nothing at it.
+
+string $dir = Core\IO::temporaryDir();
+string $file = Core\Path::join($dir, "notes.txt");
+Core\IO::write($file, "hello");
+
+// A folder. This prints "true".
+echo Core\IO::isDir($dir) ? "true" : "false", "\n";
+
+// A file is not a folder. This prints "false".
+echo Core\IO::isDir($file) ? "true" : "false", "\n";
+
+// Nothing has this name. `isDir` does not throw an error. This prints "false".
+echo Core\IO::isDir(Core\Path::join($dir, "missing")) ? "true" : "false", "\n";

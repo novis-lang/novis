@@ -1,0 +1,28 @@
+{
+  "slug": "agents",
+  "title": "\"Coding agents: nvs agent, and what nvs agent init installs\"",
+  "summary": "the four commands a coding agent reads the language through — `primer`, `index`, `find` and `show` — over the `Core` registry and the chapters of this reference, the `nvs check` loop that closes them, and `nvs agent init`, which writes an `AGENTS.md` stanza and one adapter per harness and states no language fact",
+  "keywords": [
+    "nvs agent",
+    "nvs agent primer",
+    "nvs agent index",
+    "nvs agent find",
+    "nvs agent show",
+    "nvs agent init",
+    "--all",
+    "coding agent",
+    "LLM",
+    "AI assistant",
+    "agent instructions",
+    "AGENTS.md",
+    "SKILL.md",
+    ".claude",
+    "Claude Code",
+    "skill",
+    "adapter",
+    "pointer",
+    "stale documentation",
+    "hallucinated member",
+    "nvs check loop"
+  ]
+}

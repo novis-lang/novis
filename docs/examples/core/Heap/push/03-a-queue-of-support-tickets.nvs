@@ -1,0 +1,28 @@
+<?nvs
+// Shows a queue of support tickets. The most urgent ticket is handled first.
+
+class Ticket implements Comparable {
+    public string $title;
+    public int $priority;
+
+    public function constructor(string $title, int $priority) {
+        $this->title = $title;
+        $this->priority = $priority;
+    }
+
+    // A smaller number is more urgent, so priority 1 comes out first.
+    public function compareTo(Ticket $other): int {
+        return $this->priority - $other->priority;
+    }
+}
+
+var $queue = new Core\Heap<Ticket>();
+$queue->push(new Ticket("Change the invoice address", 3));
+$queue->push(new Ticket("The shop is down", 1));
+$queue->push(new Ticket("Reset my password", 2));
+
+// This prints the tickets in the order 1, 2, 3.
+while (!$queue->isEmpty()) {
+    var $ticket = $queue->pop();
+    echo $ticket->priority, ": ", $ticket->title, "\n";
+}

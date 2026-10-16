@@ -1,0 +1,54 @@
+<?nvs
+// Attack: `powMod` is given a modulus of 0, a negative power, and a power of
+// ten thousand digits. The first two should throw an error, the third should
+// answer without building the power, and the program should run to its last
+// line.
+// hostile: timeout-ms 20000
+
+var $small = Core\BigInt::of(497);
+
+// 1. A modulus of 0, which nothing can be divided by. This throws an
+//    `ArithmeticError`.
+try {
+    var $byZero = Core\BigInt::of(4)->powMod(Core\BigInt::of(13), Core\BigInt::of(0));
+    echo 'answered ', $byZero, "\n";
+} catch (ArithmeticError $zeroModulus) {
+    echo "refused\n";
+}
+
+// 2. Negative powers, which `powMod` does not accept. Each one throws an
+//    `ArithmeticError`.
+array<int> $powers = [-1, -13, -9223372036854775807 - 1];
+foreach ($powers as int $power) {
+    try {
+        var $inverse = Core\BigInt::of(4)->powMod(Core\BigInt::of($power), $small);
+        echo 'answered ', $inverse, "\n";
+    } catch (ArithmeticError $negativePower) {
+        echo "refused\n";
+    }
+}
+
+// 3. A power of ten thousand digits, modulo a prime of 39 digits. The power
+//    alone would be far larger than the memory of the machine.
+var $huge = Core\BigInt::parse(Core\Str::repeat('9', 10000));
+var $prime = Core\BigInt::parse('170141183460469231731687303715884105727');
+echo Core\BigInt::of(5)->powMod($huge, $prime), "\n";
+
+// 4. The same power modulo 1, whose only remainder is 0, and modulo a negative
+//    number.
+echo Core\BigInt::of(5)->powMod($huge, Core\BigInt::of(1)), "\n";
+echo Core\BigInt::of(5)->powMod(Core\BigInt::of(13), Core\BigInt::of(-497)), "\n";
+
+// 5. A base of ten thousand digits raised to a power of ten thousand digits.
+//    The memory this holds must stay about the size of the modulus.
+echo Core\Str::length($huge->powMod($huge, $prime)->toString()), "\n";
+
+// 6. Fifty thousand small modular powers, each thrown away again. The memory
+//    the program holds must not grow with the rounds.
+uint $round = 0;
+int $signs = 0;
+while ($round < 50000) {
+    $signs = $signs + Core\BigInt::of(4)->powMod(Core\BigInt::of(13), $small)->sign();
+    $round = $round + 1;
+}
+echo $signs, "\n";

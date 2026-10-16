@@ -1,0 +1,33 @@
+<?nvs
+// Shows what a schema would change in a database. `planAgainst` compares the
+// two and returns the steps. The database is not changed by this.
+
+use Core\Db;
+use Core\Db\Plan\Step;
+use Core\Db\Schema;
+
+var $db = Db::connect('notes');
+
+var $schema = Schema::fromArray([
+    'tables' => [
+        [
+            'name' => 'notes',
+            'columns' => [
+                ['name' => 'id', 'type' => 'int64', 'identity' => true],
+                ['name' => 'title', 'type' => 'text(200)'],
+            ],
+            'primary_key' => ['id'],
+        ],
+    ],
+]);
+
+// The database is empty, so the plan has one step: create the table.
+var $plan = $schema->planAgainst($db);
+echo 'steps: ', Core\Arr::count($plan->steps()), "\n";
+
+// Every step carries the whole statement that makes it.
+foreach ($plan->steps() as Step $step) {
+    echo $step->sql(), "\n";
+}
+
+$db->close();

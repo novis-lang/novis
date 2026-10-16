@@ -1,0 +1,22 @@
+<?nvs
+// Attack: a connection script asks for its connection again and again, and keeps every answer.
+// Memory should grow only by what the script keeps, and every answer should still work.
+
+// 1. Ask one million times and keep nothing.
+uint $i = 0;
+while ($i < 1000000) {
+    Core\Socket::current();
+    $i = $i + 1;
+}
+
+// 2. Ask one hundred thousand times and keep every answer in an array.
+array<Core\Socket> $kept = [];
+$i = 0;
+while ($i < 100000) {
+    $kept[] = Core\Socket::current();
+    $i = $i + 1;
+}
+
+// 3. Send one message through the first answer and one through the last.
+$kept[0]->send('first');
+$kept[99999]->send('last');

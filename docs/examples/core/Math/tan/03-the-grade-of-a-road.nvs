@@ -1,0 +1,19 @@
+<?nvs
+// Shows how a map app turns the angle of a road into the grade on a road sign.
+
+class Road {
+    // The grade is how many meters the road goes up for each 100 meters forward.
+    public static function grade(float $angleDegrees): float {
+        float $percent = Core\Math::tan(Core\Math::toRadians($angleDegrees)) * 100.0;
+        return Core\Math::round($percent, {precision: 1});
+    }
+}
+
+// A road at an angle of 3 degrees. This prints 5.2, so the sign says 5.2 %.
+echo Road::grade(3.0), "\n";
+
+// A road at 5 degrees. This prints 8.7.
+echo Road::grade(5.0), "\n";
+
+// A steep road at 10 degrees. This prints 17.6.
+echo Road::grade(10.0), "\n";

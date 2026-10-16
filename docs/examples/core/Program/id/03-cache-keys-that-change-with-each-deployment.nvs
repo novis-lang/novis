@@ -1,0 +1,21 @@
+<?nvs
+// Shows how to build cache keys that change when you deploy new code. After a
+// deployment, the old entries are never read again.
+
+class PageCache {
+    public static function key(string $page): string {
+        return "page:" . Core\Str::slice(Core\Program::id(), 0, 16) . ":" . $page;
+    }
+}
+
+string $home = PageCache::key("home");
+
+// The key has the prefix, 16 characters of the id, a colon and the page name.
+// This prints `26`.
+echo Core\Str::length($home), "\n";
+
+// This prints `true`.
+echo Core\Str::endsWith($home, ":home") ? "true" : "false", "\n";
+
+// The same page gives the same key during one run. This prints `true`.
+echo PageCache::key("home") == $home ? "true" : "false", "\n";

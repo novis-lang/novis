@@ -1,0 +1,9 @@
+<?nvs
+// Writes the method of the current request into a log line.
+
+// `Core\Request::method()` returns a `Core\Http\Method` case.
+// `Core\Http::methodName` converts it to text. The request below uses `PUT`.
+string $line = "request method: " . Core\Http::methodName(Core\Request::method());
+
+// This prints `request method: PUT`.
+echo $line, "\n";

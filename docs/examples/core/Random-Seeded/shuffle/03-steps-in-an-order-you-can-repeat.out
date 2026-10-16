@@ -1,0 +1,6 @@
+seed 7
+run: pay
+run: log in
+run: create user
+run: log out
+run: add to cart

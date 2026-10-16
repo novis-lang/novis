@@ -1,0 +1,27 @@
+<?nvs
+// Measures how fast `rdnValue` reads the name of an entry, as a program does when it shows a list of users.
+// bench: iterations 100000
+// bench: calls 0
+// bench: complexity constant
+
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        // The length so far chooses the DN, so the loop cannot be left out.
+        array<Core\Ldap\Dn> $dns = [
+            Core\Ldap\Dn::parse('CN=Ann Lee,OU=Staff,DC=example,DC=test'),
+            Core\Ldap\Dn::parse('CN=Lee\\, Ann,OU=Staff,DC=example,DC=test'),
+            Core\Ldap\Dn::parse('OU=Staff,DC=example,DC=test'),
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            $total = $total + Core\Str::length($dns[($total % 3) as int]->rdnValue());
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(100000), "\n";

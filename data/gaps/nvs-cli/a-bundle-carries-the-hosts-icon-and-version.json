@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-cli/src/bundle.rs",
+  "title": "A bundle is a copy of the host, so it carries Novis's icon and version information — an author's own icon, and a version read off `package.toml`, are not written into the copy yet.",
+  "text": "",
+  "milestone": "M15"
+}

@@ -1,0 +1,10 @@
+<?nvs
+// Shows the square roots of a few simple numbers.
+
+// These numbers are squares of other numbers. This prints 3, 0.5 and 12.
+echo Core\Math::sqrt(9.0), "\n";
+echo Core\Math::sqrt(0.25), "\n";
+echo Core\Math::sqrt(144.0), "\n";
+
+// The square root of 2 has no end. This prints 1.4142135623731.
+echo Core\Math::sqrt(2.0), "\n";

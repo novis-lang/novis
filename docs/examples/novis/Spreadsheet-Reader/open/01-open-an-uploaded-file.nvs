@@ -1,0 +1,22 @@
+<?nvs
+// Shows how to open the bytes of an uploaded xlsx file and read its first sheet.
+use Novis\Spreadsheet\Reader;
+use Novis\Spreadsheet\Workbook;
+
+class Import
+{
+    // An upload is `tainted bytes`. `Reader::open` accepts it directly.
+    public static function count(tainted bytes $upload): int
+    {
+        int $count = 0;
+        foreach (Reader::open($upload)->rows(0, { header: true }) as var $row) {
+            $count++;
+        }
+        return $count;
+    }
+}
+
+// This makes the upload. In a real program the bytes come from the request.
+bytes $upload = Workbook::fromRows([['item' => 'Widget'], ['item' => 'Gadget'], ['item' => 'Gizmo']])->bytes();
+
+echo Import::count($upload), " items in the upload\n";

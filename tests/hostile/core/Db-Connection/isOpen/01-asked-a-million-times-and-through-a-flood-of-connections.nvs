@@ -1,0 +1,59 @@
+<?nvs
+// Attack: the question asked a million times, asked after a statement failed,
+// and asked of twenty thousand connections opened and given back one after the
+// other. The answer must follow the connection every time.
+// hostile: timeout-ms 60000
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table notes (id integer primary key, text text not null)', []);
+
+// 1. A million questions on an open connection. Every answer is `true`, and a
+// million of them may not fill the memory.
+uint $open = 0;
+uint $i = 0;
+while ($i < 1000000) {
+    if ($db->isOpen()) {
+        $open = $open + 1;
+    }
+    $i = $i + 1;
+}
+echo '1 open: ', $open, "\n";
+
+// 2. A statement the database refuses. It does not end the connection, so the
+// answer after it is still `true`.
+try {
+    $db->execute('insert into notes (nothing) values (?)', ['buy milk']);
+} catch (Throwable $error) {
+    echo '2 after a refused statement: ', $db->isOpen() ? 'open' : 'closed', "\n";
+}
+
+// 3. Twenty thousand connections, each opened, asked and given back. A handle
+// that stayed behind would show up as a program that runs out of them.
+uint $answers = 0;
+$i = 0;
+while ($i < 20000) {
+    var $one = Core\Db::connect('notes');
+    if ($one->isOpen()) {
+        $answers = $answers + 1;
+    }
+    $one->close();
+    if (!$one->isOpen()) {
+        $answers = $answers + 1;
+    }
+    $i = $i + 1;
+}
+echo '3 answers: ', $answers, "\n";
+
+// 4. A million questions on a connection that was closed twice. Every answer
+// is `false`.
+$db->close();
+$db->close();
+uint $closed = 0;
+$i = 0;
+while ($i < 1000000) {
+    if (!$db->isOpen()) {
+        $closed = $closed + 1;
+    }
+    $i = $i + 1;
+}
+echo '4 closed: ', $closed, "\n";

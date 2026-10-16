@@ -1,0 +1,20 @@
+<?nvs
+// Shows a test that starts a UDP server on a free port and tells a client where to send.
+
+// This class is the client. It only needs to know the port of the server.
+class Client {
+    public static function sendPing(uint $serverPort): void {
+        Core\Net\Datagram $socket = Core\Net::bindDatagram("127.0.0.1", 0);
+        $socket->send("127.0.0.1", $serverPort, "ping" as bytes, 1s);
+        $socket->close();
+    }
+}
+
+// A free port means two tests can run at the same time without a conflict.
+Core\Net\Datagram $server = Core\Net::bindDatagram("127.0.0.1", 0);
+Client::sendPing($server->port());
+
+// This prints `server got: ping`.
+echo "server got: ", $server->receive(64, 5s)->payload() as string, "\n";
+
+$server->close();

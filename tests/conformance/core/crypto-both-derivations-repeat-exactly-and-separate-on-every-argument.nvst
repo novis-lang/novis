@@ -1,0 +1,75 @@
+--TEST--
+Core\Crypto::deriveKey and ::expandKey answer one key for one set of arguments and a different key for every argument changed, counted over both matrices rather than read off a line — `rule:core-api/tier-roster`, `rule:security/secret-qualifier`
+--FILE--
+<?nvs
+// Invariance over a sweep, counted. A derivation that dropped one of its
+// arguments — a PBKDF2 that ignored the count it was handed, an HKDF that
+// expanded without its `$info` — still answers 32 octets that seal and open a
+// message, and still prints a plausible line about any single key. What it
+// cannot do is answer a *different* key for every argument changed one at a
+// time, which is the whole of what makes a derivation a function of what it
+// was given.
+bytes $salt = Core\Bytes::fill(16, 65);
+secret string $password = "correct horse battery staple";
+
+// The base, then one variant per argument: a password one octet shorter, a
+// salt of the same width and different content, and a count one higher. The
+// count is at the floor `crypto-pbkdf2-refuses-an-iteration-count-or-salt-outside-its-bounds.nvst`
+// names, because every call here pays for it.
+array<secret bytes> $derived = [
+    Core\Crypto::deriveKey($password, $salt, 100000),
+    Core\Crypto::deriveKey("correct horse battery stapl", $salt, 100000),
+    Core\Crypto::deriveKey($password, Core\Bytes::fill(16, 66), 100000),
+    Core\Crypto::deriveKey($password, $salt, 100001),
+];
+if (Core\Crypto::deriveKey($password, $salt, 100000) == $derived[0]) {
+    echo "the same password, salt and count derive one key", "\n";
+}
+
+int $pairs = 0;
+int $distinct = 0;
+foreach (Core\Arr::range(0, 3) as int $i) {
+    foreach (Core\Arr::range(0, 3) as int $j) {
+        if ($i < $j) {
+            $pairs += 1;
+            if ($derived[$i] != $derived[$j]) {
+                $distinct += 1;
+            }
+        }
+    }
+}
+echo "pbkdf2 distinct ", $distinct, " of ", $pairs, " pairs", "\n";
+
+// The same matrix on the other derivation, and `$info` is the argument that
+// carries the weight: it is what separates two keys drawn from one secret, so
+// a member that expanded without it would hand the same key to every use a
+// program named.
+secret bytes $material = Core\Crypto::generateKey();
+array<secret bytes> $expanded = [
+    Core\Crypto::expandKey($material, $salt, "encryption"),
+    Core\Crypto::expandKey(Core\Crypto::generateKey(), $salt, "encryption"),
+    Core\Crypto::expandKey($material, Core\Bytes::fill(16, 66), "encryption"),
+    Core\Crypto::expandKey($material, $salt, "authentication"),
+];
+if (Core\Crypto::expandKey($material, $salt, "encryption") == $expanded[0]) {
+    echo "the same material, salt and info expand one key", "\n";
+}
+
+$pairs = 0;
+$distinct = 0;
+foreach (Core\Arr::range(0, 3) as int $i) {
+    foreach (Core\Arr::range(0, 3) as int $j) {
+        if ($i < $j) {
+            $pairs += 1;
+            if ($expanded[$i] != $expanded[$j]) {
+                $distinct += 1;
+            }
+        }
+    }
+}
+echo "hkdf distinct ", $distinct, " of ", $pairs, " pairs", "\n";
+--EXPECT--
+the same password, salt and count derive one key
+pbkdf2 distinct 6 of 6 pairs
+the same material, salt and info expand one key
+hkdf distinct 6 of 6 pairs

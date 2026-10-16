@@ -1,0 +1,18 @@
+<?nvs
+// Shows how to print a price without the zeros it does not need.
+
+class Price
+{
+    public static function short(string $amount): string
+    {
+        // Zeros at the end are removed first. Then a `.` with nothing after it is removed.
+        return Core\Str::trimEnd(Core\Str::trimEnd($amount, {characters: "0"}), {characters: "."});
+    }
+}
+
+array<string> $amounts = ["12.50", "3.00", "100.25"];
+
+// This prints `12.5`, `3` and `100.25`.
+foreach ($amounts as string $amount) {
+    echo Price::short($amount), "\n";
+}

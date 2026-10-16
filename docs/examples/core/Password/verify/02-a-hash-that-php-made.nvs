@@ -1,0 +1,12 @@
+<?nvs
+// Shows that `verify` reads a bcrypt hash that a PHP application stored with
+// `password_hash`. The user table does not need to change.
+
+// PHP wrote this hash for the password "correct horse battery staple".
+string $fromPhp = '$2y$10$PE6UB/yJ1bk1dIwtgHee0es/SxguHDHJgvcdKauDX66xu84voItOi';
+
+// This prints `true`, then `false`.
+secret string $right = "correct horse battery staple";
+secret string $wrong = "hunter2";
+echo Core\Password::verify($right, $fromPhp) ? "true" : "false", "\n";
+echo Core\Password::verify($wrong, $fromPhp) ? "true" : "false", "\n";

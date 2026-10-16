@@ -1,0 +1,5 @@
+event: chat
+data: {"user":"anna","text":"Hello!"}
+
+data: 42
+

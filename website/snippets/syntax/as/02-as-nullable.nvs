@@ -1,0 +1,11 @@
+<?nvs
+// `as ?int` converts a value to a whole number.
+// If that is not possible, the result is `null`.
+string $good = "42";
+string $bad = "abc";
+echo ($good as ?int) ?? -1, " ", ($bad as ?int) ?? -1, "\n";
+
+// Some conversions happen without `as`. An `int` fits into a `float`.
+int $whole = 3;
+float $real = $whole;
+echo $real / 2, "\n";

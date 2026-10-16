@@ -1,0 +1,76 @@
+--TEST--
+`Core\Router::urlSigned` answers `url`'s own link with the reserved `_sig` parameter appended, joining the query it already has rather than opening a second one, and mints the same token for the same name, parameters, ring and lifetime — `rule:core-classes/router-signed-url`, `rule:core-api/signing-is-over-a-payload`
+--FILE--
+<?nvs
+// The shape of the answer, which is the half a caller sees. What it is a
+// signature *over* is `router-url-signed-signs-the-route-identity-and-not-the-
+// path-it-renders-to.nvst`; this case is about the link.
+class Docs {
+    #[Core\Route(path: "/docs/{slug}", method: Core\Http\Method::Get, name: "Docs::show")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function show(string $slug, #[Core\Query] string $q = ""): string { return $slug; }
+}
+
+secret bytes $key = Core\Crypto::generateKey();
+array<secret bytes> $ring = [$key];
+
+// § 4 calls `url` the launderer for the URL-path sink and this member launders
+// the same way, which is not a claim about the token at all: the path in front
+// of it is `url`'s answer, byte for byte, so a value that could not leave its
+// segment there cannot leave it here.
+string $plain = Core\Router::url("Docs::show", ["slug" => "a b"]);
+string $signed = Core\Router::urlSigned("Docs::show", ["slug" => "a b"], {keys: $ring, until: null});
+echo "plain=", $plain, "\n";
+echo "starts with the link=", Core\Str::startsWith($signed, $plain) ? "yes" : "no", "\n";
+echo "and adds one parameter=", Core\Str::startsWith($signed, $plain . "?_sig=") ? "yes" : "no", "\n";
+
+// The join is the query's, not a second `?`. A route whose link already carries
+// a leftover key gets `&`, and one that does not gets `?` — the line above and
+// the line below are the two halves of that, and a member that always wrote `?`
+// would print the first correctly and the second as a URL with two of them.
+string $withQuery = Core\Router::urlSigned(
+    "Docs::show",
+    ["slug" => "x", "q" => "1"],
+    {keys: $ring, until: null},
+);
+echo "one question mark=", Core\Arr::count(Core\Str::split($withQuery, "?")) as string, "\n";
+echo "joined=", Core\Str::startsWith($withQuery, "/docs/x?q=1&_sig=") ? "yes" : "no", "\n";
+
+// A signed link is a *value*, not a nonce: the same name, parameters, ring and
+// lifetime mint the same token every time. That is what makes one cacheable, and
+// it falls out of the payload being a document rather than anything the call
+// site could vary — a member that mixed in a random or a clock reading would
+// print "different" here and would still look right on every line above.
+echo "twice=", $signed == Core\Router::urlSigned("Docs::show", ["slug" => "a b"], {keys: $ring, until: null})
+    ? "the same link"
+    : "two links", "\n";
+
+// The token needs no escaping of its own: `Core\Signature` writes unpadded
+// URL-safe base64, so nothing in it is a byte the query grammar reads. A member
+// that had to escape its own token would be one whose answer is not what it
+// signed.
+string $token = Core\Str::after($signed, "_sig=") as string;
+echo "token is url safe=", Core\Regex::matches($token, "^[A-Za-z0-9_-]+$") ? "yes" : "no", "\n";
+
+// And the parameter is reserved, so `$params` may not write one itself. A
+// literal key that names neither a capture nor a declared `#[Query]` parameter
+// is already a compile error, so what reaches this refusal is a computed
+// `$params` — and it is a refusal rather than an overwrite because the two
+// would be one query carrying two answers, which is a choice about which one an
+// attacker gets to try.
+array<mixed> $smuggled = ["slug" => "a", "_sig" => "mine"];
+try {
+    Core\Router::urlSigned("Docs::show", $smuggled, {keys: $ring, until: null});
+    echo "wrote two of them\n";
+} catch (RuntimeError $reserved) {
+    echo "reserved=refused\n";
+}
+--EXPECT--
+plain=/docs/a%20b
+starts with the link=yes
+and adds one parameter=yes
+one question mark=2
+joined=yes
+twice=the same link
+token is url safe=yes
+reserved=refused

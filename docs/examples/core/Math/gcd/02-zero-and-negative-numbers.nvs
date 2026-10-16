@@ -1,0 +1,11 @@
+<?nvs
+// Shows the result when one of the numbers is zero or negative.
+
+// Every number divides 0, so the result is the other number. This prints 8.
+echo Core\Math::gcd(8, 0), "\n";
+
+// When both numbers are 0, the result is 0.
+echo Core\Math::gcd(0, 0), "\n";
+
+// The signs do not change the result, and it is never negative. This prints 4.
+echo Core\Math::gcd(-8, -12), "\n";

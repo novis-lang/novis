@@ -1,0 +1,11 @@
+<?nvs
+// `tainted` says that a string comes from outside the program, such as a form.
+tainted string $input = "42";
+
+// A string built from a tainted string is tainted too.
+tainted string $message = "You sent " . $input;
+echo $message, "\n";
+
+// `as int` checks the value. The result is a plain `int`.
+int $amount = $input as int;
+echo $amount * 2, "\n";

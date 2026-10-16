@@ -1,0 +1,39 @@
+---
+/**
+ * SocialIcons override: Starlight's component as it is, plus the external-link
+ * rule — the icons link out to GitHub and Discord, so they open in a new tab
+ * with the `rel` config/external-links.mjs owns, on top of the `rel="me"`
+ * Starlight gives them.
+ */
+import config from 'virtual:starlight/user-config'
+import { Icon } from '@astrojs/starlight/components'
+import { externalLinkAttrs } from '@config/external-links.mjs'
+
+const links = config.social || []
+---
+
+{
+  links.length > 0 && (
+    <>
+      {links.map(({ label, href, icon }) => (
+        <a {href} {...externalLinkAttrs(href, 'me')} class="sl-flex">
+          <span class="sr-only">{label}</span>
+          <Icon name={icon} />
+        </a>
+      ))}
+    </>
+  )
+}
+
+<style>
+  @layer starlight.core {
+    a {
+      color: var(--sl-color-text-accent);
+      padding: 0.5em;
+      margin: -0.5em;
+    }
+    a:hover {
+      color: var(--sl-color-white);
+    }
+  }
+</style>

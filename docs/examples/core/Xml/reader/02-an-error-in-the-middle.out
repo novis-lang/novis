@@ -1,0 +1,3 @@
+text: start
+text: stop
+Core\Xml\Reader::read(): `<entry>` is closed by `</entri>`, and an element closes as what it opened as.

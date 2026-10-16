@@ -1,0 +1,9 @@
+<?nvs
+// Shows how to write the full address of the page that the client asked for.
+
+// `Core\Request::scheme()` returns "https" for this request.
+tainted string $scheme = Core\Request::scheme();
+tainted string $host = Core\Request::host() ?? "localhost";
+
+// This prints "https://shop.example.com/orders".
+echo $scheme, "://", $host, Core\Request::path(), "\n";

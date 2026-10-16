@@ -1,0 +1,5 @@
+<?nvs
+// The bench in the folder above starts this script. It prints nothing and
+// returns 3, so the measurement is the start and the wait alone.
+
+return 3;

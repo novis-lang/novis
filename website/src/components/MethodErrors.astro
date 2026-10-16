@@ -1,0 +1,27 @@
+---
+/**
+ * A member's "Errors" section body: each error its registry card lists, and
+ * when it is thrown. The page renders this only when the card lists one.
+ */
+import { findMember } from '~/lib/core'
+
+interface Props {
+  id: string
+}
+
+const { id } = Astro.props
+const found = findMember(id)
+if (!found) throw new Error(`MethodErrors: unknown member id "${id}"`)
+const errors = found.member.doc?.errors ?? []
+---
+
+<ul class="nv-param-docs">
+  {errors.map((e) => (
+    <li>
+      <span class="nv-param-head">
+        <code class="nv-param-name">{e.error}</code>
+      </span>
+      {e.descHtml && <span class="nv-param-desc" set:html={e.descHtml} />}
+    </li>
+  ))}
+</ul>

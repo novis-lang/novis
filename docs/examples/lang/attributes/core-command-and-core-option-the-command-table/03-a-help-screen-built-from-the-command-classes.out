@@ -1,0 +1,6 @@
+Usage: app <command> [options]
+
+Commands:
+  migrate   Apply pending migrations
+  purge     Delete the expired rows
+  seed      Fill the database with test data

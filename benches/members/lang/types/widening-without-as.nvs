@@ -1,0 +1,26 @@
+<?nvs
+// This measures passing an `int` to a parameter of type `float`.
+// The value is converted without `as`. You meet this when you pass a count to a math method.
+// Each round passes the last round's total, so no round can be skipped.
+// bench: iterations 1024
+// bench: allocations 0
+// bench: complexity constant
+
+class Bench {
+    public static function shifted(float $x): float {
+        return $x + 1.0;
+    }
+
+    public static function run(uint $rounds): int {
+        int $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            float $x = Bench::shifted($total + 1);   // chained: $total is last round's
+            $total = ($x as int) % 1024;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(1024), "\n";

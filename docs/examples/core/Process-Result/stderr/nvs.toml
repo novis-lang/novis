@@ -1,0 +1,4 @@
+# The examples run programs from the system folders `/bin` and `/usr/bin`.
+# These lines allow that, and nothing else.
+[capabilities.process]
+exec = ["/bin", "/usr/bin"]

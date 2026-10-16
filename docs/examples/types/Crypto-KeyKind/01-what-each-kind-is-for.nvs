@@ -1,0 +1,41 @@
+<?nvs
+// `Core\Crypto\KeyKind` has five kinds of key. Two of them agree a shared secret
+// with another program, four of them sign, and `P256` does both. Every call
+// that creates or reads a key needs its kind.
+
+class Keys {
+    public static function purpose(Core\Crypto\KeyKind $kind): string {
+        return match ($kind) {
+            Core\Crypto\KeyKind::P256 => "P256     agrees and signs",
+            Core\Crypto\KeyKind::X25519 => "X25519   agrees only",
+            Core\Crypto\KeyKind::Ed25519 => "Ed25519  signs only",
+            Core\Crypto\KeyKind::RsaPkcs1 => "RsaPkcs1 signs, the scheme JWS calls RS256",
+            Core\Crypto\KeyKind::RsaPss => "RsaPss   signs, the scheme JWS calls PS256",
+        };
+    }
+}
+
+array<Core\Crypto\KeyKind> $roster = [
+    Core\Crypto\KeyKind::P256,
+    Core\Crypto\KeyKind::X25519,
+    Core\Crypto\KeyKind::Ed25519,
+    Core\Crypto\KeyKind::RsaPkcs1,
+    Core\Crypto\KeyKind::RsaPss,
+];
+foreach ($roster as Core\Crypto\KeyKind $kind) {
+    echo Keys::purpose($kind), "\n";
+}
+
+// `generateKeyPair` creates a new key pair for the three curve kinds. There is
+// no key size to pass, because each curve has one size.
+Core\Crypto\KeyPair $signing = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::Ed25519);
+echo "drew an Ed25519 pair", "\n";
+
+// You get an RSA key from whoever issued it. `generateKeyPair` with an RSA
+// kind throws a `LogicError`.
+try {
+    Core\Crypto\KeyPair $never = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::RsaPkcs1);
+    echo "drew an RSA pair", "\n";
+} catch (LogicError $notDrawn) {
+    echo $notDrawn->message, "\n";
+}

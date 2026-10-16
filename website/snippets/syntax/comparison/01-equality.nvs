@@ -1,0 +1,15 @@
+<?nvs
+// `==` checks if two values are equal. `1` and `1.0` have the same value.
+echo 1 == 1.0 ? "equal" : "different", "\n";
+
+// Two strings are equal only when they have the same characters.
+echo "1" == "01" ? "equal" : "different", "\n";
+
+// Two arrays are equal when they have the same keys and values in the same order.
+array<int> $a = [1, 2];
+array<int> $b = [1, 2];
+array<int> $c = [2, 1];
+echo $a == $b ? "equal" : "different", " ", $a == $c ? "equal" : "different", "\n";
+
+// `<=>` returns -1, 0 or 1.
+echo 3 <=> 5, " ", 5 <=> 3, " ", 3 <=> 3, "\n";

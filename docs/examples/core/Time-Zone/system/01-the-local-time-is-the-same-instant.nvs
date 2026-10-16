@@ -1,0 +1,13 @@
+<?nvs
+// Shows the current time in the time zone of this computer.
+
+Core\Time\Instant $now = Core\Time::now();
+Core\Time\DateTime $local = $now->in(Core\Time\Zone::system());
+
+// `toInstant` turns the local time back into an instant.
+// The local time is only another way to show the same instant, so this prints "same instant".
+if ($local->toInstant()->toEpochSeconds() == $now->toEpochSeconds()) {
+    echo "same instant", "\n";
+} else {
+    echo "a different instant", "\n";
+}

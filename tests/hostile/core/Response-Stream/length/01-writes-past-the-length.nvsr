@@ -1,0 +1,7 @@
+--METHOD--
+GET
+--PATH--
+/download
+--HEADERS--
+host: example.com
+range: bytes=0-

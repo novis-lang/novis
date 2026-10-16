@@ -1,0 +1,47 @@
+<?nvs
+// Attack: `neg` is given the widest numbers this class allows, hundreds of
+// times over, and then a result no `int` can hold. A copy that is never freed
+// would use up the memory of the machine. The program should run to its last
+// line.
+
+// 1. A number of 1 000 001 bits has its sign flipped 300 times. Only the last
+//    result is kept, so the memory the program holds must not grow.
+var $wide = Core\BigInt::of(1)->shl(1000000);
+uint $round = 0;
+while ($round < 300) {
+    $wide = $wide->neg();
+    $round = $round + 1;
+}
+echo $wide->sign(), "\n";
+
+// 2. Sixty-four wide numbers are flipped, and every result is kept at the same
+//    time.
+array<Core\BigInt> $kept = [];
+uint $index = 0;
+while ($index < 64) {
+    $kept[] = Core\BigInt::of(1)->shl(100000 + $index)->neg();
+    $index = $index + 1;
+}
+echo Core\Arr::count($kept), ' ', $kept[63]->sign(), "\n";
+
+// 3. The widest number one call may produce. A wider one is not allowed, and
+//    that error is caught here so the steps after this still run.
+try {
+    echo Core\BigInt::of(1)->shl(1048575)->neg()->sign(), "\n";
+    echo Core\BigInt::of(1)->shl(1048576)->neg()->sign(), "\n";
+} catch (ArithmeticError $tooWide) {
+    echo "refused\n";
+}
+
+// 4. Zero has one spelling. Flipping its sign prints 0.
+echo Core\BigInt::of(0)->neg(), "\n";
+
+// 5. The smallest `int` there is. Its positive twin is too large for an `int`,
+//    so reading the result back as an `int` throws an error.
+var $twin = Core\BigInt::parse('-9223372036854775808')->neg();
+echo $twin, "\n";
+try {
+    echo $twin->toInt(), "\n";
+} catch (ArithmeticError $tooLarge) {
+    echo "out of range\n";
+}

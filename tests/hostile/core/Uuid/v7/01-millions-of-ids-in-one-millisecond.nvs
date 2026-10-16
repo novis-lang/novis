@@ -1,0 +1,34 @@
+<?nvs
+// Attack: a program creates millions of UUIDs as fast as it can, so many of them share one
+// millisecond. Every UUID should still be different, and every one should be freed.
+
+// 1. One million UUIDs are created and freed at once. The time part of each one is never
+// smaller than the one before. This prints 1000000 twice.
+int $version = 0;
+int $forward = 0;
+string $last = '';
+int $i = 0;
+while ($i < 1000000) {
+    string $text = Core\Uuid::v7()->toString();
+    if (Core\Str::slice($text, 14, 1) == '7') {
+        $version = $version + 1;
+    }
+    string $time = Core\Str::slice($text, 0, 13);
+    if (Core\Str::compare($time, $last) >= 0) {
+        $forward = $forward + 1;
+    }
+    $last = $time;
+    $i = $i + 1;
+}
+echo $version, "\n", $forward, "\n";
+
+// 2. 200000 UUIDs are kept as keys of one array. A repeated UUID would not add a key.
+// This prints 200000.
+array<Core\Uuid> $kept = [];
+$i = 0;
+while ($i < 200000) {
+    var $id = Core\Uuid::v7();
+    $kept[$id->toString()] = $id;
+    $i = $i + 1;
+}
+echo Core\Arr::count($kept), "\n";

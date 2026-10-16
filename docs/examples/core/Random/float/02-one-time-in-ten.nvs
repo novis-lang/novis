@@ -1,0 +1,15 @@
+<?nvs
+// Shows how to do something for about one request in ten, for example to log it.
+
+uint $logged = 0;
+uint $request = 0;
+while ($request < 100000) {
+    // A value below 0.1 comes up one time in ten.
+    if (Core\Random::float() < 0.1) {
+        $logged = $logged + 1;
+    }
+    $request = $request + 1;
+}
+
+// The exact count changes on every run, but it is always close to 10000.
+echo $logged > 9000 && $logged < 11000 ? "about one in ten" : "far from one in ten", "\n";

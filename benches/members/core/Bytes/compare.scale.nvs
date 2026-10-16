@@ -1,0 +1,22 @@
+<?nvs
+// Measures `Core\Bytes::compare` on two equal keys, at growing key lengths.
+// bench: start 256
+// bench: max 4096
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        bytes $key = Core\Bytes::fill($size, 97);
+        bytes $other = Core\Bytes::fill($size, 97);
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            $total = $total + (Core\Bytes::compare($key, $other) + 2) as uint;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

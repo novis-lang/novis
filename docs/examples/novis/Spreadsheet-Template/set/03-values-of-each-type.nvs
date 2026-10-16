@@ -1,0 +1,31 @@
+<?nvs
+// Shows the types of value that `set` can write, and what happens with a wrong address.
+use Novis\Spreadsheet\Formula;
+use Novis\Spreadsheet\Reader;
+use Novis\Spreadsheet\Template;
+use Novis\Spreadsheet\Workbook;
+
+var $design = Workbook::createInMemory();
+$design->sheet('Values')->addAll([['Text'], ['Number'], ['Boolean'], ['Formula'], ['Text with =']]);
+bytes $source = $design->finish()->bytes ?? Core\Bytes::fill(0, 0);
+
+// A string that starts with `=` is written as text. Use `Formula::of` to write a formula.
+var $template = Template::open($source)
+    ->set('Values!B1', 'Shop')
+    ->set('Values!B2', 19.5)
+    ->set('Values!B3', true)
+    ->set('Values!B4', Formula::of('B2*2'))
+    ->set('Values!B5', '=B2*2');
+
+// An address must name a sheet of the template. This one does not, so `set` throws an error.
+try {
+    $template->set('Prices!A1', 1);
+} catch (Throwable $e) {
+    echo $e::class, ': ', $e->message, "\n";
+}
+
+bytes $file = $template->fill([])->bytes();
+foreach (Reader::open($file)->rows('Values', { formulas: true }) as var $row) {
+    mixed $value = $row->values['B'];
+    echo $row->values['A'], ': ', $value is Formula ? 'the formula ' . $value->text : Core\Json::encode($value), "\n";
+}

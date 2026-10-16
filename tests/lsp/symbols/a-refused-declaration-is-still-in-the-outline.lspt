@@ -1,0 +1,15 @@
+--TEST--
+an outline says what the file holds rather than what the checker allows, so a top-level function and constant the language refuses are both in it, `rule:classes/no-free-functions-or-constants`
+--FILE--
+<?nvs
+function helper(): int {
+    return 1;
+}
+const LIMIT = 10;
+type Id = uint;
+--REQUEST--
+documentSymbol
+--EXPECT--
+helper function
+LIMIT constant
+Id typeParameter

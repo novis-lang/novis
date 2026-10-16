@@ -1,0 +1,73 @@
+--TEST--
+Every `Core\BigInt` refusal, each beside the neighbouring call that answers: a zero divisor or modulus, a negative exponent or root, and the two members bounded at 1 048 576 bits — `rule:types/arithmetic`, spec § 13
+--FILE--
+<?nvs
+// Every refusal this class has, in one place and with its message frozen: what
+// makes them one case rather than six is that they are the same judgement —
+// a `BigInt` refuses exactly where the operators on `int` refuse, and nowhere
+// else, because nothing here overflows.
+var $one = Core\BigInt::of(1);
+var $zero = Core\BigInt::of(0);
+try {
+    $one->div($zero);
+} catch (ArithmeticError $noQuotient) {
+    echo $noQuotient->message, "\n";
+}
+try {
+    $one->mod($zero);
+} catch (ArithmeticError $noRemainder) {
+    echo $noRemainder->message, "\n";
+}
+try {
+    Core\BigInt::of(4)->powMod(Core\BigInt::of(13), $zero);
+} catch (ArithmeticError $noModulus) {
+    echo $noModulus->message, "\n";
+}
+try {
+    Core\BigInt::of(4)->powMod($one->neg(), Core\BigInt::of(497));
+} catch (ArithmeticError $noInverse) {
+    echo $noInverse->message, "\n";
+}
+try {
+    $one->neg()->sqrt();
+} catch (ArithmeticError $noRoot) {
+    echo $noRoot->message, "\n";
+}
+
+// The two members that can turn a small receiver into an arbitrarily wide
+// answer in one call are the two that are bounded, and both refuse before they
+// allocate rather than after.
+try {
+    Core\BigInt::of(2)->pow(1048577);
+} catch (ArithmeticError $tooWide) {
+    echo $tooWide->message, "\n";
+}
+try {
+    $one->shl(1048576);
+} catch (ArithmeticError $tooFar) {
+    echo $tooFar->message, "\n";
+}
+
+// And the neighbours of each bound, so the refusals above are a boundary
+// rather than a member that refuses everything: a shift one bit narrower and a
+// division by a divisor one away from zero both answer.
+echo "shl ", $one->shl(8)->toUint(), " div ", Core\BigInt::of(9)->div($one->neg())->toInt(), "\n";
+echo "mod ", Core\BigInt::of(9)->mod(Core\BigInt::of(-2))->toInt(), " sqrt ", $zero->sqrt()->toString(), "\n";
+echo "powMod ", Core\BigInt::of(4)->powMod($zero, Core\BigInt::of(497))->toInt(), " pow ", Core\BigInt::of(2)->pow(0)->toString(), "\n";
+echo "gcd ", $zero->gcd($zero)->toString(), " lcm ", $zero->lcm(Core\BigInt::of(6))->toString(), " abs ", $one->neg()->abs()->sign(), "\n";
+echo "format ", Core\BigInt::ofUint(255)->format({radix: 16}), " parse ", Core\BigInt::parse("ff", {radix: 16})->toDecimal(), "\n";
+echo "shr ", Core\BigInt::of(-9)->shr(1)->toInt(), " sub ", $zero->sub($one)->compareTo($one->neg()), "\n";
+--EXPECT--
+Core\BigInt::div(): the divisor is zero
+Core\BigInt::mod(): the divisor is zero
+Core\BigInt::powMod(): the modulus is zero
+Core\BigInt::powMod(): the exponent is negative
+Core\BigInt::sqrt(): a negative value has no integer square root
+Core\BigInt::pow(): the answer would be 2097154 bits wide, past the 1048576 one call may produce
+Core\BigInt::shl(): the answer would be 1048577 bits wide, past the 1048576 one call may produce
+shl 256 div -9
+mod 1 sqrt 0
+powMod 1 pow 1
+gcd 0 lcm 0 abs 1
+format ff parse 255
+shr -5 sub 0

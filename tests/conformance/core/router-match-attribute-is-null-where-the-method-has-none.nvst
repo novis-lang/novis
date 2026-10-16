@@ -1,0 +1,48 @@
+--TEST--
+`Core\Router\Match::attribute<T>()` is `null` for a route whose method has no attribute of the shape, even where another route's method and a method with no `#[Route]` have one — `rule:routing/a-match-reads-an-attribute-as-data`
+--FILE--
+<?nvs
+// covers: Core\Router\Match::attribute
+class Shop {
+    #[Core\Route(path: "/shop", method: Core\Http\Method::Get, name: "shop")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function index(): void {}
+
+    #[Core\Route(path: "/cart", method: Core\Http\Method::Get, name: "cart")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    #[{limit: 10}]
+    public function cart(): void {}
+
+    #[{limit: 99}]
+    public function helper(): void {}
+}
+
+?Core\Router\Match $shop = Core\Router::match(Core\Http\Method::Get, "/shop");
+?{limit: int} $none = $shop?->attribute<{limit: int}>();
+echo "shop: ", $none == null ? "null" : "found", "\n";
+
+?Core\Router\Match $cart = Core\Router::match(Core\Http\Method::Get, "/cart");
+?{limit: int} $limit = $cart?->attribute<{limit: int}>();
+if ($limit != null) {
+    echo "cart: ", $limit->limit as string, "\n";
+}
+
+// The route's own `#[Route]` payload has a `path`, so it matches this shape.
+?{path: string} $route = $cart?->attribute<{path: string}>();
+if ($route != null) {
+    echo "path: ", $route->path, "\n";
+}
+
+// A method reference returns the same attribute when it is called.
+if ($cart != null) {
+    var $read = $cart->attribute<{limit: int}>(...);
+    ?{limit: int} $again = $read();
+    if ($again != null) {
+        echo "reference: ", $again->limit as string, "\n";
+    }
+}
+--EXPECT--
+shop: null
+cart: 10
+path: /cart
+reference: 10

@@ -1,0 +1,6 @@
+the most one decode may produce: 64M
+on the wire:                     52 octets
+one octet short:                 refused
+at its own ceiling:              16384 octets
+raise the ceiling from here:     refused
+still:                           64M

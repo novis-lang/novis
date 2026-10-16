@@ -1,0 +1,123 @@
+[package]
+name = "nvs-host"
+build = "../../tools/build/tests_without_pdb.rs"
+description = "The thread-per-core host: one pinned OS thread, one scheduler, one run queue of stackful coroutines"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+
+[lib]
+# No doc comment in this crate has a runnable example, so `cargo test` does
+# not run rustdoc over it. A crate that gains one deletes this table.
+doctest = false
+
+[features]
+# `src/tsan.rs`'s fiber annotations, which tell ThreadSanitizer that a task's
+# stack switch is a stack switch. Off, and turned on by `tools/tsan.sh` alone:
+# the code behind it calls symbols only the sanitizer runtime exports, so a
+# build that enables it without `-Zsanitizer=thread` fails to link. That
+# module's doc owns why the gate is a feature rather than `cfg(sanitize)`.
+tsan = []
+
+[dependencies]
+nvs-runtime.workspace = true
+# `rule:errors/handler-script`'s tier-3 handler is an isolate, so the spawn is `src/ladder.rs`'s — and the record it
+# is handed is `nvs_render::Record`, which that module names in its own signature. A leaf crate
+# already in this binary through `nvs-runtime`'s floor; the direct line only makes the spelling
+# sayable here, and closes no cycle because `nvs-render` depends on nothing of ours.
+nvs-render.workspace = true
+# Stackful coroutines, validated on windows-msvc by the M0 spike and modelled
+# end to end in `benches/abi-probe`. The whole reason this crate is not `async`
+# is in `docs/plan/design.md` § *Thread-per-core, shared-nothing runtime*.
+corosensei.workspace = true
+core_affinity.workspace = true
+# Readiness, one contract over epoll/kqueue/AFD. Not an async runtime — the
+# workspace `Cargo.toml`'s comment above this dependency answers `rule:packaging/a-c-dependency-answers-two-questions`'s
+# two questions, and `rule:concurrency/the-reactor-reports-readiness` says
+# why a poller is not a `tokio`.
+mio.workspace = true
+# TLS, as a wrapper over the stream above rather than a transport beside it —
+# `src/tls.rs` is the whole of it and its module doc owns the trust anchor
+# decision. The workspace `Cargo.toml`'s comment above these two answers
+# `rule:packaging/a-c-dependency-answers-two-questions`, including the part that is spent rather than met.
+rustls.workspace = true
+webpki-roots.workspace = true
+# `rule:security/tls-trust-is-relaxed-only-under-a-host-grant`'s `tlsPin`,
+# which is the SHA-256 of the peer's
+# SubjectPublicKeyInfo and reaches `src/tls.rs` as the `sha256//<base64>`
+# spelling `curl --pinnedpubkey` already made the one an operator knows:
+# `x509-parser` finds the field in a certificate `rustls` hands over as raw
+# DER, `sha2` hashes it and `base64` reads the spelling. The workspace
+# manifest owns why each crate, and none of the three is new to this lock file.
+x509-parser.workspace = true
+sha2.workspace = true
+base64.workspace = true
+# `Core\Test::tlsSession`'s chain: `src/tls.rs`'s `described` issues a
+# real leaf and CA certificate, so every `Core\Http\TlsInfo` member reads a
+# session a test describes exactly as it reads a peer's. The handshake tests in
+# `src/tls.rs` and `net.rs` sign the certificates their real peers present
+# with it too, on the same `ring` provider.
+rcgen.workspace = true
+
+# `src/cpuclock.rs`: a thread's own CPU time, which `[limits] cpu_time` is
+# measured against and which `std` spells on neither platform.
+# On Linux `pthread_getcpuclockid` names the clock and `clock_gettime` reads it;
+# on macOS `pthread_mach_thread_np` names it and `thread_info` reads it; Windows
+# reopens the thread by id and asks `GetThreadTimes`. Nothing a request chose
+# reaches any of them — the arguments are the caller's own thread and a stack
+# out-parameter — and the answer is a duration.
+[target.'cfg(any(target_os = "linux", target_os = "macos"))'.dependencies]
+libc.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+windows-sys.workspace = true
+
+[dev-dependencies]
+# `tests/limits.rs`'s capability case builds the snapshot a request reads and hands it to
+# `Ctx::set_config`, which is `nvs-config`'s type on `nvs-runtime`'s surface — the crate is already
+# in this binary through that dependency, and these two lines only make the spelling sayable here.
+# A test, never a dependency of the host itself: nothing in `src/` resolves a configuration.
+nvs-config.workspace = true
+toml.workspace = true
+# Test-only: the local-socket cases in `src/net.rs` bind under `target/` through
+# `nvs_repo::socket`.
+nvs-repo.workspace = true
+
+# ---------------------------------------------------------------------------
+# This crate cannot inherit the workspace lint policy: a coroutine yielder
+# reaches a helper through `Ctx` as an opaque pointer (that is what removes
+# async colouring), so the one place that turns it back into a reference owns
+# an `unsafe` block. `deny` rather than the workspace's `forbid`, so that block
+# is a deliberate, reviewable exception with a stated reason — the same shape
+# `nvs-runtime` and `nvs-codegen` carry. The roster and each crate's reason are
+# `UNSAFE_CRATES` in tools/nv/cmd/lints.ts (docs/plan/design.md § Unsafe policy).
+# ---------------------------------------------------------------------------
+
+# @generated by `bun nv lints` -- edit `[workspace.lints]` in the root manifest.
+# This crate is on that command's `UNSAFE_CRATES` roster, so it restates the
+# workspace table with `unsafe_code = "deny"`: cargo will not let a manifest
+# inherit `[workspace.lints]` and override one entry, and `forbid` is not
+# something an individual `#[allow(unsafe_code, reason = ...)]` can relax.
+
+[lints.rust]
+unsafe_code = "deny"
+missing_docs = "warn"
+missing_debug_implementations = "warn"
+unreachable_pub = "warn"
+rust_2018_idioms = { level = "warn", priority = -1 }
+
+[lints.clippy]
+all = { level = "warn", priority = -1 }
+cast_possible_truncation = "warn"
+cast_possible_wrap = "warn"
+cast_sign_loss = "warn"
+checked_conversions = "warn"
+todo = "warn"
+unimplemented = "warn"
+dbg_macro = "warn"
+print_stdout = "warn"
+print_stderr = "warn"

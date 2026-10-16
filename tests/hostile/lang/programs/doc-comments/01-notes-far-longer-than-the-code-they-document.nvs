@@ -1,0 +1,120 @@
+<?nvs
+// Attack: a program has doc comments that nobody would write. One is much longer
+// than the class under it, and one of its lines is very long. The doc comments contain
+// markers that look like their end, and tag names in the middle of sentences. The
+// program should still compile and run.
+// hostile: timeout-ms 20000
+
+// hostile: comment-payload
+/// A class whose doc comment is a hundred times longer than its code.
+///
+/// This doc comment has markers that mean something elsewhere: */ and /* and ?> and
+/// <?nvs and "an open string and 'another one and a backslash \ and $name and a
+/// semicolon; and a closing brace } and a <?= too.
+/// None of them ends this doc comment. Only the end of the line does.
+///
+/// The text is Markdown, so it can contain anything Markdown can contain:
+///
+/// # A heading inside a doc comment
+/// ## And a second level
+/// ### And a third
+///
+/// - A list
+///   - inside a list
+///     - inside a list
+///       - inside a list
+///         - inside a list
+///           - inside a list
+///             - and one more, deeper than anybody nests a list
+///
+/// | A table | with columns |
+/// |---|---|
+/// | and rows | that never end |
+/// | and rows | that never end |
+///
+/// ```
+/// A code block inside the doc comment, with code that does not compile:
+/// class 1 { *&^%$ } ?> <?nvs */ /* and a fence that never closes: ```
+/// ```
+///
+/// > A quotation
+/// > > inside a quotation
+/// > > > inside a quotation
+///
+/// A tag name only counts at the start of a line.
+/// In the middle of a sentence it is text, so this line can say @param and @return.
+/// It can also say @throws, @deprecated and @internal.
+/// An address such as name@example.com is text too.
+/// And @see in the middle of a sentence names nothing.
+///
+/// Text that is not ASCII: Grüße, καλημέρα, こんにちは,
+/// 🇦🇹 and an accented letter: é.
+///
+/// One very long line follows. It should end at the newline and nowhere else. It keeps going. It keeps going. It keeps going. It keeps going. It keeps going. It keeps going. It keeps going. It keeps going. It keeps going. It keeps going. It keeps going. It keeps going. It keeps going. It keeps going. It keeps going. It keeps going. It keeps going. It keeps going. It keeps going. It keeps going. It keeps going. It keeps going. It keeps going. It keeps going. It keeps going. It keeps going. It keeps going. It keeps going. It keeps going. It keeps going. It keeps going. It ends here.
+///
+/// @see Attack::WRAP
+/// @see Attack::$seen
+/// @see Attack::run
+/// @see Attack::WRAP
+/// @see Attack::$seen
+/// @see Attack::run
+/// @see Attack::WRAP
+/// @see Attack::$seen
+/// @see Attack::run
+/// @see Attack::WRAP
+/// @see Attack::$seen
+/// @see Attack::run
+final class Attack
+{
+    /// Each round adds the remainder of a division by this number.
+    ///
+    /// @see Attack::run
+    public const int WRAP = 7;
+
+    /// The running total of all calls to `run`.
+    ///
+    /// @see Attack::WRAP
+    public int $seen;
+
+    /// Creates a counter that starts at `0`.
+    public function constructor()
+    {
+        $this->seen = 0;
+    }
+
+    // hostile: comment-payload
+    /// Runs `$rounds` rounds and returns the running total.
+    ///
+    /// Each line of the loop uses the result of the line before.
+    /// So the compiler cannot remove any of them.
+    /// This doc comment is longer than the method.
+    ///
+    /// @see Attack::WRAP
+    /// @see Attack::$seen
+    public function run(int $rounds): int
+    {
+        int $i = 0;
+        while ($i < $rounds) {
+            $this->seen = $this->seen + ($i % Attack::WRAP);
+            $i = $i + 1;
+        }
+        return $this->seen;
+    }
+}
+
+/// Each case of this enum has its own doc comment with a marker that means
+/// something elsewhere.
+enum Marker
+{
+    /// A case with */ in its doc comment.
+    First,
+    /// A case with /* in its doc comment.
+    Second,
+    /// A case with ?> in its doc comment.
+    Third,
+}
+
+var $attack = new Attack();
+echo $attack->run(200000), "\n";
+echo Marker::Third as int, "\n";
+echo 'still here', "\n";

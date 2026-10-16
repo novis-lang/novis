@@ -1,0 +1,87 @@
+--TEST--
+`Core\Json::decodeAs` reads an `array<array<T>>` at any depth, and the element's class and enum roster answer from the field at every one — `rule:core-classes/derive-field-list`, `rule:core-classes/derive-reports-every-field`
+--FILE--
+<?nvs
+#[Core\Json\Derive]
+class Tag {
+    public string $name;
+    public function constructor(string $name) { $this->name = $name; }
+}
+
+enum Level: int { Low = 1, High = 2 }
+
+// A list's element description nests, so the depth a declaration writes is the
+// depth a decode reads. What does *not* nest is the labels: a chain of lists
+// bottoms out in exactly one element that is not a list, so the class a `Tag`
+// element decodes into and the roster a `Level` element is checked against ride
+// on the field itself however deep the chain around them goes.
+#[Core\Json\Derive]
+class Deep {
+    public array<array<array<int>>> $cube;
+    public array<array<Tag>> $tags;
+    public array<array<Level>> $levels;
+
+    public function constructor(
+        array<array<array<int>>> $cube,
+        array<array<Tag>> $tags,
+        array<array<Level>> $levels,
+    ) {
+        $this->cube = $cube;
+        $this->tags = $tags;
+        $this->levels = $levels;
+    }
+}
+
+Deep $deep = Core\Json::decodeAs<Deep>(
+    "{\"cube\":[[[1],[2,3]],[]],\"tags\":[[{\"name\":\"a\"}],[{\"name\":\"b\"},{\"name\":\"c\"}]],\"levels\":[[1,2],[2]]}"
+);
+echo $deep->cube[0][1][1], "\n";
+echo $deep->tags[1][1]->name, "\n";
+// `rule:enums/representation`: a case is the integer behind it, so a decoded
+// case is the same value a written `Level::High` is.
+echo $deep->levels[0][1] == Level::High, "\n";
+// An inner list with no positions is an empty list and not a missing one.
+echo Core\Arr::count($deep->cube[1]), "\n";
+// Every depth round-trips: the encoder walks the value, so agreeing with the
+// document it came from is the one assertion that holds the two halves
+// together.
+echo Core\Json::encode($deep), "\n";
+
+// `rule:core-classes/derive-reports-every-field`'s dotted path grows one
+// segment per level, and the three fields report together rather than at the
+// first failure — a scalar at depth three, a nested class's own key at depth
+// two, and an integer outside the roster at depth two.
+try {
+    Core\Json::decodeAs<Deep>(
+        "{\"cube\":[[[1],[2,\"x\"]]],\"tags\":[[{\"name\":7}]],\"levels\":[[9]]}"
+    );
+    echo "not reached\n";
+} catch (ParseError $bad) {
+    echo "issues=", Core\Arr::count($bad->issues), "\n";
+    foreach ($bad->issues as {path: string, message: string} $issue) {
+        echo "  ", $issue->path, "\n";
+    }
+}
+
+// A document one level shallower than the declaration is a bad document rather
+// than a value built out of whatever was there: the position holds an `int`
+// where a list was declared.
+try {
+    Core\Json::decodeAs<Deep>("{\"cube\":[[1]],\"tags\":[[]],\"levels\":[[]]}");
+    echo "not reached\n";
+} catch (ParseError $flat) {
+    foreach ($flat->issues as {path: string, message: string} $issue) {
+        echo "  ", $issue->path, ": ", $issue->message, "\n";
+    }
+}
+--EXPECT--
+3
+c
+1
+0
+{"cube":[[[1],[2,3]],[]],"tags":[[{"name":"a"}],[{"name":"b"},{"name":"c"}]],"levels":[[1,2],[2]]}
+issues=3
+  cube.0.1.1
+  tags.0.0.name
+  levels.0.0
+  cube.0.0: expected an array, found a number

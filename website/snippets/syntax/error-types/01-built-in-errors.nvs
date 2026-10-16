@@ -1,0 +1,32 @@
+<?nvs
+// Each built-in failure throws one class from the error tree.
+int $zero = 0;
+mixed $text = "abc";
+float $half = 2.5;
+array<int> $map = ["a" => 1];
+
+try {
+    echo 1 / $zero;
+} catch (ArithmeticError $div) {
+    echo "ArithmeticError: ", $div->message, "\n";
+}
+try {
+    echo $half as int;
+} catch (ArithmeticError $lossy) {
+    echo "ArithmeticError: ", $lossy->message, "\n";
+}
+try {
+    echo $text as int;
+} catch (RuntimeError $bad) {
+    echo "RuntimeError: ", $bad->message, "\n";
+}
+try {
+    echo $map["b"];
+} catch (RuntimeError $missing) {
+    echo "RuntimeError: ", $missing->message, "\n";
+}
+try {
+    echo match ($zero) { 1 => "one" };
+} catch (LogicError $noArm) {
+    echo "LogicError: ", $noArm->message, "\n";
+}

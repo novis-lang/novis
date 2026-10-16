@@ -1,0 +1,58 @@
+<?nvs
+// Attack: a program tries to add entity definitions or a link to a DTD through the name, and to write many declarations.
+// Each bad call should throw a `LogicError`, and the document should have exactly one declaration.
+// hostile: timeout-ms 20000
+
+class Try
+{
+    // Runs one call and prints `ok`, or the class of the error it throws.
+    public static function call(callable $step): void
+    {
+        try {
+            $step();
+            echo "ok\n";
+        } catch (LogicError $error) {
+            echo "LogicError\n";
+        }
+    }
+}
+
+Core\Xml\Writer $out = Core\Xml::writer({ indent: '  ' });
+
+// 1. A declaration before `startDocument`. This prints LogicError.
+Try::call(fn(): void => { $out->doctype('html'); });
+
+$out->startDocument();
+
+// 2. Names that try to add entity definitions, a DTD link or more markup. Each prints LogicError.
+Try::call(fn(): void => { $out->doctype('html [<!ENTITY x SYSTEM "file:///etc/passwd">]'); });
+Try::call(fn(): void => { $out->doctype('html SYSTEM "http://example.com/evil.dtd"'); });
+Try::call(fn(): void => { $out->doctype('html><admin/'); });
+Try::call(fn(): void => { $out->doctype(''); });
+Try::call(fn(): void => { $out->doctype("html\x00"); });
+
+// 3. A very long name that is valid. This prints ok.
+Try::call(fn(): void => { $out->doctype('a' . Core\Str::repeat('b', 1000000)); });
+
+// 4. 100,000 more declarations. Each one throws an error, so this prints 100000.
+int $refused = 0;
+int $i = 0;
+while ($i < 100000) {
+    try {
+        $out->doctype('page');
+    } catch (LogicError $error) {
+        $refused = $refused + 1;
+    }
+    $i = $i + 1;
+}
+echo $refused, "\n";
+
+// 5. A declaration after the root element starts. This prints LogicError.
+$out->startElement('page');
+Try::call(fn(): void => { $out->doctype('page'); });
+
+// 6. The document is finished. It contains `<!DOCTYPE` once, so the split gives two parts.
+// This prints 2.
+$out->endElement();
+string $document = $out->endDocument();
+echo Core\Arr::count(Core\Str::split($document, '<!DOCTYPE')), "\n";

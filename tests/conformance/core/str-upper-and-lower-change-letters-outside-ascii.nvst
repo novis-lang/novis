@@ -1,0 +1,11 @@
+--TEST--
+Core\Str::upper and Core\Str::lower change the case of letters outside ASCII, and `ß` becomes `SS`
+--FILE--
+<?nvs
+echo Core\Str::upper("nvs"), "\n";
+echo Core\Str::upper("straße"), "\n";
+echo Core\Str::lower("ÉCOLE"), "\n";
+--EXPECT--
+NVS
+STRASSE
+école

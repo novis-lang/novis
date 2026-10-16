@@ -1,0 +1,14 @@
+--TEST--
+PHP's `(int)$x` cast is refused, and the diagnostic names `as int` — the one conversion spelling, `rule:types/no-legacy-cast`
+--FILE--
+<?nvs
+int $n = 3;
+echo (int)$n, "\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0225]: `(int)expr` is not supported
+  --> case.nvs:3:6
+%A
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

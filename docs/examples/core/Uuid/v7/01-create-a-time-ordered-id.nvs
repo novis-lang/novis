@@ -1,0 +1,11 @@
+<?nvs
+// Shows how to create a new UUID that starts with the current time.
+
+// `Core\Uuid::v7` creates a new UUID. Its digits are different on every run.
+string $id = Core\Uuid::v7()->toString();
+
+// The text is always 36 characters long. This prints 36.
+echo Core\Str::length($id), "\n";
+
+// The third group always starts with the version of the UUID. This prints 7.
+echo Core\Str::slice($id, 14, 1), "\n";

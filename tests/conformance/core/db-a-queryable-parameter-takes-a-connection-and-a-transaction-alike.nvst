@@ -1,0 +1,49 @@
+--TEST--
+`Core\Db\Queryable` is a type a program writes: a parameter declared with it takes a `Core\Db\Connection` and a `Core\Db\Transaction` alike, calls its members on either, and `is Core\Db\Queryable` holds for both and for nothing else — `rule:core-classes/db-transactions`
+--FILE--
+<?nvs
+// covers: Core\Db\Queryable
+// The two methods below do not care whether they run inside a transaction,
+// which is the second of the two things the rule says the type system says.
+class People {
+    public static function add(Core\Db\Queryable $db, string $name): void {
+        $db->execute('insert into people (name) values (?)', [$name]);
+    }
+
+    public static function count(Core\Db\Queryable $db): int {
+        return $db->query('select count(*) as n from people', [])->first()?->int('n') ?? -1;
+    }
+}
+
+var $db = Core\Db::connect('main');
+$db->execute('create table people (id integer primary key, name text not null)', []);
+People::add($db, 'Ada');
+
+$db->transaction(fn (Core\Db\Transaction $tx): void => {
+    // The same method, handed the transaction: the insert is inside it, so
+    // the count read on the transaction already sees it.
+    People::add($tx, 'Ben');
+    echo 'inside: ', People::count($tx), "\n";
+    mixed $held = $tx;
+    echo 'a transaction is queryable: ', $held is Core\Db\Queryable ? 'yes' : 'no', "\n";
+});
+
+mixed $connection = $db;
+mixed $text = 'select 1';
+echo 'a connection is queryable: ', $connection is Core\Db\Queryable ? 'yes' : 'no', "\n";
+echo 'a string is queryable: ', $text is Core\Db\Queryable ? 'yes' : 'no', "\n";
+echo 'after: ', People::count($db), "\n";
+$db->close();
+--FILE nvs.toml--
+[capabilities.db]
+connect = ["main"]
+
+[db.main]
+driver = "sqlite"
+path = ":memory:"
+--EXPECT--
+inside: 2
+a transaction is queryable: yes
+a connection is queryable: yes
+a string is queryable: no
+after: 2

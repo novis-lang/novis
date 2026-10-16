@@ -1,0 +1,11 @@
+<?nvs
+// Shows that `assertTrustedBytes` does not change the bytes. Only the type changes.
+
+// These four bytes are not valid text. `assertTrustedBytes` accepts them too.
+tainted bytes $data = Core\Bytes::pack("C4", 0, 255, 60, 195) as tainted bytes;
+
+bytes $trusted = Core\Taint::assertTrustedBytes($data, "the test wrote these four bytes");
+
+// This prints 4, and then 0, because the two values have the same bytes.
+echo Core\Bytes::length($trusted), "\n";
+echo Core\Bytes::compare($trusted, $data as bytes), "\n";

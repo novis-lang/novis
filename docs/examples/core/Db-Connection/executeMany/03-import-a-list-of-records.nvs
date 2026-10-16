@@ -1,0 +1,24 @@
+<?nvs
+// Shows the import a program does after it reads a file: build one set per
+// record, then write them all with a single call. A `:name` in the statement
+// takes its value from the key of the same name. The order of the keys in a
+// set does not matter.
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table people (id integer primary key, name text not null, city text not null)', []);
+
+// In a real import these come from a file or an upload.
+array<array<mixed>> $records = [];
+$records[] = ['name' => 'Ada', 'city' => 'Bremen'];
+$records[] = ['city' => 'Porto', 'name' => 'Bo'];
+$records[] = ['name' => 'Chen', 'city' => 'Aarhus'];
+
+uint $imported = $db->executeMany(
+    'insert into people (name, city) values (:name, :city)',
+    $records,
+);
+
+// This prints `3 people imported`.
+echo $imported, " people imported\n";
+
+$db->close();

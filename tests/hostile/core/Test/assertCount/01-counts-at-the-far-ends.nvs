@@ -1,0 +1,49 @@
+<?nvs
+// Attack: the check counts a very large array, an array with removed entries and a
+// number far too large. Each check should pass or throw a `Core\Test\Failure`.
+
+// Step 1: an array of one million entries has one million entries.
+array<int> $big = [];
+int $i = 0;
+while ($i < 1000000) {
+    $big[] = $i;
+    $i = $i + 1;
+}
+Core\Test::assertCount($big, 1000000);
+echo "one million\n";
+
+// Step 2: the entries with the keys 0 to 499999 are removed. Half of the entries are left.
+$i = 0;
+while ($i < 500000) {
+    unset($big[$i]);
+    $i = $i + 1;
+}
+Core\Test::assertCount($big, 500000);
+echo "half is left\n";
+
+// Step 3: the largest `uint` is not the count of any array.
+try {
+    Core\Test::assertCount($big, 18446744073709551615);
+} catch (Core\Test\Failure $failure) {
+    echo $failure->message, "\n";
+}
+
+// Step 4: the count of an array is one more than expected, and one less.
+try {
+    Core\Test::assertCount($big, 499999);
+} catch (Core\Test\Failure $failure) {
+    echo "one too few\n";
+}
+try {
+    Core\Test::assertCount($big, 500001);
+} catch (Core\Test\Failure $failure) {
+    echo "one too many\n";
+}
+
+// Step 5: a `message` option of ten million characters.
+string $long = Core\Str::repeat('a', 10000000);
+try {
+    Core\Test::assertCount($big, 0, { message: $long });
+} catch (Core\Test\Failure $failure) {
+    echo "long message\n";
+}

@@ -1,0 +1,23 @@
+--TEST--
+the outline is the file's shape: every declaration, its members nested under it, in the order they were written rather than sorted, `rule:ide/the-request-set-is-closed`, `rule:ide/the-rendering-has-one-home`
+--FILE--
+<?nvs
+class User {
+    public const int MAX = 10;
+    public string $name;
+    public function greet(): string {
+        return "hi";
+    }
+}
+interface Greeter {
+    public function greet(): string;
+}
+--REQUEST--
+documentSymbol
+--EXPECT--
+User class
+  MAX constant
+  $name property
+  greet method
+Greeter interface
+  greet method

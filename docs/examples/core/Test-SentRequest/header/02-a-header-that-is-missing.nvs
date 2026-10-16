@@ -1,0 +1,19 @@
+<?nvs
+// Shows what `header` returns for a header the request does not have.
+
+use Core\Http\Client;
+use Core\Test;
+use Core\Test\SentRequest;
+
+Test::answerHttp("https://api.example.com/status", 200);
+Client::get("https://api.example.com/status");
+
+SentRequest $request = Test::sentHttp()[0];
+
+// The program sent no `Authorization` header, so the result is `null`.
+// This prints `no token`.
+echo $request->header("Authorization") ?? "no token", "\n";
+
+// `Test::assertNull` checks the same thing in a test.
+Test::assertNull($request->header("Authorization"));
+echo "checked\n";

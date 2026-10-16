@@ -1,0 +1,27 @@
+--TEST--
+`use Shop\Order::Status;` is refused where it is written, and a program imports the owner instead — `rule:enums/class-scoped-enum`, `rule:statements/nothing-gets-a-second-name`
+--FILE--
+<?nvs
+require './order.nvs';
+
+// `rule:enums/class-scoped-enum`: a member import would give one enum a
+// second short name. The owner's import is the accepted form.
+use Shop\Order;
+use Shop\Order::Status;
+
+echo Order::Status::Paid as int, "\n";
+--FILE order.nvs--
+<?nvs
+namespace Shop;
+
+final class Order {
+    enum Status { Open, Paid }
+}
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0212]: an import cannot name a member of a class
+  --> case.nvs:7:15
+%A
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

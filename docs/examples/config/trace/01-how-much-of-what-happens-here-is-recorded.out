@@ -1,0 +1,7 @@
+exporter:  false
+push to:   (nothing written)
+sample:    0.0
+propagate: true
+record every request of mine: refused
+record none of them:          refused
+leave the trace behind:       refused

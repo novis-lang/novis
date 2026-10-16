@@ -1,0 +1,45 @@
+---
+title: A scheduled job
+covers: []
+description: Delete old log files every night and keep the newest three.
+---
+
+import Snippet from '@components/Snippet.astro'
+
+This program deletes old log files and keeps the newest three. The server runs it every night at
+3:00.
+
+<Snippet src="guides/simple-programs/scheduled-job/scheduled-job.nvs" />
+
+The `nvs.toml` in the same folder sets the time and allows the program to delete files:
+
+```toml
+[[schedule]]
+name = "clean-up-logs"
+cron = "0 3 * * *"
+script = "scheduled-job.nvs"
+scope = "host"
+
+[capabilities.script]
+spawn = ["."]
+
+[capabilities.fs]
+read = true
+write = true
+```
+
+`nvs serve` reads this file and runs the job at those times. To run the job once by hand, for
+example to test it, use `nvs run scheduled-job.nvs`.
+
+## How it works
+
+`Core\IO::list` returns the names of the files in a folder. The names start with a date, so
+`Core\Arr::sort` puts the oldest first. The loop deletes every file except the last three.
+
+`cron` sets when the job runs. `0 3 * * *` means minute 0 of hour 3, on every day. `scope = "host"`
+runs the job on every server. Use `scope = "fleet"` to run it once, on one of your servers.
+
+`script.spawn` lists the folders the server may start scripts from. A scheduled script must be in
+one of them.
+
+Read [schedule](/reference/config/schedule/) for every setting of a `[[schedule]]` entry.

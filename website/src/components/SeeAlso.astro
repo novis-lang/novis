@@ -1,0 +1,41 @@
+---
+/**
+ * A member's "Related" section: links to the members its `about.md` names on
+ * its `related:` line, which src/lib/feature.ts reads and checks. The page
+ * renders this only when that line names one.
+ */
+import { findMember } from '~/lib/core'
+
+interface Props {
+  ids: string[]
+}
+
+const { ids = [] } = Astro.props
+const entries = ids.map((id) => {
+  const found = findMember(id)
+  if (!found) throw new Error(`SeeAlso: unknown member id "${id}"`)
+  return {
+    id,
+    url: found.member.url,
+    label: `${found.cls.name}::${found.member.name}`,
+  }
+})
+---
+
+{
+  entries.length > 0 && (
+    <section class="method-see-also">
+      <h2 id="related">Related</h2>
+      <ul>
+        {entries.map((e) => (
+          <li>
+            <a href={e.url}>
+              <code>{e.label}</code>
+            </a>
+
+          </li>
+        ))}
+      </ul>
+    </section>
+  )
+}

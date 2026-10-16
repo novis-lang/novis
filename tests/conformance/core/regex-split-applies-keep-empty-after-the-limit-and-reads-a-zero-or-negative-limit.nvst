@@ -1,0 +1,32 @@
+--TEST--
+Core\Regex::split reads a zero or negative `limit` the way Core\Str::split does, and removes empty pieces only after the limit has split the text
+--FILE--
+<?nvs
+final class Render {
+    public static function of(array<string> $pieces): string {
+        return Core\Str::join($pieces, "|") . " (" . (Core\Arr::count($pieces) as string) . ")";
+    }
+}
+
+// A limit of `0` gives one piece: the whole text, not split.
+echo Render::of(Core\Regex::split("a1b2c3d", "\\d", {limit: 0})), "\n";
+
+// A negative limit removes that many pieces from the end.
+// If it removes every piece, the result is empty.
+echo Render::of(Core\Regex::split("a1b2c3d", "\\d", {limit: -2})), "\n";
+echo Render::of(Core\Regex::split("a1b2c3d", "\\d", {limit: -9})), "\n";
+
+// The limit counts the pieces of the split, empty ones included.
+// `keepEmpty: false` then removes the empty pieces from that result.
+echo Render::of(Core\Regex::split(",a,,b,", ",", {limit: 2, keepEmpty: false})), "\n";
+echo Render::of(Core\Regex::split(",a,,b,", ",", {limit: 3, keepEmpty: false})), "\n";
+echo Render::of(Core\Regex::split(",a,,b,", ",", {limit: 5, keepEmpty: false})), "\n";
+echo Render::of(Core\Regex::split(",a,,b,", ",", {limit: -1, keepEmpty: false})), "\n";
+--EXPECT--
+a1b2c3d (1)
+a|b (2)
+ (0)
+a,,b, (1)
+a|,b, (2)
+a|b (2)
+a|b (2)

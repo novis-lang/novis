@@ -1,0 +1,24 @@
+<?nvs
+// Measures `Core\Xml::parse` on one order with many items, at growing numbers of items.
+// bench: start 32
+// bench: max 512
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        string $document = '<order id="1">' . Core\Str::repeat('<item sku="A-100" qty="2"/>', $size) . '</order>';
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            Core\Xml\Node $root = Core\Xml::parse($document);
+            foreach ($root->children() as Core\Xml\Node $order) {
+                $total = $total + Core\Arr::count($order->children());
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(32), "\n";

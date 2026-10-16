@@ -1,0 +1,12 @@
+<?nvs
+// Shows what `Core\Request::host` returns when a request has no `Host` header.
+
+// The request below has no `Host` header, so the result is `null`.
+?tainted string $host = Core\Request::host();
+
+// Check for `null` before you use the value. This prints "400: the request has no host".
+if ($host == null) {
+    echo "400: the request has no host\n";
+} else {
+    echo "the host is ", $host, "\n";
+}

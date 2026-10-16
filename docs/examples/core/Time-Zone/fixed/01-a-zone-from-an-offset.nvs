@@ -1,0 +1,14 @@
+<?nvs
+// Shows the same moment in two zones that are a fixed distance from UTC.
+
+Core\Time\Instant $at = Core\Time::fromIso("2024-03-05T10:00:00Z");
+
+// `Core\Time\Zone::fixed` makes a zone from an offset. `5h30m` is the offset for India.
+Core\Time\Zone $india = Core\Time\Zone::fixed(5h30m);
+// A negative offset is a zone west of UTC. This one is three hours behind.
+Core\Time\Zone $west = Core\Time\Zone::fixed(Core\Time\Duration::hours(-3));
+
+// `VV` prints the zone's name, and for a fixed zone the name is the offset.
+// This prints 15:30 +05:30 and 07:00 -03:00.
+echo $at->in($india)->format("HH:mm VV"), "\n";
+echo $at->in($west)->format("HH:mm VV"), "\n";

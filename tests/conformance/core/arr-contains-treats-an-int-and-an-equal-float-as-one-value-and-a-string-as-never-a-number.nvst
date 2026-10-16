@@ -1,0 +1,49 @@
+--TEST--
+Core\Arr::contains and ::keyOf treat `1` and `1.0` as one value, never treat a string as a number, and answer `null` only when nothing is found
+--FILE--
+<?nvs
+final class Show {
+    public static function key(?string $k): string {
+        if ($k == null) {
+            return "none";
+        }
+        return $k as string;
+    }
+
+    public static function yes(bool $b): string {
+        if ($b) {
+            return "yes";
+        }
+        return "no";
+    }
+}
+
+// `1` and `1.0` are one value, the same as `1 == 1.0` in an expression.
+array<int|float> $numeric = [1.0, 2.5];
+echo Show::yes(Core\Arr::contains($numeric, 1)), "|", Show::key(Core\Arr::keyOf($numeric, 1)), "\n";
+
+// A string is never a number. Looking for `"1"` finds the string, and looking
+// for `1` finds the integer.
+array<int|string> $mixed = [1, "1"];
+echo Show::key(Core\Arr::keyOf($mixed, "1")), "|", Show::key(Core\Arr::keyOf($mixed, 1)), "\n";
+
+// Neither `"abc"` nor `"0"` is found among the integers 0 and 1.
+array<int|string> $zeroish = [0, 1];
+echo Show::yes(Core\Arr::contains($zeroish, "abc")), "|", Show::yes(Core\Arr::contains($zeroish, "0")), "\n";
+
+// `null` is a value you can look for. It is not equal to `""`.
+array<?string> $holes = ["a", null, ""];
+echo Show::key(Core\Arr::keyOf($holes, null)), "|", Show::key(Core\Arr::keyOf($holes, "")), "\n";
+
+// `keyOf` returns `?string`. A value found at key "0" is not `null`, so
+// `== null` is true only when nothing is found.
+array<int> $pair = [10, 20];
+echo Show::yes(Core\Arr::keyOf($pair, 10) == null), "|", Show::key(Core\Arr::keyOf($pair, 10)), "\n";
+echo Show::yes(Core\Arr::keyOf($pair, 99) == null), "|", Show::key(Core\Arr::keyOf($pair, 99)), "\n";
+--EXPECT--
+yes|0
+1|0
+no|no
+1|2
+no|0
+yes|none

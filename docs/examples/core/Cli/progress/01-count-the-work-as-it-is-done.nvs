@@ -1,0 +1,17 @@
+<?nvs
+// Shows how to draw a progress bar while a program works. In a terminal you see
+// one bar that fills up. This example does not run in a terminal, so the bar
+// draws nothing and only the report at the end is printed.
+
+uint $imported = Core\Cli::progress(3, fn(Core\Cli\Progress $bar): uint => {
+    uint $at = 0;
+    while ($at < 3) {
+        $at = $at + 1;
+        // One step of the three the bar was scaled to.
+        $bar->advance();
+    }
+    return $at;
+});
+
+// The bar is closed by now, so this is written under it. This prints 3.
+echo "imported ", $imported, " files\n";

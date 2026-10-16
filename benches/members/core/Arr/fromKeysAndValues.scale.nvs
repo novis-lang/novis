@@ -1,0 +1,23 @@
+<?nvs
+// Measures `Core\Arr::fromKeysAndValues` on one list of names and one list of values, at growing list lengths.
+// bench: start 256
+// bench: max 4096
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        array<int> $values = Core\Arr::range(1, $size as int);
+        array<string> $columns = Core\Arr::map($values, fn(int $n): string => "c" . ($n as string));
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            array<int> $row = Core\Arr::fromKeysAndValues($columns, $values);
+            $total = $total + Core\Arr::count($row);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

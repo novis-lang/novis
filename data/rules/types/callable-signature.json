@@ -1,0 +1,20 @@
+{
+  "title": "A `callable` type may name its parameters, and must then name its return type",
+  "status": "shipped",
+  "seeAlso": [
+    "types/callable-arity",
+    "types/callable-variance",
+    "types/anonymous-function-parameter-inference",
+    "types/callable-values"
+  ],
+  "guardedBy": [
+    "tests/conformance/lang/a-call-through-a-written-signature-is-checked-where-it-is-written.nvst",
+    "tests/conformance/lang/a-call-through-a-written-signature-refuses-the-argument-the-type-names.nvst",
+    "tests/conformance/lang/a-self-name-recursive-call-is-checked-against-the-anonymous-functions-own-parameters.nvst",
+    "tests/conformance/lang/a-spread-argument-through-a-written-signature-answers-the-declared-return-type.nvst",
+    "tests/conformance/core/out-a-callback-parameter-naming-a-class-checks-the-argument-class-at-entry.nvst",
+    "crates/nvs-syntax/src/parser/tests/ty.rs",
+    "crates/nvs-types/tests/callable.rs",
+    "crates/nvs-codegen/tests/callables.rs"
+  ]
+}

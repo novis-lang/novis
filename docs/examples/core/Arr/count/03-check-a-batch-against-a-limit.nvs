@@ -1,0 +1,14 @@
+<?nvs
+// Counts the rows a request sent, before any work starts on them. A program does
+// this so that one request cannot ask the server for too much at once.
+
+array<string> $rows = ['a1', 'b2', 'c3', 'd4', 'e5'];
+uint $limit = 4;
+uint $sent = Core\Arr::count($rows);
+
+// This prints `5 rows is more than the limit of 4`, and nothing is imported.
+if ($sent > $limit) {
+    echo $sent, ' rows is more than the limit of ', $limit, "\n";
+} else {
+    echo 'importing ', $sent, ' rows', "\n";
+}

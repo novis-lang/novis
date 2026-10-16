@@ -1,0 +1,12 @@
+<?nvs
+// Shows how to check text that should be a SID.
+
+array<string> $texts = ['S-1-5-32-544', 'S-1-5-admins', 'S-1-5'];
+// The first text is a SID. The other two throw a `LogicError`.
+foreach ($texts as string $text) {
+    try {
+        echo Core\Ldap\Sid::parse($text)->toString(), " is a SID\n";
+    } catch (LogicError $refusal) {
+        echo $text, " is not a SID\n";
+    }
+}

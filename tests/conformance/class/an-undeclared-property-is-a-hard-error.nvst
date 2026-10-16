@@ -1,0 +1,22 @@
+--TEST--
+writing a property the class does not declare is a compile error, not a silently created one — `rule:classes/property-observer-pipeline`
+--FILE--
+<?nvs
+class Box {
+    public int $n;
+
+    public function constructor(int $n) {
+        $this->n = $n;
+    }
+}
+var $b = new Box(1);
+$b->missing = 5;
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0405]: `Box` has no property named `missing`
+   --> case.nvs:10:1
+%A
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

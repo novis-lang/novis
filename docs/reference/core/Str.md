@@ -1,0 +1,37 @@
+---
+summary: text as graphemes — search, cut, split and join, case, padding and `printf`-style formatting
+keywords: string, text, grapheme, unicode, length, substring, slice, search, index of, contains, starts with, ends with, count occurrences, compare, natural order, case-insensitive, split, join, replace, trim, pad, repeat, reverse, word wrap, lowercase, uppercase, capitalize, case conversion, normalize, character code, printf-style formatting
+---
+
+Every member of `Core\Str` is a static function over a `string` that answers a new value; none
+changes its argument. Every position, length and count is in **graphemes** — user-perceived
+characters — so `length("👍🏽")` is `1`, no `slice` or `chunk` ever splits a character, and a byte
+count is `Core\Bytes::length`. A string has no `$s[0]` and no `<`/`>`: `Core\Str::at`,
+`Core\Str::slice` and `Core\Str::compare` are those spellings. A position or a cut that does not
+exist is `null` — `indexOf`, `lastIndexOf`, `before`, `after` — never `false`.
+
+```nvs
+<?nvs
+string $s = Core\Str::trim("  Grüße aus Köln  ");
+echo Core\Str::length($s), " ", Core\Str::upper($s), "\n";
+echo Core\Str::slice($s, 0, 5), "|", Core\Str::at($s, 2), "|", Core\Str::reverse("café"), "\n";
+echo Core\Str::indexOf($s, "aus") ?? "none", " ", Core\Str::indexOf($s, "Bonn") ?? "none", "\n";
+echo Core\Str::contains($s, "Köln") ? "yes" : "no", " ", Core\Str::countOf($s, "ü"), "\n";
+array<string> $words = Core\Str::split($s, " ");
+echo Core\Arr::count($words), " ", Core\Str::join(Core\Arr::reverse($words), "-"), "\n";
+echo Core\Str::replace($s, "Köln", "Bonn"), "|", Core\Str::before($s, " ") ?? "none", "\n";
+echo Core\Str::padStart("7", 3, "0"), " ", Core\Str::repeat("ab", 3), " ", Core\Str::upperFirst("ßig"), "\n";
+echo Core\Str::format("%-6s|%05.1f|%x", "id", 3.14159, 255), "\n";
+echo Core\Str::compare("img10", "img9"), " ", Core\Str::compare("img10", "img9", {natural: true}), "\n";
+```
+```output
+14 GRÜSSE AUS KÖLN
+Grüße|ü|éfac
+6 none
+yes 1
+3 Köln-aus-Grüße
+Grüße aus Bonn|Grüße
+007 ababab SSig
+id    |003.1|ff
+-1 1
+```

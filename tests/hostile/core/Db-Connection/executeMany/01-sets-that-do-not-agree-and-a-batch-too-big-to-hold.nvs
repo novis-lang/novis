@@ -1,0 +1,77 @@
+<?nvs
+// Attack: batches whose sets do not describe the same statement, a batch of
+// half a million sets, and a set holding a very long value. Every bad call
+// must throw instead of breaking the connection.
+// hostile: timeout-ms 60000
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table notes (id integer primary key, text text not null)', []);
+
+// 1. Two sets that bind a different number of values. That is two statements
+// and not one batch, so the call must throw.
+array<array<mixed>> $uneven = [
+    [Core\Db::inList([1, 2])],
+    [Core\Db::inList([1, 2, 3])],
+];
+try {
+    $db->executeMany('select id from notes where id in (?)', $uneven);
+    echo "1 the uneven batch ran\n";
+} catch (Throwable $error) {
+    echo "1 the uneven batch was refused\n";
+}
+
+// 2. A set that is keyed by position and by name at the same time. A statement
+// is written one way or the other.
+array<array<mixed>> $mixed = [];
+$mixed[] = ['first', 'name' => 'second'];
+try {
+    $db->executeMany('insert into notes (text) values (?)', $mixed);
+    echo "2 the mixed set ran\n";
+} catch (Throwable $error) {
+    echo "2 the mixed set was refused\n";
+}
+
+// 3. Ten thousand batches that are refused for the same reason. Ten thousand
+// errors may not fill the memory.
+uint $refused = 0;
+uint $i = 0;
+while ($i < 10000) {
+    try {
+        $db->executeMany('insert into notes (text) values (?)', $mixed);
+    } catch (Throwable $error) {
+        $refused = $refused + 1;
+    }
+    $i = $i + 1;
+}
+echo '3 refused: ', $refused, "\n";
+
+// 4. An empty batch. It writes nothing and the connection still works.
+uint $none = $db->executeMany('insert into notes (text) values (?)', []);
+echo '4 an empty batch wrote ', $none, "\n";
+
+// 5. Half a million sets in one call. The program must either write them or
+// stop at a limit, and it must not lose the connection over it.
+array<array<mixed>> $many = [];
+$i = 0;
+while ($i < 500000) {
+    $many[] = ['row ' . ($i as string)];
+    $i = $i + 1;
+}
+try {
+    $db->executeMany('insert into notes (text) values (?)', $many);
+    echo "5 half a million sets were written\n";
+} catch (Throwable $error) {
+    echo "5 half a million sets were refused\n";
+}
+
+// 6. One set holding a value of ten million characters, after all of the above.
+array<array<mixed>> $huge = [];
+$huge[] = [Core\Str::repeat('a', 10000000)];
+try {
+    $db->executeMany('insert into notes (text) values (?)', $huge);
+    echo "6 the long value was written\n";
+} catch (Throwable $error) {
+    echo "6 the long value was refused\n";
+}
+
+$db->close();

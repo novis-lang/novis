@@ -1,0 +1,14 @@
+{
+  "title": "A log field is data, so it takes a tainted value and wants one",
+  "status": "shipped",
+  "seeAlso": [
+    "security/sink-predicate",
+    "security/secret-sinks-refuse",
+    "errors/log-fields",
+    "errors/log-write"
+  ],
+  "guardedBy": [
+    "tests/conformance/reject/log-write-refuses-a-secret-field.nvst",
+    "crates/nvs-types/tests/tainted.rs"
+  ]
+}

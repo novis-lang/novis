@@ -1,0 +1,16 @@
+{
+  "title": "A record names the file, line and member it was produced at, and a `Throwable`'s location is that same datum",
+  "status": "shipped",
+  "seeAlso": [
+    "errors/diagnostic-record",
+    "errors/record-producers",
+    "errors/propagation",
+    "observability/a-log-record-carries-trace-ids-when-a-trace-is-active"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/a-record-names-the-member-it-was-produced-in.nvst",
+    "tests/conformance/error/a-location-is-the-throw-site-and-a-rethrow-moves-it.nvst",
+    "crates/nvs-runtime/src/throwable.rs",
+    "crates/nvs-runtime/src/source.rs"
+  ]
+}

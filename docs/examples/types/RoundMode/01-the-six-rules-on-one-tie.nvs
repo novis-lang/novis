@@ -1,0 +1,40 @@
+<?nvs
+// This program rounds the same numbers with all six rounding modes.
+// A tie is a value exactly halfway between two whole numbers. 2.5 is as far from 2 as from 3.
+// Each mode rounds a tie in its own way.
+
+class Rules {
+    public static function label(Core\RoundMode $rule): string {
+        return match ($rule) {
+            Core\RoundMode::HalfUp => "HalfUp  ",
+            Core\RoundMode::HalfDown => "HalfDown",
+            Core\RoundMode::HalfEven => "HalfEven",
+            Core\RoundMode::HalfOdd => "HalfOdd ",
+            Core\RoundMode::Up => "Up      ",
+            Core\RoundMode::Down => "Down    ",
+        };
+    }
+}
+
+array<Core\RoundMode> $rules = [
+    Core\RoundMode::HalfUp,
+    Core\RoundMode::HalfDown,
+    Core\RoundMode::HalfEven,
+    Core\RoundMode::HalfOdd,
+    Core\RoundMode::Up,
+    Core\RoundMode::Down,
+];
+
+foreach ($rules as Core\RoundMode $rule) {
+    echo Rules::label($rule),
+        "  2.5 -> ", Core\Math::round(2.5, {mode: $rule}),
+        "   -2.5 -> ", Core\Math::round(-2.5, {mode: $rule}),
+        "\n";
+}
+
+// 2.4 is not a tie, so the four `Half` modes all round it to 2.
+// `Up` always rounds away from zero, so it gives 3. `Down` always rounds toward zero.
+echo "\n";
+foreach ($rules as Core\RoundMode $rule) {
+    echo Rules::label($rule), "  2.4 -> ", Core\Math::round(2.4, {mode: $rule}), "\n";
+}

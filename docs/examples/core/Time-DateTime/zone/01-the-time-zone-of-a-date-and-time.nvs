@@ -1,0 +1,14 @@
+<?nvs
+// Shows how to get the time zone of a date and time.
+
+var $meeting = Core\Time::at(2024, 3, 5, Core\Time\Zone::of("Europe/Berlin"), {hour: 14, minute: 30});
+
+// `zone` returns the `Core\Time\Zone` the value was made in.
+// The `VV` pattern prints the name of the zone. This prints Europe/Berlin.
+var $zone = $meeting->zone();
+echo $meeting->format("VV"), "\n";
+
+// The zone knows its offset from UTC at each moment.
+// This prints 1h in March and 2h in July, because Berlin changes its clocks in summer.
+echo $zone->offsetAt($meeting->toInstant())->toString(), "\n";
+echo $zone->offsetAt(Core\Time::fromIso("2024-07-01T12:00:00Z"))->toString(), "\n";

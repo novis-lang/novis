@@ -1,0 +1,14 @@
+{
+  "title": "Every bound on an open connection is finite with nothing configured",
+  "status": "shipped",
+  "seeAlso": [
+    "concurrency/a-connection-is-a-root-isolate",
+    "concurrency/a-drain-closes-a-connection-cleanly",
+    "concurrency/two-doors-one-isolate",
+    "core-classes/ratelimit-two-members"
+  ],
+  "guardedBy": [
+    "crates/nvs-server/src/bounds.rs",
+    "crates/nvs-server/src/serve.rs"
+  ]
+}

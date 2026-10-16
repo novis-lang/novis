@@ -1,0 +1,10 @@
+<?nvs
+// Shows that subtracting a negative duration moves an instant forward.
+
+Core\Time\Instant $start = Core\Time::fromEpoch(0);
+
+// `negated` turns 15 minutes into minus 15 minutes. This prints 1970-01-01T00:15:00Z.
+echo $start->minus(15m->negated())->toIso(), "\n";
+
+// Subtracting 1 nanosecond goes back past midnight. This prints 1969-12-31T23:59:59.999999999Z.
+echo $start->minus(1ns)->toIso(), "\n";

@@ -1,0 +1,38 @@
+<?nvs
+// Shows `do … while`. The body runs before the condition is tested, so it
+// always runs at least once. Note the semicolon after the closing bracket.
+
+// A page of results is fetched, and another page only while a full one came
+// back. The first page is always fetched.
+class Pages
+{
+    public static function sizeOf(int $page): int
+    {
+        if ($page < 3) {
+            return 100;
+        }
+        return 12;
+    }
+}
+
+int $page = 1;
+int $rows = 0;
+int $size = 0;
+do {
+    $size = Pages::sizeOf($page);
+    $rows = $rows + $size;
+    echo "page ", $page, " gave ", $size, " rows\n";
+    $page = $page + 1;
+} while ($size == 100);
+
+// This prints 212.
+echo $rows, "\n";
+
+// The same loop written with `while` would fetch nothing here, because the
+// condition is false from the start.
+int $count = 0;
+do {
+    $count = $count + 1;
+} while (false);
+// This prints 1.
+echo $count, "\n";

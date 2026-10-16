@@ -1,0 +1,18 @@
+{
+  "title": "Reflection and source parsing are built into `Core`, and `Core\\Ast` is the compiler's own parser",
+  "status": "shipped",
+  "seeAlso": [
+    "core-classes/reflect",
+    "core-classes/ast-is-inert",
+    "security/reflection-enforces-visibility",
+    "security/reflection-needs-no-capability",
+    "enums/reflection",
+    "ide/every-feature-is-staged-behind-its-dependency"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/core-ast-parse-answers-the-compilers-own-tree.nvst",
+    "tests/conformance/core/core-ast-parse-stops-where-the-compiler-stops.nvst",
+    "tests/conformance/core/reflect-forclass-reaches-a-description-by-name-and-absence-is-null.nvst",
+    "tests/conformance/core/reflect-call-runs-a-public-method-and-refuses-a-private-one.nvst"
+  ]
+}

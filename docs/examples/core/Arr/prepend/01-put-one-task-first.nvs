@@ -1,0 +1,15 @@
+<?nvs
+// Shows how to put one value at the front of a list.
+
+array<string> $tasks = ["pack the order", "print the label"];
+
+// `Core\Arr::prepend` returns a new array. Your own array stays as it was.
+array<string> $today = Core\Arr::prepend($tasks, "call the customer");
+
+// This prints the new task first, then the other two.
+foreach ($today as string $task) {
+    echo $task, "\n";
+}
+
+// `$tasks` still has two entries, so this prints 2.
+echo Core\Arr::count($tasks), "\n";

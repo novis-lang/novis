@@ -1,0 +1,25 @@
+<?nvs
+// Shows a client method that always closes its connection, even when the server does not answer.
+
+class Health {
+    // `check` sends `PING` and waits a short time for the answer.
+    // The answer comes from the network, so the method returns a `tainted string`.
+    public static function check(uint $port): tainted string {
+        Core\Net\Stream $connection = Core\Net::connect("127.0.0.1", $port, 5s);
+        try {
+            $connection->write("PING\n" as bytes, 5s);
+            return "answer: " . Core\Str::trim($connection->read(64, 200ms) as string);
+        } catch (TimeoutError $late) {
+            return "no answer";
+        } finally {
+            // The `finally` block runs in both cases, so the connection is always closed.
+            $connection->close();
+            echo "connection closed\n";
+        }
+    }
+}
+
+// This server never answers, so `check` prints `connection closed` and returns `no answer`.
+Core\Net\Listener $silent = Core\Net::listen("127.0.0.1", 0);
+echo Health::check($silent->port()), "\n";
+$silent->close();

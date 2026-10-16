@@ -1,0 +1,27 @@
+<?nvs
+// Shows the two errors `constant` can throw.
+
+class Service {
+    public const string NAME = "billing";
+    private const string API_KEY = "k-123";
+}
+
+var $info = Core\Reflect::forObject(new Service());
+
+// A public constant works. This prints "billing".
+echo $info->constant("NAME") as string, "\n";
+
+// `API_KEY` is private, so code outside the class cannot read it.
+// `Service::API_KEY` does not compile here, and `constant` throws a `RuntimeError`.
+try {
+    $info->constant("API_KEY");
+} catch (RuntimeError $closed) {
+    echo "API_KEY is private\n";
+}
+
+// The class has no constant named `VERSION`, so `constant` throws a `LogicError`.
+try {
+    $info->constant("VERSION");
+} catch (LogicError $missing) {
+    echo "no constant VERSION\n";
+}

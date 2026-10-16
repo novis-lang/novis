@@ -1,0 +1,6 @@
+--METHOD--
+GET
+--PATH--
+/cart
+--HEADERS--
+host: example.com

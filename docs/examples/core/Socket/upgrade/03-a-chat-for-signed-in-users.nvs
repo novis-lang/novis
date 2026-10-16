@@ -1,0 +1,30 @@
+<?nvs
+// Shows a chat where each signed-in user gets a connection in a chat room.
+
+class Chat {
+    // The connection runs this method. `args:` gives each parameter by its name.
+    public static function run(string $user, string $room): void {
+        Core\Socket $conn = Core\Socket::current();
+        $conn->send($user . " joined " . $room);
+        ?Core\Socket\Message $message = $conn->receive();
+        while ($message != null) {
+            $conn->send($user . ": " . ($message->text() ?? ""));
+            $message = $conn->receive();
+        }
+    }
+}
+
+// The server knows each session and the user it belongs to.
+array<string> $users = ["c81f02" => "Ana", "5be9d4" => "Ben"];
+tainted string $session = Core\Request::cookie("session") ?? "";
+string $user = $users[$session] ?? "";
+
+// Only a signed-in user gets a connection. Everybody else gets an error page.
+if ($user == "") {
+    echo "401: sign in first\n";
+} else {
+    Core\Socket::upgrade(Chat::run(...), args: ["user" => $user, "room" => "support"]);
+}
+
+// The client sends two messages. This prints `sent: Ana joined support`,
+// then `sent: Ana: hi` and `sent: Ana: is anyone here?`.

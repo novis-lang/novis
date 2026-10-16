@@ -1,0 +1,27 @@
+<?nvs
+// Shows the everyday use: checking bytes that come from outside your program,
+// and keeping only the ones you can read.
+
+// Three fields as they arrive from an upload. The middle one ends in the
+// middle of a character.
+array<bytes> $fields = [
+    Core\Encoding::fromHex("4f726465722031303432"),
+    Core\Encoding::fromHex("4f7264657220c3"),
+    Core\Encoding::fromHex("4f726465722031303433"),
+];
+
+array<string> $kept = [];
+uint $rejected = 0;
+
+foreach ($fields as bytes $field) {
+    // A field that is not valid UTF-8 is counted and left out. Nothing throws
+    // an error, so one bad field does not stop the other two.
+    if (Core\Encoding::isValidText($field, Core\Charset::Utf8)) {
+        $kept[] = Core\Encoding::decodeText($field, Core\Charset::Utf8);
+    } else {
+        $rejected = $rejected + 1;
+    }
+}
+
+// This prints 2 kept, 1 rejected.
+echo Core\Arr::count($kept), " kept, ", $rejected, " rejected\n";

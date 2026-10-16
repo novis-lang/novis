@@ -1,0 +1,10 @@
+<?nvs
+// Shows how to replace one value of an attribute and keep the others.
+
+// `modify` sends both changes in one request. The server makes both or none.
+array<Core\Ldap\Change> $changes = [
+    Core\Ldap\Change::remove('otherTelephone', '+43 1 111 2222'),
+    Core\Ldap\Change::add('otherTelephone', '+43 1 555 6666'),
+];
+// This prints 2.
+echo Core\Arr::count($changes), "\n";

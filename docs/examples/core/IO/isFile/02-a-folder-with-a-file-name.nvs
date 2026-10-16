@@ -1,0 +1,18 @@
+<?nvs
+// Shows that `Core\IO::isFile` checks what is at the path, not what the name looks like.
+
+string $path = Core\Path::join(Core\IO::temporaryDir(), "report.pdf");
+Core\IO::makeDir($path);
+
+// Something is at the path, so `exists` returns `true`. This prints "exists: true".
+echo "exists: ", Core\IO::exists($path) ? "true" : "false", "\n";
+
+// It is a folder, even though its name ends in ".pdf". This prints "isFile: false".
+echo "isFile: ", Core\IO::isFile($path) ? "true" : "false", "\n";
+
+// Reading a folder throws an error. Check with `isFile` first to avoid it. This prints "not a file".
+if (Core\IO::isFile($path)) {
+    echo Core\IO::read($path);
+} else {
+    echo "not a file", "\n";
+}

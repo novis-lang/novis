@@ -1,0 +1,14 @@
+<?nvs
+// Shows what a program reads when nothing was sent to its standard input.
+
+// This program is started with no input, so `Core\IO::stdin` returns "".
+tainted string $input = Core\IO::stdin();
+if ($input == "") {
+    echo "No input was given.\n";
+    echo "usage: nvs run 02-no-input-gives-an-empty-string.nvs < file.txt\n";
+} else {
+    echo "read ", Core\Str::length($input), " characters\n";
+}
+
+// A second call returns "" too. The input can be read only once.
+echo "second call: ", Core\Str::length(Core\IO::stdin()), " characters\n";

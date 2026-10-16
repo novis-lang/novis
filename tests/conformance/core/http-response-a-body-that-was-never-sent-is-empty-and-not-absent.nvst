@@ -1,0 +1,31 @@
+--TEST--
+A reply that carried no body reads as an empty `string` and empty `bytes` rather than as an absence, and one byte is the first body there is — `rule:core-api/shape-rules`
+--FILE--
+<?nvs
+// The claim is *a bound asserted on both sides*: the emptiest body and the
+// smallest one that is not, named together. `Core\Http\Response` has no
+// nullable body reader, so "the origin sent nothing" and "the origin sent an
+// empty document" are one answer on purpose — a program that has to tell them
+// apart reads the status.
+Core\Test::answerHttp("https://api.example.com/gone", 204);
+Core\Test::answerHttp("https://api.example.com/one", 200, {body: "x"});
+
+var $gone = Core\Http\Client::delete("https://api.example.com/gone");
+echo $gone->status(), " ", Core\Bytes::length($gone->bytes()), " ", Core\Str::length($gone->text()), "\n";
+
+var $one = Core\Http\Client::get("https://api.example.com/one");
+echo $one->status(), " ", Core\Bytes::length($one->bytes()), " ", Core\Str::length($one->text()), "\n";
+
+// A `HEAD` never has a body to read, and that is the same answer rather than a
+// second shape a caller has to handle.
+var $head = Core\Http\Client::head("https://api.example.com/one");
+echo Core\Bytes::length($head->bytes()), "\n";
+
+// The absence a reply *does* spell is a header it never carried, which is what
+// makes the body's emptiness a decision rather than an oversight.
+echo $gone->header("content-type") ?? "absent", "\n";
+--EXPECT--
+204 0 0
+200 1 1
+1
+absent

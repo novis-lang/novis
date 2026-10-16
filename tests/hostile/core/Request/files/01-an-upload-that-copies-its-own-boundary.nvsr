@@ -1,0 +1,37 @@
+--METHOD--
+POST
+--PATH--
+/upload
+--CLIENT_IP--
+198.51.100.23
+--HEADERS--
+host: example.com
+content-type: multipart/form-data; boundary=bnd
+--BODY_CRLF--
+--bnd
+Content-Disposition: form-data; name="doc"; filename="notes.txt"
+Content-Type: text/plain
+
+line one
+--bndX this line only starts like the boundary
+--bnd- and so does this one
+-- bnd
+last line
+--bnd
+Content-Disposition: form-data; name="doc"; filename="../../../etc/passwd"
+Content-Type: text/plain
+
+root:x:0:0
+--bnd
+Content-Disposition: form-data; name="empty"; filename=""
+
+--bnd
+Content-Disposition: form-data; name="comment"
+
+a text field between the files
+--bnd
+Content-Disposition: form-data; name="big"; filename="big.bin"
+Content-Type: application/octet-stream
+
+0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+--bnd--

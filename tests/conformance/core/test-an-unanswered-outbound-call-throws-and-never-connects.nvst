@@ -1,0 +1,75 @@
+--TEST--
+Once one answer is registered every outbound call is answered from the table, and one the table does not name throws rather than reaching the network — `rule:testing/an-outbound-call-is-answered-from-a-table`
+--FILE--
+<?nvs
+// All-or-nothing is the claim, and it is asserted on both sides of the switch:
+// the same call is made before any answer is registered and after, and what
+// refuses it is a different thing each time.
+
+// Before: the ordinary outbound path, which asks the capability about the host
+// (`rule:security/outbound-url-is-a-sink`) — this case grants nothing, so the
+// door refuses and no table is consulted.
+try {
+    var $unarmed = Core\Http\Client::get("https://api.example.com/one");
+    echo "answered by something", "\n";
+} catch (RuntimeError $ungranted) {
+    echo $ungranted->message, "\n";
+}
+
+Core\Test::answerHttp("https://api.example.com/one", 204, {});
+
+// After: the same URL is answered from the table, with the capability never
+// asked — the grant that refused it one line up is still not there.
+var $armed = Core\Http\Client::get("https://api.example.com/one");
+echo $armed->status(), "|", $armed->text(), "|", "\n";
+
+// A URL the table does not name is a `LogicError` naming the URL, not a
+// request: a host that resolves nowhere proves nothing was looked up, since a
+// resolver would have refused it with something else entirely.
+try {
+    var $unanswered = Core\Http\Client::post("https://nowhere.invalid/two");
+    echo "connected", "\n";
+} catch (LogicError $unmatched) {
+    echo $unmatched->message, "\n";
+}
+
+// A prefix answers what is under it and nothing beside it, which is the same
+// refusal read at the boundary the `*` draws.
+Core\Test::answerHttp("https://api.example.com/orders/*", 200, {body: "an order"});
+var $inside = Core\Http\Client::get("https://api.example.com/orders/3");
+echo $inside->status(), " ", $inside->text(), "\n";
+try {
+    var $outside = Core\Http\Client::get("https://api.example.com/orders");
+} catch (LogicError $beside) {
+    echo $beside->message, "\n";
+}
+
+// What is wrong with the *text* is still wrong while the table is armed: the
+// scheme roster is a statement about what the program wrote, so it refuses
+// before the table is consulted and the call is never recorded as sent.
+try {
+    var $scheme = Core\Http\Client::get("ftp://api.example.com/one");
+} catch (RuntimeError $unspoken) {
+    echo $unspoken->message, "\n";
+}
+
+// Every call that got past the text — answered or not — is a record, and the
+// `ftp` one is not among them.
+var $sent = Core\Test::sentHttp();
+echo Core\Arr::count($sent), "\n";
+foreach ($sent as Core\Test\SentRequest $call) {
+    echo ($call->method() as int), " ", $call->url(), " ", $call->header("x-nothing") ?? "-", " ", Core\Bytes::length($call->body()), "\n";
+}
+--EXPECT--
+Core\Http\Client::get needs the capability `net.connect` for api.example.com, which is not granted
+help: grant it in nvs.toml under `[capabilities.net]`
+204||
+Core\Http\Client::post: this test answers outbound calls from a table and no answer is registered for https://nowhere.invalid/two — `Core\Test::answerHttp` registers one, exactly or as a prefix ending in `*`
+200 an order
+Core\Http\Client::get: this test answers outbound calls from a table and no answer is registered for https://api.example.com/orders — `Core\Test::answerHttp` registers one, exactly or as a prefix ending in `*`
+Core\Http\Client::get: the scheme must be `http` or `https`, and this URL names `ftp`
+4
+0 https://api.example.com/one - 0
+4 https://nowhere.invalid/two - 0
+0 https://api.example.com/orders/3 - 0
+0 https://api.example.com/orders - 0

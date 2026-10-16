@@ -1,0 +1,5 @@
+requests held per core: 256
+each may hold up to:    512M
+raise it from code:     no
+answered
+and the work itself runs once the answer is on its way

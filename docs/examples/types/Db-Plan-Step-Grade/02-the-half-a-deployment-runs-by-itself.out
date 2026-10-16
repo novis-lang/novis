@@ -1,0 +1,4 @@
+apply now:   create table invoices
+apply now:   add column invoices.sent_at
+hand over:   add unique key on invoices.number
+hand over:   drop column customers.fax

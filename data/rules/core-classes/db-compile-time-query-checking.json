@@ -1,0 +1,13 @@
+{
+  "title": "A query given as a string literal is checked while compiling, and no vendor's SQL grammar is ever parsed",
+  "status": "shipped",
+  "seeAlso": [
+    "core-classes/db-parameters",
+    "core-classes/schema-introspection",
+    "expressions/intrinsic-constant-arguments"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/db-stream-is-checked-while-compiling-like-every-other-statement.nvst",
+    "tests/conformance/core/db-open-refuses-a-settings-object-that-names-no-driver.nvst"
+  ]
+}

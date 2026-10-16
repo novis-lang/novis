@@ -1,0 +1,17 @@
+<?nvs
+// Shows how a program reads every file in a folder and skips the folders inside it.
+
+string $inbox = Core\Path::join(Core\IO::temporaryDir(), "inbox");
+Core\IO::makeDir(Core\Path::join($inbox, "archive"));
+Core\IO::write(Core\Path::join($inbox, "a.txt"), "first message\n");
+Core\IO::write(Core\Path::join($inbox, "b.txt"), "second message\n");
+
+// `Core\IO::list` returns "a.txt", "b.txt" and "archive". `isFile` is `false` for "archive",
+// so the loop skips it. This prints the two messages.
+foreach (Core\Arr::sort(Core\IO::list($inbox)) as string $name) {
+    string $path = Core\Path::join($inbox, $name);
+    if (!Core\IO::isFile($path)) {
+        continue;
+    }
+    echo Core\IO::read($path);
+}

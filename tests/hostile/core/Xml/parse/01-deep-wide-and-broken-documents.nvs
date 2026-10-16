@@ -1,0 +1,87 @@
+<?nvs
+// Attack: a program parses documents that are very deep, very wide, very long or broken.
+// `Core\Xml::parse` should read each one or throw a `ParseError`, and free every tree.
+// hostile: timeout-ms 20000
+
+// 1. Elements nested 1024 levels deep, the deepest the parser accepts. This prints read.
+string $deep = Core\Str::repeat('<a>', 1024) . Core\Str::repeat('</a>', 1024);
+Core\Xml\Node $tree = Core\Xml::parse($deep);
+echo "read\n";
+
+// 2. One more level. This throws a `ParseError`.
+try {
+    Core\Xml::parse('<b>' . $deep . '</b>');
+    echo "read\n";
+} catch (ParseError $error) {
+    echo "too deep\n";
+}
+
+// 3. One million opening tags and no closing tag. This throws a `ParseError`.
+try {
+    Core\Xml::parse(Core\Str::repeat('<a>', 1000000));
+    echo "read\n";
+} catch (ParseError $error) {
+    echo "not closed\n";
+}
+
+// 4. One element with 100000 different attributes. This prints 100000.
+array<string> $parts = [];
+int $i = 0;
+while ($i < 100000) {
+    $parts[] = ' a' . $i as string . '="' . $i as string . '"';
+    $i = $i + 1;
+}
+string $attributes = Core\Str::join($parts, '');
+Core\Xml\Node $wide = Core\Xml::parse('<item' . $attributes . '/>');
+foreach ($wide->children() as Core\Xml\Node $item) {
+    echo Core\Arr::count($item->attributes()), "\n";
+}
+
+// 5. The same attribute twice, after 100000 others. This throws a `ParseError`.
+try {
+    Core\Xml::parse('<item' . $attributes . ' a0="again"/>');
+    echo "read\n";
+} catch (ParseError $error) {
+    echo "attribute written twice\n";
+}
+
+// 6. An entity that would expand to a billion characters. The parser reads no entity
+// declarations, so this throws a `ParseError`.
+try {
+    Core\Xml::parse('<!DOCTYPE a [<!ENTITY x "xxxxxxxxxx">]><a>&x;&x;&x;</a>');
+    echo "read\n";
+} catch (ParseError $error) {
+    echo "no entity declarations\n";
+}
+
+// 7. Ten million `&amp;` entities in one text. This prints 10000000.
+Core\Xml\Node $long = Core\Xml::parse('<a>' . Core\Str::repeat('&amp;', 10000000) . '</a>');
+foreach ($long->children() as Core\Xml\Node $root) {
+    foreach ($root->children() as Core\Xml\Node $text) {
+        echo Core\Str::length($text->text()), "\n";
+    }
+}
+
+// 8. A null byte and a control character inside a text. XML allows neither, so both throw a `ParseError`.
+try {
+    Core\Xml::parse("<a>x\0y</a>");
+    echo "read\n";
+} catch (ParseError $error) {
+    echo "null byte\n";
+}
+try {
+    Core\Xml::parse("<a>x\x01y</a>");
+    echo "read\n";
+} catch (ParseError $error) {
+    echo "control character\n";
+}
+
+// 9. 200000 small documents are parsed and freed one after another. This prints 200000.
+uint $count = 0;
+$i = 0;
+while ($i < 200000) {
+    Core\Xml\Node $small = Core\Xml::parse('<n v="' . $i as string . '">' . $i as string . '</n>');
+    $count = $count + Core\Arr::count($small->children());
+    $i = $i + 1;
+}
+echo $count, "\n";

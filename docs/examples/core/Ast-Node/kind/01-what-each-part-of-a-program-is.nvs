@@ -1,0 +1,16 @@
+<?nvs
+// Shows what each part of a program is. `kind` returns the name of the
+// construct, and `children` gives the parts one step down from the file.
+
+string $source = <<<'NVS'
+<?nvs
+int $count = 2;
+if ($count > 1) {
+    echo "many\n";
+}
+NVS;
+
+// This prints LocalDecl, then If.
+foreach (Core\Ast::parse($source)->children() as Core\Ast\Node $part) {
+    echo $part->kind(), "\n";
+}

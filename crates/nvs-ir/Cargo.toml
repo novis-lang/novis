@@ -1,0 +1,38 @@
+[package]
+name = "nvs-ir"
+build = "../../tools/build/tests_without_pdb.rs"
+description = "Novis CFG/SSA IR: basic blocks, SSA values, stable per-statement/per-edge ids for the coverage and trace probes"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[lib]
+# No doc comment in this crate has a runnable example, so `cargo test` does
+# not run rustdoc over it. A crate that gains one deletes this table.
+doctest = false
+
+[dependencies]
+nvs-diagnostics.workspace = true
+# `rule:errors/a-record-names-where-it-was-produced`'s three parts are
+# `nvs_render::Source`, built once in `lower::Lowering::source` so the record a
+# producer carries and the backtrace frame beside it read one datum rather than
+# two that agree today. `rule:errors/diagnostic-record` keeps that crate below
+# every other, so this edge runs downward like the rest of them.
+nvs-render.workspace = true
+nvs-syntax.workspace = true
+nvs-types.workspace = true
+rustc-hash.workspace = true
+
+[dev-dependencies]
+insta.workspace = true
+# The conformance fixture's manifest, which an extension call's test loads.
+nvs-ext.workspace = true
+nvs-hir.workspace = true
+# How this crate's tests reach files outside the package.
+nvs-repo.workspace = true
+
+[lints]
+workspace = true

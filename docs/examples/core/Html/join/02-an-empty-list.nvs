@@ -1,0 +1,12 @@
+<?nvs
+// Shows what `Core\Html::join` gives for a list with no pieces.
+
+array<Core\Html\Markup> $tags = [];
+
+// There are no pieces, so the separator is not written either. The result is an empty `Markup`.
+var $joined = Core\Html::join($tags, ", " as Core\Html\Markup);
+echo "<p>Tags: ", $joined, "</p>\n";
+
+// With one piece, the result is that piece alone.
+$tags[] = "<b>news</b>" as Core\Html\Markup;
+echo "<p>Tags: ", Core\Html::join($tags, ", " as Core\Html\Markup), "</p>\n";

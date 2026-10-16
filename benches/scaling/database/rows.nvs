@@ -1,0 +1,21 @@
+<?nvs
+// Writes n rows to a table and reads them all back in one query, as a report does over a large table.
+// scaling: start 1000
+// scaling: max 32000
+// scaling: expect linear
+
+class Bench {
+    public static function run(uint $size): uint {
+        var $db = Core\Db::connect('notes');
+        $db->execute('create table notes (id integer primary key, n int not null)', []);
+        uint $written = 0;
+        while ($written < $size) {
+            $db->execute('insert into notes (n) values (?)', [$written as int]);
+            $written = $written + 1;
+        }
+        var $rows = $db->query('select n from notes order by n', []);
+        return $rows->count();
+    }
+}
+
+echo Bench::run(1000), "\n";

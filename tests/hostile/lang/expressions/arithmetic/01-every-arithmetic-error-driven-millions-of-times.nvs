@@ -1,0 +1,159 @@
+<?nvs
+// Attack: drive every arithmetic error over and over and look for a number
+// that comes out wrong instead of an error. Overflow at both ends of the
+// range. Division and `%` by zero. Negative and very large exponents. A
+// `decimal` pushed past the digits it can hold.
+// hostile: timeout-ms 20000
+
+class Edge
+{
+    // The largest and smallest whole numbers, and the first step past each.
+    public static function overflow(int $seed): int
+    {
+        int $largest = 9223372036854775807;
+        int $smallest = -9223372036854775807 - 1;
+        int $caught = 0;
+
+        try {
+            int $up = $largest + $seed;
+            $caught = $caught + $up % 2;
+        } catch (ArithmeticError $high) {
+            $caught = $caught + 1;
+        }
+
+        try {
+            int $down = $smallest - $seed;
+            $caught = $caught + $down % 2;
+        } catch (ArithmeticError $low) {
+            $caught = $caught + 1;
+        }
+
+        try {
+            int $wide = $largest * $seed;
+            $caught = $caught + $wide % 2;
+        } catch (ArithmeticError $mul) {
+            $caught = $caught + 1;
+        }
+
+        return $caught;
+    }
+
+    // Zero on the right of `/` and of `%`, and an exponent with no whole
+    // number behind it.
+    public static function zeroAndPower(int $seed): int
+    {
+        int $caught = 0;
+
+        try {
+            float $divided = $seed / ($seed - $seed);
+            $caught = $caught + ($divided as int);
+        } catch (ArithmeticError $div) {
+            $caught = $caught + 1;
+        }
+
+        try {
+            int $left = $seed % ($seed - $seed);
+            $caught = $caught + $left;
+        } catch (ArithmeticError $mod) {
+            $caught = $caught + 1;
+        }
+
+        try {
+            int $down = 2 ** (0 - $seed);
+            $caught = $caught + $down;
+        } catch (ArithmeticError $neg) {
+            $caught = $caught + 1;
+        }
+
+        try {
+            int $up = $seed ** 4000;
+            $caught = $caught + $up % 2;
+        } catch (ArithmeticError $big) {
+            $caught = $caught + 1;
+        }
+
+        return $caught;
+    }
+
+    // One expression with the operators nested far deeper than a person
+    // would write them.
+    public static function nested(int $n): int
+    {
+        return ((((((((($n + 1) * 3 - 2) * 5 + 7) % 9001 + 11) * 13 - 17)
+            % 9007 + 19) * 23 - 29) % 9011 + 31) * 37 - 41) % 9013;
+    }
+}
+
+int $survived = 0;
+int $round = 1;
+
+while ($round < 400000) {
+    $survived = $survived + Edge::overflow($round);
+    $round = $round + 1;
+}
+
+echo $survived, "\n";
+
+int $stopped = 0;
+int $pass = 1;
+
+while ($pass < 400000) {
+    $stopped = $stopped + Edge::zeroAndPower($pass);
+    $pass = $pass + 1;
+}
+
+echo $stopped, "\n";
+
+int $folded = 0;
+int $deep = 0;
+
+while ($deep < 400000) {
+    $folded = $folded + Edge::nested($folded + $deep) % 7;
+    $deep = $deep + 1;
+}
+
+echo $folded, "\n";
+
+// A `decimal` doubled in digits every round. It runs out of range after very
+// few rounds, and the error is what should arrive.
+int $overflowed = 0;
+int $attempt = 0;
+
+while ($attempt < 200000) {
+    decimal $wide = 1.0000000001;
+    int $step = 0;
+
+    while ($step < 8) {
+        try {
+            $wide = $wide * $wide;
+        } catch (Throwable $t) {
+            $overflowed = $overflowed + 1;
+            break;
+        }
+        $step = $step + 1;
+    }
+
+    $attempt = $attempt + 1;
+}
+
+echo $overflowed, "\n";
+
+// Division by zero with a `float` on one side, and the one method that gives
+// `INF` for the same question.
+int $threw = 0;
+float $infinite = 0.0;
+int $slow = 0;
+
+while ($slow < 200000) {
+    try {
+        float $bad = 1.0 / (0.0 * $slow);
+        $infinite = $infinite + $bad;
+    } catch (ArithmeticError $zero) {
+        $threw = $threw + 1;
+    }
+
+    $infinite = Core\Math::fdiv(1.0, 0.0);
+    $slow = $slow + 1;
+}
+
+echo $threw, ' ', $infinite, "\n";

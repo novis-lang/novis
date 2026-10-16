@@ -1,0 +1,31 @@
+<?nvs
+// Shows how to list the characters in a username that are not allowed, for an error message on a sign-up form.
+
+class Username {
+    // A username may use only these characters.
+    public static function allowed(): string {
+        return "abcdefghijklmnopqrstuvwxyz0123456789_";
+    }
+
+    // This loop checks each character once and keeps the ones that are not allowed.
+    public static function invalid(string $name): array<string> {
+        array<string> $found = [];
+        foreach (Core\Str::graphemes($name) as string $character) {
+            if (!Core\Str::contains(Username::allowed(), $character)) {
+                $found[] = $character;
+            }
+        }
+        return Core\Arr::unique($found);
+    }
+}
+
+// This prints `anna_m: ok`, then `anna.müller: . ü` and `zoë👋: ë 👋`.
+array<string> $names = ["anna_m", "anna.müller", "zoë👋"];
+foreach ($names as string $name) {
+    array<string> $invalid = Username::invalid($name);
+    if (Core\Arr::count($invalid) == 0) {
+        echo $name, ": ok\n";
+    } else {
+        echo $name, ": ", Core\Str::join($invalid, " "), "\n";
+    }
+}

@@ -1,0 +1,83 @@
+--TEST--
+Core\Jwt::signObject and Core\Jwt::sign write the same header for the same key and the same bag, and refuse the same X25519 pair — `rule:security/algorithm-comes-from-the-key`, `rule:security/protocol-roster`
+--FILE--
+<?nvs
+// Agreement between the two members that sign. The question is asked of the
+// half that is not the payload — the header and the key — because that half is
+// the same rule for both, and a second member that grew its own header or its
+// own answer about which kinds sign would still look right on its own line.
+Core\Crypto\KeyPair $pair = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::Ed25519);
+
+string $table = Core\Jwt::sign(
+    ["sub" => "ada"],
+    15m,
+    $pair,
+    {kid: "k1", typ: "at+jwt", embedKey: true}
+);
+string $object = Core\Jwt::signObject(
+    Core\Arr::shapeAs<{sub: string}>(["sub" => "ada"]),
+    15m,
+    $pair,
+    {kid: "k1", typ: "at+jwt", embedKey: true}
+);
+
+string $written = Core\Encoding::decodeText(
+    Core\Encoding::fromBase64Url(Core\Str::split($table, ".")[0]),
+    Core\Charset::Utf8
+);
+if (Core\Str::split($table, ".")[0] == Core\Str::split($object, ".")[0]) {
+    echo "one header, byte for byte", "\n";
+} else {
+    echo "two headers: ", $written, " and ", Core\Str::split($object, ".")[0], "\n";
+}
+
+// The header itself, around the one part of it that is drawn fresh every run:
+// the embedded public half sits between `alg` and `kid`, because the members
+// are written sorted and nothing about a random key can move them.
+if (
+    Core\Str::startsWith($written, "{\"alg\":\"EdDSA\",\"jwk\":{\"crv\":\"Ed25519\",\"kty\":\"OKP\",\"x\":\"")
+    && Core\Str::endsWith($written, "\"},\"kid\":\"k1\",\"typ\":\"at+jwt\"}")
+) {
+    echo "sorted, with the pair's public half between `alg` and `kid`", "\n";
+} else {
+    echo "the header is ", $written, "\n";
+}
+
+// `embedKey` needs no refusal here, which is the one place the two members
+// differ: `sign` takes a shared secret that has no public half, and this one
+// takes a pair or nothing. So the option that is a bug there is always a
+// header member here, and the `jwk` above is it.
+
+// The kind that signs nothing is a bug under either member, and the sentence
+// names the member that was called rather than the one that owns the table.
+try {
+    Core\Jwt::signObject(
+        Core\Arr::shapeAs<{sub: string}>(["sub" => "ada"]),
+        15m,
+        Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::X25519)
+    );
+    echo "an X25519 pair signed a structured token", "\n";
+} catch (LogicError $signsNothing) {
+    echo $signsNothing->message, "\n";
+}
+
+// And the algorithm still comes from the key alone: a P256 pair writes ES256
+// through this member exactly as it does through `sign`.
+echo Core\Encoding::decodeText(
+    Core\Encoding::fromBase64Url(
+        Core\Str::split(
+            Core\Jwt::signObject(
+                Core\Arr::shapeAs<{sub: string}>(["sub" => "ada"]),
+                15m,
+                Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::P256)
+            ),
+            "."
+        )[0]
+    ),
+    Core\Charset::Utf8
+), "\n";
+--EXPECT--
+one header, byte for byte
+sorted, with the pair's public half between `alg` and `kid`
+Core\Jwt::signObject(): an `X25519` pair signs nothing — it is a key for Core\Crypto::agree alone. A `P256` pair signs ES256, an `Ed25519` pair EdDSA, and the two RSA kinds RS256 and PS256.
+{"alg":"ES256","typ":"JWT"}

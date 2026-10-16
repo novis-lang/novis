@@ -1,0 +1,20 @@
+<?nvs
+// Shows the error for an area chart combined with another area chart.
+use Novis\Spreadsheet\Chart;
+use Novis\Spreadsheet\Workbook;
+
+var $book = Workbook::createInMemory();
+var $sheet = $book->sheet('Orders');
+$sheet->addAll([['quarter' => 'Q1', 'shop' => 310, 'web' => 120], ['quarter' => 'Q2', 'shop' => 290, 'web' => 180]]);
+
+// A combined chart has two different types, so `Sheet::chart` throws a `LogicError`.
+var $chart = Chart::area()->series($sheet->column('shop'))->combine(Chart::area()->series($sheet->column('web')));
+try {
+    $sheet->chart('E2', $chart);
+} catch (LogicError $e) {
+    echo $e->message, "\n";
+}
+
+// Two series in one area chart are allowed.
+$sheet->chart('E2', Chart::area()->series($sheet->column('shop'))->series($sheet->column('web')));
+echo "the area chart with two series is added\n";

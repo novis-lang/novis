@@ -1,0 +1,18 @@
+{
+  "title": "`Core\\Request::files()` yields uploaded parts lazily, one at a time, and is the only way to receive one",
+  "status": "shipped",
+  "seeAlso": [
+    "http-server/a-part-is-a-file-iff-it-carries-a-filename",
+    "http-server/a-part-is-consumed-in-one-of-three-ways",
+    "http-server/there-is-no-temp-file",
+    "security/request-state-throws-in-an-isolate",
+    "iteration/two-interfaces",
+    "http-server/the-body-is-read-on-demand-under-two-caps"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/an-upload-is-received-only-through-files.nvst",
+    "tests/conformance/core/a-file-part-is-named-before-the-walk-and-carries-three-readers.nvst",
+    "crates/nvs-stdlib/src/request.rs",
+    "crates/nvs-stdlib/src/multipart.rs"
+  ]
+}

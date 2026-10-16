@@ -1,0 +1,3 @@
+{"level":"warn","msg":"a row was skipped","source":{"file":"docs/examples/core/Log/write/03-rows-an-import-cannot-read.nvs","line":16},"fields":{"row":2,"text":"1043;abc"}}
+{"level":"warn","msg":"a row was skipped","source":{"file":"docs/examples/core/Log/write/03-rows-an-import-cannot-read.nvs","line":16},"fields":{"row":4,"text":";7.50"}}
+{"level":"info","msg":"the import finished","source":{"file":"docs/examples/core/Log/write/03-rows-an-import-cannot-read.nvs","line":25},"fields":{"saved":2,"skipped":2}}

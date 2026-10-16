@@ -1,0 +1,43 @@
+<?nvs
+// Attack: a program takes the array of an entry many times and changes it. The
+// entry must keep its own values, and nothing may be left behind or crash.
+// hostile: timeout-ms 60000
+// requires: samba-ad
+
+var $corp = Core\Ldap::connect('corp');
+var $found = $corp->read('CN=Employees,OU=Company,DC=example,DC=test', { select: ['member', 'objectGUID', 'cn'] });
+
+if ($found != null) {
+    Core\Ldap\Entry $group = $found;
+
+    // 1. The array, taken one hundred thousand times.
+    uint $keys = 0;
+    uint $i = 0;
+    while ($i < 100000) {
+        $keys = $keys + Core\Arr::count($group->toArray());
+        $i = $i + 1;
+    }
+    echo '1 keys counted: ', $keys, "\n";
+
+    // 2. Copies that add a member, empty a list and add a new attribute.
+    // The entry keeps five members.
+    $i = 0;
+    while ($i < 10000) {
+        array<array<tainted bytes>> $copy = $group->toArray();
+        $copy['member'] = [];
+        $copy['adminCount'] = [];
+        $copy['cn'][] = Core\Str::repeat('A', 1000) as bytes;
+        $i = $i + 1;
+    }
+    echo '2 members: ', Core\Arr::count($group->strings('member') ?? []), "\n";
+    echo '2 has adminCount: ', $group->has('adminCount') ? 'yes' : 'no', "\n";
+
+    // 3. Read every value of every attribute. Binary values are counted as bytes.
+    uint $total = 0;
+    foreach ($group->toArray() as tainted string $name => array<tainted bytes> $values) {
+        foreach ($values as tainted bytes $value) {
+            $total = $total + Core\Bytes::length($value);
+        }
+    }
+    echo '3 bytes: ', $total > 0 ? 'some' : 'none', "\n";
+}

@@ -1,0 +1,14 @@
+<?nvs
+// Shows which attribute names a change accepts.
+
+// A name starts with a letter. A dotted number such as 2.5.4.3 also works.
+// This prints yes for the first three names and no for the last two.
+array<string> $names = ['mail', 'msDS-cloudExtensionAttribute1', '2.5.4.3', '1mail', 'e mail'];
+foreach ($names as string $name) {
+    try {
+        var $change = Core\Ldap\Change::remove($name, 'old value');
+        echo $name, ": yes\n";
+    } catch (LogicError $refusal) {
+        echo $name, ": no\n";
+    }
+}

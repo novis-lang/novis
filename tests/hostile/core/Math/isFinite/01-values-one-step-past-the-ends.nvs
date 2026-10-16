@@ -1,0 +1,34 @@
+<?nvs
+// Attack: `Core\Math::isFinite` is given values at the ends of the `float` range and one step past
+// them. It is also called a million times. Every call should return `true` or `false`, and the
+// program should run to its end.
+
+// 1. The biggest `float`, and a value one step past it.
+echo Core\Math::isFinite(Core\Math::FLOAT_MAX) ? "finite\n" : "not finite\n";
+echo Core\Math::isFinite(Core\Math::FLOAT_MAX * 2.0) ? "finite\n" : "not finite\n";
+echo Core\Math::isFinite(-Core\Math::FLOAT_MAX * 2.0) ? "finite\n" : "not finite\n";
+
+// 2. The smallest number above zero, and the value one step below it, which is zero.
+float $tiny = Core\Math::FLOAT_MIN / 4503599627370496.0;
+echo Core\Math::isFinite($tiny) ? "finite\n" : "not finite\n";
+echo Core\Math::isFinite($tiny / 2.0) ? "finite\n" : "not finite\n";
+echo Core\Math::isFinite(-0.0) ? "finite\n" : "not finite\n";
+
+// 3. `NaN` with both signs.
+echo Core\Math::isFinite(Core\Math::NAN) ? "finite\n" : "not finite\n";
+echo Core\Math::isFinite(-Core\Math::NAN) ? "finite\n" : "not finite\n";
+
+// 4. A million calls. The value doubles until it reaches `INFINITY`. Each time that happens,
+// the value starts again from 1.
+float $value = 1.0;
+int $restarts = 0;
+int $round = 0;
+while ($round < 1000000) {
+    $value = $value * 2.0;
+    if (!Core\Math::isFinite($value)) {
+        $restarts = $restarts + 1;
+        $value = 1.0;
+    }
+    $round = $round + 1;
+}
+echo $restarts, "\n";

@@ -1,0 +1,49 @@
+--TEST--
+`Core\Program::implementingWith` alone opts the program into the autoload scan, so it lists classes only an autoload root declares — `rule:programs/implementing-with` and `rule:programs/implementing`
+--FILE--
+<?nvs
+// `Blog\Home` and `Blog\About` are written nowhere in this program. Only the
+// scan of the `Blog` root can find them, and the one enumeration call below
+// is `implementingWith`, never `implementing`. A program whose scan opt-in
+// knew only `implementing` would print `rows: 0`.
+autoload 'Blog' from './lib';
+
+foreach (Core\Program::implementingWith<Blog\Page, {path: string}>("render") as {instance: Blog\Page, attribute: ?{path: string}} $row) {
+    echo $row->instance->render(), " ", $row->attribute?->path ?? "none", "\n";
+}
+echo "rows: ", Core\Arr::count(Core\Program::implementingWith<Blog\Page, {path: string}>("render")), "\n";
+--FILE lib/Page.nvs--
+<?nvs
+namespace Blog;
+
+interface Page
+{
+    public function render(): string;
+}
+--FILE lib/Home.nvs--
+<?nvs
+namespace Blog;
+
+class Home implements Page
+{
+    #[{path: "/"}]
+    public function render(): string
+    {
+        return "home";
+    }
+}
+--FILE lib/About.nvs--
+<?nvs
+namespace Blog;
+
+class About implements Page
+{
+    public function render(): string
+    {
+        return "about";
+    }
+}
+--EXPECT--
+about none
+home /
+rows: 2

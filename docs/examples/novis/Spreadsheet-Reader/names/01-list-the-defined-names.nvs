@@ -1,0 +1,14 @@
+<?nvs
+// Shows how to list the defined names of a workbook and the cells each name refers to.
+use Novis\Spreadsheet\Reader;
+use Novis\Spreadsheet\Workbook;
+
+var $book = Workbook::createInMemory();
+$book->sheet('Shop')->addAll([['Item', 'Price'], ['Widget', 2.5], ['Gadget', 4.0]]);
+$book->define('Prices', 'Shop!$B$2:$B$3')->define('TaxRate', '0.2');
+var $reader = Reader::open($book->finish()->bytes ?? Core\Bytes::fill(0, 0));
+
+// `reference` is the text of the name, as Excel shows it in the Name Manager.
+foreach ($reader->names() as var $name) {
+    echo $name->name, ' = ', $name->reference, "\n";
+}

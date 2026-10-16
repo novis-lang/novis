@@ -1,0 +1,66 @@
+--TEST--
+Each `Chart` start method gives its `ChartKind`, `combine` keeps the first chart's kind, the option `legend` gives its `Legend` case with `Right` when it is left out, and the chart part writes the kind and the legend's place: rule:core-classes/spreadsheet-sheet-end-parts
+--FILE--
+<?nvs
+// covers: Novis\Spreadsheet\ChartKind, Novis\Spreadsheet\Legend
+use Novis\Spreadsheet\Chart;
+use Novis\Spreadsheet\ChartKind;
+use Novis\Spreadsheet\Legend;
+use Novis\Spreadsheet\Workbook;
+
+array<{chart: Chart, kind: ChartKind}> $starts = [
+    {chart: Chart::column(), kind: ChartKind::Column},
+    {chart: Chart::bar(), kind: ChartKind::Bar},
+    {chart: Chart::line(), kind: ChartKind::Line},
+    {chart: Chart::area(), kind: ChartKind::Area},
+    {chart: Chart::pie(), kind: ChartKind::Pie},
+    {chart: Chart::doughnut(), kind: ChartKind::Doughnut},
+    {chart: Chart::scatter(), kind: ChartKind::Scatter},
+];
+int $matching = 0;
+foreach ($starts as var $start) {
+    if ($start->chart->kind == $start->kind) {
+        $matching = $matching + 1;
+    }
+}
+echo $matching, " of 7 kinds match\n";
+var $both = Chart::area()->series("B2:B3")->combine(Chart::line()->series("C2:C3"));
+echo $both->kind == ChartKind::Area ? "combine keeps area" : "combine changes the kind", "\n";
+
+echo Chart::column()->legend == Legend::Right ? "default right" : "default wrong", "\n";
+array<{name: string, legend: Legend}> $places = [
+    {name: "hidden", legend: Legend::Hidden},
+    {name: "top", legend: Legend::Top},
+    {name: "right", legend: Legend::Right},
+    {name: "bottom", legend: Legend::Bottom},
+    {name: "left", legend: Legend::Left},
+];
+foreach ($places as var $place) {
+    echo $place->name, ": ", Chart::bar({legend: $place->name})->legend == $place->legend ? "matches" : "wrong", "\n";
+}
+
+var $book = Workbook::createInMemory();
+var $sales = $book->sheet("Sales");
+$sales->add(["month" => "Jan", "sales" => 120]);
+$sales->chart("D2", Chart::doughnut({legend: "top"})->series($sales->column("sales")));
+$sales->chart("D20", Chart::bar({legend: "hidden"})->series($sales->column("sales")));
+bytes $file = $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
+var $first = Core\Zip::read($file, "xl/charts/chart1.xml") as string;
+var $second = Core\Zip::read($file, "xl/charts/chart2.xml") as string;
+echo Core\Str::contains($first, "<c:doughnutChart>") ? "a doughnut chart" : "not a doughnut chart", "\n";
+echo Core\Str::contains($first, "<c:legendPos val=\"t\"/>") ? "legend at the top" : "legend not at the top", "\n";
+echo Core\Str::contains($second, "<c:barDir val=\"bar\"/>") ? "a bar chart" : "not a bar chart", "\n";
+echo Core\Str::contains($second, "<c:legend>") ? "a legend" : "no legend", "\n";
+--EXPECT--
+7 of 7 kinds match
+combine keeps area
+default right
+hidden: matches
+top: matches
+right: matches
+bottom: matches
+left: matches
+a doughnut chart
+legend at the top
+a bar chart
+no legend

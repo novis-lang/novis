@@ -1,0 +1,24 @@
+<?nvs
+// Shows how to test that a column is there before you read it.
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table people (name text not null, nickname text)', []);
+$db->execute(
+    'insert into people (name, nickname) values (?, ?), (?, ?)',
+    ['Ada', 'Addy', 'Bo', null]
+);
+
+foreach ($db->query('select name, nickname from people order by name', []) as Core\Db\Row $row) {
+    // `has` returns `true` for every column the row carries. A column with no
+    // value in this row is still a column, so both rows print this line.
+    if ($row->has('nickname')) {
+        echo $row->string('name') ?? '', ' has a nickname column: ',
+            $row->string('nickname') ?? '(no nickname)', "\n";
+    }
+    // No column of this row has that name, so the answer is `false`.
+    if (!$row->has('title')) {
+        echo $row->string('name') ?? '', " has no title column\n";
+    }
+}
+
+$db->close();

@@ -1,0 +1,21 @@
+<?nvs
+// Shows a program that runs one statement on SQL Server and another one
+// everywhere else. Both ask for the first row, and each database has its own
+// way to write that.
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table notes (id integer primary key, text text not null)', []);
+$db->execute('insert into notes (id, text) values (?, ?)', [1, 'buy milk']);
+
+// This prints `buy milk`, because the connection is a SQLite one.
+if ($db->driver() == Core\Db\Driver::SqlServer) {
+    foreach ($db->query('select top 1 text from notes order by id', []) as Core\Db\Row $row) {
+        echo $row->string('text') ?? '', "\n";
+    }
+} else {
+    foreach ($db->query('select text from notes order by id limit 1', []) as Core\Db\Row $row) {
+        echo $row->string('text') ?? '', "\n";
+    }
+}
+
+$db->close();

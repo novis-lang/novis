@@ -1,0 +1,23 @@
+<?nvs
+// Gives a range of cells a name, as an invoice does for each tax rate its formulas use.
+// bench: iterations 32
+// bench: complexity constant
+use Novis\Spreadsheet\Workbook;
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        var $book = Workbook::createInMemory();
+        $book->sheet("Rates")->add(["rate" => 0.2]);
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            $book->define("Rate" . ($total as string), "Rates!\$A\$2");
+            $total = $total + 1;
+            $i = $i + 1;
+        }
+        $book->finish();
+        return $total;
+    }
+}
+
+echo Bench::run(32), "\n";

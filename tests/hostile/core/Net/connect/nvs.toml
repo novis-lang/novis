@@ -1,0 +1,5 @@
+# The attack opens servers on this computer and connects to them.
+[capabilities.net]
+listen = ["127.0.0.1:0"]
+connect = ["127.0.0.1"]
+internal = ["127.0.0.1"]

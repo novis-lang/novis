@@ -1,0 +1,10 @@
+<?nvs
+// Shows how to count the sentences of each text in a list.
+use Novis\Intl\Segmenter;
+
+array<string> $reviews = ["The Shop is open. Is the Blog? Yes!", "Fast delivery.", ""];
+
+// Each text gives one list of sentences. This prints 3, 1 and 0.
+foreach (Segmenter::sentences($reviews, "en") as array<string> $sentences) {
+    echo Core\Arr::count($sentences), "\n";
+}

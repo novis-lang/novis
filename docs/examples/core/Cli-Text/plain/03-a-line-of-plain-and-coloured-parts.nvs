@@ -1,0 +1,15 @@
+<?nvs
+// Shows the everyday use: a tool prints one line per file, where the state is
+// coloured and the file name is not. `+` joins terminal text. This example does
+// not run in a terminal, so the colours are dropped and only the text prints.
+
+var $failed = Core\Cli\Style::of({color: Core\Cli\Color::RED, bold: true});
+array<string> $files = ["invoices.csv", "orders.csv"];
+
+foreach ($files as string $file) {
+    // The state is written by your program, so it can be coloured. The file
+    // name comes from outside, so it goes through `plain`.
+    var $line = Core\Cli\Text::styled("failed", $failed)
+        + Core\Cli\Text::plain(Core\Str::format("  %s", $file));
+    echo $line, "\n";
+}

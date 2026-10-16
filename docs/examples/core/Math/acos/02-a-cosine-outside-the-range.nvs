@@ -1,0 +1,15 @@
+<?nvs
+// Shows what `Core\Math::acos` returns for a number that is not a cosine,
+// and how to keep a calculated cosine in range.
+
+// No angle has a cosine of 1.5, so the result is `NaN`. This prints NAN.
+echo Core\Math::acos(1.5), "\n";
+
+// `Core\Math::isNan` tests for that result. This prints "not an angle".
+echo Core\Math::isNan(Core\Math::acos(1.5)) ? "not an angle" : "an angle", "\n";
+
+// A calculation can end a tiny bit past 1.0 because of rounding.
+float $cosine = 1.0000000000000002;
+
+// `Core\Math::clamp` moves it back to 1.0 first. This prints 0.
+echo Core\Math::acos(Core\Math::clamp($cosine, -1.0, 1.0)), "\n";

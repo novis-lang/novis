@@ -1,0 +1,83 @@
+--TEST--
+Core\Math::min and max return the first argument of a tie, order strings by their bytes and `-0.0` below `0.0`, and throw on a pair of two types, `rule:types/declaration`
+--FILE--
+<?nvs
+// The two values are equal, so both `min` and `max` return the first one.
+// The `int` prints without a decimal point, so the output shows which one won.
+int|float $asInt = 1000000000000000000;
+int|float $asFloat = 1.0e18;
+echo Core\Math::min($asInt, $asFloat), " ", Core\Math::max($asInt, $asFloat), "\n";
+
+// `-0.0` is ordered below `0.0`, so this is not a tie.
+echo Core\Math::min(-0.0, 0.0), " ", Core\Math::max(-0.0, 0.0), "\n";
+
+// Strings are compared byte by byte and never as numbers.
+// `"1"` comes before `"5"`, so `"1e2"` is the smaller one.
+echo Core\Math::min("1e2", "50"), " ", Core\Math::max("1e2", "50"), "\n";
+
+// `"01"` and `"1"` are two different strings, and `"01"` is the smaller one.
+echo Core\Math::min("01", "1"), " ", Core\Math::max("01", "1"), "\n";
+
+// An `int` and a `string` have no order, so the call throws an error.
+// Two literals of different types do not compile, so the values are variables.
+int|string $zero = 0;
+int|string $letter = "a";
+try {
+    var $lower = Core\Math::min($zero, $letter);
+    echo "ordered\n";
+} catch (Throwable $unordered) {
+    echo "refused\n";
+}
+
+// A numeric string is still a string, so this call throws too.
+int|string $numeral = "10";
+int|string $number = 9;
+try {
+    var $upper = Core\Math::max($numeral, $number);
+    echo "ordered\n";
+} catch (Throwable $notNumeric) {
+    echo "refused\n";
+}
+
+// `null` has no order against a number, so the call throws an error.
+?int $absent = null;
+?int $present = 1;
+try {
+    var $lowest = Core\Math::min($absent, $present);
+    echo "ordered\n";
+} catch (Throwable $nullPresent) {
+    echo "refused\n";
+}
+
+// A `bool` has no order against an `int`, so the call throws an error.
+int|bool $flag = true;
+int|bool $count = 0;
+try {
+    var $smaller = Core\Math::min($flag, $count);
+    echo "ordered\n";
+} catch (Throwable $notBoolean) {
+    echo "refused\n";
+}
+
+// Two values of one type with no tie.
+echo Core\Math::min(3, 5), " ", Core\Math::max("pear", "apple"), "\n";
+
+// `Core\Arr::min` uses the same order, so it throws on the same pair.
+array<int|string> $crossed = [0, "a"];
+try {
+    var $extreme = Core\Arr::min($crossed);
+    echo "ordered\n";
+} catch (Throwable $alsoUnordered) {
+    echo "arr-refused\n";
+}
+--EXPECT--
+1000000000000000000 1000000000000000000
+-0 0
+1e2 50
+01 1
+refused
+refused
+refused
+refused
+3 pear
+arr-refused

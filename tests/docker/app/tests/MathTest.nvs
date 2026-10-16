@@ -1,0 +1,11 @@
+<?nvs
+use Core\Test;
+
+final class MathTest
+{
+    #[Test]
+    public function addsTwoNumbers(): void
+    {
+        Test::assertSame(2 + 2, 4);
+    }
+}

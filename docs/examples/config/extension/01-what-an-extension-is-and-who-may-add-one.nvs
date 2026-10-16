@@ -1,0 +1,20 @@
+<?nvs
+// An extension is a compiled WebAssembly file. The owner of the machine lists it in `nvs.toml`,
+// with the checksum the file must have:
+//
+//     [[extension]]
+//     path   = "/srv/extensions/geo.nvsx"
+//     sha256 = "…"
+//
+// This file lists none. A program cannot add an extension, so this prints `no`.
+echo 'add one from code: ', Core\Config::set('extension', '/tmp/anything.nvsx') ? 'yes' : 'no', "\n";
+
+// A program cannot read the list either, so `Core\Config::get` returns `null`.
+// A program sees only the classes that an extension adds.
+echo 'read the list:     ', Core\Config::get('extension') ?? "(nothing — the list is not a program's to see)", "\n";
+
+// `Core\Program::id` returns the identity of this program. It includes every loaded extension,
+// so a change to the extensions gives a new identity. It is the same for the whole run.
+string $id = Core\Program::id();
+echo 'identity:          ', Core\Str::length($id), " characters, and the same for the whole run\n";
+echo 'asked twice:       ', $id == Core\Program::id() ? 'the same answer' : 'a different one', "\n";

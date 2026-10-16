@@ -1,0 +1,14 @@
+{
+  "title": "`#[TestWith]` is matched against the parameters by name and by type, and each row is its own case",
+  "status": "shipped",
+  "seeAlso": [
+    "testing/fixtures",
+    "testing/test-attribute",
+    "testing/report-formats"
+  ],
+  "guardedBy": [
+    "tests/conformance/lang/a-data-row-is-its-own-reported-case.nvst",
+    "tests/conformance/reject/a-data-row-is-matched-against-the-parameters-by-name-and-by-type.nvst",
+    "crates/nvs-types/tests/testing.rs"
+  ]
+}

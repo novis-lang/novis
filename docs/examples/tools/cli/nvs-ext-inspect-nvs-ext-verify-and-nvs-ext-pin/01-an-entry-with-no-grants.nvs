@@ -1,0 +1,15 @@
+<?nvs
+// Shows a program that uses an extension through the entry that `nvs ext pin` printed.
+
+use Geo\Atlas;
+
+// This program may read `cities.txt`, so this prints `Vienna` and `Graz`.
+echo Core\IO::read("data/cities.txt");
+
+// The entry has no `grants`, so the extension may not read the same file.
+// The call throws a `RuntimeError`, and this prints `no folder is granted`.
+try {
+    echo Atlas::read("cities.txt");
+} catch (RuntimeError $denied) {
+    echo $denied->message, "\n";
+}

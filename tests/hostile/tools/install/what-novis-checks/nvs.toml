@@ -1,0 +1,4 @@
+# The attack may read the three folders. It may write only in `uploads`.
+[capabilities.fs]
+read = ["config", "cache", "uploads"]
+write = ["uploads"]

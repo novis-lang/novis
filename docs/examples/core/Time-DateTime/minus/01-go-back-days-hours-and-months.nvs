@@ -1,0 +1,17 @@
+<?nvs
+// Shows how to move a date and time back by days, hours and months.
+
+var $end = Core\Time::at(2024, 3, 15, Core\Time\Zone::of("Europe/Berlin"), {hour: 18});
+
+// `minus` returns a new value. The first argument is how many steps, and the second is the unit.
+// This prints 2024-03-05 18:00.
+echo $end->minus(10, Core\Unit::Day)->format("yyyy-MM-dd HH:mm"), "\n";
+
+// This prints 2024-03-15 11:30.
+echo $end->minus(390, Core\Unit::Minute)->format("yyyy-MM-dd HH:mm"), "\n";
+
+// This prints 2023-12-15 18:00.
+echo $end->minus(3, Core\Unit::Month)->format("yyyy-MM-dd HH:mm"), "\n";
+
+// `$end` itself does not change. This prints 2024-03-15 18:00.
+echo $end->format("yyyy-MM-dd HH:mm"), "\n";

@@ -1,0 +1,17 @@
+{
+  "title": "Every binding declares its type, and no binding's type ever changes",
+  "status": "shipped",
+  "seeAlso": [
+    "types/var-inference",
+    "types/conversion",
+    "types/grammar",
+    "types/unions-and-mixed"
+  ],
+  "guardedBy": [
+    "tests/conformance/lang/a-locals-type-is-fixed-at-its-declaration.nvst",
+    "tests/conformance/lang/a-declaration-without-an-initializer-fixes-the-type.nvst",
+    "tests/conformance/reject/a-compound-assignment-cannot-retype-its-target.nvst",
+    "tests/conformance/reject/a-constant-declares-its-type.nvst",
+    "crates/nvs-types/tests/locals.rs"
+  ]
+}

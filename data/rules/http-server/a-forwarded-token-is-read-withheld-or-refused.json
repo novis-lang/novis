@@ -1,0 +1,12 @@
+{
+  "title": "A forwarded token's port is removed, a withheld address answers `null`, and a token that neither names nor withholds one is a `400`",
+  "status": "shipped",
+  "seeAlso": [
+    "http-server/trusted-proxies-is-empty-and-empty-reads-nothing",
+    "http-server/x-forwarded-for-is-the-only-address-header",
+    "errors/ambiguous-input-refused"
+  ],
+  "guardedBy": [
+    "crates/nvs-server/src/forwarded.rs"
+  ]
+}

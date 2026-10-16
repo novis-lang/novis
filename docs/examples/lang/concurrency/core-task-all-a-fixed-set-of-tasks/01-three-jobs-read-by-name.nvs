@@ -1,0 +1,13 @@
+<?nvs
+// Shows how to run three jobs at the same time. `Core\Task::all` takes one field per
+// job and returns one field per result, under the same names.
+
+var $page = Core\Task::all({
+    rows:  fn(): array<int> => [10, 20, 30],
+    label: fn(): string     => "orders",
+    total: fn(): int        => 60,
+});
+
+// Each field already has the type its own function returns, so nothing needs converting.
+// This prints orders: 3 rows, 60 in total.
+echo $page->label, ": ", Core\Arr::count($page->rows), " rows, ", $page->total, " in total\n";

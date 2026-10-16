@@ -1,0 +1,11 @@
+<?nvs
+// Shows what happens when the text to look for is empty.
+
+string $typed = '';
+try {
+    Core\Ldap\Filter::startsWith('displayName', $typed);
+} catch (LogicError $error) {
+    // An empty text throws an error. `present` finds every entry with a value.
+    echo "Nothing typed yet.\n";
+    echo Core\Ldap\Filter::present('displayName')->toString(), "\n";
+}

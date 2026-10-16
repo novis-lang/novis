@@ -1,0 +1,19 @@
+<?nvs
+// Shows how to read the version of the database a connection is talking to.
+// The connection was told the version while it opened, so this costs no
+// statement.
+
+var $db = Core\Db::connect('notes');
+
+// The text is the database's own wording, for example `3.45.1`. Every database
+// reports a version, so it is never empty.
+var $version = $db->serverVersion();
+
+// This prints `the database reported a version`.
+if (Core\Str::isEmpty($version)) {
+    echo "the database reported nothing\n";
+} else {
+    echo "the database reported a version\n";
+}
+
+$db->close();

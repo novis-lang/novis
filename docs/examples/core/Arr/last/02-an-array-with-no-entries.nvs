@@ -1,0 +1,19 @@
+<?nvs
+// Shows what `Core\Arr::last` gives you when there is no last entry.
+
+array<int> $readings = [];
+
+// The result is `null`, so this prints `no reading yet`.
+?int $newest = Core\Arr::last($readings);
+if ($newest == null) {
+    echo "no reading yet\n";
+}
+
+// `??` names a value to use instead of `null`. This prints `0`.
+echo Core\Arr::last($readings) ?? 0, "\n";
+
+// The array is not changed by reading it, so the same value comes back every
+// time. This prints `21 21`.
+$readings[] = 19;
+$readings[] = 21;
+echo Core\Arr::last($readings) ?? 0, ' ', Core\Arr::last($readings) ?? 0, "\n";

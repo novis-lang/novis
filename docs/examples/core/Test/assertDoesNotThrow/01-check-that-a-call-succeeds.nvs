@@ -1,0 +1,16 @@
+<?nvs
+// Shows how to check that a piece of code runs without an error.
+
+class Settings {
+    public static function load(string $text): void {
+        if (!Core\Str::contains($text, "=")) {
+            throw new LogicError("a setting needs a name and a value");
+        }
+        echo "loaded: ", $text, "\n";
+    }
+}
+
+// The function is the code to run. It runs once, and it throws no error,
+// so the check passes and nothing is thrown.
+Core\Test::assertDoesNotThrow(fn (): void => { Settings::load("mode=fast"); });
+echo "the check passed\n";

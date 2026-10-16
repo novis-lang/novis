@@ -1,0 +1,14 @@
+<?nvs
+// Shows where `Core\Decimal::truncate` sends a negative number. It always
+// moves towards zero, so -2.7 becomes -2.
+
+array<decimal> $values = [2.7, 2.1, -2.1, -2.7];
+
+// This prints 2, 2, -2 and -2, one on each line.
+foreach ($values as decimal $value) {
+    echo Core\Decimal::truncate($value), "\n";
+}
+
+// `Core\Decimal::floor` moves towards the smaller number and
+// `Core\Decimal::ceil` towards the larger one. For -2.7 this prints -3 and -2.
+echo Core\Decimal::floor(-2.7), " ", Core\Decimal::ceil(-2.7), "\n";

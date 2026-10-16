@@ -1,0 +1,18 @@
+<?nvs
+// Groups counts by the day they were measured, and adds up each day. The
+// function reads the key here, because the day is part of the key.
+
+array<int> $visits = [
+    '2026-05-01 09:00' => 12,
+    '2026-05-01 17:30' => 30,
+    '2026-05-02 08:15' => 7,
+];
+
+// The first 10 characters of the key are the date.
+array<array<int>> $perDay = Core\Arr::groupBy($visits, fn(int $count, string $at)
+    => Core\Str::slice($at, 0, 10));
+
+// This prints `2026-05-01: 42` and `2026-05-02: 7`.
+foreach ($perDay as string $day => array<int> $counts) {
+    echo $day, ': ', Core\Arr::sum($counts), "\n";
+}

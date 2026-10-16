@@ -1,0 +1,315 @@
+{
+  "guides/why-novis/secret-values.mdx": {
+    "lang:types/qualifiers-tainted-and-secret": "a0ba8159d9c102fb"
+  },
+  "guides/why-novis/tainted-input.mdx": {
+    "lang:types/qualifiers-tainted-and-secret": "a0ba8159d9c102fb"
+  },
+  "syntax/attributes/commands-and-discovery.mdx": {
+    "lang:attributes/core-command-and-core-option-the-command-table": "737daa080cfa7939",
+    "lang:attributes/core-program-implementing-i-every-class-that-is-an-i": "475d2cb7b303b63f",
+    "lang:attributes/core-program-implementingwith-i-t-member-every-implementor-with-one-attribute": "6754f5782543b883"
+  },
+  "syntax/attributes/json.mdx": {
+    "lang:attributes/core-json-derive-and-core-json-field-a-class-with-a-json-codec": "5a35edb0eed8ccc7"
+  },
+  "syntax/attributes/routes.mdx": {
+    "Core\\Router::dispatch": "7be54fafddfab7ed",
+    "lang:attributes/core-api-and-the-openapi-document": "8c75e2694eee0d72",
+    "lang:attributes/core-route-and-core-access-the-route-table": "3e577df57cd61398"
+  },
+  "syntax/attributes/writing-and-reading.mdx": {
+    "lang:attributes/an-attribute-is-an-anonymous-object-attached-to-a-declaration": "b3d77df2e31a1a39",
+    "lang:attributes/reading-attributes-back-core-attributes-get-and-all": "35a626022762a6ba",
+    "lang:attributes/the-names-the-compiler-acts-on": "655b2f6d62b9effb"
+  },
+  "syntax/basics/comments.mdx": {
+    "lang:programs/comments": "9acb13a1eb668099",
+    "lang:programs/doc-comments": "24b09d86a5ee2ff5"
+  },
+  "syntax/basics/constants.mdx": {
+    "lang:classes/constants-and-class": "fa4b0e6866663a7d"
+  },
+  "syntax/basics/files-and-statements.mdx": {
+    "lang:programs/a-program-is-a-file-of-top-level-statements": "f51c46ee225c7f7a",
+    "lang:programs/code-mode-and-html-mode": "2886116d78f17597",
+    "lang:programs/names-and-casing": "5b919afa2d162042"
+  },
+  "syntax/basics/variables.mdx": {
+    "lang:types/every-binding-has-a-type": "dd36d2fa193703ff"
+  },
+  "syntax/classes/anonymous-objects.mdx": {
+    "lang:expressions/anonymous-objects": "aaea7ea2477e55dc"
+  },
+  "syntax/classes/declaring.mdx": {
+    "lang:classes/declaring-a-class": "1a3ed6b36b26a2a4"
+  },
+  "syntax/classes/interfaces.mdx": {
+    "lang:classes/interfaces": "9e2ecd46ca6c3266"
+  },
+  "syntax/classes/methods-and-inheritance.mdx": {
+    "lang:classes/inheritance": "98ef537b726c6a14",
+    "lang:classes/methods-self-static-and-parent": "f041dfb84c200b03"
+  },
+  "syntax/classes/objects.mdx": {
+    "lang:classes/nullable-objects-and": "95b0936d37e271ee",
+    "lang:classes/object-the-top-of-every-class-type": "73f013ceceb14939",
+    "lang:classes/objects-are-handles": "cdafefedd67c6e81",
+    "lang:classes/what-a-class-cannot-declare": "32210d606a24e5ee",
+    "lang:expressions/is-new-clone-throw-print-exit-isset-empty": "14e32bbf60f56171",
+    "lang:types/callable-classes-object-shapes": "1e05f17eee622431"
+  },
+  "syntax/classes/properties.mdx": {
+    "lang:classes/lateinit": "0b1740d8c1f78a87",
+    "lang:classes/properties": "0274f4b8979b9752",
+    "lang:types/properties-and-constants": "606d2c7f24b2382f",
+    "LateInit": "54659944b7e3ba58"
+  },
+  "syntax/classes/property-hooks.mdx": {
+    "lang:classes/property-hooks": "8c5217027713ba4e",
+    "lang:classes/propertyguard": "f9758731e40d599b",
+    "lang:classes/propertyobserver": "fab5f147011f9908",
+    "PropertyGuard": "87b4f428b87d30db",
+    "PropertyObserver": "80600e979a7d8483"
+  },
+  "syntax/classes/standard-interfaces.mdx": {
+    "Comparable": "391e6f137abae931",
+    "lang:classes/comparable": "9d838bf89caea2d5",
+    "lang:classes/parses": "2c15005ea53bab37",
+    "lang:classes/stringable": "e8c292a790bcece8",
+    "Parses": "76732b35d3fe313a",
+    "Stringable": "2a07d08fab1b1475"
+  },
+  "syntax/concurrency/channels.mdx": {
+    "lang:concurrency/core-task-channel-t-a-bounded-queue-between-tasks": "4a3423d1981915d1"
+  },
+  "syntax/concurrency/isolates.mdx": {
+    "lang:concurrency/a-child-s-failure-is-a-value": "930f1cbe639c8e6e",
+    "lang:concurrency/a-child-shares-nothing": "b67a4975e6cbc216",
+    "lang:concurrency/isolates-spawn-script-and-await": "2c6b6ad3eddf9f3e"
+  },
+  "syntax/concurrency/limits-and-errors.mdx": {
+    "lang:concurrency/a-child-s-throw": "436f3216f2ebdc63",
+    "lang:concurrency/limit-and-deadline": "9d94f1ba5ec99b94"
+  },
+  "syntax/concurrency/tasks.mdx": {
+    "lang:concurrency/core-task-all-a-fixed-set-of-tasks": "82fbb8e7aa0b738f",
+    "lang:concurrency/core-task-map-one-task-per-element": "416509f4b453e81c",
+    "lang:concurrency/no-colouring-i-o-just-waits": "44d588895d04b48c",
+    "lang:concurrency/what-does-not-exist": "0eac691553f11c94"
+  },
+  "syntax/control-flow/break-continue-return.mdx": {
+    "lang:statements/break-and-continue": "4c4dfd5abf6f8692",
+    "lang:statements/return": "590137cb9dc139e3"
+  },
+  "syntax/control-flow/foreach.mdx": {
+    "lang:iteration/core-collections-are-iterable": "08f8f188a02fd1a8",
+    "lang:iteration/materialising-a-sequence-core-arr-from": "52eca440224710cf",
+    "lang:iteration/what-foreach-walks": "ca10e817647a6dea",
+    "lang:statements/foreach": "b0ca328d6f788037"
+  },
+  "syntax/control-flow/if.mdx": {
+    "lang:statements/expression-statements-blocks-and-declarations": "71a1c5759975c3b3",
+    "lang:statements/if-elseif-else": "e3210313c101acda"
+  },
+  "syntax/control-flow/iterators.mdx": {
+    "Iterable": "00f00c8752d0a6b8",
+    "Iterator": "c3226424f53707ac",
+    "lang:iteration/generators": "1ccd38934acd8957",
+    "lang:iteration/the-two-interfaces": "1885960b8b9f3b50",
+    "lang:iteration/what-does-not-exist": "528280082914c5ee"
+  },
+  "syntax/control-flow/loops.mdx": {
+    "lang:statements/for": "04315f3ad07b44a6",
+    "lang:statements/while-and-do-while": "afb54afd748091c6"
+  },
+  "syntax/control-flow/match.mdx": {
+    "lang:expressions/match": "f59f057c151baecd"
+  },
+  "syntax/control-flow/other-statements.mdx": {
+    "lang:statements/echo-print-unset-exit-yield": "e46e42961c3da58d",
+    "lang:statements/statement-forms-that-do-not-parse": "ab66b65b1103eaed"
+  },
+  "syntax/control-flow/switch.mdx": {
+    "lang:statements/switch": "7708e52232f83a45"
+  },
+  "syntax/errors/assert-and-dump.mdx": {
+    "Core\\Test\\Failure": "ad8300273588bcbf",
+    "lang:errors/assertion-failures": "88db8374fafda2b9",
+    "lang:errors/inspecting-a-value": "aed577d1aafee13c"
+  },
+  "syntax/errors/catch-expression.mdx": {
+    "lang:statements/catch-as-an-expression": "afbf4d44ec9c0788"
+  },
+  "syntax/errors/error-types.mdx": {
+    "ArithmeticError": "fc4903c59062fa25",
+    "Core\\Cli\\NotInteractive": "0a53529b7f05636f",
+    "Core\\Db\\DbError": "0be50c7f4eaed6ed",
+    "Core\\Db\\RolledBack": "e253aa9c8bdbe69f",
+    "Core\\Script\\Finished": "d67e0a8d12713160",
+    "IOError": "dcea56a0ab16c5c1",
+    "lang:errors/constructing-and-subclassing": "728544e799ad3a70",
+    "lang:errors/properties-not-accessors": "6c7355f56135af3a",
+    "lang:errors/the-throwable-tree": "131de6f6dac10316",
+    "LogicError": "cd5f4e4f9909071d",
+    "ParseError": "745c7b0b84cecbaf",
+    "RecursionError": "3cb3c356b0494e81",
+    "RuntimeError": "1791596ea867a73b",
+    "Throwable": "7077ca7901eb238c",
+    "TimeoutError": "4c638020de9e7f10"
+  },
+  "syntax/errors/limits.mdx": {
+    "lang:errors/capability-denials-are-catchable": "ab28d1ff5f226a7f",
+    "lang:errors/fatal-errors-limits-no-catch-sees": "be8273bb85f50929",
+    "lang:errors/recursion-depth": "1f5f5b10c2cd3562"
+  },
+  "syntax/errors/rethrowing.mdx": {
+    "lang:errors/an-uncaught-throw": "53a30945bc339e60",
+    "lang:errors/rethrowing": "34f63fcfb5a41045"
+  },
+  "syntax/errors/throw-and-catch.mdx": {
+    "lang:errors/throw": "65bc00d73f9f647c",
+    "lang:errors/try-catch-finally": "2d609e464bdf57d2",
+    "lang:statements/throw": "d98da1aaaa686567",
+    "lang:statements/try-catch-finally": "bcfe6b5f24665829"
+  },
+  "syntax/functions/anonymous-functions.mdx": {
+    "lang:expressions/anonymous-functions": "50529d0705e4f9aa"
+  },
+  "syntax/functions/calls.mdx": {
+    "lang:expressions/calls": "f48b263308e48fa2"
+  },
+  "syntax/functions/declaring.mdx": {
+    "lang:types/void-never-self-static": "656a82389884795e"
+  },
+  "syntax/functions/parameters.mdx": {
+    "lang:types/parameters": "95d4fc8716a909d9"
+  },
+  "syntax/operators/arithmetic.mdx": {
+    "lang:expressions/arithmetic": "ff67c48497b119e0",
+    "lang:expressions/assignment": "d0b9aae015dcb3c3"
+  },
+  "syntax/operators/comparison.mdx": {
+    "lang:expressions/comparison-and-equality": "d9461e5271186485",
+    "lang:expressions/logical-operators-and-truth": "145bbc2075bc3b14"
+  },
+  "syntax/operators/null-coalescing.mdx": {
+    "lang:expressions/and-the-ternary": "d082efd61d67d36b"
+  },
+  "syntax/operators/pipeline.mdx": {
+    "lang:expressions/the-pipeline-operator": "f46c9685d8c115ff"
+  },
+  "syntax/operators/precedence.mdx": {
+    "lang:expressions/operators-that-do-not-parse": "9c9ccdd39494a367",
+    "lang:expressions/precedence-and-associativity": "a058f698d75a15dc",
+    "lang:expressions/refused-in-expression-position": "a54a17de8d49f285"
+  },
+  "syntax/operators/string-operators.mdx": {
+    "lang:expressions/string-operators": "644f8e446d09edc3"
+  },
+  "syntax/programs/file-paths-and-exit.mdx": {
+    "lang:programs/ending-a-program": "092d6927e14702dc",
+    "lang:programs/file-paths-a-relative-path-starts-at-the-folder-of-its-file": "a143932e957e9d37"
+  },
+  "syntax/programs/namespaces.mdx": {
+    "lang:programs/autoload-find-a-class-by-its-namespace": "eeb8a32ea3bcd27f",
+    "lang:programs/namespaces-and-use": "40a919be9ee5a7dc"
+  },
+  "syntax/programs/require.mdx": {
+    "lang:programs/require-run-another-file-in-this-frame": "98d1a4cb56a45eeb"
+  },
+  "syntax/start-here.mdx": {
+    "lang:programs/a-complete-program-annotated": "e1f971c506f5adbe",
+    "lang:types/what-does-not-exist": "a7033148ac6b1dad"
+  },
+  "syntax/testing/fixtures-and-assertions.mdx": {
+    "lang:testing/assertions": "03d848ccd438b78a",
+    "lang:testing/core-test-fixture-built-once-injected-by-type": "f8b8a64d50dc25c9",
+    "lang:testing/core-test-testwith-data-rows": "9540224bea0fab5a",
+    "lang:testing/hooks-beforeclass-afterclass-and-aftereachtest": "cc64babb6a31a6c3"
+  },
+  "syntax/testing/writing-tests.mdx": {
+    "lang:testing/a-test-is-a-method-marked-test": "dc33aa0b38837e06",
+    "lang:testing/every-test-is-its-own-isolate-and-the-constructor-is-setup": "da6b4d0c627fe615",
+    "lang:testing/running-tests-nvs-test": "3157f64c9987602d",
+    "lang:testing/test-options": "1205a1b0a3e41c84"
+  },
+  "syntax/values/arrays.mdx": {
+    "lang:expressions/arrays-in-expressions": "f724608860f5f344",
+    "lang:types/array-t": "7bfb5cead6673df4"
+  },
+  "syntax/values/as.mdx": {
+    "lang:types/the-conversion-operator-as": "9484356bedc326a2",
+    "lang:types/widening-without-as": "e75a917435fa86d6"
+  },
+  "syntax/values/bool-and-null.mdx": {
+    "lang:types/truthiness": "cde4ed2f260d7d7c"
+  },
+  "syntax/values/enums.mdx": {
+    "Core\\Arr::Order": "d5be8754a1824a75",
+    "Core\\Arr::SetOn": "2dc1a8b8dd83af18",
+    "Core\\Audience": "563cd38183dc8ae6",
+    "Core\\Charset": "2a993835856562a7",
+    "Core\\Cldr::PluralCategory": "ec3ee07e5dc9b804",
+    "Core\\Cli::ColorDepth": "51d0c97d3a5c74c2",
+    "Core\\Cli::Stream": "b01bf839591891e5",
+    "Core\\Command::Shell": "15a605478d87f4b1",
+    "Core\\Compress::Codec": "db7f7a9effd89715",
+    "Core\\Crypto::Cipher": "756c80b127c3b553",
+    "Core\\Crypto\\KeyKind": "70ed5496b42fdf76",
+    "Core\\Crypto\\PublicKey::Format": "19a0ff6000e2fbc9",
+    "Core\\Db::Tls": "969d8c720fe9b5c8",
+    "Core\\Db\\Column::Type": "cd29e0c25e5b4f05",
+    "Core\\Db\\DbError::Kind": "2565669da6b8778e",
+    "Core\\Db\\Driver": "b1a8b55c9ac54d2d",
+    "Core\\Db\\Isolation": "b7f83c3b65036906",
+    "Core\\Db\\Plan\\Step::Grade": "e6e700f6284ec534",
+    "Core\\Env::Mode": "342789b2b8aa6074",
+    "Core\\Hash::Digest": "0cdb53a7041bbfcb",
+    "Core\\Http\\Method": "d25e4847da784935",
+    "Core\\IO::FileMode": "9317556e01bd0b25",
+    "Core\\Log::Level": "f456cd5db9b18ed5",
+    "Core\\Mime::Type": "f91ca2d558add046",
+    "Core\\Queue::State": "e5780156bed914ad",
+    "Core\\Reflect::TypeKind": "02abb80409e7f39a",
+    "Core\\Response::Redirect": "21aa4b52c0a23a3b",
+    "Core\\Response::SameSite": "844ba22dd654dbfd",
+    "Core\\RoundMode": "debc7e6b1729c8c7",
+    "Core\\Script\\ExitReport::Reason": "e63043b3805e9273",
+    "Core\\Str::NormalForm": "8eae3cf1719255d7",
+    "Core\\Time\\DateTime::Weekday": "b77632265389b080",
+    "Core\\Unit": "325e36d708bf2e5a",
+    "Core\\Xml\\Node::Kind": "f35464494f865164",
+    "lang:enums/a-case-is-its-integer": "689ec76a8163f43f",
+    "lang:enums/a-union-of-cases-is-a-narrower-type": "d2b41c4e9db443a2",
+    "lang:enums/an-enum-as-a-type": "713d9f99c9595379",
+    "lang:enums/comparing-cases": "b6bb716b655f4dfe",
+    "lang:enums/core-enums": "343d5748cddffbb9",
+    "lang:enums/declaring-an-enum": "6b0e5dc99c50280d",
+    "lang:enums/from-an-integer-back-to-a-case": "58dacf94f022e093",
+    "lang:enums/match-and-switch-over-an-enum": "3154630c28c6169b",
+    "lang:enums/what-an-enum-does-not-have": "5db640958c9eecb5"
+  },
+  "syntax/values/is.mdx": {
+    "lang:types/narrowing": "ef73bd2a55f6926e"
+  },
+  "syntax/values/nullable.mdx": {
+    "lang:types/nullable-union-single-value-and-enum-case-types": "56bf641e632fee17"
+  },
+  "syntax/values/numbers.mdx": {
+    "lang:types/numbers-bool-int-uint-float-decimal": "d6c129f570f1b22b",
+    "lang:types/values-written-in-the-code": "7d32b7973fcd1133"
+  },
+  "syntax/values/strings.mdx": {
+    "lang:types/text-string-and-bytes": "495fc0b471e79523",
+    "lang:types/values-written-in-the-code": "7d32b7973fcd1133"
+  },
+  "syntax/values/tainted-and-secret.mdx": {
+    "lang:types/qualifiers-tainted-and-secret": "a0ba8159d9c102fb"
+  },
+  "syntax/values/union-types.mdx": {
+    "lang:types/mixed": "ec3d3184189db579",
+    "lang:types/nullable-union-single-value-and-enum-case-types": "56bf641e632fee17",
+    "lang:types/type-aliases": "a74c10267bf5e323"
+  }
+}

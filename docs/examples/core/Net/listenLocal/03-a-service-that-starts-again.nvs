@@ -1,0 +1,24 @@
+<?nvs
+// Shows how a service starts again at the same socket file after it stopped.
+// requires: unix
+
+string $path = "/tmp/novis-worker.sock";
+
+// The first run of the service listens, then stops. The socket file stays on disk.
+Core\Net\Listener $first = Core\Net::listenLocal($path);
+$first->close();
+
+// A new run cannot listen at a path where a file exists. `listenLocal` throws an `IOError`.
+try {
+    Core\Net\Listener $blocked = Core\Net::listenLocal($path);
+} catch (IOError $inUse) {
+    echo "the old socket file is still there\n";
+}
+
+// So the service deletes the old file first, and then listens.
+Core\IO::remove($path);
+Core\Net\Listener $second = Core\Net::listenLocal($path);
+echo "listening again\n";
+
+$second->close();
+Core\IO::remove($path);

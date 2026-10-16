@@ -1,0 +1,31 @@
+--TEST--
+`Core\Sse->retry` refuses a negative reconnection time rather than reading it as no wait at all — `rule:errors/ambiguous-input-refused`
+--FILE--
+<?nvs
+// A client waits this long before it comes back, so a negative wait is not a
+// shorter one — it is a sentence the wire cannot spell. Taking it as "no wait"
+// would answer a question the program did not ask, which is the silent wrong
+// answer a refusal exists instead of. A `LogicError` and not a diagnostic: the
+// wait can be computed, so what was wrong is the value and not the call.
+var $refused = "";
+try {
+    Core\Out::capture(fn (): void => {
+        var $sse = Core\Sse::stream();
+        $sse->retry(Core\Time\Duration::hours(1)->negated());
+    });
+} catch (LogicError $caught) {
+    $refused = $caught->message;
+}
+echo $refused, "\n";
+
+// The other side of the bound: no wait at all is a wait the wire can spell, so
+// a zero-length one is written rather than refused.
+var $none = Core\Out::capture(fn (): void => {
+    var $sse = Core\Sse::stream();
+    $sse->retry(Core\Time\Duration::seconds(0));
+});
+echo $none;
+--EXPECT--
+Core\Sse::retry(): a reconnection time cannot be negative: a client waits this long before it comes back, and there is no wait shorter than none
+retry: 0
+

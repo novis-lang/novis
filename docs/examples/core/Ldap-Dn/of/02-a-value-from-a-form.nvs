@@ -1,0 +1,8 @@
+<?nvs
+// Shows how a value from user input is escaped.
+
+// This text came from a form, so it is `tainted`.
+tainted string $name = 'Lee, Ann';
+var $dn = Core\Ldap\Dn::of('CN', $name);
+// The comma is escaped. This prints CN=Lee\, Ann.
+echo $dn->toString(), "\n";

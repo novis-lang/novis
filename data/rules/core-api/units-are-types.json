@@ -1,0 +1,11 @@
+{
+  "title": "A unit is a type: a duration is a `Duration` and a size is `uint` bytes",
+  "status": "shipped",
+  "seeAlso": [
+    "core-api/no-mode-strings",
+    "types/duration"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/time-duration-constructors-and-readers-are-one-scale.nvst"
+  ]
+}

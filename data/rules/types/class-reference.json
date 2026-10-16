@@ -1,0 +1,22 @@
+{
+  "title": "`class<T>` is a type whose value is a class descriptor, and `as` is its only source",
+  "status": "shipped",
+  "seeAlso": [
+    "types/class-reference-variance",
+    "types/class-reference-sites",
+    "types/class-constant",
+    "types/conversion"
+  ],
+  "guardedBy": [
+    "tests/conformance/class/a-class-reference-instantiates-the-subclass-it-names.nvst",
+    "tests/conformance/class/a-name-outside-the-hierarchy-throws-at-the-conversion.nvst",
+    "tests/conformance/class/nullable-class-reference-answers-null-where-the-checked-form-throws.nvst",
+    "tests/conformance/reject/a-written-class-name-outside-the-hierarchy-is-refused-under-the-nullable-conversion-too.nvst",
+    "crates/nvs-ir/tests/class_reference.rs",
+    "crates/nvs-types/tests/classes.rs",
+    "tests/conformance/lang/a-written-class-name-conversion-is-decided-while-compiling.nvst",
+    "tests/conformance/reject/a-written-class-name-conversion-names-an-unknown-class.nvst",
+    "tests/conformance/reject/a-written-class-name-conversion-names-a-class-that-is-not-a-t.nvst",
+    "crates/nvs-hir/src/requires.rs"
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "title": "A scalar and an `array<T>` never gain methods",
+  "status": "shipped",
+  "seeAlso": [
+    "core-api/one-paradigm-per-operation",
+    "types/erased-member-access"
+  ],
+  "guardedBy": [
+    "crates/nvs-types/src/expr/calls.rs"
+  ]
+}

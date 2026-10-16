@@ -1,0 +1,19 @@
+<?nvs
+// Shows that `Core\IO::copy` replaces a file that already exists, and throws an error when the source is missing.
+
+string $dir = Core\IO::temporaryDir();
+string $template = Core\Path::join($dir, "template.txt");
+string $page = Core\Path::join($dir, "page.txt");
+Core\IO::write($template, "Welcome!");
+Core\IO::write($page, "old text that is much longer");
+
+// This prints "Welcome!". Nothing of the old text is left.
+Core\IO::copy($template, $page);
+echo Core\IO::read($page), "\n";
+
+// There is no file at this path, so `copy` throws an `IOError`. This prints "not copied".
+try {
+    Core\IO::copy(Core\Path::join($dir, "missing.txt"), $page);
+} catch (IOError $error) {
+    echo "not copied", "\n";
+}

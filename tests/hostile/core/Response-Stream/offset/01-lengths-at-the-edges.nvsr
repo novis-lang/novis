@@ -1,0 +1,8 @@
+--METHOD--
+GET
+--PATH--
+/video
+--HEADERS--
+host: example.com
+range: bytes=99999999999999999999999-5, bytes=-0
+if-range: "v1"

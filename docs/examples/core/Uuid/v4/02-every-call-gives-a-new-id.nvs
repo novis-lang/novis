@@ -1,0 +1,14 @@
+<?nvs
+// Shows that every call to `Core\Uuid::v4` gives a different UUID.
+
+// This loop creates 10000 UUIDs. Each one is a key in `$seen`, so a repeated UUID
+// would not add a new key.
+array<bool> $seen = [];
+int $i = 0;
+while ($i < 10000) {
+    $seen[Core\Uuid::v4()->toString()] = true;
+    $i = $i + 1;
+}
+
+// All 10000 UUIDs are different. This prints 10000.
+echo Core\Arr::count($seen), "\n";

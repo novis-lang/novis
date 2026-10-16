@@ -1,0 +1,18 @@
+<?nvs
+// Shows how to check whether a path starts at a root.
+
+class Show {
+    public static function check(string $path): void {
+        echo "\"", $path, "\": ", Core\Path::isAbsolute($path) ? "absolute" : "relative", "\n";
+    }
+}
+
+// A path that starts with `/` is absolute. This prints `absolute`.
+Show::check("/srv/shop/logo.png");
+
+// These two start in the current folder. Both print `relative`.
+Show::check("uploads/logo.png");
+Show::check("../logo.png");
+
+// The empty path is relative. This prints `relative`.
+Show::check("");

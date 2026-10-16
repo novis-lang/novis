@@ -1,0 +1,44 @@
+--TEST--
+A ring whose first key is not 32 octets is a `LogicError` at every door, and a verifier that refuses its input early still refuses the ring first: a URL with no `_sig`, or two, checked under a 31-octet key answers the ring's refusal and never the forgery sentence — `rule:core-api/one-refusal-except-expiry`
+--FILE--
+<?nvs
+bytes $raw = "0123456789012345678901234567890" as bytes;
+array<secret bytes> $short = [$raw as secret bytes];
+
+// No `_sig` at all: the input is refused before any key is tried, so the ring
+// has to be checked before the input is.
+try {
+    Core\Uri::parse("https://example.com/a?id=7")->verifySignature($short);
+    echo "no _sig: accepted", "\n";
+} catch (LogicError $noToken) {
+    echo "no _sig: LogicError", "\n";
+} catch (RuntimeError $unsigned) {
+    echo "no _sig: RuntimeError", "\n";
+}
+
+// Two of them: the same early refusal, and the same answer.
+try {
+    Core\Uri::parse("https://example.com/a?id=7&_sig=AAAA&_sig=BBBB")->verifySignature($short);
+    echo "two _sig: accepted", "\n";
+} catch (LogicError $twoTokens) {
+    echo "two _sig: LogicError", "\n";
+} catch (RuntimeError $forged) {
+    echo "two _sig: RuntimeError", "\n";
+}
+
+// A retired key of the wrong length behind a good first key is left to the walk,
+// which never runs here: a URL with no `_sig` is refused before any key is tried.
+secret bytes $good = Core\Crypto::generateKey();
+array<secret bytes> $rotated = [$good, $raw as secret bytes];
+try {
+    Core\Uri::parse("https://example.com/a?id=7")->verifySignature($rotated);
+    echo "retired short key: accepted", "\n";
+} catch (LogicError $walked) {
+    echo "retired short key: LogicError", "\n";
+} catch (RuntimeError $refused) {
+    echo "retired short key: RuntimeError", "\n";
+}
+--EXPECT--
+no _sig: LogicError
+two _sig: LogicError
+retired short key: RuntimeError

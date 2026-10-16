@@ -1,0 +1,20 @@
+<?nvs
+// Shows the reason `Core\BigInt` exists. A sum that is too large for an `int`
+// stops an ordinary addition, and `add` gives you the number.
+
+int $largest = 9223372036854775807;
+
+// `$largest + 1` throws an `ArithmeticError`. The error is caught here, so the
+// program goes on.
+try {
+    echo $largest + 1, "\n";
+} catch (ArithmeticError $overflow) {
+    echo "int: ", $overflow->message, "\n";
+}
+
+// The same sum as a `Core\BigInt`. This prints 9223372036854775808.
+echo Core\BigInt::of($largest)->add(Core\BigInt::of(1)), "\n";
+
+// There is no size at which this stops working. This prints
+// 9223372036854776807.
+echo Core\BigInt::of($largest)->add(Core\BigInt::of(1000)), "\n";

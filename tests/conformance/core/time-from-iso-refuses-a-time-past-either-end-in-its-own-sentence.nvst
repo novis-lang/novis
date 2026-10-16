@@ -1,0 +1,33 @@
+--TEST--
+Spec § 4: `Core\Time::fromIso` refuses a well-formed timestamp past either end of the timestamp range as a `ParseError` with one sentence of its own naming the range, and never the calendar library's parameter name, `rule:core-api/shape-rules`
+--FILE--
+<?nvs
+// covers: Core\Time::fromIso
+// The first refused second at each end, written in UTC and with an offset.
+// All four throw the same sentence, so the text is printed once and the
+// sentences are counted for agreement.
+array<string> $past = ["9999-12-30T22:00:01Z", "9999-12-31T23:59:59+01:00", "-009999-01-02T01:59:58Z", "-009999-01-01T00:00:00-01:00"];
+array<string> $sentences = [];
+foreach ($past as string $text) {
+    try {
+        var $at = Core\Time::fromIso($text);
+        $sentences[] = "accepted " . $at->toIso();
+    } catch (ParseError $outside) {
+        $sentences[] = $outside->message;
+    }
+}
+echo $sentences[0], "\n";
+int $same = 0;
+foreach ($sentences as string $sentence) {
+    if ($sentence == $sentences[0]) {
+        $same = $same + 1;
+    }
+}
+echo $same as string, " of 4 agree\n";
+
+// The last accepted second at each end, beside them, still builds.
+echo Core\Time::fromIso("9999-12-30T22:00:00Z")->toIso(), "|", Core\Time::fromIso("-009999-01-02T01:59:59Z")->toIso(), "\n";
+--EXPECT--
+Core\Time::fromIso(): the time is outside -9999-01-02T01:59:59Z..=9999-12-30T22:00:00Z
+4 of 4 agree
+9999-12-30T22:00:00Z|-009999-01-02T01:59:59Z

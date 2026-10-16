@@ -1,0 +1,17 @@
+<?nvs
+// Shows how to build the links of a menu from a list of categories.
+
+class Shop {
+    #[Core\Route(path: "/shop/{category}", method: Core\Http\Method::Get, name: "Shop::category")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function category(string $category): string { return "one category"; }
+}
+
+array<string> $categories = ["Books", "Tea & Coffee", "Toys"];
+
+// Each link is built from the route name, so it changes when the `#[Route]` path changes.
+// The `&` in "Tea & Coffee" is encoded as `%26`, so the link still works.
+foreach ($categories as string $category) {
+    string $link = Core\Router::url("Shop::category", ["category" => $category]);
+    echo "<a href=\"", $link, "\">", $category, "</a>\n";
+}

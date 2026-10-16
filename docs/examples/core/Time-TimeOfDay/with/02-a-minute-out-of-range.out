@@ -1,0 +1,2 @@
+Core\Time\TimeOfDay::with(): parameter 'minute' is not in the required range of 0..=59
+11:00

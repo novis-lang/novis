@@ -1,0 +1,23 @@
+<?nvs
+// Shows how to find the properties that may be `null`, and a property with no type.
+
+class Customer {
+    public string $name = "Ada";
+    public ?string $phone = null;
+    public ?Customer $referredBy = null;
+}
+
+// A nullable type starts with `?`. This prints `phone` and `referredBy`.
+foreach (Core\Reflect::forObject(new Customer())->properties() as Core\Reflect\PropertyInfo $property) {
+    string $type = $property->type() ?? "";
+    if (Core\Str::startsWith($type, "?")) {
+        echo $property->name(), "\n";
+    }
+}
+
+// `message` on `LogicError` has no written type, so the result is `null`. This prints `none`.
+foreach (Core\Reflect::forObject(new LogicError("failed"))->properties() as Core\Reflect\PropertyInfo $field) {
+    if ($field->name() == "message") {
+        echo $field->type() ?? "none", "\n";
+    }
+}

@@ -1,0 +1,25 @@
+<?nvs
+// This program reads a limit from `nvs.toml` and changes it for this request only.
+// `Core\Config::set` returns `true` for a value at or below the ceiling in `[limits.hard]`.
+// Above the ceiling, it returns `false` and the value does not change. It does not throw an error.
+// This project's `nvs.toml` sets `memory` to `256M` and its ceiling to `512M`.
+
+// This prints the value from `nvs.toml`, before this request changes it.
+echo 'memory=' . (Core\Config::get('memory') ?? 'unset') . "\n";
+
+// `512M` is equal to the ceiling, so this set works and the new value is used.
+if (Core\Config::set('memory', '512M')) {
+    echo 'set ok', "\n";
+} else {
+    echo 'set failed', "\n";
+}
+
+// `1G` is above the ceiling, so `set` returns `false`.
+if (Core\Config::set('memory', '1G')) {
+    echo 'set accepted', "\n";
+} else {
+    echo 'set refused', "\n";
+}
+
+// The value is still the one from the set that worked, not `1G` and not `256M`.
+echo 'still=' . (Core\Config::get('memory') ?? 'unset') . "\n";

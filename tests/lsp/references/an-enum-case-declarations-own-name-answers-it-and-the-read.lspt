@@ -1,0 +1,17 @@
+--TEST--
+a case declaration answers itself and the read of that case below it, and not the read of the case beside it, `rule:ide/five-features-are-one-reference-index`
+--FILE--
+<?nvs
+enum Status: int
+{
+    case Dr<|>aft = 1;
+    case Live = 2;
+}
+
+var $s = Status::Draft;
+var $t = Status::Live;
+--REQUEST--
+references
+--EXPECT--
+case.nvs:4:10
+case.nvs:8:18

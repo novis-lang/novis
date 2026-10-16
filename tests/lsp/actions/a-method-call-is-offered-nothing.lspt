@@ -1,0 +1,18 @@
+--TEST--
+a call that resolved carries no diagnostic, so nothing is offered on it, `rule:ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`
+--FILE--
+<?nvs
+class User
+{
+    public function greet(): string
+    {
+        return "hi";
+    }
+}
+
+var $u = new User();
+echo $u->gre<|>et();
+--REQUEST--
+codeAction
+--EXPECT--
+none

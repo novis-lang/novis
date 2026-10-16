@@ -1,0 +1,39 @@
+<?nvs
+// Attack: a program sizes a page from the height. It takes more rows off it
+// than the screen has, and asks for the height far more often than a program
+// would. Every answer must be the same, and the program must run to the end.
+// hostile: timeout-ms 60000
+
+// 1. The height must never be 0. A program takes a heading and a footer off it
+//    without checking, and 0 would turn that into a huge number of rows.
+uint $rows = Core\Cli::height();
+if ($rows == 0) {
+    echo "step 1 zero\n";
+} else {
+    echo "step 1 not zero\n";
+}
+
+// 2. A heading taller than the screen. A `uint` cannot go below zero, so this
+//    throws an error.
+try {
+    uint $page = $rows - 1000000;
+    echo 'step 2 page ', $page, "\n";
+} catch (Throwable $refused) {
+    echo "step 2 refused\n";
+}
+
+// 3. A page a hundred thousand screens tall, built and then measured.
+string $tall = Core\Str::repeat("\n", $rows * 100000);
+echo 'step 3 rows ', Core\Str::length($tall), "\n";
+
+// 4. Three hundred thousand questions. The height is read when the program
+//    starts, so nothing above may have changed it.
+uint $disagreements = 0;
+uint $i = 0;
+while ($i < 300000) {
+    if (Core\Cli::height() != $rows) {
+        $disagreements = $disagreements + 1;
+    }
+    $i = $i + 1;
+}
+echo 'step 4 disagreements ', $disagreements, "\n";

@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-fmt/src/lib.rs",
+  "title": "A closing brace is moved onto a line of its own only where it already opens one.",
+  "text": "`brace.rs` decides the run before an *opening* brace and the one before an `elseif`, `else`, `catch` or `finally`; a `}` sharing a line with the statement before it stays there, which is the half of `rule:tooling/fmt-base-style-is-per`'s brace paragraph that needs one-statement-per-line to land with it.",
+  "milestone": "M10"
+}

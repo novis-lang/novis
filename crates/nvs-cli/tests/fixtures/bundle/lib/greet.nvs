@@ -1,0 +1,8 @@
+<?nvs
+// A file reachable only through the entry point's `require`, so a bundle that
+// carried the entry alone would compile and then fail at the call.
+class Greet {
+    public static function line(): string {
+        return "greeting from the require graph";
+    }
+}

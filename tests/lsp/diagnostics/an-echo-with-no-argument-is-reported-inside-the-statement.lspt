@@ -1,0 +1,9 @@
+--TEST--
+an `echo` whose expression is missing is reported at the empty span where it should have been, which is inside the statement and inside nothing else, so a whole-document answer names the statement itself, `rule:ide/one-grammar-one-tree`
+--FILE--
+<?nvs
+echo;
+--REQUEST--
+diagnostics
+--EXPECT--
+2:5-2:5 error E0102 expected an expression

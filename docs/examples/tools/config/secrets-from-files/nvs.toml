@@ -1,0 +1,7 @@
+# The mail password is not written here. It is the content of the file `secrets/mail-password`.
+# A relative path starts in the directory of this file.
+[mail.relay]
+host = "smtp.example.com"
+from = "shop@example.com"
+user = "shop"
+password_file = "secrets/mail-password"

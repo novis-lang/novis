@@ -1,0 +1,11 @@
+{
+  "title": "An element write through a temporary is refused, because the separated copy has nowhere to be written back",
+  "status": "shipped",
+  "seeAlso": [
+    "types/arrays"
+  ],
+  "guardedBy": [
+    "tests/conformance/lang/an-element-write-needs-a-place-to-write-back-into.nvst",
+    "tests/conformance/lang/an-element-writes-holder-is-evaluated-once.nvst"
+  ]
+}

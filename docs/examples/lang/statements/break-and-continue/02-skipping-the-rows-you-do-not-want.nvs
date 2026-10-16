@@ -1,0 +1,19 @@
+<?nvs
+// Shows how `continue` skips the rest of one iteration and starts the next
+// one. This loop greets every name in the list and skips the empty entries.
+
+array<string> $names = ["Ada", "", "Grace", "   ", "Alan"];
+
+int $greeted = 0;
+foreach ($names as string $name) {
+    // `Core\Str::trim` removes the spaces at both ends of the text.
+    string $clean = Core\Str::trim($name);
+    if ($clean == "") {
+        continue;
+    }
+    $greeted = $greeted + 1;
+    echo "hello ", $clean, "\n";
+}
+
+// Two of the five entries were skipped, so this prints 3.
+echo $greeted, " greeted\n";

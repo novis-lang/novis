@@ -1,0 +1,37 @@
+--TEST--
+A CSV file has one sheet, so a second `sheet` throws naming both sheets, the first sheet stays open, and a format other than `xlsx` or `csv` throws naming it: rule:core-classes/spreadsheet-has-no-io
+--FILE--
+<?nvs
+// covers: Novis\Spreadsheet\Workbook::sheet
+// covers: Novis\Spreadsheet\Workbook::createInMemory
+use Novis\Spreadsheet\Workbook;
+
+var $book = Workbook::createInMemory({format: "csv"});
+var $orders = $book->sheet("Orders", {header: false});
+$orders->add(["Widget", 3]);
+try {
+    $book->sheet("Totals");
+    echo "not reached\n";
+} catch (LogicError $e) {
+    echo $e->message, "\n";
+}
+
+// The first sheet is still open after the error.
+$orders->add(["Gadget", 4]);
+var $written = $book->finish();
+echo $written->rows["Orders"], " rows\n";
+bytes $file = $written->bytes ?? Core\Bytes::fill(0, 0);
+echo $file as string;
+
+try {
+    Workbook::createInMemory({format: "ods"});
+    echo "not reached\n";
+} catch (LogicError $e) {
+    echo $e->message, "\n";
+}
+--EXPECT--
+A CSV file has one sheet, so the sheet `Totals` cannot be added. The file already has the sheet `Orders`.
+2 rows
+Widget,3
+Gadget,4
+The format `ods` is not supported. Use `xlsx` or `csv`.

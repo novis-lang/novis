@@ -1,0 +1,29 @@
+<?nvs
+// Shows how to declare a command for the command line. `#[Core\Command]` marks
+// a static method as a command and gives it a name and a short description. The
+// compiler collects every command into one table and checks it.
+
+class Backup {
+    // `$directory` is a positional argument. A parameter is positional unless
+    // it carries `#[Core\Option]`.
+    #[Core\Command(name: "backup", about: "Copy the database to a file")]
+    public static function backup(
+        tainted string $directory,
+        #[Core\Option(short: "z", about: "Compress the file")] bool $compress,
+    ): uint {
+        echo "writing to ", $directory, $compress ? "/dump.sql.gz" : "/dump.sql", "\n";
+        return 0;
+    }
+}
+
+// You can read the table back with `Core\Attributes::get`. This prints
+// `backup: Copy the database to a file`.
+type Command = {name: string, about: string};
+?Command $command = Core\Attributes::get<Command>(Backup::backup(...));
+if ($command != null) {
+    echo $command->name, ": ", $command->about, "\n";
+}
+
+// The command is a static method. You can call it yourself.
+uint $status = Backup::backup("/var/backups", true);
+echo "exit status ", $status, "\n";

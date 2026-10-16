@@ -1,0 +1,100 @@
+--TEST--
+an override of an inherited hook, fixture or test repeats its attribute, and a second hook of one kind or a second fixture of one type beside an inherited one is refused, `rule:testing/hook-inheritance`
+--FILE--
+<?nvs
+use Core\Test;
+use Core\Test\AfterClass;
+use Core\Test\AfterEachTest;
+use Core\Test\BeforeClass;
+use Core\Test\Fixture;
+
+final class Catalog {
+    public function constructor(public string $name) {}
+}
+
+abstract class DatabaseTest {
+    #[BeforeClass]
+    public static function openDatabase(): void {
+    }
+
+    #[AfterEachTest]
+    public function removeFiles(): void {
+    }
+
+    #[Fixture]
+    public static function catalog(): Catalog {
+        return new Catalog("shop");
+    }
+
+    #[Test]
+    public function itConnects(Catalog $catalog): void {
+        Test::assertSame($catalog->name, "shop");
+    }
+}
+
+// An override that repeats each attribute compiles.
+final class ShopTest extends DatabaseTest {
+    #[BeforeClass]
+    public static function openDatabase(): void {
+        parent::openDatabase();
+    }
+
+    #[Fixture]
+    public static function catalog(): Catalog {
+        return new Catalog("shop");
+    }
+}
+
+final class BlogTest extends DatabaseTest {
+    // Refused: the override does not repeat `#[BeforeClass]`.
+    public static function openDatabase(): void {
+    }
+
+    // Refused: the override does not repeat `#[Fixture]`.
+    public static function catalog(): Catalog {
+        return new Catalog("blog");
+    }
+
+    // Refused: the override does not repeat `#[Test]`.
+    public function itConnects(Catalog $catalog): void {
+    }
+
+    // Refused: the override has another attribute.
+    #[Test]
+    public function removeFiles(): void {
+    }
+}
+
+final class NewsTest extends DatabaseTest {
+    // Refused: the class inherits `removeFiles` as its `#[AfterEachTest]`.
+    #[AfterEachTest]
+    public function removeRows(): void {
+    }
+
+    // Refused: the class inherits `catalog`, which returns `Catalog` too.
+    #[Fixture]
+    public static function newsCatalog(): Catalog {
+        return new Catalog("news");
+    }
+}
+--EXPECTF-ERROR--
+error[E0862]: `BlogTest::openDatabase` overrides the `#[BeforeClass]` method `DatabaseTest::openDatabase` and does not repeat its attribute
+   --> case.nvs:47:28
+%A
+error[E0735]: `BlogTest::catalog` overrides the `#[Fixture]` method `DatabaseTest::catalog` and does not repeat its attribute
+   --> case.nvs:51:28
+%A
+error[E0733]: `BlogTest::itConnects` overrides the `#[Test]` method `DatabaseTest::itConnects` and does not repeat its attribute
+   --> case.nvs:56:21
+%A
+error[E0862]: `BlogTest::removeFiles` overrides the `#[AfterEachTest]` method `DatabaseTest::removeFiles` and is `#[Test]` instead
+   --> case.nvs:61:21
+%A
+error[E0304]: `NewsTest` has two `#[AfterEachTest]` methods, `removeRows` and `DatabaseTest::removeFiles`, which it inherits
+   --> case.nvs:68:21
+%A
+error[E0304]: `NewsTest` declares two `#[Fixture]` methods returning `Catalog`
+   --> case.nvs:73:28
+%A
+error: aborting due to 6 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

@@ -1,0 +1,22 @@
+<?nvs
+// Measures `Core\Arr::countBy` on one list of numbers, at growing list lengths.
+// bench: start 256
+// bench: max 4096
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        array<int> $answers = Core\Arr::map(Core\Arr::range(1, $size as int), fn(int $n): int => $n % 64);
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            var $howMany = Core\Arr::countBy($answers);
+            $total = $total + Core\Arr::count($howMany);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

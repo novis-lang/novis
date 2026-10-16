@@ -1,0 +1,25 @@
+--TEST--
+two attribute payload objects on one implementor's member satisfying the shape are `E0728` naming that class, since each row's `attribute` holds at most one, `rule:programs/implementing-with`
+--FILE--
+<?nvs
+interface Page {
+    public function render(): string;
+}
+
+class Index implements Page {
+    #[{path: "/"}]
+    #[{path: "/home"}]
+    public function render(): string { return "index"; }
+}
+
+var $rows = Core\Program::implementingWith<Page, {path: string}>("render");
+echo "after\n";
+// covers: Core\Program::implementingWith
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0728]: `Index::render` has 2 attribute payloads that match this shape
+   --> case.nvs:12:13
+%A
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

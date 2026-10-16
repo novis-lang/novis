@@ -1,0 +1,46 @@
+--TEST--
+`Core\Arr::overlayDeep` combines two arrays nested far deeper than any native call stack, because its walk carries the nesting on the heap — spec § 2, `rule:types/array-combination` and `rule:programs/memory-priority`
+--FILE--
+<?nvs
+// The nesting depth of an argument is the caller's data: a request that
+// reaches this member with two configuration trees decides how far down it is
+// walked. A frame per level would make that a reach into this process's own
+// stack, which ends the worker and every other request on it rather than the
+// one that asked — `rule:programs/memory-priority` puts the bound on the
+// request's memory ceiling instead, and this depth is what asserts the walk
+// is not the stack's.
+class Build {
+    public static function nest(int $depth, string $leaf, string $mark): array<mixed> {
+        array<mixed> $node = [$leaf => $mark];
+        int $d = 0;
+        while ($d < $depth) {
+            $node = ["next" => $node];
+            $d = $d + 1;
+        }
+        return $node;
+    }
+}
+
+// Two towers of one hundred thousand maps. Both sides hold a map under
+// `next` at every level, which is `rule:types/array-combination`'s test for recursing rather
+// than replacing, so the walk goes all the way to the bottom.
+array<mixed> $base = Build::nest(100000, "leaf", "base");
+array<mixed> $layer = Build::nest(100000, "mark", "layer");
+array<mixed> $combined = Core\Arr::overlayDeep($base, $layer);
+
+// The depth of the result is the first half of the claim.
+array<mixed> $node = $combined;
+int $levels = 0;
+while (Core\Arr::hasKey($node, "next")) {
+    $node = $node["next"] as array<mixed>;
+    $levels = $levels + 1;
+}
+echo $levels, "\n";
+
+// The second half, and what tells a combination from a replacement: the
+// bottom map carries the key from each side. A member that had replaced
+// wholesale anywhere on the way down would print the layer's key alone.
+echo Core\Json::encode($node), "\n";
+--EXPECT--
+100000
+{"leaf":"base","mark":"layer"}

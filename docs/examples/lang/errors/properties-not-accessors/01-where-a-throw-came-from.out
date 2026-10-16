@@ -1,0 +1,4 @@
+no price for blue mug
+thrown at docs/examples/lang/errors/properties-not-accessors/01-where-a-throw-came-from.nvs:8
+  Prices::of() at docs/examples/lang/errors/properties-not-accessors/01-where-a-throw-came-from.nvs:8
+  Prices::totalOf() at docs/examples/lang/errors/properties-not-accessors/01-where-a-throw-came-from.nvs:12

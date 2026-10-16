@@ -1,0 +1,9 @@
+--METHOD--
+POST
+--PATH--
+/orders
+--HEADERS--
+host: shop.example.com
+content-type: application/json
+--BODY--
+{"product":"green tea","quantity":3}

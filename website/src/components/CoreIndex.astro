@@ -1,0 +1,39 @@
+---
+/**
+ * The Core reference landing table: every published class and its member
+ * count. Only implemented members are published, so there is no status
+ * column — what is listed exists in the current toolchain.
+ */
+import { classes } from '~/lib/core'
+
+const rows = classes.map((cls) => ({
+  label: cls.id.replace(/\./g, '\\'),
+  url: cls.url,
+  members: cls.members.length,
+}))
+---
+
+<div class="class-member-table-wrapper">
+  <table class="class-member-table">
+    <thead>
+      <tr>
+        <th scope="col">Class</th>
+        <th scope="col">Members</th>
+      </tr>
+    </thead>
+    <tbody>
+      {
+        rows.map((row) => (
+          <tr>
+            <td>
+              <a href={row.url}>
+                <code>Core\{row.label}</code>
+              </a>
+            </td>
+            <td>{row.members}</td>
+          </tr>
+        ))
+      }
+    </tbody>
+  </table>
+</div>

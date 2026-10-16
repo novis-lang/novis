@@ -1,0 +1,21 @@
+<?nvs
+// Shows what `cases()` returns when two cases have the same value.
+
+// A case with no value is the case before it plus one. So `Small` is 0, `Medium` is 1
+// and `Large` is 2. `Default` is 1 too, so it is a second name for `Medium`.
+enum Size: int {
+    Small,
+    Medium,
+    Large,
+    Default = 1,
+}
+
+?Core\Reflect\EnumInfo $found = Core\Reflect\EnumInfo::of(Size::class);
+if ($found != null) {
+    Core\Reflect\EnumInfo $info = $found;
+    // Both names are in the list. `Default` and `Medium` have the same value,
+    // so they are sorted by name. This prints `Small, Default, Medium, Large`.
+    echo Core\Str::join($info->cases(), ", "), "\n";
+    // This prints 4.
+    echo Core\Arr::count($info->cases()), "\n";
+}

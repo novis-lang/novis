@@ -1,0 +1,15 @@
+event: step
+data: 1. pull the new code
+
+event: step
+data: 2. install packages
+
+event: step
+data: 3. run the migrations
+
+event: step
+data: 4. restart the workers
+
+event: done
+data: {"steps":4,"status":"finished"}
+

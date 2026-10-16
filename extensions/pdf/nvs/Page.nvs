@@ -1,0 +1,75 @@
+<?nvs
+namespace Novis\Pdf;
+
+/// One page of a document. `Document::render` calls a header or footer function once for each page, with that page's `Page`.
+final class Page
+{
+    type Named = {name: string, value: string};
+
+    /// `new Page` makes a page from its values. `Document::render` makes one for you.
+    /// `marks` has the `data-mark` values of every page of the document, one list for each page.
+    public function constructor(
+        public readonly uint $number,
+        public readonly uint $count,
+        public readonly ?string $name,
+        private readonly array<Named> $strings,
+        private readonly array<array<Named>> $marks,
+    ) {}
+
+    /// `isFirst` returns `true` on the first page.
+    public function isFirst(): bool
+    {
+        return $this->number == 1;
+    }
+
+    /// `isLast` returns `true` on the last page.
+    public function isLast(): bool
+    {
+        return $this->number == $this->count;
+    }
+
+    /// `string` returns the value that CSS `string-set` gives `$name` on this page.
+    /// The name is compared without case. If no value is set yet, the result is `null`.
+    public function string(string $name): ?string
+    {
+        var $wanted = Core\Str::lower($name);
+        foreach ($this->strings as var $one) {
+            if ($one->name == $wanted) {
+                return $one->value;
+            }
+        }
+        return null;
+    }
+
+    /// `marks` returns the values of every `data-mark="name:value"` on this page with this name.
+    /// An element may have several marks, separated by `;`.
+    public function marks(string $name): array<string>
+    {
+        return $this->valuesOn($name, $this->number, $this->number);
+    }
+
+    /// `marksUpTo` returns the values of the marks with this name on this page and every page before it.
+    /// A carried-forward total adds these values up.
+    public function marksUpTo(string $name): array<string>
+    {
+        return $this->valuesOn($name, 1, $this->number);
+    }
+
+    private function valuesOn(string $name, uint $from, uint $to): array<string>
+    {
+        array<string> $values = [];
+        uint $page = 0;
+        foreach ($this->marks as var $onPage) {
+            $page = $page + 1;
+            if ($page < $from || $page > $to) {
+                continue;
+            }
+            foreach ($onPage as var $one) {
+                if ($one->name == $name) {
+                    $values[] = $one->value;
+                }
+            }
+        }
+        return $values;
+    }
+}

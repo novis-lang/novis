@@ -1,0 +1,41 @@
+name: Bug report
+description: Novis does something wrong, or it crashes.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you! Only the first box is needed. A short report is fine.
+
+        Is it a security problem? Please do not use this form. Use
+        [Report a vulnerability](https://github.com/novis-lang/novis/security/advisories/new).
+  - type: textarea
+    id: what
+    attributes:
+      label: What went wrong?
+      description: What did you do? What did you expect? What happened?
+    validations:
+      required: true
+  - type: textarea
+    id: program
+    attributes:
+      label: Code that shows the problem
+      description: Keep it as short as you can. Replace private names and data with example values.
+      render: nvs
+  - type: textarea
+    id: output
+    attributes:
+      label: Error or output
+      description: Copy and paste it here.
+      render: text
+  - type: input
+    id: version
+    attributes:
+      label: Novis version
+      description: Run `nvs --version` and paste the result.
+      placeholder: nvs 0.0.1
+  - type: input
+    id: platform
+    attributes:
+      label: Operating system
+      placeholder: Windows 11, Ubuntu 24.04, macOS 15

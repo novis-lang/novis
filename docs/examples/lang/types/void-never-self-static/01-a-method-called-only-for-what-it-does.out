@@ -1,0 +1,4 @@
+import starting
+[audit] rows read x120
+[audit] rows skipped x3
+import finished

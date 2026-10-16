@@ -1,0 +1,21 @@
+<?nvs
+// Shows how to allow only a whole number from 1 to 99, with a message for a wrong value.
+use Novis\Spreadsheet\Workbook;
+
+var $book = Workbook::createInMemory();
+var $sheet = $book->sheet('Order form');
+$sheet->add(['item' => 'Widget', 'qty' => 1]);
+
+// `input` shows when a person selects the cell. `error` shows when the value is wrong.
+$sheet->validate('B2:B50', {
+    whole: { min: 1, max: 99 },
+    input: 'Type a number from 1 to 99.',
+    errorTitle: 'Wrong quantity',
+    error: 'The quantity is a whole number from 1 to 99.',
+});
+bytes $file = $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
+
+// `Core\Zip::read` returns the XML of the sheet. These lines check the limits and the message.
+var $xml = Core\Zip::read($file, 'xl/worksheets/sheet1.xml') as string;
+echo Core\Str::contains($xml, '<formula1>1</formula1><formula2>99</formula2>') ? 'from 1 to 99' : 'no limits', "\n";
+echo Core\Str::contains($xml, 'errorTitle="Wrong quantity"') ? 'the error has a title' : 'no title', "\n";

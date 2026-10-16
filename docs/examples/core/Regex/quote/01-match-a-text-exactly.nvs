@@ -1,0 +1,13 @@
+<?nvs
+// Shows how to turn a text into a pattern that matches exactly that text.
+
+// `+` has a special meaning in a pattern. `Core\Regex::quote` puts a `\` before it.
+// This prints "1\+1=2".
+string $pattern = Core\Regex::quote("1+1=2");
+echo $pattern, "\n";
+
+// The quoted pattern matches the text "1+1=2", so this prints "yes".
+echo Core\Regex::matches("We know that 1+1=2.", $pattern) ? "yes" : "no", "\n";
+
+// Without `quote`, `1+` means "one or more 1". This prints "yes" for the text "11=2".
+echo Core\Regex::matches("11=2", '1+1=2') ? "yes" : "no", "\n";

@@ -1,0 +1,19 @@
+<?nvs
+// Shows the error for invoice XML that is not well-formed, such as XML with a missing end tag.
+use Novis\Pdf\Document;
+
+string $broken = "<rsm:CrossIndustryInvoice xmlns:rsm=\"urn:un:unece:uncefact:data:standard:CrossIndustryInvoice:100\">"
+    . "<rsm:ExchangedDocument>";
+
+// `render` checks that the XML is well-formed before it makes the file.
+// This XML is not, so `render` throws a `ParseError`.
+try {
+    Document::fromHtml("<html lang=\"en\"><head><title>Invoice</title></head><body><h1>Invoice Shop-1042</h1></body></html>")
+        ->standard(Document::Standard::PdfA3b)
+        ->created(Core\Time::fromIso("2026-03-01T09:00:00Z"))
+        ->invoiceXml($broken)
+        ->render();
+    echo "rendered\n";
+} catch (ParseError $e) {
+    echo "ParseError\n";
+}

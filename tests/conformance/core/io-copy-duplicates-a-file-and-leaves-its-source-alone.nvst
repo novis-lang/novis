@@ -1,0 +1,56 @@
+--TEST--
+Core\IO::copy puts the source's content at the destination and leaves the source exactly as it was, over an absent, an empty and an occupied destination — counted, so a member that answered plausibly for the absent one still fails — spec § 14
+--FILE--
+<?nvs
+// The three states the destination can be in, because the interesting half of
+// this member is what it does to a name that is already taken: it replaces,
+// exactly as `write` does, and the door's own doc says why that is the right
+// default for a path the program named beside a source it already holds.
+array<string> $states = ["absent", "empty", "occupied"];
+int $n = Core\Arr::count($states) as int;
+
+int $arrived = 0;
+int $sourceKept = 0;
+
+int $s = 0;
+for (; $s < $n; $s = $s + 1) {
+    Core\IO::write("source.txt", "the content");
+    if (Core\IO::exists("dest.txt")) {
+        Core\IO::remove("dest.txt");
+    }
+    if ($states[$s] == "empty") {
+        Core\IO::write("dest.txt", "");
+    }
+    if ($states[$s] == "occupied") {
+        Core\IO::write("dest.txt", "whatever was here before");
+    }
+
+    Core\IO::copy("source.txt", "dest.txt");
+
+    if (Core\IO::read("dest.txt") == "the content") {
+        $arrived = $arrived + 1;
+    }
+    // Asserted every time round rather than once at the end: a member that
+    // moved instead of copying passes a single check made after the last
+    // iteration if the last iteration happened to recreate the source.
+    if (Core\IO::read("source.txt") == "the content") {
+        $sourceKept = $sourceKept + 1;
+    }
+}
+
+echo "destinations: ", $n as string,
+     ", holding the source's content afterwards: ", $arrived as string,
+     ", sources left as they were: ", $sourceKept as string, "\n";
+
+// And across a directory, since a copy is not a same-directory operation: the
+// name is a path and the door checks the path.
+Core\IO::makeDir("into");
+Core\IO::copy("source.txt", "into/dest.txt");
+echo "across a directory: '", Core\IO::read("into/dest.txt"), "'\n";
+--FILE nvs.toml--
+[capabilities.fs]
+read = ["."]
+write = ["."]
+--EXPECT--
+destinations: 3, holding the source's content afterwards: 3, sources left as they were: 3
+across a directory: 'the content'

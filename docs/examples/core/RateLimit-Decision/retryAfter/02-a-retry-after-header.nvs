@@ -1,0 +1,27 @@
+<?nvs
+// Shows how an API writes a `Retry-After` header when it refuses a call.
+
+class Api {
+    public static function answer(string $client): string {
+        // Each client may make 10 calls per hour.
+        var $decision = Core\RateLimit::shed("api:" . $client, 10, 1h);
+        var $wait = $decision->retryAfter();
+        if ($wait == null) {
+            return "200 OK";
+        }
+        // The header needs whole seconds. Rounding up means the client
+        // never comes back too early.
+        uint $seconds = Core\Math::intDiv($wait->toMilliseconds() + 999, 1000) as uint;
+        return "429 Too Many Requests\nRetry-After: " . $seconds;
+    }
+}
+
+// The first 10 calls are allowed. One call drains every 6 minutes,
+// so the 11th call gets `Retry-After: 360`.
+string $last = "";
+uint $call = 0;
+while ($call < 11) {
+    $last = Api::answer("reports-app");
+    $call = $call + 1;
+}
+echo $last, "\n";

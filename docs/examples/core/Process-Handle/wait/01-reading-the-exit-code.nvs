@@ -1,0 +1,13 @@
+<?nvs
+// Shows how to wait until a program ends, and then read its exit code and its error output.
+// requires: unix
+
+// This program writes a message to its error output and ends with the exit code `3`.
+var $check = Core\Process::spawn("/bin/sh", ["-c", "echo 'disk is full' >&2; exit 3"]);
+
+// `wait()` waits until the program ends. It returns a `Core\Process\Result`.
+var $result = $check->wait();
+
+// This prints `exit code: 3` and then `disk is full`.
+echo "exit code: ", $result->exitCode(), "\n";
+echo $result->stderr() as string;

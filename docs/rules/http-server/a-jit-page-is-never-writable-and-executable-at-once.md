@@ -1,0 +1,3 @@
+Pages holding generated code are mapped writable while being written and executable only after being made read-only. The transition is one call per compiled unit, on the compile pool, at compile time; a loaded artifact is copied into a private writable region, relocated there, and only then made executable, so a verified-but-writable mapping is never the one that runs.
+
+This is a security property before it is a stability one — a page that is both writable and executable is a write primitive for any bug that reaches it — and it sits with the server rules because the JIT is this runtime's distinguishing component and nothing else owns the question.

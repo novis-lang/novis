@@ -1,0 +1,9 @@
+<?nvs
+// `+`, `-`, `*` and `**` on two whole numbers give a whole number.
+echo 7 + 2, " ", 7 - 2, " ", 7 * 2, " ", 2 ** 10, "\n";
+
+// `/` gives a `float` when the result has a fraction.
+echo 7 / 2, " ", 6 / 3, "\n";
+
+// `%` gives the remainder. `Core\Math::intDiv` divides and drops the fraction.
+echo 7 % 3, " ", Core\Math::intDiv(7, 2), "\n";

@@ -1,0 +1,13 @@
+{
+  "title": "No `Core` member reads ambient state: there is no default timezone, locale, array pointer or error global",
+  "status": "shipped",
+  "seeAlso": [
+    "core-api/removals",
+    "core-api/tier-placement",
+    "statements/no-function-static-and-no-global"
+  ],
+  "guardedBy": [
+    "crates/nvs-stdlib/src/cldr.rs",
+    "crates/nvs-config/src/schedule.rs"
+  ]
+}

@@ -1,0 +1,18 @@
+<?nvs
+// Shows what `with` does with a date that does not exist and with a time the clocks skip.
+
+var $berlin = Core\Time\Zone::of("Europe/Berlin");
+var $june = Core\Time::at(2024, 6, 14, $berlin);
+
+// June has only 30 days, so `{day: 31}` throws a `RuntimeError`.
+// This prints the message of the error.
+try {
+    $june->with({day: 31});
+} catch (RuntimeError $error) {
+    echo $error->message, "\n";
+}
+
+// On 31 March 2024, Berlin moves its clocks from 02:00 to 03:00. That day has no 02:30.
+// `with` moves the time forward by the missing hour. This prints 2024-03-31 03:30 +02:00.
+var $spring = Core\Time::at(2024, 3, 31, $berlin, {hour: 12});
+echo $spring->with({hour: 2, minute: 30})->format("yyyy-MM-dd HH:mm XXX"), "\n";

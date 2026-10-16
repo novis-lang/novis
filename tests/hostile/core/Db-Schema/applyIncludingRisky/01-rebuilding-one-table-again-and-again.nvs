@@ -1,0 +1,87 @@
+<?nvs
+// Attack: one table holding two hundred rows is rebuilt two hundred times,
+// because every round asks for a column width the round before did not. Then
+// a schema of two hundred tables is applied at once. No row may be lost, and
+// nothing may stop the program.
+// hostile: timeout-ms 20000
+
+use Core\Db;
+use Core\Db\Plan\Step;
+use Core\Db\Schema;
+
+var $db = Db::connect('notes');
+
+$db->execute('create table notes (id integer not null primary key autoincrement, title varchar(200) not null)', []);
+uint $i = 0;
+while ($i < 200) {
+    $db->execute(Core\Str::format("insert into notes (title) values ('note %d')", $i), []);
+    $i = $i + 1;
+}
+
+var $narrow = Schema::fromArray([
+    'tables' => [
+        [
+            'name' => 'notes',
+            'columns' => [
+                ['name' => 'id', 'type' => 'int64', 'identity' => true],
+                ['name' => 'title', 'type' => 'text(50)'],
+            ],
+            'primary_key' => ['id'],
+        ],
+    ],
+]);
+var $wide = Schema::fromArray([
+    'tables' => [
+        [
+            'name' => 'notes',
+            'columns' => [
+                ['name' => 'id', 'type' => 'int64', 'identity' => true],
+                ['name' => 'title', 'type' => 'text(200)'],
+            ],
+            'primary_key' => ['id'],
+        ],
+    ],
+]);
+
+// 1. Two hundred rebuilds of a table with rows in it. SQLite copies every row
+// each time, and each copy has to leave all the rows where they were.
+array<Schema> $widths = [$narrow, $wide];
+$i = 0;
+while ($i < 200) {
+    $widths[($i % 2) as int]->applyIncludingRisky($db);
+    $i = $i + 1;
+}
+echo '1 rows: ', $db->query('select id from notes', [])->count(), "\n";
+
+// 2. Two hundred tables the database has none of, all in one call.
+array<mixed> $tables = [];
+$i = 0;
+while ($i < 200) {
+    $tables[] = [
+        'name' => Core\Str::format('t%d', $i),
+        'columns' => [['name' => 'id', 'type' => 'int64', 'identity' => true]],
+        'primary_key' => ['id'],
+    ];
+    $i = $i + 1;
+}
+var $many = Schema::fromArray(['tables' => $tables]);
+$many->applyIncludingRisky($db);
+uint $reports = 0;
+foreach ($many->planAgainst($db)->steps() as Step $step) {
+    if ($step->isRefused()) {
+        $reports = $reports + 1;
+    }
+}
+echo '2 reports: ', $reports, "\n";
+
+// 3. A column whose type the schema vocabulary has no name for. No plan
+// against this database can be complete, so the call throws.
+$db->execute('create table odd (x wildly_unknown_type not null)', []);
+try {
+    $many->applyIncludingRisky($db);
+    echo "3 applied\n";
+} catch (LogicError $error) {
+    echo "3 refused\n";
+}
+
+$db->close();

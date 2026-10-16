@@ -1,0 +1,43 @@
+<?nvs
+// Attack: `Core\Str::trimStart` removes a very long run of characters, and cuts an accent
+// off its letter. Each trim should return a string, and must not crash or hang.
+// hostile: timeout-ms 20000
+
+class Attack
+{
+    /// 1. Removes 64 MiB of spaces before one letter.
+    public static function longRunOfSpaces(uint $mib): uint
+    {
+        var $spaces = Core\Str::repeat(Core\Str::repeat(' ', 1048576), $mib);
+        return Core\Str::length(Core\Str::trimStart($spaces . 'x'));
+    }
+
+    /// 2. Removes the letter "e" before an accent, so the accent is left alone at the start.
+    public static function accentWithoutItsLetter(uint $rounds): uint
+    {
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            $total = $total + Core\Str::length(Core\Str::trimStart("ee\u{301}t\u{e9}", { characters: 'e' }));
+            $i = $i + 1;
+        }
+        return $total;
+    }
+
+    /// 3. Uses a 4 MiB list of different characters, and none of them is in the string.
+    public static function longListThatNeverMatches(uint $count): uint
+    {
+        string $characters = '';
+        uint $code = 0x4e00;
+        while ($code < 0x4e00 + 1000) {
+            $characters = $characters . Core\Str::fromCodePoint($code);
+            $code = $code + 1;
+        }
+        var $list = Core\Str::repeat($characters, $count);
+        return Core\Str::length(Core\Str::trimStart('hello', { characters: $list }));
+    }
+}
+
+echo Attack::longRunOfSpaces(64), "\n";
+echo Attack::accentWithoutItsLetter(100000), "\n";
+echo Attack::longListThatNeverMatches(1400), "\n";

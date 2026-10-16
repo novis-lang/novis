@@ -1,0 +1,14 @@
+<?nvs
+// Shows how the prefix and the path together make the address that the client asked for.
+
+// The server serves this program at `/shop`. The client asked for `/shop/cart`.
+string $prefix = Core\Request::mount()->prefix();
+
+// This prints "prefix: /shop".
+echo "prefix: ", $prefix, "\n";
+
+// `path()` returns the address without the prefix. This prints "path: /cart".
+echo "path: ", Core\Request::path(), "\n";
+
+// The two together are the full address. This prints "address: /shop/cart".
+echo "address: ", $prefix, Core\Request::path(), "\n";

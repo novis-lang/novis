@@ -1,0 +1,76 @@
+<?nvs
+// Attack: a request tries to add a native extension, so that the server loads its code.
+// It sets the path and the checksum of an extension, and keys that are almost those keys.
+// Every change should fail, and the identity of the program should not change.
+// hostile: timeout-ms 20000
+
+// 1. Set the extension list, its paths and its checksums to values the attacker chose.
+array<string> $entries = [
+    'extension',
+    'extension.0',
+    'extension.0.path',
+    'extension.0.sha256',
+    'extension.path',
+    'extension.sha256',
+    'extension.1.path',
+    'extension.-1.path',
+    'extension.18446744073709551615.path',
+];
+array<string> $payloads = [
+    '/usr/lib/novis/image.nvsx',
+    'C:\\Windows\\System32\\kernel32.dll',
+    '../../../../../../etc/ld.so.preload',
+    '\\\\attacker.test\\share\\image.nvsx',
+    'http://attacker.test/image.nvsx',
+    "image.nvsx\u{0000}/etc/passwd",
+    '0000000000000000000000000000000000000000000000000000000000000000',
+    'true',
+    '',
+];
+foreach ($entries as string $entry) {
+    foreach ($payloads as string $payload) {
+        Core\Config::set($entry, $payload);
+        Core\Config::get($entry);
+    }
+    Core\Config::restore($entry);
+    Core\Config::restore($entry);
+}
+
+// 2. Set keys that are almost the real keys, and a key with 10,000 parts.
+array<string> $nearby = [
+    'extension.',
+    '.extension',
+    'extension..0',
+    'extensions',
+    'EXTENSION',
+    'Extension.0.Path',
+    'extension.0.PATH',
+    'path',
+    'sha256',
+    'app.extension.0.path',
+    'extension.0.path.real',
+    'extension.' . Core\Str::repeat('0.', 10000) . 'path',
+];
+foreach ($nearby as string $key) {
+    Core\Config::set($key, '/tmp/attacker.nvsx');
+    Core\Config::get($key);
+    Core\Config::restore($key);
+}
+
+// 3. Set a path that is 1 MB long. The change should fail quickly.
+string $flood = '/' . Core\Str::repeat('a/', 500000) . 'image.nvsx';
+Core\Config::set('extension.0.path', $flood);
+Core\Config::get('extension.0.path');
+Core\Config::restore('extension.0.path');
+
+// 4. Set the path 50,000 times with no restore. A failed change should use no memory.
+uint $i = 0;
+while ($i < 50000) {
+    Core\Config::set('extension.0.path', '/tmp/' . $i . '.nvsx');
+    $i = $i + 1;
+}
+Core\Config::restore('extension.0.path');
+
+// 5. The identity of the program and the extension list should not have changed.
+echo 'identity still ', Core\Str::length(Core\Program::id()), " characters\n";
+echo 'list still ', Core\Config::get('extension') ?? '(nothing)', "\n";

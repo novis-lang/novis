@@ -1,0 +1,16 @@
+--TEST--
+the statement form of `namespace` applies to the rest of the file, so it is a leaf and what follows it is a sibling; an enum's cases are its members, `rule:enums/declaration`
+--FILE--
+<?nvs
+namespace App;
+enum Status: int {
+    case Draft = 1;
+    case Live = 2;
+}
+--REQUEST--
+documentSymbol
+--EXPECT--
+App namespace
+Status enum
+  Draft enumMember
+  Live enumMember

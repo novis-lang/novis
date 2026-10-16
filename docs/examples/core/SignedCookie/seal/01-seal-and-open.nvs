@@ -1,0 +1,14 @@
+<?nvs
+// Shows how to store a value in a cookie and read it back.
+
+secret bytes $key = Core\Crypto::generateKey();
+array<secret bytes> $keys = [$key];
+
+// `seal` encrypts the value. The cookie contains only letters, digits, `-` and `_`.
+string $cookie = Core\SignedCookie::seal("user=42", $keys);
+
+// The value has 7 characters, so the cookie has 63. This prints 63.
+echo Core\Str::length($cookie), "\n";
+
+// `open` returns the value again. This prints user=42.
+echo Core\SignedCookie::open($cookie, $keys), "\n";

@@ -1,0 +1,2 @@
+steps run: 1
+for the window: DROP TABLE "notes_2";

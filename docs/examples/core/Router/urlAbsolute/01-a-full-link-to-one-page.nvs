@@ -1,0 +1,15 @@
+<?nvs
+// Shows the difference between a link with and without the origin of the site.
+
+class Articles {
+    #[Core\Route(path: "/articles/{id}", method: Core\Http\Method::Get, name: "Articles::show")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function show(uint $id): string { return "one article"; }
+}
+
+// `Core\Router::url` returns only the path. This prints `/articles/42`.
+echo Core\Router::url("Articles::show", ["id" => 42]), "\n";
+
+// `Core\Router::urlAbsolute` puts the `origin` from `nvs.toml` in front.
+// This prints `https://www.example.com/articles/42`.
+echo Core\Router::urlAbsolute("Articles::show", ["id" => 42]), "\n";

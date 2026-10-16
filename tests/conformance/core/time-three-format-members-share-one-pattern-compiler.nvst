@@ -1,0 +1,160 @@
+--TEST--
+`Core\Time`'s three `format` members refuse a malformed pattern as a `LogicError` with one sentence each naming its own member, and the two zone-free halves narrow that grammar into disjoint halves — spec §§ 4, 10
+--FILE--
+<?nvs
+// Spec § 4's three rendering members — `Core\Time\DateTime::format`,
+// `Core\Time\Date::format` and `Core\Time\TimeOfDay::format` — read one pattern
+// compiler (`crates/nvs-stdlib/src/cldr.rs`), and each wraps its refusal in its
+// own name. The neighbouring cases assert a *fragment* of one of those
+// sentences; this one asserts them whole, on every member that can raise them,
+// because the member name is the half a caller reads first and no case pinned
+// it.
+//
+// Each `catch` takes its own binding name: a binding is function-scoped, and
+// two clauses reusing one name is `E0406` even at file scope once a loop below
+// has declared it.
+var $utc = Core\Time\Zone::UTC;
+var $dt = Core\Time::at(2024, 3, 1, $utc, {hour: 14, minute: 5, second: 9});
+var $date = Core\Time\Date::at(2024, 3, 1);
+var $clock = Core\Time\TimeOfDay::at(14, 5, {second: 9});
+
+// An unquoted letter outside the closed subset is a diagnostic naming itself
+// and the quoting that would emit it — CLDR's own rule, and the opposite of
+// `strftime` silently passing it through. All three members say it, so the
+// grammar cannot drift between them, and the accepted side is the very
+// spelling the message suggests.
+//
+// Only the `$dt` sites read their pattern out of a variable, and that is the
+// intrinsic list's asymmetry rather than style: `Core\Time\DateTime::format` is
+// on it (`rule:expressions/intrinsic-list-is-closed`), so a literal malformed
+// pattern there is a compile error, while `Core\Time\Date::format` and `Core\Time\TimeOfDay::format` are not on
+// it and still throw from a literal.
+string $letterJ = "j";
+string $quoteLeftOpen = "'unclosed";
+string $zoneOnce = "V";
+string $zoneThrice = "VVV";
+try { echo $dt->format($letterJ), "\n"; }
+catch (LogicError $unknownOnDateTime) { echo $unknownOnDateTime->message, "\n"; }
+try { echo $date->format("j"), "\n"; }
+catch (LogicError $unknownOnDate) { echo $unknownOnDate->message, "\n"; }
+try { echo $clock->format("j"), "\n"; }
+catch (LogicError $unknownOnClock) { echo $unknownOnClock->message, "\n"; }
+echo $dt->format("'j'"), "\n";
+
+// An unterminated quote is the other way the compiler stops, and it names the
+// opening rather than a position: a pattern is short and the `'` is what a
+// reader fixes. `''` is one apostrophe, which is what makes an unpaired one
+// detectable at all.
+try { echo $dt->format($quoteLeftOpen), "\n"; }
+catch (LogicError $openQuote) { echo $openQuote->message, "\n"; }
+echo $dt->format("''"), "\n";
+
+// `V` is the one letter whose *count* is the whole grammar: the IANA
+// identifier has one spelling, so the bound is named on both sides at once —
+// `VV` renders and every other count is refused, from either direction.
+echo $dt->format("VV"), "\n";
+try { echo $dt->format($zoneOnce), "\n"; }
+catch (LogicError $tooFew) { echo $tooFew->message, "\n"; }
+try { echo $dt->format($zoneThrice), "\n"; }
+catch (LogicError $tooMany) { echo $tooMany->message, "\n"; }
+
+// The two zone-free halves refuse a field they would have to invent a value
+// for, rather than filling one in: every value they could invent — midnight,
+// the process's own zone — is a wrong answer stated confidently. Each of the
+// four sentences names the class it is speaking for.
+try { echo $date->format("HH"), "\n"; }
+catch (LogicError $hourOnDate) { echo $hourOnDate->message, "\n"; }
+try { echo $date->format("VV"), "\n"; }
+catch (LogicError $zoneOnDate) { echo $zoneOnDate->message, "\n"; }
+try { echo $clock->format("yyyy"), "\n"; }
+catch (LogicError $yearOnClock) { echo $yearOnClock->message, "\n"; }
+try { echo $clock->format("VV"), "\n"; }
+catch (LogicError $zoneOnClock) { echo $zoneOnClock->message, "\n"; }
+
+// Quoting is what a caller reaches for when the *text* was wanted rather than
+// the field, and it is accepted by exactly the members that refuse the field —
+// which is the accepted side of all four refusals above.
+echo $date->format("'HH'"), "|", $clock->format("'yyyy'"), "\n";
+
+// The order the checks run in is observable, and it is what a pattern wrong in
+// two ways at once reports. The whole pattern is compiled before either half
+// narrows it, so an unreadable letter beats a field the value cannot carry;
+// and inside the narrowing, the field the class has no room for beats the zone
+// it does not have.
+try { echo $date->format("j HH"), "\n"; }
+catch (LogicError $unreadableFirst) { echo $unreadableFirst->message, "\n"; }
+try { echo $date->format("HH VV"), "\n"; }
+catch (LogicError $timeBeforeZone) { echo $timeBeforeZone->message, "\n"; }
+try { echo $clock->format("yyyy VV"), "\n"; }
+catch (LogicError $calendarBeforeZone) { echo $calendarBeforeZone->message, "\n"; }
+
+// Counted: the subset is closed over the whole ASCII alphabet, not merely over
+// the letters § 4's own examples happen to use. 52 single-letter patterns, 36
+// of which are fields, 16 refused — and 15 of those 16 quote the letter they
+// were handed rather than a constant. The one refusal that does not is `V`,
+// which is a pattern letter at the wrong count and says so, which is why the
+// two numbers are not the same. A compiler treating an unknown letter as a
+// literal, as `strftime` does, takes all 52 and passes every row above.
+string $alphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
+int $taken = 0;
+int $refused = 0;
+int $named = 0;
+for (int $n = 0; $n < 52; $n = $n + 1) {
+    var $letter = Core\Str::at($alphabet, $n);
+    try {
+        $dt->format($letter);
+        $taken = $taken + 1;
+    } catch (LogicError $sweptLetter) {
+        $refused = $refused + 1;
+        if (Core\Str::contains($sweptLetter->message, "`" . $letter . "` is not a pattern letter")) {
+            $named = $named + 1;
+        }
+    }
+}
+echo $taken, " taken, ", $refused, " refused, ", $named, " named\n";
+
+// Counted, and the claim the four narrowing sentences exist for: over every
+// field the subset carries, `DateTime` takes every one — it is the value with
+// nothing missing — while the two halves **partition** the rest. No field is
+// accepted by both `Date` and `TimeOfDay`, and the ones neither takes are
+// exactly the zonal ones, which is the same statement read from either end. A
+// half that leaked one field of the other's — a `Date` rendering `a`, a
+// `TimeOfDay` rendering `D` — still answers every row above correctly.
+array<string> $fields = ["y", "u", "U", "r", "M", "L", "d", "D", "E", "c", "e", "F", "Q", "q", "w", "W", "G", "g", "Y", "a", "h", "H", "K", "k", "m", "s", "S", "A", "b", "B", "X", "x", "VV", "z", "v", "Z", "O"];
+int $whole = 0;
+int $onDates = 0;
+int $onClocks = 0;
+int $onBoth = 0;
+int $onNeither = 0;
+foreach ($fields as string $field) {
+    bool $dateTakes = true;
+    bool $clockTakes = true;
+    try { $dt->format($field); $whole = $whole + 1; } catch (LogicError $notWhole) { }
+    try { $date->format($field); } catch (LogicError $notOnDate) { $dateTakes = false; }
+    try { $clock->format($field); } catch (LogicError $notOnClock) { $clockTakes = false; }
+    if ($dateTakes) { $onDates = $onDates + 1; }
+    if ($clockTakes) { $onClocks = $onClocks + 1; }
+    if ($dateTakes && $clockTakes) { $onBoth = $onBoth + 1; }
+    if (!$dateTakes && !$clockTakes) { $onNeither = $onNeither + 1; }
+}
+echo $whole, " whole, ", $onDates, " calendar, ", $onClocks, " clock, ", $onBoth, " both, ", $onNeither, " neither\n";
+--EXPECT--
+Core\Time\DateTime::format(): `j` is not a pattern letter Novis supports; write `'j'` to print the letter as it is
+Core\Time\Date::format(): `j` is not a pattern letter Novis supports; write `'j'` to print the letter as it is
+Core\Time\TimeOfDay::format(): `j` is not a pattern letter Novis supports; write `'j'` to print the letter as it is
+j
+Core\Time\DateTime::format(): a `'` opens a literal that nothing closes
+'
+UTC
+Core\Time\DateTime::format(): `V` names a zone only as `VV`, the IANA identifier
+Core\Time\DateTime::format(): `V` names a zone only as `VV`, the IANA identifier
+Core\Time\Date::format(): a pattern rendering a date names no time of day — a `Core\Time\Date` carries none
+Core\Time\Date::format(): a pattern rendering a date names no zone — a `Core\Time\Date` is zone-free
+Core\Time\TimeOfDay::format(): a pattern rendering a time of day names no calendar field — a `Core\Time\TimeOfDay` carries none
+Core\Time\TimeOfDay::format(): a pattern rendering a time of day names no zone — a `Core\Time\TimeOfDay` is zone-free
+HH|yyyy
+Core\Time\Date::format(): `j` is not a pattern letter Novis supports; write `'j'` to print the letter as it is
+Core\Time\Date::format(): a pattern rendering a date names no time of day — a `Core\Time\Date` carries none
+Core\Time\TimeOfDay::format(): a pattern rendering a time of day names no calendar field — a `Core\Time\TimeOfDay` carries none
+36 taken, 16 refused, 15 named
+37 whole, 19 calendar, 11 clock, 0 both, 7 neither

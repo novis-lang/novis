@@ -1,0 +1,89 @@
+<?nvs
+// Attack: a request tries to move `io.temp_root`, the directory for temporary
+// files. The server deletes old files there when it starts. Only the person who
+// runs the server may set it, so every write below should fail.
+// hostile: timeout-ms 30000
+
+// 1. Tries many directories, including system directories, network paths and
+//    paths with hidden null bytes or line breaks.
+array<string> $roots = [
+    '/',
+    '/tmp',
+    '/etc',
+    '/etc/novis',
+    'C:\\',
+    'C:\\Windows',
+    'C:\\Windows\\System32',
+    '.',
+    '..',
+    'docs',
+    'nvs.toml',
+    '/dev/urandom',
+    'NUL',
+    'CON',
+    '\\\\attacker.test\\share',
+    '//attacker.test/share',
+    'file:///tmp',
+    "/tmp/scratch\u{0000}",
+    "/tmp/scratch\u{0000}/etc",
+    '/tmp/scratch%00',
+    "/tmp/scratch\r\nkeep_temporary = true",
+    "/tmp/scratch\n[io]\ntemp_root = \"/\"",
+    '',
+    ' ',
+    '~',
+    '$HOME',
+    '%TEMP%',
+    Core\Str::repeat('../', 20000) . 'tmp',
+    Core\Str::repeat('a/', 50000),
+    Core\Str::repeat('/', 100000),
+];
+foreach ($roots as string $value) {
+    Core\Config::set('io.temp_root', $value);
+    // Each write fails, so each read returns `null`. The server would create
+    // and delete files in a directory set here.
+    Core\Config::get('io.temp_root');
+}
+Core\Config::restore('io.temp_root');
+
+// 2. Tries to set `debug.keep_temporary`, which keeps every temporary file.
+//    That could fill the disk, so every write should fail.
+array<string> $keeps = ['true', '1', 'yes', 'on', 'TRUE', '-1', '0', 'false', ''];
+foreach ($keeps as string $value) {
+    Core\Config::set('debug.keep_temporary', $value);
+    Core\Config::get('debug.keep_temporary');
+}
+Core\Config::restore('debug.keep_temporary');
+
+// 3. Tries keys that are almost one of those two. None of them is a real key,
+//    so every write should fail.
+array<string> $spellings = [
+    'io',
+    'io.temp_root.path',
+    'io.temp_root.',
+    'io.temproot',
+    'io.temp-root',
+    'io.tmp_root',
+    'IO.TEMP_ROOT',
+    'io.temp_ROOT',
+    'app.io.temp_root',
+    'debug.keep_temporaries',
+    'debug.keeptemporary',
+    'debug.keep_temporary.',
+    'io.temp_root.' . Core\Str::repeat('sub.', 20000) . 'off',
+];
+foreach ($spellings as string $key) {
+    Core\Config::set($key, '/tmp/attacker');
+    Core\Config::get($key);
+    Core\Config::restore($key);
+}
+
+// 4. Restores a key that was never set, then writes 100,000 times. A failed write
+//    must not use memory, so the request's memory should not grow.
+Core\Config::restore('io.temp_root');
+uint $i = 0;
+while ($i < 100000) {
+    Core\Config::set('io.temp_root', '/tmp/attacker');
+    $i = $i + 1;
+}
+echo Core\Config::get('io.temp_root') ?? '(nothing)', "\n";

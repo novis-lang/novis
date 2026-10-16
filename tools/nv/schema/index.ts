@@ -1,0 +1,29 @@
+// Every record type, in one list. The index builds a table for each, `nv check` checks each, and
+// `bun nv render` writes each one's JSON Schema to `data/schema/`. A type is declared in a file of its
+// own beside this one, with `defineRecord` from `../lib/schema.ts`, and added here.
+//
+// A file under `data/` belongs to the first type in this list whose directory and `idOf` accept it.
+// Two types share a directory only where their `idOf`s split it: a topic and its rules.
+
+import type { RecordType } from "../lib/schema.ts";
+
+import { gap } from "./gap.ts";
+import { milestone } from "./milestone.ts";
+import { planStatus } from "./plan-status.ts";
+import { helpBacklog, proofPolicy } from "./proofs.ts";
+import { referenceChapter } from "./reference.ts";
+import { rule } from "./rule.ts";
+import { specCoreMembers } from "./spec.ts";
+import { topic } from "./topic.ts";
+
+export const RECORDS: RecordType<any>[] = [
+  topic,
+  rule,
+  planStatus,
+  milestone,
+  gap,
+  referenceChapter,
+  specCoreMembers,
+  proofPolicy,
+  helpBacklog,
+];

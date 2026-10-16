@@ -1,0 +1,39 @@
+<?nvs
+// Attack: buffers are repeated the largest number of times there is, and an
+// empty buffer is repeated as well. Every step must throw an error or finish
+// at once, and the program must keep running.
+// hostile: timeout-ms 30000
+
+// 1. Four bytes repeated the largest number of times there is. The result
+//    cannot be held, so this throws and prints a message.
+try {
+    echo Core\Bytes::length(Core\Bytes::repeat('data' as bytes, 18446744073709551615)), "\n";
+} catch (Throwable $error) {
+    echo $error->message, "\n";
+}
+
+// 2. Buffers of different lengths with the same count. Each one throws, so
+//    this prints three messages.
+array<bytes> $patterns = ['a' as bytes, 'ab' as bytes, 'abcdefgh' as bytes];
+foreach ($patterns as bytes $pattern) {
+    try {
+        echo Core\Bytes::length(Core\Bytes::repeat($pattern, 18446744073709551615)), "\n";
+    } catch (Throwable $error) {
+        echo $error->message, "\n";
+    }
+}
+
+// 3. An empty buffer with that same count. There is nothing to write, so this
+//    must return at once instead of counting to the end. This prints 0.
+echo Core\Bytes::length(Core\Bytes::repeat('' as bytes, 18446744073709551615)), "\n";
+
+// 4. Two hundred thousand buffers of ten thousand bytes. Each one must be
+//    freed while the loop runs. This prints 2000000000.
+bytes $block = Core\Bytes::fill(100, 97);
+uint $built = 0;
+uint $i = 0;
+while ($i < 200000) {
+    $built = $built + Core\Bytes::length(Core\Bytes::repeat($block, 100));
+    $i = $i + 1;
+}
+echo $built, "\n";

@@ -1,0 +1,12 @@
+{
+  "title": "The whole temporary-file surface is one member handing out an owned directory",
+  "status": "shipped",
+  "seeAlso": [
+    "core-api/one-name-one-signature",
+    "core-api/one-paradigm-per-operation"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/io-a-temporary-directory-is-made-not-named.nvst",
+    "crates/nvs-stdlib/src/io.rs"
+  ]
+}

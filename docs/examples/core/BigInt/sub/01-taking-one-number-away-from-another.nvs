@@ -1,0 +1,16 @@
+<?nvs
+// Shows how to take one number away from another. `sub` returns a new number
+// and leaves the one you called it on as it was.
+
+var $stock = Core\BigInt::of(1000);
+var $sold = Core\BigInt::of(325);
+
+// This prints 675.
+echo $stock->sub($sold), "\n";
+
+// `$stock` still holds what it did before. This prints 1000.
+echo $stock, "\n";
+
+// When the second number is the larger one, the result is negative. This
+// prints -675.
+echo $sold->sub($stock), "\n";

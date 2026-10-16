@@ -1,0 +1,22 @@
+<?nvs
+// Measures `send` on a connection for one text message, at growing message lengths.
+// bench: start 256
+// bench: max 4096
+
+class Bench
+{
+    public static function run(Core\Socket $conn, uint $size): uint
+    {
+        string $update = Core\Str::repeat('a', $size);
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            $conn->send($update);
+            $total = $total + Core\Str::length($update) % 7 + 1;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(Core\Socket::current(), 256), "\n";

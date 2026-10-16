@@ -1,0 +1,6 @@
+--METHOD--
+GET
+--PATH--
+/prices
+--HEADERS--
+host: example.com

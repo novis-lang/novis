@@ -1,0 +1,16 @@
+<?nvs
+// Shows how to read every cookie that a streamed reply sets.
+
+// The server sends two cookies. Each one is on its own `set-cookie` line.
+array<string> $cookies = ["session=abc123; Path=/", "theme=dark; Max-Age=3600"];
+Core\Test::answerHttp("https://shop.example.com/login", 200, {
+    body: "welcome\n",
+    headers: ["set-cookie" => $cookies],
+});
+
+Core\Http\Stream $login = Core\Http\Client::stream(Core\Http\Method::Post, "https://shop.example.com/login");
+// `headers()` returns one entry for each line, in the order they arrived.
+// This prints the two cookies on two lines.
+foreach ($login->headers("set-cookie") as tainted string $cookie) {
+    echo $cookie, "\n";
+}

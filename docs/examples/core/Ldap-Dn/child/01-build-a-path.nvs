@@ -1,0 +1,8 @@
+<?nvs
+// Shows how to build a DN one part at a time, from the top down.
+
+var $staff = Core\Ldap\Dn::of('DC', 'test')
+    ->child('DC', 'example')
+    ->child('OU', 'Staff');
+// This prints OU=Staff,DC=example,DC=test.
+echo $staff->toString(), "\n";

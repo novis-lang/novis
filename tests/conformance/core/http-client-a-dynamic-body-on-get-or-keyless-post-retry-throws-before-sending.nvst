@@ -1,0 +1,60 @@
+--TEST--
+`Core\Http\Client::request` asks the two questions its named siblings answer while compiling, and throws before the first attempt rather than before the retry — `rule:http-server/a-non-idempotent-retry-needs-an-idempotency-key`
+--FILE--
+<?nvs
+// The verb is an argument here, so neither question can be put to the call
+// site: at `::get` and `::post` a body on a bodyless verb and a keyless retry
+// are compile-time diagnostics, and at `::request` they are the same two
+// refusals made before anything is sent — which is what a test run finds,
+// rather than production finding it on the one retry that matters. Nothing
+// below opens a socket (`rule:testing/an-outbound-call-is-answered-from-a-table`).
+Core\Test::answerHttp("https://api.example.com/*", 200, {body: "ok"});
+
+// A body under a verb that carries none, then the same refusal at the other
+// bodyless verb and a second key, so a check that learned one of either would
+// pass here while still being wrong.
+try {
+    var $a = Core\Http\Client::request(Core\Http\Method::Get, "https://api.example.com/orders", {json: ["id" => 7]});
+} catch (RuntimeError $bodied) {
+    echo $bodied->message, "\n";
+}
+try {
+    var $b = Core\Http\Client::request(Core\Http\Method::Head, "https://api.example.com/orders", {body: "raw", contentType: "text/plain"});
+} catch (RuntimeError $typed) {
+    echo $typed->message, "\n";
+}
+
+// A repeated effect with no identity the server could recognise it by, asked of
+// both verbs on that roster.
+try {
+    var $c = Core\Http\Client::request(Core\Http\Method::Post, "https://api.example.com/orders", {json: ["id" => 7], retryAttempts: 3});
+} catch (RuntimeError $keyless) {
+    echo $keyless->message, "\n";
+}
+try {
+    var $d = Core\Http\Client::request(Core\Http\Method::Patch, "https://api.example.com/orders/7", {json: ["id" => 7], retryAttempts: 3});
+} catch (RuntimeError $second) {
+    echo $second->message, "\n";
+}
+
+// The bound on its other side: a body under a verb that carries one, a retry
+// with the key it owes, and a `Get` that asks a question and nothing else.
+var $e = Core\Http\Client::request(Core\Http\Method::Put, "https://api.example.com/orders", {json: ["id" => 7]});
+var $f = Core\Http\Client::request(Core\Http\Method::Post, "https://api.example.com/orders", {json: ["id" => 7], retryAttempts: 3, retryIdempotencyKey: "order-7"});
+var $g = Core\Http\Client::request(Core\Http\Method::Get, "https://api.example.com/orders");
+
+// Nothing that threw was sent — the records are the three calls that passed.
+var $sent = Core\Test::sentHttp();
+echo Core\Arr::count($sent), "\n";
+foreach ($sent as Core\Test\SentRequest $call) {
+    echo ($call->method() as int), " ", Core\Bytes::length($call->body()), "\n";
+}
+--EXPECT--
+Core\Http\Client::request: a `GET` sends no body, and `json` is one — put the value in the URL's query, or send it under a verb that carries a body
+Core\Http\Client::request: a `HEAD` sends no body, and `body` is one — put the value in the URL's query, or send it under a verb that carries a body
+Core\Http\Client::request: a repeated `POST` is a second effect rather than a second question, so retrying one needs `retryIdempotencyKey` in the same bag, sent as `Idempotency-Key` and identical across attempts
+Core\Http\Client::request: a repeated `PATCH` is a second effect rather than a second question, so retrying one needs `retryIdempotencyKey` in the same bag, sent as `Idempotency-Key` and identical across attempts
+3
+5 8
+4 8
+0 0

@@ -1,0 +1,28 @@
+<?nvs
+// This program checks three fields and reports every wrong one in a single run.
+// Without the `catch`, the first failed check would stop the others.
+// A caught failure still counts. Each check records its result before it throws,
+// so the test has still failed twice.
+
+use Core\Test;
+use Core\Test\Failure;
+
+final class Fields {
+    // Returns the field's name when the value is wrong, and an empty string when
+    // it is right. The caller joins the names into one report.
+    public static function wrong(string $name, string $expected, string $actual): string {
+        try {
+            Test::assertEquals($actual, $expected, {message: $name});
+            return '';
+        } catch (Failure $mismatch) {
+            return $name;
+        }
+    }
+}
+
+string $report = '';
+$report = $report . Fields::wrong('street', 'Kärntner Ring 1', 'Kärntner Ring 1');
+$report = $report . Fields::wrong(' city', 'Vienna', 'Wien');
+$report = $report . Fields::wrong(' postcode', '1010', '1100');
+
+echo 'wrong fields:', $report, "\n";

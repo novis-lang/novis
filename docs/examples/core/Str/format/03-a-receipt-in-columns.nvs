@@ -1,0 +1,17 @@
+<?nvs
+// Shows how to print a receipt with straight columns, using a width and a precision.
+
+// `%-12s` pads the name with spaces on the right to 12 characters.
+// `%8.2f` writes the price with two decimals, padded on the left to 8 characters.
+array<string> $names = ["Coffee", "Crème brûlée", "Water"];
+array<float> $prices = [3.5, 6.25, 1.0];
+
+// This prints three lines, and every price ends in the same column.
+uint $i = 0;
+while ($i < 3) {
+    echo Core\Str::format("%-12s %8.2f\n", $names[$i as int], $prices[$i as int]);
+    $i = $i + 1;
+}
+
+// `%08.2f` pads with zeros instead of spaces. This prints `Total        00010.75`.
+echo Core\Str::format("%-12s %08.2f\n", "Total", 10.75);

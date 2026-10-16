@@ -1,0 +1,71 @@
+<?nvs
+// Attack: a document uses odd names, very many namespace declarations and a very long namespace URI.
+// Each step should finish quickly and print the right result.
+// hostile: timeout-ms 20000
+
+// 1. A name with two colons. Only the first colon ends the prefix, so this prints https://example.com/a.
+foreach (Core\Xml::parse('<a:b:c xmlns:a="https://example.com/a"/>')->children() as Core\Xml\Node $odd) {
+    echo $odd->namespaceUri() ?? 'none', "\n";
+}
+
+// 2. A prefix that nothing declares. This prints none.
+foreach (Core\Xml::parse('<p:x/>')->children() as Core\Xml\Node $unknown) {
+    echo $unknown->namespaceUri() ?? 'none', "\n";
+}
+
+// 3. A root with 100000 declarations and 100000 children. This prints 100000.
+string $declarations = '';
+string $children = '';
+int $i = 0;
+while ($i < 100000) {
+    $declarations = $declarations . ' xmlns:p' . $i as string . '="https://example.com/' . $i as string . '"';
+    $children = $children . '<p7:e/>';
+    $i = $i + 1;
+}
+string $crowded = '<r' . $declarations . '>' . $children . '</r>';
+int $found = 0;
+foreach (Core\Xml::parse($crowded)->children() as Core\Xml\Node $root) {
+    foreach ($root->children() as Core\Xml\Node $child) {
+        if ($child->namespaceUri() == 'https://example.com/7') {
+            $found = $found + 1;
+        }
+    }
+}
+echo $found, "\n";
+
+// 4. The same declarations over 2000 children, read one node at a time. This prints 2000.
+Core\Xml\Reader $reader = Core\Xml::reader('<r' . $declarations . '>' . Core\Str::repeat('<p7:e/>', 2000) . '</r>');
+$found = 0;
+?Core\Xml\Node $node = $reader->read();
+while ($node != null) {
+    if ($node->namespaceUri() == 'https://example.com/7') {
+        $found = $found + 1;
+    }
+    $node = $reader->read();
+}
+echo $found, "\n";
+
+// 5. A namespace URI of one million characters, used by 20000 elements. All the elements share
+// one copy of the URI, so the tree fits in memory. This prints 20000.
+string $long = '<r xmlns="' . Core\Str::repeat('u', 1000000) . '">' . Core\Str::repeat('<e/>', 20000) . '</r>';
+$found = 0;
+foreach (Core\Xml::parse($long)->children() as Core\Xml\Node $root) {
+    foreach ($root->children() as Core\Xml\Node $child) {
+        if ($child->namespaceUri() != null) {
+            $found = $found + 1;
+        }
+    }
+}
+echo $found, "\n";
+
+// 6. The same document, read one node at a time. This prints 20000.
+Core\Xml\Reader $stream = Core\Xml::reader($long);
+$found = 0;
+?Core\Xml\Node $next = $stream->read();
+while ($next != null) {
+    if ($next->name() == 'e' && $next->namespaceUri() != null) {
+        $found = $found + 1;
+    }
+    $next = $stream->read();
+}
+echo $found, "\n";

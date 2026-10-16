@@ -1,0 +1,32 @@
+--TEST--
+a declaration names what it declares and a position names what may stand in it, so `implements` is an interface where `extends` would be a class and `$u->greet()` is a method where `$this->name` is a property, `rule:ide/semantic-tokens-carry-the-qualifiers`, `rule:ide/the-rendering-has-one-home`
+--FILE--
+<?nvs
+namespace App;
+interface Greets {
+    public function greet(): string;
+}
+class User implements Greets {
+    public string $name;
+    public function greet(): string {
+        return "hi, " . $this->name;
+    }
+}
+var $u = new User();
+echo $u->greet();
+--REQUEST--
+semanticTokens
+--EXPECT--
+2:11+3 namespace
+3:11+6 interface
+4:21+5 method
+6:7+4 class
+6:23+6 interface
+7:19+5 property
+8:21+5 method
+9:25+5 variable
+9:32+4 property
+12:5+2 variable
+12:14+4 class
+13:6+2 variable
+13:10+5 method

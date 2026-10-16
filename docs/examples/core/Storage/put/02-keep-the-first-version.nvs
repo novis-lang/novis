@@ -1,0 +1,17 @@
+<?nvs
+// Uses `overwrite: false` to save a file only when its key is not used yet.
+
+Core\Storage::put("files", "draft.txt", "first version\n" as bytes);
+
+// The key is already used, so this `put` throws an `IOError`.
+try {
+    Core\Storage::put("files", "draft.txt", "second version\n" as bytes, {overwrite: false});
+} catch (IOError $e) {
+    echo "not saved: the key is already used\n";
+}
+
+// The file still has the first version. This prints `first version`.
+bytes $saved = Core\Storage::get("files", "draft.txt") ?? "" as bytes;
+echo $saved as string;
+
+Core\Storage::delete("files", "draft.txt");

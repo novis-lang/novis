@@ -1,0 +1,19 @@
+<?nvs
+// Shows how to multiply the values of an array together.
+
+array<int> $factors = [2, 3, 7];
+
+// This prints 42. The keys are not used, only the values.
+echo Core\Arr::product($factors), "\n";
+
+// A map works the same way. This prints 120.
+array<int> $crates = ['small' => 4, 'medium' => 5, 'large' => 6];
+echo Core\Arr::product($crates), "\n";
+
+// One value of 0 makes the result 0. This prints 0.
+array<int> $withZero = [8, 0, 9];
+echo Core\Arr::product($withZero), "\n";
+
+// An array with no entries gives you 1. This prints 1.
+array<int> $nothing = [];
+echo Core\Arr::product($nothing), "\n";

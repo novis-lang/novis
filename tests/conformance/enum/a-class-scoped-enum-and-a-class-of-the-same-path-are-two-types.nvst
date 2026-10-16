@@ -1,0 +1,36 @@
+--TEST--
+An enum `Status` in class `Shop\Order` and a class `Status` in namespace `Shop\Order` share a written path and are two types with two keys — `rule:enums/class-scoped-enum`
+--FILE--
+<?nvs
+require './order.nvs';
+require './status.nvs';
+
+use Shop\Order;
+
+echo Order::Status::Paid as int, "\n";
+echo (Order::paid() == Order::Status::Paid) as string, "\n";
+echo Shop\Order\Status::WORD, "\n";
+--FILE order.nvs--
+<?nvs
+namespace Shop;
+
+final class Order {
+    enum Status { Open, Paid }
+
+    public static function paid(): Status {
+        return Status::Paid;
+    }
+}
+--FILE status.nvs--
+<?nvs
+// `Shop\Order\Status` is a class in namespace `Shop\Order`. It is not the
+// enum `Shop\Order::Status`.
+namespace Shop\Order;
+
+final class Status {
+    public const string WORD = "a class";
+}
+--EXPECT--
+1
+1
+a class

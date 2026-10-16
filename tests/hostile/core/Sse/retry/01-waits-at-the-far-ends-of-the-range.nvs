@@ -1,0 +1,32 @@
+<?nvs
+// Attack: a program sends reconnection times at both ends of what a duration can be, and sends many of them.
+// Each one should be sent or throw an error. None should crash or write a broken block.
+
+Core\Sse $sse = Core\Sse::stream();
+
+// 1. The longest duration there is.
+$sse->retry(Core\Time\Duration::nanoseconds(9223372036854775807));
+
+// 2. One nanosecond, which is less than the one millisecond the wire can carry.
+$sse->retry(Core\Time\Duration::nanoseconds(1));
+
+// 3. The most negative duration, which should throw an error.
+try {
+    $sse->retry(Core\Time\Duration::nanoseconds(-9223372036854775807));
+} catch (LogicError $e) {
+    $sse->send('refused');
+}
+
+// 4. A number of weeks too large for a duration, which should throw an error before `retry` runs.
+try {
+    $sse->retry(Core\Time\Duration::weeks(9223372036854775807));
+} catch (Throwable $tooLarge) {
+    $sse->send('too large');
+}
+
+// 5. One hundred thousand reconnection times, one after another.
+int $i = 0;
+while ($i < 100000) {
+    $sse->retry(Core\Time\Duration::milliseconds($i));
+    $i = $i + 1;
+}

@@ -1,0 +1,10 @@
+<?nvs
+// Shows the hyperbolic tangent of a few numbers.
+
+// The result at zero is 0. This prints 0.
+echo Core\Math::tanh(0.0), "\n";
+
+// A negative number gives the same result with a minus sign.
+// These lines print 0.46211715726001 and -0.46211715726001.
+echo Core\Math::tanh(0.5), "\n";
+echo Core\Math::tanh(-0.5), "\n";

@@ -1,0 +1,20 @@
+<?nvs
+// Shows how to build the link to a route from its name.
+
+class Articles {
+    #[Core\Route(path: "/articles/{id}", method: Core\Http\Method::Get, name: "Articles::show")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function show(uint $id): string { return "one article"; }
+
+    #[Core\Route(path: "/tags/{tag}", method: Core\Http\Method::Get, name: "Articles::tag")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function tag(string $tag): string { return "articles with one tag"; }
+}
+
+// `Core\Router::url` puts the value of `id` in place of `{id}`.
+// This prints `/articles/42`.
+echo Core\Router::url("Articles::show", ["id" => 42]), "\n";
+
+// A text value is percent-encoded. The `/` and the space cannot start a new segment.
+// This prints `/tags/news%2Fsport%20today`.
+echo Core\Router::url("Articles::tag", ["tag" => "news/sport today"]), "\n";

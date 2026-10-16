@@ -1,0 +1,12 @@
+<?nvs
+// Shows how to read an entry by its value instead of by its key.
+
+array<string> $codes = ['red' => 'ff0000', 'green' => '00ff00'];
+
+// `Core\Arr::flip` makes every value a key and every key the value under it.
+// This prints {"ff0000":"red","00ff00":"green"}.
+array<string> $names = Core\Arr::flip($codes);
+echo Core\Json::encode($names), "\n";
+
+// You can now read the name of a colour by its code. This prints "green".
+echo $names['00ff00'], "\n";

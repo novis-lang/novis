@@ -1,0 +1,15 @@
+<?nvs
+// Shows the error for a line chart that has no series.
+use Novis\Spreadsheet\Chart;
+use Novis\Spreadsheet\Workbook;
+
+var $book = Workbook::createInMemory();
+var $sheet = $book->sheet('Blog');
+$sheet->add(['day' => 'Monday', 'visitors' => 420]);
+
+// A chart needs at least one series, so `Sheet::chart` throws a `LogicError`.
+try {
+    $sheet->chart('D2', Chart::line({ title: 'Visitors' }));
+} catch (LogicError $e) {
+    echo $e->message, "\n";
+}

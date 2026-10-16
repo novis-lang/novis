@@ -1,0 +1,23 @@
+<?nvs
+// Shows how to add a note to each row with low stock.
+use Novis\Spreadsheet\Reader;
+use Novis\Spreadsheet\Workbook;
+
+array<array<mixed>> $stock = [['item' => 'Pen', 'qty' => 120], ['item' => 'Ink', 'qty' => 3], ['item' => 'Pad', 'qty' => 2]];
+
+var $book = Workbook::createInMemory();
+var $sheet = $book->sheet('Stock');
+int $row = 1;
+foreach ($stock as array<mixed> $line) {
+    $sheet->add($line);
+    $row = $row + 1;
+    // `cell` returns the address of the quantity in this row, such as `B3`.
+    if ($line['qty'] as int < 5) {
+        $sheet->note($sheet->cell('qty', $row), 'Order more of this item.');
+    }
+}
+bytes $file = $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
+
+foreach (Reader::open($file)->notes('Stock') as var $note) {
+    echo $note->noted, ': ', $note->note, "\n";
+}

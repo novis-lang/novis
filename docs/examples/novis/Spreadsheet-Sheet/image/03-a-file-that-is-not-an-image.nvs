@@ -1,0 +1,14 @@
+<?nvs
+// Shows the error for an upload that is not a PNG, JPEG or GIF file.
+use Novis\Spreadsheet\Workbook;
+
+var $book = Workbook::createInMemory();
+var $sheet = $book->sheet('Products');
+
+// These bytes are a text file, so `image` throws a `LogicError`.
+bytes $upload = 'This is not a picture.' as bytes;
+try {
+    $sheet->image('C2', $upload);
+} catch (LogicError $e) {
+    echo $e->message, "\n";
+}

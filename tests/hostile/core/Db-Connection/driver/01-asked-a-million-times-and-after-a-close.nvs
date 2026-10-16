@@ -1,0 +1,54 @@
+<?nvs
+// Attack: a program asks a connection for its driver a million times, asks a
+// closed connection the same question, and asks it while it reads rows. Every
+// answer should be the same case or an error, and nothing may pile up.
+// hostile: timeout-ms 60000
+
+// 1. A million answers, none of them kept. A member that built a new value for
+// every call would have to hold a million of them.
+var $db = Core\Db::connect('notes');
+uint $sqlite = 0;
+uint $other = 0;
+uint $i = 0;
+while ($i < 1000000) {
+    if ($db->driver() == Core\Db\Driver::Sqlite) {
+        $sqlite = $sqlite + 1;
+    } else {
+        $other = $other + 1;
+    }
+    $i = $i + 1;
+}
+echo '1 sqlite: ', $sqlite, ', other: ', $other, "\n";
+
+// 2. A hundred thousand questions to a closed connection. Every one is an
+// error, and the errors may not fill the memory.
+$db->close();
+uint $refused = 0;
+$i = 0;
+while ($i < 100000) {
+    try {
+        $db->driver();
+    } catch (Throwable $error) {
+        $refused = $refused + 1;
+    }
+    $i = $i + 1;
+}
+echo '2 refused: ', $refused, "\n";
+
+// 3. The question asked between two rows, on a connection a walk is holding.
+// The walk must still finish, and the answer must not change under it.
+var $walk = Core\Db::connect('notes');
+$walk->execute('create table if not exists many (n integer not null)', []);
+$i = 0;
+while ($i < 500) {
+    $walk->execute('insert into many (n) values (?)', [$i as int]);
+    $i = $i + 1;
+}
+uint $asked = 0;
+foreach ($walk->stream('select n from many order by n', []) as Core\Db\Row $row) {
+    if ($walk->driver() == Core\Db\Driver::Sqlite) {
+        $asked = $asked + 1;
+    }
+}
+echo '3 asked between rows: ', $asked, "\n";
+$walk->close();

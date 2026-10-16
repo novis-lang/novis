@@ -1,0 +1,21 @@
+<?nvs
+// Makes an SVG QR code for a link, as a blog does for each post it shows in HTML.
+// bench: iterations 256
+// bench: complexity constant
+use Novis\Image\QrCode;
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<string> $links = ["https://example.com/a", "https://example.com/ccc", "https://example.com/hh"];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            string $code = QrCode::svg($links[($total % 3) as int], { margin: 2 });
+            $total = $total + Core\Str::length($code);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

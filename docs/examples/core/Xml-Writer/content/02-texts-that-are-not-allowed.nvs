@@ -1,0 +1,27 @@
+<?nvs
+// Shows the two errors `content` throws, and that the document is still correct afterwards.
+
+Core\Xml\Writer $writer = Core\Xml::writer();
+$writer->startDocument();
+
+// No element is open yet. This prints the error message.
+try {
+    $writer->content("Hello");
+} catch (LogicError $error) {
+    echo $error->message, "\n";
+}
+
+$writer->startElement("note");
+
+// The character with code 0 cannot be written in XML. This prints the error message.
+try {
+    $writer->content("Hello\x00World");
+} catch (LogicError $error) {
+    echo $error->message, "\n";
+}
+
+// A tab and a line break are allowed.
+$writer->content("Hello\tWorld\n");
+
+$writer->endElement();
+echo $writer->endDocument(), "\n";

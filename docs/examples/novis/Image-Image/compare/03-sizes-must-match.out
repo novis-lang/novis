@@ -1,0 +1,1 @@
+LogicError: the images are 32x32 and 64x64, and `compare` needs two images of the same size

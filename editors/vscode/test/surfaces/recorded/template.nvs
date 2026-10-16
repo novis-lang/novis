@@ -1,0 +1,4 @@
+<?nvs
+var $name = "world";
+?>
+<p>hi <?= $name ?>!</p>

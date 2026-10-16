@@ -1,0 +1,52 @@
+--TEST--
+Core\Csv::format, swept over every 7-bit byte as a one-field record, quotes exactly four bytes: the separator, the quote, CR and LF, and a space or a tab written bare reads back unchanged
+--FILE--
+<?nvs
+final class Show {
+    public static function yn(bool $b): string {
+        if ($b) {
+            return "y";
+        }
+        return "n";
+    }
+
+    public static function of(string $document): string {
+        return "[" . Core\Str::replaceAll(
+            $document,
+            ["\r" => "<CR>", "\n" => "<LF>", "\t" => "<TAB>"],
+        ) . "]";
+    }
+}
+
+// One letter per byte from 0 to 127: `y` if the field is quoted. The second
+// line lists the quoted bytes.
+string $band = "";
+string $list = "";
+for (int $b = 0; $b < 128; $b = $b + 1) {
+    array<array<string>> $rows = [[Core\Str::fromCodePoint($b as uint)]];
+    bool $quoted = Core\Str::startsWith(Core\Csv::format($rows), "\"");
+    $band = $band . Show::yn($quoted);
+    if ($quoted) {
+        $list = $list . " " . $b;
+    }
+}
+echo $band, "\n";
+echo "quoted:", $list, "\n";
+
+// A space and a tab are written without quotes. The comma is quoted.
+array<array<string>> $mixed = [["a b", "c\td", "e,f"]];
+string $document = Core\Csv::format($mixed);
+echo Show::of($document), "\n";
+
+// Parsing the document returns the same three fields.
+foreach (Core\Csv::parse($document) as array<string> $record) {
+    foreach ($record as string $field) {
+        echo "<", Core\Str::replaceAll($field, ["\t" => "<TAB>"]), ">";
+    }
+}
+echo "\n";
+--EXPECT--
+nnnnnnnnnnynnynnnnnnnnnnnnnnnnnnnnynnnnnnnnnynnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn
+quoted: 10 13 34 44
+[a b,c<TAB>d,"e,f"<LF>]
+<a b><c<TAB>d><e,f>

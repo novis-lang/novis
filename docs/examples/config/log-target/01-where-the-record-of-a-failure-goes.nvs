@@ -1,0 +1,18 @@
+<?nvs
+// `[log] target` is where the server writes the record of a failure. It is used
+// when neither the program's handler nor the `[log] handler` script could run.
+
+echo 'records go to: ', Core\Config::get('log.target') ?? '(nothing written — stderr, which is the floor default)', "\n";
+
+// A target can be `stderr`, a file or `syslog`. A program cannot change it,
+// so every call returns `false`.
+array<string> $destinations = ['stderr', 'file:/var/log/nvs.log', 'syslog'];
+foreach ($destinations as string $destination) {
+    echo 'send them to ', $destination, ': ', Core\Config::set('log.target', $destination) ? 'accepted' : 'refused', "\n";
+}
+
+// A program may change `log.format` and `log.level` for one request.
+// The target stays the same.
+echo 'trace this one run: ', Core\Config::set('log.level', 'Debug') ? 'accepted' : 'refused', "\n";
+Core\Config::restore('log.level');
+echo 'destination now: ', Core\Config::get('log.target') ?? '(nothing written — still stderr)', "\n";

@@ -1,0 +1,11 @@
+{
+  "title": "Five producers build the one record",
+  "status": "designed",
+  "seeAlso": [
+    "errors/diagnostic-record",
+    "errors/log-write",
+    "errors/debug-dump"
+  ],
+  "guardedBy": [],
+  "goal": "diagnostic-records"
+}

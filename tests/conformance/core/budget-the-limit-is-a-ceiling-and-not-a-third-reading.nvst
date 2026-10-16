@@ -1,0 +1,36 @@
+--TEST--
+`Core\Budget::memoryLimit` is the ceiling this request is measured against and not a reading of it — it does not move when the request allocates, and an uncapped request answers `0` rather than a ceiling of its own — `rule:observability/memory-is-three-numbers-on-core-budget`
+--FILE--
+<?nvs
+// The member exists so that a peak has a scale, so what it must *not* be is a
+// third figure derived from the same counter. This case allocates between two
+// readings of it: a ceiling is a property of the request and answers the same
+// number on both sides, where a reading would move.
+uint $limit = Core\Budget::memoryLimit();
+
+string $spike = Core\Str::repeat("y", 2097152);
+if (Core\Budget::memoryLimit() == $limit) {
+    echo "limit: unmoved by an allocation\n";
+} else {
+    echo "limit: moved with the request's own memory\n";
+}
+$spike = "";
+
+// Both arms print the same line on purpose. Whether this runner arms a
+// `[limits] memory` at all is not this case's question, and a case that pinned
+// one answer would pin the runner's configuration instead of the member: what
+// is asserted is that the two readings are comparable in the one expression
+// the rule is written around, and that `0` means *no ceiling* rather than a
+// ceiling of zero bytes that every request is already over.
+if ($limit == 0) {
+    echo "limit: uncapped, or a ceiling the peak is under\n";
+} else {
+    if (Core\Budget::memoryPeak() < $limit) {
+        echo "limit: uncapped, or a ceiling the peak is under\n";
+    } else {
+        echo "limit: this request is already over its own ceiling\n";
+    }
+}
+--EXPECT--
+limit: unmoved by an allocation
+limit: uncapped, or a ceiling the peak is under

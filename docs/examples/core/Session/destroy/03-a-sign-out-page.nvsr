@@ -1,0 +1,6 @@
+--METHOD--
+POST
+--PATH--
+/account/sign-out
+--HEADERS--
+host: example.com

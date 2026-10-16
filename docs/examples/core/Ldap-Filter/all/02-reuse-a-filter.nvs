@@ -1,0 +1,10 @@
+<?nvs
+// Shows how to reuse one filter in several combinations.
+
+var $people = Core\Ldap\Filter::all(
+    Core\Ldap\Filter::equals('objectClass', 'user'),
+    Core\Ldap\Filter::not(Core\Ldap\Filter::equals('objectClass', 'computer')),
+);
+// A filter does not change, so `$people` is the same in both lines below.
+echo Core\Ldap\Filter::all($people, Core\Ldap\Filter::present('mail'))->toString(), "\n";
+echo Core\Ldap\Filter::all($people, Core\Ldap\Filter::equals('department', 'Sales'))->toString(), "\n";

@@ -1,0 +1,16 @@
+<?nvs
+// Shows how to search from a later position. The `from` option says where the
+// search starts. A negative `from` counts back from the end of the value.
+
+bytes $line = "name=one&name=two" as bytes;
+bytes $needle = "name=" as bytes;
+
+// Without `from`, the search starts at the beginning. This prints 0.
+echo Core\Bytes::indexOf($line, $needle) ?? 0, "\n";
+
+// Starting at position 1 skips the first match and finds the second one.
+// This prints 9.
+echo Core\Bytes::indexOf($line, $needle, {from: 1}) ?? 0, "\n";
+
+// A `from` of -8 starts the search 8 bytes before the end. This prints 9.
+echo Core\Bytes::indexOf($line, $needle, {from: -8}) ?? 0, "\n";

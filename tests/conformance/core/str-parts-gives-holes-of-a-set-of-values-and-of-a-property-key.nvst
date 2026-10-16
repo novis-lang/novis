@@ -1,0 +1,30 @@
+--TEST--
+`Core\Str::parts` gives each hole with the type of the holes, whatever `K` is: a value of a set of strings, or a `property<T>` name — `rule:core-classes/str-parts-and-reflect-steps`
+--FILE--
+<?nvs
+// The holes can be values from a set, or property names.
+class Order {
+    public int $total = 40;
+    public string $status = "open";
+}
+
+class Templates {
+    public static function greeting(string<"name"|"city"> $template): void {
+        var $parts = Core\Str::parts($template);
+        // A hole is at an odd index, and it is one of the values in the set.
+        "name"|"city" $first = $parts[1] as "name"|"city";
+        echo $first, " ", Core\Arr::count($parts), "\n";
+    }
+
+    public static function columns(string<property<Order>> $text): void {
+        var $parts = Core\Str::parts($text);
+        property<Order> $column = $parts[3] as property<Order>;
+        echo $column as string, " ", Core\Arr::count($parts), "\n";
+    }
+}
+
+Templates::greeting("Hello {name} from {city}!");
+Templates::columns("{total}, {status}");
+--EXPECT--
+name 5
+status 5

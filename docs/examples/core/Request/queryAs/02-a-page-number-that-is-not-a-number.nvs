@@ -1,0 +1,15 @@
+<?nvs
+// Shows what `Core\Request::queryAs` does when a parameter is missing or has the wrong type.
+
+// The address is `/products?page=abc`. "abc" is not a number, and there is no "sort".
+// `queryAs` checks every field and then throws one `ParseError`.
+try {
+    var $list = Core\Request::queryAs<tainted {page: uint, sort: string}>();
+    echo "page ", $list->page, "\n";
+} catch (ParseError $error) {
+    // `issues` has one entry for each wrong field. This prints two lines:
+    // "page: expected uint, found a string" and "sort: required field missing".
+    foreach ($error->issues as {path: string, message: string} $issue) {
+        echo $issue->path, ": ", $issue->message, "\n";
+    }
+}

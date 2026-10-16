@@ -1,0 +1,12 @@
+{
+  "title": "`and`, `or` and `xor` do not parse, and `&&`/`||` are the whole set",
+  "status": "shipped",
+  "seeAlso": [
+    "expressions/truthy-positions",
+    "expressions/one-equality-operator"
+  ],
+  "guardedBy": [
+    "tests/conformance/reject/keyword-logical-operators-do-not-parse.nvst",
+    "tests/conformance/reject/xor-does-not-parse.nvst"
+  ]
+}

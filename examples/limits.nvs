@@ -1,0 +1,19 @@
+<?nvs
+// This program uses more memory than its limit of 256M in `nvs.toml`, so Novis stops it.
+// A memory limit is not an exception, so `catch` cannot stop it. There is no `try` here.
+// `Core\Fatal::onLimit` runs before the program stops, if the program set one.
+// The loop asks for 512 MiB, which is twice the limit.
+
+echo 'before the cap', "\n";
+
+array<string> $ballast = [];
+int $slabs = 0;
+
+while ($slabs < 512) {
+    $ballast[] = Core\Str::repeat('x', 1048576);
+    $slabs++;
+}
+
+// Only reachable in a tree that is not enforcing the cap, which is what
+// makes the check's `exit = "nonzero"` half worth asserting.
+echo 'held ' . Core\Arr::count($ballast) . ' slabs, uncapped', "\n";

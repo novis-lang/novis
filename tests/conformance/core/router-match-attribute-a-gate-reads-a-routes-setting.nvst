@@ -1,0 +1,61 @@
+--TEST--
+A gate reads a setting of the matched route's method with `$route->attribute<{seconds: int}>()`: each route answers its own attribute, an extra field does not stop the match, and a route with none answers `null` — `rule:routing/a-match-reads-an-attribute-as-data`
+--FILE--
+<?nvs
+// covers: Core\Router\Match::attribute
+class Pages {
+    #[Core\Route(path: "/news", method: Core\Http\Method::Get, name: "news")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    #[{seconds: 60}]
+    public static function news(): void {
+        echo "news ran\n";
+    }
+
+    #[Core\Route(path: "/about", method: Core\Http\Method::Get, name: "about")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    #[{seconds: 3600, label: "long"}]
+    public static function about(): void {
+        echo "about ran\n";
+    }
+
+    #[Core\Route(path: "/live", method: Core\Http\Method::Get, name: "live")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public static function live(): void {
+        echo "live ran\n";
+    }
+}
+
+class Gate implements Core\Router\Gate {
+    public function allows(Core\Router\Match $route): bool {
+        ?{seconds: int} $cache = $route->attribute<{seconds: int}>();
+        if ($cache != null) {
+            echo "cache ", $cache->seconds as string, " for ", $route->name() ?? "?", "\n";
+        } else {
+            echo "no cache for ", $route->name() ?? "?", "\n";
+        }
+        return true;
+    }
+
+    public function refused(Core\Router\Refusal $reason, ?Core\Router\Match $route): void {
+        echo "refused\n";
+    }
+
+    public function failed(?Core\Router\Match $route, ?Throwable $error): void {
+        echo "failed\n";
+    }
+}
+
+if (Core\Env::context() == Core\Env::Context::Request) {
+    Core\Router::dispatch(new Gate());
+} else {
+    echo Core\Test::request(Core\Http\Method::Get, "/news")->body();
+    echo Core\Test::request(Core\Http\Method::Get, "/about")->body();
+    echo Core\Test::request(Core\Http\Method::Get, "/live")->body();
+}
+--EXPECT--
+cache 60 for news
+news ran
+cache 3600 for about
+about ran
+no cache for live
+live ran

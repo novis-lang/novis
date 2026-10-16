@@ -1,0 +1,13 @@
+<?nvs
+// Shows how a website saves each upload under a name it makes, and keeps the client's name for display.
+
+string $folder = Core\IO::temporaryDir();
+uint $number = 0;
+foreach (Core\Request::files() as Core\Request\Part $part) {
+    $number = $number + 1;
+    // The program chooses the file name on disk, so the client cannot choose the folder.
+    string $stored = 'upload-' . $number . '.bin';
+    $part->saveTo(Core\Path::join($folder, $stored));
+    // The client's name is only printed. The second name prints as "../../index.nvs".
+    echo $part->filename(), ' is saved as ', $stored, "\n";
+}

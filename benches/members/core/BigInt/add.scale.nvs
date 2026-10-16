@@ -1,0 +1,23 @@
+<?nvs
+// Measures `add` on a running total, at growing numbers of bits.
+// bench: start 4096
+// bench: max 65536
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        var $addend = Core\BigInt::of(1)->shl($size)->sub(Core\BigInt::of(1));
+        var $sum = Core\BigInt::of(0);
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            $sum = $sum->add($addend);
+            $total = $total + ($sum->sign() as uint);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(4096), "\n";

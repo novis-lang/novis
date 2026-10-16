@@ -1,0 +1,16 @@
+{
+  "title": "A ceiling is a `System` directive with the default's key name, and `false` removes it",
+  "status": "shipped",
+  "seeAlso": [
+    "config/three-changeability-classes",
+    "config/a-refused-set-returns-false",
+    "errors/on-limit",
+    "programs/memory-priority",
+    "config/an-app-block-may-widen-bounded-by-the-global-ceiling"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/config-set-memory-above-the-hard-ceiling-is-refused-and-the-ceiling-in-force-stands.nvst",
+    "tests/conformance/core/config-set-memory-above-the-default-moves-the-ceiling-the-runtime-enforces.nvst",
+    "tests/conformance/reject/config-set-above-the-hard-ceiling-returns-false.nvst"
+  ]
+}

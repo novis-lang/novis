@@ -1,0 +1,21 @@
+<?nvs
+// Shows how to check the signed link that a request arrived with.
+
+class Reports {
+    #[Core\Route(path: "/reports/{year}", method: Core\Http\Method::Get, name: "Reports::download")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function download(uint $year): string { return "the report"; }
+}
+
+// A real program reads its key from its configuration. This key is written here,
+// so that the signed link in the request file matches it. A key is 32 bytes.
+bytes $raw = "example-key-for-signed-links-001" as bytes;
+array<secret bytes> $keys = [$raw as secret bytes];
+
+// The request is `/reports/2024?_sig=...`, made by `Core\Router::urlSigned`.
+// `signedRoute` checks the signature and returns the route that matched.
+Core\Router\Match $matched = Core\Router::signedRoute($keys);
+
+// This prints `Reports::download` and then `year 2024`.
+echo $matched->name() ?? "", "\n";
+echo "year ", $matched->param("year") as uint, "\n";

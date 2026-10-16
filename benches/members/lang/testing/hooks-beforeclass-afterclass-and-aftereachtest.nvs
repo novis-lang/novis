@@ -1,0 +1,41 @@
+<?nvs
+// Measures what `#[AfterEachTest]` costs a test: the hook is called on the test's
+// object after the test. A test runner pays this once per test.
+// bench: iterations 2048
+// bench: calls 2
+// bench: allocations 0
+// bench: complexity constant
+
+use Core\Test;
+use Core\Test\AfterEachTest;
+
+class CleanupTest {
+    public uint $written = 0;
+    public uint $removed = 0;
+
+    #[Test]
+    public function writesSomething(): void {
+        $this->written = $this->written + 1;
+    }
+
+    #[AfterEachTest]
+    public function removesIt(): void {
+        $this->removed = $this->removed + 1;
+    }
+}
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        // One object for every round, so the counts carry from one round to the next.
+        var $test = new CleanupTest();
+        uint $i = 0;
+        while ($i < $rounds) {
+            $test->writesSomething();
+            $test->removesIt();
+            $i = $i + 1;
+        }
+        return $test->removed;
+    }
+}
+
+echo Bench::run(2048), "\n";

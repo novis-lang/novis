@@ -1,0 +1,12 @@
+<?nvs
+// Shows how to add lines to the end of a log file, one call for each line.
+
+string $log = Core\Path::join(Core\IO::temporaryDir(), "app.log");
+
+// The file does not exist yet, so the first call creates it.
+Core\IO::append($log, "started\n");
+Core\IO::append($log, "loaded 3 settings\n");
+Core\IO::append($log, "stopped\n");
+
+// This prints the three lines in the order they were added.
+echo Core\IO::read($log);

@@ -1,0 +1,17 @@
+<?nvs
+// Shows what happens when a number is not a code point.
+
+// 0xD800 is in the reserved range, and 0x110000 is larger than the largest code point.
+// `Core\Str::fromCodePoint` throws a `RuntimeError` for both.
+array<uint> $numbers = [0x41, 0xD800, 0x110000];
+
+// This prints `65: A`, then `55296: not a code point` and `1114112: not a code point`.
+foreach ($numbers as uint $number) {
+    string $result = "";
+    try {
+        $result = Core\Str::fromCodePoint($number);
+    } catch (RuntimeError $error) {
+        $result = "not a code point";
+    }
+    echo $number, ": ", $result, "\n";
+}

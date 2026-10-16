@@ -1,0 +1,13 @@
+{
+  "title": "A request and everything it spawns share one budget, accounted at the tree's root",
+  "status": "shipped",
+  "seeAlso": [
+    "security/isolate-shares-nothing",
+    "security/arena-is-an-ownership-root",
+    "errors/on-limit"
+  ],
+  "guardedBy": [
+    "crates/nvs-runtime/tests/configured_limits.rs",
+    "crates/nvs-host/tests/limits.rs"
+  ]
+}

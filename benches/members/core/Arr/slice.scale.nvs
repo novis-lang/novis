@@ -1,0 +1,23 @@
+<?nvs
+// Measures `Core\Arr::slice` taking all but the first entry of one list, at growing list lengths.
+// bench: start 256
+// bench: max 4096
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        array<string> $found = Core\Arr::map(Core\Arr::range(1, $size as int), fn(int $n): string => "Lamp");
+        int $length = ($size as int) - 1;
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            array<string> $page = Core\Arr::slice($found, ($total % 2) as int, $length);
+            $total = $total + Core\Arr::count($page);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

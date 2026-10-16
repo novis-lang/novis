@@ -1,0 +1,7 @@
+<?nvs
+// Shows that special characters in the text are part of the value.
+
+var $filter = Core\Ldap\Filter::endsWith('cn', '(old)');
+// `(` and `)` are written as `\28` and `\29`.
+// This prints (cn=*\28old\29).
+echo $filter->toString(), "\n";

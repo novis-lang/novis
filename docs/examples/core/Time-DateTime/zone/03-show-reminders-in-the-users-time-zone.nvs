@@ -1,0 +1,16 @@
+<?nvs
+// Shows how to print several saved times in the time zone of one user's booking.
+
+// The user booked a table in Sydney, so the booking is in the Sydney time zone.
+var $booking = Core\Time::at(2024, 12, 20, Core\Time\Zone::of("Australia/Sydney"), {hour: 19});
+
+// The server saves each reminder time in UTC.
+array<string> $reminders = ["2024-12-19T08:00:00Z", "2024-12-20T06:00:00Z"];
+
+// `in($booking->zone())` shows each reminder in the same zone as the booking.
+// Sydney is 11 hours ahead of UTC in December. This prints 19 December 19:00 and 20 December 17:00.
+foreach ($reminders as string $text) {
+    var $local = Core\Time::fromIso($text)->in($booking->zone());
+    echo "Reminder: ", $local->format("d MMMM HH:mm"), "\n";
+}
+echo "Table: ", $booking->format("d MMMM HH:mm VV"), "\n";

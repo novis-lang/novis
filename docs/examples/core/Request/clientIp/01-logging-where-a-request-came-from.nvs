@@ -1,0 +1,9 @@
+<?nvs
+// Shows how to write the address of the client into a log line.
+
+// `Core\Request::clientIp` returns the address as a string, or `null`.
+// `??` replaces `null` with the text "unknown".
+tainted string $address = Core\Request::clientIp() ?? "unknown";
+
+// This prints "GET /orders from 203.0.113.7".
+echo "GET /orders from ", $address, "\n";

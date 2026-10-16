@@ -1,0 +1,40 @@
+--TEST--
+parsing a file is `Core\IO::read` composed with `Core\Ast::parse`, so the `fs.read` check is the IO door's and parsing itself asks for nothing — `rule:core-classes/ast-is-inert`, `rule:security/reflection-needs-no-capability`, `rule:security/capability-check-at-the-door`
+--FILE--
+<?nvs
+// There is no `Core\Ast::parseFile`. A path is the filesystem's question and
+// `Core\IO` is the one door that asks it, so parsing a file is two calls and
+// the grant is checked in the place it already lived -- `Core\Ast` stays
+// capability-free (`rule:security/reflection-needs-no-capability`).
+Core\IO::write("subject.nvs", "<?nvs echo 1 + 2;\n");
+var $tree = Core\Ast::parse(Core\IO::read("subject.nvs"));
+echo $tree->kind(), " holds ", Core\Arr::count($tree->nodes()), " nodes\n";
+
+// One grammar, one answer: the text read from the file and the same text a
+// program already holds parse to the same tree, which is what makes the
+// composition a spelling rather than a second path
+// (`rule:core-classes/ast-is-inert`).
+var $inline = Core\Ast::parse("<?nvs echo 1 + 2;\n");
+bool $agreed = Core\Arr::count($inline->nodes()) == Core\Arr::count($tree->nodes());
+echo "the file and the same text agree: ", $agreed ? "yes" : "no", "\n";
+
+// The bound, on the door's side: a path the grant does not cover is refused
+// before anything is read, so `parse` is never reached and there is no second
+// place the check could have been forgotten
+// (`rule:security/capability-check-at-the-door`).
+try {
+    Core\Ast::parse(Core\IO::read("../outside.nvs"));
+    echo "read ../outside.nvs: parsed\n";
+} catch (IOError $touched) {
+    echo "read ../outside.nvs: the os answered first\n";
+} catch (RuntimeError $refused) {
+    echo "read ../outside.nvs: refused at the door\n";
+}
+--FILE nvs.toml--
+[capabilities.fs]
+read = ["."]
+write = ["."]
+--EXPECT--
+File holds 4 nodes
+the file and the same text agree: yes
+read ../outside.nvs: refused at the door

@@ -1,0 +1,20 @@
+<?nvs
+// `decimal` and `float` are both numbers with a fraction. A `decimal` is exact,
+// so use it for money. A `float` is fast but not always exact, so use it for measurements.
+// `0.1 + 0.2` prints `0.3` for both types. Only the `decimal` sum is equal to `0.3`.
+
+float $quick = 0.1;
+float $more = 0.2;
+float $floatSum = $quick + $more;
+echo $floatSum, " ", $floatSum == 0.3 ? "exactly 0.3" : "not quite 0.3", "\n";
+
+decimal $tenth = 0.1;
+decimal $fifth = 0.2;
+decimal $exactSum = $tenth + $fifth;
+echo $exactSum, " ", $exactSum == 0.3 ? "exactly 0.3" : "not quite 0.3", "\n";
+
+decimal $price = 1.10;
+echo $price * 3, "\n";
+
+float $grams = 2.5;
+echo $grams * 3, "\n";

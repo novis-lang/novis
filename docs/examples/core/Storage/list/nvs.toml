@@ -1,0 +1,9 @@
+# The `files` disk reads its files from the `disk` folder next to these examples.
+# The path is relative to the folder of this file.
+[storage.files]
+root = "disk"
+
+# The program may read files in that folder, and nowhere else.
+# A path in `[capabilities]` is relative to this file.
+[capabilities.fs]
+read = ["disk"]

@@ -1,0 +1,7 @@
+<?nvs
+// The file `program.nvs`'s `@example` tags name. It is under an `examples/`
+// directory because that is what `rule:tooling/doc-comment-tags-are-see-and-example`
+// requires of an `@example` target — a path in a directory the test corpus
+// walks, so an example cannot stop compiling unnoticed.
+
+echo "Hello, world", "\n";

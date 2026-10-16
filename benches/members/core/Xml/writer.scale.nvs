@@ -1,0 +1,29 @@
+<?nvs
+// Measures writing one order with `Core\Xml::writer`, with a customer name of growing length.
+// bench: start 256
+// bench: max 4096
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        string $customer = Core\Str::repeat('Smith & Sons ', $size);
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            Core\Xml\Writer $out = Core\Xml::writer();
+            $out->startDocument();
+            $out->startElement("order");
+            $out->attribute("id", $i as string);
+            $out->startElement("customer");
+            $out->content($customer);
+            $out->endElement();
+            $out->endElement();
+            $total = $total + Core\Str::length($out->endDocument()) as uint;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

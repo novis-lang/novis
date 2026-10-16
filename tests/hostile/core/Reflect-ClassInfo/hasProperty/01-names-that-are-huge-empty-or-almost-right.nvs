@@ -1,0 +1,44 @@
+<?nvs
+// Attack: a program checks for properties with names that are huge, empty, or almost right.
+// Every check should return `true` or `false`, and the runtime must not crash or leak.
+
+class Target
+{
+    public int $open = 1;
+    private int $secret = 2;
+}
+
+var $found = Core\Reflect::forClass('Target');
+if ($found == null) {
+    echo "no class\n";
+} else {
+    Core\Reflect\ClassInfo $info = $found;
+
+    // 1. A name of ten million characters that starts with a real name.
+    string $huge = 'open' . Core\Str::repeat('x', 10000000);
+    echo $info->hasProperty($huge) ? 'found' : 'absent', "\n";
+
+    // 2. The empty name, a name with a zero byte, and names that differ by one character.
+    array<string> $names = ['', "open\0", "\0open", 'ope', 'opens', 'OPEN', ' open', 'secret ', '$open'];
+    foreach ($names as string $name) {
+        echo $info->hasProperty($name) ? 'found' : 'absent', "\n";
+    }
+
+    // 3. Names of methods and of the class, which are not properties.
+    array<string> $others = ['Target', 'constructor', 'hasProperty', 'class'];
+    foreach ($others as string $name) {
+        echo $info->hasProperty($name) ? 'found' : 'absent', "\n";
+    }
+
+    // 4. The same checks are repeated many times with a new name each round.
+    uint $hits = 0;
+    uint $i = 0;
+    while ($i < 200000) {
+        string $probe = $i % 2 == 0 ? 'secret' : 'secret' . $i;
+        if ($info->hasProperty($probe)) {
+            $hits = $hits + 1;
+        }
+        $i = $i + 1;
+    }
+    echo $hits, "\n";
+}

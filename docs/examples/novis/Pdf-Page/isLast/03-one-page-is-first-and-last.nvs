@@ -1,0 +1,13 @@
+<?nvs
+// Shows that the only page of a short document is both the first and the last page.
+use Novis\Pdf\Document;
+use Novis\Pdf\Page;
+
+var $header = fn(Page $page): Core\Html\Markup => {
+    echo "page ", $page->number, " of ", $page->count, "\n";
+    echo "first: ", $page->isFirst() ? "yes" : "no", "\n";
+    echo "last: ", $page->isLast() ? "yes" : "no", "\n";
+    return html`<p>Shop receipt</p>`;
+};
+
+Document::fromHtml("<p>One coffee, 3.20 EUR</p>")->header($header)->render();

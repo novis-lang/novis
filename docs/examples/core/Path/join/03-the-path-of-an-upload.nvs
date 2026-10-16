@@ -1,0 +1,14 @@
+<?nvs
+// Shows how to build the path where a customer's upload is stored.
+
+class Uploads {
+    public static function pathFor(string $root, int $customerId, string $fileName): string {
+        // Each customer has a folder named after their number.
+        return Core\Path::join($root, "customers", "{$customerId}", $fileName);
+    }
+}
+
+// On Windows, `join` writes `\`. This example replaces it with `/`.
+// This prints `/srv/shop/storage/customers/1042/receipt.pdf`.
+string $path = Uploads::pathFor("/srv/shop/storage", 1042, "receipt.pdf");
+echo Core\Str::replace($path, Core\Path::SEPARATOR, "/"), "\n";

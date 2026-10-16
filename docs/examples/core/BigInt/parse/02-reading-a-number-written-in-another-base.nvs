@@ -1,0 +1,17 @@
+<?nvs
+// Shows how to read a number that is written in another base, such as the
+// hexadecimal of a colour or a hash.
+
+// The `radix` option is the base the digits are written in. 16 is hexadecimal,
+// where `a` to `f` are the digits after 9. This prints 255.
+echo Core\BigInt::parse("ff", {radix: 16}), "\n";
+
+// Base 2 reads binary digits. This prints 10.
+echo Core\BigInt::parse("1010", {radix: 2}), "\n";
+
+// The base may be any number from 2 to 36. This prints 1295.
+echo Core\BigInt::parse("zz", {radix: 36}), "\n";
+
+// `format` writes a number in any base `parse` reads, so the two go together.
+// This prints ff.
+echo Core\BigInt::parse("255")->format({radix: 16}), "\n";

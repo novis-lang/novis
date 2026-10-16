@@ -1,0 +1,18 @@
+{
+  "summary": "JSON in and out — `encode` any value, `decode` to `mixed`, `decodeAs<T>` straight into a class that declares its codec",
+  "keywords": [
+    "json_encode",
+    "json_decode",
+    "json_validate",
+    "json_last_error",
+    "json_last_error_msg",
+    "JSON_PRETTY_PRINT",
+    "JSON_UNESCAPED_UNICODE",
+    "JSON_THROW_ON_ERROR",
+    "JsonSerializable",
+    "hydration",
+    "typed decoding",
+    "Derive",
+    "Field"
+  ]
+}

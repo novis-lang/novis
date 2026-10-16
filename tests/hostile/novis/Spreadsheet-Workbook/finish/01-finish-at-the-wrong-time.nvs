@@ -1,0 +1,75 @@
+<?nvs
+// Attack: a program calls `finish` twice, before any sheet, after an error in the middle of a sheet,
+// and from inside the rows it is writing. Each call should finish or throw an error. The server keeps running.
+// hostile: ends-early 4 FATAL
+use Novis\Spreadsheet\Workbook;
+
+class Attack
+{
+    public static ?Workbook $current = null;
+
+    // This method runs one step and prints whether it ran or threw. Each error is caught, so the next step still runs.
+    public static function attempt(int $step, callable(): void $write): void
+    {
+        try {
+            $write();
+            echo 'step ', $step, " ran\n";
+        } catch (Throwable $e) {
+            echo 'step ', $step, ' stopped ', $e::class, "\n";
+        }
+    }
+
+    // This generator gives 2,000 rows, and calls `finish` on the workbook in the middle of them.
+    public static function rows(): Iterator<array<mixed>>
+    {
+        int $at = 0;
+        while ($at < 2000) {
+            if ($at == 1500) {
+                self::$current?->finish();
+            }
+            yield ['order' => $at];
+            $at = $at + 1;
+        }
+    }
+}
+
+// 1. `finish` twice, and `finish` with no sheet.
+Attack::attempt(1, fn (): void => {
+    var $book = Workbook::createInMemory();
+    $book->sheet('Shop')->add(['order' => 1]);
+    $book->finish();
+    $book->finish();
+});
+Attack::attempt(1, fn (): void => {
+    Workbook::createInMemory()->finish();
+});
+
+// 2. A row with a value a cell cannot have, after 1,500 good rows, and then `finish`.
+var $broken = Workbook::createInMemory();
+Attack::attempt(2, fn (): void => {
+    var $sheet = $broken->sheet('Shop');
+    for (int $at = 0; $at < 1500; $at++) {
+        $sheet->add(['order' => $at]);
+    }
+    $sheet->add(['order' => [1, 2]]);
+});
+Attack::attempt(2, fn (): void => {
+    $broken->finish();
+});
+
+// 3. `finish` called from inside the generator that gives the rows.
+Attack::attempt(3, fn (): void => {
+    var $book = Workbook::createInMemory();
+    Attack::$current = $book;
+    $book->sheet('Shop')->addAll(Attack::rows());
+    $book->finish();
+});
+
+// 4. 5,000 finished workbooks in one request. A request frees its workbooks only when it ends.
+// So the memory limit stops this step, and it is the last step.
+echo "step 4\n";
+for (int $at = 0; $at < 5000; $at++) {
+    var $book = Workbook::createInMemory();
+    $book->sheet('Blog');
+    $book->finish();
+}

@@ -1,0 +1,61 @@
+--TEST--
+Spec § 10: a Core member's failure is the class its own row promises, so a narrow catch clause matches it and the wider ones still do
+--FILE--
+<?nvs
+// `Core\Time::parse` promises ParseError for text that does not match the
+// pattern — and LogicError for a pattern this call site wrote wrongly, which
+// is "a bug in the program" rather than "the world said no".
+try {
+    Core\Time::parse("nope", "yyyy-MM-dd", Core\Time\Zone::UTC);
+    echo "not reached\n";
+} catch (ParseError $bad) {
+    echo "parse\n";
+}
+
+// The pattern is read out of a variable because its literal form no longer
+// reaches this `catch` at all: `rule:expressions/intrinsic-list-is-closed` makes `Core\Time::parse` an
+// intrinsic, so a malformed literal is § 2's compile error and the *runtime*
+// class this case is about is the computed spelling's.
+string $reservedLetter = "yyyy-jj-dd";
+try {
+    Core\Time::parse("2020-01-01", $reservedLetter, Core\Time\Zone::UTC);
+    echo "not reached\n";
+} catch (ParseError $wrong) {
+    echo "not reached either\n";
+} catch (LogicError $pattern) {
+    echo "logic\n";
+}
+
+// A ParseError is still a RuntimeError and still a Throwable, so a program
+// that caught the wide class before keeps catching it.
+string $unreadable = "nope";
+try {
+    Core\Time\Duration::parse($unreadable);
+    echo "not reached\n";
+} catch (RuntimeError $wide) {
+    echo "runtime\n";
+}
+
+try {
+    Core\Json::decode("{oops}");
+    echo "not reached\n";
+} catch (Throwable $widest) {
+    echo "throwable\n";
+}
+
+// A clause for the wrong branch of the tree does not swallow it: LogicError
+// and ParseError are siblings, so neither catches the other.
+try {
+    Core\Json::decode("[1]", {maxDepth: 99999});
+    echo "not reached\n";
+} catch (ParseError $unrelated) {
+    echo "not reached either\n";
+} catch (LogicError $asked) {
+    echo "logic\n";
+}
+--EXPECT--
+parse
+logic
+runtime
+throwable
+logic

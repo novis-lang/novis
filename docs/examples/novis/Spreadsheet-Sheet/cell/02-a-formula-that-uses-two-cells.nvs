@@ -1,0 +1,23 @@
+<?nvs
+// Shows how to build a formula from the addresses of two cells.
+use Novis\Spreadsheet\Formula;
+use Novis\Spreadsheet\Reader;
+use Novis\Spreadsheet\Workbook;
+
+var $book = Workbook::createInMemory();
+var $sheet = $book->sheet('Invoice');
+$sheet->add(['item' => 'Widget', 'price' => 2.5, 'qty' => 4, 'amount' => null]);
+
+// The formula of row 3 multiplies the price and the quantity of row 3.
+string $price = $sheet->cell('price', 3);
+string $qty = $sheet->cell('qty', 3);
+$sheet->add(['item' => 'Gadget', 'price' => 4.0, 'qty' => 2, 'amount' => Formula::of("={$price}*{$qty}")]);
+bytes $file = $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
+
+// With `formulas: true`, the reader returns a formula as a `Formula`. This prints `B3*C3`.
+foreach (Reader::open($file)->rows('Invoice', { header: true, formulas: true }) as var $row) {
+    var $amount = $row->values['amount'];
+    if ($amount is Formula) {
+        echo $row->number, ': ', $amount->text, "\n";
+    }
+}

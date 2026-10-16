@@ -1,0 +1,24 @@
+--TEST--
+`rule:types/numeric-literal-placement`: a parameter declared `decimal` takes a number literal as its default, read from its digits with its scale and sign kept, and the call that omits it gets that exact value
+--FILE--
+<?nvs
+class Invoice {
+    public static function gross(decimal $net, decimal $rate = 0.19): decimal {
+        return $net + $net * $rate;
+    }
+
+    public static function show(decimal $a = 1.10, decimal $b = -2, decimal $c = 0.1234567890123456789012345678): void {
+        echo $a, " ", $b, " ", $c, "\n";
+    }
+}
+
+// The omitted rate is exactly `0.19`, so the result has no rounding error.
+echo Invoice::gross(100.00), "\n";
+echo Invoice::gross(100.00, 0.07), "\n";
+
+// The trailing zero, the sign and all 28 digits after the point are kept.
+Invoice::show();
+--EXPECT--
+119.0000
+107.0000
+1.10 -2 0.1234567890123456789012345678

@@ -1,0 +1,52 @@
+<?nvs
+// Attack: a request hands its connection an argument that is very deep, then one that
+// is very large, and calls `Core\Socket::upgrade` many times. Each extra call should
+// throw an error, and no copy of an argument should be kept.
+
+class Room
+{
+    public static function run(array<mixed> $history): void
+    {
+        Core\Socket $conn = Core\Socket::current();
+        $conn->send('history has ' . Core\Arr::count($history) . ' entries');
+    }
+}
+
+// 1. Hand the connection an argument nested one hundred thousand arrays deep.
+array<mixed> $deep = [];
+uint $i = 0;
+while ($i < 100000) {
+    $deep = [$deep];
+    $i = $i + 1;
+}
+try {
+    Core\Socket::upgrade(Room::run(...), args: ['history' => $deep]);
+} catch (Throwable $tooDeep) {
+    echo 'deep: ', $tooDeep->message, "\n";
+}
+
+// 2. Hand the connection an argument with one million strings.
+array<mixed> $large = [];
+$i = 0;
+while ($i < 1000000) {
+    $large[] = 'message ' . $i;
+    $i = $i + 1;
+}
+try {
+    Core\Socket::upgrade(Room::run(...), args: ['history' => $large]);
+} catch (Throwable $tooLarge) {
+    echo 'large: ', $tooLarge->message, "\n";
+}
+
+// 3. Call it ten thousand more times, each time with a new argument to copy.
+$i = 0;
+uint $refused = 0;
+while ($i < 10000) {
+    try {
+        Core\Socket::upgrade(Room::run(...), args: ['history' => ['entry ' . $i]]);
+    } catch (RuntimeError $again) {
+        $refused = $refused + 1;
+    }
+    $i = $i + 1;
+}
+echo 'refused: ', $refused, "\n";

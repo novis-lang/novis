@@ -1,0 +1,72 @@
+<?nvs
+// Attack: a program closes sockets twice, opens and closes thousands of them, and leaves many open at the end.
+// Every extra close should throw, and the request should close what is left and end cleanly.
+
+// 1. Close the same socket three times.
+Core\Net\Datagram $socket = Core\Net::bindDatagram('127.0.0.1', 0);
+$socket->close();
+try {
+    $socket->close();
+} catch (RuntimeError $e) {
+    echo "1a ok\n";
+}
+try {
+    $socket->close();
+} catch (RuntimeError $e) {
+    echo "1b ok\n";
+}
+
+// 2. Every other method after close.
+try {
+    $socket->send('127.0.0.1', 9, 'x' as bytes, 1s);
+} catch (RuntimeError $e) {
+    echo "2a ok\n";
+}
+try {
+    $socket->receive(64, 1s);
+} catch (RuntimeError $e) {
+    echo "2b ok\n";
+}
+try {
+    $socket->port();
+} catch (RuntimeError $e) {
+    echo "2c ok\n";
+}
+
+// 3. Open and close five thousand sockets, one after another.
+uint $i = 0;
+while ($i < 5000) {
+    try {
+        Core\Net::bindDatagram('127.0.0.1', 0)->close();
+    } catch (IOError $io) {
+    }
+    $i = $i + 1;
+}
+echo "3 ok\n";
+
+// 4. Close a socket that still has one hundred messages waiting in it.
+Core\Net\Datagram $full = Core\Net::bindDatagram('127.0.0.1', 0);
+Core\Net\Datagram $sender = Core\Net::bindDatagram('127.0.0.1', 0);
+$i = 0;
+while ($i < 100) {
+    try {
+        $sender->send('127.0.0.1', $full->port(), Core\Str::repeat('w', 1000) as bytes, 1s);
+    } catch (TimeoutError $late) {
+    } catch (IOError $io) {
+    }
+    $i = $i + 1;
+}
+$full->close();
+echo "4 ok\n";
+
+// 5. Two hundred sockets that are never closed. The request closes them when it ends.
+array<Core\Net\Datagram> $leftOpen = [$sender];
+$i = 0;
+while ($i < 200) {
+    try {
+        $leftOpen[] = Core\Net::bindDatagram('127.0.0.1', 0);
+    } catch (IOError $io) {
+    }
+    $i = $i + 1;
+}
+echo "5 ok\n";

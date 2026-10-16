@@ -1,0 +1,34 @@
+<?nvs
+// A value also moves on its own into a place that holds more than it does: a
+// place that accepts nothing as well, a place that accepts one of several
+// types, and a place that accepts anything at all.
+
+interface Sends {
+    public function send(): string;
+}
+
+class Email implements Sends {
+    public function send(): string {
+        return "sent by e-mail";
+    }
+}
+
+class Invoice extends Email {}
+
+int $count = 3;
+
+?int $optional = $count;
+int|string $either = $count;
+mixed $anything = $count;
+
+echo $optional ?? 0, " ", $either as string, " ", $anything as string, "\n";
+
+// An object moves the same way: into a parent, into an interface it carries
+// out, and into the plain `object` every class fits.
+Email $parent = new Invoice();
+Sends $contract = new Invoice();
+object $plain = new Invoice();
+
+echo $parent->send(), "\n";
+echo $contract->send(), "\n";
+echo $plain is Email, "\n";

@@ -1,0 +1,10 @@
+<?nvs
+// Shows how to put the entries of an array in the order of their keys. Every
+// key keeps its value.
+
+array<int> $scores = ['carol' => 3, 'alice' => 1, 'bob' => 2];
+
+// This prints alice=1, bob=2 and carol=3, one per line.
+foreach (Core\Arr::sortByKey($scores) as string $name => int $score) {
+    echo $name, '=', $score, "\n";
+}

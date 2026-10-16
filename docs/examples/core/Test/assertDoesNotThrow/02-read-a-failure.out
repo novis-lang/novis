@@ -1,0 +1,2 @@
+Core\Test::assertDoesNotThrow failed: `$body` threw: a setting needs a name and a value
+a setting without a value is allowed: Core\Test::assertDoesNotThrow failed: `$body` threw: a setting needs a name and a value

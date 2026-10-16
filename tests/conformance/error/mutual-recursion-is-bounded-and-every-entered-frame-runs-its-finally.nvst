@@ -1,0 +1,57 @@
+--TEST--
+A runaway recursion through two functions is bounded like one through a single function, and every frame that was entered runs its `finally` on the way out — `rule:errors/stack-depth`, `rule:errors/propagation`
+--FILE--
+<?nvs
+// covers: lang:errors/recursion-depth
+// The bound is a stack address rather than a frame count (`rule:errors/stack-depth`),
+// so this case counts frames against `finally` blocks and never names a depth.
+final class Pair {
+    public static int $entered = 0;
+    public static int $closed = 0;
+
+    public static function ping(int $n): int {
+        Pair::$entered = Pair::$entered + 1;
+        try {
+            return Pair::pong($n + 1) + 1;
+        } finally {
+            Pair::$closed = Pair::$closed + 1;
+        }
+    }
+
+    public static function pong(int $n): int {
+        Pair::$entered = Pair::$entered + 1;
+        try {
+            return Pair::ping($n + 1) + 1;
+        } finally {
+            Pair::$closed = Pair::$closed + 1;
+        }
+    }
+}
+
+try {
+    echo Pair::ping(0), "\n";
+} catch (RecursionError $tooDeep) {
+    echo "caught ", $tooDeep->message, "\n";
+}
+
+// The frame that could not be entered ran no `finally`, and every frame above it
+// ran exactly one, so the two counters agree.
+echo "every frame closed: ", Pair::$entered == Pair::$closed ? "yes" : "no", "\n";
+echo "frames were entered: ", Pair::$entered > 100 ? "yes" : "no", "\n";
+
+// Unwinding hands the depth back, so the same recursion is bounded a second time
+// and the error still answers to `RuntimeError`.
+Pair::$entered = 0;
+Pair::$closed = 0;
+try {
+    echo Pair::pong(0), "\n";
+} catch (RuntimeError $again) {
+    echo "caught again as a RuntimeError\n";
+}
+echo "every frame closed: ", Pair::$entered == Pair::$closed ? "yes" : "no", "\n";
+--EXPECT--
+caught the call stack is too deep
+every frame closed: yes
+frames were entered: yes
+caught again as a RuntimeError
+every frame closed: yes

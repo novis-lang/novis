@@ -1,0 +1,76 @@
+--TEST--
+A value of every type the fixture extension takes crosses into it and comes back unchanged — `rule:packaging/a-value-crosses-as-its-wit-type`, `rule:packaging/extension-calls-are-statically-typed`
+--EXTENSION--
+ledger
+--FILE--
+<?nvs
+use Core\Json;
+use Shop\Ledger;
+use Shop\Unit;
+
+// Each `echo` method of `Shop\Ledger` returns its argument unchanged.
+echo Ledger::echoBool(true) ? "true" : "false", "\n";
+echo Ledger::echoInt(-42), "\n";
+echo Ledger::echoUint(9223372036854775807 as uint), "\n";
+echo Ledger::echoFloat(2.5), "\n";
+echo Ledger::echoString("Grüße"), "\n";
+
+// `bytes` comes back with the same octets.
+var $data = "a\0b" as bytes;
+echo Core\Bytes::compare(Ledger::echoBytes($data), $data), "\n";
+
+// A list keeps its order, and a keyed array keeps its keys in order.
+echo Json::encode(Ledger::echoList([3, 1, 2])), "\n";
+echo Json::encode(Ledger::echoMap(["b" => 2, "a" => 1])), "\n";
+
+// `?int` crosses as a number or as `null`. Without an argument, it is `null`.
+echo Ledger::echoOptional(5) ?? "null", "\n";
+echo Ledger::echoOptional() ?? "null", "\n";
+
+// A shape crosses with its fields. An optional field that is not set stays not set.
+echo Json::encode(Ledger::echoItem({name: "pen", note: "blue"})), "\n";
+echo Json::encode(Ledger::echoItem({name: "cup"})), "\n";
+echo Ledger::echoItem({name: "lamp", note: "red"})->note, "\n";
+
+// `Area` is a closed union of two shapes. Each value comes back as the same shape.
+echo Json::encode(Ledger::echoArea({radius: 1.5})), "\n";
+echo Json::encode(Ledger::echoArea({width: 2.0, height: 3.0})), "\n";
+
+// A `Core` value, such as an `Instant` or a `Uri`, comes back equal to the one passed in.
+echo Ledger::echoInstant(Core\Time::fromIso("2024-01-02T03:04:05.5Z"))->toIso(), "\n";
+var $address = Ledger::echoUri(Core\Uri::parse("https://example.com/shop?page=2"));
+echo $address->host(), " ", $address->toString(), "\n";
+
+// `Unit` is an enum that the extension declares. A case comes back as the same case.
+echo Ledger::echoUnit(Unit::MetricTon) == Unit::MetricTon ? "same" : "different", "\n";
+echo match (Ledger::echoUnit(Unit::Gram)) {
+    Unit::Gram => "gram",
+    Unit::Kilogram => "kilogram",
+    Unit::MetricTon => "metric ton",
+}, "\n";
+
+// `kindOf` takes any value. The number it returns says what kind of value it is.
+echo Ledger::kindOf(null), " ", Ledger::kindOf(7), " ", Ledger::kindOf("pen"), "\n";
+echo Ledger::kindOf([1, 2]), " ", Ledger::kindOf($address), "\n";
+--EXPECT--
+true
+-42
+9223372036854775807
+2.5
+Grüße
+0
+[3,1,2]
+{"b":2,"a":1}
+5
+null
+{"name":"pen","note":"blue"}
+{"name":"cup"}
+red
+{"radius":1.5}
+{"height":3.0,"width":2.0}
+2024-01-02T03:04:05.5Z
+example.com https://example.com/shop?page=2
+same
+gram
+0 2 5
+7 8

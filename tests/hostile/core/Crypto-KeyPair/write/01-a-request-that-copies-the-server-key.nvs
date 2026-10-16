@@ -1,0 +1,51 @@
+<?nvs
+// Attack: a request makes the server copy its own private key until the memory
+// runs out. It also tries to make the stored form drift. Every step should work
+// or throw an error the program can catch. The program should reach its last
+// line.
+// hostile: timeout-ms 20000
+
+Core\Crypto\KeyPair $pair = Core\Crypto\KeyPair::read(
+    Core\Encoding::fromHex('302e020100300506032b65700422042036e7913c75ff5d89ba4f46526320f547cf75369a560a168f6ab5bb178fbeaadf'),
+    Core\Crypto\KeyKind::Ed25519,
+);
+
+// 1. One hundred thousand copies of the key, all kept at once.
+array<secret bytes> $copies = [];
+int $held = 0;
+foreach (Core\Arr::range(1, 100000) as int $round) {
+    $copies[] = $pair->write();
+    $held += 1;
+}
+echo '1 kept ', $held, ' copies', "\n";
+
+// 2. Every copy revealed and joined into one buffer, which is the plain key
+// repeated a hundred thousand times.
+array<bytes> $plain = [];
+foreach ($copies as secret bytes $copy) {
+    $plain[] = Core\Secret::revealBytes($copy, 'the attack builds one buffer out of the key');
+}
+echo '2 joined ', Core\Bytes::length(Core\Bytes::join($plain, '' as bytes)), ' bytes', "\n";
+
+// 3. The key written, read back and written again, twenty thousand times over.
+// A file that drifts by one byte each turn is a key nobody can read later.
+Core\Crypto\KeyPair $turning = $pair;
+int $same = 0;
+foreach (Core\Arr::range(1, 20000) as int $round) {
+    secret bytes $file = $turning->write();
+    $turning = Core\Crypto\KeyPair::read($file, Core\Crypto\KeyKind::Ed25519);
+    if ($turning->write() == $file) {
+        $same += 1;
+    }
+}
+echo '3 the file was the same ', $same, ' times of 20000', "\n";
+
+// 4. The key revealed with an empty reason, which is what code written to hide
+// what it does looks like.
+try {
+    echo '4 revealed ',
+        Core\Bytes::length(Core\Secret::revealBytes($pair->write(), '')),
+        ' bytes', "\n";
+} catch (Throwable $e) {
+    echo '4 refused', "\n";
+}

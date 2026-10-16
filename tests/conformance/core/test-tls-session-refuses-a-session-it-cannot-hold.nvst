@@ -1,0 +1,39 @@
+--TEST--
+`Core\Test::tlsSession` throws a `LogicError` naming the field for a version, a suite, a name or an expiry no certificate or build can hold, and TLS 1.2 takes its own default suite — `rule:testing/an-outbound-call-is-answered-from-a-table`
+--FILE--
+<?nvs
+// covers: Core\Test::tlsSession
+// Each refusal names the field it is about, so a test that wrote the wrong one
+// learns which from the message alone.
+var $refused = fn (callable(): Core\Http\TlsInfo $build): void => {
+    try {
+        $build();
+        echo "built\n";
+    } catch (LogicError $e) {
+        echo $e->message, "\n";
+    }
+};
+
+$refused(fn (): Core\Http\TlsInfo => Core\Test::tlsSession({version: "TLSv1.1"}));
+$refused(fn (): Core\Http\TlsInfo => Core\Test::tlsSession({version: "TLSv1.2", cipher: "TLS_AES_128_GCM_SHA256"}));
+$refused(fn (): Core\Http\TlsInfo => Core\Test::tlsSession({subject: "CN=api.example.com, CN=www.example.com"}));
+$refused(fn (): Core\Http\TlsInfo => Core\Test::tlsSession({issuer: "Q=Example"}));
+$refused(fn (): Core\Http\TlsInfo => Core\Test::tlsSession({expiry: Core\Time::fromIso("1949-12-31T23:59:59Z")}));
+
+// A suite this build supports for TLS 1.2 is accepted under the same name
+// `cipher()` returns, and the six keys are all accepted in the order written.
+var $older = Core\Test::tlsSession({
+    version: "TLSv1.2",
+    cipher: "TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384",
+    subject: "C=AT, ST=Vienna, L=Vienna, O=Shop, OU=Payments, CN=pay.example.com",
+});
+echo $older->version(), " ", $older->cipher(), "\n";
+echo $older->subject(), "\n";
+--EXPECT--
+Core\Test::tlsSession(): `version` is `TLSv1.3` or `TLSv1.2`, and this one is `TLSv1.1`
+Core\Test::tlsSession(): `cipher` is a suite this build negotiates over TLSv1.2 — TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384, TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256, TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256, TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384, TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256, TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256 — and `TLS_AES_128_GCM_SHA256` is not one of them
+Core\Test::tlsSession(): `subject` writes `CN` twice
+Core\Test::tlsSession(): `issuer` uses the keys `CN`, `O`, `OU`, `C`, `ST` and `L`, and `Q` is not one of them
+Core\Test::tlsSession(): `expiry` is between 1950 and the end of 9999, which is what a certificate can hold
+TLSv1.2 TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384
+C=AT, ST=Vienna, L=Vienna, O=Shop, OU=Payments, CN=pay.example.com

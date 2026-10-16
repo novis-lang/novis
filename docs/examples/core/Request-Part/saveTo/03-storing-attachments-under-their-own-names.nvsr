@@ -1,0 +1,23 @@
+--METHOD--
+POST
+--PATH--
+/tickets/2041/attachments
+--SCHEME--
+https
+--HEADERS--
+host: example.com
+content-type: multipart/form-data; boundary=----WebKitFormBoundaryH7pQ2sXe0VdM
+--BODY_CRLF--
+------WebKitFormBoundaryH7pQ2sXe0VdM
+Content-Disposition: form-data; name="attachment"; filename="error-log.txt"
+Content-Type: text/plain
+
+12:01 the printer did not answer
+12:02 the printer did not answer
+------WebKitFormBoundaryH7pQ2sXe0VdM
+Content-Disposition: form-data; name="attachment"; filename="../../config/app.toml"
+Content-Type: text/plain
+
+[server]
+debug = true
+------WebKitFormBoundaryH7pQ2sXe0VdM--

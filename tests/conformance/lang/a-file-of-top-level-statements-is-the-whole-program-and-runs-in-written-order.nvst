@@ -1,0 +1,43 @@
+--TEST--
+A file of top-level statements is the whole program: they run in written order, `echo` writes every expression it is given with nothing between them, `print` writes one, and a class is usable above where it is declared (`rule:tooling/echo-always-has-a-sink`)
+--FILE--
+<?nvs
+// covers: lang:programs/a-program-is-a-file-of-top-level-statements
+// The statements below are the program. Nothing calls them, and there is no
+// `main` for them to live in.
+echo "first", "\n";
+echo "second", "\n";
+
+// `rule:tooling/echo-always-has-a-sink`: `echo` takes any number of
+// expressions and writes each one to the sink, with nothing put between them
+// and nothing added at the end.
+echo "a", "b", "c";
+echo "\n";
+
+// `print` writes exactly one expression, to the same place.
+print "one line";
+print "\n";
+
+// A class is a declaration rather than a step, so a statement above it may
+// already use it.
+echo Greeter::greet("world"), "\n";
+
+class Greeter {
+    public static function greet(string $who): string {
+        return "hello, " . $who;
+    }
+}
+
+// Written order is what decides the answer: the same two statements the other
+// way round would print 1 rather than 10.
+int $n = 0;
+$n = $n + 1;
+$n = $n * 10;
+echo $n, "\n";
+--EXPECT--
+first
+second
+abc
+one line
+hello, world
+10

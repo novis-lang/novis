@@ -1,0 +1,4 @@
+# The program reads files in the folder `data`.
+# This line allows that, and nothing else.
+[capabilities.fs]
+read = ["data"]

@@ -1,0 +1,8 @@
+--METHOD--
+GET
+--PATH--
+/search
+--QUERY--
+filter[color][dark]=navy
+--HEADERS--
+host: shop.example.com

@@ -1,0 +1,26 @@
+<?nvs
+// Shows the usual way to use an optional attribute: read it, and use a default
+// value when the result is `null`.
+
+type PageSize = {rows: int};
+
+#[PageSize(rows: 100)]
+class Invoices {}
+
+class Customers {}
+
+class Listing {
+    // Returns the number of rows the class asks for, or 25 when it asks for none.
+    public static function rowsOf(?PageSize $size): int {
+        if ($size == null) {
+            return 25;
+        }
+        return $size->rows;
+    }
+}
+
+// `Invoices` carries a `PageSize`, so this prints 100.
+echo Listing::rowsOf(Core\Attributes::get<PageSize>(Invoices::constructor(...))), "\n";
+
+// `Customers` carries none, so the result is `null` and this prints 25.
+echo Listing::rowsOf(Core\Attributes::get<PageSize>(Customers::constructor(...))), "\n";

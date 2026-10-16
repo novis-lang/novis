@@ -1,0 +1,26 @@
+<?nvs
+// Shows a worker that finishes its current job and then stops when it is asked to.
+
+final class Worker
+{
+    // The shutdown function reads this to say how far the worker got.
+    public static int $done = 0;
+}
+
+Core\Signal::onShutdown(fn (): void => {
+    echo "Asked to stop after ", Worker::$done, " jobs.\n";
+});
+
+array<string> $jobs = ["resize photo", "send invoice", "update stock"];
+foreach ($jobs as string $job) {
+    // After a stop signal, `Core\Server::isDraining()` returns `true`.
+    // The worker then starts no new job.
+    if (Core\Server::isDraining()) {
+        break;
+    }
+    echo "Done: ", $job, "\n";
+    Worker::$done = Worker::$done + 1;
+}
+
+// Nothing asks this program to stop, so all three jobs run.
+echo "Jobs done: ", Worker::$done, "\n";

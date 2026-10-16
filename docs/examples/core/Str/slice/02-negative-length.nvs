@@ -1,0 +1,14 @@
+<?nvs
+// Shows how a negative length and an offset past the end work.
+
+var $file = "report-2026.csv";
+
+// A negative length stops that many characters before the end.
+// This prints `report-2026`, without the last four characters.
+echo Core\Str::slice($file, 0, -4), "\n";
+
+// This prints `2026`, the four characters before `.csv`.
+echo Core\Str::slice($file, -8, 4), "\n";
+
+// An offset past the end gives an empty string. No error is thrown.
+echo "[", Core\Str::slice($file, 50), "]\n";

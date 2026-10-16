@@ -1,0 +1,68 @@
+--TEST--
+`Novis\Image\Color::rgba` and `::hex` read every hex length, and a channel past 255, an alpha outside 0.0 to 1.0 or `NAN`, and text that is not hex each throw a `LogicError`: rule:core-classes/image-pipeline
+--FILE--
+<?nvs
+// covers: Novis\Image\Color::rgba, Novis\Image\Color::hex
+use Novis\Image\Color;
+
+class Show {
+    public static function line(Color $c): string {
+        return "{$c->r} {$c->g} {$c->b} {$c->alpha}";
+    }
+
+    public static function rgba(uint $r, float $alpha): string {
+        try {
+            return Show::line(Color::rgba($r, 0, 0, $alpha));
+        } catch (LogicError $e) {
+            return "LogicError";
+        }
+    }
+
+    public static function hex(string $text): string {
+        try {
+            return Show::line(Color::hex($text));
+        } catch (LogicError $e) {
+            return "LogicError";
+        }
+    }
+}
+
+echo Show::line(Color::rgba(255, 128, 0)), "\n";
+echo Show::rgba(0, 0.0), "\n";
+echo Show::rgba(255, 1.0), "\n";
+echo Show::rgba(256, 1.0), "\n";
+echo Show::rgba(0, -0.1), "\n";
+echo Show::rgba(0, 1.5), "\n";
+echo Show::rgba(0, Core\Math::NAN), "\n";
+echo Show::rgba(0, Core\Math::INFINITY), "\n";
+echo Show::hex("#f80"), "\n";
+echo Show::hex("f808"), "\n";
+echo Show::hex("#336699"), "\n";
+echo Show::hex("#33669900"), "\n";
+echo Show::hex("#FFFFFF"), "\n";
+echo Show::hex(""), "\n";
+echo Show::hex("#"), "\n";
+echo Show::hex("#12345"), "\n";
+echo Show::hex("#gg0000"), "\n";
+echo Show::hex("##ff0000"), "\n";
+echo Show::hex("#ééé"), "\n";
+--EXPECT--
+255 128 0 1
+0 0 0 0
+255 0 0 1
+LogicError
+LogicError
+LogicError
+LogicError
+LogicError
+255 136 0 1
+255 136 0 0.53333333333333
+51 102 153 1
+51 102 153 0
+255 255 255 1
+LogicError
+LogicError
+LogicError
+LogicError
+LogicError
+LogicError

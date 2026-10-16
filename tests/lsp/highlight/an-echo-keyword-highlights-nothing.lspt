@@ -1,0 +1,10 @@
+--TEST--
+a cursor on the `echo` keyword is on no name, and a question the index cannot be asked answers empty rather than erroring, `rule:ide/five-features-are-one-reference-index`
+--FILE--
+<?nvs
+var $total = 3;
+ech<|>o $total;
+--REQUEST--
+documentHighlight
+--EXPECT--
+none

@@ -1,0 +1,16 @@
+<?nvs
+// Shows an import job that checks its peak memory in a log line when it ends.
+
+Core\Script::onExit(fn (Core\Script\ExitReport $report): void => {
+    // The job held 2 MiB of rows, which is 2097152 bytes.
+    // This prints "job=import peak-ok=yes".
+    echo "job=import peak-ok=", $report->memoryPeak() >= 2097152 ? "yes" : "no", "\n";
+});
+
+array<string> $rows = [];
+int $i = 0;
+while ($i < 2) {
+    $rows[] = Core\Str::repeat("r", 1048576);
+    $i = $i + 1;
+}
+echo "imported ", Core\Arr::count($rows), " rows\n";

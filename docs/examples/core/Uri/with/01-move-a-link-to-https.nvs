@@ -1,0 +1,11 @@
+<?nvs
+// Shows how to change the scheme and the port of an address.
+
+var $link = Core\Uri::parse("http://example.com:8080/account?tab=orders");
+
+// The scheme is replaced, and `null` removes the port. The path and the query stay.
+// This prints https://example.com/account?tab=orders.
+echo $link->with({scheme: "https", port: null}), "\n";
+
+// `$link` does not change. This prints the first address again.
+echo $link, "\n";

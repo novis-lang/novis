@@ -1,0 +1,13 @@
+<?nvs
+// Shows that `plus` adds real hours, even on the night the local clock changes.
+
+Core\Time\Zone $berlin = Core\Time\Zone::of("Europe/Berlin");
+
+// On 31 March 2024, clocks in Berlin moved from 02:00 to 03:00.
+Core\Time\Instant $evening = Core\Time::fromIso("2024-03-30T20:00:00Z");
+Core\Time\Instant $next = $evening->plus(24h);
+
+// Exactly 24 hours pass, but the local clock shows one hour more.
+// This prints 21:00 +01:00 and then 22:00 +02:00.
+echo $evening->in($berlin)->format("HH:mm XXX"), "\n";
+echo $next->in($berlin)->format("HH:mm XXX"), "\n";

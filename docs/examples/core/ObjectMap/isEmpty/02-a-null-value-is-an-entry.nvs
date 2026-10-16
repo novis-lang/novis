@@ -1,0 +1,31 @@
+<?nvs
+// Shows that a key whose value is `null` is an entry, and when the map becomes empty again.
+
+final class Task {
+    public string $title;
+
+    public function constructor(string $title) {
+        $this->title = $title;
+    }
+}
+
+Task $backup = new Task("backup");
+Task $report = new Task("report");
+
+// The value is the name of the person working on the task. `null` means nobody yet.
+Core\ObjectMap<Task, ?string> $owner = new Core\ObjectMap<Task, ?string>();
+$owner->set($backup, null);
+
+// The map has one key, even though its value is `null`. This prints `false`.
+echo $owner->isEmpty() ? "true" : "false", "\n";
+
+// `remove` takes out the last key. This prints `true`.
+$owner->remove($backup);
+echo $owner->isEmpty() ? "true" : "false", "\n";
+
+// `clear` also empties the map. This prints `false`, then `true`.
+$owner->set($backup, "Ana");
+$owner->set($report, "Li");
+echo $owner->isEmpty() ? "true" : "false", "\n";
+$owner->clear();
+echo $owner->isEmpty() ? "true" : "false", "\n";

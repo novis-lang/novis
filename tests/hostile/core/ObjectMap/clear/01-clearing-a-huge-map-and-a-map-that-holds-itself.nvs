@@ -1,0 +1,67 @@
+<?nvs
+// Attack: a program clears very large maps many times, and clears a map while it is walked.
+// It also stores a map inside itself. Every step should finish, and no memory should leak.
+
+final class Node
+{
+    public int $id;
+
+    public function constructor(int $id)
+    {
+        $this->id = $id;
+    }
+}
+
+final class Box
+{
+    public ?Core\ObjectMap<Box, Box> $inner = null;
+}
+
+// 1. Fill a map with 200000 objects, clear it, and repeat 5 times.
+Core\ObjectMap<Node, array<int>> $big = new Core\ObjectMap<Node, array<int>>();
+int $round = 0;
+while ($round < 5) {
+    int $i = 0;
+    while ($i < 200000) {
+        $big->set(new Node($i), [$i, $i + 1]);
+        $i = $i + 1;
+    }
+    $big->clear();
+    $round = $round + 1;
+}
+echo '1: ', $big->count(), "\n";
+
+// 2. Clear the map inside the `foreach` that walks it.
+Core\ObjectMap<Node, int> $walked = new Core\ObjectMap<Node, int>();
+int $j = 0;
+while ($j < 1000) {
+    $walked->set(new Node($j), $j);
+    $j = $j + 1;
+}
+int $seen = 0;
+foreach ($walked as Node $key) {
+    $walked->clear();
+    $walked->set($key, $seen);
+    $seen = $seen + 1;
+}
+echo '2: ', $seen, ' ', $walked->count(), "\n";
+
+// 3. Clear an empty map one million times.
+Core\ObjectMap<Node, int> $empty = new Core\ObjectMap<Node, int>();
+int $k = 0;
+while ($k < 1000000) {
+    $empty->clear();
+    $k = $k + 1;
+}
+echo '3: ', $empty->count(), "\n";
+
+// 4. Store a map as a value inside itself, then clear it.
+Box $box = new Box();
+Core\ObjectMap<Box, Box> $self = new Core\ObjectMap<Box, Box>();
+$box->inner = $self;
+$self->set($box, $box);
+$self->clear();
+$self->set($box, $box);
+echo '4: ', $self->count(), "\n";
+$self->clear();
+$box->inner = null;

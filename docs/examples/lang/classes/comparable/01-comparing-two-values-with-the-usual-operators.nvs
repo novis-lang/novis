@@ -1,0 +1,33 @@
+<?nvs
+// Shows the comparison operators working on two objects. They work because the
+// class implements `Comparable` and writes the one method that interface needs.
+
+final class FileSize implements Comparable {
+    public function constructor(public uint $bytes) {}
+
+    // Returns a negative number when this size is the smaller one. Two sizes
+    // that are the same give zero. A larger size gives a positive number.
+    public function compareTo(self $other): int {
+        return $this->bytes <=> $other->bytes;
+    }
+}
+
+var $upload = new FileSize(2400000);
+var $limit = new FileSize(1048576);
+var $sameLimit = new FileSize(1048576);
+
+// `>` reads the sign of `compareTo`. This prints `the upload is over the limit`.
+if ($upload > $limit) {
+    echo "the upload is over the limit\n";
+}
+
+// `<=` is true when `compareTo` returns zero or a negative number, so two
+// sizes that are the same pass it.
+if ($limit <= $sameLimit) {
+    echo "the limit is within itself\n";
+}
+
+// `<=>` returns the number itself. Below zero means the value on the left
+// comes first. This prints `1` and then `-1`.
+echo $upload <=> $limit, "\n";
+echo $limit <=> $upload, "\n";

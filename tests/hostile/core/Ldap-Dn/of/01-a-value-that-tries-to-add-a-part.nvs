@@ -1,0 +1,39 @@
+<?nvs
+// Attack: a request sends names with commas, `=` and control characters, to add a
+// part to the DN. A very long name follows. Each name should stay one value.
+// hostile: timeout-ms 60000
+
+// 1. Names that would add a part if they were joined into the text.
+array<string> $names = ['Admin,CN=Users', "a\u{0}b", "\n", '#x', ' ', '\\', 'a"b<c>d;e'];
+uint $kept = 0;
+foreach ($names as string $name) {
+    try {
+        var $dn = Core\Ldap\Dn::of('CN', $name);
+        if ($dn->parent() == null && $dn->rdnValue() == $name) {
+            $kept = $kept + 1;
+        }
+    } catch (LogicError $refusal) {
+        echo "1 threw\n";
+    }
+}
+echo '1 kept: ', $kept, "\n";
+
+// 2. A name of one million characters.
+try {
+    var $long = Core\Ldap\Dn::of('CN', Core\Str::repeat(',', 1000000));
+    echo '2 length: ', Core\Str::length($long->toString()), "\n";
+} catch (Throwable $error) {
+    echo "2 threw\n";
+}
+
+// 3. Attribute names that are not names. Each one should throw an error.
+array<string> $attributes = ['', 'CN=x', 'CN,DC', 'cn;binary', '1x', Core\Str::repeat('a', 100000) . '='];
+uint $refused = 0;
+foreach ($attributes as string $attribute) {
+    try {
+        Core\Ldap\Dn::of($attribute, 'x');
+    } catch (LogicError $refusal) {
+        $refused = $refused + 1;
+    }
+}
+echo '3 refused: ', $refused, "\n";

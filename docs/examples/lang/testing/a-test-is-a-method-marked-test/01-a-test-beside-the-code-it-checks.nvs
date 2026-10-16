@@ -1,0 +1,27 @@
+<?nvs
+// Shows how to write a test. `#[Test]` above a method marks that method as a
+// test. `nvs test` on this file runs every marked method it finds.
+
+use Core\Test;
+
+class Slug {
+    public static function of(string $title): string {
+        return Core\Str::replace(Core\Str::lower($title), " ", "-");
+    }
+}
+
+class SlugTest {
+    #[Test]
+    public function spacesBecomeDashes(): void {
+        Test::assertSame(Slug::of("Hello World"), "hello-world");
+    }
+
+    #[Test]
+    public function capitalsBecomeSmallLetters(): void {
+        Test::assertSame(Slug::of("ORDER Form"), "order-form");
+    }
+}
+
+// `nvs run` runs the program and leaves the tests alone.
+// This prints `hello-world`.
+echo Slug::of("Hello World"), "\n";

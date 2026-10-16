@@ -1,0 +1,93 @@
+--TEST--
+A value whose only named type is `Stringable` renders at all four implicitly converting sites, and a parameter, a local and an element of an `array<Stringable>` each reach the same `toString()` — `rule:classes/stringable`
+--FILE--
+<?nvs
+// covers: Stringable
+// Nothing below names the class it is holding: the interface is the whole
+// static type at every site. What this pins is that one `toString()` serves a
+// parameter, a local and a list element, that a child inheriting the contract
+// is admitted wherever the interface is asked for, and that the four spellings
+// of the conversion agree instead of each growing an answer of its own.
+class Note implements Stringable {
+    public string $text;
+
+    public function constructor(string $text) {
+        $this->text = $text;
+    }
+
+    public function toString(): string {
+        return "note " . $this->text;
+    }
+}
+
+// Names neither the interface nor its own `implements`: the contract arrives
+// with the class it extends, and `parent::` reaches the member it overrides.
+final class Reminder extends Note {
+    public function toString(): string {
+        return "reminder: " . parent::toString();
+    }
+}
+
+// Shares no base with `Note`, and stands at the same sites for that reason.
+final class Bare implements Stringable {
+    public function toString(): string {
+        return "bare";
+    }
+}
+
+final class Show {
+    public static function echoed(Stringable $s): void {
+        echo $s, "\n";
+    }
+
+    public static function joined(Stringable $s): string {
+        return "<" . $s . ">";
+    }
+
+    public static function interpolated(Stringable $s): string {
+        return "{$s}!";
+    }
+
+    public static function converted(Stringable $s): string {
+        return $s as string;
+    }
+}
+
+Show::echoed(new Note("a"));
+Show::echoed(new Reminder("b"));
+Show::echoed(new Bare());
+echo Show::joined(new Note("c")), "\n";
+echo Show::interpolated(new Reminder("d")), "\n";
+echo Show::converted(new Bare()), "\n";
+
+// A local declared at the interface, holding the child, at all four sites.
+Stringable $held = new Reminder("e");
+echo $held, "|", $held as string, "|", "{$held}", "|", "" . $held, "\n";
+
+// Counted rather than read off a line: a spelling that grew its own answer
+// fails here while still printing plausibly above. The named call is the
+// fourth, because the interface's member is callable like any other.
+Stringable $one = new Note("f");
+int $agree = 0;
+if (($one as string) == "note f") { $agree = $agree + 1; }
+if (("" . $one) == ($one as string)) { $agree = $agree + 1; }
+if (("{$one}") == ($one as string)) { $agree = $agree + 1; }
+if ($one->toString() == ($one as string)) { $agree = $agree + 1; }
+echo $agree, "\n";
+
+// One list typed at the interface, holding a class and a child of it.
+array<Stringable> $all = [new Note("g"), new Reminder("h")];
+foreach ($all as Stringable $each) {
+    echo "- ", $each, "\n";
+}
+--EXPECT--
+note a
+reminder: note b
+bare
+<note c>
+reminder: note d!
+bare
+reminder: note e|reminder: note e|reminder: note e|reminder: note e
+4
+- note g
+- reminder: note h

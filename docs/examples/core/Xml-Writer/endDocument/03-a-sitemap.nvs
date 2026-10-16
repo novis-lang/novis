@@ -1,0 +1,30 @@
+<?nvs
+// Shows a function that builds a sitemap for search engines and returns it as a string.
+
+class Sitemap
+{
+    // Writes one `url` element for each page, and returns the finished document.
+    public static function of(string $site, array<string> $pages): string
+    {
+        Core\Xml\Writer $writer = Core\Xml::writer({indent: "  "});
+        $writer->startDocument();
+        $writer->startElement("urlset");
+        $writer->attribute("xmlns", "http://www.sitemaps.org/schemas/sitemap/0.9");
+        foreach ($pages as string $page) {
+            $writer->startElement("url");
+            $writer->startElement("loc");
+            $writer->content($site . $page);
+            $writer->endElement();
+            $writer->endElement();
+        }
+        $writer->endElement();
+        return $writer->endDocument();
+    }
+}
+
+string $sitemap = Sitemap::of("https://example.com", ["/", "/shop", "/contact"]);
+echo $sitemap, "\n";
+
+// The string is a complete document. `Core\Xml::parse` reads it without an error.
+Core\Xml::parse($sitemap);
+echo "The sitemap is complete.\n";

@@ -1,0 +1,15 @@
+{
+  "title": "`lateinit` takes every type, and is refused on a promoted parameter and beside `readonly`",
+  "status": "shipped",
+  "seeAlso": [
+    "classes/lateinit",
+    "classes/no-undefined-value",
+    "types/declaration"
+  ],
+  "guardedBy": [
+    "tests/conformance/class/lateinit-takes-every-type.nvst",
+    "crates/nvs-codegen/tests/late_init.rs",
+    "crates/nvs-types/src/lateinit.rs",
+    "crates/nvs-types/src/signatures.rs"
+  ]
+}

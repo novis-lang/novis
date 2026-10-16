@@ -1,0 +1,11 @@
+<?nvs
+// Shows how to read `limits.disconnect_grace`. A request cannot change it.
+
+// The `nvs.toml` beside this file sets it, so this prints `10s`.
+echo 'grace: ', Core\Config::get('limits.disconnect_grace') ?? 'not set', "\n";
+
+// Each change returns `false`, so this prints `refused` three times.
+array<string> $values = ['1h', '1s', 'false'];
+foreach ($values as string $value) {
+    echo 'set to ', $value, ': ', Core\Config::set('limits.disconnect_grace', $value) ? 'accepted' : 'refused', "\n";
+}

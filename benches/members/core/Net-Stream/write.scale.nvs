@@ -1,0 +1,37 @@
+<?nvs
+// Measures `write` on a TCP connection, at growing message sizes.
+// It shows how the cost of `write` grows when the message grows.
+// bench: start 256
+// bench: max 4096
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        Core\Net\Listener $server = Core\Net::listen("127.0.0.1", 0);
+        Core\Net\Stream $client = Core\Net::connect("127.0.0.1", $server->port(), 5s);
+        Core\Net\Stream $connection = $server->accept(5s);
+        bytes $message = Core\Str::repeat("a", $size) as bytes;
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            // Each round writes one message, and the server then reads all of it.
+            uint $sent = 0;
+            while ($sent < $size) {
+                $sent = $sent + $client->write(Core\Bytes::slice($message, $sent as int), 5s);
+            }
+            uint $got = 0;
+            while ($got < $size) {
+                $got = $got + Core\Bytes::length($connection->read(65536, 5s));
+            }
+            $total = $total + $sent;
+            $i = $i + 1;
+        }
+        $connection->close();
+        $client->close();
+        $server->close();
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

@@ -1,0 +1,36 @@
+--TEST--
+A bare limit name and its `[limits]` spelling are one key to every `Core\Config` member — `rule:config/ini-set-is-core-config-set`, `rule:config/three-changeability-classes`
+--FILE--
+<?nvs
+// `rule:config/three-changeability-classes` writes one limit in five places — `[limits]`, `[limits.hard]`,
+// `[app.limits]`, `[app.limits.hard]` and the bare name a `set` uses — so
+// `Core\Config` resolves a dotless limit name in `[limits]`, the block the
+// request-settable default is stated in. The four members share that one
+// rule, which is what this case asks: a `set` through one spelling is a `get`
+// through the other, and a `restore` through either undoes it.
+
+// Only the built-in defaults are in force: a case runs where there is no `nvs.toml`.
+uint $before = Core\Arr::count(Core\Config::all());
+echo "before=", Core\Config::get("memory") ?? "unset", "\n";
+
+Core\Config::set("memory", "64M");
+echo "bare=", Core\Config::get("memory") ?? "unset", "\n";
+echo "dotted=", Core\Config::get("limits.memory") ?? "unset", "\n";
+
+// One key, so no new entry — the set is filed under the dotted name the file
+// would have written, not under the bare one the `set` used.
+array<string> $settings = Core\Config::all();
+echo "all=", Core\Arr::count($settings) == $before ? "same" : "grew", " ", $settings["limits.memory"], "\n";
+
+// `restore` reads the name the same way, so the dotted spelling undoes the
+// bare one's set.
+Core\Config::restore("limits.memory");
+echo "after=", Core\Config::get("memory") ?? "unset", "\n";
+echo "left=", Core\Arr::count(Core\Config::all()) == $before ? "same" : "changed", "\n";
+--EXPECT--
+before=128M
+bare=64M
+dotted=64M
+all=same 64M
+after=128M
+left=same

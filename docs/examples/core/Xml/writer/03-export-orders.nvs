@@ -1,0 +1,27 @@
+<?nvs
+// Shows how to export a list of orders as an XML document for another system.
+
+array<array<string>> $orders = [
+    ["id" => "1001", "customer" => "Ada Lovelace", "total" => "49.90"],
+    ["id" => "1002", "customer" => "Smith & Sons", "total" => "120.00"],
+];
+
+// The option `indent` is the text for one level of indentation. Here it is two spaces.
+Core\Xml\Writer $out = Core\Xml::writer({ indent: "  " });
+$out->startDocument();
+$out->startElement("orders");
+foreach ($orders as array<string> $order) {
+    $out->startElement("order");
+    $out->attribute("id", $order["id"]);
+    $out->startElement("customer");
+    $out->content($order["customer"]);
+    $out->endElement();
+    $out->startElement("total");
+    $out->content($order["total"]);
+    $out->endElement();
+    $out->endElement();
+}
+$out->endElement();
+
+// This prints the document with one element on each line. `&` in "Smith & Sons" is written as `&amp;`.
+echo $out->endDocument(), "\n";

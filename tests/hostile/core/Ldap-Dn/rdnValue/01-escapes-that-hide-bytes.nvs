@@ -1,0 +1,35 @@
+<?nvs
+// Attack: DN text uses hex escapes to put a zero byte, a line break or bytes that are not
+// UTF-8 into a value. Each one should give a value or throw an error, and the program
+// must keep running.
+// hostile: timeout-ms 60000
+
+// 1. Hex escapes for a zero byte, a line break and a two-byte letter.
+array<string> $texts = ['CN=a\\00b', 'CN=a\\0ab', 'CN=\\c3\\a9'];
+foreach ($texts as string $text) {
+    try {
+        echo '1 length: ', Core\Str::length(Core\Ldap\Dn::parse($text)->rdnValue()), "\n";
+    } catch (LogicError $refusal) {
+        echo "1 refused\n";
+    }
+}
+
+// 2. Hex escapes that are not UTF-8. Each one should throw an error.
+array<string> $bad = ['CN=\\ff', 'CN=\\c3', 'CN=\\c3\\28', 'CN=\\ed\\a0\\80'];
+uint $refused = 0;
+foreach ($bad as string $text) {
+    try {
+        Core\Ldap\Dn::parse($text)->rdnValue();
+    } catch (LogicError $refusal) {
+        $refused = $refused + 1;
+    }
+}
+echo '2 refused: ', $refused, " of 4\n";
+
+// 3. A value of one hundred thousand hex escapes.
+try {
+    var $dn = Core\Ldap\Dn::parse('CN=' . Core\Str::repeat('\\41', 100000));
+    echo '3 length: ', Core\Str::length($dn->rdnValue()), "\n";
+} catch (Throwable $error) {
+    echo "3 threw\n";
+}

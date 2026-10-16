@@ -1,0 +1,14 @@
+<?nvs
+// Stores every value under a new key. Here the header names are written in
+// lower case, so later lookups always find them.
+
+array<string> $headers = ['Content-Type' => 'text/html', 'X-Request-Id' => 'a1b2'];
+
+// The function receives the value and the key, and returns the new key.
+array<string> $lower = Core\Arr::mapKeys($headers, fn(string $value, string $name)
+    => Core\Str::lower($name));
+
+// This prints `content-type: text/html` and `x-request-id: a1b2`.
+foreach ($lower as string $name => string $value) {
+    echo $name, ': ', $value, "\n";
+}

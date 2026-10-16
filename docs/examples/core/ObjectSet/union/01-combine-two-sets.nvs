@@ -1,0 +1,31 @@
+<?nvs
+// Shows how to combine two sets into one new set.
+
+final class Tag {
+    public string $name;
+
+    public function constructor(string $name) {
+        $this->name = $name;
+    }
+}
+
+Tag $red = new Tag("red");
+Tag $blue = new Tag("blue");
+Tag $green = new Tag("green");
+
+Core\ObjectSet<Tag> $warm = new Core\ObjectSet<Tag>();
+$warm->add($red);
+
+Core\ObjectSet<Tag> $cool = new Core\ObjectSet<Tag>();
+$cool->add($blue);
+$cool->add($green);
+
+// `union` returns a new set. The values of `$warm` come first.
+Core\ObjectSet<Tag> $all = $warm->union($cool);
+// This prints red, blue and green, one on each line.
+foreach ($all as Tag $tag) {
+    echo $tag->name, "\n";
+}
+
+// `$warm` and `$cool` do not change. This prints "1 2".
+echo $warm->count(), " ", $cool->count(), "\n";

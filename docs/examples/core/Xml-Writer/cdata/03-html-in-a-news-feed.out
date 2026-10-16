@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <item>
+      <title>New teas in stock</title>
+      <description><![CDATA[<p>Three new <b>green teas</b> are now in the shop.</p>]]></description>
+    </item>
+    <item>
+      <title>Summer sale</title>
+      <description><![CDATA[<p>Everything is 10% off &amp; shipping is free.</p>]]></description>
+    </item>
+  </channel>
+</rss>

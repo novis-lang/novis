@@ -1,0 +1,14 @@
+<?nvs
+// Shows that a CSV file keeps the value of a styled cell and leaves out its style.
+use Novis\Spreadsheet\Cell;
+use Novis\Spreadsheet\Style;
+use Novis\Spreadsheet\Workbook;
+
+var $bold = Style::of({bold: true});
+array<array<mixed>> $rows = [
+    ["item" => "Pen", "price" => 1.5],
+    ["item" => Cell::of("Total", $bold), "price" => Cell::of(1.5, $bold)],
+];
+
+// The same rows can make an Excel file or a CSV file. Only the Excel file has the bold text.
+echo Workbook::fromRows($rows, {format: "csv"})->bytes() as string;

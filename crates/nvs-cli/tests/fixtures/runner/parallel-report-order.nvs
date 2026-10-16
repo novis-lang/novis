@@ -1,0 +1,33 @@
+<?nvs
+// `rule:testing/tests-run-across-every-core`'s report order: the first test
+// waits longest, so the four finish in the reverse of the order they are
+// declared in, and the report still lists them in declaration order.
+//
+// `crates/nvs-cli/src/runner.rs`'s own tests are the only reader of this file.
+use Core\Test;
+use Core\Time;
+
+final class ReportOrderTest {
+    #[Test]
+    public function itFinishesLast(): void {
+        Time::sleep(450ms);
+        Test::assertTrue(true);
+    }
+
+    #[Test]
+    public function itFinishesThird(): void {
+        Time::sleep(300ms);
+        Test::assertTrue(true);
+    }
+
+    #[Test]
+    public function itFinishesSecond(): void {
+        Time::sleep(150ms);
+        Test::assertTrue(true);
+    }
+
+    #[Test]
+    public function itFinishesFirst(): void {
+        Test::assertTrue(true);
+    }
+}

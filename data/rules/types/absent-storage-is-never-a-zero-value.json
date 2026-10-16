@@ -1,0 +1,20 @@
+{
+  "title": "Absent storage never reads as a zero value: an unassigned variable and `[]` in a read position are refused, and an absent key throws",
+  "status": "shipped",
+  "seeAlso": [
+    "types/arrays",
+    "types/declaration",
+    "types/mixed-subscript",
+    "classes/no-undefined-value",
+    "classes/an-unwritten-property-read-throws"
+  ],
+  "guardedBy": [
+    "tests/conformance/lang/reading-an-absent-array-key-throws.nvst",
+    "tests/conformance/lang/a-coalesce-guards-every-level-of-a-subscript-chain.nvst",
+    "tests/conformance/array/an-append-in-a-read-position-is-refused.nvst",
+    "tests/conformance/lang/isset-answers-a-null-test-over-every-storage-shape.nvst",
+    "tests/conformance/lang/coalesce-assign-writes-an-absent-key-and-is-typed-as-the-value-written.nvst",
+    "tests/conformance/reject/coalesce-assign-through-a-nullable-row-does-not-compile.nvst",
+    "crates/nvs-ir/src/lower/tests.rs"
+  ]
+}

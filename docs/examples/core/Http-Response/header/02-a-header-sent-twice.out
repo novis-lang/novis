@@ -1,0 +1,2 @@
+no-store, private
+header() failed: Core\Http\Response::header(): a `Set-Cookie` line is not part of RFC 9110 § 5.3's comma equivalence and two of them joined parse as neither cookie — `headers("set-cookie")` answers them one line each

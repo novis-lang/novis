@@ -1,0 +1,24 @@
+<?nvs
+// Shows how a shop works out when an order is delivered.
+
+// An order placed before 14:00 is delivered the next day. A later order takes one day more.
+// Every delivery arrives at 10:00.
+class Delivery {
+    public static function arrives(Core\Time\DateTime $ordered): Core\Time\DateTime {
+        var $cutoff = $ordered->with({hour: 14, minute: 0, second: 0, nanos: 0});
+        int $days = 1;
+        if ($ordered->difference($cutoff, Core\Unit::Second) <= 0) {
+            $days = 2;
+        }
+        return $ordered->plus($days, Core\Unit::Day)->with({hour: 10, minute: 0, second: 0, nanos: 0});
+    }
+}
+
+var $vienna = Core\Time\Zone::of("Europe/Vienna");
+
+// Both orders are placed on Monday 13 May 2024.
+// This prints Tuesday 14 May, 10:00 and Wednesday 15 May, 10:00.
+var $morning = Core\Time::at(2024, 5, 13, $vienna, {hour: 9, minute: 40});
+var $afternoon = Core\Time::at(2024, 5, 13, $vienna, {hour: 16, minute: 5});
+echo Delivery::arrives($morning)->format("EEEE d MMMM, HH:mm"), "\n";
+echo Delivery::arrives($afternoon)->format("EEEE d MMMM, HH:mm"), "\n";

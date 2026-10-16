@@ -1,0 +1,32 @@
+--TEST--
+`Core\Arr::flip` takes an `array<string>` where it declares `array<int|string>`, and no `as` is written to get it there — `rule:types/arrays` and `rule:types/conversion`
+--FILE--
+<?nvs
+// `Core\Arr::flip(array<int|string> $a): array<string>` is the Core signature
+// that first made the question concrete: a caller holding the `array<string>`
+// it built is handing it to a parameter written over a union.
+// `rule:types/arrays`' covariant read is what joins them. No `as` appears
+// below, which is the point — the conversion spelling is an O(n) restamp
+// (`rule:types/conversion`), and the widening a read asks for costs nothing.
+array<string> $ordinal = ["first" => "ada", "second" => "grace"];
+echo Core\Json::encode(Core\Arr::flip($ordinal)), "\n";
+
+// The other member of the same union, so the acceptance is about the
+// relation rather than about `string` in particular.
+array<int> $rank = ["ada" => 1, "grace" => 2];
+echo Core\Json::encode(Core\Arr::flip($rank)), "\n";
+
+// And the exact spelling, which the covariant read widened the door for
+// rather than replaced.
+array<int|string> $either = ["a" => 1, "b" => "two"];
+echo Core\Json::encode(Core\Arr::flip($either)), "\n";
+
+// Covariance runs one way only: what comes back is `array<string>`, and a
+// binding of that type is the only one that takes it without an `as`.
+array<string> $flipped = Core\Arr::flip($ordinal);
+echo $flipped["ada"], "\n";
+--EXPECT--
+{"ada":"first","grace":"second"}
+{"1":"ada","2":"grace"}
+{"1":"a","two":"b"}
+first

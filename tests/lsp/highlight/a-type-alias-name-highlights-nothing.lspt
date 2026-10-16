@@ -1,0 +1,9 @@
+--TEST--
+a type alias's own name highlights nothing: an alias is used in a type annotation, which is no expression for the occurrence walk to record, `rule:ide/five-features-are-one-reference-index`
+--FILE--
+<?nvs
+type I<|>d = uint;
+--REQUEST--
+documentHighlight
+--EXPECT--
+none

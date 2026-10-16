@@ -1,0 +1,13 @@
+<?nvs
+// Shows how to multiply a number by itself. The second argument is how many
+// times.
+
+// This prints 1024.
+echo Core\Decimal::pow(2, 10), "\n";
+
+// The answer keeps every digit. 2.50 has two digits after the point, so the
+// square has four. This prints 6.2500.
+echo Core\Decimal::pow(2.50, 2), "\n";
+
+// An exponent of 0 gives 1, whatever the base is. This prints 1.
+echo Core\Decimal::pow(7.25, 0), "\n";

@@ -1,0 +1,50 @@
+<?nvs
+// Attack: a request chooses pages with page numbers at the edges and with very long lists.
+// Each merge should return a file or throw an error, and the server keeps running.
+use Novis\Pdf\Document;
+use Novis\Pdf\Pages;
+
+var $letter = Document::fromHtml('<p style="break-after: page">One</p><p>Two</p>')->render()->bytes;
+
+// 1. Page 0, which comes before the first page.
+try {
+    echo 'step 1 ran ', Core\Bytes::length(Pages::merge([Pages::of($letter, [0])])), "\n";
+} catch (Throwable $e) {
+    echo "step 1 stopped\n";
+}
+
+// 2. The largest page number.
+try {
+    echo 'step 2 ran ', Core\Bytes::length(Pages::merge([Pages::of($letter, [18446744073709551615])])), "\n";
+} catch (Throwable $e) {
+    echo "step 2 stopped\n";
+}
+
+// 3. An empty list, which chooses no page.
+try {
+    echo 'step 3 ran ', Core\Bytes::length(Pages::merge([Pages::of($letter, [])])), "\n";
+} catch (Throwable $e) {
+    echo "step 3 stopped\n";
+}
+
+// 4. One thousand parts that each choose page 1 of the same file.
+try {
+    array<Pages> $parts = [];
+    for (int $part = 0; $part < 1000; $part++) {
+        $parts[] = Pages::of($letter, [1]);
+    }
+    echo 'step 4 ran ', Core\Bytes::length(Pages::merge($parts)), "\n";
+} catch (Throwable $e) {
+    echo "step 4 stopped\n";
+}
+
+// 5. Page 2 chosen twenty thousand times.
+try {
+    array<uint> $many = [];
+    for (int $n = 0; $n < 20000; $n++) {
+        $many[] = 2;
+    }
+    echo 'step 5 ran ', Core\Bytes::length(Pages::merge([Pages::of($letter, $many)])), "\n";
+} catch (Throwable $e) {
+    echo "step 5 stopped\n";
+}

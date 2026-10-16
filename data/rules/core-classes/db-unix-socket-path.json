@@ -1,0 +1,14 @@
+{
+  "title": "A Unix-socket host is the string that deployment already holds, and MSSQL refuses one",
+  "status": "shipped",
+  "seeAlso": [
+    "core-classes/db-connection-is-named",
+    "core-classes/db-drivers-are-an-enum"
+  ],
+  "guardedBy": [
+    "crates/nvs-db/src/mysql.rs",
+    "crates/nvs-db/src/maria.rs",
+    "crates/nvs-db/src/pg.rs",
+    "crates/nvs-db/src/tds/mod.rs"
+  ]
+}

@@ -1,0 +1,88 @@
+--TEST--
+Spec § 4, `rule:classes/comparable`: `Core\Time\Instant::compareTo` is a total order on the timeline, asserted by counting trichotomy, antisymmetry, agreement with `<` and `<=>` over every pair and transitivity over every triple; it answers the first and the last representable instants and two instants one nanosecond apart, and `==` stays identity where it answers `0`
+--FILE--
+<?nvs
+// covers: Core\Time\Instant::compareTo
+// Out of order on purpose. Rows 0, 2 and 7 are one moment built three ways,
+// so `0` is reachable off the diagonal; rows 1 and 6 are the two ends of the
+// range; rows 4 and 5 are one nanosecond either side of the epoch.
+array<Core\Time\Instant> $table = [
+    Core\Time::fromIso("2024-03-01T12:00:00Z"),
+    Core\Time::fromEpoch(-377705023201),
+    Core\Time::fromIso("2024-03-01T13:00:00+01:00"),
+    Core\Time::fromEpoch(0),
+    Core\Time::fromEpoch(0, {nanos: 1}),
+    Core\Time::fromEpoch(-1, {nanos: 999999999}),
+    Core\Time::fromEpoch(253402207200, {nanos: 999999999}),
+    Core\Time::fromEpoch(1709294400),
+    Core\Time::fromIso("1969-12-31T23:59:59Z"),
+    Core\Time::fromEpoch(1709294400, {nanos: 1}),
+];
+
+// Every ordered pair. `operator` counts where `<` agrees with the sign, and
+// `spaceship` where `<=>` gives the same sign.
+int $trichotomy = 0;
+int $zeros = 0;
+int $antisymmetric = 0;
+int $operator = 0;
+int $spaceship = 0;
+uint $a = 0;
+for (; $a < 10; $a = $a + 1) {
+    uint $b = 0;
+    for (; $b < 10; $b = $b + 1) {
+        int $sign = $table[$a]->compareTo($table[$b]);
+        if ($sign == -1 || $sign == 0 || $sign == 1) {
+            $trichotomy = $trichotomy + 1;
+        }
+        if ($sign == 0) {
+            $zeros = $zeros + 1;
+        }
+        if ($sign + $table[$b]->compareTo($table[$a]) == 0) {
+            $antisymmetric = $antisymmetric + 1;
+        }
+        if (($table[$a] < $table[$b]) == ($sign < 0)) {
+            $operator = $operator + 1;
+        }
+        if (($table[$a] <=> $table[$b]) == $sign) {
+            $spaceship = $spaceship + 1;
+        }
+    }
+}
+echo "trichotomy=", $trichotomy, " zero=", $zeros, " antisym=", $antisymmetric,
+    " operator=", $operator, " spaceship=", $spaceship, "|\n";
+
+// Every ordered triple, with the chains counted so the implication is not
+// satisfied vacuously.
+int $transitive = 0;
+int $chains = 0;
+uint $i = 0;
+for (; $i < 10; $i = $i + 1) {
+    uint $j = 0;
+    for (; $j < 10; $j = $j + 1) {
+        uint $k = 0;
+        for (; $k < 10; $k = $k + 1) {
+            bool $chained = $table[$i]->compareTo($table[$j]) <= 0
+                && $table[$j]->compareTo($table[$k]) <= 0;
+            if ($chained) {
+                $chains = $chains + 1;
+            }
+            if (!$chained || $table[$i]->compareTo($table[$k]) <= 0) {
+                $transitive = $transitive + 1;
+            }
+        }
+    }
+}
+echo "transitive=", $transitive, " chains=", $chains, "|\n";
+
+// The two ends of the range, and two neighbours one nanosecond apart.
+echo $table[1]->compareTo($table[6]), " ", $table[6]->compareTo($table[1]), "\n";
+echo $table[5]->compareTo($table[3]), " ", $table[4]->compareTo($table[3]), "\n";
+
+// The same moment is not the same object: `==` on two objects is identity.
+echo ($table[0] == $table[2]) ? "same" : "distinct", " ", $table[0]->compareTo($table[2]), "\n";
+--EXPECT--
+trichotomy=100 zero=16 antisym=100 operator=100 spaceship=100|
+transitive=1000 chains=258|
+-1 1
+-1 1
+distinct 0

@@ -1,0 +1,25 @@
+<?nvs
+// Measures `Core\Validate::isEmail` on one long text before the `@`, at growing text lengths.
+// bench: start 256
+// bench: max 4096
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        string $address = Core\Str::repeat('ada.', $size) . "x@example.com";
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            if (Core\Validate::isEmail($address)) {
+                $total = $total + 2;
+            } else {
+                $total = $total + 1;
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

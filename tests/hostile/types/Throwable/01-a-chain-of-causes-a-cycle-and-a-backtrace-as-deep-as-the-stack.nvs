@@ -1,0 +1,85 @@
+<?nvs
+// Attack: a script links 100,000 errors through their `previous` property.
+// It makes an error that is its own `previous`, so the chain has no end.
+// It also throws from 2,000 calls deep, and from deeper than the stack allows.
+// The script should finish without a crash or a loop that never ends.
+// hostile: timeout-ms 30000
+
+class Link extends Throwable
+{
+}
+
+final class Chain
+{
+    // Link 100,000 errors, each one to the one before it.
+    // Freeing the last error frees every error in the chain.
+    public static function causes(uint $links): uint
+    {
+        var $tip = new Link('the first thing that went wrong');
+        uint $made = 0;
+        while ($made < $links) {
+            var $next = new Link('and then another');
+            $next->previous = $tip;
+            $tip = $next;
+            $made = $made + 1;
+        }
+
+        // This follows `previous` to count the links,
+        // so the test fails if the errors were not linked.
+        uint $walked = 0;
+        var $at = $tip->previous;
+        bool $more = true;
+        while ($more) {
+            var $here = $at;
+            if ($here != null) {
+                $walked = $walked + 1;
+                $at = $here->previous;
+            } else {
+                $more = false;
+            }
+        }
+        return $walked;
+    }
+
+    // Make an error whose `previous` is the error itself.
+    // Following `previous` from this error never reaches `null`.
+    public static function itsOwnCause(): string
+    {
+        var $loop = new Link('this went wrong because this went wrong');
+        $loop->previous = $loop;
+        var $cause = $loop->previous;
+        if ($cause == null) {
+            return 'no cause';
+        }
+        return $cause->message;
+    }
+
+    // Throw from the deepest call. The error's `backtrace` gets one entry
+    // for every level the error passes through.
+    public static function fromTheBottom(int $depth): void
+    {
+        if ($depth == 0) {
+            throw new Link('the bottom');
+        }
+        Chain::fromTheBottom($depth - 1);
+    }
+}
+
+echo Chain::causes(100000), "\n";
+echo Chain::itsOwnCause(), "\n";
+
+try {
+    Chain::fromTheBottom(2000);
+    echo "no throw\n";
+} catch (Throwable $deep) {
+    echo 'frames: ', Core\Arr::count($deep->backtrace), "\n";
+}
+
+// Call deeper than the call stack allows. The stack limit throws an error,
+// and the `catch` below catches it.
+try {
+    Chain::fromTheBottom(200000);
+    echo "no throw\n";
+} catch (Throwable $gaveUp) {
+    echo "the deep chain ended\n";
+}

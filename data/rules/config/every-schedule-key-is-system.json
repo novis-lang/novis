@@ -1,0 +1,13 @@
+{
+  "title": "Every `[[schedule]]` key is `System`, and not even `RuntimeTighten` reaches one",
+  "status": "shipped",
+  "seeAlso": [
+    "config/scheduled-work-is-a-config-block",
+    "statements/static-is-a-member-modifier",
+    "config/three-changeability-classes",
+    "config/opcache-revalidation-is-system-class"
+  ],
+  "guardedBy": [
+    "crates/nvs-config/tests/directives.rs"
+  ]
+}

@@ -1,0 +1,29 @@
+<?nvs
+// Shows how an import checks the customer id in each row before it saves anything.
+
+class Import {
+    public static function check(array<string> $rows): string {
+        int $line = 0;
+        foreach ($rows as string $row) {
+            $line = $line + 1;
+            array<string> $fields = Core\Str::split($row, ";");
+            try {
+                // The first field of each row must be a UUID.
+                Core\Uuid::parse($fields[0]);
+            } catch (RuntimeError $e) {
+                return "line " . ($line as string) . " has no valid customer id";
+            }
+        }
+        return "all " . ($line as string) . " rows are valid";
+    }
+}
+
+// The third row has a digit too few in its id.
+array<string> $rows = [
+    "0190d1e6-8e3c-7c2a-9a4b-1f2e3d4c5b6a;Ada;Vienna",
+    "F9168C5E-CEB2-4FAA-B6BF-329BF39FA1E4;Grace;Arlington",
+    "00112233-4455-6677-8899-aabbccddeef;Linus;Helsinki",
+];
+
+// This prints "line 3 has no valid customer id".
+echo Import::check($rows), "\n";

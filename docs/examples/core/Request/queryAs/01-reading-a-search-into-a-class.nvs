@@ -1,0 +1,22 @@
+<?nvs
+// Shows how to read the parameters of an address such as `/search?q=red+shoes&page=2` into your own class.
+
+// `#[Core\Json\Derive]` lets `queryAs` fill the class. Each public field reads the parameter with the same name.
+// The address comes from the client, so a string field must be `tainted string`.
+#[Core\Json\Derive]
+class Search {
+    public tainted string $q;
+    public uint $page;
+
+    public function constructor(tainted string $q, uint $page) {
+        $this->q = $q;
+        $this->page = $page;
+    }
+}
+
+// The class between `<` and `>` is the class to create.
+// The text "2" is converted to the number 2 for the `uint` field.
+var $search = Core\Request::queryAs<Search>();
+
+// This prints "red shoes, page 2".
+echo $search->q, ", page ", $search->page, "\n";

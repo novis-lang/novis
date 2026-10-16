@@ -1,0 +1,14 @@
+--TEST--
+a namespace declaration names a scope rather than a value, so the cursor in it reaches no recorded expression and answers nothing, `rule:ide/the-index-answers-the-cursor`
+--FILE--
+<?nvs
+namespac<|>e App;
+
+class User
+{
+    public string $name = "";
+}
+--REQUEST--
+hover
+--EXPECT--
+none

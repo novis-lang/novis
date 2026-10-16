@@ -1,0 +1,11 @@
+<?nvs
+// Shows how the tangent grows as the angle gets close to 90 degrees.
+
+// At 45 degrees, a slope goes up 1 for each step of 1. This prints 1.
+echo Core\Math::tan(Core\Math::toRadians(45.0)), "\n";
+
+// 89 degrees is very steep. This prints 57.289961630759.
+echo Core\Math::tan(Core\Math::toRadians(89.0)), "\n";
+
+// 90 degrees gives a very large number, and no error. This prints 1.6331239353195E+16.
+echo Core\Math::tan(Core\Math::toRadians(90.0)), "\n";

@@ -1,0 +1,116 @@
+<?nvs
+// Attack: a request uploads PDF files whose attached files have dangerous names, odd shapes or a huge count.
+// Each file should give its list of attached files or throw an error. The server keeps running.
+use Novis\Pdf\Reader;
+
+class Forge
+{
+    // This method builds a PDF file from its objects, with a correct table of where each object starts.
+    public static function pdf(array<bytes> $objects): bytes
+    {
+        array<bytes> $parts = ["%PDF-1.7\n" as bytes];
+        array<int> $offsets = [];
+        int $at = 9;
+        int $n = 0;
+        foreach ($objects as bytes $body) {
+            $n = $n + 1;
+            $offsets[] = $at;
+            bytes $object = Core\Bytes::join(["{$n} 0 obj\n" as bytes, $body, "\nendobj\n" as bytes]);
+            $parts[] = $object;
+            $at = $at + Core\Bytes::length($object) as int;
+        }
+        string $table = "xref\n0 " . ($n + 1) as string . "\n0000000000 65535 f \n";
+        foreach ($offsets as int $offset) {
+            $table .= Core\Str::padStart($offset as string, 10, '0') . " 00000 n \n";
+        }
+        $parts[] = ($table . "trailer\n<< /Size " . ($n + 1) as string . " /Root 1 0 R >>\nstartxref\n{$at}\n%%EOF\n") as bytes;
+        return Core\Bytes::join($parts);
+    }
+
+    // This method builds a PDF file with one page and the given list of attached files.
+    public static function attached(string $names, array<bytes> $more): bytes
+    {
+        array<bytes> $objects = [
+            "<< /Type /Catalog /Pages 2 0 R /Names << /EmbeddedFiles << /Names [{$names}] >> >> >>" as bytes,
+            '<< /Type /Pages /Kids [3 0 R] /Count 1 >>' as bytes,
+            '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 200 200] >>' as bytes,
+        ];
+        foreach ($more as bytes $object) {
+            $objects[] = $object;
+        }
+        return self::pdf($objects);
+    }
+
+    // This method returns a file entry and its content for the given name.
+    public static function file(string $name, int $content): bytes
+    {
+        return "<< /Type /Filespec /F {$name} /UF {$name} /EF << /F {$content} 0 R >> >>" as bytes;
+    }
+
+    // This method prints the name and the size of each attached file.
+    public static function show(string $step, bytes $pdf): void
+    {
+        array<string> $lines = [];
+        foreach (Reader::open($pdf)->attachments() as var $file) {
+            $lines[] = Core\Str::length($file->name) as string . ' ' . Core\Bytes::length($file->data) as string;
+        }
+        echo $step, ' ran ', Core\Arr::count($lines), ' ', Core\Str::join(Core\Arr::slice($lines, 0, 3), ', '), "\n";
+    }
+}
+
+bytes $hello = "<< /Type /EmbeddedFile /Length 5 >>\nstream\nhello\nendstream" as bytes;
+
+// 1. Names that point out of a folder, start at the root, or contain a NUL byte.
+try {
+    Forge::show('step 1', Forge::attached('(a) 4 0 R (b) 5 0 R (c) 6 0 R', [
+        Forge::file('(../../etc/passwd)', 7),
+        Forge::file('(/etc/shadow)', 7),
+        Forge::file('(report\000.exe)', 7),
+        $hello,
+    ]));
+} catch (Throwable $e) {
+    echo "step 1 stopped\n";
+}
+
+// 2. A name of one million characters.
+try {
+    string $long = Core\Str::repeat('A', 1000000);
+    Forge::show('step 2', Forge::attached('(a) 4 0 R', [Forge::file("({$long})", 5), $hello]));
+} catch (Throwable $e) {
+    echo "step 2 stopped\n";
+}
+
+// 3. A name in UTF-16 that ends in the middle of a character.
+try {
+    Forge::show('step 3', Forge::attached('(a) 4 0 R', [Forge::file('<FEFFD800>', 5), $hello]));
+} catch (Throwable $e) {
+    echo "step 3 stopped\n";
+}
+
+// 4. Twenty thousand attached files that all point to the same content.
+try {
+    array<string> $entries = [];
+    for (int $i = 0; $i < 20000; $i++) {
+        $entries[] = "(f{$i}) 4 0 R";
+    }
+    Forge::show('step 4', Forge::attached(Core\Str::join($entries, ' '), [Forge::file('(same.txt)', 5), $hello]));
+} catch (Throwable $e) {
+    echo "step 4 stopped\n";
+}
+
+// 5. File entries that are not files: a number, a missing object, and content that is not a stream.
+try {
+    Forge::show('step 5', Forge::attached('(a) 42 (b) 99 0 R (c) 4 0 R', [Forge::file('(c.txt)', 5), '<< /Not /AStream >>' as bytes]));
+} catch (Throwable $e) {
+    echo "step 5 stopped\n";
+}
+
+// 6. Content whose length says four billion bytes, followed by five bytes.
+try {
+    Forge::show('step 6', Forge::attached('(a) 4 0 R', [
+        Forge::file('(a.txt)', 5),
+        "<< /Type /EmbeddedFile /Length 4294967295 >>\nstream\nhello\nendstream" as bytes,
+    ]));
+} catch (Throwable $e) {
+    echo "step 6 stopped\n";
+}

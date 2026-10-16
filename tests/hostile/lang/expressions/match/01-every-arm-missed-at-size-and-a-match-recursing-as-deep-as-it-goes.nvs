@@ -1,0 +1,121 @@
+<?nvs
+// Attack: a `match` compares its subject against every arm, then produces
+// one value. This one is given work no program does. The subjects are
+// numbers at both ends of the `int` range and text millions of characters
+// long. Nothing may crash, hang or lose memory.
+// hostile: timeout-ms 30000
+// covers: lang:expressions/match
+
+class Attack
+{
+    // 1. The largest and smallest numbers there are, as subjects. Every arm
+    // is missed until the last one, so each round compares them all.
+    public static function edges(int $value): string
+    {
+        return match ($value) {
+            0 => 'zero',
+            1, 2, 3 => 'small',
+            9223372036854775807 => 'largest',
+            -9223372036854775807 => 'smallest',
+            default => 'other',
+        };
+    }
+
+    // 2. Text millions of characters long, compared against three arms that
+    // are the same length and differ only at the end.
+    public static function longText(string $text, string $near): string
+    {
+        return match ($text) {
+            $near => 'near',
+            $text => 'same',
+            default => 'other',
+        };
+    }
+
+    // 3. No arm matches and no `default` is written, so every call throws.
+    // Throwing tens of thousands of times must not lose memory.
+    public static function alwaysThrows(int $value): string
+    {
+        return match ($value) {
+            0 => 'zero',
+            1 => 'one',
+        };
+    }
+
+    // 4. A `match` whose arm body calls back into this method, so the
+    // recursion is as deep as the numbers allow.
+    public static function deep(int $depth): int
+    {
+        return match (true) {
+            $depth <= 0 => 0,
+            default => 1 + Attack::deep($depth - 1),
+        };
+    }
+
+    // 5. One `match` as the subject of the next, twelve deep. The value of
+    // each is produced before the one above it can compare.
+    public static function stacked(int $seed): int
+    {
+        return match (match (match (match (match (match (match (match (match (match (match (match ($seed) {
+            0 => 1,
+            default => 2 }) {
+            1 => 2,
+            default => 3 }) {
+            2 => 3,
+            default => 4 }) {
+            3 => 4,
+            default => 5 }) {
+            4 => 5,
+            default => 6 }) {
+            5 => 6,
+            default => 7 }) {
+            6 => 7,
+            default => 8 }) {
+            7 => 8,
+            default => 9 }) {
+            8 => 9,
+            default => 10 }) {
+            9 => 10,
+            default => 11 }) {
+            10 => 11,
+            default => 12 }) {
+            11 => 12,
+            default => 13 };
+    }
+}
+
+echo Attack::edges(9223372036854775807), ' ', Attack::edges(-9223372036854775807), ' ',
+    Attack::edges(41), "\n";
+
+// A subject built until it is millions of characters long, and a second one
+// that differs from it only in the last character.
+string $text = '';
+int $built = 0;
+while ($built < 300000) {
+    $text = $text . 'novis-';
+    $built = $built + 1;
+}
+echo Attack::longText($text, $text . 'x'), "\n";
+
+// Tens of thousands of errors thrown out of a `match` and caught again.
+int $caught = 0;
+int $i = 0;
+while ($i < 20000) {
+    try {
+        echo Attack::alwaysThrows($i + 2);
+    } catch (LogicError $e) {
+        $caught = $caught + 1;
+    }
+    $i = $i + 1;
+}
+echo $caught, "\n";
+
+// The recursion runs until the engine stops it, and the error is caught so
+// the attack after it still runs.
+try {
+    echo Attack::deep(1000000), "\n";
+} catch (RecursionError $stopped) {
+    echo $stopped->message, "\n";
+}
+
+echo Attack::stacked(0), ' ', Attack::stacked(99), "\n";

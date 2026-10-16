@@ -1,0 +1,19 @@
+<?nvs
+// Shows a worker that checks for work before it takes any. `pop` is called only when there is a value.
+
+class Worker {
+    public static function runNext(Core\Heap<string> $tasks): void {
+        if ($tasks->isEmpty()) {
+            echo "Nothing to do.\n";
+            return;
+        }
+        echo "Doing: ", $tasks->pop(), "\n";
+    }
+}
+
+var $tasks = new Core\Heap<string>();
+$tasks->push("resize the upload");
+
+// The first call finds a task. The second call finds none and prints "Nothing to do.".
+Worker::runNext($tasks);
+Worker::runNext($tasks);

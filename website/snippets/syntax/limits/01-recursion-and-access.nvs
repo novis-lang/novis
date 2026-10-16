@@ -1,0 +1,21 @@
+<?nvs
+// A call stack that is too deep throws `RecursionError`. You can catch it.
+class Down {
+    public static function forever(int $n): int {
+        return Down::forever($n + 1) + 1;
+    }
+}
+
+try {
+    echo Down::forever(0), "\n";
+} catch (RecursionError $e) {
+    echo "stopped: ", $e->message, "\n";
+}
+
+// Writing a file needs a permission in `nvs.toml`. Without it, the call throws a `RuntimeError`.
+try {
+    Core\IO::write("out.txt", "x");
+} catch (RuntimeError $denied) {
+    echo "denied: ", Core\Str::before($denied->message, " for "), "\n";
+}
+echo "still running\n";

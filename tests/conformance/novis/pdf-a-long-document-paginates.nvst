@@ -1,0 +1,28 @@
+--TEST--
+A long document paginates under `@page`: every page has the size the rule gives, a margin box prints the page number and the page count, and the render returns the number of pages: rule:core-classes/pdf-css-subset-table
+--FILE--
+<?nvs
+// covers: Novis\Pdf\Document::fromHtml
+// covers: Novis\Pdf\Document::render
+use Novis\Image\Image;
+use Novis\Pdf\Document;
+
+// The `@page` rule sets the page size and the margins.
+// The `@bottom-center` box prints "Page 1 of 3" at the bottom of each page.
+var $css = "@page { size: A5; margin: 15mm; "
+    . "@bottom-center { content: 'Page ' counter(page) ' of ' counter(pages) } } "
+    . "h2 { break-before: page }";
+
+// Each chapter starts on a new page, and the second chapter is too long for one page.
+var $chapter = "<p>Thank you for your order. Your parcel is on its way to you.</p>";
+var $html = "<style>" . $css . "</style><h1>Shop</h1>" . $chapter
+    . "<h2>Orders</h2>" . Core\Str::repeat($chapter, 30);
+var $rendered = Document::fromHtml($html)->render();
+echo $rendered->pageCount, " pages\n";
+
+// An A5 page is 419.53 by 595.28 points. At 72 dpi, one point is one pixel.
+var $last = Image::open($rendered->bytes, {page: $rendered->pageCount, dpi: 72.0})->raw();
+echo $last->width, "x", $last->height, "\n";
+--EXPECT--
+3 pages
+420x596

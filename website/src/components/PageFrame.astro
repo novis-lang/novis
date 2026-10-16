@@ -1,0 +1,157 @@
+---
+/**
+ * PageFrame override: Starlight's frame, with the mobile menu on every page.
+ *
+ * Starlight draws the menu button and the slide-out pane only on pages that
+ * have a sidebar, and the splash pages (home, Why Novis?, Sponsoring) have
+ * none — so on a small screen, where the header hides the site navigation,
+ * they had no way to navigate at all. Here a page without a sidebar still
+ * gets the button and the pane below 50rem, and the pane holds the mobile
+ * menu footer: the site navigation, the social icons, the theme switcher.
+ * From 50rem up such a page is laid out as before, without a sidebar.
+ *
+ * The header bar is translucent glass with the signature gradient as its
+ * bottom hairline. Everything else is the default component as it is.
+ */
+import MobileMenuToggle from 'virtual:starlight/components/MobileMenuToggle'
+import MobileMenuFooter from 'virtual:starlight/components/MobileMenuFooter'
+
+const { hasSidebar } = Astro.locals.starlightRoute
+---
+
+<div class="page sl-flex">
+  <header class="header"><slot name="header" /></header>
+  <nav
+    class:list={['sidebar print:hidden', { 'nv-menu-only': !hasSidebar }]}
+    aria-label={Astro.locals.t('sidebarNav.accessibleLabel')}
+  >
+    <MobileMenuToggle />
+    <script>
+      // The menu is a popover, so it opens and closes without JavaScript.
+      // Below 50em this traps focus in the header and the menu while it is
+      // open. From 50em up the pane is not a popover, because the sidebar is
+      // always shown there.
+      class StarlightSidebarPane extends HTMLElement {
+        constructor() {
+          super()
+          const desktop = matchMedia('(min-width: 50em)')
+          const reset = () => {
+            this.popover = desktop.matches ? null : 'auto'
+          }
+          reset()
+          desktop.addEventListener('change', reset)
+          this.addEventListener('toggle', (event) => this.trapFocus((event as ToggleEvent).newState === 'open'))
+        }
+        trapFocus(trap: boolean) {
+          document.querySelectorAll<HTMLElement>('.main-frame, .sl-skip-link').forEach((el) => {
+            el.toggleAttribute('inert', trap)
+          })
+        }
+      }
+      customElements.define('sl-sidebar-pane', StarlightSidebarPane)
+    </script>
+    <sl-sidebar-pane popover="" id="starlight__sidebar" class="sidebar-pane">
+      <div class="sidebar-content sl-flex">
+        {hasSidebar ? <slot name="sidebar" /> : <MobileMenuFooter />}
+      </div>
+    </sl-sidebar-pane>
+  </nav>
+  <div class="main-frame"><slot /></div>
+</div>
+
+<style>
+  @layer starlight.core {
+    .page {
+      flex-direction: column;
+      min-height: 100vh;
+    }
+
+    .header {
+      z-index: var(--sl-z-index-navbar);
+      position: fixed;
+      inset-inline-start: 0;
+      inset-block-start: 0;
+      width: 100%;
+      height: var(--sl-nav-height);
+      border-bottom: 1px solid var(--nv-hairline);
+      padding: var(--sl-nav-pad-y) var(--sl-nav-pad-x);
+      /* Room for the menu button, which every page now has on a small
+         screen — Starlight reserves it only under [data-has-sidebar]. */
+      padding-inline-end: calc(var(--sl-nav-gap) + var(--sl-nav-pad-x) + var(--sl-menu-button-size));
+      background-color: var(--nv-glass-solid);
+    }
+    /* The bar is glass: the page shows through it, blurred. This is the one
+       element on the site with a backdrop-filter, because the blur is
+       repainted on every scroll frame. A browser without it gets the solid
+       ground above. */
+    @supports (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)) {
+      .header {
+        background-color: var(--nv-glass);
+        -webkit-backdrop-filter: blur(14px) saturate(160%);
+        backdrop-filter: blur(14px) saturate(160%);
+      }
+    }
+    /* The signature gradient as a hairline along the bottom edge. */
+    .header::after {
+      content: '';
+      position: absolute;
+      inset-inline: 0;
+      bottom: -1px;
+      height: 1px;
+      background: var(--nv-gradient-line);
+      opacity: 0.55;
+      pointer-events: none;
+    }
+
+    .sidebar-pane {
+      /* A browser styles a popover itself. These lines remove those styles. */
+      border: unset;
+      padding: unset;
+      height: unset;
+      color: unset;
+
+      position: fixed;
+      z-index: var(--sl-z-index-menu);
+      inset-block: var(--sl-nav-height) 0;
+      inset-inline-start: 0;
+      width: 100%;
+      background-color: var(--sl-color-black);
+      overflow-y: auto;
+      scrollbar-gutter: stable;
+    }
+
+    .sidebar-content {
+      height: 100%;
+      min-height: max-content;
+      padding: 1rem var(--sl-sidebar-pad-x) 0;
+      flex-direction: column;
+      gap: 1rem;
+    }
+
+    @media (min-width: 50rem) {
+      .header {
+        padding-inline-end: var(--sl-nav-pad-x);
+      }
+      .sidebar-content::after {
+        content: '';
+        padding-bottom: 1px;
+      }
+      .sidebar-pane {
+        /* The sidebar is always shown here, whether the popover is open or not. */
+        display: block;
+        width: var(--sl-sidebar-width);
+        background-color: var(--sl-color-bg-sidebar);
+        border-inline-end: 1px solid var(--sl-color-hairline-shade);
+      }
+      /* A page without a sidebar has nothing to show from here up. */
+      .nv-menu-only {
+        display: none;
+      }
+    }
+
+    .main-frame {
+      padding-top: calc(var(--sl-nav-height) + var(--sl-mobile-toc-height));
+      padding-inline-start: var(--sl-content-inline-start);
+    }
+  }
+</style>

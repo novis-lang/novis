@@ -1,0 +1,77 @@
+--TEST--
+A reply a test's answer table served with a `Core\Test::tlsSession` reports that session, and every `Core\Http\TlsInfo` member reads it exactly as it reads a peer's — `rule:http-server/a-reply-reports-its-tls-session`, `rule:testing/an-outbound-call-is-answered-from-a-table`
+--FILE--
+<?nvs
+// covers: Core\Test::tlsSession
+// covers: Core\Http\TlsInfo::version
+// covers: Core\Http\TlsInfo::cipher
+// covers: Core\Http\TlsInfo::verified
+// covers: Core\Http\TlsInfo::peerChain
+// covers: Core\Http\TlsInfo::subject
+// covers: Core\Http\TlsInfo::issuer
+// covers: Core\Http\TlsInfo::expiry
+// The session is described, not negotiated: its chain is a real leaf signed by
+// a real CA certificate, so the three readers that parse the leaf parse what
+// the test wrote, and the expiry comes back in whole seconds.
+var $described = Core\Test::tlsSession({
+    subject: "CN=api.example.com, O=Shop",
+    issuer: "CN=Example Test CA",
+    expiry: Core\Time::fromIso("2031-06-01T12:00:00.750Z"),
+});
+Core\Test::answerHttp("https://api.example.com/*", 200, {body: "ok", tls: $described});
+
+var $info = Core\Http\Client::get("https://api.example.com/secure")->tls();
+if ($info != null) {
+    echo $info->version(), " ", $info->cipher(), "\n";
+    echo $info->verified() ? "verified" : "relaxed", "\n";
+    echo Core\Arr::count($info->peerChain()), "\n";
+    echo $info->subject(), " | ", $info->issuer(), "\n";
+    echo $info->expiry()->toIso(), "\n";
+}
+
+// The defaults are a verified TLS 1.3 session, and each option changes only
+// what it names: an unverified TLS 1.2 session still carries the default suite
+// for its version and the default subject.
+var $relaxed = Core\Test::tlsSession({version: "TLSv1.2", verified: false});
+echo $relaxed->version(), " ", $relaxed->cipher(), "\n";
+echo $relaxed->verified() ? "verified" : "relaxed", "\n";
+echo $relaxed->subject(), " | ", $relaxed->issuer(), "\n";
+
+// A reply over plain `http` has no session, so an answer that gives one to an
+// `http://` URL is refused where it is registered.
+try {
+    Core\Test::answerHttp("http://api.example.com/plain", 200, {tls: $relaxed});
+} catch (LogicError $e) {
+    echo "refused\n";
+}
+
+// A version, a suite or a name the session cannot hold is refused where the
+// session is built.
+try {
+    Core\Test::tlsSession({version: "TLSv1.1"});
+} catch (LogicError $e) {
+    echo "version refused\n";
+}
+try {
+    Core\Test::tlsSession({cipher: "TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256"});
+} catch (LogicError $e) {
+    echo "cipher refused\n";
+}
+try {
+    Core\Test::tlsSession({subject: "api.example.com"});
+} catch (LogicError $e) {
+    echo "subject refused\n";
+}
+--EXPECT--
+TLSv1.3 TLS_AES_128_GCM_SHA256
+verified
+2
+CN=api.example.com, O=Shop | CN=Example Test CA
+2031-06-01T12:00:00Z
+TLSv1.2 TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256
+relaxed
+CN=example.com | CN=Novis Test CA
+refused
+version refused
+cipher refused
+subject refused

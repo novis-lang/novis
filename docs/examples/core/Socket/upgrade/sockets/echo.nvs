@@ -1,0 +1,10 @@
+<?nvs
+// The connection script that `01-opening-an-echo-connection.nvs` starts.
+// It sends back every text message the client sends.
+
+Core\Socket $conn = Core\Socket::current();
+?Core\Socket\Message $message = $conn->receive();
+while ($message != null) {
+    $conn->send("you said " . ($message->text() ?? ""));
+    $message = $conn->receive();
+}

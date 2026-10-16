@@ -1,0 +1,8 @@
+<?nvs
+// This is the entry file. `nvs serve public/index.nvs` runs it once for each request.
+// The `autoload` line reads each class `Paperwork\...` from the folder `src`.
+autoload 'Paperwork' from '../src';
+
+// `dispatch` finds the route for the request and calls its method.
+// `Paperwork\Gate` decides if the method may run, and it shows the error pages.
+Core\Router::dispatch(new Paperwork\Gate());

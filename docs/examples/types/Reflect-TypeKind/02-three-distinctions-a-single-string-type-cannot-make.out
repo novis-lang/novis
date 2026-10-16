@@ -1,0 +1,6 @@
+-3 items:    Int
+3 items:     Uint
+19.90 owed:  Decimal
+19.90 parts: Float
+the word ab: Text
+two octets:  Bytes

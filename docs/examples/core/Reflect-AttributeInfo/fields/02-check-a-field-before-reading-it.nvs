@@ -1,0 +1,22 @@
+<?nvs
+// Shows how to check that an attribute has a field before you read it.
+
+class Job {
+    #[{retries: 3}]
+    public function sendReport(): void {}
+
+    #[{queue: "low"}]
+    public function cleanUp(): void {}
+}
+
+var $info = Core\Reflect::forObject(new Job());
+
+// `field` throws an error for a name that is not in `fields`, so the loop checks the list first.
+// Without a `retries` field the value is 1. This prints `sendReport: 3` and `cleanUp: 1`.
+foreach ($info->attributes() as Core\Reflect\AttributeInfo $attribute) {
+    int $retries = 1;
+    if (Core\Arr::contains($attribute->fields(), "retries")) {
+        $retries = $attribute->field("retries") as int;
+    }
+    echo $attribute->target(), ": ", $retries, "\n";
+}

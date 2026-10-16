@@ -1,0 +1,7 @@
+<?nvs
+// This program counts and reverses text with an accent and an emoji.
+string $word = "café 👍🏽";
+
+// `Core\Str::length` counts the characters a person sees. This prints `6`.
+echo Core\Str::length($word), "\n";
+echo Core\Str::reverse($word), "\n";

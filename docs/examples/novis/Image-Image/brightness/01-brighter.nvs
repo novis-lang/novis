@@ -1,0 +1,11 @@
+<?nvs
+// Shows how to make a dark photo 20% brighter.
+use Novis\Image\Image;
+use Novis\Image\Color;
+
+Image $dark = Image::create(10, 10, Color::rgba(100, 50, 25));
+
+// Each colour value is multiplied by 1.2. This prints 120 60 30.
+var $raw = $dark->brightness(1.2)->raw();
+array<mixed> $pixel = Core\Bytes::unpack(Core\Bytes::slice($raw->pixels, 0, 4), "C4");
+echo $pixel[0], " ", $pixel[1], " ", $pixel[2], "\n";

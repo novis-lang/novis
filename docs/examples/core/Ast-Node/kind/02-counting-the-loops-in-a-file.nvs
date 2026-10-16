@@ -1,0 +1,29 @@
+<?nvs
+// Shows how to count the loops in a file, which is one way to find the files
+// worth reading closely. `nodes` gives every node of the tree, however deep it
+// sits, and `kind` says which construct each one is.
+
+string $source = <<<'NVS'
+<?nvs
+foreach ([1, 2] as int $n) {
+    while ($n > 0) {
+        $n = $n - 1;
+    }
+}
+for (int $i = 0; $i < 3; $i = $i + 1) {
+    echo $i;
+}
+NVS;
+
+// The four names the language uses for its loops.
+array<string> $loops = ["For", "Foreach", "While", "DoWhile"];
+uint $found = 0;
+
+foreach (Core\Ast::parse($source)->nodes() as Core\Ast\Node $node) {
+    if (Core\Arr::contains($loops, $node->kind())) {
+        $found = $found + 1;
+    }
+}
+
+// This prints 3.
+echo "loops in this file: ", $found, "\n";

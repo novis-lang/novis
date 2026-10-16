@@ -1,0 +1,24 @@
+<?nvs
+// Checking a signup form the way a user experiences it: a display name of
+// "Jo" is too short and a wall of emoji is too long, even though each emoji
+// takes four bytes. Counting bytes would let one through and reject the other
+// for the wrong reason.
+
+class Signup {
+    public static function check(string $name): string {
+        var $n = Core\Str::length($name);
+        if ($n < 3) {
+            return "too short (" . $n . " characters, at least 3)";
+        }
+        if ($n > 16) {
+            return "too long (" . $n . " characters, at most 16)";
+        }
+        return "ok";
+    }
+}
+
+array<string> $names = ["Jo", "Ada Lovelace", "🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉"];
+
+foreach ($names as string $name) {
+    echo Signup::check($name), "\n";
+}

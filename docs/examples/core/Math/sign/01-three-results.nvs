@@ -1,0 +1,14 @@
+<?nvs
+// Shows the three results of `Core\Math::sign` for each type of number.
+
+// A whole number. This prints -1, 0 and 1.
+echo Core\Math::sign(-42), " ", Core\Math::sign(0), " ", Core\Math::sign(7), "\n";
+
+// A `float`. This prints -1, 0 and 1.
+echo Core\Math::sign(-0.25), " ", Core\Math::sign(0.0), " ", Core\Math::sign(3.5), "\n";
+
+// A `decimal`, such as an amount of money. This prints -1, 0 and 1.
+decimal $refund = -19.90;
+decimal $nothing = 0.00;
+decimal $payment = 5.00;
+echo Core\Math::sign($refund), " ", Core\Math::sign($nothing), " ", Core\Math::sign($payment), "\n";

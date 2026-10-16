@@ -1,0 +1,13 @@
+{
+  "title": "`Core\\Http\\Client` sends `traceparent` while `[trace] propagate` is on, and the id it sends is the request's own",
+  "status": "shipped",
+  "seeAlso": [
+    "observability/a-trace-id-exists-for-every-request",
+    "observability/an-inbound-traceparent-is-continued",
+    "observability/metrics-and-trace-blocks-are-system"
+  ],
+  "guardedBy": [
+    "crates/nvs-stdlib/src/http/transport.rs",
+    "crates/nvs-stdlib/src/http.rs"
+  ]
+}

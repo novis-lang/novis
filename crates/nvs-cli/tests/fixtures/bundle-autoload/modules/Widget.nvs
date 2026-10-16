@@ -1,0 +1,17 @@
+<?nvs
+namespace App;
+
+// The class the entry point names. It reaches the payload through the prefix
+// map, which the `require` graph alone never walks.
+class Widget implements Part
+{
+    public static function line(): string
+    {
+        return "greeting from the autoload root";
+    }
+
+    public function tag(): string
+    {
+        return "widget";
+    }
+}

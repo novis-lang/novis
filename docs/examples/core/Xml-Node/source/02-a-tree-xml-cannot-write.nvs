@@ -1,0 +1,12 @@
+<?nvs
+// Shows the error you get for a tree that XML cannot write.
+
+// `Core\Html::parse` accepts this comment. An XML comment cannot contain `--`.
+Core\Xml\Node $page = Core\Html::parse('<p>Price <!-- old -- price --> 5 EUR</p>');
+
+// `source` throws a `LogicError`, and this prints its message.
+try {
+    echo $page->source(), "\n";
+} catch (LogicError $error) {
+    echo $error->message, "\n";
+}

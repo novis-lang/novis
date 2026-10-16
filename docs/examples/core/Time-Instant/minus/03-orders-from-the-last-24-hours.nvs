@@ -1,0 +1,21 @@
+<?nvs
+// Finds the orders placed in the last 24 hours, as a daily report does.
+
+// A real program uses `Core\Time::now()` here. A fixed time keeps the output the same.
+Core\Time\Instant $now = Core\Time::fromIso("2024-03-02T09:00:00Z");
+Core\Time\Instant $since = $now->minus(24h);
+
+array<string> $placed = [
+    "A-1001" => "2024-02-29T17:20:00Z",
+    "A-1002" => "2024-03-01T08:59:59Z",
+    "A-1003" => "2024-03-01T09:00:00Z",
+    "A-1004" => "2024-03-02T07:45:00Z",
+];
+
+foreach ($placed as string $order => string $at) {
+    // `compareTo` returns 0 or 1 when the order is at or after `$since`.
+    if (Core\Time::fromIso($at)->compareTo($since) >= 0) {
+        echo $order, "\n";
+    }
+}
+// This prints A-1003 and A-1004. A-1002 is one second too early.

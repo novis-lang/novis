@@ -1,0 +1,66 @@
+<?nvs
+// Attack: a program changes the names that `name` returns, reads them many times,
+// and passes every name back to `constant`. The next `name` call should always
+// return the original name, and every string should be freed.
+
+class Base
+{
+    protected const string TAG = 'base';
+    private const secret string TOKEN = 's3cr3t';
+    public const array<int> LIST = [1, 2, 3];
+}
+
+class Child extends Base
+{
+    public const int MAX = 3;
+    public const int MAX_ITEMS = 4;
+}
+
+var $info = Core\Reflect::forObject(new Child());
+array<Core\Reflect\ConstantInfo> $list = $info->constants();
+
+// 1. Make a name one million characters long by adding to it. The next name is still `MAX`.
+string $grown = $list[0]->name();
+while (Core\Str::length($grown) < 1000000) {
+    $grown = $grown . $grown;
+}
+echo Core\Str::length($grown), ' ', $list[0]->name(), "\n";
+$grown = '';
+
+// 2. Use each name as an array key, then change the array. The names do not change.
+array<int> $seen = [];
+foreach ($list as Core\Reflect\ConstantInfo $constant) {
+    $seen[$constant->name()] = 1;
+}
+$seen['MAX'] = 2;
+$seen = [];
+foreach ($list as Core\Reflect\ConstantInfo $constant) {
+    echo $constant->name(), ' ';
+}
+echo "\n";
+
+// 3. Read the names 500000 times and keep some of them.
+array<string> $held = [];
+uint $total = 0;
+uint $i = 0;
+while ($i < 500000) {
+    string $one = $list[($i % 5) as int]->name();
+    $total = $total + Core\Str::length($one);
+    if ($i % 1000 == 0) {
+        $held[] = $one;
+    }
+    $i = $i + 1;
+}
+echo $total, ' ', Core\Arr::count($held), "\n";
+
+// 4. Pass every name back to `constant`. The protected, secret and array constants throw.
+foreach ($list as Core\Reflect\ConstantInfo $constant) {
+    try {
+        int $value = $info->constant($constant->name()) as int;
+        echo $constant->name(), '=', $value, "\n";
+    } catch (RuntimeError $closed) {
+        echo $constant->name(), " cannot be read here\n";
+    } catch (LogicError $none) {
+        echo $constant->name(), " has no value\n";
+    }
+}

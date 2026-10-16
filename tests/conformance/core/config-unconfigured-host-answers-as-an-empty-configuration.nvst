@@ -1,0 +1,54 @@
+--TEST--
+`Core\Config`'s four members on a host with no configuration file at all — `rule:config/ini-set-is-core-config-set`, `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults` step 3, `rule:config/three-changeability-classes`
+--FILE--
+<?nvs
+// A case runs in a working directory of its own with no `nvs.toml` in it, so
+// this is `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults` step 3's host: the shipped defaults, which are a
+// complete and valid configuration and not a failure to find one. Every member
+// of `rule:config/ini-set-is-core-config-set`'s API has to have an answer on it, and none of them throws —
+// there is nothing in this file to `catch`.
+
+// Nothing writes `[limits] memory`, so `get` gives the built-in default in
+// force, the way the shipped file writes it.
+echo "get=", Core\Config::get("memory") ?? "unset", "\n";
+
+// `rule:config/three-changeability-classes`: `[limits]` states the default and `[limits.hard]` the ceiling. With
+// no ceiling written, the ceiling is the value the run started with — the 128M
+// default (`rule:config/no-configuration-file-is-a-complete-configuration`).
+// So a `Runtime` directive moves down and not up.
+if (Core\Config::set("memory", "512M")) {
+    echo "raise=ok", "\n";
+} else {
+    echo "raise=refused", "\n";
+}
+if (Core\Config::set("memory", "64M")) {
+    echo "set=ok", "\n";
+} else {
+    echo "set=refused", "\n";
+}
+echo "after=", Core\Config::get("memory") ?? "unset", "\n";
+
+// A `System` directive is refused whatever the tree says, because the class
+// answers *who may set it* before any ceiling is consulted.
+if (Core\Config::set("opcache.file_cache_dir", "/tmp/nvs")) {
+    echo "system=ok", "\n";
+} else {
+    echo "system=refused", "\n";
+}
+
+// `restore` puts the value in force back — here, the default.
+Core\Config::restore("memory");
+echo "restored=", Core\Config::get("memory") ?? "unset", "\n";
+
+// And `all` is what the request can see: the overlay it has just emptied, over
+// the defaults in force.
+array<string> $settings = Core\Config::all();
+echo "all=", $settings["limits.memory"], "\n";
+--EXPECT--
+get=128M
+raise=refused
+set=ok
+after=64M
+system=refused
+restored=128M
+all=128M

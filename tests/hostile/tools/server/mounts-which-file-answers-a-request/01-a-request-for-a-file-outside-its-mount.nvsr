@@ -1,0 +1,8 @@
+--METHOD--
+GET
+--PATH--
+/../../../../etc/passwd%00/..%2f..%5c%2e%2e/secret.nvs::$DATA/CON/index.nvs.
+--MOUNT--
+/shop
+--HEADERS--
+host: example.com

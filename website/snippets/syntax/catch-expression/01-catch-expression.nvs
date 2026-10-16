@@ -1,0 +1,24 @@
+<?nvs
+// `expression catch (Class $e) => value` gives `value` when the expression throws `Class`.
+class Repo {
+    public static function get(int $id): int {
+        if ($id < 0) {
+            throw new IOError("no such row");
+        }
+        return $id * 2;
+    }
+}
+
+echo Repo::get(21) catch (IOError $missing) => 0, "\n";
+echo Repo::get(-1) catch (IOError $missing) => 0, "\n";
+
+// The arm can use the error. This prints its message.
+echo Repo::get(-1) catch (IOError $e) => $e->message, "\n";
+
+// Several arms are tried in order, like the clauses of a `try`.
+mixed $either = Repo::get(-1) catch (LogicError $logic) => "logic" catch (IOError $io) => -1;
+echo $either, "\n";
+
+// The guard covers the whole division. This prints `0`.
+int $zero = 0;
+echo 10 / $zero catch (ArithmeticError $div) => 0, "\n";

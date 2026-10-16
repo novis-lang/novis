@@ -1,0 +1,16 @@
+<?nvs
+// Shows how to send data that only one partner can read, with the public key the partner published.
+
+// The partner makes a key pair and publishes the public half.
+// In real code, you read the published key with `Core\Crypto\PublicKey::read`.
+Core\Crypto\KeyPair $partner = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::X25519);
+Core\Crypto\PublicKey $published = $partner->publicKey();
+
+// `Core\Jwe\Key::recipient` makes a key that encrypts for the owner of this public key.
+// The data is a JSON document with the customer's details.
+string $details = Core\Json::encode({customer: 1042, iban: "AT61 1904 3002 3457 3201"});
+string $token = Core\Jwe::encrypt($details, Core\Jwe\Key::recipient($published));
+
+// Only the partner's key pair can read the token. `Core\Jwe\Key::own` makes that key.
+// This prints the JSON document: `{"customer":1042,"iban":"AT61 1904 3002 3457 3201"}`.
+echo Core\Jwe::decrypt($token, [Core\Jwe\Key::own($partner)]), "\n";

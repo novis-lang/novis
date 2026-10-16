@@ -1,0 +1,93 @@
+<?nvs
+// Attack: one class is given 80 attributes, and the whole set is read back at 24
+// places in the program. Novis answers every read while it compiles. Each read
+// returns all 80 values, so the compiled program holds 1920 of them. It should
+// run to its last line and stay inside its memory limit.
+
+// 1. 80 attributes on one class. Each payload has two fields, so a read that
+//    names one of them has to compare every payload before it answers.
+#[{n: 1, tag: "t1"}, {n: 2, tag: "t2"}, {n: 3, tag: "t3"}, {n: 4, tag: "t4"}]
+#[{n: 5, tag: "t5"}, {n: 6, tag: "t6"}, {n: 7, tag: "t7"}, {n: 8, tag: "t8"}]
+#[{n: 9, tag: "t9"}, {n: 10, tag: "t10"}, {n: 11, tag: "t11"}, {n: 12, tag: "t12"}]
+#[{n: 13, tag: "t13"}, {n: 14, tag: "t14"}, {n: 15, tag: "t15"}, {n: 16, tag: "t16"}]
+#[{n: 17, tag: "t17"}, {n: 18, tag: "t18"}, {n: 19, tag: "t19"}, {n: 20, tag: "t20"}]
+#[{n: 21, tag: "t21"}, {n: 22, tag: "t22"}, {n: 23, tag: "t23"}, {n: 24, tag: "t24"}]
+#[{n: 25, tag: "t25"}, {n: 26, tag: "t26"}, {n: 27, tag: "t27"}, {n: 28, tag: "t28"}]
+#[{n: 29, tag: "t29"}, {n: 30, tag: "t30"}, {n: 31, tag: "t31"}, {n: 32, tag: "t32"}]
+#[{n: 33, tag: "t33"}, {n: 34, tag: "t34"}, {n: 35, tag: "t35"}, {n: 36, tag: "t36"}]
+#[{n: 37, tag: "t37"}, {n: 38, tag: "t38"}, {n: 39, tag: "t39"}, {n: 40, tag: "t40"}]
+#[{n: 41, tag: "t41"}, {n: 42, tag: "t42"}, {n: 43, tag: "t43"}, {n: 44, tag: "t44"}]
+#[{n: 45, tag: "t45"}, {n: 46, tag: "t46"}, {n: 47, tag: "t47"}, {n: 48, tag: "t48"}]
+#[{n: 49, tag: "t49"}, {n: 50, tag: "t50"}, {n: 51, tag: "t51"}, {n: 52, tag: "t52"}]
+#[{n: 53, tag: "t53"}, {n: 54, tag: "t54"}, {n: 55, tag: "t55"}, {n: 56, tag: "t56"}]
+#[{n: 57, tag: "t57"}, {n: 58, tag: "t58"}, {n: 59, tag: "t59"}, {n: 60, tag: "t60"}]
+#[{n: 61, tag: "t61"}, {n: 62, tag: "t62"}, {n: 63, tag: "t63"}, {n: 64, tag: "t64"}]
+#[{n: 65, tag: "t65"}, {n: 66, tag: "t66"}, {n: 67, tag: "t67"}, {n: 68, tag: "t68"}]
+#[{n: 69, tag: "t69"}, {n: 70, tag: "t70"}, {n: 71, tag: "t71"}, {n: 72, tag: "t72"}]
+#[{n: 73, tag: "t73"}, {n: 74, tag: "t74"}, {n: 75, tag: "t75"}, {n: 76, tag: "t76"}]
+#[{n: 77, tag: "t77"}, {n: 78, tag: "t78"}, {n: 79, tag: "t79"}, {n: 80, tag: "t80"}]
+class Crowded
+{}
+
+class Attack
+{
+    public static function run(): uint
+    {
+        uint $total = 0;
+
+        // 2. Twelve reads with the empty shape `{}`, which every payload
+        //    satisfies. Each place gets its own copy of all 80 values.
+        $total = $total + Core\Arr::count(Core\Attributes::all<{}>(Crowded::constructor(...)));
+        $total = $total + Core\Arr::count(Core\Attributes::all<{}>(Crowded::constructor(...)));
+        $total = $total + Core\Arr::count(Core\Attributes::all<{}>(Crowded::constructor(...)));
+        $total = $total + Core\Arr::count(Core\Attributes::all<{}>(Crowded::constructor(...)));
+        $total = $total + Core\Arr::count(Core\Attributes::all<{}>(Crowded::constructor(...)));
+        $total = $total + Core\Arr::count(Core\Attributes::all<{}>(Crowded::constructor(...)));
+        $total = $total + Core\Arr::count(Core\Attributes::all<{}>(Crowded::constructor(...)));
+        $total = $total + Core\Arr::count(Core\Attributes::all<{}>(Crowded::constructor(...)));
+        $total = $total + Core\Arr::count(Core\Attributes::all<{}>(Crowded::constructor(...)));
+        $total = $total + Core\Arr::count(Core\Attributes::all<{}>(Crowded::constructor(...)));
+        $total = $total + Core\Arr::count(Core\Attributes::all<{}>(Crowded::constructor(...)));
+        $total = $total + Core\Arr::count(Core\Attributes::all<{}>(Crowded::constructor(...)));
+
+        // 3. Twelve more, naming one field. All 80 payloads are compared at each
+        //    of the twelve places, and all 80 match again.
+        $total = $total + Core\Arr::count(Core\Attributes::all<{tag: string}>(Crowded::constructor(...)));
+        $total = $total + Core\Arr::count(Core\Attributes::all<{tag: string}>(Crowded::constructor(...)));
+        $total = $total + Core\Arr::count(Core\Attributes::all<{tag: string}>(Crowded::constructor(...)));
+        $total = $total + Core\Arr::count(Core\Attributes::all<{tag: string}>(Crowded::constructor(...)));
+        $total = $total + Core\Arr::count(Core\Attributes::all<{tag: string}>(Crowded::constructor(...)));
+        $total = $total + Core\Arr::count(Core\Attributes::all<{tag: string}>(Crowded::constructor(...)));
+        $total = $total + Core\Arr::count(Core\Attributes::all<{tag: string}>(Crowded::constructor(...)));
+        $total = $total + Core\Arr::count(Core\Attributes::all<{tag: string}>(Crowded::constructor(...)));
+        $total = $total + Core\Arr::count(Core\Attributes::all<{tag: string}>(Crowded::constructor(...)));
+        $total = $total + Core\Arr::count(Core\Attributes::all<{tag: string}>(Crowded::constructor(...)));
+        $total = $total + Core\Arr::count(Core\Attributes::all<{tag: string}>(Crowded::constructor(...)));
+        $total = $total + Core\Arr::count(Core\Attributes::all<{tag: string}>(Crowded::constructor(...)));
+
+        // 4. A shape no payload has. All 80 are compared and the answer is an
+        //    empty array, so this adds nothing to the total.
+        $total = $total + Core\Arr::count(Core\Attributes::all<{missing: int}>(Crowded::constructor(...)));
+
+        return $total;
+    }
+}
+
+// 5. Every read above, run 20000 times. That builds 38 million values. A program
+//    that kept a copy of each answer would grow until it reached its memory limit.
+class Repeat
+{
+    public static function many(uint $rounds): uint
+    {
+        uint $sum = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            $sum = $sum + Attack::run();
+            $i = $i + 1;
+        }
+        return $sum;
+    }
+}
+
+echo Repeat::many(20000), "\n";
+echo "still standing\n";

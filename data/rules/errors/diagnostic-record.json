@@ -1,0 +1,14 @@
+{
+  "title": "Every developer-facing output is one closed record",
+  "status": "shipped",
+  "seeAlso": [
+    "errors/renderings",
+    "errors/record-transformations",
+    "errors/record-producers",
+    "errors/log-fields"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/a-dump-renders-one-record-through-one-plaintext-view.nvst",
+    "tests/conformance/core/a-dump-and-an-encode-agree-on-what-an-array-is.nvst"
+  ]
+}

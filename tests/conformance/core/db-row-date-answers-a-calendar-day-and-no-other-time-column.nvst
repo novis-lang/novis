@@ -1,0 +1,66 @@
+--TEST--
+`Core\Db\Row::date` answers the calendar day a `DATE` column holds, and the three time readers do not span each other's columns — `rule:core-classes/db-column-types`
+--FILE--
+<?nvs
+// covers: Core\Db\Row::date
+// SQLite runs for real, and its three time columns are all stored as text, so
+// nothing but the declaration separates them. That is what makes this table the
+// place the separation can fail: a reader that answered whatever parsed would
+// answer all three of these columns and look right on every one of them.
+use Core\Db\Row;
+
+var $db = Core\Db::connect("main");
+$db->execute("create table diary (born date not null, opens time not null, seen datetime not null)", []);
+$db->execute(
+    "insert into diary (born, opens, seen) values (?, ?, ?)",
+    ["2026-09-03", "09:30:00", "2026-09-03 14:05:00"]
+);
+
+array<Row> $one = $db->query("select born, opens, seen from diary", [])->all();
+var $row = $one[0];
+
+// The day itself, which carries no time of day for a format to print.
+?Core\Time\Date $born = $row->date("born");
+if ($born != null) {
+    echo "born ", $born->format("yyyy-MM-dd"), "\n";
+}
+
+// And the four crossings that are refused, which are one rule read in both
+// directions: a `DATE` column is `date`'s and nothing else's, and `date` reads
+// no other column of the three.
+array<string> $others = ["opens", "seen"];
+foreach ($others as string $column) {
+    try {
+        $row->date($column);
+        echo "date over ", $column, ": answered\n";
+    } catch (LogicError $refused) {
+        echo "date over ", $column, ": refused\n";
+    }
+}
+try {
+    $row->time("born");
+    echo "time over born: answered\n";
+} catch (LogicError $refused) {
+    echo "time over born: refused\n";
+}
+try {
+    $row->instant("born");
+    echo "instant over born: answered\n";
+} catch (LogicError $refused) {
+    echo "instant over born: refused\n";
+}
+--FILE nvs.toml--
+# § 3: a SQLite connection's file path comes from its config block, so
+# `db.connect` covers it.
+[capabilities.db]
+connect = ["main"]
+
+[db.main]
+driver = "sqlite"
+path = ":memory:"
+--EXPECT--
+born 2026-09-03
+date over opens: refused
+date over seen: refused
+time over born: refused
+instant over born: refused

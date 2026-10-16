@@ -1,0 +1,54 @@
+<?nvs
+// Attack: a program keeps many replies, some of them very large, and reads `tls()`
+// on each one many times. Every read must return `null`, and nothing may crash or leak.
+
+// 1. A reply with a body of eight megabytes. Its `tls()` must still be `null`.
+Core\Test::answerHttp('https://api.example.com/large', 200, { body: Core\Str::repeat('x', 8388608) });
+Core\Http\Response $large = Core\Http\Client::get('https://api.example.com/large');
+if ($large->tls() != null) {
+    throw new LogicError('a fixed reply reported a TLS connection');
+}
+echo 'step 1: done', "\n";
+
+// 2. Ten thousand replies to `http` and `https` addresses are kept, and `tls()`
+//    is read a hundred times on each one.
+Core\Test::answerHttp('https://api.example.com/*', 200, { body: 'ok' });
+Core\Test::answerHttp('http://api.example.com/*', 200, { body: 'ok' });
+array<Core\Http\Response> $kept = [];
+uint $i = 0;
+while ($i < 10000) {
+    string $scheme = 'https';
+    if ($i % 2 == 1) {
+        $scheme = 'http';
+    }
+    $kept[] = Core\Http\Client::get($scheme . '://api.example.com/items/' . $i);
+    $i = $i + 1;
+}
+uint $empty = 0;
+foreach ($kept as Core\Http\Response $reply) {
+    uint $round = 0;
+    while ($round < 100) {
+        if ($reply->tls() == null) {
+            $empty = $empty + 1;
+        }
+        $round = $round + 1;
+    }
+}
+if ($empty != 1000000) {
+    throw new LogicError('a fixed reply reported a TLS connection');
+}
+echo 'step 2: ', $empty, "\n";
+
+// 3. The result of `tls()` is kept after the reply itself is gone.
+array<?Core\Http\TlsInfo> $sessions = [];
+foreach ($kept as Core\Http\Response $reply) {
+    $sessions[] = $reply->tls();
+}
+$kept = [];
+uint $keptNull = 0;
+foreach ($sessions as ?Core\Http\TlsInfo $session) {
+    if ($session == null) {
+        $keptNull = $keptNull + 1;
+    }
+}
+echo 'step 3: ', $keptNull, "\n";

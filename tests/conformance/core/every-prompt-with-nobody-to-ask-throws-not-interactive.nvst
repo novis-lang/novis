@@ -1,0 +1,103 @@
+--TEST--
+Every `Core\Cli` prompt refused by an empty room throws `Core\Cli\NotInteractive`, a `RuntimeError` clause catches it and a `LogicError` clause does not, and a prompt naming a default answers instead — `rule:tooling/a-prompt-is-a-core-member`
+--FILE--
+<?nvs
+// covers: Core\Cli\NotInteractive
+// A case runs with its input closed and its output piped, so there is no
+// controlling terminal to ask. The five prompts share one rule, so they are
+// each asked with no default and have to agree on the answer: a member that
+// grew its own reading of silence fails here while still looking right alone.
+final class Prompt {
+    public static function ask(): string {
+        try {
+            tainted string $said = Core\Cli::ask("who is there?");
+            return "answered";
+        } catch (Core\Cli\NotInteractive $none) {
+            return "refused";
+        }
+    }
+
+    public static function confirm(): string {
+        try {
+            Core\Cli::confirm("still there?");
+            return "answered";
+        } catch (Core\Cli\NotInteractive $none) {
+            return "refused";
+        }
+    }
+
+    public static function select(): string {
+        array<string> $rooms = ["staging", "production"];
+        try {
+            string $room = Core\Cli::select("where to?", $rooms);
+            return "answered";
+        } catch (Core\Cli\NotInteractive $none) {
+            return "refused";
+        }
+    }
+
+    public static function multiSelect(): string {
+        array<string> $rooms = ["staging", "production"];
+        try {
+            array<string> $picked = Core\Cli::multiSelect("which ones?", $rooms);
+            return "answered";
+        } catch (Core\Cli\NotInteractive $none) {
+            return "refused";
+        }
+    }
+
+    public static function secret(): string {
+        try {
+            secret tainted string $pass = Core\Cli::secret("password?");
+            return "answered";
+        } catch (Core\Cli\NotInteractive $none) {
+            return "refused";
+        }
+    }
+}
+
+echo "ask: ", Prompt::ask(), "\n";
+echo "confirm: ", Prompt::confirm(), "\n";
+echo "select: ", Prompt::select(), "\n";
+echo "multiSelect: ", Prompt::multiSelect(), "\n";
+echo "secret: ", Prompt::secret(), "\n";
+
+// Its place in the tree, asserted on both sides: the parent a program writes to
+// mean "the world said no" catches it, and the sibling that means "the program
+// is wrong" does not — `crates/nvs-hir/src/errors.rs` is where that parent is
+// declared.
+try {
+    Core\Cli::confirm("still there?");
+    echo "answered\n";
+} catch (RuntimeError $runtime) {
+    echo "a RuntimeError clause catches it\n";
+}
+
+try {
+    try {
+        Core\Cli::confirm("still there?");
+        echo "answered\n";
+    } catch (LogicError $wrong) {
+        echo "a LogicError clause catches it\n";
+    }
+} catch (Throwable $right) {
+    echo "a LogicError clause does not\n";
+}
+
+// The boundary the error is written around: the same empty room, with an answer
+// named for it, throws nothing at all.
+bool $go = Core\Cli::confirm("still there?", {default: true});
+echo "with a default: ", $go ? "yes" : "no", "\n";
+
+tainted string $who = Core\Cli::ask("who is there?", {default: "nobody"});
+echo "with a default: ", $who, "\n";
+--EXPECT--
+ask: refused
+confirm: refused
+select: refused
+multiSelect: refused
+secret: refused
+a RuntimeError clause catches it
+a LogicError clause does not
+with a default: yes
+with a default: nobody

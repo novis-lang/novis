@@ -1,0 +1,12 @@
+<?nvs
+// Shows how to join two lists into one. The values of the first list come
+// first, then the values of the second.
+
+array<string> $morning = ["Ada", "Grace"];
+array<string> $afternoon = ["Alan", "Edsger"];
+
+// This prints Ada, Grace, Alan and Edsger, one name per line.
+array<string> $everyone = Core\Arr::appendAll($morning, $afternoon);
+foreach ($everyone as string $name) {
+    echo $name, "\n";
+}

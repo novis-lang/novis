@@ -1,0 +1,22 @@
+<?nvs
+// Shows how to replace a file so that a reader never sees a half-written version.
+
+class Settings {
+    // Writes the new content to a temporary file next to the real one, and then moves it
+    // over the real file. The move replaces the old file in one step.
+    public static function save(string $path, string $content): void {
+        string $temporary = $path . ".tmp";
+        Core\IO::write($temporary, $content);
+        Core\IO::move($temporary, $path);
+    }
+}
+
+string $path = Core\Path::join(Core\IO::temporaryDir(), "settings.json");
+Settings::save($path, "{\"theme\": \"light\"}\n");
+Settings::save($path, "{\"theme\": \"dark\"}\n");
+
+// This prints the second version: {"theme": "dark"}
+echo Core\IO::read($path);
+
+// The temporary file was moved, so it does not exist any more. This prints "false".
+echo Core\IO::exists($path . ".tmp") ? "true" : "false", "\n";

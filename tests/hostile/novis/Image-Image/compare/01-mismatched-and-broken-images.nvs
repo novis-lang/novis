@@ -1,0 +1,45 @@
+<?nvs
+// Attack: a request compares images that are broken, of different sizes, or very wide.
+// Each attempt should return a result or throw an error, and the server keeps running.
+use Novis\Image\Color;
+use Novis\Image\Image;
+
+bytes $photo = Image::create(64, 64, Color::hex('#336699'))->encode();
+
+// 1. No bytes at all on one side.
+try {
+    echo 'step 1 ran ', Image::compare($photo, '' as bytes)->differingPixels, "\n";
+} catch (Throwable $e) {
+    echo "step 1 stopped\n";
+}
+
+// 2. The same image with a different height.
+try {
+    echo 'step 2 ran ', Image::compare($photo, Image::create(64, 63))->differingPixels, "\n";
+} catch (Throwable $e) {
+    echo "step 2 stopped\n";
+}
+
+// 3. A real PNG file cut off after its first 40 bytes, with a rendered diff.
+try {
+    echo 'step 3 ran ', Image::compare(Core\Bytes::slice($photo, 0, 40), $photo, { render: true })->ssim, "\n";
+} catch (Throwable $e) {
+    echo "step 3 stopped\n";
+}
+
+// 4. Two images of one pixel, one black and one white, with the largest tolerance.
+try {
+    Image $black = Image::create(1, 1, Color::hex('#000000'));
+    Image $white = Image::create(1, 1, Color::hex('#ffffff'));
+    echo 'step 4 ran ', Image::compare($black, $white, { tolerance: 18446744073709551615 })->ssim, "\n";
+} catch (Throwable $e) {
+    echo "step 4 stopped\n";
+}
+
+// 5. Two images of 4000 by 2 pixels, which are too flat for the similarity window.
+try {
+    Image $line = Image::create(4000, 2, Color::hex('#ffffff'));
+    echo 'step 5 ran ', Image::compare($line, $line->grayscale(), { render: true })->ssim, "\n";
+} catch (Throwable $e) {
+    echo "step 5 stopped\n";
+}

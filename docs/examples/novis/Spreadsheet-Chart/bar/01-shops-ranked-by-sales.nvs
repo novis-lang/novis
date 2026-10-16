@@ -1,0 +1,23 @@
+<?nvs
+// Shows a bar chart of the sales of each shop.
+use Novis\Spreadsheet\Chart;
+use Novis\Spreadsheet\Workbook;
+
+var $book = Workbook::createInMemory();
+var $sheet = $book->sheet('Shops');
+$sheet->addAll([
+    ['shop' => 'North', 'sales' => 340],
+    ['shop' => 'South', 'sales' => 210],
+    ['shop' => 'East', 'sales' => 95],
+]);
+
+// A bar chart draws each value as a horizontal bar. The shop names are beside the bars.
+var $chart = Chart::bar({ title: 'Sales by shop', legend: 'hidden' })
+    ->series($sheet->column('sales'), { categories: $sheet->column('shop') });
+$sheet->chart('D2', $chart);
+bytes $file = $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
+
+// `Core\Zip::read` returns the XML of the chart. These lines check what it contains.
+var $xml = Core\Zip::read($file, 'xl/charts/chart1.xml') as string;
+echo Core\Str::contains($xml, '<c:barDir val="bar"/>') ? 'horizontal bars' : 'another type', "\n";
+echo Core\Str::contains($xml, '<c:legend>') ? 'a legend' : 'no legend', "\n";

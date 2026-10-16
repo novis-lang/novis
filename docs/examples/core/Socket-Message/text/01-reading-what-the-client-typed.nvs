@@ -1,0 +1,15 @@
+<?nvs
+// Shows how to read the text of each message the client sends.
+
+// The `.nvsp` file beside this example plays the client.
+// It sends two text messages and then closes the connection.
+Core\Socket $conn = Core\Socket::current();
+
+// `text()` returns the text exactly as the client sent it.
+// This prints `hello (5 characters)`, then `good night (10 characters)`.
+?Core\Socket\Message $message = $conn->receive();
+while ($message != null) {
+    tainted string $text = $message->text() ?? "";
+    echo $text, " (", Core\Str::length($text), " characters)\n";
+    $message = $conn->receive();
+}

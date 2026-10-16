@@ -1,0 +1,60 @@
+<?nvs
+// Attack: `Core\Metrics::observe` gets values that are not normal numbers and names that break
+// the naming rule. It also gets a counter's name, mixed label names and more new series than a
+// server keeps. The program should run to its end.
+
+// 1. NAN, both infinities, the largest float and minus zero, all in one histogram.
+array<float> $values = [Core\Math::NAN, Core\Math::INFINITY, -Core\Math::INFINITY, 1.7976931348623157e308, -0.0];
+foreach ($values as float $value) {
+    Core\Metrics::observe('strange_seconds', $value);
+}
+echo "strange values recorded\n";
+
+// 2. Names built while the program runs, so the compiler cannot check them.
+array<string> $names = ['', "a\nb 1", 'Upper_Case', Core\Str::repeat('n', 1000000)];
+foreach ($names as string $name) {
+    try {
+        Core\Metrics::observe($name, 1.0);
+    } catch (LogicError $e) {
+        echo "refused\n";
+    }
+}
+echo "odd names recorded\n";
+
+// 3. A name that is already a counter, used as a histogram. This throws a `LogicError`.
+Core\Metrics::increment('jobs_total');
+try {
+    Core\Metrics::observe('jobs_total', 1.0);
+} catch (LogicError $e) {
+    echo "refused\n";
+}
+
+// 4. The same name with a different label name each time. Only the first label name is allowed.
+uint $i = 0;
+uint $refused = 0;
+while ($i < 1000) {
+    try {
+        Core\Metrics::observe('mixed_seconds', 0.5, { labels: ['label_' . ($i as string) => 'x'] });
+    } catch (LogicError $e) {
+        $refused = $refused + 1;
+    }
+    $i = $i + 1;
+}
+// This prints 999.
+echo $refused, "\n";
+
+// 5. One label with two hundred thousand values. A server keeps a limited number of series.
+$i = 0;
+while ($i < 200000) {
+    Core\Metrics::observe('wait_seconds', 0.1, { labels: ['shop' => $i as string] });
+    $i = $i + 1;
+}
+echo "many label values recorded\n";
+
+// 6. Two hundred thousand new names, after the limit is already reached.
+$i = 0;
+while ($i < 200000) {
+    Core\Metrics::observe('step_' . ($i as string) . '_seconds', $i as float);
+    $i = $i + 1;
+}
+echo "many names recorded\n";

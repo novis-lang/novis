@@ -1,0 +1,7 @@
+port: a whole number, as expected
+host: text, as expected
+retries: a whole number, as expected
+debug: text, but it is read as a yes or no
+unitPrice: an exact amount, as expected
+
+1 setting(s) are not what this program reads

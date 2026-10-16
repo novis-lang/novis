@@ -1,0 +1,24 @@
+<?nvs
+// Shows the `match (true)` form. Here the left of each arm is a condition
+// instead of a value, and the first condition that is true gives the result.
+// Use it to choose by a range.
+
+class Size {
+    public static function unit(uint $bytes): string {
+        // The arms are tested in order, so the largest range is written first.
+        return match (true) {
+            $bytes >= 1048576 => "megabytes",
+            $bytes >= 1024 => "kilobytes",
+            default => "bytes",
+        };
+    }
+}
+
+// This prints: 512 bytes
+echo "512 ", Size::unit(512), "\n";
+
+// This prints: 4096 kilobytes
+echo "4096 ", Size::unit(4096), "\n";
+
+// This prints: 3145728 megabytes
+echo "3145728 ", Size::unit(3145728), "\n";

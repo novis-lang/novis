@@ -1,0 +1,16 @@
+<?nvs
+// Shows how to try a `PATCH` request again when an attempt fails. A `PATCH` with
+// `retryAttempts` also needs `retryIdempotencyKey`, or the program does not compile.
+
+// The key names this one change: the order number and the new status.
+string $key = "order-1042-paid";
+echo "key: ", $key, "\n";
+
+// `retryAttempts: 3` sends the request up to 3 times.
+// 172.16.0.4 is a private address, so the call throws a `RuntimeError`.
+try {
+    Core\Http\Response $response = Core\Http\Client::patch("http://172.16.0.4/orders/1042", {json: ["status" => "paid"], retryAttempts: 3, retryIdempotencyKey: $key});
+    echo "status: ", $response->status(), "\n";
+} catch (RuntimeError $refused) {
+    echo $refused->message, "\n";
+}

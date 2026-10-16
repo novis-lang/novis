@@ -1,0 +1,12 @@
+{
+  "title": "HSTS is emitted when the effective scheme is `https` and not otherwise, and `hsts_subdomains` defaults to `false`",
+  "status": "shipped",
+  "seeAlso": [
+    "http-server/secure-headers-with-nothing-written",
+    "http-server/trusted-proxies-is-empty-and-empty-reads-nothing",
+    "http-server/two-deployments-and-nothing-a-proxy-owns"
+  ],
+  "guardedBy": [
+    "crates/nvs-server/src/secure.rs"
+  ]
+}

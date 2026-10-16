@@ -1,0 +1,30 @@
+<?nvs
+// Shows a report that lists the partner servers that still use TLS 1.2.
+
+// Fixed replies with TLS connections built for a test, so the example runs
+// without a network. The payment server still uses TLS 1.2.
+Core\Test::answerHttp("https://pay.example.com/status", 200, {tls: Core\Test::tlsSession({version: "TLSv1.2"})});
+Core\Test::answerHttp("https://mail.example.com/status", 200, {tls: Core\Test::tlsSession({version: "TLSv1.3"})});
+Core\Test::answerHttp("https://maps.example.com/status", 200, {tls: Core\Test::tlsSession({version: "TLSv1.3"})});
+
+array<string> $partners = [
+    "https://pay.example.com/status",
+    "https://mail.example.com/status",
+    "https://maps.example.com/status",
+];
+
+// The loop calls each partner and keeps the addresses that did not use TLS 1.3.
+array<string> $outdated = [];
+foreach ($partners as string $url) {
+    ?Core\Http\TlsInfo $info = Core\Http\Client::get($url)->tls();
+    if ($info != null) {
+        if ($info->version() != "TLSv1.3") {
+            $outdated[] = $url . " uses " . $info->version();
+        }
+    }
+}
+
+// This prints one line: `https://pay.example.com/status uses TLSv1.2`.
+foreach ($outdated as string $line) {
+    echo $line, "\n";
+}

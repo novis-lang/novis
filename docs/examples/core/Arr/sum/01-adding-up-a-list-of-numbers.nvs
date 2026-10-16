@@ -1,0 +1,16 @@
+<?nvs
+// Shows how to add up the values of an array.
+
+array<int> $goals = [3, 0, 2, 1];
+
+// This prints 6. The keys are not used, only the values.
+echo Core\Arr::sum($goals), "\n";
+
+// A map works the same way. This prints 148.
+array<int> $stock = ['screws' => 120, 'nails' => 25, 'bolts' => 3];
+echo Core\Arr::sum($stock), "\n";
+
+// An array with no entries gives you 0, so a total is always a number you
+// can print. This prints 0.
+array<int> $nothing = [];
+echo Core\Arr::sum($nothing), "\n";

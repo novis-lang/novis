@@ -1,0 +1,25 @@
+<?nvs
+// Shows how a delivery app finds the compass direction from the shop to a customer.
+// The map gives the distance east and the distance north, in metres.
+
+class Compass {
+    // Returns the direction in degrees: 0 is north, 90 is east, 180 is south.
+    public static function direction(float $east, float $north): float {
+        // A compass starts at north, so the east distance is passed first.
+        float $degrees = Core\Math::toDegrees(Core\Math::atan2($east, $north));
+        // `Core\Math::atan2` gives -90 for west. A compass uses 270.
+        if ($degrees < 0.0) {
+            $degrees = $degrees + 360.0;
+        }
+        return Core\Math::round($degrees);
+    }
+}
+
+// A customer 300 metres east and 300 metres north. This prints 45.
+echo Compass::direction(300.0, 300.0), "\n";
+
+// A customer straight south. This prints 180.
+echo Compass::direction(0.0, -500.0), "\n";
+
+// A customer to the west. This prints 270.
+echo Compass::direction(-200.0, 0.0), "\n";

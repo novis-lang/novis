@@ -1,0 +1,13 @@
+--TEST--
+an unclosed brace does not stop the parse: the lines under it are still read — as the class members the tree says they are — and the missing `}` is reported at its own empty span past the last line, `rule:ide/one-grammar-one-tree`
+--FILE--
+<?nvs
+class User {
+    public function greet(): string { return "hi";
+}
+var $total = ;
+--REQUEST--
+diagnostics
+--EXPECT--
+5:1-5:4 error E0122 `var` is not a visibility, and a property declares its type
+6:1-6:1 error E0101 expected `}`

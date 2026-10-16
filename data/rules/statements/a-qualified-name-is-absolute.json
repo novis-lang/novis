@@ -1,0 +1,15 @@
+{
+  "title": "A name containing a separator is read from the root, and one without it through the imports",
+  "status": "shipped",
+  "seeAlso": [
+    "statements/no-fallback-to-the-root-namespace",
+    "statements/a-leading-separator-does-not-parse",
+    "statements/one-function-resolves-every-name",
+    "statements/nothing-gets-a-second-name"
+  ],
+  "guardedBy": [
+    "tests/conformance/reject/a-name-is-absolute-and-a-leading-separator-does-not-parse.nvst",
+    "tests/conformance/core/json-derive-encodes-declared-fields.nvst",
+    "crates/nvs-hir/src/hierarchy.rs"
+  ]
+}

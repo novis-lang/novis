@@ -1,0 +1,141 @@
+--TEST--
+An observer cannot change the value a read gives back, a throwing `onPropertyGet` fails the read, a private or protected property is observed like any other, and an access to a hook's own backing slot carries no observer — `rule:classes/property-observer` and `rule:classes/property-observer-pipeline`
+--FILE--
+<?nvs
+// covers: lang:classes/propertyobserver
+// `rule:classes/property-observer-pipeline`: the value is produced first and the observer is told
+// afterwards, so a write this observer makes reaches the slot and never the read
+// that is already in progress. Both members return `void`, which is the same
+// rule stated in the signature.
+final class Meddler implements PropertyObserver {
+    public int $n;
+
+    public function constructor() {
+        $this->n = 7;
+    }
+
+    public function onPropertyGet(string $name, mixed $value): void {
+        if ($value == 7) {
+            $this->n = 99;
+        }
+    }
+
+    public function onPropertySet(string $name, mixed $value): void {
+    }
+}
+
+// `rule:classes/property-observer-pipeline`: "an observer that throws still fails the access,
+// propagated like any other call" (`rule:errors/propagation`). The reference chapter says that of a
+// write; the rule says it of both, and a read is the half nothing asked about.
+final class Sealed implements PropertyObserver {
+    public int $n;
+
+    public function constructor() {
+        $this->n = 1;
+    }
+
+    public function onPropertyGet(string $name, mixed $value): void {
+        throw new LogicError("refusing to read " . $name);
+    }
+
+    public function onPropertySet(string $name, mixed $value): void {
+    }
+}
+
+// `rule:classes/property-observer`: "every declared property of that class" is every one of them, so
+// visibility exempts nothing and an access from inside the class is an access.
+final class Ledger implements PropertyObserver {
+    private int $count;
+    protected string $tag;
+
+    // `rule:classes/property-observer-pipeline`, third boundary: an access inside the property's own
+    // hooks is the backing slot and carries no observer, or one write would be
+    // reported twice. The hook's read of `$this->tag` is a different property,
+    // so that one is reported.
+    public string $label {
+        get => $this->label;
+        set (string $v) {
+            $this->label = $this->tag . ":" . $v;
+        }
+    }
+
+    public function constructor() {
+        $this->count = 0;
+        $this->tag = "row";
+        $this->label = "a";
+    }
+
+    public function bump(): int {
+        $this->count = $this->count + 1;
+        return $this->count;
+    }
+
+    public function onPropertyGet(string $name, mixed $value): void {
+        echo "  get ", $name, " = ", $value, "\n";
+        Tally::$reads = Tally::$reads + 1;
+    }
+
+    public function onPropertySet(string $name, mixed $value): void {
+        echo "  set ", $name, " = ", $value, "\n";
+        Tally::$writes = Tally::$writes + 1;
+    }
+}
+
+// `rule:classes/property-observer-pipeline`, second boundary: a `static` property has no receiving
+// instance and reaches nothing, so these counters do not count themselves.
+final class Tally {
+    public static int $reads = 0;
+    public static int $writes = 0;
+}
+
+// The read is answered by storage, and the observer's own write lands after it.
+// The caller sees 7; the slot holds 99.
+echo "a meddling observer:\n";
+Meddler $m = new Meddler();
+int $seen = $m->n;
+echo "  caller sees ", $seen, "\n";
+echo "  the slot now holds ", $m->n, "\n";
+
+echo "a throwing read:\n";
+Sealed $s = new Sealed();
+try {
+    int $never = $s->n;
+    echo "  BAD, the read answered ", $never, "\n";
+} catch (Throwable $e) {
+    echo "  caught ", $e->message, "\n";
+}
+
+// `private` and `protected` are written by the constructor, and `bump` reads and
+// writes `$count` from inside the class.
+echo "a private and a protected property:\n";
+Ledger $l = new Ledger();
+int $bumped = $l->bump();
+echo "  bump gave ", $bumped, "\n";
+
+// The `get` hook returns its own slot, and the observer is told once.
+echo "a hooked property:\n";
+string $label = $l->label;
+echo "  caller sees ", $label, "\n";
+
+// The count is the invariant: four writes and four reads reached the observer on
+// this one instance, and no hook's own slot access is among them.
+echo "reads=", Tally::$reads, " writes=", Tally::$writes, "\n";
+--EXPECT--
+a meddling observer:
+  caller sees 7
+  the slot now holds 99
+a throwing read:
+  caught refusing to read n
+a private and a protected property:
+  set count = 0
+  set tag = row
+  get tag = row
+  set label = row:a
+  get count = 0
+  set count = 1
+  get count = 1
+  bump gave 1
+a hooked property:
+  get label = row:a
+  caller sees row:a
+reads=4 writes=4

@@ -1,0 +1,16 @@
+{
+  "title": "There is no REPL and none is planned; `nvs run`, `nvs test` and `Core\\Debug::dump` are the answer",
+  "status": "shipped",
+  "seeAlso": [
+    "tooling/python-claims",
+    "testing/nvst-is-separate",
+    "testing/test-attribute",
+    "errors/debug-dump",
+    "classes/no-free-functions-or-constants",
+    "classes/definite-property-initialization",
+    "statements/nothing-gets-a-second-name",
+    "packaging/an-artifact-is-one-immutable-content-addressed-file",
+    "packaging/the-installer-is-a-sink"
+  ],
+  "guardedBy": []
+}

@@ -1,0 +1,9 @@
+<?nvs
+// Shows that `Core\Str::upperFirst` also changes a first letter with an accent or from another alphabet.
+
+array<string> $words = ["ärger", "élan", "ωμέγα"];
+
+// This prints `Ärger`, `Élan` and `Ωμέγα`.
+foreach ($words as string $word) {
+    echo Core\Str::upperFirst($word), "\n";
+}

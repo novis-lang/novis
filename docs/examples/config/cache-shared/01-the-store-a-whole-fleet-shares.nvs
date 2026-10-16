@@ -1,0 +1,29 @@
+<?nvs
+// Shows the settings of the network store that every server process and every machine shares.
+// The server running this program has this block:
+//
+//     [cache.shared]
+//     url = "redis://127.0.0.1:16379"
+//
+// The address has no default. A server that sets no `url` has no shared cache.
+
+echo 'store:    ', Core\Config::get('cache.shared.url') ?? '(no shared cache)', "\n";
+
+// The other keys have defaults. `database` is the database in the store
+// that the values use.
+echo 'database: ', Core\Config::get('cache.shared.database') ?? '(the one the store opens on)', "\n";
+
+// `timeout` limits the connect and each command. This file does not set it,
+// so the result is the default, `5s`. A store that stops answering cannot block a request.
+echo 'timeout:  ', Core\Config::get('cache.shared.timeout') ?? '(no value)', "\n";
+
+// Set the password with `password`, or with `password_file`. Write only one of the two.
+// `password_file` names a file that contains the password, which is how a container passes one in.
+
+// Only the person who runs the server chooses the store.
+// A program cannot move it or shorten its timeout.
+echo 'move:     ', Core\Config::set('cache.shared.url', 'redis://elsewhere:6379') ? 'yes' : 'no', "\n";
+echo 'hurry:    ', Core\Config::set('cache.shared.timeout', '5ms') ? 'yes' : 'no', "\n";
+
+// The person who runs the server can change this block while it runs.
+// The next request then uses the new store. No restart is needed.

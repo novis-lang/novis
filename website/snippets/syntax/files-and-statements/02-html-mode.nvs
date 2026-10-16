@@ -1,0 +1,9 @@
+<?nvs
+// Text outside the tags is copied to the output. `<?= ?>` writes one value.
+array<string> $products = ["pen", "ink", "paper"];
+?>
+<ul>
+<?nvs foreach ($products as string $name) { ?>
+  <li><?= $name ?></li>
+<?nvs } ?>
+</ul>

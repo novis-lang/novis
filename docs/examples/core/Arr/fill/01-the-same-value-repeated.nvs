@@ -1,0 +1,9 @@
+<?nvs
+// Shows how to build a list that holds the same value several times.
+
+// Four entries, each of them 0. The keys are 0, 1, 2 and 3.
+array<int> $counters = Core\Arr::fill(4, 0);
+
+// This prints 4 and then 0.
+echo Core\Arr::count($counters), "\n";
+echo $counters[0], "\n";

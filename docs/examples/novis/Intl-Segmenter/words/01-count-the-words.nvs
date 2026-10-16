@@ -1,0 +1,17 @@
+<?nvs
+// Shows how to count the words of each text in a list.
+use Novis\Intl\Segmenter;
+
+array<string> $comments = ["Hello, Shop! It's 9.50 now.", "Great blog", ""];
+
+// A part counts when `wordLike` is `true`. Spaces and punctuation do not count.
+// This prints 5, 2 and 0.
+foreach (Segmenter::words($comments, "en") as array<{text: string, wordLike: bool}> $parts) {
+    uint $count = 0;
+    foreach ($parts as {text: string, wordLike: bool} $part) {
+        if ($part->wordLike) {
+            $count = $count + 1;
+        }
+    }
+    echo $count, "\n";
+}

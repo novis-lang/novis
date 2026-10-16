@@ -1,0 +1,15 @@
+<?nvs
+// Shows the angles for very big tangents, and when to use `Core\Math::atan2` instead.
+
+// A big tangent gives an angle close to 90 degrees. This prints 89.99994270422.
+echo Core\Math::toDegrees(Core\Math::atan(1000000.0)), "\n";
+
+// An infinite tangent gives exactly 90 degrees. This prints 90.
+echo Core\Math::toDegrees(Core\Math::atan(Core\Math::INFINITY)), "\n";
+
+// The point (-1, -1) is at -135 degrees. Dividing -1.0 by -1.0 gives 1.0 and loses
+// both minus signs, so `Core\Math::atan` prints 45.
+echo Core\Math::toDegrees(Core\Math::atan(-1.0 / -1.0)), "\n";
+
+// `Core\Math::atan2` takes both coordinates, y first. This prints -135.
+echo Core\Math::toDegrees(Core\Math::atan2(-1.0, -1.0)), "\n";

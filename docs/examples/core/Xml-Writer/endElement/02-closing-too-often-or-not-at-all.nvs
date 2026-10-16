@@ -1,0 +1,26 @@
+<?nvs
+// Shows the error when you close more elements than are open, and when you forget to close one.
+
+Core\Xml\Writer $writer = Core\Xml::writer();
+$writer->startDocument();
+$writer->startElement("list");
+$writer->startElement("entry");
+
+// `entry` is still open, so the document is not finished. This prints the error message.
+try {
+    echo $writer->endDocument(), "\n";
+} catch (LogicError $error) {
+    echo $error->message, "\n";
+}
+
+$writer->endElement();
+$writer->endElement();
+
+// Both elements are closed. A third `endElement` prints the error message.
+try {
+    $writer->endElement();
+} catch (LogicError $error) {
+    echo $error->message, "\n";
+}
+
+echo $writer->endDocument(), "\n";

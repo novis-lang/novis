@@ -1,0 +1,10 @@
+<?nvs
+// The examples in the folder above start this script. It adds up last month's
+// sales and returns one line of text about them.
+
+int $total = 0;
+foreach (Core\Arr::range(1, 30) as int $day) {
+    $total += $day * 100;
+}
+
+return "Sales last month: " . $total;

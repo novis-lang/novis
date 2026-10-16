@@ -1,0 +1,28 @@
+--TEST--
+A parameter the manifest declares a sink does not accept a tainted argument, and gives the error a `Core` sink gives, while a parameter with no declaration accepts it — `rule:security/extension-declares-sink-or-source` and `rule:security/extension-manifest-only-tightens`
+--EXTENSION--
+ledger
+--FILE--
+<?nvs
+use Shop\Ledger;
+
+tainted string $input = "a line";
+
+// `echoString` declares nothing, so it accepts a tainted argument.
+tainted string $copy = Ledger::echoString($input);
+
+// `writeLine` declares its parameter a sink. It does not accept a tainted argument.
+Ledger::writeLine($input);
+
+// `Core\IO::remove` is a sink too, and gives the same error.
+Core\IO::remove($input);
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `string`, found `tainted string`
+%A
+error[E0401]: expected `string`, found `tainted string`
+%A
+error: aborting due to 2 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

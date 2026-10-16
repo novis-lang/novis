@@ -1,0 +1,15 @@
+<?nvs
+// Shows what `Core\Math::asin` returns for a number that is not a sine,
+// and how to keep a calculated sine in range.
+
+// No angle has a sine of 2.0, so the result is `NaN`. This prints NAN.
+echo Core\Math::asin(2.0), "\n";
+
+// `Core\Math::isNan` tests for that result. This prints "not an angle".
+echo Core\Math::isNan(Core\Math::asin(2.0)) ? "not an angle" : "an angle", "\n";
+
+// A calculation can end a tiny bit below -1.0 because of rounding.
+float $sine = -1.0000000000000002;
+
+// `Core\Math::clamp` moves it back to -1.0 first. This prints -1.5707963267949.
+echo Core\Math::asin(Core\Math::clamp($sine, -1.0, 1.0)), "\n";

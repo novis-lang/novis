@@ -1,0 +1,37 @@
+<?nvs
+// Shows the four places an object turns into text on its own. One `toString`
+// method serves all of them.
+
+class Tag implements Stringable {
+    public function constructor(private string $word) {}
+
+    public function toString(): string {
+        return "#" . $this->word;
+    }
+}
+
+var $tag = new Tag("sale");
+
+// 1. `echo` writes the text out.
+echo $tag, "\n";
+
+// 2. `.` joins the text to another string.
+echo "banner: " . $tag, "\n";
+
+// 3. A value inside a string is replaced by the text.
+echo "banner: {$tag}\n";
+
+// 4. `as string` gives you the text as a value you can keep.
+string $kept = $tag as string;
+echo $kept, "\n";
+
+// A subclass that writes its own `toString` is the one that runs, whatever type
+// the variable is declared as. This prints #SALE.
+final class LoudTag extends Tag {
+    public function toString(): string {
+        return Core\Str::upper(parent::toString());
+    }
+}
+
+Tag $loud = new LoudTag("sale");
+echo $loud, "\n";

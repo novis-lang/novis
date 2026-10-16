@@ -1,0 +1,9 @@
+<?nvs
+// This is the file lib/Text/Greeter.nvs. It declares one class in the namespace `App\Text`.
+namespace App\Text;
+
+class Greeter {
+    public static function greet(string $name): string {
+        return "Hello, " . $name . "!";
+    }
+}

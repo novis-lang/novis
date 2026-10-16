@@ -1,0 +1,23 @@
+<?nvs
+// Shows how to open a template file, fill it and save the result as a new file.
+use Novis\Spreadsheet\Reader;
+use Novis\Spreadsheet\Template;
+use Novis\Spreadsheet\Workbook;
+
+string $folder = Core\IO::temporaryDir();
+string $templatePath = Core\Path::join($folder, 'order-template.xlsx');
+string $orderPath = Core\Path::join($folder, 'order-1042.xlsx');
+
+// This saves the template file. In a real program it is a file made in Excel.
+var $design = Workbook::createForFile($templatePath);
+$design->sheet('Order')->addAll([['Order', '{{order}}'], ['Customer', '{{customer}}']]);
+$design->finish();
+
+// `Template::open` reads the open file. `save` writes the filled order to a new file.
+Core\IO\File $file = Core\IO::open($templatePath, Core\IO::FileMode::Read);
+Template::open($file)->fill(['order' => 1042, 'customer' => 'Shop'])->save($orderPath);
+$file->close();
+
+foreach (Reader::open(Core\IO::open($orderPath, Core\IO::FileMode::Read))->rows('Order') as var $row) {
+    echo $row->values['A'], ': ', $row->values['B'], "\n";
+}

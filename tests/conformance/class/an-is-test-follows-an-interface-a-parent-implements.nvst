@@ -1,0 +1,36 @@
+--TEST--
+`is` answers for an interface reached through the parent, and for the runtime class behind a base-typed local
+--FILE--
+<?nvs
+interface Named {
+    public function name(): string;
+}
+
+class Animal implements Named {
+    public string $label;
+
+    public function constructor(string $label) {
+        $this->label = $label;
+    }
+
+    public function name(): string {
+        return $this->label;
+    }
+}
+
+class Dog extends Animal {
+    public function constructor() {
+        parent::constructor("dog");
+    }
+}
+
+var $d = new Dog();
+echo $d is Dog, ";", $d is Animal, ";", $d is Named, "\n";
+Animal $a = $d;
+echo $a is Dog, ";", $a->name(), "\n";
+var $plain = new Animal("cat");
+echo $plain is Dog, ";", $plain is Named, "\n";
+--EXPECT--
+1;1;1
+1;dog
+;1

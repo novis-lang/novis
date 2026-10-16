@@ -1,0 +1,14 @@
+{
+  "title": "A `Core` member throws on failure and returns `?T` for absence; `false` is never an answer",
+  "status": "shipped",
+  "seeAlso": [
+    "core-api/verb-lexicon",
+    "core-api/one-refusal-except-expiry",
+    "errors/throwable-hierarchy",
+    "expressions/nullable-conversion-availability"
+  ],
+  "guardedBy": [
+    "crates/nvs-stdlib/src/registry.rs",
+    "tests/conformance/core/json-encode-refuses-exactly-the-values-json-cannot-spell.nvst"
+  ]
+}

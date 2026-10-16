@@ -1,0 +1,83 @@
+<?nvs
+// Attack: a request tries to make `Core\Debug::dump` write into the response, not only the log.
+// It changes `[debug] inline` and the run mode, and dumps values that are hard to print.
+// Every change should fail, and no dump should crash the server.
+
+// 1. Set `debug.inline` to values that could mean "on", and to "off". Each change should fail.
+array<string> $values = ['true', 'True', 'TRUE', '1', 'on', 'yes', '-1', 'inline', 'false', '0', 'off'];
+foreach ($values as string $value) {
+    Core\Config::set('debug.inline', $value);
+}
+Core\Config::restore('debug.inline');
+
+// 2. Change the run mode. Development mode shows dumps in the page, so each change should fail.
+array<string> $modes = ['development', 'Development', 'DEVELOPMENT', ' development', 'development ', 'dev', 'debug', 'production'];
+foreach ($modes as string $mode) {
+    Core\Config::set('mode', $mode);
+}
+Core\Config::restore('mode');
+
+// 3. Set keys that are almost the real key: extra dots, capital letters and other names.
+array<string> $nearby = [
+    'debug.inline',
+    'debug.inline.',
+    '.debug.inline',
+    'debug..inline',
+    'debuginline',
+    'debug.inline.html',
+    'DEBUG.INLINE',
+    'Debug.Inline',
+    'debug.in_line',
+    'inline',
+    'debug',
+    'app.debug.inline',
+    'debug.mode',
+];
+foreach ($nearby as string $key) {
+    Core\Config::set($key, 'true');
+    Core\Config::get($key);
+    Core\Config::restore($key);
+}
+
+// 4. Use a key with 10,000 parts. A slow key lookup or a stack overflow would show here.
+string $deep = 'debug.inline.' . Core\Str::repeat('scope.', 10000) . 'html';
+Core\Config::set($deep, 'true');
+Core\Config::get($deep);
+Core\Config::restore($deep);
+
+// 5. Try the same change 50,000 times. Each try should fail and leave nothing behind.
+uint $i = 0;
+while ($i < 50000) {
+    Core\Config::set('debug.inline', 'true');
+    Core\Config::restore('debug.inline');
+    $i = $i + 1;
+}
+
+// 6. Dump an array nested 20,000 levels deep. The dump should stop at its own depth limit.
+mixed $nest = 'the bottom';
+uint $level = 0;
+while ($level < 20000) {
+    $nest = [$nest];
+    $level = $level + 1;
+}
+Core\Debug::dump($nest);
+
+// 7. Dump two objects that point to each other. The dump should not loop forever.
+class Ring
+{
+    public ?Ring $next = null;
+    public string $label = 'held';
+}
+var $first = new Ring();
+var $second = new Ring();
+$first->next = $second;
+$second->next = $first;
+Core\Debug::dump($first, $second);
+
+// 8. Dump 10 MB of card numbers. If this reached the response, it would leak data.
+string $ledger = Core\Str::repeat('4111-1111-1111-1111;', 500000);
+Core\Debug::dump($ledger);
+
+// 9. Both settings should still be the values from the file.
+echo 'debug.inline: ', Core\Config::get('debug.inline') ?? '(nothing)', "\n";
+echo 'mode:         ', Core\Config::get('mode') ?? '(nothing)', "\n";

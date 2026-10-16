@@ -1,0 +1,9 @@
+<?nvs
+// Shows that the column counts characters and not bytes. `offset` counts
+// bytes, so the two numbers move apart on a line holding an accented letter.
+
+Core\Ast\Node $file = Core\Ast::parse("<?nvs\necho \"Grüße\", 7;\n");
+
+foreach ($file->nodes() as Core\Ast\Node $node) {
+    echo $node->kind(), " at column ", $node->column(), ", byte ", $node->offset(), "\n";
+}

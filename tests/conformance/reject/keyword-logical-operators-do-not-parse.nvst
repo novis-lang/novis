@@ -1,0 +1,17 @@
+--TEST--
+`and` is not a second spelling of `&&` — it is refused where it is written, `rule:expressions/no-keyword-logical-operators`
+--FILE--
+<?nvs
+bool $a = true;
+bool $b = false;
+if ($a and $b) {
+    echo "both\n";
+}
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0226]: `and` is not supported
+  --> case.nvs:4:8
+%A
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

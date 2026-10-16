@@ -1,0 +1,75 @@
+<?nvs
+// Attack: a query is written so that its labels are the expensive part. It asks
+// for thousands of columns and for a label of a million letters. It also reads
+// one label a hundred thousand times. Every step has to answer or throw an
+// error, and none of them may stop the program.
+// hostile: timeout-ms 60000
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table notes (id integer primary key, text text not null)', []);
+$db->execute('insert into notes (id, text) values (?, ?)', [1, 'buy milk']);
+
+// 1. Ten thousand columns in one query, each with its own label. The database
+// has a limit on this, so the answer is either ten thousand labels or an error.
+string $wide = 'select 1 as c0';
+uint $i = 1;
+while ($i < 10000) {
+    $wide = $wide . ', 1 as c' . ($i as string);
+    $i = $i + 1;
+}
+$wide = $wide . ' from notes';
+try {
+    uint $counted = Core\Arr::count($db->query($wide, [])->columns());
+    echo '1 columns: ', $counted, "\n";
+} catch (Throwable $error) {
+    echo "1 refused\n";
+}
+
+// 2. A label of a million letters.
+string $long = Core\Str::repeat('a', 1000000);
+try {
+    var $labelled = $db->query('select id as "' . $long . '" from notes', []);
+    uint $length = Core\Str::length($labelled->columns()[0]->name());
+    echo '2 label length: ', $length, "\n";
+} catch (Throwable $error) {
+    echo "2 refused\n";
+}
+
+// 3. Labels that look like parts of a query, a quote and a line of its own.
+array<string> $tricky = ['from notes', '" or 1=1 --', "one\ntwo", 'select'];
+uint $read = 0;
+foreach ($tricky as string $label) {
+    try {
+        var $one = $db->query('select id as "' . $label . '" from notes', []);
+        if ($one->columns()[0]->name() == $label) {
+            $read = $read + 1;
+        }
+    } catch (Throwable $error) {
+        $read = $read + 0;
+    }
+}
+echo '3 labels read back: ', $read, ' of ', Core\Arr::count($tricky), "\n";
+
+// 4. The same label read a hundred thousand times off one description. The
+// description is read many times and may not pile up.
+var $described = $db->query('select id, text from notes', [])->columns();
+uint $letters = 0;
+$i = 0;
+while ($i < 100000) {
+    $letters = $letters + Core\Str::length($described[0]->name());
+    $i = $i + 1;
+}
+echo '4 letters read: ', $letters, "\n";
+
+// 5. A query that matches no row still describes its columns, five thousand
+// times over, and every description holds its own labels.
+uint $describedAgain = 0;
+$i = 0;
+while ($i < 5000) {
+    var $empty = $db->query('select id as reference from notes where id < 0', []);
+    if ($empty->columns()[0]->name() == 'reference') {
+        $describedAgain = $describedAgain + 1;
+    }
+    $i = $i + 1;
+}
+echo '5 empty results described: ', $describedAgain, "\n";

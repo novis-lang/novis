@@ -1,0 +1,20 @@
+<?nvs
+// Shows how to print the name of every method of a class.
+
+class Invoice {
+    public function constructor(public int $net) {}
+
+    public function total(): int {
+        return $this->net + $this->shipping();
+    }
+
+    private function shipping(): int {
+        return 5;
+    }
+}
+
+// `methods` returns the methods sorted by name.
+// This prints `constructor`, `shipping` and `total`.
+foreach (Core\Reflect::forObject(new Invoice(100))->methods() as Core\Reflect\MethodInfo $method) {
+    echo $method->name(), "\n";
+}

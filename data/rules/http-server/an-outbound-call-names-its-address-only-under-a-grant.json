@@ -1,0 +1,15 @@
+{
+  "title": "`connectTo` names an outbound call's address only where `net.connect_to` names the host, and the address policy and the certificate's host check still apply",
+  "status": "shipped",
+  "seeAlso": [
+    "http-server/an-outbound-call-tries-every-approved-address",
+    "security/net-address-policy",
+    "security/capability-question-is-grant-and-scope",
+    "http-server/allow-url-pins-the-address"
+  ],
+  "guardedBy": [
+    "crates/nvs-stdlib/src/http.rs",
+    "crates/nvs-config/src/capability.rs",
+    "crates/nvs-config/tests/capability.rs"
+  ]
+}

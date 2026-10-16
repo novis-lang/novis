@@ -1,0 +1,62 @@
+--TEST--
+`Core\Router::urlSigned` signs the route's name and its parameters rather than the path they render to, so two routes that render one URL sign apart, and the token is minted for this door alone — `rule:core-classes/router-signed-url`, `rule:core-api/signing-is-over-a-payload`
+--FILE--
+<?nvs
+// The property this pair exists for. Parsing `url`'s answer and signing that
+// would reach almost everything these two members do; what it would not reach
+// is a mount move. One compiled table serves at `/ModuleA`, at `/ModuleB` or at
+// `/` (`rule:http-server/a-mount-table-expands-at-boot`), so a signature over
+// the assembled path stops verifying the moment an operator remounts, and one
+// over the route's identity does not.
+//
+// A `.nvst` program is mounted nowhere, so the remount itself is the router's
+// own `url_signed_verifies_through_signed_route_after_the_mount_prefix_changes`.
+// What is visible from here is the half that makes it true: the name is inside
+// the signed bytes and the rendered path is not.
+class Shop {
+    #[Core\Route(path: "/shop/{id}", method: Core\Http\Method::Get, name: "Shop::show")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function show(int $id): string { return $id as string; }
+
+    // A second route whose literal path is what the first one renders to for
+    // `id = 7`. Two identities, one URL.
+    #[Core\Route(path: "/shop/7", method: Core\Http\Method::Get, name: "Shop::seven")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function seven(): string { return "seven"; }
+}
+
+secret bytes $key = Core\Crypto::generateKey();
+array<secret bytes> $ring = [$key];
+
+string $captured = Core\Router::urlSigned("Shop::show", ["id" => 7], {keys: $ring, until: null});
+string $literal = Core\Router::urlSigned("Shop::seven", [], {keys: $ring, until: null});
+
+// The same URL in front of the parameter, from two different routes.
+echo "captured=", Core\Str::before($captured, "?_sig=") as string, "\n";
+echo "literal=", Core\Str::before($literal, "?_sig=") as string, "\n";
+
+// And two different signatures, because what was signed is the identity. A
+// member that signed the path would print one token twice here and would look
+// correct on every other line of every other case — which is the whole reason
+// this one is written as two routes rather than as one.
+echo "signatures=", (Core\Str::after($captured, "_sig=") as string) == (Core\Str::after($literal, "_sig=") as string)
+    ? "one signature"
+    : "two signatures", "\n";
+
+// The other half of what a token says about itself: which door minted it.
+// `Core\Signature` writes a domain octet inside the signed region, so a link
+// this member minted is not a payload the general member opens — under the very
+// same ring, which is what makes it a property of the token rather than of the
+// keys. Without it, a caller who verifies "some signature we made" would accept
+// a signed URL as a signed payload.
+try {
+    Core\Signature::verify(Core\Str::after($captured, "_sig=") as string, $ring);
+    echo "opened at the other door\n";
+} catch (RuntimeError $otherDoor) {
+    echo "other door=refused\n";
+}
+--EXPECT--
+captured=/shop/7
+literal=/shop/7
+signatures=two signatures
+other door=refused

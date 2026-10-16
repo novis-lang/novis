@@ -1,0 +1,8 @@
+<?nvs
+// Shows how to find the entries that changed since a number you saved last time.
+
+int $lastSeen = 41250;
+// `uSNChanged` grows by one each time the server changes an entry.
+var $filter = Core\Ldap\Filter::atLeast('uSNChanged', ($lastSeen + 1) as string);
+// This prints (uSNChanged>=41251).
+echo $filter->toString(), "\n";

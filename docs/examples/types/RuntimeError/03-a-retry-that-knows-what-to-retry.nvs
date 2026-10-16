@@ -1,0 +1,47 @@
+<?nvs
+// The reason the tree splits where it does. A failure from outside is often
+// worth another attempt; a wrong call is not, because the second attempt makes
+// exactly the same wrong call. So the retry loop catches one half and lets the
+// other straight through.
+
+final class Delivery {
+    // Fails twice the way a flaky endpoint does, then succeeds. The fourth
+    // parcel is addressed with a number this code should never have passed on.
+    public static function send(string $parcel, int $attempt): string {
+        if ($parcel == "flaky" && $attempt < 3) {
+            throw new IOError("the endpoint closed the connection");
+        }
+        if ($parcel == "misaddressed") {
+            var $label = Core\BigInt::of(6042)->format({radix: 1});
+            return "labelled " . $label;
+        }
+        return "accepted";
+    }
+
+    public static function withRetries(string $parcel): string {
+        int $attempt = 1;
+        while ($attempt <= 3) {
+            try {
+                return Delivery::send($parcel, $attempt) . " on attempt " . ($attempt as string);
+            } catch (RuntimeError $outside) {
+                if ($attempt == 3) {
+                    return "gave up: " . $outside->message;
+                }
+            }
+            $attempt = $attempt + 1;
+        }
+        return "unreachable";
+    }
+}
+
+echo "steady: ", Delivery::withRetries("steady"), "\n";
+echo "flaky: ", Delivery::withRetries("flaky"), "\n";
+
+// The bug is not retried. It leaves the loop on the first attempt and reaches
+// whoever is responsible for fixing it.
+try {
+    string $labelled = Delivery::withRetries("misaddressed");
+    echo "misaddressed: ", $labelled, "\n";
+} catch (LogicError $ourBug) {
+    echo "misaddressed: not retried, ", $ourBug->message, "\n";
+}

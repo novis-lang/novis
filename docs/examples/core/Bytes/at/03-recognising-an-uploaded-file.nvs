@@ -1,0 +1,29 @@
+<?nvs
+// Shows how a program works out what kind of file somebody uploaded. Every PNG
+// file starts with the same eight bytes, so reading those bytes is enough.
+
+class Upload {
+    // Returns true when the uploaded bytes start with the eight bytes of a PNG
+    // file.
+    public static function isPng(bytes $file): bool {
+        array<uint> $signature = [137, 80, 78, 71, 13, 10, 26, 10];
+        if (Core\Bytes::length($file) < 8) {
+            return false;
+        }
+        int $i = 0;
+        while ($i < 8) {
+            if (Core\Bytes::at($file, $i) != $signature[$i]) {
+                return false;
+            }
+            $i = $i + 1;
+        }
+        return true;
+    }
+}
+
+bytes $png = Core\Encoding::fromHex("89504e470d0a1a0a49484452");
+bytes $letter = "Dear customer," as bytes;
+
+// This prints "yes" and then "no".
+echo Upload::isPng($png) ? "yes" : "no", "\n";
+echo Upload::isPng($letter) ? "yes" : "no", "\n";

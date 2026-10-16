@@ -1,0 +1,34 @@
+<?nvs
+// Attack: a program makes a folder 100 levels deep and asks `isDir` at every level.
+// It also asks about the root of the temporary folder and about a path with `..` in it.
+// Each step must return the right answer or throw an error, and must not crash.
+// hostile: timeout-ms 60000
+
+string $root = Core\Path::join(Core\IO::temporaryDir(), 'attack-metadata-is-dir');
+Core\IO::makeDir($root);
+
+// 1. The folder gets one level deeper 100 times. The path gets very long, so the
+// operating system may refuse it. Then `makeDir` or `stat` throws an `IOError`.
+string $path = $root;
+uint $depth = 0;
+try {
+    while ($depth < 100) {
+        $path = Core\Path::join($path, 'level');
+        Core\IO::makeDir($path);
+        if (!Core\IO::stat($path)->isDir()) {
+            throw new LogicError('a folder was not a folder');
+        }
+        $depth = $depth + 1;
+    }
+} catch (IOError $e) {
+    echo 'the path became too long', "\n";
+}
+echo 'step 1: done', "\n";
+
+// 2. The temporary folder itself, and a path that goes down and back up with `..`.
+// Both must be folders.
+string $back = Core\Path::join(Core\Path::join($root, 'level'), '..');
+if (!Core\IO::stat(Core\IO::temporaryDir())->isDir() || !Core\IO::stat($back)->isDir()) {
+    throw new LogicError('a folder was not a folder');
+}
+echo 'step 2: done', "\n";

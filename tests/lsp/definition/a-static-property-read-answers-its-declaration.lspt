@@ -1,0 +1,17 @@
+--TEST--
+a static property read answers the declaration that wrote it, sigil included, because the name the checker recorded is compared against the source's spelling with the `$` stripped, `rule:ide/the-index-answers-the-cursor`
+--FILE--
+<?nvs
+class Counter
+{
+    public static int $count = 0;
+
+    public function total(): int
+    {
+        return self::$co<|>unt;
+    }
+}
+--REQUEST--
+definition
+--EXPECT--
+case.nvs:4:23

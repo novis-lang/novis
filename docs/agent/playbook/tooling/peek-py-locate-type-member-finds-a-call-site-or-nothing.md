@@ -1,0 +1,6 @@
+- **`bun nv peek --locate Type::member` finds a call site or nothing, never the definition, when the
+  member is on an inherent `impl`.** A member is written `fn of(` under `impl Registry`, so the
+  qualified spelling only exists where somebody *calls* it: `--locate Registry::of` answers with a
+  call in `crates/nvs-runtime/src/metrics.rs`, never the definition. Locate the bare name or the
+  type instead, or take the file's outline with `bun nv peek --outline <file>` and read the region.
+  `until: gone tools/nv/cmd/peek.ts:--locate`

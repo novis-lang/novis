@@ -1,0 +1,14 @@
+<?nvs
+// Shows how to change the year, the month or the day of a date.
+
+var $start = Core\Time\Date::at(2024, 3, 15);
+
+// `with` returns a new date. The parts you do not name stay the same.
+// This prints 2025-03-15.
+echo $start->with({year: 2025})->format("yyyy-MM-dd"), "\n";
+
+// You can change more than one part at a time. This prints 2024-12-01.
+echo $start->with({month: 12, day: 1})->format("yyyy-MM-dd"), "\n";
+
+// `with` does not change the date it is called on. This prints 2024-03-15.
+echo $start->format("yyyy-MM-dd"), "\n";

@@ -1,0 +1,13 @@
+<?nvs
+// Shows `return` outside any method, which ends the file. In the file you
+// started, that ends the program. A script does this when it has no work.
+
+array<string> $jobs = [];
+
+if (Core\Arr::count($jobs) == 0) {
+    echo "nothing to do\n";
+    return;
+}
+
+// This line never runs, because the `return` above ended the program.
+echo "running ", Core\Arr::count($jobs), " jobs\n";

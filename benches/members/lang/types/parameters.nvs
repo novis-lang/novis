@@ -1,0 +1,33 @@
+<?nvs
+// This measures one method call with a default value left out, a named argument
+// and an `inout` argument. You meet these in almost every method call you write.
+// Each round uses the result of the round before, so no call can be skipped.
+// bench: iterations 256
+// bench: allocations 0
+// bench: complexity constant
+
+class Tally
+{
+    public static function add(inout int $running, int $amount, int $weight = 3): void
+    {
+        $running = $running + $amount * $weight;
+    }
+}
+
+class Bench
+{
+    public static function run(uint $rounds): int
+    {
+        int $running = 1;
+        uint $i = 0;
+
+        while ($i < $rounds) {
+            Tally::add(inout $running, amount: $running % 7);   // chained: $running is last round's
+            $i = $i + 1;
+        }
+
+        return $running;
+    }
+}
+
+echo Bench::run(256), "\n";

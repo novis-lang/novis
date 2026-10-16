@@ -1,0 +1,24 @@
+--TEST--
+`Core\Socket::upgrade`'s entry is a sink, so a path that came from outside the program cannot select what a connection runs — `rule:concurrency/an-upgrade-is-spawn-shaped`, `rule:http-server/a-path-is-never-derived-from-a-url`
+--ARGS--
+sockets/chat.nvs
+--FILE--
+<?nvs
+// The entry's content becomes the instruction "execute this file", which is
+// `rule:security/sink-predicate`'s definition of a sink, and `rule:http-server/a-path-is-never-derived-from-a-url` is the same rule
+// written for the server: a filesystem path is never *constructed* at request
+// time, only selected from a set enumerated before the request arrived. An
+// upgrade is a request-time call, so a word that arrived from outside is shut
+// out here even though it names a file that exists.
+foreach (Core\Cli::arguments() as tainted string $word) {
+    Core\Socket::upgrade($word);
+    echo "unreachable\n";
+}
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `string`, found `tainted string`
+  --> case.nvs:9:26
+%A
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

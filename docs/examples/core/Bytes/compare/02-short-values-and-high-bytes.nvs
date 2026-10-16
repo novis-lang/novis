@@ -1,0 +1,16 @@
+<?nvs
+// Shows the two rules that decide the order: a shorter value that is the start
+// of a longer one comes first, and every byte counts as a number from 0 to 255.
+
+// "car" is the start of "cargo", so "car" comes first. This prints -1.
+echo Core\Bytes::compare("car" as bytes, "cargo" as bytes), "\n";
+
+// The byte 0xff is 255 and the byte 0x7f is 127, so 0xff comes second.
+// This prints 1.
+bytes $high = Core\Encoding::fromHex("ff");
+bytes $low = Core\Encoding::fromHex("7f");
+echo Core\Bytes::compare($high, $low), "\n";
+
+// The first byte that differs decides the order. Here that is the second byte,
+// 0x00 against 0x01, so this prints -1.
+echo Core\Bytes::compare(Core\Encoding::fromHex("0100ff"), Core\Encoding::fromHex("0101")), "\n";

@@ -1,0 +1,29 @@
+--TEST--
+a `...$rest` parameter declares the type of *each* trailing argument, and the body is handed the one array the call packed them into — `rule:types/arrays`, `rule:classes/no-free-functions-or-constants`
+--FILE--
+<?nvs
+final class Join {
+    public static function all(array<string> $items, string $sep): string {
+        string $out = "";
+        foreach ($items as string $item) {
+            $out = $out . $item . $sep;
+        }
+        return $out;
+    }
+
+    // The tail's declared type is what one argument is checked against, so the
+    // written type is `string` and never `array<string>`. Inside, the binding
+    // is that element type wrapped once: `$parts` satisfies an `array<string>`
+    // parameter with no repacking, which is the whole of what the body holds.
+    public static function of(string $sep, string ...$parts): string {
+        return self::all($parts, $sep);
+    }
+}
+
+echo Join::of("-", "a", "b", "c"), "\n";
+// A call writing no tail argument at all binds the empty array — the arity
+// only a variadic has.
+echo "[", Join::of("-"), "]\n";
+--EXPECT--
+a-b-c-
+[]

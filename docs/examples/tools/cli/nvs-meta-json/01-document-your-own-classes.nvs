@@ -1,0 +1,25 @@
+<?nvs
+// Shows how `nvs meta --json` reads the doc comments of your own classes.
+// Run `nvs meta --json 01-document-your-own-classes.nvs` to get them as JSON.
+
+// The JSON has a `program` key. It contains the class `Cart`, with `A shopping cart.`
+// as its `short` text. You can build a documentation page from that JSON.
+
+/// A shopping cart.
+class Cart
+{
+    public uint $items = 0;
+
+    // Each method is in the JSON with its `signature`: `add(uint $count = 1): uint`.
+    /// Adds items to the cart and returns the new number of items.
+    public function add(uint $count = 1): uint
+    {
+        $this->items = $this->items + $count;
+        return $this->items;
+    }
+}
+
+// Running the program calls the method. This prints `3`.
+Cart $cart = new Cart();
+$cart->add(2);
+echo $cart->add(), "\n";

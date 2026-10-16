@@ -1,0 +1,1012 @@
+---
+/**
+ * The front page's hero, in two rows. The first is the page's one `<h1>`,
+ * centred across the full width: the name Novis-Lang, the headline with a
+ * small note "and the command line" below its words "web applications", and
+ * the slogan. The second is the tagline, the two calls to action and the facts
+ * beside a code window with three small web programs. The programs come in
+ * through the named slots `html`, `sql` and `secret`, because the site
+ * checker finds a page's snippets in the page itself. The second row has two
+ * columns from 64rem; below that it is stacked, and its text is centred too.
+ *
+ * The window is a tablist once the script below has run. Without the script
+ * the tablist stays hidden and the three panels are shown one under the
+ * other, each with its own label. With it, only the selected panel is shown,
+ * and the window is aligned to the top of its column, so the tabs stay where
+ * they are when the window's height changes. Arrow keys, Home and End move
+ * between the tabs.
+ *
+ * The `<h1>` carries Starlight's title id, so the skip link lands on it;
+ * src/components/PageTitle.astro renders no other title on this page.
+ *
+ * The slogan turns through a list of short phrases, one every few seconds.
+ * The phrases are written on the faces of a drum that turns downwards: the
+ * current phrase rolls down over the bottom of the drum as the next comes
+ * over the top. A click shows the next phrase and ends the automatic turning
+ * for the rest of the page view. The drum is a separate, aria-hidden copy
+ * laid over the slogan, so a screen reader reads the slogan alone and never
+ * hears a change. Without the script the slogan stands still. When the
+ * reader asks for less motion it also stands still, and a click swaps the
+ * phrase without the turn. The turning waits while the hero is off-screen or
+ * the tab is hidden.
+ *
+ * The bar under the name grows from its centre on load, and a glow behind it
+ * breathes slowly. The three color fields behind the title drift and swell.
+ * All of this motion is transform and opacity alone, and none of it runs when
+ * the reader asks for less motion.
+ */
+import { Icon } from '@astrojs/starlight/components'
+import { INSTALL } from '@config/site.mjs'
+import { withBase } from '~/lib/base'
+
+// One entry per tab: the slot its snippet comes in through, the tab's label,
+// and the line under the snippet that says what happened.
+const panels = [
+  { slot: 'html', label: 'HTML', result: 'The script is escaped. Your code calls no escaping function.' },
+  { slot: 'sql', label: 'SQL', result: 'The compiler stops SQL injection before the program runs.' },
+  { slot: 'secret', label: 'Secrets', result: 'The compiler keeps the password out of the page.' },
+] as const
+
+// The phrases the slogan turns through after its own first one, in order.
+// Each repeats something a section further down the page says.
+const phrases = [
+  'Agentic coding is easy.',
+  'No SQL injection.',
+  'HTML escapes itself.',
+  'Secrets stay secret.',
+  'Every request on its own.',
+  'Null is checked.',
+  'Typed JSON.',
+  'Tests in your code.',
+  'All tools built in.',
+] as const
+---
+
+<section class="home-hero not-content" aria-labelledby="_top">
+  <div class="backdrop" aria-hidden="true">
+    <i class="field field-violet"></i>
+    <i class="field field-crimson"></i>
+    <i class="field field-gold"></i>
+  </div>
+
+  <div class="title">
+    <h1 id="_top" data-page-title>
+      <span class="brand">Novis-Lang</span>
+      <span class="headline"
+        >The programming language for <span class="noted-end"
+          ><span class="noted"
+            >web applications<span class="note"
+              ><span class="sr-only"> (</span>and the command line<span class="sr-only">)</span></span
+            ></span
+          >.</span
+        ></span
+      >
+      <span class="slogan" data-slogan>
+        <span class="slogan-text nv-gradient-text">Fast. <span class="keep">Secure by default.</span></span>
+        <span class="rotator" aria-hidden="true">
+          <span class="axle">
+            <span class="drum" data-drum>
+              <span class="phrase" data-phrase>
+                <span class="nv-gradient-text">Fast. <span class="keep">Secure by default.</span></span>
+              </span>
+              {
+                phrases.map((p) => (
+                  <span class="phrase" data-phrase>
+                    <span class="nv-gradient-text">{p}</span>
+                  </span>
+                ))
+              }
+            </span>
+          </span>
+        </span>
+      </span>
+    </h1>
+  </div>
+
+  <div class="copy">
+    <div class="text">
+      <p class="tagline">
+        You can build a business app, a website, an API or any other web service with it. The tools that a modern
+        web application needs are built in.
+      </p>
+    </div>
+    <div class="actions">
+      <a class="nv-button nv-button-primary" href={withBase(INSTALL.href)}>
+        Install Novis
+        <Icon name="right-arrow" size="1.1rem" />
+      </a>
+      <a class="nv-button nv-button-secondary" href={withBase('/guides/tour/')}>
+        <Icon name="open-book" size="1.1rem" />
+        Take the tour
+      </a>
+    </div>
+    <ul class="meta">
+      <li><Icon name="approve-check-circle" size="1rem" /> Free and open source</li>
+      <li><Icon name="laptop" size="1rem" /> Windows, Linux and macOS</li>
+      <li><Icon name="vscode" size="1rem" /> An extension for VS Code</li>
+      <li><Icon name="seti:docker" size="1rem" /> Ready for Docker</li>
+    </ul>
+  </div>
+
+  <div class="stage">
+    <figure class="window" data-hero-tabs>
+      <div class="bar">
+        <span class="dots" aria-hidden="true"><i></i><i></i><i></i></span>
+        <div class="tabs" role="tablist" aria-label="What the compiler checks" hidden>
+          {
+            panels.map((p, i) => (
+              <button
+                type="button"
+                role="tab"
+                id={`hero-tab-${p.slot}`}
+                aria-controls={`hero-panel-${p.slot}`}
+                aria-selected={i === 0 ? 'true' : 'false'}
+                tabindex={i === 0 ? 0 : -1}
+              >
+                {p.label}
+              </button>
+            ))
+          }
+        </div>
+        <span class="server" aria-hidden="true">nvs serve</span>
+      </div>
+      <div class="panels">
+        {
+          panels.map((p) => (
+            <div class="panel" id={`hero-panel-${p.slot}`}>
+              <p class="panel-label">{p.label}</p>
+              <div class="code">
+                {p.slot === 'html' && <slot name="html" />}
+                {p.slot === 'sql' && <slot name="sql" />}
+                {p.slot === 'secret' && <slot name="secret" />}
+              </div>
+              <p class="result">
+                <span class="result-icon">
+                  <Icon name="approve-check" size="0.9rem" />
+                </span>
+                {p.result}
+              </p>
+            </div>
+          ))
+        }
+      </div>
+      <figcaption class="sr-only">
+        Three small Novis programs for a web server, with the response or the compiler error for each.
+      </figcaption>
+    </figure>
+  </div>
+</section>
+
+<script>
+  // Turns the stacked panels into tabs. Without this script all three stay visible.
+  for (const root of document.querySelectorAll<HTMLElement>('[data-hero-tabs]')) {
+    const list = root.querySelector<HTMLElement>('[role="tablist"]')
+    if (list === null) continue
+    const tabs = [...list.querySelectorAll<HTMLButtonElement>('[role="tab"]')]
+    const panels = tabs.map((tab) => document.getElementById(tab.getAttribute('aria-controls') ?? ''))
+    if (panels.some((p) => p === null)) continue
+
+    const select = (index: number, focus: boolean) => {
+      tabs.forEach((tab, i) => {
+        const on = i === index
+        tab.setAttribute('aria-selected', String(on))
+        tab.tabIndex = on ? 0 : -1
+        const panel = panels[i] as HTMLElement
+        panel.toggleAttribute('data-inactive', !on)
+      })
+      if (focus) tabs[index]?.focus()
+    }
+
+    panels.forEach((panel, i) => {
+      const p = panel as HTMLElement
+      p.setAttribute('role', 'tabpanel')
+      p.setAttribute('aria-labelledby', tabs[i]?.id ?? '')
+      p.tabIndex = 0
+    })
+    tabs.forEach((tab, i) => tab.addEventListener('click', () => select(i, false)))
+    list.addEventListener('keydown', (event) => {
+      const current = tabs.indexOf(document.activeElement as HTMLButtonElement)
+      if (current < 0) return
+      const last = tabs.length - 1
+      const next =
+        event.key === 'ArrowRight' ? (current === last ? 0 : current + 1)
+        : event.key === 'ArrowLeft' ? (current === 0 ? last : current - 1)
+        : event.key === 'Home' ? 0
+        : event.key === 'End' ? last
+        : -1
+      if (next < 0) return
+      event.preventDefault()
+      select(next, true)
+    })
+
+    select(0, false)
+    list.hidden = false
+    root.setAttribute('data-tabs-ready', '')
+  }
+
+  // Turns the slogan's drum one phrase at a time. Without this script the slogan stays as
+  // it is. The drum turns by itself only when the reader allows motion, and it waits while
+  // the hero is off-screen or the tab is hidden. A click turns it one phrase on and ends
+  // the turning by itself.
+  const HOLD = 3400
+  for (const root of document.querySelectorAll<HTMLElement>('[data-slogan]')) {
+    const drum = root.querySelector<HTMLElement>('[data-drum]')
+    const phrases = [...root.querySelectorAll<HTMLElement>('[data-phrase]')]
+    const hero = root.closest<HTMLElement>('.home-hero')
+    if (drum === null || phrases.length < 3 || hero === null) continue
+    const motion = matchMedia('(prefers-reduced-motion: no-preference)')
+    let turn = 0
+    let clicked = false
+    let onScreen = true
+    let timer = 0
+    let frame = 0
+
+    // The phrases sit on the faces of a ring. Each face is as tall as the line, and the
+    // radius leaves a gap of a quarter of that height between two faces, so the face
+    // above the front one is out of sight while the drum stands still.
+    phrases.forEach((phrase, i) => phrase.style.setProperty('--i', String(i)))
+    root.style.setProperty('--step', `${360 / phrases.length}deg`)
+    const measure = () => {
+      const radius = (drum.offsetHeight * 1.25) / (2 * Math.sin(Math.PI / phrases.length))
+      root.style.setProperty('--radius', `${radius}px`)
+    }
+    new ResizeObserver(measure).observe(drum)
+    measure()
+
+    // Sets the turn with the transition off, so the drum is simply there.
+    const place = (next: number) => {
+      root.removeAttribute('data-animate')
+      turn = next
+      drum.style.setProperty('--turn', String(turn))
+      void drum.offsetHeight
+      root.setAttribute('data-animate', '')
+    }
+    // One step on from the phrase the drum is turning to. The turn only grows, so the
+    // drum always turns the same way, also from the last phrase back to the first. A
+    // step that comes while the drum is still turning moves the target on, and the
+    // browser turns the drum from where it is to the new target in one movement, so
+    // fast clicks run through the phrases quickly.
+    const step = () => {
+      turn += 1
+      drum.style.setProperty('--turn', String(turn))
+    }
+
+    // The automatic turning is a chain of timeouts, and each step waits for a frame
+    // the browser draws. A hidden or off-screen page draws no frame and runs no step,
+    // and when it shows again the chain starts over with a full hold.
+    const stop = () => {
+      window.clearTimeout(timer)
+      window.cancelAnimationFrame(frame)
+      timer = 0
+      frame = 0
+    }
+    const schedule = () => {
+      timer = window.setTimeout(() => {
+        frame = window.requestAnimationFrame(() => {
+          frame = 0
+          step()
+          schedule()
+        })
+      }, HOLD)
+    }
+
+    const update = () => {
+      const active = motion.matches || clicked
+      if (!active && turn !== 0) place(0)
+      root.toggleAttribute('data-running', active)
+      const rotate = motion.matches && !clicked && onScreen && !document.hidden
+      if (!rotate) stop()
+      else if (timer === 0 && frame === 0) schedule()
+    }
+
+    root.addEventListener('click', () => {
+      clicked = true
+      root.setAttribute('data-clicked', '')
+      update()
+      step()
+    })
+    motion.addEventListener('change', update)
+    document.addEventListener('visibilitychange', update)
+    new IntersectionObserver((entries) => {
+      onScreen = entries.some((entry) => entry.isIntersecting)
+      hero.toggleAttribute('data-offscreen', !onScreen)
+      update()
+    }).observe(hero)
+
+    place(0)
+    root.setAttribute('data-slogan-ready', '')
+    update()
+  }
+</script>
+
+<style>
+  .home-hero {
+    position: relative;
+    isolation: isolate;
+    display: grid;
+    gap: var(--nv-space-7);
+    align-items: center;
+    padding-block: var(--nv-space-6) var(--nv-space-5);
+  }
+  @media (min-width: 64rem) {
+    .home-hero {
+      grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
+      gap: var(--nv-space-7) var(--nv-space-7);
+      align-items: start;
+      padding-block: var(--nv-space-8) var(--nv-space-7);
+    }
+  }
+
+  /* Three soft color fields and a dot grid. The mask fades the whole
+     backdrop out before it reaches any edge of its box, so no color field
+     and no dot stops at a line. Each field is its own element, an ellipse
+     drawn by a radial gradient that fills it, so it can move without being
+     painted again. */
+  .backdrop {
+    position: absolute;
+    z-index: -1;
+    inset: -3rem 0 -2rem;
+    overflow: hidden;
+    pointer-events: none;
+    -webkit-mask-image: radial-gradient(farthest-side at 50% 50%, black 55%, transparent 100%);
+    mask-image: radial-gradient(farthest-side at 50% 50%, black 55%, transparent 100%);
+  }
+  .field {
+    position: absolute;
+    background: radial-gradient(closest-side, var(--glow), transparent 70%);
+  }
+  .field-violet {
+    --glow: color-mix(in oklab, var(--nv-violet) 26%, transparent);
+    inset: -2% -6% 14% 38%;
+  }
+  .field-crimson {
+    --glow: color-mix(in oklab, var(--nv-crimson) 20%, transparent);
+    inset: 44% 26% -16% 14%;
+  }
+  .field-gold {
+    --glow: color-mix(in oklab, var(--nv-gold) 10%, transparent);
+    inset: -4% 48% 44% 4%;
+  }
+  :global([data-theme='light']) .field-violet {
+    --glow: color-mix(in oklab, var(--nv-violet) 16%, transparent);
+  }
+  :global([data-theme='light']) .field-crimson {
+    --glow: color-mix(in oklab, var(--nv-crimson) 10%, transparent);
+  }
+  :global([data-theme='light']) .field-gold {
+    --glow: color-mix(in oklab, var(--nv-gold) 14%, transparent);
+  }
+  /* The fields drift and swell slowly. The three durations share no
+     common beat, so the picture never repeats in a way the eye can follow.
+     Only transform and opacity change. */
+  @keyframes drift-violet {
+    0% {
+      transform: translate(0, 0) scale(1);
+    }
+    50% {
+      transform: translate(-7%, 6%) scale(1.12);
+    }
+    100% {
+      transform: translate(-3%, -5%) scale(0.94);
+    }
+  }
+  @keyframes drift-crimson {
+    0% {
+      transform: translate(0, 0) scale(1);
+      opacity: 1;
+    }
+    50% {
+      transform: translate(9%, -7%) scale(1.15);
+      opacity: 0.75;
+    }
+    100% {
+      transform: translate(4%, 4%) scale(0.92);
+      opacity: 1;
+    }
+  }
+  @keyframes drift-gold {
+    0% {
+      transform: translate(0, 0) scale(1);
+    }
+    50% {
+      transform: translate(8%, 10%) scale(1.2);
+    }
+    100% {
+      transform: translate(-4%, 4%) scale(1.05);
+    }
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .field-violet {
+      animation: drift-violet 23s ease-in-out infinite alternate;
+    }
+    .field-crimson {
+      animation: drift-crimson 29s ease-in-out -7s infinite alternate;
+    }
+    .field-gold {
+      animation: drift-gold 17s ease-in-out -4s infinite alternate;
+    }
+  }
+  .backdrop::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image: radial-gradient(color-mix(in oklab, var(--sl-color-white) 16%, transparent) 1px, transparent 1.5px);
+    background-size: 22px 22px;
+    -webkit-mask-image: radial-gradient(ellipse 50% 60% at 55% 45%, black 10%, transparent 80%);
+    mask-image: radial-gradient(ellipse 50% 60% at 55% 45%, black 10%, transparent 80%);
+  }
+  :global([data-theme='light']) .backdrop {
+    background:
+      radial-gradient(34% 44% at 72% 42%, color-mix(in oklab, var(--nv-violet) 16%, transparent), transparent 70%),
+      radial-gradient(30% 36% at 44% 80%, color-mix(in oklab, var(--nv-crimson) 10%, transparent), transparent 70%),
+      radial-gradient(24% 30% at 28% 26%, color-mix(in oklab, var(--nv-gold) 14%, transparent), transparent 70%);
+  }
+
+  /* The title row spans both columns and is centred. It is a size
+     container, so the name can be sized to its width. */
+  .title {
+    grid-column: 1 / -1;
+    container-type: inline-size;
+    text-align: center;
+  }
+
+  .copy {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--nv-space-5);
+    text-align: center;
+  }
+  @media (min-width: 64rem) {
+    .copy {
+      align-items: flex-start;
+      padding-block-start: var(--nv-space-4);
+      text-align: start;
+    }
+  }
+
+  h1 {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.12em;
+    max-width: 52rem;
+    margin: 0 auto;
+    font-size: clamp(2.1rem, 1.4rem + 2.2vw, 3.4rem);
+    font-weight: 800;
+    line-height: 1.06;
+    letter-spacing: -0.035em;
+    color: var(--sl-color-white);
+  }
+  h1 > span {
+    text-wrap: balance;
+  }
+  /* The project's name, the trademark: the one line of the page set larger
+     than the headline, in a gradient from the text color into violet and
+     crimson, over a short centred bar in the signature line. Its size
+     follows the row's width, so the one line always fits. */
+  .brand {
+    position: relative;
+    margin-block-end: 0.32em;
+    padding-block-end: 0.12em;
+    font-size: clamp(2.5rem, 16cqi, 7rem);
+    font-weight: 900;
+    line-height: 1;
+    letter-spacing: -0.045em;
+    white-space: nowrap;
+    background: linear-gradient(
+      100deg,
+      var(--sl-color-white) 0%,
+      var(--sl-color-white) 28%,
+      var(--nv-grad-b) 62%,
+      var(--nv-grad-a) 100%
+    );
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    -webkit-text-fill-color: transparent;
+  }
+  .brand::before,
+  .brand::after {
+    content: '';
+    position: absolute;
+    inset-inline-start: calc(50% - 0.8em);
+    inset-block-end: -0.12em;
+    width: 1.6em;
+    height: 0.07em;
+    min-height: 3px;
+    border-radius: 999px;
+    background: var(--nv-gradient-line);
+  }
+  /* A soft glow behind the bar: the same bar, blurred once and drawn
+     behind the text. */
+  .brand::before {
+    z-index: -1;
+    filter: blur(0.08em);
+    opacity: 0.55;
+  }
+  /* On load the bar grows from its centre, and the glow behind it then
+     breathes slowly for as long as the page is open. */
+  @keyframes bar-in {
+    from {
+      transform: scaleX(0);
+    }
+    to {
+      transform: scaleX(1);
+    }
+  }
+  @keyframes glow-in {
+    from {
+      transform: scaleX(0);
+      opacity: 0;
+    }
+    to {
+      transform: scaleX(1);
+      opacity: 0.4;
+    }
+  }
+  @keyframes glow-breathe {
+    from {
+      transform: scaleX(1) scaleY(1);
+      opacity: 0.4;
+    }
+    to {
+      transform: scaleX(1.15) scaleY(1.8);
+      opacity: 0.9;
+    }
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .brand::after {
+      animation: bar-in 900ms cubic-bezier(0.16, 1, 0.3, 1) 150ms both;
+    }
+    .brand::before {
+      animation:
+        glow-in 900ms cubic-bezier(0.16, 1, 0.3, 1) 150ms both,
+        glow-breathe 1.8s ease-in-out 1050ms infinite alternate;
+    }
+    .home-hero[data-offscreen] .field,
+    .home-hero[data-offscreen] .brand::before {
+      animation-play-state: paused;
+    }
+  }
+  @media (forced-colors: active) {
+    .brand {
+      background: none;
+      color: CanvasText;
+      -webkit-text-fill-color: CanvasText;
+    }
+    .brand::after {
+      background: CanvasText;
+    }
+  }
+  /* The color fields, the dot grid and the glow behind the bar are only
+     decoration. With more contrast, less transparency or forced colors they
+     are hidden, and with more contrast the name is solid text. */
+  @media (prefers-contrast: more), (prefers-reduced-transparency: reduce), (forced-colors: active) {
+    .backdrop,
+    .brand::before {
+      display: none;
+    }
+  }
+  @media (prefers-contrast: more) {
+    .brand {
+      background: none;
+      color: var(--sl-color-white);
+      -webkit-text-fill-color: currentColor;
+    }
+  }
+
+  /* The slogan is one grid cell. The slogan's own text and the rotator sit
+     in it on top of each other, and every phrase of the rotator sits in one
+     cell of its own grid, so the line is always as large as the largest
+     phrase and never changes size. Without the script, the rotator is
+     invisible and the slogan's own text shows. While the rotator runs, the
+     slogan's own text is invisible and stays there for screen readers; the
+     rotator is hidden from them. */
+  .slogan {
+    display: grid;
+    margin-block-start: 0.3em;
+  }
+  .slogan-text,
+  .rotator,
+  .axle,
+  .drum,
+  .phrase {
+    grid-area: 1 / 1;
+  }
+  .slogan-text {
+    justify-self: center;
+    align-self: start;
+  }
+  /* Room above and below the letters inside the clipped background, so
+     no accent, ascender or descender loses its color. */
+  .slogan-text,
+  .phrase > span {
+    padding-block: 0.1em 0.16em;
+  }
+  /* The slogan breaks after "Fast." when it needs two lines. */
+  .slogan .keep {
+    display: inline-block;
+  }
+  [data-slogan-ready] {
+    cursor: pointer;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+  [data-running] .slogan-text {
+    opacity: 0;
+  }
+  [data-running] .rotator {
+    visibility: visible;
+  }
+
+  /* The phrases are written on the faces of a drum that turns on a
+     horizontal axis. The script sets the angle between two faces (--step),
+     the radius of the ring (--radius), each face's place on the ring (--i)
+     and how many steps the drum has turned (--turn). The axle pushes the
+     drum back by its radius, so the front face lies in the page's own plane
+     and is drawn at exactly the size of the slogan's own text. Only the
+     drum's turn is animated, and only once the script has put the drum in
+     place (data-animate). A turn rolls the front phrase down over the
+     bottom of the drum while the next comes over the top. The rotator
+     reaches a little above and below the line, and its mask fades the
+     faces out there, so they darken as they curve away and never cover the
+     headline or the text below. */
+  .rotator {
+    display: grid;
+    visibility: hidden;
+    margin-block: -0.2em;
+    padding-block: 0.2em;
+    perspective: 7em;
+    -webkit-mask-image: linear-gradient(transparent, black 0.2em, black calc(100% - 0.2em), transparent);
+    mask-image: linear-gradient(transparent, black 0.2em, black calc(100% - 0.2em), transparent);
+  }
+  .axle {
+    display: grid;
+    transform-style: preserve-3d;
+    transform: translateZ(calc(var(--radius, 0px) * -1));
+  }
+  .drum {
+    display: grid;
+    transform-style: preserve-3d;
+    transform: rotateX(calc(var(--turn, 0) * var(--step, 0deg) * -1));
+  }
+  .phrase {
+    display: grid;
+    place-items: center;
+    backface-visibility: hidden;
+    transform: rotateX(calc(var(--i, 0) * var(--step, 0deg))) translateZ(var(--radius, 0px));
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    [data-animate] .drum {
+      transition: transform 850ms cubic-bezier(0.62, 0, 0.28, 1.08);
+    }
+    /* After a click every turn starts at full speed and slows into place, so
+       the drum answers the click at once, also when it is still turning. */
+    [data-animate][data-clicked] .drum {
+      transition: transform 650ms cubic-bezier(0.2, 0.9, 0.3, 1.04);
+    }
+  }
+
+  .text {
+    display: flex;
+    flex-direction: column;
+    gap: var(--nv-space-2);
+    max-width: 34rem;
+  }
+  .tagline {
+    margin: 0;
+    font-size: var(--sl-text-lg);
+    line-height: 1.65;
+    color: var(--sl-color-gray-2);
+    text-wrap: pretty;
+  }
+
+  /* "and the command line" is small gold text just below "web
+     applications", its right edge in line with the last "s". It stays out
+     of the line, so the sentence reads on without it. A screen reader reads
+     it in brackets after the two words. The two words are one inline block
+     with room below it for the note, so only their line is taller, and the
+     full stop after them never wraps onto a line of its own. The note's
+     line box is as tall as its text
+     size. --note-gap moves it up from the bottom of the words' line box,
+     which is about 0.13em under their baseline, by that much and by the room
+     above the note's tall letters, so those letters start 5px under the
+     baseline. */
+  .noted-end {
+    white-space: nowrap;
+  }
+  .noted {
+    --note-size: max(0.8rem, 0.28em);
+    --note-gap: calc(5px - 0.13em - var(--note-size) * 0.14);
+    position: relative;
+    display: inline-block;
+    padding-block-end: calc(var(--note-size) + var(--note-gap));
+    white-space: nowrap;
+  }
+  .note {
+    position: absolute;
+    inset-inline-end: 0;
+    inset-block-end: 0;
+    font-size: var(--note-size);
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: 0;
+    white-space: nowrap;
+    color: var(--nv-gold-text);
+    pointer-events: none;
+  }
+  @keyframes note-in {
+    from {
+      opacity: 0;
+      translate: 0 -0.4em;
+    }
+    to {
+      opacity: 1;
+      translate: 0 0;
+    }
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .note {
+      animation: note-in 420ms var(--nv-ease) 650ms both;
+    }
+  }
+
+  .actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: var(--nv-space-3);
+  }
+
+  .meta {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: var(--nv-space-2) var(--nv-space-5);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    font-size: var(--sl-text-sm);
+    color: var(--sl-color-gray-3);
+  }
+  .meta li {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4em;
+  }
+  .meta svg {
+    color: var(--sl-color-text-accent);
+  }
+  @media (min-width: 64rem) {
+    .actions,
+    .meta {
+      justify-content: flex-start;
+    }
+  }
+
+  /* ------------------------------------------------------------ the window */
+  .stage {
+    min-width: 0;
+  }
+
+  .window {
+    position: relative;
+    margin: 0;
+    border: 1px solid var(--nv-hairline-strong);
+    border-radius: var(--nv-radius-lg);
+    background: var(--nv-code-bg);
+    box-shadow: var(--nv-shadow-lg), 0 30px 80px -40px color-mix(in oklab, var(--nv-violet) 60%, transparent);
+    overflow: hidden;
+  }
+  /* A gradient hairline along the top edge. */
+  .window::before {
+    content: '';
+    position: absolute;
+    z-index: 1;
+    inset: 0 0 auto;
+    height: 1px;
+    background: var(--nv-gradient-line);
+    opacity: 0.9;
+  }
+  .bar {
+    display: flex;
+    align-items: center;
+    gap: var(--nv-space-3);
+    min-height: 2.75rem;
+    padding: 0 0.9rem;
+    border-bottom: 1px solid var(--nv-hairline);
+    background: var(--nv-surface-2);
+    font-family: var(--sl-font-mono);
+    font-size: 0.75rem;
+    color: var(--sl-color-gray-3);
+  }
+  .dots {
+    display: inline-flex;
+    flex-shrink: 0;
+    gap: 0.4rem;
+  }
+  .dots i {
+    width: 0.7rem;
+    height: 0.7rem;
+    border-radius: 50%;
+    background: var(--nv-crimson-fill);
+  }
+  .dots i:nth-child(2) {
+    background: var(--nv-gold);
+  }
+  .dots i:nth-child(3) {
+    background: var(--sl-color-accent);
+  }
+  .server {
+    margin-inline-start: auto;
+    padding: 0.1rem 0.5rem;
+    border-radius: var(--nv-radius-pill);
+    background: var(--nv-wash);
+    color: var(--sl-color-text-accent);
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  /* The tabs sit in the bar; the selected one has the code's ground and an
+     accent line along its bottom edge. */
+  .tabs {
+    display: flex;
+    align-self: stretch;
+    gap: 0.15rem;
+    min-width: 0;
+  }
+  .tabs[hidden] {
+    display: none;
+  }
+  .tabs button {
+    position: relative;
+    padding: 0 0.75rem;
+    border: 0;
+    background: transparent;
+    color: var(--sl-color-gray-3);
+    font: inherit;
+    font-family: var(--sl-font);
+    font-size: var(--sl-text-sm);
+    font-weight: 650;
+    white-space: nowrap;
+    cursor: pointer;
+    transition:
+      color var(--nv-fast) var(--nv-ease),
+      background-color var(--nv-fast) var(--nv-ease);
+  }
+  .tabs button:hover {
+    color: var(--sl-color-white);
+    background: var(--nv-hover);
+  }
+  .tabs button[aria-selected='true'] {
+    color: var(--sl-color-white);
+    background: var(--nv-code-bg);
+  }
+  .tabs button[aria-selected='true']::after {
+    content: '';
+    position: absolute;
+    inset: auto 0.5rem 0;
+    height: 2px;
+    border-radius: 2px 2px 0 0;
+    background: var(--sl-color-accent);
+  }
+  .tabs button:focus-visible {
+    outline-offset: -2px;
+  }
+  /* With forced colors the line under the selected tab is drawn in the
+     system's highlight color, so the selection does not depend on a tint. */
+  @media (forced-colors: active) {
+    .tabs button[aria-selected='true']::after {
+      background: Highlight;
+    }
+  }
+
+  /* Without the script: the panels one under the other, each with a label. */
+  .panel + .panel {
+    border-top: 1px solid var(--nv-hairline-strong);
+  }
+  .panel-label {
+    margin: 0;
+    padding: 0.5rem 0.9rem 0;
+    font-size: var(--sl-text-xs);
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--sl-color-text-accent);
+  }
+
+  /* With the script: only the selected panel is shown. */
+  [data-tabs-ready] .panel {
+    border-top: 0;
+  }
+  [data-tabs-ready] .panel[data-inactive] {
+    display: none;
+  }
+  [data-tabs-ready] .panel-label {
+    display: none;
+  }
+  [data-tabs-ready] .panel:focus-visible {
+    outline-offset: -2px;
+  }
+
+  .result {
+    display: flex;
+    align-items: center;
+    gap: var(--nv-space-2);
+    margin: 0;
+    padding: 0.7rem 0.9rem;
+    border-top: 1px solid var(--nv-hairline);
+    background: color-mix(in oklab, var(--nv-ok) 8%, var(--nv-surface-2));
+    font-size: var(--sl-text-sm);
+    font-weight: 600;
+    line-height: 1.4;
+    color: var(--sl-color-white);
+  }
+  .result-icon {
+    display: inline-flex;
+    flex-shrink: 0;
+    padding: 0.2rem;
+    border-radius: 50%;
+    background: var(--nv-ok);
+    color: var(--sl-color-black);
+  }
+
+  /* The snippet inside: no frame of its own, the window is the frame. */
+  .code :global(.expressive-code) {
+    margin: 0;
+  }
+  .code :global(.expressive-code + .expressive-code) {
+    margin: 0;
+  }
+  .code :global(.expressive-code .frame) {
+    border-radius: 0;
+    box-shadow: none;
+  }
+  .code :global(.expressive-code pre) {
+    border: 0;
+    border-radius: 0;
+    font-size: 0.75rem;
+  }
+  /* A diagnostic wraps its long lines, so the reader sees all of it. */
+  .code :global([data-snippet-part='diagnostic'] .expressive-code pre) {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+  .code :global(.expressive-code .frame.has-title .header) {
+    border-radius: 0;
+  }
+  .code :global(.expressive-code + .expressive-code .frame) {
+    border-top: 1px solid var(--nv-hairline);
+  }
+  /* A compiler error keeps its red edge and tint, without the gap and the
+     rounded corners it has elsewhere. */
+  .code :global([data-snippet-part='diagnostic']) {
+    margin: 0;
+    border-top: 1px solid var(--nv-hairline);
+  }
+  .code :global([data-snippet-part='diagnostic'] .expressive-code .frame) {
+    border-radius: 0;
+    box-shadow: inset 3px 0 0 var(--nv-danger);
+  }
+
+  @media (max-width: 49.99rem) {
+    .home-hero {
+      gap: var(--nv-space-6);
+      padding-block-start: var(--nv-space-4);
+    }
+    .tagline {
+      font-size: var(--sl-text-base);
+    }
+    .actions {
+      width: 100%;
+    }
+    .actions .nv-button {
+      flex: 1 1 12rem;
+      justify-content: center;
+    }
+    .server {
+      display: none;
+    }
+  }
+</style>

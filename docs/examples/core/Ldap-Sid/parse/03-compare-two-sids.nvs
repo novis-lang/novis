@@ -1,0 +1,8 @@
+<?nvs
+// Shows that two ways to write the same SID give the same SID.
+
+// The authority may be written in hex with `0x`. Both texts have authority 5.
+var $short = Core\Ldap\Sid::parse('S-1-5-18');
+var $long = Core\Ldap\Sid::parse('S-1-0x000000000005-18');
+// The bytes are the same, so this prints same.
+echo $short->bytes() == $long->bytes() ? 'same' : 'different', "\n";

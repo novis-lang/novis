@@ -1,0 +1,55 @@
+<?NVS
+// A file's first comment, above everything the grammar names.
+#  The other line spelling says the same thing.
+//// And four slashes is a comment as well, not documentation.
+
+use Core\Str;
+// A comment between two imports keeps each of them on its own side of it, so
+// this one still describes the import below rather than the one above.
+use Core\Arr;
+
+/// A doc comment belongs to the declaration under it.
+class Ledger {
+    // Above a member.
+    public int $entries = 0;  // And after one, on its own line.
+
+    /// What a method is for.
+    public function record(/* before a parameter */ int $count): int
+    {
+        // Above a statement.
+        $this->entries = $this->entries + /* inside an expression */ $count;
+
+        if ($count > 0) {
+            // Above a block's last statement.
+            return $this->entries;
+        } // After a closing brace, which is where the `else` would otherwise go.
+        else {
+            return 0;
+        }
+    }
+}
+
+var $ledger = new Ledger();
+var $total = $ledger->record(2);
+
+for (int $i = 0; /* inside a header */ $i < 2; $i += 1) {
+    $total += 1;
+}
+
+array<int> $counts = [
+    // Above the first element of a list written across lines.
+    1,
+    2,  // After an element.
+    3,
+];
+
+var $label = match (true) {
+        // Above the first arm, which the arm rule places like an arm.
+    $total > 3 => "many",
+    default => "few",  // After an arm.
+};
+
+/* A block comment on a line of its own, above the last statement. */
+echo "total=", $total, " label=", $label, " counts=", Core\Arr::count($counts), "\n";
+
+// And a comment as the last thing in the file, below every statement.

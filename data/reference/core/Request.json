@@ -1,0 +1,23 @@
+{
+  "summary": "the request a program is answering — `$_GET`, `$_POST`, `$_COOKIE`, `$_FILES` and `php://input` as one class, every answer of it `tainted`",
+  "keywords": [
+    "$_GET",
+    "$_POST",
+    "$_COOKIE",
+    "$_FILES",
+    "$_SERVER",
+    "$_REQUEST",
+    "superglobal",
+    "filter_input",
+    "getallheaders",
+    "php://input",
+    "file_get_contents",
+    "json_decode",
+    "request body",
+    "form fields",
+    "multipart",
+    "upload",
+    "HEAD",
+    "request method"
+  ]
+}

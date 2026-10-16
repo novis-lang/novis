@@ -1,0 +1,24 @@
+<?nvs
+// Saves an xlsx file of one order to a path, as a nightly job does for each customer.
+// bench: iterations 32
+// bench: complexity constant
+use Novis\Spreadsheet\Workbook;
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        string $path = Core\Path::join(Core\IO::temporaryDir(), "order.xlsx");
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            var $book = Workbook::createForFile($path);
+            $book->sheet("Order")->add(["order" => $total, "total" => 19.9]);
+            uint $size = $book->finish()->size as uint;
+            uint $step = $size > 0 ? 1 : 3;
+            $total = $total + $step;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(32), "\n";

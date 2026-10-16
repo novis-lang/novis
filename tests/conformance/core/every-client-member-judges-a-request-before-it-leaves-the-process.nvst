@@ -1,0 +1,77 @@
+--TEST--
+Every `Core\Http\Client` member decides the URL and the option bounds before anything leaves the process, and each names itself when it refuses — `rule:security/outbound-url-is-a-sink`, `rule:http-server/allow-url-pins-the-address` and `rule:security/net-address-policy`, `rule:http-server/no-spelling-for-an-unbounded-wait` and `rule:http-server/retry-is-opt-in-jittered-and-closed`
+--FILE--
+<?nvs
+// The depth claim is *agreement*: one question asked of all five members —
+// "what do you do with a request that cannot be made?" — asserting that they
+// answer it the same way and in the same order. A member that reached for a
+// socket first, or that judged its options after connecting, still prints
+// plausibly on its own line and fails here.
+//
+// Nothing in this case opens a connection: every refusal below is decided from
+// the argument, the capability and the option bag alone, which is what lets a
+// program's own tests find a wrong URL without a network.
+
+// `rule:security/net-address-policy`: the name is granted and the *address* is not. The cloud
+// metadata endpoint is the canonical SSRF target, and a policy applied to the
+// hostname would be re-resolved out from under itself.
+try {
+    var $a = Core\Http\Client::get("http://169.254.169.254/latest/meta-data/");
+    echo "accepted", "\n";
+} catch (RuntimeError $one) {
+    echo $one->message, "\n";
+}
+
+// § 2's order: what is wrong with the *text* is decided before the deployment
+// is asked anything at all, so this refusal does not depend on a grant.
+try {
+    var $b = Core\Http\Client::post("ftp://example.com/archive");
+} catch (RuntimeError $two) {
+    echo $two->message, "\n";
+}
+
+// `rule:http-server/no-spelling-for-an-unbounded-wait` has no spelling for an unbounded wait, and a zero one would be
+// that spelling said quietly — so it is refused rather than treated as absent.
+try {
+    var $c = Core\Http\Client::head("http://93.184.216.34/ok", {deadline: 0s});
+} catch (RuntimeError $three) {
+    echo $three->message, "\n";
+}
+
+// § 6: `retryAttempts` is the total including the first attempt, so zero is a
+// count of nothing rather than a request made once.
+try {
+    var $d = Core\Http\Client::put("http://93.184.216.34/ok", {retryAttempts: 0});
+} catch (RuntimeError $four) {
+    echo $four->message, "\n";
+}
+
+// The fifth refusal is the transport's own, and it is still decided before a
+// socket: the request text is composed before anything is connected, so a
+// header carrying a `\r\n` is a second request the caller did not write and is
+// refused where it is written rather than where it would arrive. The URL
+// passes every question above it — the scheme roster admits `https`, the
+// address is granted — so what refuses here is the send and nothing earlier.
+Core\Http\Target $pinned = Core\Http::allowUrl("https://93.184.216.34/ok");
+try {
+    var $e = Core\Http\Client::delete($pinned, {deadline: 30s, retryAttempts: 3, headers: ["X-Trace" => "one\r\nGET /admin HTTP/1.1"]});
+} catch (RuntimeError $five) {
+    echo $five->message, "\n";
+}
+--FILE nvs.toml--
+# A literal address is the one host a case can approve without a resolver, for
+# the reason `an-approved-url-is-pinned-to-one-address.nvst` gives. The second
+# grant is the point of the first refusal: the *name* is granted and § 3's
+# table refuses the address behind it anyway, so a grant cannot widen the
+# table.
+[capabilities.net]
+connect = [
+  "93.184.216.34",
+  "169.254.169.254",
+]
+--EXPECT--
+Core\Http\Client::get refuses 169.254.169.254: it is link-local (169.254.0.0/16), which `net.internal` does not except
+Core\Http\Client::post: the scheme must be `http` or `https`, and this URL names `ftp`
+Core\Http\Client::head: `deadline` must be a positive duration, and this one is 0ns
+Core\Http\Client::put: `retryAttempts` counts the first attempt too, so the smallest it can be is 1
+Core\Http\Client::delete: `X-Trace` is not a header this request can carry — a name or value holding a control byte would end the line early, which is a second request the caller did not write

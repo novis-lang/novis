@@ -1,0 +1,18 @@
+<?nvs
+// Shows how to make test data that is the same on every run.
+
+// A test needs ten orders with a random quantity and price. The seed is fixed,
+// so the test sees the same ten orders every time it runs.
+Core\Random\Seeded $generator = new Core\Random\Seeded(2024);
+int $total = 0;
+int $order = 1;
+while ($order <= 10) {
+    int $quantity = $generator->int(1, 5);
+    int $cents = $generator->int(199, 4999);
+    echo "order ", $order, ": ", $quantity, " x ", $cents, " cents\n";
+    $total = $total + $quantity * $cents;
+    $order = $order + 1;
+}
+
+// The test can check this total, because it never changes.
+echo "total: ", $total, " cents\n";

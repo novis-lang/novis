@@ -1,0 +1,18 @@
+<?nvs
+// `[queue] visibility` is how long a job stays hidden after a worker takes it.
+// During that time, no other worker can see the job.
+
+// This file sets neither key, so this prints the defaults, `5m` and `5`.
+echo 'a claim is held for: ', Core\Config::get('queue.visibility') ?? '(no value)', "\n";
+echo 'tries per job:       ', Core\Config::get('queue.max_attempts') ?? '(no value)', "\n";
+
+// If a worker stops in the middle of a job, the time runs out. The job is then
+// visible again, and another worker takes it.
+
+// A program cannot shorten this time, so the call returns `false`. A shorter time
+// could let a second worker start a job that is still running.
+echo 'hold my jobs for a second: ', Core\Config::set('queue.visibility', '1s') ? 'accepted' : 'refused', "\n";
+
+// A program cannot make it longer either. With an hour, a job whose worker
+// stopped would stay hidden for an hour.
+echo 'or hold them for an hour:  ', Core\Config::set('queue.visibility', '1h') ? 'accepted' : 'refused', "\n";

@@ -1,0 +1,24 @@
+<?nvs
+// Writes two sizes of a small PNG in one call, as a program does for the widths of a responsive image.
+// bench: iterations 256
+// bench: complexity constant
+use Novis\Image\Image;
+use Novis\Image\Color;
+use Novis\Image\Format;
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        Image $photo = Image::open(Image::create(4, 4, Color::hex("#336699"))->format(Format::Png)->encode());
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            uint $width = 1 + ($total + $i) % 2;
+            array<bytes> $files = $photo->variants([{width: $width}, {width: $width + 2}]);
+            $total = $total + Core\Bytes::length($files[1]) % 5;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

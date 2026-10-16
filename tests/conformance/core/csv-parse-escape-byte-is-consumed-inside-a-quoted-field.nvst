@@ -1,0 +1,35 @@
+--TEST--
+Core\Csv::parse's `escape` byte is removed inside a quoted field and the byte after it is kept as written, it is an ordinary byte outside quotes, and the default dialect has no escape byte at all
+--FILE--
+<?nvs
+final class Show {
+    public static function of(array<string> $row): string {
+        var $out = "";
+        foreach ($row as string $field) {
+            $out = $out . "[" . $field . "]";
+        }
+        return $out;
+    }
+}
+
+// `"a\"b",c`. The backslash is removed and the quote after it is kept.
+echo Show::of(Core\Csv::parse("\"a\\\"b\",c", {escape: "\\"})["0"]), "\n";
+
+// `"a\\b",c`. The first backslash escapes the second, so one is left.
+echo Show::of(Core\Csv::parse("\"a\\\\b\",c", {escape: "\\"})["0"]), "\n";
+
+// Outside a quoted field the backslash is an ordinary byte.
+echo Show::of(Core\Csv::parse("a\\b,c", {escape: "\\"})["0"]), "\n";
+
+// A doubled quote still works when an escape byte is set.
+echo Show::of(Core\Csv::parse("\"a\"\"b\",c", {escape: "\\"})["0"]), "\n";
+
+// Without `escape`, the backslash is a field byte and the doubled quote is
+// one quote.
+echo Show::of(Core\Csv::parse("\"a\\\"\"b\",c")["0"]), "\n";
+--EXPECT--
+[a"b][c]
+[a\b][c]
+[a\b][c]
+[a"b][c]
+[a\"b][c]

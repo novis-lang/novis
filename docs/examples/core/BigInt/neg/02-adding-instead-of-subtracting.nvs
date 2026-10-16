@@ -1,0 +1,15 @@
+<?nvs
+// Shows two things you get from `neg`. Adding a flipped number is the same as
+// subtracting it, and flipping the sign twice gives the number you started
+// with.
+
+var $balance = Core\BigInt::parse("184467440737095516150");
+var $fee = Core\BigInt::of(250);
+
+// Both lines print 184467440737095515900.
+echo $balance->sub($fee), "\n";
+echo $balance->add($fee->neg()), "\n";
+
+// Flipping the sign twice gives the number you started with. This prints
+// 184467440737095516150.
+echo $balance->neg()->neg(), "\n";

@@ -1,0 +1,15 @@
+{
+  "summary": "one uploaded part — what it declared about itself, and the three ways to spend its bytes",
+  "keywords": [
+    "$_FILES",
+    "tmp_name",
+    "move_uploaded_file",
+    "UPLOAD_ERR_OK",
+    "upload name",
+    "client filename",
+    "Content-Disposition",
+    "Content-Type",
+    "multipart part",
+    "file_get_contents upload"
+  ]
+}

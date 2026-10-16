@@ -1,0 +1,17 @@
+{
+  "title": "Ten series exist the moment an exporter is configured, with no application code written",
+  "status": "shipped",
+  "seeAlso": [
+    "observability/the-runtime-exports-what-it-already-measures",
+    "observability/route-label-is-the-declared-name",
+    "observability/past-max-series-a-new-series-is-refused",
+    "concurrency/deferred-is-bounded-by-two-directives",
+    "config/scheduled-work-is-a-config-block",
+    "programs/memory-priority",
+    "observability/trace-events-carry-a-kind"
+  ],
+  "guardedBy": [
+    "crates/nvs-server/src/metrics.rs",
+    "crates/nvs-runtime/src/metrics.rs"
+  ]
+}

@@ -1,0 +1,15 @@
+<?nvs
+// Shows how to add rows with keys to a sheet.
+use Novis\Spreadsheet\Workbook;
+
+var $book = Workbook::createInMemory({ format: 'csv' });
+var $sheet = $book->sheet('Orders');
+
+// Each value goes to the column of its key. The keys of the first row are the header row.
+$sheet->add(['order' => 1042, 'customer' => 'Ann', 'total' => 19.9]);
+$sheet->add(['order' => 1043, 'customer' => 'Ben', 'total' => 5.5]);
+
+var $written = $book->finish();
+if ($written->bytes != null) {
+    echo $written->bytes as string;
+}

@@ -1,0 +1,20 @@
+<?nvs
+// Shows which keys the runs carry, and what happens when the size is 0.
+
+array<int> $stock = ['apples' => 12, 'pears' => 4, 'plums' => 7];
+
+// Every run is numbered from 0, and the keys of the original are gone. This
+// prints [[12,4],[7]].
+echo Core\Json::encode(Core\Arr::chunk($stock, 2)), "\n";
+
+// `preserveKeys` keeps every entry under its own key inside its run. This
+// prints [{"apples":12,"pears":4},{"plums":7}].
+echo Core\Json::encode(Core\Arr::chunk($stock, 2, {preserveKeys: true})), "\n";
+
+// A size of 0 throws a `RuntimeError`. You can catch it and read its message.
+try {
+    array<array<int>> $runs = Core\Arr::chunk($stock, 0);
+    echo Core\Json::encode($runs), "\n";
+} catch (RuntimeError $error) {
+    echo 'the size was wrong: ', $error->message, "\n";
+}

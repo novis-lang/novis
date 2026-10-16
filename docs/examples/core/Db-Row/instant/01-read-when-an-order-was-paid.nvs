@@ -1,0 +1,20 @@
+<?nvs
+// Shows how to read the moment an order was paid out of a row.
+// requires: postgres
+
+var $db = Core\Db::connect('shop');
+
+// A temporary table is deleted when the connection closes.
+$db->execute('create temporary table orders (id integer not null, paid_at timestamptz not null)', []);
+$db->execute('insert into orders (id, paid_at) values (?, ?)', [1, '2026-03-01 15:00:00+01']);
+
+// `instant` reads the column as a `Core\Time\Instant`. `toIso` writes it in UTC.
+// The order was paid at 15:00 in a zone one hour ahead of UTC, so this prints `2026-03-01T14:00:00Z`.
+foreach ($db->query('select paid_at from orders where id = ?', [1]) as Core\Db\Row $row) {
+    ?Core\Time\Instant $paid = $row->instant('paid_at');
+    if ($paid != null) {
+        echo 'paid at ', $paid->toIso(), "\n";
+    }
+}
+
+$db->close();

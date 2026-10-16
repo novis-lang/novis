@@ -1,0 +1,10 @@
+<?nvs
+// Shows that `parse` reads the text from `toString` back as the same filter.
+
+var $built = Core\Ldap\Filter::any(
+    Core\Ldap\Filter::present('mail'),
+    Core\Ldap\Filter::not(Core\Ldap\Filter::atLeast('uSNChanged', '100')),
+);
+// This prints (|(mail=*)(!(uSNChanged>=100))) two times.
+echo $built->toString(), "\n";
+echo Core\Ldap\Filter::parse('(|(mail=*)(!(uSNChanged>=100)))')->toString(), "\n";

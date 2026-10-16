@@ -1,0 +1,16 @@
+--TEST--
+a run of comment lines is one `comment` fold and a blank line starts the next one, out of the trivia the same parse kept beside the tree, `rule:ide/one-grammar-one-tree`
+--FILE--
+<?nvs
+// what this file is for,
+// said over three lines,
+// and no more.
+
+/// The greeter, whose doc run
+/// is a block of its own.
+class Greeter { }
+--REQUEST--
+foldingRange
+--EXPECT--
+2-4 comment
+6-7 comment

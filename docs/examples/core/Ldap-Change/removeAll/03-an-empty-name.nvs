@@ -1,0 +1,10 @@
+<?nvs
+// Shows the error for an empty attribute name.
+
+try {
+    var $clear = Core\Ldap\Change::removeAll('');
+    echo "the change is ready\n";
+} catch (LogicError $refusal) {
+    // This prints the error message.
+    echo $refusal->message, "\n";
+}

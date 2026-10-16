@@ -1,0 +1,13 @@
+{
+  "title": "Deferred work may read the request but not write the response, and its uncaught throw reaches the log alone",
+  "status": "shipped",
+  "seeAlso": [
+    "errors/escalation-ladder",
+    "errors/on-uncaught-throw",
+    "security/response-body-is-one-typed-member"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/after-response-a-response-write-does-not-compile.nvst",
+    "tests/conformance/core/after-response-a-hidden-response-write-throws.nvst"
+  ]
+}

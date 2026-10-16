@@ -1,0 +1,8 @@
+--METHOD--
+GET
+--PATH--
+/manuals
+--QUERY--
+product=kettle
+--HEADERS--
+host: example.com

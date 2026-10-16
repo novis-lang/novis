@@ -1,0 +1,41 @@
+--TEST--
+A raw `ESC` byte written inside a string literal does not compile, in a double-quoted string, a single-quoted one, a heredoc and a nowdoc, and the error is at the byte itself — rule:tooling/an-escape-in-source-text-is-a-compile-error
+--FILE--
+<?nvs
+// Each string below contains the `ESC` byte itself. It is invisible in most editors.
+echo "[31mred", "\n";
+echo '[1mbold', "\n";
+echo <<<TEXT
+    [4munder
+    TEXT;
+echo <<<'TEXT'
+    [0mplain
+    TEXT;
+--EXPECTF-ERROR--
+error[E0011]: this string contains the `ESC` character. To style terminal output, use `Core\Cli\Text`
+  --> %s:3:7
+  |
+3 | echo "[31mred", "\n";
+  |       ^ writes the `ESC` character
+
+error[E0011]: this string contains the `ESC` character. To style terminal output, use `Core\Cli\Text`
+  --> %s:4:7
+  |
+4 | echo '[1mbold', "\n";
+  |       ^ writes the `ESC` character
+
+error[E0011]: this string contains the `ESC` character. To style terminal output, use `Core\Cli\Text`
+  --> %s:6:1
+  |
+6 |     [4munder
+  | ^^^^^^^^^^^^^... writes the `ESC` character
+  | (continues to line 7)
+
+error[E0011]: this string contains the `ESC` character. To style terminal output, use `Core\Cli\Text`
+  --> %s:9:5
+  |
+9 |     [0mplain
+  |     ^ writes the `ESC` character
+
+error: aborting due to 4 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

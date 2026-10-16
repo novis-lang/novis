@@ -1,0 +1,72 @@
+<?nvs
+// Attack: a request formats very large lists, very long numbers, numbers that are not finite and
+// broken options. Each call should return a list or throw an error, and the server keeps running.
+// hostile: timeout-ms 20000
+use Novis\Intl\NumberFormat;
+
+// 1. An empty list.
+try {
+    echo 'step 1 ran ', Core\Arr::count(NumberFormat::decimal([], 'de')), "\n";
+} catch (Throwable $e) {
+    echo "step 1 stopped\n";
+}
+
+// 2. Twenty thousand numbers in one call.
+try {
+    array<int|float|decimal> $many = [];
+    for (int $i = 0; $i < 20000; $i++) {
+        $many[] = $i * 1.5;
+    }
+    echo 'step 2 ran ', Core\Arr::count(NumberFormat::decimal($many, 'en')), "\n";
+} catch (Throwable $e) {
+    echo "step 2 stopped\n";
+}
+
+// 3. A decimal with one hundred thousand digits.
+try {
+    decimal $long = Core\Str::repeat('9', 100000) as decimal;
+    echo 'step 3 ran ', Core\Str::length(NumberFormat::decimal([$long], 'en')[0]) > 0 ? 'yes' : 'no', "\n";
+} catch (Throwable $e) {
+    echo "step 3 stopped\n";
+}
+
+// 4. Numbers that are not finite.
+try {
+    NumberFormat::decimal([1.0, Core\Math::NAN, Core\Math::INFINITY], 'en');
+    echo "step 4 ran\n";
+} catch (Throwable $e) {
+    echo "step 4 stopped\n";
+}
+
+// 5. Fraction digits far over the limit, and a minimum over the maximum.
+try {
+    NumberFormat::decimal([1.5], 'en', { maxFractionDigits: 4000000000 });
+    echo "step 5 ran\n";
+} catch (Throwable $e) {
+    echo "step 5 stopped\n";
+}
+try {
+    NumberFormat::decimal([1.5], 'en', { minFractionDigits: 5, maxFractionDigits: 1 });
+    echo "step 5b ran\n";
+} catch (Throwable $e) {
+    echo "step 5b stopped\n";
+}
+
+// 6. A locale tag of ten thousand characters.
+try {
+    NumberFormat::decimal([1], Core\Str::repeat('x-', 5000));
+    echo "step 6 ran\n";
+} catch (Throwable $e) {
+    echo "step 6 stopped\n";
+}
+
+// 7. A bad locale tag a thousand times. Each call must still return or throw.
+uint $stopped = 0;
+for (int $j = 0; $j < 1000; $j++) {
+    try {
+        NumberFormat::decimal([1], 'en_US!');
+    } catch (Throwable $e) {
+        $stopped = $stopped + 1;
+    }
+}
+echo 'step 7 stopped ', $stopped, "\n";

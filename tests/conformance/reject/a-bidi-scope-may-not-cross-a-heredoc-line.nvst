@@ -1,0 +1,16 @@
+--TEST--
+a heredoc scope that opens on one line and closes on the next is refused — `rule:security/bidi-boundaries`'s per-line span
+--FILE--
+<?nvs
+string $note = <<<TXT
+‫first line
+second line‬
+TXT;
+echo $note, "\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0008]: unterminated bidirectional control U+202B RIGHT-TO-LEFT EMBEDDING
+%A
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

@@ -1,0 +1,53 @@
+<?nvs
+// Attack: `Core\Str::fold` changes very long strings whose folded form is up to three times longer.
+// Each call should return a string or throw an error, and must not crash or hang.
+// hostile: timeout-ms 20000
+
+class Attack
+{
+    /// 1. Folds a letter that becomes three characters: "ΐ" is 2 bytes and folds to 6 bytes.
+    public static function threeTimesLonger(uint $count): uint
+    {
+        var $s = Core\Str::repeat("\u{390}", $count);
+        return Core\Str::length(Core\Str::fold($s));
+    }
+
+    /// 2. Folds many ligatures, where each "ﬃ" becomes "ffi".
+    public static function ligatures(uint $count): uint
+    {
+        var $s = Core\Str::repeat("\u{FB03}", $count);
+        return Core\Str::length(Core\Str::fold($s));
+    }
+
+    /// 3. Folds a capital "İ" followed by combining marks, many times in one string.
+    public static function dottedCapitalWithMarks(uint $count): uint
+    {
+        var $s = Core\Str::repeat("\u{130}\u{301}\u{323}", $count);
+        return Core\Str::length(Core\Str::fold($s));
+    }
+
+    /// 4. Folds a short string one million times and keeps none of the results.
+    public static function manySmallCalls(uint $rounds): uint
+    {
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            $total = $total + Core\Str::length(Core\Str::fold('STRASSE ß ﬁ Σ'));
+            $i = $i + 1;
+        }
+        return $total;
+    }
+
+    /// 5. Folds a long text that mixes Greek letters, German letters and ligatures.
+    public static function mixedScripts(uint $count): uint
+    {
+        var $s = Core\Str::repeat('ΟΔΥΣΣΕΥΣ Straße ǅ ﬀ İ ', $count);
+        return Core\Str::length(Core\Str::fold($s));
+    }
+}
+
+echo Attack::threeTimesLonger(4000000), "\n";
+echo Attack::ligatures(4000000), "\n";
+echo Attack::dottedCapitalWithMarks(1000000), "\n";
+echo Attack::manySmallCalls(1000000), "\n";
+echo Attack::mixedScripts(500000), "\n";

@@ -1,0 +1,26 @@
+{
+  "title": "`static` marks a class member and names a class-relative type, and nothing else",
+  "status": "shipped",
+  "seeAlso": [
+    "statements/no-function-static-and-no-global",
+    "statements/an-anonymous-function-captures-this-only-where-it-uses-it",
+    "statements/storage-that-outlives-a-call"
+  ],
+  "guardedBy": [
+    "tests/conformance/class/a-static-constant-read-answers-the-called-class.nvst",
+    "tests/conformance/reject/a-static-constant-is-not-read-in-a-constant-expression.nvst",
+    "tests/conformance/reject/a-static-constant-read-needs-a-scalar-value.nvst",
+    "tests/conformance/reject/a-redeclared-constant-keeps-its-type.nvst",
+    "tests/conformance/reject/static-names-no-class-inside-an-anonymous-function.nvst",
+    "tests/conformance/callables/self-and-parent-in-an-anonymous-function-call-the-class-the-function-is-written-in.nvst",
+    "tests/conformance/callables/self-calls-an-abstract-static-method-on-the-called-class-outside-an-anonymous-function.nvst",
+    "tests/conformance/reject/an-abstract-static-method-is-not-called-on-a-class-fixed-while-compiling.nvst",
+    "tests/conformance/lang/new-static-through-two-levels-returns-the-called-class.nvst",
+    "tests/conformance/class/a-static-return-must-be-the-called-class.nvst",
+    "tests/conformance/reject/this-is-not-read-in-a-static-method.nvst",
+    "tests/conformance/reject/an-instance-method-is-not-called-statically.nvst",
+    "tests/conformance/reject/a-static-property-is-refused-uninitialized-and-late-bound.nvst",
+    "tests/conformance/lang/a-static-parameter-type-is-the-class-the-call-names.nvst",
+    "tests/conformance/lang/a-static-array-return-is-the-class-the-call-names.nvst"
+  ]
+}

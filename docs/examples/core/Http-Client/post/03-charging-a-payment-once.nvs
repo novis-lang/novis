@@ -1,0 +1,30 @@
+<?nvs
+// Shows a shop that asks a payment service to charge an order. The request is tried
+// up to 3 times, and the customer is still charged only once.
+
+class Payments {
+    public static function charge(int $orderId, int $cents): string {
+        try {
+            // The key is the same on every attempt. If the service charged the order but
+            // its answer was lost, it sees the key again and does not charge a second time.
+            Core\Http\Response $response = Core\Http\Client::post("http://192.168.10.4/charges", {
+                json: ["order" => $orderId, "amount" => $cents, "currency" => "EUR"],
+                deadline: 10s,
+                retryAttempts: 3,
+                retryIdempotencyKey: Core\Str::format("order-%d", $orderId),
+            });
+            // 201 means the service created the charge.
+            if ($response->status() == 201) {
+                return "paid";
+            }
+            return "declined";
+        } catch (RuntimeError $error) {
+            echo "not sent: ", $error->message, "\n";
+            return "waiting";
+        }
+    }
+}
+
+// The payment service is at a private address, so this prints `order 1042: waiting`.
+string $state = Payments::charge(1042, 4999);
+echo "order 1042: ", $state, "\n";

@@ -1,0 +1,11 @@
+<?nvs
+// One health check. The example in the folder above starts it. It removes old
+// sessions and counts the ones it could not remove.
+
+final class Report {
+    public static int $problems = 0;
+}
+
+echo "one session is older than a year\n";
+Report::$problems = Report::$problems + 1;
+return Report::$problems;

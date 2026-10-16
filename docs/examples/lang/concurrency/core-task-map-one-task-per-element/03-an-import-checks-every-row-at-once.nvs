@@ -1,0 +1,33 @@
+<?nvs
+// Shows a real use: an uploaded file has one order per row, and every row has to be
+// checked before any of them is saved. No row needs another row, so all of them are
+// checked at the same time. The answers come back in the file's own order.
+
+class Row {
+    public static function check(string $line): string {
+        array<string> $parts = Core\Str::split($line, ",");
+        if (Core\Arr::count($parts) != 2) {
+            return "needs two columns";
+        }
+
+        if (Core\Str::length($parts[1]) == 0) {
+            return "the amount is empty";
+        }
+
+        return "ok";
+    }
+}
+
+array<string> $upload = [
+    "COFFEE-1KG,2",
+    "FILTER-100",
+    "MUG-BLUE,",
+    "CUP-RED,4",
+];
+
+var $verdicts = Core\Task::map($upload, fn(string $line): string => Row::check($line));
+
+// An array's key is always a `string`, so the row number is converted before it is used.
+foreach ($verdicts as string $key => string $verdict) {
+    echo "row ", ($key as int) + 1, ": ", $verdict, "\n";
+}

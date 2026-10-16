@@ -1,0 +1,47 @@
+--TEST--
+A block groups statements and opens no scope, so a local declared inside one is the same local after the closing brace; what the block does affect is definite assignment, and a declaration in a loop body is one statement that runs on every round — `rule:types/declaration`
+--FILE--
+<?nvs
+// covers: lang:statements/expression-statements-blocks-and-declarations
+// A block `{ … }` groups statements and opens no scope `rule:types/declaration`,
+// so both names below are the same function-scoped locals after their braces
+// close, at any depth.
+{
+    int $inner = 40;
+    {
+        int $deeper = 2;
+    }
+}
+echo $inner + $deeper, "\n";
+
+// What a block does affect is definite assignment: a declaration with no
+// initializer is readable once every path has assigned it, and a block that
+// always runs is such a path.
+int $late;
+bool $flag = true;
+if ($flag) {
+    $late = 1;
+} else {
+    $late = 2;
+}
+echo $late, "\n";
+
+// "Once" counts declaration *statements*, not executions: the declaration
+// below is one statement, and it initialises `$label` afresh on every round.
+int $round = 0;
+while ($round < 3) {
+    string $label = "round " . ($round as string);
+    echo $label, "\n";
+    $round = $round + 1;
+}
+
+// `;` on its own is an empty statement.
+;
+echo "done\n";
+--EXPECT--
+42
+1
+round 0
+round 1
+round 2
+done

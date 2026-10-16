@@ -1,0 +1,17 @@
+--TEST--
+a `<T>` written between a `new` target and its `(` is refused on a user-declared class — `rule:types/declaration` and `rule:types/grammar`
+--FILE--
+<?nvs
+// The grammar reads the list here exactly as it does at a call site, so this
+// is a type error rather than a parse error. Type variables stay
+// compiler-owned: a user-declared class never has one to bind.
+class Box {}
+new Box<int>();
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0441]: `Box` takes no type arguments
+  --> case.nvs:6:9
+%A
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

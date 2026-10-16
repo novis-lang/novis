@@ -1,0 +1,116 @@
+--TEST--
+A `foreach` over each of the four `Core` collections reaches every element exactly once and the four agree on what they held, while only the heap reorders it — counted rather than read off a line, pinning `rule:iteration/foreach-subjects`
+--FILE--
+<?nvs
+// covers: lang:iteration/core-collections-are-iterable
+// The four collections are given the same three numbers. Each walk records how
+// many elements it reached, what they add up to and the order they arrived in;
+// the verdict is then read from how many *distinct* answers there are, so a
+// collection that skipped or repeated one fails here even though its own line
+// would still look plausible.
+class Seen {
+    public static int $count = 0;
+    public static int $total = 0;
+    public static string $order = "";
+
+    public static function reset(): void {
+        Seen::$count = 0;
+        Seen::$total = 0;
+        Seen::$order = "";
+    }
+
+    public static function take(int $v): void {
+        Seen::$count = Seen::$count + 1;
+        Seen::$total = Seen::$total + $v;
+        Seen::$order = Seen::$order . $v . ";";
+    }
+}
+
+var $counts = new Core\ObjectSet<int>();
+var $totals = new Core\ObjectSet<int>();
+var $orders = new Core\ObjectSet<string>();
+
+// A set yields its members.
+var $set = new Core\ObjectSet<int>();
+$set->add(30);
+$set->add(5);
+$set->add(17);
+Seen::reset();
+foreach ($set as int $v) {
+    Seen::take($v);
+}
+$counts->add(Seen::$count);
+$totals->add(Seen::$total);
+$orders->add(Seen::$order);
+
+// A map yields its keys, not its values.
+var $map = new Core\ObjectMap<int, string>();
+$map->set(30, "a");
+$map->set(5, "b");
+$map->set(17, "c");
+Seen::reset();
+foreach ($map as int $k) {
+    Seen::take($k);
+}
+$counts->add(Seen::$count);
+$totals->add(Seen::$total);
+$orders->add(Seen::$order);
+
+// A heap yields in pop order.
+var $heap = new Core\Heap<int>();
+$heap->push(30);
+$heap->push(5);
+$heap->push(17);
+Seen::reset();
+foreach ($heap as int $v) {
+    Seen::take($v);
+}
+$counts->add(Seen::$count);
+$totals->add(Seen::$total);
+$orders->add(Seen::$order);
+
+// A channel yields each value sent, and ends at `close`.
+var $line = new Core\Task\Channel<int>(1);
+Seen::reset();
+Core\Task::all({
+    send: fn(): int => {
+        $line->send(30);
+        $line->send(5);
+        $line->send(17);
+        $line->close();
+        return 0;
+    },
+    take: fn(): int => {
+        foreach ($line as int $v) {
+            Seen::take($v);
+        }
+        return 0;
+    },
+});
+$counts->add(Seen::$count);
+$totals->add(Seen::$total);
+$orders->add(Seen::$order);
+
+// One count and one total across all four: a second member here is a
+// collection that lost, repeated or invented an element.
+echo $counts->count(), " ", $totals->count(), "\n";
+foreach ($counts as int $c) {
+    echo "count=", $c, "\n";
+}
+foreach ($totals as int $t) {
+    echo "total=", $t, "\n";
+}
+
+// Two orders, not four and not one: the heap sorts and the other three keep
+// the order the values arrived in.
+echo $orders->count(), "\n";
+foreach ($orders as string $o) {
+    echo $o, "\n";
+}
+--EXPECT--
+1 1
+count=3
+total=52
+2
+30;5;17;
+5;17;30;

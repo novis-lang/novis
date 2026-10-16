@@ -1,0 +1,13 @@
+{
+  "title": "`nvs ast --json` has a frozen node schema, is resilient by default, and carries no literal's text, so it holds no `secret` bytes",
+  "status": "shipped",
+  "seeAlso": [
+    "security/redaction-reaches-the-tools-own-renderings",
+    "security/secret-sinks-refuse",
+    "ide/one-grammar-one-tree",
+    "ide/every-feature-is-staged-behind-its-dependency"
+  ],
+  "guardedBy": [
+    "crates/nvs-cli/tests/ast.rs"
+  ]
+}

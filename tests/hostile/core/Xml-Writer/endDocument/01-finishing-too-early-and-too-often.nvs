@@ -1,0 +1,75 @@
+<?nvs
+// Attack: a program finishes a document while 1023 elements are open, finishes it many times, and finishes a large one.
+// Each bad call should throw a `LogicError`, and the returned document should be one that the parser reads.
+// hostile: timeout-ms 20000
+
+class Try
+{
+    // Runs one call and prints `ok`, or the class of the error it throws.
+    public static function call(callable $step): void
+    {
+        try {
+            $step();
+            echo "ok\n";
+        } catch (LogicError $error) {
+            echo "LogicError\n";
+        }
+    }
+}
+
+// 1. A finish before the document is started. This prints LogicError.
+Core\Xml\Writer $out = Core\Xml::writer();
+Try::call(fn(): void => { $out->endDocument(); });
+
+// 2. A finish with no root element. This prints LogicError.
+$out->startDocument();
+Try::call(fn(): void => { $out->endDocument(); });
+
+// 3. 1023 elements are open, and 10,000 finishes are tried. This prints 10000.
+int $depth = 0;
+while ($depth < 1023) {
+    $out->startElement('level');
+    $depth = $depth + 1;
+}
+int $failed = 0;
+int $i = 0;
+while ($i < 10000) {
+    try {
+        $out->endDocument();
+    } catch (LogicError $error) {
+        $failed = $failed + 1;
+    }
+    $i = $i + 1;
+}
+echo $failed, "\n";
+
+// 4. 50,000 empty elements are added inside, all elements are closed, and the document is parsed again. This prints its length.
+$i = 0;
+while ($i < 50000) {
+    $out->startElement('item');
+    $out->endElement();
+    $i = $i + 1;
+}
+while ($depth > 0) {
+    $out->endElement();
+    $depth = $depth - 1;
+}
+string $document = $out->endDocument();
+Core\Xml::parse($document);
+echo Core\Str::length($document), "\n";
+
+// 5. 10,000 more finishes after the document is returned. This prints 10000.
+$failed = 0;
+$i = 0;
+while ($i < 10000) {
+    try {
+        $out->endDocument();
+    } catch (LogicError $error) {
+        $failed = $failed + 1;
+    }
+    $i = $i + 1;
+}
+echo $failed, "\n";
+
+// 6. A write after the document is finished. This prints LogicError.
+Try::call(fn(): void => { $out->startElement('late'); });

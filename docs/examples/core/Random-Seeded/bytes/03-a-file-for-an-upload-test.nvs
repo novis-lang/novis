@@ -1,0 +1,13 @@
+<?nvs
+// Shows how to make the content of a test file that is the same on every run.
+
+// An upload test needs three files of different sizes. The seed is fixed, so
+// the files have the same content every time, and a failed test can be repeated.
+Core\Random\Seeded $generator = new Core\Random\Seeded(2024);
+array<uint> $sizes = [16, 1024, 65536];
+foreach ($sizes as uint $size) {
+    bytes $content = $generator->bytes($size);
+    // Six more bytes give the file a name. `Core\Encoding::toBase64` turns them into text.
+    string $name = Core\Encoding::toBase64($generator->bytes(6)) . ".bin";
+    echo $name, ": ", Core\Bytes::length($content), " bytes\n";
+}

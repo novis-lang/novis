@@ -1,0 +1,11 @@
+UniqueViolation: a row with this key is already there
+ForeignKeyViolation: the row it points at is missing, or something still points at this one
+NotNullViolation: a column that needs a value was left empty
+CheckViolation: a rule written into the table refused the row
+Deadlock: two transactions each waited for the other, and this one was picked to lose
+SerializationFailure: another transaction changed the same rows first
+ConnectionLost: the connection is gone
+Timeout: it ran too long and was cancelled
+Syntax: the server will not run that statement at all
+Permission: this login may not do that
+Other: anything the driver has no case of its own for

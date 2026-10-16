@@ -1,0 +1,86 @@
+<?nvs
+// Attack: a request may set `[http.client.socket]`, so it tries to remove its limits or make them huge.
+// It also tries to change the blocks next to it through this block.
+// Removing a limit, or changing another block, should fail.
+// hostile: timeout-ms 30000
+
+// 1. Set the largest message size to huge, negative, empty and invalid values.
+array<string> $sizes = [
+    '18446744073709551615',
+    '9223372036854775807',
+    '-1',
+    '0',
+    '',
+    'false',
+    'true',
+    'null',
+    'infinity',
+    '1024T',
+    '1e30',
+    '0x100000000',
+    '  4194304  ',
+    "4194304\u{0000}18446744073709551615",
+    Core\Str::repeat('9', 100000),
+];
+foreach ($sizes as string $value) {
+    Core\Config::set('http.client.socket.max_message', $value);
+    Core\Config::get('http.client.socket.max_message');
+}
+Core\Config::restore('http.client.socket.max_message');
+
+// 2. Set the send timeout to `0`, `false`, huge and invalid values.
+array<string> $waits = [
+    '0',
+    '0s',
+    '-30s',
+    'false',
+    'null',
+    'never',
+    'forever',
+    '9223372036854775807s',
+    '106752d',
+    '30 s',
+    '30ss',
+    "30s\r\nmax_message = 0",
+    Core\Str::repeat('3', 100000) . 'h',
+];
+foreach ($waits as string $value) {
+    Core\Config::set('http.client.socket.send_timeout', $value);
+    Core\Config::get('http.client.socket.send_timeout');
+}
+Core\Config::restore('http.client.socket.send_timeout');
+
+// 3. Set keys of other blocks through this block, and then set the other blocks directly.
+array<string> $neighbours = [
+    'http.client.socket.pool_idle',
+    'http.client.socket.max_message.pool_idle',
+    'http.client.socketx',
+    'http.client.socket.',
+    'http.client.socket..max_message',
+    'HTTP.CLIENT.SOCKET.MAX_MESSAGE',
+    'http.client.socket.proxy.url',
+    'http.client.socket.tls.roots',
+    'http.client.socket.max_message.' . Core\Str::repeat('sub.', 20000) . 'off',
+];
+foreach ($neighbours as string $key) {
+    Core\Config::set($key, '18446744073709551615');
+    Core\Config::get($key);
+    Core\Config::restore($key);
+}
+Core\Config::set('http.client.pool_idle', '1048576');
+Core\Config::set('http.client.tls.roots', '[]');
+Core\Config::set('http.client.proxy.url', 'http://attacker.test:8080');
+Core\Config::restore('http.client.pool_idle');
+Core\Config::restore('http.client.tls.roots');
+Core\Config::restore('http.client.proxy.url');
+
+// 4. Set an allowed value 200,000 times with no restore. Only the last value should use memory.
+uint $i = 0;
+while ($i < 200000) {
+    Core\Config::set('http.client.socket.max_message', $i % 2 == 0 ? '65536' : '131072');
+    $i = $i + 1;
+}
+Core\Config::restore('http.client.socket.max_message');
+
+echo 'max_message:  ', Core\Config::get('http.client.socket.max_message') ?? '(nothing)', "\n";
+echo 'send_timeout: ', Core\Config::get('http.client.socket.send_timeout') ?? '(nothing)', "\n";

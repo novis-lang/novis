@@ -1,0 +1,31 @@
+--METHOD--
+POST
+--PATH--
+/upload
+--CLIENT_IP--
+198.51.100.23
+--HEADERS--
+host: example.com
+content-type: multipart/form-data; boundary=bnd
+--BODY_CRLF--
+--bnd
+Content-Disposition: form-data; name="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"; filename="long.txt"
+
+a file under a very long field name
+--bnd
+Content-Disposition: form-data; name=""; filename="empty-name.txt"
+
+a file under an empty field name
+--bnd
+Content-Disposition: form-data; name="../../etc/passwd; filename=evil"; filename="path.txt"
+
+a field name that looks like a path and a second parameter
+--bnd
+Content-Disposition: form-data; name="%22quoted%22'; DROP TABLE users; --"; filename="sql.txt"
+
+a field name that looks like SQL
+--bnd
+Content-Disposition: form-data; name="photos[]"; name="avatar"; filename="twice.txt"
+
+a part that names its field twice
+--bnd--

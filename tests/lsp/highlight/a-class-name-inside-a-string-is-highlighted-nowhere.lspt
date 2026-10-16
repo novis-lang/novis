@@ -1,0 +1,14 @@
+--TEST--
+a class's name written inside a string literal is text and not an occurrence of it, which is the difference between an index built from resolution and one built from a text search, `rule:ide/five-features-are-one-reference-index`
+--FILE--
+<?nvs
+class User
+{
+    public string $name = "";
+}
+
+echo "Us<|>er";
+--REQUEST--
+documentHighlight
+--EXPECT--
+none

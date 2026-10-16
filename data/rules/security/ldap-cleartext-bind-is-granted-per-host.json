@@ -1,0 +1,15 @@
+{
+  "title": "An LDAP bind without TLS needs `tls = \"none\"` in the block and the host on `[capabilities.ldap] cleartext`",
+  "status": "shipped",
+  "seeAlso": [
+    "security/tls-trust-is-relaxed-only-under-a-host-grant",
+    "security/ldap-empty-password-is-refused",
+    "core-classes/db-capabilities"
+  ],
+  "guardedBy": [
+    "crates/nvs-ldap/tests/samba.rs",
+    "crates/nvs-config/tests/ldap.rs",
+    "tests/conformance/core/ldap-whoami-is-the-same-over-a-granted-cleartext-bind.nvst",
+    "tests/conformance/core/ldap-password-writes-need-tls.nvst"
+  ]
+}

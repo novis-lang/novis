@@ -1,0 +1,23 @@
+<?nvs
+// Attack: `toNanoseconds` reads the longest and shortest durations, and one million durations of both signs.
+// Every read should return a number, and nothing should crash or leak.
+
+// 1. The longest and shortest durations, and the ones next to zero.
+array<int> $counts = [9223372036854775807, -9223372036854775807 - 1, 1, -1, 0];
+foreach ($counts as int $count) {
+    echo Core\Time\Duration::nanoseconds($count)->toNanoseconds(), "\n";
+}
+
+// 2. The shortest duration plus one nanosecond, turned around, is the longest one.
+Core\Time\Duration $least = Core\Time\Duration::nanoseconds(-9223372036854775807 - 1);
+echo $least->plus(1ns)->negated()->toNanoseconds(), "\n";
+
+// 3. One million durations are built from counts that grow in both directions, and read. Each one is freed again.
+int $total = 0;
+int $round = 0;
+while ($round < 1000000) {
+    int $next = $round % 2 == 0 ? $round * 999999937 : -$round * 999999937;
+    $total = $total + Core\Time\Duration::nanoseconds($next)->toNanoseconds() % 7;
+    $round = $round + 1;
+}
+echo $total, "\n";

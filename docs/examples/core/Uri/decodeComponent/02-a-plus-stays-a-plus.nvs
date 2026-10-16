@@ -1,0 +1,12 @@
+<?nvs
+// Shows that `Core\Uri::decodeComponent` keeps a `+` as a `+`.
+
+// A path segment can contain a `+`. Here it is part of the name of a page.
+string $segment = "C++%20tips";
+
+// This prints C++ tips.
+echo (Core\Uri::decodeComponent($segment) as string), "\n";
+
+// A form value uses `+` for a space. `Core\Uri::decodeFormValue` reads it that way.
+// This prints C   tips.
+echo (Core\Uri::decodeFormValue($segment) as string), "\n";

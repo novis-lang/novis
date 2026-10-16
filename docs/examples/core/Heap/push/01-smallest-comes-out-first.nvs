@@ -1,0 +1,13 @@
+<?nvs
+// Shows that `push` keeps a heap in order. The numbers go in mixed up and come out smallest first.
+
+var $heap = new Core\Heap<int>();
+$heap->push(5);
+$heap->push(2);
+$heap->push(8);
+$heap->push(1);
+
+// This prints 1, 2, 5 and 8.
+while (!$heap->isEmpty()) {
+    echo $heap->pop(), "\n";
+}

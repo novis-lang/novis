@@ -1,0 +1,100 @@
+--TEST--
+`??+=`, `??-=` and `??.=` start from the zero of the target's type where the key is absent at any level or the stored value is `null`, apply their operator to a present value, evaluate the right side once, keep the overflow of `+`, and their value is the one written — `rule:expressions/defaulting-assignment`, `rule:types/arithmetic`
+--FILE--
+<?nvs
+class Post {
+    public ?int $views = null;
+    public function seen(): int {
+        return $this->views ??+= 1;
+    }
+}
+
+class Step {
+    public static function size(int $n): int {
+        echo "size ", $n, "\n";
+        return $n;
+    }
+    public static function key(string $k): string {
+        echo "key ", $k, "\n";
+        return $k;
+    }
+}
+
+// A count: an absent key starts from 0.
+array<string> $words = ["red", "blue", "red", "green", "red"];
+array<int> $counts = [];
+foreach ($words as string $w) {
+    $counts[$w] ??+= 1;
+}
+echo $counts["red"], " ", $counts["blue"], " ", $counts["green"], "\n";
+
+// The key is computed once, for the read and the write together.
+$counts[Step::key("pink")] ??+= 1;
+$counts[Step::key("pink")] ??+= 1;
+echo $counts["pink"], "\n";
+
+// A running balance: the right side runs once each time.
+array<int> $stock = ["pen" => 10];
+$stock["pen"] ??-= Step::size(3);
+$stock["ink"] ??-= Step::size(2);
+echo $stock["pen"], " ", $stock["ink"], "\n";
+
+// A grouped string: an absent row is built, and an absent key starts from "".
+array<array<string>> $tags = [];
+$tags["blog"]["a"] ??.= "x";
+$tags["blog"]["a"] ??.= "y";
+$tags["shop"]["b"] ??.= "z";
+echo $tags["blog"]["a"], " ", $tags["shop"]["b"], " ", Core\Arr::count($tags), "\n";
+
+// A stored `null` starts from the zero of the target's own type.
+?uint $u = null;
+$u ??+= 3;
+?float $f = null;
+$f ??-= 1.5;
+?decimal $d = null;
+$d ??+= 2.25;
+?string $s = null;
+$s ??.= "first";
+$s ??.= "-second";
+echo $u, " ", $f, " ", $d, " ", $s, "\n";
+
+// A `mixed` target starts from the `int` 0, or from "" under `.=`.
+mixed $m = null;
+$m ??+= 4;
+mixed $t = null;
+$t ??.= "text";
+echo $m, " ", $t, "\n";
+
+// A target that is never `null` takes the plain operator.
+int $plain = 5;
+$plain ??+= 1;
+echo $plain, "\n";
+
+// The value is the one written.
+?int $n = null;
+int $first = $n ??-= 5;
+int $second = $n ??-= 5;
+var $post = new Post();
+echo $first, " ", $second, " ", $post->seen(), " ", $post->seen(), "\n";
+
+// An overflow throws, as it does under `+=`.
+?int $big = 9223372036854775807;
+try {
+    $big ??+= 1;
+} catch (ArithmeticError $e) {
+    echo "overflow\n";
+}
+--EXPECT--
+3 1 1
+key pink
+key pink
+2
+size 3
+size 2
+7 -2
+xy z 2
+3 -1.5 2.25 first-second
+4 text
+6
+-5 -10 1 2
+overflow

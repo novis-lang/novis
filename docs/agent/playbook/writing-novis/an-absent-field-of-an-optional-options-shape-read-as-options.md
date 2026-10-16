@@ -1,0 +1,1 @@
+- **An absent field of an optional options shape read as `$options?->x` throws at run time, though it compiles.** The null-safe access guards only a `null` bag, not a key the bag does not have. Write `$options?->x ?? null` for every optional field, as `extensions/spreadsheet/nvs/Workbook.nvs` does.

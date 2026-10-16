@@ -1,0 +1,14 @@
+<?nvs
+// Shows how to put a quoted text inside a bigger pattern.
+
+string $version = "v2.1";
+
+// The quoted text is "v2\.1", so the `.` matches only a dot. `(\d+)` after it
+// matches the patch number. This prints "patch 7".
+Core\Regex\Pattern $release = Core\Regex::compile('^' . Core\Regex::quote($version) . '\.(\d+)$');
+?Core\Regex\Match $found = Core\Regex::match("v2.1.7", $release);
+echo "patch ", $found?->group(1) ?? "none", "\n";
+
+// "v231.7" has a "3" where the dot should be, so there is no match. This prints "patch none".
+$found = Core\Regex::match("v231.7", $release);
+echo "patch ", $found?->group(1) ?? "none", "\n";

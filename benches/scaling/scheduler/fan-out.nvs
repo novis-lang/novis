@@ -1,0 +1,24 @@
+<?nvs
+// Runs n small tasks at once and waits for all of them to finish, as a program does when it checks a long list of links.
+// scaling: start 256
+// scaling: max 4096
+// scaling: expect linear
+
+class Bench {
+    public static function run(uint $size): uint {
+        array<uint> $items = [];
+        uint $i = 0;
+        while ($i < $size) {
+            $items[] = $i;
+            $i = $i + 1;
+        }
+        var $doubled = Core\Task::map($items, fn (uint $one): uint => $one * 2);
+        uint $total = 0;
+        foreach ($doubled as uint $one) {
+            $total = $total + $one;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

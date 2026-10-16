@@ -1,0 +1,47 @@
+--TEST--
+Core\Http\Identity::read takes a PEM certificate chain over the key pair the leaf belongs to, and refuses a leaf carrying a different public key — `rule:core-api/failure-throws`
+--FILE--
+<?nvs
+// A client identity is two files a deployment hands the program, and the one
+// thing that can be checked about them without asking any server anything is
+// that they are each other's: the leaf's public key is the pair's public key or
+// the chain is somebody else's. Getting that wrong otherwise surfaces as a
+// handshake failing against a live API, which reads as an alert about the far
+// end rather than about the two files on this one.
+string $chain = "-----BEGIN CERTIFICATE-----\nMIIBlTCCATugAwIBAgIUOutG9T2sNn5Gk1F/4t/VZaL4xIcwCgYIKoZIzj0EAwIw\nHzEdMBsGA1UEAwwUY2xpZW50Lm5vdmlzLmV4YW1wbGUwIBcNMjYwOTEyMjMzOTM1\nWhgPMjEyNjA4MTkyMzM5MzVaMB8xHTAbBgNVBAMMFGNsaWVudC5ub3Zpcy5leGFt\ncGxlMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEGZ6FIKLkAP9KaHYqOSfnWvD/\nzFMph12te1fB2axeNOcWs8WecxZwltj1G2dwhJcf6vt8c5CGfghFEfOFENRms6NT\nMFEwHQYDVR0OBBYEFGIhmVGjbjICXl8yK/ztiD1oh2tzMB8GA1UdIwQYMBaAFGIh\nmVGjbjICXl8yK/ztiD1oh2tzMA8GA1UdEwEB/wQFMAMBAf8wCgYIKoZIzj0EAwID\nSAAwRQIgR3Jf92T6sR7qKE/BQwSx40DqTSxekum8n3xTfErf9i4CIQChybRuk12t\nFXPwqQ0biQfTzl+cQ+Cc/2cw72NUT8a7Jg==\n-----END CERTIFICATE-----\n";
+
+// The leaf's own key, and a second P-256 key that is nobody's leaf.
+secret bytes $own = "-----BEGIN PRIVATE KEY-----\nMIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgm69K6vDp0AOQ7cAr\nuhQbem2DVM3ATNIAwRI64xaJ/SGhRANCAAQZnoUgouQA/0podio5J+da8P/MUymH\nXa17V8HZrF405xazxZ5zFnCW2PUbZ3CElx/q+3xzkIZ+CEUR84UQ1Gaz\n-----END PRIVATE KEY-----\n" as bytes;
+secret bytes $other = "-----BEGIN PRIVATE KEY-----\nMIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgQOHgjTwr056+N0rp\n0XwbtuzuUb5xFtM0EYuGaVLfRX2hRANCAAT5N4EPRT/PvqQ55XKhaRxlR0gDcrZ6\nrsE4EKPS68N6rbEqqzI7drMwoUV8cnOGuax91/No1+I1Omc3apvWa+an\n-----END PRIVATE KEY-----\n" as bytes;
+
+Core\Crypto\KeyPair $mine = Core\Crypto\KeyPair::read($own, Core\Crypto\KeyKind::P256);
+Core\Crypto\KeyPair $theirs = Core\Crypto\KeyPair::read($other, Core\Crypto\KeyKind::P256);
+
+// The chain and the key it was issued for. Nothing is connected here — the
+// read is the check, so a deployment finds out about its own files at the
+// point where it can still do something about them.
+Core\Http\Identity $identity = Core\Http\Identity::read($chain as bytes, $mine);
+echo "the chain and its own key are one identity\n";
+
+// The refusal this member exists for. A `LogicError` and not a `RuntimeError`:
+// both files are the program's own, so there is nobody a verdict could be
+// about and every way of failing is a mistake in what it was deployed with.
+try {
+    Core\Http\Identity::read($chain as bytes, $theirs);
+    echo "a leaf belonging to another key was accepted\n";
+} catch (LogicError $refused) {
+    echo "a leaf that is another key's is refused\n";
+}
+
+// The same refusal for octets that are not a chain at all, which is the other
+// way a deployment names the wrong file.
+try {
+    Core\Http\Identity::read("not a certificate at all" as bytes, $mine);
+    echo "octets that are not a chain were accepted\n";
+} catch (LogicError $refused) {
+    echo "octets that are not a chain are refused\n";
+}
+--EXPECT--
+the chain and its own key are one identity
+a leaf that is another key's is refused
+octets that are not a chain are refused

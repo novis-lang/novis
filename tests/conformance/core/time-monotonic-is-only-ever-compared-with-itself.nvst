@@ -1,0 +1,118 @@
+--TEST--
+Spec § 4: every `Core\Time::monotonic` assertion is made against another reading of the same clock — a whole sweep ordered pair by pair, and no epoch or zone anywhere in the value
+--FILE--
+<?nvs
+// `Core\Time::monotonic(): Duration` reads the host, so no case can name its
+// answer: what it returns means nothing except against another reading of the
+// same clock. Every row below is therefore a property of the *sweep*, counted
+// rather than printed, and the count is over all 66 ordered pairs rather than
+// over the 11 consecutive ones — a clock that stepped back once and forward
+// twice satisfies "each reading is at or after the one before it" only if the
+// step is looked at, and satisfies the transitive reading never.
+array<Core\Time\Duration> $r = [
+    Core\Time::monotonic(), Core\Time::monotonic(), Core\Time::monotonic(),
+    Core\Time::monotonic(), Core\Time::monotonic(), Core\Time::monotonic(),
+    Core\Time::monotonic(), Core\Time::monotonic(), Core\Time::monotonic(),
+    Core\Time::monotonic(), Core\Time::monotonic(), Core\Time::monotonic(),
+];
+int $n = Core\Arr::count($r) as int;
+
+int $pairs = 0;    // every i < j, which is 66 of them
+int $ordered = 0;  // the later reading is never behind the earlier one
+int $forward = 0;  // so the difference between the two is never negative
+int $closes = 0;   // and it is exactly what carries the earlier one to the later
+int $antisym = 0;  // taken the other way round it is the same magnitude, negated
+int $i = 0;
+while ($i < $n) {
+    int $j = $i + 1;
+    while ($j < $n) {
+        var $early = $r[$i as string];
+        var $late = $r[$j as string];
+        $pairs = $pairs + 1;
+        if ($late->compareTo($early) >= 0) {
+            $ordered = $ordered + 1;
+        }
+        var $step = $late->minus($early);
+        if ($step->toNanoseconds() >= 0) {
+            $forward = $forward + 1;
+        }
+        if ($early->plus($step)->compareTo($late) == 0) {
+            $closes = $closes + 1;
+        }
+        if ($early->minus($late)->compareTo($step->negated()) == 0) {
+            $antisym = $antisym + 1;
+        }
+        $j = $j + 1;
+    }
+    $i = $i + 1;
+}
+echo $n as string, "|", $pairs as string, "|", $ordered as string, "|",
+     $forward as string, "|", $closes as string, "|", $antisym as string, "|\n";
+
+// A reading carries a count of nanoseconds and nothing else: rebuilding one
+// from that count alone gives back a value that compares equal, which is what
+// says there is no hidden origin, epoch or zone inside it. And the one
+// comparison a monotonic reading is always entitled to — against itself — is
+// zero for every reading in the sweep.
+int $rebuilt = 0;
+int $selfzero = 0;
+int $k = 0;
+while ($k < $n) {
+    var $one = $r[$k as string];
+    if (Core\Time\Duration::nanoseconds($one->toNanoseconds())->compareTo($one) == 0) {
+        $rebuilt = $rebuilt + 1;
+    }
+    if ($one->minus($one)->toNanoseconds() == 0) {
+        $selfzero = $selfzero + 1;
+    }
+    $k = $k + 1;
+}
+echo $rebuilt as string, "|", $selfzero as string, "|\n";
+
+// It is not the wall clock, and the sharpest way to say so is that a zone does
+// nothing to it. `Core\Time::now()` answers an `Instant`, which is a different
+// value *in* every zone; the monotonic reading renders identically in all four
+// because it is not a point on any calendar and has no `in` to be read
+// through at all.
+array<string> $zones = ["UTC", "Europe/Berlin", "Asia/Tokyo", "America/New_York"];
+var $wall = Core\Time::now();
+string $reference = $r["0"]->toString();
+string $utc = $wall->in(Core\Time\Zone::of("UTC"))->format("yyyy-MM-dd HH:mm:ss");
+int $zoneless = 0;   // the duration reads the same in every zone
+int $zoned = 0;      // the instant does not, in the three that are not UTC
+foreach ($zones as string $name) {
+    var $zone = Core\Time\Zone::of($name);
+    if ($r["0"]->toString() == $reference) {
+        $zoneless = $zoneless + 1;
+    }
+    if ($wall->in($zone)->format("yyyy-MM-dd HH:mm:ss") != $utc) {
+        $zoned = $zoned + 1;
+    }
+}
+echo $zoneless as string, "|", $zoned as string, "|\n";
+
+// The two clocks count from different origins, and this process fixed its
+// monotonic one at the first call above — so the monotonic count is a handful
+// of seconds where the epoch count is more than fifty years of them.
+echo Core\Time::monotonic()->toSeconds() < Core\Time::now()->toEpochSeconds() ? "yes" : "no", "|\n";
+
+// What the two clocks *do* agree on is elapsed time, which is the only
+// question both can answer. A wait either of them fails to notice fails here,
+// and so does a monotonic clock running at the wrong rate.
+var $mark = Core\Time::monotonic();
+var $wallMark = Core\Time::now();
+Core\Time::sleep(30ms);
+int $monoMs = Core\Time::monotonic()->minus($mark)->toMilliseconds();
+int $wallMs = Core\Time::now()->since($wallMark)->toMilliseconds();
+int $gap = $monoMs - $wallMs;
+if ($gap < 0) {
+    $gap = 0 - $gap;
+}
+echo $monoMs >= 30 ? "yes" : "no", "|", $wallMs >= 30 ? "yes" : "no", "|",
+     $gap < 2000 ? "yes" : "no", "|\n";
+--EXPECT--
+12|66|66|66|66|66|
+12|12|
+4|3|
+yes|
+yes|yes|yes|

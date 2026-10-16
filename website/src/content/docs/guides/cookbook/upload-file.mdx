@@ -1,0 +1,27 @@
+---
+title: Save an uploaded file
+covers: []
+description: Write a file that a form uploads to a folder on the server.
+---
+
+import Snippet from '@components/Snippet.astro'
+
+A form uploads the file `weekly.txt`. This program saves it in the folder `uploads`.
+
+<Snippet src="guides/cookbook/upload-file/upload-file.nvs" />
+
+The `nvs.toml` in the same folder allows the program to write files:
+
+```toml
+[capabilities.fs]
+read = true
+write = true
+```
+
+`Core\Request::files` returns each uploaded file as a `Core\Request\Part`. `saveTo` writes the
+file to a path. `max` is the largest size in bytes. A larger file throws a `RuntimeError`.
+
+The program does not use the file name from the client. A name like `../../config.toml` could
+point outside the folder. `Core\Uuid::v4` gives a new name that is different each time.
+
+Read [Core\Request](/reference/core/request/) for the other parts of a form.

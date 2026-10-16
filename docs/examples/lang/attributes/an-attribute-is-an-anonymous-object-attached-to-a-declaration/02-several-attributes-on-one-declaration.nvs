@@ -1,0 +1,39 @@
+<?nvs
+// Shows several attributes on one declaration, and the two ways to write one.
+// `#[Name(...)]` checks your values against the shape `Name`. `#[{...}]` has no
+// name in front of it, so there is nothing to check it against.
+
+type Tag = {label: string};
+
+#[Tag(label: "billing")]
+#[Tag(label: "nightly")]
+class Invoice {
+    #[Tag(label: "money")]
+    public int $cents = 0;
+
+    public function send(#[{from: "config"}] string $to): string {
+        return $to;
+    }
+}
+
+// `Core\Attributes::all` returns every attached value that fits the shape, in
+// the order you wrote them. This prints 2, `billing` and `nightly`.
+array<Tag> $tags = Core\Attributes::all<Tag>(Invoice::constructor(...));
+echo Core\Arr::count($tags), "\n";
+foreach ($tags as Tag $tag) {
+    echo $tag->label, "\n";
+}
+
+// A property and a parameter can carry an attribute too. The second argument is
+// the name of the property or the parameter. This prints `money`.
+?Tag $onProperty = Core\Attributes::get<Tag>(Invoice::constructor(...), "cents");
+if ($onProperty != null) {
+    echo $onProperty->label, "\n";
+}
+
+// The attribute on the parameter `$to` was written without a name. You read it
+// back by writing the shape you expect. This prints `config`.
+?{from: string} $onParameter = Core\Attributes::get<{from: string}>(Invoice::send(...), "to");
+if ($onParameter != null) {
+    echo $onParameter->from, "\n";
+}

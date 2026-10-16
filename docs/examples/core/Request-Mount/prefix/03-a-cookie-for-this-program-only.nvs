@@ -1,0 +1,12 @@
+<?nvs
+// Shows how a program limits its cookie to the addresses under its own prefix.
+
+// The server serves this program at `/shop`, and another program at `/blog`.
+// A cookie with the path `/shop` goes only to this program.
+string $prefix = Core\Request::mount()->prefix();
+
+// A program at `/` has the prefix "", and its cookie path is "/".
+string $cookiePath = $prefix == "" ? "/" : $prefix;
+
+// This prints "Set-Cookie: cart=3; Path=/shop".
+echo "Set-Cookie: cart=3; Path=", $cookiePath, "\n";

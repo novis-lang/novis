@@ -1,0 +1,130 @@
+<?nvs
+namespace Novis\Spreadsheet;
+
+use LogicError;
+
+/// One chart for a sheet. Start it with its type, such as `Chart::column()`, then add its data with `series`.
+/// `Sheet::chart` puts the chart on a sheet. A `Chart` does not change: each method returns a new chart.
+final class Chart
+{
+    type Series = {values: string, categories: ?string, name: ?string, color: ?string};
+    type Layer = {kind: ChartKind, series: array<Series>};
+    type Options = ?{title?: string, xTitle?: string, yTitle?: string, legend?: string, labels?: bool};
+    type SeriesOptions = ?{categories?: string, name?: string, color?: string};
+
+    /// `new Chart` makes a chart from its values. `Chart::column` and the other types make one for you.
+    /// `combined` has the types and series that `combine` added.
+    public function constructor(
+        public readonly ChartKind $kind,
+        public readonly array<Series> $series,
+        public readonly array<Layer> $combined,
+        public readonly ?string $title,
+        public readonly ?string $xTitle,
+        public readonly ?string $yTitle,
+        public readonly Legend $legend,
+        public readonly bool $labels,
+    ) {}
+
+    /// `Chart::column` starts a chart of vertical bars.
+    /// `title` is the chart's title. `xTitle` and `yTitle` are the titles of its axes. `legend` is `'right'`, `'top'`, `'bottom'`, `'left'` or `'hidden'`. `labels` shows each value on the chart.
+    public static function column(Options $options = null): Chart
+    {
+        return self::start(ChartKind::Column, $options);
+    }
+
+    /// `Chart::bar` starts a chart of horizontal bars. It takes the same options as `Chart::column`.
+    public static function bar(Options $options = null): Chart
+    {
+        return self::start(ChartKind::Bar, $options);
+    }
+
+    /// `Chart::line` starts a chart that joins the values of each series with a line. It takes the same options as `Chart::column`.
+    public static function line(Options $options = null): Chart
+    {
+        return self::start(ChartKind::Line, $options);
+    }
+
+    /// `Chart::area` starts a line chart with the space under each line filled. It takes the same options as `Chart::column`.
+    public static function area(Options $options = null): Chart
+    {
+        return self::start(ChartKind::Area, $options);
+    }
+
+    /// `Chart::pie` starts a pie chart. Each value of the first series is one slice. It takes the same options as `Chart::column`.
+    public static function pie(Options $options = null): Chart
+    {
+        return self::start(ChartKind::Pie, $options);
+    }
+
+    /// `Chart::doughnut` starts a pie chart with a hole in the middle. It takes the same options as `Chart::column`.
+    public static function doughnut(Options $options = null): Chart
+    {
+        return self::start(ChartKind::Doughnut, $options);
+    }
+
+    /// `Chart::scatter` starts a chart of points. A series' `categories` are the x values of its points. It takes the same options as `Chart::column`.
+    public static function scatter(Options $options = null): Chart
+    {
+        return self::start(ChartKind::Scatter, $options);
+    }
+
+    /// `series` returns the chart with one more series. `$values` is a range, such as `$sheet->column('sales')`.
+    /// `categories` is the range of the labels under the values. `name` is the series' name in the legend. `color` is a color such as `'#1F77B4'`.
+    public function series(string $values, SeriesOptions $options = null): Chart
+    {
+        array<Series> $series = $this->series;
+        $series[] = {
+            values: $values,
+            categories: $options?->categories ?? null,
+            name: $options?->name ?? null,
+            color: $options?->color ?? null,
+        };
+        return new Chart($this->kind, $series, $this->combined, $this->title, $this->xTitle, $this->yTitle, $this->legend, $this->labels);
+    }
+
+    /// `combine` returns the chart with the type and the series of `$other` drawn on the same axes.
+    /// You can combine two of column, line and area, such as columns of sales with a line of costs. The title and the legend come from this chart.
+    public function combine(Chart $other): Chart
+    {
+        array<Layer> $combined = $this->combined;
+        $combined[] = {kind: $other->kind, series: $other->series};
+        foreach ($other->combined as Layer $layer) {
+            $combined[] = $layer;
+        }
+        return new Chart($this->kind, $this->series, $combined, $this->title, $this->xTitle, $this->yTitle, $this->legend, $this->labels);
+    }
+
+    private static function start(ChartKind $kind, Options $options): Chart
+    {
+        return new Chart(
+            $kind,
+            [],
+            [],
+            $options?->title ?? null,
+            $options?->xTitle ?? null,
+            $options?->yTitle ?? null,
+            self::legend($options?->legend ?? "right"),
+            $options?->labels ?? false,
+        );
+    }
+
+    private static function legend(string $name): Legend
+    {
+        if ($name == "right") {
+            return Legend::Right;
+        }
+        if ($name == "top") {
+            return Legend::Top;
+        }
+        if ($name == "bottom") {
+            return Legend::Bottom;
+        }
+        if ($name == "left") {
+            return Legend::Left;
+        }
+        if ($name == "hidden") {
+            return Legend::Hidden;
+        }
+        throw new LogicError("The chart's `legend` is `'right'`, `'top'`, `'bottom'`, `'left'` or `'hidden'`. It has `'{$name}'`.");
+    }
+}

@@ -1,0 +1,43 @@
+<?nvs
+// Shows a real use: one task reads orders and another writes a receipt for each one.
+// The channel holds 2 orders, so the reading task waits for the writer. A list of a
+// million orders uses the same memory as a list of three.
+
+class Order {
+    public function constructor(public string $id, public int $cents) {}
+}
+
+class Shop {
+    public static function orders(): array<Order> {
+        return [
+            new Order("A-1001", 1250),
+            new Order("A-1002", 900),
+            new Order("A-1003", 4300),
+        ];
+    }
+}
+
+var $queue = new Core\Task\Channel<Order>(2);
+
+var $till = Core\Task::all({
+    read: fn(): int => {
+        int $count = 0;
+        foreach (Shop::orders() as Order $order) {
+            $queue->send($order);
+            $count = $count + 1;
+        }
+        $queue->close();
+        return $count;
+    },
+    bill: fn(): int => {
+        int $cents = 0;
+        foreach ($queue as Order $order) {
+            echo "receipt ", $order->id, ": ", $order->cents, " cents\n";
+            $cents = $cents + $order->cents;
+        }
+        return $cents;
+    },
+});
+
+// This prints 3 and 6450.
+echo $till->read, " orders, ", $till->bill, " cents in total\n";

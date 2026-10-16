@@ -1,0 +1,11 @@
+<?nvs
+// Shows how to reverse a word, and that letters with accents stay whole.
+
+// This prints "olleh".
+echo Core\Str::reverse("hello"), "\n";
+
+// "é" is one character, so it moves as one. This prints "éfac".
+echo Core\Str::reverse("café"), "\n";
+
+// An emoji with a skin tone is one character too. This prints "🇩🇪 👍🏽 ok".
+echo Core\Str::reverse("ko 👍🏽 🇩🇪"), "\n";

@@ -1,0 +1,4 @@
+path: /orders
+prefix: /acme
+customer: Acme
+link: /acme/orders/17

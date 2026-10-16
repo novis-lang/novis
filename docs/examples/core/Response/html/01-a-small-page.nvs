@@ -1,0 +1,8 @@
+<?nvs
+// Shows how to send an HTML page as the response.
+
+// `as Core\Html\Markup` turns HTML that you wrote in the program into a `Markup`.
+Core\Html\Markup $page = "<h1>Opening hours</h1><p>Monday to Friday, 9:00 to 17:00</p>\n" as Core\Html\Markup;
+
+// This sends the page and adds the header `Content-Type: text/html; charset=utf-8`.
+Core\Response::html($page);

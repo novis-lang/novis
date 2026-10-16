@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-stdlib/src/xml.rs",
+  "title": "A `Core\\Xml\\Writer` keeps every piece it writes as a string of its own, so a document costs many times its size until `endDocument` joins it.",
+  "text": "`Pen::emit` appends each chunk (`<i`, `>`, the escaped text, `</i>`) to the array in `WRITTEN_SLOT` as a separate `NvsStr`, and `end_document` joins them once. A document of one million small elements, about 20 MB of text, holds more than 256 MB before the join and stops the request at its memory limit, so the size of document a writer can produce under the default ceiling is a small fraction of the ceiling. The fix is a representation change: the slot holds one string that only the writer references, and every write appends to it in place, as `nvs_str_append` does for `.=` on a string whose reference count is one, so the writer holds about the document's own size. `tests/hostile/core/Xml/writer/01-calls-in-the-wrong-order.nvs` step 7 is the proof that finds it.",
+  "milestone": "M12"
+}

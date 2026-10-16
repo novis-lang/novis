@@ -1,0 +1,33 @@
+--TEST--
+A document that hydrates a class holding itself builds its objects on heap frames, so a chain 1000 levels deep decodes under `maxDepth: 1024` on every build and `maxDepth` is the only bound on its depth `rule:errors/stack-depth`
+--FILE--
+<?nvs
+#[Core\Json\Derive]
+class Node {
+    public ?Node $n;
+
+    public function constructor(?Node $n) {
+        $this->n = $n;
+    }
+}
+
+string $text = Core\Str::repeat('{"n":', 1000) . 'null' . Core\Str::repeat('}', 1000);
+Node $chain = Core\Json::decodeAs<Node>($text, {maxDepth: 1024});
+
+?Node $at = $chain;
+uint $depth = 0;
+while ($at != null) {
+    $depth = $depth + 1;
+    $at = $at?->n;
+}
+echo "depth: ", $depth, "\n";
+
+try {
+    Core\Json::decodeAs<Node>($text, {maxDepth: 999});
+    echo "not reached\n";
+} catch (ParseError $deep) {
+    echo "ParseError\n";
+}
+--EXPECT--
+depth: 1000
+ParseError

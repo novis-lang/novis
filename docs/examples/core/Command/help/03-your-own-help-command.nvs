@@ -1,0 +1,33 @@
+<?nvs
+// Shows the everyday use: your program has its own `help` command, so somebody
+// can type `tool help deploy`. The name comes from the command line, so it can
+// be a word no command has. That throws, and the handler catches it.
+
+class Tool {
+    #[Core\Command(name: "deploy", about: "Push the current build")]
+    public static function deploy(string $target): uint {
+        return 0;
+    }
+
+    #[Core\Command(name: "help", about: "Show what a command does")]
+    public static function help(string $command = ""): uint {
+        try {
+            // An empty name means somebody typed `tool help` and nothing else,
+            // so print the program's own page.
+            echo Core\Command::help($command == "" ? null : $command);
+        } catch (LogicError $unknown) {
+            echo "there is no command called ", $command, "\n";
+            return 2;
+        }
+        return 0;
+    }
+}
+
+// This is what `tool help deploy` prints.
+Tool::help("deploy");
+
+echo "\n";
+
+// And this is what `tool help deply` prints. `deply` is not a command, so the
+// page throws and the handler prints one line instead.
+Tool::help("deply");

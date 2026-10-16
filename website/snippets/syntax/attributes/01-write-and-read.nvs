@@ -1,0 +1,31 @@
+<?nvs
+// This program attaches attributes to a class and reads them back.
+
+// An attribute name is a `type` with a shape. The attribute is checked against it.
+type Route = {path: string};
+type Column = {name: string, unique: bool};
+
+#[Route(path: "/users")]
+class Users {
+    #[Column(name: "user_name", unique: true)]
+    public string $name = "";
+
+    #[Route(path: "/users/{id}")]
+    public function show(#[{inject: "repo"}] int $id): int {
+        return $id;
+    }
+}
+
+// `Users::constructor(...)` means the class itself.
+?Route $onClass = Core\Attributes::get<Route>(Users::constructor(...));
+echo "class: ", $onClass?->path ?? "none", "\n";
+
+?Route $onMethod = Core\Attributes::get<Route>(Users::show(...));
+echo "method: ", $onMethod?->path ?? "none", "\n";
+
+// The second argument names a property or a parameter.
+?Column $onProperty = Core\Attributes::get<Column>(Users::constructor(...), "name");
+echo "property: ", $onProperty?->name ?? "none", "\n";
+
+?{inject: string} $onParameter = Core\Attributes::get<{inject: string}>(Users::show(...), "id");
+echo "parameter: ", $onParameter?->inject ?? "none", "\n";

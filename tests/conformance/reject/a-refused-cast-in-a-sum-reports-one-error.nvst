@@ -1,0 +1,17 @@
+--TEST--
+A refused `(int)` cast inside a sum reports `E0225` alone, because the cast is typed `int` like the `as int` its help names, so the `: int` return still checks
+--FILE--
+<?nvs
+class Till {
+    public function add(int $total, float $each): int {
+        return $total + (int)$each;
+    }
+}
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0225]: `(int)expr` is not supported
+  --> case.nvs:4:25
+%A
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

@@ -1,0 +1,5 @@
+entries=1
+path=[]
+Core\Json::decode(): expected value at line 1 column 11
+Core\Json::decode(): nesting is deeper than the `maxDepth` of 2 at line 1 column 2
+{"total":3}

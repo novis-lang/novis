@@ -1,0 +1,15 @@
+{
+  "summary": "the uploads a request carries, as a walk over its parts — `$_FILES` and `move_uploaded_file` replaced by a stream that touches no temporary directory",
+  "keywords": [
+    "$_FILES",
+    "move_uploaded_file",
+    "is_uploaded_file",
+    "upload_tmp_dir",
+    "file upload",
+    "multipart/form-data",
+    "UPLOAD_ERR_OK",
+    "tmp_name",
+    "large upload",
+    "streaming upload"
+  ]
+}

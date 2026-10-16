@@ -1,0 +1,36 @@
+<?nvs
+// Attack: a program keeps two hundred thousand copies of a universal group type in a list, then checks
+// each one. The program must finish or stop at its memory limit, and nothing may crash.
+// hostile: timeout-ms 60000
+// requires: samba-ad
+
+var $corp = Core\Ldap::connect('corp');
+
+try {
+    var $found = $corp->read('CN=Schema Admins,CN=Users,DC=example,DC=test', { select: ['groupType'] })?->groupType();
+    if ($found != null) {
+        Core\Ldap\Ad\GroupType $type = $found;
+
+        // 1. Two hundred thousand copies, every second one without the universal flag.
+        array<Core\Ldap\Ad\GroupType> $kept = [];
+        uint $i = 0;
+        while ($i < 200000) {
+            $kept[] = $type->with({ universal: $i % 2 == 0 });
+            $i = $i + 1;
+        }
+
+        // 2. Every copy checked. Exactly half must be universal.
+        uint $universal = 0;
+        foreach ($kept as Core\Ldap\Ad\GroupType $copy) {
+            if ($copy->universal()) {
+                $universal = $universal + 1;
+            }
+        }
+        echo '2 universal: ', $universal, ' of ', Core\Arr::count($kept), "\n";
+
+        // 3. The group read from the directory is still universal.
+        echo '3 original: ', $type->universal() ? 'yes' : 'no', "\n";
+    }
+} catch (Throwable $error) {
+    echo "threw\n";
+}

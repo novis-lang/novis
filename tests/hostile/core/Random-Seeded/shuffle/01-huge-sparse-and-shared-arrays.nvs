@@ -1,0 +1,48 @@
+<?nvs
+// Attack: a request uses one seeded generator to shuffle a very large array, an array with
+// keys far apart, and one large string many times. Every result should have the same
+// values, and the program must not crash.
+
+Core\Random\Seeded $generator = new Core\Random\Seeded(-1);
+
+// 1. One million entries. The result has every value once.
+array<int> $large = Core\Arr::range(0, 999999);
+array<int> $shuffled = $generator->shuffle($large);
+echo '1 all: ', Core\Arr::count(Core\Arr::unique($shuffled)), "\n";
+$shuffled = [];
+$large = [];
+
+// 2. Two keys at the two ends of `int`, shuffled one thousand times. Both values are kept.
+array<string> $far = [-9223372036854775807 - 1 => 'low', 9223372036854775807 => 'high'];
+uint $both = 0;
+uint $round = 0;
+while ($round < 1000) {
+    array<string> $two = $generator->shuffle($far);
+    if (Core\Arr::contains($two, 'low') && Core\Arr::contains($two, 'high')) {
+        $both = $both + 1;
+    }
+    $round = $round + 1;
+}
+echo '2 both ends: ', $both, ' of 1000', "\n";
+
+// 3. An empty array, one hundred thousand times. Every result is empty.
+array<int> $empty = [];
+uint $filled = 0;
+$round = 0;
+while ($round < 100000) {
+    $filled = $filled + Core\Arr::count($generator->shuffle($empty));
+    $round = $round + 1;
+}
+echo '3 filled: ', $filled, "\n";
+
+// 4. Four strings of one megabyte each are shuffled one thousand times and every result is kept.
+// A copy for each shuffle would need four gigabytes, which is more than the memory limit.
+string $big = Core\Str::repeat('x', 1048576);
+array<string> $four = [$big, $big, $big, $big];
+array<array<string>> $kept = [];
+$round = 0;
+while ($round < 1000) {
+    $kept[] = $generator->shuffle($four);
+    $round = $round + 1;
+}
+echo '4 kept: ', Core\Arr::count($kept), "\n";

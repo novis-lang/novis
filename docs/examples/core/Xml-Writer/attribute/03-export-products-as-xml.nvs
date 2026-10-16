@@ -1,0 +1,21 @@
+<?nvs
+// Shows how to export a list of products as an XML feed, with the product data in attributes.
+
+array<string> $prices = ["TEA-01" => "4.50", "MUG-07" => "12.00", "POT-02" => "29.90"];
+
+// The `indent` option puts each element on its own line.
+Core\Xml\Writer $writer = Core\Xml::writer({indent: "  "});
+$writer->startDocument();
+$writer->startElement("products");
+$writer->attribute("currency", "EUR");
+
+// Each product has no content, so the writer closes its tag with `/>`.
+foreach ($prices as string $sku => string $price) {
+    $writer->startElement("product");
+    $writer->attribute("sku", $sku);
+    $writer->attribute("price", $price);
+    $writer->endElement();
+}
+
+$writer->endElement();
+echo $writer->endDocument(), "\n";

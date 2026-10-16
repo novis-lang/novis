@@ -1,0 +1,17 @@
+<?nvs
+// Shows what `plus` does at the end of a month and when the clocks change.
+
+// One month after 31 January is the last day of February, because February has no 31st.
+// This prints 2024-02-29.
+var $january = Core\Time::at(2024, 1, 31, Core\Time\Zone::of("Europe/Berlin"));
+echo $january->plus(1, Core\Unit::Month)->format("yyyy-MM-dd"), "\n";
+
+// Berlin moves its clocks forward one hour on 31 March 2024, so that day has only 23 hours.
+// One day after 30 March at 12:00 is 31 March at 12:00. This prints 2024-03-31 12:00 +02:00.
+var $saturday = Core\Time::at(2024, 3, 30, Core\Time\Zone::of("Europe/Berlin"), {hour: 12});
+var $sunday = $saturday->plus(1, Core\Unit::Day);
+echo $sunday->format("yyyy-MM-dd HH:mm XXX"), "\n";
+
+// 24 hours later is 13:00, because one hour of that night did not exist.
+// This prints 2024-03-31 13:00 +02:00.
+echo $saturday->plus(24, Core\Unit::Hour)->format("yyyy-MM-dd HH:mm XXX"), "\n";

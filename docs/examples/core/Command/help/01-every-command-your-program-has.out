@@ -1,0 +1,5 @@
+usage: <command> [arguments]
+
+commands:
+  deploy   Push the current build
+  version  Print the version and stop

@@ -1,0 +1,10 @@
+<?nvs
+// Shows the length limit of the part before the `@`.
+
+// The part before the `@` may have up to 64 characters.
+string $name = Core\Str::repeat("a", 64);
+string $longer = $name . "a";
+
+// This prints 64 yes, then 65 no.
+echo Core\Str::length($name), " ", Core\Validate::isEmail($name . "@example.com") ? "yes" : "no", "\n";
+echo Core\Str::length($longer), " ", Core\Validate::isEmail($longer . "@example.com") ? "yes" : "no", "\n";

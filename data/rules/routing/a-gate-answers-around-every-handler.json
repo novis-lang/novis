@@ -1,0 +1,20 @@
+{
+  "title": "`Core\\Router::dispatch` calls the matched method, and one gate answers every request it refuses or that fails",
+  "status": "shipped",
+  "seeAlso": [
+    "routing/matching-is-not-dispatching",
+    "routing/a-match-is-not-invocable",
+    "routing/the-servers-match-dispatches-nothing",
+    "routing/a-refused-verb-is-not-a-missing-path",
+    "security/access-is-checked-for-presence-not-meaning",
+    "security/csrf-is-on-by-default",
+    "testing/in-process-request"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/router-dispatch-calls-the-matched-method.nvst",
+    "tests/conformance/core/router-dispatch-refusals-reach-the-gate.nvst",
+    "tests/conformance/core/router-dispatch-discards-a-handlers-return-value.nvst",
+    "crates/nvs-types/tests/routes.rs",
+    "crates/nvs-cli/tests/gate.rs"
+  ]
+}

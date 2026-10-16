@@ -1,0 +1,34 @@
+--TEST--
+A socket whose URL no scripted peer answers throws naming it and reaches nothing, exactly as an unanswered outbound call does — `rule:testing/an-outbound-socket-is-answered-by-a-scripted-peer`
+--FILE--
+<?nvs
+// The other half of the keystone: a test that forgot to script a peer fails
+// saying so rather than opening a connection to whatever the URL names. The
+// refusal is a `LogicError` because it is a mistake in the test rather than a
+// verdict on anything outside it, which is the reading its twin over a call
+// already has.
+Core\Test::answerSocket("wss://gateway.example.com/v1", ["scripted"]);
+
+try {
+    var $stray = Core\Http\Client::openSocket("wss://elsewhere.example.com/v1");
+} catch (LogicError $unscripted) {
+    echo $unscripted->message, "\n";
+}
+
+// A prefix row answers every URL under it, and the exact one still wins where
+// both could: the matching is the table's own, so a peer and an answer cannot
+// come to disagree about which row a URL selects.
+Core\Test::answerSocket("wss://gateway.example.com/*", ["by prefix"]);
+var $under = Core\Http\Client::openSocket("wss://gateway.example.com/v2/feed");
+var $exact = Core\Http\Client::openSocket("wss://gateway.example.com/v1");
+echo "prefix ", $under->receive()?->text() ?? "-", "\n";
+echo "exact ", $exact->receive()?->text() ?? "-", "\n";
+
+// Nothing was sent, because nothing connected: the record is empty rather than
+// carrying the frames of a socket that failed to open.
+echo "sent=", Core\Arr::count(Core\Test::sentSocket()), "\n";
+--EXPECT--
+Core\Http\Client::openSocket: this test answers outbound sockets from a table and no peer is registered for wss://elsewhere.example.com/v1 — `Core\Test::answerSocket` registers one, exactly or as a prefix ending in `*`
+prefix by prefix
+exact scripted
+sent=0

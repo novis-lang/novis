@@ -1,0 +1,2 @@
+(|(mail=*)(!(uSNChanged>=100)))
+(|(mail=*)(!(uSNChanged>=100)))

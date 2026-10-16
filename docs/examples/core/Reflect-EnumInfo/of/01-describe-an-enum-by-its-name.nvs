@@ -1,0 +1,17 @@
+<?nvs
+// Shows how to get the description of an enum from its name.
+
+enum Size: int {
+    Small = 1,
+    Medium = 2,
+    Large = 3,
+}
+
+// `Size::class` is the name of the enum, the string "Size".
+?Core\Reflect\EnumInfo $found = Core\Reflect\EnumInfo::of(Size::class);
+// The result is `null` when there is no enum with that name, so check it first.
+if ($found != null) {
+    Core\Reflect\EnumInfo $info = $found;
+    // This prints `Size has 3 cases`.
+    echo $info->name(), " has ", Core\Arr::count($info->cases()), " cases\n";
+}

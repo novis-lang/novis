@@ -1,0 +1,17 @@
+<?nvs
+// This program keeps a list of tasks in an array and prints each one.
+class Tasks {
+    public static function report(array<string> $titles): string {
+        // `var` declares a variable. Its type comes from the value.
+        var $text = "";
+        foreach ($titles as string $title) {
+            $text = $text . "- " . $title . "\n";
+        }
+        return $text . Core\Arr::count($titles) . " tasks\n";
+    }
+}
+
+array<string> $titles = ["Buy milk", "Call Ada"];
+// `[]` adds an item at the end of the array.
+$titles[] = "Water the plants";
+echo Tasks::report($titles);

@@ -1,0 +1,72 @@
+<?nvs
+// Attack: untrusted text is grown until it is enormous and then pushed through
+// every step that is allowed to accept it. Quoting, encoding and converting
+// should each answer or refuse cleanly, and a confidential value of the same
+// size should survive being uncovered. The program should still be running.
+// hostile: timeout-ms 20000
+
+class Flood
+{
+    // Doubles the text until it is at least this long, so the cost is a handful
+    // of joins rather than one per character.
+    public static function grow(tainted string $seed, uint $wanted): tainted string
+    {
+        tainted string $out = $seed;
+        while (Core\Str::length($out) < $wanted) {
+            $out = $out . $out;
+        }
+        return $out;
+    }
+
+    // Step 1: every character in the seed means something to the pattern
+    // engine, so quoting escapes all of them and doubles the size.
+    public static function quoteAndMatch(tainted string $angry): string
+    {
+        string $quoted = Core\Regex::quote($angry);
+        try {
+            Core\Regex\Pattern $pattern = Core\Regex::compile($quoted);
+            return Core\Regex::matches('nothing in here matches', $pattern) ? 'matched' : 'no match';
+        } catch (RuntimeError $e) {
+            return 'refused';
+        }
+    }
+
+    // Step 2: encoding for a link makes every one of those characters three.
+    public static function encode(tainted string $angry): string
+    {
+        return Core\Str::length(Core\Uri::encodeComponent($angry)) > 0 ? 'encoded' : 'empty';
+    }
+
+    // Step 3: a number far past what any whole number holds, handed over as text.
+    public static function convert(tainted string $digits): string
+    {
+        ?int $n = $digits as ?int;
+        return $n == null ? 'refused' : 'accepted';
+    }
+
+    // Step 4: a confidential value just as large, uncovered over and over.
+    public static function reveal(uint $wanted): string
+    {
+        secret string $key = 'hunter2';
+        while (Core\Str::length(Core\Secret::reveal($key, 'measuring it in this attack')) < $wanted) {
+            $key = $key . $key;
+        }
+        return Core\Str::length(Core\Secret::reveal($key, 'measuring it in this attack')) >= $wanted ? 'revealed' : 'short';
+    }
+
+    // Step 5: the two smallest inputs, which every step above also has to take.
+    public static function edges(): uint
+    {
+        tainted string $empty = '';
+        tainted string $one = '.';
+        return Core\Str::length(Core\Regex::quote($empty)) + Core\Str::length(Core\Regex::quote($one));
+    }
+}
+
+tainted string $seed = ".*+?[](){}|^$\\";
+echo Flood::quoteAndMatch(Flood::grow($seed, 1000)), "\n";
+echo Flood::quoteAndMatch(Flood::grow($seed, 1000000)), "\n";
+echo Flood::encode(Flood::grow($seed, 1000000)), "\n";
+echo Flood::convert(Flood::grow('9', 1000000)), "\n";
+echo Flood::reveal(1000000), "\n";
+echo Flood::edges(), "\n";

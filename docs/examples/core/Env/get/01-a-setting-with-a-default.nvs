@@ -1,0 +1,9 @@
+<?nvs
+// Shows how to read one setting and use a default when it is not set.
+
+// `Core\Env::get` returns `null` when nothing set `SHOP_LANGUAGE`.
+// The `??` operator then gives the default, "en".
+var $language = Core\Env::get("SHOP_LANGUAGE") ?? "en";
+
+// No variable `SHOP_LANGUAGE` is set on this computer, so this prints `en`.
+echo "language: ", $language, "\n";

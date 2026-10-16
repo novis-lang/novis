@@ -1,0 +1,29 @@
+<?nvs
+// Shows what a failing assertion tells you. It throws `Core\Test\Failure`, and
+// the message names both sides. This program catches the error and prints that
+// message, so you can see each one.
+
+use Core\Test;
+
+try {
+    Test::assertSame(2 + 2, 5);
+} catch (Core\Test\Failure $f) {
+    echo $f->message, "\n";
+}
+
+// A trailing `{message: "..."}` puts your own sentence in front of the report.
+try {
+    Test::assertSame(0, 1, {message: "a fresh counter is one"});
+} catch (Core\Test\Failure $f) {
+    echo $f->message, "\n";
+}
+
+// `assertEqualsDeep` compares two arrays entry by entry. The message names the
+// first place where they differ.
+array<string> $sent = ["Berlin", "10115"];
+array<string> $stored = ["Berlin", "10117"];
+try {
+    Test::assertEqualsDeep($sent, $stored);
+} catch (Core\Test\Failure $f) {
+    echo $f->message, "\n";
+}

@@ -1,0 +1,23 @@
+<?nvs
+// Shows how to keep only the security groups from a search.
+// requires: samba-ad
+
+var $corp = Core\Ldap::connect("corp");
+var $found = $corp->search(
+    Core\Ldap\Filter::equals("objectClass", "group"),
+    {base: "OU=Company,DC=example,DC=test", select: ["groupType"]},
+);
+
+array<tainted string> $names = [];
+foreach ($found as Core\Ldap\Entry $group) {
+    var $type = $group->groupType();
+    if ($type != null && $type->security()) {
+        $names[] = $group->dn()->rdnValue();
+    }
+}
+
+// The server sends entries in no fixed order, so the names are sorted.
+// `Newsletter` is a mailing list, so this prints only `Employees` and `Managers`.
+foreach (Core\Arr::sort($names) as tainted string $name) {
+    echo $name, "\n";
+}

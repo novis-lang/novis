@@ -1,0 +1,15 @@
+<?nvs
+// Shows how to list the Excel tables of a sheet, with the name and range of each table.
+use Novis\Spreadsheet\Reader;
+use Novis\Spreadsheet\Workbook;
+
+var $book = Workbook::createInMemory();
+var $sheet = $book->sheet('Shop');
+$sheet->table('A1:B3', { name: 'Prices' });
+$sheet->addAll([['Item', 'Price'], ['Widget', 2.5], ['Gadget', 4.0]]);
+var $reader = Reader::open($book->finish()->bytes ?? Core\Bytes::fill(0, 0));
+
+// `name` is the table name, `table` is its range, and `sheet` is the sheet it is on.
+foreach ($reader->tables('Shop') as var $table) {
+    echo $table->name, ' is ', $table->sheet, '!', $table->table, "\n";
+}

@@ -1,0 +1,29 @@
+<?nvs
+// Shows which addresses a program may connect to and listen on.
+// `nvs.toml` allows two loopback addresses, and lists only `127.0.0.1` under `internal`.
+
+// `listen` allows `127.0.0.1:0`, so the program may open a server on a free port.
+Core\Net\Listener $server = Core\Net::listen("127.0.0.1", 0);
+
+// `127.0.0.1` is in `connect` and in `internal`, so this connection opens.
+// This prints `connected`.
+Core\Net\Stream $client = Core\Net::connect("127.0.0.1", $server->port(), 5s);
+echo "connected\n";
+$client->close();
+
+// `127.0.0.2` is in `connect`, but it is a loopback address and not in `internal`.
+// So this call throws a `RuntimeError`.
+try {
+    Core\Net::connect("127.0.0.2", $server->port(), 5s);
+} catch (RuntimeError $refused) {
+    echo $refused->message, "\n";
+}
+
+// `listen` allows port `0` only. Port 8080 is a different endpoint, so this also throws.
+try {
+    Core\Net::listen("127.0.0.1", 8080);
+} catch (RuntimeError $refused) {
+    echo $refused->message, "\n";
+}
+
+$server->close();

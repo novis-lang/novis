@@ -1,0 +1,23 @@
+<?nvs
+// This program reads JSON text into an object of a class.
+#[Core\Json\Derive]
+class Order {
+    public string $item;
+    public int $count;
+
+    public function constructor(string $item, int $count) {
+        $this->item = $item;
+        $this->count = $count;
+    }
+}
+
+// `Core\Json::decodeAs` checks every field against the class.
+Order $order = Core\Json::decodeAs<Order>('{"item":"tea","count":3}');
+echo $order->item, " x ", $order->count, "\n";
+
+// `count` is text here, and the class needs an `int`. The call throws an error.
+try {
+    Order $bad = Core\Json::decodeAs<Order>('{"item":"tea","count":"many"}');
+} catch (RuntimeError $e) {
+    echo $e->message, "\n";
+}

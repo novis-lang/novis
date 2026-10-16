@@ -1,0 +1,8 @@
+--METHOD--
+GET
+--PATH--
+/invoice
+--QUERY--
+field=id
+--HEADERS--
+host: shop.example.com

@@ -1,0 +1,39 @@
+<?nvs
+// Shows the check a program runs when it starts. An empty plan means the
+// database matches the schema. When it does not, the program prints the
+// statements that are missing and stops instead of serving.
+
+use Core\Db;
+use Core\Db\Plan\Step;
+use Core\Db\Schema;
+
+var $db = Db::connect('notes');
+
+// The table the release before this one created.
+$db->execute('create table notes (id integer not null primary key autoincrement, title varchar(200) not null)', []);
+
+var $schema = Schema::fromArray([
+    'tables' => [
+        [
+            'name' => 'notes',
+            'columns' => [
+                ['name' => 'id', 'type' => 'int64', 'identity' => true],
+                ['name' => 'title', 'type' => 'text(200)'],
+                ['name' => 'written_at', 'type' => 'instant', 'null' => true],
+            ],
+            'primary_key' => ['id'],
+        ],
+    ],
+]);
+
+array<Step> $steps = $schema->planAgainst($db)->steps();
+if (Core\Arr::count($steps) == 0) {
+    echo "the database is up to date\n";
+} else {
+    echo 'the database is behind by ', Core\Arr::count($steps), " step(s):\n";
+    foreach ($steps as Step $step) {
+        echo '  ', $step->sql(), "\n";
+    }
+}
+
+$db->close();

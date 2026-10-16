@@ -1,0 +1,30 @@
+<?nvs
+// Shows a job that removes the webhooks of a customer who closed their account.
+// Each webhook is deleted on the partner's server with a `DELETE` request.
+
+array<string> $webhooks = [
+    "https://192.168.1.20/hooks/order-paid",
+    "https://172.16.0.9/hooks/order-sent",
+];
+
+uint $removed = 0;
+uint $failed = 0;
+foreach ($webhooks as string $url) {
+    try {
+        // A `DELETE` may be sent again safely, so the request is tried up to 3 times.
+        Core\Http\Response $response = Core\Http\Client::delete($url, {deadline: 10s, retryAttempts: 3});
+        // 200 and 204 mean the server deleted it. 404 means it was already gone.
+        if ($response->status() == 200 || $response->status() == 204 || $response->status() == 404) {
+            $removed = $removed + 1;
+        } else {
+            $failed = $failed + 1;
+        }
+    } catch (RuntimeError $error) {
+        // The job keeps going and tries the next webhook.
+        echo "not removed: ", $error->message, "\n";
+        $failed = $failed + 1;
+    }
+}
+
+// Both addresses are inside a private network, so this prints `removed: 0, failed: 2`.
+echo "removed: ", $removed, ", failed: ", $failed, "\n";

@@ -1,0 +1,33 @@
+<?nvs
+// Shows an import that skips a bad row and keeps the good ones. A transaction
+// inside a transaction is a savepoint, so giving up on one row does not give
+// up on the whole import.
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table people (id integer primary key, name text not null)', []);
+
+array<string> $names = ['Ada', '', 'Ben'];
+
+$db->transaction(fn (Core\Db\Transaction $import): void => {
+    foreach ($names as string $name) {
+        try {
+            // One row, in its own transaction inside the import.
+            $import->transaction(fn (Core\Db\Transaction $row): void => {
+                $row->execute('insert into people (name) values (?)', [$name]);
+                if ($name == '') {
+                    $row->rollBack('the name is empty');
+                }
+            });
+        } catch (Core\Db\RolledBack $skipped) {
+            // Only this row is undone. This prints `skipped: the name is empty`.
+            echo 'skipped: ', $skipped->reason, "\n";
+        }
+    }
+});
+
+// The two good rows were kept. This prints `Ada` and `Ben`.
+foreach ($db->query('select name from people order by id', [])->all() as Core\Db\Row $row) {
+    echo $row->string('name') ?? '', "\n";
+}
+
+$db->close();

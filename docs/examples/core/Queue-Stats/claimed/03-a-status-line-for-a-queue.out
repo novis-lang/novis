@@ -1,0 +1,2 @@
+exports: 4 of 4 workers busy, 2 jobs waiting
+note: every worker is busy, so new jobs wait

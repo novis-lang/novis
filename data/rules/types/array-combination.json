@@ -1,0 +1,14 @@
+{
+  "title": "Three combining members treat every key alike, and `array + array` does not compile",
+  "status": "shipped",
+  "seeAlso": [
+    "types/arrays",
+    "types/preserve-keys"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/arr-combination-members-treat-every-key-alike.nvst",
+    "tests/conformance/core/arr-combination-members-share-one-key-order-rule.nvst",
+    "tests/conformance/core/arr-diff-and-intersect-are-twelve-php-functions.nvst",
+    "tests/conformance/core/arr-flip-collapses-duplicates-last-wins.nvst"
+  ]
+}

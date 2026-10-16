@@ -1,0 +1,33 @@
+<?nvs
+// Measures encoding one object as JSON when one of its fields is a long string, at growing string lengths.
+// bench: start 256
+// bench: max 4096
+
+#[Core\Json\Derive]
+class Price {
+    public uint $cents;
+    public string $currency;
+
+    public function constructor(uint $cents, string $currency) {
+        $this->cents = $cents;
+        $this->currency = $currency;
+    }
+}
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        string $currency = Core\Str::repeat('EUR', $size);
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            string $document = Core\Json::encode(new Price($total % 1000, $currency));
+            $total = $total + Core\Str::length($document);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

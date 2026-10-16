@@ -1,0 +1,17 @@
+<?nvs
+// Shows the name of each kind of node.
+
+Core\Xml\Node $document = Core\Xml::parse('<?print fast?><order><!--gift--><item>Mug</item></order>');
+
+// The processing instruction is named `print` and the element is named `order`.
+// This prints [print] and then [order].
+foreach ($document->children() as Core\Xml\Node $node) {
+    echo "[", $node->name(), "]\n";
+}
+
+// Inside `<order>`, the comment has no name, so this prints [] and then [item].
+foreach ($document->children() as Core\Xml\Node $node) {
+    foreach ($node->children() as Core\Xml\Node $child) {
+        echo "[", $child->name(), "]\n";
+    }
+}

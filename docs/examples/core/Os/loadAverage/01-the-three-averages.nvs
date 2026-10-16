@@ -1,0 +1,13 @@
+<?nvs
+// Shows how to read how busy the machine is. This example runs on Linux and
+// macOS only, because Windows does not keep a load average.
+// requires: unix
+
+array<float> $load = Core\Os::loadAverage();
+
+// The array has three numbers: the averages over 1, 5 and 15 minutes.
+// This prints `3`.
+echo Core\Arr::count($load), "\n";
+
+// A load average is never below 0. This prints `yes`.
+echo $load[0] >= 0.0 && $load[1] >= 0.0 && $load[2] >= 0.0 ? "yes" : "no", "\n";

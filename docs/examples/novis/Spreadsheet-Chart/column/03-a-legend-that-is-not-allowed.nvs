@@ -1,0 +1,14 @@
+<?nvs
+// Shows the error for a legend position that is not allowed.
+use Novis\Spreadsheet\Chart;
+
+// `legend` is 'right', 'top', 'bottom', 'left' or 'hidden'. Other text throws a `LogicError`.
+try {
+    Chart::column({ legend: 'middle' });
+} catch (LogicError $e) {
+    echo $e->message, "\n";
+}
+
+// The fields of the chart show the options it has.
+var $chart = Chart::column({ title: 'Orders', legend: 'top' });
+echo $chart->title ?? 'no title', ', labels: ', $chart->labels ? 'yes' : 'no', "\n";

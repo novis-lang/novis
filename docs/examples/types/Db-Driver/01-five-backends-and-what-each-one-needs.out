@@ -1,0 +1,6 @@
+MySQL takes a host, and a user to log in as
+MariaDB takes a host, and a user to log in as
+PostgreSQL takes a host, and a user to log in as
+SQLite takes a path to a file
+Microsoft SQL Server takes a host, and a user to log in as
+MySQL and MariaDB are one case: no

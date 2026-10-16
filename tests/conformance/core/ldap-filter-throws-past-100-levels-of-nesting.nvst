@@ -1,0 +1,44 @@
+--TEST--
+`not`, `all` and `any` throw `LogicError` for a filter nested past 100 levels, and `parse` throws at the `(` that passes it, so a filter built in a loop cannot exhaust the stack when it is read or written — `rule:core-classes/ldap-filter-is-a-value`
+--FILE--
+<?nvs
+var $filter = Core\Ldap\Filter::present("mail");
+int $levels = 1;
+try {
+    while ($levels < 1000) {
+        $filter = Core\Ldap\Filter::not($filter);
+        $levels = $levels + 1;
+    }
+} catch (LogicError $tooDeep) {
+    echo $tooDeep->message, "\n";
+}
+echo "levels: ", $levels, "\n";
+echo Core\Str::length($filter->toString()), "\n";
+
+try {
+    Core\Ldap\Filter::all($filter);
+} catch (LogicError $tooDeep) {
+    echo $tooDeep->message, "\n";
+}
+try {
+    Core\Ldap\Filter::any(Core\Ldap\Filter::present("cn"), $filter);
+} catch (LogicError $tooDeep) {
+    echo $tooDeep->message, "\n";
+}
+
+string $text = Core\Str::repeat("(!", 100) . "(mail=*)" . Core\Str::repeat(")", 100);
+try {
+    Core\Ldap\Filter::parse($text);
+} catch (LogicError $tooDeep) {
+    echo $tooDeep->message, "\n";
+}
+var $read = Core\Ldap\Filter::parse(Core\Str::repeat("(!", 99) . "(mail=*)" . Core\Str::repeat(")", 99));
+echo Core\Str::length($read->toString()), "\n";
+--EXPECT--
+Core\Ldap\Filter::not: the filter would nest more than 100 levels deep
+levels: 100
+305
+Core\Ldap\Filter::all: the filter would nest more than 100 levels deep
+Core\Ldap\Filter::any: the filter would nest more than 100 levels deep
+Core\Ldap\Filter::parse: the text stops being a filter at character 201: filters nest more than 100 levels deep
+305

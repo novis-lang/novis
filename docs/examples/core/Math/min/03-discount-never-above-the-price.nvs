@@ -1,0 +1,14 @@
+<?nvs
+// Shows how a shop keeps a coupon from taking more off an order than the order costs.
+
+class Checkout {
+    // Returns the price after the coupon, in cents. It is never below zero.
+    public static function toPay(int $priceCents, int $couponCents): int {
+        int $discount = Core\Math::min($couponCents, $priceCents);
+        return $priceCents - $discount;
+    }
+}
+
+// The coupon is worth 1500 cents. This prints 3490, then 0 for the small order.
+echo "Large order, to pay: ", Checkout::toPay(4990, 1500), "\n";
+echo "Small order, to pay: ", Checkout::toPay(990, 1500), "\n";

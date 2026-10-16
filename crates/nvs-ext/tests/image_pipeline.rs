@@ -1,0 +1,1143 @@
+//! The image component's pipeline, called through the host as `Novis\Image` calls it
+//! (`rule:core-classes/image-pipeline`, `rule:core-classes/image-correct-by-default`): a JPEG
+//! with an EXIF orientation opens upright unless `autoOrient` is off, a re-encoded JPEG carries
+//! no EXIF block unless the plan keeps it, and every format the roster encodes writes a file the
+//! component reopens (`rule:core-classes/image-format-roster`). Pixel steps run in the order the
+//! plan lists them, a `composite` step draws the overlay row it names, and a CMYK input resizes
+//! after its conversion. `variants` decodes once and costs
+//! one host-to-guest call whatever its number of plans, as `encode` costs one.
+//!
+//! The tagged inputs are built here from `extensions/image/fixtures/gradient.jpg`, by inserting
+//! an APP1 segment whose EXIF block this file writes, so no fixture carries real metadata.
+
+use std::future::Future;
+use std::pin::pin;
+use std::sync::Arc;
+use std::task::{Context, Poll, Waker};
+use std::time::Duration;
+
+use nvs_ext::call::{Failure, Host, Meter, Request};
+use nvs_ext::convert::{Key, Value};
+use nvs_ext::load::{Extension, Loader};
+
+/// `future` polled on this thread until it finishes.
+fn block_on<T>(future: impl Future<Output = T>) -> T {
+    let mut future = pin!(future);
+    let mut cx = Context::from_waker(Waker::noop());
+    loop {
+        if let Poll::Ready(out) = future.as_mut().poll(&mut cx) {
+            return out;
+        }
+        std::thread::yield_now();
+    }
+}
+
+/// The image component, compiled on `host`'s engine.
+fn component(host: &Host) -> Extension {
+    Loader::new(host.engine())
+        .builtins()
+        .expect("the built-in components load")
+        .into_iter()
+        .find(|builtin| builtin.manifest().class == "Novis\\Image\\Codec")
+        .expect("the image component is built in")
+        .extension()
+        .expect("the image component compiles")
+        .clone()
+}
+
+fn fixture(name: &str) -> Vec<u8> {
+    let path = nvs_repo::path("extensions/image/fixtures").join(name);
+    std::fs::read(&path).unwrap_or_else(|err| panic!("{}: {err}", path.display()))
+}
+
+fn shape(fields: Vec<(&str, Value)>) -> Value {
+    Value::Array(
+        fields
+            .into_iter()
+            .map(|(key, value)| (Key::String(key.to_owned()), value))
+            .collect(),
+    )
+}
+
+/// An encoded source of `data`, opened with `autoOrient` set to `auto_orient`.
+fn encoded(data: Vec<u8>, auto_orient: bool) -> Value {
+    opened(data, auto_orient, true)
+}
+
+/// An encoded source of `data`, opened with `autoOrient` and `toSrgb` as given.
+fn opened(data: Vec<u8>, auto_orient: bool, to_srgb: bool) -> Value {
+    shape(vec![
+        ("data", Value::Bytes(data)),
+        ("autoOrient", Value::Bool(auto_orient)),
+        ("toSrgb", Value::Bool(to_srgb)),
+    ])
+}
+
+/// A plan of `steps` with no overlay, returning `output`.
+fn plan(steps: Vec<Value>, output: &str) -> Value {
+    shape(vec![
+        (
+            "steps",
+            Value::Array(
+                steps
+                    .into_iter()
+                    .enumerate()
+                    .map(|(at, step)| (Key::Int(i64::try_from(at).unwrap()), step))
+                    .collect(),
+            ),
+        ),
+        ("overlays", Value::Array(Vec::new())),
+        ("output", Value::Case(output.to_owned())),
+    ])
+}
+
+/// The step `format(Format::<format>, {...})`, with `quality` and `lossless` when they are given
+/// and `null` when they are not.
+fn format_step(format: &str, quality: Option<u64>, lossless: Option<bool>) -> Value {
+    shape(vec![(
+        "format",
+        shape(vec![
+            ("format", Value::Case(format.to_owned())),
+            ("quality", quality.map_or(Value::Null, Value::Uint)),
+            ("progressive", Value::Null),
+            ("lossless", lossless.map_or(Value::Null, Value::Bool)),
+            ("effort", Value::Null),
+        ]),
+    )])
+}
+
+/// The `Format` case `file` is in, read from its signature.
+fn format_of(file: &[u8]) -> &'static str {
+    match file {
+        [0xff, 0xd8, 0xff, ..] => "Jpeg",
+        [0x89, b'P', b'N', b'G', ..] => "Png",
+        [
+            b'R',
+            b'I',
+            b'F',
+            b'F',
+            _,
+            _,
+            _,
+            _,
+            b'W',
+            b'E',
+            b'B',
+            b'P',
+            ..,
+        ] => "Webp",
+        [b'G', b'I', b'F', b'8', ..] => "Gif",
+        [
+            _,
+            _,
+            _,
+            _,
+            b'f',
+            b't',
+            b'y',
+            b'p',
+            b'a',
+            b'v',
+            b'i',
+            b'f',
+            ..,
+        ] => "Avif",
+        _ => panic!("no known signature: {:?}", &file[..file.len().min(12)]),
+    }
+}
+
+/// The chunks of the WebP `file`, each as its four-byte name and its payload.
+fn webp_chunks(file: &[u8]) -> Vec<([u8; 4], Vec<u8>)> {
+    assert_eq!(&file[..4], b"RIFF", "the output is not a RIFF file");
+    assert_eq!(&file[8..12], b"WEBP", "the output is not a WebP file");
+    let riff = u32::from_le_bytes(file[4..8].try_into().unwrap());
+    assert_eq!(usize::try_from(riff).unwrap() + 8, file.len());
+    let mut chunks = Vec::new();
+    let mut at = 12;
+    while at + 8 <= file.len() {
+        let name: [u8; 4] = file[at..at + 4].try_into().unwrap();
+        let size =
+            usize::try_from(u32::from_le_bytes(file[at + 4..at + 8].try_into().unwrap())).unwrap();
+        chunks.push((name, file[at + 8..at + 8 + size].to_vec()));
+        at += 8 + size + size % 2;
+    }
+    assert_eq!(at, file.len(), "a chunk runs past the end of the file");
+    chunks
+}
+
+/// The step `resize({width: width})`.
+fn resize(width: u64) -> Value {
+    shape(vec![("resize", shape(vec![("width", Value::Uint(width))]))])
+}
+
+/// The step `rotate(degrees)`.
+fn rotate(degrees: f64) -> Value {
+    shape(vec![(
+        "rotate",
+        shape(vec![
+            ("degrees", Value::Float(degrees)),
+            ("background", Value::Null),
+        ]),
+    )])
+}
+
+/// The step `crop({x: 0, y: 0, width: width, height: height})`.
+fn crop(width: u64, height: u64) -> Value {
+    shape(vec![(
+        "crop",
+        shape(vec![
+            ("x", Value::Uint(0)),
+            ("y", Value::Uint(0)),
+            ("width", Value::Uint(width)),
+            ("height", Value::Uint(height)),
+        ]),
+    )])
+}
+
+/// The step `metadata({keep: keep})`.
+fn metadata(keep: bool) -> Value {
+    shape(vec![("metadata", shape(vec![("keep", Value::Bool(keep))]))])
+}
+
+fn run(
+    request: &Request,
+    extension: &Extension,
+    source: Value,
+    plan: Value,
+) -> Result<Vec<u8>, Failure> {
+    match block_on(request.call_values(extension, "run", vec![source, plan]))? {
+        Some(Value::Bytes(bytes)) => Ok(bytes),
+        other => panic!("`run` returned {other:?}"),
+    }
+}
+
+/// The field `name` of the header `info` reads from `data`.
+fn info_field(request: &Request, extension: &Extension, data: Vec<u8>, name: &str) -> Value {
+    let info = block_on(request.call_values(extension, "info", vec![Value::Bytes(data)]))
+        .expect("`info` answers")
+        .expect("`info` returns a value");
+    let Value::Array(fields) = info else {
+        panic!("a shape was expected")
+    };
+    fields
+        .into_iter()
+        .find(|(key, _)| *key == Key::String(name.to_owned()))
+        .map(|(_, value)| value)
+        .unwrap_or_else(|| panic!("`info` has no `{name}`"))
+}
+
+/// The width and height in the 16-byte header `raw` and `size` begin with.
+fn size_of(out: &[u8]) -> (u64, u64) {
+    let word = |at: usize| u64::from_be_bytes(out[at..at + 8].try_into().unwrap());
+    (word(0), word(8))
+}
+
+/// The RGBA8 pixel at `x`, `y` of a `raw` output.
+fn pixel(raw: &[u8], x: u64, y: u64) -> [u8; 4] {
+    let (width, _) = size_of(raw);
+    let at = 16 + usize::try_from((y * width + x) * 4).unwrap();
+    raw[at..at + 4].try_into().unwrap()
+}
+
+fn is_red(rgba: [u8; 4]) -> bool {
+    rgba[0] > 200 && rgba[2] < 60
+}
+
+fn is_blue(rgba: [u8; 4]) -> bool {
+    rgba[2] > 200 && rgba[0] < 60
+}
+
+/// Whether every colour channel of `rgba` is within 10 of `want`.
+fn near(rgba: [u8; 4], want: [u8; 3]) -> bool {
+    rgba.iter()
+        .zip(want)
+        .all(|(got, want)| got.abs_diff(want) <= 10)
+}
+
+/// The sRGB colour the test profile prints a corner of the CMYK cube as: the naive conversion,
+/// where each ink takes away its complement and black takes away everything, squeezed into
+/// 32..=223 so it can never be mistaken for the naive result itself.
+fn press(c: u8, m: u8, y: u8, k: u8) -> [u8; 3] {
+    let channel = |ink: u8| u8::try_from(32 + 191 * u32::from((1 - ink) * (1 - k))).unwrap();
+    [channel(c), channel(m), channel(y)]
+}
+
+/// The CIELAB value of the sRGB colour `rgb` under D50, the ICC profile connection space.
+fn lab(rgb: [u8; 3]) -> [f64; 3] {
+    let [r, g, b] = rgb.map(|value| {
+        let value = f64::from(value) / 255.0;
+        if value <= 0.040_45 {
+            value / 12.92
+        } else {
+            ((value + 0.055) / 1.055).powf(2.4)
+        }
+    });
+    let x = (0.436_074_7 * r + 0.385_064_9 * g + 0.143_080_4 * b) / 0.9642;
+    let y = 0.222_504_5 * r + 0.716_878_6 * g + 0.060_616_9 * b;
+    let z = (0.013_932_2 * r + 0.097_104_5 * g + 0.714_173_3 * b) / 0.8249;
+    let f = |t: f64| {
+        if t > (6.0f64 / 29.0).powi(3) {
+            t.cbrt()
+        } else {
+            t / (3.0 * (6.0f64 / 29.0).powi(2)) + 4.0 / 29.0
+        }
+    };
+    [
+        116.0 * f(y) - 16.0,
+        500.0 * (f(x) - f(y)),
+        200.0 * (f(y) - f(z)),
+    ]
+}
+
+/// A version 2 CMYK printer profile whose one tag, `A2B0`, is a lut16 table with two grid points
+/// per ink: each corner of the CMYK cube is `press`'s colour, as CIELAB in the version 2
+/// encoding, and the colours between are interpolated. The test writes it so that no fixture
+/// carries a profile somebody else made.
+fn cmyk_profile() -> Vec<u8> {
+    let mut lut = b"mft2\0\0\0\0".to_vec();
+    lut.extend_from_slice(&[4, 3, 2, 0]);
+    for row in 0..3 {
+        for column in 0..3 {
+            let one: u32 = if row == column { 0x1_0000 } else { 0 };
+            lut.extend_from_slice(&one.to_be_bytes());
+        }
+    }
+    lut.extend_from_slice(&2u16.to_be_bytes());
+    lut.extend_from_slice(&2u16.to_be_bytes());
+    for _ in 0..4 {
+        lut.extend_from_slice(&[0, 0, 0xff, 0xff]);
+    }
+    for corner in 0u8..16 {
+        let bit = |at: u8| (corner >> at) & 1;
+        let [l, a, b] = lab(press(bit(3), bit(2), bit(1), bit(0)));
+        for value in [l * 652.8, (a + 128.0) * 256.0, (b + 128.0) * 256.0] {
+            #[expect(
+                clippy::cast_sign_loss,
+                clippy::cast_possible_truncation,
+                reason = "the value is rounded and clamped to the range of a `u16` first"
+            )]
+            let value = value.round().clamp(0.0, 65535.0) as u16;
+            lut.extend_from_slice(&value.to_be_bytes());
+        }
+    }
+    for _ in 0..3 {
+        lut.extend_from_slice(&[0, 0, 0xff, 0xff]);
+    }
+    let lut_at = 128 + 4 + 12;
+    let size = u32::try_from(lut_at + lut.len()).unwrap();
+    let mut out = Vec::with_capacity(lut_at + lut.len());
+    out.extend_from_slice(&size.to_be_bytes());
+    out.extend_from_slice(&[0; 4]);
+    out.extend_from_slice(&0x0210_0000u32.to_be_bytes());
+    out.extend_from_slice(b"prtrCMYKLab ");
+    out.extend_from_slice(&[0; 12]);
+    out.extend_from_slice(b"acsp");
+    out.extend_from_slice(&[0; 28]);
+    for illuminant in [0x0000_f6d6u32, 0x0001_0000, 0x0000_d32d] {
+        out.extend_from_slice(&illuminant.to_be_bytes());
+    }
+    out.resize(128, 0);
+    out.extend_from_slice(&1u32.to_be_bytes());
+    out.extend_from_slice(b"A2B0");
+    out.extend_from_slice(&u32::try_from(lut_at).unwrap().to_be_bytes());
+    out.extend_from_slice(&u32::try_from(lut.len()).unwrap().to_be_bytes());
+    out.extend_from_slice(&lut);
+    out
+}
+
+/// `jpeg` with an APP2 segment carrying the ICC profile `profile` inserted after its start marker.
+fn with_icc(jpeg: &[u8], profile: &[u8]) -> Vec<u8> {
+    let mut payload = b"ICC_PROFILE\0\x01\x01".to_vec();
+    payload.extend_from_slice(profile);
+    let mut out = jpeg[..2].to_vec();
+    out.extend_from_slice(&[0xff, 0xe2]);
+    out.extend_from_slice(&u16::try_from(payload.len() + 2).unwrap().to_be_bytes());
+    out.extend_from_slice(&payload);
+    out.extend_from_slice(&jpeg[2..]);
+    out
+}
+
+/// One 12-byte IFD entry, big-endian, whose value or offset is `value`.
+fn entry(out: &mut Vec<u8>, tag: u16, kind: u16, count: u32, value: [u8; 4]) {
+    out.extend_from_slice(&tag.to_be_bytes());
+    out.extend_from_slice(&kind.to_be_bytes());
+    out.extend_from_slice(&count.to_be_bytes());
+    out.extend_from_slice(&value);
+}
+
+/// A big-endian EXIF block: IFD0 holds `orientation` when it is given, and with `gps` it points
+/// at a GPS IFD holding a latitude of 48° 12' 30" N.
+fn exif_block(orientation: Option<u16>, gps: bool) -> Vec<u8> {
+    let count = usize::from(orientation.is_some()) + usize::from(gps);
+    let gps_at = u32::try_from(8 + 2 + 12 * count + 4).unwrap();
+    let rationals_at = gps_at + 2 + 12 * 2 + 4;
+    let mut out = b"MM\0\x2a".to_vec();
+    out.extend_from_slice(&8u32.to_be_bytes());
+    out.extend_from_slice(&u16::try_from(count).unwrap().to_be_bytes());
+    if let Some(orientation) = orientation {
+        let [high, low] = orientation.to_be_bytes();
+        entry(&mut out, 0x0112, 3, 1, [high, low, 0, 0]);
+    }
+    if gps {
+        entry(&mut out, 0x8825, 4, 1, gps_at.to_be_bytes());
+    }
+    out.extend_from_slice(&0u32.to_be_bytes());
+    if gps {
+        out.extend_from_slice(&2u16.to_be_bytes());
+        entry(&mut out, 0x0001, 2, 2, *b"N\0\0\0");
+        entry(&mut out, 0x0002, 5, 3, rationals_at.to_be_bytes());
+        out.extend_from_slice(&0u32.to_be_bytes());
+        for (numerator, denominator) in [(48u32, 1u32), (12, 1), (30, 1)] {
+            out.extend_from_slice(&numerator.to_be_bytes());
+            out.extend_from_slice(&denominator.to_be_bytes());
+        }
+    }
+    out
+}
+
+/// `jpeg` with an APP1 segment carrying `block` inserted after its start marker.
+fn with_exif(jpeg: &[u8], block: &[u8]) -> Vec<u8> {
+    let mut payload = b"Exif\0\0".to_vec();
+    payload.extend_from_slice(block);
+    let mut out = jpeg[..2].to_vec();
+    out.extend_from_slice(&[0xff, 0xe1]);
+    out.extend_from_slice(&u16::try_from(payload.len() + 2).unwrap().to_be_bytes());
+    out.extend_from_slice(&payload);
+    out.extend_from_slice(&jpeg[2..]);
+    out
+}
+
+/// The EXIF block in `jpeg`'s APP1 segment, found by walking the segments up to the scan.
+fn exif_in(jpeg: &[u8]) -> Option<Vec<u8>> {
+    assert_eq!(&jpeg[..2], &[0xff, 0xd8], "the output is not a JPEG");
+    let mut at = 2;
+    while at + 4 <= jpeg.len() && jpeg[at] == 0xff && jpeg[at + 1] != 0xda {
+        let length = usize::from(u16::from_be_bytes([jpeg[at + 2], jpeg[at + 3]]));
+        let body = &jpeg[at + 4..at + 2 + length];
+        if jpeg[at + 1] == 0xe1 && body.starts_with(b"Exif\0\0") {
+            return Some(body[6..].to_vec());
+        }
+        at += 2 + length;
+    }
+    None
+}
+
+// covers: Novis\Image\Image::open, Novis\Image\Image::raw
+#[test]
+fn a_jpeg_with_orientation_6_opens_upright() {
+    let host = Host::new(4, |_| Ok(())).expect("the host starts");
+    let extension = component(&host);
+    let request = host.request(Arc::new(Meter::new(Duration::from_secs(60), None)));
+    // Orientation 6 says the stored frame turns 90 degrees clockwise to be upright, so the
+    // stored 16 by 12 gradient, red at the top, opens 12 by 16 with red on the right.
+    let tagged = with_exif(&fixture("gradient.jpg"), &exif_block(Some(6), false));
+    let raw = run(
+        &request,
+        &extension,
+        encoded(tagged, true),
+        plan(Vec::new(), "Raw"),
+    )
+    .expect("the tagged JPEG decodes");
+    assert_eq!(size_of(&raw), (12, 16));
+    assert!(is_red(pixel(&raw, 11, 0)), "{:?}", pixel(&raw, 11, 0));
+    assert!(is_blue(pixel(&raw, 0, 15)), "{:?}", pixel(&raw, 0, 15));
+    block_on(request.end()).expect("the request ends");
+}
+
+#[test]
+fn auto_orient_false_keeps_the_stored_orientation() {
+    let host = Host::new(4, |_| Ok(())).expect("the host starts");
+    let extension = component(&host);
+    let request = host.request(Arc::new(Meter::new(Duration::from_secs(60), None)));
+    let tagged = with_exif(&fixture("gradient.jpg"), &exif_block(Some(6), false));
+    let raw = run(
+        &request,
+        &extension,
+        encoded(tagged, false),
+        plan(Vec::new(), "Raw"),
+    )
+    .expect("the tagged JPEG decodes");
+    assert_eq!(size_of(&raw), (16, 12));
+    assert!(is_red(pixel(&raw, 0, 0)), "{:?}", pixel(&raw, 0, 0));
+    assert!(is_blue(pixel(&raw, 15, 11)), "{:?}", pixel(&raw, 15, 11));
+    block_on(request.end()).expect("the request ends");
+}
+
+/// `cmyk.jpg`, red ink over blue ink stored as Adobe stores CMYK, with `cmyk_profile` embedded.
+fn cmyk_with_profile() -> Vec<u8> {
+    with_icc(&fixture("cmyk.jpg"), &cmyk_profile())
+}
+
+// covers: Novis\Image\Image::resize
+#[test]
+fn a_cmyk_jpeg_with_a_profile_resizes_to_the_reference_colours_not_inverted() {
+    let host = Host::new(4, |_| Ok(())).expect("the host starts");
+    let extension = component(&host);
+    let request = host.request(Arc::new(Meter::new(Duration::from_secs(60), None)));
+    // The top half is magenta and yellow ink, the bottom half cyan and magenta. Through the
+    // profile they print as `press`'s red and blue. Read without Adobe's inversion, the top half
+    // would be cyan and black ink and print near black. The resize runs on the converted frame,
+    // so the halves keep those colours away from the seam.
+    let raw = run(
+        &request,
+        &extension,
+        opened(cmyk_with_profile(), true, true),
+        plan(vec![resize(8)], "Raw"),
+    )
+    .expect("the CMYK JPEG decodes");
+    assert_eq!(size_of(&raw), (8, 8));
+    for (x, y) in [(0, 0), (7, 2)] {
+        let got = pixel(&raw, x, y);
+        assert!(near(got, press(0, 1, 1, 0)), "({x}, {y}) is {got:?}");
+    }
+    for (x, y) in [(0, 5), (7, 7)] {
+        let got = pixel(&raw, x, y);
+        assert!(near(got, press(1, 1, 0, 0)), "({x}, {y}) is {got:?}");
+    }
+    block_on(request.end()).expect("the request ends");
+}
+
+#[test]
+fn to_srgb_false_keeps_the_raw_channels() {
+    let host = Host::new(4, |_| Ok(())).expect("the host starts");
+    let extension = component(&host);
+    let request = host.request(Arc::new(Meter::new(Duration::from_secs(60), None)));
+    // Without the conversion the profile is not read, and the ink amounts give pure red and
+    // pure blue.
+    let raw = run(
+        &request,
+        &extension,
+        opened(cmyk_with_profile(), true, false),
+        plan(Vec::new(), "Raw"),
+    )
+    .expect("the CMYK JPEG decodes");
+    assert_eq!(size_of(&raw), (16, 16));
+    assert!(
+        near(pixel(&raw, 0, 0), [255, 0, 0]),
+        "{:?}",
+        pixel(&raw, 0, 0)
+    );
+    assert!(
+        near(pixel(&raw, 15, 15), [0, 0, 255]),
+        "{:?}",
+        pixel(&raw, 15, 15)
+    );
+    block_on(request.end()).expect("the request ends");
+}
+
+// covers: Novis\Image\Image::rotate, Novis\Image\Image::crop
+#[test]
+fn pixel_steps_run_in_the_order_written() {
+    let host = Host::new(4, |_| Ok(())).expect("the host starts");
+    let extension = component(&host);
+    let request = host.request(Arc::new(Meter::new(Duration::from_secs(60), None)));
+    // `gradient.jpg` is 16 by 12, red at the top. Turned clockwise first, the red edge is the
+    // right-hand column of a 12 by 16 frame, and the crop keeps its top 4 rows.
+    let turned_first = run(
+        &request,
+        &extension,
+        encoded(fixture("gradient.jpg"), true),
+        plan(vec![rotate(90.0), crop(12, 4)], "Raw"),
+    )
+    .expect("the plan runs");
+    assert_eq!(size_of(&turned_first), (12, 4));
+    assert!(
+        is_red(pixel(&turned_first, 11, 0)),
+        "{:?}",
+        pixel(&turned_first, 11, 0)
+    );
+    assert!(
+        is_blue(pixel(&turned_first, 0, 0)),
+        "{:?}",
+        pixel(&turned_first, 0, 0)
+    );
+    // Cropped first, the 12 by 4 strip is all near red, and turning it gives 4 by 12.
+    let cropped_first = run(
+        &request,
+        &extension,
+        encoded(fixture("gradient.jpg"), true),
+        plan(vec![crop(12, 4), rotate(90.0)], "Size"),
+    )
+    .expect("the plan runs");
+    assert_eq!(size_of(&cropped_first), (4, 12));
+    // A crop outside the frame is an error the export returns, and the instance is kept.
+    let outside = run(
+        &request,
+        &extension,
+        encoded(fixture("gradient.jpg"), true),
+        plan(vec![crop(17, 4)], "Size"),
+    );
+    assert!(matches!(outside, Err(Failure::Error(_))), "{outside:?}");
+    block_on(request.end()).expect("the request ends");
+}
+
+#[test]
+fn a_jpeg_with_gps_tags_re_encodes_without_them() {
+    let host = Host::new(4, |_| Ok(())).expect("the host starts");
+    let extension = component(&host);
+    let request = host.request(Arc::new(Meter::new(Duration::from_secs(60), None)));
+    let tagged = with_exif(&fixture("gradient.jpg"), &exif_block(None, true));
+    assert!(exif_in(&tagged).is_some());
+    let out = run(
+        &request,
+        &extension,
+        encoded(tagged.clone(), true),
+        plan(Vec::new(), "Encoded"),
+    )
+    .expect("the tagged JPEG re-encodes");
+    assert_eq!(exif_in(&out), None);
+    // `metadata({keep: false})` is the same as no `metadata` step.
+    let out = run(
+        &request,
+        &extension,
+        encoded(tagged, true),
+        plan(vec![metadata(false)], "Encoded"),
+    )
+    .expect("the tagged JPEG re-encodes");
+    assert_eq!(exif_in(&out), None);
+    let size = run(
+        &request,
+        &extension,
+        encoded(out, true),
+        plan(Vec::new(), "Size"),
+    )
+    .expect("the output reopens");
+    assert_eq!(size_of(&size), (16, 12));
+    block_on(request.end()).expect("the request ends");
+}
+
+// covers: Novis\Image\Image::metadata, Novis\Image\Image::info, Novis\Image\Codec::info
+#[test]
+fn metadata_keep_true_keeps_them() {
+    let host = Host::new(4, |_| Ok(())).expect("the host starts");
+    let extension = component(&host);
+    let request = host.request(Arc::new(Meter::new(Duration::from_secs(60), None)));
+    let block = exif_block(None, true);
+    let out = run(
+        &request,
+        &extension,
+        encoded(with_exif(&fixture("gradient.jpg"), &block), true),
+        plan(vec![metadata(true)], "Encoded"),
+    )
+    .expect("the tagged JPEG re-encodes");
+    assert_eq!(exif_in(&out), Some(block));
+    // A kept block says orientation 1 once `open` has turned the pixels upright, so a viewer
+    // does not turn them a second time.
+    let out = run(
+        &request,
+        &extension,
+        encoded(
+            with_exif(&fixture("gradient.jpg"), &exif_block(Some(6), true)),
+            true,
+        ),
+        plan(vec![metadata(true)], "Encoded"),
+    )
+    .expect("the tagged JPEG re-encodes");
+    assert_eq!(exif_in(&out), Some(exif_block(Some(1), true)));
+    assert_eq!(
+        info_field(&request, &extension, out.clone(), "width"),
+        Value::Uint(12)
+    );
+    assert_eq!(
+        info_field(&request, &extension, out, "orientation"),
+        Value::Uint(1)
+    );
+    block_on(request.end()).expect("the request ends");
+}
+
+// covers: Novis\Image\Image::format
+#[test]
+fn every_encoder_writes_its_format_and_the_result_reopens() {
+    let host = Host::new(4, |_| Ok(())).expect("the host starts");
+    let extension = component(&host);
+    let request = host.request(Arc::new(Meter::new(Duration::from_secs(60), None)));
+    // WebP appears twice: lossless through `image`, and lossy through libwebp.
+    for (format, lossless) in [
+        ("Jpeg", None),
+        ("Png", None),
+        ("Webp", Some(true)),
+        ("Webp", None),
+        ("Gif", None),
+        ("Avif", None),
+    ] {
+        let out = run(
+            &request,
+            &extension,
+            encoded(fixture("gradient.jpg"), true),
+            plan(vec![format_step(format, None, lossless)], "Encoded"),
+        )
+        .unwrap_or_else(|err| panic!("{format} {lossless:?} does not encode: {err:?}"));
+        assert_eq!(format_of(&out), format, "{lossless:?}");
+        let raw = run(
+            &request,
+            &extension,
+            encoded(out, true),
+            plan(Vec::new(), "Raw"),
+        )
+        .unwrap_or_else(|err| panic!("{format} {lossless:?} does not reopen: {err:?}"));
+        assert_eq!(size_of(&raw), (16, 12), "{format} {lossless:?}");
+        assert!(
+            is_red(pixel(&raw, 0, 0)),
+            "{format} {:?}",
+            pixel(&raw, 0, 0)
+        );
+        assert!(
+            is_blue(pixel(&raw, 15, 11)),
+            "{format} {:?}",
+            pixel(&raw, 15, 11)
+        );
+    }
+    block_on(request.end()).expect("the request ends");
+}
+
+#[test]
+fn lossy_webp_is_encoded_by_libwebp() {
+    let host = Host::new(4, |_| Ok(())).expect("the host starts");
+    let extension = component(&host);
+    let request = host.request(Arc::new(Meter::new(Duration::from_secs(60), None)));
+    let encode = |source: Vec<u8>, steps: Vec<Value>| {
+        run(
+            &request,
+            &extension,
+            encoded(source, true),
+            plan(steps, "Encoded"),
+        )
+        .expect("the WebP encodes")
+    };
+    // A lossy WebP holds a `VP8 ` bitstream, which only libwebp writes here. A lossless one
+    // holds `VP8L`.
+    let lossy = encode(
+        fixture("gradient.jpg"),
+        vec![format_step("Webp", None, None)],
+    );
+    let names: Vec<[u8; 4]> = webp_chunks(&lossy)
+        .into_iter()
+        .map(|(name, _)| name)
+        .collect();
+    assert_eq!(names, vec![*b"VP8 "]);
+    let lossless = encode(
+        fixture("gradient.jpg"),
+        vec![format_step("Webp", None, Some(true))],
+    );
+    assert_eq!(webp_chunks(&lossless)[0].0, *b"VP8L");
+    // `quality` reaches libwebp: a lower quality writes a smaller file.
+    let low = encode(
+        fixture("gradient.jpg"),
+        vec![format_step("Webp", Some(5), None)],
+    );
+    let high = encode(
+        fixture("gradient.jpg"),
+        vec![format_step("Webp", Some(100), None)],
+    );
+    assert!(low.len() < high.len(), "{} >= {}", low.len(), high.len());
+    // A kept EXIF block goes in an `EXIF` chunk after the bitstream, flagged in a `VP8X` header.
+    let block = exif_block(None, true);
+    let kept = encode(
+        with_exif(&fixture("gradient.jpg"), &block),
+        vec![format_step("Webp", None, None), metadata(true)],
+    );
+    let chunks = webp_chunks(&kept);
+    let names: Vec<[u8; 4]> = chunks.iter().map(|(name, _)| *name).collect();
+    assert_eq!(names, vec![*b"VP8X", *b"VP8 ", *b"EXIF"]);
+    assert_eq!(
+        chunks[0].1[0] & 0x08,
+        0x08,
+        "the VP8X header has no EXIF flag"
+    );
+    assert_eq!(chunks[2].1, block);
+    assert_eq!(
+        info_field(&request, &extension, kept, "width"),
+        Value::Uint(16)
+    );
+    block_on(request.end()).expect("the request ends");
+}
+
+// covers: Novis\Image\Image::variants, Novis\Image\Codec::variants
+#[test]
+fn variants_with_three_entries_costs_one_crossing() {
+    let host = Host::new(4, |_| Ok(())).expect("the host starts");
+    let extension = component(&host);
+    let request = host.request(Arc::new(Meter::new(Duration::from_secs(60), None)));
+    let plans = Value::Array(
+        [
+            plan(vec![format_step("Png", None, None)], "Encoded"),
+            plan(vec![format_step("Webp", Some(70), None)], "Encoded"),
+            plan(Vec::new(), "Raw"),
+        ]
+        .into_iter()
+        .enumerate()
+        .map(|(at, plan)| (Key::Int(i64::try_from(at).unwrap()), plan))
+        .collect(),
+    );
+    let out = block_on(request.call_values(
+        &extension,
+        "variants",
+        vec![encoded(fixture("gradient.jpg"), true), plans],
+    ))
+    .expect("`variants` answers");
+    assert_eq!(request.crossings(), 1);
+    let Some(Value::Array(outs)) = out else {
+        panic!("`variants` returned {out:?}")
+    };
+    let outs: Vec<Vec<u8>> = outs
+        .into_iter()
+        .map(|(_, out)| match out {
+            Value::Bytes(bytes) => bytes,
+            other => panic!("a variant is {other:?}"),
+        })
+        .collect();
+    assert_eq!(outs.len(), 3);
+    assert_eq!(format_of(&outs[0]), "Png");
+    assert_eq!(format_of(&outs[1]), "Webp");
+    assert_eq!(size_of(&outs[2]), (16, 12));
+    assert!(is_red(pixel(&outs[2], 0, 0)), "{:?}", pixel(&outs[2], 0, 0));
+    block_on(request.end()).expect("the request ends");
+}
+
+// covers: Novis\Image\Image::encode, Novis\Image\Codec::run
+#[test]
+fn encode_costs_one_crossing() {
+    let host = Host::new(4, |_| Ok(())).expect("the host starts");
+    let extension = component(&host);
+    let request = host.request(Arc::new(Meter::new(Duration::from_secs(60), None)));
+    let out = run(
+        &request,
+        &extension,
+        encoded(fixture("gradient.jpg"), true),
+        plan(
+            vec![format_step("Png", None, None), metadata(false)],
+            "Encoded",
+        ),
+    )
+    .expect("the JPEG re-encodes");
+    assert_eq!(format_of(&out), "Png");
+    assert_eq!(request.crossings(), 1);
+    block_on(request.end()).expect("the request ends");
+}
+
+/// The colour `{r, g, b, alpha}` a canvas, `flatten` or `tint` takes.
+fn rgba(r: u64, g: u64, b: u64, alpha: f64) -> Value {
+    shape(vec![
+        ("r", Value::Uint(r)),
+        ("g", Value::Uint(g)),
+        ("b", Value::Uint(b)),
+        ("alpha", Value::Float(alpha)),
+    ])
+}
+
+/// A blank canvas of `width` by `height`, filled with `fill`, as `Image::create` builds it.
+fn canvas(width: u64, height: u64, fill: Value) -> Value {
+    shape(vec![
+        ("width", Value::Uint(width)),
+        ("height", Value::Uint(height)),
+        ("fill", fill),
+    ])
+}
+
+/// A pixel source of `width` by `height` from RGBA8 `pixels`, as `Image::fromRaw` builds it.
+fn pixels(width: u64, height: u64, pixels: Vec<[u8; 4]>) -> Value {
+    shape(vec![
+        ("width", Value::Uint(width)),
+        ("height", Value::Uint(height)),
+        ("pixels", Value::Bytes(pixels.concat())),
+    ])
+}
+
+/// A 3 by 3 frame of `border` with `centre` in the middle.
+fn framed(border: [u8; 4], centre: [u8; 4]) -> Value {
+    let mut all = vec![border; 9];
+    all[4] = centre;
+    pixels(3, 3, all)
+}
+
+/// The pixels `source` has after the one step `name` with `options`.
+fn after(
+    request: &Request,
+    extension: &Extension,
+    source: Value,
+    name: &str,
+    options: Value,
+) -> Vec<u8> {
+    run(
+        request,
+        extension,
+        source,
+        plan(vec![shape(vec![(name, options)])], "Raw"),
+    )
+    .unwrap_or_else(|err| panic!("`{name}` runs: {err:?}"))
+}
+
+/// Each pixel step of a plan, run alone on a source whose pixels the test knows, changes the
+/// pixel it should by what `extensions/image/src/ops.rs`'s module doc says, and a canvas and a
+/// pixel source are both a frame the steps run on.
+// covers: Novis\Image\Image::create, Novis\Image\Image::fromRaw, Novis\Image\Image::trim, Novis\Image\Image::flip, Novis\Image\Image::flatten, Novis\Image\Image::sharpen, Novis\Image\Image::blur, Novis\Image\Image::grayscale, Novis\Image\Image::brightness, Novis\Image\Image::contrast, Novis\Image\Image::gamma, Novis\Image\Image::tint
+#[test]
+fn each_pixel_step_changes_a_known_pixel_as_documented() {
+    let host = Host::new(4, |_| Ok(())).expect("the host starts");
+    let extension = component(&host);
+    let request = host.request(Arc::new(Meter::new(Duration::from_secs(60), None)));
+    let orange = || canvas(2, 2, rgba(200, 100, 50, 1.0));
+    let step = |source: Value, name: &str, options: Value| {
+        after(&request, &extension, source, name, options)
+    };
+
+    let blank = step(
+        canvas(4, 3, rgba(0, 0, 0, 0.0)),
+        "brightness",
+        Value::Float(1.0),
+    );
+    assert_eq!(size_of(&blank), (4, 3));
+    assert_eq!(pixel(&blank, 3, 2), [0, 0, 0, 0]);
+
+    // Rec. 709 luma of 200, 100, 50 is 117.65.
+    let gray = pixel(&step(orange(), "grayscale", Value::Bool(true)), 0, 0);
+    assert!(
+        gray[0] == gray[1] && gray[1] == gray[2] && near(gray, [118, 118, 118]),
+        "{gray:?}"
+    );
+    let darker = pixel(&step(orange(), "brightness", Value::Float(0.5)), 0, 0);
+    assert!(near(darker, [100, 50, 25]), "{darker:?}");
+    // Half the distance from 128: 164, 114 and 89.
+    let flatter = pixel(&step(orange(), "contrast", Value::Float(0.5)), 0, 0);
+    assert!(near(flatter, [164, 114, 89]), "{flatter:?}");
+    // 255 * (v / 255) ^ (1 / 2): 226, 160 and 113.
+    let lighter = pixel(&step(orange(), "gamma", Value::Float(2.0)), 0, 0);
+    assert!(near(lighter, [226, 160, 113]), "{lighter:?}");
+    let blue = pixel(&step(orange(), "tint", rgba(0, 0, 255, 1.0)), 0, 0);
+    assert!(near(blue, [0, 0, 50]), "{blue:?}");
+
+    let clear = [0, 0, 0, 0];
+    let solid = [200, 100, 50, 255];
+    let row = || pixels(2, 1, vec![clear, solid]);
+    let flat = step(row(), "flatten", rgba(0, 255, 0, 1.0));
+    assert_eq!(pixel(&flat, 0, 0), [0, 255, 0, 255]);
+    assert_eq!(pixel(&flat, 1, 0), solid);
+    let flipped = step(row(), "flip", Value::Case("Horizontal".to_owned()));
+    assert_eq!(
+        (pixel(&flipped, 0, 0), pixel(&flipped, 1, 0)),
+        (solid, clear)
+    );
+
+    let white = [255, 255, 255, 255];
+    let red = [255, 0, 0, 255];
+    let trimmed = step(framed(white, red), "trim", shape(Vec::new()));
+    assert_eq!(size_of(&trimmed), (1, 1));
+    assert_eq!(pixel(&trimmed, 0, 0), red);
+    let soft = pixel(&step(framed(white, red), "blur", Value::Float(1.0)), 1, 1);
+    assert!(soft[1] > 0 && soft[2] > 0, "{soft:?}");
+    let sharp = pixel(
+        &step(
+            framed([100, 100, 100, 255], [150, 150, 150, 255]),
+            "sharpen",
+            shape(Vec::new()),
+        ),
+        1,
+        1,
+    );
+    assert!(sharp[0] > 150, "{sharp:?}");
+    block_on(request.end()).expect("the request ends");
+}
+
+/// A list of `steps` as a plan or an overlay carries it.
+fn list(steps: Vec<Value>) -> Value {
+    Value::Array(
+        steps
+            .into_iter()
+            .enumerate()
+            .map(|(at, step)| (Key::Int(i64::try_from(at).unwrap()), step))
+            .collect(),
+    )
+}
+
+/// A plan of `steps` over `overlays`, returning the raw pixels.
+fn layered(steps: Vec<Value>, overlays: Vec<Value>) -> Value {
+    shape(vec![
+        ("steps", list(steps)),
+        ("overlays", list(overlays)),
+        ("output", Value::Case("Raw".to_owned())),
+    ])
+}
+
+/// The overlay row `source` with `steps`.
+fn overlay(source: Value, steps: Vec<Value>) -> Value {
+    shape(vec![("source", source), ("steps", list(steps))])
+}
+
+/// The step `composite` of overlay row `row`, with the options given and `null` for the rest.
+fn composite(row: u64, options: Vec<(&str, Value)>) -> Value {
+    let mut fields = vec![
+        ("overlay", Value::Uint(row)),
+        ("gravity", Value::Null),
+        ("x", Value::Null),
+        ("y", Value::Null),
+        ("opacity", Value::Null),
+        ("blend", Value::Null),
+    ];
+    for (name, value) in options {
+        let at = fields.iter().position(|(key, _)| *key == name).unwrap();
+        fields[at].1 = value;
+    }
+    shape(vec![("composite", shape(fields))])
+}
+
+/// A `composite` step draws its overlay row at `gravity` or at `x` and `y`, clipped to the frame,
+/// with `opacity` and `blend` as `extensions/image/src/ops.rs`'s module doc says; the row runs
+/// its own steps first; and a row that is not before the step, or an opacity over 1, throws
+/// before anything is decoded.
+// covers: Novis\Image\Image::composite
+#[test]
+fn composite_draws_its_overlay_row_where_and_how_the_step_says() {
+    let host = Host::new(4, |_| Ok(())).expect("the host starts");
+    let extension = component(&host);
+    let request = host.request(Arc::new(Meter::new(Duration::from_secs(60), None)));
+    let red = || canvas(4, 4, rgba(255, 0, 0, 1.0));
+    let blue = |size: u64| overlay(canvas(size, size, rgba(0, 0, 255, 1.0)), Vec::new());
+    let draw = |source: Value, steps: Vec<Value>, overlays: Vec<Value>| {
+        run(&request, &extension, source, layered(steps, overlays))
+    };
+
+    let centred = draw(red(), vec![composite(0, Vec::new())], vec![blue(2)]).unwrap();
+    assert_eq!(size_of(&centred), (4, 4));
+    assert_eq!(pixel(&centred, 0, 0), [255, 0, 0, 255]);
+    assert_eq!(pixel(&centred, 1, 1), [0, 0, 255, 255]);
+    assert_eq!(pixel(&centred, 2, 2), [0, 0, 255, 255]);
+    assert_eq!(pixel(&centred, 3, 3), [255, 0, 0, 255]);
+
+    let corner = draw(
+        red(),
+        vec![composite(
+            0,
+            vec![("gravity", Value::Case("SouthEast".to_owned()))],
+        )],
+        vec![blue(2)],
+    )
+    .unwrap();
+    assert_eq!(pixel(&corner, 1, 1), [255, 0, 0, 255]);
+    assert_eq!(pixel(&corner, 3, 3), [0, 0, 255, 255]);
+
+    // At -1, -1 only the overlay's bottom-right pixel lies inside the frame.
+    let clipped = draw(
+        red(),
+        vec![composite(
+            0,
+            vec![("x", Value::Int(-1)), ("y", Value::Int(-1))],
+        )],
+        vec![blue(2)],
+    )
+    .unwrap();
+    assert_eq!(pixel(&clipped, 0, 0), [0, 0, 255, 255]);
+    assert_eq!(pixel(&clipped, 1, 0), [255, 0, 0, 255]);
+    assert_eq!(pixel(&clipped, 0, 1), [255, 0, 0, 255]);
+
+    let half = draw(
+        red(),
+        vec![composite(0, vec![("opacity", Value::Float(0.5))])],
+        vec![blue(4)],
+    )
+    .unwrap();
+    assert!(
+        near(pixel(&half, 0, 0), [128, 0, 128]),
+        "{:?}",
+        pixel(&half, 0, 0)
+    );
+    assert_eq!(pixel(&half, 0, 0)[3], 255);
+
+    // Multiply of 128 grey under 255, 0, 0 is 128, 0, 0; Screen is 255, 128, 128.
+    let grey = || canvas(1, 1, rgba(128, 128, 128, 1.0));
+    let tinted = |blend: &str| {
+        let out = draw(
+            grey(),
+            vec![composite(0, vec![("blend", Value::Case(blend.to_owned()))])],
+            vec![overlay(canvas(1, 1, rgba(255, 0, 0, 1.0)), Vec::new())],
+        )
+        .unwrap();
+        pixel(&out, 0, 0)
+    };
+    assert!(
+        near(tinted("Multiply"), [128, 0, 0]),
+        "{:?}",
+        tinted("Multiply")
+    );
+    assert!(
+        near(tinted("Screen"), [255, 128, 128]),
+        "{:?}",
+        tinted("Screen")
+    );
+    assert!(
+        near(tinted("Darken"), [128, 0, 0]),
+        "{:?}",
+        tinted("Darken")
+    );
+    assert!(
+        near(tinted("Lighten"), [255, 128, 128]),
+        "{:?}",
+        tinted("Lighten")
+    );
+
+    // Over a transparent frame the overlay's own colour shows.
+    let empty = draw(
+        canvas(1, 1, rgba(0, 0, 0, 0.0)),
+        vec![composite(
+            0,
+            vec![("blend", Value::Case("Multiply".to_owned()))],
+        )],
+        vec![overlay(canvas(1, 1, rgba(0, 200, 0, 1.0)), Vec::new())],
+    )
+    .unwrap();
+    assert_eq!(pixel(&empty, 0, 0), [0, 200, 0, 255]);
+
+    // Row 1 resizes itself to 1 by 1 and draws row 0 over itself first.
+    let nested = draw(
+        red(),
+        vec![composite(
+            1,
+            vec![("x", Value::Int(0)), ("y", Value::Int(0))],
+        )],
+        vec![
+            overlay(canvas(1, 1, rgba(0, 255, 0, 1.0)), Vec::new()),
+            overlay(
+                canvas(2, 2, rgba(0, 0, 255, 1.0)),
+                vec![resize(1), composite(0, Vec::new())],
+            ),
+        ],
+    )
+    .unwrap();
+    assert_eq!(pixel(&nested, 0, 0), [0, 255, 0, 255]);
+    assert_eq!(pixel(&nested, 1, 0), [255, 0, 0, 255]);
+
+    let later = draw(red(), vec![composite(1, Vec::new())], vec![blue(2)]);
+    assert!(matches!(later, Err(Failure::Error(_))), "{later:?}");
+    let itself = draw(
+        red(),
+        vec![composite(0, Vec::new())],
+        vec![overlay(
+            canvas(1, 1, rgba(0, 0, 0, 1.0)),
+            vec![composite(0, Vec::new())],
+        )],
+    );
+    assert!(matches!(itself, Err(Failure::Error(_))), "{itself:?}");
+    let opaque = draw(
+        red(),
+        vec![composite(0, vec![("opacity", Value::Float(1.5))])],
+        vec![blue(2)],
+    );
+    assert!(matches!(opaque, Err(Failure::Error(_))), "{opaque:?}");
+
+    // Each row draws the row before it twice, so seven rows are 2^7 = 128 draws: over the limit.
+    let doubling: Vec<Value> = (0..7)
+        .map(|row| {
+            let steps = if row == 0 {
+                Vec::new()
+            } else {
+                vec![
+                    composite(row - 1, Vec::new()),
+                    composite(row - 1, Vec::new()),
+                ]
+            };
+            overlay(canvas(1, 1, rgba(0, 0, 0, 1.0)), steps)
+        })
+        .collect();
+    let bomb = draw(red(), vec![composite(6, Vec::new())], doubling);
+    assert!(matches!(bomb, Err(Failure::Error(_))), "{bomb:?}");
+    block_on(request.end()).expect("the request ends");
+}

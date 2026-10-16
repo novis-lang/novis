@@ -1,0 +1,13 @@
+<?nvs
+// Shows what happens when a value contains a number that JSON cannot write.
+
+// `Core\Math::fdiv(0.0, 0.0)` gives NaN, which has no JSON form.
+// So `json` throws a `LogicError` and sends nothing.
+float $average = Core\Math::fdiv(0.0, 0.0);
+try {
+    Core\Response::json({ average: $average });
+} catch (LogicError $error) {
+    // This sends a status 500 and a JSON object with the error message.
+    Core\Response::setStatus(500);
+    Core\Response::json({ error: $error->message });
+}

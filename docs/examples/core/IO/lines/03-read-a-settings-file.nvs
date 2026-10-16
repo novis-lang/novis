@@ -1,0 +1,27 @@
+<?nvs
+// Shows how a program reads a settings file with one `name=value` pair on each line.
+
+class Settings {
+    // Returns the settings in the file as an array. Each key is a name, and each value is its value.
+    // Empty lines and lines that start with "#" are skipped.
+    public static function load(string $path): array<string> {
+        array<string> $settings = [];
+        foreach (Core\IO::lines($path) as string $line) {
+            string $clean = Core\Str::trim($line);
+            if ($clean == "" || Core\Str::startsWith($clean, "#")) {
+                continue;
+            }
+            array<string> $parts = Core\Str::split($clean, "=", {limit: 2});
+            $settings[Core\Str::trim($parts[0])] = Core\Str::trim($parts[1]);
+        }
+        return $settings;
+    }
+}
+
+string $path = Core\Path::join(Core\IO::temporaryDir(), "app.env");
+Core\IO::write($path, "# Database\nDB_HOST = localhost\nDB_PORT = 5432\n\n# Mail\nMAIL_FROM = shop@example.com\n");
+
+// This prints "DB_HOST: localhost", "DB_PORT: 5432" and "MAIL_FROM: shop@example.com".
+foreach (Settings::load($path) as string $name => string $value) {
+    echo $name, ": ", $value, "\n";
+}

@@ -1,0 +1,47 @@
+--TEST--
+A delegated call whose `lateinit` field is uninitialized, in a class that implements `LateInit`, calls `initProperty` first and then forwards — `rule:classes/late-init-initializes-on-the-first-read`, `rule:classes/delegation-by-field`
+--FILE--
+<?nvs
+// covers: lang:classes/lateinit
+interface Greeter {
+  public function greet(string $who): string;
+}
+
+class Polite implements Greeter {
+  public function greet(string $who): string { return "hello " . $who; }
+}
+
+class Outer implements Greeter by $inner, LateInit {
+  public lateinit Polite $inner;
+  public int $calls = 0;
+  public function initProperty(string $name): void {
+    $this->calls = $this->calls + 1;
+    echo "init ", $name, "\n";
+    $this->inner = new Polite();
+  }
+}
+
+// An empty `initProperty` leaves the field unset, so the forward throws and
+// releases its argument.
+class Lazy implements Greeter by $inner, LateInit {
+  public lateinit Polite $inner;
+  public function initProperty(string $name): void {}
+}
+
+Outer $o = new Outer();
+echo $o->greet("a" . "b"), "\n";
+Greeter $g = $o;
+echo $g->greet("c"), "\n";
+echo "calls=", $o->calls as string, "\n";
+
+try {
+  echo (new Lazy())->greet("d" . "e"), "\n";
+} catch (LogicError $e) {
+  echo $e->message, "\n";
+}
+--EXPECT--
+init inner
+hello ab
+hello c
+calls=1
+`initProperty` returned, but `$inner` is still not initialized.

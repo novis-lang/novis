@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-runtime/src/lib.rs",
+  "title": "`nvs_safepoint` clears `DEBUG_BREAK` and acts on nothing.",
+  "text": "The flag is dropped where `CPU_LIMIT` and `CANCEL` become [`FATAL`], since `nvs dap` — the adapter a stopped frame would be handed to — does not exist.",
+  "milestone": "M10"
+}

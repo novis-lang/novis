@@ -1,0 +1,61 @@
+<?nvs
+// Attack: a cut is asked for scales no `decimal` holds, and is given the
+// largest and the smallest values the type can write. Every attempt should
+// return an answer or throw an error. The runtime should still be standing at
+// the end.
+// hostile: timeout-ms 30000
+
+// 1. One digit more than the 28 a `decimal` holds. The scale is refused. The
+// error is caught, so the steps after this one still run.
+try {
+    Core\Decimal::floor(1.5, 29);
+    echo "step 1: the value was cut\n";
+} catch (ArithmeticError $tooManyDigits) {
+    echo 'step 1 stopped: ', $tooManyDigits->message, "\n";
+}
+
+// 2. The largest scale a whole number can be written as. The same refusal,
+// from the other end of the range.
+try {
+    Core\Decimal::floor(1.5, 18446744073709551615);
+    echo "step 2: the value was cut\n";
+} catch (ArithmeticError $far) {
+    echo 'step 2 stopped: ', $far->message, "\n";
+}
+
+// 3. The largest value a `decimal` holds, cut to a whole number. It is
+// already whole, so the answer is the value itself.
+decimal $wide = 79228162514264337593543950335;
+echo 'step 3: ', Core\Decimal::floor($wide), "\n";
+
+// 4. The same value asked for at 28 digits after the point. The digits before
+// the point and the digits after it do not fit in one number together.
+try {
+    Core\Decimal::floor($wide, 28);
+    echo "step 4: the value was cut\n";
+} catch (ArithmeticError $doesNotFit) {
+    echo 'step 4 stopped: ', $doesNotFit->message, "\n";
+}
+
+// 5. The smallest value a `decimal` can write, and the same value below zero.
+// Cutting down sends the negative one to -1.
+decimal $tiny = 0.0000000000000000000000000001;
+echo 'step 5: ', Core\Decimal::floor($tiny), ' ', Core\Decimal::floor(-$tiny), "\n";
+
+// 6. The smallest value the type holds, cut to a whole number. It is already
+// whole, so this one has an answer as well.
+decimal $low = -79228162514264337593543950335;
+echo 'step 6: ', Core\Decimal::floor($low), "\n";
+
+// 7. One million cuts in a row, each one cutting the answer the round before
+// it gave.
+decimal $carried = 0.0;
+decimal $added = 1.9995;
+uint $round = 0;
+while ($round < 1000000) {
+    $carried = Core\Decimal::floor($carried + $added, 3);
+    $round = $round + 1;
+}
+echo 'step 7: ', $round, ' cuts made, last answer ', $carried, "\n";
+
+echo "the runtime is still standing\n";

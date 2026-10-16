@@ -1,0 +1,17 @@
+<?nvs
+// Shows how to move a date forward by days and by weeks.
+
+var $ordered = Core\Time\Date::at(2024, 3, 10);
+
+// `plus` returns a new date that is 5 days later. This prints 2024-03-15.
+echo $ordered->plus(5, Core\Unit::Day)->format("yyyy-MM-dd"), "\n";
+
+// A step can go past the end of a month or a year.
+// Two weeks after 25 December 2024 is 2025-01-08.
+echo Core\Time\Date::at(2024, 12, 25)->plus(2, Core\Unit::Week)->format("yyyy-MM-dd"), "\n";
+
+// A negative count moves the date back. This prints 2024-03-07.
+echo $ordered->plus(-3, Core\Unit::Day)->format("yyyy-MM-dd"), "\n";
+
+// `plus` does not change the date it is called on. This prints 2024-03-10.
+echo $ordered->format("yyyy-MM-dd"), "\n";

@@ -1,0 +1,28 @@
+<?nvs
+// Shows a real use: a report needs the price of six products from a slow service.
+// `limit` asks for no more than two prices at a time, so the service is not flooded.
+// `deadline` stops the whole report after one second.
+
+class Prices {
+    public static function of(string $sku): int {
+        // A real program asks another server here.
+        Core\Time::sleep(5ms);
+        return Core\Str::length($sku) as int * 100;
+    }
+}
+
+array<string> $skus = ["cup", "mug", "kettle", "spoon", "pot", "tray"];
+
+try {
+    var $prices = Core\Task::map(
+        $skus,
+        fn(string $sku): int => Prices::of($sku),
+        {limit: 2, deadline: 1s},
+    );
+    foreach ($prices as int $price) {
+        echo $price, "\n";
+    }
+} catch (TimeoutError $late) {
+    // The report prints this when the service does not answer in time.
+    echo "the price service was too slow\n";
+}

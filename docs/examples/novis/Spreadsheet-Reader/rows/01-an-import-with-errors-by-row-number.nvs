@@ -1,0 +1,34 @@
+<?nvs
+// Shows how to import an uploaded price list and report each bad row by its row number.
+use Novis\Spreadsheet\Reader;
+use Novis\Spreadsheet\Workbook;
+
+// This makes the upload. In a real program the bytes come from the request.
+var $book = Workbook::createInMemory();
+$book->sheet('Prices')->addAll([
+    ['Item', 'Price'],
+    ['Widget', 2.5],
+    ['Gadget', 'free'],
+    [null, 4.0],
+    ['Gizmo', 1.25],
+]);
+bytes $upload = $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
+
+// `header: true` uses row 1 for the keys. `$row->number` is the row number a person sees in Excel.
+array<string> $errors = [];
+int $imported = 0;
+foreach (Reader::open($upload)->rows('Prices', { header: true }) as var $row) {
+    mixed $price = $row->values['Price'];
+    if ($row->values['Item'] == null) {
+        $errors[] = "Row {$row->number}: the item name is missing.";
+    } elseif (!($price is int || $price is float)) {
+        $errors[] = "Row {$row->number}: the price is not a number.";
+    } else {
+        $imported++;
+    }
+}
+
+echo $imported, " rows imported\n";
+foreach ($errors as string $error) {
+    echo $error, "\n";
+}

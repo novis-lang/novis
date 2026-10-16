@@ -1,0 +1,15 @@
+<?nvs
+// Shows how a program reads the mode from `[mode]` and switches its own request to development mode.
+
+// `mode.default` is the mode the request starts in. This prints `production`.
+echo Core\Config::get("mode.default"), "\n";
+
+// `mode.ceiling` is the most permissive mode a program may choose. This prints `development`.
+echo Core\Config::get("mode.ceiling"), "\n";
+
+// "development" is within the ceiling, so the call returns `true`. This prints `yes` and `development`.
+echo Core\Config::set("mode.default", "development") ? "yes" : "no", "\n";
+echo Core\Config::get("mode.default"), "\n";
+
+// Only the person who runs the server may change the ceiling. The call returns `false`, so this prints `no`.
+echo Core\Config::set("mode.ceiling", "production") ? "yes" : "no", "\n";

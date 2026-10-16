@@ -1,0 +1,13 @@
+{
+  "title": "A library candidate is placed by six ordered tests, not by PHP's extension list",
+  "status": "shipped",
+  "seeAlso": [
+    "core-api/five-placements",
+    "core-api/tier-roster",
+    "core-api/core-means-always-present",
+    "programs/framework-core-half"
+  ],
+  "guardedBy": [
+    "crates/nvs-stdlib/tests/tier_boundary.rs"
+  ]
+}

@@ -1,0 +1,46 @@
+--TEST--
+A `static` property whose type admits `null` needs no initializer and starts the request at `null`; a subclass redeclaring one gets a second storage — `rule:classes/definite-property-initialization`, and `rule:statements/storage-that-outlives-a-call` for the lifetime
+--FILE--
+<?nvs
+class Cache {
+    // No initializer, and none required: `rule:classes/definite-property-initialization` exempts a nullable
+    // declaration, so the slot is armed with `null` when the request starts.
+    // This is a deliberate Novis answer rather than PHP's — PHP leaves a typed
+    // static *uninitialized* and throws on the read, which is exactly the
+    // "reading a binding that may not have reached its initialiser" state
+    // `rule:types/declaration` does not have.
+    public static ?string $entry;
+    public static ?int $hits;
+
+    public static function seed(): void {
+        self::$entry = "warm";
+        self::$hits = 1;
+    }
+}
+
+// Redeclaring in a subclass is a second storage, exactly as it is in PHP:
+// the checker resolves each access to the class that *declares* the name it
+// finds, so these two never alias.
+class Layered extends Cache {
+    public static ?string $entry;
+}
+
+echo Cache::$entry ?? "cold", "\n";
+echo (Cache::$hits ?? 0) as string, "\n";
+
+Cache::seed();
+echo Cache::$entry ?? "cold", "\n";
+echo (Cache::$hits ?? 0) as string, "\n";
+
+// `Layered::$entry` names its own declaration, so seeding the parent's left
+// it alone; `Cache::$entry` still holds what `seed` put there.
+echo Layered::$entry ?? "cold", "\n";
+Layered::$entry = "own";
+echo Layered::$entry ?? "cold", " ", Cache::$entry ?? "cold", "\n";
+--EXPECT--
+cold
+0
+warm
+1
+cold
+own warm

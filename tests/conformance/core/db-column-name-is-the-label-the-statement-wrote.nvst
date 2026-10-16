@@ -1,0 +1,50 @@
+--TEST--
+`Core\Db\Column::name` answers the label the server described — the alias wherever the select list wrote one, the table's own column name where it did not, and one entry per column rather than one per label — `rule:core-classes/db-column-types`, spec § 18
+--FILE--
+<?nvs
+// covers: Core\Db\Column::name
+// Run against a real engine, which is what this case needs and its siblings do
+// not: a label is what the *server* described, so a claim about it that never
+// prepared a statement would be a claim about this tree's own guess.
+var $db = Core\Db::connect("main");
+$db->execute("create table notes (id integer primary key, text text not null)", []);
+$db->execute("insert into notes (id, text) values (?, ?)", [1, "buy milk"]);
+
+// Nothing renamed: the label is the column's own name, unqualified — no table
+// in front of it, which is `getColumnMeta`'s `name` and not its `table`.
+foreach ($db->query("select id, text from notes", [])->columns() as Core\Db\Column $plain) {
+    echo "plain ", $plain->name(), "\n";
+}
+
+// An alias wins, and it wins for an expression too — an expression with no
+// alias is labelled by the server and that label is not pinned here, which is
+// why every column below writes one.
+foreach ($db->query("select id as reference, text as body from notes", [])->columns()
+    as Core\Db\Column $renamed) {
+    echo "renamed ", $renamed->name(), "\n";
+}
+
+// One entry per *column* and not per label, which is the bound that makes this
+// an array and never a map: two columns may carry one label, and a map would
+// have lost the second.
+var $twice = $db->query("select id, id from notes", [])->columns();
+echo "twice ", Core\Arr::count($twice), " ", $twice[0]->name(), " ", $twice[1]->name(), "\n";
+
+// And the description belongs to the statement rather than to a row, so a
+// `select` that matched nothing still has its labels.
+var $none = $db->query("select id as reference from notes where id < 0", []);
+echo "empty ", $none->count(), " ", $none->columns()[0]->name(), "\n";
+--FILE nvs.toml--
+[capabilities.db]
+connect = ["main"]
+
+[db.main]
+driver = "sqlite"
+path = ":memory:"
+--EXPECT--
+plain id
+plain text
+renamed reference
+renamed body
+twice 2 id id
+empty 0 reference

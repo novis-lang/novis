@@ -1,0 +1,11 @@
+<?nvs
+// Shows how `Core\Math::floor` rounds a negative number.
+
+// Down means away from zero for a negative number. This prints -5.
+echo Core\Math::floor(-4.1), "\n";
+
+// A number between -1 and 0 becomes -1. This prints -1.
+echo Core\Math::floor(-0.5), "\n";
+
+// `Core\Math::truncate` rounds toward zero instead. This prints -4.
+echo Core\Math::truncate(-4.1), "\n";

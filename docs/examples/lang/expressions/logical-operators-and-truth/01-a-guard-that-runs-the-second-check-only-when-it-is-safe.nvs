@@ -1,0 +1,27 @@
+<?nvs
+// Shows why `&&` and `||` stop early. The right side runs only when the left
+// side has not already given the answer. A check on the left can protect the
+// code on the right.
+
+class Report {
+    public static function averageIsHigh(int $total, int $count): bool {
+        // A division by zero throws an error, so the count is checked first.
+        // When the count is zero, the division never runs.
+        return $count != 0 && $total / $count > 10.0;
+    }
+}
+
+// This prints an empty line, which is how `false` reads as text. The
+// division was never attempted.
+echo Report::averageIsHigh(50, 0) as string, "\n";
+
+// This prints 1, because 50 divided by 4 is more than 10.
+echo Report::averageIsHigh(50, 4) as string, "\n";
+
+// `||` is the other way round: it stops as soon as one side is true. The
+// second check runs only when the first one failed.
+array<string> $chosen = [];
+array<string> $suggested = ["novis"];
+if ($chosen != [] || $suggested != []) {
+    echo "something to show\n";
+}

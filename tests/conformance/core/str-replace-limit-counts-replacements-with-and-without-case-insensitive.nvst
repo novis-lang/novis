@@ -1,0 +1,13 @@
+--TEST--
+Core\Str::replace replaces at most `limit` matches from the start, with and without `caseInsensitive`
+--FILE--
+<?nvs
+echo Core\Str::replace("aAaA", "a", "-"), "\n";
+echo Core\Str::replace("aAaA", "a", "-", {caseInsensitive: true}), "\n";
+echo Core\Str::replace("aAaA", "a", "-", {caseInsensitive: true, limit: 2}), "\n";
+echo Core\Str::replace("aaaa", "a", "-", {limit: 1}), "\n";
+--EXPECT--
+-A-A
+----
+--aA
+-aaa

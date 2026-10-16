@@ -1,0 +1,17 @@
+{
+  "title": "A test request is dispatched in-process through the compiled route table, and its input arrives `tainted`",
+  "status": "shipped",
+  "seeAlso": [
+    "testing/isolate-per-test",
+    "testing/task-tree-and-virtual-clock",
+    "routing/a-gate-answers-around-every-handler"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/an-in-process-request-carries-the-compiled-route-tables-own-match.nvst",
+    "tests/conformance/core/an-in-process-request-may-not-be-made-from-inside-one.nvst",
+    "tests/conformance/core/an-in-process-request-to-an-unclaimed-path-is-answered-by-the-program.nvst",
+    "tests/conformance/core/an-in-process-responses-status-is-the-programs-own-or-200.nvst",
+    "tests/conformance/core/a-program-with-no-ephemeral-listener-reads-no-address.nvst",
+    "crates/nvs-cli/src/runner.rs"
+  ]
+}

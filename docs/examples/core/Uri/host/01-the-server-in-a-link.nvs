@@ -1,0 +1,10 @@
+<?nvs
+// Shows how to read the host of an address.
+
+var $link = Core\Uri::parse("https://shop.example.com:8443/cart?item=42");
+
+// The host is the name of the server, without the port. This prints shop.example.com.
+echo $link->host(), "\n";
+
+// The host is returned as it was written. This prints Example.COM.
+echo Core\Uri::parse("http://Example.COM/")->host(), "\n";

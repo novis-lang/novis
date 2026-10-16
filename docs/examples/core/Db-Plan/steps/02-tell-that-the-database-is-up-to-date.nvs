@@ -1,0 +1,33 @@
+<?nvs
+// Shows how a program tells that a database is up to date. When nothing is
+// left to change, `Core\Db\Plan::steps` gives back an empty array.
+
+use Core\Db;
+use Core\Db\Schema;
+
+var $db = Db::connect('notes');
+
+var $schema = Schema::fromArray([
+    'tables' => [
+        [
+            'name' => 'notes',
+            'columns' => [
+                ['name' => 'id', 'type' => 'int64', 'identity' => true],
+                ['name' => 'title', 'type' => 'text(200)'],
+            ],
+            'primary_key' => ['id'],
+        ],
+    ],
+]);
+
+// The table is missing, so the plan has one step.
+echo Core\Arr::count($schema->planAgainst($db)->steps()), " before\n";
+
+// `applySafe` runs the steps that cannot lose data.
+$schema->applySafe($db);
+
+// The database now matches the schema. The new plan is empty, and that is how
+// a program knows there is nothing to do.
+echo Core\Arr::count($schema->planAgainst($db)->steps()), " after\n";
+
+$db->close();

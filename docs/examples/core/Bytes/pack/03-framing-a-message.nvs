@@ -1,0 +1,20 @@
+<?nvs
+// Shows how a program frames a message before it sends it. The reader at the
+// other end needs the length of the message first, so it knows how much to
+// read.
+
+bytes $body = "{\"id\":1042}" as bytes;
+
+// `N` writes the length in four bytes, and `a` with no width writes the whole
+// of the next value. Both ends agree that the body starts at byte five.
+bytes $frame = Core\Bytes::pack("Na", Core\Bytes::length($body), $body);
+
+// The frame is the body and four bytes more. This prints 15.
+echo Core\Bytes::length($frame), "\n";
+
+// The first four bytes hold the length, which is 11 here. This prints
+// "0000000b".
+echo Core\Encoding::toHex(Core\Bytes::slice($frame, 0, 4)), "\n";
+
+// The body follows them unchanged. This prints {"id":1042}.
+echo Core\Bytes::slice($frame, 4) as string, "\n";

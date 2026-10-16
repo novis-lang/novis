@@ -1,0 +1,6 @@
+--METHOD--
+GET
+--PATH--
+/download
+--HEADERS--
+host: example.com

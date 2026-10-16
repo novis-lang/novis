@@ -1,0 +1,58 @@
+--TEST--
+A connection from `open` with no `base` has nowhere to start a search, so a search that names no `base` throws `LogicError` and one that names a `base` runs
+--SKIPIF--
+<?nvs
+// The case needs the `samba-ad` server from `tests/db/compose.yaml`. Where it
+// does not answer, the case is skipped, unless `NVS_LDAP_SAMBA` is set: CI's
+// Linux leg runs the server and sets it, so a missing server fails there.
+try {
+    Core\Ldap::open({
+        url: "ldap://127.0.0.1:16389",
+        user: "CN=Administrator,CN=Users,DC=example,DC=test",
+        password: "Novis-test-1",
+        tls: Core\Ldap::Tls::None,
+    });
+} catch (Core\Ldap\LdapError $down) {
+    if ($down->kind != Core\Ldap\LdapError::Kind::Unavailable || Core\Env::get("NVS_LDAP_SAMBA") != null) {
+        throw $down;
+    }
+    echo "skip - ", $down->message, "\n";
+}
+--FILE--
+<?nvs
+// This connection sends its password without TLS. Only the test server on
+// this machine may be reached that way, and the case is skipped where it is
+// not running.
+var $corp = Core\Ldap::open({
+    url: "ldap://127.0.0.1:16389",
+    user: "CN=Administrator,CN=Users,DC=example,DC=test",
+    password: "Novis-test-1",
+    tls: Core\Ldap::Tls::None,
+});
+try {
+    var $none = $corp->search(Core\Ldap\Filter::present("objectClass"));
+    echo "no error", "\n";
+} catch (LogicError $e) {
+    echo "LogicError: ", $e->message, "\n";
+}
+int $found = 0;
+var $users = $corp->search(Core\Ldap\Filter::present("objectClass"), {
+    base: "CN=Users,DC=example,DC=test",
+    scope: Core\Ldap\Connection::Scope::Base,
+});
+foreach ($users as Core\Ldap\Entry $entry) {
+    $found = $found + 1;
+}
+echo "with a base: ", $found, "\n";
+--COPY--
+../../db/ca.crt
+--FILE nvs.toml--
+[capabilities.ldap]
+open = ["127.0.0.1"]
+cleartext = ["127.0.0.1"]
+
+[capabilities.net]
+internal = ["127.0.0.1"]
+--EXPECT--
+LogicError: Core\Ldap\Connection::search: the search has no `base`. Give one, such as `{base: 'DC=example,DC=test'}`, or set `base` in the `[ldap]` block
+with a base: 1

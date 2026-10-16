@@ -1,0 +1,15 @@
+<?nvs
+// Shows the `sheet` of a name, which is set when only one sheet can use the name.
+use Novis\Spreadsheet\Reader;
+use Novis\Spreadsheet\Workbook;
+
+// `fromRows` adds a filter to the header row. The file keeps the range of the filter as a name of that sheet.
+bytes $file = Workbook::fromRows([['item' => 'Widget'], ['item' => 'Gadget']], { sheet: 'Shop' })->bytes();
+
+// `sheet` is `null` for a name that the whole workbook can use.
+foreach (Reader::open($file)->names() as var $name) {
+    echo $name->name, ' = ', $name->reference, ', sheet: ', $name->sheet ?? 'the whole workbook', "\n";
+}
+
+// A CSV file never has names.
+echo Core\Arr::count(Reader::open("Item\nWidget\n" as bytes)->names()), " names in a CSV file\n";

@@ -1,0 +1,13 @@
+{
+  "title": "What each `Core` member needs is declared once in one table, and nothing at run time reads it",
+  "status": "shipped",
+  "seeAlso": [
+    "security/capability-check-at-the-door",
+    "testing/capability-completeness-test",
+    "security/capability-roster-is-closed"
+  ],
+  "guardedBy": [
+    "crates/nvs-stdlib/tests/capability.rs",
+    "crates/nvs-cli/tests/meta.rs"
+  ]
+}

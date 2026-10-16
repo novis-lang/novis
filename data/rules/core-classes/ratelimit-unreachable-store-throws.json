@@ -1,0 +1,12 @@
+{
+  "title": "An unreachable shared store throws, because whether to fail open is knowledge only the call site has",
+  "status": "shipped",
+  "seeAlso": [
+    "core-classes/ratelimit-two-members",
+    "core-classes/ratelimit-gcra",
+    "errors/propagation"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/ratelimit-refuses-rather-than-deciding-allowed.nvst"
+  ]
+}

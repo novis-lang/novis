@@ -1,0 +1,13 @@
+<?nvs
+// Shows how far the clock of this computer is from UTC right now.
+
+Core\Time\Zone $here = Core\Time\Zone::system();
+int $seconds = $here->offsetAt(Core\Time::now())->toSeconds();
+
+// Every zone on Earth today is between 12 hours behind and 14 hours ahead of UTC.
+// So this prints "between -12h and +14h" on every computer.
+if ($seconds >= -12 * 3600 && $seconds <= 14 * 3600) {
+    echo "between -12h and +14h", "\n";
+} else {
+    echo "outside the usual range", "\n";
+}

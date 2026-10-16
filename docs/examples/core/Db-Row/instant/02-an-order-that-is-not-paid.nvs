@@ -1,0 +1,16 @@
+<?nvs
+// Shows what `instant` returns for a column with no value.
+// requires: postgres
+
+var $db = Core\Db::connect('shop');
+$db->execute('create temporary table orders (id integer not null, paid_at timestamptz)', []);
+$db->execute('insert into orders (id, paid_at) values (?, ?), (?, ?)', [1, '2026-03-01 14:00:00+00', 2, null]);
+
+// Order 2 has no value in `paid_at`, so `instant` returns `null` for it.
+// This prints `order 1: paid` and `order 2: not paid yet`.
+foreach ($db->query('select id, paid_at from orders order by id', []) as Core\Db\Row $row) {
+    ?Core\Time\Instant $paid = $row->instant('paid_at');
+    echo 'order ', $row->int('id') ?? 0, ': ', $paid == null ? 'not paid yet' : 'paid', "\n";
+}
+
+$db->close();

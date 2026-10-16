@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-runtime/src/ctx/output.rs",
+  "title": "`[log] target = \"syslog\"` boots and sends nothing to syslog: each record goes to its writer's own channel, which is `stderr` for the engine floor.",
+  "text": "`rule:errors/engine-floor` offers `stderr`, `file:<path>` and `syslog` as `[log] target` (`docs/rules/errors/engine-floor.md:3`). `syslog` parses (`crates/nvs-config/src/log.rs:149`) and `log_target` maps it to `LogTarget::Unnamed`, the same routing as no target at all (`crates/nvs-runtime/src/ctx/output.rs:1044-1074`). An operator who chose syslog sees nothing there. Closing it means a syslog sink, a datagram to the platform's endpoint carrying `rule:errors/log-level`'s severity in the priority field, or the rule and the parser dropping `syslog` until it exists.",
+  "goal": "completeness-holes"
+}

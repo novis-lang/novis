@@ -1,0 +1,11 @@
+<?nvs
+// Shows how to read one line of a CSV file under the names in its first line.
+// You can then use a column name instead of counting positions.
+
+array<string> $columns = ['id', 'name', 'city'];
+array<string> $line = ['7', 'Ada', 'London'];
+
+array<string> $record = Core\Arr::fromKeysAndValues($columns, $line);
+
+// This prints "Ada lives in London".
+echo $record['name'], ' lives in ', $record['city'], "\n";

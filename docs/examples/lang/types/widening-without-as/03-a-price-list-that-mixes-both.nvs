@@ -1,0 +1,15 @@
+<?nvs
+// A price list for a small shop. Some prices are whole numbers and some are not.
+// A list with the type `array<float>` accepts both, and you do not write `as`.
+
+// `var $prices = [4, 2.5, 3];` does not compile, because the values are `int` and `float`.
+// So the type is written here.
+array<float> $prices = [4, 2.5, 3];
+var $total = 0.0;
+
+foreach ($prices as var $price) {
+    echo $price, "\n";
+    $total = $total + $price;
+}
+
+echo "total ", $total, "\n";

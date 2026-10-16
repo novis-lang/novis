@@ -1,0 +1,2 @@
+Core\IO::read needs the capability `fs.read`
+still running

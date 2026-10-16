@@ -1,0 +1,29 @@
+<?nvs
+// Shows that two objects with equal fields are two different members of a set.
+
+final class Point {
+    public int $x;
+    public int $y;
+
+    public function constructor(int $x, int $y) {
+        $this->x = $x;
+        $this->y = $y;
+    }
+}
+
+Point $a = new Point(1, 2);
+Point $b = new Point(1, 2);
+
+Core\ObjectSet<Point> $points = new Core\ObjectSet<Point>();
+$points->add($a);
+$points->add($b);
+
+// `$a` and `$b` are equal, but they are not the same object. This prints 2.
+echo $points->count(), "\n";
+
+// For numbers, equal values are the same value. This prints 2.
+Core\ObjectSet<int> $numbers = new Core\ObjectSet<int>();
+$numbers->add(7);
+$numbers->add(9);
+$numbers->add(7);
+echo $numbers->count(), "\n";

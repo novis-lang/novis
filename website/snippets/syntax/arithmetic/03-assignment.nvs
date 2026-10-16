@@ -1,0 +1,18 @@
+<?nvs
+// `+=` adds to the variable. `$n += 5` is the same as `$n = $n + 5`.
+int $n = 10;
+$n += 5;
+$n *= 2;
+echo $n, "\n";
+
+// `++` adds one. `--` subtracts one.
+int $count = 0;
+$count++;
+$count++;
+$count--;
+echo $count, "\n";
+
+// `/=` needs a `float` variable, because `/` can give a fraction.
+float $half = 9.0;
+$half /= 2;
+echo $half, "\n";

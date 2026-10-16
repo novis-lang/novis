@@ -1,0 +1,63 @@
+--TEST--
+An archive carrying a traversing, absolute-path, symlink or repeated entry is refused when it is read rather than when something extracts it — `rule:security/path-scope-canonicalise-then-prefix`, `rule:core-api/tier-roster`
+--FILE--
+<?nvs
+// Four hand-built archives, each one an attack, base64 here because an archive
+// is octets and this file is text. What is in each is written beside it, and
+// every one of them is a well-formed zip: nothing below is refused for being
+// malformed.
+
+// `notes/one.txt`, then `../../etc/passwd`.
+bytes $traversing = Core\Encoding::fromBase64("UEsDBBQAAAAAAAAAAABX7nGSBQAAAAUAAAANAAAAbm90ZXMvb25lLnR4dGZpcnN0UEsDBBQAAAAAAAAAAADMqc5XCgAAAAoAAAAQAAAALi4vLi4vZXRjL3Bhc3N3ZHJvb3Q6eDowOjBQSwECHgMUAAAAAAAAAAAAV+5xkgUAAAAFAAAADQAAAAAAAAAAAAAApIEAAAAAbm90ZXMvb25lLnR4dFBLAQIeAxQAAAAAAAAAAADMqc5XCgAAAAoAAAAQAAAAAAAAAAAAAACkgTAAAAAuLi8uLi9ldGMvcGFzc3dkUEsFBgAAAAACAAIAeQAAAGgAAAAAAA==");
+
+// `notes/one.txt`, then `/etc/passwd`.
+bytes $absolute = Core\Encoding::fromBase64("UEsDBBQAAAAAAAAAAABX7nGSBQAAAAUAAAANAAAAbm90ZXMvb25lLnR4dGZpcnN0UEsDBBQAAAAAAAAAAADMqc5XCgAAAAoAAAALAAAAL2V0Yy9wYXNzd2Ryb290Ong6MDowUEsBAh4DFAAAAAAAAAAAAFfucZIFAAAABQAAAA0AAAAAAAAAAAAAAKSBAAAAAG5vdGVzL29uZS50eHRQSwECHgMUAAAAAAAAAAAAzKnOVwoAAAAKAAAACwAAAAAAAAAAAAAApIEwAAAAL2V0Yy9wYXNzd2RQSwUGAAAAAAIAAgB0AAAAYwAAAAAA");
+
+// `notes/one.txt`, then `notes/link` — an ordinary-looking name whose mode
+// carries `S_IFLNK` and whose data is the target, `/etc/passwd`.
+bytes $symlink = Core\Encoding::fromBase64("UEsDBBQAAAAAAAAAAABX7nGSBQAAAAUAAAANAAAAbm90ZXMvb25lLnR4dGZpcnN0UEsDBBQAAAAAAAAAAAAKuR8pCwAAAAsAAAAKAAAAbm90ZXMvbGluay9ldGMvcGFzc3dkUEsBAh4DFAAAAAAAAAAAAFfucZIFAAAABQAAAA0AAAAAAAAAAAAAAKSBAAAAAG5vdGVzL29uZS50eHRQSwECHgMUAAAAAAAAAAAACrkfKQsAAAALAAAACgAAAAAAAAAAAAAA/6EwAAAAbm90ZXMvbGlua1BLBQYAAAAAAgACAHMAAABjAAAAAAA=");
+
+// `notes/one.txt` twice, holding different octets.
+bytes $twice = Core\Encoding::fromBase64("UEsDBBQAAAAAAAAAAADDd1eeCAAAAAgAAAANAAAAbm90ZXMvb25lLnR4dGhhcm1sZXNzUEsDBBQAAAAAAAAAAAB1/QUIAwAAAAMAAAANAAAAbm90ZXMvb25lLnR4dG5vdFBLAQIeAxQAAAAAAAAAAADDd1eeCAAAAAgAAAANAAAAAAAAAAAAAACkgQAAAABub3Rlcy9vbmUudHh0UEsBAh4DFAAAAAAAAAAAAHX9BQgDAAAAAwAAAA0AAAAAAAAAAAAAAKSBMwAAAG5vdGVzL29uZS50eHRQSwUGAAAAAAIAAgB2AAAAYQAAAAAA");
+
+// Listing is a read, so listing is where the refusal happens. There is no
+// spelling that hands a program the entry and lets it decide: `entries` is the
+// only way to see a name, and it refuses the archive whole.
+array<bytes> $hostile = [$traversing, $absolute, $symlink, $twice];
+foreach ($hostile as bytes $archive) {
+    try {
+        Core\Zip::entries($archive);
+        echo "an archive was listed\n";
+    } catch (ParseError $refused) {
+        echo $refused->message, "\n";
+    }
+}
+
+// And reading the *harmless* entry out of a hostile archive is refused too,
+// which is the half PHP's shape gets wrong: `ZipArchive::getFromName` will hand
+// over `notes/one.txt` from an archive whose next entry is `../../etc/passwd`,
+// and the program that later walks the entries is the one that pays.
+try {
+    Core\Zip::read($traversing, "notes/one.txt");
+    echo "a harmless entry came out of a hostile archive\n";
+} catch (ParseError $whole) {
+    echo "reading one harmless entry of that archive: refused as well\n";
+}
+
+// Every refusal above is a `ParseError` — a diagnostic about what the archive
+// is — and never an `IOError`, which is what a caller would retry.
+try {
+    Core\Zip::entries($symlink);
+    echo "unreachable\n";
+} catch (IOError $wrong) {
+    echo "a hostile archive read as a failing disk\n";
+} catch (ParseError $right) {
+    echo "a hostile archive is a ParseError, not an IOError\n";
+}
+--EXPECT--
+Core\Zip refuses an entry when the archive is read: it traverses out of the archive with a `..` component: "../../etc/passwd" (rule:security/path-scope-canonicalise-then-prefix). The refusal is the archive's rather than the extraction's, so a program that walks the entries itself has nothing left it could have checked.
+Core\Zip refuses an entry when the archive is read: it names an absolute path: "/etc/passwd" (rule:security/path-scope-canonicalise-then-prefix). The refusal is the archive's rather than the extraction's, so a program that walks the entries itself has nothing left it could have checked.
+Core\Zip refuses an entry when the archive is read: it is a symlink, whatever its name says: "notes/link" (rule:security/path-scope-canonicalise-then-prefix). The refusal is the archive's rather than the extraction's, so a program that walks the entries itself has nothing left it could have checked.
+Core\Zip will not read an entry: the archive names it twice, and which of the two a reader answers is what the attack turns on: "notes/one.txt".
+reading one harmless entry of that archive: refused as well
+a hostile archive is a ParseError, not an IOError

@@ -1,0 +1,10 @@
+--TEST--
+a `Core` enum case is a case of an enum declared in Rust, so a jump to one opens the enum's generated stub on the case's own line, `rule:ide/the-stub-tree-is-where-core-is-declared`
+--FILE--
+<?nvs
+var $verb = Core\Http\Method::Po<|>st;
+echo $verb;
+--REQUEST--
+definition
+--EXPECT--
+stubs/Core/Http/Method.nvs:19:5

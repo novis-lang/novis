@@ -1,0 +1,11 @@
+{
+  "title": "Keywords, contextual keywords and the `<?nvs` tag are lower case and nothing else",
+  "status": "shipped",
+  "seeAlso": [
+    "classes/names-resolve-case-sensitively",
+    "statements/nvs-is-the-only-open-tag"
+  ],
+  "guardedBy": [
+    "crates/nvs-syntax/src/lexer.rs"
+  ]
+}

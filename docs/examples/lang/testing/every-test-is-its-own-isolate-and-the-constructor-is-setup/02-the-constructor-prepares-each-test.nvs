@@ -1,0 +1,45 @@
+<?nvs
+// Shows the constructor of a test class. It runs once before every test, so
+// every test starts from the same prepared state.
+
+use Core\Test;
+
+class Basket {
+    public array<string> $items;
+
+    public function constructor() {
+        $this->items = [];
+    }
+
+    public function add(string $item): void {
+        $this->items[] = $item;
+    }
+}
+
+class BasketTest {
+    private Basket $basket;
+
+    // This runs again before each test below, so each test gets a new basket.
+    public function constructor() {
+        $this->basket = new Basket();
+        $this->basket->add("bread");
+    }
+
+    #[Test]
+    public function itStartsWithThePreparedItem(): void {
+        Test::assertCount($this->basket->items, 1);
+    }
+
+    #[Test]
+    public function itAddsToThePreparedItem(): void {
+        // The item this test adds is gone before the next test starts.
+        $this->basket->add("milk");
+        Test::assertCount($this->basket->items, 2);
+    }
+}
+
+// This prints `2`.
+var $basket = new Basket();
+$basket->add("bread");
+$basket->add("milk");
+echo Core\Arr::count($basket->items), "\n";

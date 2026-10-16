@@ -1,0 +1,37 @@
+--TEST--
+`unset()` takes an array element of a named holder and nothing else — a bare local and a static property are `E0234`/`E0413`, `rule:classes/unset-is-refused-on-a-property` and `rule:types/declaration`
+--FILE--
+<?nvs
+class Holder {
+    public static array<string> $rows = [];
+
+    public static function rows(): array<string> {
+        return ["a" => "x"];
+    }
+}
+
+int $x = 1;
+// `rule:types/declaration`: a binding is declared once, with a type, and is definitely
+// assigned. There is no "undefined again" state to put `$x` back into, so
+// PHP's commonest `unset()` spelling has nothing to mean here.
+unset($x);
+// `rule:types/arrays` separates the array before the entry is removed, and the
+// separated copy needs a slot to be written back into. A call's result has
+// none, which is the same thing PHP means by "temporary expression in write
+// context".
+unset(Holder::rows()["a"]);
+// `rule:classes/unset-is-refused-on-a-property`'s property refusal reads the same on a static: it is one
+// slot, and `rule:classes/definite-property-initialization` guarantees it is definitely initialized for good.
+unset(Holder::$rows);
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0234]: `unset()` takes an array element of a named holder
+%A
+error[E0234]: `unset()` takes an array element of a named holder
+%A
+error[E0413]: `unset()` on `Holder::$rows` is refused; a declared property can never become uninitialized again
+%A
+error: aborting due to 3 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

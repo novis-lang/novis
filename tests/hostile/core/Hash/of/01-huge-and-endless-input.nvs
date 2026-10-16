@@ -1,0 +1,53 @@
+<?nvs
+// Attack: a program hashes empty data, very large data and then more digests than memory can
+// keep. Every digest should be computed. The program must stop at its memory limit with an error.
+// hostile: ends-early 4 FATAL
+
+// A lower memory limit, so the last step reaches the limit quickly.
+Core\Config::set('memory', '64M');
+
+// 1. Empty data, under every algorithm. Each one returns a digest of its normal size.
+array<Core\Hash::Digest> $all = [
+    Core\Hash::Digest::Crc32,
+    Core\Hash::Digest::Md5,
+    Core\Hash::Digest::Sha1,
+    Core\Hash::Digest::Sha256,
+    Core\Hash::Digest::Sha384,
+    Core\Hash::Digest::Sha512,
+    Core\Hash::Digest::Sha224,
+    Core\Hash::Digest::Sha512_224,
+    Core\Hash::Digest::Sha512_256,
+    Core\Hash::Digest::Sha3_224,
+    Core\Hash::Digest::Sha3_256,
+    Core\Hash::Digest::Sha3_384,
+    Core\Hash::Digest::Sha3_512,
+    Core\Hash::Digest::Crc32c,
+    Core\Hash::Digest::Blake3,
+];
+foreach ($all as Core\Hash::Digest $digest) {
+    echo 'empty: ', Core\Bytes::length(Core\Hash::of('', $digest)), " bytes\n";
+}
+
+// 2. A text of 16 million characters, hashed under three algorithms.
+string $huge = Core\Str::repeat('x', 16000000);
+echo 'huge sha256: ', Core\Bytes::length(Core\Hash::of($huge, Core\Hash::Digest::Sha256)), " bytes\n";
+echo 'huge sha3: ', Core\Bytes::length(Core\Hash::of($huge, Core\Hash::Digest::Sha3_512)), " bytes\n";
+echo 'huge blake3: ', Core\Bytes::length(Core\Hash::of($huge, Core\Hash::Digest::Blake3)), " bytes\n";
+
+// 3. Each digest is used as the next input, one hundred thousand times. Every digest
+// is freed, so memory use must stay flat.
+bytes $chain = Core\Hash::of('start', Core\Hash::Digest::Sha256);
+uint $round = 0;
+while ($round < 100000) {
+    $chain = Core\Hash::of($chain, Core\Hash::Digest::Sha256);
+    $round = $round + 1;
+}
+echo 'chain done: ', Core\Bytes::length($chain), " bytes\n";
+
+// 4. Every digest is kept, so nothing can be freed. This step ends the program at
+// its memory limit.
+echo "step 4\n";
+array<bytes> $kept = [];
+while (true) {
+    $kept[] = Core\Hash::of($chain, Core\Hash::Digest::Sha512);
+}

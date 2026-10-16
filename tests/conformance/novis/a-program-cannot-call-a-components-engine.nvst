@@ -1,0 +1,17 @@
+--TEST--
+A program that calls a built-in component's engine class does not compile, and the error names the public class to use instead — `rule:packaging/a-components-engine-class-is-internal`
+--FILE--
+<?nvs
+use Novis\Image\Codec;
+
+// `Novis\Image\Codec` is the image component's own engine.
+// Only `Novis\Image\Image` and its siblings call it.
+var $info = Codec::info(Core\Encoding::fromHex("89504e47"));
+echo "unreachable\n";
+--EXPECTF-ERROR--
+error[E0856]: `Novis\Image\Codec::info` is internal to the `image` component
+%A
+  = help: The functions that decode, change and encode images. `Novis\Image\Image` calls them for you, so most programs use `Image` instead.
+
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

@@ -1,0 +1,14 @@
+<?nvs
+// Shows that the count includes every copy of a value, and goes down with each `pop`.
+
+var $heap = new Core\Heap<string>();
+$heap->push("red");
+$heap->push("red");
+$heap->push("blue");
+
+// "red" was added twice, so this prints 3.
+echo $heap->count(), "\n";
+
+// `pop` takes out "blue", the first value in alphabetical order. This prints 2.
+$heap->pop();
+echo $heap->count(), "\n";

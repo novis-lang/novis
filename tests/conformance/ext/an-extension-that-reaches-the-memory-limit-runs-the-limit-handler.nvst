@@ -1,0 +1,31 @@
+--TEST--
+An extension call that reaches the request's memory limit runs the program's `Core\Fatal::onLimit` handler, and then the request stops with a `FATAL` — `rule:packaging/a-guest-crash-throws`, `rule:errors/on-limit`
+--EXTENSION--
+ledger
+--FILE--
+<?nvs
+use Shop\Ledger;
+
+// This function runs when the request reaches a limit.
+Core\Fatal::onLimit(fn (array<string> $report): void => {
+    echo "onLimit ", $report['limit'], "\n";
+});
+
+// The extension keeps a copy of every string it is given until the request ends.
+// Each call adds one megabyte, so a few calls reach the 8 MB limit.
+string $line = Core\Str::repeat('x', 1048576);
+int $calls = 0;
+while ($calls < 64) {
+    $calls = $calls + 1;
+    string $back = Ledger::echoString($line);
+}
+
+// This line does not run. The request stops at the limit.
+echo "finished ", $calls, " calls\n";
+--FILE nvs.toml--
+[limits]
+memory = "8M"
+--EXPECT--
+onLimit memory
+--EXPECT-ERROR--
+FATAL: the extension used all of the memory it may use

@@ -1,0 +1,4 @@
+Core\Xml\Writer::doctype(): `2024-report` is not a name a document can write.
+Core\Xml\Writer::doctype(): a document has at most one document type declaration, and one is already written.
+Core\Xml\Writer::doctype(): a document type declaration goes above the root element, and the root element is already written.
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE report><report/>

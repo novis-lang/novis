@@ -1,0 +1,12 @@
+<?nvs
+// Shows what happens when the number of milliseconds is too large for a duration.
+
+// 9223372036854 is the largest number that fits. This prints it again.
+echo Core\Time\Duration::milliseconds(9223372036854)->toMilliseconds(), "\n";
+
+// One more millisecond does not fit, so `milliseconds` throws a `RuntimeError`.
+try {
+    Core\Time\Duration::milliseconds(9223372036855);
+} catch (RuntimeError $e) {
+    echo $e->message, "\n";
+}

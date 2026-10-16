@@ -1,0 +1,21 @@
+<?nvs
+// Shows how to turn a numeric id into a short code for a link, and read the id back.
+
+class ShortLink {
+    // Base 36 uses the digits and the letters `a` to `z`, so the code is short.
+    public static function code(int $id): string {
+        return Core\Math::toBase($id, 36);
+    }
+
+    // `Core\Math::fromBase` reads the code and returns the id.
+    public static function id(string $code): int {
+        return Core\Math::fromBase($code, 36);
+    }
+}
+
+// This prints https://example.com/s/2n9c for the id 123456.
+string $code = ShortLink::code(123456);
+echo "https://example.com/s/", $code, "\n";
+
+// This prints 123456.
+echo ShortLink::id($code), "\n";

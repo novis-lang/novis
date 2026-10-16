@@ -1,0 +1,17 @@
+<?nvs
+// Shows what `read` does when a document is broken in the middle.
+
+// The second `item` is closed by `</list>`, so this document is not well-formed.
+Core\Xml\Reader $reader = Core\Xml::reader('<list><item>one</item><item>two</list>');
+
+// `read` returns every node before the error. Then it throws a `ParseError`.
+// This prints list, item, one, item and two, and then the error.
+try {
+    ?Core\Xml\Node $node = $reader->read();
+    while ($node != null) {
+        echo $node->name(), $node->text(), "\n";
+        $node = $reader->read();
+    }
+} catch (ParseError $error) {
+    echo "error: ", $error->message, "\n";
+}

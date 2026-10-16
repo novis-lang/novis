@@ -1,0 +1,8 @@
+<?nvs
+// Shows that `Core\Html::parse` adds the tags that a short piece of HTML leaves out.
+
+// This text has no `html`, `head` or `body` tag, and the `p` tag is never closed.
+var $tree = Core\Html::parse("<p>Hello, <b>world</b>");
+
+// `source()` writes the whole tree back as text. The missing tags are now there.
+echo $tree->source(), "\n";

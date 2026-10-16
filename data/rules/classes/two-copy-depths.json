@@ -1,0 +1,14 @@
+{
+  "title": "A copy is either `clone`'s one level or the graph copy, and no class customizes either",
+  "status": "shipped",
+  "seeAlso": [
+    "classes/clone-is-shallow",
+    "classes/graph-copy",
+    "classes/serialize-is-a-closed-format",
+    "classes/no-magic-methods"
+  ],
+  "guardedBy": [
+    "tests/conformance/class/a-clone-copies-storage-without-running-anything.nvst",
+    "tests/conformance/core/serialize-encode-and-decode-are-one-graph-copy.nvst"
+  ]
+}

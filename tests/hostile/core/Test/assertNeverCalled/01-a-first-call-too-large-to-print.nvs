@@ -1,0 +1,70 @@
+<?nvs
+// Attack: a double is called with a sixteen-megabyte text, a deeply nested array and
+// many thousands of other calls. Each check should throw an error, and the program
+// should not crash.
+
+interface Store
+{
+    public function put(mixed $value): void;
+    public function drop(): void;
+}
+
+Store $store = Core\Test::double<Store>({
+    put: fn(mixed $value): void => {},
+    drop: fn(): void => {},
+});
+
+// Step 1: the first call has a text of sixteen megabytes. The error message shows a shortened copy.
+$store->put(Core\Str::repeat('x', 16777216));
+try {
+    Core\Test::assertNeverCalled($store, Store::put);
+} catch (Core\Test\Failure $failure) {
+    echo 'failed, message of ', Core\Str::length($failure->message) > 16777216 ? 'many' : 'few', " characters\n";
+}
+
+// Step 2: one hundred thousand more calls. The message still shows only the first one.
+uint $count = 0;
+while ($count < 100000) {
+    $store->put($count);
+    $count = $count + 1;
+}
+try {
+    Core\Test::assertNeverCalled($store, Store::put, { message: Core\Str::repeat('m', 1000000) });
+} catch (Core\Test\Failure $failure) {
+    echo "failed again\n";
+}
+
+// Step 3: a method that was never called, checked one hundred thousand times.
+uint $check = 0;
+while ($check < 100000) {
+    Core\Test::assertNeverCalled($store, Store::drop);
+    $check = $check + 1;
+}
+echo "drop was never called\n";
+
+// Step 4: a first call whose argument is nested fifty thousand levels deep.
+Store $other = Core\Test::double<Store>({
+    put: fn(mixed $value): void => {},
+    drop: fn(): void => {},
+});
+mixed $deep = 0;
+uint $level = 0;
+while ($level < 50000) {
+    $deep = [$deep];
+    $level = $level + 1;
+}
+$other->put($deep);
+try {
+    Core\Test::assertNeverCalled($other, Store::put);
+} catch (Throwable $tooDeep) {
+    echo "deep failed\n";
+}
+
+// Step 5: an ordinary object has no list of calls to read.
+final class Plain
+{}
+try {
+    Core\Test::assertNeverCalled(new Plain(), Store::drop);
+} catch (LogicError $error) {
+    echo "not a double\n";
+}

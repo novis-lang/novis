@@ -1,0 +1,20 @@
+<?nvs
+// Shows how to tell a text message from a binary message.
+
+// A fixed server, so the example runs without a network.
+// It sends one text message and one binary message of four bytes.
+Core\Test::answerSocket("wss://camera.example.com/frames", ["frame 1", "JPEG" as bytes]);
+
+Core\Http\Socket $socket = Core\Http\Client::openSocket("wss://camera.example.com/frames");
+?Core\Socket\Message $message = $socket->receive();
+while ($message != null) {
+    // A text message has `text()`. A binary message has `bytes()`, and its `text()` is `null`.
+    ?tainted string $text = $message->text();
+    if ($text != null) {
+        echo "text: ", $text, "\n";
+    } else {
+        // This prints `binary: 4 bytes`.
+        echo "binary: ", Core\Bytes::length($message->bytes() ?? ("" as tainted bytes)), " bytes\n";
+    }
+    $message = $socket->receive();
+}

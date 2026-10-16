@@ -1,0 +1,17 @@
+<?nvs
+// Shows how to open a database that the program itself names. `Core\Db::open`
+// takes the settings a `[db.<name>]` block in `nvs.toml` would otherwise hold.
+
+// `driver` says which backend this is. SQLite needs a file path, and the other
+// four drivers need a host. `:memory:` lasts as long as the program runs.
+var $db = Core\Db::open({ driver: Core\Db\Driver::Sqlite, path: ':memory:' });
+
+$db->execute('create table notes (id integer primary key, text text not null)', []);
+$db->execute('insert into notes (id, text) values (?, ?)', [1, 'buy milk']);
+
+// This prints `1 buy milk`.
+foreach ($db->query('select id, text from notes order by id', []) as Core\Db\Row $row) {
+    echo $row->int('id') ?? 0, ' ', $row->string('text') ?? '', "\n";
+}
+
+$db->close();

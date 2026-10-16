@@ -1,0 +1,12 @@
+<?nvs
+// Shows that a colour value does not go above 255.
+use Novis\Image\Image;
+use Novis\Image\Color;
+
+Image $light = Image::create(10, 10, Color::rgba(200, 100, 0));
+
+// 200 times 1.5 is 300, so the red value stops at 255.
+// 0 times 1.5 is still 0. This prints 255 150 0.
+var $raw = $light->brightness(1.5)->raw();
+array<mixed> $pixel = Core\Bytes::unpack(Core\Bytes::slice($raw->pixels, 0, 4), "C4");
+echo $pixel[0], " ", $pixel[1], " ", $pixel[2], "\n";

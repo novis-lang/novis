@@ -1,0 +1,98 @@
+--TEST--
+A `Throwable` clause takes all twelve classes of the tree, every one of them answers the three properties the root declares whatever its depth, and a user class extending the root joins there rather than on either half — all counted rather than read off one arm — spec § 10
+--FILE--
+<?nvs
+// covers: Throwable
+// The root is the one name a `catch` can use to mean anything at all, and the
+// one place a program's own exception joins the tree. What this pins is that
+// both of those hold across the *whole* tree rather than on the class somebody
+// happened to try: the reach of the clause, and the root's properties reaching
+// a class four levels down, are each a count over every name in the tree.
+use Core\Cli\NotInteractive;
+use Core\Db\DbError;
+use Core\Db\RolledBack;
+use Core\Test\Failure;
+
+final class Root {
+    public static function raise(int $which): void {
+        if ($which == 0) { throw new Throwable("root"); }
+        if ($which == 1) { throw new LogicError("logic"); }
+        if ($which == 2) { throw new RuntimeError("runtime"); }
+        if ($which == 3) { throw new IOError("io"); }
+        if ($which == 4) { throw new ParseError("parse"); }
+        if ($which == 5) { throw new TimeoutError("timeout"); }
+        if ($which == 6) { throw new RecursionError("recursion"); }
+        if ($which == 7) { throw new ArithmeticError("math"); }
+        if ($which == 8) { throw new Failure("check"); }
+        if ($which == 9) { throw new NotInteractive("prompt"); }
+        if ($which == 10) { throw new RolledBack("rolled back"); }
+        throw new DbError("db");
+    }
+
+    // One clause, every name in the tree. A class that stopped descending from
+    // the root would leave the count short while every other line still reads
+    // the way it always did.
+    public static function allCaught(): uint {
+        uint $caught = 0;
+        int $which = 0;
+        while ($which < 12) {
+            try {
+                Root::raise($which);
+            } catch (Throwable $anything) {
+                $caught = $caught + 1;
+            }
+            $which = $which + 1;
+        }
+        return $caught;
+    }
+
+    // The root declares its properties once and every class inherits them at
+    // the same slots, which is what lets the runtime fill in a backtrace on a
+    // value it knows nothing else about. Three properties across twelve
+    // classes, so a class that added a property of its own in front of the
+    // inherited ones shows up here as a number and not as a wrong-looking line.
+    public static function everyProperty(): uint {
+        uint $answered = 0;
+        int $which = 0;
+        while ($which < 12) {
+            try {
+                Root::raise($which);
+            } catch (Throwable $anything) {
+                if (Core\Str::length($anything->message) > 0) { $answered = $answered + 1; }
+                if (Core\Str::length($anything->location) > 0) { $answered = $answered + 1; }
+                if (Core\Arr::count($anything->backtrace) > 0) { $answered = $answered + 1; }
+            }
+            $which = $which + 1;
+        }
+        return $answered;
+    }
+}
+
+// A program's own exception extends the root directly, and that is where it
+// joins: neither half of the tree admits it, so a library catching one half
+// never takes an application's own failure by accident.
+class Overdue extends Throwable {
+    public string $invoice = "";
+}
+
+final class Joined {
+    public static function where(): string {
+        try {
+            throw new Overdue("invoice 4021 is unpaid");
+        } catch (LogicError $notABug) {
+            return "a LogicError clause";
+        } catch (RuntimeError $notTheWorld) {
+            return "a RuntimeError clause";
+        } catch (Throwable $root) {
+            return "only the root";
+        }
+    }
+}
+
+echo Root::allCaught(), "\n";
+echo Root::everyProperty(), "\n";
+echo Joined::where(), "\n";
+--EXPECT--
+12
+36
+only the root

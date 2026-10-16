@@ -1,0 +1,15 @@
+<?nvs
+// Shows what `Core\Router::methodsFor` returns for a path that no route has.
+
+class Users {
+    #[Core\Route(path: "/users/{id}", method: Core\Http\Method::Get, name: "Users::show")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function show(uint $id): string { return "one user"; }
+}
+
+// `/users/7` matches the route, so this prints 1.
+echo Core\Arr::count(Core\Router::methodsFor("/users/7")), "\n";
+
+// `{id}` is a `uint` in `show`, and `abc` is not a number.
+// No route has this path, so the result is an empty array and this prints 0.
+echo Core\Arr::count(Core\Router::methodsFor("/users/abc")), "\n";

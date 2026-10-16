@@ -1,0 +1,11 @@
+<?nvs
+// Shows how `nvs ast --json` tells you which operator runs first.
+// Run `nvs ast --json 01-how-an-expression-is-grouped.nvs` to see the tree of this file.
+
+// In the tree, the `Binary` node with `"op":"Add"` has the `Binary` node with
+// `"op":"Mul"` as its second child. So `3 * 4` runs first, and this prints `14`.
+echo 2 + 3 * 4, "\n";
+
+// The parentheses change the tree. Now the first child of `Mul` is a `Paren` node,
+// and `Add` is inside it. So `2 + 3` runs first, and this prints `20`.
+echo (2 + 3) * 4, "\n";

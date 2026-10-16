@@ -1,0 +1,26 @@
+<?nvs
+// Attack: a program changes the id it got back and then reads the id a million
+// times. The next read should still return the original id. Every copy should be
+// freed, so the program stays inside its memory limit and runs to its last line.
+
+string $first = Core\Program::id();
+
+// 1. The program changes its own copy of the id.
+string $copy = Core\Program::id();
+$copy = Core\Str::replace($copy, Core\Str::slice($copy, 0, 1), 'x');
+$copy = $copy . '-changed';
+
+// 2. The next read still returns the original id. This prints `same`.
+echo Core\Program::id() == $first ? 'same' : 'changed', "\n";
+
+// 3. The id is read a million times, and each read is kept only until the next one.
+uint $characters = 0;
+uint $i = 0;
+while ($i < 1000000) {
+    string $id = Core\Program::id();
+    $characters = $characters + Core\Str::length($id);
+    $i = $i + 1;
+}
+
+// 4. This prints `64000000`.
+echo $characters, "\n";

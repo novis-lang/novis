@@ -1,0 +1,34 @@
+<?nvs
+// Checks if a map has any entries, as a program does before it saves the records that changed.
+// bench: iterations 2048
+// bench: allocations 0
+// bench: complexity constant
+
+final class Key {
+    public int $id;
+
+    public function constructor(int $id) {
+        $this->id = $id;
+    }
+}
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<Core\ObjectMap<Key, int>> $maps = [
+            new Core\ObjectMap<Key, int>(),
+            new Core\ObjectMap<Key, int>(),
+            new Core\ObjectMap<Key, int>(),
+        ];
+        $maps[1]->set(new Key(1), 1);
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // chained: which map is checked depends on last round's total
+            $total = $total + 1 + ($maps[($total % 3) as int]->isEmpty() ? (1 as uint) : (0 as uint));
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(2048), "\n";

@@ -1,0 +1,19 @@
+{
+  "title": "A string or a `.` chain of strings and values converts to the html template that prints the same text, as a code action the server computes and an editor only applies",
+  "status": "shipped",
+  "seeAlso": [
+    "core-classes/html-template",
+    "ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows",
+    "ide/a-quick-fix-is-a-diagnostics-own-suggestion",
+    "ide/the-index-answers-the-cursor"
+  ],
+  "guardedBy": [
+    "crates/nvs-lsp/src/html_template.rs",
+    "crates/nvs-lsp/tests/actions.rs",
+    "tests/lsp/actions/a-double-quoted-string-converts-to-an-html-template.lspt",
+    "tests/lsp/actions/a-single-quoted-string-keeps-its-dollar-and-backtick-as-text.lspt",
+    "tests/lsp/actions/a-concatenation-chain-converts-as-one-html-template.lspt",
+    "tests/lsp/actions/an-html-template-is-offered-no-conversion.lspt",
+    "editors/vscode/test/contributions/contributions.test.ts"
+  ]
+}

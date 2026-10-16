@@ -1,0 +1,38 @@
+--TEST--
+A null test does not narrow a property that is not `readonly`, and E0459's help shows the local copy and `?->` — `rule:types/narrowing`
+--FILE--
+<?nvs
+final class Node
+{
+    public function label(): string
+    {
+        return "node";
+    }
+}
+
+final class Holder
+{
+    public ?Node $node = null;
+}
+
+final class Probe
+{
+    public static function show(Holder $holder): string
+    {
+        if ($holder->node != null) {
+            return $holder->node->label();
+        }
+        return "empty";
+    }
+}
+// covers: lang:classes/nullable-objects-and
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0459]: `null|Node` may be `null`, so `->` cannot reach a member of it
+   --> case.nvs:20:20
+%A
+   = help: a test does not change the type of a property that is not `readonly`, because the property can change after the test. Copy it to a variable and test the variable: `var $value = $holder->node; if ($value != null) { … }`. Or use `?->`, which returns `null` when the property is `null`
+
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

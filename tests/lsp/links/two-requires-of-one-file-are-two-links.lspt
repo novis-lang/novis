@@ -1,0 +1,14 @@
+--TEST--
+a file is loaded once and every site that names it is a link, so a second `require` of it underlines too, `rule:statements/require-is-the-only-inclusion-construct`
+--FILE--
+<?nvs
+require 'lib.nvs';
+require 'lib.nvs';
+--FILE lib.nvs--
+<?nvs
+class Counter { }
+--REQUEST--
+documentLink
+--EXPECT--
+2:9-2:18 -> lib.nvs
+3:9-3:18 -> lib.nvs

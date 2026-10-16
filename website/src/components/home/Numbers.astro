@@ -1,0 +1,422 @@
+---
+/**
+ * The front page's numbers: one panel of figures from the recorded benchmark
+ * run, and one of counts from the repository (src/lib/numbers.ts). Before a
+ * benchmark run is recorded, the first panel is not shown.
+ *
+ * Each panel fades in as it scrolls into view (`.nv-reveal`). At the same
+ * time the line under each number grows from the left, and the filled
+ * segments of the crates bar light up one after another. The script counts
+ * a number up from zero once it scrolls into view. The HTML has the final
+ * value, so without the script, or with reduced motion, it is simply there.
+ * The counting text is hidden from assistive technology, which reads the
+ * final value from a copy instead.
+ */
+import { Icon } from '@astrojs/starlight/components'
+import Section from './Section.astro'
+import { counts, measured } from '~/lib/numbers'
+import { withBase } from '~/lib/base'
+
+interface Figure {
+  value: number
+  /** Digits after the decimal point. */
+  decimals?: number
+  /** Printed after the number, smaller: `+`, ` ms`, ` of 21`. */
+  suffix?: string
+  label: string
+  text: string
+  /** Draw `crates` as a bar of segments, with `cratesWithoutUnsafe` of them filled. */
+  segments?: boolean
+}
+
+interface Panel {
+  icon: 'rocket' | 'approve-check'
+  title: string
+  meta: string[]
+  figures: Figure[]
+  link: { href: string; text: string }
+}
+
+const number = (n: number, decimals = 0) =>
+  n.toLocaleString('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals })
+
+const cores = (n: number) => (n === 1 ? 'one CPU core' : `${n} CPU cores`)
+
+const lowerFirst = (s: string) => s.charAt(0).toLowerCase() + s.slice(1)
+
+const panels: Panel[] = [
+  ...(measured
+    ? [
+        {
+          icon: 'rocket' as const,
+          title: 'One benchmark run',
+          meta: [
+            `The test program ${lowerFirst(measured.caseText)}`,
+            `It ran on ${cores(measured.cpus)} of an ${measured.processor} on ${measured.date}. Every request was sent over HTTPS through nginx.`,
+          ],
+          figures: [
+            {
+              value: measured.medianRequestsPerSec,
+              label: 'requests per second',
+              text: `The median of ${measured.reps} runs, with ${measured.concurrency} requests at the same time.`,
+            },
+            {
+              value: measured.p99Ms,
+              decimals: 1,
+              suffix: ' ms',
+              label: 'for 99 of 100 requests',
+              text: 'In the fastest run, 99 of 100 requests got their response within this time.',
+            },
+            {
+              value: measured.peakMiB,
+              decimals: 1,
+              suffix: ' MiB',
+              label: 'of memory at most',
+              text: 'The most memory the whole server used during the test.',
+            },
+            {
+              value: measured.failed,
+              label: 'failed requests',
+              text:
+                measured.failed === 0
+                  ? `All ${number(measured.requests)} requests in ${measured.cases} benchmark programs returned status 200.`
+                  : `${number(measured.failed)} of ${number(measured.requests)} requests in ${measured.cases} benchmark programs did not return status 200.`,
+            },
+          ],
+          link: { href: '/in-depth/compare/', text: 'Compare with other languages' },
+        },
+      ]
+    : []),
+  {
+    icon: 'approve-check',
+    title: 'Counted in the repository',
+    meta: ['Each count is rounded down. The real number is a little higher.'],
+    figures: [
+      {
+        value: counts.attacks,
+        suffix: '+',
+        label: 'attacks',
+        text: 'Programs that try to break Novis. Each one passes only if Novis does not crash or hang.',
+      },
+      {
+        value: counts.languageTests,
+        suffix: '+',
+        label: 'language tests',
+        text: 'Novis programs. Each one checks its output or its error message against the expected text.',
+      },
+      {
+        value: counts.rustTests,
+        suffix: '+',
+        label: 'Rust tests',
+        text: 'Tests of the compiler, the runtime and the library, written in Rust.',
+      },
+      {
+        value: counts.cratesWithoutUnsafe,
+        suffix: ` of ${counts.crates}`,
+        label: 'crates with no unsafe Rust',
+        text: `Novis is made of ${counts.crates} Rust crates (packages). In ${counts.cratesWithoutUnsafe} of them, unsafe code does not compile.`,
+        segments: true,
+      },
+    ],
+    link: { href: '/in-depth/how-novis-is-written/#tested-from-every-direction', text: 'How Novis is tested' },
+  },
+]
+---
+
+<Section
+  id="numbers"
+  eyebrow="In numbers"
+  title="Measured and counted"
+  lead="Every number here comes from a recorded benchmark run or is counted in the repository."
+>
+  <div class="panels">
+    {
+      panels.map((panel) => (
+        <article class="panel nv-reveal">
+          <header>
+            <span class="nv-icon-tile">
+              <Icon name={panel.icon} size="1.25rem" />
+            </span>
+            <h3>{panel.title}</h3>
+            {panel.meta.map((line) => (
+              <p class="meta">{line}</p>
+            ))}
+          </header>
+          <ul class="figures" role="list">
+            {panel.figures.map((f) => (
+              <li class="figure">
+                <span class="value" aria-hidden="true">
+                  <span class="nv-gradient-text" data-count={f.value === 0 ? undefined : f.value} data-decimals={f.decimals ?? 0}>
+                    {number(f.value, f.decimals)}
+                  </span>
+                  {f.suffix && <span class="suffix">{f.suffix}</span>}
+                </span>
+                <span class="sr-only">
+                  {number(f.value, f.decimals)}
+                  {f.suffix}
+                </span>
+                <span class="rule" aria-hidden="true" />
+                <span class="label">{f.label}</span>
+                {f.segments && (
+                  <span class="segments" aria-hidden="true">
+                    {Array.from({ length: counts.crates }, (_, i) => (
+                      <span class:list={['segment', { on: i < counts.cratesWithoutUnsafe }]} style={`--i: ${i}`} />
+                    ))}
+                  </span>
+                )}
+                <p class="text">{f.text}</p>
+              </li>
+            ))}
+          </ul>
+          <a class="more" href={withBase(panel.link.href)}>
+            {panel.link.text}
+            <Icon name="right-arrow" size="1rem" />
+          </a>
+        </article>
+      ))
+    }
+  </div>
+</Section>
+
+<script>
+  // Counts each number up from zero once it scrolls into view. Only a number
+  // that starts below the window is counted, so a number the reader already
+  // sees never jumps back to zero.
+  const DURATION = 1100
+  const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  const values = [...document.querySelectorAll<HTMLElement>('#numbers [data-count]')]
+
+  if (!reduce && 'IntersectionObserver' in window) {
+    const format = (n: number, decimals: number) =>
+      n.toLocaleString('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals })
+
+    // The text each number had in the HTML, which it shows again at the end.
+    const finals = new Map<HTMLElement, string | null>()
+
+    const count = (el: HTMLElement) => {
+      const target = Number(el.dataset.count)
+      const decimals = Number(el.dataset.decimals ?? 0)
+      const final = finals.get(el) ?? null
+      const start = performance.now()
+      const step = (now: number) => {
+        const t = Math.min(1, (now - start) / DURATION)
+        const eased = 1 - (1 - t) ** 3
+        el.textContent = t < 1 ? format(target * eased, decimals) : final
+        if (t < 1) requestAnimationFrame(step)
+      }
+      requestAnimationFrame(step)
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (!entry.isIntersecting) continue
+          observer.unobserve(entry.target)
+          count(entry.target as HTMLElement)
+        }
+      },
+      { threshold: 0.6 },
+    )
+
+    for (const el of values) {
+      if (el.getBoundingClientRect().top < window.innerHeight) continue
+      finals.set(el, el.textContent)
+      el.textContent = format(0, Number(el.dataset.decimals ?? 0))
+      observer.observe(el)
+    }
+
+    // A printed page shows every final value, also one never scrolled to.
+    window.addEventListener('beforeprint', () => {
+      observer.disconnect()
+      for (const [el, final] of finals) el.textContent = final
+    })
+  }
+</script>
+
+<style>
+  .panels {
+    display: grid;
+    gap: var(--nv-space-5);
+  }
+
+  .panel {
+    display: grid;
+    gap: var(--nv-space-5);
+    padding: var(--nv-space-6);
+    border: 1px solid var(--nv-hairline);
+    border-radius: var(--nv-radius-lg);
+    background: color-mix(in oklab, var(--nv-surface) 80%, transparent);
+  }
+  @media (max-width: 49.99rem) {
+    .panel {
+      padding: var(--nv-space-5) var(--nv-space-4);
+    }
+  }
+
+  header {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    column-gap: var(--nv-space-3);
+    row-gap: var(--nv-space-1);
+    align-items: center;
+  }
+  h3 {
+    margin: 0;
+    font-size: var(--sl-text-xl);
+    font-weight: 750;
+    letter-spacing: -0.015em;
+    color: var(--sl-color-white);
+  }
+  .meta {
+    grid-column: 2;
+    margin: 0;
+    max-width: 48rem;
+    font-size: var(--sl-text-sm);
+    line-height: 1.6;
+    color: var(--sl-color-gray-2);
+  }
+
+  .figures {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr));
+    gap: var(--nv-space-3);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .figure {
+    display: flex;
+    flex-direction: column;
+    gap: var(--nv-space-2);
+    margin: 0;
+    padding: var(--nv-space-4);
+    border: 1px solid var(--nv-hairline);
+    border-radius: var(--nv-radius);
+    background: var(--nv-surface);
+    transition:
+      border-color var(--nv-fast) var(--nv-ease),
+      transform var(--nv-fast) var(--nv-ease);
+  }
+  .figure:hover {
+    border-color: color-mix(in oklab, var(--sl-color-accent) 55%, var(--nv-hairline));
+    transform: translateY(-2px);
+  }
+
+  .value {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    column-gap: 0.1em;
+    font-size: clamp(2.25rem, 1.8rem + 1.6vw, 3rem);
+    font-weight: 800;
+    line-height: 1.05;
+    letter-spacing: -0.04em;
+    font-variant-numeric: tabular-nums;
+  }
+  .suffix {
+    font-size: 0.5em;
+    font-weight: 750;
+    letter-spacing: -0.01em;
+    color: var(--sl-color-gray-2);
+  }
+
+  /* A short line under the number. It grows from the left as the panel
+     scrolls into view, with the same timeline as `.nv-reveal`. */
+  .rule {
+    display: block;
+    width: 2.5rem;
+    height: 3px;
+    border-radius: var(--nv-radius-pill);
+    background: var(--nv-gradient);
+    transform-origin: left center;
+  }
+
+  .label {
+    font-size: var(--sl-text-sm);
+    font-weight: 700;
+    color: var(--sl-color-white);
+  }
+  .text {
+    margin: 0;
+    font-size: var(--sl-text-sm);
+    line-height: 1.55;
+    color: var(--sl-color-gray-2);
+  }
+
+  .segments {
+    display: flex;
+    gap: 2px;
+    height: 0.5rem;
+  }
+  .segment {
+    flex: 1;
+    border-radius: 2px;
+    background: var(--nv-hairline-strong);
+  }
+  .segment.on {
+    background: var(--nv-gold);
+  }
+
+  .more {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--nv-space-1);
+    justify-self: start;
+    font-size: var(--sl-text-sm);
+    font-weight: 650;
+    color: var(--sl-color-text-accent);
+    text-decoration: none;
+  }
+  .more:hover {
+    text-decoration: underline;
+    text-underline-offset: 0.2em;
+  }
+  .more :global(svg) {
+    transition: translate var(--nv-fast) var(--nv-ease);
+  }
+  .more:hover :global(svg) {
+    translate: 3px 0;
+  }
+
+  @keyframes grow {
+    from {
+      transform: scaleX(0);
+    }
+    to {
+      transform: scaleX(1);
+    }
+  }
+  @keyframes light {
+    from {
+      opacity: 0.25;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+  @supports (animation-timeline: view()) {
+    @media (prefers-reduced-motion: no-preference) {
+      .rule {
+        animation: grow linear both;
+        animation-timeline: view();
+        animation-range: entry 20% entry 90%;
+      }
+      .segment.on {
+        animation: light linear both;
+        animation-timeline: view();
+        animation-range: entry calc(30% + var(--i) * 3%) entry calc(45% + var(--i) * 3%);
+      }
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .figure:hover {
+      transform: none;
+    }
+  }
+  /* With less transparency or more contrast a panel is opaque. */
+  @media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
+    .panel {
+      background: var(--nv-surface);
+    }
+  }
+</style>

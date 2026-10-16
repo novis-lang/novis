@@ -1,0 +1,6 @@
+# The attack may connect to any host, but reach only one internal address: 127.0.0.1.
+# It may open a server on 127.0.0.1, on a port the operating system picks.
+[capabilities.net]
+listen = ["127.0.0.1:0"]
+connect = true
+internal = ["127.0.0.1"]

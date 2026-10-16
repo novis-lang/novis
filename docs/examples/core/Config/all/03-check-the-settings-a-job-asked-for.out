@@ -1,0 +1,3 @@
+limits.memory is 384M
+limits.wall_time is 120s
+limits.max_tasks is 8

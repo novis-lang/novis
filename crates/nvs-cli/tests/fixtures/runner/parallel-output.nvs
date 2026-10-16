@@ -1,0 +1,21 @@
+<?nvs
+// `rule:testing/tests-run-across-every-core`'s captured output: what a passing
+// test prints is dropped, and what a failing test prints is written under its
+// failure.
+//
+// `crates/nvs-cli/src/runner.rs`'s own tests are the only reader of this file.
+use Core\Test;
+
+final class OutputTest {
+    #[Test]
+    public function itPasses(): void {
+        echo "printed by the passing test\n";
+        Test::assertTrue(true);
+    }
+
+    #[Test]
+    public function itFails(): void {
+        echo "printed by the failing test\n";
+        Test::assertSame(1, 2);
+    }
+}

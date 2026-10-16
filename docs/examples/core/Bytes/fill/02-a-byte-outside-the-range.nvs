@@ -1,0 +1,14 @@
+<?nvs
+// Shows what happens when the byte is not a number from 0 to 255. One byte
+// cannot hold 256, so the call throws an error.
+
+try {
+    bytes $wrong = Core\Bytes::fill(4, 256);
+    echo Core\Bytes::length($wrong), "\n";
+} catch (Throwable $error) {
+    // This prints the message of the error.
+    echo $error->message, "\n";
+}
+
+// 255 is the largest byte there is, and it works. This prints 4.
+echo Core\Bytes::length(Core\Bytes::fill(4, 255)), "\n";

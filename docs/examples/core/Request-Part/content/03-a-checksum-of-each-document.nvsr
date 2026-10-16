@@ -1,0 +1,21 @@
+--METHOD--
+POST
+--PATH--
+/documents
+--SCHEME--
+https
+--HEADERS--
+host: example.com
+content-type: multipart/form-data; boundary=docs-2b7d
+--BODY_CRLF--
+--docs-2b7d
+Content-Disposition: form-data; name="documents[]"; filename="contract.txt"
+Content-Type: text/plain
+
+This contract is between Shop and its customer.
+--docs-2b7d
+Content-Disposition: form-data; name="documents[]"; filename="terms.txt"
+Content-Type: text/plain
+
+Goods can be returned within 30 days.
+--docs-2b7d--

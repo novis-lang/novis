@@ -1,0 +1,32 @@
+<?nvs
+// Attack: a program tries to make the list of command line words grow, change
+// or stay behind in memory. Every step should give the same empty list, and the
+// program must keep running to the end.
+// hostile: timeout-ms 60000
+
+// 1. The list is read one million times. Each call gives a new list, nothing is
+//    kept behind after it, and the total stays 0.
+uint $total = 0;
+uint $i = 0;
+while ($i < 1000000) {
+    $total = $total + Core\Arr::count(Core\Cli::arguments());
+    $i = $i + 1;
+}
+echo 'step 1 counted ', $total, "\n";
+
+// 2. A word is added to the list, then the list is read again. The words belong
+//    to the program that was started, so the second read must still be empty.
+array<tainted string> $words = Core\Cli::arguments();
+array<tainted string> $wider = Core\Arr::append($words, '--admin');
+echo 'step 2 added ', Core\Arr::count($wider), "\n";
+echo 'step 2 read again ', Core\Arr::count(Core\Cli::arguments()), "\n";
+
+// 3. Ten thousand lists are held at the same time. They are all empty, so this
+//    should cost little memory and the program should reach the last line.
+array<array<tainted string>> $kept = [];
+uint $k = 0;
+while ($k < 10000) {
+    $kept = Core\Arr::append($kept, Core\Cli::arguments());
+    $k = $k + 1;
+}
+echo 'step 3 held ', Core\Arr::count($kept), "\n";

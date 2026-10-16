@@ -1,0 +1,45 @@
+<?nvs
+// Attack: a request sends brightness amounts that are negative, too large or not numbers.
+// Each attempt should throw an error or return an image, and the server keeps running.
+use Novis\Image\Color;
+use Novis\Image\Image;
+
+Image $small = Image::create(8, 8, Color::rgba(100, 100, 100));
+
+// 1. An amount that is not a number.
+try {
+    $small->brightness(Core\Math::sqrt(-1.0))->raw();
+    echo "step 1 ran\n";
+} catch (Throwable $e) {
+    echo "step 1 stopped\n";
+}
+
+// 2. An amount of infinity.
+try {
+    $small->brightness(1.0e308 * 10.0)->raw();
+    echo "step 2 ran\n";
+} catch (Throwable $e) {
+    echo "step 2 stopped\n";
+}
+
+// 3. A negative amount.
+try {
+    $small->brightness(-5.0)->raw();
+    echo "step 3 ran\n";
+} catch (Throwable $e) {
+    echo "step 3 stopped\n";
+}
+
+// 4. A thousand steps in one pipeline, each one doubling the values.
+try {
+    Image $bright = $small;
+    uint $i = 0;
+    while ($i < 1000) {
+        $bright = $bright->brightness(2.0);
+        $i = $i + 1;
+    }
+    var $last = $bright->raw();
+    echo 'step 4 ran ', $last->width, "\n";
+} catch (Throwable $e) {
+    echo "step 4 stopped\n";
+}

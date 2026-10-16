@@ -1,0 +1,24 @@
+--TEST--
+`Core\Response::json` takes `mixed` and accepts a tainted value anywhere inside it, because the serializer owns the framing -- `rule:security/sink-predicate` and `rule:security/response-body-is-one-typed-member` and `rule:security/sink-predicate`
+--FILE--
+<?nvs
+// `rule:security/response-body-is-one-typed-member`: `json` takes `mixed` and accepts tainted freely, by the same
+// argument `rule:security/sink-predicate` already makes for `Core\Log` fields and bound database
+// parameters -- the framing belongs to the serializer, never to concatenation.
+tainted string $t = "\" , \"injected\": \"yes" as tainted string;
+Core\Response::json(["field" => $t]);
+echo "\n";
+
+// Nested, and beside a plain value: the qualifier is a property of the string
+// and not of the position it is written in, and neither reaches the framing.
+Core\Response::json(["outer" => ["inner" => $t, "plain" => "ok"]]);
+echo "\n";
+
+// The same bytes through `text`, where they are a body rather than a value:
+// `text` is not a sink either, and there is nothing to escape at all.
+Core\Response::text($t);
+echo "\n";
+--EXPECT--
+{"field":"\" , \"injected\": \"yes"}
+{"outer":{"inner":"\" , \"injected\": \"yes","plain":"ok"}}
+" , "injected": "yes

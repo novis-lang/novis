@@ -1,0 +1,3 @@
+ldaps://example.test/CN=Configuration,DC=example,DC=test??base
+ldaps://example.test/DC=DomainDnsZones,DC=example,DC=test??base
+ldaps://example.test/DC=ForestDnsZones,DC=example,DC=test??base

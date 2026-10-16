@@ -1,0 +1,33 @@
+<?nvs
+// Shows how to continue a stream after the connection ends,
+// without getting the same events twice.
+
+// The first connection ends after event 2. When a URL has `after=2`,
+// the server sends only the events after event 2.
+Core\Test::answerHttp("https://stock.example.com/changes", 200, {
+    body: "id: 1\ndata: pencils: 40\n\nid: 2\ndata: paper: 12\n\n",
+    headers: ["content-type" => "text/event-stream"],
+});
+Core\Test::answerHttp("https://stock.example.com/changes?after=2", 200, {
+    body: "id: 3\ndata: ink: 5\n\n",
+    headers: ["content-type" => "text/event-stream"],
+});
+
+?tainted string $lastId = null;
+Core\Http\Stream $first = Core\Http\Client::stream(Core\Http\Method::Get, "https://stock.example.com/changes");
+foreach ($first->events() as Core\Http\Event $event) {
+    echo $event->data(), "\n";
+    // Remember the id of the last event that arrived.
+    $lastId = $event->id();
+}
+
+// The id came from the server, so it is `tainted`. `as ?int` converts it to a
+// whole number. So an unusual id cannot add other parameters to the URL.
+int $resumeAt = ($lastId as ?int) ?? 0;
+
+// The program connects again and asks for the events after the last id.
+// This prints "ink: 5". The server does not send events 1 and 2 again.
+Core\Http\Stream $again = Core\Http\Client::stream(Core\Http\Method::Get, "https://stock.example.com/changes?after=" . $resumeAt);
+foreach ($again->events() as Core\Http\Event $event) {
+    echo $event->data(), "\n";
+}

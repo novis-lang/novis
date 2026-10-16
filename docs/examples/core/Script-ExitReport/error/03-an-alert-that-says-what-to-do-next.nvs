@@ -1,0 +1,19 @@
+<?nvs
+// Shows a job that writes an alert when an error ends it. The alert also says
+// if the job can try again.
+// proof: exit 1
+
+Core\Script::onExit(fn (Core\Script\ExitReport $report): void => {
+    ?Throwable $error = $report->error();
+    if ($error == null) {
+        return;
+    }
+    // `is IOError` tests the class of the error. An `IOError` is often
+    // temporary, so the job can try again later.
+    string $next = $error is IOError ? "retry in 5 minutes" : "needs a person";
+    // This prints "ALERT sync failed: the server did not answer (retry in 5 minutes)".
+    echo "ALERT sync failed: ", $error->message, " (", $next, ")\n";
+});
+
+echo "syncing the customer list\n";
+throw new IOError("the server did not answer");

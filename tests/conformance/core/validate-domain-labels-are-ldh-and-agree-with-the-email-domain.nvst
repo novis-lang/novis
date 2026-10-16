@@ -1,0 +1,91 @@
+--TEST--
+`Core\Validate::isDomain`'s labels are RFC 1123 § 2.1's letters, digits and interior hyphens, and every ASCII code point answers the same in a domain of its own as in the domain half of an address, counted — docs/spec/01-core-library.md § 12
+--FILE--
+<?nvs
+// `crates/nvs-stdlib/src/validate.rs`'s module doc draws `isDomain` as RFC 1123
+// § 2.1's hostname: labels of 1 to 63 bytes joined by single dots, each of
+// ASCII letters, digits and `-`, and neither starting nor ending with `-`.
+// `validate-length-limits-are-pinned-on-both-sides.nvst` owns the 63 and the
+// 253 from both sides; this case owns the *character* boundary, and the one
+// place the two members that share this rule part company.
+final class Host {
+    public static function yn(bool $b): string {
+        return $b ? "y" : "n";
+    }
+
+    public static function one(int $c): string {
+        return Core\Str::fromCodePoint($c as uint);
+    }
+}
+
+// The hyphen is the character with a position rule rather than a membership
+// one: interior it is a label byte, at either end it is refused, and a label
+// that is nothing but a hyphen is both at once.
+echo "hyphen ",
+     Host::yn(Core\Validate::isDomain("-a.test")),
+     Host::yn(Core\Validate::isDomain("a-b.test")),
+     Host::yn(Core\Validate::isDomain("a-.test")),
+     Host::yn(Core\Validate::isDomain("-.test")),
+     "\n";
+
+// The dot separates labels rather than belonging to one, so "each label has at
+// least one byte" refuses a leading dot, a doubled one, and the trailing root
+// dot the module doc names — a DNS wire-form detail rather than something a
+// user types into a field.
+echo "dots ",
+     Host::yn(Core\Validate::isDomain(".a.test")),
+     Host::yn(Core\Validate::isDomain("a.test")),
+     Host::yn(Core\Validate::isDomain("a.test.")),
+     Host::yn(Core\Validate::isDomain("a..test")),
+     "\n";
+
+// Everything else is membership: an underscore is the one refused byte a form
+// field sees often — it is legal in a DNS name and not in a *hostname* — a
+// space and any byte over `0x7F` are refused with it, and case is not part of
+// the question at all.
+echo "chars ",
+     Host::yn(Core\Validate::isDomain("a_b.test")),
+     Host::yn(Core\Validate::isDomain("a b.test")),
+     Host::yn(Core\Validate::isDomain("café.test")),
+     Host::yn(Core\Validate::isDomain("A-B.TEST")),
+     "\n";
+
+// The one place `isDomain` and `isEmail` part company, and the one place both
+// diverge from PHP, named together. A single label is a real host name and is
+// never what a form meant, so `isDomain` takes it and `isEmail` does not; an
+// all-numeric name is a syntactically valid hostname that can carry an MX
+// record, so both take it where `FILTER_VALIDATE_EMAIL` refuses it — that is
+// `isIp`'s question asked deliberately rather than this member's guess.
+echo "parting ",
+     Host::yn(Core\Validate::isDomain("localhost")),
+     Host::yn(Core\Validate::isEmail("a@localhost")),
+     Host::yn(Core\Validate::isDomain("1.2.3.4")),
+     Host::yn(Core\Validate::isEmail("a@1.2.3.4")),
+     "\n";
+
+// Every ASCII code point between two label bytes, asked of the member and of
+// the domain half of an address. 64 are accepted — 62 alphanumerics, the
+// interior hyphen and the separating dot — and the two members agree at all
+// 128, which is what makes `isEmail`'s domain rule *this* rule rather than a
+// second copy of it that happens to say the same thing on the rows above.
+int $accepted = 0;
+int $agree = 0;
+int $c = 0;
+for (; $c < 128; $c = $c + 1) {
+    string $d = "a" . Host::one($c) . "b.test";
+    bool $domain = Core\Validate::isDomain($d);
+    bool $address = Core\Validate::isEmail("u@" . $d);
+    if ($domain) {
+        $accepted = $accepted + 1;
+    }
+    if ($domain == $address) {
+        $agree = $agree + 1;
+    }
+}
+echo "sweep ", $accepted as string, "|", $agree as string, "\n";
+--EXPECT--
+hyphen nynn
+dots nynn
+chars nnny
+parting ynyy
+sweep 64|128

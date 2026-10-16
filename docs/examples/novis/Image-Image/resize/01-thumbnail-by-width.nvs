@@ -1,0 +1,13 @@
+<?nvs
+// Shows how to make a thumbnail that is 300 pixels wide.
+use Novis\Image\Image;
+use Novis\Image\Color;
+use Novis\Image\Format;
+
+// A blank 1200 by 800 image replaces a photo that a user uploaded.
+Image $photo = Image::create(1200, 800, Color::hex("#336699"));
+
+// Only the width is given, so the height follows. This prints 300x200.
+bytes $thumbnail = $photo->resize({width: 300})->format(Format::Jpeg, {quality: 80})->encode();
+var $info = Image::info($thumbnail);
+echo $info->width, "x", $info->height, "\n";

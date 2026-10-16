@@ -1,0 +1,18 @@
+<?nvs
+// Shows how to write "and", "or" and "xor" between two conditions. Use `&&` for
+// "and" and `||` for "or". For "xor" on two `bool` values, use `!=`.
+
+bool $paid = true;
+bool $inStock = true;
+bool $expressRequested = false;
+bool $customerIsPremium = true;
+
+// `&&` is true when both sides are true. This prints `ship now`.
+echo $paid && $inStock ? "ship now" : "hold", "\n";
+
+// `||` is true when at least one side is true. This prints `express`.
+echo $expressRequested || $customerIsPremium ? "express" : "standard", "\n";
+
+// `!=` between two `bool` values is true when exactly one of them is true.
+// This prints `exactly one`.
+echo $expressRequested != $customerIsPremium ? "exactly one" : "both or neither", "\n";

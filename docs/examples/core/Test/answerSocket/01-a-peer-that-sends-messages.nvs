@@ -1,0 +1,23 @@
+<?nvs
+// Shows how to give a WebSocket a fixed list of messages to receive in a test.
+
+use Core\Http\Client;
+use Core\Test;
+
+// The peer sends two text messages and one binary message. Then it closes.
+Test::answerSocket("wss://chat.example.com/room", ["hello", "welcome", "OK" as bytes]);
+
+var $socket = Client::openSocket("wss://chat.example.com/room");
+
+// `receive` returns the messages in order. After the last one, it returns `null`.
+// This prints `text hello`, `text welcome` and `bytes 2`.
+var $message = $socket->receive();
+while ($message != null) {
+    if ($message->text() != null) {
+        echo "text ", $message->text() ?? "", "\n";
+    } else {
+        echo "bytes ", Core\Bytes::length($message->bytes() ?? ("" as tainted bytes)), "\n";
+    }
+    $message = $socket->receive();
+}
+echo "closed\n";

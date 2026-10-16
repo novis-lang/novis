@@ -1,0 +1,9 @@
+<?nvs
+// Shows the filter for security groups.
+
+// 2147483648 is the bit for a security group in `groupType`.
+var $filter = Core\Ldap\Filter::all(
+    Core\Ldap\Filter::equals('objectClass', 'group'),
+    Core\Ldap\Ad::bitAnd('groupType', 2147483648),
+);
+echo $filter->toString(), "\n";

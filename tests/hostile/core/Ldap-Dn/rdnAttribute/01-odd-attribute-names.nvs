@@ -1,0 +1,32 @@
+<?nvs
+// Attack: a program reads the first attribute name from DNs with a very long name, a
+// number name and ten thousand values joined by `+`. Each one should give a name or
+// throw an error, and the program must keep running.
+// hostile: timeout-ms 60000
+
+// 1. An attribute name of one hundred thousand letters.
+try {
+    var $dn = Core\Ldap\Dn::parse(Core\Str::repeat('a', 100000) . '=x,DC=test');
+    echo '1 length: ', Core\Str::length($dn->rdnAttribute()), "\n";
+} catch (Throwable $error) {
+    echo "1 threw\n";
+}
+
+// 2. Names written as numbers, and one that starts with a digit.
+array<string> $texts = ['2.5.4.3=Ann,DC=test', '0.0=x', '1.=x', '1..2=x', '9a=x'];
+foreach ($texts as string $text) {
+    try {
+        var $name = Core\Ldap\Dn::parse($text)->rdnAttribute();
+        echo '2 ', $name, "\n";
+    } catch (LogicError $refusal) {
+        echo "2 refused\n";
+    }
+}
+
+// 3. Ten thousand values joined by `+` in the first part.
+try {
+    var $many = Core\Ldap\Dn::parse('CN=a' . Core\Str::repeat('+UID=b', 10000) . ',DC=test');
+    echo '3 ', $many->rdnAttribute(), "\n";
+} catch (Throwable $error) {
+    echo "3 threw\n";
+}

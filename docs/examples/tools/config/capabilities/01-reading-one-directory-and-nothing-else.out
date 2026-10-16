@@ -1,0 +1,4 @@
+coffee 3.20
+not allowed: nvs.toml
+not allowed: data/../nvs.toml
+not allowed to write: data/prices.txt

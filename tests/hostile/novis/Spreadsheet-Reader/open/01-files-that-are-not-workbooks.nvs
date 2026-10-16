@@ -1,0 +1,63 @@
+<?nvs
+// Attack: a request uploads a file that is not a spreadsheet, or a workbook that is cut short or changed.
+// `Reader::open` or the first read should throw an error, and the program should keep running.
+use Novis\Spreadsheet\Reader;
+use Novis\Spreadsheet\Workbook;
+
+class Attack
+{
+    // This method opens `$source`, reads its first sheet and prints how many rows it read, or the class of the error.
+    public static function attempt(int $step, bytes $source): void
+    {
+        try {
+            int $count = 0;
+            foreach (Reader::open($source)->rows(0) as var $row) {
+                $count++;
+            }
+            echo 'step ', $step, ' read ', $count, " rows\n";
+        } catch (Throwable $e) {
+            echo 'step ', $step, ' stopped ', $e::class, "\n";
+        }
+    }
+
+    // This method returns `$file` with each `$every`-th byte set to `$byte`.
+    public static function damage(bytes $file, int $every, uint $byte): bytes
+    {
+        int $size = Core\Bytes::length($file) as int;
+        array<bytes> $parts = [];
+        for (int $at = 0; $at < $size; $at += $every) {
+            int $length = $size - $at < $every ? $size - $at : $every;
+            $parts[] = Core\Bytes::slice($file, $at, $length - 1);
+            $parts[] = Core\Bytes::fill(1, $byte);
+        }
+        return Core\Bytes::join($parts);
+    }
+}
+
+bytes $good = Workbook::fromRows([['item' => 'Widget', 'price' => 2.5], ['item' => 'Gadget', 'price' => 4.0]])->bytes();
+int $size = Core\Bytes::length($good) as int;
+
+// 1. No bytes, the two bytes that start a zip file, bytes that are not UTF-8 text, and a PDF header.
+Attack::attempt(1, Core\Bytes::fill(0, 0));
+Attack::attempt(1, 'PK' as bytes);
+Attack::attempt(1, Core\Bytes::fill(64, 255));
+Attack::attempt(1, '%PDF-1.7' as bytes);
+
+// 2. The first 1,000 bytes of a workbook, a workbook without its last byte, and a workbook with zeros at its end.
+Attack::attempt(2, Core\Bytes::slice($good, 0, 1000));
+Attack::attempt(2, Core\Bytes::slice($good, 0, $size - 1));
+Attack::attempt(2, Core\Bytes::join([Core\Bytes::slice($good, 0, $size - 22), Core\Bytes::fill(22, 0)]));
+
+// 3. A workbook with each 50th byte set to zero, and a workbook with each 7th byte set to 255.
+Attack::attempt(3, Attack::damage($good, 50, 0));
+Attack::attempt(3, Attack::damage($good, 7, 255));
+
+// 4. Two workbooks joined into one file, and a CSV file of 100,000 commas.
+Attack::attempt(4, Core\Bytes::join([$good, $good]));
+Attack::attempt(4, Core\Str::repeat(',', 100000) as bytes);
+
+// 5. 200 readers opened in one request, and the good workbook last.
+for (int $count = 0; $count < 200; $count++) {
+    Reader::open($good);
+}
+Attack::attempt(5, $good);

@@ -1,0 +1,23 @@
+<?nvs
+// Shows how a program that accepts uploads decides what it was given. It
+// compares the first bytes of the upload against the formats it allows.
+
+final class Upload {
+    // Returns the name of the format, or "unknown" when none of them matches.
+    public static function format(bytes $content): string {
+        if (Core\Bytes::startsWith($content, Core\Encoding::fromHex("89504e470d0a1a0a"))) {
+            return "png";
+        }
+        if (Core\Bytes::startsWith($content, "GIF89a" as bytes)) {
+            return "gif";
+        }
+        if (Core\Bytes::startsWith($content, "%PDF-" as bytes)) {
+            return "pdf";
+        }
+        return "unknown";
+    }
+}
+
+// This prints "pdf" and then "unknown".
+echo Upload::format("%PDF-1.7\n1 0 obj" as bytes), "\n";
+echo Upload::format("dear support, please help" as bytes), "\n";

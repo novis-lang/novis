@@ -1,0 +1,23 @@
+<?nvs
+// Lists the fields that a web API sends back for a user. Only public properties are sent.
+
+class User {
+    public int $id = 7;
+    public string $name = "Ada";
+    public string $email = "ada@example.com";
+    private string $passwordHash = "x9f2";
+    protected bool $isAdmin = false;
+}
+
+// The loop keeps the name of each public property.
+array<string> $fields = [];
+foreach (Core\Reflect::forObject(new User())->properties() as Core\Reflect\PropertyInfo $property) {
+    if ($property->isPublic()) {
+        $fields[] = $property->name();
+    }
+}
+
+// This prints `id`, `name` and `email`. The hash and the admin flag are not sent.
+foreach ($fields as string $field) {
+    echo $field, "\n";
+}

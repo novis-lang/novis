@@ -1,0 +1,42 @@
+<?nvs
+// Shows how to check many links at the same time, with a limit and a time limit.
+
+class Links {
+    // A real program sends a request here. This one waits, and then
+    // returns a status code.
+    public static function check(string $url): int {
+        Core\Time::sleep(20ms);
+        return Core\Str::endsWith($url, "/old") ? 404 : 200;
+    }
+
+    public static function report(array<string> $urls, Core\Time\Duration $limit): string {
+        try {
+            // `limit: 2` runs at most two checks at the same time.
+            // `deadline` is the time limit for all the checks together.
+            var $codes = Core\Task::map($urls, fn (string $url): int => Links::check($url),
+                {limit: 2, deadline: $limit});
+            array<string> $broken = [];
+            foreach ($codes as string $index => int $code) {
+                if ($code != 200) {
+                    $broken[] = $urls[$index];
+                }
+            }
+            return "broken: " . Core\Str::join($broken, ", ");
+        } catch (TimeoutError $e) {
+            // When the time is over, every check is stopped and
+            // `Core\Task::map` throws a `TimeoutError`.
+            return "the links could not be checked in time";
+        }
+    }
+}
+
+array<string> $urls = [
+    "https://example.com/",
+    "https://example.com/shop",
+    "https://example.com/old",
+    "https://example.com/blog",
+];
+// Two seconds is enough time, so this prints the one broken link.
+echo Links::report($urls, 2s), "\n";
+// Five milliseconds is not enough, so this prints the error text.
+echo Links::report($urls, 5ms), "\n";

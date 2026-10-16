@@ -1,0 +1,15 @@
+<?nvs
+// Shows how to read the largest value of an array.
+
+array<int> $temperatures = [7, -2, 13, 4];
+
+// This prints 13.
+echo Core\Arr::max($temperatures) ?? 0, "\n";
+
+// A map works the same way. Only the values are compared, so this prints 91.
+array<int> $scores = ['ada' => 42, 'lin' => 91, 'alan' => 67];
+echo Core\Arr::max($scores) ?? 0, "\n";
+
+// Texts compare byte by byte. This prints plum.
+array<string> $fruit = ['pear', 'apple', 'plum'];
+echo Core\Arr::max($fruit) ?? '', "\n";

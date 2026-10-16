@@ -1,0 +1,19 @@
+<?nvs
+// Shows how to find when two jobs that repeat at different intervals run in the same minute again.
+
+class Schedule {
+    // Both jobs start at minute 0. They run together again after the least common multiple.
+    public static function describe(int $first, int $second): void {
+        int $minutes = Core\Math::lcm($first, $second);
+        echo "Every ", $first, " and every ", $second, " minutes: together after ", $minutes, " minutes\n";
+    }
+}
+
+// This prints 30 minutes.
+Schedule::describe(6, 15);
+
+// 5 divides 10, so the jobs run together every 10 minutes.
+Schedule::describe(5, 10);
+
+// 7 and 60 share no divisor, so the result is their product. This prints 420 minutes.
+Schedule::describe(7, 60);

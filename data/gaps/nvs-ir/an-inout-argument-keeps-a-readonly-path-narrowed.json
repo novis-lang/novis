@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-ir/src/lower/expr.rs",
+  "title": "An `inout` argument that passes a `readonly` path does not drop that path's narrowing in the checker.",
+  "text": "`assign::note_write` drops the narrowing a property write goes through, but an `inout` argument is not counted as a write of the path. The narrowed read's run-time null check (`checked_narrowed_read`) keeps this safe: a `null` written there throws a `LogicError` naming the property. The checker could drop the path at the call instead, as it does for an assignment (`crates/nvs-types/src/locals.rs` module doc, narrowing section).",
+  "milestone": "M10"
+}

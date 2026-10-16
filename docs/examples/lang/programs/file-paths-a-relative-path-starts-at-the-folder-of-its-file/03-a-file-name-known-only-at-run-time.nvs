@@ -1,0 +1,13 @@
+<?nvs
+// Shows how to build a path for a file name that the program only knows while
+// it runs.
+
+string $name = 'prices.txt';
+
+// `Core\Path::thisDir('data')` returns the full path of the `data` folder next
+// to this file. The name is added to it, so this read works.
+echo Core\IO::read(Core\Path::thisDir('data') . '/' . $name);
+
+// `Core\Path::join` adds the name to a full folder path. This prints the same file.
+string $folder = Core\Path::thisDir('data');
+echo Core\IO::read(Core\Path::join($folder, $name));

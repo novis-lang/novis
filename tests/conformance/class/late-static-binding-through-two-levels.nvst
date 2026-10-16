@@ -1,0 +1,51 @@
+--TEST--
+`new static()` and `static::` resolve to the called class through two levels of inheritance
+--FILE--
+<?nvs
+class Registry {
+    public static function tag(): string {
+        return "base";
+    }
+
+    public static function make(): static {
+        return new static();
+    }
+
+    public function label(): string {
+        return static::tag();
+    }
+}
+
+class MidRegistry extends Registry {
+    public static function tag(): string {
+        return "mid";
+    }
+}
+
+class LeafRegistry extends MidRegistry {
+    public static function tag(): string {
+        return "leaf";
+    }
+}
+
+echo Registry::make()->label(), "\n";
+echo MidRegistry::make()->label(), "\n";
+echo LeafRegistry::make()->label(), "\n";
+
+var $leaf = LeafRegistry::make();
+echo ($leaf is MidRegistry) as string, "\n";
+echo ($leaf is Registry) as string, "\n";
+
+// The same rule as a *type* rather than as a dispatch: `make` is declared on
+// `Registry` and returns `static`, so the site that named `LeafRegistry` is
+// promised one. Without that substitution this binding would be a mismatch —
+// `nvs_types::signatures::MethodSig::returns_static` owns why it is sound.
+LeafRegistry $typed = LeafRegistry::make();
+echo $typed->label(), "\n";
+--EXPECT--
+base
+mid
+leaf
+1
+1
+leaf

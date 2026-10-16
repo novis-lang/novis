@@ -1,0 +1,22 @@
+<?nvs
+// `[http.client.socket]` sets two limits for an outbound WebSocket: the largest message it
+// accepts, and how long one frame may wait to be sent. This file sets neither, so both use
+// the built-in default: 4 MiB and 30 seconds. Incoming WebSockets use the same values.
+
+echo 'largest message:  ', Core\Config::get('http.client.socket.max_message') ?? '(no value)', "\n";
+echo 'frame may wait:   ', Core\Config::get('http.client.socket.send_timeout') ?? '(no value)', "\n";
+
+// A program may change these two settings, because they affect only the socket it opened.
+// This prints `yes` and then `65536`.
+echo 'hold less:        ', Core\Config::set('http.client.socket.max_message', '65536') ? 'yes' : 'no', "\n";
+echo 'now in force:     ', Core\Config::get('http.client.socket.max_message') ?? '(nothing)', "\n";
+
+// A program cannot change the pool or the proxy, so both lines print `no`. The pool uses
+// memory after this request ends, and the proxy affects every outbound call.
+echo 'resize the pool:  ', Core\Config::set('http.client.pool_idle', '512') ? 'yes' : 'no', "\n";
+echo 'name a proxy:     ', Core\Config::set('http.client.proxy.url', 'http://somewhere-else.test:8080') ? 'yes' : 'no', "\n";
+
+// `Core\Config::restore` deletes the value this program set, so the default applies again.
+// The configuration file cannot remove a limit either: `false` and `0` are not allowed.
+Core\Config::restore('http.client.socket.max_message');
+echo 'restored to:      ', Core\Config::get('http.client.socket.max_message') ?? '(no value)', "\n";

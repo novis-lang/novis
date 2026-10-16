@@ -1,0 +1,15 @@
+<?nvs
+// Shows how to read a file saved as UTF-16, which some Windows programs use for text files.
+
+string $path = Core\Path::join(Core\IO::temporaryDir(), "names.txt");
+// In UTF-16LE, every character here takes two bytes.
+array<bytes> $parts = [Core\Encoding::encodeText("Ada\nGrace\n", Core\Charset::Utf16Le)];
+Core\IO::writeStream($path, $parts, {overwrite: true});
+
+// This prints "20 bytes on disk".
+echo Core\IO::size($path), " bytes on disk\n";
+
+// `readText` converts the bytes to a normal string. This prints "Ada", "Grace" and "10 characters".
+string $names = Core\IO::readText($path, {charset: Core\Charset::Utf16Le});
+echo $names;
+echo Core\Str::length($names), " characters\n";

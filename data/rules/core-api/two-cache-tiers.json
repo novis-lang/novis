@@ -1,0 +1,14 @@
+{
+  "title": "Cross-request state is reached through a member per tier, each with its own contract, never one API with a flag",
+  "status": "shipped",
+  "seeAlso": [
+    "core-api/one-name-one-signature",
+    "core-api/each-door-takes-a-different-thing",
+    "core-api/one-paradigm-per-operation"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/cache-memory-and-shared-are-two-members-with-two-contracts.nvst",
+    "tests/conformance/core/cache-a-memory-entry-may-be-absent-at-any-time.nvst",
+    "tests/conformance/core/cache-memory-forgets-an-entry-rather-than-failing-the-write.nvst"
+  ]
+}

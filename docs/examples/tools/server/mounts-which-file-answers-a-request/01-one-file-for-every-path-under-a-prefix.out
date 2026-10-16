@@ -1,0 +1,4 @@
+path: /cart
+prefix: /shop
+page: the cart
+link: /shop/checkout

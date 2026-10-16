@@ -1,0 +1,8 @@
+<?nvs
+// Shows how to split a paragraph into lines of at most 20 characters.
+
+string $text = "The café on the corner opens at seven and closes when the last guest leaves.";
+
+// `Core\Str::wrap` puts a line break at the last space that fits.
+// This prints five lines, and none of them is longer than 20 characters.
+echo Core\Str::wrap($text, 20), "\n";

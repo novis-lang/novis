@@ -1,0 +1,10 @@
+<?nvs
+// Shows how to read the length of a duration as a number of nanoseconds.
+
+Core\Time\Duration $wait = 1500ms;
+// 1.5 seconds is 1500000000 nanoseconds. This prints 1500000000.
+echo $wait->toNanoseconds(), "\n";
+
+// A negative duration gives a negative number. This prints -250.
+Core\Time\Duration $back = 250ns;
+echo $back->negated()->toNanoseconds(), "\n";

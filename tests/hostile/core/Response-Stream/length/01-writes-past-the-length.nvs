@@ -1,0 +1,34 @@
+<?nvs
+// Attack: a program writes more bytes than the length it gave the stream. Each write past the
+// length should throw a `LogicError` and send nothing, and the body should stay exact.
+
+// 1. Writes one byte more than the length. The `LogicError` is caught.
+Core\Response\Stream $small = Core\Response::stream('text/plain', 4);
+try {
+    $small->write('12345');
+} catch (LogicError $error) {
+    $small->write('1234');
+}
+
+// 2. Writes eight megabytes into a body of ten bytes. The `LogicError` is caught.
+Core\Response\Stream $ten = Core\Response::stream('text/plain', 10);
+try {
+    $ten->write(Core\Str::repeat('x', 8388608));
+} catch (LogicError $error) {
+    $ten->write(Core\Str::repeat('y', 10));
+}
+
+// 3. Fills a body of one hundred thousand bytes with one byte at a time.
+Core\Response\Stream $bytes = Core\Response::stream('application/octet-stream', 100000);
+int $written = 0;
+while ($written < $bytes->length()) {
+    $bytes->write('z');
+    $written = $written + 1;
+}
+
+// 4. Writes one more byte after the body is full. The `LogicError` is caught.
+try {
+    $bytes->write('!');
+} catch (LogicError $error) {
+    $bytes->write('');
+}

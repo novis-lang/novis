@@ -1,0 +1,6 @@
+<?nvs
+// Shows how to read the attribute name of the first part of a DN.
+
+var $person = Core\Ldap\Dn::parse('CN=Ann,OU=Staff,DC=example,DC=test');
+// This prints CN.
+echo $person->rdnAttribute(), "\n";

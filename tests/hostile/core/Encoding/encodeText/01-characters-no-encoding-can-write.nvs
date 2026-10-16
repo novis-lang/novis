@@ -1,0 +1,79 @@
+<?nvs
+// Attack: characters that an encoding has no spelling for are pushed through
+// every encoding, alone and inside long valid text. Each attempt should return
+// bytes or throw an error naming the character and its position. Every error is
+// caught here, so every step runs and the runtime should be standing at the end.
+// hostile: timeout-ms 30000
+
+// 1. An emoji handed to every single-byte encoding. None of them has a
+// spelling for it, so every one should refuse.
+array<Core\Charset> $narrow = [
+    Core\Charset::Ascii,
+    Core\Charset::Latin1,
+    Core\Charset::Windows1252,
+    Core\Charset::Koi8R,
+    Core\Charset::Iso88597,
+    Core\Charset::Windows1251,
+];
+uint $refused = 0;
+foreach ($narrow as Core\Charset $charset) {
+    try {
+        Core\Encoding::encodeText('🙂', $charset);
+    } catch (RuntimeError $noSpelling) {
+        $refused = $refused + 1;
+    }
+}
+echo 'step 1: ', $refused, " of 6 narrow encodings refused an emoji\n";
+
+// 2. The same emoji handed to the three encodings that can write every
+// character. All three should give bytes back.
+array<Core\Charset> $wide = [
+    Core\Charset::Utf8,
+    Core\Charset::Utf16Le,
+    Core\Charset::Utf16Be,
+];
+uint $written = 0;
+foreach ($wide as Core\Charset $charset) {
+    $written = $written + Core\Bytes::length(Core\Encoding::encodeText('🙂', $charset));
+}
+echo 'step 2: ', $written, " bytes written by the three wide encodings\n";
+
+// 3. One character the encoding cannot write, at the end of a long run of
+// characters it can. The position in the message has to be the real one.
+string $long = Core\Str::repeat('a', 100000);
+try {
+    Core\Encoding::encodeText($long . '€', Core\Charset::Latin1);
+    echo "step 3: the text was written\n";
+} catch (RuntimeError $atTheEnd) {
+    echo 'step 3 stopped: ', $atTheEnd->message, "\n";
+}
+
+// 4. Three characters that are not letters: a null, a backspace and an
+// end-of-file mark. ASCII has a spelling for each, so three bytes come back.
+string $controls = "\u{0}\u{8}\u{1a}";
+echo 'step 4: ', Core\Bytes::length(Core\Encoding::encodeText($controls, Core\Charset::Ascii)), "\n";
+
+// 5. Eight million characters written in one call. Each one is a single byte
+// in ISO-8859-1, so the answer is eight million bytes.
+string $wideText = Core\Str::repeat('é', 8000000);
+echo 'step 5: ', Core\Bytes::length(Core\Encoding::encodeText($wideText, Core\Charset::Latin1)), "\n";
+
+// 6. One hundred thousand encodings in a row, each round choosing its encoding
+// from the size of the round before.
+array<Core\Charset> $rotating = [
+    Core\Charset::Utf8,
+    Core\Charset::Latin1,
+    Core\Charset::Utf16Le,
+    Core\Charset::Windows1252,
+];
+uint $total = 0;
+uint $round = 0;
+while ($round < 100000) {
+    $total = $total + Core\Bytes::length(
+        Core\Encoding::encodeText('nvs é', $rotating[$total % 4]),
+    );
+    $round = $round + 1;
+}
+echo 'step 6: ', $round, ' texts written, ', $total, " bytes in all\n";
+
+echo "the runtime is still standing\n";

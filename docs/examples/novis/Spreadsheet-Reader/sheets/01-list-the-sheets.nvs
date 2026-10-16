@@ -1,0 +1,15 @@
+<?nvs
+// Shows how to list the sheets of a workbook by name and position.
+use Novis\Spreadsheet\Reader;
+use Novis\Spreadsheet\Workbook;
+
+var $book = Workbook::createInMemory();
+$book->sheet('Orders')->add(['Order', 'Total']);
+$book->sheet('Customers')->add(['Name', 'City']);
+$book->sheet('Notes')->add(['Text']);
+var $reader = Reader::open($book->finish()->bytes ?? Core\Bytes::fill(0, 0));
+
+// The sheets are in tab order. The first sheet is at position 0.
+foreach ($reader->sheets() as var $info) {
+    echo $info->position, ': ', $info->name, "\n";
+}

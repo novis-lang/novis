@@ -1,0 +1,7 @@
+<?nvs
+// Shows how to tell the browser to wait five seconds before it reconnects.
+
+Core\Sse $sse = Core\Sse::stream();
+// This prints `retry: 5000`. The wait is always sent in milliseconds.
+$sse->retry(Core\Time\Duration::seconds(5));
+$sse->send("hello");

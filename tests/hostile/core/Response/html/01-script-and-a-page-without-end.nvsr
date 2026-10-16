@@ -1,0 +1,6 @@
+--METHOD--
+GET
+--PATH--
+/comments
+--HEADERS--
+host: example.com

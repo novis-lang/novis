@@ -1,0 +1,23 @@
+<?nvs
+// Measures `Core\Response::html` on one page, at growing page lengths.
+// bench: start 256
+// bench: max 4096
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        string $text = Core\Str::repeat('a', $size);
+        Core\Html\Markup $page = html`<p>{$text}</p>`;
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            Core\Response::html($page);
+            $total = $total + $size + 1;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

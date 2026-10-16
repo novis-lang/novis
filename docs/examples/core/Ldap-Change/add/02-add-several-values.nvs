@@ -1,0 +1,7 @@
+<?nvs
+// Shows how to add several values to one attribute with one change.
+
+array<string> $numbers = ['+43 1 111 2222', '+43 1 333 4444'];
+// One change adds both numbers. This prints 1 change, 2 numbers.
+array<Core\Ldap\Change> $changes = [Core\Ldap\Change::add('otherTelephone', $numbers)];
+echo Core\Arr::count($changes), ' change, ', Core\Arr::count($numbers), " numbers\n";

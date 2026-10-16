@@ -1,0 +1,6 @@
+<?nvs
+// The examples in the folder above start this script. It collects prices and
+// returns how many it found.
+
+echo "prices are ready\n";
+return 3;

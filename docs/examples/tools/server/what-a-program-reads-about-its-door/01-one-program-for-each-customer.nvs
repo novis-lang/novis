@@ -1,0 +1,29 @@
+<?nvs
+// Shows what a program reads about the mount that the server chose for a request.
+// This mount serves one folder for each customer, such as the folder `Acme` at `/acme`:
+//
+//     [[server.mount]]
+//     scan   = "*/public/index.nvs"
+//     prefix = "/{1:lower}"
+
+class Orders {
+    #[Core\Route(path: "/orders/{id}", method: Core\Http\Method::Get, name: "Orders::show")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function show(uint $id): string { return "one order"; }
+}
+
+// The client asked for `/acme/orders`. The server removed the prefix `/acme`.
+// This prints "path: /orders".
+echo "path: ", Core\Request::path(), "\n";
+
+// `prefix()` returns the part that the server removed. This prints "prefix: /acme".
+Core\Request\Mount $mount = Core\Request::mount();
+echo "prefix: ", $mount->prefix(), "\n";
+
+// `captures()` returns the text that each `*` of `scan` matched, in order.
+// This prints "customer: Acme".
+tainted string $customer = $mount->captures()[0];
+echo "customer: ", $customer, "\n";
+
+// `Core\Router::url` adds the prefix to each link. This prints "link: /acme/orders/17".
+echo "link: ", Core\Router::url("Orders::show", ["id" => 17]), "\n";

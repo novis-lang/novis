@@ -1,0 +1,11 @@
+{
+  "title": "An open connection runs to completion on the code it started with, and an edit reaches only the next one",
+  "status": "shipped",
+  "seeAlso": [
+    "concurrency/a-connection-is-a-root-isolate",
+    "concurrency/a-drain-closes-a-connection-cleanly"
+  ],
+  "guardedBy": [
+    "crates/nvs-cli/src/script.rs"
+  ]
+}

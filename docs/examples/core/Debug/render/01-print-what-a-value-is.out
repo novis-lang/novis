@@ -1,0 +1,4 @@
+array(2) [
+  "name" => string(12) "Ada Lovelace"
+  "email" => string(15) "ada@example.com"
+]

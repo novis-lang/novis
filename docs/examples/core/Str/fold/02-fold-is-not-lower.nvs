@@ -1,0 +1,12 @@
+<?nvs
+// Shows how `Core\Str::fold` is different from `Core\Str::lower`.
+
+// `lower` keeps "ß" as it is, because the word must still look right.
+// `fold` changes "ß" to "ss". This prints `straße` and then `strasse`.
+echo Core\Str::lower("Straße"), "\n";
+echo Core\Str::fold("Straße"), "\n";
+
+// The two ways to write the street name are equal only after folding.
+// This prints `false` and then `true`.
+echo Core\Str::lower("STRASSE") == Core\Str::lower("Straße") ? "true" : "false", "\n";
+echo Core\Str::fold("STRASSE") == Core\Str::fold("Straße") ? "true" : "false", "\n";

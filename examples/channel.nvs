@@ -1,0 +1,52 @@
+<?nvs
+// `Core\Task\Channel` and its backpressure, as a program.
+//
+// A send into a full channel waits until the receiver takes an item.
+// The buffer does not grow.
+class Meter
+{
+    public static int $produced = 0;
+    public static int $consumed = 0;
+    public static bool $suspended = false;
+}
+
+// Capacity two, against eight items: the buffer cannot hold the run, so the
+// producer must be made to wait four times over.
+var $chan = new Core\Task\Channel<int>(2);
+
+// `Core\Task::all` does not return while either function is still running.
+// So the counters below have their final values.
+Core\Task::all({
+    produce: fn(): int => {
+        foreach (Core\Arr::range(1, 8) as int $i) {
+            // If the consumer ran during `send`, the send waited.
+            // That wait is the backpressure this program shows.
+            var $before = Meter::$consumed;
+            $chan->send($i);
+            if (Meter::$consumed > $before) {
+                Meter::$suspended = true;
+            }
+            Meter::$produced += 1;
+        }
+
+        // Closing is what ends the consumer's loop; a consumer blocked on a
+        // channel nobody will send to again is the deadlock this replaces.
+        $chan->close();
+        return Meter::$produced;
+    },
+    consume: fn(): int => {
+        foreach ($chan as int $v) {
+            Meter::$consumed += 1;
+        }
+        return Meter::$consumed;
+    },
+});
+
+echo 'produced=', Meter::$produced, "\n";
+echo 'consumed=', Meter::$consumed, "\n";
+
+if (Meter::$suspended) {
+    echo 'sender suspended', "\n";
+} else {
+    echo 'sender never waited', "\n";
+}

@@ -1,0 +1,26 @@
+name: Feature request
+description: You want Novis to do something new.
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you! Only the first box is needed.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What do you want to do?
+      description: Tell us what you need, and why it is hard in Novis today.
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: Example code
+      description: Show the code you want to write. Replace private names and data with example values.
+      render: nvs
+  - type: textarea
+    id: elsewhere
+    attributes:
+      label: What do you do today?
+      description: For example, a workaround, or how another language does it.

@@ -1,0 +1,9 @@
+cpu time to start with:   (unset — none was written)
+clock held back:          50ms
+heap held back beside it: 1M
+widen limits.fatal_reserve_time: refused
+drop  limits.fatal_reserve_time: refused
+widen limits.fatal_reserve_memory: refused
+drop  limits.fatal_reserve_memory: refused
+bound my own cpu time:    accepted
+in force now:             2s

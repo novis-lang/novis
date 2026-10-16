@@ -1,0 +1,2 @@
+send: https://pay.example.com/orders
+stop: https://pay.example.net/orders

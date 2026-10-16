@@ -1,0 +1,86 @@
+<?nvs
+// Attack: a request sends sort fields that try to reach a private property, directly or through
+// a related object, or that are not paths at all. Every one should fail to convert, and very
+// long paths should finish quickly with a short error message.
+// hostile: timeout-ms 20000
+// covers: lang:types/property-paths
+
+class Customer
+{
+    public string $name = 'ada';
+    public ?Customer $referrer = null;
+    private string $password = 's3cret';
+
+    public function password(): string
+    {
+        return $this->password;
+    }
+}
+
+class Order
+{
+    public Customer $customer;
+    public int $total = 10;
+    protected string $note = 'internal';
+    private string $token = 't0ken';
+
+    public function constructor()
+    {
+        $this->customer = new Customer();
+    }
+}
+
+// 1. Twelve fields from the web address: a private name, a protected name, a private name
+//    through a relation, braces, empty parts, a part after a number, spaces and a wrong case.
+array<tainted string> $sent = Core\Request::queryArray('sort');
+int $refused = 0;
+foreach ($sent as tainted string $field) {
+    ?propertyPath<Order> $path = $field as ?propertyPath<Order>;
+    if ($path == null) {
+        $refused = $refused + 1;
+    } else {
+        echo '1: BAD, converted a path of length ', Core\Str::length($field), "\n";
+    }
+}
+echo '1: refused ', $refused, ' of ', Core\Arr::count($sent), " fields\n";
+
+// 2. The private name through a relation with `as propertyPath<Order>`, which throws.
+//    It is caught, so the steps after it still run.
+tainted string $hidden = Core\Request::query('hidden') ?? 'customer.password';
+try {
+    propertyPath<Order> $stolen = $hidden as propertyPath<Order>;
+    echo '2: BAD, converted ', $stolen as string, "\n";
+} catch (RuntimeError $e) {
+    echo "2: caught the conversion\n";
+}
+
+// 3. A path that loops through `referrer` 200000 times. It is valid, and converts once.
+string $loop = 'customer.' . Core\Str::repeat('referrer.', 200000) . 'name';
+propertyPath<Order> $deep = $loop as propertyPath<Order>;
+echo '3: converted a path of length ', Core\Str::length($deep as string), "\n";
+
+// 4. The same long path, ending at the private property. It throws, and the error
+//    message shows only the start of the path, so the message stays short.
+string $longBad = 'customer.' . Core\Str::repeat('referrer.', 200000) . 'password';
+try {
+    propertyPath<Order> $reached = $longBad as propertyPath<Order>;
+    echo "4: BAD, converted the long path\n";
+} catch (RuntimeError $e) {
+    uint $size = Core\Str::length($e->message);
+    echo $size < 1000 ? '4: caught, with a short message' : '4: BAD, the message repeats the path', "\n";
+}
+
+// 5. One million dots, converted a hundred times. Each one gives `null`.
+string $dots = Core\Str::repeat('.', 1000000);
+int $missed = 0;
+int $round = 0;
+while ($round < 100) {
+    if (($dots as ?propertyPath<Order>) == null) {
+        $missed = $missed + 1;
+    }
+    $round = $round + 1;
+}
+echo '5: refused ', $missed, " long paths\n";
+
+Order $order = new Order();
+echo 'after: ', $order->customer->password(), "\n";

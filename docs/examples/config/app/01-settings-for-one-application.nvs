@@ -1,0 +1,33 @@
+<?nvs
+// A program uses the settings of every `[[app]]` block in `nvs.toml` that covers its file.
+// Two blocks cover this file. One is for the whole directory, and one is for this file only:
+//
+//     [[app]]
+//     root = "."
+//
+//     [app.capabilities.script]
+//     spawn = true
+//
+//     [[app]]
+//     entry = "docs/examples/config/app/01-settings-for-one-application.nvs"
+//
+//     [app.limits]
+//     memory = "64M"
+//
+// When both blocks set the same value, the block for this file wins.
+
+// Only the block for this file sets `limits.memory`, so this prints `64M`.
+// Other files in the directory use the value from `[limits]`.
+echo 'memory: ', Core\Config::get('limits.memory') ?? '(unset)', "\n";
+
+// Only the block for the whole directory sets `spawn`.
+// This file uses that value too, so this prints `true`.
+echo 'spawn:  ', Core\Config::get('capabilities.script.spawn') ?? '(unset)', "\n";
+
+// A program may lower its own memory limit for the rest of the run.
+echo 'narrow: ', Core\Config::set('limits.memory', '32M') ? 'yes' : 'no', "\n";
+echo 'memory: ', Core\Config::get('limits.memory') ?? '(unset)', "\n";
+
+// A program cannot change the `[[app]]` blocks. Only the person who deploys the
+// application may do that, so `Core\Config::set` returns `false` and this prints `no`.
+echo 'reroot: ', Core\Config::set('app.0.root', '/') ? 'yes' : 'no', "\n";

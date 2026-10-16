@@ -1,0 +1,19 @@
+--TEST--
+`eval` is one of the four closed doors, refused at parse time with no opt-in — `rule:security/no-eval`
+--FILE--
+<?nvs
+class Runner {
+    public static function go(): int {
+        eval("1 + 1");
+        return 1;
+    }
+}
+echo Runner::go(), "\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0201]: `eval` is not supported
+  --> case.nvs:4:9
+%A
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

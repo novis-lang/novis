@@ -1,0 +1,5 @@
+<?nvs
+// A child program of `examples/isolate.nvs` that throws an error.
+// The error does not stop the parent. The parent's `await` returns a result.
+// Its `ok` is `false`, and its `error` has the message.
+throw new RuntimeError('child could not finish');

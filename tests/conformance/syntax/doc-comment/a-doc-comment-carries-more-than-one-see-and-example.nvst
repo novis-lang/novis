@@ -1,0 +1,56 @@
+--TEST--
+A doc comment carries as many `@see` and `@example` lines as the declaration has cross-references and examples, and every one of them resolves on its own — `rule:tooling/doc-comment-tags-are-see-and-example`
+--FILE--
+<?nvs
+// `rule:tooling/doc-comment-tags-are-see-and-example`: both tags repeat. The
+// four lines under the class's prose are one block, each is resolved by
+// itself, and the order they are written in is the order they are read back
+// in — a card carries `see` and `example` as lists rather than as one target
+// each.
+/// A till, and the money it has taken.
+///
+/// @see Till::charge
+/// @see Till::$taken
+/// @example examples/charge.nvs
+/// @example examples/refund.nvs
+class Till {
+    /// Everything this till has taken, in cents.
+    public int $taken;
+
+    /// Builds a till that has taken nothing yet.
+    public function constructor() {
+        $this->taken = 0;
+    }
+
+    /// Takes `$cents`, and answers the running total.
+    ///
+    /// A member repeats them on the same terms the class does, and mixes them
+    /// in whatever order reads best: nothing requires the `@see` lines to come
+    /// before the `@example` ones.
+    ///
+    /// @example examples/charge.nvs
+    /// @see Till::$taken
+    /// @example examples/refund.nvs
+    public function charge(int $cents): int {
+        $this->taken = $this->taken + $cents;
+        return $this->taken;
+    }
+}
+
+var $till = new Till();
+echo $till->charge(150), "\n";
+echo $till->charge(50), "\n";
+--FILE examples/charge.nvs--
+<?nvs
+// One of the two files the `@example` lines name. Both have to exist and both
+// have to sit in a directory the corpus walks, so a second example is held to
+// the same standard as the first.
+echo "a charge\n";
+--FILE examples/refund.nvs--
+<?nvs
+// The second one, which a check that stopped at a declaration's first
+// `@example` would never look for.
+echo "a refund\n";
+--EXPECT--
+150
+200

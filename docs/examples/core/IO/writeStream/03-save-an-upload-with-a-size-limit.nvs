@@ -1,0 +1,29 @@
+<?nvs
+// Shows how a program saves an uploaded file and stops when the upload is too large.
+
+string $dir = Core\Path::join(Core\IO::temporaryDir(), "uploads");
+Core\IO::makeDir($dir);
+
+// An upload arrives in chunks. Here each chunk has 1000 bytes.
+array<bytes> $small = [Core\Str::repeat("a", 1000) as bytes, Core\Str::repeat("b", 1000) as bytes];
+array<bytes> $large = [];
+uint $i = 0;
+while ($i < 10) {
+    $large[] = Core\Str::repeat("c", 1000) as bytes;
+    $i = $i + 1;
+}
+
+// The limit is 5000 bytes. The small upload has 2000 bytes, so it is saved.
+// This prints "small.bin: 2000 bytes".
+Core\IO::writeStream(Core\Path::join($dir, "small.bin"), $small, {max: 5000});
+echo "small.bin: ", Core\IO::size(Core\Path::join($dir, "small.bin")), " bytes", "\n";
+
+// The large upload has 10000 bytes. `writeStream` throws a `RuntimeError` and deletes
+// the part it already wrote. This prints "too large" and "large.bin saved: false".
+string $largePath = Core\Path::join($dir, "large.bin");
+try {
+    Core\IO::writeStream($largePath, $large, {max: 5000});
+} catch (RuntimeError $e) {
+    echo "too large", "\n";
+}
+echo "large.bin saved: ", Core\IO::exists($largePath) ? "true" : "false", "\n";

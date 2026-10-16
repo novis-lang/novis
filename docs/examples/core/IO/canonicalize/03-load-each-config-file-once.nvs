@@ -1,0 +1,28 @@
+<?nvs
+// Shows how a program loads each settings file only once, even when a list names one file in two ways.
+
+string $dir = Core\IO::temporaryDir();
+Core\IO::makeDir(Core\Path::join($dir, "conf"));
+Core\IO::write(Core\Path::join($dir, "conf/app.ini"), "name = shop\n");
+Core\IO::write(Core\Path::join($dir, "conf/db.ini"), "host = localhost\n");
+
+// Three entries, but the first two name the same file.
+array<string> $includes = [
+    Core\Path::join($dir, "conf/app.ini"),
+    Core\Path::join($dir, "conf/../conf/app.ini"),
+    Core\Path::join($dir, "conf/db.ini"),
+];
+
+// The full path is the key. A second path to a file that is already loaded finds its key.
+array<bool> $loaded = [];
+foreach ($includes as string $include) {
+    string $key = Core\IO::canonicalize($include);
+    if (Core\Arr::hasKey($loaded, $key)) {
+        continue;
+    }
+    $loaded[$key] = true;
+    echo Core\IO::read($include);
+}
+
+// This prints the two settings lines, and then "3 entries, 2 files".
+echo Core\Str::format("%d entries, %d files", Core\Arr::count($includes), Core\Arr::count($loaded)), "\n";

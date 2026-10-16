@@ -1,0 +1,22 @@
+<?nvs
+// Shows how to check that a customer is at least 18 years old on a given day.
+
+// A customer is old enough if they were born on or before this date.
+// This prints 2006-06-15.
+var $today = Core\Time\Date::at(2024, 6, 15);
+var $latest = $today->minus(18, Core\Unit::Year);
+echo "Born on or before ", $latest->format("yyyy-MM-dd"), "\n";
+
+// `compareTo` returns 1 when a birthday is later than `$latest`.
+array<Core\Time\Date> $birthdays = [
+    Core\Time\Date::at(2006, 6, 15),
+    Core\Time\Date::at(2006, 6, 16),
+    Core\Time\Date::at(1990, 1, 1),
+];
+foreach ($birthdays as Core\Time\Date $born) {
+    if ($born->compareTo($latest) > 0) {
+        echo $born->format("yyyy-MM-dd"), ": too young\n";
+    } else {
+        echo $born->format("yyyy-MM-dd"), ": old enough\n";
+    }
+}

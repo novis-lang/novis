@@ -1,0 +1,15 @@
+<?nvs
+// Shows how a program builds its links when the server serves it under a prefix.
+
+// The server serves this program at `/shop`. The client asked for `/shop/orders`.
+Core\Request\Mount $mount = Core\Request::mount();
+
+// `path()` returns the path without the prefix. This prints "/orders".
+echo Core\Request::path(), "\n";
+
+// `prefix()` returns the prefix that the server removed. This prints "/shop".
+echo $mount->prefix(), "\n";
+
+// Put the prefix in front of a link, so the link works under `/shop`.
+// This prints "/shop/orders/1042".
+echo $mount->prefix(), "/orders/1042", "\n";

@@ -1,0 +1,44 @@
+<?nvs
+// Shows the clean-up a program runs around a job that reads rows. Every row has
+// a `finally` of its own, and the whole job has one around it. The inner block
+// runs first.
+
+final class Import {
+    public static int $rowsClosed = 0;
+    public static int $jobsClosed = 0;
+
+    public static function rows(array<string> $lines): int {
+        try {
+            int $total = 0;
+            foreach ($lines as string $line) {
+                try {
+                    if ($line == "") {
+                        throw new RuntimeError("an empty row stopped the job");
+                    }
+                    $total = $total + 1;
+                } finally {
+                    Import::$rowsClosed = Import::$rowsClosed + 1;
+                }
+            }
+            return $total;
+        } finally {
+            Import::$jobsClosed = Import::$jobsClosed + 1;
+        }
+    }
+}
+
+array<string> $complete = ["a", "b", "c"];
+array<string> $withHole = ["a", "", "c"];
+
+// This prints 3.
+echo Import::rows($complete), "\n";
+
+try {
+    echo Import::rows($withHole), "\n";
+} catch (RuntimeError $stopped) {
+    echo $stopped->message, "\n";
+}
+
+// The failed job closed its row and then itself, so both counts went up.
+echo "rows closed: ", Import::$rowsClosed, "\n";
+echo "jobs closed: ", Import::$jobsClosed, "\n";

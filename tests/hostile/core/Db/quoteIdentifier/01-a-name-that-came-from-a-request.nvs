@@ -1,0 +1,77 @@
+<?nvs
+// Attack: a program checks table and column names that a visitor sent. It tries
+// names with SQL commands in them, a name of eight million letters, and four
+// hundred thousand checks in a row. Every name has to come back or throw an
+// error, and none of them may stop the program.
+// hostile: timeout-ms 30000
+
+// 1. Names that try to end the identifier and start something else. Each one
+// must throw.
+array<string> $injections = [
+    'orders; DROP TABLE users',
+    "orders\" OR \"1\"=\"1",
+    '`orders`',
+    '[orders]',
+    'orders--',
+    'orders/*',
+    'orders) UNION SELECT 1',
+    "orders'",
+    "orders\n; DELETE FROM users",
+    "orders\tusers",
+    'orders users',
+    'ordersörder',
+    ' orders',
+    'orders ',
+    '.',
+    '',
+];
+uint $refused = 0;
+foreach ($injections as string $name) {
+    try {
+        Core\Db::quoteIdentifier($name);
+    } catch (Throwable $error) {
+        $refused = $refused + 1;
+    }
+}
+echo '1 refused: ', $refused, ' of ', Core\Arr::count($injections), "\n";
+
+// 2. A name of eight million letters. It is a legal identifier, so it comes
+// back, and the program keeps its memory limit.
+string $huge = Core\Str::repeat('a', 8000000);
+try {
+    string $checked = Core\Db::quoteIdentifier($huge);
+    echo '2 a name of ', Core\Str::length($checked), " letters came back\n";
+} catch (Throwable $error) {
+    echo "2 a name of eight million letters throws\n";
+}
+
+// 3. The same name with one quote at the end. The error message contains the
+// name, so this program prints only whether it threw.
+try {
+    Core\Db::quoteIdentifier($huge . "\"");
+    echo "3 a name of eight million letters and a quote came back\n";
+} catch (Throwable $error) {
+    echo "3 a name of eight million letters and a quote throws\n";
+}
+
+// 4. Four hundred thousand checks in a row, half of them refused, so nothing a
+// refusal builds can pile up.
+uint $answered = 0;
+uint $threw = 0;
+uint $i = 0;
+while ($i < 200000) {
+    try {
+        Core\Db::quoteIdentifier('column_' . ($i as string));
+        $answered = $answered + 1;
+    } catch (Throwable $error) {
+        $threw = $threw + 1;
+    }
+    try {
+        Core\Db::quoteIdentifier('column;' . ($i as string));
+        $answered = $answered + 1;
+    } catch (Throwable $error) {
+        $threw = $threw + 1;
+    }
+    $i = $i + 1;
+}
+echo '4 names that came back: ', $answered, ', names refused: ', $threw, "\n";

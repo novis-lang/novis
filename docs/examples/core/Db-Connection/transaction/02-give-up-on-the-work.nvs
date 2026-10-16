@@ -1,0 +1,23 @@
+<?nvs
+// Shows how to give up on a transaction. `Core\Db\Transaction::rollBack` takes
+// a reason and throws `Core\Db\RolledBack`. Nothing your function wrote is kept.
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table orders (id integer primary key, item text not null)', []);
+
+try {
+    $db->transaction(fn (Core\Db\Transaction $tx): void => {
+        $tx->execute('insert into orders (item) values (?)', ['a red bicycle']);
+        // The item turned out to be sold out, so this order must not be kept.
+        $tx->rollBack('the item is sold out');
+    });
+} catch (Core\Db\RolledBack $abandoned) {
+    // The reason you gave is the error's `reason`. This prints
+    // `gave up: the item is sold out`.
+    echo 'gave up: ', $abandoned->reason, "\n";
+}
+
+// The row your function wrote is gone. This prints `0 orders`.
+echo $db->query('select id from orders', [])->count(), " orders\n";
+
+$db->close();

@@ -1,0 +1,67 @@
+---
+title: Novis
+covers: []
+description: Novis is a programming language for web applications and the command line. Build business apps, websites, APIs and web services. The tools you need are built in.
+template: splash
+head:
+  - tag: title
+    content: Novis-Lang - The programming language for web applications. Fast. Secure by default.
+  - tag: meta
+    attrs:
+      property: og:title
+      content: Novis-Lang - The programming language for web applications. Fast. Secure by default.
+---
+
+import Snippet from '@components/Snippet.astro'
+import Hero from '@components/home/Hero.astro'
+import Facts from '@components/home/Facts.astro'
+import Catches from '@components/home/Catches.astro'
+import Bento from '@components/home/Bento.astro'
+import Isolation from '@components/home/Isolation.astro'
+import Library from '@components/home/Library.astro'
+import Tooling from '@components/home/Tooling.astro'
+import Agents from '@components/home/Agents.astro'
+import Numbers from '@components/home/Numbers.astro'
+import Path from '@components/home/Path.astro'
+import Cta from '@components/home/Cta.astro'
+import Sponsors from '@components/Sponsors.astro'
+
+<Hero>
+  <Snippet src="home/hero-html.nvs" output="http" slot="html" />
+  <Snippet src="home/hero-sql-error.nvs" slot="sql" />
+  <Snippet src="home/hero-secret-error.nvs" slot="secret" />
+</Hero>
+
+<Facts />
+
+<Catches>
+  <Snippet src="home/sql-error.nvs" slot="query" />
+  <Snippet src="guides/why-novis/secret-values-error.nvs" slot="secret" />
+</Catches>
+
+<Bento>
+  <Snippet src="home/checked-number.nvs" slot="conversion" />
+  <Snippet src="home/unicode.nvs" slot="unicode" />
+  <Snippet src="home/json-response.nvs" output="http" slot="json" />
+  <Snippet src="home/tasks.nvs" slot="tasks" />
+</Bento>
+
+<Isolation />
+
+<Library>
+  <Snippet src="home/library.nvs" output="http" />
+</Library>
+
+<Tooling>
+  <Snippet src="guides/why-novis/tests-in-code.nvs" />
+</Tooling>
+
+<Agents />
+
+<Numbers />
+
+<Path />
+
+<Cta />
+
+<Sponsors show="partners" />

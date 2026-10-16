@@ -1,0 +1,26 @@
+<?nvs
+// Shows what belongs in the text and what has to be taken out first.
+
+// A colour from a stylesheet is three bytes: red, green and blue. The `#` is
+// not a digit, so it is cut off first. This prints 47 111 78.
+bytes $colour = Core\Encoding::fromHex(Core\Str::slice("#2f6f4e", 1, null));
+echo Core\Bytes::at($colour, 0), " ", Core\Bytes::at($colour, 1), " ", Core\Bytes::at($colour, 2), "\n";
+
+// Nothing may stand between the pairs either. A network address is written
+// with colons, so take them out with `Core\Str::replace`. This prints 6.
+string $address = "00:1b:44:11:3a:b7";
+echo Core\Bytes::length(Core\Encoding::fromHex(Core\Str::replace($address, ":", ""))), "\n";
+
+// A `0x` in front belongs to a number in source code, not to this text.
+try {
+    Core\Encoding::fromHex("0xff");
+} catch (RuntimeError $prefixed) {
+    echo "refused: ", $prefixed->message, "\n";
+}
+
+// An odd number of digits is an error, because one byte takes two digits.
+try {
+    Core\Encoding::fromHex("abc");
+} catch (RuntimeError $odd) {
+    echo "refused: ", $odd->message, "\n";
+}

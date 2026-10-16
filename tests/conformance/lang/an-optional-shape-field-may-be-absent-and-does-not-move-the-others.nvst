@@ -1,0 +1,27 @@
+--TEST--
+A shape field written `name?:` may be absent from the value, and the fields that are present still read correctly — `rule:types/shape-type`
+--FILE--
+<?nvs
+// `rule:types/shape-type`: the `?` before the `:` relaxes presence of the key
+// and nothing else. A value carrying only the required field satisfies the
+// shape.
+({a?: int, x: int}) $p = {x: 1};
+echo $p->x, "\n";
+
+// The optional field is deliberately first in the shape's sorted field order
+// and absent from the value, so the shape's own field position for `x` is not
+// the value's. The fetch is name-keyed for exactly this reason, so it still
+// answers 1 above.
+
+// Present, and then checked like any other field.
+({a?: int, x: int}) $q = {a: 7, x: 2};
+echo $q->a, " ", $q->x, "\n";
+
+// Width subtyping still applies on top of it: an extra field the shape does
+// not name is no problem either.
+({a?: int, x: int}) $r = {x: 3, z: "extra"};
+echo $r->x, "\n";
+--EXPECT--
+1
+7 2
+3

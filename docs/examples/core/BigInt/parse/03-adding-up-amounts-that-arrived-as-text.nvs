@@ -1,0 +1,28 @@
+<?nvs
+// Shows a program adding up amounts that arrived as text, the way one that
+// reads a report file does. Each amount is larger than an `int` holds.
+
+class Report {
+    // Returns the total of the amounts. A line that is not a number is
+    // reported and skipped.
+    public static function total(array<string> $lines): Core\BigInt {
+        var $total = Core\BigInt::of(0);
+        foreach ($lines as string $line) {
+            try {
+                $total = $total->add(Core\BigInt::parse($line));
+            } catch (ParseError $bad) {
+                echo "skipped: ", $bad->message, "\n";
+            }
+        }
+        return $total;
+    }
+}
+
+array<string> $lines = [
+    "170141183460469231731687303715884105727",
+    "170141183460469231731687303715884105727",
+    "1 000",
+];
+
+// This prints the skipped line first, then the total of the other two.
+echo Report::total($lines), "\n";

@@ -1,0 +1,15 @@
+<?nvs
+// Shows what you get when the column has no value in this row.
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table settings (name text not null, enabled boolean)', []);
+$db->execute('insert into settings (name, enabled) values (?, ?), (?, ?)', ['beta', null, 'dark mode', true]);
+
+// `bool` returns `null` for a column with no value. `?? false` says which
+// value your program uses instead. This prints `beta: off` and `dark mode: on`.
+foreach ($db->query('select name, enabled from settings order by name', []) as Core\Db\Row $row) {
+    bool $enabled = $row->bool('enabled') ?? false;
+    echo $row->string('name') ?? '', ': ', $enabled ? 'on' : 'off', "\n";
+}
+
+$db->close();

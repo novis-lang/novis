@@ -1,0 +1,44 @@
+--TEST--
+Core\Signature::verify hands back the payload Core\Signature::sign was given, in canonical key order, with the lifetime that rode inside the signed bytes — `rule:core-classes/signature`, `rule:core-api/a-lifetime-is-written`
+--FILE--
+<?nvs
+// The round trip, asked by value rather than by walking the two maps: what a
+// program gets back is every claim it signed, under its own name.
+secret bytes $key = Core\Crypto::generateKey();
+array<secret bytes> $ring = [$key];
+
+array<string> $claims = ["user" => "ada", "role" => "admin", "doc" => "7"];
+string $token = Core\Signature::sign($claims, {keys: $ring, until: null});
+array<tainted string> $back = Core\Signature::verify($token, $ring);
+
+echo $back["user"] == "ada" ? "user" : "no user", "\n";
+echo $back["role"] == "admin" ? "role" : "no role", "\n";
+echo $back["doc"] == "7" ? "doc" : "no doc", "\n";
+echo Core\Arr::count($back), "\n";
+
+// Insertion order is not signed and does not come back: the payload is in the
+// canonical order the document was written in, which is the sorted one. A
+// program that needs an order of its own puts it in a claim.
+array<string> $keys = Core\Arr::keys($back);
+echo $keys[0], " ", $keys[1], " ", $keys[2], "\n";
+
+// The lifetime rides *inside* the signed region, so a token minted with one
+// still in the future verifies and one is not a second argument for the two
+// sides to keep in step. `null` above and an instant here are both spellings
+// a caller writes; there is no third, omitted one.
+Core\Time\Instant $hence = Core\Time::now()->plus(1h);
+string $dated = Core\Signature::sign($claims, {keys: $ring, until: $hence});
+array<tainted string> $datedBack = Core\Signature::verify($dated, $ring);
+echo $datedBack["user"] == "ada" ? "and a dated token verifies" : "refused", "\n";
+
+// And it is inside the tag: the two tokens differ, because the lifetime is
+// part of the document rather than something carried beside it.
+echo $token == $dated ? "the lifetime is not signed" : "the lifetime is signed", "\n";
+--EXPECT--
+user
+role
+doc
+3
+doc role user
+and a dated token verifies
+the lifetime is signed

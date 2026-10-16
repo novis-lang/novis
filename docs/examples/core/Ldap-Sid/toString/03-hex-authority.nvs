@@ -1,0 +1,7 @@
+<?nvs
+// Shows how `toString` writes the authority, the number after `S-1-`.
+
+// A small authority is written in decimal, even when the text used hex.
+echo Core\Ldap\Sid::parse('S-1-0x000000000005-7')->toString(), "\n";
+// A large authority is written in hex. This prints S-1-0x010000000000-7.
+echo Core\Ldap\Sid::parse('S-1-0x010000000000-7')->toString(), "\n";

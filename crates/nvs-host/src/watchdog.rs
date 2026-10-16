@@ -1,0 +1,2231 @@
+//! The watchdog: one thread for the process, noticing a core that has stopped
+//! turning at all.
+//!
+//! `rule:http-server/a-wedged-core-is-detected-by-its-deadline`
+//! is the whole specification, and its first clause decides this module's
+//! shape: the watchdog **reads the in-flight deadline each worker already
+//! maintains**. So there is no heartbeat here, and a stall is read off state the
+//! core keeps for its own deadlines. What it reads is [`crate::timer`]'s
+//! [`DeadlineView`], which is the first entry of a table the deadline mechanism
+//! was keeping anyway. A per-request beat would be the wrong implementation of
+//! this item even if it were cheap, because it measures the request rather than
+//! the core.
+//!
+//! # Why the earliest deadline is the right thing to read
+//!
+//! `Timers::take_due` drops a deadline the moment the core polls after it, so a
+//! core that is turning never leaves one behind the clock for longer than one
+//! poll. A published deadline that is still a *margin* in the past therefore
+//! says the core has not turned in that long — not that a request is slow, and
+//! not that a handler is taking its time. That is the fault this watchdog exists for: an
+//! engine deadlock, or a loop with no poll site in it, which no other mechanism
+//! in the server answers because the worker is not faulting in any way it could
+//! be asked about.
+//!
+//! # Report and shed, never kill
+//!
+//! Firing writes one record to `rule:errors/engine-floor`'s floor — [`Watchdog::new`]'s sink is `stderr`, which is that ADR's
+//! default target — and does nothing else to the core. A thread cannot be
+//! safely killed in-process and `rule:http-server/the-residue-is-one-named-fault-class` declines the process boundary
+//! that would make it possible, so detection is the whole of what happens here.
+//! The other half of `rule:http-server/a-wedged-core-is-shed-never-killed` is
+//! admission control's, which is `nvs_server::admit`, and it reads this
+//! report rather than growing a second detector. Every sweep writes [`Shed`]'s
+//! two counts and each core's own flag: admission refuses a request on a core
+//! [`this_core_is_wedged`] names, and takes the wedged cores' share off
+//! `max_in_flight`. The sweep that finds the core turning again clears both,
+//! so the share returns within one interval.
+//!
+//! A stall is reported **once per deadline**, not once per sweep: a wedged core
+//! republishes nothing, so its earliest deadline is a stable identity for the
+//! episode. That is `rule:http-server/the-floor-cannot-fill-the-disk`
+//! 's coalescing rule arriving for free rather than as a second bound on
+//! the sink. A core that recovers and stalls again on a later deadline is a new
+//! episode and reports again.
+//!
+//! # What it costs, and what it is configured by
+//!
+//! One OS thread for the process — not one per core — started when the first
+//! core registers, so a process running no workers has none. It holds one
+//! entry per *registered core*, which is O(cores), and in each entry one
+//! publication per request in flight on that core, which leaves with its
+//! request: O(in-flight), never O(requests served). It wakes once per
+//! [`DEFAULT_INTERVAL`] to read one atomic per entry and one per publication
+//! under a ceiling, beside one reading of that core's clock. What a core pays
+//! for its publications is *Charging a request for the time it runs* below.
+//!
+//! `[server] watchdog_margin` sets the margin, and [`DEFAULT_MARGIN`] is the
+//! margin with the key left out. `nvs serve` resolves the key at boot through
+//! `nvs_config::server::watchdog_margin_for` and builds the process's one
+//! watchdog with [`Watchdog::reporting_after`], which is why the key is `Boot`:
+//! a reload has no second watchdog to hand a new margin to. [`DEFAULT_INTERVAL`]
+//! has no key, because a sweep costs one wakeup and a few relaxed loads per
+//! core, and a shorter or longer one buys an operator nothing the margin does
+//! not.
+//!
+//! # The requests a core is running
+//!
+//! Reporting a wedged core answers the *core*. Stopping the **request** that
+//! wedged it needs a handle on that request, and [`Registration::publish`] is
+//! where a core hands one over: `nvs-runtime`'s [`SafepointView`] on its
+//! request tree's safepoint word, which is the word compiled code polls at
+//! every function entry and loop back edge. One store through it stops every
+//! isolate and task under that tree, because `rule:security/isolate-shares-nothing`
+//! gives a tree one ceiling to divide and so one word to be stopped by.
+//!
+//! A core publishes a request where its body starts and withdraws it where the
+//! body ends ([`Registration::withdraw`]), so an entry holds every request in
+//! flight on its core: a core takes up many at once and runs each a few
+//! statements at a time. A publication goes through the lock this module
+//! already holds rather than through an atomic of its own, and costs a core
+//! one lock at a request's start and one at its end. A *deadline* could not be
+//! published this way — [`crate::timer`]'s docs own that argument — because it
+//! is rewritten every time any task arms or disarms one.
+//!
+//! The ceiling is not part of a publication: it is read through the handle on
+//! every sweep, so one a program narrowed with `Core\Config::set` is the one
+//! charged, against everything its request has spent. A request under no cap
+//! is published and compared with nothing until it has one. A core on a
+//! platform with no per-thread clock publishes nothing and is sampled not at
+//! all.
+//!
+//! # Charging a request for the time it runs
+//!
+//! Each publication carries a [`Charge`]: the CPU time its core has spent
+//! running that request's tree. [`crate::scheduler::Scheduler`] names the tree of every
+//! task before it resumes it ([`switch_to`]), and a switch that leaves or
+//! enters a published tree reads the core's own [`ThreadClock`] once: the time
+//! since the last switch goes to the tree it leaves, and the tree it enters is
+//! charged from that reading on. So a request is charged for the time its own
+//! tasks run and for nothing its neighbours run, across every wait. A request
+//! that waits once and then loops forever is charged from the switch that
+//! resumed it, and a request parked beside it is charged nothing for the loop.
+//!
+//! **What it spends on each task switch.** Between two tasks of one tree — a
+//! request's own tasks taking turns — one comparison. Between two trees, a
+//! thread-local read and two lookups in the core's own table of publications;
+//! and where either tree is published, one reading of the core's clock and, for
+//! each published tree it leaves or enters, one load and one store into that
+//! tree's [`Charge`]. The reading is a system call on every platform that has
+//! the clock, and it is the cost that buys `rule:errors/on-limit`'s ceiling for
+//! a request that waits before it runs away: security and request isolation
+//! are paid for here with request-path latency, in that order of priority.
+//!
+//! [`Shared::sweep`] reads a core's clock and then each charge, on the walk it
+//! already makes, and a request whose charge has reached its ceiling is asked
+//! to stop through the handle beside it: `SafepointFlags::CPU_LIMIT` into the
+//! word compiled code polls, which is `rule:errors/on-limit`'s ceiling
+//! arriving at the request that spent it. Clock first and charge second, so a
+//! switch between the two reads can only make the charge read low, never high:
+//! a request is never stopped for time its neighbours spent. Nothing there
+//! touches the *core*. The section above still holds, and a core is reported
+//! and shed rather than killed; what changes is that the request wedging it
+//! stops itself at its next poll.
+//!
+//! A thread that publishes outside any task — `nvs run` before its scheduler
+//! turns, or an isolate run on its caller's stack — is running that request
+//! itself, so it is charged from the publication on and goes back to whatever
+//! it was charging when the publication is withdrawn.
+//!
+//! **A child placed `on: "worker"` is charged on the core that runs it.** It
+//! runs in a task that core's receptionist started, so it publishes its tree
+//! there itself ([`publish_here`]) and moves its task to that tree
+//! ([`crate::scheduler::charge_running_task_to`]). The walk adds up what a
+//! tree has spent on every thread it is published on and compares the sum
+//! with the tree's one ceiling, so a parent and its placed children spend one
+//! `cpu_time` between them (`rule:security/isolate-budget-is-the-trees`). A
+//! core [`crate::worker`] started is registered with no watchdog of its own,
+//! so its receptionist registers it with the one the placement came from
+//! ([`Watcher`]) and keeps that registration while the core runs. What it
+//! spends: per placed child, one publication and one tree switch on the far
+//! core, which is what a request's body pays where it starts; per sweep, one
+//! map entry per tree under a ceiling, on the watchdog's own thread.
+//!
+//! # Stopping a request at its wall time
+//!
+//! The same walk stops a published request whose `[limits] wall_time` has
+//! passed (`rule:errors/on-limit`), through the same two stores:
+//! `SafepointFlags::WALL_TIME` and the expired deadline. A core cannot time
+//! this itself, because a request in a loop with no wait is what the core is
+//! running, and its timers are read only when it turns. So the stop arrives
+//! within one interval of the deadline. The deadline is read through the handle
+//! on each sweep, so one `Core\Config::set` moved is the one enforced. A
+//! request's `Core\Fatal::onLimit` handler runs with the flag lowered, and the
+//! walk raises it again one interval past the deadline, which bounds the
+//! handler as the CPU half's next sweep does. `nvs run` also times its one
+//! request with a clock of its own, which stops it at the instant.
+//!
+//! **What it spends:** one load of the tree's `wall_time` per published request
+//! per sweep, on this thread, and nothing on the request path.
+//!
+//! # Registering a core
+//!
+//! Whoever installs a core's [`Reactor`](crate::Reactor) registers it, because
+//! that is where a [`DeadlineView`] comes from:
+//!
+//! ```ignore
+//! let installed = reactor::install(Reactor::new()?);
+//! let _watched = watchdog.register(cpu, reactor::with_current(|r| r.deadline_view()).unwrap());
+//! ```
+//!
+//! [`Registration`] deregisters on drop, so a worker that ends stops being
+//! watched. Without that, a finished core's frozen view would read as a wedged
+//! one forever — its deadline cannot move again — and the watched set would
+//! grow with workers *started* rather than with workers running.
+//!
+//! # Registering a thread that is no core
+//!
+//! A `nvs run` is one request on one thread: it has a ceiling to be stopped by
+//! and no CPU it is pinned to, no fleet to shed its share onto and no operator
+//! but the one reading the stderr the program itself writes.
+//! [`Watchdog::register_requests`] is that caller's door. It buys the half of
+//! this module that answers a *request* — publication, sampling, and the flags
+//! raised at the ceiling — and none of the half that answers a core, so such an
+//! entry takes no [`DeadlineView`] and is reported as wedged never.
+
+use std::cell::RefCell;
+use std::collections::HashMap;
+use std::io::Write;
+use std::rc::Rc;
+use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
+use std::sync::{Arc, Condvar, Mutex, MutexGuard, PoisonError};
+use std::thread::JoinHandle;
+use std::time::{Duration, Instant};
+
+use nvs_runtime::{SafepointFlags, SafepointView};
+
+use crate::affinity::CpuId;
+use crate::cpuclock::ThreadClock;
+use crate::timer::DeadlineView;
+
+/// How far past its earliest deadline a core must be before it is reported,
+/// when `[server] watchdog_margin` is not written.
+///
+/// Generous on purpose. The margin is not a latency target — a request that
+/// overruns its deadline is answered by the deadline, not by this — it is the
+/// point past which "the core did not turn" stops being explicable by a long
+/// poll, a descheduled thread or a stepped clock.
+pub const DEFAULT_MARGIN: Duration = Duration::from_secs(5);
+
+/// How often the watchdog reads every registered core.
+///
+/// The detection latency is this plus [`DEFAULT_MARGIN`] at worst; the cost is
+/// one wakeup and one relaxed load per core, which is why it can be short
+/// without being an expense worth tuning.
+pub const DEFAULT_INTERVAL: Duration = Duration::from_millis(500);
+
+/// One report: a core whose earliest deadline passed and stayed passed.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Stall {
+    /// The CPU the wedged worker was pinned to, which is how an operator names
+    /// it in a log and how admission control will name it later.
+    pub cpu: CpuId,
+    /// The deadline that went unanswered. Stable for as long as the core stays
+    /// wedged, which is what makes it this episode's identity.
+    pub deadline: Instant,
+    /// How far past that deadline the core was when the report fired — at
+    /// least [`Watchdog`]'s margin, and more when the wedge started between two
+    /// sweeps.
+    pub overdue_by: Duration,
+}
+
+/// Where a report goes: `rule:errors/engine-floor`'s floor, or a caller's own sink.
+type Sink = Box<dyn Fn(&Stall) + Send + Sync + 'static>;
+
+/// What a core publishes about one request in flight on it: the handle that
+/// stops it and carries the CPU ceiling it runs under, and what it has spent of
+/// the core so far.
+///
+/// Made on the core's own thread by [`Registration::publish`] and read back
+/// through [`Watchdog::running`]. It holds no borrow of the request — the
+/// handle is `Send` where a `Ctx` is not, and the rest is an identifier and a
+/// shared word — so the watchdog thread reads all of it without touching
+/// anything the request owns.
+#[derive(Clone, Debug)]
+pub struct RunningRequest {
+    view: SafepointView,
+    clock: ThreadClock,
+    charge: Arc<Charge>,
+}
+
+impl RunningRequest {
+    /// The handle that stops this request, and with it every isolate and task
+    /// under its tree.
+    #[must_use]
+    pub fn view(&self) -> &SafepointView {
+        &self.view
+    }
+
+    /// The CPU time this request may burn as its tree's root states it now —
+    /// `[limits] cpu_time`, as `Ctx::cpu_limit` reports it — or `None` while
+    /// the request is under no cap.
+    ///
+    /// Read through the handle each time rather than copied at the
+    /// publication, because `Core\Config::set` may narrow `limits.cpu_time`
+    /// while the request runs. The charge it is compared with is the whole
+    /// request's, so a program cannot clear its own charge by setting the
+    /// directive again.
+    #[must_use]
+    pub fn limit(&self) -> Option<Duration> {
+        let nanos = self.view.cpu_limit();
+        (nanos > 0).then(|| Duration::from_nanos(nanos))
+    }
+
+    /// The CPU time the core has spent running this request's tree since the
+    /// publication, or `None` once the core's thread has ended.
+    ///
+    /// Read from any thread: the core's clock first, through [`ThreadClock`],
+    /// and the [`Charge`] after it, which is the order that never reads high.
+    #[must_use]
+    pub fn burned(&self) -> Option<Duration> {
+        let now = self.clock.burned()?;
+        Some(Duration::from_nanos(self.charge.at(nanos(now))))
+    }
+}
+
+/// The CPU time one published request tree has spent of its core, in one word
+/// the core writes and any thread reads.
+///
+/// The word has two forms, told apart by its top bit. While the core is not
+/// running the tree, it is the nanoseconds the tree has spent. While the core
+/// is running it, the bit is set and the rest is the reading of the core's
+/// clock at which the tree would have spent nothing had it run alone, so its
+/// spend is the clock now less that reading. One word means a reader never
+/// sees half of a switch: whatever it loads is a charge that was true at some
+/// instant.
+#[derive(Debug, Default)]
+struct Charge(AtomicU64);
+
+impl Charge {
+    /// Set while the core is running this tree.
+    const RUNNING: u64 = 1 << 63;
+
+    /// The core starts running this tree at clock reading `now`.
+    fn start(&self, now: u64) {
+        let word = self.0.load(Ordering::Relaxed);
+        if word & Self::RUNNING == 0 {
+            self.0
+                .store(Self::RUNNING | now.saturating_sub(word), Ordering::Release);
+        }
+    }
+
+    /// The core stops running this tree at clock reading `now`.
+    fn stop(&self, now: u64) {
+        let word = self.0.load(Ordering::Relaxed);
+        if word & Self::RUNNING != 0 {
+            self.0
+                .store(now.saturating_sub(word & !Self::RUNNING), Ordering::Release);
+        }
+    }
+
+    /// What the tree has spent, given a reading of the core's clock taken
+    /// before this call.
+    ///
+    /// Saturating, because a reading taken before the tree's latest start is
+    /// earlier than the point it is measured from, and that must read as a
+    /// small charge rather than an enormous one.
+    fn at(&self, now: u64) -> u64 {
+        let word = self.0.load(Ordering::Acquire);
+        if word & Self::RUNNING == 0 {
+            word
+        } else {
+            now.saturating_sub(word & !Self::RUNNING)
+        }
+    }
+}
+
+/// A clock reading in the nanoseconds a [`Charge`] counts, kept clear of its
+/// top bit. That bit is 292 years of CPU time.
+fn nanos(reading: Duration) -> u64 {
+    u64::try_from(reading.as_nanos()).unwrap_or(u64::MAX) & !Charge::RUNNING
+}
+
+/// The half of a registration that only its own thread touches: which request
+/// trees it has published, and which tree it is running now.
+///
+/// Reached by [`Registration`]'s methods and, through [`METER`], by
+/// [`switch_to`], which the scheduler calls before every task it resumes.
+#[derive(Debug)]
+struct Meter {
+    /// This thread's clock, read here on the thread itself.
+    clock: ThreadClock,
+    /// Every tree published on this thread, by [`SafepointView::tree_key`].
+    charges: HashMap<usize, Charging>,
+    /// The tree this thread is running now, or [`NO_TREE`] outside any task.
+    running: usize,
+}
+
+/// One tree's entry in a [`Meter`].
+#[derive(Debug)]
+struct Charging {
+    charge: Arc<Charge>,
+    /// How many publications of this tree are standing. A request publishes
+    /// its tree once per isolate body that is watched, and the tree stays
+    /// charged until the last of them is withdrawn.
+    publications: usize,
+    /// The tree this thread was running when this one was published outside
+    /// any task, which it runs again when this one is withdrawn. `None` for a
+    /// tree published by a task: the scheduler names what runs next.
+    outer: Option<usize>,
+}
+
+/// The tree key of a thread that is running no task.
+const NO_TREE: usize = 0;
+
+impl Meter {
+    /// The thread moves from the tree it is running to `tree`.
+    fn switch(&mut self, tree: usize) {
+        if tree == self.running {
+            return;
+        }
+        let left = std::mem::replace(&mut self.running, tree);
+        let leaving = self.charges.get(&left);
+        let entering = self.charges.get(&tree);
+        if leaving.is_none() && entering.is_none() {
+            return;
+        }
+        let Some(now) = self.clock.burned() else {
+            return;
+        };
+        let now = nanos(now);
+        if let Some(leaving) = leaving {
+            leaving.charge.stop(now);
+        }
+        if let Some(entering) = entering {
+            entering.charge.start(now);
+        }
+    }
+}
+
+/// What one registration keeps on its own thread: its [`Meter`], and the
+/// entry in the watched set its publications are written to.
+///
+/// Shared by the [`Registration`] and by [`METER`], so a publication made
+/// without the registration in hand — [`publish_here`] — reaches the same
+/// table and the same entry as one made through it.
+#[derive(Debug)]
+struct Local {
+    shared: Arc<Shared>,
+    id: u64,
+    meter: RefCell<Meter>,
+}
+
+impl std::fmt::Debug for Shared {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Shared")
+            .field("margin", &self.margin)
+            .field("interval", &self.interval)
+            .finish_non_exhaustive()
+    }
+}
+
+thread_local! {
+    /// The [`Local`] of the registration this thread made last, which is the
+    /// one the scheduler charges through. Empty on a thread that registered
+    /// nothing, or that has no clock to charge with.
+    static METER: RefCell<Option<Rc<Local>>> = const { RefCell::new(None) };
+
+    /// Whether the core this thread registered last is reported as wedged now.
+    /// Empty on a thread that registered no core.
+    static WEDGED: RefCell<Option<Arc<AtomicBool>>> = const { RefCell::new(None) };
+}
+
+/// Whether the core this thread runs is reported as wedged now.
+///
+/// What `nvs_server::admit` checks before it gives a request a place: a core
+/// the watchdog reported takes no new work until a sweep finds it turning
+/// again. `false` on a thread that registered no core. One thread-local read
+/// and one relaxed load.
+#[must_use]
+pub fn this_core_is_wedged() -> bool {
+    WEDGED
+        .try_with(|slot| {
+            slot.borrow()
+                .as_ref()
+                .is_some_and(|wedged| wedged.load(Ordering::Relaxed))
+        })
+        .unwrap_or(false)
+}
+
+/// What admission control reads of the watchdog's report: how many cores are
+/// watched, and how many of them are wedged now.
+///
+/// `rule:http-server/a-wedged-core-is-shed-never-killed` has admission
+/// subscribe to this and grow no detector of its own. The two counts are
+/// written under the watchdog's lock, by every change to the watched set and
+/// by every sweep, so they lag an episode by at most one interval. A request
+/// reads them with two relaxed loads and takes no lock. A thread that is no
+/// core is counted on neither side, for [`Watchdog::turning`]'s reason.
+#[derive(Clone, Debug, Default)]
+pub struct Shed(Arc<Counts>);
+
+/// [`Shed`]'s two numbers.
+#[derive(Debug, Default)]
+struct Counts {
+    cores: AtomicUsize,
+    wedged: AtomicUsize,
+}
+
+impl Shed {
+    /// How many cores are registered.
+    #[must_use]
+    pub fn cores(&self) -> usize {
+        self.0.cores.load(Ordering::Relaxed)
+    }
+
+    /// How many registered cores the last sweep found wedged.
+    #[must_use]
+    pub fn wedged(&self) -> usize {
+        self.0.wedged.load(Ordering::Relaxed)
+    }
+}
+
+impl State {
+    /// Writes the watched set's counts into `shed` and each core's wedged flag
+    /// from what has been reported about it. Called with the lock held.
+    fn recount(&self, shed: &Shed) {
+        let mut cores = 0_usize;
+        let mut wedged = 0_usize;
+        for watched in &self.watching {
+            let is_wedged = watched.core.is_some() && watched.reported.is_some();
+            watched.wedged.store(is_wedged, Ordering::Relaxed);
+            if watched.core.is_some() {
+                cores += 1;
+                wedged += usize::from(is_wedged);
+            }
+        }
+        shed.0.cores.store(cores, Ordering::Relaxed);
+        shed.0.wedged.store(wedged, Ordering::Relaxed);
+    }
+}
+
+/// Charges the CPU time this thread spends from now on to `tree`, as
+/// [`nvs_runtime::Ctx::tree_key`] names it, and stops charging the tree it was
+/// running. The module doc's *Charging a request for the time it runs* section
+/// owns what it costs.
+///
+/// [`crate::scheduler::Scheduler`] calls it before every task it resumes, and
+/// once more at the end of a turn with what [`running_tree`] answered at its
+/// start.
+pub(crate) fn switch_to(tree: usize) {
+    METER.with_borrow(|local| {
+        if let Some(local) = local {
+            local.meter.borrow_mut().switch(tree);
+        }
+    });
+}
+
+/// The tree this thread is charging now, or [`NO_TREE`].
+pub(crate) fn running_tree() -> usize {
+    METER.with_borrow(|local| {
+        local
+            .as_ref()
+            .map_or(NO_TREE, |local| local.meter.borrow().running)
+    })
+}
+
+/// Publishes `view`'s request tree on this thread's registration until the
+/// returned guard is dropped, or returns `None` on a thread that registered
+/// nothing.
+///
+/// For a request that runs on a thread whose [`Registration`] it was not
+/// handed: a child placed `on: "worker"` runs on another core, in a task that
+/// core's receptionist started, and nothing there holds the registration.
+/// The publication is [`Registration::publish`]'s, in the same table and the
+/// same entry, so the tree is charged on this thread exactly as on the thread
+/// its root runs on, and the walk adds the two
+/// (`rule:security/isolate-budget-is-the-trees`).
+pub(crate) fn publish_here(view: SafepointView) -> Option<PublishedHere> {
+    let local = METER.with_borrow(Clone::clone)?;
+    local.publish(view.clone());
+    Some(PublishedHere { local, view })
+}
+
+/// One [`publish_here`] publication, withdrawn when this is dropped.
+#[derive(Debug)]
+pub(crate) struct PublishedHere {
+    local: Rc<Local>,
+    view: SafepointView,
+}
+
+impl Drop for PublishedHere {
+    fn drop(&mut self) {
+        self.local.withdraw(&self.view);
+    }
+}
+
+/// A handle on the watchdog this thread is registered with, which another
+/// thread may register itself with in turn.
+///
+/// Carried with a placement to a core [`crate::worker`] started. Such a core
+/// is this crate's own thread and registers with nothing, so under `nvs run`
+/// a child placed there would be charged nowhere. Its receptionist registers
+/// with the watchdog that came with the placement ([`Self::adopt`]) and keeps
+/// that registration for as long as the core runs.
+#[derive(Clone, Debug)]
+pub(crate) struct Watcher(Arc<Shared>);
+
+impl Watcher {
+    /// The watchdog this thread is registered with, or `None`.
+    pub(crate) fn here() -> Option<Self> {
+        METER.with_borrow(|local| local.as_ref().map(|local| Self(Arc::clone(&local.shared))))
+    }
+
+    /// Registers this thread with this watchdog, unless it is registered with
+    /// it already, keeping the registration in `held`.
+    ///
+    /// A registration in `held` for another watchdog is dropped first. A
+    /// process runs one watchdog, so that happens only where tests build
+    /// several. A thread registered with this watchdog some other way, as a
+    /// serving core is, is left as it is.
+    pub(crate) fn adopt(&self, held: &mut Option<Registration>) {
+        let registered = METER.with_borrow(|local| {
+            local
+                .as_ref()
+                .is_some_and(|local| Arc::ptr_eq(&local.shared, &self.0))
+        });
+        if registered {
+            return;
+        }
+        *held = None;
+        *held = Some(enroll(&self.0, None));
+    }
+}
+
+/// One registered thread, and what has already been said about it.
+struct Watched {
+    /// Identity for deregistration. A counter rather than the [`CpuId`],
+    /// because a replacement worker for a wedged core is a second registration
+    /// on the same CPU and must not deregister the first.
+    id: u64,
+    /// The server core this entry is, as the pair that makes a stall report
+    /// possible: the CPU the worker is pinned to and the deadline table it
+    /// keeps. `None` for a thread that runs requests and is no core —
+    /// [`Watchdog::register_requests`]'s caller — which is sampled against its
+    /// ceilings exactly as a core is and is reported as wedged never, because
+    /// there is no deadline table to read and nothing to shed it onto.
+    core: Option<(CpuId, DeadlineView)>,
+    /// Every request tree published on this core and not yet withdrawn, one
+    /// entry per tree. [`Registration`]'s methods are the only writers, and
+    /// this module's docs say why it lives behind the same lock as the rest of
+    /// the entry.
+    running: Vec<RunningRequest>,
+    /// The deadline this core was last reported for, so an episode produces one
+    /// record rather than one per sweep. Cleared whenever the core is not
+    /// overdue, which is what makes a later stall a new episode.
+    reported: Option<Instant>,
+    /// Whether `reported` is set on a core, for [`this_core_is_wedged`] to
+    /// read on the core's own thread without the lock.
+    wedged: Arc<AtomicBool>,
+}
+
+/// What the watchdog thread and the cores registering with it share.
+struct Shared {
+    margin: Duration,
+    interval: Duration,
+    sink: Sink,
+    state: Mutex<State>,
+    /// What admission reads of the report, which [`State::recount`] writes.
+    shed: Shed,
+    /// Signalled to end the wait early — at shutdown, so a drop does not have
+    /// to wait out an interval to join.
+    change: Condvar,
+}
+
+/// The mutable half, which the watchdog thread holds only between sweeps.
+struct State {
+    watching: Vec<Watched>,
+    /// Cleared by [`Watchdog::drop`]; the thread returns the next time it looks.
+    running: bool,
+    next_id: u64,
+    /// Started with the first registration and joined by [`Watchdog::drop`].
+    /// Here rather than beside the `Arc` so that registering takes `&self`, as
+    /// it must when every core registers itself.
+    thread: Option<JoinHandle<()>>,
+}
+
+fn lock(state: &Mutex<State>) -> MutexGuard<'_, State> {
+    // A poisoned lock means a sink panicked. The state behind it is a list of
+    // views and a flag — nothing a panic can leave half-written — and refusing
+    // to watch any core again because one report panicked is the wrong trade
+    // for a mechanism whose whole job is to notice silence.
+    state.lock().unwrap_or_else(PoisonError::into_inner)
+}
+
+/// The process's watchdog.
+///
+/// Nothing is watched until a core [`Watchdog::register`]s, and the thread
+/// starts with the first one. Dropping it stops and **joins** that thread —
+/// unlike [`crate::blocking::BlockingPool`], which deliberately does not join,
+/// because this one is owned by the process rather than by a thread-local and
+/// so its drop never runs from a TLS destructor.
+pub struct Watchdog {
+    shared: Arc<Shared>,
+}
+
+impl std::fmt::Debug for Watchdog {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let state = lock(&self.shared.state);
+        f.debug_struct("Watchdog")
+            .field("watching", &state.watching.len())
+            .field("margin", &self.shared.margin)
+            .field("interval", &self.shared.interval)
+            .field("started", &state.thread.is_some())
+            .finish()
+    }
+}
+
+impl Default for Watchdog {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Watchdog {
+    /// A watchdog reporting to `rule:errors/engine-floor`'s floor, on this module's defaults.
+    #[must_use]
+    pub fn new() -> Self {
+        Self::reporting_after(DEFAULT_MARGIN)
+    }
+
+    /// A watchdog reporting to `rule:errors/engine-floor`'s floor a core that is
+    /// `margin` past its earliest deadline, sweeping every [`DEFAULT_INTERVAL`].
+    ///
+    /// This is the constructor `[server] watchdog_margin` reaches, so a
+    /// configured margin and the default one report through the same sink and
+    /// in the same words.
+    #[must_use]
+    pub fn reporting_after(margin: Duration) -> Self {
+        Self::with(margin, DEFAULT_INTERVAL, |stall| {
+            // Written through the handle rather than with `eprintln!`, which
+            // this workspace's clippy denies and which would panic on a broken
+            // pipe — the one thing `rule:errors/engine-floor`'s floor may not do. A failed
+            // write here is swallowed, per that section's last paragraph:
+            // there is nothing further to escalate to.
+            let _ = writeln!(
+                std::io::stderr(),
+                "nvs: the worker on cpu {} has not answered a deadline for {:?} — the core is \
+                 not turning",
+                stall.cpu.raw(),
+                stall.overdue_by
+            );
+        })
+    }
+
+    /// How far past its earliest deadline a core must be before it is reported.
+    #[must_use]
+    pub fn margin(&self) -> Duration {
+        self.shared.margin
+    }
+
+    /// A watchdog with its own margin, interval and sink.
+    ///
+    /// The sink is called on the watchdog's thread with no lock held, so it may
+    /// do anything a log write may do — including taking its own lock, and
+    /// including registering or deregistering a core.
+    #[must_use]
+    pub fn with(
+        margin: Duration,
+        interval: Duration,
+        report: impl Fn(&Stall) + Send + Sync + 'static,
+    ) -> Self {
+        Self {
+            shared: Arc::new(Shared {
+                margin,
+                interval,
+                sink: Box::new(report),
+                state: Mutex::new(State {
+                    watching: Vec::new(),
+                    running: true,
+                    next_id: 0,
+                    thread: None,
+                }),
+                shed: Shed::default(),
+                change: Condvar::new(),
+            }),
+        }
+    }
+
+    /// Watches `cpu`'s core through `view` until the returned handle is dropped.
+    ///
+    /// Called from the core's own thread, right after it installs its reactor —
+    /// this module's docs carry the snippet. The first call starts the
+    /// watchdog thread; a thread the OS refuses leaves the core registered and
+    /// unwatched rather than failing a worker's startup for it, which is the
+    /// same trade [`crate::blocking`] makes for a pool thread.
+    pub fn register(&self, cpu: CpuId, view: DeadlineView) -> Registration {
+        self.watch(Some((cpu, view)))
+    }
+
+    /// Watches a thread that runs requests and is no core, sampling whatever it
+    /// publishes against its ceiling until the returned handle is dropped.
+    ///
+    /// `nvs run` is the caller this exists for: one request on one thread, with
+    /// no CPU it is pinned to, no fleet to shed its share onto and an operator
+    /// reading the same stderr the program writes. It takes no [`DeadlineView`]
+    /// because it makes no stall report —
+    /// `rule:http-server/a-wedged-core-is-detected-by-its-deadline` answers a
+    /// worker that stopped turning, and the process that would be named by such
+    /// a report here is the one already printing the `FATAL` the ceiling
+    /// raised. What it does get is the half that answers a *request*:
+    /// [`Registration::publish`], sampled on the same walk and
+    /// stopped at the same ceiling as any core's.
+    pub fn register_requests(&self) -> Registration {
+        self.watch(None)
+    }
+
+    fn watch(&self, core: Option<(CpuId, DeadlineView)>) -> Registration {
+        enroll(&self.shared, core)
+    }
+
+    /// The counts admission subscribes to. Every handle reads the same two
+    /// numbers, for as long as any of them is held.
+    #[must_use]
+    pub fn shed(&self) -> Shed {
+        self.shared.shed.clone()
+    }
+
+    /// How many threads are registered.
+    #[must_use]
+    pub fn watching(&self) -> usize {
+        lock(&self.shared.state).watching.len()
+    }
+
+    /// Whether any watched core was answering its deadlines at the last sweep.
+    ///
+    /// The read side of the episode [`Shared::sweep`] already keeps: a core
+    /// counts as wedged for exactly as long as its earliest deadline stays a
+    /// margin in the past, and the entry recording that is cleared on the first
+    /// sweep where it is not. So this costs a walk of the watched set, lags by
+    /// at most one interval, and needs nothing published on a request path for
+    /// its benefit — which is what makes it the only honest evidence this
+    /// process is doing its job rather than merely existing.
+    ///
+    /// **`true` while one core of many is wedged**, because that is
+    /// `rule:http-server/a-wedged-core-is-shed-never-killed`: the fleet is
+    /// still serving, and what answers the wedged core is admission control
+    /// rather than anything that ends the process. It goes `false` only when
+    /// every watched core is wedged at once, which is a process with nothing
+    /// left to shed onto.
+    ///
+    /// `true` while no core is registered at all — a process whose fleet has
+    /// not started yet, and the host that enumerates no CPU to pin to, are both
+    /// answering every deadline they hold, which is none. A thread that is no
+    /// core ([`Self::register_requests`]) is not counted on either side: it is
+    /// reported as wedged never, so counting it would keep this `true` for a
+    /// process whose every core had stopped.
+    #[must_use]
+    pub fn turning(&self) -> bool {
+        let state = lock(&self.shared.state);
+        let mut cores = 0_usize;
+        let mut wedged = 0_usize;
+        for watched in &state.watching {
+            if watched.core.is_some() {
+                cores += 1;
+                wedged += usize::from(watched.reported.is_some());
+            }
+        }
+        cores == 0 || wedged < cores
+    }
+
+    /// Every request published on a registered thread, paired with the CPU
+    /// that thread is pinned to, or `None` where it is no core. Each carries
+    /// the handle that stops its request and what that request has spent.
+    ///
+    /// The read side of [`Registration::publish`]. Cloned out under the lock
+    /// and handed back owned, so whatever decides to stop a request — a
+    /// sampler, a test — does that with the watched set released and cannot
+    /// wedge a core registering beside it.
+    #[must_use]
+    pub fn running(&self) -> Vec<(Option<CpuId>, RunningRequest)> {
+        lock(&self.shared.state)
+            .watching
+            .iter()
+            .flat_map(|watched| {
+                let cpu = watched.core.as_ref().map(|&(cpu, _)| cpu);
+                watched
+                    .running
+                    .iter()
+                    .map(move |running| (cpu, running.clone()))
+            })
+            .collect()
+    }
+}
+
+impl Drop for Watchdog {
+    fn drop(&mut self) {
+        let thread = {
+            let mut state = lock(&self.shared.state);
+            state.running = false;
+            state.thread.take()
+        };
+        self.shared.change.notify_all();
+        if let Some(thread) = thread {
+            // Joining is safe here for the reason this type's docs give, and it
+            // is worth doing: a watchdog outliving its `Watchdog` would keep
+            // reporting cores that are already gone.
+            let _ = thread.join();
+        }
+    }
+}
+
+/// One core's place in the watched set, which it holds for as long as it runs.
+///
+/// Made and dropped on the core's own thread, and `!Send` so that it cannot
+/// leave it: what it charges is that thread's clock.
+pub struct Registration {
+    shared: Arc<Shared>,
+    id: u64,
+    /// This thread's [`Local`] and the [`Meter`] in it, or `None` on a platform with no per-thread
+    /// clock a stranger may read, where nothing is published and nothing is
+    /// sampled. Built from a clock taken once, where the registration is made,
+    /// because [`ThreadClock::current`] measures its caller and nothing else: a
+    /// clock taken where a request is *built* would measure whichever thread
+    /// built it.
+    meter: Option<Rc<Local>>,
+    /// The registration [`METER`] held before this one replaced it, put back
+    /// when this one is dropped.
+    outer_meter: Option<Rc<Local>>,
+    /// This core's wedged flag, which [`WEDGED`] holds while this registration
+    /// does. `None` for a thread that is no core.
+    wedged: Option<Arc<AtomicBool>>,
+    /// The flag [`WEDGED`] held before this one replaced it, put back when this
+    /// one is dropped.
+    outer_wedged: Option<Arc<AtomicBool>>,
+}
+
+/// Registers the calling thread with `shared`: [`Watchdog::register`] and
+/// [`Watchdog::register_requests`] with the watchdog in hand, and
+/// [`Watcher::adopt`] with a handle another thread carried here.
+fn enroll(shared: &Arc<Shared>, core: Option<(CpuId, DeadlineView)>) -> Registration {
+    let mut state = lock(&shared.state);
+    let id = state.next_id;
+    state.next_id += 1;
+    let wedged = Arc::new(AtomicBool::new(false));
+    let is_core = core.is_some();
+    state.watching.push(Watched {
+        id,
+        core,
+        // A core registers when it installs its reactor, which is before it
+        // has a request to be running — so the requests arrive later, by
+        // publication, and never as a second argument here.
+        running: Vec::new(),
+        reported: None,
+        wedged: Arc::clone(&wedged),
+    });
+    state.recount(&shared.shed);
+    if state.thread.is_none() && state.running {
+        let shared = Arc::clone(shared);
+        state.thread = std::thread::Builder::new()
+            .name("nvs-watchdog".to_owned())
+            .spawn(move || watch(&shared))
+            .ok();
+    }
+    drop(state);
+    // On the registering thread's own stack, which is the one thing this
+    // call can be sure of: a thread registers itself, so the clock every
+    // publication through this handle is charged against is that thread's.
+    // [`Registration::meter`] owns the rest.
+    let meter = ThreadClock::current().map(|clock| {
+        Rc::new(Local {
+            shared: Arc::clone(shared),
+            id,
+            meter: RefCell::new(Meter {
+                clock,
+                charges: HashMap::new(),
+                running: NO_TREE,
+            }),
+        })
+    });
+    let outer_meter = meter
+        .as_ref()
+        .and_then(|meter| METER.replace(Some(Rc::clone(meter))));
+    let wedged = is_core.then_some(wedged);
+    let outer_wedged = wedged
+        .as_ref()
+        .and_then(|wedged| WEDGED.replace(Some(Arc::clone(wedged))));
+    Registration {
+        shared: Arc::clone(shared),
+        id,
+        meter,
+        outer_meter,
+        wedged,
+        outer_wedged,
+    }
+}
+
+impl Registration {
+    /// Publishes a request this thread is running, until [`Self::withdraw`]
+    /// takes it back.
+    ///
+    /// `view` must be the **tree root's** handle — `Ctx::safepoint_view` hands
+    /// out no other — so one store through it reaches every isolate and task
+    /// under it, including one spawned after the store. A request under no cap
+    /// is published too, because its program may narrow the ceiling later and
+    /// the charge has to cover everything the request spent. This module's
+    /// docs say what the watchdog does with a publication and what a core pays
+    /// for it.
+    ///
+    /// A tree already published here is not published twice: the publication
+    /// is counted, and the tree keeps the charge it has. A tree this thread is
+    /// running now is charged from this call on, and so is one published
+    /// outside any task, which this thread is then running itself.
+    ///
+    /// Called from the thread that registered, like every other writer here:
+    /// the ceiling is charged against *that* thread's clock, so publishing a
+    /// request running anywhere else would charge it to a stranger.
+    pub fn publish(&self, view: SafepointView) {
+        if let Some(local) = &self.meter {
+            local.publish(view);
+        }
+    }
+
+    /// Takes back one publication of `view`'s request tree, and stops sampling
+    /// that tree when it was the last.
+    ///
+    /// What a request owes when it ends: the entry outlives the request, and a
+    /// publication left standing would hold a finished tree's handle for as
+    /// long as the core runs. Every other tree published here keeps standing,
+    /// with its charge. A tree published outside any task hands the thread
+    /// back to the tree it was running before.
+    pub fn withdraw(&self, view: &SafepointView) {
+        if let Some(local) = &self.meter {
+            local.withdraw(view);
+        }
+    }
+
+    /// Withdraws every request this thread has published, leaving it
+    /// registered and sampled against no ceiling until it publishes again.
+    pub fn clear(&self) {
+        if let Some(local) = &self.meter {
+            local.clear();
+        }
+    }
+}
+
+impl Local {
+    /// [`Registration::publish`], which owns what a publication is.
+    fn publish(&self, view: SafepointView) {
+        let tree = view.tree_key();
+        let mut meter = self.meter.borrow_mut();
+        if let Some(charging) = meter.charges.get_mut(&tree) {
+            charging.publications += 1;
+            return;
+        }
+        let charge = Arc::new(Charge::default());
+        let adopted = crate::scheduler::current_task().is_none() && meter.running != tree;
+        let outer = adopted.then_some(meter.running);
+        meter.charges.insert(
+            tree,
+            Charging {
+                charge: Arc::clone(&charge),
+                publications: 1,
+                outer,
+            },
+        );
+        if adopted {
+            meter.switch(tree);
+        } else if meter.running == tree
+            && let Some(now) = meter.clock.burned()
+        {
+            charge.start(nanos(now));
+        }
+        let clock = meter.clock;
+        drop(meter);
+        let mut state = lock(&self.shared.state);
+        if let Some(watched) = state.watching.iter_mut().find(|w| w.id == self.id) {
+            watched.running.push(RunningRequest {
+                view,
+                clock,
+                charge,
+            });
+        }
+    }
+
+    /// [`Registration::withdraw`], which owns what a withdrawal does.
+    fn withdraw(&self, view: &SafepointView) {
+        let tree = view.tree_key();
+        let mut meter = self.meter.borrow_mut();
+        let Some(charging) = meter.charges.get_mut(&tree) else {
+            return;
+        };
+        charging.publications -= 1;
+        if charging.publications > 0 {
+            return;
+        }
+        let Some(charging) = meter.charges.remove(&tree) else {
+            return;
+        };
+        if let Some(outer) = charging.outer
+            && meter.running == tree
+        {
+            meter.switch(outer);
+        }
+        drop(meter);
+        let mut state = lock(&self.shared.state);
+        if let Some(watched) = state.watching.iter_mut().find(|w| w.id == self.id) {
+            watched
+                .running
+                .retain(|running| !Arc::ptr_eq(&running.charge, &charging.charge));
+        }
+    }
+
+    /// [`Registration::clear`].
+    fn clear(&self) {
+        self.meter.borrow_mut().charges.clear();
+        let mut state = lock(&self.shared.state);
+        if let Some(watched) = state.watching.iter_mut().find(|w| w.id == self.id) {
+            watched.running.clear();
+        }
+    }
+}
+
+impl std::fmt::Debug for Registration {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Registration")
+            .field("id", &self.id)
+            .finish()
+    }
+}
+
+impl Drop for Registration {
+    fn drop(&mut self) {
+        let mut state = lock(&self.shared.state);
+        state.watching.retain(|watched| watched.id != self.id);
+        state.recount(&self.shared.shed);
+        drop(state);
+        let _ = WEDGED.try_with(|slot| {
+            let mut slot = slot.borrow_mut();
+            let ours = match (slot.as_ref(), self.wedged.as_ref()) {
+                (Some(installed), Some(wedged)) => Arc::ptr_eq(installed, wedged),
+                _ => false,
+            };
+            if ours {
+                *slot = self.outer_wedged.take();
+            }
+        });
+        // `try_with`, because a registration a thread-local owns may be dropped
+        // after this one is gone, and there is nothing left to put back then.
+        let _ = METER.try_with(|slot| {
+            let mut slot = slot.borrow_mut();
+            let ours = match (slot.as_ref(), self.meter.as_ref()) {
+                (Some(installed), Some(meter)) => Rc::ptr_eq(installed, meter),
+                _ => false,
+            };
+            if ours {
+                *slot = self.outer_meter.take();
+            }
+        });
+    }
+}
+
+impl Shared {
+    /// One pass over every registered thread: it stops each published request
+    /// that has burned past its CPU ceiling or run past its `wall_time`
+    /// ([`stop_at_wall_time`]), and answers with every *core* that
+    /// is past its deadline by the margin and has not already been reported for
+    /// that deadline.
+    ///
+    /// Takes `now` rather than reading the clock so that the whole deadline
+    /// decision is testable without waiting for one. A CPU ceiling is not
+    /// measured against `now` — it is `rule:errors/on-limit`'s cpu time and
+    /// never wall clock — so that half reads the core's own clock here, once
+    /// per core with a published request under a cap and not at all for any
+    /// other. That is the one read per core per interval
+    /// `rule:http-server/a-wedged-core-is-detected-by-its-deadline` prices this
+    /// thread at, and it stays on the walk the deadlines already cost.
+    ///
+    /// The stop is made **here, under the lock**, while a stall report is
+    /// deliberately made by the caller once the lock is released: a report runs
+    /// a sink, which is somebody else's code and may take as long as it likes,
+    /// while a stop is one relaxed `fetch_or` into a word that cannot block, so
+    /// handing it out to be made later would buy a core registering beside it
+    /// nothing at all.
+    fn sweep(&self, now: Instant) -> Vec<Stall> {
+        let mut state = lock(&self.state);
+        let margin = self.margin;
+        let mut stalls = Vec::new();
+        // What each tree under a ceiling has spent, summed over every thread
+        // it is published on: a child placed on another core is charged
+        // there, and its time counts against the tree's one ceiling
+        // (`rule:security/isolate-budget-is-the-trees`).
+        let mut spent: HashMap<usize, u64> = HashMap::new();
+        for watched in &state.watching {
+            // Read once per core, at the first request under a ceiling, and
+            // before any charge is: the module doc's *Charging a request*
+            // section owns why that order never reads high.
+            let mut clock: Option<Option<u64>> = None;
+            for running in &watched.running {
+                // The ceiling first, so a request under no cap costs this walk
+                // one load and no reading of its core's clock.
+                if running.limit().is_none() {
+                    continue;
+                }
+                let Some(now) = *clock.get_or_insert_with(|| running.clock.burned().map(nanos))
+                else {
+                    break;
+                };
+                let total = spent.entry(running.view.tree_key()).or_default();
+                *total = total.saturating_add(running.charge.at(now));
+            }
+        }
+        for watched in &mut state.watching {
+            for running in &watched.running {
+                stop_at_wall_time(running.view(), now, self.interval);
+                let Some(limit) = running.limit() else {
+                    continue;
+                };
+                let Some(&total) = spent.get(&running.view.tree_key()) else {
+                    continue;
+                };
+                if Duration::from_nanos(total) < limit {
+                    continue;
+                }
+                // Both halves, because they are two different polls: the flag
+                // is what compiled code reads between calls, and the deadline
+                // is what `rule:http-server/time-is-bounded-inside-a-helper`'s
+                // combinator reads from inside one call that is still running —
+                // a request already inside a long member reaches no other.
+                // `SafepointView::expire_deadline` owns the rest of that.
+                //
+                // Asked again on every sweep for as long as it stands, which
+                // costs two stores and answers the case the flags exist for: a
+                // request that polls stops at its next poll and is withdrawn as
+                // it ends, and one that does not poll is the wedge the rest of
+                // this walk reports.
+                running.view().request(SafepointFlags::CPU_LIMIT);
+                running.view().expire_deadline();
+            }
+            // The other half answers a *core*, so an entry that is none — a
+            // `nvs run`, which [`Watchdog::register_requests`] takes — is
+            // sampled above and reported here never.
+            let Some((cpu, view)) = &watched.core else {
+                continue;
+            };
+            let cpu = *cpu;
+            let overdue = view
+                .oldest()
+                .and_then(|deadline| Some((deadline, now.checked_duration_since(deadline)?)));
+            let Some((deadline, overdue_by)) = overdue.filter(|&(_, by)| by >= margin) else {
+                // Holding nothing, or holding something still in the future: the
+                // core is answering its deadlines, so the next stall is a new
+                // episode and gets its own record.
+                watched.reported = None;
+                continue;
+            };
+            if watched.reported == Some(deadline) {
+                continue;
+            }
+            watched.reported = Some(deadline);
+            stalls.push(Stall {
+                cpu,
+                deadline,
+                overdue_by,
+            });
+        }
+        state.recount(&self.shed);
+        stalls
+    }
+}
+
+/// Stops `view`'s request once its `[limits] wall_time` has passed
+/// (`rule:errors/on-limit`): [`SafepointFlags::WALL_TIME`] into the word
+/// compiled code polls, and the deadline a helper loop reads, as the CPU
+/// ceiling's two stores are.
+///
+/// The `Core\Fatal::onLimit` handler runs with the flag lowered, so a deadline
+/// already expired is raised again only once a whole `interval` has passed
+/// since the wall deadline. That gives the handler at least one interval, from
+/// this sweep or from `nvs run`'s own clock, which expires the same deadline
+/// first and raises its own flag again after the handler's reserve.
+fn stop_at_wall_time(view: &SafepointView, now: Instant, interval: Duration) {
+    let Some(at) = view.wall_deadline() else {
+        return;
+    };
+    if now < at || (view.deadline_expired() && now < at + interval) {
+        return;
+    }
+    view.request(SafepointFlags::WALL_TIME);
+    view.expire_deadline();
+}
+
+/// The watchdog thread: wait an interval, read every core, report what is new.
+fn watch(shared: &Arc<Shared>) {
+    loop {
+        {
+            let state = lock(&shared.state);
+            if !state.running {
+                return;
+            }
+            let (state, _) = shared
+                .change
+                .wait_timeout(state, shared.interval)
+                .unwrap_or_else(PoisonError::into_inner);
+            if !state.running {
+                return;
+            }
+        }
+        // Outside the lock, so a sink that takes its time cannot keep a core
+        // from registering or deregistering.
+        for stall in shared.sweep(Instant::now()) {
+            (shared.sink)(&stall);
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::Worker;
+    use crate::affinity::cpus;
+    use crate::reactor::{Reactor, install, run_until_idle, with_current};
+    use crate::scheduler::TaskId;
+    use crate::timer::{Timers, sleep};
+    use nvs_runtime::{Ctx, OutputSink, SafepointFlags, TaskRoot};
+    use std::sync::mpsc;
+
+    fn a_cpu() -> CpuId {
+        *cpus().first().expect("the platform reported no CPUs")
+    }
+
+    fn ctx() -> Ctx {
+        Ctx::new(OutputSink::Sink)
+    }
+
+    /// A ceiling no case here comes near, in the nanoseconds `Ctx::cpu_limit`
+    /// reports and `Ctx::set_cpu_limit` takes.
+    fn a_minute() -> u64 {
+        u64::try_from(Duration::from_secs(60).as_nanos()).expect("a minute does not fit a u64")
+    }
+
+    /// A request whose tree is charged against `nanos` of CPU time.
+    fn capped(nanos: u64) -> Ctx {
+        let mut request = ctx();
+        request.set_cpu_limit(nanos);
+        request
+    }
+
+    fn watchdog_of(margin: Duration, sink: mpsc::Sender<Stall>) -> Watchdog {
+        Watchdog::with(margin, Duration::from_millis(1), move |stall| {
+            let _ = sink.send(*stall);
+        })
+    }
+
+    /// The fault this whole module exists for: a deadline that passed and
+    /// stayed passed, because the core that filed it stopped turning.
+    #[test]
+    fn a_core_past_its_deadline_by_the_margin_is_reported() {
+        let (tx, _rx) = mpsc::channel();
+        let margin = Duration::from_secs(5);
+        let dog = watchdog_of(margin, tx);
+        let mut timers = Timers::default();
+        let filed = Instant::now() + Duration::from_secs(1);
+        timers.arm(TaskId::from_raw(1), filed);
+        let _watched = dog.register(a_cpu(), timers.view());
+
+        // Inside the margin: late is not wedged, and a poll that came back slow
+        // must not be reported as one.
+        assert!(
+            dog.shared
+                .sweep(filed + margin - Duration::from_millis(1))
+                .is_empty()
+        );
+
+        let stalls = dog.shared.sweep(filed + margin);
+        assert_eq!(stalls.len(), 1, "the wedged core was not reported");
+        assert_eq!(stalls[0].cpu, a_cpu());
+        assert_eq!(stalls[0].deadline, filed);
+        assert_eq!(stalls[0].overdue_by, margin);
+
+        // The same wedge is one episode, however many times it is looked at.
+        assert!(
+            dog.shared.sweep(filed + margin * 2).is_empty(),
+            "a still-wedged core was reported twice for one deadline"
+        );
+    }
+
+    /// `[server] watchdog_margin`'s half of the module: a margin the file wrote
+    /// is the one a stall is measured against, on the constructor `nvs serve`
+    /// builds the process's watchdog with, and [`DEFAULT_MARGIN`] plays no part.
+    #[test]
+    fn a_configured_margin_is_the_one_a_stall_is_reported_against() {
+        let margin = Duration::from_secs(2);
+        assert!(
+            margin < DEFAULT_MARGIN,
+            "the case needs a margin the default would not report at"
+        );
+        let dog = Watchdog::reporting_after(margin);
+        assert_eq!(dog.margin(), margin);
+        let mut timers = Timers::default();
+        let filed = Instant::now() + Duration::from_secs(1);
+        timers.arm(TaskId::from_raw(1), filed);
+        let _watched = dog.register(a_cpu(), timers.view());
+
+        assert!(
+            dog.shared
+                .sweep(filed + margin - Duration::from_millis(1))
+                .is_empty()
+        );
+        let stalls = dog.shared.sweep(filed + margin);
+        assert_eq!(
+            stalls.len(),
+            1,
+            "a core past the configured margin was not reported"
+        );
+        assert_eq!(stalls[0].overdue_by, margin);
+        assert_eq!(Watchdog::new().margin(), DEFAULT_MARGIN);
+    }
+
+    /// The other half, and the one a naive heartbeat gets wrong: a core doing
+    /// its job is not reported however long its requests are allowed to take.
+    #[test]
+    fn a_busy_core_is_not_reported() {
+        let (tx, _rx) = mpsc::channel();
+        let margin = Duration::from_secs(5);
+        let dog = watchdog_of(margin, tx);
+        let mut timers = Timers::default();
+        let start = Instant::now();
+        let _watched = dog.register(a_cpu(), timers.view());
+
+        // Nothing filed at all — an idle core, which is silent for exactly the
+        // same reason a wedged one is loud: nobody is writing a beat.
+        assert!(
+            dog.shared
+                .sweep(start + Duration::from_secs(3600))
+                .is_empty()
+        );
+
+        // Answering deadlines as they fall due, which is `take_due` running:
+        // a core that turns takes each one within a poll of its instant, so
+        // what is published is never a margin behind — even though every
+        // request here was allowed a full second and used all of it.
+        for step in 1..5_u64 {
+            let at = start + Duration::from_secs(step);
+            timers.arm(TaskId::from_raw(step), at);
+            assert!(
+                dog.shared.sweep(at + Duration::from_millis(1)).is_empty(),
+                "a deadline one poll old was called a wedge"
+            );
+            assert_eq!(timers.take_due(at), Some(TaskId::from_raw(step)));
+            assert!(dog.shared.sweep(at + margin).is_empty());
+        }
+    }
+
+    /// The gate a service manager's watchdog ping hangs off: one wedged core of
+    /// several is a fleet that is still serving, and only a fleet where no core
+    /// turns at all stops answering for the process.
+    #[test]
+    fn a_process_turns_until_every_core_it_watches_is_wedged_at_once() {
+        let (tx, _rx) = mpsc::channel();
+        let margin = Duration::from_secs(5);
+        let dog = watchdog_of(margin, tx);
+        assert!(
+            dog.turning(),
+            "a process watching no core is answering every deadline it holds, which is none"
+        );
+
+        // Strictly after each table's publishing base, for the reason the case
+        // below this one spells out.
+        let filed = Instant::now() + Duration::from_millis(1);
+        let mut one = Timers::default();
+        let mut two = Timers::default();
+        one.arm(TaskId::from_raw(1), filed);
+        let _first = dog.register(a_cpu(), one.view());
+        let _second = dog.register(a_cpu(), two.view());
+
+        dog.shared.sweep(filed + margin);
+        assert!(
+            dog.turning(),
+            "one wedged core of two is shed rather than killed, and the other is still accepting"
+        );
+
+        two.arm(TaskId::from_raw(2), filed);
+        dog.shared.sweep(filed + margin);
+        assert!(
+            !dog.turning(),
+            "every watched core is a margin past its deadline and the process still reads as \
+             turning"
+        );
+
+        // A core that answers again ends its episode, and the process reads as
+        // turning on the next sweep rather than staying condemned by one.
+        assert!(two.disarm(TaskId::from_raw(2)));
+        dog.shared.sweep(filed + margin);
+        assert!(
+            dog.turning(),
+            "a core that came back was not enough to make the process read as turning again"
+        );
+    }
+
+    /// A recovered core that wedges again is a second episode, because the
+    /// deadline identifying it is a different one.
+    #[test]
+    fn a_second_wedge_on_a_later_deadline_reports_again() {
+        let (tx, _rx) = mpsc::channel();
+        let margin = Duration::from_secs(5);
+        let dog = watchdog_of(margin, tx);
+        let mut timers = Timers::default();
+        // Strictly after the instant `timers` fixed as its publishing base, and
+        // that is load-bearing rather than tidy: `Timers::publish` keeps a
+        // deadline out of `NOTHING`'s way by publishing it at least one
+        // nanosecond after that base, so a deadline armed at the base itself
+        // reads back a nanosecond late and a sweep at exactly `start + margin`
+        // finds it one nanosecond short of overdue. Two adjacent
+        // `Instant::now()` calls can return the same value, so `start` has to
+        // be strictly later rather than a second reading of the clock.
+        let start = Instant::now() + Duration::from_millis(1);
+        let _watched = dog.register(a_cpu(), timers.view());
+
+        timers.arm(TaskId::from_raw(1), start);
+        assert_eq!(dog.shared.sweep(start + margin).len(), 1);
+        assert!(timers.disarm(TaskId::from_raw(1)));
+        assert!(dog.shared.sweep(start + margin).is_empty());
+
+        let later = start + Duration::from_secs(60);
+        timers.arm(TaskId::from_raw(2), later);
+        assert_eq!(dog.shared.sweep(later + margin).len(), 1);
+    }
+
+    /// The watchdog rule end to end, on real threads and a real reactor: a worker that stops
+    /// turning is reported, and one that turns throughout a longer interval is
+    /// not — which is the pair a per-request heartbeat cannot tell apart,
+    /// because both of them are running a request the whole time.
+    ///
+    /// The name's other half is structural, and this test is where it is
+    /// visible: neither worker writes anything for the watchdog. The wedged one
+    /// arms one deadline and then stops executing altogether, and the report
+    /// still arrives — so what fired it was the timer state the core keeps for
+    /// its own poll timeout and nothing else.
+    #[test]
+    fn the_watchdog_reports_a_wedged_worker_without_a_heartbeat() {
+        let margin = Duration::from_millis(250);
+        let (tx, rx) = mpsc::channel();
+        let dog = Arc::new(Watchdog::with(
+            margin,
+            Duration::from_millis(5),
+            move |stall| {
+                let _ = tx.send(*stall);
+            },
+        ));
+        let cpu = a_cpu();
+
+        // A core that keeps turning, for twice the margin, while never leaving
+        // a deadline unanswered for more than the sleep that armed it. Each
+        // wake measures how late it came: a loaded machine can keep this thread
+        // off every CPU for longer than the margin, and then the core really
+        // did stall and a report is the right answer.
+        let (late_tx, late_rx) = mpsc::channel();
+        let busy = Arc::clone(&dog);
+        let working = Worker::spawn(cpu, move |sched| {
+            let _installed = install(Reactor::new().expect("the OS refused a poll"));
+            let view =
+                with_current(|reactor| reactor.deadline_view()).expect("no reactor installed");
+            let _watched = busy.register(cpu, view);
+            sched.spawn(ctx(), TaskRoot::Worker, move |_ctx| {
+                for _ in 0..5 {
+                    // At or before the instant `sleep` files, so a lateness
+                    // measured from it is never an underestimate.
+                    let due = Instant::now() + Duration::from_millis(100);
+                    sleep(Duration::from_millis(100));
+                    let _ = late_tx.send(Instant::now().saturating_duration_since(due));
+                }
+            });
+            run_until_idle(sched).expect("the loop failed")
+        })
+        .expect("the OS refused a thread");
+        assert_eq!(working.join().expect("the worker panicked").finished, 1);
+        let latest = late_rx.try_iter().max().expect("the busy task never woke");
+        let reported = rx.try_iter().count();
+        // A sweep reads its clock before it reads a core's deadline, so a
+        // report means a deadline was still filed a whole margin after it fell
+        // due. The reactor takes a deadline off before the task it wakes runs,
+        // so a task that woke sooner than that from every sleep filed none.
+        if latest < margin {
+            assert_eq!(
+                reported, 0,
+                "a core that answered every deadline was reported as wedged"
+            );
+        }
+
+        // And a core that files a deadline and then never polls again — the watchdog rule's
+        // own example, a loop with no poll site in it. It stays wedged until
+        // the test has its report, however long the watchdog thread waits for
+        // a CPU; dropping `release` is what lets it go.
+        let started = Instant::now();
+        let (release, held) = mpsc::channel::<()>();
+        let stuck = Arc::clone(&dog);
+        let wedged = Worker::spawn(cpu, move |_sched| {
+            let _installed = install(Reactor::new().expect("the OS refused a poll"));
+            let view =
+                with_current(|reactor| reactor.deadline_view()).expect("no reactor installed");
+            let _watched = stuck.register(cpu, view);
+            with_current(|reactor| {
+                reactor.timers().arm(
+                    TaskId::from_raw(1),
+                    Instant::now() + Duration::from_millis(10),
+                );
+            });
+            let _ = held.recv();
+        })
+        .expect("the OS refused a thread");
+
+        // The first half's core may have been reported late, after the drain
+        // above, and every deadline it filed fell due before `started`. The
+        // bound only turns a watchdog that never reports into a failure rather
+        // than a hang.
+        let stall = loop {
+            let stall = rx
+                .recv_timeout(Duration::from_secs(60))
+                .expect("the wedged worker was never reported");
+            if stall.deadline > started {
+                break stall;
+            }
+        };
+        drop(release);
+        assert_eq!(stall.cpu, cpu);
+        assert!(stall.overdue_by >= margin);
+        wedged.join().expect("the worker panicked");
+    }
+
+    /// The thread does the sweeping without anyone asking it to, and a
+    /// deregistered core stops being watched.
+    #[test]
+    fn the_thread_reports_on_its_own_and_stops_when_told() {
+        let (tx, rx) = mpsc::channel();
+        let dog = watchdog_of(Duration::from_millis(5), tx);
+        let mut timers = Timers::default();
+        // Armed at the instant the timers were created, so it is overdue by the
+        // margin a handful of milliseconds later.
+        timers.arm(TaskId::from_raw(1), Instant::now());
+        let watched = dog.register(a_cpu(), timers.view());
+        assert_eq!(dog.watching(), 1);
+
+        let stall = rx
+            .recv_timeout(Duration::from_secs(5))
+            .expect("the watchdog thread never reported the wedged core");
+        assert_eq!(stall.cpu, a_cpu());
+
+        drop(watched);
+        assert_eq!(dog.watching(), 0, "a dropped registration stayed watched");
+        // And the drop below joins the thread, so a hang here is a real bug and
+        // not a flake.
+    }
+
+    /// What a core publishes is the request *tree's* root word, so one store
+    /// from a thread that owns none of it stops an isolate built after that
+    /// store — `rule:security/isolate-shares-nothing`.
+    #[test]
+    fn a_published_handle_stops_the_whole_request_tree() {
+        let (tx, _rx) = mpsc::channel();
+        // A margin nothing reaches: this case is about the handle, and a stall
+        // report would only add a second reason for the sink to fire.
+        let dog = watchdog_of(Duration::from_secs(3600), tx);
+        let timers = Timers::default();
+        let registered = dog.register(a_cpu(), timers.view());
+        assert!(
+            dog.running().is_empty(),
+            "a core running no request still offered a handle to stop one"
+        );
+
+        let request = capped(a_minute());
+        if ThreadClock::current().is_none() {
+            // This platform has no per-thread clock, so it enforces no CPU
+            // ceiling and a core on it publishes nothing — `crate::cpuclock`'s
+            // docs own that answer, and nothing about a handle can be asserted
+            // where no handle is offered.
+            return;
+        }
+        registered.publish(request.safepoint_view());
+        let published = dog.running();
+        assert_eq!(published.len(), 1, "the published handle was not readable");
+        assert_eq!(published[0].0, Some(a_cpu()));
+
+        // Raised from this thread, which owns neither the request nor the `&mut
+        // Ctx` — the whole reason the word is reachable through a handle.
+        published[0].1.view().request(SafepointFlags::CPU_LIMIT);
+        assert!(
+            request
+                .safepoint_flags()
+                .contains(SafepointFlags::CPU_LIMIT)
+        );
+        assert!(
+            published[0]
+                .1
+                .view()
+                .flags()
+                .contains(SafepointFlags::CPU_LIMIT)
+        );
+        let isolate = request.isolate(OutputSink::Sink);
+        assert!(
+            isolate
+                .safepoint_flags()
+                .contains(SafepointFlags::CPU_LIMIT),
+            "an isolate built after the store was born clean"
+        );
+
+        registered.withdraw(&request.safepoint_view());
+        assert!(
+            dog.running().is_empty(),
+            "a core that finished its request kept offering the handle to it"
+        );
+    }
+
+    /// A publication is charged against the clock of the thread that
+    /// *registered*, which is the one thing a handle can be sure of about the
+    /// requests published through it: [`Registration::publish`] asks its caller
+    /// for no clock, so no caller can hand it one belonging to another thread.
+    #[test]
+    fn a_registration_publishes_against_the_clock_it_was_made_with() {
+        let (tx, _rx) = mpsc::channel();
+        let dog = watchdog_of(Duration::from_secs(3600), tx);
+        let timers = Timers::default();
+        let registered = dog.register(a_cpu(), timers.view());
+
+        let request = capped(a_minute());
+        registered.publish(request.safepoint_view());
+        let published = dog.running();
+        if ThreadClock::current().is_none() {
+            // No per-thread clock here, so this core enforces no ceiling and
+            // publishes nothing — `crate::cpuclock`'s docs own that answer.
+            assert!(published.is_empty(), "a core with no clock published one");
+            return;
+        }
+        assert_eq!(published.len(), 1, "the published request was not readable");
+        assert_eq!(
+            published[0].1.limit(),
+            Some(Duration::from_nanos(a_minute()))
+        );
+        // The charge is measured on this thread's own clock, from the
+        // publication and not from some zero: a clock taken on the watchdog's
+        // thread would charge this request whatever *that* thread had burned
+        // since it started.
+        assert!(
+            published[0]
+                .1
+                .burned()
+                .is_some_and(|burned| burned < Duration::from_secs(1)),
+            "the baseline was not taken on the thread that registered"
+        );
+
+        registered.clear();
+        assert!(
+            dog.running().is_empty(),
+            "a cleared registration still offered a request to stop"
+        );
+    }
+
+    /// A request under no cap is published like any other and compared with
+    /// nothing, and a ceiling its program narrows afterwards is compared with
+    /// everything the request spent since its publication — what
+    /// `Core\Config::set` does to `limits.cpu_time` in a request that started
+    /// uncapped, `rule:errors/on-limit`.
+    #[test]
+    fn a_request_published_under_no_cap_is_stopped_at_a_ceiling_narrowed_later() {
+        let (tx, _rx) = mpsc::channel();
+        let dog = watchdog_of(Duration::from_secs(3600), tx);
+        let registered = dog.register_requests();
+        if ThreadClock::current().is_none() {
+            // No per-thread clock here, so nothing is sampled at all —
+            // `crate::cpuclock`'s docs own that answer.
+            return;
+        }
+
+        let mut request = ctx();
+        registered.publish(request.safepoint_view());
+        let published = dog.running();
+        assert_eq!(published.len(), 1, "an uncapped request was not published");
+        assert_eq!(published[0].1.limit(), None);
+
+        burn_a_charge();
+        let spent = published[0]
+            .1
+            .burned()
+            .expect("a live thread read as no thread");
+        assert!(dog.shared.sweep(Instant::now()).is_empty());
+        assert!(
+            !request
+                .safepoint_flags()
+                .contains(SafepointFlags::CPU_LIMIT),
+            "a request under no cap was stopped at one"
+        );
+
+        // Narrowed where it stands and published by nobody again. A millisecond
+        // is far under what was burned above and far over what the lines since
+        // have cost, so the request is past it only if its charge still starts
+        // where the request did.
+        request.set_cpu_limit(1_000_000);
+        assert!(dog.shared.sweep(Instant::now()).is_empty());
+        assert!(
+            request
+                .safepoint_flags()
+                .contains(SafepointFlags::CPU_LIMIT),
+            "a ceiling narrowed after the publication was charged from a later start, or not at all"
+        );
+        assert!(
+            dog.running()[0]
+                .1
+                .burned()
+                .is_some_and(|burned| burned >= spent),
+            "narrowing the ceiling moved where the charge starts"
+        );
+    }
+
+    /// `nvs run`'s side of the watched set: it is stopped at its ceiling like
+    /// any core's request, and the report a core would get is one a run never
+    /// makes — the stderr such a record would land on is the program's own.
+    #[test]
+    fn a_run_that_is_no_core_is_sampled_and_reported_never() {
+        let (tx, rx) = mpsc::channel();
+        let dog = watchdog_of(Duration::from_secs(3600), tx);
+        let registered = dog.register_requests();
+
+        // One nanosecond: the ceiling is passed by the time the publication
+        // returns, so this case asserts the walk rather than the clock.
+        let request = capped(1);
+        if ThreadClock::current().is_none() {
+            // No per-thread clock here, so nothing is sampled at all —
+            // `a_published_handle_stops_the_whole_request_tree` owns why that
+            // is a return rather than a failure.
+            return;
+        }
+        registered.publish(request.safepoint_view());
+        let published = dog.running();
+        assert_eq!(published.len(), 1, "the published request was not readable");
+        assert_eq!(
+            published[0].0, None,
+            "a run named a CPU it is not pinned to"
+        );
+
+        burn_a_charge();
+        assert!(
+            dog.shared.sweep(Instant::now()).is_empty(),
+            "a thread that is no core was reported as a wedged one"
+        );
+        assert!(
+            request
+                .safepoint_flags()
+                .contains(SafepointFlags::CPU_LIMIT),
+            "a run past its ceiling was not stopped"
+        );
+        assert!(
+            rx.try_recv().is_err(),
+            "a run with no core still reached the stall sink"
+        );
+    }
+
+    /// What a core publishes is what a ceiling can be charged against: what
+    /// the request has spent of its core, beside a handle that reads the
+    /// ceiling its tree states — `rule:errors/on-limit`.
+    #[test]
+    fn a_published_request_is_charged_what_its_core_spends_and_reads_its_trees_ceiling() {
+        let (tx, _rx) = mpsc::channel();
+        let dog = watchdog_of(Duration::from_secs(3600), tx);
+        let timers = Timers::default();
+        let registered = dog.register(a_cpu(), timers.view());
+        let request = capped(a_minute());
+
+        if ThreadClock::current().is_none() {
+            // The platform's own answer, as the case above this one gives it.
+            return;
+        }
+        registered.publish(request.safepoint_view());
+
+        let published = dog.running();
+        let (_, running) = published
+            .first()
+            .expect("the published request was not readable");
+        let limit = running.limit().expect("a capped request read as uncapped");
+        assert_eq!(limit, Duration::from_secs(60));
+        let before = running.burned().expect("a live core read as no thread");
+
+        burn_a_charge();
+
+        let after = running.burned().expect("a live core read as no thread");
+        assert!(
+            after > before,
+            "a core that spun was charged nothing against the request it published"
+        );
+        assert!(
+            after < limit,
+            "a hundred milliseconds of spinning reached a ceiling of a minute"
+        );
+    }
+
+    /// The sampler itself, on both sides of the ceiling: the walk that reads
+    /// deadlines also reads the CPU clock, and the request that has burned past
+    /// `[limits] cpu_time` is the only one asked to stop — `rule:errors/on-limit`.
+    #[test]
+    fn the_walk_stops_a_request_past_its_cpu_ceiling_and_leaves_one_under_it() {
+        let (tx, _rx) = mpsc::channel();
+        // A margin nothing reaches: this case is about the clock, and a stall
+        // report would only add a second reason for the sink to fire.
+        let dog = watchdog_of(Duration::from_secs(3600), tx);
+        let timers = Timers::default();
+        let registered = dog.register(a_cpu(), timers.view());
+        let mut request = capped(a_minute());
+
+        if ThreadClock::current().is_none() {
+            // The platform's own answer: no per-thread clock, so no CPU
+            // ceiling — `crate::cpuclock`'s docs own it.
+            return;
+        }
+        registered.publish(request.safepoint_view());
+        burn_a_charge();
+        assert!(dog.shared.sweep(Instant::now()).is_empty());
+        assert!(
+            !request
+                .safepoint_flags()
+                .contains(SafepointFlags::CPU_LIMIT),
+            "a request a long way under its ceiling was asked to stop"
+        );
+        assert!(
+            !request.deadline_expired(),
+            "a request a long way under its ceiling had its deadline expired"
+        );
+
+        // Narrowed where it stands, and the same publication is charged against
+        // the new ceiling — a nanosecond's rather than a real one, because what
+        // is under test is the comparison and spinning to a ceiling worth
+        // configuring would price this case in seconds.
+        request.set_cpu_limit(1);
+        assert!(dog.shared.sweep(Instant::now()).is_empty());
+        assert!(
+            request
+                .safepoint_flags()
+                .contains(SafepointFlags::CPU_LIMIT),
+            "a request past its ceiling ran on with a clean safepoint word"
+        );
+        assert!(
+            request.deadline_expired(),
+            "a request past its ceiling was left the poll a long member makes"
+        );
+    }
+
+    /// A request with this `[limits]` block, read as a served request reads its
+    /// snapshot.
+    fn configured(written: &str) -> Ctx {
+        let table: toml::Table = written.parse().expect("the case writes valid TOML");
+        let mut request = ctx();
+        request.set_config(Arc::new(nvs_config::Snapshot {
+            config: table
+                .clone()
+                .try_into()
+                .expect("the case writes a block this tree has"),
+            table,
+            ..nvs_config::Snapshot::default()
+        }));
+        request
+    }
+
+    /// `rule:errors/on-limit`'s wall time, on a request no thread of its own
+    /// times: the sweep stops it at its deadline, and stops one already stopped
+    /// again only a whole interval past that deadline, which is the slice its
+    /// `Core\Fatal::onLimit` handler runs in.
+    #[test]
+    fn the_walk_stops_a_request_at_its_wall_time_and_leaves_its_handler_an_interval() {
+        const INTERVAL: Duration = Duration::from_millis(100);
+        let (tx, _rx) = mpsc::channel();
+        let dog = Watchdog::with(Duration::from_secs(3600), INTERVAL, move |stall| {
+            let _ = tx.send(*stall);
+        });
+        if ThreadClock::current().is_none() {
+            // A thread with no clock publishes nothing, as the CPU half's cases
+            // above say.
+            return;
+        }
+        let registered = dog.register_requests();
+        let request = configured("[limits]\nwall_time = \"10s\"\n");
+        registered.publish(request.safepoint_view());
+        let at = request
+            .safepoint_view()
+            .wall_deadline()
+            .expect("a request with a `wall_time` has a deadline");
+        let flagged = |request: &Ctx| {
+            request
+                .safepoint_flags()
+                .contains(SafepointFlags::WALL_TIME)
+        };
+
+        dog.shared.sweep(at - Duration::from_millis(1));
+        assert!(
+            !flagged(&request),
+            "a request was stopped before its deadline"
+        );
+        assert!(!request.deadline_expired());
+        dog.shared.sweep(at);
+        assert!(flagged(&request), "a request past its `wall_time` ran on");
+        assert!(
+            request.deadline_expired(),
+            "a request past its `wall_time` was left the poll a long member makes"
+        );
+
+        // Expired by another clock, as `nvs run`'s expires it, with the flag
+        // lowered as a handler runs.
+        let handled = configured("[limits]\nwall_time = \"10s\"\n");
+        registered.publish(handled.safepoint_view());
+        let at = handled
+            .safepoint_view()
+            .wall_deadline()
+            .expect("a request with a `wall_time` has a deadline");
+        handled.safepoint_view().expire_deadline();
+        dog.shared.sweep(at + INTERVAL / 2);
+        assert!(!flagged(&handled), "a handler was stopped inside its slice");
+        dog.shared.sweep(at + INTERVAL);
+        assert!(flagged(&handled), "a handler ran on past its slice");
+    }
+
+    /// The distinction the ceiling exists for, from the other side: a request
+    /// waiting on the world spends wall time and none of what is sampled, so a
+    /// wait several times its own ceiling is left alone where a spin that
+    /// length is stopped — `rule:errors/on-limit`, and `crate::cpuclock`'s
+    /// *CPU time, never wall clock*.
+    #[test]
+    fn a_core_parked_on_io_past_the_same_wall_time_is_not_flagged() {
+        let (tx, _rx) = mpsc::channel();
+        // A margin nothing reaches: a core parked on a socket answers its
+        // deadlines, and a stall report would only add a second reason for the
+        // sink to fire.
+        let dog = watchdog_of(Duration::from_secs(3600), tx);
+        let timers = Timers::default();
+        let registered = dog.register(a_cpu(), timers.view());
+        // Fifty milliseconds, passed several times over by the wait below in
+        // wall time and not at all in CPU time. A sleep rather than a socket:
+        // what the clock sees of either is the same nothing, and a socket would
+        // put a reactor between this case and the reading under test.
+        let ceiling = Duration::from_millis(50);
+        let request = capped(
+            u64::try_from(ceiling.as_nanos()).expect("fifty milliseconds does not fit a u64"),
+        );
+        if ThreadClock::current().is_none() {
+            // The platform's own answer: no per-thread clock, so no CPU
+            // ceiling — `crate::cpuclock`'s docs own it.
+            return;
+        }
+        registered.publish(request.safepoint_view());
+        std::thread::sleep(ceiling * 4);
+
+        assert!(dog.shared.sweep(Instant::now()).is_empty());
+        assert!(
+            !request
+                .safepoint_flags()
+                .contains(SafepointFlags::CPU_LIMIT),
+            "a request that only waited was stopped as a runaway"
+        );
+        assert!(
+            !request.deadline_expired(),
+            "a request that only waited was left the poll a long member makes"
+        );
+    }
+
+    /// A thread charges each published request only while it runs that
+    /// request's tree, and charges nothing it runs for an unpublished one —
+    /// the switch [`crate::scheduler::Scheduler`] makes before every resume,
+    /// made here by hand. A request keeps its charge across every switch away
+    /// and back, so a total is never lost to a wait.
+    #[test]
+    fn a_thread_charges_each_published_request_only_for_the_time_it_runs_it() {
+        let (tx, _rx) = mpsc::channel();
+        let dog = watchdog_of(Duration::from_secs(3600), tx);
+        let registered = dog.register_requests();
+        if ThreadClock::current().is_none() {
+            // No per-thread clock here, so nothing is sampled at all —
+            // `crate::cpuclock`'s docs own that answer.
+            return;
+        }
+        let first = capped(a_minute());
+        let second = capped(a_minute());
+        let charged = |request: &Ctx| {
+            let mine = request.safepoint_view();
+            dog.running()
+                .into_iter()
+                .find(|(_, running)| running.view().same_tree(&mine))
+                .and_then(|(_, running)| running.burned())
+                .expect("a published request was not readable")
+        };
+
+        // Published outside any task, so this thread runs each from its
+        // publication on: `second` is the one running after both.
+        registered.publish(first.safepoint_view());
+        registered.publish(second.safepoint_view());
+        burn_a_charge();
+        let first_before = charged(&first);
+        assert!(
+            charged(&second) >= Duration::from_millis(20),
+            "the request this thread ran was not charged for it"
+        );
+
+        switch_to(first.tree_key());
+        let second_left = charged(&second);
+        burn_a_charge();
+        assert!(
+            charged(&first) >= first_before + Duration::from_millis(20),
+            "a request resumed after a switch was not charged for what it ran"
+        );
+        assert_eq!(
+            charged(&second),
+            second_left,
+            "a request switched away from was charged for its neighbour's time"
+        );
+
+        let unpublished = ctx();
+        switch_to(unpublished.tree_key());
+        let first_left = charged(&first);
+        burn_a_charge();
+        assert_eq!(charged(&first), first_left);
+        assert_eq!(
+            charged(&second),
+            second_left,
+            "a published request was charged for time spent on an unpublished one"
+        );
+    }
+
+    /// What `view`'s tree has been charged on the thread it is published on,
+    /// read the way the walk reads it.
+    fn charged_on(shared: &Shared, view: &SafepointView) -> Option<Duration> {
+        lock(&shared.state)
+            .watching
+            .iter()
+            .flat_map(|watched| &watched.running)
+            .find(|running| running.view().same_tree(view))
+            .and_then(RunningRequest::burned)
+    }
+
+    /// A tree published on two threads is stopped when the two charges add up
+    /// to its ceiling, though neither reaches it alone: a parent and the child
+    /// it placed on another core spend one `cpu_time` between them —
+    /// `rule:security/isolate-budget-is-the-trees`.
+    #[test]
+    fn a_tree_charged_on_two_threads_is_stopped_at_the_sum_of_both() {
+        let (tx, _rx) = mpsc::channel();
+        let dog = watchdog_of(Duration::from_secs(3600), tx);
+        let registered = dog.register_requests();
+        if ThreadClock::current().is_none() {
+            // No per-thread clock here, so nothing is sampled at all —
+            // `crate::cpuclock`'s docs own that answer.
+            return;
+        }
+        // Above one spin and below two, so only the sum crosses it.
+        let ceiling = Duration::from_millis(35);
+        let parent = capped(u64::try_from(ceiling.as_nanos()).expect("35 ms fits a u64"));
+        // Published outside any task, so this thread is charged from here on.
+        registered.publish(parent.safepoint_view());
+        burn_a_charge();
+        assert!(dog.shared.sweep(Instant::now()).is_empty());
+        assert!(
+            !parent.safepoint_flags().contains(SafepointFlags::CPU_LIMIT),
+            "one thread's share of a tree was stopped below the tree's ceiling"
+        );
+        // The parent stops running here, as a parked parent does.
+        switch_to(NO_TREE);
+
+        let seed = parent.placed_isolate();
+        let watchdog = &dog;
+        std::thread::scope(|scope| {
+            scope.spawn(move || {
+                let far = watchdog.register_requests();
+                let child = seed.build(OutputSink::Sink);
+                far.publish(child.safepoint_view());
+                burn_a_charge();
+                assert!(watchdog.shared.sweep(Instant::now()).is_empty());
+                far.withdraw(&child.safepoint_view());
+            });
+        });
+        assert!(
+            parent.safepoint_flags().contains(SafepointFlags::CPU_LIMIT),
+            "a tree whose two threads together spent its ceiling ran on"
+        );
+    }
+
+    /// A child placed on another core runs in a task spawned with that core's
+    /// own context. `crate::placed` moves the task to the child's tree and
+    /// publishes the tree there, which is what is done by hand below. The
+    /// watchdog's own thread then stops the tree at its ceiling, through a
+    /// park with no context in between, and the request beside the child on
+    /// that core is charged only for the time it runs itself.
+    #[test]
+    fn a_placed_child_is_charged_on_its_core_and_a_request_beside_it_is_not() {
+        use crate::scheduler::{
+            Scheduler, Waiting, charge_running_task_to, suspend, suspend_current,
+        };
+        use std::cell::Cell;
+
+        let (tx, _rx) = mpsc::channel();
+        let dog = watchdog_of(Duration::from_secs(3600), tx);
+        if ThreadClock::current().is_none() {
+            return;
+        }
+        let ceiling = Duration::from_millis(50);
+        let parent = capped(u64::try_from(ceiling.as_nanos()).expect("50 ms fits a u64"));
+        let seed = parent.placed_isolate();
+        let shared = Arc::clone(&dog.shared);
+        let watchdog = &dog;
+
+        let (child_charge, neighbour_charge) = std::thread::scope(|scope| {
+            scope
+                .spawn(move || {
+                    let _installed = install(Reactor::new().expect("the OS refused a poll"));
+                    let _far = watchdog.register_requests();
+                    let mut sched = Scheduler::new();
+                    let neighbour = capped(a_minute());
+                    let neighbour_view = neighbour.safepoint_view();
+                    let finished = Rc::new(Cell::new(false));
+                    let charges = Rc::new(Cell::new((None, None)));
+
+                    let done = Rc::clone(&finished);
+                    sched.spawn(neighbour, TaskRoot::Request, move |ctx| {
+                        let _published = publish_here(ctx.safepoint_view());
+                        while !done.get() {
+                            let _ = suspend(ctx, Waiting::Yielded);
+                        }
+                    });
+                    let done = Rc::clone(&finished);
+                    let read = Rc::clone(&charges);
+                    sched.spawn(ctx(), TaskRoot::Request, move |_| {
+                        let child = seed.build(OutputSink::Sink);
+                        charge_running_task_to(child.tree_key());
+                        let _published = publish_here(child.safepoint_view());
+                        let _ = suspend_current(Waiting::Yielded);
+                        let began = Instant::now();
+                        while !child.safepoint_flags().contains(SafepointFlags::CPU_LIMIT)
+                            && began.elapsed() < Duration::from_secs(10)
+                        {
+                            crate::cpuclock::burn_at_least(Duration::from_millis(1));
+                        }
+                        read.set((
+                            charged_on(&shared, &child.safepoint_view()),
+                            charged_on(&shared, &neighbour_view),
+                        ));
+                        done.set(true);
+                    });
+                    run_until_idle(&mut sched).expect("the loop failed");
+                    charges.get()
+                })
+                .join()
+                .expect("the far core panicked")
+        });
+
+        assert!(
+            parent.safepoint_flags().contains(SafepointFlags::CPU_LIMIT),
+            "a child that spent its tree's ceiling on another core was not stopped"
+        );
+        let child_charge = child_charge.expect("the child's tree was not published on its core");
+        assert!(
+            child_charge >= ceiling && child_charge < ceiling + Duration::from_secs(2),
+            "the child was stopped after {child_charge:?} of a {ceiling:?} ceiling"
+        );
+        let neighbour_charge =
+            neighbour_charge.expect("the request beside the child was not published");
+        assert!(
+            neighbour_charge < ceiling / 2,
+            "the request beside the child was charged {neighbour_charge:?} for the child's loop"
+        );
+    }
+
+    /// CPU time rather than wall time: a sleep accumulates none of what the
+    /// ceiling measures, so a case that needs a charge spins until its own
+    /// clock shows one. `crate::cpuclock::burn_at_least` owns why the clock,
+    /// and never a wall interval, is what the spin waits on.
+    fn burn_a_charge() {
+        crate::cpuclock::burn_at_least(Duration::from_millis(20));
+    }
+}

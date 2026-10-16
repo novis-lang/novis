@@ -1,0 +1,1 @@
+{"tables":[{"name":"notes","columns":[{"name":"id","type":"int64","null":false,"identity":true},{"name":"title","type":"text(200)","null":true,"identity":false}],"primary_key":["id"],"unique":[],"indexes":[]}]}

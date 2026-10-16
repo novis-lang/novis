@@ -1,0 +1,24 @@
+<?nvs
+// Shows the everyday use: a maintenance script asks which services to restart, and
+// restarts only those. This member has no `default` option, so a program that may
+// run without a terminal says for itself what happens instead. There is no
+// terminal here.
+
+array<string> $services = ["web", "worker", "scheduler"];
+array<string> $restart = [];
+
+try {
+    $restart = Core\Cli::multiSelect("Which services should be restarted?", $services);
+} catch (Core\Cli\NotInteractive $nobody) {
+    // Nobody can choose here, so this script restarts nothing.
+    $restart = [];
+}
+
+echo "restarting ", Core\Arr::count($restart), " service(s)\n";
+foreach ($services as string $service) {
+    if (Core\Arr::contains($restart, $service)) {
+        echo "  ", $service, ": restarted\n";
+    } else {
+        echo "  ", $service, ": left running\n";
+    }
+}

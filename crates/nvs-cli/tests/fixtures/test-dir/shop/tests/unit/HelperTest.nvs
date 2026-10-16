@@ -1,0 +1,9 @@
+<?nvs
+use Core\Test;
+
+final class HelperTest {
+    #[Test]
+    public function addition(): void {
+        Test::assertSame(4, 2 + 2);
+    }
+}

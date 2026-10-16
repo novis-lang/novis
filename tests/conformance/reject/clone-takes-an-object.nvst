@@ -1,0 +1,18 @@
+--TEST--
+`clone` of an array is refused — `rule:classes/clone-is-shallow` makes it a new instance of the operand's class, and an array names none
+--FILE--
+<?nvs
+// covers: lang:expressions/is-new-clone-throw-print-exit-isset-empty
+// An `array<T>` is already copied when it is assigned (`rule:programs/memory-priority`'s
+// copy-on-write), so this is not a missing feature: there is nothing for
+// `clone` to do that the assignment on the line below does not already do.
+array<int> $a = [1, 2, 3];
+array<int> $b = clone $a;
+echo Core\Arr::count($b), "\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0781]: `clone` makes a new instance of a class, and `array<int>` is not an object
+%A
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

@@ -1,0 +1,52 @@
+<?nvs
+// Attack: a program reads text, binary values, times and positive numbers as a length of
+// time. Each of these must return a length, `null` or an error, and nothing may crash.
+// hostile: timeout-ms 60000
+// requires: samba-ad
+
+var $corp = Core\Ldap::connect('corp');
+var $found = $corp->read('DC=example,DC=test', { select: ['maxPwdAge', 'lockoutDuration', 'name', 'objectGUID', 'objectSid', 'whenCreated', 'minPwdLength', 'creationTime'] });
+
+if ($found != null) {
+    Core\Ldap\Entry $domain = $found;
+
+    // 1. Text, binary values, a time and positive numbers, read as a length, ten thousand times each.
+    array<string> $wrong = ['name', 'objectGUID', 'objectSid', 'whenCreated', 'minPwdLength', 'creationTime'];
+    uint $threw = 0;
+    uint $i = 0;
+    while ($i < 10000) {
+        foreach ($wrong as string $name) {
+            try {
+                echo $domain->duration($name)?->toString() ?? '', "\n";
+            } catch (LogicError $refusal) {
+                $threw = $threw + 1;
+            }
+        }
+        $i = $i + 1;
+    }
+    echo '1 threw: ', $threw, "\n";
+
+    // 2. Names a user typed. A name the entry does not have returns `null`.
+    array<string> $typed = ['', '*', 'maxPwdAge;binary', "maxPwdAge\x00", Core\Str::repeat('x', 100000)];
+    uint $empty = 0;
+    foreach ($typed as string $typedName) {
+        try {
+            if ($domain->duration($typedName) == null) {
+                $empty = $empty + 1;
+            }
+        } catch (Throwable $error) {
+            echo "2 threw\n";
+        }
+    }
+    echo '2 null: ', $empty, "\n";
+
+    // 3. The two real lengths of time, read one hundred thousand times each.
+    uint $letters = 0;
+    $i = 0;
+    while ($i < 100000) {
+        $letters = $letters + Core\Str::length($domain->duration('maxPwdAge')?->toString() ?? '');
+        $letters = $letters + Core\Str::length($domain->duration('lockoutDuration')?->toString() ?? '');
+        $i = $i + 1;
+    }
+    echo '3 letters: ', $letters, "\n";
+}

@@ -1,0 +1,26 @@
+<?nvs
+// Shows a program that raises its memory limit for one large export, and then sets it back.
+
+// This prints `128M`, the value from `nvs.toml`.
+echo Core\Config::get("memory"), "\n";
+
+// The export needs more memory. `set` returns `true`, and the limit is now `384M`.
+echo Core\Config::set("memory", "384M") ? "true" : "false", "\n";
+echo Core\Config::get("memory"), "\n";
+
+// `1G` is above the highest limit in `nvs.toml`. `set` returns `false` and the limit stays `384M`.
+echo Core\Config::set("memory", "1G") ? "true" : "false", "\n";
+echo Core\Config::get("memory"), "\n";
+
+// The export builds 200000 lines of 11 characters each. This prints `2200000`.
+array<string> $lines = [];
+uint $i = 0;
+while ($i < 200000) {
+    $lines[] = "order line\n";
+    $i = $i + 1;
+}
+echo Core\Str::length(Core\Str::join($lines, "")), "\n";
+
+// `restore` sets the limit back to the value from `nvs.toml`. This prints `128M`.
+Core\Config::restore("memory");
+echo Core\Config::get("memory"), "\n";

@@ -1,0 +1,384 @@
+{
+  "name": "nvs",
+  "displayName": "Novis — The Web-Native Programming Language",
+  "description": "Novis language support: syntax, diagnostics, completion and navigation for .nvs files.",
+  "version": "0.0.1",
+  "publisher": "novis-lang",
+  "license": "MIT",
+  "icon": "media/novis-logo.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/novis-lang/novis.git",
+    "directory": "editors/vscode"
+  },
+  "homepage": "https://novis-lang.org",
+  "engines": {
+    "vscode": "^1.97.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "extensionKind": [
+    "workspace"
+  ],
+  "activationEvents": [
+    "onLanguage:nvs",
+    "workspaceContains:**/nvs.toml"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "html": {
+      "customData": [
+        "./data/pdf.html-data.json"
+      ]
+    },
+    "css": {
+      "customData": [
+        "./data/pdf.css-data.json"
+      ]
+    },
+    "configurationDefaults": {
+      "[nvs]": {
+        "editor.pasteAs.preferences": [
+          "text.updateImports"
+        ]
+      }
+    },
+    "languages": [
+      {
+        "id": "nvs",
+        "aliases": [
+          "Novis",
+          "nvs"
+        ],
+        "extensions": [
+          ".nvs"
+        ],
+        "configuration": "./language-configuration.json",
+        "icon": {
+          "light": "./media/novis-logo-file-icon-light-theme.svg",
+          "dark": "./media/novis-logo-file-icon-dark-theme.svg"
+        }
+      },
+      {
+        "id": "nvst",
+        "aliases": [
+          "Novis case",
+          "nvst"
+        ],
+        "extensions": [
+          ".nvst",
+          ".lspt"
+        ],
+        "icon": {
+          "light": "./media/novis-logo-file-icon-light-theme-nvst.svg",
+          "dark": "./media/novis-logo-file-icon-dark-theme-nvst.svg"
+        }
+      }
+    ],
+    "icons": {
+      "novis-mark": {
+        "description": "The Novis mark",
+        "default": {
+          "fontPath": "./media/novis-icons.woff",
+          "fontCharacter": "\\E001"
+        }
+      }
+    },
+    "grammars": [
+      {
+        "language": "nvs",
+        "scopeName": "source.nvs",
+        "path": "./syntaxes/nvs.tmLanguage.json"
+      },
+      {
+        "language": "nvst",
+        "scopeName": "source.nvst",
+        "path": "./syntaxes/nvst.tmLanguage.json",
+        "embeddedLanguages": {
+          "meta.embedded.block.nvs": "nvs"
+        }
+      }
+    ],
+    "semanticTokenScopes": [
+      {
+        "language": "nvs",
+        "scopes": {
+          "*.tainted": [
+            "markup.underline"
+          ],
+          "*.secret": [
+            "emphasis"
+          ]
+        }
+      }
+    ],
+    "configuration": {
+      "title": "Novis",
+      "properties": {
+        "nvs.path": {
+          "type": "string",
+          "default": "",
+          "scope": "machine-overridable",
+          "description": "Absolute path to the nvs binary. Empty, or a path with no file, means look it up on PATH, then use the copy Novis: Download nvs installed."
+        },
+        "nvs.lsp.enable": {
+          "type": "boolean",
+          "default": true,
+          "description": "Run the Novis language server for .nvs files."
+        },
+        "nvs.lsp.debounce": {
+          "type": "integer",
+          "default": 150,
+          "minimum": 0,
+          "description": "Milliseconds a keystroke waits before analysis starts. The next keystroke cancels the analysis in flight."
+        },
+        "nvs.lsp.trace.server": {
+          "type": "string",
+          "enum": [
+            "off",
+            "messages",
+            "verbose"
+          ],
+          "default": "off",
+          "description": "Trace the messages exchanged with the Novis language server."
+        },
+        "nvs.check.scope": {
+          "type": "string",
+          "enum": [
+            "open",
+            "workspace"
+          ],
+          "enumDescriptions": [
+            "Open documents and the files they require or autoload.",
+            "Every file the workspace index holds."
+          ],
+          "default": "workspace",
+          "description": "Which files the server reads: completion, references and diagnostics cover these. Workspace scope also dims unreferenced private members, which is only correct at that scope. Choose \"open\" for a very large workspace."
+        },
+        "nvs.codeLens.enable": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show reference, implementor and override counts above a declaration."
+        },
+        "nvs.template.services": {
+          "type": "boolean",
+          "default": true,
+          "description": "Answer inside an inline-HTML region with the editor's own HTML, CSS and JavaScript services. Formatting is the other template setting's: nvs fmt lays out every byte of Novis, here and everywhere."
+        },
+        "nvs.template.format": {
+          "type": "boolean",
+          "default": true,
+          "description": "Lay out the markup of a template with the editor's own HTML formatter, after nvs fmt and indented from the Novis code around it. With this off, formatting a .nvs file is nvs fmt and nothing else."
+        },
+        "nvs.secrets.redact": {
+          "type": "boolean",
+          "default": true,
+          "description": "Conceal the ranges the server reports as secret. Reveal one with the Novis: Reveal Secret command."
+        },
+        "nvs.taint.mark": {
+          "type": "string",
+          "enum": [
+            "off",
+            "declaration",
+            "sink"
+          ],
+          "enumDescriptions": [
+            "Nothing is marked; the semantic token modifier alone, styled by your theme.",
+            "A glyph after each declaration whose type carries tainted.",
+            "Declarations, plus each argument position where a tainted value reaches a sink."
+          ],
+          "default": "off",
+          "description": "Whether tainted values carry a marker glyph in addition to their token modifier."
+        },
+        "nvs.stubs.dir": {
+          "type": "string",
+          "default": "",
+          "scope": "machine-overridable",
+          "description": "The directory the server writes the Core declaration files to. Go to Definition on a Core name opens one of them. Empty means a directory inside this extension's own storage, one per server version."
+        }
+      }
+    },
+    "commands": [
+      {
+        "command": "nvs.run",
+        "title": "Run File",
+        "category": "Novis"
+      },
+      {
+        "command": "nvs.test",
+        "title": "Run Tests",
+        "category": "Novis"
+      },
+      {
+        "command": "nvs.showAst",
+        "title": "Show AST",
+        "category": "Novis"
+      },
+      {
+        "command": "nvs.restartServer",
+        "title": "Restart Language Server",
+        "category": "Novis"
+      },
+      {
+        "command": "nvs.revealSecret",
+        "title": "Reveal Secret",
+        "category": "Novis"
+      },
+      {
+        "command": "nvs.hideSecrets",
+        "title": "Hide Secrets",
+        "category": "Novis"
+      },
+      {
+        "command": "nvs.convertToHtmlTemplate",
+        "title": "Convert to html template",
+        "category": "Novis"
+      },
+      {
+        "command": "nvs.checkWorkspace",
+        "title": "Check Workspace",
+        "category": "Novis"
+      },
+      {
+        "command": "nvs.downloadBinary",
+        "title": "Download nvs",
+        "category": "Novis"
+      },
+      {
+        "command": "nvs.openReleases",
+        "title": "Open Releases",
+        "category": "Novis"
+      }
+    ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "nvs.convertToHtmlTemplate",
+          "when": "editorLangId == nvs"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "nvs.convertToHtmlTemplate",
+          "when": "editorLangId == nvs",
+          "group": "1_modification"
+        }
+      ]
+    },
+    "views": {
+      "explorer": [
+        {
+          "id": "nvs.ast",
+          "name": "Novis AST",
+          "visibility": "collapsed"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "nvs.ast",
+        "contents": "The parse tree of the Novis file in front of you, as the compiler's own parser recovered it.\n[Show AST](command:nvs.showAst)"
+      }
+    ],
+    "taskDefinitions": [
+      {
+        "type": "nvs",
+        "required": [
+          "command",
+          "file"
+        ],
+        "properties": {
+          "command": {
+            "type": "string",
+            "enum": [
+              "run",
+              "test"
+            ],
+            "enumDescriptions": [
+              "Check the file, then compile and run it.",
+              "Run the file's #[Test] methods, or the .nvst cases under it."
+            ],
+            "description": "The nvs subcommand this task is."
+          },
+          "file": {
+            "type": "string",
+            "description": "The file or directory the subcommand is given. Both of them take one."
+          },
+          "args": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Further arguments, appended after the file."
+          }
+        }
+      }
+    ],
+    "problemMatchers": [
+      {
+        "name": "nvs",
+        "label": "Novis diagnostics",
+        "owner": "nvs",
+        "source": "nvs",
+        "fileLocation": [
+          "autoDetect",
+          "${workspaceFolder}"
+        ],
+        "severity": "error",
+        "pattern": [
+          {
+            "regexp": "^(error|warning|note|help|internal compiler error)\\[([EW]\\d{4})\\]: (.*)$",
+            "severity": 1,
+            "code": 2,
+            "message": 3
+          },
+          {
+            "regexp": "^\\s*--> (.*):(\\d+):(\\d+)$",
+            "file": 1,
+            "line": 2,
+            "column": 3
+          }
+        ]
+      }
+    ],
+    "jsonValidation": [
+      {
+        "fileMatch": "**/.novis/completion/**/*.json",
+        "url": "./schemas/completion-file.json"
+      }
+    ]
+  },
+  "scripts": {
+    "compile": "tsc -p ./ && npm run --silent bundle",
+    "bundle": "esbuild src/extension.ts --bundle --outfile=out/extension.js --external:vscode --format=cjs --platform=node --target=es2022 --sourcemap",
+    "watch": "npm run --silent bundle -- --watch",
+    "lint": "eslint .",
+    "test:headless": "tsc -p ./ && node scripts/headless.mjs",
+    "test:host": "npm run --silent compile && node scripts/host.mjs",
+    "vscode:prepublish": "npm run --silent bundle",
+    "package": "node -e \"require('node:fs').copyFileSync('../../LICENSE', 'LICENSE')\" && vsce package --no-dependencies --out nvs.vsix"
+  },
+  "dependencies": {
+    "vscode-languageclient": "^10.1.2"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/mocha": "^10.0.10",
+    "@types/node": "^20.16.0",
+    "@types/vscode": "^1.97.0",
+    "@vscode/test-electron": "^3.1.0",
+    "@vscode/vsce": "^4.0.0",
+    "esbuild": "^0.28.2",
+    "eslint": "^10.12.0",
+    "mocha": "^12.0.3",
+    "typescript": "~6.0.3",
+    "typescript-eslint": "^8.71.2",
+    "vscode-oniguruma": "^2.0.1",
+    "vscode-textmate": "^9.3.2"
+  },
+  "holds": {
+    "@types/node": "HOLD (revisit 2026-11-16): `engines.vscode` ^1.97 runs Node 20, so the types stay on 20.",
+    "typescript": "HOLD (revisit 2026-11-16): typescript-eslint 8.71.2, the latest, allows typescript >=4.8.4 <6.1.0."
+  }
+}

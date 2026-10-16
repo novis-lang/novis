@@ -1,0 +1,22 @@
+<?nvs
+// Shows which calculations give `NaN` and which do not.
+
+class Check {
+    // Prints the label, then "NaN" or "not NaN".
+    public static function show(string $label, float $n): void {
+        echo $label, ": ", Core\Math::isNan($n) ? "NaN" : "not NaN", "\n";
+    }
+}
+
+// Zero divided by zero has no answer. This prints "0 / 0: NaN".
+Check::show("0 / 0", Core\Math::fdiv(0.0, 0.0));
+
+// A negative number has no square root. This prints "sqrt(-1): NaN".
+Check::show("sqrt(-1)", Core\Math::sqrt(-1.0));
+
+// One divided by zero is `INFINITY`, and `INFINITY` is not `NaN`.
+// This prints "1 / 0: not NaN".
+Check::show("1 / 0", Core\Math::fdiv(1.0, 0.0));
+
+// An ordinary number is not `NaN`. This prints "2.5: not NaN".
+Check::show("2.5", 2.5);

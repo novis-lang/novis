@@ -1,0 +1,13 @@
+<?nvs
+// Shows how to read every entry of a menu that has menus inside it.
+
+array<mixed> $menu = ['Home', ['Shop', ['Shoes', 'Shirts']], ['Help']];
+
+array<mixed> $labels = Core\Arr::flattenDeep($menu);
+
+// Every label comes out, whatever level it sat at. This prints
+// ["Home","Shop","Shoes","Shirts","Help"].
+echo Core\Json::encode($labels), "\n";
+
+// You can now count them. This prints 5.
+echo Core\Arr::count($labels), "\n";

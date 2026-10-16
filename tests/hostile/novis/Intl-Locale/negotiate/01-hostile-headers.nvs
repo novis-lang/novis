@@ -1,0 +1,54 @@
+<?nvs
+// Attack: a client sends `Accept-Language` headers that are huge, broken or full of odd weights.
+// Each call should return one of the offered locales or the default, and must not throw.
+// hostile: timeout-ms 20000
+use Novis\Intl\Locale;
+
+array<string> $offered = ['en', 'de', 'fr', 'pt-BR'];
+
+// 1. A header with twenty thousand language ranges.
+try {
+    string $many = Core\Str::repeat('xx;q=0.1, ', 20000) . 'de';
+    echo 'step 1 ran ', Locale::negotiate($many, $offered, 'en'), "\n";
+} catch (Throwable $e) {
+    echo "step 1 stopped\n";
+}
+
+// 2. A header of one million characters with no separators.
+try {
+    echo 'step 2 ran ', Locale::negotiate(Core\Str::repeat('a', 1000000), $offered, 'en'), "\n";
+} catch (Throwable $e) {
+    echo "step 2 stopped\n";
+}
+
+// 3. Weights that are negative, too large, not numbers, or written many times.
+array<string> $weights = ['de;q=-1', 'de;q=1.5', 'de;q=NaN', 'de;q=0.5;q=0.9', 'de;q=', ';q=1', '*;q=1', 'de;q=0.0000001'];
+uint $answered = 0;
+foreach ($weights as string $header) {
+    try {
+        Locale::negotiate($header, $offered, 'en');
+        $answered = $answered + 1;
+    } catch (Throwable $e) {
+        echo "step 3 stopped\n";
+    }
+}
+echo 'step 3 ran ', $answered, "\n";
+
+// 4. Control characters, a zero byte and text that is not valid as a tag.
+try {
+    echo 'step 4 ran ', Locale::negotiate("de\0en, \r\nfr, 日本語, de-\u{202E}AT", $offered, 'en'), "\n";
+} catch (Throwable $e) {
+    echo "step 4 stopped\n";
+}
+
+// 5. Twenty thousand offered locales.
+try {
+    array<string> $large = [];
+    for (int $i = 0; $i < 20000; $i++) {
+        $large[] = 'en';
+    }
+    $large[] = 'de';
+    echo 'step 5 ran ', Locale::negotiate('de, en;q=0.1', $large, 'en'), "\n";
+} catch (Throwable $e) {
+    echo "step 5 stopped\n";
+}

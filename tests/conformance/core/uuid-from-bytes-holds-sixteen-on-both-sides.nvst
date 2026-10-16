@@ -1,0 +1,47 @@
+--TEST--
+`Core\Uuid::fromBytes` reads sixteen octets and refuses every other width, naming the width it was handed — spec § 11, `rule:core-api/shape-rules` R4
+--FILE--
+<?nvs
+// A length is the whole of what this member refuses: every 128-bit pattern is
+// a UUID, RFC 9562's nil and max included, so the bound is asserted on both
+// sides — the last width below sixteen, sixteen itself, and the first above
+// it. A member that took a short buffer would answer a UUID the caller never
+// handed it, which is the failure a case reading only the happy path misses.
+class Probe {
+    // The UUID `$b` spells, or `refused` — every refusal here is a width.
+    public static function reads(bytes $b): string {
+        try {
+            return Core\Uuid::fromBytes($b)->toString();
+        } catch (Throwable $e) {
+            return "refused";
+        }
+    }
+}
+
+echo Probe::reads(Core\Bytes::fill(15, 0)), "\n";
+echo Probe::reads(Core\Bytes::fill(16, 0)), "\n";
+echo Probe::reads(Core\Bytes::fill(17, 0)), "\n";
+echo Probe::reads(Core\Bytes::fill(0, 0)), "\n";
+
+// All ones is the far end of the *value* space rather than of the width, and
+// it is a UUID for the same reason the nil one is — `$uuid->toBytes` writes it
+// back out unchanged, which is what says nothing here reads a version nibble.
+echo Probe::reads(Core\Bytes::fill(16, 255)), "\n";
+echo Core\Encoding::toHex(Core\Uuid::fromBytes(Core\Bytes::fill(16, 255))->toBytes()), "\n";
+
+// The message names the width, because that is the fact the caller does not
+// already have: a buffer of the wrong width came from a column, a frame or a
+// slice that is off by something, and the count is what says which.
+try {
+    Core\Uuid::fromBytes(Core\Bytes::fill(15, 0));
+} catch (Throwable $e) {
+    echo $e->message, "\n";
+}
+--EXPECT--
+refused
+00000000-0000-0000-0000-000000000000
+refused
+refused
+ffffffff-ffff-ffff-ffff-ffffffffffff
+ffffffffffffffffffffffffffffffff
+Core\Uuid::fromBytes(): a UUID is sixteen bytes, and this buffer is 15

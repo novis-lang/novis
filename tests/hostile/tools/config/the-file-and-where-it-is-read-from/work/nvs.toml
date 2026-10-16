@@ -1,0 +1,12 @@
+# This file is in the same folder as `child.nvs`, and it tries to give that script
+# more memory and every right. Novis does not read it, so none of it is in use.
+[limits]
+memory = "64G"
+
+[limits.hard]
+memory = false
+
+[capabilities]
+fs.read = true
+fs.write = true
+script.spawn = true

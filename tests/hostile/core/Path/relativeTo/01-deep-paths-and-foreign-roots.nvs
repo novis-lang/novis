@@ -1,0 +1,59 @@
+<?nvs
+// Attack: `Core\Path::relativeTo` is given very deep paths, millions of `..` parts
+// and roots that do not match. Each call should return a path or `null`, and the program must not crash.
+// hostile: timeout-ms 60000
+
+class Show
+{
+    public static function size(string $path, string $base): void
+    {
+        ?string $way = Core\Path::relativeTo($path, $base);
+        if ($way == null) {
+            echo "null\n";
+        } else {
+            echo Core\Str::length($way), "\n";
+        }
+    }
+}
+
+// 1. The base is one million folders deep, so the result goes up one million times.
+Show::size('/x', '/' . Core\Str::repeat('d/', 1048576));
+
+// 2. The path is one million folders deep, and the base is the root.
+Show::size('/' . Core\Str::repeat('d/', 1048576), '/');
+
+// 3. Both paths share one million folders, and only the last one differs.
+string $shared = '/' . Core\Str::repeat('d/', 1048576);
+Show::size($shared . 'a', $shared . 'b');
+
+// 4. The base has two million `..` parts, and the path has none.
+Show::size('x', Core\Str::repeat('../', 2097152));
+
+// 5. Both paths have two million `..` parts, so the result is `.`.
+Show::size(Core\Str::repeat('../', 2097152), Core\Str::repeat('../', 2097152));
+
+// 6. One part is 8 MiB long on each side, and the two differ in the last byte.
+string $big = Core\Str::repeat('x', 8388607);
+Show::size('/' . $big . 'a', '/' . $big . 'b');
+
+// 7. Roots that do not match: a drive and a share, two shares, a share and `/`, and two empty paths.
+Show::size('C:\\x', "\\\\server\\share\\x");
+Show::size("\\\\server\\one\\x", "\\\\server\\two\\x");
+Show::size("\\\\server\\share\\x", '/x');
+Show::size('', '');
+
+// 8. The same deep pair is compared 200 times, and every result is freed.
+string $left = Core\Str::repeat('a/', 20000) . 'left';
+string $right = Core\Str::repeat('a/', 20000) . Core\Str::repeat('b/', 20000);
+uint $seen = 0;
+int $r = 0;
+while ($r < 200) {
+    $seen = $seen + Core\Str::length(Core\Path::relativeTo($left, $right) ?? '');
+    $r = $r + 1;
+}
+echo $seen, "\n";
+
+// 9. The parts have emoji, a null byte and characters from other scripts.
+Show::size("/données/報告\u{0}/😀", '/données/other');
+
+echo 'the runtime is still standing', "\n";

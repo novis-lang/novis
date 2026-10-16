@@ -1,0 +1,31 @@
+<?nvs
+// Attack: `Core\Math::atan2` is given the biggest and smallest coordinates, zeros
+// with a minus sign, and values that are not ordinary numbers. Then it runs a
+// million times in a loop. The program should run to its last line.
+
+// 1. The biggest and smallest coordinates together.
+echo Core\Math::atan2(Core\Math::FLOAT_MAX, Core\Math::FLOAT_MIN), "\n";
+echo Core\Math::atan2(Core\Math::FLOAT_MIN, Core\Math::FLOAT_MAX), "\n";
+echo Core\Math::atan2(-Core\Math::FLOAT_MAX, -Core\Math::FLOAT_MAX), "\n";
+
+// 2. Zeros with and without a minus sign.
+echo Core\Math::atan2(0.0, 0.0), "\n";
+echo Core\Math::atan2(-0.0, 0.0), "\n";
+echo Core\Math::atan2(0.0, -0.0), "\n";
+echo Core\Math::atan2(-0.0, -0.0), "\n";
+
+// 3. Values that are not ordinary numbers.
+echo Core\Math::atan2(Core\Math::NAN, 1.0), "\n";
+echo Core\Math::atan2(1.0, Core\Math::NAN), "\n";
+echo Core\Math::atan2(Core\Math::INFINITY, Core\Math::INFINITY), "\n";
+echo Core\Math::atan2(-Core\Math::INFINITY, -Core\Math::INFINITY), "\n";
+echo Core\Math::atan2(1.0, -Core\Math::INFINITY), "\n";
+
+// 4. A million calls. Each result feeds the next one, and none is kept.
+float $angle = 1.0;
+int $round = 0;
+while ($round < 1000000) {
+    $angle = Core\Math::atan2(Core\Math::sin($angle), Core\Math::cos($angle) - 0.5);
+    $round = $round + 1;
+}
+echo Core\Math::isNan($angle) ? "NaN\n" : "a number\n";

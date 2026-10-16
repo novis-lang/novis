@@ -1,0 +1,18 @@
+<?nvs
+// Shows how to read a result that is too large to hold in memory. `stream`
+// gives you one row at a time.
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table notes (id integer primary key, text text not null)', []);
+$db->execute('insert into notes (text) values (?), (?), (?)', ['buy milk', 'call Ana', 'book train']);
+
+// Each step of the loop reads one row from the database. The rows before it
+// are gone and the rows after it have not been read yet.
+foreach ($db->stream('select id, text from notes order by id', []) as Core\Db\Row $row) {
+    echo $row->int('id') ?? 0, ': ', $row->string('text') ?? '', "\n";
+}
+
+// The last row ended the walk, so the connection is free for this statement.
+echo 'rows: ', $db->query('select count(*) as n from notes', [])->first()?->int('n') ?? 0, "\n";
+
+$db->close();

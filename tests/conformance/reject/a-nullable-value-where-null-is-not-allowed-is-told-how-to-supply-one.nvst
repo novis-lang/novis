@@ -1,0 +1,60 @@
+--TEST--
+A nullable value passed where `null` is not allowed, and that would fit without its `null`, is told to write `?? []`, `?? ''` or `?? 0` for a type with an empty value, and to test it with `!= null` for any other type — `rule:types/narrowing`
+--FILE--
+<?nvs
+final class Item
+{
+}
+
+final class Probe
+{
+    // `?array<int>` without `null` fits, and `[]` is its empty value.
+    public static function entries(?array<int> $a): uint
+    {
+        return Core\Arr::count($a);
+    }
+
+    // The same for a string and for a whole number.
+    public static function label(?string $s, ?int $n): void
+    {
+        string $text = $s;
+        int $number = $n;
+    }
+
+    // A class has no empty value, so the help names the `!= null` test.
+    public static function keep(?Item $item): void
+    {
+        Item $kept = $item;
+    }
+
+    // `?string` would not fit `int` even without its `null`, so there is no help.
+    public static function wrong(?string $s): void
+    {
+        int $number = $s;
+    }
+}
+--EXPECTF-ERROR--
+error[E0401]: expected `%s`, found `null|array<int>`
+%A
+   = help: this value can be `null`, and `null` is not allowed here. To use `[]` when it is `null`, write `$value ?? []`
+
+error[E0401]: expected `string`, found `string|null`
+%A
+   = help: this value can be `null`, and `null` is not allowed here. To use `''` when it is `null`, write `$value ?? ''`
+
+error[E0401]: expected `int`, found `int|null`
+%A
+   = help: this value can be `null`, and `null` is not allowed here. To use `0` when it is `null`, write `$value ?? 0`
+
+error[E0401]: expected `Item`, found `null|Item`
+%A
+   = help: this value can be `null`, and `null` is not allowed here. Test it with `if ($value != null)` first. Inside that `if`, it is `Item`
+
+error[E0401]: expected `int`, found `string|null`
+   --> case.nvs:30:23
+   |
+30 |         int $number = $s;
+   |                       ^^ this is `string|null`
+
+error: aborting due to 5 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

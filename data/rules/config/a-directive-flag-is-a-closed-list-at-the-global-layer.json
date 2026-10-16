@@ -1,0 +1,14 @@
+{
+  "title": "A CLI flag that sets a directive is one of a closed list, `--listen` and `--port`, wins over every file, and there is no `--set`",
+  "status": "shipped",
+  "seeAlso": [
+    "config/later-wins-and-every-override-is-recorded",
+    "config/every-matching-app-block-applies-least-specific-first",
+    "config/ini-set-is-core-config-set",
+    "http-server/the-server-block-is-boot-class",
+    "config/a-startup-default-is-never-flipped"
+  ],
+  "guardedBy": [
+    "crates/nvs-cli/src/serve.rs"
+  ]
+}

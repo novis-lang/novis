@@ -1,0 +1,18 @@
+<?nvs
+// Shows a job that sends emails, at most 3 per second. The emails that
+// are not allowed stay in the queue for the next run.
+
+array<string> $queue = ["ana@example.com", "ben@example.com", "chen@example.com", "dev@example.com", "eli@example.com"];
+array<string> $later = [];
+
+foreach ($queue as string $address) {
+    var $decision = Core\RateLimit::shed("mail:outgoing", 3, 1s);
+    if ($decision->allowed()) {
+        echo "sent to ", $address, "\n";
+    } else {
+        $later[] = $address;
+    }
+}
+
+// The first 3 are sent, so this prints 2.
+echo Core\Arr::count($later), " emails wait for the next run\n";

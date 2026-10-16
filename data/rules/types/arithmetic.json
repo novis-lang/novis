@@ -1,0 +1,20 @@
+{
+  "title": "An arithmetic operator answers in its operands' own type, and overflow throws rather than wrapping or promoting",
+  "status": "shipped",
+  "seeAlso": [
+    "types/ordering",
+    "types/uint",
+    "types/decimal",
+    "types/implicit-widening"
+  ],
+  "guardedBy": [
+    "tests/conformance/lang/the-arithmetic-table-is-closed.nvst",
+    "tests/conformance/lang/an-integer-overflow-throws-rather-than-wrapping.nvst",
+    "tests/conformance/lang/mixed-signedness-arithmetic-is-a-compile-error.nvst",
+    "tests/conformance/lang/every-arithmetic-row-promotes-the-narrower-operand.nvst",
+    "tests/conformance/lang/arithmetic-over-a-mixed-operand-is-decided-by-its-tag.nvst",
+    "tests/conformance/reject/an-object-takes-part-in-no-arithmetic.nvst",
+    "tests/conformance/reject/an-arithmetic-or-bitwise-operator-on-an-enum-value-does-not-compile.nvst",
+    "tests/conformance/reject/an-arithmetic-or-bitwise-operator-on-a-nullable-value-does-not-compile.nvst"
+  ]
+}

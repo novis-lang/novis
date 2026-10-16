@@ -1,0 +1,22 @@
+<?nvs
+// Measures `Core\Arr::from` on one array of numbers, at growing array sizes.
+// bench: start 256
+// bench: max 4096
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        array<int> $source = Core\Arr::range(1, $size as int);
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            array<int> $list = Core\Arr::from($source);
+            $total = $total + Core\Arr::count($list);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

@@ -1,0 +1,18 @@
+<?nvs
+// Shows how to test a code that a user typed.
+
+secret bytes $secret = Core\Random::bytes(20);
+
+// `Core\Totp::code` returns the code that the phone shows right now.
+string $typed = Core\Totp::code($secret);
+
+// A right code returns a step number. A wrong code returns `null`.
+// This prints "accepted" and then "rejected".
+array<string> $attempts = [$typed, "12345x"];
+foreach ($attempts as string $attempt) {
+    if (Core\Totp::check($attempt, $secret) == null) {
+        echo "rejected\n";
+    } else {
+        echo "accepted\n";
+    }
+}

@@ -1,0 +1,13 @@
+<?nvs
+// Shows how to split a payout between partners who own different shares. The
+// keys of the ratios are the keys of the result, so each part comes back under
+// the name it belongs to.
+
+decimal $payout = 1000.00;
+
+// Ada owns five parts of the business, Grace three and Alan two.
+array<decimal> $shares = ["Ada" => 5, "Grace" => 3, "Alan" => 2];
+
+foreach (Core\Decimal::allocate($payout, $shares) as string $name => decimal $part) {
+    echo $name, " receives ", $part, "\n";
+}

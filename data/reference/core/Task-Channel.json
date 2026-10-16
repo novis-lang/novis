@@ -1,0 +1,14 @@
+{
+  "summary": "a bounded queue between two tasks whose `send` waits at the bound — backpressure instead of a growing buffer",
+  "keywords": [
+    "channel",
+    "backpressure",
+    "bounded queue",
+    "producer",
+    "consumer",
+    "pipeline",
+    "streaming between tasks",
+    "close",
+    "capacity"
+  ]
+}

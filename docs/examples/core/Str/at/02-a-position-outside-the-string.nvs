@@ -1,0 +1,24 @@
+<?nvs
+// Shows what happens when the position is outside the string.
+
+string $code = "AB7";
+
+// The string has 3 characters, so the last position is 2. This prints `7`.
+echo Core\Str::at($code, 2), "\n";
+
+// Position 3 is past the end, so `Core\Str::at` throws a `RuntimeError`.
+// This prints the error message.
+try {
+    echo Core\Str::at($code, 3), "\n";
+} catch (RuntimeError $error) {
+    echo 'no character there: ', $error->message, "\n";
+}
+
+// An empty string has no characters at all, so position 0 throws too.
+// Check the length first when the string can be empty. This prints `(empty)`.
+string $name = "";
+if (Core\Str::length($name) > 0) {
+    echo Core\Str::at($name, 0), "\n";
+} else {
+    echo "(empty)\n";
+}

@@ -1,0 +1,98 @@
+<?nvs
+// Attack: roll back a transaction 100,000 times, then roll back with a reason
+// that is megabytes long. Then roll back from the bottom of 2,000 nested transactions.
+// Every transaction and every `RolledBack` error should be freed. Memory should
+// stay small, and the table should be empty at the end.
+// hostile: timeout-ms 60000
+
+use Core\Db;
+use Core\Db\Connection;
+use Core\Db\RolledBack;
+use Core\Db\Transaction;
+
+final class Churn
+{
+    // Each round opens a transaction, writes a row and rolls back. The round
+    // should free the transaction and the error before the next one starts.
+    public static function rounds(Connection $db, int $rounds): uint
+    {
+        uint $read = 0;
+        int $i = 0;
+        while ($i < $rounds) {
+            try {
+                $db->transaction(fn (Transaction $tx): void => {
+                    $tx->execute('insert into one (n) values (?)', [1]);
+                    $tx->rollBack('this round keeps nothing');
+                });
+            } catch (RolledBack $abandoned) {
+                // This reads both fields, so the error must really contain them.
+                if (Core\Str::length($abandoned->reason) > 0) {
+                    $read = $read + 1;
+                }
+                if (Core\Str::length($abandoned->message) > 0) {
+                    $read = $read + 1;
+                }
+            }
+            $i = $i + 1;
+        }
+        return $read;
+    }
+
+    // One rollback with a reason of a few megabytes. The error keeps that text.
+    // It should be stored once, and not copied on its way to the `catch` block.
+    public static function huge(Connection $db, int $doublings): uint
+    {
+        string $reason = "this is why, and here is more of why\n";
+        int $i = 0;
+        while ($i < $doublings) {
+            $reason = $reason . $reason;
+            $i = $i + 1;
+        }
+        try {
+            $db->transaction(fn (Transaction $tx): void => {
+                $tx->execute('insert into one (n) values (?)', [2]);
+                $tx->rollBack($reason);
+            });
+            return 0;
+        } catch (RolledBack $abandoned) {
+            return Core\Str::length($abandoned->reason);
+        }
+    }
+
+    // A transaction inside a transaction is a savepoint. This opens many nested
+    // savepoints and rolls back at the bottom, so every level must be released.
+    public static function deep(Transaction $outer, int $depth): void
+    {
+        if ($depth == 0) {
+            $outer->rollBack('the bottom of the stack said no');
+        }
+        $outer->execute('insert into one (n) values (?)', [3]);
+        $outer->transaction(fn (Transaction $inner): void => {
+            Churn::deep($inner, $depth - 1);
+        });
+    }
+}
+
+var $db = Db::connect('schema');
+$db->execute('create table one (id integer primary key, n int not null)', []);
+
+echo Churn::rounds($db, 100000), "\n";
+echo Churn::huge($db, 17), "\n";
+
+try {
+    $db->transaction(fn (Transaction $tx): void => {
+        Churn::deep($tx, 2000);
+    });
+    echo "nothing gave up\n";
+} catch (RolledBack $fromTheBottom) {
+    echo Core\Str::length($fromTheBottom->reason), "\n";
+} catch (RecursionError $tooDeep) {
+    echo "too deep\n";
+} catch (Core\Db\DbError $refused) {
+    echo 'the database stopped it: ', $refused->message, "\n";
+} catch (Throwable $cameApart) {
+    echo 'the stack came apart: ', $cameApart->message, "\n";
+}
+
+// Every transaction rolled back, so the table is empty. This should print `0`.
+echo $db->query('select id from one', [])->count(), "\n";

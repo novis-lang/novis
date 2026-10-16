@@ -1,0 +1,16 @@
+<?nvs
+// Shows how a program adds up amounts in cents and then prints the total as an
+// amount of money. The parts are added as a `Core\BigInt`, where no total is
+// ever too large, and converted once at the end.
+
+array<string> $cents = ["4500000000", "129900000000", "77000", "1"];
+
+var $total = Core\BigInt::of(0);
+foreach ($cents as string $part) {
+    $total = $total->add(Core\BigInt::parse($part));
+}
+
+// A `decimal` divides exactly, so no cent is lost on the way. This prints
+// 1344000770.01.
+decimal $amount = $total->toDecimal();
+echo $amount / 100, "\n";

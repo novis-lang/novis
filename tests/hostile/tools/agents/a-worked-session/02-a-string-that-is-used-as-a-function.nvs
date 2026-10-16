@@ -1,0 +1,10 @@
+<?nvs
+// Attack: a string that contains the name `strlen` is called as a function, as PHP allows.
+// This file should not compile. A string is not a function, so the compiler should give error `E0420`.
+// hostile: expect-refusal
+
+string $name = 'Zoë';
+
+// 1. The variable is a `string`. The call is the only error in this file.
+string $function = 'strlen';
+echo $function($name), "\n";

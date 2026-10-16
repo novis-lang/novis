@@ -1,0 +1,54 @@
+--TEST--
+A function that waits is called the same way everywhere — at the top level, from another function, as a field of `all` and as a `map` callback — and all four positions answer the same value, so no call site is coloured by the wait inside it — `rule:concurrency/one-scheduler`
+--FILE--
+<?nvs
+// covers: lang:concurrency/no-colouring-i-o-just-waits
+// The agreement shape (`docs/agent/conventions.md`): the assertion is that the four
+// positions agree, not what any one of them answered. A language that grew a second
+// spelling for a waiting call — a promise at the top level, a value inside a task —
+// fails here while every individual line still looks right.
+class Slow {
+    public static function value(int $n): int
+    {
+        Core\Time::sleep(1ms);
+        return $n * 3;
+    }
+
+    // A caller that does not wait itself, calling one that does. There is no third
+    // thing to write here: the call is the same call.
+    public static function twice(int $n): int
+    {
+        return Slow::value($n) + Slow::value($n);
+    }
+}
+
+int $agreed = 0;
+int $asked = 0;
+
+int $plain = Slow::value(2);
+$asked += 1;
+if ($plain == 6) {
+    $agreed += 1;
+}
+
+int $nested = Slow::twice(1);
+$asked += 1;
+if ($nested == 6) {
+    $agreed += 1;
+}
+
+var $group = Core\Task::all({one: fn(): int => Slow::value(2)});
+$asked += 1;
+if ($group->one == 6) {
+    $agreed += 1;
+}
+
+var $mapped = Core\Task::map([2, 2], fn(int $n): int => Slow::value($n));
+$asked += 1;
+if ($mapped[0] == 6 && $mapped[1] == 6) {
+    $agreed += 1;
+}
+
+echo $agreed, " of ", $asked, " positions answered the same", "\n";
+--EXPECT--
+4 of 4 positions answered the same

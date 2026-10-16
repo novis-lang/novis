@@ -1,0 +1,20 @@
+<?nvs
+// `log.handler_reserve_time` is how long the script that reports a failure may
+// run. A report is usually slow because of where it writes, not what it writes.
+
+echo 'time for the report:  ', Core\Config::get('log.handler_reserve_time') ?? '(nothing written)', "\n";
+echo 'memory beside it:     ', Core\Config::get('log.handler_reserve_memory') ?? '(nothing written)', "\n";
+
+// These two reserves are different. They are part of the request's own limits,
+// and they run the program's own handler function.
+echo 'the request-side time: ', Core\Config::get('limits.fatal_reserve_time') ?? '(nothing written)', "\n";
+echo 'the request-side heap: ', Core\Config::get('limits.fatal_reserve_memory') ?? '(nothing written)', "\n";
+
+// A program cannot change this time. A longer and a shorter value both return
+// `false`. A report that is stopped early never arrives.
+echo 'give it an hour:  ', Core\Config::set('log.handler_reserve_time', '1h') ? 'accepted' : 'refused', "\n";
+echo 'give it a moment: ', Core\Config::set('log.handler_reserve_time', '1ms') ? 'accepted' : 'refused', "\n";
+
+// A program may lower its own `limits.cpu_time`. The time for the report stays `5s`.
+echo 'bound my own run:  ', Core\Config::set('limits.cpu_time', '2s') ? 'accepted' : 'refused', "\n";
+echo 'time for the report still: ', Core\Config::get('log.handler_reserve_time') ?? '(nothing written)', "\n";

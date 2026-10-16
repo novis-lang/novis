@@ -1,0 +1,38 @@
+--TEST--
+`Core\Html::escape` and `Core\Html::sanitize` both answer a `Core\Html\Markup` and disagree about the same bytes, because one launders text and the other launders markup — `rule:security/launderers-are-sink-named`, `rule:security/launderer-answers-a-carrier`
+--FILE--
+<?nvs
+// One question asked of both members that share a sink, so what is asserted is
+// that they *agree* about the type and *differ* about the answer. A member
+// that grew its own return type would still look right on its own line.
+tainted string $payload = "<b>bold</b> & <script>steal()</script>";
+
+// Both answer the sink's carrier, which is `rule:security/launderer-answers-a-carrier`'s predicate rather
+// than a choice either member made: the HTML sink escapes on its own, and
+// neither transform is idempotent, so a `string` answer from either would be
+// escaped a second time on the way into a page.
+Core\Html\Markup $asText = Core\Html::escape($payload);
+Core\Html\Markup $asMarkup = Core\Html::sanitize($payload);
+
+echo Core\Html::toSource($asText, "showing what the text launderer did"), "\n";
+echo Core\Html::toSource($asMarkup, "showing what the markup launderer did"), "\n";
+
+// The disagreement is the point. `escape` is for a value that must arrive as
+// text — a bug report quoting a tag wants the tag visible — so the markup
+// survives as characters. `sanitize` is for a value that must arrive as
+// markup, so the formatting survives as elements and the script does not
+// survive at all. Neither is a version of the other with a flag, which is why
+// there are two members and no `clean()`.
+echo Core\Html::toSource($asText, "asking which of the two kept the tag as text")
+     == Core\Html::toSource($asMarkup, "and which rebuilt it as markup") ? "same" : "different", "\n";
+
+// Because both are carriers, both compose with `+` and neither is escaped
+// again on the way in — the composition rule `rule:core-classes/html-auto-escape` gives the type,
+// reached here from the two ends of the same class.
+Core\Html\Markup $page = $asMarkup + Core\Html::escape(" — reported by a reader");
+echo Core\Html::toSource($page, "showing that two launderers' answers compose"), "\n";
+--EXPECT--
+&lt;b&gt;bold&lt;/b&gt; &amp; &lt;script&gt;steal()&lt;/script&gt;
+<b>bold</b> &amp;
+different
+<b>bold</b> &amp;  — reported by a reader

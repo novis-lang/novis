@@ -1,0 +1,82 @@
+--TEST--
+Core\Jwe::decrypt reads a PBES2 token's p2c and p2s before it derives anything, holding both to the bounds Core\Crypto::deriveKey holds its own arguments to — `rule:security/jwe-compact-subset`, `rule:security/protocol-roster`
+--FILE--
+<?nvs
+// `p2c` is the one number in a JOSE header that is a bill: whoever sent the
+// token chooses how many HMACs the recipient runs. The ceiling is what turns
+// that into a bounded cost, and it is only a ceiling if it is read *before* the
+// derivation — a bound checked afterwards has already been paid.
+//
+// That ordering is what the last two tokens below assert, and they assert it by
+// the case finishing at all. One names a count of 4,294,967,295 and the other
+// one that does not fit the counter: a member that derived first and compared
+// after would still refuse them, hours from now. There is no clock here and no
+// threshold to tune — the suite either returns or it does not.
+Core\Jwe\Key $password = Core\Jwe\Key::password("correct horse battery staple");
+
+// The accepted side, and the only derivation this case pays for: a token at the
+// floor, which is the count `encrypt` itself writes.
+tainted string $note = Core\Jwe::decrypt(
+    "eyJhbGciOiJQQkVTMi1IUzI1NitBMTI4S1ciLCJlbmMiOiJBMjU2R0NNIiwicDJjIjoxMDAwMDAsInAycyI6InJhZzhZSGFzY28xTC1heVRBbW44OWcifQ.Tm-wRawKwGhnshTzTr3fvvgMCXEVf36FZbvsSTexm_r5nedzhFU9rg.Yzs3G6VmFJHPgIf2.YPZinOm18x5tzxUE48yH2A8hHmPelObo4q4JMd5cfpTreYY3.z6Ru1D5p08dSCJL2PWgHpA",
+    [$password]
+);
+echo $note == "{\"note\":\"sealed under a passphrase\"}" ? "opened at the floor" : "opened wrong", "\n";
+
+array<string> $refused = [
+    // One under the floor, and one over the ceiling: both frozen, both sealed by
+    // WebCrypto at the count they name, so each would open against a member
+    // that had no bounds at all.
+    "eyJhbGciOiJQQkVTMi1IUzI1NitBMTI4S1ciLCJlbmMiOiJBMjU2R0NNIiwicDJjIjo5OTk5OSwicDJzIjoiTmJvU2FaVHo5M01sMkNkWE56c2xDdyJ9.yoWYL-fHy8Fz1LeRKZTqPYZOMTkl4S9tH5fDbSjfaUR4lZzkAF_c7w.9Xczw6_qA5lGK89E.OVZj8hZEDNk-kPw.nguNydfJ69u6p2AQybeu9Q",
+    "eyJhbGciOiJQQkVTMi1IUzI1NitBMTI4S1ciLCJlbmMiOiJBMjU2R0NNIiwicDJjIjoyMDAwMDAxLCJwMnMiOiI4bHAzTXZ4MnhVSXQybllUZFN2VUZBIn0.631okfB9jHxg8JSVEaFSC3radCMv_0pkTY9SaKP3_KTak4doj0AOuA.AhX9uILfedAG4y7L.PcIAqIqcB4nfPDI.MWwgWwQWrVIyM8OBYiwQnA",
+    // A salt one octet short. The salt is in the header as well, so it is the
+    // sender's choice too, and a short one is what makes a precomputed table
+    // worth building.
+    "eyJhbGciOiJQQkVTMi1IUzI1NitBMTI4S1ciLCJlbmMiOiJBMjU2R0NNIiwicDJjIjoxMDAwMDAsInAycyI6IjZXdUgwbzRqUzBScnVZM0dNVk5ZIn0.WcxIFq7banFWy1Rda_zjLQuoXV4DH-ZsgUD2IEj4EqosSjx86ZCRCw.RHV4rrPnBEgO78NS.mDSiDILi0eL-mlc.miTimLsGcWiROftoBgC4QQ",
+    // The bill an attacker would actually write: every iteration a 32-bit
+    // counter can hold, which is around an hour of one core.
+    "eyJhbGciOiJQQkVTMi1IUzI1NitBMTI4S1ciLCJlbmMiOiJBMjU2R0NNIiwicDJjIjo0Mjk0OTY3Mjk1LCJwMnMiOiI4bHAzTXZ4MnhVSXQybllUZFN2VUZBIn0.631okfB9jHxg8JSVEaFSC3radCMv_0pkTY9SaKP3_KTak4doj0AOuA.AhX9uILfedAG4y7L.PcIAqIqcB4nfPDI.MWwgWwQWrVIyM8OBYiwQnA",
+    // And a count that does not fit the counter at all, which is refused as a
+    // number outside the bounds rather than wrapped into one inside them.
+    "eyJhbGciOiJQQkVTMi1IUzI1NitBMTI4S1ciLCJlbmMiOiJBMjU2R0NNIiwicDJjIjo5OTk5OTk5OTk5OTk5OSwicDJzIjoiOGxwM012eDJ4VUl0Mm5ZVGRTdlVGQSJ9.631okfB9jHxg8JSVEaFSC3radCMv_0pkTY9SaKP3_KTak4doj0AOuA.AhX9uILfedAG4y7L.PcIAqIqcB4nfPDI.MWwgWwQWrVIyM8OBYiwQnA",
+];
+
+int $verdicts = 0;
+array<string> $sentences = [];
+foreach ($refused as string $slot => string $token) {
+    try {
+        tainted string $opened = Core\Jwe::decrypt($token, [$password]);
+        echo "derived ", $slot, "\n";
+    } catch (RuntimeError $verdict) {
+        $verdicts += 1;
+        $sentences[$verdict->message] = "";
+    }
+}
+echo "refused ", $verdicts, " of ", Core\Arr::count($refused), "\n";
+echo "distinct sentences ", Core\Arr::count($sentences), "\n";
+
+// The bounds are the member's, not a second set this class grew of its own:
+// the two counts a token is refused for are the two `Core\Crypto::deriveKey`
+// refuses when a program names them itself. The difference is whose bug it is —
+// a header is a verdict on the token, an argument is a bug in the program — and
+// that is the only thing that differs between these two answers.
+int $agree = 0;
+array<uint> $counts = [99999, 2000001];
+bytes $salt = Core\Bytes::fill(16, 65);
+foreach ($counts as string $slot => uint $iterations) {
+    try {
+        secret bytes $derived = Core\Crypto::deriveKey(
+            "correct horse battery staple",
+            $salt,
+            $iterations
+        );
+        echo "the member accepted ", $iterations, "\n";
+    } catch (LogicError $bug) {
+        $agree += 1;
+    }
+}
+echo "the member refuses the same counts ", $agree, " of ", Core\Arr::count($counts), "\n";
+--EXPECT--
+opened at the floor
+refused 5 of 5
+distinct sentences 1
+the member refuses the same counts 2 of 2

@@ -1,0 +1,63 @@
+--TEST--
+An element write — `=`, an append, a nested write, a compound assignment, an increment, a string append, `??=` and `unset` — reports one `onPropertySet` with the whole array after it is stored, and no `onPropertyGet` — `rule:classes/property-observer-pipeline`
+--FILE--
+<?nvs
+// covers: lang:classes/propertyobserver
+final class Post implements PropertyObserver {
+    public array<string> $tags = [];
+    public array<int> $counts = [];
+    public array<array<string>> $cells = [];
+
+    public function onPropertyGet(string $name, mixed $value): void {
+        echo "  get ", $name, "\n";
+    }
+
+    public function onPropertySet(string $name, mixed $value): void {
+        echo "  set ", $name, " = ", Core\Json::encode($value), "\n";
+    }
+}
+
+Post $p = new Post();
+
+echo "a plain element write:\n";
+$p->tags["a"] = "x";
+
+echo "a nested element write:\n";
+$p->cells["r"]["c"] = "y";
+
+echo "a compound assignment and an increment:\n";
+$p->counts["n"] = 1;
+$p->counts["n"] += 2;
+$p->counts["n"]++;
+
+echo "a string append:\n";
+$p->tags["a"] .= "z";
+
+echo "a defaulting assignment:\n";
+$p->tags["b"] ??= "w";
+
+echo "an unset:\n";
+unset($p->tags["a"]);
+
+// A plain read of the whole property is still reported.
+echo "a read:\n";
+int $n = $p->counts["n"];
+echo "  n = ", $n, "\n";
+--EXPECT--
+a plain element write:
+  set tags = {"a":"x"}
+a nested element write:
+  set cells = {"r":{"c":"y"}}
+a compound assignment and an increment:
+  set counts = {"n":1}
+  set counts = {"n":3}
+  set counts = {"n":4}
+a string append:
+  set tags = {"a":"xz"}
+a defaulting assignment:
+  set tags = {"a":"xz","b":"w"}
+an unset:
+  set tags = {"b":"w"}
+a read:
+  get counts
+  n = 4

@@ -1,0 +1,32 @@
+<?nvs
+// Shows how a command-line tool saves its list of jobs to a file and loads it on the next run.
+
+class Job {
+    public string $name;
+    public uint $tries;
+    public function constructor(string $name, uint $tries) {
+        $this->name = $name;
+        $this->tries = $tries;
+    }
+}
+
+class JobList {
+    public array<Job> $jobs = [];
+}
+
+JobList $list = new JobList();
+$list->jobs[] = new Job("send-invoices", 0);
+$list->jobs[] = new Job("resize-images", 2);
+
+// `Core\IO::write` saves text, so the bytes are saved as Base64 text.
+string $path = Core\Path::join(Core\IO::temporaryDir(), "jobs.bin");
+Core\IO::write($path, Core\Encoding::toBase64(Core\Serialize::encode($list)));
+
+// On the next run, the tool reads the file and builds the list again.
+bytes $saved = Core\Encoding::fromBase64(Core\IO::read($path));
+JobList $loaded = Core\Serialize::decode($saved) as JobList;
+
+// This prints each job and how many times it was tried.
+foreach ($loaded->jobs as Job $job) {
+    echo $job->name, ": ", $job->tries, "\n";
+}

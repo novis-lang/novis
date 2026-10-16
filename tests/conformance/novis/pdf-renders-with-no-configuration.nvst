@@ -1,0 +1,27 @@
+--TEST--
+`Document::render` writes a paragraph as a one-page PDF from a binary with no `nvs.toml` and no grant, two renders are byte-equal, and the page opens as an image: rule:core-classes/pdf-render-has-no-io
+--FILE--
+<?nvs
+// covers: Novis\Pdf\Document::fromHtml
+// covers: Novis\Pdf\Document::render
+use Novis\Image\Image;
+use Novis\Pdf\Document;
+
+// A paragraph of HTML. The render uses the default fonts, so it needs no font file.
+var $document = Document::fromHtml("<h1>Shop</h1><p>Thank you for your order.</p>");
+var $rendered = $document->render();
+echo Core\Bytes::startsWith($rendered->bytes, "%PDF-" as bytes) ? "a PDF file" : "not a PDF file", "\n";
+echo $rendered->pageCount, " page\n";
+
+// The file has no creation time, so a second render gives the same bytes.
+echo $document->render()->bytes == $rendered->bytes ? "same bytes" : "different bytes", "\n";
+
+// The page opens as an image. An A4 page is 595.28 by 841.89 points.
+// At 72 dpi, one point is one pixel, so the image is 596 by 842 pixels.
+var $raw = Image::open($rendered->bytes, {dpi: 72.0})->raw();
+echo $raw->width, "x", $raw->height, "\n";
+--EXPECT--
+a PDF file
+1 page
+same bytes
+596x842

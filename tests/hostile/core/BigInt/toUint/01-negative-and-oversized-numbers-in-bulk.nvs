@@ -1,0 +1,50 @@
+<?nvs
+// Attack: `toUint` is asked for negative numbers and for numbers far above its
+// range, thousands of times over. Every call must throw, and the text of every
+// error holds all the digits of the number. Messages that are never freed would
+// use up the memory of the machine. The program should run to its last line.
+
+// 1. A negative number of 1001 bits is narrowed 5000 times. Every call throws,
+//    and each error carries all 303 characters of the number. This prints 5000.
+var $wide = Core\BigInt::of(-1)->shl(1000);
+int $refused = 0;
+int $round = 0;
+while ($round < 5000) {
+    try {
+        $wide->toUint();
+    } catch (ArithmeticError $negative) {
+        $refused = $refused + 1;
+    }
+    $round = $round + 1;
+}
+echo $refused, "\n";
+
+// 2. -1 and 0 are one apart. -1 throws and 0 returns 0, so this prints
+//    "refused 0".
+try {
+    echo Core\BigInt::of(-1)->toUint(), "\n";
+} catch (ArithmeticError $negative) {
+    echo 'refused ', Core\BigInt::of(0)->toUint(), "\n";
+}
+
+// 3. The largest number a `uint` holds, and the first one above it. This
+//    prints 18446744073709551615 and then 1.
+var $top = Core\BigInt::parse('18446744073709551615');
+echo $top->toUint(), "\n";
+int $past = 0;
+try {
+    $top->add(Core\BigInt::of(1))->toUint();
+} catch (ArithmeticError $tooLarge) {
+    $past = 1;
+}
+echo $past, "\n";
+
+// 4. A number of about a million bits is narrowed. Its error text holds more
+//    than 300000 digits, and the program must build it. This prints 1.
+int $huge = 0;
+try {
+    Core\BigInt::of(1)->shl(1000000)->toUint();
+} catch (ArithmeticError $far) {
+    $huge = 1;
+}
+echo $huge, "\n";

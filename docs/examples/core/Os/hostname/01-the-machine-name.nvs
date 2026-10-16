@@ -1,0 +1,8 @@
+<?nvs
+// Shows how to read the name of the machine your program runs on.
+
+string $host = Core\Os::hostname();
+
+// The name is different on every machine, so this example only checks it.
+// A machine always has a name, so this prints `yes`.
+echo Core\Str::length($host) > 0 ? "yes" : "no", "\n";

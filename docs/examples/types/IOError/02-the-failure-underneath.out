@@ -1,0 +1,2 @@
+the saved report is unusable
+  because: Core\Json::decode(): key must be a string at line 1 column 2

@@ -1,0 +1,72 @@
+<?nvs
+// Attack: the SQL of a step is read ten million times. Every statement of a
+// long plan is joined into one string. A step's own statement is run twice.
+// The program should finish, or stop at its memory limit with an error, and
+// must not crash.
+// hostile: timeout-ms 120000
+
+use Core\Db;
+use Core\Db\Plan\Step;
+use Core\Db\Schema;
+
+var $db = Db::connect('notes');
+
+// A schema of three thousand tables against an empty database, which is three
+// thousand statements.
+array<mixed> $tables = [];
+uint $t = 0;
+while ($t < 3000) {
+    $tables[] = [
+        'name' => 'table_' . ($t as string),
+        'columns' => [['name' => 'id', 'type' => 'int64', 'identity' => true]],
+        'primary_key' => ['id'],
+    ];
+    $t = $t + 1;
+}
+
+var $schema = Schema::fromArray(['tables' => $tables]);
+var $steps = $schema->planAgainst($db)->steps();
+echo '1 steps: ', Core\Arr::count($steps), "\n";
+
+// 2. One statement read ten million times. Reading it must not build a new
+// string every time.
+var $first = $steps[0];
+uint $length = 0;
+uint $i = 0;
+while ($i < 10000000) {
+    $length = $length + Core\Str::length($first->sql());
+    $i = $i + 1;
+}
+echo '2 read: ', $length, "\n";
+
+// 3. Every statement of the plan joined into one string, again and again,
+// until the memory limit stops it.
+try {
+    string $document = '';
+    uint $round = 0;
+    while ($round < 100) {
+        foreach ($steps as Step $step) {
+            $document = $document . $step->sql() . "\n";
+        }
+        $round = $round + 1;
+    }
+    echo '3 document: ', Core\Str::length($document), "\n";
+} catch (Throwable $stopped) {
+    echo '3 stopped: ', $stopped->message, "\n";
+}
+
+// 4. A step's own statement run twice. The second time the table is there
+// already, so the database refuses it and the program catches that.
+try {
+    $db->execute($first->sql(), []);
+    $db->execute($first->sql(), []);
+    echo "4 ran twice\n";
+} catch (Throwable $refused) {
+    echo "4 refused the second run\n";
+}
+
+// 5. The connection after all of that. An ordinary statement still works.
+$db->execute('create table still_here (id integer primary key)', []);
+echo '5 still usable: ', $db->query('select id from still_here', [])->count(), "\n";
+
+$db->close();

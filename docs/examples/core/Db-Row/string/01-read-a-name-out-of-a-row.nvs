@@ -1,0 +1,16 @@
+<?nvs
+// Shows how to read a text column out of a row.
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table people (name text not null, city text not null)', []);
+$db->execute(
+    'insert into people (name, city) values (?, ?), (?, ?)',
+    ['Amina', 'Graz', 'Bruno', 'Lisboa']
+);
+
+// `string` reads the named column as text. This prints one line for each person.
+foreach ($db->query('select name, city from people order by name', []) as Core\Db\Row $row) {
+    echo $row->string('name') ?? '', ' lives in ', $row->string('city') ?? '', "\n";
+}
+
+$db->close();

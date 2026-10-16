@@ -1,0 +1,69 @@
+--TEST--
+`Core\Json::encode` answers `tainted string` when the value carries outside text anywhere, and plain `string` when it carries none — `rule:security/taint-propagation`
+--FILE--
+<?nvs
+// `rule:security/taint-propagation`: an encoder writes every string of the
+// value into its result, and JSON escaping leaves a `'` in place, so the result
+// of `Core\Json::encode` is `tainted` when the value carries outside text
+// anywhere.
+class Leaf {
+    public tainted string $name = "";
+}
+
+class Counted {
+    public int $n = 0;
+}
+
+class Sql {
+    public static function text(string $sql): void {
+        echo $sql, "\n";
+    }
+}
+
+// The accepted half first: a value with no outside text in it encodes to a
+// plain `string`, including an array literal of the program's own values.
+array<int> $ids = [1, 2, 3];
+Sql::text(Core\Json::encode($ids));
+Sql::text(Core\Json::encode({n: 1, label: "x"}));
+Sql::text(Core\Json::encode(new Counted()));
+Sql::text(Core\Json::encode(["a" => 1, "b" => "two"]));
+
+// Each of these carries outside text: the atom, an array of it, a nullable
+// one, a shape field, an object property, an array literal holding it, `mixed`.
+tainted string $t = "o'clock";
+array<tainted string> $list = [$t];
+?tainted string $maybe = $t;
+mixed $m = $t;
+Sql::text(Core\Json::encode($t));
+Sql::text(Core\Json::encode($list));
+Sql::text(Core\Json::encode($maybe));
+Sql::text(Core\Json::encode({name: $t}));
+Sql::text(Core\Json::encode(new Leaf()));
+Sql::text(Core\Json::encode(["q" => $t]));
+Sql::text(Core\Json::encode($m));
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `string`, found `tainted string`
+   --> case.nvs:34:11
+%A
+error[E0401]: expected `string`, found `tainted string`
+   --> case.nvs:35:11
+%A
+error[E0401]: expected `string`, found `tainted string`
+   --> case.nvs:36:11
+%A
+error[E0401]: expected `string`, found `tainted string`
+   --> case.nvs:37:11
+%A
+error[E0401]: expected `string`, found `tainted string`
+   --> case.nvs:38:11
+%A
+error[E0401]: expected `string`, found `tainted string`
+   --> case.nvs:39:11
+%A
+error[E0401]: expected `string`, found `tainted string`
+   --> case.nvs:40:11
+%A
+error: aborting due to 7 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

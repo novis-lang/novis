@@ -1,0 +1,13 @@
+<?nvs
+// Shows how to find out which address a UDP message came from.
+
+Core\Net\Datagram $server = Core\Net::bindDatagram("127.0.0.1", 0);
+Core\Net\Datagram $client = Core\Net::bindDatagram("127.0.0.1", 0);
+$client->send("127.0.0.1", $server->port(), "hello" as bytes, 1s);
+
+// `host()` returns the address of the sender as text. This prints `from: 127.0.0.1`.
+Core\Net\Datagram\Message $message = $server->receive(64, 5s);
+echo "from: ", $message->host(), "\n";
+
+$client->close();
+$server->close();

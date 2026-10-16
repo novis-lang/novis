@@ -1,0 +1,40 @@
+<?nvs
+// Attack: a request sends a blur strength so large that the blur would take a very long time.
+// Each attempt should throw an error, stop at a limit or return an image, and the server keeps running.
+// hostile: timeout-ms 30000
+use Novis\Image\Color;
+use Novis\Image\Image;
+
+Image $small = Image::create(64, 64, Color::hex('#336699'));
+
+// 1. A strength that is not a number.
+try {
+    $small->blur(Core\Math::sqrt(-1.0))->raw();
+    echo "step 1 ran\n";
+} catch (Throwable $e) {
+    echo "step 1 stopped\n";
+}
+
+// 2. A negative strength.
+try {
+    $small->blur(-3.0)->raw();
+    echo "step 2 ran\n";
+} catch (Throwable $e) {
+    echo "step 2 stopped\n";
+}
+
+// 3. A strength of infinity.
+try {
+    $small->blur(1.0e308 * 10.0)->raw();
+    echo "step 3 ran\n";
+} catch (Throwable $e) {
+    echo "step 3 stopped\n";
+}
+
+// 4. A strength of one million pixels.
+try {
+    $small->blur(1000000.0)->raw();
+    echo "step 4 ran\n";
+} catch (Throwable $e) {
+    echo "step 4 stopped\n";
+}

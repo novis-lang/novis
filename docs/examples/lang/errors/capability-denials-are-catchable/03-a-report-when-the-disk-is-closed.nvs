@@ -1,0 +1,13 @@
+<?nvs
+// Shows a program that does its work without a capability. It saves a report
+// to a file. Writing is not allowed here, so it prints the report instead.
+
+string $report = "orders: 3, total: 41.50";
+
+try {
+    Core\IO::write("report.txt", $report);
+    echo "the report is in report.txt\n";
+} catch (RuntimeError $denied) {
+    echo "report.txt cannot be written, so here is the report\n";
+    echo $report, "\n";
+}

@@ -1,0 +1,81 @@
+<?nvs
+// Attack: a program asks for every database name it can think of. Only the
+// operator decides which names a program may open, so every name here but
+// `notes` has to be refused. None of these attempts may stop the program.
+// hostile: timeout-ms 60000
+
+// 1. Twenty thousand names no block covers, one per round. Each is refused, and
+// a refusal may not leave anything behind.
+uint $opened = 0;
+uint $refused = 0;
+uint $i = 0;
+while ($i < 20000) {
+    try {
+        Core\Db::connect('notes-' . ($i as string));
+        $opened = $opened + 1;
+    } catch (Throwable $error) {
+        $refused = $refused + 1;
+    }
+    $i = $i + 1;
+}
+echo '1 opened: ', $opened, ', refused: ', $refused, "\n";
+
+// 2. The one granted name, a hundred thousand times. It is the same connection
+// every time, so nothing here may pile up either.
+uint $again = 0;
+$i = 0;
+while ($i < 100000) {
+    var $same = Core\Db::connect('notes');
+    $again = $again + 1;
+    $i = $i + 1;
+}
+echo '2 asked for the same connection ', $again, " times\n";
+
+// 3. Names no block can have: a hundred thousand letters, only spaces, no name
+// at all, and a name written to look like part of the settings file.
+array<string> $bad = [
+    Core\Str::repeat('n', 100000),
+    '   ',
+    '',
+    'notes] [db.main',
+];
+uint $threw = 0;
+foreach ($bad as string $name) {
+    try {
+        Core\Db::connect($name);
+    } catch (Throwable $error) {
+        $threw = $threw + 1;
+    }
+}
+echo '3 names refused: ', $threw, ' of ', Core\Arr::count($bad), "\n";
+
+// 4. Five hundred connections that do not share, each closed again. Every
+// attempt has to open the database or throw an error.
+Core\Time\Duration $wait = Core\Time\Duration::milliseconds(200);
+uint $separate = 0;
+uint $full = 0;
+$i = 0;
+while ($i < 500) {
+    try {
+        var $one = Core\Db::connect('notes', { shared: false, timeout: $wait });
+        $one->close();
+        $separate = $separate + 1;
+    } catch (Throwable $error) {
+        $full = $full + 1;
+    }
+    $i = $i + 1;
+}
+echo '4 separate: ', $separate, ', refused: ', $full, "\n";
+
+// 5. Ten thousand rows on the connection step 2 kept open, so a name asked for
+// that many times still answers.
+var $last = Core\Db::connect('notes');
+$last->execute('create table notes (n integer not null)', []);
+$i = 0;
+while ($i < 10000) {
+    $last->execute('insert into notes (n) values (?)', [$i as int]);
+    $i = $i + 1;
+}
+foreach ($last->query('select count(*) as n from notes', []) as Core\Db\Row $row) {
+    echo '5 rows written: ', $row->int('n') ?? 0, "\n";
+}

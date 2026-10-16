@@ -1,0 +1,83 @@
+<?nvs
+// Attack: a request tries to change `[http.client] pool_idle_timeout`, how long an unused
+// connection stays open. It uses values that overflow, values that could mean "forever",
+// and values meant for `pool_idle`. Every change should fail.
+// hostile: timeout-ms 30000
+
+// 1. Set durations that overflow when converted to nanoseconds, and zero or negative ones.
+array<string> $magnitudes = [
+    '9223372036854775807',
+    '9223372036854775807s',
+    '18446744073709551615ns',
+    '106751d',
+    '106752d',
+    '999999999999999999999h',
+    '-30s',
+    '-1',
+    '0',
+    '0s',
+    '0ns',
+];
+foreach ($magnitudes as string $value) {
+    Core\Config::set('http.client.pool_idle_timeout', $value);
+    Core\Config::get('http.client.pool_idle_timeout');
+}
+Core\Config::restore('http.client.pool_idle_timeout');
+
+// 2. Set values that could mean "forever" in other tools, and invalid durations.
+array<string> $forever = [
+    'false',
+    'null',
+    'none',
+    'never',
+    'infinity',
+    'inf',
+    '-0',
+    '',
+    '   ',
+    'NaN',
+    '1e300',
+    '30 s',
+    '30ss',
+    '30sm',
+    "30s\u{0000}24h",
+    "30s\r\npool_idle = 1048576",
+    Core\Str::repeat('3', 100000) . 's',
+];
+foreach ($forever as string $value) {
+    Core\Config::set('http.client.pool_idle_timeout', $value);
+    Core\Config::get('http.client.pool_idle_timeout');
+}
+Core\Config::restore('http.client.pool_idle_timeout');
+
+// 3. Swap the values of `pool_idle` and `pool_idle_timeout`, and set keys between the two names.
+Core\Config::set('http.client.pool_idle', '30s');
+Core\Config::set('http.client.pool_idle_timeout', '16');
+array<string> $between = [
+    'http.client.pool_idle_timeout_extra',
+    'http.client.pool_idle_timeoutx',
+    'http.client.pool_idle_',
+    'http.client.pool_idle_timeout.default',
+    'http.client.pool_idle_timeout.pool_idle',
+    'http.client.pool_idle.timeout',
+    'http.client.pool.idle.timeout',
+];
+foreach ($between as string $key) {
+    Core\Config::set($key, '24h');
+    Core\Config::get($key);
+    Core\Config::restore($key);
+}
+Core\Config::restore('http.client.pool_idle');
+Core\Config::restore('http.client.pool_idle_timeout');
+
+// 4. Try both changes 100,000 times with no restore. A failed change should use no memory.
+uint $i = 0;
+while ($i < 100000) {
+    Core\Config::set('http.client.pool_idle_timeout', '24h');
+    Core\Config::set('http.client.pool_idle', '1048576');
+    $i = $i + 1;
+}
+Core\Config::restore('http.client.pool_idle_timeout');
+Core\Config::restore('http.client.pool_idle');
+
+echo 'pool_idle_timeout: ', Core\Config::get('http.client.pool_idle_timeout') ?? '(nothing)', "\n";

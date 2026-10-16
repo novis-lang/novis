@@ -1,0 +1,6 @@
+--METHOD--
+GET
+--PATH--
+/users/alice
+--HEADERS--
+host: www.example.com

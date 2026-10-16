@@ -1,0 +1,16 @@
+<?nvs
+// A note for a reader. The program runs exactly as it would without it.
+// `//` and `#` both run to the end of the line. `/* */` covers any span.
+
+# Either spelling works on a line of its own.
+string $city = "Vienna"; // ... or after code, to explain that line.
+
+/* A block comment is the one to reach for when the note is longer
+   than a line, and it can stop in the middle of one. */
+echo "Weather for ", $city, "\n";
+
+echo /* even here, between two values */ "sunny", "\n";
+
+// The markers only count outside text. Inside a string they are characters
+// like any other.
+echo "the // and the /* stay put", "\n";

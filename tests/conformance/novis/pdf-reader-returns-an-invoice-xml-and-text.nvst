@@ -1,0 +1,55 @@
+--TEST--
+`Reader::open` returns the page count, the metadata and the attached Factur-X XML of a received invoice, `text` returns a page's text, a page past the end throws `LogicError`, and an encrypted file throws `ParseError`: rule:core-classes/pdf-reader-and-merge
+--FILE--
+<?nvs
+// covers: Novis\Pdf\Reader::open
+// covers: Novis\Pdf\Reader::attachments
+// covers: Novis\Pdf\Reader::invoiceXml
+// covers: Novis\Pdf\Reader::text
+use Novis\Pdf\Document;
+use Novis\Pdf\Reader;
+
+// A received invoice. Here the program renders it first, so the case has a file to read.
+string $xml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
+    . "<rsm:CrossIndustryInvoice xmlns:rsm=\"urn:un:unece:uncefact:data:standard:CrossIndustryInvoice:100\""
+    . " xmlns:ram=\"urn:un:unece:uncefact:data:standard:ReusableAggregateBusinessInformationEntity:100\">"
+    . "<rsm:ExchangedDocument><ram:ID>Shop-7</ram:ID><ram:TypeCode>380</ram:TypeCode></rsm:ExchangedDocument>"
+    . "</rsm:CrossIndustryInvoice>";
+var $invoice = Document::fromHtml("<html lang=\"en\"><head><title>Invoice Shop-7</title></head>"
+    . "<body><p>Invoice Shop-7</p></body></html>")
+    ->standard(Document::Standard::PdfA3b)
+    ->created(Core\Time::fromIso("2026-01-01T00:00:00Z"))
+    ->invoiceXml($xml)
+    ->render()->bytes;
+
+var $reader = Reader::open($invoice);
+echo $reader->pageCount, " page\n";
+echo $reader->metadata->title, "\n";
+foreach ($reader->attachments() as var $file) {
+    echo $file->name, "\n";
+}
+echo $reader->invoiceXml() == $xml ? "the XML is unchanged" : "the XML changed", "\n";
+echo $reader->text(1), "\n";
+
+// The invoice has one page, so page 2 throws a `LogicError`.
+try {
+    $reader->text(2);
+} catch (LogicError $past) {
+    echo "LogicError\n";
+}
+
+// An encrypted file throws a `ParseError`. Only the person who has the password can open it.
+var $locked = Document::fromHtml("<p>Private</p>")->password("secret")->render()->bytes;
+try {
+    Reader::open($locked);
+} catch (ParseError $encrypted) {
+    echo "ParseError\n";
+}
+--EXPECT--
+1 page
+Invoice Shop-7
+factur-x.xml
+the XML is unchanged
+Invoice Shop-7
+LogicError
+ParseError

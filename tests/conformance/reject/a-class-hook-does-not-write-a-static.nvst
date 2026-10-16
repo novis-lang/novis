@@ -1,0 +1,89 @@
+--TEST--
+a `#[BeforeClass]` or `#[AfterClass]` method that writes a static property in its own body is refused where the write is, because each test reads the property's declared value in its own isolate, `rule:testing/class-hooks`
+--FILE--
+<?nvs
+use Core\Test;
+use Core\Test\AfterClass;
+use Core\Test\AfterEachTest;
+use Core\Test\BeforeClass;
+
+final class Holder {
+    public int $count = 0;
+}
+
+final class AcceptedTest {
+    public static int $count = 0;
+    public static array<Holder> $holders = [];
+
+    // A class hook may read a static property, and may write a local.
+    #[BeforeClass]
+    public static function readsAStatic(): void {
+        int $seen = self::$count;
+        $seen = $seen + 1;
+    }
+
+    // A write through an object a static property holds writes the object,
+    // not the static property.
+    #[AfterClass]
+    public static function writesAnObject(): void {
+        self::$holders[0]->count = 1;
+    }
+
+    // `#[AfterEachTest]` runs inside the test's own isolate, so its writes
+    // reach that test.
+    #[AfterEachTest]
+    public function countsAttempts(): void {
+        self::$count = self::$count + 1;
+    }
+
+    #[Test]
+    public function itRuns(): void {
+        Test::assertSame(1, 1);
+    }
+}
+
+final class AssignsTest {
+    public static int $count = 0;
+    public static array<string> $names = [];
+
+    // Refused: each write below sets up nothing a test can read.
+    #[BeforeClass]
+    public static function writesStatics(): void {
+        self::$count = 1;
+        self::$count += 2;
+        self::$count++;
+        --AssignsTest::$count;
+        self::$names[] = "a";
+        self::$names[0] = "b";
+    }
+
+    // Refused: the same rule holds for the cleanup.
+    #[AfterClass]
+    public static function resetsAStatic(): void {
+        self::$count = 0;
+    }
+}
+--EXPECTF-ERROR--
+error[E0863]: the `#[BeforeClass]` method `writesStatics` writes the static property `self::$count`
+   --> case.nvs:49:9
+%A
+error[E0863]: the `#[BeforeClass]` method `writesStatics` writes the static property `self::$count`
+   --> case.nvs:50:9
+%A
+error[E0863]: the `#[BeforeClass]` method `writesStatics` writes the static property `self::$count`
+   --> case.nvs:51:9
+%A
+error[E0863]: the `#[BeforeClass]` method `writesStatics` writes the static property `AssignsTest::$count`
+   --> case.nvs:52:11
+%A
+error[E0863]: the `#[BeforeClass]` method `writesStatics` writes the static property `self::$names`
+   --> case.nvs:53:9
+%A
+error[E0863]: the `#[BeforeClass]` method `writesStatics` writes the static property `self::$names`
+   --> case.nvs:54:9
+%A
+error[E0863]: the `#[AfterClass]` method `resetsAStatic` writes the static property `self::$count`
+   --> case.nvs:60:9
+%A
+error: aborting due to 7 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

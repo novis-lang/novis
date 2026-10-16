@@ -1,0 +1,31 @@
+<?nvs
+// Shows how to build up text one piece at a time with `.=`. It adds to the
+// end of the text already in the variable. That is what a loop needs when
+// the number of pieces is only known while the program runs.
+
+array<string> $tags = ["urgent", "billing", "eu"];
+
+string $line = "";
+foreach ($tags as string $tag) {
+    // The separator goes in front of every piece but the first. An empty
+    // `$line` is how you know this is the first one.
+    if ($line != "") {
+        $line .= ", ";
+    }
+    $line .= $tag;
+}
+// This prints: urgent, billing, eu
+echo $line, "\n";
+
+// The piece added does not have to be text. A number, a `bool` and `null` all
+// get their text form first, exactly as `.` gives them.
+string $status = "retries=";
+$status .= 3;
+$status .= " done=";
+$status .= true;
+// This prints: retries=3 done=1
+echo $status, "\n";
+
+// `Core\Str::join` does the whole loop above in one call when all the pieces
+// are already in an array. This prints: urgent, billing, eu
+echo Core\Str::join($tags, ", "), "\n";

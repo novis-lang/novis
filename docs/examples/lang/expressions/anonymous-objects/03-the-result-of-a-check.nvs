@@ -1,0 +1,28 @@
+<?nvs
+// Returns the result of a check as an object and turns it into JSON, the
+// way a small web handler does.
+
+type Result = {ok: bool, message: string, code?: int};
+
+class Signup
+{
+    public static function check(string $email): Result
+    {
+        if (Core\Str::contains($email, "@")) {
+            return {ok: true, message: "welcome"};
+        }
+
+        return {ok: false, message: "that is not an email address", code: 422};
+    }
+}
+
+array<string> $tried = ["ada@example.com", "ada"];
+
+foreach ($tried as string $position => string $email) {
+    Result $result = Signup::check($email);
+
+    // `code` is written `code?: int`, so it may be missing. `??` gives a
+    // value for the times it is not there.
+    echo $result->message, " (", $result->code ?? 200, ")\n";
+    echo Core\Json::encode($result), "\n";
+}

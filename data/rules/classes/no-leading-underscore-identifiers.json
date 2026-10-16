@@ -1,0 +1,10 @@
+{
+  "title": "No property, parameter or local name may begin with `_`",
+  "status": "shipped",
+  "seeAlso": [
+    "classes/constructor-is-a-method-named-constructor"
+  ],
+  "guardedBy": [
+    "tests/conformance/reject/a-leading-underscore-is-refused-on-a-local.nvst"
+  ]
+}

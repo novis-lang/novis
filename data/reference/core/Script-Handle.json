@@ -1,0 +1,13 @@
+{
+  "summary": "what `spawn script` answers — a handle on a running child script that `await` collects exactly once",
+  "keywords": [
+    "spawn script",
+    "await",
+    "isolate",
+    "child script",
+    "subprocess",
+    "handle",
+    "script.spawn",
+    "output capture"
+  ]
+}

@@ -1,0 +1,17 @@
+<?nvs
+// Shows how to add the headers your program always sends, while keeping the
+// ones the caller already set.
+
+array<string> $sent = ["Accept" => "text/plain", "X-Request-Id" => "8f21c0"];
+array<string> $always = [
+    "Accept" => "application/json",
+    "Accept-Encoding" => "gzip",
+    "User-Agent" => "reports/1.4",
+];
+
+// The caller set `Accept`, so it keeps the value "text/plain". The other two
+// headers are added at the end.
+array<string> $headers = Core\Arr::underlay($sent, $always);
+foreach ($headers as string $name => string $value) {
+    echo $name, ": ", $value, "\n";
+}

@@ -1,0 +1,20 @@
+<?nvs
+// Shows what happens when a server sends text in an old encoding, not in UTF-8.
+
+// The body is the word "Größe" in the old Latin-1 encoding. In Latin-1, "ö" is
+// the single byte f6. That byte never occurs in UTF-8 text.
+Core\Test::answerHttp("https://old.example.com/size.txt", 200, {
+    body: Core\Encoding::fromHex("4772f6df65"),
+});
+Core\Http\Response $response = Core\Http\Client::get("https://old.example.com/size.txt");
+
+// `text()` checks that the body is UTF-8 text. This body is not, so the call throws
+// a `RuntimeError`. The message names byte 2, counted from 0, as the first bad byte.
+try {
+    echo $response->text(), "\n";
+} catch (RuntimeError $error) {
+    echo $error->message, "\n";
+}
+
+// `bytes()` still returns the whole body. This prints 5.
+echo Core\Bytes::length($response->bytes()), "\n";

@@ -1,0 +1,32 @@
+--TEST--
+`Core\Http::methodName` answers every `Core\Http\Method` case as the token a request carries, in capitals — `rule:routing/a-refused-verb-is-not-a-missing-path`
+--FILE--
+<?nvs
+// The eight cases written out, so a member that answered the case's own name
+// (`Get`) or lower case (`get`) fails on the first line rather than on one.
+array<Core\Http\Method> $all = [
+    Core\Http\Method::Get,
+    Core\Http\Method::Head,
+    Core\Http\Method::Options,
+    Core\Http\Method::Trace,
+    Core\Http\Method::Post,
+    Core\Http\Method::Put,
+    Core\Http\Method::Patch,
+    Core\Http\Method::Delete,
+];
+foreach ($all as Core\Http\Method $method) {
+    string $name = Core\Http::methodName($method);
+    echo $name, " ", Core\Str::length($name), "\n";
+}
+// The answer is an ordinary string: it compares equal to a literal.
+echo Core\Http::methodName(Core\Http\Method::Get) == "GET" ? "equal" : "different", "\n";
+--EXPECT--
+GET 3
+HEAD 4
+OPTIONS 7
+TRACE 5
+POST 4
+PUT 3
+PATCH 5
+DELETE 6
+equal

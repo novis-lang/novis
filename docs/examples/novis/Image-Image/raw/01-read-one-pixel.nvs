@@ -1,0 +1,13 @@
+<?nvs
+// Shows how to read the colour of one pixel.
+use Novis\Image\Image;
+use Novis\Image\Color;
+
+var $image = Image::create(10, 10, Color::hex("#ff8800"))->raw();
+
+// The pixel at column 3 and row 2 starts at byte (2 * 10 + 3) * 4, which is 92.
+int $start = (2 * 10 + 3) * 4;
+array<mixed> $pixel = Core\Bytes::unpack(Core\Bytes::slice($image->pixels, $start, 4), "C4");
+
+// This prints 255 136 0 255.
+echo $pixel[0], " ", $pixel[1], " ", $pixel[2], " ", $pixel[3], "\n";

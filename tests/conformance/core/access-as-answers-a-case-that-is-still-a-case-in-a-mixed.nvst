@@ -1,0 +1,40 @@
+--TEST--
+`Core\Router\Match::accessAs<E>` gives the case itself, so the `?E` it returns is still a case in a `mixed` and a case backed by `0` is truthy, on both backings — `rule:enums/representation` and `rule:enums/truthiness`
+--FILE--
+<?nvs
+// covers: Core\Router\Match::accessAs
+// The case is built outside compiled code, so it has to carry the enum tag
+// compiled code would have written. A bare `int` fails every check below.
+namespace App;
+
+enum Level: int {
+    Reader = 0,
+    Owner = 20,
+}
+
+enum Tier: uint {
+    Free = 0,
+    Paid = 5,
+}
+
+class Docs
+{
+    #[Core\Route(path: "/docs", method: Core\Http\Method::Get, name: "Docs::read")]
+    #[Core\Access(allow: Level::Reader)]
+    public function read(): string { return "read"; }
+
+    #[Core\Route(path: "/plans", method: Core\Http\Method::Get, name: "Docs::plans")]
+    #[Core\Access(allow: Tier::Free)]
+    public function plans(): string { return "plans"; }
+}
+
+?Core\Router\Match $docs = Core\Router::match(Core\Http\Method::Get, "/docs");
+mixed $level = $docs?->accessAs<Level>();
+echo "level is a Level: ", ($level is Level) ? "yes" : "no", ", truthy: ", $level ? "yes" : "no", "\n";
+
+?Core\Router\Match $plans = Core\Router::match(Core\Http\Method::Get, "/plans");
+mixed $tier = $plans?->accessAs<Tier>();
+echo "tier is a Tier: ", ($tier is Tier) ? "yes" : "no", ", truthy: ", $tier ? "yes" : "no", "\n";
+--EXPECT--
+level is a Level: yes, truthy: yes
+tier is a Tier: yes, truthy: yes

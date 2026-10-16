@@ -1,0 +1,42 @@
+--TEST--
+Core\Path reads the empty path as the current directory: its parent is `.`, it normalizes to `.`, it splits to no parts and `join` ignores it
+--FILE--
+<?nvs
+var $empty = "";
+
+// The parent of the empty path is the current directory, `.`.
+echo "[", Core\Path::dirname($empty), "]\n";
+echo "[", Core\Path::dirname($empty, {levels: 3}), "]\n";
+
+// The base name is the empty string. There is no extension, so the result is `null`.
+echo "[", Core\Path::basename($empty), "]\n";
+echo "[", Core\Path::basename($empty, {withoutExtension: true}), "]\n";
+echo "[", Core\Path::extension($empty) ?? "<null>", "]\n";
+
+// The empty path normalizes to `.`.
+echo "[", Core\Path::normalize($empty), "]\n";
+
+// The empty path has no parts, so `split` returns an empty array.
+var $parts = Core\Path::split($empty);
+echo Core\Arr::count($parts), "\n";
+
+// The empty path is relative. `join` ignores it on either side.
+// The empty path relative to itself is `.`.
+echo Core\Path::isAbsolute($empty) ? "absolute" : "relative", "\n";
+echo "[", Core\Str::replace(Core\Path::join($empty, "a", "b"), Core\Path::SEPARATOR, "/"), "]\n";
+echo "[", Core\Str::replace(Core\Path::join("a", $empty), Core\Path::SEPARATOR, "/"), "]\n";
+echo "[", Core\Path::relativeTo($empty, $empty) ?? "<null>", "]\n";
+echo "[", Core\Str::replace(Core\Path::relativeTo("a/b", $empty) ?? "<null>", Core\Path::SEPARATOR, "/"), "]\n";
+--EXPECT--
+[.]
+[.]
+[]
+[]
+[<null>]
+[.]
+0
+relative
+[a/b]
+[a]
+[.]
+[a/b]

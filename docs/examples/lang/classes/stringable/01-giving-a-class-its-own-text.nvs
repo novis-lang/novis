@@ -1,0 +1,20 @@
+<?nvs
+// Shows a class that can be printed. `Money` stores whole cents, and `toString`
+// gives the amount people read.
+
+final class Money implements Stringable {
+    public function constructor(private int $cents) {}
+
+    public function toString(): string {
+        return ($this->cents / 100) . " EUR";
+    }
+}
+
+var $price = new Money(1250);
+
+// `echo` calls `toString`. This prints 12.5 EUR.
+echo $price, "\n";
+
+// `toString` is an ordinary method, so you can also call it by name.
+string $text = $price->toString();
+echo $text, " has ", Core\Str::length($text), " characters\n";

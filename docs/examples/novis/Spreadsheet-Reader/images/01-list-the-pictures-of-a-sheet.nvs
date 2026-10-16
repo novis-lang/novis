@@ -1,0 +1,17 @@
+<?nvs
+// Shows how to list the pictures of a sheet, with the cell, the format and the size of each one.
+use Novis\Spreadsheet\Reader;
+use Novis\Spreadsheet\Workbook;
+
+// A PNG picture and a GIF picture, each one pixel.
+bytes $png = Core\Encoding::fromBase64('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==');
+bytes $gif = Core\Encoding::fromBase64('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7');
+
+var $book = Workbook::createInMemory();
+$book->sheet('Products')->image('C2', $png)->image('C3', $gif)->addAll([['Item', 'Price', 'Photo'], ['Widget', 2.5], ['Gadget', 4.0]]);
+var $reader = Reader::open($book->finish()->bytes ?? Core\Bytes::fill(0, 0));
+
+// `at` is the top-left cell of the picture, and `format` is its file type.
+foreach ($reader->images('Products') as var $image) {
+    echo $image->at, ': ', $image->format, ', ', Core\Bytes::length($image->image), " bytes\n";
+}

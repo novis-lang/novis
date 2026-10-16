@@ -1,0 +1,8 @@
+<?nvs
+// Shows how to draw a line under a title that is exactly as long as the title.
+
+string $title = "Monthly report";
+
+// `Core\Str::repeat` returns 14 copies of `=`, one for each character of the title.
+echo $title, "\n";
+echo Core\Str::repeat("=", Core\Str::length($title)), "\n";

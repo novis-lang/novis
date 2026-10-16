@@ -1,0 +1,12 @@
+<?nvs
+// The program requires this file again and again. Each time, the file adds a
+// string to `Step::$kept` and calls back into the program that required it.
+// So the same `require` line runs again, one level deeper.
+
+Step::$kept[] = 'row ' . Step::$depth;
+
+if (Step::$depth == 0) {
+    return 0;
+}
+
+return Step::down(Step::$depth - 1);

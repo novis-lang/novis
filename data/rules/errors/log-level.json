@@ -1,0 +1,11 @@
+{
+  "title": "Five levels, and the mapping to syslog is fixed",
+  "status": "shipped",
+  "seeAlso": [
+    "errors/log-write",
+    "errors/diagnostic-record"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/log-level-is-the-minimum-level-written.nvst"
+  ]
+}

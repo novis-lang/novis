@@ -1,0 +1,15 @@
+<?nvs
+// Shows what `Core\Request::query` returns for a parameter that is missing or is not a number.
+
+// The address has no parameter named "sort", so the result is `null`.
+// `??` gives the default value "newest" instead. This prints "sort: newest".
+echo "sort: ", Core\Request::query("sort") ?? "newest", "\n";
+
+// The address has "page", but not "Page". Upper and lower case are different,
+// so this result is `null` too.
+echo Core\Request::query("Page") == null ? "no Page\n" : "Page found\n";
+
+// The value of "page" is "abc", which is not a whole number.
+// `as ?int` gives `null` for it. This prints "page 1".
+?int $page = Core\Request::query("page") as ?int;
+echo "page ", $page ?? 1, "\n";

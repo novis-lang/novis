@@ -1,0 +1,45 @@
+--TEST--
+An `array<static>` and a `?static` return are the class the call names, so a subclass's call gives an array of the subclass and a nullable subclass — `rule:statements/static-is-a-member-modifier`
+--FILE--
+<?nvs
+// `array<static>` is an array of the class that the call names.
+// `?static` is that class or `null`.
+class Model {
+    public static function all(): array<static> {
+        return [new static(), new static()];
+    }
+
+    public static function first(bool $found): ?static {
+        return $found ? new static() : null;
+    }
+
+    public function name(): string {
+        return "model";
+    }
+}
+
+class Category extends Model {
+    public function name(): string {
+        return "category";
+    }
+}
+
+// `Category::all()` returns `array<Category>`, so this assignment compiles.
+array<Category> $all = Category::all();
+echo Core\Arr::count($all) as string, " ", $all[0]->name(), "\n";
+
+// `Category::first(true)` returns `?Category`.
+?Category $one = Category::first(true);
+echo $one?->name() ?? "none", "\n";
+
+?Category $none = Category::first(false);
+echo $none?->name() ?? "none", "\n";
+
+// The same method called on `Model` returns `array<Model>`.
+array<Model> $models = Model::all();
+echo $models[1]->name(), "\n";
+--EXPECT--
+2 category
+category
+none
+model

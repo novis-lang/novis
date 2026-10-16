@@ -1,0 +1,33 @@
+<?nvs
+// Work wrapped in a handler that reports anything going wrong. A script that
+// merely finished is not one of those things: no `catch` takes it, so the
+// report stays quiet while the cleanup beside it still runs.
+
+class Job {
+    public static function run(string $name): void {
+        if ($name == "broken") {
+            throw new RuntimeError("the job gave up");
+        }
+        echo "the job did its work\n";
+        Core\Script::finish();
+    }
+}
+
+class Guard {
+    public static function around(string $name): void {
+        try {
+            Job::run($name);
+        } catch (Throwable $failure) {
+            // Only a real failure gets here. The end of a finished script
+            // passes straight through this arm.
+            echo "reporting: ", $failure->message, "\n";
+        } finally {
+            echo "handler done with ", $name, "\n";
+        }
+    }
+}
+
+Guard::around("broken");
+Guard::around("nightly");
+
+echo "this line is never reached\n";

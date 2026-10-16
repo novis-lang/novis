@@ -1,0 +1,19 @@
+<?nvs
+// Shows how to remove an extension, and how to write an extension with two parts.
+
+// `null` removes the last extension. This prints `backup.tar`.
+echo Core\Path::withExtension("backup.tar.gz", null), "\n";
+
+// An extension may have a dot inside. This prints `database.tar.gz`.
+echo Core\Path::withExtension("database", "tar.gz"), "\n";
+
+// A name that starts with a dot has no extension, so nothing is removed.
+// This prints `.gitignore`.
+echo Core\Path::withExtension(".gitignore", null), "\n";
+
+// The extension is written without its dot. `.md` throws a `RuntimeError`.
+try {
+    echo Core\Path::withExtension("readme.txt", ".md"), "\n";
+} catch (RuntimeError $error) {
+    echo "Write `md`, not `.md`.", "\n";
+}

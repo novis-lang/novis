@@ -1,0 +1,10 @@
+<?nvs
+// Shows how to remove the spaces at the start of a string and keep the ones at its end.
+
+string $line = "    return 42;  ";
+
+// Only the spaces at the start are removed. This prints `[return 42;  ]`.
+echo "[", Core\Str::trimStart($line), "]\n";
+
+// Tabs and line breaks are removed too. This prints `[done]`.
+echo "[", Core\Str::trimStart("\n\t done"), "]\n";

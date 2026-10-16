@@ -1,0 +1,34 @@
+<?nvs
+// Attack: a program checks very long texts where the one control character is at the very end.
+// `isPrintable` should read every character, give the right answer and free every text.
+// hostile: timeout-ms 20000
+
+// 1. A text of 16 million "日" characters is printable. This prints yes.
+string $long = Core\Str::repeat('日', 16000000);
+echo Core\Validate::isPrintable($long) ? 'yes' : 'no', "\n";
+
+// 2. The same text with one null byte after the last "日" is not printable. This prints no.
+string $spoiled = $long . "\0";
+echo Core\Validate::isPrintable($spoiled) ? 'yes' : 'no', "\n";
+$long = '';
+$spoiled = '';
+
+// 3. The control character U+009F is two bytes long, and it is the last character. This prints no.
+echo Core\Validate::isPrintable(Core\Str::repeat('é', 1000000) . "\u{9f}") ? 'yes' : 'no', "\n";
+
+// 4. One million zero-width joiners are invisible, but they are not control characters.
+// This prints yes.
+echo Core\Validate::isPrintable(Core\Str::repeat("\u{200d}", 1000000)) ? 'yes' : 'no', "\n";
+
+// 5. One million new texts are checked and freed at once. Every second text ends with a tab.
+// This prints 500000.
+int $printable = 0;
+int $i = 0;
+while ($i < 1000000) {
+    string $text = $i % 2 == 0 ? 'name-' . $i as string : 'name-' . $i as string . "\t";
+    if (Core\Validate::isPrintable($text)) {
+        $printable = $printable + 1;
+    }
+    $i = $i + 1;
+}
+echo $printable, "\n";

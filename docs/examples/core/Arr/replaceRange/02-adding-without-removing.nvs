@@ -1,0 +1,17 @@
+<?nvs
+// Shows how to add values without removing any. A window that holds no entries
+// is an insertion.
+
+array<string> $queue = ['Ada', 'Grace'];
+
+// A length of 0 puts the value in front of position 1 and removes nothing.
+// This prints ["Ada","Alan","Grace"].
+echo Core\Json::encode(Core\Arr::replaceRange($queue, 1, 0, ['Alan'])), "\n";
+
+// An offset at the end of the array adds the value behind the last entry. This
+// prints ["Ada","Grace","Ida"].
+echo Core\Json::encode(Core\Arr::replaceRange($queue, 2, 0, ['Ida'])), "\n";
+
+// A negative offset counts back from the last entry. This prints
+// ["Ada","Ina","Grace"].
+echo Core\Json::encode(Core\Arr::replaceRange($queue, -1, 0, ['Ina'])), "\n";

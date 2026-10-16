@@ -1,0 +1,21 @@
+--TEST--
+a cursor on the name an `implements` clause writes answers the interface's declaration and the clause itself, the same list the interface's own name answers, `rule:ide/the-index-answers-the-cursor`
+--FILE--
+<?nvs
+interface Greets
+{
+    public function greet(): string;
+}
+
+class User implements Gre<|>ets
+{
+    public function greet(): string
+    {
+        return "hi";
+    }
+}
+--REQUEST--
+references
+--EXPECT--
+case.nvs:2:11
+case.nvs:7:23

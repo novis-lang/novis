@@ -1,0 +1,61 @@
+<?nvs
+// Attack: a program takes every property name from reflection and reads each property
+// from outside the class, many times. It also tries changed names. Private properties
+// and wrong names should throw an error, and every name should stay the same.
+
+class Wallet
+{
+    public string $owner = 'ada';
+    protected int $limit = 500;
+    private string $pin = '4821';
+}
+
+class Reader
+{
+    public static function read(Core\Reflect\ClassInfo $info, Wallet $wallet, string $name): uint
+    {
+        try {
+            $info->get($wallet, $name);
+            return 1;
+        } catch (RuntimeError $closed) {
+            return 0;
+        } catch (LogicError $unknown) {
+            return 0;
+        }
+    }
+}
+
+var $wallet = new Wallet();
+var $info = Core\Reflect::forObject($wallet);
+array<Core\Reflect\PropertyInfo> $list = $info->properties();
+
+// 1. Read each property by its name, 50000 times. Only `owner` is readable,
+// so this prints 16667.
+uint $read = 0;
+uint $i = 0;
+while ($i < 50000) {
+    $read = $read + Reader::read($info, $wallet, $list[($i % 3) as int]->name());
+    $i = $i + 1;
+}
+echo $read, "\n";
+
+// 2. Change each name: upper case, a `$` in front, and a space at the end.
+// No changed name reaches a property, so this prints 0.
+uint $found = 0;
+foreach ($list as Core\Reflect\PropertyInfo $property) {
+    $found = $found + Reader::read($info, $wallet, Core\Str::upper($property->name()));
+    $found = $found + Reader::read($info, $wallet, '$' . $property->name());
+    $found = $found + Reader::read($info, $wallet, $property->name() . ' ');
+}
+echo $found, "\n";
+
+// 3. Keep the items after the description is freed, and read each name 500000 times.
+// This prints the total length of the names read, 2166668.
+array<Core\Reflect\PropertyInfo> $kept = Core\Reflect::forObject(new Wallet())->properties();
+uint $length = 0;
+$i = 0;
+while ($i < 500000) {
+    $length = $length + Core\Str::length($kept[($i % 3) as int]->name());
+    $i = $i + 1;
+}
+echo $length, "\n";

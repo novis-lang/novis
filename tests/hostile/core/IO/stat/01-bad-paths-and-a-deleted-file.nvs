@@ -1,0 +1,51 @@
+<?nvs
+// Attack: a program reads the details of many paths that are missing or not valid. It also keeps
+// the details of a file and then deletes the file. Each step must work or throw an error.
+// hostile: timeout-ms 60000
+
+string $dir = Core\Path::join(Core\IO::temporaryDir(), 'attack');
+Core\IO::makeDir($dir);
+
+// 1. A file grows by one byte 5000 times, and `stat` reads it after each change. The size must
+// grow with it every time.
+string $file = Core\Path::join($dir, 'grows.txt');
+Core\IO::write($file, '');
+uint $i = 0;
+while ($i < 5000) {
+    Core\IO::append($file, 'x');
+    if (Core\IO::stat($file)->size() != $i + 1) {
+        throw new LogicError('`stat` returned an old size');
+    }
+    $i = $i + 1;
+}
+echo 'step 1: done', "\n";
+
+// 2. Paths with nothing at them: empty, missing, a null byte, a long name, a name under a file, and
+// "..". Each call must throw an `IOError` or a `RuntimeError`.
+array<string> $bad = [
+    '',
+    Core\Path::join($dir, 'missing.txt'),
+    Core\Path::join($dir, "nul\0byte"),
+    Core\Path::join($dir, Core\Str::repeat('a', 100000)),
+    Core\Path::join($file, 'under-a-file'),
+    Core\Path::join($dir, '..', '..', '..', '..', 'missing-outside.txt'),
+    Core\Path::join($dir, Core\Str::repeat('../', 5000), 'missing-outside.txt'),
+];
+foreach ($bad as string $badPath) {
+    try {
+        Core\IO::stat($badPath);
+        throw new LogicError('a path with nothing at it returned details');
+    } catch (RuntimeError $refused) {
+    }
+}
+echo 'step 2: done', "\n";
+
+// 3. The details of a file are kept, and then the file is deleted. The kept details must still
+// be readable and must not change.
+var $kept = Core\IO::stat($file);
+Core\IO::remove($file);
+if ($kept->size() != 5000 || !$kept->isFile() || $kept->isDir()) {
+    throw new LogicError('the kept details changed when the file was deleted');
+}
+$kept->modifiedAt();
+echo 'step 3: done', "\n";

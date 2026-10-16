@@ -1,0 +1,42 @@
+---
+title: Rethrowing and uncaught errors
+covers: ['lang:errors/rethrowing', 'lang:errors/an-uncaught-throw']
+description: How to throw a caught error again, and what happens to an error that nothing catches.
+---
+import Snippet from '@components/Snippet.astro'
+
+`throw $e;` inside a `catch` throws the same error again. The next `try` outside can catch it.
+The class, the `message` and the `previous` stay the same. The `location` changes to the line of
+the new `throw`.
+
+<Snippet src="syntax/rethrowing/01-rethrowing.nvs" />
+
+## An error that nothing catches
+
+An error that no `catch` handles ends the program with exit status `1`. Everything printed before
+it stays in the output. The error goes to standard error as one log line. That line has the
+message, the class and one entry for each function call, innermost first.
+
+The log line is JSON by default. With `format = "text"` in the `[log]` block of `nvs.toml`, it is
+plain text:
+
+```text
+[error] no row 7
+  class => string(12) "RuntimeError"
+#0 Repo::get() at main.nvs:4
+#1 <script>() at main.nvs:9
+```
+
+There is no global error handler. You catch an error, or it ends the program.
+
+## Use this when you want to add information
+
+`throw $e;` does not add anything. To say more, throw a new error and pass the old one as
+`{previous: $e}`. See [Error types](/syntax/errors/error-types/).
+
+## Do and don't
+
+- Do rethrow when you only want to log the error and let a caller handle it.
+- Do throw a new error with `{previous: $e}` when you add information.
+- Don't catch an error only to throw it again unchanged. Leave out the `catch`.
+- Don't look for `set_exception_handler`. It does not exist.

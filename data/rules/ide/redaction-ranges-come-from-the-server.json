@@ -1,0 +1,16 @@
+{
+  "title": "The editor conceals a `secret` value by default, and the ranges come from the language server rather than a client guess",
+  "status": "shipped",
+  "seeAlso": [
+    "ide/redaction-covers-bytes-only",
+    "ide/reveal-is-explicit-and-window-local",
+    "ide/redaction-does-not-reach"
+  ],
+  "guardedBy": [
+    "tests/lsp/redactions/an-untypable-initializer-is-concealed-through-its-declaration.lspt",
+    "tests/lsp/redactions/both-kinds-arrive-on-one-list-in-document-order.lspt",
+    "crates/nvs-lsp/tests/redactions.rs",
+    "editors/vscode/test/host/surfaces.test.ts",
+    "editors/vscode/test/protocol/requests.test.ts"
+  ]
+}

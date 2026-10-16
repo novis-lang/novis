@@ -1,0 +1,61 @@
+<?nvs
+// Attack: a program makes many objects that point back at each other and then
+// drops every name for them. The program frees nothing, so the runtime has to.
+// It should run to the last line and must not grow without limit.
+// hostile: timeout-ms 30000
+// covers: lang:classes/objects-are-handles
+
+class Node
+{
+    public ?Node $next = null;
+
+    public function constructor(public int $id)
+    {}
+}
+
+class Attack
+{
+    // 1. Two objects point at each other. Both names go away at the return.
+    public static function pairs(int $rounds): void
+    {
+        int $i = 0;
+        for (; $i < $rounds; $i = $i + 1) {
+            var $first = new Node($i);
+            var $second = new Node($i);
+            $first->next = $second;
+            $second->next = $first;
+        }
+    }
+
+    // 2. One object points at itself. This is the shortest circle there is.
+    public static function selves(int $rounds): void
+    {
+        int $i = 0;
+        for (; $i < $rounds; $i = $i + 1) {
+            var $self = new Node($i);
+            $self->next = $self;
+        }
+    }
+
+    // 3. A long chain whose last object points at the first. Freeing it must
+    //    not need one step on the call stack for every object in it.
+    public static function longRing(int $length): void
+    {
+        var $head = new Node(0);
+        var $tail = $head;
+        int $i = 1;
+        for (; $i < $length; $i = $i + 1) {
+            var $node = new Node($i);
+            $tail->next = $node;
+            $tail = $node;
+        }
+        $tail->next = $head;
+    }
+}
+
+Attack::pairs(50000);
+Attack::selves(50000);
+Attack::longRing(50000);
+
+// No variable in this program names any of those objects now.
+echo "still running\n";

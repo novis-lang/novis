@@ -1,0 +1,12 @@
+{
+  "title": "A proof that fails is fixed or recorded as a known gap, and never weakened",
+  "status": "shipped",
+  "seeAlso": [
+    "testing/feature-proofs",
+    "testing/hostile-case-contract",
+    "testing/one-slice-is-one-feature"
+  ],
+  "guardedBy": [
+    "tools/nv/cmd/proofs.ts"
+  ]
+}

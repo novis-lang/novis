@@ -1,0 +1,29 @@
+--TEST--
+`Core\Request\Part::content` and `::readAll` both answer `tainted bytes`, so a plain `bytes` binding refuses either — the mark is on the octets and not on which way they were read — `rule:security/tainted-qualifier`, `rule:http-server/a-part-is-consumed-in-one-of-three-ways`, spec § 15
+--FILE--
+<?nvs
+// Agreement, asked of the two ways § 3 gives for reaching one upload's bytes.
+// What decides the qualifier is that the bytes came off a connection, and
+// nothing about whether the program held them a chunk at a time or all at
+// once -- so a consumer that dropped the mark would be a launderer reachable
+// by choosing the other reading, which is the direction `rule:security/tainted-qualifier` does not
+// trade.
+//
+// No runtime assertion can show it: a plain value is assignable into a
+// `tainted` target, so a case that bound one of these would pass over a member
+// that had lost the qualifier. The refusal is the pin, and it is the binding
+// that has to fail -- `bytes` narrows through no qualifier bit.
+foreach (Core\Request::files() as Core\Request\Part $part) {
+    bytes $whole = $part->readAll();
+    foreach ($part->content() as bytes $chunk) {
+    }
+}
+// covers: Core\Request\Part::content, Core\Request\Part::readAll
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `bytes`, found `tainted bytes`
+   --> case.nvs:14:20
+%A
+error: aborting due to 2 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

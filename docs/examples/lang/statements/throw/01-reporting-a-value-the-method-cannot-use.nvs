@@ -1,0 +1,25 @@
+<?nvs
+// Shows how `throw` reports a value a method cannot work with. The method
+// stops at the `throw`, and the `catch` around the call runs instead.
+
+class Age
+{
+    public static function of(int $birthYear, int $thisYear): int
+    {
+        if ($birthYear > $thisYear) {
+            throw new RuntimeError("a birth year in the future: " . $birthYear);
+        }
+        return $thisYear - $birthYear;
+    }
+}
+
+// This prints 41
+echo Age::of(1985, 2026), "\n";
+
+try {
+    echo Age::of(2040, 2026), "\n";
+    echo "this line is never reached\n";
+} catch (RuntimeError $e) {
+    // This prints: cannot use that row: a birth year in the future: 2040
+    echo "cannot use that row: ", $e->message, "\n";
+}

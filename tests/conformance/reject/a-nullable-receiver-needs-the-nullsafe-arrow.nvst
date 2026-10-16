@@ -1,0 +1,18 @@
+--TEST--
+`->` on a receiver that may be `null` is refused while compiling, naming `?->` — where PHP throws at run time
+--FILE--
+<?nvs
+var $found = Core\Regex::match("nothing", "\\d+");
+echo $found->text(), "\n";
+// covers: lang:classes/nullable-objects-and
+// The marker sits below the refused line on purpose: the diagnostic's own
+// `case.nvs:3:6` anchor is part of the expectation, so nothing may be inserted
+// above it.
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0459]: `null|Core\Regex\Match` may be `null`, so `->` cannot reach a member of it
+  --> case.nvs:3:6
+%A
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

@@ -1,0 +1,11 @@
+{
+  "title": "A route's request body is the type its handler decodes with `Core\\Request::jsonAs` or `postAs`, read from the handler's own call",
+  "status": "designed",
+  "seeAlso": [
+    "routing/api-document-is-generated-from-the-route-table",
+    "attributes/api-adds-and-cannot-contradict",
+    "routing/route-attribute"
+  ],
+  "guardedBy": [],
+  "goal": "api-document"
+}

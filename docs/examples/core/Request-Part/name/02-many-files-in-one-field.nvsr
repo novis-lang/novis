@@ -1,0 +1,29 @@
+--METHOD--
+POST
+--PATH--
+/gallery
+--HEADERS--
+host: example.com
+content-type: multipart/form-data; boundary=gallery-77aa
+--BODY_CRLF--
+--gallery-77aa
+Content-Disposition: form-data; name="photos[]"; filename="beach.jpg"
+Content-Type: image/jpeg
+
+JPEG bytes of the beach
+--gallery-77aa
+Content-Disposition: form-data; name="cover"; filename="cover.jpg"
+Content-Type: image/jpeg
+
+JPEG bytes of the cover
+--gallery-77aa
+Content-Disposition: form-data; name="photos[]"; filename="harbour.jpg"
+Content-Type: image/jpeg
+
+JPEG bytes of the harbour
+--gallery-77aa
+Content-Disposition: form-data; name="photos[]"; filename="dinner.jpg"
+Content-Type: image/jpeg
+
+JPEG bytes of a dinner
+--gallery-77aa--

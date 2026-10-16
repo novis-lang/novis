@@ -1,0 +1,14 @@
+{
+  "title": "`uint` is a distinct unsigned 64-bit integer, and it costs no bytes a value did not already hold",
+  "status": "shipped",
+  "seeAlso": [
+    "types/arithmetic",
+    "types/integer-literals",
+    "types/conversion",
+    "types/type-test"
+  ],
+  "guardedBy": [
+    "tests/conformance/lang/uint-spans-its-whole-range.nvst",
+    "tests/conformance/lang/uint-arithmetic-reaches-the-top-of-its-range.nvst"
+  ]
+}

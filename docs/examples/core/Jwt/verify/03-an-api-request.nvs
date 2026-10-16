@@ -1,0 +1,31 @@
+<?nvs
+// Shows how an API reads the token from an `Authorization` header and finds the user.
+
+// This method runs on each request. It returns the user's id, or `null` when the token is not valid.
+// The id is `tainted` because it comes from outside the program.
+class Auth {
+    public static function userId(string $header, secret bytes $key): ?tainted string {
+        // The header is `Bearer ` and then the token.
+        if (!Core\Str::startsWith($header, "Bearer ")) {
+            return null;
+        }
+        string $token = Core\Str::slice($header, 7);
+        try {
+            array<tainted string> $claims = Core\Jwt::verify($token, $key);
+            return $claims["sub"] as string;
+        } catch (RuntimeError $invalid) {
+            return null;
+        }
+    }
+}
+
+secret bytes $key = Core\Crypto::generateKey();
+string $token = Core\Jwt::sign(["sub" => "1042"], 30m, $key);
+
+// A request with a valid token. This prints `user 1042`.
+?tainted string $user = Auth::userId("Bearer " . $token, $key);
+echo $user == null ? "no user" : "user " . $user, "\n";
+
+// A request with a broken token. This prints `no user`.
+?tainted string $nobody = Auth::userId("Bearer abc.def.ghi", $key);
+echo $nobody == null ? "no user" : "user " . $nobody, "\n";

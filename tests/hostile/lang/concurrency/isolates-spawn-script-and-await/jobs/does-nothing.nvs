@@ -1,0 +1,5 @@
+<?nvs
+// The attack in the folder above starts this script many times. It does as
+// little as a program can do, so what is measured is the start and the end.
+
+return 1;

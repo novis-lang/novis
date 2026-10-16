@@ -1,0 +1,26 @@
+<?nvs
+// Shows how to make a render result by hand, to test code that uses one.
+use Novis\Pdf\Rendered;
+
+class Archive
+{
+    // This method writes the log line for a render that a shop saves.
+    public static function logLine(Rendered $result): string
+    {
+        uint $problems = Core\Arr::count($result->dropped) + Core\Arr::count($result->missingGlyphs);
+        return "saved {$result->pageCount} pages, {$problems} problems";
+    }
+}
+
+// The values are the file, the page count and the three lists.
+// The list of dropped CSS has one declaration.
+var $result = new Rendered(
+    "%PDF-1.7" as bytes,
+    3,
+    [{property: "text-shadow", value: "1px 1px gray", selector: "h1", line: 1, column: 12}],
+    [],
+    [],
+);
+
+// This prints `saved 3 pages, 1 problems`.
+echo Archive::logLine($result), "\n";

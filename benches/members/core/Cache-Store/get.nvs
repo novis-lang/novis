@@ -1,0 +1,24 @@
+<?nvs
+// Measures reading one value out of the memory cache. That is the read a
+// request makes before it decides whether it has to build the value.
+// bench: iterations 256
+// bench: calls 0
+// bench: complexity linear
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        var $store = Core\Cache::memory();
+        $store->put("row", 1);
+
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Every round adds what it read, so no round can be left out.
+            $total = $total + ($store->get("row") as uint);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

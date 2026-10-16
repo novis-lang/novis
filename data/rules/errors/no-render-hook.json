@@ -1,0 +1,9 @@
+{
+  "title": "A class cannot change how it is dumped",
+  "status": "shipped",
+  "seeAlso": [
+    "errors/diagnostic-record",
+    "errors/debug-dump"
+  ],
+  "guardedBy": []
+}

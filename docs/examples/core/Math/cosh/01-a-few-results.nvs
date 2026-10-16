@@ -1,0 +1,10 @@
+<?nvs
+// Shows the hyperbolic cosine of a few numbers.
+
+// The result at zero is 1. This prints 1.
+echo Core\Math::cosh(0.0), "\n";
+
+// A negative number gives the same result as the positive one.
+// Both lines print 1.5430806348152.
+echo Core\Math::cosh(1.0), "\n";
+echo Core\Math::cosh(-1.0), "\n";

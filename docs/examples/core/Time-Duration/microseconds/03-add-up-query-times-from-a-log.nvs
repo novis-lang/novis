@@ -1,0 +1,15 @@
+<?nvs
+// Adds up the database query times of one request, from a log that records them in microseconds.
+
+array<int> $queryMicros = [120, 3400, 85];
+int $sum = 0;
+foreach ($queryMicros as int $us) {
+    $sum = $sum + $us;
+}
+Core\Time\Duration $spent = Core\Time\Duration::microseconds($sum);
+
+// The three queries took 3605 microseconds together. This prints 3ms605us.
+echo "queries took ", $spent->toString(), "\n";
+
+// The budget for all queries is 5 milliseconds. This prints "within budget".
+echo $spent->compareTo(5ms) <= 0 ? "within budget" : "too slow", "\n";

@@ -1,0 +1,20 @@
+<?nvs
+// Shows what `json()` does when the body of the answer is not JSON.
+
+use Core\Http\Method;
+use Core\Test;
+
+if (Core\Env::context() == Core\Env::Context::Request) {
+    // This part answers each request. It writes an HTML page.
+    echo "<h1>Not found</h1>";
+} else {
+    var $response = Test::request(Method::Get, "/api/missing");
+
+    // An HTML page is not JSON, so `json()` throws a `ParseError`.
+    // This prints `not JSON`.
+    try {
+        $response->json();
+    } catch (ParseError $error) {
+        echo "not JSON\n";
+    }
+}

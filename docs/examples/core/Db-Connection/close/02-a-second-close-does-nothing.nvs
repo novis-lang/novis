@@ -1,0 +1,30 @@
+<?nvs
+// Shows that a second close is allowed. A step that ends early can close the
+// database, and the cleanup at the end can close it again.
+
+class Import {
+    public static function run(Core\Db\Connection $db, array<string> $lines): int {
+        int $written = 0;
+        foreach ($lines as string $line) {
+            if (Core\Str::length($line) == 0) {
+                // An empty line ends the import. Nothing after it needs the database.
+                $db->close();
+                return $written;
+            }
+            $db->execute('insert into notes (text) values (?)', [$line]);
+            $written = $written + 1;
+        }
+        return $written;
+    }
+}
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table notes (id integer primary key, text text not null)', []);
+
+// This prints `2 lines written`.
+echo Import::run($db, ['buy milk', 'call the plumber', '', 'not read']), " lines written\n";
+
+// The import closed the connection already. This close does nothing, so the
+// program does not have to test the connection first. This prints `closed`.
+$db->close();
+echo $db->isOpen() ? 'open' : 'closed', "\n";

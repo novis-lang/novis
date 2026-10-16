@@ -1,0 +1,4 @@
+welcome (200)
+{"message":"welcome","ok":true}
+that is not an email address (422)
+{"code":422,"message":"that is not an email address","ok":false}

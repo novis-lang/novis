@@ -1,0 +1,85 @@
+<?nvs
+// Attack: a program tries to give itself rights that the configuration file did not give it.
+// Every attempt below should fail, and the rights should stay as the file sets them.
+
+// 1. Set every right to values that could mean "everything", such as `true`, `*` and `/`.
+array<string> $grants = [
+    'capabilities',
+    'capabilities.fs.read',
+    'capabilities.fs.write',
+    'capabilities.net.connect',
+    'capabilities.net.listen',
+    'capabilities.net.internal',
+    'capabilities.script.spawn',
+    'capabilities.process.exec',
+    'capabilities.db.connect',
+    'capabilities.db.open',
+    'capabilities.db.schema',
+    'capabilities.tls.insecure',
+    'capabilities.tls.any_name',
+    'capabilities.mail.send',
+    'capabilities.cache.shared',
+    'capabilities.queue.purge',
+    'capabilities.debug.trace',
+];
+array<string> $everything = ['true', 'True', 'TRUE', '1', '*', '/', 'C:\\', '["/"]', '["*"]', 'yes', 'on', '-1'];
+foreach ($grants as string $grant) {
+    foreach ($everything as string $value) {
+        Core\Config::set($grant, $value);
+    }
+    // Also try to set `false`. A program cannot lower a right either, so this should fail too.
+    Core\Config::set($grant, 'false');
+    Core\Config::restore($grant);
+}
+
+// 2. Set keys that are almost real keys: extra dots, capital letters and unknown names.
+array<string> $nearby = [
+    'capabilities.',
+    '.capabilities',
+    'capabilities..fs..read',
+    'capabilitiesfs.read',
+    'CAPABILITIES.FS.READ',
+    'Capabilities.Fs.Read',
+    'capabilities.nvs_no_such_grant',
+    'capabilities.fs.read.root',
+    'app.capabilities.fs.read',
+    'app.0.capabilities.fs.read',
+    'fs.read',
+    'read',
+];
+foreach ($nearby as string $key) {
+    Core\Config::set($key, 'true');
+    Core\Config::get($key);
+    Core\Config::restore($key);
+}
+
+// 3. Use a key with 10,000 parts. A slow key lookup or a stack overflow would show here.
+string $deep = 'capabilities.fs.read.' . Core\Str::repeat('scope.', 10000) . 'root';
+Core\Config::set($deep, 'true');
+Core\Config::get($deep);
+Core\Config::restore($deep);
+
+// 4. Try the same change 100,000 times. Each try should fail and leave nothing behind.
+uint $i = 0;
+while ($i < 100000) {
+    Core\Config::set('capabilities.fs.write', 'true');
+    Core\Config::restore('capabilities.fs.write');
+    $i = $i + 1;
+}
+
+// 5. Write a file and open the shared cache. The program has neither right, so both should throw.
+try {
+    Core\IO::write('claimed.txt', 'granted after all');
+    echo "fs.write opened\n";
+} catch (RuntimeError $refused) {
+    echo "fs.write still refused\n";}
+try {
+    var $store = Core\Cache::shared();
+    $store->put('claimed', 'mine');
+    echo "cache.shared opened\n";
+} catch (RuntimeError $refused) {
+    echo "cache.shared still refused\n";
+}
+
+// 6. Read the one right this program has. The attack should not have changed it either.
+echo 'run scripts: ', Core\Config::get('capabilities.script.spawn') ?? '(nothing)', "\n";

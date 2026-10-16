@@ -1,0 +1,33 @@
+<?nvs
+// Shows how a service runs every health check it has. A new check is a new
+// class, and no list has to change.
+
+interface HealthCheck {
+    public function name(): string;
+    public function passes(): bool;
+}
+
+class DatabaseCheck implements HealthCheck {
+    public function name(): string {
+        return "database";
+    }
+
+    public function passes(): bool {
+        return true;
+    }
+}
+
+class DiskCheck implements HealthCheck {
+    public function name(): string {
+        return "disk";
+    }
+
+    public function passes(): bool {
+        return false;
+    }
+}
+
+// The objects are sorted by class name. This prints `database: ok`, then `disk: failed`.
+foreach (Core\Program::implementing<HealthCheck>() as HealthCheck $check) {
+    echo $check->name(), ": ", $check->passes() ? "ok" : "failed", "\n";
+}

@@ -1,0 +1,6 @@
+<?nvs
+// Shows how to find the accounts with three wrong passwords or fewer.
+
+var $filter = Core\Ldap\Filter::atMost('badPwdCount', '3');
+// This prints (badPwdCount<=3).
+echo $filter->toString(), "\n";

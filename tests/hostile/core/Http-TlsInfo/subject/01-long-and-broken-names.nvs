@@ -1,0 +1,47 @@
+<?nvs
+// Attack: a program builds certificates with broken names and with a very long name,
+// and reads the long one many times. A broken name must throw an error, the long
+// name must come back unchanged, and nothing may crash or leak.
+
+// 1. Names that are not `KEY=value` pairs, or that use a key that is not allowed,
+//    throw an error. A line break or a zero byte inside a value is allowed.
+array<string> $broken = [
+    '',
+    'api.example.com',
+    'CN=',
+    '=api.example.com',
+    'XX=api.example.com',
+    'CN=api.example.com,,O=Shop',
+    "CN=a\nO=b",
+    "CN=a\u{0}b",
+];
+uint $refused = 0;
+foreach ($broken as string $name) {
+    try {
+        Core\Test::tlsSession({ subject: $name });
+    } catch (LogicError $e) {
+        $refused = $refused + 1;
+    }
+}
+echo 'step 1: ', $refused, ' of ', Core\Arr::count($broken), "\n";
+
+// 2. A name with every allowed key, and an organization of twenty thousand characters.
+//    It is read back ten thousand times, and every read must have the same length.
+string $organization = Core\Str::repeat('Shop ', 4000);
+var $long = Core\Test::tlsSession({
+    subject: 'CN=api.example.com, O=' . $organization . ', OU=Web, C=AT, ST=Vienna, L=Vienna',
+});
+uint $first = Core\Str::length($long->subject());
+uint $round = 0;
+while ($round < 10000) {
+    if (Core\Str::length($long->subject()) != $first) {
+        throw new LogicError('the subject changed between two reads');
+    }
+    $round = $round + 1;
+}
+echo 'step 2: ', $first, "\n";
+
+// 3. The long name is kept after the connection is deleted, and then read again.
+tainted string $kept = $long->subject();
+$long = Core\Test::tlsSession({});
+echo 'step 3: ', Core\Str::length($kept), ' ', $long->subject(), "\n";

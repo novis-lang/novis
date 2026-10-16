@@ -1,0 +1,17 @@
+<?nvs
+// Shows the check a program does when a form comes back: the token from the
+// request, the session it should belong to, and the key.
+
+secret bytes $key = Core\Crypto::generateKey();
+string $session = "sid-ada";
+string $token = Core\Csrf::issue($session, $key);
+
+// The form sends back the token the page was rendered with. This prints `yes`.
+echo (Core\Csrf::verify($token, $session, $key) ? "yes" : "no"), "\n";
+
+// The last character of the token is changed. This prints `no`.
+string $changed = Core\Str::replaceRange($token, -1, 1, "!");
+echo (Core\Csrf::verify($changed, $session, $key) ? "yes" : "no"), "\n";
+
+// The token belongs to another session. This prints `no`.
+echo (Core\Csrf::verify($token, "sid-grace", $key) ? "yes" : "no"), "\n";

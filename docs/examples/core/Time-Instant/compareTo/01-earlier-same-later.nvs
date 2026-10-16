@@ -1,0 +1,13 @@
+<?nvs
+// Shows the three results of `compareTo` for an earlier, an equal and a later instant.
+
+Core\Time\Instant $noon = Core\Time::fromIso("2024-03-01T12:00:00Z");
+
+// This prints -1, because 11 o'clock is earlier than noon.
+echo Core\Time::fromIso("2024-03-01T11:00:00Z")->compareTo($noon), "\n";
+
+// This prints 0. The epoch second 1709294400 is noon on 1 March 2024.
+echo Core\Time::fromEpoch(1709294400)->compareTo($noon), "\n";
+
+// This prints 1. One nanosecond after noon is already later.
+echo Core\Time::fromEpoch(1709294400, {nanos: 1})->compareTo($noon), "\n";

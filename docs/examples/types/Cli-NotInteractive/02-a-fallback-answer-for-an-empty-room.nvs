@@ -1,0 +1,14 @@
+<?nvs
+// The same questions, each given the answer to use when nobody is there. None
+// of them can raise this error any more, so one script works both at a desk and
+// in a job nobody is watching.
+
+tainted string $who = Core\Cli::ask("Who is running this release?", {default: "the nightly job"});
+echo "released by ", $who, "\n";
+
+bool $migrate = Core\Cli::confirm("Run the database migration too?", {default: false});
+echo "migration: ", $migrate ? "yes" : "no", "\n";
+
+array<string> $rooms = ["staging", "production"];
+string $room = Core\Cli::select("Where should this go?", $rooms, {default: "staging"});
+echo "target: ", $room, "\n";

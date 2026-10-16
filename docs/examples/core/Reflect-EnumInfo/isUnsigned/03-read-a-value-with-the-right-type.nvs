@@ -1,0 +1,34 @@
+<?nvs
+// Reads the value of a case from any enum and stores it with the right number type.
+
+enum Flag: uint {
+    Hidden = 1,
+    Pinned = 2,
+}
+
+enum Offset: int {
+    Before = -1,
+    After = 1,
+}
+
+class CaseValue {
+    // `valueOf` returns `int|uint`. `isUnsigned()` says which one it is,
+    // so the value can be converted with `as uint` or `as int`.
+    public static function describe(string $enum, string $case): string {
+        ?Core\Reflect\EnumInfo $found = Core\Reflect\EnumInfo::of($enum);
+        if ($found == null) {
+            return $enum . " is not an enum";
+        }
+        Core\Reflect\EnumInfo $info = $found;
+        if ($info->isUnsigned()) {
+            uint $bits = $info->valueOf($case) as uint;
+            return $case . " is the uint " . $bits;
+        }
+        int $number = $info->valueOf($case) as int;
+        return $case . " is the int " . $number;
+    }
+}
+
+// This prints `Pinned is the uint 2` and `Before is the int -1`.
+echo CaseValue::describe(Flag::class, "Pinned"), "\n";
+echo CaseValue::describe(Offset::class, "Before"), "\n";

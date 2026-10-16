@@ -1,0 +1,11 @@
+#!/usr/bin/env nvs
+// This file starts with a `#!` line, so you can run it as `./checklist` on Linux and macOS.
+// Novis skips that first line, and the code starts right after it without `<?nvs`.
+
+array<string> $tasks = ["Back up the database", "Rotate the logs", "Check the free disk space"];
+uint $number = 1;
+// This prints each task with its number, from 1 to 3.
+foreach ($tasks as string $task) {
+    echo $number, ". ", $task, "\n";
+    $number = $number + 1;
+}

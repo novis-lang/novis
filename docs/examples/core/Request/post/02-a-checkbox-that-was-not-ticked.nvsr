@@ -1,0 +1,9 @@
+--METHOD--
+POST
+--PATH--
+/signup
+--HEADERS--
+host: shop.example.com
+content-type: application/x-www-form-urlencoded
+--BODY--
+name=Ada&comment=

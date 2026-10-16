@@ -1,0 +1,21 @@
+<?nvs
+// Shows how a program runs on every system, including one with no load average.
+// On Windows, `Core\Os::loadAverage` throws a `RuntimeError`.
+
+class Load {
+    // Returns the average over the last minute. It returns `null` when the
+    // machine does not keep a load average.
+    public static function lastMinute(): ?float {
+        try {
+            return Core\Os::loadAverage()[0];
+        } catch (RuntimeError $error) {
+            return null;
+        }
+    }
+}
+
+?float $load = Load::lastMinute();
+
+// On Linux and macOS the result is a number. On Windows it is `null`, and
+// `?? 0.0` replaces it with 0. This prints `yes` on every system.
+echo ($load ?? 0.0) >= 0.0 ? "yes" : "no", "\n";

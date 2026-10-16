@@ -1,0 +1,13 @@
+{
+  "title": "A task registers before it suspends, treats a wake as a hint, and leaves the reactor holding nothing when it ends",
+  "status": "shipped",
+  "seeAlso": [
+    "concurrency/the-reactor-reports-readiness",
+    "concurrency/try-the-syscall-then-park",
+    "programs/memory-priority"
+  ],
+  "guardedBy": [
+    "crates/nvs-host/src/reactor.rs",
+    "crates/nvs-host/src/scheduler.rs"
+  ]
+}

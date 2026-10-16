@@ -1,0 +1,59 @@
+--TEST--
+A string literal at a parameter typed `property<T>` alone is checked while compiling and needs no `as`, at a static method, an instance method, a `?property<T>` and a `static` parameter, and a parameter typed `property<T>|string` still takes any string — `rule:types/property-key`
+--FILE--
+<?nvs
+// A string literal at a `property<Order>` parameter is checked when the program compiles.
+// You do not need to write `as property<Order>` there.
+class Order {
+    public string $id = "o1";
+    public int $total = 40;
+
+    public static function sortBy(property<static> $field): string {
+        return "sorted by " . $field;
+    }
+}
+
+class Invoice extends Order {
+    public string $due = "soon";
+}
+
+class Report {
+    public static function column(property<Order> $field): string {
+        return "column " . ($field as string);
+    }
+
+    public static function maybe(?property<Order> $field): string {
+        return $field == null ? "none" : "maybe " . ($field as string);
+    }
+
+    public static function label(property<Order>|string $field): string {
+        return "label " . ($field as string);
+    }
+
+    public function read(Order $order, property<Order> $field): string {
+        return $order->$field as string;
+    }
+}
+
+echo Report::column("total"), "\n";
+
+// A `?property<Order>` parameter also checks the literal.
+echo Report::maybe("id"), "\n";
+echo Report::maybe(null), "\n";
+
+// With `static`, the names come from the class that the call names.
+echo Invoice::sortBy("due"), "\n";
+
+// The literal gives a key, so the method can read the property with it.
+Report $report = new Report();
+echo $report->read(new Order(), "total"), "\n";
+
+// A parameter typed `property<Order>|string` takes any string.
+echo Report::label("anything"), "\n";
+--EXPECT--
+column total
+maybe id
+none
+sorted by due
+40
+label anything

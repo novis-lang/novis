@@ -1,0 +1,12 @@
+<?nvs
+// Shows how to sharpen a thumbnail after you make it smaller.
+use Novis\Image\Image;
+use Novis\Image\Color;
+use Novis\Image\Format;
+
+Image $photo = Image::create(1200, 800, Color::hex("#336699"));
+
+// `sharpen` runs after `resize`, on the small image. This prints 300x200.
+bytes $thumbnail = $photo->resize({width: 300})->sharpen()->format(Format::Jpeg, {quality: 80})->encode();
+var $info = Image::info($thumbnail);
+echo $info->width, "x", $info->height, "\n";

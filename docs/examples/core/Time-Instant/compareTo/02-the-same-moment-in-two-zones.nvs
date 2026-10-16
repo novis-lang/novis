@@ -1,0 +1,14 @@
+<?nvs
+// Shows how to test whether two timestamps written in different time zones are the same moment.
+
+Core\Time\Instant $london = Core\Time::fromIso("2024-03-01T12:00:00Z");
+Core\Time\Instant $vienna = Core\Time::fromIso("2024-03-01T13:00:00+01:00");
+
+// `==` checks whether both variables are the same object. They are not, so this prints "different".
+echo $london == $vienna ? "same" : "different", "\n";
+
+// `compareTo` compares the moment. It returns 0, so this prints "same moment".
+echo $london->compareTo($vienna) == 0 ? "same moment" : "other moment", "\n";
+
+// `<` uses `compareTo` too. This prints "no".
+echo $london < $vienna ? "yes" : "no", "\n";

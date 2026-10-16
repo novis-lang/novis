@@ -1,0 +1,28 @@
+<?nvs
+// Shows that any class may hold tests. There is no base class to extend and no
+// name a test class must have, so a small class can keep its tests inside it.
+
+use Core\Test;
+
+class Basket {
+    public static function shippingCents(int $totalCents): int {
+        if ($totalCents >= 5000) {
+            return 0;
+        }
+        return 499;
+    }
+
+    #[Test]
+    public function aSmallBasketPaysForShipping(): void {
+        Test::assertSame(Basket::shippingCents(1200), 499);
+    }
+
+    #[Test]
+    public function theLimitItselfShipsFree(): void {
+        Test::assertSame(Basket::shippingCents(5000), 0);
+    }
+}
+
+// This prints 499 and then 0.
+echo Basket::shippingCents(1200), "\n";
+echo Basket::shippingCents(9900), "\n";

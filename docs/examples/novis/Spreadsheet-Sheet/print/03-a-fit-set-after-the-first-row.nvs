@@ -1,0 +1,20 @@
+<?nvs
+// Shows the error for `fitToPage` after the first row, and for an unknown orientation.
+use Novis\Spreadsheet\Workbook;
+
+var $book = Workbook::createInMemory();
+var $sheet = $book->sheet('Sales');
+$sheet->add(['shop' => 'North', 'sales' => 340]);
+
+// The first row is already written, so `fitToPage` throws a `LogicError`.
+try {
+    $sheet->print({ fitToPage: { width: 1 } });
+} catch (LogicError $e) {
+    echo $e->message, "\n";
+}
+
+try {
+    $sheet->print({ orientation: 'sideways' });
+} catch (LogicError $e) {
+    echo $e->message, "\n";
+}

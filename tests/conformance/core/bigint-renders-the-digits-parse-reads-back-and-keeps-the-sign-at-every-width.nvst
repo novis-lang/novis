@@ -1,0 +1,47 @@
+--TEST--
+`Core\BigInt::toString` renders the digits `parse` reads back and keeps the sign at every width, and `echo` and string interpolation render through it — `rule:classes/stringable`, spec § 13
+--FILE--
+<?nvs
+// covers: Core\BigInt::toString
+// The text is asserted by counting rather than read off one line: a member
+// that lost the minus sign, or the top word of a wide value, renders
+// plausibly on every small positive row. Each value is asked three ways — its
+// own text, the number that text reads back to, and the text a string
+// interpolation renders — and each count has to reach the number of values.
+// The sweep carries both ends of the `int` range and a value no scalar holds,
+// because the text is the one exact way out of this class at that width.
+array<string> $values = [
+    "0",
+    "7",
+    "-7",
+    "9223372036854775807",
+    "-9223372036854775808",
+    "170141183460469231731687303715884105728",
+    "-170141183460469231731687303715884105728",
+];
+
+int $seen = 0;
+int $exact = 0;
+int $readBack = 0;
+int $rendered = 0;
+foreach ($values as string $text) {
+    var $value = Core\BigInt::parse($text);
+    $seen = $seen + 1;
+    if ($value->toString() == $text) {
+        $exact = $exact + 1;
+    }
+    if (Core\BigInt::parse($value->toString())->compareTo($value) == 0) {
+        $readBack = $readBack + 1;
+    }
+    if ("{$value}" == $text) {
+        $rendered = $rendered + 1;
+    }
+}
+echo $seen, " ", $exact, " ", $readBack, " ", $rendered, "\n";
+
+// A number far wider than any scalar renders every one of its digits, and no
+// separator is written between them.
+echo Core\BigInt::of(1)->shl(200)->toString(), "\n";
+--EXPECT--
+7 7 7 7
+1606938044258990275541962092341162602522202993782792835301376

@@ -1,0 +1,6 @@
+--METHOD--
+GET
+--PATH--
+/admin/reports
+--HEADERS--
+host: www.example.com

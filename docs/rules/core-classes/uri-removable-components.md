@@ -1,0 +1,37 @@
+Three of a URI's components become nullable — `port`, `query` and `fragment` — and writing `null` for
+one in a `with` bag **removes** it, where omitting the key leaves it alone. The other three stay
+non-nullable, because in each case what looks like a removal is a different operation wearing its
+clothes: every reference has a path, and an empty one is `""`; clearing a host would silently clear
+the port and user-info a caller did not mention, which is a cascade rather than a removal; and
+dropping a scheme turns an absolute URI into a relative reference, which is a member's worth of
+behaviour rather than a field's. A removal still goes through the same recompose-and-reread path
+every other `with` takes, so a component that would move is the same throw a bad replacement already
+is.
+
+**A query parameter is the second level.** A URI's components are fixed and few; its parameters are
+dynamic and many, and replacing the whole query string is what makes every call site parse, edit and
+rebuild — which is where this area's two real bugs come from. A singular reader and a singular writer
+close it, composing the three existing members so no second canonicalization exists to drift. A
+`null` value removes the parameter, the bracket convention comes free because a value may itself be
+an array, and removing the last parameter leaves no query at all rather than a bare `?`.
+
+`crates/nvs-stdlib/src/uri.rs` is where both levels are: `with` takes `port`, `query` and `fragment`
+as `?T` and its `removable` helper reads the three states, and `queryParameter` and
+`withQueryParameter` compose that module's own `query` slot, `parse_query` and `build` so that the
+query string gains no second canonicalization. The name a parameter is reached by is **top-level**,
+so an array value is what writes brackets — which is what makes the pair a round trip rather than
+two members that each invented a spelling.
+
+The pair is singular and reached by name, the same operation `Core\Request::query(string $name)` performs
+on the same bracket convention from the other side of a request. A query keeps exactly one syntax per
+state: pairs are written by this pair, an empty query is `with({query: ""})`, and no query is
+`with({query: null})`. There is no plural `withQueryParameters` and no `withoutQueryParameter`: setting
+several is the member twice or the existing parse-and-build pair, and removing is `null`.
+
+`userInfo` is not a key of the `with` bag at all, so `with` neither adds nor drops a credential.
+
+**Declined:**
+- **One member per removable component, such as `withoutFragment()`.** It multiplies the surface by the
+  number of clearable components on every class that has any. Symmetric naming
+  (`rule:core-api/symmetric-names`) would then want `with` and `without` treated as a pair, which they
+  are not: one takes an anonymous object and the other would take names.

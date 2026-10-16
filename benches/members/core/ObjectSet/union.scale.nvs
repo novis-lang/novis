@@ -1,0 +1,43 @@
+<?nvs
+// Measures `union` on two sets of objects, at growing set sizes.
+// It shows how the cost of `union` grows when the sets grow.
+// bench: start 256
+// bench: max 4096
+
+final class Key {
+    public int $id;
+
+    public function constructor(int $id) {
+        $this->id = $id;
+    }
+}
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        // Every second object of `left` is also in `right`.
+        Core\ObjectSet<Key> $left = new Core\ObjectSet<Key>();
+        Core\ObjectSet<Key> $right = new Core\ObjectSet<Key>();
+        uint $n = 0;
+        while ($n < $size) {
+            Key $key = new Key($n as int);
+            $left->add($key);
+            if ($n % 2 == 0) {
+                $right->add($key);
+            } else {
+                $right->add(new Key(-1));
+            }
+            $n = $n + 1;
+        }
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            $total = $total + $left->union($right)->count();
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

@@ -1,0 +1,22 @@
+{
+  "title": "The compiler proves a route's access decision was written, never that it was honoured",
+  "status": "shipped",
+  "seeAlso": [
+    "attributes/access-is-a-required-sibling",
+    "attributes/access-payload",
+    "security/csrf-is-on-by-default",
+    "security/route-capture-is-laundered-by-its-type",
+    "routing/a-gate-answers-around-every-handler"
+  ],
+  "guardedBy": [
+    "tests/conformance/reject/a-stray-access-attribute-is-refused.nvst",
+    "tests/conformance/core/a-matched-routes-name-is-the-units-own-and-its-captures-are-the-peers.nvst",
+    "tests/conformance/core/one-access-check-above-the-dispatch-switch-covers-every-route.nvst",
+    "tests/conformance/core/a-match-answers-the-access-decision-as-a-case-of-the-written-enum.nvst",
+    "tests/conformance/reject/access-as-needs-an-enum-as-its-type-argument.nvst",
+    "tests/conformance/core/access-as-answers-a-uint-backed-case-that-a-match-arm-compares.nvst",
+    "tests/hostile/core/Router-Match/accessAs/01-an-admin-route-tries-to-pass-as-public.nvs",
+    "crates/nvs-stdlib/src/router.rs",
+    "crates/nvs-server/src/route.rs"
+  ]
+}

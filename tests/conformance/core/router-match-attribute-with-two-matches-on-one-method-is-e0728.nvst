@@ -1,0 +1,29 @@
+--TEST--
+`Core\Router\Match::attribute<T>()` does not compile where one routed method has two attributes of the shape: `E0728` names the method, and a method with one match is not reported — `rule:routing/a-match-reads-an-attribute-as-data`
+--FILE--
+<?nvs
+class Shop {
+    #[Core\Route(path: "/shop", method: Core\Http\Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    #[{limit: 10}]
+    #[{limit: 20, label: "high"}]
+    public function index(): void {}
+
+    #[Core\Route(path: "/cart", method: Core\Http\Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    #[{limit: 5}]
+    public function cart(): void {}
+}
+
+?Core\Router\Match $shop = Core\Router::match(Core\Http\Method::Get, "/shop");
+?{limit: int} $limit = $shop?->attribute<{limit: int}>();
+--EXPECTF-ERROR--
+error[E0728]: `Shop::index` has 2 attributes that match this shape
+   --> case.nvs:16:24
+   |
+16 | ?{limit: int} $limit = $shop?->attribute<{limit: int}>();
+   |                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `attribute` returns at most one
+   = help: add a field to the shape so that only one attribute of `Shop::index` has all of its fields
+
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

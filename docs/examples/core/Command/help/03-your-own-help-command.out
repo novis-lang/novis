@@ -1,0 +1,8 @@
+usage: deploy <target>
+
+Push the current build
+
+arguments:
+  <target>  string
+
+there is no command called deply

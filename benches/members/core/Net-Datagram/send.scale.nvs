@@ -1,0 +1,27 @@
+<?nvs
+// Measures `send` on a UDP socket, at growing message sizes.
+// It shows how the cost of `send` grows when the message grows.
+// bench: start 256
+// bench: max 4096
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        Core\Net\Datagram $sender = Core\Net::bindDatagram("127.0.0.1", 0);
+        Core\Net\Datagram $target = Core\Net::bindDatagram("127.0.0.1", 0);
+        uint $port = $target->port();
+        bytes $message = Core\Str::repeat("a", $size) as bytes;
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            $total = $total + $sender->send("127.0.0.1", $port, $message, 1s);
+            $i = $i + 1;
+        }
+        $sender->close();
+        $target->close();
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

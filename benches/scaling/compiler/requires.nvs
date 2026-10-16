@@ -1,0 +1,34 @@
+<?nvs
+// Prints a program of n files, each requiring the next and one shared file, as a large program split into many files is.
+// scaling: kind compile
+// scaling: start 256
+// scaling: max 4096
+// scaling: expect linear
+
+class Bench {
+    public static function run(uint $size): string {
+        array<string> $lines = ["<?nvs", "require 'requires-1.nvs';", "echo Link1::depth(), \"\\n\";"];
+        $lines[] = "// scaling: file requires-shared.nvs";
+        $lines[] = "<?nvs";
+        $lines[] = "class Shared {";
+        $lines[] = "    public static function one(): int { return 1; }";
+        $lines[] = "}";
+        uint $i = 1;
+        while ($i <= $size) {
+            $lines[] = "// scaling: file requires-{$i}.nvs";
+            $lines[] = "<?nvs";
+            $lines[] = "require 'requires-shared.nvs';";
+            uint $next = $i + 1;
+            if ($i < $size) {
+                $lines[] = "require 'requires-{$next}.nvs';";
+            }
+            $lines[] = "class Link{$i} {";
+            $lines[] = "    public static function depth(): int { return Shared::one(); }";
+            $lines[] = "}";
+            $i = $i + 1;
+        }
+        return Core\Str::join($lines, "\n") . "\n";
+    }
+}
+
+echo Bench::run(256);

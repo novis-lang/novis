@@ -1,0 +1,47 @@
+<?nvs
+// Attack: a script adds a very large number of exit functions, and many of them
+// misbehave. Every function should run once, and the runtime must not crash.
+// hostile: timeout-ms 60000
+
+final class Count
+{
+    public static int $ran = 0;
+
+    // Adds a function that adds the next one when it runs, `$left` times in a row.
+    public static function chain(int $left): void
+    {
+        if ($left > 0) {
+            Core\Script::onExit(fn (): void => Count::chain($left - 1));
+        }
+    }
+}
+
+// 1. 50000 functions are added. Every hundredth one throws an error when it runs.
+int $i = 0;
+while ($i < 50000) {
+    int $n = $i;
+    Core\Script::onExit(fn (Core\Script\ExitReport $report): void => {
+        Count::$ran = Count::$ran + 1;
+        if ($n % 100 == 0) {
+            throw new RuntimeError('exit function ' . $n . ' failed');
+        }
+    });
+    $i = $i + 1;
+}
+
+// 2. A function adds another function while the list runs, 1000 times in a row.
+Count::chain(1000);
+
+// 3. Two functions try to end the script again, with `exit` and with `finish()`.
+// Each call stops only its own function, and the functions after it still run.
+Core\Script::onExit(fn (): void => {
+    exit(9);
+});
+Core\Script::onExit(fn (): void => {
+    Core\Script::finish();
+});
+
+// 4. The last function reports how many ran.
+Core\Script::onExit(fn (): void => {
+    echo 'ran: ', Count::$ran, "\n";
+});

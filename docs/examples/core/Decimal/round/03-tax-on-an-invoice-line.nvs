@@ -1,0 +1,15 @@
+<?nvs
+// Shows how to work out the tax on each line of an invoice. The shop's rule
+// says the tax is rounded to cents, and a half cent goes up.
+
+array<decimal> $lines = ["desk" => 249.95, "lamp" => 34.50, "cable" => 7.25];
+decimal $rate = 0.19;
+
+decimal $tax = 0.00;
+foreach ($lines as string $item => decimal $price) {
+    decimal $line = Core\Decimal::round($price * $rate, Core\RoundMode::HalfUp, 2);
+    echo $item, ": ", $line, "\n";
+    $tax = $tax + $line;
+}
+
+echo "tax: ", $tax, "\n";

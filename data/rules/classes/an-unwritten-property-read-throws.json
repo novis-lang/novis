@@ -1,0 +1,16 @@
+{
+  "title": "Reading a property that has never been written throws a catchable error and never yields a value",
+  "status": "shipped",
+  "seeAlso": [
+    "classes/definite-property-initialization",
+    "classes/lateinit",
+    "errors/propagation",
+    "errors/escalation-ladder"
+  ],
+  "guardedBy": [
+    "tests/conformance/class/a-property-that-was-never-written-is-read-as-a-throw.nvst",
+    "tests/conformance/class/lateinit-takes-every-type.nvst",
+    "tests/conformance/class/a-delegate-reached-before-its-field-is-written-throws.nvst",
+    "tests/conformance/core/reflect-get-runs-a-get-hook-and-throws-on-an-unwritten-lateinit.nvst"
+  ]
+}

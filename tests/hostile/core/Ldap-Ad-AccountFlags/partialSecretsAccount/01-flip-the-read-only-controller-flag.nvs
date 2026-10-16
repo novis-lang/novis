@@ -1,0 +1,33 @@
+<?nvs
+// Attack: a program turns the flag on and off many times next to the flags around its bit.
+// `partialSecretsAccount` must only report its own bit, and nothing may crash.
+// hostile: timeout-ms 60000
+// requires: samba-ad
+
+var $corp = Core\Ldap::connect('corp');
+
+try {
+    var $found = $corp->read('CN=Anna Berg,OU=Company,DC=example,DC=test', { select: ['userAccountControl'] })?->accountFlags();
+    if ($found != null) {
+        Core\Ldap\Ad\AccountFlags $flags = $found;
+
+        // 1. The flag turned on and off one hundred thousand times, with the bits beside it set the other way.
+        uint $wrong = 0;
+        uint $i = 0;
+        while ($i < 100000) {
+            bool $on = $i % 2 == 0;
+            var $changed = $flags->with({ partialSecretsAccount: $on, trustedToAuthForDelegation: !$on, workstationTrustAccount: !$on });
+            if ($changed->partialSecretsAccount() != $on) {
+                $wrong = $wrong + 1;
+            }
+            $i = $i + 1;
+        }
+        echo '1 wrong: ', $wrong, "\n";
+
+        // 2. Every other account type set. `partialSecretsAccount` must still be `false`.
+        var $others = $flags->with({ serverTrustAccount: true, workstationTrustAccount: true, interdomainTrustAccount: true, trustedToAuthForDelegation: true });
+        echo '2 read-only controller: ', $others->partialSecretsAccount() ? 'yes' : 'no', ' bits: ', $others->bits(), "\n";
+    }
+} catch (Throwable $error) {
+    echo "threw\n";
+}

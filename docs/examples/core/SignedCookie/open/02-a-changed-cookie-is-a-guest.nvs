@@ -1,0 +1,22 @@
+<?nvs
+// Shows how a server treats a changed cookie as a visitor who is not logged in.
+
+class Login {
+    // Returns the user id in the cookie, or "guest" when the cookie is not valid.
+    public static function userOf(string $cookie, array<secret bytes> $keys): string {
+        try {
+            return Core\SignedCookie::open($cookie, $keys);
+        } catch (RuntimeError $e) {
+            return "guest";
+        }
+    }
+}
+
+array<secret bytes> $keys = [Core\Crypto::generateKey()];
+string $cookie = Core\SignedCookie::seal("42", $keys);
+
+// The real cookie gives the user id. This prints 42.
+echo Login::userOf($cookie, $keys), "\n";
+
+// Somebody adds characters to the cookie. `open` throws an error, so this prints guest.
+echo Login::userOf($cookie . "AAAA", $keys), "\n";

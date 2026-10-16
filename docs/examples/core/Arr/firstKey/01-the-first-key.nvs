@@ -1,0 +1,18 @@
+<?nvs
+// Shows how to read the key of the first entry of an array.
+
+array<int> $stock = ['apples' => 12, 'pears' => 4];
+
+// First means first in the order the entries were put in. This prints
+// `apples`.
+echo Core\Arr::firstKey($stock) ?? 'nothing', "\n";
+
+// The key reads the value. This prints `12`.
+?string $name = Core\Arr::firstKey($stock);
+if ($name != null) {
+    echo $stock[$name], "\n";
+}
+
+// Every key of an array is text, so a list gives you "0". This prints `0`.
+array<string> $colours = ['red', 'green'];
+echo Core\Arr::firstKey($colours) ?? 'nothing', "\n";

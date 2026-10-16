@@ -1,0 +1,5 @@
+<?nvs
+// This program throws an error and does not catch it, so the program stops.
+// `examples/logging.nvs` starts it. Novis then runs the error handler script, `examples/logging/handler.nvs`.
+// There is no `try` here, because `examples/logging.nvs` already shows a program that catches its own error.
+throw new RuntimeError('the child gave up');

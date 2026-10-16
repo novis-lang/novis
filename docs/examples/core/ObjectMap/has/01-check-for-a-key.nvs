@@ -1,0 +1,25 @@
+<?nvs
+// Shows how to check if a map contains an object as a key.
+
+final class User {
+    public string $name;
+
+    public function constructor(string $name) {
+        $this->name = $name;
+    }
+}
+
+User $ada = new User("Ada");
+User $bob = new User("Bob");
+
+Core\ObjectMap<User, string> $roles = new Core\ObjectMap<User, string>();
+$roles->set($ada, "admin");
+
+// Ada is in the map and Bob is not. This prints `true`, then `false`.
+echo $roles->has($ada) ? "true" : "false", "\n";
+echo $roles->has($bob) ? "true" : "false", "\n";
+
+// This object has the same name as Ada, but it is a different object.
+// This prints `false`.
+User $copy = new User("Ada");
+echo $roles->has($copy) ? "true" : "false", "\n";

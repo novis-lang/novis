@@ -1,0 +1,20 @@
+<?nvs
+var $out = "";
+var $n = 0;
+do {
+    $out .= $n;
+    $n++;
+} while ($n < 5);
+
+foreach ([1, 2, 3] as int $row) {
+    var $inner = 0;
+    while ($inner < 3) {
+        if ($row + $inner >= 4) {
+            break 2;
+        }
+
+        $inner++;
+    }
+}
+
+echo $out, "\n";

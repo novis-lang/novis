@@ -1,0 +1,3 @@
+# `Novis\Image` decodes no image with more than 1024 pixels (1K).
+[image]
+max_pixels = "1K"

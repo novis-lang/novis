@@ -1,0 +1,6 @@
+<?nvs
+// Shows how to read the name of an entry from its DN.
+
+var $person = Core\Ldap\Dn::parse('CN=Ann Lee,OU=Staff,DC=example,DC=test');
+// This prints Ann Lee.
+echo $person->rdnValue(), "\n";

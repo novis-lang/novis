@@ -1,0 +1,18 @@
+{
+  "title": "Iteration",
+  "order": 70,
+  "rules": [
+    "iteration/for-init-clause",
+    "iteration/for-counter-scope",
+    "iteration/for-init-refusals",
+    "iteration/foreach-subjects",
+    "iteration/two-interfaces",
+    "iteration/concrete-generic-implements",
+    "iteration/no-magic-collection-interfaces",
+    "iteration/cursor-out-of-range",
+    "iteration/generators",
+    "iteration/one-way-only",
+    "iteration/yield-lexical-confinement",
+    "iteration/generator-stays-in-one-isolate"
+  ]
+}

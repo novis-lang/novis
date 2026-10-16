@@ -1,0 +1,54 @@
+--TEST--
+A guard clause narrows the rest of its block whether it ends in `return`, `break` or `continue`, because none of the three reaches what follows — `rule:types/narrowing`
+--FILE--
+<?nvs
+// covers: lang:types/narrowing
+// `rule:types/narrowing` is flow-sensitive, and a guard clause is where that
+// shows: the branch the test proves is the one that leaves, so everything
+// after the `if` is only ever walked on the other edge. All three ways of
+// leaving are pinned together here, because `return` narrowed on its own for
+// a while and the other two did not, which showed up as `?int` still being
+// `?int` one line after the guard that ruled `null` out.
+class Guard {
+    public static function sumViaContinue(array<string> $fields): int {
+        int $total = 0;
+        foreach ($fields as string $field) {
+            ?int $n = $field as ?int;
+            if ($n == null) {
+                continue;
+            }
+            $total = $total + $n;
+        }
+        return $total;
+    }
+
+    public static function sumViaBreak(array<string> $fields): int {
+        int $total = 0;
+        foreach ($fields as string $field) {
+            ?int $n = $field as ?int;
+            if ($n == null) {
+                break;
+            }
+            $total = $total + $n;
+        }
+        return $total;
+    }
+
+    public static function oneViaReturn(string $field): int {
+        ?int $n = $field as ?int;
+        if ($n == null) {
+            return -1;
+        }
+        return $n;
+    }
+}
+
+echo Guard::sumViaContinue(["5", "not a number", "7"]), "\n";
+echo Guard::sumViaBreak(["5", "7", "not a number", "9"]), "\n";
+echo Guard::oneViaReturn("41") + 1, "\n";
+echo Guard::oneViaReturn("not a number"), "\n";
+--EXPECT--
+12
+12
+42
+-1

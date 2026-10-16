@@ -1,0 +1,58 @@
+<?nvs
+// Attack: a connection subscribes to many topics, some with unusual names, and reads `topic()` of each message.
+// Each read should give the right name or throw an error, and the runtime must not crash.
+Core\Socket $conn = Core\Socket::current();
+
+// 1. An empty topic name and a name of 100000 characters.
+try {
+    Core\Topic::subscribe('');
+    Core\Topic::publish('', 1);
+    echo 'empty: ', Core\Str::length($conn->receive()?->topic() ?? 'none'), " characters\n";
+} catch (Throwable $error) {
+    echo 'empty: ', $error->message, "\n";
+}
+try {
+    string $long = Core\Str::repeat('x', 100000);
+    Core\Topic::subscribe($long);
+    Core\Topic::publish($long, 2);
+    echo 'long: ', Core\Str::length($conn->receive()?->topic() ?? 'none'), " characters\n";
+} catch (Throwable $error) {
+    echo 'long: ', $error->message, "\n";
+}
+
+// 2. Read `topic()` of one message 100000 times.
+Core\Topic::subscribe('t0');
+Core\Topic::publish('t0', 0);
+?Core\Socket\Message $last = $conn->receive();
+uint $reads = 0;
+while ($reads < 100000 && $last?->topic() == 't0') {
+    $reads = $reads + 1;
+}
+echo 'read the name ', $reads, " times\n";
+
+// 3. Subscribe to 500 topics and publish to each before reading any.
+// The connection falls behind and should be closed. Every name read before that should be right.
+uint $right = 0;
+uint $wrong = 0;
+try {
+    uint $i = 0;
+    while ($i < 500) {
+        Core\Topic::subscribe('t' . $i);
+        Core\Topic::publish('t' . $i, $i);
+        $i = $i + 1;
+    }
+    $i = 0;
+    ?Core\Socket\Message $message = $conn->receive();
+    while ($message != null) {
+        if ($message->topic() == 't' . $i) {
+            $right = $right + 1;
+        } else {
+            $wrong = $wrong + 1;
+        }
+        $i = $i + 1;
+        $message = $conn->receive();
+    }
+} catch (Throwable $error) {
+    echo 'many: ', $error->message, "\n";
+}
+echo 'many: ', $right, ' right and ', $wrong, " wrong\n";

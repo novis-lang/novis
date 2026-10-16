@@ -1,0 +1,14 @@
+<?nvs
+// Shows the second parameter of the function: the key of the entry. The
+// program looks for the first header whose name starts with `x-`.
+
+array<string> $headers = [
+    "host" => "shop.example",
+    "accept" => "text/html",
+    "x-forwarded-for" => "203.0.113.7",
+    "x-request-id" => "a41f",
+];
+
+// "x-forwarded-for" is the first name that starts with `x-`. This prints 203.0.113.7.
+?string $added = Core\Arr::find($headers, fn(string $value, string $key) => Core\Str::startsWith($key, "x-"));
+echo $added ?? "", "\n";

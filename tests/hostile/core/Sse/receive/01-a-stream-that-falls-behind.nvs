@@ -1,0 +1,28 @@
+<?nvs
+// Attack: a stream script publishes far more values than it reads, so its queue
+// overflows. The stream should end with `null`, and nothing should crash or hang.
+
+Core\Sse $sse = Core\Sse::current();
+Core\Topic::subscribe('flood');
+
+// 1. Publish many more values than the queue can keep.
+uint $i = 0;
+while ($i < 100000) {
+    Core\Topic::publish('flood', 'value ' . ($i as string));
+    $i = $i + 1;
+}
+
+// 2. Read after the overflow. The stream is closed, so the result is `null`.
+?Core\Sse\Message $first = $sse->receive();
+echo $first == null ? "closed\n" : "a message\n";
+
+// 3. Read again after the stream closed. The result is `null` again.
+?Core\Sse\Message $again = $sse->receive();
+echo $again == null ? "still closed\n" : "a message\n";
+
+// 4. Send on the closed stream. This throws an error.
+try {
+    $sse->send('too late');
+} catch (RuntimeError $e) {
+    echo "send failed\n";
+}

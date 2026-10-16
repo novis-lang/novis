@@ -1,0 +1,22 @@
+<?nvs
+// Shows an import job that reports its progress to the browser while it works.
+
+class Import {
+    public static function run(array<string> $emails): uint {
+        var $total = Core\Arr::count($emails);
+        uint $done = 0;
+        foreach ($emails as string $email) {
+            // A real job would save the customer here.
+            $done = $done + 1;
+            // The job gets the stream itself, so the caller does not pass it in.
+            Core\Sse::current()->send(["done" => $done, "total" => $total], event: "progress");
+        }
+        return $done;
+    }
+}
+
+// The request opens the stream, and then starts the job.
+Core\Sse $sse = Core\Sse::stream();
+uint $imported = Import::run(["ana@example.com", "bo@example.com", "chen@example.com"]);
+// This prints three `progress` events and then `data: imported 3 customers`.
+$sse->send("imported " . $imported . " customers");

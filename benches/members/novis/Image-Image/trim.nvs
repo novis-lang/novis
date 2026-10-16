@@ -1,0 +1,22 @@
+<?nvs
+// Trims a small image and reads its pixels, as a program does when it removes the border of a scan.
+// bench: iterations 256
+// bench: complexity constant
+use Novis\Image\Image;
+use Novis\Image\Color;
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        Image $scan = Image::create(4, 4, Color::hex("#ffffff"));
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            float $threshold = (($total + $i) % 3) as float;
+            $total = $total + $scan->trim({threshold: $threshold})->raw()->width;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

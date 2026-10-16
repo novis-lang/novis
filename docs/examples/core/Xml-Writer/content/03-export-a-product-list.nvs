@@ -1,0 +1,23 @@
+<?nvs
+// Shows how to export a product list as XML, for example for a price comparison website.
+
+array<string> $products = [
+    "A-100" => "Salt & Pepper Set",
+    "B-200" => "Cable <USB-C> 2m",
+    "C-300" => "Café Crème Cups",
+];
+
+Core\Xml\Writer $writer = Core\Xml::writer({indent: "  "});
+$writer->startDocument();
+$writer->startElement("products");
+
+foreach ($products as string $sku => string $name) {
+    $writer->startElement("product");
+    $writer->attribute("sku", $sku);
+    // The name is escaped, so a name with `&` or `<` does not break the file.
+    $writer->content($name);
+    $writer->endElement();
+}
+
+$writer->endElement();
+echo $writer->endDocument(), "\n";

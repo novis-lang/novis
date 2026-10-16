@@ -1,0 +1,10 @@
+--METHOD--
+PUT
+--PATH--
+/imports/prices.csv
+--HEADERS--
+content-type: text/csv
+--BODY--
+sku,price
+A-100,19.90
+B-220,4.50

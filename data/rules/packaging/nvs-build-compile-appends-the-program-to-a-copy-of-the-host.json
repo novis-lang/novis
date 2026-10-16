@@ -1,0 +1,13 @@
+{
+  "title": "`nvs build --compile` appends a program to a copy of the `nvs` binary, and rebundling is running it again",
+  "status": "shipped",
+  "seeAlso": [
+    "programs/bundle-trust-domain",
+    "packaging/a-bundle-carries-source-not-artifacts",
+    "packaging/a-bundle-is-found-by-its-footer-before-argv-is-read",
+    "packaging/a-macos-bundle-is-ad-hoc-signed-at-build"
+  ],
+  "guardedBy": [
+    "crates/nvs-cli/tests/bundle.rs"
+  ]
+}

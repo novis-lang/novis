@@ -1,0 +1,15 @@
+--TEST--
+an uncaught throw exits non-zero and reaches the floor as one `rule:errors/log-write` record, class and frames included
+--FILE--
+<?nvs
+class Boom {
+    public static function go(): int {
+        throw new RuntimeError("no");
+    }
+}
+echo "before\n";
+echo Boom::go(), "\n";
+--EXPECT--
+before
+--EXPECTF-ERROR--
+{"level":"error","msg":"no","fields":{"class":"RuntimeError"},"nodes":[{"function":"Boom::go","file":"case.nvs","line":%d},{"function":"<script>","file":"case.nvs","line":%d}]}

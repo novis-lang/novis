@@ -1,0 +1,14 @@
+{
+  "title": "A non-`void` body hands back a value at every exit; nothing returns `null` for a declaration it did not make",
+  "status": "shipped",
+  "seeAlso": [
+    "types/declaration",
+    "iteration/generators",
+    "classes/constructor-is-a-method-named-constructor"
+  ],
+  "guardedBy": [
+    "tests/conformance/error/a-method-that-only-throws-satisfies-its-return-type.nvst",
+    "tests/conformance/reject/a-bare-return-is-refused-where-the-declaration-is-not-void.nvst",
+    "tests/conformance/reject/a-hook-and-a-block-bodied-anonymous-function-owe-a-value-at-every-exit.nvst"
+  ]
+}

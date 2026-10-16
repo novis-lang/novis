@@ -1,0 +1,22 @@
+<?nvs
+// Shows how to point at a place in a line, the way a compiler does when it
+// reports a problem. The column says how far along the line to put the mark.
+
+string $source = <<<'NVS'
+<?nvs
+class Report {
+    public static function run(): void {
+        exit(1);
+    }
+}
+NVS;
+
+array<string> $lines = Core\Str::lines($source);
+Core\Ast\Node $file = Core\Ast::parse($source);
+
+foreach ($file->nodes() as Core\Ast\Node $node) {
+    if ($node->kind() == "Exit") {
+        echo $lines[$node->line() - 1], "\n";
+        echo Core\Str::repeat(" ", ($node->column() - 1) as uint), "^ exit is not allowed here\n";
+    }
+}

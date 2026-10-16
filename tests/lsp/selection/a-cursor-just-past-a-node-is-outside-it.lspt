@@ -1,0 +1,11 @@
+--TEST--
+a caret at a node's end is between nodes, so `$u->` with the cursor after the arrow expands from what contains the access rather than from the access itself, `rule:ide/the-index-answers-the-cursor`
+--FILE--
+<?nvs
+class User { public string $name; }
+$u = new User();
+echo $u->name<|>;
+--REQUEST--
+selectionRange
+--EXPECT--
+4:1-4:15

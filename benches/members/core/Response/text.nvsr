@@ -1,0 +1,6 @@
+--METHOD--
+GET
+--PATH--
+/health
+--HEADERS--
+host: example.com

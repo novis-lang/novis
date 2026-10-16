@@ -1,0 +1,16 @@
+<?nvs
+// Attack: a request puts text from a user into a job, and the job uses that text as a
+// file path and in SQL. Text that a job reads from its payload is tainted, so this does not compile.
+// hostile: expect-refusal
+
+// 1. The request pushes a file path that a user wrote.
+tainted string $path = '../../etc/passwd';
+Core\Queue::push('export.nvs', { args: ['path' => $path] });
+
+// 2. The job reads the path from its payload and opens that file.
+var $args = Core\Script::args() as array<string>;
+echo Core\IO::read($args['path']), "\n";
+
+// 3. The job copies the path into the text of an SQL statement.
+var $db = Core\Db::connect('jobs');
+$db->execute("delete from exports where path = '" . $args['path'] . "'", []);

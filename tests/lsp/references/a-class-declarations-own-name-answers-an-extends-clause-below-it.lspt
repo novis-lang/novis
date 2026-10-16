@@ -1,0 +1,17 @@
+--TEST--
+a cursor on a class's own declaration answers the declaration and the `extends` clause of the class that derives from it, the superclass side of an inheritance edge being read off the same resolved graph the subtype side is, `rule:ide/five-features-are-one-reference-index`
+--FILE--
+<?nvs
+class Ba<|>se
+{
+    public string $name = "";
+}
+
+class Derived extends Base
+{
+}
+--REQUEST--
+references
+--EXPECT--
+case.nvs:2:7
+case.nvs:7:23

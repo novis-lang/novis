@@ -1,0 +1,11 @@
+<?nvs
+// Builds one text out of an array. The start value is a text, so the result is
+// a text as well. This function reads the key too.
+
+array<int> $counts = ['red' => 2, 'blue' => 1];
+
+string $line = Core\Arr::reduce($counts, fn(string $carry, int $count, string $colour)
+    => $carry . ' ' . $colour . '=' . Core\Str::format("%d", $count), '');
+
+// This prints `red=2 blue=1`.
+echo Core\Str::trim($line), "\n";

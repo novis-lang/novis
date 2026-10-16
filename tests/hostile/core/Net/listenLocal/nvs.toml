@@ -1,0 +1,8 @@
+# The attack may listen at this one socket file, and at nothing else.
+[capabilities.net]
+local = ["/tmp/novis-hostile-listen.sock"]
+
+# The attack deletes the socket file when it is done.
+[capabilities.fs]
+read = ["/tmp/novis-hostile-listen.sock"]
+write = ["/tmp/novis-hostile-listen.sock"]

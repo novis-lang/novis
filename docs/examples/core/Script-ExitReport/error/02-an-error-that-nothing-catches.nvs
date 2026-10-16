@@ -1,0 +1,14 @@
+<?nvs
+// Shows the error that ended the script. It is the same object that the script threw.
+// proof: exit 1
+
+Core\Script::onExit(fn (Core\Script\ExitReport $report): void => {
+    ?Throwable $error = $report->error();
+    if ($error != null) {
+        // This prints "error: the disk is full".
+        echo "error: ", $error->message, "\n";
+    }
+});
+
+echo "saving the upload\n";
+throw new RuntimeError("the disk is full");

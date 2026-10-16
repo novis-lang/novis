@@ -1,0 +1,38 @@
+--TEST--
+An `int` converts into an enum a class body declares only where a case names it, the refusal names every case under its owner, and a case converts back to its integer — `rule:types/conversion`, `rule:enums/reflection`
+--FILE--
+<?nvs
+namespace Shop;
+
+use RuntimeError;
+
+final class Order {
+    enum Status { Open, Paid = 5, Cancelled }
+
+    // Inside its owner the target is the bare name.
+    public static function of(int $n): string {
+        try {
+            Status $status = $n as Status;
+            return "case " . (($status as int) as string);
+        } catch (RuntimeError $e) {
+            return "threw: " . $e->message;
+        }
+    }
+}
+
+echo Order::of(0), "\n";
+echo Order::of(5), "\n";
+echo Order::of(6), "\n";
+echo Order::of(2), "\n";
+
+// Outside its owner the target is `Order::Status`, the same enum.
+Order::Status $paid = 5 as Order::Status;
+echo ($paid == Order::Status::Paid) as string, "\n";
+echo Order::Status::Cancelled as int, "\n";
+--EXPECT--
+case 0
+case 5
+case 6
+threw: `2` is not one of `Shop\Order::Status::Open`, `Shop\Order::Status::Paid`, `Shop\Order::Status::Cancelled`
+1
+6

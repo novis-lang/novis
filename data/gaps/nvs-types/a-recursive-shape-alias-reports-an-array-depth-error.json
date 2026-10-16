@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-types/src/lower.rs",
+  "title": "A recursive shape alias reports \"array type nests past depth 32\" twice, and an alias cycle adds two unrelated E0307s.",
+  "text": "`type Node = {value: int, next: ?Node};` expands until the depth bound stops it, and each field of the shape reports E0408 with a sentence about arrays (`crates/nvs-types/src/lower.rs:68-76`). A self-referential alias has no diagnostic of its own, and an alias cycle also prints two E0307s that name nothing the user wrote. `rule:types/type-alias` (`docs/rules/types/type-alias.md:28`) says what a recursive alias is. Closing it means a cycle check in alias resolution with one diagnostic at the alias, and the depth message naming the kind of type it stopped.",
+  "goal": "completeness-holes"
+}

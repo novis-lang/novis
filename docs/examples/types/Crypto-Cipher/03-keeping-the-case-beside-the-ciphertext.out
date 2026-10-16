@@ -1,0 +1,3 @@
+browser -> session=a41f
+job runner -> retry after 30s
+browser -> cart holds 8 items

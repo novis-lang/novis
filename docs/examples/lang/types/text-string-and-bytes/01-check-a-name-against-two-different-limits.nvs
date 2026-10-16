@@ -1,0 +1,12 @@
+<?nvs
+// A display name is limited by what a reader sees; a database column is
+// limited by what it stores. Those are two different numbers for the same
+// name, so each one is measured with the type that owns it.
+
+array<string> $names = ["Ann", "Grüße", "Rene\u{301}e", "Łukasz Szymański"];
+
+foreach ($names as string $name) {
+    uint $characters = Core\Str::length($name);
+    uint $stored = Core\Bytes::length($name as bytes);
+    echo $name, ": ", $characters, " characters, ", $stored, " bytes\n";
+}

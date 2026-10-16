@@ -1,0 +1,28 @@
+<?nvs
+// Splits a short condition into its text and holes, as a query builder does for each query.
+// bench: iterations 256
+// bench: calls 1
+// bench: complexity linear
+
+class Order {
+    public int $total = 0;
+    public string $status = "";
+}
+
+class Bench {
+    public static function count(string<property<Order>> $condition): uint {
+        return Core\Arr::count(Core\Str::parts($condition));
+    }
+
+    public static function run(uint $rounds): uint {
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            $total = $total + self::count("{total} > 100 AND {status} = 'paid'");
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

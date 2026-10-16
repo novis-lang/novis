@@ -1,0 +1,19 @@
+<?nvs
+// Shows that when one side closes a connection, the other side reads the end of the data.
+
+Core\Net\Listener $server = Core\Net::listen("127.0.0.1", 0);
+Core\Net\Stream $client = Core\Net::connect("127.0.0.1", $server->port(), 5s);
+Core\Net\Stream $connection = $server->accept(5s);
+
+// The client sends one line and closes its side of the connection.
+$client->write("last line\n" as bytes, 5s);
+$client->close();
+
+// The server still reads what was sent before the close. This prints `got: last line`.
+echo "got: ", Core\Str::trim($connection->read(64, 5s) as string), "\n";
+
+// The next `read` returns no bytes, because the client closed. This prints `bytes after close: 0`.
+echo "bytes after close: ", Core\Bytes::length($connection->read(64, 5s)), "\n";
+
+$connection->close();
+$server->close();

@@ -1,0 +1,53 @@
+--TEST--
+`Core\Test\Failure` sits directly under `Throwable`, so a `catch (RuntimeError)` in the code being tested never matches one while a `catch (Throwable)` does, and the message names the member and both sides it compared — `rule:testing/failure-ledger`, `rule:errors/throwable-hierarchy`
+--FILE--
+<?nvs
+// covers: lang:errors/assertion-failures
+// `rule:testing/failure-ledger` makes catching a failure necessary rather than
+// merely allowed, which puts the class's *position* in the tree on the hot
+// path of every composite assertion: one level lower and the arm a test writes
+// around the code it is testing would eat the failure it is there to report.
+
+// The `RuntimeError` arm is written first on purpose. It is the arm real code
+// carries, and a failure that matched it would be reported as the code under
+// test failing rather than as the assertion failing.
+try {
+    Core\Test::assertEquals(2 + 2, 5);
+    echo "unreachable: the assertion returned\n";
+} catch (RuntimeError $wrong) {
+    echo "unreachable: the RuntimeError arm matched\n";
+} catch (Throwable $failure) {
+    echo $failure->message, "\n";
+}
+
+// And the class's own name matches it, so a test that means to intercept one
+// says so rather than widening to `Throwable`.
+try {
+    Core\Test::assertCount(["order", "customer"], 3);
+} catch (Core\Test\Failure $counted) {
+    echo $counted->message, "\n";
+}
+
+// `rule:core-api/no-mode-strings`'s shape parameter carries the caller's own
+// sentence, and it goes in front of the member's text rather than replacing it:
+// a message that replaced it would lose which member failed.
+try {
+    Core\Test::assertTrue(false, {message: "the flag should be set"});
+} catch (Core\Test\Failure $flagged) {
+    echo $flagged->message, "\n";
+}
+
+// A failure is thrown, so it carries what every throw carries: the `throw`
+// site's own position, and no cause.
+try {
+    Core\Test::assertNull("not null");
+} catch (Core\Test\Failure $nulled) {
+    echo Core\Str::isEmpty($nulled->location) ? "no location" : "located", "\n";
+    echo $nulled->previous == null ? "no cause" : "has a cause", "\n";
+}
+--EXPECT--
+Core\Test::assertEquals failed: `$actual` is 4, `$expected` is 5
+Core\Test::assertCount failed: `$actual` holds 2 entries, `$expected` is 3
+the flag should be set: Core\Test::assertTrue failed: `$actual` is false
+located
+no cause

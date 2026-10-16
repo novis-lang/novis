@@ -1,0 +1,32 @@
+<?nvs
+// Attack: `minus` gets the largest and smallest durations there are, and one million differences.
+// A difference that does not fit should throw a `RuntimeError`, and nothing should crash or leak.
+
+Core\Time\Duration $largest = Core\Time\Duration::nanoseconds(9223372036854775807);
+Core\Time\Duration $smallest = Core\Time\Duration::nanoseconds(-9223372036854775807 - 1);
+Core\Time\Duration $one = Core\Time\Duration::nanoseconds(1);
+
+// 1. Each end minus each end, and each end minus one nanosecond in both directions.
+array<Core\Time\Duration> $values = [$largest, $smallest, $one, $one->negated()];
+int $built = 0;
+int $refused = 0;
+foreach ($values as Core\Time\Duration $left) {
+    foreach ($values as Core\Time\Duration $right) {
+        try {
+            $left->minus($right);
+            $built = $built + 1;
+        } catch (RuntimeError $e) {
+            $refused = $refused + 1;
+        }
+    }
+}
+echo $built, ' built, ', $refused, " refused\n";
+
+// 2. One million differences are built, one at a time. Each one is freed again.
+Core\Time\Duration $remaining = 0s;
+int $round = 0;
+while ($round < 1000000) {
+    $remaining = $remaining->minus(Core\Time\Duration::milliseconds($round % 1000 - 500));
+    $round = $round + 1;
+}
+echo $remaining->toMilliseconds(), "\n";

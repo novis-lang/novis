@@ -1,0 +1,20 @@
+--TEST--
+`nvs config dump` renders `[http.client.proxy] resolve = "proxy"` beside the rule whose table it hands to the proxy — `rule:http-server/a-proxied-call-keeps-its-pin-unless-the-operator-says-otherwise` and `rule:config/check-and-dump-audit-the-tree-offline`
+--RUN--
+config dump --origin
+--FILE--
+<?nvs
+// Not run: `--RUN--` names the offline audit, which reads the tree out of this
+// directory rather than a program off argv. What the dump says about this tree
+// is what an operator sees with no server started, which is the one place the
+// boot's own `Warn` record cannot be read.
+echo Core\Config::get('http.client.proxy.resolve'), "\n";
+--FILE nvs.toml--
+# The word is mandatory and this is the answer that gives up the pin: Novis
+# judges the URL's text and the proxy answers the address question.
+[http.client.proxy]
+url = "http://proxy.internal:3128"
+resolve = "proxy"
+--EXPECTF--
+http.client.proxy.resolve = "proxy"                         %snvs.toml    rule:security/net-address-policy
+http.client.proxy.url     = "http://proxy.internal:3128"    %snvs.toml

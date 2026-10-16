@@ -1,0 +1,9 @@
+<?nvs
+// A class declared in another file is yours as soon as you require that file.
+// Novis reads it as if you had typed the class in here, so nothing has to be
+// registered and nothing has to be imported.
+
+require 'parts/order-label.nvs';
+
+echo OrderLabel::line(1042, "Alice Mercier", "Lyon"), "\n";
+echo OrderLabel::line(1043, "Bo Nilsson", "Malmo"), "\n";

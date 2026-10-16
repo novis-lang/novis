@@ -1,0 +1,3 @@
+Core\BigInt::toInt(): 9223372036854775808 is outside the `int` range
+9223372036854775808
+Core\BigInt::toInt(): -9223372036854775809 is outside the `int` range

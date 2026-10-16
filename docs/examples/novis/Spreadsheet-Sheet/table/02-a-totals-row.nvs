@@ -1,0 +1,23 @@
+<?nvs
+// Shows how to add a totals row that sums the sales of every shop.
+use Novis\Spreadsheet\Formula;
+use Novis\Spreadsheet\Reader;
+use Novis\Spreadsheet\Workbook;
+
+var $book = Workbook::createInMemory();
+var $sheet = $book->sheet('Sales');
+$sheet->addAll([['shop' => 'North', 'sales' => 120], ['shop' => 'South', 'sales' => 80], ['shop' => 'East', 'sales' => 95]]);
+
+// The table covers rows 1 to 4, so the totals row is row 5.
+$sheet->table('A1:B4', { name: 'Sales', totals: ['sales' => 'sum'] });
+bytes $file = $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
+
+// With `formulas: true`, the reader returns each formula as a `Formula`.
+// This prints the formula of row 5. `SUBTOTAL` skips the rows a filter hides.
+foreach (Reader::open($file)->rows('Sales', { header: true, formulas: true }) as var $row) {
+    foreach ($row->values as var $value) {
+        if ($value is Formula) {
+            echo $row->number, ': ', $value->text, "\n";
+        }
+    }
+}

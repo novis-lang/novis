@@ -1,0 +1,85 @@
+<?nvs
+// Attack: a transaction is kept after its work returned, and used to write.
+// Then one transaction is asked for a hundred thousand writes, ten thousand
+// broken ones, and a statement of two million characters.
+// Every bad call must throw, and the connection must still work afterwards.
+// hostile: timeout-ms 120000
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table notes (id integer primary key, text text not null)', []);
+
+// 1. The transaction is carried out of the work that owned it. Writing through
+// it would write outside every transaction, so it must be refused.
+var $escaped = $db->transaction(fn (Core\Db\Transaction $tx): Core\Db\Transaction => $tx);
+try {
+    $escaped->execute('insert into notes (text) values (?)', ['written too late']);
+    echo "1 the late write went through\n";
+} catch (Throwable $late) {
+    echo "1 the late write was refused\n";
+}
+
+// 2. Values written to look like the end of one statement and the start of
+// another. Each one is stored as text, and the table is still there.
+array<string> $attempts = [
+    "buy milk'); drop table notes; --",
+    "' or 1=1 --",
+    "'; delete from notes where '1'='1",
+    Core\Str::repeat("'", 10000),
+];
+$db->transaction(fn (Core\Db\Transaction $tx): void => {
+    foreach ($attempts as string $attempt) {
+        $tx->execute('insert into notes (text) values (?)', [$attempt]);
+    }
+});
+echo '2 rows stored: ', $db->query('select id from notes', [])->count(), "\n";
+
+// 3. A hundred thousand writes inside one transaction. The work a transaction
+// has not saved yet may not grow past the memory limit without an error.
+try {
+    $db->transaction(fn (Core\Db\Transaction $tx): void => {
+        uint $i = 0;
+        while ($i < 100000) {
+            $tx->execute('insert into notes (text) values (?)', ['row']);
+            $i = $i + 1;
+        }
+    });
+    echo "3 a hundred thousand writes were saved\n";
+} catch (Throwable $stopped) {
+    echo "3 a hundred thousand writes were stopped\n";
+}
+
+// 4. Ten thousand writes whose values do not match the statement, all in one
+// transaction. Every one throws, and the errors may not fill the memory.
+uint $refused = $db->transaction(fn (Core\Db\Transaction $tx): uint => {
+    string $tooMany = 'insert into notes (text) values (?, ?, ?)';
+    uint $failed = 0;
+    uint $i = 0;
+    while ($i < 10000) {
+        try {
+            $tx->execute($tooMany, []);
+        } catch (Throwable $error) {
+            $failed = $failed + 1;
+        }
+        $i = $i + 1;
+    }
+    return $failed;
+});
+echo '4 refused: ', $refused, "\n";
+
+// 5. A statement of two million characters. No database knows it, so it must be
+// refused, and the transaction around it must still end.
+try {
+    $db->transaction(fn (Core\Db\Transaction $tx): void => {
+        $tx->execute(Core\Str::repeat('select ', 250000), []);
+    });
+    echo "5 the long statement ran\n";
+} catch (Throwable $error) {
+    echo "5 the long statement was refused\n";
+}
+
+// 6. The connection after all of that. An ordinary write still works, so no
+// transaction was left open.
+$db->execute('insert into notes (text) values (?)', ['the last row']);
+echo "6 still usable\n";
+
+$db->close();

@@ -1,0 +1,27 @@
+<?nvs
+// Shows the errors `startElement` throws for a wrong name and for a second root element.
+
+Core\Xml\Writer $writer = Core\Xml::writer();
+$writer->startDocument();
+
+// A name cannot start with a digit or contain a space. Each call prints the error message.
+array<string> $names = ["2nd-line", "first name"];
+foreach ($names as string $name) {
+    try {
+        $writer->startElement($name);
+    } catch (LogicError $error) {
+        echo $error->message, "\n";
+    }
+}
+
+$writer->startElement("list");
+$writer->endElement();
+
+// The root element `list` is closed. A second root element is not allowed.
+try {
+    $writer->startElement("list");
+} catch (LogicError $error) {
+    echo $error->message, "\n";
+}
+
+echo $writer->endDocument(), "\n";

@@ -1,0 +1,52 @@
+--TEST--
+`$uri->queryParameter` and `$uri->withQueryParameter` agree with `parseQuery`, `buildQuery` and `with` written out by hand — `rule:core-classes/uri-removable-components`
+--FILE--
+<?nvs
+// The pair adds no mechanism. It composes the three members that were already
+// here, so the assertion that matters is not what either one answers but that
+// it **agrees** with the long way round, name by name over a table — a member
+// that grew a canonicalization of its own would still read plausibly on any
+// single line and fail here.
+var $u = Core\Uri::parse("https://example.com/a?x=1&y=two&a%5Bb%5D=c");
+
+// The reader against `parseQuery` over the same query string. Both sides are
+// rendered by `buildQuery`, so the comparison is of the values themselves and
+// not of a text one side happened to build.
+array<string> $read = ["x", "y", "a"];
+foreach ($read as string $name) {
+    array<mixed> $whole = Core\Uri::parseQuery($u->query() ?? "");
+    array<mixed> $member = [$name => $u->queryParameter($name)];
+    array<mixed> $walked = [$name => $whole[$name]];
+    echo $name, " ", Core\Uri::buildQuery($member) == Core\Uri::buildQuery($walked)
+        ? "agree" : "differ", "\n";
+}
+
+// The writer against `with({query: buildQuery(...)})`, which is what a call
+// site writes today. `compareTo` rather than `toString`, because agreeing on
+// the URI is the claim and a query string has more than one spelling.
+array<string> $written = ["x", "z", "a"];
+foreach ($written as string $name) {
+    array<mixed> $edited = Core\Uri::parseQuery($u->query() ?? "");
+    $edited[$name] = "9";
+    var $rebuilt = $u->with({query: Core\Uri::buildQuery($edited)});
+    echo $name, " ", $u->withQueryParameter($name, "9")->compareTo($rebuilt) == 0
+        ? "agree" : "differ", "\n";
+}
+
+// And the removal against the same long way round, including the one edge the
+// hand-written form gets wrong: `buildQuery` of an empty array is `""`, which
+// `with` writes as an empty query, while the member leaves no query at all.
+array<mixed> $emptied = Core\Uri::parseQuery("only=1");
+$emptied["only"] = null;
+var $last = Core\Uri::parse("https://example.com/a?only=1");
+echo $last->with({query: Core\Uri::buildQuery($emptied)})->query() ?? "-", "\n";
+echo $last->withQueryParameter("only", null)->query() ?? "-", "\n";
+--EXPECT--
+x agree
+y agree
+a agree
+x agree
+z agree
+a agree
+
+-

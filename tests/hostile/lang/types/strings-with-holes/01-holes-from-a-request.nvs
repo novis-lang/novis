@@ -1,0 +1,67 @@
+<?nvs
+// Attack: a request sends texts with holes that are not valid, holes that reach a private property,
+// and very long texts. Every bad text should fail to convert, and long texts should finish quickly.
+// hostile: timeout-ms 20000
+// covers: lang:types/strings-with-holes
+
+class Customer
+{
+    public string $name = 'ada';
+    private string $password = 's3cret';
+}
+
+class Order
+{
+    public Customer $customer;
+    public int $total = 10;
+
+    public function constructor()
+    {
+        $this->customer = new Customer();
+    }
+}
+
+class Attack
+{
+    public static function convert(string $text): string
+    {
+        ?string<propertyPath<Order>> $checked = $text as ?string<propertyPath<Order>>;
+        return $checked == null ? 'null' : 'valid';
+    }
+}
+
+// 1. Eleven texts from the web address. Each has an empty, unclosed, nested or misspelled hole,
+//    a lone brace, a zero byte, or a hole with a private property.
+array<tainted string> $sent = Core\Request::queryArray('where');
+int $refused = 0;
+foreach ($sent as tainted string $text) {
+    ?tainted string<propertyPath<Order>> $checked = $text as ?string<propertyPath<Order>>;
+    if ($checked == null) {
+        $refused = $refused + 1;
+    } else {
+        echo '1: BAD, converted a text of length ', Core\Str::length($text), "\n";
+    }
+}
+echo '1: refused ', $refused, ' of ', Core\Arr::count($sent), " texts\n";
+
+// 2. A doubled brace around a name is text, so this is valid and has no hole.
+echo '2: ', Attack::convert('{{customer.password}}'), "\n";
+
+// 3. 1000001 `{` with no `}`. The last `{` is not doubled, so the result is `null`.
+echo '3: ', Attack::convert(Core\Str::repeat('{', 1000001)), "\n";
+
+// 4. 200000 valid holes, then one hole with a private name. The result is `null`.
+echo '4: ', Attack::convert(Core\Str::repeat('{total}', 200000) . '{customer.password}'), "\n";
+
+// 5. The same text with `as string<propertyPath<Order>>`, which throws. The error message
+//    shows only the start of the text, so the message stays short. It is caught.
+try {
+    var $bad = (Core\Str::repeat('{total}', 200000) . '{customer.password}') as string<propertyPath<Order>>;
+    echo "5: BAD, converted the long text\n";
+} catch (RuntimeError $e) {
+    uint $size = Core\Str::length($e->message);
+    echo $size < 1000 ? '5: caught, with a short message' : '5: BAD, the message repeats the text', "\n";
+}
+
+// 6. Two valid holes, then 400000 doubled braces. It is valid.
+echo '6: ', Attack::convert('{customer.name} = {total}' . Core\Str::repeat('}}{{', 200000)), "\n";

@@ -1,0 +1,74 @@
+<?nvs
+// Attack: a rounded division is given a zero divisor and scales no `decimal`
+// holds. It is also given quotients that do not fit at the scale asked for.
+// Every attempt should return an answer or throw an error. The runtime should
+// still be standing at the end.
+// hostile: timeout-ms 30000
+
+// 1. Dividing by zero. The error is caught, so the steps after this one still
+// run.
+try {
+    Core\Decimal::divRound(1.00, 0, 2, Core\RoundMode::HalfUp);
+    echo "step 1: the division was made\n";
+} catch (ArithmeticError $byZero) {
+    echo 'step 1 stopped: ', $byZero->message, "\n";
+}
+
+// 2. The largest scale a `decimal` holds, over a quotient with no end. This
+// one has an answer: 28 digits after the point.
+echo 'step 2: ', Core\Decimal::divRound(1, 3, 28, Core\RoundMode::HalfUp), "\n";
+
+// 3. One digit past that bound. The scale is refused instead of being cut
+// down to 28.
+try {
+    Core\Decimal::divRound(1, 3, 29, Core\RoundMode::HalfUp);
+    echo "step 3: the division was made\n";
+} catch (ArithmeticError $tooManyDigits) {
+    echo 'step 3 stopped: ', $tooManyDigits->message, "\n";
+}
+
+// 4. The largest scale a whole number can be written as. The same refusal,
+// from the other end of the range.
+try {
+    Core\Decimal::divRound(1, 3, 18446744073709551615, Core\RoundMode::HalfUp);
+    echo "step 4: the division was made\n";
+} catch (ArithmeticError $far) {
+    echo 'step 4 stopped: ', $far->message, "\n";
+}
+
+// 5. The largest value a `decimal` holds, asked for at 28 digits after the
+// point. There is no room for both halves in one number.
+decimal $wide = 79228162514264337593543950335;
+try {
+    Core\Decimal::divRound($wide, 1, 28, Core\RoundMode::HalfUp);
+    echo "step 5: the division was made\n";
+} catch (ArithmeticError $doesNotFit) {
+    echo 'step 5 stopped: ', $doesNotFit->message, "\n";
+}
+
+// 6. The same value divided by the smallest one a `decimal` can write. The
+// quotient is far larger than the type holds.
+decimal $tiny = 0.0000000000000000000000000001;
+try {
+    Core\Decimal::divRound($wide, $tiny, 0, Core\RoundMode::Up);
+    echo "step 6: the division was made\n";
+} catch (ArithmeticError $overflowed) {
+    echo 'step 6 stopped: ', $overflowed->message, "\n";
+}
+
+// 7. A rounding that carries through every digit. 0.999999 rounded up at five
+// digits is 1.00000, so the carry runs the whole length of the number.
+echo 'step 7: ', Core\Decimal::divRound(0.999999, 1, 5, Core\RoundMode::Up), "\n";
+
+// 8. One million divisions in a row, each one rounding the answer the round
+// before it gave.
+decimal $carried = 1.00;
+decimal $added = 100.00;
+uint $round = 0;
+while ($round < 1000000) {
+    $carried = Core\Decimal::divRound($carried + $added, 3, 2, Core\RoundMode::HalfEven);
+    $round = $round + 1;
+}
+echo 'step 8: ', $round, ' divisions made, last answer ', $carried, "\n";
+
+echo "the runtime is still standing\n";

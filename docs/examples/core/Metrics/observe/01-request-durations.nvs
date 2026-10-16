@@ -1,0 +1,10 @@
+<?nvs
+// Shows how to record how long each request took.
+
+array<float> $durations = [0.042, 0.310, 0.008];
+
+foreach ($durations as float $seconds) {
+    // Each call records one duration in the histogram `checkout_duration_seconds`.
+    Core\Metrics::observe("checkout_duration_seconds", $seconds);
+    echo "checkout took ", $seconds, " s\n";
+}

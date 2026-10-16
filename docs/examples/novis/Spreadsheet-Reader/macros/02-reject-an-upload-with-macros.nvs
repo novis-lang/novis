@@ -1,0 +1,22 @@
+<?nvs
+// Shows how to check an upload for macros before you import it.
+use Novis\Spreadsheet\Reader;
+use Novis\Spreadsheet\Workbook;
+
+class Import
+{
+    // This method returns a message for the person who uploaded the file.
+    public static function check(tainted bytes $upload): string
+    {
+        Reader $reader = Reader::open($upload);
+        uint $count = Core\Arr::count($reader->macros());
+        if ($count > 0) {
+            return "The file has {$count} macro modules. Save it as xlsx and upload it again.";
+        }
+        return 'The file has no macros. The import can start.';
+    }
+}
+
+// This makes the upload. In a real program the bytes come from the request.
+bytes $upload = Workbook::fromRows([['item' => 'Widget']])->bytes();
+echo Import::check($upload), "\n";

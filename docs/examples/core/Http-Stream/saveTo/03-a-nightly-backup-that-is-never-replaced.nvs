@@ -1,0 +1,28 @@
+<?nvs
+// Shows a nightly job that downloads a backup. It checks the status first, and it never replaces a backup it saved before.
+
+Core\Test::answerHttp("https://backup.example.com/export/2024-05-01", 200, {body: Core\Str::repeat("row\n", 300)});
+
+class Backup {
+    public static function save(string $url, string $path): void {
+        Core\Http\Stream $download = Core\Http\Client::stream(Core\Http\Method::Get, $url);
+        if ($download->status() != 200) {
+            echo "the server sent status ", $download->status(), "\n";
+            return;
+        }
+        try {
+            // At most 50 MB. A backup larger than that is an error.
+            $download->saveTo($path, 50000000);
+            echo "saved ", Core\IO::size($path), " bytes\n";
+        } catch (IOError $error) {
+            // `saveTo` throws an `IOError` when a file already exists at `$path`.
+            echo "a backup for this day already exists\n";
+        }
+    }
+}
+
+string $path = Core\Path::join(Core\IO::temporaryDir(), "backup-2024-05-01.txt");
+
+// The job runs twice. This prints "saved 1200 bytes" and then "a backup for this day already exists".
+Backup::save("https://backup.example.com/export/2024-05-01", $path);
+Backup::save("https://backup.example.com/export/2024-05-01", $path);

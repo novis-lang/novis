@@ -1,0 +1,9 @@
+<?nvs
+// The attack in the folder above starts this script. It starts a third script
+// that fails, and then fails itself with the message that came back.
+
+var $handle = spawn script 'fails-at-once.nvs' with(output: 'capture');
+var $result = await $handle;
+
+string $message = 'the script I started failed: ' . ($result->error?->message ?? 'no message');
+throw new RuntimeError($message);

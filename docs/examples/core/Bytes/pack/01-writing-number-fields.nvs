@@ -1,0 +1,24 @@
+<?nvs
+// Shows how to write whole numbers into a buffer of bytes. The format string
+// says how wide each field is, and which end of the number comes first.
+
+// `N` writes a number in four bytes, largest byte first. This prints
+// "0000045a".
+echo Core\Encoding::toHex(Core\Bytes::pack("N", 1114)), "\n";
+
+// `V` writes the same number in four bytes, smallest byte first. This prints
+// "5a040000".
+echo Core\Encoding::toHex(Core\Bytes::pack("V", 1114)), "\n";
+
+// One format writes several fields in a row. `n` is two bytes and `C` is one,
+// so this buffer is seven bytes long. This prints 7.
+bytes $header = Core\Bytes::pack("NnC", 1114, 8080, 4);
+echo Core\Bytes::length($header), "\n";
+
+// A number that does not fit its field throws an error. `C` is one byte, so it
+// holds 255 and nothing above it.
+try {
+    echo Core\Encoding::toHex(Core\Bytes::pack("C", 256)), "\n";
+} catch (Throwable $e) {
+    echo "256 does not fit in one byte\n";
+}

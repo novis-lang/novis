@@ -1,0 +1,16 @@
+<?nvs
+// Shows a signed link with no end date, and that signing the same address twice gives the same link.
+
+secret bytes $key = Core\Crypto::generateKey();
+array<secret bytes> $keys = [$key];
+
+// `until: null` means the link never expires. You must write it, because it cannot be left out.
+Core\Uri $first = Core\Uri::parse("https://example.com/terms?version=3")->sign({keys: $keys, until: null});
+Core\Uri $second = Core\Uri::parse("https://example.com/terms?version=3")->sign({keys: $keys, until: null});
+
+// The same address, key and end date give the same link. This prints true.
+echo $first->toString() == $second->toString() ? "true" : "false", "\n";
+
+// Signing a signed link again replaces its `_sig` parameter. This prints true.
+Core\Uri $again = $first->sign({keys: $keys, until: null});
+echo $again->toString() == $first->toString() ? "true" : "false", "\n";

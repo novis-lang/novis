@@ -1,0 +1,14 @@
+<?nvs
+// Shows where each part of a program begins. `column` counts from 1, and it is
+// the first character of that part, so an indented line starts further along.
+
+string $source = <<<'NVS'
+<?nvs
+if (1) {
+    echo 2;
+}
+NVS;
+
+foreach (Core\Ast::parse($source)->nodes() as Core\Ast\Node $node) {
+    echo $node->kind(), " on line ", $node->line(), ", column ", $node->column(), "\n";
+}

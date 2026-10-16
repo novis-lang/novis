@@ -1,0 +1,12 @@
+<?nvs
+// Shows that a header with no usable language returns the default.
+use Novis\Intl\Locale;
+
+array<string> $offered = ["en", "de"];
+array<string> $headers = ["", "not a tag", "ja"];
+
+// The first header is empty, the second is not valid, and the third matches nothing.
+// None of them throws. This prints de three times.
+foreach ($headers as string $header) {
+    echo Locale::negotiate($header, $offered, "de"), "\n";
+}

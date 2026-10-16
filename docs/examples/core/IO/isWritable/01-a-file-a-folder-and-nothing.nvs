@@ -1,0 +1,15 @@
+<?nvs
+// Shows what `Core\IO::isWritable` returns for a file, a folder and a path with nothing at it.
+
+string $dir = Core\IO::temporaryDir();
+string $file = Core\Path::join($dir, "notes.txt");
+Core\IO::write($file, "hello");
+
+// The program may change this file. This prints "true".
+echo Core\IO::isWritable($file) ? "true" : "false", "\n";
+
+// The program may create files in this folder. This prints "true".
+echo Core\IO::isWritable($dir) ? "true" : "false", "\n";
+
+// Nothing has this name. `isWritable` does not throw an error. This prints "false".
+echo Core\IO::isWritable(Core\Path::join($dir, "missing.txt")) ? "true" : "false", "\n";

@@ -1,0 +1,47 @@
+<?nvs
+// Attack: `sub` is given numbers about a million bits wide, thousands of times
+// over. It is then asked for a difference wider than any single shift may
+// build. A number that is never freed would use up the memory of the machine.
+// The program should run to its last line.
+
+// 1. Two numbers of about a million bits are subtracted 200 times. Only the
+//    last difference is kept, so memory must not grow. This prints -1.
+var $left = Core\BigInt::of(1)->shl(1000000);
+var $right = Core\BigInt::of(3)->shl(999999);
+var $difference = $left;
+int $round = 0;
+while ($round < 200) {
+    $difference = $left->sub($right);
+    $round = $round + 1;
+}
+echo $difference->sign(), "\n";
+
+// 2. Two numbers of about a million bits that are 1 apart. Each round builds a
+//    wide number and keeps a result of one bit, 2000 times over. This prints 1.
+var $less = $left->sub(Core\BigInt::of(1));
+var $tiny = $left;
+int $close = 0;
+while ($close < 2000) {
+    $tiny = $left->sub($less);
+    $close = $close + 1;
+}
+echo $tiny->sign(), "\n";
+
+// 3. A number at the widest size a single shift may produce, less its own
+//    negative. `sub` may build a number wider than `shl` may. This prints 1.
+var $widest = Core\BigInt::of(1)->shl(1048575);
+echo $widest->sub($widest->neg())->sign(), "\n";
+
+// 4. A number less itself is exactly zero, however wide it is. This prints 0.
+echo $widest->sub($widest)->sign(), "\n";
+
+// 5. Every round takes a wide number away from zero twice, which gives that
+//    number back. Each round keeps neither result, and this prints 0.
+var $zero = Core\BigInt::of(0);
+var $back = $left;
+int $flip = 0;
+while ($flip < 200) {
+    $back = $zero->sub($zero->sub($left));
+    $flip = $flip + 1;
+}
+echo $back->compareTo($left), "\n";

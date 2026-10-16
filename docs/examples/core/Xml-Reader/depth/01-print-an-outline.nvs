@@ -1,0 +1,12 @@
+<?nvs
+// Shows how to print the elements of a document as an outline, indented by their depth.
+
+Core\Xml\Reader $reader = Core\Xml::reader('<menu><file><open/><save/></file><help><about/></help></menu>');
+
+// `depth` is 0 for the root element and one more for each level inside it.
+// This prints menu, then file, open, save, help and about, each indented by two spaces per level.
+?Core\Xml\Node $node = $reader->read();
+while ($node != null) {
+    echo Core\Str::repeat("  ", $reader->depth()), $node->name(), "\n";
+    $node = $reader->read();
+}

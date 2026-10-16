@@ -1,0 +1,15 @@
+<?nvs
+// Shows what `Core\Time::at` does with a date or a time that does not exist.
+
+var $berlin = Core\Time\Zone::of("Europe/Berlin");
+
+// February 2023 has 28 days, so day 29 throws a `RuntimeError`.
+try {
+    Core\Time::at(2023, 2, 29, $berlin);
+} catch (RuntimeError $error) {
+    echo "Not a date: ", $error->message, "\n";
+}
+
+// On 31 March 2024, clocks in Berlin jump from 02:00 to 03:00.
+// 02:30 is skipped, so the result is 03:30. This prints 03:30 +02:00.
+echo Core\Time::at(2024, 3, 31, $berlin, {hour: 2, minute: 30})->format("HH:mm XXX"), "\n";

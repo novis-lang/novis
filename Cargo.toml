@@ -1,0 +1,1179 @@
+[workspace]
+resolver = "3"
+members = ["crates/*", "benches/*"]
+# `benches/userland/` holds the Novis and PHP sources of the userland benchmark
+# pair — `.nvs`/`.php` files a harness runs, not a Rust crate — so the
+# `benches/*` glob above would otherwise look for a `Cargo.toml` that will
+# never exist and fail the whole workspace before a single crate is read.
+# `benches/members/` is the same shape for the per-feature figures its own
+# README describes, `benches/scaling/` for the ladders `bun nv scaling` runs,
+# and `benches/serve/` for the twin pair `bun nv bench
+# --serve-vs-fpm` runs under two servers and the `echo.nvs` case
+# `bun nv bench-load` verifies against. `benches/serve-probe/` next to it is a
+# crate and is not excluded: it is that leg's generator. `benches/proxied/` is compose files,
+# an nginx and a PHP configuration and a Dockerfile, for the same reason.
+# `benches/compare/` is the same shape for `bun nv bench-compare`, with a case
+# program per peer beside them.
+# `benches/results/` is JSON: the loop's acceptance sweep writes a `--record` row
+# there, which `.gitignore` covers, and the image component's guest-against-native
+# figures are committed there, so it is a directory of data and never a crate.
+# The failure is the whole workspace
+# rather than that one directory: `cargo` reads the glob before it reads a
+# crate, so a `.nvs` tree under `benches/` that is not listed here breaks every
+# build in the repository.
+# `vendor/` holds third-party crates built from a patched copy (the
+# `[patch.crates-io]` table at the end of this file). A path dependency inside
+# the workspace directory would otherwise become a member, and this repository's
+# lints, formatter and tests would run over somebody else's code.
+# `extensions/` holds the crates of the components built into every binary. They
+# are compiled for `wasm32-wasip2` by a build script, never for the host as
+# members (`rule:packaging/the-first-party-components-are-built-in`).
+exclude = ["benches/userland", "benches/members", "benches/serve", "benches/proxied",
+           "benches/compare", "benches/results", "benches/scaling", "vendor", "extensions"]
+
+# ---------------------------------------------------------------------------
+# Shared package metadata. Every crate inherits these with `x.workspace = true`.
+# ---------------------------------------------------------------------------
+[workspace.package]
+version = "0.0.1"
+edition = "2024"
+rust-version = "1.99"
+license = "MIT"
+authors = ["The Novis authors"]
+repository = "https://github.com/novis-lang/novis"
+homepage = "https://novis-lang.org"
+description = "Novis — a programming language for the web. Secure by design: untrusted data is tracked, secrets can't leak, downloaded code does only what you allow. Fast, for web servers and the command line"
+keywords = ["language", "jit", "web", "php", "compiler"]
+categories = ["compilers", "development-tools"]
+
+# ---------------------------------------------------------------------------
+# Single source of truth for dependency versions.
+# ---------------------------------------------------------------------------
+[workspace.dependencies]
+# --- internal ---
+nvs-diagnostics = { path = "crates/nvs-diagnostics", version = "0.0.1" }
+nvs-syntax = { path = "crates/nvs-syntax", version = "0.0.1" }
+nvs-hir = { path = "crates/nvs-hir", version = "0.0.1" }
+nvs-types = { path = "crates/nvs-types", version = "0.0.1" }
+nvs-ir = { path = "crates/nvs-ir", version = "0.0.1" }
+nvs-codegen = { path = "crates/nvs-codegen", version = "0.0.1" }
+nvs-render = { path = "crates/nvs-render", version = "0.0.1" }
+nvs-runtime = { path = "crates/nvs-runtime", version = "0.0.1" }
+nvs-host = { path = "crates/nvs-host", version = "0.0.1" }
+# The one internal entry that turns a member's defaults off. `nvs-server`'s
+# `exporter` is the workspace's only feature, and turning it off here is what makes
+# the dependent's own feature the single switch for it: `nvs-cli` is the only
+# dependent, its `exporter` — on by default — forwards to this one, and
+# `cargo tree -p nvs-cli --no-default-features -f "{p} feats={f}"` is what shows
+# the crate then reached with no features at all.
+nvs-server = { path = "crates/nvs-server", version = "0.0.1", default-features = false }
+nvs-config = { path = "crates/nvs-config", version = "0.0.1" }
+# The defaults are the wasmtime host and the packer; a dependent names what it takes.
+nvs-ext = { path = "crates/nvs-ext", version = "0.0.1", default-features = false }
+nvs-db = { path = "crates/nvs-db", version = "0.0.1" }
+nvs-ldap = { path = "crates/nvs-ldap", version = "0.0.1" }
+nvs-stdlib = { path = "crates/nvs-stdlib", version = "0.0.1" }
+nvs-test = { path = "crates/nvs-test", version = "0.0.1" }
+# Dev-only: how a test reaches a file outside its own package, recorded for `bun nv verify`.
+nvs-repo = { path = "crates/nvs-repo", version = "0.0.1" }
+# Dev-only: the image component's codec core built for the host, the native arm `nvs-ext`'s
+# `image_guest` test and bench hold the guest against. It is outside the workspace (`exclude`
+# above) and keeps its own version, which `bun nv release` leaves alone; `cargo deny` needs it named.
+nvs-image = { path = "extensions/image", version = "0.1.0" }
+# Dev-only: reads a QR code the image component drew back to its data, in `nvs-ext`'s
+# `image_analysis` test. Its `image` feature is off: the test hands it grey pixels.
+rqrr = { version = "0.11", default-features = false }
+# Dev-only: reads the 1D codes and the DataMatrix the image component drew back to their data, in
+# `nvs-ext`'s `image_barcode` test. Only its readers for those codes are on: the test hands it grey
+# pixels, so its `image` feature is off.
+rxing = { version = "0.9", default-features = false, features = ["decoders", "oned", "datamatrix", "encoding_rs"] }
+# Dev-only: opens the PDF component's encrypted output with its password, in `nvs-ext`'s
+# `pdf_standards` test, so the encryption is checked by a reader that is not its writer.
+hayro-syntax = { version = "0.8", default-features = false, features = ["std"] }
+# What an `nvs` process resolved and read, written when `NVS_FOOTPRINT_LOG` names a log.
+nvs-footprint = { path = "crates/nvs-footprint", version = "0.0.1" }
+nvs-lsp = { path = "crates/nvs-lsp", version = "0.0.1" }
+nvs-fmt = { path = "crates/nvs-fmt", version = "0.0.1" }
+
+# --- codegen backend (versions validated by the M0 spikes) ---
+cranelift = "0.136"
+cranelift-jit = "0.136"
+cranelift-module = "0.136"
+cranelift-native = "0.136"
+# The second `Module` behind the one lowering walk — the relocatable
+# object payload of
+# `rule:packaging/an-artifact-is-a-relocatable-object-behind-a-self-describing-header`.
+# Same version as its four siblings above, and it must stay so:
+# they share `cranelift-codegen`'s types.
+cranelift-object = "0.136"
+# The reader for what that one writes, and a test dependency only: an object's
+# relocation table is the evidence that an address was left for a loader rather
+# than baked in. Same version `cranelift-object` already resolved to.
+object = { version = "0.40", default-features = false, features = ["read", "std"] }
+
+# --- coroutines (stackful; validated on windows-msvc by the M0 spike) ---
+corosensei = "0.3"
+
+# --- CPU affinity (one scheduler pinned per core) ---
+# `rule:http-server/a-core-is-never-blocked-on-a-syscall` is why each core runs one scheduler.
+# Pinning is three different syscalls — `sched_setaffinity`, `thread_policy_set`,
+# `SetThreadAffinityMask` — and getting the CPU *set* is a fourth per platform.
+# `rule:packaging/a-c-dependency-answers-two-questions`'s first question is "no": nothing attacker-controlled reaches a
+# core id, so what decides this is the pure-Rust default, and `core_affinity` is
+# pure Rust with no C: it declares the bindings itself against `libc` on unix
+# and `winapi` on Windows, both of which are already in this tree's lock file,
+# and adds three crates to it — itself, `num_cpus` and `hermit-abi`, all
+# MIT/Apache-2.0. The alternative was declaring those three externs here, which would put an
+# `unsafe` FFI block per platform in `nvs-host` for code with no Novis-specific
+# content in it. `crates/nvs-host/src/affinity.rs` owns what pinning is allowed
+# to fail at.
+core_affinity = "0.8"
+
+# --- readiness (`rule:concurrency/the-reactor-reports-readiness`, and a stream parks) ---
+# epoll, kqueue and a poll of `\Device\Afd` through IOCP are three mechanisms
+# with one contract, and writing that contract three times is the alternative.
+# `mio` is the readiness layer and *not* an async runtime — no executor, no task
+# type, no `Future`, no `tokio` anywhere in its graph — which is why reaching
+# for it is not the `BLOCKED` the goal reserves for "this needs async";
+# `rule:concurrency/the-reactor-reports-readiness`
+# is the home of that reasoning. `rule:packaging/a-c-dependency-answers-two-questions`'s first question is "no":
+# a registration carries a descriptor and an interest set, so nothing
+# attacker-controlled reaches it. Pure Rust with no build script and no C — it
+# declares its own bindings against `libc` and `windows-sys`, both already in
+# this tree's lock file. What it costs is a new crate in the path every
+# request takes, whose Windows back end is the least-travelled of its three.
+# `crates/nvs-host/src/reactor.rs` owns the parking contract above it.
+mio = { version = "1", features = ["os-poll", "net"] }
+
+# --- HTTP/1 framing (`rule:http-server/two-deployments-and-nothing-a-proxy-owns`) ---
+# The one dependency in this file that `rule:packaging/a-c-dependency-answers-two-questions`'s first question answers
+# **yes** to: every octet `hyper` parses arrived from the network, and framing is
+# where request smuggling lives. That is the reason to take it rather than a
+# reason to refuse it — § 4's escalation is about *C*, and the confinement clause
+# has nothing to bite on here: `hyper` is pure Rust with no C, no build script
+# and no `unsafe` outside its own audited buffer handling, so the memory-safety
+# half of the question does not arise and what is left is the semantic half. On
+# that, its record is the exceptional one § 4 asks for — continuously fuzzed, and
+# the most-exercised h1 implementation in the language, against a hand-rolled
+# parser of ours that would be exercised by this repository alone.
+# `docs/plan/design.md`'s refusal to own FCGI framing is the same argument,
+# applied here to HTTP/1 framing.
+#
+# **`default-features = false` is load-bearing, not tidiness.** With `http1`,
+# `server` and `client` the graph is `http`, `http-body`, `bytes`,
+# `futures-core`, `futures-channel`, `pin-project-lite`, `httparse`, `httpdate`,
+# `itoa`, `smallvec`, `atomic-waker`, `want` and `try-lock` — all pure Rust and
+# all MIT. No `http2`: `rule:http-server/two-deployments-and-nothing-a-proxy-owns` drops h2c, and that feature is the one
+# `h2` comes from. `client` is on for the one client in this tree that is not an
+# application's: `nvs-server`'s OTLP exporter posts to a collector, and an
+# exchange framed by a parser of ours would be a parser of ours to get right. What a
+# program makes outbound requests with is `Core\Http\Client`, which is `ureq`'s
+# and stays there.
+#
+# **`tokio` is in the lock file, and it is not a runtime.** `hyper` 1.11 depends
+# on `tokio` unconditionally with `features = ["sync"]` — one `oneshot` in
+# `src/upgrade.rs`, on the h1 server path — and tokio's own default feature set
+# is empty, so what is compiled is its synchronisation primitives and *nothing*
+# else: no `rt`, no `net`, no `time`, no executor, no reactor, no `spawn`. That
+# is the distinction `rule:concurrency/one-scheduler` draws, and it survives: this binary still
+# has exactly one scheduler, `nvs-host`'s, and the connection future is driven
+# by `nvs_host::block_on` on the coroutine that owns the connection
+# (`rule:concurrency/one-future-per-connection`)
+# over `crates/nvs-server/src/io.rs`'s adapters. h1 needs no `Executor` and
+# `serve_connection` spawns nothing.
+#
+# The alternative — pinning `hyper` to the last release before that dependency
+# became unconditional — buys the *name* out of the lock file and pays for it in
+# unpatched HTTP framing, which AGENTS.md's ordering refuses: priority 1 is not
+# traded for anything, least of all for a string. What guards the real rule is a
+# test over the lock file's *feature set*:
+# `crates/nvs-runtime/tests/manifest_policy.rs`'s
+# `tokio_appears_in_neither_the_manifest_nor_the_lockfile`, whose name reads
+# wider than what it asserts.
+hyper = { version = "1", default-features = false, features = [
+    "http1",
+    "server",
+    "client",
+] }
+
+# --- RFC 6455, over the connection h1 handed back (`rule:concurrency/a-connection-is-a-root-isolate`) ---
+# The framing crate, and `rule:packaging/a-c-dependency-answers-two-questions`'s first question answers "yes" for exactly
+# the reason it does above: masking, fragmentation, control frames, UTF-8
+# validation and the close handshake are a wire protocol whose bugs are security
+# bugs, and owning one is refused here as it is for h1.
+#
+# **Synchronous, over `nvs_host::NvsTcp` with no adapter.**
+# `tungstenite::WebSocket::from_raw_socket` wants a `Read + Write` and the
+# parking stream is one, so a read that would block hands the core back and the
+# codec never learns that it suspended. That is why this crate and not
+# `tokio-tungstenite`, which wants the executor `rule:concurrency/one-scheduler`
+# says this binary does not have.
+#
+# Default features, which is TLS-free: `handshake` is what
+# `derive_accept_key` lives behind, and everything the set pulls — `http`,
+# `httparse`, `data-encoding`, `sha1`, `rand` — is already in this lock file for
+# `hyper`, `Core\Hash` and `Core\Random`. No `native-tls` and no `rustls`,
+# because a `wss://` listener is a TLS listener and `rule:http-server/two-deployments-and-nothing-a-proxy-owns` has none, and a
+# `wss://` client is `Core\Http\Socket`, whose transport hands `tungstenite` a
+# stream `nvs_host::tls` already decrypted.
+tungstenite = "0.30"
+
+# --- the configuration's trust boundary (`rule:config/ownership-is-the-trust-boundary`) ---
+# The rule is "no account but this one, root or an administrator may write it", and
+# neither half of it is in `std`: the effective uid is a `libc` call, and Windows
+# has no mode bits at all, so the same question there is the owner SID plus the
+# DACL. `rule:packaging/a-c-dependency-answers-two-questions`'s first question is "no" — what reaches these calls is a
+# path an operator wrote in `nvs.toml`, never a value a request chose, and the
+# answer is a refusal to start rather than anything a script observes. Both are
+# pure Rust with no C and no build script, and both are already in this tree's
+# lock file. `crates/nvs-config/src/trust.rs` owns which ACEs Windows accepts.
+#
+# The terminal profile (`rule:tooling/the-terminal-profile-resolves-once`) draws on the same two, and the same two
+# answers apply: `crates/nvs-runtime/src/terminal.rs` asks the operating system
+# how wide the controlling terminal is, which is an `ioctl` on Unix and two
+# console calls on Windows with no `std` spelling of either. Nothing a request
+# chose reaches them — the arguments are a standard file descriptor and a stack
+# out-parameter — and the answer is a column count.
+libc = "0.2"
+windows-sys = { version = "0.61", features = [
+    "Win32_Foundation",
+    "Win32_Security",
+    "Win32_Security_Authorization",
+    "Win32_Storage_FileSystem",
+    "Win32_System_Console",
+    # `GlobalMemoryStatusEx`: `rule:http-server/admission-is-arithmetic-not-a-number` divides
+    # the memory budget by the
+    # per-request cap, and on Windows this is the one call that answers what the budget is.
+    "Win32_System_SystemInformation",
+    # `ACCESS_ALLOWED_ACE_TYPE` and `ACCESS_DENIED_ACE_TYPE`: `rule:config/ownership-is-the-trust-boundary`'s trust check walks a
+    # DACL itself rather than paying `GetEffectiveRightsFromAclW` per principal, and these two name
+    # the entries it accounts for. `crates/nvs-config/src/trust.rs` is the one caller.
+    "Win32_System_SystemServices",
+    "Win32_System_Threading",
+    # `CreateJobObjectW`, `SetInformationJobObject` and `AssignProcessToJobObject`: every
+    # `Core\Process` child runs in one job per `nvs` process, which ends the children still in it
+    # when `nvs` ends. `crates/nvs-runtime/src/child_start.rs` is the one caller.
+    "Win32_System_JobObjects",
+    # `K32GetProcessMemoryInfo`: `Core\Os::residentBytes` is `ru_maxrss` (`rule:observability/memory-is-three-numbers-on-core-budget`), and the
+    # peak working set is what Windows keeps in its place. `crates/nvs-runtime/src/os.rs` is the one
+    # caller, and it takes the `kernel32` entry point so that no import library is added with it.
+    "Win32_System_ProcessStatus",
+    # `CreatePipe`: the anonymous pipe `crates/nvs-cli/src/dispatch.rs` creates is the one caller.
+    "Win32_System_Pipes",
+    # `IO_STATUS_BLOCK`: the out-parameter `NtCreateFile` fills in.
+    # `crates/nvs-runtime/src/beneath.rs` is the one caller.
+    "Win32_System_IO",
+    # `CreateServiceW`, `ChangeServiceConfig2W`, `ControlService` and `QueryServiceStatusEx`:
+    # a Windows service's registration is the SCM's own state and has no file to write
+    # (`rule:packaging/the-argv-lives-in-imagepath`), so installing a service *is* these calls. The
+    # `PRESHUTDOWN`, delayed auto-start, description and failure actions of
+    # `rule:packaging/a-service-answers-its-manager` are configuration levels on the handle
+    # `CreateServiceW` returns.
+    # `crates/nvs-cli/src/service.rs` is the one caller.
+    "Win32_System_Services",
+    # `RegCreateKeyExW` and `RegDeleteTreeW`: the event-log source of
+    # `rule:packaging/a-service-answers-its-manager` is a subkey under
+    # `SYSTEM\CurrentControlSet\Services\EventLog\Application` and nothing else, so registering one
+    # at install and removing it at uninstall are a key write and a key delete.
+    # `crates/nvs-cli/src/service.rs` is the one caller.
+    "Win32_System_Registry",
+    # `NtCreateFile` with a root handle: `rule:security/writes-open-beneath-a-handle`'s walk opens
+    # each level of a write's path from the handle above it, and `CreateFileW` has no parameter for
+    # the folder a name is relative to. `crates/nvs-runtime/src/beneath.rs` is the one caller.
+    "Wdk_Foundation",
+    "Wdk_Storage_FileSystem",
+    # `EVENTLOG_ERROR_TYPE` and its siblings: the `TypesSupported` value that subkey carries names
+    # the record types the event viewer will render, so a source registered without them shows an
+    # administrator nothing. `crates/nvs-cli/src/service.rs` is the one caller.
+    "Win32_System_EventLog",
+] }
+
+# --- TLS over the parking stream (`rule:core-api/tier-roster`'s "TLS via `rustls`") ---
+# `nvs-host`'s stream is a plain `Read`/`Write`, so a TLS client over it is a
+# wrapper and not a transport: `crates/nvs-host/src/tls.rs` is that wrapper and
+# owns everything below in argued form. `Core\Http\Client`'s `https` and
+# `Core\Mail`'s `STARTTLS` are both it.
+# `rule:packaging/a-c-dependency-answers-two-questions`'s first question is **yes** — a record layer is exactly where
+# attacker-controlled bytes land — so this is accepted under its second, on the
+# same footing as that section's SQLite. `rustls` and `rustls-webpki`, which are
+# where TLS's historical failures actually live (state machine, framing, path
+# building, name verification), are pure Rust. The primitives are not: the
+# default `aws-lc-rs` provider is a C library built by `cmake` and is off, and
+# `ring` — BoringSSL's pregenerated assembly behind a Rust API — is the provider
+# instead. BoringSSL is continuously fuzzed under OSS-Fuzz and carries formally
+# verified field arithmetic, which is the "demonstrable, exceptional
+# verification record" that question asks for; its standing fallback of
+# confining the code to wasm is not available, because a TLS client owns the
+# socket it reads.
+# `webpki-roots` is the trust anchor set, compiled in rather than read from the
+# host: the same binary then trusts the same certificates everywhere, and a
+# distroless image that ships no `ca-certificates` still verifies. `tls.rs`'s
+# module doc is the home of that decision and of what an operator adds to it.
+# `rcgen` issues certificates on the same provider, so the two share one crypto
+# implementation: the handshake tests' peers, and the chain
+# `Core\Test::tlsSession` describes, which puts it in the shipped
+# binary. It is reached from that one member and never from a request.
+rustls = { version = "0.23.46", default-features = false, features = [
+    "std",
+    "ring",
+    "tls12",
+] }
+webpki-roots = "1"
+# `x509-parser` is the one thing `rustls` does not hand back.
+# `rule:security/tls-trust-is-relaxed-only-under-a-host-grant`'s
+# `tlsPin` is the SHA-256 of a peer's SubjectPublicKeyInfo, and a custom
+# verifier is given the certificate as raw DER, so something has to find that
+# field: the alternative is a hand-written DER walk over attacker-controlled
+# bytes on the one path whose answer decides whether a peer is believed. Pure
+# Rust with no build script and no C — its `ring` feature is the only one that
+# would add any, and it is off — so `rule:packaging/a-c-dependency-answers-two-questions`'s second question never opens.
+# It adds no crate this lock file did not already hold.
+# `crates/nvs-host/src/tls.rs` is the one caller.
+x509-parser = { version = "0.18", default-features = false }
+rcgen = { version = "0.14", default-features = false, features = [
+    "crypto",
+    "ring",
+    # `Certificate::pem`, for the one test that writes a bundle to a file rather than handing a
+    # `CertificateDer` straight to a root store: `nvs_host::tls::anchors_from` reads PEM off disk
+    # because that is what an operator writes, and a test that skipped the encoding would be
+    # asserting against a path nothing runs.
+    "pem",
+] }
+
+# --- extension sandbox (M9). Built on the same cranelift version above, so the
+# --- two move together: wasmtime N pins cranelift 0.(N+87) exactly.
+# --- See rule:packaging/an-extension-is-a-sandboxed-wasm-component.
+# HOLD (revisit 2026-11-16): wasmtime 50 is only 50.0.0-rc.1, and 49.0.3 is the latest final release.
+wasmtime = "49"
+# The parser of the `nvs:ext@1.0.0` world's WIT text under `wit/`, at the
+# version wasmtime itself parses component types with, so it adds no crate
+# the lock file did not already hold. Only `std`: the test reads text, and
+# `decoding` would pull `wasmparser` and `serde` for binary components it never
+# reads. Its one caller is `crates/nvs-stdlib/tests/ext_world.rs`.
+# HOLD (revisit 2026-11-16): 0.262 is out, and wasmtime 49 parses with 0.258. It moves with wasmtime.
+wit-parser = { version = "0.258", default-features = false, features = ["std"] }
+# The reader of a `.nvsx`'s custom sections, at the version wasmtime parses
+# with, so it adds no crate the lock file did not already hold. `std` and
+# `component-model` are what walking a component's sections needs; `validate`
+# is left off because validating is the engine's job at load.
+# `crates/nvs-ext/src/section.rs` is the one caller.
+# HOLD (revisit 2026-11-16): 0.262 is out, and wasmtime 49 parses with 0.258. It moves with wasmtime.
+wasmparser = { version = "0.258", default-features = false, features = ["std", "component-model"] }
+# Component text compiled at test time, so a test guest needs no wasm
+# toolchain. Already in the lock file under wasmtime's own `wat` feature.
+wat = "1"
+# Turns an extension author's core module into a component against the
+# `nvs:ext` world, at the version wasmtime's own bindgen already pulls, so
+# it adds no crate the lock file did not hold. The defaults are off: the
+# `dummy-module`, `wat` and `semver-check` features serve tools, not the packer.
+# `crates/nvs-ext/src/pack.rs` is the one caller.
+# HOLD (revisit 2026-11-16): 0.262 is out, and wasmtime 49's bindgen pulls 0.258. It moves with wasmtime.
+# wasmtime 49's `sha2` 0.10 also keeps `generic-array` at 0.14.7, which `crypto-common` 0.1.7 pins with `=`.
+wit-component = { version = "0.258", default-features = false }
+# `wasi:io`'s host half — the `pollable`, `input-stream` and `output-stream`
+# resources every other WASI interface is written in — at wasmtime's own
+# version. Not `wasmtime-wasi`: that crate's host runs on `tokio`'s `rt`, which
+# `rule:concurrency/one-scheduler` refuses, and this one is `no_std` with no
+# executor. It adds `tracing`, with no subscriber and no `log` bridge.
+# `crates/nvs-ext/src/wasi.rs` is the one caller.
+wasmtime-wasi-io = "49"
+
+# --- the language server's wire and its vocabulary ---
+# `rule:ide/the-server-is-synchronous` is "a reader thread, a writer thread, one
+# analysis thread, and no async runtime", and this crate is exactly that shape:
+# `Connection::stdio()` spawns the two io threads and hands back a pair of
+# `crossbeam-channel` endpoints, so the server is a `for msg in receiver` loop
+# on the thread that called it. No executor, no task type, no `Future` — the
+# distinction `rule:concurrency/one-scheduler` draws is not even reachable here. It is rust-analyzer's
+# own framing layer, extracted by its authors for this use, and the alternative
+# is owning `Content-Length` framing plus the
+# `initialize`/`initialized`/`shutdown`/`exit` state machine, which is a wire
+# protocol whose bugs are silent hangs.
+# `rule:packaging/a-c-dependency-answers-two-questions`'s first question is "no": the bytes arrive from the editor that
+# launched this process over its own stdin, not from the network, and an editor
+# that frames badly is a broken editor rather than an attacker. Pure Rust, no
+# build script, no C, MIT OR Apache-2.0. It adds one crate to the lock file —
+# `crossbeam-channel`, whose `crossbeam-utils` is already there.
+# `crates/nvs-lsp/src/server.rs` owns the loop above it.
+lsp-server = "0.10"
+# The protocol's own structures, which is a translation of the specification and
+# not a design of ours: `ServerCapabilities` alone is ~90 fields, every one of
+# them a serde shape the client compares against by name. Writing them here
+# would be re-deriving LSP 3.17 from prose, and a field spelled wrong is a
+# capability the editor silently never uses — the failure mode `rule:ide/the-request-set-is-closed`'s
+# closed list exists to make visible.
+# Two of its dependencies are a second version of one this tree already has, and
+# both are named here rather than discovered: `bitflags` 1 (the tree's own is 2,
+# and 1.3.2 is already in the lock file for another crate) and `fluent-uri` 0.1
+# (`Core\Uri` is on 0.4). `deny.toml`'s `multiple-versions` is `warn`, and
+# neither duplicate reaches Novis's own code — a `Uri` in a request is parsed by
+# `lsp-types` and handed on as a path. Pure Rust, no build script, no C, MIT.
+lsp-types = "0.97"
+
+# --- core utilities ---
+anyhow = "1"
+thiserror = "2"
+bitflags = "2"
+rustc-hash = "2"
+# Two consumers, one crate: the on-disk artifact cache keys on it, and
+# spec § 11's `Core\Hash::Digest::Blake3` computes it — the second is what finally put
+# it in `Cargo.lock`. `pure` and no default features on purpose: blake3 ships
+# hand-written assembly built through `cc` by default, and
+# `rule:packaging/a-c-dependency-answers-two-questions` is not spent on a hash that is already
+# faster than SHA-256 in its portable form. `std` is added back because
+# `default-features = false` is what turns the assembly off.
+blake3 = { version = "1", default-features = false, features = ["std", "pure"] }
+
+# --- sorting by key (`Core\Arr::sort`'s natural-order rows) ---
+# A stable sort for keys that map to an ordered integer or a byte string, radix
+# where the key allows it, AVX2/BMI2 chosen at run time.
+# `crates/nvs-stdlib/src/sort.rs` owns why the member has two sorts and which
+# subjects reach this one; docs/perf/brainsort-evaluation.md is the measurement.
+# `rule:packaging/a-c-dependency-answers-two-questions`'s first question is
+# "yes" — every value a program sorts reaches it — and the crate is pure Rust
+# with no dependencies and no C, so the record the rule asks of C is written here
+# by analogy for its `unsafe`: the vector kernels and the record buffers are
+# about two hundred and sixty `unsafe` sites, and the crate's own CI runs clippy
+# with warnings denied, Miri under strict provenance over the library and its
+# suites, AddressSanitizer over the vector build, a 32-bit leg, a `no_std` leg
+# and a libFuzzer job with a persisted corpus. Its `build.rs` declares one `cfg`
+# and reads nothing. The process-wide block cache it keeps by default is turned
+# off at the seam, for the reason that module states.
+brainsort = "0.5"
+
+# --- Arbitrary-magnitude integers (`Core\BigInt`) ---
+# `rule:types/decimal` names this crate's class as what replaces `gmp` and the integer
+# half of `bcmath`; `crates/nvs-stdlib/src/bigint.rs` owns the class built over
+# it. Pure Rust with no build script and no C, so
+# `rule:packaging/a-c-dependency-answers-two-questions` is answered at its first
+# question, and `num-integer` beside it is the `Integer` trait `gcd` and `lcm`
+# are members of — the same authors, the same graph, already in `Cargo.lock`
+# under `der-parser` and `mysql_common`.
+num-bigint = "0.5"
+num-integer = "0.1"
+
+# --- Memory-mapped files (the artifact cache's read path) ---
+# The cache verifies an artifact by hashing it where the page cache already put
+# it, rather than by reading it into a buffer first
+# (`rule:packaging/an-artifact-is-verified-whole-before-a-page-is-executable`).
+# Pure Rust over the platform's own calls
+# (`libc`, `windows-sys`), no C and no build script, so ground-rules.md
+# § *Pure-Rust dependencies by default* has nothing to spend here.
+memmap2 = "0.9"
+
+# --- Instruction-cache maintenance for freshly written code ---
+# The aarch64 half of `nvs_codegen::make_executable`: invalidating the cache
+# lines under bytes that were data a moment ago, and serializing the fetch
+# pipeline on every core that might run them. `cranelift-jit` already runs this
+# same crate inside `finalize_definitions`, so both of the ways Novis publishes
+# code go through one implementation rather than two spellings of a sequence
+# whose failure mode is executing a stale line. It is already in the tree as
+# that crate's own dependency, so naming it here adds no crate and no C.
+# Upstream marks it internal to wasmtime and unsupported elsewhere; the pin is
+# what answers that, and `nvs_codegen::make_executable` is the one call site.
+wasmtime-internal-jit-icache-coherence = "49"
+
+# --- Unicode text segmentation (`rule:types/string-is-utf8`'s grapheme granularity) ---
+# UAX #29 extended grapheme cluster boundaries, which `string`'s default
+# length/indexing unit is defined by. Pure Rust, no build script, no C.
+# `crates/nvs-runtime/src/graphemes.rs` owns why this crate and not another.
+unicode-segmentation = "1"
+
+# --- Unicode case folding (`Core\Str::fold`) ---
+# Full case folding is a table, not an algorithm: `str::to_lowercase` answers
+# the lower-case *mapping*, which is a different function — it leaves `ß`
+# alone where folding turns it into `ss`, so a caseless comparison built on it
+# is wrong for exactly the strings people notice. `caseless` is that table and
+# nothing else, from the same `unicode-rs` org as `unicode-segmentation`
+# above, pure Rust with no build script and no C. ICU4X's `icu_casemap` is the
+# maintained alternative and was rejected on size: a data-baking subtree for
+# one member, where this is one crate over `unicode-normalization`, which
+# `Core\Str::normalize` needs next anyway.
+caseless = "0.2"
+
+# --- Unicode normalization (`Core\Str::normalize`) ---
+# UAX #15's four normal forms are the same shape of problem as folding above:
+# a table plus the canonical-ordering algorithm, not something a member can
+# derive. `unicode-normalization` is the reference implementation from the
+# same `unicode-rs` org as the two crates above, pure Rust with no build
+# script and no C, and it is already in the tree as `caseless`'s own
+# dependency — naming it here is the difference between depending on a crate
+# and depending on another crate's choice of one. ICU4X's `icu_normalizer`
+# was rejected for `icu_casemap`'s reason and would not be cheaper for having
+# been rejected twice.
+unicode-normalization = "0.1"
+
+# --- Unicode display width (`rule:tooling/display-width-measures-what-the-sink-writes`) ---
+# UAX #11's East_Asian_Width table, plus the zero-width classes a column
+# count needs beside it — combining marks, Hangul medial and trailing jamo,
+# default-ignorables — and the emoji ZWJ sequences that are one column pair
+# however many code points they are. Every one of those is data on a Unicode
+# version, not something a member can derive, and the third of the three
+# measures `rule:types/string-is-utf8` leaves open: bytes and grapheme clusters are ours,
+# terminal columns are the renderer's. From the same `unicode-rs` org as the
+# three crates above, pure Rust, no build script, no C, and already in this
+# tree's lock file as `wasm-encoder`'s dependency — naming it here is the
+# difference between depending on a crate and depending on another crate's
+# choice of one. `default-features = false` drops the `cjk` half: the
+# alternate width for East Asian *ambiguous* characters is a property of the
+# locale the terminal is in, and Novis has no ambient locale at all
+# (`rule:core-api/no-ambient-state`, which refuses `setlocale` for saying so).
+unicode-width = { version = "0.2", default-features = false }
+
+# --- regular expressions (`rule:core-classes/regex-two-tiers`, both named by the user) ---
+# `regex` is the linear-time default: a finite-automata engine that cannot be
+# made to backtrack exponentially, which is the whole point of that rule.
+# `fancy-regex` is the budgeted opt-in tier, reached only by a pattern the
+# linear engine cannot express (lookaround, backreferences); it wraps `regex`
+# itself, so the two share one syntax and one Unicode table set rather than
+# disagreeing about what a pattern means. Both pure Rust, no C, no build
+# script. `crates/nvs-stdlib/src/regex.rs` owns why these two and not others.
+# `regex-automata` is the engine inside `regex`, already in the tree at the
+# version `regex` pins; it is named directly only to read the size of the
+# capture table a search allocates, which `regex` does not expose. Its
+# features are a subset of the ones `regex` already turns on, so the engines
+# `regex` picks from do not change.
+regex = "1"
+regex-automata = { version = "0.4", default-features = false, features = ["syntax", "nfa-thompson"] }
+fancy-regex = "0.19"
+
+# --- dates, times and the IANA zone database (spec § 4, named by the user) ---
+# `jiff`'s type set maps almost one-to-one onto that section's
+# `Instant`/`DateTime`/`Duration`/`Zone`, and it is the one Rust date crate
+# that treats a civil time and an absolute one as different types — which is
+# the distinction § 4 is built on. Pure Rust, no C, and it bundles the IANA
+# database on a platform that has none (Windows) rather than shelling out.
+# `crates/nvs-stdlib/src/time.rs` owns why this crate and not another.
+jiff = "0.2"
+
+# --- JSON (spec § 6) ---
+# RFC 8259 is an external specification, so it is a dependency rather than a
+# hand-written parser (docs/ground-rules.md § *Implementation invariants*). `serde_json`
+# is the only Rust JSON crate that is simultaneously the ecosystem default,
+# pure Rust with no build script, and driveable *without* its own `Value` tree
+# — `Core\Json::decode` builds an `NvsArray` straight from a visitor, so no
+# document is ever materialized twice. `serde` itself is the visitor trait it
+# is driven through. `derive` is on for exactly one consumer, `nvs-config`'s
+# block tree: `rule:config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`'s
+# unknown-key refusal *is* `deny_unknown_fields`, an
+# attribute on a struct rather than machinery we write, so the macro replaces
+# code here rather than adding any.
+# `raw_value` is what lets a `decimal` (`rule:types/decimal`) be written as an exact JSON
+# number rather than a lossy `f64`, and `unbounded_depth` is what lets section
+# 6 of docs/spec/01-core-library.md have its own `maxDepth` be the bound
+# rather than the crate's fixed 128.
+# `crates/nvs-stdlib/src/json.rs` owns why this crate and not another, and what
+# keeps an unbounded depth safe.
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["raw_value", "unbounded_depth"] }
+
+# --- configuration (`rule:config/the-file-is-nvs-toml-and-it-is-toml`) ---
+# Pure Rust, and both refusals of
+# `rule:config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one` are its
+# default behaviour: it
+# rejects a duplicate key itself and `deny_unknown_fields` rejects an unknown
+# one, so neither is machinery `nvs-config` writes or can get wrong.
+toml = "1"
+
+# --- randomness (spec § 11: `Core\Random` is a CSPRNG, always) ---
+# That section keeps none of PHP's insecure generators, so there is no tier
+# here that may be fast at the cost of predictable — which makes the choice a
+# generator that is *both*. `rand`'s `ThreadRng` is ChaCha12 seeded from the OS
+# and reseeded every 64 KiB, so a draw is userspace arithmetic rather than a
+# syscall, and its bounded-sampling and shuffling code is the analysed
+# implementation of the one piece of security-relevant arithmetic this class
+# needs. `unbiased` turns the default's documented 1-in-2^64 modulo bias into
+# exactness for the price of a rejection branch taken that often; a CSPRNG
+# member should not carry a stated bias at all. Pure Rust, no C, no build
+# script — `rule:packaging/a-c-dependency-answers-two-questions`'s first question is "no" here, since a member takes a
+# count or a pair of bounds and nothing attacker-shaped reaches it.
+# `crates/nvs-stdlib/src/random.rs` owns why this crate and not `getrandom`
+# alone.
+rand = { version = "0.10", features = ["unbiased"] }
+
+# --- UUIDs (spec § 11's second table) ---
+# RFC 9562's version and variant nibbles are an external specification, and
+# `Uuid::parse` is a member attacker-controlled text reaches, so neither the
+# layout nor the reader is hand-written (docs/ground-rules.md
+# § *Implementation invariants*). `uuid` is the crate the Rust ecosystem
+# already reads for both, it is pure Rust with no build script and no C, and it
+# adds no crate to this tree at all — it is already in Cargo.lock under
+# `debugid`, which `wasmtime` pulls.
+# `v4`/`v7` are deliberately **off**: those features exist to give `uuid` its
+# own `getrandom`-backed generator, and `Core` has one CSPRNG (`rand`, above)
+# and one clock (`jiff`). This crate is reached through `uuid::Builder`, which
+# takes bits and a timestamp from those two and lays out the nibbles.
+# `crates/nvs-stdlib/src/uuid.rs` owns why this crate and not a hand-written
+# layout.
+uuid = { version = "1", default-features = false, features = ["std"] }
+
+# --- digests and MACs (spec § 11's `Core\Hash` and `Core\Hash::Digest`) ---
+# Every one of these is an external specification with published test vectors
+# and a decade of cryptanalysis attached (docs/ground-rules.md
+# § *Implementation invariants*), and `Core\Hash::of` is a member request bodies
+# reach — so `rule:packaging/a-c-dependency-answers-two-questions`'s first question is "yes" here and its second one is
+# what picks the crates. The RustCrypto family is pure Rust with no build
+# script and no C, so § 4's confine-to-wasm branch never opens: it is the
+# ecosystem's audited default, it is verified against each algorithm's own NIST
+# or RFC vectors in its own test suite, and one `digest` trait set drives all
+# four hashes plus the HMAC construction, so `Core\Hash::Digest` dispatches over one
+# shape rather than four hand-fitted APIs.
+# `crc32fast` is not from that family and not a hash at all — it is the
+# checksum spec § 11 keeps for interop, and that crate is the one the Rust
+# ecosystem already reads for it (pure Rust, SIMD chosen at run time).
+# `subtle` is what makes `Core\Hash::equals` constant-time: the comparison is
+# three lines, and the reason it is a dependency rather than three lines here
+# is that an optimiser is free to turn the obvious loop back into an early
+# exit, which is the entire bug `hash_equals` exists to avoid. That crate's
+# whole purpose is the optimisation barrier that stops it.
+# Every RustCrypto row in this file is on the `digest 0.11` trait set, so
+# Novis's own code uses one generation of those traits. `digest 0.10` is still
+# in the lock file, for the `sha2` 0.10 that cranelift and wasmtime use.
+# `crates/nvs-stdlib/src/hash.rs` owns why this set and what `Core\Hash::Digest`
+# carries.
+#
+# `sha3` and `crc32c` are the two additions the roster earned, and each is
+# § 4's two questions answered separately. `sha3` is FIPS 202 — a published
+# specification with NIST's own vectors, from the same RustCrypto family and
+# the same `digest` trait set, so all four Keccak cases reach `digest_of` and
+# `hmac_of`. `crc32c` is the Castagnoli checksum S3
+# and GCS stamp objects with, so it is interop this runtime meets rather than
+# a table hash; it is pure Rust with a run-time SSE4.2 check, exactly the shape
+# `crc32fast` already has.
+sha2 = "0.11"
+sha1 = "0.11"
+sha3 = "0.12"
+md-5 = "0.11"
+hmac = "0.13"
+crc32fast = "1"
+crc32c = "0.6"
+subtle = "2"
+
+# --- password hashing (`Core\Password`, `rule:programs/framework-core-half`) ---
+# Argon2id is a memory-hard KDF: a table of `m` KiB filled in `t` passes, with a
+# published specification (RFC 9106) and known-answer vectors, and it is the one
+# primitive in this tree where writing it ourselves would be indefensible —
+# a subtly wrong Blake2b-long or a mis-indexed reference block still produces
+# stable, verifiable hashes, so the bug is silent and permanent in every stored
+# credential. `rule:packaging/a-c-dependency-answers-two-questions`'s first question is "yes": `verify` and `needsRehash`
+# are handed a stored hash string, and `hash` a password, both of which are
+# attacker-influenced, so the second question picks the crate. `argon2` is
+# RustCrypto's, pure Rust with no build script and no C, and it adds eleven
+# crates to the lock file — itself, `password-hash`, `phc`, `base64ct`,
+# `blake2`, `cmov`, `ctutils`, `hybrid-array` and the `digest 0.11`/
+# `crypto-common 0.2`/`block-buffer 0.12` trait set, all MIT/Apache-2.0. That
+# trait set is the one `sha2` and the other hashes above use too.
+#
+# `getrandom` is off deliberately: the salt is drawn through
+# `crate::random`'s own seam so this tree has exactly one CSPRNG, which is also
+# what lets a test pin a hash. `password-hash` stays on because the PHC string
+# is what `Core\Password` stores — the algorithm, the version and the cost
+# parameters travel with the digest, which is the whole mechanism `needsRehash`
+# reads. `crates/nvs-stdlib/src/password.rs` owns the parameters and why.
+argon2 = { version = "0.6", default-features = false, features = [
+    "alloc",
+    "password-hash",
+] }
+
+# --- reading a PHP-stored bcrypt hash (`Core\Password::verify`, `rule:security/bcrypt-read-roster`) ---
+# bcrypt is the algorithm PHP's `PASSWORD_DEFAULT` has written since 5.5, so a
+# migrating application's user table is a column of `$2y$` strings and this is
+# the crate that reads one. `rule:packaging/a-c-dependency-answers-two-questions`'s first question is "yes" for the same
+# reason it was for `argon2` — `verify` is handed a stored hash and a password,
+# both attacker-influenced — and the second question picks `bcrypt`: pure Rust
+# with no build script and no C, `subtle`'s constant-time comparison on the
+# digest, and the eksblowfish schedule is exactly the kind of loop where our own
+# off-by-one would be silent and permanent in a credential column we cannot
+# reproduce. It adds three crates — itself, `blowfish` (RustCrypto's, under its
+# `bcrypt` feature) and `byteorder`, all MIT/Apache-2.0. Its `base64` is the
+# 0.23 `Core\Encoding` uses, with default features off, so it turns no SIMD on.
+# `blowfish` rides the `cipher 0.5` that arrived with `chacha20poly1305`, so the
+# cipher traits are shared. bcrypt's alphabet is its own non-standard one, which
+# is why the encoder cannot simply be `Core\Encoding`'s.
+#
+# `getrandom` is **on** here, where it is deliberately off for `argon2` and
+# `chacha20poly1305` above, because this crate makes it non-optional behind
+# `alloc`: its salt generator lives there and `verify` cannot be reached
+# without it. Nothing draws through it — `rule:security/hash-writes-argon2id-only` is that Novis never
+# *writes* a bcrypt hash, so the generating half of this crate has no call site
+# — and the crate is already in this tree's lock file for `rand`'s own OS seed,
+# so the one CSPRNG rule `crate::random` owns is untouched.
+# `crates/nvs-stdlib/src/password.rs` owns the read roster and its ceiling.
+bcrypt = { version = "0.19", default-features = false, features = [
+    "alloc",
+    "zeroize",
+] }
+
+# --- authenticated encryption (`Core\Crypto`, `rule:core-api/tier-roster`'s AEAD-only surface) ---
+# `rule:packaging/a-c-dependency-answers-two-questions`'s first question is "yes" and then some: `open` is handed a
+# sealed message an attacker chose, and refusing a forgery is the member's whole
+# contract — so the second question picks the crate, and it picks the one whose
+# tag comparison is somebody's maintained job rather than ours.
+# `chacha20poly1305` is RustCrypto's, pure Rust with no build script and no C,
+# and it verifies against RFC 8439's own vectors and the XChaCha20-Poly1305
+# draft's. `crates/nvs-stdlib/src/crypto.rs` owns why the construction is the
+# extended-nonce one rather than the RFC's 96-bit original.
+#
+# The cost is six crates — itself, `aead`, `cipher`, `inout`, `poly1305` and
+# `universal-hash` — and no second copy of anything: the `chacha20` cipher
+# underneath is already in this tree's lock file, because `rand` 0.10's own
+# generator is ChaCha12 from that same crate, and `crypto-common 0.2` and
+# `ctutils` arrived with `argon2` above. All MIT/Apache-2.0.
+#
+# `getrandom` is off for `argon2`'s reason above and the same one again: the
+# nonce is drawn through `crate::random`'s seam, so this tree has one CSPRNG and
+# a `#[Test(seed: …)]` reproduces a sealed message byte for byte.
+chacha20poly1305 = { version = "0.11", default-features = false, features = [
+    "alloc",
+] }
+
+# --- the interoperable half of `Core\Crypto` (`rule:core-classes/crypto-interop-tier`'s roster) ---
+# Every crate here is in this tree because the other end is a browser or a token
+# issuer, not because Novis needs a second way to do what `chacha20poly1305`
+# above already does better. `rule:packaging/a-c-dependency-answers-two-questions`'s first question is "yes" for all of
+# them — a sealed message, a JWE token and a JWKS document are each attacker-
+# shaped — and its second question is answered the way the digest family answers
+# it: RustCrypto, pure Rust, no build script and no C, so § 4's confine-to-wasm
+# branch never opens, and each crate verifies against its own specification's
+# published vectors. `getrandom` is off throughout for `chacha20poly1305`'s
+# reason: a nonce, a salt and a key are drawn through `crate::random`'s seam, so
+# this tree has one CSPRNG and a `#[Test(seed: …)]` reproduces a token. That is
+# what keeps `p256` off its `std` feature, which implies `getrandom`; `alloc`
+# carries everything a member here reaches.
+# `crates/nvs-stdlib/src/crypto.rs` owns which member reaches which crate.
+#
+# `aes-gcm` is WebCrypto's `AES-GCM` and JWE's `A256GCM`, the one content
+# encryption a browser and this runtime both have; it rides the `aead 0.6` and
+# `cipher 0.5` that arrived with `chacha20poly1305`. `aes-kw` is RFC 3394 and is
+# never a member: PBES2 wraps a content key with it and nothing else does.
+# `p256` is the one curve every WebCrypto implementation ships, and it is here
+# for agreement and for key validation and encoding — **its curve arithmetic has
+# never been independently audited**, which its own README states and this tree
+# accepts, because the alternative is not a better implementation but no P-256
+# at all (the C libraries are refused), and the crate is written constant-time.
+# An independent audit of it, or of another Rust P-256, reopens this choice. `x25519-dalek` is the
+# agreement half of the curve `ed25519-dalek` already signs on in this tree's
+# lock file, so it shares that crate's `curve25519-dalek` and adds nothing else.
+# `hkdf` and `pbkdf2` are generic over the digest family's 0.11 line, and take
+# the `sha2` row above as their type parameter.
+aes-gcm = { version = "0.11", default-features = false, features = [
+    "aes",
+    "alloc",
+] }
+aes-kw = { version = "0.3", default-features = false }
+p256 = { version = "0.14", default-features = false, features = [
+    "alloc",
+    "arithmetic",
+    "ecdh",
+    "pkcs8",
+] }
+x25519-dalek = { version = "3", default-features = false, features = [
+    "precomputed-tables",
+    "static_secrets",
+    "zeroize",
+] }
+hkdf = { version = "0.13", default-features = false }
+pbkdf2 = { version = "0.13", default-features = false, features = ["hmac"] }
+
+# --- JWS's signature algorithms (`rule:core-classes/crypto-interop-tier`) ---
+# This row adds no crate: `ring` is already linked as the `rustls` provider
+# above, and this is `nvs-stdlib` reaching it directly for RSASSA-PKCS1-v1_5,
+# RSASSA-PSS, ECDSA over P-256 and Ed25519 — the four algorithms a JWS verifier
+# meets, and the ones no pure-Rust crate in this graph covers for RSA.
+# `rule:packaging/a-c-dependency-answers-two-questions` is answered exactly as
+# the `rustls` block answers it, on the same two
+# facts: attacker bytes reach a token verifier by construction, and BoringSSL's
+# OSS-Fuzz record and formally verified field arithmetic are the same record.
+# `tools/nv/cmd/gen-attribution.ts`'s `C_DEPENDENCIES` is where that answer is written
+# down for the gate that enforces it. Every AEAD, KDF and key agreement stays
+# with the RustCrypto block above; this crate signs and verifies and does
+# nothing else here.
+ring = "0.17"
+
+# --- base64 (spec § 7's `Core\Encoding` base64 pair and its URL-safe variant) ---
+# RFC 4648's alphabets, its padding rules and its URL-safe variant are an
+# external specification, and `fromBase64` is a member attacker-controlled text
+# reaches — so `rule:packaging/a-c-dependency-answers-two-questions`'s first question is "yes" and the second one is what
+# picks the crate. `base64` is pure Rust with no build script and no C, it is
+# the crate the ecosystem already reads for this, and it adds nothing to this
+# tree at all: `bcrypt` already uses this version.
+# What it buys over the twenty lines a sextet table would take is the *decoder*:
+# a canonical-padding mode and a trailing-bits check, both of which are the
+# non-obvious half of RFC 4648 § 3.5 and both of which spec § 7's throw-rather-
+# than-substitute rule needs stated exactly.
+# `crates/nvs-stdlib/src/encoding.rs` owns why this crate and not another, and
+# which engine each of the four members is.
+#
+# Default features are off because the default `simd-unsafe` adds `unsafe` AVX2
+# and NEON code to a path attacker-controlled text reaches. Security and request
+# isolation outranks the latency it would buy, so the scalar engine is the one
+# compiled. A crate that names this one with its defaults on turns the SIMD back
+# on for everything it is built beside. `bcrypt` keeps them off. `usvg` does
+# not, and it reaches only `nvs-ext`'s tests, through their native build of the
+# image component: `cargo tree -e normal,build -i base64@0.23` shows no
+# `simd-unsafe` in the shipped graph.
+base64 = { version = "0.23", default-features = false, features = ["std"] }
+
+# --- base32 (spec § 7's `Core\Encoding` base32 pair, which TOTP needs) ---
+# RFC 4648 § 6, and the same `rule:packaging/a-c-dependency-answers-two-questions` answer base64 gets one block up:
+# attacker-controlled text reaches `fromBase32`, so the decoder is not
+# hand-written. `data-encoding` is the pick over a base32-only crate because it
+# is the one that states each rule this module has to decide *separately* —
+# padding, trailing bits, symbol translation — as a checked `Specification`
+# rather than folding them into one alphabet constant, which is what lets
+# `fromBase32` be lenient about case and padding while staying strict about
+# everything that could change the octets. Pure Rust, no build script, no C,
+# no dependencies of its own.
+# `crates/nvs-stdlib/src/encoding.rs` owns what each of those three rules is
+# set to and why.
+data-encoding = "2"
+
+# --- legacy text encodings (spec § 7's `Core\Encoding` text trio) ---
+# `Charset`'s roster is the WHATWG Encoding Standard's index rather than a list
+# the spec curates, and this crate *is* that standard: it is the reference
+# implementation Firefox ships, so "which encodings exist" and "what each byte
+# means" are a dependency update here rather than a table for Novis to maintain
+# and get wrong. `rule:packaging/a-c-dependency-answers-two-questions`'s second question applies -- a decoder is reached
+# by attacker-controlled bytes -- and it is answered the same way SQLite
+# answers it: pure Rust, no build script, no C, and a test corpus that is the
+# standard's own. Already in this tree's lock file under `wasmtime`.
+# `crates/nvs-stdlib/src/encoding.rs` owns which five cases this crate does
+# *not* decide, and why.
+encoding_rs = "0.8"
+
+# --- csv (spec § 12's `Core\Csv::parse`) ---
+# RFC 4180 plus the two knobs every real dialect turns is a grammar, and
+# ground-rules.md's "an external specification is a dependency rather than a
+# hand-written parser" applies to the *reader*: quoted fields, doubled quotes,
+# an embedded separator, an embedded CRLF and a file that ends mid-quote are
+# exactly the corners a hand-written scanner gets wrong one at a time.
+# `rule:packaging/a-c-dependency-answers-two-questions`'s first question is "yes" -- an uploaded spreadsheet is
+# attacker-controlled -- and the second one does not arise, because
+# `csv-core` is pure Rust: no build script, no C, `no_std`, and `memchr` its
+# only dependency, which this tree already carries under `regex`. It is the
+# parsing core of the `csv` crate the ecosystem reads for this, split out so a
+# caller owns its own buffers, which is what lets the member allocate once per
+# field into an `NvsStr` instead of through a `String` it would then copy.
+# `crates/nvs-stdlib/src/csv.rs` owns why the *writing* half takes no
+# dependency and what each of the three options is set to.
+csv-core = "0.1"
+
+# --- uri (spec § 12's `Core\Uri::parse` and the `Uri` instance) ---
+# RFC 3986 is a grammar with an external specification, so ground-rules.md's
+# "anything with an external specification is a dependency rather than a
+# hand-written parser" settles half the question; what is left is *which*
+# specification, because there are two and they are not a strict and a lax
+# reading of one thing. `url` implements the WHATWG URL Standard -- what a
+# browser does with text typed into an address bar -- and it rewrites its input
+# on the way through: lower-casing the host, punycoding a non-ASCII one,
+# dropping a port that matches the scheme's default, removing dot segments,
+# turning `\` into `/` for the schemes it calls special. It also cannot hold a
+# relative reference without a base. `Uri::parse` replaces `parse_url` and
+# answers "what are the components of this text", so every one of those
+# rewrites would be an answer about a URI the caller never sent, and
+# `$uri->resolve(string $reference)` is defined over exactly the relative
+# references `url` cannot represent. `fluent-uri` implements RFC 3986 itself:
+# it parses a URI *reference*, borrows every component as written, normalizes
+# only when asked, and carries § 5's reference resolution. `rule:packaging/a-c-dependency-answers-two-questions`'s first
+# question is "yes" -- a request line is attacker-controlled -- and the second
+# does not arise, because the crate is pure Rust with no build script: its two
+# dependencies are `borrow-or-share` and `ref-cast`, both of which exist only
+# to hand back a borrowed component without copying it, which is the property
+# that lets a member write one `NvsStr` per component instead of two.
+# `crates/nvs-stdlib/src/uri.rs` owns what the member does and does not do with
+# what this crate answers.
+fluent-uri = "0.4"
+
+# --- HTML parsing (`rule:core-classes/html-parsing`) ---
+# The WHATWG parsing algorithm is the specification a browser implements, and
+# `rule:core-classes/html-parsing` takes it whole: `Core\Html::parse` never
+# fails, because implied tags, error recovery and foster parenting are the
+# *specified* output rather than a guess. A hand-written parser could not make
+# that promise -- the value of the algorithm is that every conforming
+# implementation agrees, and agreement is not something a second implementation
+# of ours would have.
+#
+# `rule:packaging/a-c-dependency-answers-two-questions`'s first question is
+# "yes" and its second does not arise: a document reaching this parser is
+# attacker-controlled by definition, and the whole graph is pure Rust with no C
+# in it, so the memory-safety half of the question has nothing to bite on. That
+# is the answer the rule asks for rather than a reason to leave it unasked. It
+# is Servo's parser, driven by a browser and continuously fuzzed, and
+# `rule:core-classes/html-parsing` names it as the engine `Novis\Pdf` shares -- so the language and
+# its PDF renderer parse HTML identically, which is one behaviour to document
+# and one parser to fuzz rather than two.
+#
+# Default features, which is the tokenizer and the tree builder alone. It adds
+# seventeen crates to the lock file, MIT or Apache-2.0 every one: `markup5ever`,
+# then the ones that exist to make a tag name cheap to compare and a text cheap
+# to share (`tendril`, `web_atoms`, `string_cache`, `phf`, `precomputed-hash`,
+# `new_debug_unreachable`, `siphasher`) and the mutex behind `string_cache`'s
+# dynamic atom table (`parking_lot`). One build script, `web_atoms`', which runs
+# `phf_codegen` and `string_cache_codegen` over the fixed HTML and SVG name sets
+# to emit a perfect hash -- code generation from a table in the crate, reading
+# nothing from the environment.
+#
+# **The sample DOM is not among them** -- `markup5ever_rcdom` is a separate
+# crate this row does not take, because `crates/nvs-stdlib/src/html.rs` drives
+# the tree builder through a `TreeSink` of its own into `crate::xml`'s `Parsed`
+# nodes. That is the boundary `rule:core-classes/html-parsing`'s one-node-family
+# clause needs: building someone else's DOM and walking it into ours would hold
+# the document twice and put a second node family in the crate for the length of
+# a parse.
+html5ever = "0.40"
+
+# --- compression (spec § 17's `Core\Compress`, `rule:core-classes/decompression-bound`) ---
+# Three crates for five codec cases, and `rule:packaging/a-c-dependency-answers-two-questions`'s first
+# question is "yes" for every one of them: a compressed body is attacker-controlled
+# by definition, which is the whole reason the class is Tier 0. So the second
+# question does not arise -- all three are pure Rust with no build script and no
+# C to audit, and none takes the audited-C exception.
+#
+# `flate2` carries three of the five: gzip (RFC 1952), zlib (RFC 1950) and raw
+# deflate (RFC 1951), which differ only in the header around one stream.
+# `default-features = false` with `rust_backend` named back on is load-bearing
+# rather than tidy: the default set is `flate2/zlib`, which resolves onto
+# `libz-sys` and would put a C library in the default binary's graph. It is also
+# what `mysql_common` needs -- that crate selects a backend through its own
+# default set, so turning its defaults off leaves `flate2` with a
+# `compile_error!` until this row picks `miniz-oxide` by feature unification.
+flate2 = { version = "1", default-features = false, features = ["rust_backend"] }
+# Brotli (RFC 7932), from the Dropbox implementation, whose own summary is that
+# all included code is safe. `default-features = false` keeps the C ABI shims
+# (`ffi-api`) and the benchmark harness out of the graph; `std` is the allocator
+# and the `Read`/`Write` wrappers `crates/nvs-stdlib/src/compress.rs` decodes
+# through, which is how the output bound is applied *during* the decode rather
+# than to a buffer that has already been allocated.
+# HOLD (revisit 2026-11-16): `brotli-decompressor` 6.1 is out, and `brotli` 9.0.0, the latest, needs `~6.0`.
+brotli = { version = "9", default-features = false, features = ["std"] }
+# Zstandard (RFC 8878), and the one place the pure-Rust answer costs something:
+# `zstd` is the reference C library behind bindings, and `ruzstd` is a Rust
+# decoder with a younger encoder beside it. That trade is priority 1 over
+# priority 3 in AGENTS.md's ordering and is not a close call -- a zstd frame
+# reaching this crate is untrusted input, and the C library's own history of
+# out-of-bounds reads is what the first question is asking about. `hash` is on
+# with the default set: a frame's checksum is verified rather than skipped.
+ruzstd = "0.9.1"
+
+# --- database wire (`rule:core-classes/db-crate-boundary`) ---
+# The rule that picked these: a codec is borrowed, a state machine is written.
+# Message framing, value encoding and authentication mechanisms are large,
+# fiddly and identical for everyone, and that is precisely what a sans-IO crate
+# is; sequencing -- what to send next, what a park mid-message means, when a
+# connection is reusable -- is `crates/nvs-db`'s own, and borrowing that half is
+# what would have dragged an async runtime in. `sqlx`, `tokio-postgres` and
+# `tiberius` each need a runtime that spawns, so none of them is reachable from
+# a thread-per-core host at all; that is structural and not a preference.
+#
+# `rule:packaging/a-c-dependency-answers-two-questions`'s first question is "yes" for all of these -- a server's response
+# bytes are attacker-controlled the moment the server is -- which is the whole
+# reason the framing is borrowed from a crate that is fuzzed rather than
+# written here a fifth time.
+#
+# There is no TDS entry: SQL Server's protocol has no sans-IO crate, and the one
+# implementation is async over `futures-io` with its TLS behind `tokio-rustls`,
+# so `nvs-db` writes TDS 7.4 by hand.
+postgres-protocol = "0.6"
+# `default-features = false` is load-bearing and not tidiness: this crate's
+# default set contains `flate2/zlib`, which resolves `flate2` onto `libz-sys` and
+# would put a C library in the default binary's graph. `tools/nv/cmd/gen-attribution.ts`
+# would then fail on an unrecorded C dependency, and recording it would be
+# recording one nothing asked for -- the protocol's optional compression is a
+# feature `Core\Db` does not offer. With the default off, `flate2` is
+# `miniz-oxide` and the whole graph stays pure Rust; `derive` goes with it, and
+# nothing here derives a row from a struct.
+#
+# The two features named back on are MariaDB's authentication plugins, and
+# `rule:packaging/a-c-dependency-answers-two-questions` names this case: `client_ed25519` and `parsec` reach
+# attacker-controlled data, so the answer is a Rust implementation of the plugin
+# or a documented refusal to support that auth method. `mysql_common` has both,
+# pure Rust -- `curve25519-dalek` behind the first, `ed25519-dalek`, `pbkdf2` and
+# `rand` behind the second -- so this is the first outcome and not the second,
+# and `crates/nvs-db/src/maria.rs`'s roster is what the features are for. Left
+# off, the plugins still *parse* and their `run` answers `FeatureRequired`, which
+# would refuse the connection with a message about a Cargo feature rather than
+# about MariaDB.
+mysql_common = { version = "0.38", default-features = false, features = [
+  "client_ed25519",
+  "client_parsec",
+] }
+# The two crates a sans-IO codec is *called through*, rather than codecs of their
+# own. `postgres-protocol` frames into a `BytesMut` and hands back its message
+# bodies as fallible iterators, so a caller that does not name these two cannot
+# read a server's error text or the mechanisms it offered -- which is the whole
+# of what `crates/nvs-db/src/pg.rs` reports when a connection is refused. Both
+# are pure Rust with no build script, `fallible-iterator` has no dependencies at
+# all, and the version here is `postgres-protocol`'s own: a second major would
+# be a second trait, and the iterator impls would silently not apply.
+bytes = "1"
+# HOLD (revisit 2026-11-16): 0.3 is out, and `postgres-protocol` 0.6, the latest, uses 0.2.
+fallible-iterator = "0.2"
+# The one C dependency this goal adds, pre-answered under `rule:packaging/a-c-dependency-answers-two-questions`'s second
+# question and recorded against it. The slice that first takes this as a
+# dependency of `nvs-db` also adds its row to `tools/nv/cmd/gen-attribution.ts`'s
+# `C_DEPENDENCIES` ledger, in the same commit: that gate fails on an unrecorded
+# C crate in the graph *and* on a recorded one that is not in it, so the two
+# halves cannot be split across sessions. A version here is not a graph edge --
+# nothing resolves a workspace dependency no crate names.
+#
+# `bundled` is not optional here and is the security-relevant half of the
+# choice: without it the crate links whatever `libsqlite3` the host happens to
+# ship, so the version an audit was written against and the version a
+# deployment runs are unrelated, and `rule:packaging/a-c-dependency-answers-two-questions`'s verification record belongs
+# to *SQLite's own* build under its own configuration. Compiling the
+# amalgamation ourselves makes the shipped engine a fact of this repository's
+# lockfile, and it is also what lets the crate build on a machine with no
+# SQLite installed at all.
+# `column_decltype` is the second required feature and is `rule:core-classes/db-column-types`'s: that
+# section maps a SQLite column off what the *schema* declared it as, because a
+# storage class cannot say whether `20260903` was meant as a number or a date.
+# Without this feature `sqlite3_column_decltype` is not exposed at all and the
+# map has nothing to key on.
+# `hooks` is the third and is what lets a write report the key of the row *it*
+# inserted: `sqlite3_update_hook` names the rowid of every row a statement
+# inserts, where `sqlite3_last_insert_rowid` names the connection's last one
+# whoever wrote it. `crates/nvs-db/src/sqlite.rs` § *Which statement inserted a
+# row* is the choice and what it costs. The feature is Rust alone -- it adds no
+# C to the graph, since the amalgamation `bundled` compiles already carries the
+# hook.
+rusqlite = { version = "0.40", features = ["bundled", "column_decltype", "hooks"] }
+
+# --- cli / diagnostics rendering ---
+# Diagnostic layout is hand-written in nvs-diagnostics (the output format is
+# part of the language's UI and should not shift with a dependency bump), so
+# only the styling primitives are external. Terminal detection is the standard
+# library's `IsTerminal`.
+clap = { version = "4", features = ["derive", "wrap_help"] }
+anstyle = "1"
+
+# --- dev / test ---
+insta = "1"
+# 0.8 brings `alloca`, a crate built from C through `cc`. Only the benches in
+# `benches/abi-probe` name criterion, so that C never reaches a shipped binary:
+# `bun nv gen-attribution --check-c-deps` does not list it.
+criterion = "0.8"
+
+# ---------------------------------------------------------------------------
+# Lint policy, and the one home for it. Most crates take it wholesale with
+# `[lints] workspace = true`.
+#
+# The crates that need `unsafe` cannot: `forbid` is not something a site-level
+# `#[allow]` can relax, and cargo refuses a manifest that inherits this table
+# and overrides one entry of it --
+#
+#     error: cannot override `workspace.lints` in `lints`, either remove the
+#            overrides or `lints.workspace = true` and manually specify the lints
+#
+# -- so they restate the whole table with `unsafe_code = "deny"` and allow each
+# block individually with a reason. `bun nv lints` generates those
+# copies from this table and `--check` fails on drift, in the `lint` CI job and
+# in `nv verify`; a lint added here reaches every crate through it. That
+# command's `UNSAFE_CRATES` is the roster of crates that may override and the one
+# home for it -- three prose copies of that list had gone stale, naming four
+# crates while seven carried `unsafe`. docs/plan/design.md § *Unsafe policy* is
+# the reasoning.
+# ---------------------------------------------------------------------------
+[workspace.lints.rust]
+unsafe_code = "forbid"
+missing_docs = "warn"
+missing_debug_implementations = "warn"
+unreachable_pub = "warn"
+rust_2018_idioms = { level = "warn", priority = -1 }
+
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }
+# Correctness-adjacent pedantry we do want.
+cast_possible_truncation = "warn"
+cast_possible_wrap = "warn"
+cast_sign_loss = "warn"
+checked_conversions = "warn"
+todo = "warn"
+unimplemented = "warn"
+dbg_macro = "warn"
+print_stdout = "warn"    # user-facing output belongs in nvs-cli, not libraries
+print_stderr = "warn"
+
+# ---------------------------------------------------------------------------
+# Profiles
+# ---------------------------------------------------------------------------
+[profile.dev]
+# `catch_unwind` at the helper and worker-task boundaries is how Novis contains
+# a runtime panic to one request
+# (`rule:http-server/containment-does-not-end-at-the-helper` puts the outer one at the
+# task root). `panic = "abort"` would break that guarantee, so unwinding is
+# mandatory in every profile (`rule:errors/helper-abi`).
+panic = "unwind"
+# Line tables only, for Novis's own crates: a panic location and a backtrace still name file and
+# line, which is what every `debug_assert` and the owner stamp in `nvs-runtime` report through, so
+# the debug build keeps the checks that make it worth building. What goes is the type and variable
+# info a debugger steps with, and on windows-msvc that was most of every test binary's PDB -- the
+# bulk of a build, some sixty binaries each carrying the same crates. A session that needs to step
+# sets `CARGO_PROFILE_DEV_DEBUG=2` for that one build. The dependency wall below is at `debug = 0`
+# already, and the bench profile keeps `debug = true` for its own reasons.
+debug = "line-tables-only"
+
+[profile.release]
+panic = "unwind"
+lto = "thin"
+codegen-units = 1
+debug = "line-tables-only" # keep backtraces useful in production builds
+# Integer overflow is checked in release too, workspace-wide. Measured on this tree with a per-package
+# override: `decimal` add+mul+sub 27.8 -> 28.1 ns, array append 170.5 -> 169.9, `NvsStr::new` 30.4 -> 29.9,
+# scalar `Value` arithmetic 1.19 -> 1.11 -- every delta inside the +/-1.8% seen between two *baseline*
+# runs, so there is no cost to weigh against it. What it buys is the class behind php-src's CVSS-9.8 bugs
+# (`ldap_escape` CVE-2024-8932, the `pdo_firebird` quoter CVE-2024-11236): a size computation that wraps
+# silently becomes a panic, which `catch_unwind` contains to one request (`rule:errors/helper-abi`), not a wrong
+# length nothing reports. Intentional wraparound is spelled `wrapping_*`. The cast half of the same
+# discipline is already enforced -- `[workspace.lints.clippy]` below carries `cast_possible_truncation`,
+# `cast_possible_wrap` and `cast_sign_loss`, and `nv verify` runs clippy with `-D warnings`.
+overflow-checks = true
+
+# Compiling Novis's own dependencies with optimisation makes debug builds of the
+# compiler usable; Cranelift is unbearably slow otherwise.
+#
+# `debug = 0` applies to dependencies only -- Novis's own crates keep their line
+# tables (`[profile.dev]` above), so a backtrace through this repository's code
+# is unchanged. What it drops is the debug info for code nobody here steps into,
+# and on windows-msvc that is nearly all of it: the linker copies the debug
+# info of every linked object into each binary's PDB, so cranelift and wasmtime
+# were being written into all ~60 test binaries at once. Measured 2026-08-25:
+# 3.9 GB of PDBs per build generation before, 1.7 GB after, and a session's own
+# `nv verify` went 51s -> 43s rather than paying for it: there is less debug
+# info to link and to load. The one-time cost is that every dependency
+# recompiles once, 2m20s here. See tools/nv/cmd/disk.ts on why generations pile up.
+[profile.dev.package."*"]
+opt-level = 2
+debug = 0
+
+[profile.bench]
+inherits = "release"
+debug = true
+
+# The build the feature proofs run on: release's code, without release's link. Thin LTO over one
+# codegen unit is what makes a release relink slow, and a proof binary is rebuilt after nearly every
+# edit, so this profile turns both off and compiles incrementally. Overflow checks stay on and debug
+# assertions stay off, as in release, so a proof sees the arithmetic a shipped binary does. What
+# differs is inlining across crates: a behaviour that depends on it shows up only on release, which
+# the gate-open sweep builds. The disk cost is one more build tree, `target/proof/`, as large as
+# `target/release/` plus its incremental caches, which `bun nv disk` counts on a line of its own.
+[profile.proof]
+inherits = "release"
+lto = false
+incremental = true
+codegen-units = 256
+overflow-checks = true
+debug-assertions = false
+
+# ---------------------------------------------------------------------------
+# Patched third-party crates.
+# ---------------------------------------------------------------------------
+[patch.crates-io]
+# The published 0.40.1 with the changes `rule:core-classes/html-parsing` needs:
+# a cap on the stack of open elements that `crates/nvs-stdlib/src/html.rs`
+# switches on, a hash set for duplicate attribute names, and a cached
+# fingerprint for the active formatting elements' attribute comparison. No
+# html5ever release has them, and without them a small hostile document costs
+# time in the square of its size. The version stays 0.40.1, so the `html5ever`
+# row above resolves to this copy unchanged, and upgrading means carrying the
+# patch onto the new release.
+html5ever = { path = "vendor/html5ever" }

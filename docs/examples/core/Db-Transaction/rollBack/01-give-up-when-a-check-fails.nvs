@@ -1,0 +1,32 @@
+<?nvs
+// Shows how to give up on a transaction. `rollBack` throws, so nothing after it
+// runs and none of the writes are saved.
+use Core\Db\RolledBack;
+use Core\Db\Transaction;
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table notes (id integer primary key, text text not null)', []);
+
+try {
+    $db->transaction(fn (Transaction $tx): void => {
+        $tx->execute('insert into notes (text) values (?)', ['buy milk']);
+
+        string $text = '';
+        if (Core\Str::length($text) == 0) {
+            // The text you pass becomes the error's `reason`. Write it for the
+            // person who reads the failure.
+            $tx->rollBack('a note with no text was given');
+        }
+
+        echo "this line never runs\n";
+    });
+} catch (RolledBack $gaveUp) {
+    // This prints `gave up: a note with no text was given`.
+    echo 'gave up: ', $gaveUp->reason, "\n";
+}
+
+// The insert above was part of the transaction, so it is gone. This prints
+// `0 notes`.
+echo $db->query('select id from notes', [])->count(), " notes\n";
+
+$db->close();

@@ -1,0 +1,12 @@
+{
+  "title": "A doc comment clap renders is written for the person reading `--help`, and cites nothing they cannot open",
+  "status": "shipped",
+  "seeAlso": [
+    "packaging/the-cli-surface-is-novis-own",
+    "packaging/the-banner-states-the-build",
+    "programs/no-compatibility-promise"
+  ],
+  "guardedBy": [
+    "crates/nvs-cli/src/main.rs"
+  ]
+}

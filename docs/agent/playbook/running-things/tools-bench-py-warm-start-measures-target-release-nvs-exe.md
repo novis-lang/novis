@@ -1,0 +1,6 @@
+- **`bun nv bench --warm-start` measures `target/release/nvs.exe`, and nothing builds it.** On a
+  machine that has only ever built debug the check fails with `no Novis binary at …` rather than with
+  a number; `cargo build --release -p nvs-cli` once is the fix, and the harness never builds anything
+  itself. A release binary older than `crates/` still measures — the staleness warning goes to stderr
+  and the check stays green — so a start-up regression can hide behind a binary nobody rebuilt.
+  `until: gone tools/nv/cmd/bench.ts:--warm-start`

@@ -1,0 +1,43 @@
+<?nvs
+// Shows how to list every command by its class name without creating any of them.
+
+class Database {
+    public function constructor() {
+        echo "Connecting to the database.\n";
+    }
+}
+
+interface Command {
+    public function run(): string;
+}
+
+class Backup implements Command {
+    public function constructor(private Database $database) {}
+
+    public function run(): string {
+        return "Backup finished.";
+    }
+}
+
+class Migrate implements Command {
+    public function constructor(private Database $database) {}
+
+    public function run(): string {
+        return "Tables updated.";
+    }
+}
+
+class Report implements Command {
+    public function constructor(private Database $database) {}
+
+    public function run(): string {
+        return "Report sent.";
+    }
+}
+
+// This loop does not call `make`. No command is created, so the program never
+// connects to the database. This prints the three class names.
+echo "Commands:\n";
+foreach (Core\Program::constructors<Command, callable(Database): Command>() as {class: string, make: callable(Database): Command} $row) {
+    echo "  ", $row->class, "\n";
+}

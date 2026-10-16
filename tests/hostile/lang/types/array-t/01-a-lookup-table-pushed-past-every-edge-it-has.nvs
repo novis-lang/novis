@@ -1,0 +1,65 @@
+<?nvs
+// Attack: the program pushes an array past its limits with extreme keys, deep nesting
+// and many copies. Each step should give a correct result or throw an error.
+// hostile: timeout-ms 40000
+
+// `$far[] = 2` needs a key one larger than the largest possible `int`.
+array<int> $far = [];
+$far[9223372036854775807] = 1;
+try {
+    $far[] = 2;
+    echo "appended past the end\n";
+} catch (Throwable $e) {
+    echo 'refused: ', $e->message, "\n";
+}
+
+// Six keys that look like the number 8. Only two of them are the same key.
+array<int> $lookalike = [];
+$lookalike[8] = 1;
+$lookalike['8'] = 2;
+$lookalike['08'] = 3;
+$lookalike['+8'] = 4;
+$lookalike[' 8'] = 5;
+$lookalike['8.0'] = 6;
+echo Core\Arr::count($lookalike), " distinct keys\n";
+
+// A key that is one megabyte long. The array must find it again.
+string $huge = Core\Str::repeat('k', 1048576);
+array<int> $wide = [];
+$wide[$huge] = 7;
+echo Core\Arr::hasKey($wide, $huge) ? "found it\n" : "lost it\n";
+
+// Fifty thousand arrays nested inside each other, built one at a time.
+// Then all of them are freed at once.
+array<mixed> $deep = [];
+uint $depth = 0;
+while ($depth < 50000) {
+    $deep = ['inner' => $deep];
+    $depth = $depth + 1;
+}
+$deep = [];
+echo "nested and released\n";
+
+// Adds half a million entries. Every thousand rounds, the program copies the array
+// and changes the copy. The original array must not change.
+array<string> $rows = [];
+uint $i = 0;
+uint $copies = 0;
+while ($i < 500000) {
+    $rows[] = 'row';
+    if ($i % 1000 == 0) {
+        array<string> $snapshot = $rows;
+        $snapshot[] = 'extra';
+        $copies = $copies + Core\Arr::count($snapshot) - Core\Arr::count($rows);
+    }
+    $i = $i + 1;
+}
+echo Core\Arr::count($rows), ' rows, ', $copies, " copies that never showed\n";
+
+// Reads a key that was never stored.
+try {
+    echo $rows['no such row'], "\n";
+    echo "read a key that is not there\n";
+} catch (Throwable $e) {
+    echo 'refused: ', $e->message, "\n";
+}

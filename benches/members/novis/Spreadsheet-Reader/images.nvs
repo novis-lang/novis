@@ -1,0 +1,26 @@
+<?nvs
+// Reads the two product photos of a sheet, as an import does to save the photo of each product.
+// bench: iterations 32
+// bench: complexity constant
+use Novis\Spreadsheet\Reader;
+use Novis\Spreadsheet\Workbook;
+
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        bytes $png = Core\Encoding::fromBase64('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==');
+        var $book = Workbook::createInMemory();
+        $book->sheet('Products')->image('B2', $png)->image('B3', $png)->addAll([['Item', 'Photo'], ['Widget'], ['Gadget']]);
+        Reader $reader = Reader::open($book->finish()->bytes ?? Core\Bytes::fill(0, 0));
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            $total = $total + Core\Arr::count($reader->images('Products'));
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(32), "\n";

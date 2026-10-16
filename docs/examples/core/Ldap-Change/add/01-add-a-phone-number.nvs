@@ -1,0 +1,7 @@
+<?nvs
+// Shows how to prepare a change that adds a phone number to a user.
+
+var $phone = Core\Ldap\Change::add('telephoneNumber', '+43 1 234 5678');
+// A connection's `modify` method sends this list to the server. This prints 1.
+array<Core\Ldap\Change> $changes = [$phone];
+echo Core\Arr::count($changes), "\n";

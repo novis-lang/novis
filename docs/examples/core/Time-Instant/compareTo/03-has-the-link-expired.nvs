@@ -1,0 +1,21 @@
+<?nvs
+// Checks which password reset links have expired. Each link is valid for 30 minutes.
+
+// A real program uses `Core\Time::now()` here. A fixed time keeps the output the same.
+Core\Time\Instant $now = Core\Time::fromIso("2024-03-01T12:00:00Z");
+array<string> $sent = [
+    "anna" => "2024-03-01T11:45:00Z",
+    "ben" => "2024-03-01T11:30:00Z",
+    "cleo" => "2024-03-01T09:10:00Z",
+];
+
+foreach ($sent as string $user => string $at) {
+    Core\Time\Instant $expires = Core\Time::fromIso($at)->plus(30m);
+    // `compareTo` returns -1 while `$now` is still earlier than the expiry time.
+    if ($now->compareTo($expires) < 0) {
+        echo $user, ": valid\n";
+    } else {
+        echo $user, ": expired\n";
+    }
+}
+// This prints "valid" for anna. The link for ben expires at exactly 12:00, so it is expired.

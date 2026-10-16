@@ -1,0 +1,20 @@
+<?nvs
+// Shows how to read an access rule that names a class constant.
+namespace App;
+
+class Policy {
+    public const string STAFF = "staff";
+}
+
+class Office {
+    #[Core\Route(path: "/office", method: Core\Http\Method::Get, name: "Office::home")]
+    #[Core\Access(allow: Policy::STAFF)]
+    public function home(): string { return "the office"; }
+}
+
+// A class constant is not an enum case, so only `access()` returns this rule.
+// The result is the name of the constant. This prints `App\Policy::STAFF`.
+?Core\Router\Match $found = Core\Router::match(Core\Http\Method::Get, "/office");
+if ($found != null) {
+    echo $found->access() ?? "denied", "\n";
+}

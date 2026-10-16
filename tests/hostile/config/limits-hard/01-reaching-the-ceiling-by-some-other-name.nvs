@@ -1,0 +1,97 @@
+<?nvs
+// Attack: a request tries to change `[limits.hard]`, the ceiling on its own limits.
+// Only the person who runs the server may set it, so every write to it should fail.
+// At the end, `513M` is one megabyte over the ceiling and should still fail.
+// hostile: timeout-ms 30000
+
+// 1. Tries the ceiling's key and keys that are almost the same, with other
+//    letter case, separators or prefixes.
+array<string> $names = [
+    'limits.hard.memory',
+    'limits.hard',
+    'limits.HARD.memory',
+    'LIMITS.HARD.MEMORY',
+    'limits.Hard.Memory',
+    'limits.hard.hard.memory',
+    'limits.hard..memory',
+    'limits..hard.memory',
+    'limits.hard.memory.',
+    '.limits.hard.memory',
+    'limits.hard-memory',
+    'limits.hard_memory',
+    'limits.hardmemory',
+    'limits.hard/memory',
+    'limits.hard\\memory',
+    'limits.hard memory',
+    "limits.hard.memory\u{0000}",
+    "limits.memory\u{0000}limits.hard.memory",
+    'app.limits.hard.memory',
+    'app.0.limits.hard.memory',
+    'limits.memory/../hard.memory',
+    'limits.hard.' . Core\Str::repeat('sub.', 20000) . 'memory',
+    Core\Str::repeat('limits.', 20000) . 'hard.memory',
+];
+foreach ($names as string $key) {
+    Core\Config::set($key, '4G');
+    Core\Config::set($key, '18446744073709551615');
+    // Each write fails, so each read returns `null`. The real ceiling stays
+    // the same.
+    Core\Config::get($key);
+    Core\Config::restore($key);
+}
+
+// 2. Tries values just under, at and over the ceiling, in many units. A value
+//    even one byte over `512M` should fail.
+array<string> $atTheEdge = [
+    '512M',
+    '513M',
+    '511M',
+    '536870912',
+    '536870913',
+    '536870911',
+    '0.5G',
+    '1G',
+    '512 M',
+    '512m',
+    '512MiB',
+    '513MiB',
+    '524288K',
+    '524289K',
+];
+foreach ($atTheEdge as string $value) {
+    Core\Config::set('limits.memory', $value);
+    Core\Config::get('limits.memory');
+}
+Core\Config::restore('limits.memory');
+
+// 3. Mixes writes and restores 1,000 times. The ceiling should never go up,
+//    and `restore` should always return to the configured value.
+uint $round = 0;
+while ($round < 1000) {
+    Core\Config::set('limits.memory', '64M');
+    Core\Config::set('limits.hard.memory', '4G');
+    Core\Config::set('limits.memory', '1G');
+    Core\Config::restore('limits.hard.memory');
+    Core\Config::set('limits.memory', '1G');
+    Core\Config::restore('limits.memory');
+    Core\Config::restore('limits.hard.memory');
+    Core\Config::set('limits.hard.memory', '4G');
+    Core\Config::set('limits.memory', '512M');
+    Core\Config::restore('limits.memory');
+    $round = $round + 1;
+}
+
+// 4. Tries every other ceiling in `[limits.hard]`. Every write should fail.
+array<string> $keys = ['memory', 'cpu_time', 'wall_time', 'max_tasks', 'max_output', 'max_regex_steps'];
+foreach ($keys as string $key) {
+    Core\Config::set('limits.hard.' . $key, '4G');
+    Core\Config::set('limits.hard.' . $key, '0');
+    Core\Config::get('limits.hard.' . $key);
+    Core\Config::restore('limits.hard.' . $key);
+}
+
+// 5. Prints the ceiling, which should be the configured value. Setting `513M`
+//    should still fail.
+echo 'ceiling:   ', Core\Config::get('limits.hard.memory') ?? '(nothing)', "\n";
+echo 'ask 513M:  ', Core\Config::set('limits.memory', '513M') ? 'accepted' : 'refused', "\n";
+echo 'in force:  ', Core\Config::get('limits.memory') ?? '(nothing)', "\n";

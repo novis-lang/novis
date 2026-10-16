@@ -1,0 +1,64 @@
+--TEST--
+`Core\Reflect::steps` gives one `Core\Reflect\PropertyInfo` per segment of a `propertyPath<T>`, in order, through an object, a nullable object, an array of objects and an inherited property — `rule:core-classes/str-parts-and-reflect-steps`
+--FILE--
+<?nvs
+// `Core\Reflect::steps` returns the property that each part of a path names.
+class Named {
+    public string $name = "";
+}
+
+class City extends Named {
+}
+
+class Address {
+    public City $city;
+
+    public function constructor() {
+        $this->city = new City();
+    }
+}
+
+class Customer extends Named {
+    public ?Address $address = null;
+}
+
+class Line {
+    public int $quantity = 1;
+}
+
+class Order {
+    public int $total = 0;
+    public Customer $customer;
+    public array<Line> $lines = [];
+
+    public function constructor() {
+        $this->customer = new Customer();
+    }
+}
+
+class Report {
+    public static function show(propertyPath<Order> $path): void {
+        echo $path as string, "\n";
+        foreach (Core\Reflect::steps($path) as var $step) {
+            echo "  ", $step->name(), ": ", $step->type() ?? "no type";
+            echo $step->isPublic() ? " (public)" : " (not public)", "\n";
+        }
+    }
+}
+
+Report::show("total");
+// `address` is a nullable object, and `name` is declared on `Named`.
+Report::show("customer.address.city.name");
+// `lines` is an array of `Line` objects.
+Report::show("lines.quantity");
+--EXPECT--
+total
+  total: int (public)
+customer.address.city.name
+  customer: Customer (public)
+  address: ?Address (public)
+  city: City (public)
+  name: string (public)
+lines.quantity
+  lines: array<Line> (public)
+  quantity: int (public)

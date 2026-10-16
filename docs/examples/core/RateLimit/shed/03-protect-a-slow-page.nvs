@@ -1,0 +1,28 @@
+<?nvs
+// Shows how a server protects a slow page. Each IP address may load it
+// twice per minute. A third load gets status 429 and a `Retry-After` header.
+
+class SlowPage {
+    public static function handle(string $ip): void {
+        var $decision = Core\RateLimit::shed("search:" . $ip, 2, 1m);
+        var $wait = $decision->retryAfter();
+        if ($wait == null) {
+            echo "200 for ", $ip, "\n";
+            return;
+        }
+        // `retryAfter` is the exact wait. This rounds it up to whole seconds,
+        // because `Retry-After` counts in seconds.
+        var $seconds = $wait->toSeconds();
+        if ($wait->toMilliseconds() % 1000 != 0) {
+            $seconds = $seconds + 1;
+        }
+        echo "429 for ", $ip, ", Retry-After: ", $seconds, "\n";
+    }
+}
+
+// Each unit takes 30 seconds to come back, so the third load waits 30 seconds.
+// The second address has its own limit, so its load is allowed.
+SlowPage::handle("203.0.113.5");
+SlowPage::handle("203.0.113.5");
+SlowPage::handle("203.0.113.5");
+SlowPage::handle("198.51.100.20");

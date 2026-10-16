@@ -1,0 +1,21 @@
+<?nvs
+// Shows how a program accepts an uploaded file only when it is not larger than a limit.
+
+string $dir = Core\Path::join(Core\IO::temporaryDir(), "incoming");
+Core\IO::makeDir($dir);
+Core\IO::write(Core\Path::join($dir, "avatar.png"), Core\Str::repeat("x", 800));
+Core\IO::write(Core\Path::join($dir, "holiday.jpg"), Core\Str::repeat("x", 2048));
+
+// The limit is 1024 bytes. A larger file is rejected and deleted.
+// This prints "avatar.png: accepted, 800 bytes" and "holiday.jpg: rejected, 2048 bytes".
+uint $limit = 1024;
+foreach (Core\Arr::sort(Core\IO::list($dir)) as string $name) {
+    string $path = Core\Path::join($dir, $name);
+    uint $size = Core\IO::stat($path)->size();
+    if ($size > $limit) {
+        Core\IO::remove($path);
+        echo $name, ": rejected, ", $size, " bytes", "\n";
+    } else {
+        echo $name, ": accepted, ", $size, " bytes", "\n";
+    }
+}

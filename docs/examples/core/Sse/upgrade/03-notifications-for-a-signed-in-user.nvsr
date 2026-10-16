@@ -1,0 +1,8 @@
+--METHOD--
+GET
+--PATH--
+/live/notifications
+--HEADERS--
+host: example.com
+accept: text/event-stream
+cookie: session=c81f02

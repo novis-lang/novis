@@ -1,0 +1,21 @@
+<?nvs
+// Shows how to read the HTTP method of the route that matched.
+
+class Tasks {
+    #[Core\Route(path: "/tasks", method: Core\Http\Method::Get, name: "Tasks::list")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function list(): string { return "all tasks"; }
+
+    #[Core\Route(path: "/tasks", method: Core\Http\Method::Post, name: "Tasks::create")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function create(): string { return "a new task"; }
+}
+
+// Both routes have the path `/tasks`. A `Post` matches the second route.
+?Core\Router\Match $found = Core\Router::match(Core\Http\Method::Post, "/tasks");
+if ($found != null) {
+    // `method()` returns a `Core\Http\Method` case. This prints `Post`.
+    echo $found->method() == Core\Http\Method::Post ? "Post" : "not Post", "\n";
+    // This prints `Tasks::create`.
+    echo $found->name() ?? "no name", "\n";
+}

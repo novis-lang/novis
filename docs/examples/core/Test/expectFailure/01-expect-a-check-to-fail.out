@@ -1,0 +1,3 @@
+the check failed, as expected
+caught: Core\Test::assertTrue failed: `$actual` is false
+the caught failure still counted

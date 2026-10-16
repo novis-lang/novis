@@ -1,0 +1,18 @@
+<?nvs
+// `Status` is declared inside `Order`, because only `Order` uses it.
+class Order {
+    enum Status { Open, Paid, Cancelled }
+
+    // Inside the class, you write `Status`.
+    public Status $status = Status::Open;
+
+    public function pay(): void {
+        $this->status = Status::Paid;
+    }
+}
+
+Order $order = new Order();
+$order->pay();
+
+// Outside the class, you write `Order::Status`. This prints `paid`.
+echo $order->status == Order::Status::Paid ? "paid" : "open", "\n";

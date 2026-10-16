@@ -1,0 +1,13 @@
+<?nvs
+// Shows what the keys of a list look like. `Core\Arr::keys` always gives you
+// text, so the positions of a list come back as "0", "1" and "2".
+
+array<string> $colours = ["red", "green", "blue"];
+
+// This prints 0|1|2.
+echo Core\Str::join(Core\Arr::keys($colours), "|"), "\n";
+
+// The keys of an array with no entries are an array with no entries, so this
+// prints 0.
+array<string> $empty = [];
+echo Core\Arr::count(Core\Arr::keys($empty)), "\n";

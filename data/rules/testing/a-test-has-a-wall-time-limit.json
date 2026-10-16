@@ -1,0 +1,11 @@
+{
+  "title": "`[limits] wall_time` bounds each test on its own, and `#[Test(timeout: ...)]` replaces it for one test",
+  "status": "designed",
+  "seeAlso": [
+    "testing/test-attribute",
+    "testing/runner-is-strict",
+    "errors/on-limit"
+  ],
+  "guardedBy": [],
+  "goal": "test-surface"
+}

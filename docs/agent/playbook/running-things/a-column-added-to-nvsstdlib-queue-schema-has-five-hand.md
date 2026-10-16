@@ -1,0 +1,6 @@
+- **A column added to `nvs_stdlib::queue::schema()` has five hand-written copies of that table to add
+  it to, and four of them are in other crates.** The schema value is the one home for what `nvs_jobs`
+  *is*, but nothing derives the DDL in the three `queue-*-sqlite.nvst` cases or the bind arrays in
+  `crates/nvs-stdlib/tests/queue.rs` (`push`, `push_keyed`, `push_marked`) and
+  `crates/nvs-stdlib/tests/queue_sqlite.rs` (`push_in_two`), so a wider insert meets a narrower table. Grep `nvs_jobs` across `crates/` and `tests/` before running
+  anything, and add the slot to every list that grep names. `until: gone crates/nvs-stdlib/tests/queue.rs:push_marked`

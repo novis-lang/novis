@@ -1,0 +1,39 @@
+<?nvs
+// Attack: `toString` is asked for the digits of numbers about a million bits
+// wide, dozens of times over. Each answer is a text of about 300000
+// characters. A text that is never freed would use up the memory of the
+// machine. The program should run to its last line.
+// hostile: timeout-ms 20000
+
+// 1. The digits of a number of about a million bits are taken 40 times. Only
+//    the last text is kept, so memory must not grow. This prints 301030.
+var $wide = Core\BigInt::of(1)->shl(1000000);
+uint $digits = 0;
+int $round = 0;
+while ($round < 40) {
+    $digits = Core\Str::length($wide->toString());
+    $round = $round + 1;
+}
+echo $digits, "\n";
+
+// 2. The minus sign is one more character, and it is there at every size. This
+//    prints 1.
+echo Core\Str::length($wide->neg()->toString()) - $digits, "\n";
+
+// 3. The digits of the widest number a single shift may produce. This prints
+//    315653.
+echo Core\Str::length(Core\BigInt::of(1)->shl(1048575)->toString()), "\n";
+
+// 4. Every round turns a different number into text. All 40 of them are the
+//    same length, so this prints 40.
+int $same = 0;
+int $step = 0;
+var $running = $wide;
+while ($step < 40) {
+    $running = $running->add(Core\BigInt::of(1));
+    if (Core\Str::length($running->toString()) == $digits) {
+        $same = $same + 1;
+    }
+    $step = $step + 1;
+}
+echo $same, "\n";

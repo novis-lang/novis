@@ -1,0 +1,27 @@
+<?nvs
+// Shows the everyday use: a tool copies several files and keeps one row per
+// file on the screen. A file that is done loses its row, so the table becomes
+// smaller until nothing is left.
+
+uint $copied = Core\Cli::live(fn(Core\Cli\Live $screen): uint => {
+    array<string> $files = ["photos.zip", "notes.txt", "backup.db"];
+    uint $done = 0;
+
+    while ($done < Core\Arr::count($files)) {
+        // One row per file that is still being copied. The files already
+        // copied are not in the list any more.
+        array<Core\Cli\Text> $rows = [];
+        foreach (Core\Arr::slice($files, $done as int) as string $file) {
+            $rows[] = Core\Cli\Text::plain(Core\Str::format("copying %s", $file));
+        }
+        $screen->set($rows);
+        $done = $done + 1;
+    }
+
+    // An empty list clears the region. The screen is free for the report.
+    array<Core\Cli\Text> $none = [];
+    $screen->set($none);
+    return $done;
+});
+
+echo "copied ", $copied, " files\n";

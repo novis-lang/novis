@@ -1,0 +1,19 @@
+<?nvs
+// Shows how a program finds the folders inside a folder and counts the files in each one.
+
+string $photos = Core\Path::join(Core\IO::temporaryDir(), "photos");
+Core\IO::makeDir(Core\Path::join($photos, "2025"));
+Core\IO::makeDir(Core\Path::join($photos, "2026"));
+Core\IO::write(Core\Path::join($photos, "2025/beach.jpg"), "x");
+Core\IO::write(Core\Path::join($photos, "2026/snow.jpg"), "x");
+Core\IO::write(Core\Path::join($photos, "2026/lake.jpg"), "x");
+Core\IO::write(Core\Path::join($photos, "index.txt"), "x");
+
+// `isDir` is `true` for "2025" and "2026", and `false` for "index.txt".
+// This prints "2025: 1 files" and then "2026: 2 files".
+foreach (Core\Arr::sort(Core\IO::list($photos)) as string $name) {
+    string $path = Core\Path::join($photos, $name);
+    if (Core\IO::isDir($path)) {
+        echo $name, ": ", Core\Arr::count(Core\IO::list($path)), " files", "\n";
+    }
+}

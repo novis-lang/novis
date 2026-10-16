@@ -1,0 +1,22 @@
+<?nvs
+// Shows what you get when the column has no value in this row.
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table tables (name text not null, seats int)', []);
+$db->execute(
+    'insert into tables (name, seats) values (?, ?), (?, ?)',
+    ['by the window', 4, 'on the terrace', null]
+);
+
+foreach ($db->query('select name, seats from tables order by name', []) as Core\Db\Row $row) {
+    // The result is `null` when the column has no value in this row. Test it
+    // for `null` before you turn it into a number.
+    var $seats = $row->get('seats');
+    if ($seats == null) {
+        echo $row->string('name') ?? '', ': nobody counted the seats', "\n";
+    } else {
+        echo $row->string('name') ?? '', ': ', $seats as ?int ?? 0, " seats\n";
+    }
+}
+
+$db->close();

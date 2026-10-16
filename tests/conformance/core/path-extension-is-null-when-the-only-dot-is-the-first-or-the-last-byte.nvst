@@ -1,0 +1,52 @@
+--TEST--
+Core\Path::extension is null for a name whose only dot is its first byte or its last, and Core\Path::withExtension puts back exactly what extension read
+--FILE--
+<?nvs
+final class Show {
+    public static function of(string $path): string {
+        return "[" . Core\Path::basename($path, {withoutExtension: true})
+            . "][" . (Core\Path::extension($path) ?? "<null>") . "]";
+    }
+}
+
+// A name that starts with a dot and has no other dot has no extension.
+// The whole name is the base name.
+echo Show::of(".gitignore"), "\n";
+echo Show::of("/etc/.env"), "\n";
+echo Show::of(".a"), "\n";
+
+// A name that ends with its only dot has no extension. The dot stays in the name.
+echo Show::of("report."), "\n";
+echo Show::of("/var/log/app."), "\n";
+
+// `.` and `..` are directory names, not a name with an extension.
+echo Show::of("."), "\n";
+echo Show::of(".."), "\n";
+echo Show::of("/a/b/.."), "\n";
+
+// `withExtension` adds an extension to the whole name.
+// The trailing dot of `report.` is part of the name, so the result has two dots.
+// Passing `null` removes the extension, and a name without one stays the same.
+echo Core\Path::withExtension(".gitignore", "txt"), "\n";
+echo Core\Path::withExtension("report.", "txt"), "\n";
+echo Core\Path::withExtension(".gitignore", null), "\n";
+echo Core\Path::withExtension("report.txt", null), "\n";
+
+// A name that starts with a dot and has a second dot has an extension.
+echo Show::of(".hidden.txt"), "\n";
+echo Show::of("/etc/.config.json"), "\n";
+--EXPECT--
+[.gitignore][<null>]
+[.env][<null>]
+[.a][<null>]
+[report.][<null>]
+[app.][<null>]
+[.][<null>]
+[..][<null>]
+[..][<null>]
+.gitignore.txt
+report..txt
+.gitignore
+report
+[.hidden][txt]
+[.config][json]

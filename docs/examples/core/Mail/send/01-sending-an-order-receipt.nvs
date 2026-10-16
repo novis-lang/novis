@@ -1,0 +1,19 @@
+<?nvs
+// Shows how to send an email receipt for an order. The `[mail.shop]` block of
+// `nvs.toml` names the mail server and the sender address. No mail server runs
+// where this example runs, so the call throws an `IOError`.
+
+// `Core\Mail::send` sends the message through the `[mail.shop]` block.
+// `html` adds a formatted version of the same text.
+try {
+    Core\Mail::send(
+        "shop",
+        ["anna@example.com"],
+        "Your receipt for order 1042",
+        "Thank you for your order. The total is 59.90 EUR.",
+        {html: "<p>Thank you for your order. The total is <b>59.90 EUR</b>.</p>"},
+    );
+    echo "The receipt is sent.\n";
+} catch (IOError $error) {
+    echo "The mail server did not answer, so the receipt is not sent.\n";
+}

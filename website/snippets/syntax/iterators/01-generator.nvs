@@ -1,0 +1,23 @@
+<?nvs
+class Count {
+    // A method with `yield` returns an `Iterator`. Each `yield` gives the next value.
+    public static function upTo(int $n): Iterator<int> {
+        int $i = 1;
+        while ($i <= $n) {
+            echo "make ", $i, "\n";
+            yield $i;
+            $i++;
+        }
+    }
+}
+
+// The body of `upTo` runs only when the loop needs the next value.
+foreach (Count::upTo(2) as int $v) {
+    echo "use ", $v, "\n";
+}
+
+// `advance()` moves to the next value, and `current()` returns it.
+Iterator<int> $it = Count::upTo(1);
+while ($it->advance()) {
+    echo "got ", $it->current(), "\n";
+}

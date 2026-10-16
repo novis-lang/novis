@@ -1,0 +1,21 @@
+--TEST--
+The braced `namespace X { … }` form is refused — a namespace is a statement, and a file is one namespace
+--FILE--
+<?nvs
+// `rule:security/authority-is-the-enclosing-namespace` keys authority on the enclosing namespace and `rule:config/an-application-is-its-entry-file-path` keys an
+// application on its entry file, so a file holding two namespaces has an
+// authority that depends on the line number. The rewrite is one file each.
+namespace App\Billing {
+    class Invoice {
+        public static function total(): int {
+            return 1;
+        }
+    }
+}
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0243]: a `namespace` declaration is a statement, not a block
+%A
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

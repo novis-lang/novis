@@ -1,0 +1,7 @@
+<?nvs
+// Reads a file that is already on the `files` disk.
+
+?bytes $welcome = Core\Storage::get("files", "welcome.txt");
+
+// The file exists, so the result is its bytes. This prints `Welcome to the shop!`.
+echo ($welcome ?? "" as bytes) as string;

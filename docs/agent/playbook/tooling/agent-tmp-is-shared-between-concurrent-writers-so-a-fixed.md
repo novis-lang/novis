@@ -1,0 +1,5 @@
+- **`.agent-tmp/` is shared between concurrent writers, so a fixed scratch filename hands you their
+  file.** `git commit -F .agent-tmp/msg.txt` can pick up a stale message another session left there,
+  with no error and no warning, and the same applies to a `--patch` file handed to `nv splice`. Name
+  a scratch file for the thing it holds (`wrap-msg-handoff.txt`), never `msg.txt`/`patch.txt`, and
+  read `git log --oneline -1` after any `-F` commit. `until: gone AGENTS.md:.agent-tmp/`

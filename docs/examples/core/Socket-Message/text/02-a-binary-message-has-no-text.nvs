@@ -1,0 +1,18 @@
+<?nvs
+// Shows that `text()` returns `null` for a binary message.
+
+// The `.nvsp` file beside this example plays the client.
+// It sends a text message, then a binary message.
+Core\Socket $conn = Core\Socket::current();
+
+// This prints `text: ping`, then `no text: this is a binary message`.
+?Core\Socket\Message $message = $conn->receive();
+while ($message != null) {
+    ?tainted string $text = $message->text();
+    if ($text == null) {
+        echo "no text: this is a binary message\n";
+    } else {
+        echo "text: ", $text, "\n";
+    }
+    $message = $conn->receive();
+}

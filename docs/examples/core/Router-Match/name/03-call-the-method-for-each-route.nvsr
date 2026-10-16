@@ -1,0 +1,6 @@
+--METHOD--
+GET
+--PATH--
+/products/7
+--HEADERS--
+host: shop.example.com

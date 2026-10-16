@@ -1,0 +1,7 @@
+<?nvs
+namespace App;
+
+interface Part
+{
+    public function tag(): string;
+}

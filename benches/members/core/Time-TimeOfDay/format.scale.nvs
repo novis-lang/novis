@@ -1,0 +1,22 @@
+<?nvs
+// Measures `format` on a time of day with a long pattern, at growing pattern lengths.
+// bench: start 64
+// bench: max 1024
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        Core\Time\TimeOfDay $time = Core\Time\TimeOfDay::at(13, 45);
+        string $pattern = Core\Str::repeat('HH:mm ', $size);
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            $total = $total + Core\Str::length($time->format($pattern));
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(64), "\n";

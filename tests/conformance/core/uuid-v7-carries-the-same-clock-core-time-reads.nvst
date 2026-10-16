@@ -1,0 +1,86 @@
+--TEST--
+Core\Uuid::v7's leading 48 bits are a millisecond count read off the clock `Core\Time::now()` reads, and the 74 bits below it are what tells two draws of one millisecond apart — spec § 11, RFC 9562 § 5.7
+--FILE--
+<?nvs
+// `uuid-v7-never-goes-backwards-across-a-sweep.nvst` asserts that the leading
+// field *increases*, which any counter satisfies, and bounds it against two
+// dates written as hex. What neither it nor the sibling draw case can see is
+// the claim `crates/nvs-stdlib/src/uuid.rs` actually makes at `v7`: that field
+// is `jiff`'s clock, the same one `Core\Time::now()` reads, "so this member and
+// `Core\Time::now()` cannot disagree about what time it is". This case reads
+// the field as the number it is and asks both members at once.
+final class Clock {
+    // The 48-bit big-endian millisecond field: the first eight hex digits and
+    // the four after the hyphen, folded octet by octet. `Core\Bytes::at`
+    // answers a `uint`, so each octet is converted before it joins an `int`
+    // accumulator — a `uint` times the literal `256` has no common type.
+    public static function millisOf(string $rendered): int {
+        string $hex = Core\Str::slice($rendered, 0, 8) . Core\Str::slice($rendered, 9, 4);
+        bytes $raw = Core\Encoding::fromHex($hex);
+        int $millis = 0;
+        int $i = 0;
+        for ($i = 0; $i < 6; $i = $i + 1) {
+            $millis = $millis * 256 + (Core\Bytes::at($raw, $i) as int);
+        }
+        return $millis;
+    }
+}
+
+// One draw, bracketed by two reads of `Core\Time::now()`. This is the whole
+// agreement: a `v7` whose clock were its own — a monotonic counter, a different
+// epoch, seconds rather than milliseconds — still sorts, still increases and
+// still opens with `01`, and lands outside this window every time.
+int $before = Core\Time::now()->toEpochMillis();
+string $v7 = Core\Uuid::v7()->toString();
+int $after = Core\Time::now()->toEpochMillis();
+int $stamp = Clock::millisOf($v7);
+echo "clock ", ((($before <= $stamp) && ($stamp <= $after)) ? "agrees" : "disagrees"), "\n";
+
+// The same question of `v4`, whose leading 48 bits are random. It is what says
+// the window above can answer no: a uniform draw over 2^48 landing inside a
+// window a few milliseconds wide is not something that happens twice.
+int $scattered = Clock::millisOf(Core\Uuid::v4()->toString());
+echo "v4 ", ((($before <= $scattered) && ($scattered <= $after)) ? "in window" : "elsewhere"), "\n";
+
+// A sweep of draws, all of them inside one window, with the low and high stamps
+// tracked rather than each row printed — the count is fixed whatever the clock
+// says. Ordering is the sibling case's subject and is not repeated; what is
+// asserted here is that every stamp is a reading of *this* clock, taken while
+// the sweep ran.
+int $opened = Core\Time::now()->toEpochMillis();
+string $first = Core\Uuid::v7()->toString();
+int $low = Clock::millisOf($first);
+int $high = $low;
+int $draws = 1;
+int $repeats = 0;
+string $prev = $first;
+int $i = 0;
+for ($i = 0; $i < 31; $i = $i + 1) {
+    string $next = Core\Uuid::v7()->toString();
+    int $each = Clock::millisOf($next);
+    if ($each < $low) {
+        $low = $each;
+    }
+    if ($each > $high) {
+        $high = $each;
+    }
+    // The 74 bits below the clock are what makes two draws of one millisecond
+    // two identifiers. Most of this sweep shares a millisecond — how many is a
+    // property of the host and is deliberately not printed — so a `v7` whose
+    // entropy were anywhere but below the clock repeats here.
+    if ($next == $prev) {
+        $repeats = $repeats + 1;
+    }
+    $prev = $next;
+    $draws = $draws + 1;
+}
+int $closed = Core\Time::now()->toEpochMillis();
+echo "draws ", $draws, "\n";
+echo "repeats ", $repeats, "\n";
+echo "window ", ((($opened <= $low) && ($high <= $closed)) ? "inside" : "outside"), "\n";
+--EXPECT--
+clock agrees
+v4 elsewhere
+draws 32
+repeats 0
+window inside

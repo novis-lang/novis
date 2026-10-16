@@ -1,0 +1,17 @@
+<?nvs
+// Shows how to read the query of a link, which is the text after the `?`.
+
+var $link = Core\Uri::parse("https://shop.example.com/search?q=red+shoes&page=2#results");
+
+// The query stops before the `#`. This prints q=red+shoes&page=2.
+echo $link->query(), "\n";
+
+// The query is returned as it was written, so `%20` stays in the text.
+// This prints name=Anna%20Berg&city=Wien.
+var $form = Core\Uri::parse("/signup?name=Anna%20Berg&city=Wien");
+echo $form->query(), "\n";
+
+// Only the first `?` starts the query. A second `?` is part of the query.
+// This prints next=/cart?step=2.
+var $login = Core\Uri::parse("/login?next=/cart?step=2");
+echo $login->query(), "\n";

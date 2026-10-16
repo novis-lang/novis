@@ -1,0 +1,29 @@
+<?nvs
+// Shows that `has` looks for the same object, not an object with equal fields.
+
+final class Point {
+    public int $x;
+    public int $y;
+
+    public function constructor(int $x, int $y) {
+        $this->x = $x;
+        $this->y = $y;
+    }
+}
+
+Point $start = new Point(0, 0);
+Point $copy = new Point(0, 0);
+
+Core\ObjectSet<Point> $visited = new Core\ObjectSet<Point>();
+$visited->add($start);
+
+// `$start` is in the set. This prints "true".
+echo $visited->has($start) ? "true" : "false", "\n";
+
+// `$copy` has the same fields, but it is a different object. This prints "false".
+echo $visited->has($copy) ? "true" : "false", "\n";
+
+// Strings are matched by value. This prints "true".
+Core\ObjectSet<string> $words = new Core\ObjectSet<string>();
+$words->add("apple");
+echo $words->has("app" . "le") ? "true" : "false", "\n";

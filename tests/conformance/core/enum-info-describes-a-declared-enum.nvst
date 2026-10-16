@@ -1,0 +1,45 @@
+--TEST--
+`Core\Reflect\EnumInfo::of` describes an enum by name, and the description answers the name, the case list and the backing it was declared with (`rule:enums/reflection`, `rule:enums/one-backing-type`)
+--FILE--
+<?nvs
+// `rule:enums/reflection` makes an enum's shape ordinary structural metadata:
+// the type's name and its closed case list, reached by name because
+// `rule:enums/representation` leaves no value to ask.
+enum Status: int {
+    Banned = 7,
+    Active = 1,
+    Pending = 4,
+}
+
+?Core\Reflect\EnumInfo $found = Core\Reflect\EnumInfo::of(Status::class);
+if ($found != null) {
+    Core\Reflect\EnumInfo $info = $found;
+
+    echo $info->name(), "\n";
+
+    // The case list is closed and complete — every declared case, and nothing
+    // else.
+    echo Core\Arr::count($info->cases()), "\n";
+    foreach ($info->cases() as string $case) {
+        echo $case, "\n";
+    }
+
+    // Each case's own constant, read back through the name the list answered.
+    echo $info->valueOf("Active"), "\n";
+    echo $info->valueOf("Pending"), "\n";
+    echo $info->valueOf("Banned"), "\n";
+
+    // `int` is what a declaration writing `: int` gets, which is
+    // `rule:enums/one-backing-type`'s default spelled out.
+    echo $info->isUnsigned() ? "uint" : "int", "\n";
+}
+--EXPECT--
+Status
+3
+Active
+Pending
+Banned
+1
+4
+7
+int

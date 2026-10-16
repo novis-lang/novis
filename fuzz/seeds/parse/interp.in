@@ -1,0 +1,12 @@
+<?nvs
+var $rows = ["ana" => 1, "bo" => 2];
+foreach ($rows as string $name => int $score) {
+    echo "{$name} scored {$score}\n";
+}
+
+var $label = match ($rows["ana"]) {
+    0 => "empty",
+    1 => "one",
+    default => "some",
+};
+echo $label, "\n";

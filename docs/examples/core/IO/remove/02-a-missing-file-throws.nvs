@@ -1,0 +1,24 @@
+<?nvs
+// Shows that `Core\IO::remove` throws an `IOError` when there is no file to delete.
+
+string $dir = Core\IO::temporaryDir();
+string $path = Core\Path::join($dir, "cache.txt");
+Core\IO::write($path, "old data\n");
+
+// The first call deletes the file. The second call finds nothing to delete,
+// so it throws an `IOError`. This prints "deleted" and then "already gone".
+try {
+    Core\IO::remove($path);
+    echo "deleted", "\n";
+    Core\IO::remove($path);
+    echo "deleted again", "\n";
+} catch (IOError $e) {
+    echo "already gone", "\n";
+}
+
+// `remove` deletes files only. A folder is not a file, so this prints "not a file".
+try {
+    Core\IO::remove($dir);
+} catch (IOError $e) {
+    echo "not a file", "\n";
+}

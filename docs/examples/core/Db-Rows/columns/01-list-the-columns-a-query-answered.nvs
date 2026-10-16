@@ -1,0 +1,21 @@
+<?nvs
+// Shows how to read the description of a query. `columns` returns one
+// `Core\Db\Column` for each column the query asked for.
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table notes (id integer primary key, title text not null, weight real)', []);
+$db->execute('insert into notes (title, weight) values (?, ?), (?, ?)', ['First note', 1.5, 'Second note', 2.5]);
+
+var $rows = $db->query('select id, title, weight from notes order by id', []);
+
+// The entries come in the order the query wrote them. This prints `id`, `title`
+// and `weight`, one per line.
+foreach ($rows->columns() as Core\Db\Column $column) {
+    echo $column->name(), "\n";
+}
+
+// One entry per column, so counting the entries counts the columns. This
+// prints `3`.
+echo Core\Arr::count($rows->columns()), "\n";
+
+$db->close();

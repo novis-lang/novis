@@ -1,0 +1,7 @@
+<?nvs
+// Shows how to tell the browser not to keep a copy of a page.
+
+// `Cache-Control: no-store` tells the browser and every cache to keep no copy.
+// Use it for a page with private data, such as an account page.
+Core\Response::setHeader("Cache-Control", "no-store");
+Core\Response::text("Header set: Cache-Control: no-store\n");

@@ -1,0 +1,1074 @@
+//! `Core\Ldap`'s reading half for a Novis program: `Ldap\Connection`'s `whoami`, `search` and `read`, the `Ldap\Entries` a search returns, the `Ldap\Entry` it yields, and the `Ldap\Filter` it takes, with `Ldap\Ad`'s filters
+//!
+//! `rule:core-classes/ldap-search-pages-and-never-follows-a-referral` and
+//! `rule:core-classes/ldap-filter-is-a-value`. Every body here reads its arguments, calls the
+//! Rust half in [`super`], and builds what it returns.
+//!
+//! **An `Ldap\Entry` is a value, built once per entry.** Its two slots are the
+//! DN and an array keyed by each attribute's name as the server spelled it,
+//! whose values are lists of `bytes`. A reader finds a name without case, as
+//! LDAP does, and `toArray`'s keys keep the server's spelling. The typed
+//! readers of `rule:core-classes/ldap-value-types` read the same lists, and are `super::value`'s.
+//!
+//! **An `Ldap\Filter` is its BER encoding**, one `bytes` slot written by the
+//! static member that built it (`rule:core-classes/ldap-filter-is-a-value`).
+//! A search sends it as [`nvs_ldap::Filter::Encoded`], so a value is never
+//! rendered as text on the way to the wire, and an attribute name is checked
+//! by [`nvs_ldap::is_attribute_description`] before it is encoded.
+//!
+//! **`Ldap\Entries` is its own iterator**, as `Core\Db\Stream` is, because the
+//! next entry may be on a page the server has not sent yet. It carries the
+//! connection's key, the id its search is parked under ([`super::step`]), the
+//! entry the last `advance()` read, and the continuation references, which
+//! the last `advance()` writes when the search ends. Until then the slot is
+//! `null`, and `references()` reads the parked search instead. Its fifth slot
+//! is `total()`: the count a window's answer carried, written once when the
+//! search starts, or `null` for a search with no window.
+//!
+//! **A window is two flat options, `offset` and `window`**, not one
+//! `window: {offset, count}`: an option bag cannot hold a shape
+//! (`a_shape_is_only_ever_a_whole_parameter`), and two counts beside `sort`
+//! need no type of their own. `window` needs `sort`, and `offset` needs
+//! `window`; both are checked before anything is sent.
+//!
+//! **`showDeleted` adds `isDeleted` to a `select` that names attributes**,
+//! so `Entry::isDeleted` reads the attribute it is about whatever the program
+//! selected. An empty `select` already returns it.
+//!
+//! **`Ldap\Changes` is a search with a cookie in place of references and a
+//! total.** `changes` parks a DirSync cursor the way `search` parks a paged
+//! one, and its first three slots are `Ldap\Entries`' first three, so one
+//! `advance` serves both. Its fourth is the cookie, written when the walk
+//! ends; until then `cookie()` reads the parked cursor, which returns the
+//! cookie that covers every entry already read.
+
+use nvs_runtime::{Fault, NvsArray, NvsStr, ObjHeader, ThrownClass, Value};
+
+use super::{
+    CHANGES, CHANGES_COOKIE_AT, CHANGES_MEMBER, CHANGES_SET, CONNECTION, CONNECTION_HANDLE_AT,
+    ENTRIES, ENTRIES_ENTRY_AT, ENTRIES_HANDLE_AT, ENTRIES_MEMBER, ENTRIES_REFERENCES_AT,
+    ENTRIES_SEARCH_AT, ENTRIES_TOTAL_AT, ENTRY, ENTRY_ATTRIBUTES_AT, ENTRY_DN_AT, ENTRY_NAME,
+    FILTER, FILTER_BER_AT, READ, SEARCH, Step,
+};
+use crate::registry::CoreClass;
+
+/// `Ldap\Entries::iterate`'s symbol, which the dispatch roster names.
+pub(crate) const ENTRIES_ITERATE_SYMBOL: &str = "nvs_core_ldap_entries_iterate";
+/// `Ldap\Entries::advance`'s symbol.
+pub(crate) const ENTRIES_ADVANCE_SYMBOL: &str = "nvs_core_ldap_entries_advance";
+/// `Ldap\Entries::current`'s symbol.
+pub(crate) const ENTRIES_CURRENT_SYMBOL: &str = "nvs_core_ldap_entries_current";
+/// `Ldap\Changes::iterate`'s symbol, which the dispatch roster names.
+pub(crate) const CHANGES_ITERATE_SYMBOL: &str = "nvs_core_ldap_changes_iterate";
+/// `Ldap\Changes::advance`'s symbol.
+pub(crate) const CHANGES_ADVANCE_SYMBOL: &str = "nvs_core_ldap_changes_advance";
+/// `Ldap\Changes::current`'s symbol.
+pub(crate) const CHANGES_CURRENT_SYMBOL: &str = "nvs_core_ldap_changes_current";
+
+/// `value` with a reference of its own, for a value read out of a slot or an
+/// array the receiver still holds.
+pub(super) fn retained(value: Value) -> Value {
+    #[expect(
+        unsafe_code,
+        reason = "the slot or array the value was read from keeps its own \
+                  reference, so the copy handed back to Novis code needs one"
+    )]
+    // SAFETY: the receiver is live for the length of the call, so what it holds is.
+    unsafe {
+        value.retain();
+    }
+    value
+}
+
+/// The `uint` key in slot `at` of a `class` receiver.
+fn key_in(value: Value, class: &CoreClass, at: usize, member: &str) -> Result<u64, Fault> {
+    let receiver = crate::instance::receiver(value, class, member)?;
+    crate::instance::slot(receiver, at)
+        .as_uint()
+        .ok_or_else(|| {
+            // Unreachable from source: only this module builds these classes.
+            Fault::fatal(format!(
+                "{}::{member} expected a `uint` in its `{}` slot",
+                class.name, class.slots[at]
+            ))
+        })
+}
+
+/// The error for an attribute name RFC 4512 does not allow.
+fn not_an_attribute(member: &str, name: &str) -> Fault {
+    Fault::thrown_as(
+        ThrownClass::Logic,
+        format!(
+            "{member}: `{name}` is not an attribute name. A name starts with a letter and \
+             has only letters, digits and `-`, such as `sAMAccountName`"
+        ),
+    )
+}
+
+/// The `select` option: the attribute names an entry carries, each checked.
+/// `null` and an empty list both return every attribute a user can read.
+fn selected(value: &Value, member: &str) -> Result<Vec<String>, Fault> {
+    let Some(array) = value.array_ptr() else {
+        return Ok(Vec::new());
+    };
+    let names = crate::arr::borrowed(array);
+    let mut out = Vec::with_capacity(names.count());
+    let mut at = names.next_slot(0);
+    while let Some(slot) = at {
+        let name = names
+            .value_at(slot)
+            .and_then(|value| value.as_text().map(str::to_owned))
+            .ok_or_else(|| {
+                // Unreachable from source: `select` is an `array<string>`.
+                Fault::fatal(format!("{member} expected a `string` in `select`"))
+            })?;
+        if !nvs_ldap::is_attribute_description(&name) {
+            return Err(not_an_attribute(member, &name));
+        }
+        out.push(name);
+        at = names.next_slot(slot + 1);
+    }
+    // AD computes lockout and an expired password and returns them only
+    // when they are asked for, and a password that must be changed is
+    // `pwdLastSet = 0`, so `Entry::accountFlags` needs both beside
+    // `userAccountControl`.
+    let has =
+        |out: &[String], wanted: &str| out.iter().any(|name| name.eq_ignore_ascii_case(wanted));
+    if has(&out, "userAccountControl") {
+        for wanted in [nvs_ldap::value::COMPUTED_ACCOUNT_CONTROL, "pwdLastSet"] {
+            if !has(&out, wanted) {
+                out.push(wanted.to_owned());
+            }
+        }
+    }
+    Ok(out)
+}
+
+/// An `Ldap\Entry` over `entry`.
+pub(super) fn entry_value(entry: nvs_ldap::Entry) -> Value {
+    let mut attributes = NvsArray::new();
+    for attribute in entry.attributes {
+        let mut values = NvsArray::new();
+        for value in &attribute.values {
+            values.append(Value::bytes(NvsStr::new(value)));
+        }
+        attributes.set(NvsStr::new(attribute.name.as_bytes()), Value::array(values));
+    }
+    crate::instance::build(
+        &ENTRY,
+        [
+            Value::str(NvsStr::new(entry.dn.as_bytes())),
+            Value::array(attributes),
+        ],
+    )
+}
+
+/// The name an `Ldap\Entry` reader was given, and the list of values the
+/// entry has under it, found without case, or `None` when it has none.
+pub(super) fn values_named<'a>(
+    args: &'a [Value],
+    member: &str,
+) -> Result<(&'a str, Option<std::mem::ManuallyDrop<NvsArray>>), Fault> {
+    let name = args[1].as_text().ok_or_else(|| {
+        // Unreachable from source: the parameter is a `string`.
+        Fault::fatal(format!("{ENTRY_NAME}::{member} expected a `string` name"))
+    })?;
+    Ok((name, values_of(args[0], name, member)?))
+}
+
+/// The list of values an `Ldap\Entry` has under `name`, found without case,
+/// or `None` when it has none.
+pub(super) fn values_of(
+    entry: Value,
+    name: &str,
+    member: &str,
+) -> Result<Option<std::mem::ManuallyDrop<NvsArray>>, Fault> {
+    let receiver = crate::instance::receiver(entry, &ENTRY, member)?;
+    let held = crate::instance::slot(receiver, ENTRY_ATTRIBUTES_AT);
+    let Some(array) = held.array_ptr() else {
+        // Unreachable from source: only [`entry_value`] builds an entry.
+        return Err(Fault::fatal(format!(
+            "{ENTRY_NAME}::{member} found no array in its attributes slot"
+        )));
+    };
+    let attributes = crate::arr::borrowed(array);
+    let found = attributes
+        .keys()
+        .into_iter()
+        .find(|key| key.eq_ignore_ascii_case(name.as_bytes()))
+        .and_then(|key| attributes.get(&key))
+        .and_then(Value::array_ptr)
+        .map(crate::arr::borrowed);
+    Ok(found)
+}
+
+/// The one value a single-value reader returns, or the error for a list
+/// with more than one.
+pub(super) fn only_value(values: &NvsArray, member: &str, name: &str) -> Result<Value, Fault> {
+    match (values.count(), values.get_index(0)) {
+        (1, Some(value)) => Ok(value),
+        (count, _) => Err(Fault::thrown_as(
+            ThrownClass::Logic,
+            format!(
+                "{ENTRY_NAME}::{member}: `{name}` has {count} values. `strings` returns all \
+                 of them"
+            ),
+        )),
+    }
+}
+
+/// `value` as a `string`, or the error for a value that is not UTF-8.
+fn text_value(value: Value, member: &str, name: &str) -> Result<Value, Fault> {
+    let bytes = value.as_bytes().unwrap_or_default();
+    if std::str::from_utf8(bytes).is_err() {
+        return Err(Fault::thrown_as(
+            ThrownClass::Logic,
+            format!(
+                "{ENTRY_NAME}::{member}: a value of `{name}` is not text. `bytes` returns it \
+                 as it is"
+            ),
+        ));
+    }
+    Ok(Value::str(NvsStr::new(bytes)))
+}
+
+/// `urls` as an `array<string>`.
+fn url_list(urls: &[String]) -> Value {
+    let mut out = NvsArray::new();
+    for url in urls {
+        out.append(Value::str(NvsStr::new(url.as_bytes())));
+    }
+    Value::array(out)
+}
+
+/// A `Ldap\Filter` over `filter`'s encoding.
+fn filter_value(filter: &nvs_ldap::Filter) -> Value {
+    crate::instance::build(&FILTER, [Value::bytes(NvsStr::new(&filter.to_ber()))])
+}
+
+/// The `Ldap\Filter` `all`, `any` or `not` built, one level deeper than the
+/// filters it was given. A filter deeper than [`nvs_ldap::MAX_FILTER_DEPTH`]
+/// throws `LogicError`, so every filter a program holds can be read and
+/// written without exhausting the stack.
+fn nested_value(filter: &nvs_ldap::Filter, member: &str) -> Result<Value, Fault> {
+    let ber = filter.to_ber();
+    if nvs_ldap::Filter::depth_of(&ber).is_err() {
+        return Err(Fault::thrown_as(
+            ThrownClass::Logic,
+            format!(
+                "{member}: the filter would nest more than {} levels deep",
+                nvs_ldap::MAX_FILTER_DEPTH
+            ),
+        ));
+    }
+    Ok(crate::instance::build(
+        &FILTER,
+        [Value::bytes(NvsStr::new(&ber))],
+    ))
+}
+
+/// The attribute name a `Ldap\Filter` constructor was given, checked.
+fn attribute_arg<'a>(value: &'a Value, member: &str) -> Result<&'a str, Fault> {
+    let name = value.as_text().ok_or_else(|| {
+        // Unreachable from source: the parameter is a `string`.
+        Fault::fatal(format!("{member} expected a `string` attribute"))
+    })?;
+    if !nvs_ldap::is_attribute_description(name) {
+        return Err(not_an_attribute(member, name));
+    }
+    Ok(name)
+}
+
+/// The value a `Ldap\Filter` constructor was given, as the bytes it encodes.
+fn value_arg<'a>(value: &'a Value, member: &str) -> Result<&'a [u8], Fault> {
+    value.as_str_bytes().ok_or_else(|| {
+        // Unreachable from source: the parameter is a `string`.
+        Fault::fatal(format!("{member} expected a `string` value"))
+    })
+}
+
+/// A part a substring filter is built from, which may not be empty: RFC 4511
+/// has no empty part, and `present` is the filter for any value at all.
+fn part_arg<'a>(value: &'a Value, member: &str) -> Result<&'a [u8], Fault> {
+    let part = value_arg(value, member)?;
+    if part.is_empty() {
+        return Err(Fault::thrown_as(
+            ThrownClass::Logic,
+            format!("{member}: the value is empty. `present` matches every entry with a value"),
+        ));
+    }
+    Ok(part)
+}
+
+/// The BER a `Ldap\Filter` argument carries.
+fn ber_of(value: Value, member: &str) -> Result<Vec<u8>, Fault> {
+    let receiver = crate::instance::receiver(value, &FILTER, member)?;
+    let ber = crate::instance::slot(receiver, FILTER_BER_AT);
+    Ok(ber.as_bytes().unwrap_or_default().to_vec())
+}
+
+/// The filters `all` or `any` was given, at least one.
+fn filters_arg(value: &Value, member: &str) -> Result<Vec<nvs_ldap::Filter>, Fault> {
+    let Some(array) = value.array_ptr() else {
+        // Unreachable from source: a variadic tail arrives as an array.
+        return Err(Fault::fatal(format!(
+            "{member} expected an array of filters"
+        )));
+    };
+    let filters = crate::arr::borrowed(array);
+    let mut out = Vec::with_capacity(filters.count());
+    let mut at = filters.next_slot(0);
+    while let Some(slot) = at {
+        let filter = filters.value_at(slot).unwrap_or_else(Value::null);
+        out.push(nvs_ldap::Filter::Encoded(ber_of(filter, member)?));
+        at = filters.next_slot(slot + 1);
+    }
+    if out.is_empty() {
+        return Err(Fault::thrown_as(
+            ThrownClass::Logic,
+            format!("{member}: there is no filter. Give one filter or more"),
+        ));
+    }
+    Ok(out)
+}
+
+/// The scope a `search` names, by the ordinal [`super::SCOPE`] gives it.
+fn scope_of(value: &Value) -> Result<nvs_ldap::Scope, Fault> {
+    match value.as_int() {
+        Some(0) => Ok(nvs_ldap::Scope::Base),
+        Some(1) => Ok(nvs_ldap::Scope::One),
+        None | Some(2) => Ok(nvs_ldap::Scope::Subtree),
+        // Unreachable from source: `scope` is a `Scope` case.
+        Some(other) => Err(Fault::fatal(format!(
+            "{SEARCH} expected a `Scope` case, got {other}"
+        ))),
+    }
+}
+
+/// A count option of `search`, which must fit a `u32` and be at least `least`.
+fn count_option(value: &Value, option: &str, least: u32) -> Result<u32, Fault> {
+    let given = value.as_int().unwrap_or_default();
+    u32::try_from(given)
+        .ok()
+        .filter(|count| *count >= least)
+        .ok_or_else(|| {
+            Fault::thrown_as(
+                ThrownClass::Logic,
+                format!(
+                    "{SEARCH}: `{option}` is {given}, and it must be between {least} and {}",
+                    u32::MAX
+                ),
+            )
+        })
+}
+
+/// The window `search`'s `offset` and `window` options ask for, or `None`
+/// when `window` is 0. A window, and `descending`, need `sort`, and `offset`
+/// needs a window.
+fn window_of(
+    sorted: bool,
+    descending: bool,
+    offset: u32,
+    count: u32,
+) -> Result<Option<nvs_ldap::Window>, Fault> {
+    let needs = |option: &str, needed: &str| {
+        Err(Fault::thrown_as(
+            ThrownClass::Logic,
+            format!("{SEARCH}: `{option}` needs `{needed}`. Give both, or leave out `{option}`"),
+        ))
+    };
+    if descending && !sorted {
+        return needs("descending", "sort");
+    }
+    if count == 0 {
+        return if offset == 0 {
+            Ok(None)
+        } else {
+            needs("offset", "window")
+        };
+    }
+    if !sorted {
+        return needs("window", "sort");
+    }
+    Ok(Some(nvs_ldap::Window { offset, count }))
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$connection->whoami(): string` — [`super::who_am_i`] for a Novis program.
+    fn nvs_core_ldap_connection_whoami(ctx, args: [1]) {
+        let key = key_in(args[0], &CONNECTION, CONNECTION_HANDLE_AT, "whoami")?;
+        let who = super::who_am_i(ctx, key)?;
+        Ok(Value::str(NvsStr::new(who.as_bytes())))
+    }
+}
+
+/// The `base` option, or the block's own `base` when it is `null`.
+fn base_arg(
+    ctx: &mut nvs_runtime::Ctx,
+    key: u64,
+    value: Value,
+    member: &str,
+) -> Result<String, Fault> {
+    match super::dn::dn_arg(value, member)? {
+        Some(base) => Ok(base),
+        None => super::base_of(ctx, key)?.ok_or_else(|| {
+            Fault::thrown_as(
+                ThrownClass::Logic,
+                format!(
+                    "{member}: the search has no `base`. Give one, such as \
+                     `{{base: 'DC=example,DC=test'}}`, or set `base` in the `[ldap]` block"
+                ),
+            )
+        }),
+    }
+}
+
+/// `advance()` on an `Ldap\Entries` or an `Ldap\Changes`, whose first three
+/// slots agree: it reads the next entry into the receiver, and `ended` writes
+/// what the walk returns at its end.
+fn advance_walk(
+    ctx: &mut nvs_runtime::Ctx,
+    walk: Value,
+    class: &CoreClass,
+    member_for_faults: &str,
+    ended: impl FnOnce(*mut ObjHeader, Vec<String>, Vec<u8>),
+) -> Result<Value, Fault> {
+    let member = nvs_runtime::sequence::ADVANCE;
+    let key = key_in(walk, class, ENTRIES_HANDLE_AT, member)?;
+    let id = key_in(walk, class, ENTRIES_SEARCH_AT, member)?;
+    let receiver = crate::instance::receiver(walk, class, member)?;
+    let next = super::step(ctx, key, id, member_for_faults);
+    // The entry the last step parked is freed here unless the loop
+    // body still holds it, so a walk holds one entry at a time.
+    let (parked, more) = match next {
+        Ok(Step::Entry(entry)) => (entry_value(entry), true),
+        Ok(Step::Ended(urls, cookie)) => {
+            ended(receiver, urls, cookie);
+            (Value::null(), false)
+        }
+        Ok(Step::Gone) => (Value::null(), false),
+        Err(fault) => {
+            crate::instance::set_slot(receiver, ENTRIES_ENTRY_AT, Value::null());
+            return Err(fault);
+        }
+    };
+    crate::instance::set_slot(receiver, ENTRIES_ENTRY_AT, parked);
+    Ok(Value::bool(more))
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$connection->search(Filter $filter, {base?, scope?, select?, pageSize?,
+    /// sizeLimit?, sort?, descending?, offset?, window?, showDeleted?}):
+    /// Entries` — [`super::search`], with the search parked on the connection
+    /// for the `Ldap\Entries` it returns.
+    fn nvs_core_ldap_connection_search(ctx, args: [12]) {
+        let key = key_in(args[0], &CONNECTION, CONNECTION_HANDLE_AT, "search")?;
+        let filter = nvs_ldap::Filter::Encoded(ber_of(args[1], "search")?);
+        let base = base_arg(ctx, key, args[2], SEARCH)?;
+        let scope = scope_of(&args[3])?;
+        let select = selected(&args[4], SEARCH)?;
+        let mut attributes: Vec<&str> = select.iter().map(String::as_str).collect();
+        let show_deleted = args[11].as_bool() == Some(true);
+        if show_deleted
+            && !attributes.is_empty()
+            && !attributes
+                .iter()
+                .any(|name| name.eq_ignore_ascii_case("isDeleted"))
+        {
+            attributes.push("isDeleted");
+        }
+        let sorted = args[7].as_text().map(str::to_owned);
+        if let Some(name) = &sorted
+            && !nvs_ldap::is_attribute_description(name)
+        {
+            return Err(not_an_attribute(SEARCH, name));
+        }
+        let offset = count_option(&args[9], "offset", 0)?;
+        let count = count_option(&args[10], "window", 0)?;
+        let descending = args[8].as_bool() == Some(true);
+        let window = window_of(sorted.is_some(), descending, offset, count)?;
+        let request = nvs_ldap::SearchRequest {
+            base: &base,
+            scope,
+            filter: &filter,
+            attributes: &attributes,
+            page_size: count_option(&args[5], "pageSize", 1)?,
+            size_limit: count_option(&args[6], "sizeLimit", 0)?,
+            time_limit: 0,
+            sort: sorted.as_deref().map(|attribute| nvs_ldap::Sort {
+                attribute,
+                descending,
+            }),
+            window,
+            show_deleted,
+        };
+        let entries = super::search(ctx, key, &request)?;
+        let total = entries
+            .total()
+            .map_or_else(Value::null, |total| Value::int(i64::from(total)));
+        let id = entries.park(ctx)?;
+        Ok(crate::instance::build(
+            &ENTRIES,
+            [Value::uint(key), Value::uint(id), Value::null(), Value::null(), total],
+        ))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$connection->changes(Filter $filter, {base?, select?, cookie?}):
+    /// Changes` — [`super::changes`], with the sync parked on the connection
+    /// for the `Ldap\Changes` it returns.
+    fn nvs_core_ldap_connection_changes(ctx, args: [5]) {
+        let key = key_in(args[0], &CONNECTION, CONNECTION_HANDLE_AT, "changes")?;
+        let filter = nvs_ldap::Filter::Encoded(ber_of(args[1], "changes")?);
+        let base = base_arg(ctx, key, args[2], CHANGES)?;
+        let select = selected(&args[3], CHANGES)?;
+        let attributes: Vec<&str> = select.iter().map(String::as_str).collect();
+        let cookie = args[4].as_bytes().unwrap_or_default();
+        let request = nvs_ldap::SearchRequest {
+            base: &base,
+            scope: nvs_ldap::Scope::Subtree,
+            filter: &filter,
+            attributes: &attributes,
+            page_size: super::PAGE_SIZE,
+            size_limit: 0,
+            time_limit: 0,
+            sort: None,
+            window: None,
+            show_deleted: false,
+        };
+        let changes = super::changes(ctx, key, &request, cookie)?;
+        let cookie = Value::bytes(NvsStr::new(changes.cookie()));
+        let id = changes.park(ctx)?;
+        Ok(crate::instance::build(
+            &CHANGES_SET,
+            [Value::uint(key), Value::uint(id), Value::null(), cookie],
+        ))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$connection->read(Dn|string $dn, {select?}): ?Entry` —
+    /// [`super::read`] for a Novis program.
+    fn nvs_core_ldap_connection_read(ctx, args: [3]) {
+        let key = key_in(args[0], &CONNECTION, CONNECTION_HANDLE_AT, "read")?;
+        let dn = super::dn::dn_arg(args[1], READ)?.ok_or_else(|| {
+            // Unreachable from source: the parameter is not nullable.
+            Fault::fatal(format!("{READ} expected a `Dn` or a `string`"))
+        })?;
+        let select = selected(&args[2], READ)?;
+        let attributes: Vec<&str> = select.iter().map(String::as_str).collect();
+        Ok(super::read(ctx, key, &dn, &attributes)?.map_or_else(Value::null, entry_value))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Iterable<Ldap\Entry>::iterate()` — the receiver itself, because the
+    /// next entry may not have arrived yet.
+    fn nvs_core_ldap_entries_iterate(_ctx, args: [1]) {
+        crate::instance::receiver(args[0], &ENTRIES, nvs_runtime::sequence::ITERATE)?;
+        Ok(args[0])
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Iterator<Ldap\Entry>::advance(): bool` — reads the next entry into
+    /// the receiver, asking the server for the next page when this one is
+    /// used up, and returns `false` after the last one.
+    fn nvs_core_ldap_entries_advance(ctx, args: [1]) {
+        let stepped = advance_walk(ctx, args[0], &ENTRIES, ENTRIES_MEMBER, |receiver, urls, _| {
+            crate::instance::set_slot(receiver, ENTRIES_REFERENCES_AT, url_list(&urls));
+        });
+        crate::cursor::consume(args[0]);
+        stepped
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Iterable<Ldap\Entry>::iterate()` on an `Ldap\Changes` — the receiver
+    /// itself, because the next entry may not have arrived yet.
+    fn nvs_core_ldap_changes_iterate(_ctx, args: [1]) {
+        crate::instance::receiver(args[0], &CHANGES_SET, nvs_runtime::sequence::ITERATE)?;
+        Ok(args[0])
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Iterator<Ldap\Entry>::advance(): bool` on an `Ldap\Changes` — reads
+    /// the next changed entry, asking the server for the next answer when
+    /// this one is used up, and keeps the last cookie when the sync ends.
+    fn nvs_core_ldap_changes_advance(ctx, args: [1]) {
+        let stepped = advance_walk(ctx, args[0], &CHANGES_SET, CHANGES_MEMBER, |receiver, _, cookie| {
+            crate::instance::set_slot(
+                receiver,
+                CHANGES_COOKIE_AT,
+                Value::bytes(NvsStr::new(&cookie)),
+            );
+        });
+        crate::cursor::consume(args[0]);
+        stepped
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Iterator<Ldap\Entry>::current(): Ldap\Entry` on an `Ldap\Changes` —
+    /// the entry the last `advance()` read.
+    fn nvs_core_ldap_changes_current(_ctx, args: [1]) {
+        let read = crate::instance::read_slot(
+            args,
+            &CHANGES_SET,
+            ENTRIES_ENTRY_AT,
+            nvs_runtime::sequence::CURRENT,
+        );
+        crate::cursor::consume(args[0]);
+        read
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$changes->cookie(): bytes` — the cookie the next `changes` starts
+    /// from: the parked sync's, which covers every entry read so far, or the
+    /// one the last `advance()` kept when the sync ended.
+    fn nvs_core_ldap_changes_cookie(ctx, args: [1]) {
+        let key = key_in(args[0], &CHANGES_SET, ENTRIES_HANDLE_AT, "cookie")?;
+        let id = key_in(args[0], &CHANGES_SET, ENTRIES_SEARCH_AT, "cookie")?;
+        match super::cookie(ctx, key, id)? {
+            Some(cookie) => Ok(Value::bytes(NvsStr::new(&cookie))),
+            None => crate::instance::read_slot(args, &CHANGES_SET, CHANGES_COOKIE_AT, "cookie"),
+        }
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Iterator<Ldap\Entry>::current(): Ldap\Entry` — the entry the last
+    /// `advance()` read.
+    fn nvs_core_ldap_entries_current(_ctx, args: [1]) {
+        let read = crate::instance::read_slot(
+            args,
+            &ENTRIES,
+            ENTRIES_ENTRY_AT,
+            nvs_runtime::sequence::CURRENT,
+        );
+        crate::cursor::consume(args[0]);
+        read
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$entries->references(): array<tainted string>` — the continuation
+    /// references the search returned, none of them followed: the list the
+    /// last `advance()` kept, or what the parked search has so far.
+    fn nvs_core_ldap_entries_references(ctx, args: [1]) {
+        let receiver = crate::instance::receiver(args[0], &ENTRIES, "references")?;
+        if crate::instance::slot(receiver, ENTRIES_REFERENCES_AT).array_ptr().is_some() {
+            return crate::instance::read_slot(args, &ENTRIES, ENTRIES_REFERENCES_AT, "references");
+        }
+        let key = key_in(args[0], &ENTRIES, ENTRIES_HANDLE_AT, "references")?;
+        let id = key_in(args[0], &ENTRIES, ENTRIES_SEARCH_AT, "references")?;
+        Ok(url_list(&super::references(ctx, key, id)?.unwrap_or_default()))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$entries->total(): ?int` — how many entries the whole sorted result
+    /// has, which a search with a window reads from the server's answer.
+    fn nvs_core_ldap_entries_total(_ctx, args: [1]) {
+        crate::instance::read_slot(args, &ENTRIES, ENTRIES_TOTAL_AT, "total")
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$entry->toArray(): array<array<tainted bytes>>` — the attributes
+    /// slot itself, keyed by each name as the server spelled it.
+    fn nvs_core_ldap_entry_to_array(_ctx, args: [1]) {
+        crate::instance::read_slot(args, &ENTRY, ENTRY_ATTRIBUTES_AT, "toArray")
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$entry->dn(): Dn` — the DN text the server sent, read as a `Dn`.
+    fn nvs_core_ldap_entry_dn(_ctx, args: [1]) {
+        let receiver = crate::instance::receiver(args[0], &ENTRY, "dn")?;
+        let held = crate::instance::slot(receiver, ENTRY_DN_AT);
+        super::dn::from_server(held.as_text().unwrap_or_default(), r"Core\Ldap\Entry::dn")
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$entry->has(string $name): bool` — whether the entry has a value for
+    /// the attribute.
+    fn nvs_core_ldap_entry_has(_ctx, args: [2]) {
+        let (_, values) = values_named(args, "has")?;
+        Ok(Value::bool(values.is_some()))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$entry->isDeleted(): bool` — whether the entry's `isDeleted` is
+    /// `TRUE`, which only a tombstone's is.
+    fn nvs_core_ldap_entry_is_deleted(_ctx, args: [1]) {
+        let values = values_of(args[0], "isDeleted", "isDeleted")?;
+        let deleted = values.is_some_and(|values| {
+            values.count() == 1
+                && values
+                    .get_index(0)
+                    .is_some_and(|value| value.as_bytes() == Some(b"TRUE".as_slice()))
+        });
+        Ok(Value::bool(deleted))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$entry->string(string $name): ?tainted string` — the attribute's one
+    /// value as text.
+    fn nvs_core_ldap_entry_string(_ctx, args: [2]) {
+        let (name, values) = values_named(args, "string")?;
+        let Some(values) = values else {
+            return Ok(Value::null());
+        };
+        text_value(only_value(&values, "string", name)?, "string", name)
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$entry->strings(string $name): ?array<tainted string>` — every value
+    /// of the attribute as text, in the order the server sent them.
+    fn nvs_core_ldap_entry_strings(_ctx, args: [2]) {
+        let (name, values) = values_named(args, "strings")?;
+        let Some(values) = values else {
+            return Ok(Value::null());
+        };
+        let mut out = NvsArray::new();
+        let mut at = values.next_slot(0);
+        while let Some(slot) = at {
+            let value = values.value_at(slot).unwrap_or_else(Value::null);
+            out.append(text_value(value, "strings", name)?);
+            at = values.next_slot(slot + 1);
+        }
+        Ok(Value::array(out))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$entry->bytes(string $name): ?tainted bytes` — the attribute's one
+    /// value as the server sent it.
+    fn nvs_core_ldap_entry_bytes(_ctx, args: [2]) {
+        let (name, values) = values_named(args, "bytes")?;
+        let Some(values) = values else {
+            return Ok(Value::null());
+        };
+        Ok(retained(only_value(&values, "bytes", name)?))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Ldap\Filter::equals(string $attribute, tainted string $value): Filter`
+    /// — RFC 4511's equality match, encoded now.
+    fn nvs_core_ldap_filter_equals(_ctx, args: [2]) {
+        compared(args,r"Core\Ldap\Filter::equals", nvs_ldap::Filter::Equal)
+    }
+}
+
+/// A filter comparing the attribute in `args[0]` with the value in `args[1]`.
+fn compared(
+    args: &[Value],
+    member: &str,
+    make: fn(String, Vec<u8>) -> nvs_ldap::Filter,
+) -> Result<Value, Fault> {
+    let attribute = attribute_arg(&args[0], member)?;
+    let value = value_arg(&args[1], member)?;
+    Ok(filter_value(&make(attribute.to_owned(), value.to_vec())))
+}
+
+/// A substring filter on the attribute in `args[0]` whose one part, the value
+/// in `args[1]`, `place` puts at the start, in the middle or at the end.
+fn substring(args: &[Value], member: &str, place: Place) -> Result<Value, Fault> {
+    let attribute = attribute_arg(&args[0], member)?.to_owned();
+    let part = part_arg(&args[1], member)?.to_vec();
+    let filter = match place {
+        Place::Start => nvs_ldap::Filter::Substrings {
+            attribute,
+            initial: Some(part),
+            any: Vec::new(),
+            last: None,
+        },
+        Place::Middle => nvs_ldap::Filter::Substrings {
+            attribute,
+            initial: None,
+            any: vec![part],
+            last: None,
+        },
+        Place::End => nvs_ldap::Filter::Substrings {
+            attribute,
+            initial: None,
+            any: Vec::new(),
+            last: Some(part),
+        },
+    };
+    Ok(filter_value(&filter))
+}
+
+/// Where [`substring`] puts its one part.
+#[derive(Clone, Copy)]
+enum Place {
+    Start,
+    Middle,
+    End,
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Ldap\Filter::startsWith(string $attribute, tainted string $value): Filter`
+    /// — RFC 4511's substring match with an initial part.
+    fn nvs_core_ldap_filter_starts_with(_ctx, args: [2]) {
+        substring(args,r"Core\Ldap\Filter::startsWith", Place::Start)
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Ldap\Filter::endsWith(string $attribute, tainted string $value): Filter`
+    /// — RFC 4511's substring match with a final part.
+    fn nvs_core_ldap_filter_ends_with(_ctx, args: [2]) {
+        substring(args,r"Core\Ldap\Filter::endsWith", Place::End)
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Ldap\Filter::contains(string $attribute, tainted string $value): Filter`
+    /// — RFC 4511's substring match with one middle part.
+    fn nvs_core_ldap_filter_contains(_ctx, args: [2]) {
+        substring(args,r"Core\Ldap\Filter::contains", Place::Middle)
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Ldap\Filter::atLeast(string $attribute, tainted string $value): Filter`
+    /// — RFC 4511's `greaterOrEqual`, by the attribute's own ordering rule.
+    fn nvs_core_ldap_filter_at_least(_ctx, args: [2]) {
+        compared(args,r"Core\Ldap\Filter::atLeast", nvs_ldap::Filter::GreaterOrEqual)
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Ldap\Filter::atMost(string $attribute, tainted string $value): Filter`
+    /// — RFC 4511's `lessOrEqual`.
+    fn nvs_core_ldap_filter_at_most(_ctx, args: [2]) {
+        compared(args,r"Core\Ldap\Filter::atMost", nvs_ldap::Filter::LessOrEqual)
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Ldap\Filter::approx(string $attribute, tainted string $value): Filter`
+    /// — RFC 4511's `approxMatch`, which the server defines.
+    fn nvs_core_ldap_filter_approx(_ctx, args: [2]) {
+        compared(args,r"Core\Ldap\Filter::approx", nvs_ldap::Filter::Approx)
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Ldap\Filter::all(Filter ...$filters): Filter` — RFC 4511's `and`,
+    /// whose children are the encodings the arguments already carry.
+    fn nvs_core_ldap_filter_all(_ctx, args: [1]) {
+        let member = r"Core\Ldap\Filter::all";
+        nested_value(&nvs_ldap::Filter::And(filters_arg(&args[0], member)?), member)
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Ldap\Filter::any(Filter ...$filters): Filter` — RFC 4511's `or`.
+    fn nvs_core_ldap_filter_any(_ctx, args: [1]) {
+        let member = r"Core\Ldap\Filter::any";
+        nested_value(&nvs_ldap::Filter::Or(filters_arg(&args[0], member)?), member)
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Ldap\Filter::not(Filter $filter): Filter` — RFC 4511's `not`.
+    fn nvs_core_ldap_filter_not(_ctx, args: [1]) {
+        let member = r"Core\Ldap\Filter::not";
+        let inner = ber_of(args[0], member)?;
+        let filter = nvs_ldap::Filter::Not(Box::new(nvs_ldap::Filter::Encoded(inner)));
+        nested_value(&filter, member)
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Ldap\Filter::parse(string $text): Filter` — RFC 4515 text an operator
+    /// wrote, read by [`nvs_ldap::Filter::parse`] and encoded now. The
+    /// parameter is a sink, so the text never came from a request.
+    fn nvs_core_ldap_filter_parse(_ctx, args: [1]) {
+        let member = r"Core\Ldap\Filter::parse";
+        let text = args[0].as_text().ok_or_else(|| {
+            // Unreachable from source: the parameter is a `string`.
+            Fault::fatal(format!("{member} expected a `string`"))
+        })?;
+        let filter = nvs_ldap::Filter::parse(text).map_err(|error| {
+            Fault::thrown_as(
+                ThrownClass::Logic,
+                format!(
+                    "{member}: the text stops being a filter at character {}: {}",
+                    error.position, error.reason
+                ),
+            )
+        })?;
+        Ok(filter_value(&filter))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$filter->toString(): tainted string` — the RFC 4515 text of the
+    /// encoding, rendered by [`nvs_ldap::Filter::to_text`]. Nothing sends it.
+    fn nvs_core_ldap_filter_to_string(_ctx, args: [1]) {
+        let ber = ber_of(args[0], "toString")?;
+        let text = nvs_ldap::Filter::Encoded(ber).to_text();
+        Ok(Value::str(NvsStr::new(text.as_bytes())))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Ldap\Filter::present(string $attribute): Filter` — RFC 4511's
+    /// presence match: the entry has any value for the attribute.
+    fn nvs_core_ldap_filter_present(_ctx, args: [1]) {
+        let attribute = attribute_arg(&args[0], r"Core\Ldap\Filter::present")?;
+        Ok(filter_value(&nvs_ldap::Filter::Present(attribute.to_owned())))
+    }
+}
+
+/// AD's in-chain matching rule, `LDAP_MATCHING_RULE_IN_CHAIN`: the attribute
+/// matches when the value is reached through any chain of links.
+const IN_CHAIN: &str = "1.2.840.113556.1.4.1941";
+/// AD's bitwise-and matching rule, `LDAP_MATCHING_RULE_BIT_AND`.
+const BIT_AND: &str = "1.2.840.113556.1.4.803";
+/// AD's bitwise-or matching rule, `LDAP_MATCHING_RULE_BIT_OR`.
+const BIT_OR: &str = "1.2.840.113556.1.4.804";
+/// `userAccountControl`'s `ACCOUNTDISABLE` bit.
+const ACCOUNT_DISABLED: i64 = 2;
+
+/// The filter applying AD's matching rule `rule` to `attribute` with `value`.
+fn matching(rule: &str, attribute: &str, value: &[u8]) -> nvs_ldap::Filter {
+    nvs_ldap::Filter::Extensible {
+        rule: Some(rule.to_owned()),
+        attribute: Some(attribute.to_owned()),
+        value: value.to_vec(),
+        dn_attributes: false,
+    }
+}
+
+/// The filter testing `bits` of `attribute` under `rule`, the number written
+/// in decimal as AD's bitwise rules read it.
+fn bits_filter(attribute: &str, rule: &str, bits: i64) -> nvs_ldap::Filter {
+    matching(rule, attribute, bits.to_string().as_bytes())
+}
+
+/// `bitAnd` or `bitOr`, by `rule`.
+fn bitwise(args: &[Value], member: &str, rule: &str) -> Result<Value, Fault> {
+    let attribute = attribute_arg(&args[0], member)?;
+    let bits = args[1].as_int().ok_or_else(|| {
+        // Unreachable from source: the parameter is an `int`.
+        Fault::fatal(format!("{member} expected an `int`"))
+    })?;
+    Ok(filter_value(&bits_filter(attribute, rule, bits)))
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Ldap\Ad::memberOf(Dn|string $group, {nested?}): Filter` — equality on
+    /// `memberOf`, or the in-chain rule on it when `nested` is `true`. The DN
+    /// is the value the server compares, so it is data in the encoding.
+    fn nvs_core_ldap_ad_member_of(_ctx, args: [2]) {
+        let member = r"Core\Ldap\Ad::memberOf";
+        let group = super::dn::dn_arg(args[0], member)?.ok_or_else(|| {
+            // Unreachable from source: the parameter is not nullable.
+            Fault::fatal(format!("{member} expected a group"))
+        })?;
+        let filter = if args[1].as_bool() == Some(true) {
+            matching(IN_CHAIN, "memberOf", group.as_bytes())
+        } else {
+            nvs_ldap::Filter::Equal("memberOf".to_owned(), group.into_bytes())
+        };
+        Ok(filter_value(&filter))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Ldap\Ad::enabled(): Filter` — `userAccountControl` without its
+    /// disabled bit.
+    fn nvs_core_ldap_ad_enabled(_ctx, _args: [0]) {
+        let disabled = bits_filter("userAccountControl", BIT_AND, ACCOUNT_DISABLED);
+        Ok(filter_value(&nvs_ldap::Filter::Not(Box::new(disabled))))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Ldap\Ad::disabled(): Filter` — `userAccountControl` with its disabled
+    /// bit set.
+    fn nvs_core_ldap_ad_disabled(_ctx, _args: [0]) {
+        Ok(filter_value(&bits_filter("userAccountControl", BIT_AND, ACCOUNT_DISABLED)))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Ldap\Ad::bitAnd(string $attribute, int $bits): Filter` — AD's
+    /// bitwise-and rule: every bit is set.
+    fn nvs_core_ldap_ad_bit_and(_ctx, args: [2]) {
+        bitwise(args, r"Core\Ldap\Ad::bitAnd", BIT_AND)
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Ldap\Ad::bitOr(string $attribute, int $bits): Filter` — AD's
+    /// bitwise-or rule: at least one bit is set.
+    fn nvs_core_ldap_ad_bit_or(_ctx, args: [2]) {
+        bitwise(args, r"Core\Ldap\Ad::bitOr", BIT_OR)
+    }
+}
+
+/// The address of one of this module's symbols, or `None` for a symbol that
+/// belongs to another module. See [`crate::address`].
+pub(super) fn address(symbol: &str) -> Option<*const u8> {
+    Some(match symbol {
+        "nvs_core_ldap_connection_whoami" => (nvs_core_ldap_connection_whoami as *const ()).cast(),
+        "nvs_core_ldap_connection_search" => (nvs_core_ldap_connection_search as *const ()).cast(),
+        "nvs_core_ldap_connection_read" => (nvs_core_ldap_connection_read as *const ()).cast(),
+        "nvs_core_ldap_connection_changes" => {
+            (nvs_core_ldap_connection_changes as *const ()).cast()
+        }
+        CHANGES_ITERATE_SYMBOL => (nvs_core_ldap_changes_iterate as *const ()).cast(),
+        CHANGES_ADVANCE_SYMBOL => (nvs_core_ldap_changes_advance as *const ()).cast(),
+        CHANGES_CURRENT_SYMBOL => (nvs_core_ldap_changes_current as *const ()).cast(),
+        "nvs_core_ldap_changes_cookie" => (nvs_core_ldap_changes_cookie as *const ()).cast(),
+        ENTRIES_ITERATE_SYMBOL => (nvs_core_ldap_entries_iterate as *const ()).cast(),
+        ENTRIES_ADVANCE_SYMBOL => (nvs_core_ldap_entries_advance as *const ()).cast(),
+        ENTRIES_CURRENT_SYMBOL => (nvs_core_ldap_entries_current as *const ()).cast(),
+        "nvs_core_ldap_entries_references" => {
+            (nvs_core_ldap_entries_references as *const ()).cast()
+        }
+        "nvs_core_ldap_entries_total" => (nvs_core_ldap_entries_total as *const ()).cast(),
+        "nvs_core_ldap_entry_to_array" => (nvs_core_ldap_entry_to_array as *const ()).cast(),
+        "nvs_core_ldap_entry_dn" => (nvs_core_ldap_entry_dn as *const ()).cast(),
+        "nvs_core_ldap_entry_has" => (nvs_core_ldap_entry_has as *const ()).cast(),
+        "nvs_core_ldap_entry_is_deleted" => (nvs_core_ldap_entry_is_deleted as *const ()).cast(),
+        "nvs_core_ldap_entry_string" => (nvs_core_ldap_entry_string as *const ()).cast(),
+        "nvs_core_ldap_entry_strings" => (nvs_core_ldap_entry_strings as *const ()).cast(),
+        "nvs_core_ldap_entry_bytes" => (nvs_core_ldap_entry_bytes as *const ()).cast(),
+        "nvs_core_ldap_filter_equals" => (nvs_core_ldap_filter_equals as *const ()).cast(),
+        "nvs_core_ldap_filter_present" => (nvs_core_ldap_filter_present as *const ()).cast(),
+        "nvs_core_ldap_filter_starts_with" => {
+            (nvs_core_ldap_filter_starts_with as *const ()).cast()
+        }
+        "nvs_core_ldap_filter_ends_with" => (nvs_core_ldap_filter_ends_with as *const ()).cast(),
+        "nvs_core_ldap_filter_contains" => (nvs_core_ldap_filter_contains as *const ()).cast(),
+        "nvs_core_ldap_filter_at_least" => (nvs_core_ldap_filter_at_least as *const ()).cast(),
+        "nvs_core_ldap_filter_at_most" => (nvs_core_ldap_filter_at_most as *const ()).cast(),
+        "nvs_core_ldap_filter_approx" => (nvs_core_ldap_filter_approx as *const ()).cast(),
+        "nvs_core_ldap_filter_all" => (nvs_core_ldap_filter_all as *const ()).cast(),
+        "nvs_core_ldap_filter_any" => (nvs_core_ldap_filter_any as *const ()).cast(),
+        "nvs_core_ldap_filter_not" => (nvs_core_ldap_filter_not as *const ()).cast(),
+        "nvs_core_ldap_filter_to_string" => (nvs_core_ldap_filter_to_string as *const ()).cast(),
+        "nvs_core_ldap_filter_parse" => (nvs_core_ldap_filter_parse as *const ()).cast(),
+        "nvs_core_ldap_ad_member_of" => (nvs_core_ldap_ad_member_of as *const ()).cast(),
+        "nvs_core_ldap_ad_enabled" => (nvs_core_ldap_ad_enabled as *const ()).cast(),
+        "nvs_core_ldap_ad_disabled" => (nvs_core_ldap_ad_disabled as *const ()).cast(),
+        "nvs_core_ldap_ad_bit_and" => (nvs_core_ldap_ad_bit_and as *const ()).cast(),
+        "nvs_core_ldap_ad_bit_or" => (nvs_core_ldap_ad_bit_or as *const ()).cast(),
+        _ => return None,
+    })
+}

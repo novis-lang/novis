@@ -1,0 +1,45 @@
+---
+title: Objects as JSON
+covers: ['lang:attributes/core-json-derive-and-core-json-field-a-class-with-a-json-codec']
+description: How #[Core\Json\Derive] lets Core\Json::encode write an object as JSON and Core\Json::decodeAs build one from JSON.
+---
+import Snippet from '@components/Snippet.astro'
+
+`#[Core\Json\Derive]` in front of a class lets you convert its objects to and from JSON.
+`Core\Json::encode` writes an object as JSON text. `Core\Json::decodeAs<T>` builds an object of
+the class `T` from JSON text. Without the attribute, both throw a `LogicError`.
+
+<Snippet src="syntax/json-derive/01-encode.nvs" />
+
+- The JSON keys are the properties of the class, in the order they are declared.
+- `#[Core\Json\Field(name: "is_admin")]` sets a different key for one property.
+- `#[Core\Json\Field(skip: true)]` leaves one property out of the JSON text.
+- A `?int` property that is `null` is written as `null`. It is never left out.
+- An object inside an object works when its class also has `#[Core\Json\Derive]`. Arrays and
+  enums work too. An enum is written as its backing value.
+
+## Building an object from JSON
+
+`Core\Json::decodeAs<T>` calls the constructor of `T`. So every property needs a constructor
+parameter with the same name and the same type. A property with `skip: true` is the exception.
+
+<Snippet src="syntax/json-derive/02-decode.nvs" />
+
+- A key that the class does not have is ignored.
+- A missing key, a value of the wrong type and `null` for a property that is not `?T` are errors.
+- The whole text is checked before the object is built. The `ParseError` lists every problem in
+  its `issues`. Each issue has a `path` and a `message`.
+- The `path` is the JSON key. Inside another object it is `address.city`. Inside a list it is
+  `1.address.city`.
+- Text that is not valid JSON gives one issue with an empty `path`.
+- `decodeAs` builds properties of type `string`, `int`, `uint`, `float`, `bool`, another class with
+  `#[Core\Json\Derive]`, and `?T` of these. A property that is an array or an enum stops the
+  program when you decode.
+- A `secret` or `lateinit` property is not allowed on a class with `#[Core\Json\Derive]`.
+
+## Do and don't
+
+- Do write a constructor that takes every property, with the same names and types.
+- Do catch `ParseError` around `decodeAs` when the text comes from a user.
+- Do use `#[Core\Json\Field(skip: true)]` for a value that is only a cache.
+- Don't decode into a class with an array or enum property. Encoding such a class works.

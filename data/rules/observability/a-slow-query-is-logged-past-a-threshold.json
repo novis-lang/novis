@@ -1,0 +1,12 @@
+{
+  "title": "A `[db.<name>] slow_query` threshold writes a statement's span facts to `Core\\Log`, and is off until a block writes one",
+  "status": "shipped",
+  "seeAlso": [
+    "observability/a-query-is-a-trace-event",
+    "core-classes/db-connection-is-named",
+    "errors/log-write"
+  ],
+  "guardedBy": [
+    "crates/nvs-config/tests/db.rs"
+  ]
+}

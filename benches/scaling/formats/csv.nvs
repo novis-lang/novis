@@ -1,0 +1,16 @@
+<?nvs
+// Reads a CSV document of n rows and writes it again, as an import does before it checks and exports an upload.
+// scaling: start 1000
+// scaling: max 64000
+// scaling: expect linear
+
+class Bench {
+    public static function run(uint $size): uint {
+        string $document = Core\Str::repeat("\"Beans, dried\",500 g,4.10\n", $size);
+        var $records = Core\Csv::parse($document);
+        string $written = Core\Csv::format($records);
+        return Core\Arr::count($records) + Core\Bytes::length($written as bytes);
+    }
+}
+
+echo Bench::run(1000), "\n";

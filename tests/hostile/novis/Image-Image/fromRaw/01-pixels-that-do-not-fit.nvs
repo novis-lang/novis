@@ -1,0 +1,46 @@
+<?nvs
+// Attack: a request sends pixels whose length does not match the size it claims.
+// Each attempt should throw an error, and the server keeps running.
+use Novis\Image\Image;
+
+// 1. A size of 0 by 0 with no pixels.
+try {
+    Image::fromRaw({ width: 0, height: 0, pixels: '' as bytes })->raw();
+    echo "step 1 ran\n";
+} catch (Throwable $e) {
+    echo "step 1 stopped\n";
+}
+
+// 2. A size of 1000 by 1000 with only 4 bytes.
+try {
+    Image::fromRaw({ width: 1000, height: 1000, pixels: 'abcd' as bytes })->raw();
+    echo "step 2 ran\n";
+} catch (Throwable $e) {
+    echo "step 2 stopped\n";
+}
+
+// 3. A size of the largest whole number, so width times height times 4 is too large to count.
+try {
+    Image::fromRaw({ width: 18446744073709551615, height: 4611686018427387904, pixels: 'abcd' as bytes })->raw();
+    echo "step 3 ran\n";
+} catch (Throwable $e) {
+    echo "step 3 stopped\n";
+}
+
+// 4. One byte more than a 2 by 2 image needs.
+try {
+    Image::fromRaw({ width: 2, height: 2, pixels: Core\Str::repeat('a', 17) as bytes })->raw();
+    echo "step 4 ran\n";
+} catch (Throwable $e) {
+    echo "step 4 stopped\n";
+}
+
+// 5. The pixels of a 2 by 2 image, sent as a 4 by 1 image and then as a 1 by 4 image.
+try {
+    bytes $pixels = Core\Str::repeat('a', 16) as bytes;
+    uint $width = Image::fromRaw({ width: 4, height: 1, pixels: $pixels })->raw()->width;
+    uint $height = Image::fromRaw({ width: 1, height: 4, pixels: $pixels })->raw()->height;
+    echo 'step 5 ran ', $width, ' ', $height, "\n";
+} catch (Throwable $e) {
+    echo "step 5 stopped\n";
+}

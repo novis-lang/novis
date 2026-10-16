@@ -1,0 +1,2 @@
+Core\Ldap\Entry::string: `memberOf` has 2 values. `strings` returns all of them
+2

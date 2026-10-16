@@ -1,0 +1,32 @@
+<?nvs
+// Shows a `while` loop with two ways to end: the work succeeded, or the limit
+// was reached. A program does this around a call that sometimes fails.
+
+class Upload
+{
+    // Fails on the first two attempts and succeeds on the third.
+    public static function send(int $attempt): bool
+    {
+        return $attempt >= 3;
+    }
+}
+
+int $attempt = 0;
+bool $sent = false;
+
+while ($sent == false && $attempt < 5) {
+    $attempt = $attempt + 1;
+    $sent = Upload::send($attempt);
+    if ($sent) {
+        echo "sent on attempt ", $attempt, "\n";
+    } else {
+        echo "attempt ", $attempt, " failed\n";
+    }
+}
+
+if ($sent == false) {
+    echo "gave up after ", $attempt, " attempts\n";
+}
+
+// This prints 3.
+echo $attempt, "\n";

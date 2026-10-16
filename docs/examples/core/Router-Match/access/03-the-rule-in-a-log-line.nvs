@@ -1,0 +1,18 @@
+<?nvs
+// Shows how to write the access rule of the current request into a log line.
+namespace App;
+
+enum Role { Admin }
+
+class Reports {
+    #[Core\Route(path: "/admin/reports", method: Core\Http\Method::Get, name: "Reports::list")]
+    #[Core\Access(allow: Role::Admin)]
+    public function list(): string { return "reports"; }
+}
+
+// The request is `GET /admin/reports`. `Core\Request::route()` returns its match.
+// This prints `Reports::list needs App\Role::Admin`.
+?Core\Router\Match $matched = Core\Request::route();
+if ($matched != null) {
+    echo $matched->name() ?? "no name", " needs ", $matched->access() ?? "nothing", "\n";
+}

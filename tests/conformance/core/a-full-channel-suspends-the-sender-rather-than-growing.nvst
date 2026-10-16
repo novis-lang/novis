@@ -1,0 +1,55 @@
+--TEST--
+`Core\Task\Channel::send` suspends the sending task while the channel is full rather than growing the queue, and every value still arrives in the order it was sent — `rule:programs/memory-priority`
+--FILE--
+<?nvs
+// covers: Core\Task\Channel::send
+// The bound is the backpressure. A channel of one value cannot hold the eight
+// this producer has, so a `send` that returned without the consumer having run
+// would mean the queue grew instead — which is O(values produced) rather than
+// O(in-flight), and the growth that bound exists to prevent.
+class Meter
+{
+    public static int $taken = 0;
+    public static int $waits = 0;
+    public static int $outOfOrder = 0;
+}
+
+var $chan = new Core\Task\Channel<int>(1);
+
+Core\Task::all({
+    produce: fn(): int => {
+        foreach (Core\Arr::range(1, 8) as int $i) {
+            // Observable without asking the channel anything about itself: a
+            // send that lets the consumer make progress in the middle of it is
+            // a send that waited for a slot, and the only way to observe a
+            // `count` would be to have suspended in between anyway.
+            int $before = Meter::$taken;
+            $chan->send($i);
+            if (Meter::$taken > $before) {
+                Meter::$waits += 1;
+            }
+        }
+        $chan->close();
+        return 0;
+    },
+    consume: fn(): int => {
+        // Counted over the whole run rather than printed value by value: a
+        // channel that dropped one of the eight, or handed them back in another
+        // order, still prints plausibly on any single line.
+        foreach ($chan as int $value) {
+            Meter::$taken += 1;
+            if ($value != Meter::$taken) {
+                Meter::$outOfOrder += 1;
+            }
+        }
+        return 0;
+    },
+});
+
+echo 'taken=', Meter::$taken, "\n";
+echo 'waits=', Meter::$waits, "\n";
+echo 'out of order=', Meter::$outOfOrder, "\n";
+--EXPECT--
+taken=8
+waits=7
+out of order=0

@@ -1,0 +1,2 @@
+<?nvs
+autoload 'Shop' from '../src';

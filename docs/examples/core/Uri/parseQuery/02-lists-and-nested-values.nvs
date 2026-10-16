@@ -1,0 +1,16 @@
+<?nvs
+// Shows how brackets in the names of a query string build lists and nested arrays.
+
+array<mixed> $params = Core\Uri::parseQuery("size[]=M&size[]=L&filter[color]=red&filter[brand]=acme");
+
+// `size[]` adds one value to a list each time. This prints 2, then M and L.
+array<mixed> $sizes = $params["size"] as array<mixed>;
+echo Core\Arr::count($sizes), "\n";
+foreach ($sizes as mixed $size) {
+    echo $size as string, "\n";
+}
+
+// `filter[color]` puts the value under the key `color`. This prints red and acme.
+array<mixed> $filter = $params["filter"] as array<mixed>;
+echo $filter["color"] as string, "\n";
+echo $filter["brand"] as string, "\n";

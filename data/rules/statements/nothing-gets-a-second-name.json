@@ -1,0 +1,12 @@
+{
+  "title": "A declaration is reachable under exactly the name it was declared with",
+  "status": "shipped",
+  "seeAlso": [
+    "statements/a-qualified-name-is-absolute",
+    "statements/no-fallback-to-the-root-namespace"
+  ],
+  "guardedBy": [
+    "crates/nvs-syntax/src/parser/tests/decl.rs",
+    "tests/conformance/reject/an-import-is-neither-renamed-nor-grouped-nor-nested-and-a-short-name-never-falls-back-to-the-root.nvst"
+  ]
+}

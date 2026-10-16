@@ -1,0 +1,83 @@
+<?nvs
+// Attack: a program walks documents that are very deep, very wide or broken, and keeps reading after the end.
+// The reader should return each node or throw a `ParseError`, and never crash.
+// hostile: timeout-ms 20000
+
+class Walk
+{
+    // Reads to the end and returns how many nodes there were, or -1 after a `ParseError`.
+    public static function count(Core\Xml\Reader $reader): int
+    {
+        int $nodes = 0;
+        try {
+            while ($reader->read() != null) {
+                $nodes = $nodes + 1;
+            }
+        } catch (ParseError $error) {
+            return -1;
+        }
+        return $nodes;
+    }
+}
+
+// 1. Elements nested 1024 levels deep. This prints 1024.
+string $deep = Core\Str::repeat('<a>', 1024) . Core\Str::repeat('</a>', 1024);
+echo Walk::count(Core\Xml::reader($deep)), "\n";
+
+// 2. One more level. This prints -1.
+echo Walk::count(Core\Xml::reader('<b>' . $deep . '</b>')), "\n";
+
+// 3. One million opening tags and no closing tag. This prints -1.
+echo Walk::count(Core\Xml::reader(Core\Str::repeat('<a>', 1000000))), "\n";
+
+// 4. One root with 200000 empty children. This prints 200001.
+echo Walk::count(Core\Xml::reader('<r>' . Core\Str::repeat('<i/>', 200000) . '</r>')), "\n";
+
+// 5. One tag with 100000 attributes, and one name written twice at the end. This prints -1.
+array<string> $parts = [];
+int $i = 0;
+while ($i < 100000) {
+    $parts[] = ' a' . $i as string . '="1"';
+    $i = $i + 1;
+}
+echo Walk::count(Core\Xml::reader('<r' . Core\Str::join($parts, '') . ' a0="2"/>')), "\n";
+
+// 6. `read` is called 1000 more times after the end. It returns `null` each time. This prints 0.
+Core\Xml\Reader $done = Core\Xml::reader('<r/>');
+Walk::count($done);
+int $more = 0;
+$i = 0;
+while ($i < 1000) {
+    if ($done->read() != null) {
+        $more = $more + 1;
+    }
+    $i = $i + 1;
+}
+echo $more, "\n";
+
+// 7. `read` is called 1000 times on a document with a wrong closing tag. It returns `<r>` and `<a>`,
+// then throws the same error at `</b>` every time. This prints 998.
+Core\Xml\Reader $broken = Core\Xml::reader('<r><a></b></r>');
+int $errors = 0;
+$i = 0;
+while ($i < 1000) {
+    try {
+        $broken->read();
+    } catch (ParseError $error) {
+        $errors = $errors + 1;
+    }
+    $i = $i + 1;
+}
+echo $errors, "\n";
+
+// 8. 20000 readers are created and left before they reach the end. This prints 20000.
+int $left = 0;
+$i = 0;
+while ($i < 20000) {
+    Core\Xml\Reader $reader = Core\Xml::reader('<r><a>' . $i as string . '</a><b/></r>');
+    if ($reader->read() != null) {
+        $left = $left + 1;
+    }
+    $i = $i + 1;
+}
+echo $left, "\n";

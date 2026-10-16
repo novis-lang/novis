@@ -1,0 +1,14 @@
+{
+  "title": "Every field value in an attribute payload is a compile-time constant",
+  "status": "shipped",
+  "seeAlso": [
+    "attributes/inert-metadata",
+    "attributes/retrieval-folds-while-checking",
+    "enums/closed-integer-type"
+  ],
+  "guardedBy": [
+    "tests/conformance/reject/an-attribute-payload-is-a-compile-time-constant.nvst",
+    "tests/conformance/reject/a-secret-class-constant-cannot-reach-an-attribute-payload.nvst",
+    "tests/conformance/core/an-attribute-payload-holds-a-constant.nvst"
+  ]
+}

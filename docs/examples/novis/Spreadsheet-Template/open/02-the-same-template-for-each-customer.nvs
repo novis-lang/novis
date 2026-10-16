@@ -1,0 +1,18 @@
+<?nvs
+// Shows how to fill one template many times, once for each customer.
+use Novis\Spreadsheet\Reader;
+use Novis\Spreadsheet\Template;
+use Novis\Spreadsheet\Workbook;
+
+var $design = Workbook::createInMemory();
+$design->sheet('Letter')->addAll([['Dear {{name}}', '{{balance}}']]);
+bytes $template = $design->finish()->bytes ?? Core\Bytes::fill(0, 0);
+
+// You can call `fill` once on each template. So this loop opens the template bytes again for each customer.
+array<array<mixed>> $customers = [['name' => 'Shop', 'balance' => 120.5], ['name' => 'Blog', 'balance' => 0.0]];
+foreach ($customers as array<mixed> $customer) {
+    bytes $file = Template::open($template)->fill($customer)->bytes();
+    foreach (Reader::open($file)->rows('Letter') as var $row) {
+        echo $row->values['A'], ' has a balance of ', $row->values['B'], "\n";
+    }
+}

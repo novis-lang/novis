@@ -1,0 +1,32 @@
+<?nvs
+// Shows how to write an error class of your own. The class extends `Throwable`
+// and writes no constructor, so it uses the one it inherits. You pass a message
+// to `new` and nothing else.
+
+class OutOfStock extends Throwable {
+}
+
+final class Warehouse {
+    public static function pack(string $item, int $inStock): string {
+        if ($inStock == 0) {
+            throw new OutOfStock("no " . $item . " left");
+        }
+        return "packed one " . $item;
+    }
+}
+
+try {
+    // This prints `packed one blue mug`.
+    echo Warehouse::pack("blue mug", 4), "\n";
+    echo Warehouse::pack("red mug", 0), "\n";
+} catch (OutOfStock $empty) {
+    // `message` is the text you passed to `new`. This prints `no red mug left`.
+    echo $empty->message, "\n";
+}
+
+// The message may also be passed by name.
+try {
+    throw new OutOfStock(message: "the shelf is empty");
+} catch (OutOfStock $shelf) {
+    echo $shelf->message, "\n";
+}

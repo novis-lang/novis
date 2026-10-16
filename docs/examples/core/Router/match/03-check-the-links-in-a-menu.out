@@ -1,0 +1,5 @@
+/ -> Shop::home
+/products/red-shoes -> Shop::product
+/basket -> BROKEN
+/cart -> Shop::cart
+1 broken link(s)

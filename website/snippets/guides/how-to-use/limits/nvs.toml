@@ -1,0 +1,7 @@
+[limits]
+memory = "64M"
+cpu_time = "5s"
+
+[limits.hard]
+memory = "256M"
+cpu_time = "30s"

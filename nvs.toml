@@ -1,0 +1,3255 @@
+# The repository's own `nvs.toml`: the `./nvs.toml` step of
+# `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`, found in the working
+# directory and nowhere else. It is TOML (`rule:config/the-file-is-nvs-toml-and-it-is-toml`), and
+# `nvs serve` checks who owns it (`rule:config/ownership-is-the-trust-boundary`).
+#
+# Most blocks below grant one fixture what it needs, and each says why. Changing a value changes
+# that program's expected output, which an exact check in a goal record under `data/goals/` freezes.
+
+# An application is its entry file path, and the block naming it is `[[app]]`, an array of tables
+# (`rule:config/an-application-is-its-entry-file-path`). There is no `[app]` table for a global origin
+# to sit in, because TOML refuses `app` as both spellings in one file
+# (`rule:config/origin-is-a-block-key-and-there-is-no-app-table`). `root` resolves against this file's
+# own directory (`rule:config/a-relative-path-resolves-against-the-file-it-is-written-in`), so this
+# block is every `.nvs` in the repository.
+#
+# `origin` is what `Core\Router::urlAbsolute` prepends, because
+# `rule:routing/an-absolute-link-takes-a-configured-origin` never derives one from `Host` or
+# `X-Forwarded-Host`. It is why `examples/routes.nvs` prints an absolute link rather than throwing.
+[[app]]
+root = "."
+origin = "https://example.test"
+
+# The `script.spawn` check sits inside the door `spawn script` resolves a target through
+# (`rule:security/capability-check-at-the-door`), and it denies by default
+# (`rule:security/script-spawn-capability`), so `examples/isolate.nvs` needs this grant to spawn
+# anything at all. `true`
+# rather than a list of roots: every example in this repository is one the
+# checkout already trusts, and narrowing it here would only be a second
+# spelling of "the repository".
+[app.capabilities.script]
+spawn = true
+
+# `examples/capability.nvs` is the fixture for `rule:security/capability-check-at-the-door`, so its
+# block is written to be *narrower* than the one above rather than wider: an exact `entry` layers over
+# the `root = "."` block (`rule:config/every-matching-app-block-applies-least-specific-first`), and a
+# block may take a capability away as well as grant one. What it demonstrates is a program
+# meeting one grant and two refusals, so `fs.read` is scoped to the one
+# directory holding its data, `fs.write` is never mentioned, and `script.spawn`
+# is switched off again — `false` is `Grant::Nothing` in
+# `nvs_config::capability`, which is how a narrowing block says no to something
+# a broader one allowed.
+[[app]]
+entry = "examples/capability.nvs"
+
+[app.capabilities.fs]
+read = ["examples/capability"]
+
+[app.capabilities.script]
+spawn = false
+
+# `examples/files.nvs` works inside `Core\IO::temporaryDir()`'s answer, and that
+# path is the *host's* — `C:\Users\…\AppData\Local\Temp\nvs-…` on Windows,
+# `/tmp/nvs-…` under WSL, and neither is a name this repository could write down
+# without pinning the fixture to one machine. `true` is `Grant::Everything` in
+# `nvs_config::capability`, and it is the honest spelling of what the fixture
+# needs: a scratch directory it creates, fills, reads back and removes. Narrowing
+# is what `examples/capability.nvs`'s block above exists to show; this one is
+# about the members.
+[[app]]
+entry = "examples/files.nvs"
+
+[app.capabilities.fs]
+read = true
+write = true
+
+# `examples/tempdir.nvs` is the block above with one line fewer of program: it
+# creates a directory, writes into it and stops, leaving the sweep of
+# `rule:core-classes/temporary-dir-sweep` to take it away. The grant is the same `true` for the same
+# reason — the path is the host's and no checkout could write it down — and it stays `write = true`
+# rather than being narrowed to the root, because the member asks the check of the *entry* it is
+# about to create, not of the root it creates under.
+[[app]]
+entry = "examples/tempdir.nvs"
+
+[app.capabilities.fs]
+read = true
+write = true
+
+# `examples/upload.nvs` is the same shape for the same reason — it receives a
+# part into a directory `Core\IO::temporaryDir()` chose on the host — so its
+# block is the one above rather than a narrower spelling of it.
+# `rule:http-server/there-is-no-temp-file` makes the *destination* the application's own call, and a
+# grant naming a path this repository invented would be the host picking one after all.
+[[app]]
+entry = "examples/upload.nvs"
+
+[app.capabilities.fs]
+read = true
+write = true
+
+# `examples/process.nvs` runs this repository's own `nvs` binary and then asks
+# to run a `.bat`, so its `process.exec` grant has to cover **both** targets:
+# `rule:core-classes/process-refuses-a-shell-target` refuses by target kind and the door asks the
+# capability first, so a grant that named only the binary would make the second call a
+# capability denial and the fixture would still print `refused: no shell form`
+# while proving nothing. Scoped to two directories rather than `true` because
+# that is the whole point of the member being path-scoped: `target`, where
+# every build of the binary the pipeline names in `NVS_BIN` lives, and the
+# fixture's own directory.
+[[app]]
+entry = "examples/process.nvs"
+
+[app.capabilities.fs]
+read = ["target", "examples/process"]
+
+[app.capabilities.process]
+exec = ["target", "examples/process"]
+
+# `examples/http.nvs` talks to an origin on the loopback, which `rule:security/net-address-policy`
+# denies by default — so this block is where that rule's *other* half is written down: `net.connect`
+# says which names the program may reach, and `net.internal` says which of the denied addresses this
+# deployment reaches anyway. Both
+# names are granted and only one address is excepted, which is what the fixture
+# is for: `169.254.169.254` is granted by name and still refused on its address,
+# so the program's third line proves the policy is asked of the resolved address
+# rather than of the name. An exception is a literal address and never a
+# hostname (`nvs_config::tree::CapNet::internal` owns why), and it widens
+# nothing on its own — an address named here is unreachable until a `connect`
+# grant names the host as well.
+[[app]]
+entry = "examples/http.nvs"
+
+[app.capabilities.net]
+connect = ["127.0.0.1", "169.254.169.254"]
+internal = ["127.0.0.1"]
+
+# `Core\Http::allowUrl`'s examples and attack approve URLs a program was handed, so
+# their grant is the one a service calling its users' webhooks writes: every host,
+# with the address table left whole and nothing in `net.internal`. What they show is
+# that table refusing loopback, private and link-local addresses however the URL
+# spells them. Every URL in them names a literal address, so no case waits on a
+# name server. The bench approves one address and is granted that address alone.
+[[app]]
+root = "docs/examples/core/Http/allowUrl"
+
+[app.capabilities.net]
+connect = true
+
+[[app]]
+root = "tests/hostile/core/Http/allowUrl"
+
+[app.capabilities.net]
+connect = true
+
+[[app]]
+entry = "benches/members/core/Http/allowUrl.nvs"
+
+[app.capabilities.net]
+connect = ["203.0.113.10"]
+
+# `Core\Http\Client`'s examples and attacks get the same grant as `allowUrl`'s
+# above: every host, with the address table left whole. None of them may open a
+# connection, because a figure or an output that depends on a network is not a
+# proof. Each call is refused before a socket is opened, by the address table, an
+# option's bounds or a header with a control byte. The benches need no grant:
+# they are answered from `Core\Test::answerHttp`'s table.
+[[app]]
+root = "docs/examples/core/Http-Client"
+
+[app.capabilities.net]
+connect = true
+
+[[app]]
+root = "tests/hostile/core/Http-Client"
+
+[app.capabilities.net]
+connect = true
+
+# `Core\Http\Part`'s examples and attacks send parts under the same grant, and
+# none of them opens a connection either. `Part::file` reads files from its own
+# `data/` directory and nowhere else, so one example can show a file outside the
+# grant being refused. The `file` bench builds a part for its own source file.
+[[app]]
+root = "docs/examples/core/Http-Part"
+
+[app.capabilities.fs]
+read = ["docs/examples/core/Http-Part/file/data"]
+
+[app.capabilities.net]
+connect = true
+
+[[app]]
+root = "tests/hostile/core/Http-Part"
+
+[app.capabilities.fs]
+read = ["tests/hostile/core/Http-Part/file/data"]
+
+[app.capabilities.net]
+connect = true
+
+[[app]]
+entry = "benches/members/core/Http-Part/file.nvs"
+
+[app.capabilities.fs]
+read = ["benches/members/core/Http-Part/file.nvs"]
+
+# `examples/net-echo.nvs` binds a port and then dials it, and
+# `rule:security/net-listen-is-a-separate-grant-from-net-connect` is why that is three keys rather
+# than one. `net.listen` is the bind, matched against the endpoint exactly; `net.connect` is the dial,
+# matched against the host; and `net.internal` is the exception `rule:security/net-address-policy`
+# allows, because loopback is one of the ranges that policy denies by default and the program supplies
+# that address itself. None of the three widens either of the others, which is
+# the whole of what the fixture demonstrates from the configuration's side.
+#
+# `listen` is `true` and not an endpoint literal because the program asks for
+# port `0`: the endpoint it binds is picked by the operating system, and there
+# is no `127.0.0.1:0` a reviewer could read as the port it ended up on. A
+# deployment that binds a port it chose writes that endpoint out instead.
+[[app]]
+entry = "examples/net-echo.nvs"
+
+[app.capabilities.net]
+listen = true
+connect = ["127.0.0.1"]
+internal = ["127.0.0.1"]
+
+# `examples/cache.nvs` reaches the store `[cache.shared] url` names at the foot of
+# this file, and one line grants it: `cache.shared` names the *store* an operator
+# configured, not the address it is at (`rule:config/cache-shared-is-the-grant-over-the-configured-store`).
+# That the store is on the loopback costs this block nothing — neither the `net.connect` the block
+# above needs for a name nor the `net.internal` it needs for an address in a range
+# `rule:security/net-address-policy` denies, because neither question is asked of an endpoint an
+# operator wrote. Nothing here mentions `Core\Cache::memory()`, which needs no capability at all
+# (`rule:core-api/two-cache-tiers`) — the fixture's first two lines run under this
+# block having said nothing about them, and its last two are
+# `Core\RateLimit::consume` opening the same store through the same grant.
+[[app]]
+entry = "examples/cache.nvs"
+
+[app.capabilities.cache]
+shared = true
+
+# Tier 3 of `rule:errors/handler-script`, as the operator decision it is: an uncaught throw out of this application
+# runs `examples/logging/handler.nvs` as a `spawn script` isolate, and only if that handler is
+# missing, refused or fails does the tier-4 floor write the record to `stderr` itself. `script.spawn`
+# is the root block's, above — a handler is resolved through the spawn door of
+# `rule:security/capability-check-at-the-door` like any other target, and being named here has never
+# been permission to run.
+#
+# Keyed on `examples/logging.nvs` and not on the `examples/logging/throws.nvs` that actually throws:
+# the child is an isolate, and an isolate reads the configuration in force where it was *spawned*
+# rather than re-resolving the file (`nvs_runtime::Ctx::isolate` owns why that direction). So the
+# block that reaches the child is the one the parent matched, which is this one. It is deliberately
+# not `root = "examples"`: `examples/uncaught.nvs` is the fixture for the floor with no handler above
+# it, and a handler in scope there would report in the floor's place and prove nothing.
+[[app]]
+entry = "examples/logging.nvs"
+
+[app.log]
+handler = "examples/logging/handler.nvs"
+
+# `db.connect` is granted by *name* and never by host (`rule:core-classes/db-capabilities`): the
+# endpoint lives in `[db.main]` at the foot of this file, written by the operator, so what a program
+# asks for is permission to open that block and not permission to reach an address. That is also why
+# neither block below says anything about `net` — an operator-written endpoint is pre-approved against
+# the denied ranges of `rule:security/net-address-policy`, which `examples/cache.nvs`'s block above
+# has to ask for explicitly because a program names that store's URL itself.
+#
+# One entry block per fixture rather than one `root = "examples"`: every other fixture in
+# this repository runs with no database grant at all, and that is what makes these evidence
+# that the check is asked rather than assumed.
+[[app]]
+entry = "examples/db.nvs"
+
+[app.capabilities.db]
+connect = ["main"]
+
+[[app]]
+entry = "examples/transaction.nvs"
+
+[app.capabilities.db]
+connect = ["main"]
+
+# The streaming read, on the same block: `stream` (`rule:core-classes/db-streaming`) is a member of
+# the connection `connect("main")` already hands back, so it needs no grant of its own and
+# no second block. What it does need is an entry of its own, for the reason the header
+# above gives -- a grant is per application entry, never per directory.
+[[app]]
+entry = "examples/stream.nvs"
+
+[app.capabilities.db]
+connect = ["main"]
+
+# The database fixture whose grant names a *different* block: two config blocks are two pools
+# (`rule:security/db-pool-reset-is-a-boundary`), so `[db.tight]` below is its own pool and nothing
+# this program does to that pool's ceiling is reachable from the two fixtures above.
+[[app]]
+entry = "examples/pool.nvs"
+
+[app.capabilities.db]
+connect = ["tight"]
+
+# The split of `rule:core-classes/schema-apply-capability`, written as the two grants it is: `db.connect` is the whole of what
+# `planAgainst` needs, and `db.schema` is the separate deny-by-default grant that lets this program
+# issue the DDL its plan carries. Both name the `[db.schema]` block below, because both capabilities
+# name blocks rather than hosts.
+[[app]]
+entry = "examples/schema.nvs"
+
+[app.capabilities.db]
+connect = ["schema"]
+schema = ["schema"]
+
+# `Core\Db\DbError`'s three examples, on the same in-memory SQLite block and for the same reason
+# `examples/schema.nvs` is on it: each shows a statement the server refuses, and what they print has
+# to be the same four lines on Windows, under WSL and under valgrind. A refusal needs no server to
+# be real — a unique index is enforced by SQLite exactly as PostgreSQL enforces it — so these cost
+# the sweep no container. One entry each, because a grant is per application entry and never per
+# directory.
+[[app]]
+entry = "docs/examples/types/Db-DbError/01-a-row-that-is-already-there.nvs"
+
+[app.capabilities.db]
+connect = ["schema"]
+
+[[app]]
+entry = "docs/examples/types/Db-DbError/02-what-the-refusal-tells-you.nvs"
+
+[app.capabilities.db]
+connect = ["schema"]
+
+[[app]]
+entry = "docs/examples/types/Db-DbError/03-a-signup-that-says-what-went-wrong.nvs"
+
+[app.capabilities.db]
+connect = ["schema"]
+
+# The attack written against the same class, and the one entry here that is not an example. It makes
+# the server refuse a statement a hundred thousand times over, which is a question about what a
+# refusal keeps rather than about what a database can do — so it wants the block that needs no
+# container, exactly as the three above do.
+[[app]]
+entry = "tests/hostile/types/Db-DbError/01-a-flood-of-refusals-and-a-statement-too-big-to-log.nvs"
+
+[app.capabilities.db]
+connect = ["schema"]
+
+# `Core\Db\RolledBack`'s examples and attack, on the same in-memory SQLite block and for the same
+# reason its sibling's are: a transaction the program abandons is a decision the program made, so
+# every line below is answered by SQLite exactly as a server would answer it and the sweep needs no
+# container. The second example is not here because it throws the class directly and opens nothing.
+[[app]]
+entry = "docs/examples/types/Db-RolledBack/01-giving-up-on-a-batch.nvs"
+
+[app.capabilities.db]
+connect = ["schema"]
+
+[[app]]
+entry = "docs/examples/types/Db-RolledBack/03-a-checkout-that-says-why.nvs"
+
+[app.capabilities.db]
+connect = ["schema"]
+
+[[app]]
+entry = "tests/hostile/types/Db-RolledBack/01-a-flood-of-rollbacks-and-a-reason-too-big-to-keep.nvs"
+
+[app.capabilities.db]
+connect = ["schema"]
+
+# The retention entry `rule:concurrency/queue-deletion-is-explicit-and-bounded` is written around, and the only program in this repository that
+# removes queue rows at all. `queue.purge` is deny-by-default and covers `Core\Queue`'s `delete` and
+# `purge` together, because the authority the two need is the same one — permission to make a
+# queue's rows stop existing — and one row at a time in a loop is that same answer at a different
+# rate. It is the one grant `examples/queue-purge.nvs` needs: the connection its rows live on is the
+# one `[queue] connection` names, opened on the program's behalf rather than by it, which is why
+# `examples/queue.nvs` needs no block in this file at all.
+#
+# `true` rather than the list of queue names this capability is scoped by, and the fixture's own
+# header says why: it draws its four names at run time, since a fixed name would count its own
+# previous runs, so nothing written here could name them. The scoped spelling is what `nvs check`
+# reads a *literal* queue name against under `E0637`, and `crates/nvs-types`' own cases are where
+# that half is pinned — a program whose queues exist only while it runs is not where it could be.
+[[app]]
+entry = "examples/queue-purge.nvs"
+
+[app.capabilities.queue]
+purge = true
+
+# The one block in this file that exists to be *read about* rather than to let a
+# fixture run: `docs/examples/config/app/` is the website's page for the `[[app]]`
+# directive, and its example prints the settings its own blocks put in force. So
+# this block has to be narrower than the `root = "."` one at the top and has to
+# disagree with it about something a program can print — `64M` against the `256M`
+# `[limits]` sets below, which is the whole demonstration. It grants nothing: what
+# the example shows about capabilities is `script.spawn` arriving from the wide
+# block untouched, which only holds while this block stays silent about it.
+[[app]]
+entry = "docs/examples/config/app/01-settings-for-one-application.nvs"
+
+[app.limits]
+memory = "64M"
+
+# The second block of that kind, and its grants are the whole page:
+# `docs/examples/config/capabilities/` is the website's page for `[capabilities]`,
+# and a page whose example prints `(nothing)` on every line teaches nothing about
+# the block an operator is about to write. Every grant here is a boolean, which is
+# the half a program can read back: `nvs_config::request`'s `as_text` hands
+# `Core\Config::get` a scalar and `None` for a list, so a grant scoped to paths
+# would print exactly as an absent one does and the example would teach the
+# opposite of what the block says. `nvs config dump` is where a scoped grant is
+# read, and `crate::audit` is what renders it.
+#
+# `read = true` is granted to a program that opens no file, and `spawn = false`
+# takes back what the `root = "."` block at the top allows — one grant, one
+# refusal and one narrowing, which is the whole of what the block does, with
+# nothing reachable that was not reachable before.
+[[app]]
+entry = "docs/examples/config/capabilities/01-what-this-program-is-allowed-to-do.nvs"
+
+[app.capabilities.fs]
+read = true
+
+[app.capabilities.script]
+spawn = false
+
+# `Core\Cap::has`'s own page needs a deployment that granted one thing and not
+# another, because a member reporting grants has nothing to report where nothing
+# was granted. Its first example prints `yes` for `fs.read` and `no` for two
+# names nobody wrote. `read = true` rather than a list of roots: the example
+# opens no file, and the member reports the grant and never a path, so roots
+# would only be entries nothing compares.
+[[app]]
+entry = "docs/examples/core/Cap/has/01-what-this-program-may-do.nvs"
+
+[app.capabilities.fs]
+read = true
+
+# The second example is the pair that member cannot make on its own — the grant
+# is one directory wide, the answer is still `yes`, and a file outside it is
+# refused when the program opens it — so here the grant *is* a list, and the
+# example's own data directory is the only entry in it.
+[[app]]
+entry = "docs/examples/core/Cap/has/02-what-a-yes-does-not-cover.nvs"
+
+[app.capabilities.fs]
+read = ["docs/examples/core/Cap/has/data"]
+
+# The attack written against the same member spends most of its steps on names
+# that merely resemble a granted one, and there is nothing to resemble until one
+# name really is granted.
+[[app]]
+entry = "tests/hostile/core/Cap/has/01-names-that-try-to-win-a-yes.nvs"
+
+[app.capabilities.fs]
+read = true
+
+# The bench for the same member, granted for the reason the block above is: the
+# figure worth recording is the one a granted capability costs, which is the
+# longer of the two paths through the member.
+[[app]]
+entry = "benches/members/core/Cap/has.nvs"
+
+[app.capabilities.fs]
+read = true
+
+# The third block of that kind and the first written for an *attack* rather than
+# for an example: `tests/hostile/config/debug-keep_temporary/` exists to make
+# `rule:core-classes/temporary-dir-sweep`'s end-of-script sweep come apart, and a sweep has nothing to
+# walk until the program has been allowed to create the directories it hoards.
+# `write = true` rather than a path, for the reason `examples/files.nvs`' block
+# above is written the same way: `Core\IO::temporaryDir` creates under the host's
+# own temporary directory, and a grant naming `C:\Users\…\AppData\Local\Temp` or
+# `/tmp` would pin the attack to one machine. `read = true` is the half that lets
+# it read back what it left behind.
+[[app]]
+entry = "tests/hostile/config/debug-keep_temporary/01-hoarding-what-the-sweep-must-delete.nvs"
+
+[app.capabilities.fs]
+read = true
+write = true
+
+# `lang:errors/capability-denials-are-catchable`'s second example, and the only
+# one of its three that needs a grant at all: the other two are written around a
+# call nobody allowed, which is what every entry in this file already has by
+# saying nothing. What this one shows is the *pair* — `fs.read` scoped to the one
+# directory holding its data, and `fs.write` never mentioned — so a reader sees
+# that a grant is per capability rather than per program, and the denial it
+# prints is the missing verb rather than a path outside the root.
+[[app]]
+entry = "docs/examples/lang/errors/capability-denials-are-catchable/02-a-grant-in-nvs-toml.nvs"
+
+[app.capabilities.fs]
+read = ["docs/examples/lang/errors/capability-denials-are-catchable/data"]
+
+# The attack written against the same feature, and it needs the same grant for
+# the opposite reason: a program allowed nothing cannot try to escape anything,
+# so the `..` climb in its second step would be denied by the capability before
+# the path was ever canonicalized and would prove nothing. Scoped to the one
+# directory it owns, so the file it reaches for in step 3 — this file — is
+# outside the root by the width of the whole repository.
+[[app]]
+entry = "tests/hostile/lang/errors/capability-denials-are-catchable/01-climbing-out-of-a-granted-directory.nvs"
+
+[app.capabilities.fs]
+read = ["tests/hostile/lang/errors/capability-denials-are-catchable/data"]
+
+# `lang:errors/fatal-errors-limits-no-catch-sees`'s three examples and its
+# attack, on one ceiling written four times because a grant is per application
+# entry and never per directory. 16 MiB is the figure
+# `tests/conformance/error/a-limit-fatal-is-not-catchable.nvst` is already
+# written around, so a reader who meets both sees one number: ordinary execution
+# may hold 15,728,640 bytes of it and `fatal_reserve_memory` keeps the rest for
+# the handler, which makes two 8 MiB slabs the breach and the third the member
+# that reports it. The repository-wide `[limits] memory` below is 256M, and a
+# program written to exceed *that* would allocate a quarter of a gigabyte on
+# every sweep to demonstrate the same ending.
+[[app]]
+entry = "docs/examples/lang/errors/fatal-errors-limits-no-catch-sees/01-no-catch-sees-a-limit.nvs"
+
+[app.limits]
+memory = "16M"
+
+[[app]]
+entry = "docs/examples/lang/errors/fatal-errors-limits-no-catch-sees/02-a-handler-for-the-last-moment.nvs"
+
+[app.limits]
+memory = "16M"
+
+[[app]]
+entry = "docs/examples/lang/errors/fatal-errors-limits-no-catch-sees/03-a-job-that-says-where-it-stopped.nvs"
+
+[app.limits]
+memory = "16M"
+
+[[app]]
+entry = "tests/hostile/lang/errors/fatal-errors-limits-no-catch-sees/01-a-program-that-tries-to-live-through-its-limit.nvs"
+
+[app.limits]
+memory = "16M"
+
+# `Core\Csv::rows` walks a file `Core\IO` has open, so its five proof programs are
+# the first under `docs/examples/`, `tests/hostile/` and `benches/members/` that
+# open one at all. Each writes its document into `Core\IO::temporaryDir()`'s answer
+# and reads it back, which is `examples/files.nvs`'s block above and is granted for
+# that block's reason: the directory is the host's — `C:\Users\…\AppData\Local\Temp`
+# on Windows, `/tmp` under WSL — so no checkout could narrow the grant to a path it
+# writes down here. One block per program rather than a `root` covering the three
+# directories, because every other proof program in them opens nothing and a wider
+# block would grant the filesystem to all of them.
+[[app]]
+entry = "docs/examples/core/Csv/rows/01-read-a-file-one-record-at-a-time.nvs"
+
+[app.capabilities.fs]
+read = true
+write = true
+
+[[app]]
+entry = "docs/examples/core/Csv/rows/02-name-the-columns-from-the-first-record.nvs"
+
+[app.capabilities.fs]
+read = true
+write = true
+
+[[app]]
+entry = "docs/examples/core/Csv/rows/03-add-up-a-column-of-a-large-export.nvs"
+
+[app.capabilities.fs]
+read = true
+write = true
+
+[[app]]
+entry = "tests/hostile/core/Csv/rows/01-a-file-an-upload-form-could-send.nvs"
+
+[app.capabilities.fs]
+read = true
+write = true
+
+[[app]]
+entry = "benches/members/core/Csv/rows.nvs"
+
+[app.capabilities.fs]
+read = true
+write = true
+
+# `Core\Serialize::decode`'s third example saves a value in
+# `Core\IO::temporaryDir()`'s answer and reads it back, so it takes the
+# `Core\Csv` block's grant for its reason. The other proofs of the class open no
+# file.
+[[app]]
+entry = "docs/examples/core/Serialize/decode/03-load-saved-jobs-from-a-file.nvs"
+
+[app.capabilities.fs]
+read = true
+write = true
+
+# `Core\Http\Stream::saveTo`'s proof programs write a reply's body into
+# `Core\IO::temporaryDir()`'s answer and read it back, so they take the `Core\Csv`
+# block's grant for its reason. A `root` for the example and attack directories,
+# because every program in them opens a file; the reply itself comes from
+# `Core\Test::answerHttp`'s table and needs no `net` grant.
+[[app]]
+root = "docs/examples/core/Http-Stream/saveTo"
+
+[app.capabilities.fs]
+read = true
+write = true
+
+[[app]]
+root = "tests/hostile/core/Http-Stream/saveTo"
+
+[app.capabilities.fs]
+read = true
+write = true
+
+[[app]]
+entry = "benches/members/core/Http-Stream/saveTo.nvs"
+
+[app.capabilities.fs]
+read = true
+write = true
+
+# `Core\IO`'s proof programs create, add to, copy and resolve files under
+# `Core\IO::temporaryDir()`, so they take the `Core\Csv` block's grant for its reason.
+# One `root` per tree rather than an `entry` per program, because every program in
+# these three directories opens a file.
+[[app]]
+root = "docs/examples/core/IO"
+
+[app.capabilities.fs]
+read = true
+write = true
+
+[[app]]
+root = "tests/hostile/core/IO"
+
+[app.capabilities.fs]
+read = true
+write = true
+
+[[app]]
+root = "benches/members/core/IO"
+
+[app.capabilities.fs]
+read = true
+write = true
+
+# `Core\IO\File`'s proof programs open, lock and close handles on files under
+# `Core\IO::temporaryDir()`, so they take `Core\IO`'s grant above for its reason.
+[[app]]
+root = "docs/examples/core/IO-File"
+
+[app.capabilities.fs]
+read = true
+write = true
+
+[[app]]
+root = "tests/hostile/core/IO-File"
+
+[app.capabilities.fs]
+read = true
+write = true
+
+# Their last steps read one line, and one `read`, larger than this limit, so the limit
+# is small enough for a file of 32 MB to cross it. The `fs` grants arrive from the
+# block above.
+[[app]]
+entry = "tests/hostile/core/IO-File/readLine/01-empty-lines-cut-line-breaks-and-a-line-with-no-end.nvs"
+
+[app.limits]
+memory = "16M"
+
+[[app]]
+entry = "tests/hostile/core/IO-File/read/01-huge-limits-cut-characters-and-closed-handles.nvs"
+
+[app.limits]
+memory = "16M"
+
+[[app]]
+root = "benches/members/core/IO-File"
+
+[app.capabilities.fs]
+read = true
+write = true
+
+# `Core\IO\Metadata`'s proof programs make the files and folders they `stat` under
+# `Core\IO::temporaryDir()`, so they take `Core\IO`'s grant above for its reason.
+[[app]]
+root = "docs/examples/core/IO-Metadata"
+
+[app.capabilities.fs]
+read = true
+write = true
+
+[[app]]
+root = "tests/hostile/core/IO-Metadata"
+
+[app.capabilities.fs]
+read = true
+write = true
+
+[[app]]
+root = "benches/members/core/IO-Metadata"
+
+[app.capabilities.fs]
+read = true
+write = true
+
+# `Core\Db::open`'s five proof programs are the first in this repository to open a
+# database the program itself names rather than a `[db.<name>]` block. Each opens SQLite
+# at `:memory:`, which is what keeps them container-free and their output the same on
+# Windows, under WSL and under valgrind — the reason `[db.schema]` below is that database
+# too. A file under `Core\IO::temporaryDir()` was the other candidate and is measurably
+# worse here: a pooled connection is returned to its pool rather than closed, so the file
+# is still open when the process sweeps its own owned root, and every run of the sweep
+# leaves a directory behind with a warning naming it.
+#
+# Three grants each, and all three written `true`. `sqlite_settings` in
+# `crates/nvs-stdlib/src/db/open.rs` asks `db.open`, `fs.read` and `fs.write` about the
+# `path` as a `Scope::Path`, which canonicalizes an entry before it compares — and
+# `:memory:` is a path no filesystem has, so no list entry can match it and `true` is the
+# only spelling that grants these programs anything. The two filesystem grants are asked
+# of a database with no file on purpose: the alternative is a capability check that knows
+# which path strings SQLite reads as memory, and a check that gets that grammar wrong
+# opens a real file with no grant at all. `db.schema` is not among the three — it gates
+# `Core\Db\Schema` and never a `CREATE TABLE` issued through `execute`.
+[[app]]
+entry = "docs/examples/core/Db/open/01-open-a-database-the-program-names.nvs"
+
+[app.capabilities.fs]
+read = true
+write = true
+
+[app.capabilities.db]
+open = true
+
+[[app]]
+entry = "docs/examples/core/Db/open/02-the-same-settings-give-the-same-connection.nvs"
+
+[app.capabilities.fs]
+read = true
+write = true
+
+[app.capabilities.db]
+open = true
+
+[[app]]
+entry = "docs/examples/core/Db/open/03-a-database-for-one-report.nvs"
+
+[app.capabilities.fs]
+read = true
+write = true
+
+[app.capabilities.db]
+open = true
+
+[[app]]
+entry = "tests/hostile/core/Db/open/01-settings-a-request-chose.nvs"
+
+[app.capabilities.fs]
+read = true
+write = true
+
+[app.capabilities.db]
+open = true
+
+[[app]]
+entry = "benches/members/core/Db/open.nvs"
+
+[app.capabilities.fs]
+read = true
+write = true
+
+[app.capabilities.db]
+open = true
+
+# `Core\Db::inList`'s proof programs, granted for the same reason and in the same three
+# lines: the member itself needs nothing, but a list of bound values is only worth reading
+# beside the statement it expands inside, so each of these opens the same `:memory:`
+# database the block above describes. Its bench is not among them — that one measures the
+# marker alone and opens nothing, so it is granted nothing.
+[[app]]
+entry = "docs/examples/core/Db/inList/01-find-the-rows-a-list-names.nvs"
+
+[app.capabilities.fs]
+read = true
+write = true
+
+[app.capabilities.db]
+open = true
+
+[[app]]
+entry = "docs/examples/core/Db/inList/02-leave-out-the-values-a-list-names.nvs"
+
+[app.capabilities.fs]
+read = true
+write = true
+
+[app.capabilities.db]
+open = true
+
+[[app]]
+entry = "docs/examples/core/Db/inList/03-one-query-instead-of-one-per-row.nvs"
+
+[app.capabilities.fs]
+read = true
+write = true
+
+[app.capabilities.db]
+open = true
+
+[[app]]
+entry = "tests/hostile/core/Db/inList/01-lists-a-request-chose.nvs"
+
+[app.capabilities.fs]
+read = true
+write = true
+
+[app.capabilities.db]
+open = true
+
+# `Core\Db::connect`'s proof programs, granted by *name* and asked nothing else. `db.connect` is
+# permission to open an operator-written block (`rule:core-classes/db-capabilities`), so none of these asks for an `fs`
+# grant even though `[db.notes]` is a SQLite database: `sqlite_settings` in
+# `crates/nvs-stdlib/src/db/open.rs` — where `fs.read` and `fs.write` are asked about a `path` — is
+# `Core\Db::open`'s reader and is never on this member's path. The hostile case holds that one name
+# and no other, which is what makes its twenty thousand refusals evidence that the grant is asked
+# per name rather than once.
+[[app]]
+entry = "docs/examples/core/Db/connect/01-open-the-database-an-operator-named.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db/connect/02-wait-only-as-long-as-a-page-can.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db/connect/03-every-function-asks-for-the-database.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "tests/hostile/core/Db/connect/01-names-a-program-chose.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "benches/members/core/Db/connect.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+# `Core\Mail::send`'s proof programs, granted `[mail.shop]` by name. The examples and the attack
+# send through it and are answered by a closed port, so every one of them reaches the socket and no
+# message leaves this machine. Example 02 and the bench are refused before the grant is asked, and
+# hold none.
+[[app]]
+entry = "docs/examples/core/Mail/send/01-sending-an-order-receipt.nvs"
+
+[app.capabilities.mail]
+send = ["shop"]
+
+[[app]]
+entry = "docs/examples/core/Mail/send/03-a-contact-form.nvs"
+
+[app.capabilities.mail]
+send = ["shop"]
+
+[[app]]
+entry = "tests/hostile/core/Mail/send/01-headers-hidden-in-every-field.nvs"
+
+[app.capabilities.mail]
+send = ["shop"]
+
+# `Core\Ldap::connect`'s and `Core\Ldap::open`'s proof programs. `connect` is granted
+# `[ldap.corp]`, which dials a closed port. `open` is granted loopback, and `net.internal` lets that
+# address through the outbound policy, so the dial is refused by the closed port and not the policy.
+[[app]]
+entry = "docs/examples/core/Ldap/connect/01-sign-in-to-the-company-directory.nvs"
+
+[app.capabilities.ldap]
+connect = ["corp"]
+
+[[app]]
+entry = "docs/examples/core/Ldap/connect/02-a-directory-the-operator-did-not-allow.nvs"
+
+[app.capabilities.ldap]
+connect = ["corp"]
+
+[[app]]
+entry = "docs/examples/core/Ldap/connect/03-a-page-that-works-without-the-directory.nvs"
+
+[app.capabilities.ldap]
+connect = ["corp"]
+
+[[app]]
+entry = "tests/hostile/core/Ldap/connect/01-names-a-program-chose.nvs"
+
+[app.capabilities.ldap]
+connect = ["corp"]
+
+[[app]]
+entry = "benches/members/core/Ldap/connect.nvs"
+
+[app.capabilities.ldap]
+connect = ["corp"]
+
+[[app]]
+entry = "docs/examples/core/Ldap/open/01-open-a-directory-the-program-names.nvs"
+
+[app.capabilities.ldap]
+open = ["127.0.0.1"]
+
+[app.capabilities.net]
+internal = ["127.0.0.1"]
+
+[[app]]
+entry = "docs/examples/core/Ldap/open/02-a-host-the-operator-did-not-allow.nvs"
+
+[app.capabilities.ldap]
+open = ["127.0.0.1"]
+
+[app.capabilities.net]
+internal = ["127.0.0.1"]
+
+[[app]]
+entry = "docs/examples/core/Ldap/open/03-plain-text-needs-its-own-grant.nvs"
+
+[app.capabilities.ldap]
+open = ["127.0.0.1"]
+
+[app.capabilities.net]
+internal = ["127.0.0.1"]
+
+[[app]]
+entry = "tests/hostile/core/Ldap/open/01-settings-a-request-chose.nvs"
+
+[app.capabilities.ldap]
+open = ["127.0.0.1"]
+
+[app.capabilities.net]
+internal = ["127.0.0.1"]
+
+[[app]]
+entry = "benches/members/core/Ldap/open.nvs"
+
+[app.capabilities.ldap]
+open = ["127.0.0.1"]
+
+# The proof programs of `Core\Ldap`'s classes other than `Core\Ldap` itself read the seeded
+# `OU=Company` through `[ldap.corp]`, so each tree of them is granted that one block and nothing
+# else.
+[[app]]
+root = "docs/examples/core/Ldap-Entry"
+
+[app.capabilities.ldap]
+connect = ["corp"]
+
+[[app]]
+root = "tests/hostile/core/Ldap-Entry"
+
+[app.capabilities.ldap]
+connect = ["corp"]
+
+[[app]]
+root = "benches/members/core/Ldap-Entry"
+
+[app.capabilities.ldap]
+connect = ["corp"]
+
+[[app]]
+root = "docs/examples/core/Ldap-Entries"
+
+[app.capabilities.ldap]
+connect = ["corp"]
+
+[[app]]
+root = "tests/hostile/core/Ldap-Entries"
+
+[app.capabilities.ldap]
+connect = ["corp"]
+
+[[app]]
+root = "benches/members/core/Ldap-Entries"
+
+[app.capabilities.ldap]
+connect = ["corp"]
+
+[[app]]
+root = "docs/examples/core/Ldap-Changes"
+
+[app.capabilities.ldap]
+connect = ["corp"]
+
+[[app]]
+root = "tests/hostile/core/Ldap-Changes"
+
+[app.capabilities.ldap]
+connect = ["corp"]
+
+[[app]]
+root = "benches/members/core/Ldap-Changes"
+
+[app.capabilities.ldap]
+connect = ["corp"]
+
+[[app]]
+root = "docs/examples/core/Ldap-Ad-GroupType"
+
+[app.capabilities.ldap]
+connect = ["corp"]
+
+[[app]]
+root = "tests/hostile/core/Ldap-Ad-GroupType"
+
+[app.capabilities.ldap]
+connect = ["corp"]
+
+[[app]]
+root = "benches/members/core/Ldap-Ad-GroupType"
+
+[app.capabilities.ldap]
+connect = ["corp"]
+
+[[app]]
+root = "docs/examples/core/Ldap-Ad-AccountFlags"
+
+[app.capabilities.ldap]
+connect = ["corp"]
+
+[[app]]
+root = "tests/hostile/core/Ldap-Ad-AccountFlags"
+
+[app.capabilities.ldap]
+connect = ["corp"]
+
+[[app]]
+root = "benches/members/core/Ldap-Ad-AccountFlags"
+
+[app.capabilities.ldap]
+connect = ["corp"]
+
+[[app]]
+root = "docs/examples/core/Ldap-Connection"
+
+[app.capabilities.ldap]
+connect = ["corp"]
+
+[[app]]
+root = "tests/hostile/core/Ldap-Connection"
+
+[app.capabilities.ldap]
+connect = ["corp"]
+
+[[app]]
+root = "benches/members/core/Ldap-Connection"
+
+[app.capabilities.ldap]
+connect = ["corp"]
+
+# The proof programs of `setPassword`, `changePassword`, `authenticate`, `rename`, `add`, `modify`,
+# `delete` and `isDeleted` write to the directory, so they open `[ldap.corp-accounts]`, which logs in as the
+# administrator, and no other program is granted it. Each program adds its own unit and user outside `OU=Company` and deletes both again,
+# so a reader of the seed never sees them.
+[[app]]
+root = "docs/examples/core/Ldap-Connection/setPassword"
+
+[app.capabilities.ldap]
+connect = ["corp-accounts"]
+
+[[app]]
+root = "tests/hostile/core/Ldap-Connection/setPassword"
+
+[app.capabilities.ldap]
+connect = ["corp-accounts"]
+
+[[app]]
+entry = "benches/members/core/Ldap-Connection/setPassword.nvs"
+
+[app.capabilities.ldap]
+connect = ["corp-accounts"]
+
+[[app]]
+root = "docs/examples/core/Ldap-Connection/changePassword"
+
+[app.capabilities.ldap]
+connect = ["corp-accounts"]
+
+[[app]]
+root = "tests/hostile/core/Ldap-Connection/changePassword"
+
+[app.capabilities.ldap]
+connect = ["corp-accounts"]
+
+[[app]]
+entry = "benches/members/core/Ldap-Connection/changePassword.nvs"
+
+[app.capabilities.ldap]
+connect = ["corp-accounts"]
+
+[[app]]
+root = "docs/examples/core/Ldap-Entry/isDeleted"
+
+[app.capabilities.ldap]
+connect = ["corp-accounts"]
+
+[[app]]
+root = "tests/hostile/core/Ldap-Entry/isDeleted"
+
+[app.capabilities.ldap]
+connect = ["corp-accounts"]
+
+[[app]]
+entry = "benches/members/core/Ldap-Entry/isDeleted.nvs"
+
+[app.capabilities.ldap]
+connect = ["corp-accounts"]
+
+[[app]]
+root = "docs/examples/core/Ldap-Connection/rename"
+
+[app.capabilities.ldap]
+connect = ["corp-accounts"]
+
+[[app]]
+root = "tests/hostile/core/Ldap-Connection/rename"
+
+[app.capabilities.ldap]
+connect = ["corp-accounts"]
+
+[[app]]
+entry = "benches/members/core/Ldap-Connection/rename.nvs"
+
+[app.capabilities.ldap]
+connect = ["corp-accounts"]
+
+[[app]]
+root = "docs/examples/core/Ldap-Connection/modify"
+
+[app.capabilities.ldap]
+connect = ["corp-accounts"]
+
+[[app]]
+root = "tests/hostile/core/Ldap-Connection/modify"
+
+[app.capabilities.ldap]
+connect = ["corp-accounts"]
+
+[[app]]
+entry = "benches/members/core/Ldap-Connection/modify.nvs"
+
+[app.capabilities.ldap]
+connect = ["corp-accounts"]
+
+[[app]]
+root = "docs/examples/core/Ldap-Connection/authenticate"
+
+[app.capabilities.ldap]
+connect = ["corp-accounts"]
+
+[[app]]
+root = "tests/hostile/core/Ldap-Connection/authenticate"
+
+[app.capabilities.ldap]
+connect = ["corp-accounts"]
+
+[[app]]
+entry = "benches/members/core/Ldap-Connection/authenticate.nvs"
+
+[app.capabilities.ldap]
+connect = ["corp-accounts"]
+
+[[app]]
+root = "docs/examples/core/Ldap-Connection/add"
+
+[app.capabilities.ldap]
+connect = ["corp-accounts"]
+
+[[app]]
+root = "tests/hostile/core/Ldap-Connection/add"
+
+[app.capabilities.ldap]
+connect = ["corp-accounts"]
+
+[[app]]
+entry = "benches/members/core/Ldap-Connection/add.nvs"
+
+[app.capabilities.ldap]
+connect = ["corp-accounts"]
+
+[[app]]
+root = "docs/examples/core/Ldap-Connection/delete"
+
+[app.capabilities.ldap]
+connect = ["corp-accounts"]
+
+[[app]]
+root = "tests/hostile/core/Ldap-Connection/delete"
+
+[app.capabilities.ldap]
+connect = ["corp-accounts"]
+
+[[app]]
+entry = "benches/members/core/Ldap-Connection/delete.nvs"
+
+[app.capabilities.ldap]
+connect = ["corp-accounts"]
+
+# The proof programs of `Core\Ldap\LdapError` and of `Core\Ldap`'s enums read `[ldap.corp]`, and are
+# granted that one block. Their attack fails on purpose and writes nothing.
+[[app]]
+root = "docs/examples/types/Ldap-LdapError"
+
+[app.capabilities.ldap]
+connect = ["corp"]
+
+[[app]]
+root = "tests/hostile/types/Ldap-LdapError"
+
+[app.capabilities.ldap]
+connect = ["corp"]
+
+[[app]]
+root = "docs/examples/types/Ldap-LdapError-Kind"
+
+[app.capabilities.ldap]
+connect = ["corp"]
+
+[[app]]
+root = "docs/examples/types/Ldap-Connection-Scope"
+
+[app.capabilities.ldap]
+connect = ["corp"]
+
+[[app]]
+root = "docs/examples/types/Ldap-Entry-AccountType"
+
+[app.capabilities.ldap]
+connect = ["corp"]
+
+# `Core\Ldap::Tls`'s example opens the test server's plain `ldap://` port on loopback, so it is granted
+# that one host for `open` and for `cleartext`, and `net.internal` lets the address through.
+[[app]]
+root = "docs/examples/types/Ldap-Tls"
+
+[app.capabilities.ldap]
+open = ["127.0.0.1"]
+cleartext = ["127.0.0.1"]
+
+[app.capabilities.net]
+internal = ["127.0.0.1"]
+
+# `Core\Db\Column`'s proof programs, granted the same way and for the same reason: a description is
+# read off a statement, so every one of these opens `[db.notes]` by name and asks for nothing else.
+[[app]]
+entry = "docs/examples/core/Db-Column/name/01-print-the-headings-of-a-query.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Column/name/02-the-alias-becomes-the-label.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Column/name/03-print-a-query-you-did-not-write.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "tests/hostile/core/Db-Column/name/01-labels-a-statement-chose.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "benches/members/core/Db-Column/name.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Column/type/01-see-what-each-column-holds.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Column/type/02-a-column-the-query-works-out.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Column/type/03-line-up-the-numbers-in-a-report.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "tests/hostile/core/Db-Column/type/01-declared-types-a-schema-chose.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "benches/members/core/Db-Column/type.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Column/nullable/01-ask-whether-a-column-may-be-empty.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Column/nullable/02-print-a-record-without-its-empty-fields.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Column/nullable/03-count-the-missing-values-in-a-table.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "tests/hostile/core/Db-Column/nullable/01-descriptions-written-to-force-a-guess.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "benches/members/core/Db-Column/nullable.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+# `Core\Db\Connection`'s proof programs, granted by name like the two groups above: a member of a
+# connection needs a connection, and `[db.notes]` is the block no other fixture writes to. The
+# hostile case opens and releases that one name tens of thousands of times, so the grant it holds
+# is the same single name every other program here holds.
+[[app]]
+entry = "docs/examples/core/Db-Connection/close/01-give-the-connection-back-when-the-work-is-done.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Connection/close/02-a-second-close-does-nothing.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Connection/close/03-free-the-connection-before-the-slow-step.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "tests/hostile/core/Db-Connection/close/01-closed-again-and-again-and-used-after.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "benches/members/core/Db-Connection/close.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Connection/driver/01-see-which-database-you-are-connected-to.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Connection/driver/02-write-the-statement-the-database-understands.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Connection/driver/03-stop-on-a-database-the-program-does-not-support.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "tests/hostile/core/Db-Connection/driver/01-asked-a-million-times-and-after-a-close.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "benches/members/core/Db-Connection/driver.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Connection/execute/01-write-a-row-and-see-what-happened.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Connection/execute/02-change-many-rows-with-one-statement.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Connection/execute/03-name-the-values-of-a-long-statement.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "tests/hostile/core/Db-Connection/execute/01-values-that-try-to-become-the-statement.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "benches/members/core/Db-Connection/execute.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Connection/executeMany/01-write-many-rows-with-one-statement.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Connection/executeMany/02-give-each-row-its-own-new-value.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Connection/executeMany/03-import-a-list-of-records.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "tests/hostile/core/Db-Connection/executeMany/01-sets-that-do-not-agree-and-a-batch-too-big-to-hold.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "benches/members/core/Db-Connection/executeMany.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Connection/isOpen/01-ask-whether-the-connection-is-still-open.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Connection/isOpen/02-the-one-question-a-closed-connection-answers.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Connection/isOpen/03-write-the-last-row-only-if-the-database-is-there.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "tests/hostile/core/Db-Connection/isOpen/01-asked-a-million-times-and-through-a-flood-of-connections.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "benches/members/core/Db-Connection/isOpen.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Connection/query/01-read-the-rows-one-at-a-time.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Connection/query/02-read-a-result-without-a-loop.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Connection/query/03-build-a-report-from-named-values.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "tests/hostile/core/Db-Connection/query/01-values-that-do-not-match-and-more-rows-than-fit.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "benches/members/core/Db-Connection/query.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Connection/queryAs/01-read-the-rows-as-objects-of-your-own-class.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Connection/queryAs/02-let-the-class-build-itself-from-a-row.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Connection/queryAs/03-pass-typed-rows-to-the-rest-of-the-program.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "tests/hostile/core/Db-Connection/queryAs/01-rows-that-do-not-fit-the-class-and-a-flood-of-objects.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "benches/members/core/Db-Connection/queryAs.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Connection/serverVersion/01-read-the-version-the-database-reported.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Connection/serverVersion/02-see-what-the-database-can-do.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Connection/serverVersion/03-record-the-version-a-change-was-made-on.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "tests/hostile/core/Db-Connection/serverVersion/01-a-million-reads-and-a-hundred-thousand-kept.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "benches/members/core/Db-Connection/serverVersion.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Connection/stream/01-read-a-large-table-one-row-at-a-time.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Connection/stream/02-take-only-the-first-rows-with-limit.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Connection/stream/03-total-a-table-without-holding-it.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "tests/hostile/core/Db-Connection/stream/01-walks-that-are-never-finished-and-a-result-with-no-end.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "benches/members/core/Db-Connection/stream.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Connection/streamAs/01-walk-a-large-table-as-objects.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Connection/streamAs/02-hand-a-typed-walk-to-the-rest-of-the-program.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Connection/streamAs/03-report-on-a-table-larger-than-memory.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "tests/hostile/core/Db-Connection/streamAs/01-ten-thousand-walks-and-a-row-that-does-not-fit.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "benches/members/core/Db-Connection/streamAs.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Connection/transaction/01-do-both-writes-or-neither.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Connection/transaction/02-give-up-on-the-work.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Connection/transaction/03-keep-the-import-when-one-row-is-bad.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "tests/hostile/core/Db-Connection/transaction/01-nested-until-the-stack-runs-out-and-abandoned-again-and-again.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "benches/members/core/Db-Connection/transaction.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+# `Core\Db\Plan`'s programs plan a schema against `[db.notes]`, which is the in-memory block no
+# other fixture writes to, so every one of them starts from an empty database. Planning is an
+# ordinary read and needs only `db.connect`; the one program that also *applies* its plan holds
+# `db.schema` for the same name, because issuing DDL is the separate deny-by-default grant.
+[[app]]
+entry = "docs/examples/core/Db-Plan/steps/01-see-what-a-schema-would-change.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Plan/steps/02-tell-that-the-database-is-up-to-date.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+schema = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Plan/steps/03-stop-a-deployment-before-a-risky-step.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "tests/hostile/core/Db-Plan/steps/01-a-plan-of-thousands-of-steps-read-ten-million-times.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "benches/members/core/Db-Plan/steps.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Plan-Step/grade/01-read-what-each-step-can-cost.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Plan-Step/grade/02-decide-whether-a-deployment-may-run-on-its-own.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+schema = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Plan-Step/grade/03-hold-the-risky-steps-for-a-maintenance-window.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "tests/hostile/core/Db-Plan-Step/grade/01-grades-read-forever-and-steps-kept-after-the-plan-is-gone.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "benches/members/core/Db-Plan-Step/grade.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Plan-Step/isRefused/01-see-which-steps-a-plan-will-not-run.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Plan-Step/isRefused/02-delete-a-table-the-schema-no-longer-names.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Plan-Step/isRefused/03-warn-an-operator-about-what-a-release-left-behind.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+schema = ["notes"]
+
+[[app]]
+entry = "tests/hostile/core/Db-Plan-Step/isRefused/01-thousands-of-reports-and-one-flag-read-forever.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "benches/members/core/Db-Plan-Step/isRefused.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Plan-Step/reason/01-see-why-a-plan-has-the-step-it-has.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Plan-Step/reason/02-tell-a-person-why-the-deployment-stopped.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Plan-Step/reason/03-write-the-release-notes-for-an-approval.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "tests/hostile/core/Db-Plan-Step/reason/01-every-reason-read-forever-and-joined-into-one-string.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "benches/members/core/Db-Plan-Step/reason.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Plan-Step/sql/01-read-the-statement-a-step-is.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Plan-Step/sql/02-run-one-step-yourself.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Plan-Step/sql/03-write-the-plan-out-for-a-review.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "tests/hostile/core/Db-Plan-Step/sql/01-every-statement-read-forever-and-joined-into-one-string.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "benches/members/core/Db-Plan-Step/sql.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+# `Core\Db\Row`'s proof programs, on `[db.notes]` for the reason every group above is: a reader of a
+# row needs a row, each of these programs creates the table it then reads, and `:memory:` gives every
+# one of them a database of its own. The readers differ only in the type they answer, so one grant
+# per program is what keeps the capability check asked rather than assumed for all of them.
+[[app]]
+entry = "docs/examples/core/Db-Row/bool/01-read-a-yes-or-no-column.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Row/bool/02-a-column-that-has-no-value.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Row/bool/03-pick-the-accounts-a-flag-is-set-on.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "tests/hostile/core/Db-Row/bool/01-numbers-that-are-not-flags-and-a-million-reads.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "benches/members/core/Db-Row/bool.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Row/bytes/01-read-a-picture-out-of-a-row.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Row/bytes/02-a-column-that-has-no-value.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Row/bytes/03-find-out-which-file-type-a-picture-is.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "tests/hostile/core/Db-Row/bytes/01-a-text-column-a-huge-picture-and-a-million-reads.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "benches/members/core/Db-Row/bytes.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Row/date/01-read-the-day-a-task-is-due.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Row/date/02-a-column-that-has-no-value.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Row/date/03-pick-out-the-tasks-that-are-late.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "tests/hostile/core/Db-Row/date/01-days-that-are-not-days-and-a-million-reads.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "benches/members/core/Db-Row/date.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Row/decimal/01-read-a-price-out-of-a-row.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Row/decimal/02-a-column-that-has-no-value.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Row/decimal/03-add-up-what-an-order-costs.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "tests/hostile/core/Db-Row/decimal/01-text-that-is-no-number-and-a-million-reads.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "benches/members/core/Db-Row/decimal.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Row/time/01-read-the-hour-a-shop-opens.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Row/time/02-a-column-that-has-no-value.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Row/time/03-find-the-shops-open-at-nine.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "tests/hostile/core/Db-Row/time/01-clock-readings-that-are-not-readings-and-a-million-reads.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "benches/members/core/Db-Row/time.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Row/uuid/01-read-the-id-of-an-order.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Row/uuid/02-a-column-that-has-no-value.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Row/uuid/03-look-up-a-row-by-the-id-a-request-carried.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "tests/hostile/core/Db-Row/uuid/01-text-that-is-no-id-and-a-million-reads.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "benches/members/core/Db-Row/uuid.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Row/string/01-read-a-name-out-of-a-row.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Row/string/02-a-column-that-has-no-value.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Row/string/03-count-the-orders-of-each-status.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "tests/hostile/core/Db-Row/string/01-a-column-of-every-other-type-and-a-million-reads.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "benches/members/core/Db-Row/string.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Row/int/01-read-a-whole-number-out-of-a-row.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Row/int/02-a-column-that-has-no-value.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Row/int/03-check-that-an-order-fits-in-stock.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "tests/hostile/core/Db-Row/int/01-the-widest-numbers-a-column-holds-and-a-million-reads.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "benches/members/core/Db-Row/int.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Row/uint/01-read-a-count-that-is-never-negative.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Row/uint/02-a-column-that-has-no-value.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Row/uint/03-add-up-what-a-folder-holds.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "tests/hostile/core/Db-Row/uint/01-a-negative-column-and-a-million-reads.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "benches/members/core/Db-Row/uint.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Row/float/01-read-a-measurement-out-of-a-row.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Row/float/02-a-column-that-has-no-value.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Row/float/03-pick-the-stops-inside-a-map-area.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "tests/hostile/core/Db-Row/float/01-the-widest-doubles-a-column-holds-and-a-million-reads.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "benches/members/core/Db-Row/float.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Row/has/01-test-a-column-before-you-read-it.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Row/has/02-one-function-for-rows-of-two-tables.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Row/has/03-read-only-the-columns-a-request-asked-for.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "tests/hostile/core/Db-Row/has/01-names-no-table-would-use-and-a-million-tests.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "benches/members/core/Db-Row/has.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Row/get/01-read-a-column-without-naming-its-type.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Row/get/02-a-column-that-has-no-value.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Row/get/03-copy-rows-into-another-table.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "tests/hostile/core/Db-Row/get/01-every-column-type-read-as-one-and-a-million-reads.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "benches/members/core/Db-Row/get.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Row/toArray/01-read-the-whole-row-at-once.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Row/toArray/02-read-a-row-whose-columns-you-do-not-know.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Row/toArray/03-answer-a-request-with-rows-as-json.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "tests/hostile/core/Db-Row/toArray/01-a-row-turned-into-an-array-a-million-times.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "benches/members/core/Db-Row/toArray.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Rows/all/01-read-every-row-at-once.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Rows/all/02-read-the-rows-more-than-once.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Rows/all/03-hand-a-whole-result-set-to-another-method.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "tests/hostile/core/Db-Rows/all/01-every-row-read-again-and-again.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "benches/members/core/Db-Rows/all.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Rows/column/01-read-one-column-from-every-row.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Rows/column/02-name-the-column-by-its-position.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Rows/column/03-answer-a-request-with-one-column-as-json.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "tests/hostile/core/Db-Rows/column/01-a-column-asked-for-again-and-again.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "benches/members/core/Db-Rows/column.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Rows/columns/01-list-the-columns-a-query-answered.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Rows/columns/02-print-the-headings-when-no-rows-matched.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Rows/columns/03-write-the-first-line-of-a-csv-export.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "tests/hostile/core/Db-Rows/columns/01-a-description-read-again-and-again.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "benches/members/core/Db-Rows/columns.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Rows/count/01-say-how-many-rows-a-search-found.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Rows/count/02-take-another-path-when-nothing-matched.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Rows/count/03-work-out-how-many-pages-a-list-needs.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "tests/hostile/core/Db-Rows/count/01-a-count-asked-for-again-and-again.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "benches/members/core/Db-Rows/count.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Rows/first/01-read-the-one-row-a-lookup-found.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Rows/first/02-say-so-when-a-lookup-found-nothing.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Rows/first/03-read-the-first-row-as-your-own-class.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "tests/hostile/core/Db-Rows/first/01-a-first-row-asked-for-again-and-again.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "benches/members/core/Db-Rows/first.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Rows/value/01-read-the-number-a-count-query-answered.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Rows/value/02-the-two-times-the-value-is-null.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Rows/value/03-build-a-summary-line-from-one-value-queries.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "tests/hostile/core/Db-Rows/value/01-one-value-read-again-and-again.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "benches/members/core/Db-Rows/value.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+# `Core\Db\Schema`'s programs that reach a database. Reading a schema out of an array and writing one
+# back need nothing granted at all, so that group's other programs are not written here. The grants below
+# are the split of `rule:core-classes/schema-apply-capability`: `db.connect` is the whole of what `planAgainst` needs, and the one
+# program that also applies what it planned holds `db.schema` for the same name its connection names.
+[[app]]
+entry = "docs/examples/core/Db-Schema/fromArray/03-bring-a-database-up-to-a-schema-you-read-as-json.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+schema = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Schema/planAgainst/01-see-what-a-schema-would-change.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Schema/planAgainst/02-read-the-grade-of-every-step.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Schema/planAgainst/03-check-at-start-up-that-the-database-is-up-to-date.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "tests/hostile/core/Db-Schema/planAgainst/01-planning-the-same-database-without-end.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "benches/members/core/Db-Schema/planAgainst.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Schema/applySafe/01-create-the-tables-a-new-database-needs.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+schema = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Schema/applySafe/02-a-step-that-is-not-safe.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+schema = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Schema/applySafe/03-add-a-column-to-a-table-that-has-rows.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+schema = ["notes"]
+
+[[app]]
+entry = "tests/hostile/core/Db-Schema/applySafe/01-applying-the-same-schema-without-end.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+schema = ["notes"]
+
+[[app]]
+entry = "benches/members/core/Db-Schema/applySafe.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+schema = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Schema/applyIncludingRisky/01-run-a-change-that-applysafe-refuses.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+schema = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Schema/applyIncludingRisky/02-read-the-plan-before-you-run-it.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+schema = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Schema/applyIncludingRisky/03-a-table-you-never-declared-is-kept.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+schema = ["notes"]
+
+[[app]]
+entry = "tests/hostile/core/Db-Schema/applyIncludingRisky/01-rebuilding-one-table-again-and-again.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+schema = ["notes"]
+
+[[app]]
+entry = "benches/members/core/Db-Schema/applyIncludingRisky.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+schema = ["notes"]
+
+# `Core\Db\Transaction`'s programs write through the second handle of the one interface, so they
+# open `[db.notes]` by name and ask for nothing else: the transaction is reached through a
+# connection this grant already covers, and `rule:classes/no-traits`'s delegation gives the two
+# receivers one statement path rather than a grant of its own.
+[[app]]
+entry = "docs/examples/core/Db-Transaction/execute/01-write-a-row-inside-a-transaction.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Transaction/execute/02-give-up-on-a-write.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Transaction/execute/03-save-an-order-with-its-lines.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "tests/hostile/core/Db-Transaction/execute/01-a-write-after-the-work-is-over-and-writes-without-end.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "benches/members/core/Db-Transaction/execute.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Transaction/executeMany/01-write-many-rows-inside-a-transaction.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Transaction/executeMany/02-all-of-the-batch-or-none-of-it.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Transaction/executeMany/03-import-a-list-of-records-under-one-row.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "tests/hostile/core/Db-Transaction/executeMany/01-sets-that-do-not-agree-and-a-batch-after-the-work-is-over.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "benches/members/core/Db-Transaction/executeMany.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Transaction/query/01-read-what-the-transaction-just-wrote.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Transaction/query/02-write-while-you-read-the-rows.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Transaction/query/03-let-a-read-decide-whether-to-keep-the-work.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "tests/hostile/core/Db-Transaction/query/01-a-read-after-the-work-is-over-and-reads-without-end.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "benches/members/core/Db-Transaction/query.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Transaction/queryAs/01-read-what-the-transaction-wrote-as-objects.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Transaction/queryAs/02-build-each-object-from-several-columns.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Transaction/queryAs/03-claim-a-batch-of-jobs.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "tests/hostile/core/Db-Transaction/queryAs/01-rows-that-do-not-fit-the-class-and-a-flood-of-objects.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "benches/members/core/Db-Transaction/queryAs.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Transaction/stream/01-read-the-transactions-own-rows-one-at-a-time.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Transaction/stream/02-collect-the-rows-then-write-them.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Transaction/stream/03-total-a-large-table-and-store-the-result.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "tests/hostile/core/Db-Transaction/stream/01-a-walk-after-the-work-is-over-and-walks-that-are-never-finished.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "benches/members/core/Db-Transaction/stream.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Transaction/streamAs/01-read-the-transactions-own-rows-as-objects.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Transaction/streamAs/02-build-each-object-from-several-columns.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Transaction/streamAs/03-remind-every-overdue-invoice.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "tests/hostile/core/Db-Transaction/streamAs/01-ten-thousand-typed-walks-and-a-walk-nobody-finishes.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "benches/members/core/Db-Transaction/streamAs.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Transaction/rollBack/01-give-up-when-a-check-fails.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Transaction/rollBack/02-give-up-from-inside-a-function.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Transaction/rollBack/03-move-money-between-two-accounts.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "tests/hostile/core/Db-Transaction/rollBack/01-a-million-reasons-and-one-nobody-can-print.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "benches/members/core/Db-Transaction/rollBack.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Transaction/transaction/01-undo-one-step-and-keep-the-rest.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Transaction/transaction/02-let-a-function-open-its-own-transaction.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Transaction/transaction/03-keep-the-order-when-the-coupon-fails.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "tests/hostile/core/Db-Transaction/transaction/01-a-step-that-outlives-its-work-and-levels-without-end.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "benches/members/core/Db-Transaction/transaction.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+# `Core\Db\Write`'s programs read the three counts off a statement that has already run, so they
+# open `[db.notes]` by name and ask for nothing else: the write is reached through a connection this
+# grant already covers, and a count is read off the statement rather than out of the database.
+[[app]]
+entry = "docs/examples/core/Db-Write/affected/01-count-the-rows-an-update-changed.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Write/affected/02-find-out-that-nothing-matched.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Write/affected/03-let-one-worker-take-the-job.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "tests/hostile/core/Db-Write/affected/01-a-count-kept-after-everything-that-made-it-is-gone.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "benches/members/core/Db-Write/affected.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Write/changed/01-read-the-count-the-server-reported.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Write/changed/02-tell-no-count-apart-from-no-rows.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Write/changed/03-add-up-what-a-clean-up-removed.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "tests/hostile/core/Db-Write/changed/01-a-count-that-may-be-nothing-at-all.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "benches/members/core/Db-Write/changed.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Write/lastId/01-read-the-key-of-a-new-row.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Write/lastId/02-a-statement-that-inserted-nothing.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Write/lastId/03-write-the-lines-that-belong-to-an-order.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "tests/hostile/core/Db-Write/lastId/01-keys-at-the-far-end-of-what-a-number-holds.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "benches/members/core/Db-Write/lastId.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+# The bound `examples/config.nvs` is written around: a program may move
+# `memory` freely up to the ceiling `[limits.hard]` keeps below
+# (`rule:config/ceilings-are-their-own-directives`), so `512M` is the last value
+# `Core\Config::set("memory", …)` accepts and `1G` is the first it refuses. The
+# fixture's frozen output is derived from these two values, so they belong here
+# rather than in that program's comments.
+[limits]
+memory = "256M"
+
+# The five `System` keys carved out of this block, written at exactly the figures
+# `nvs-runtime` and `nvs_stdlib::compress` already ship — a megabyte and 50 ms of
+# reserve, sixty-four levels of `spawn script` nesting, 64 MiB and 1000:1 of
+# decompression bound — so this repository behaves the same with them written as
+# it did with them absent, for the reason the cache blocks below are written the
+# same way. They are here to be *read*:
+# `docs/examples/config/limits-fatal_reserve_memory/` and its four siblings are
+# the website's pages for these directives, and a page whose example prints
+# `(unset)` teaches nothing about a key an operator is about to write.
+fatal_reserve_memory = "1M"
+fatal_reserve_time = "50ms"
+max_script_depth = 64
+max_decompressed = "64M"
+max_decompression_ratio = 1000
+
+[limits.hard]
+memory = "512M"
+
+# The room the tier-3 handler runs in, written at exactly the figures
+# `nvs_runtime::Ctx` ships — 16 MiB and five seconds, which is what compiling and
+# running a whole `.nvs` costs rather than what formatting a message costs. The
+# block states these two keys and no third: `handler` is written per application
+# above, where `examples/logging.nvs` is the fixture for it, and a `format` or a
+# `level` here would pin what the mode otherwise decides. They are here to be
+# *read*, for the reason the `[limits]` keys above are —
+# `docs/examples/config/log-handler_reserve_memory/` and its sibling are the
+# website's pages for them.
+[log]
+handler_reserve_memory = "16M"
+handler_reserve_time = "5s"
+
+# The memory tier's block, written at exactly the figures `nvs_stdlib::cache`
+# ships — 32 MiB and a five-second fill wait — so this repository behaves the same
+# with it as it would without it. It is here to be *read*:
+# `docs/examples/config/cache-memory/` is the website's page for this directive,
+# and a page whose example prints `(unset)` teaches nothing about a key an
+# operator is about to write. Changing either figure changes that program's frozen
+# output, which is the point — a value written down is a value a reader can see
+# arriving.
+[cache.memory]
+max_size = "32M"
+fill_wait = "5s"
+
+# The coherent tier of `rule:core-api/two-cache-tiers`, as the deployment decision it is: `Core\Cache::shared()`
+# and `Core\RateLimit::consume` both open *this* store, and neither takes an argument
+# saying where it is. The port is `tests/db/compose.yaml`'s `redis` service —
+# `127.0.0.1:16379` rather than 6379, so a developer's own Redis is never the one a
+# fixture writes to — and a goal record's `env.docker` under `data/goals/` is what brings
+# it up for the acceptance sweep. `redis://` and not `rediss://`, because which
+# certificates this binary trusts has no decision yet; `nvs_stdlib::cache`'s module doc
+# is the home of that reasoning and of why there is no key for a password or a database
+# index either.
+[cache.shared]
+url = "redis://127.0.0.1:16379"
+
+# The end-of-script sweep's one switch, written as the value an absent `[debug]`
+# block already means: `nvs_config::tree::Debug::keep_temporary` is `None` here
+# and `Some(false)` there, and `rule:core-classes/temporary-dir-sweep`'s sweep asks the same question
+# of both, so this line keeps nothing this checkout was deleting. It is here to be
+# *read* — `docs/examples/config/debug-keep_temporary/` is the website's page for
+# the directive, and a page whose example prints `(nothing)` on the line that
+# matters teaches nothing about the key an operator is about to flip. `true` here
+# instead would leave every temporary directory of every run in this repository on
+# disk, which is the one value this file must not carry: the acceptance sweep runs
+# hundreds of programs and nothing else deletes what it kept.
+[debug]
+keep_temporary = false
+
+# The connection an operator names (`rule:core-classes/db-connection-is-named`), and the block `Core\Db::connect("main")` opens —
+# `examples/db.nvs`, `examples/transaction.nvs` and `examples/stream.nvs` are the fixtures
+# that read it, and each says in its own header that this file owes it. The server is
+# `tests/db/compose.yaml`'s `postgres` service, whose comments own the credentials and the
+# reason the published port is 15432 rather than 5432: a fixture that drops and recreates an
+# `accounts` table must never find a developer's own PostgreSQL on the other end.
+#
+# `driver` is written out even though PostgreSQL is the only one implemented.
+# `nvs_db::PgTarget::resolve` refuses a block that names no driver rather than assuming the
+# one it can speak, so the key is what makes the block openable at all — and when the other
+# four land, this block does not change meaning under them.
+#
+# **`tls_ca_file` is why the fixtures can reach it.** No setting turns TLS off
+# (`rule:core-classes/db-safe-connection-defaults`), and `nvs_host::tls` verifies against anchors compiled into the binary; the compose
+# PostgreSQL presents a certificate its own `certs` service issued, so this block names that
+# service's CA and nothing else vouches for the server. The file is not in git — it belongs to
+# a Docker volume and is remade whenever that volume is — and copying it out is the one
+# command `tests/db/compose.yaml`'s header names.
+[db.main]
+driver = "postgres"
+host = "127.0.0.1"
+port = 15432
+user = "novis"
+password = "Novis-Test-Pw1"
+database = "novis_test"
+tls_ca_file = "tests/db/ca.crt"
+
+# The same server, under a second name, with its pool's ceiling wound all the way down —
+# `examples/pool.nvs` is the only program granted it. A second block rather than a `[db.main.pool]`
+# on the one above, because two blocks are two pools (`rule:security/db-pool-reset-is-a-boundary`):
+# a `max` of 1 written on `[db.main]` would
+# be a bound the other two fixtures run under as well, and the point of this one is that reaching
+# the ceiling is *this* program's own business.
+#
+# `idle` is written because it has to be. It defaults to 2 and `nvs_config::db::pool_for` refuses an
+# `idle` above `max` at boot, so a block that lowers `max` to 1 and says nothing else does not load
+# at all — for every program, since this file is one snapshot.
+#
+# `acquire` is short for the fixture's sake and for no other reason: it is how long the second
+# connect waits before it throws, and the default 5s would be five seconds of wall clock in the
+# acceptance sweep to learn the same thing 500ms proves. It is comfortably longer than the 60ms of
+# sleeps the sibling task spends, which is what makes the count that program prints a constant.
+[db.tight]
+driver = "postgres"
+host = "127.0.0.1"
+port = 15432
+user = "novis"
+password = "Novis-Test-Pw1"
+database = "novis_test"
+tls_ca_file = "tests/db/ca.crt"
+
+[db.tight.pool]
+max = 1
+idle = 1
+acquire = "500ms"
+
+# The fixture for `rule:core-classes/schema-apply-capability`, and the one `[db.<name>]` block in this
+# file that names no server. `examples/schema.nvs` counts the steps of a plan exactly, and a plan is the
+# difference from the whole live database (`rule:core-classes/schema-converges`), so that count depends
+# on every other table in it — so it cannot share `main` with the queue, the transaction fixture and
+# whatever an operator left there. SQLite needs no container, and `:memory:` gives each run of the
+# acceptance sweep — Windows, WSL, and again under valgrind — a database in the same state, which is
+# what makes four frozen lines of output a constant rather than a description of one machine.
+[db.schema]
+driver = "sqlite"
+path = ":memory:"
+
+# `Core\Db::connect`'s proof programs, and the whole reason a fifth block exists: every other
+# `[db.<name>]` here either names a server `tests/db/compose.yaml` starts, or is `[db.schema]`
+# above, whose fixture counts the tables of its own database exactly. The five programs under
+# `docs/examples/core/Db/connect/`, `tests/hostile/core/Db/connect/` and `benches/members/` each
+# create the tables they read, so they need a block nothing else writes to — and `:memory:` gives
+# every run of the acceptance sweep the same empty database with no container behind it.
+[db.notes]
+driver = "sqlite"
+path = ":memory:"
+
+# `Core\Mail::send`'s proof programs send through this block. Port 1 on loopback has no listener
+# anywhere this runs, so the connection is refused at once and every run ends the same way, with an
+# `IOError` and nothing sent. No credential, so nothing asks for `STARTTLS`.
+[mail.shop]
+host = "127.0.0.1"
+port = 1
+from = "shop@example.com"
+timeout = "5s"
+
+# The `Core\Ldap` proof programs open this block. It reaches the `samba-ad` service of
+# `tests/db/compose.yaml` over LDAPS and binds as the read-only `Reader` that service seeds, so a
+# program that opens it carries `// requires: samba-ad`, and the runner starts the service first.
+# `localhost` is a name the test leaf's SAN has, and `tls_ca_file` is the CA that signed it. The
+# conformance cases that write to the directory carry an `[ldap.corp]` of their own, bound as the
+# administrator.
+[ldap.corp]
+url = "ldaps://localhost:16636"
+base = "DC=example,DC=test"
+user = "CN=Reader,OU=Company,DC=example,DC=test"
+password = "Novis-reader-1"
+tls_ca_file = "tests/db/ca.crt"
+timeout = "5s"
+
+# The `Core\Ldap\Connection` password proof programs open this block. It reaches the same `samba-ad`
+# service as `[ldap.corp]`, but logs in as the administrator that service seeds, because only an
+# administrator may set another account's password. The grants above give it to those programs
+# alone.
+[ldap.corp-accounts]
+url = "ldaps://localhost:16636"
+base = "DC=example,DC=test"
+user = "CN=Administrator,CN=Users,DC=example,DC=test"
+password = "Novis-test-1"
+tls_ca_file = "tests/db/ca.crt"
+timeout = "5s"
+
+# The backend `rule:core-classes/queue-storage-is-a-table`'s schema had no hand-written list for, and
+# the reason this block is here at all: the queue's schema is one value `nvs_db::ddl` emits in every
+# dialect, so `nvs queue migrate --connection mssql --dry-run` prints two tables for a driver nobody
+# ever wrote a `create table` for. The dry run touches no port, which is why this block being a
+# server only `tests/db/compose.yaml` starts costs the acceptance sweep nothing.
+#
+# The `mssql` service there is what it names. The image's only account is `sa` and the database is
+# created by that service's own healthcheck rather than by its entrypoint, which is why this writes
+# no other user and why `database` is the name that healthcheck creates.
+[db.mssql]
+driver = "mssql"
+host = "127.0.0.1"
+port = 11433
+user = "sa"
+password = "Novis-Test-Pw1"
+database = "novis_test"
+tls_ca_file = "tests/db/ca.crt"
+
+# The queue of `rule:core-classes/queue-storage-is-a-table`, and `examples/queue.nvs` is the fixture it
+# exists for. `connection = "main"` is the recommended configuration rather than a convenience:
+# `rule:concurrency/enqueue-commits-with-your-write` — an enqueue commits with the write that caused
+# it, or with neither — holds only for a queue whose rows live in the application's *own* database,
+# so this names the block the two fixtures above already write to.
+# A separate queue database is permitted and gives that property up
+# (`rule:concurrency/foreign-connection-enqueue-is-counted`). This is where the option is offered,
+# so this is where that is said.
+#
+# `workers = 1` rather than the `4` of `rule:concurrency/who-runs-a-job-is-configuration`'s example:
+# the fixture asserts `claimed 1` about a single job, so a second worker is only a second chance to be
+# the one that took it and proves nothing the first does not. `0` would be that rule's enqueue-only
+# deployment, which is a real configuration and the wrong one here — nothing would ever claim, and the
+# fixture's next four lines are about a job that ran.
+#
+# `max_attempts` and `visibility` are deliberately unwritten, so both keep `QueueBounds::DEFAULTS` in
+# `nvs_config::queue`. The retry ladder the fixture measures is the one it writes
+# per push, as `maxAttempts: 2`, because that is a property of the job and not of the deployment.
+[queue]
+connection = "main"
+workers = 1
+
+# The after-response executor's cap, written at the number
+# `rule:concurrency/deferred-is-bounded-by-two-directives` prints and
+# `nvs_runtime::Ctx::deferred_max_concurrent` already answers where nothing is written — so this
+# checkout holds exactly as much after-response work with the line as it did without it. It is here
+# to be *read*: `docs/examples/config/deferred-max_concurrent/` is the website's page for the
+# directive, and a page whose example prints `(nothing)` on the one line the whole page is about
+# teaches nothing about the number an operator sizes a machine with.
+#
+# The block's other half stays unwritten on purpose. `deferred.deadline` is one of the few keys in
+# this file a program may set for itself, and `docs/examples/config/deferred-deadline/` is the page
+# that shows it arriving as the built-in default and being changed from code — which only holds
+# while nothing here writes it.
+[deferred]
+max_concurrent = 256
+
+# The outbound pool's two caps, written at the numbers `nvs_stdlib::http`'s `DEFAULT_POOL_IDLE` and
+# `DEFAULT_POOL_IDLE_TIMEOUT` already apply where nothing is written — so this checkout holds exactly
+# as many idle connections per core with the two lines as it did without them. They are here to be
+# *read*: `docs/examples/config/http-client-pool_idle/` and `.../http-client-pool_idle_timeout/` are
+# the website's pages for the pair, and a page whose example prints `(nothing)` on the one line the
+# whole page is about teaches nothing about the memory an operator sizes a host with.
+#
+# `[http.client.tls] min_version` is written for the same reason and at the floor the client already
+# speaks, so `docs/examples/config/http-client-tls/` prints a version rather than nothing. Its two
+# siblings stay out: an unset `roots` is the compiled-in Mozilla set, which is what this checkout
+# trusts, and a list-valued key reads back as absent through `Core\Config::get` in any case
+# (`nvs_config::request`'s `get`), while a `keylog` writes out the secrets that decrypt everything
+# this deployment sends.
+#
+# The rest of `[http.client]` stays unwritten on purpose, and each half for its own reason.
+# `connect_timeout`, `deadline`, `idle`, `max_duration` and `max_redirects` are bounds over the one
+# call a request is making, which a program names at the call site instead. `[http.client.socket]` is
+# the same, and `docs/examples/config/http-client-socket/` is the page that shows its bound arriving
+# as the built-in default and then being changed from code — which only holds while nothing here
+# writes it. And an absent `[http.client.proxy]` is how a deployment says it wants no proxy at all
+# (`rule:http-server/an-outbound-proxy-is-operator-configured`), so writing one to make a page print
+# would send every outbound byte this checkout sends through a host that is not there.
+[http.client]
+pool_idle = 16
+pool_idle_timeout = "30s"
+
+[http.client.tls]
+min_version = "1.2"
+
+[[app]]
+entry = "benches/members/core/Csv/rows.scale.nvs"
+
+[app.capabilities.fs]
+read = true
+write = true
+
+[[app]]
+entry = "benches/members/core/Db-Connection/execute.scale.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "benches/members/core/Db-Connection/executeMany.scale.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "benches/members/core/Db-Connection/query.scale.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "benches/members/core/Db-Connection/queryAs.scale.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "benches/members/core/Db-Connection/stream.scale.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "benches/members/core/Db-Connection/streamAs.scale.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "benches/members/core/Db-Transaction/execute.scale.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "benches/members/core/Db-Transaction/executeMany.scale.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "benches/members/core/Db-Transaction/query.scale.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "benches/members/core/Db-Transaction/queryAs.scale.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "benches/members/core/Db-Transaction/stream.scale.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "benches/members/core/Db-Transaction/streamAs.scale.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "benches/members/core/Db-Rows/all.scale.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "benches/members/core/Db-Rows/column.scale.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "benches/members/core/Db-Row/toArray.scale.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "benches/members/core/Db-Schema/applySafe.scale.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+schema = ["notes"]
+
+[[app]]
+entry = "benches/members/core/Db-Schema/applyIncludingRisky.scale.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+schema = ["notes"]
+
+[[app]]
+entry = "benches/members/core/Db-Schema/planAgainst.scale.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+schema = ["notes"]
+
+[[app]]
+entry = "benches/members/core/Http/allowUrl.scale.nvs"
+
+[app.capabilities.net]
+connect = ["203.0.113.10"]
+
+[[app]]
+entry = "benches/members/core/Http-Stream/saveTo.scale.nvs"
+
+[app.capabilities.fs]
+read = true
+write = true

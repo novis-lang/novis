@@ -1,0 +1,51 @@
+<?nvs
+// Attack: a program reads the property list many times and changes its own copy of the list.
+// The list of the class must stay the same, and the runtime must not crash or leak.
+
+class Wide
+{
+    public int $a = 1;
+    public string $b = 'b';
+    protected ?int $c = null;
+    private float $d = 0.5;
+    public array<string> $e = [];
+    private bool $f = false;
+    public ?Wide $g = null;
+    protected string $h = 'h';
+}
+
+class Empty
+{
+}
+
+var $info = Core\Reflect::forObject(new Wide());
+
+// 1. The list is read 200000 times, and every name and type in it is read too.
+uint $letters = 0;
+uint $i = 0;
+while ($i < 200000) {
+    foreach ($info->properties() as Core\Reflect\PropertyInfo $property) {
+        $letters = $letters + Core\Str::length($property->name());
+        $letters = $letters + Core\Str::length($property->type() ?? '');
+    }
+    $i = $i + 1;
+}
+echo $letters, "\n";
+
+// 2. The program grows its own copy of the list to 100000 entries.
+array<Core\Reflect\PropertyInfo> $copy = $info->properties();
+$i = 0;
+while ($i < 100000) {
+    $copy[] = $copy[($i % 8) as int];
+    $i = $i + 1;
+}
+echo Core\Arr::count($copy), ' ', Core\Arr::count($info->properties()), "\n";
+
+// 3. The list of a class with no properties is read and grown the same way.
+var $bare = Core\Reflect::forClass('Empty');
+if ($bare != null) {
+    Core\Reflect\ClassInfo $none = $bare;
+    array<Core\Reflect\PropertyInfo> $grown = $none->properties();
+    $grown[] = $copy[0];
+    echo Core\Arr::count($grown), ' ', Core\Arr::count($none->properties()), "\n";
+}

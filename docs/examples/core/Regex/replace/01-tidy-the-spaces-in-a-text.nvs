@@ -1,0 +1,14 @@
+<?nvs
+// Shows how to replace every match of a pattern, or only the first ones.
+
+string $title = "Blue    summer   dress";
+
+// `\s+` matches one or more spaces. Each run of spaces becomes one space.
+// This prints "Blue summer dress".
+echo Core\Regex::replace($title, '\s+', ' '), "\n";
+
+// `limit: 1` replaces only the first match. This prints "Blue-summer   dress".
+echo Core\Regex::replace($title, '\s+', '-', {limit: 1}), "\n";
+
+// There is no match here, so the text does not change. This prints "Blue    summer   dress".
+echo Core\Regex::replace($title, '[0-9]', '#'), "\n";

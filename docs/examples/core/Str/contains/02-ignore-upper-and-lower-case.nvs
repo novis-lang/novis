@@ -1,0 +1,12 @@
+<?nvs
+// Shows how to search without caring about upper and lower case.
+
+array<string> $titles = ["Learning NOVIS", "novis for beginners", "A Guide to Rust"];
+string $search = "Novis";
+
+foreach ($titles as string $title) {
+    // `Core\Str::lower` changes both strings to lower case before the search.
+    // This prints `yes` for the first two titles and `no` for the third.
+    bool $found = Core\Str::contains(Core\Str::lower($title), Core\Str::lower($search));
+    echo $title, ": ", $found ? "yes" : "no", "\n";
+}

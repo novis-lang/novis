@@ -1,0 +1,18 @@
+--TEST--
+a method whose name starts with an upper-case letter is refused, and the diagnostic names the spelling to use — `rule:core-api/casing-checks-the-leading-character`
+--FILE--
+<?nvs
+class Helper {
+    public static function Compute(): int {
+        return 7;
+    }
+}
+echo Helper::Compute(), "\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0111]: method names must be camelCase, e.g. `compute`
+  --> case.nvs:3:28
+%A
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

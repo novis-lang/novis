@@ -1,0 +1,28 @@
+<?nvs
+// Attack: a program keeps 200000 decisions in an array and reads `allowed` on
+// each of them many times. Memory should stay bounded, and nothing should crash.
+
+// 1. 200000 decisions for one key, all kept. Only the first is allowed.
+array<Core\RateLimit\Decision> $kept = [];
+uint $i = 0;
+while ($i < 200000) {
+    $kept[] = Core\RateLimit::shed('hot', 1, 1h);
+    $i = $i + 1;
+}
+
+// 2. Each decision is read 10 times.
+uint $allowed = 0;
+uint $round = 0;
+while ($round < 10) {
+    foreach ($kept as Core\RateLimit\Decision $decision) {
+        if ($decision->allowed()) {
+            $allowed = $allowed + 1;
+        }
+    }
+    $round = $round + 1;
+}
+echo $allowed, "\n";
+
+// 3. The array is emptied, and every decision is freed.
+$kept = [];
+echo Core\Arr::count($kept), "\n";

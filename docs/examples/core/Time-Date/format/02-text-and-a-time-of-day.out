@@ -1,0 +1,2 @@
+Quarter 4 of 2024
+Not allowed: Core\Time\Date::format(): a pattern rendering a date names no time of day — a `Core\Time\Date` carries none

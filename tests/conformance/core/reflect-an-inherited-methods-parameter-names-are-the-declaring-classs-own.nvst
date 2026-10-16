@@ -1,0 +1,57 @@
+--TEST--
+An inherited method's `Core\Reflect\ParameterInfo` names are the ones its declaring class wrote, and both doors onto a description answer the same — `rule:core-classes/reflect`
+--FILE--
+<?nvs
+// A subclass answers for a method it did not write, so the spellings have to
+// travel with the declaration rather than with the class that answers — an
+// override supplies its own.
+class Courier {
+    public function deliver(string $parcel, int $attempts): string {
+        return $parcel;
+    }
+
+    public function label(string $recipient): string {
+        return $recipient;
+    }
+}
+
+class Express extends Courier {
+    public function label(string $addressee, bool $urgent): string {
+        return $addressee;
+    }
+}
+
+class Names {
+    public static function of(Core\Reflect\ClassInfo $info, string $method): string {
+        var $out = "";
+        foreach ($info->methods() as Core\Reflect\MethodInfo $row) {
+            if ($row->name() == $method) {
+                foreach ($row->parameters() as Core\Reflect\ParameterInfo $parameter) {
+                    $out = $out . " " . $parameter->name();
+                }
+            }
+        }
+        return $out;
+    }
+}
+
+var $described = Core\Reflect::forObject(new Express());
+
+// Inherited: `Courier`'s own spellings, unchanged by the class answering.
+echo "deliver", Names::of($described, "deliver"), "\n";
+
+// Overridden: the override's, not the declaration it replaces.
+echo "label", Names::of($described, "label"), "\n";
+
+// And the two doors agree, which is what makes the answer a fact about the
+// class rather than about the way it was reached.
+var $byName = Core\Reflect::forClass("Express");
+if ($byName == null) {
+    echo "absent\n";
+} else {
+    echo Names::of($byName, "label") == Names::of($described, "label") ? "agree" : "differ", "\n";
+}
+--EXPECT--
+deliver parcel attempts
+label addressee urgent
+agree

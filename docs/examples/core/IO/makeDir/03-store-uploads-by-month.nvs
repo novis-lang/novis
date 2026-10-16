@@ -1,0 +1,21 @@
+<?nvs
+// Shows how a program stores each uploaded file in a folder for its year and month.
+
+class Uploads {
+    // Creates the folder for the month if it is missing, and then writes the file into it.
+    // It returns the path of the file, relative to the uploads folder.
+    public static function store(string $root, string $year, string $month, string $name, string $content): string {
+        string $folder = Core\Path::join($root, $year, $month);
+        Core\IO::makeDir($folder);
+        Core\IO::write(Core\Path::join($folder, $name), $content);
+        return $year . "/" . $month . "/" . $name;
+    }
+}
+
+string $root = Core\Path::join(Core\IO::temporaryDir(), "uploads");
+
+// The first two files go into the same folder. The second call finds the folder already there.
+// This prints "2026/09/invoice.pdf", "2026/09/photo.jpg" and "2026/10/contract.pdf".
+echo Uploads::store($root, "2026", "09", "invoice.pdf", "..."), "\n";
+echo Uploads::store($root, "2026", "09", "photo.jpg", "..."), "\n";
+echo Uploads::store($root, "2026", "10", "contract.pdf", "..."), "\n";

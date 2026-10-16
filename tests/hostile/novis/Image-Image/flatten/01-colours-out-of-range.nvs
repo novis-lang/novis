@@ -1,0 +1,45 @@
+<?nvs
+// Attack: a request sends background colours with values outside 0 to 255, and flattens very often.
+// Each attempt should throw an error or return an image, and the server keeps running.
+use Novis\Image\Color;
+use Novis\Image\Image;
+
+Image $small = Image::create(8, 8, Color::rgba(255, 0, 0, 0.5));
+
+// 1. A red value of one million.
+try {
+    $small->flatten(Color::rgba(1000000, 0, 0))->raw();
+    echo "step 1 ran\n";
+} catch (Throwable $e) {
+    echo "step 1 stopped\n";
+}
+
+// 2. An alpha that is not a number.
+try {
+    $small->flatten(Color::rgba(0, 0, 0, Core\Math::sqrt(-1.0)))->raw();
+    echo "step 2 ran\n";
+} catch (Throwable $e) {
+    echo "step 2 stopped\n";
+}
+
+// 3. A hex colour that is not a colour.
+try {
+    $small->flatten(Color::hex('#zzzzzzzzzz'))->raw();
+    echo "step 3 ran\n";
+} catch (Throwable $e) {
+    echo "step 3 stopped\n";
+}
+
+// 4. A thousand flattens in one pipeline.
+try {
+    Image $flat = $small;
+    uint $i = 0;
+    while ($i < 1000) {
+        $flat = $flat->flatten(Color::rgba($i % 256, 0, 0));
+        $i = $i + 1;
+    }
+    var $last = $flat->raw();
+    echo 'step 4 ran ', $last->width, "\n";
+} catch (Throwable $e) {
+    echo "step 4 stopped\n";
+}

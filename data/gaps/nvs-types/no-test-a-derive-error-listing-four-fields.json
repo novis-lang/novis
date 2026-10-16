@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-types/src/derive.rs",
+  "title": "No test asserts a derive error that lists four bad fields at once.",
+  "text": "`rule:core-classes/derive-reports-every-field` says a derive reports every field that is wrong, not only the first. No test writes a class with four fields the derive cannot handle and asserts all four in one error. Closing it means one `.nvst` case with four such fields.",
+  "goal": "completeness-holes"
+}

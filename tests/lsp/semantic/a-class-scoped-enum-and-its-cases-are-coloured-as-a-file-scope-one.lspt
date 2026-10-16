@@ -1,0 +1,17 @@
+--TEST--
+an enum a class declares is the same kind of name as one declared at file scope, so its name and its cases carry the same token types, `rule:enums/class-scoped-enum`, `rule:ide/semantic-tokens-carry-the-qualifiers`
+--FILE--
+<?nvs
+class Order {
+    enum Status {
+        Draft,
+        Paid = 4,
+    }
+}
+--REQUEST--
+semanticTokens
+--EXPECT--
+2:7+5 class
+3:10+6 enum
+4:9+5 enumMember
+5:9+4 enumMember

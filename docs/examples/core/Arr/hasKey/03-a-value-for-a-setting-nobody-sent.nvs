@@ -1,0 +1,11 @@
+<?nvs
+// Shows how a page reads settings out of a request. Where the request sent
+// nothing, the page uses its own value instead.
+
+array<string> $query = ["sort" => "price"];
+
+// The request sent "sort". This prints price.
+echo Core\Arr::hasKey($query, "sort") ? $query["sort"] : "name", "\n";
+
+// The request sent no "view", so the page uses "grid". This prints grid.
+echo Core\Arr::hasKey($query, "view") ? $query["view"] : "grid", "\n";

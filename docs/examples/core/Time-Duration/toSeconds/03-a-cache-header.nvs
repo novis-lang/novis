@@ -1,0 +1,10 @@
+<?nvs
+// Writes the `Cache-Control` header for pages that a browser may keep for different times.
+
+array<Core\Time\Duration> $lifetimes = [90s, 1h, 1d];
+
+// `max-age` is a number of seconds.
+// This prints max-age=90, max-age=3600 and max-age=86400, one per line.
+foreach ($lifetimes as Core\Time\Duration $keep) {
+    echo "Cache-Control: max-age=", $keep->toSeconds(), "\n";
+}

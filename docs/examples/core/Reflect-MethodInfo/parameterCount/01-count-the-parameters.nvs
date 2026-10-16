@@ -1,0 +1,17 @@
+<?nvs
+// Shows how many parameters each method of a class declares.
+
+class Mailer {
+    public function send(string $to, string $subject, string $body): bool {
+        return true;
+    }
+
+    public function ping(): bool {
+        return true;
+    }
+}
+
+// This prints `ping: 0` and `send: 3`.
+foreach (Core\Reflect::forObject(new Mailer())->methods() as Core\Reflect\MethodInfo $method) {
+    echo $method->name(), ": ", $method->parameterCount(), "\n";
+}

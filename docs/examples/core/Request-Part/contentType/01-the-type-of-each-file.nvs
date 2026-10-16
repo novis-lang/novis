@@ -1,0 +1,8 @@
+<?nvs
+// Shows the media type that the client sent with each uploaded file.
+
+foreach (Core\Request::files() as Core\Request\Part $part) {
+    // `contentType` returns the type from the `Content-Type` line of the file.
+    // The first file prints "report.pdf: application/pdf".
+    echo $part->filename(), ': ', $part->contentType(), "\n";
+}

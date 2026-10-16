@@ -1,0 +1,25 @@
+--TEST--
+`asin`, `atan`, `asinh` and `atanh` are odd on every row of a sweep that runs up to the float next to `1.0`, so `atanh` near `-1.0` is the same size as near `1.0` and matches PHP's libm answer
+--FILE--
+<?nvs
+// covers: Core\Math::atanh
+// `f(-n) == -f(n)` is exact, so a member that loses digits on one side
+// fails its row here while still answering plausibly on its own.
+array<float> $rows = [0.0000001, 0.25, 0.5, 0.75, 0.9, 0.999, 0.999999, 0.9999999999999999];
+int $odd = 0;
+foreach ($rows as float $n) {
+    if (Core\Math::asin(-$n) == -Core\Math::asin($n)) { $odd = $odd + 1; }
+    if (Core\Math::atan(-$n) == -Core\Math::atan($n)) { $odd = $odd + 1; }
+    if (Core\Math::asinh(-$n) == -Core\Math::asinh($n)) { $odd = $odd + 1; }
+    if (Core\Math::atanh(-$n) == -Core\Math::atanh($n)) { $odd = $odd + 1; }
+}
+echo $odd, " of 32\n";
+
+// The float next to -1.0 is where `atanh` computed directly from `n` lost
+// digits: PHP gives -18.714973875118524 here.
+echo Core\Math::atanh(-0.9999999999999999), "\n";
+echo Core\Math::atanh(0.9999999999999999), "\n";
+--EXPECT--
+32 of 32
+-18.714973875119
+18.714973875119

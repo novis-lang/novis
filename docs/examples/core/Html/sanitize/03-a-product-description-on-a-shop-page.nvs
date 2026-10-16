@@ -1,0 +1,20 @@
+<?nvs
+// Shows how to put a product description from a text editor into a shop page.
+
+// The description comes from the shop's admin area. It is `tainted`,
+// because a person typed it, so the program does not trust it.
+tainted string $description = <<<HTML
+<h2 id="intro">Green tea</h2>
+<p>Picked by hand in <strong>spring</strong>.</p>
+<ul><li>50 g<li>Loose leaves</ul>
+<p style="color: red" onmouseover="steal()">Free shipping!</p>
+HTML;
+
+// `Core\Html::sanitize` returns a `Core\Html\Markup` value.
+// You can add it to the rest of the page without escaping it again.
+Core\Html\Markup $page = ("<article class=\"product\">\n" as Core\Html\Markup)
+    + Core\Html::sanitize($description)
+    + ("\n</article>" as Core\Html\Markup);
+
+// The missing `</li>` tags are added. The `id`, `style` and `onmouseover` attributes are removed.
+echo $page, "\n";

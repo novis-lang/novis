@@ -1,0 +1,20 @@
+--TEST--
+An enum case `Core\Cache` stores reads back as a case, so `is` still names its enum and a case backed by `0` stays truthy — `rule:enums/representation` and `rule:core-api/two-cache-tiers`
+--FILE--
+<?nvs
+enum Mode: int {
+    A = 0,
+    B = 1,
+}
+
+array<Mode> $modes = [Mode::A, Mode::B];
+var $cache = Core\Cache::memory();
+$cache->put("modes", $modes);
+var $back = $cache->get("modes") as array<mixed>;
+foreach ($back as mixed $mode) {
+    echo "is Mode=", $mode is Mode ? "true" : "false";
+    echo " truthy=", $mode ? "true" : "false", "\n";
+}
+--EXPECT--
+is Mode=true truthy=true
+is Mode=true truthy=true

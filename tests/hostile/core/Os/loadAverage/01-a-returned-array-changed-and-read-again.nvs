@@ -1,0 +1,55 @@
+<?nvs
+// Attack: the load average is read many times, and the returned array is changed,
+// read past its end and made very large. No step may crash, and a new reading must
+// never see those changes. On Windows every reading throws, and each step catches it.
+
+// 1. The load is read 20000 times. Each reading has three numbers that are not
+//    below 0, or throws a `RuntimeError`. This prints 1.
+uint $good = 0;
+uint $i = 0;
+while ($i < 20000) {
+    try {
+        array<float> $load = Core\Os::loadAverage();
+        if (Core\Arr::count($load) == 3 && $load[0] >= 0.0 && $load[1] >= 0.0 && $load[2] >= 0.0) {
+            $good = $good + 1;
+        }
+    } catch (RuntimeError $e) {
+        $good = $good + 1;
+    }
+    $i = $i + 1;
+}
+echo $good == 20000 ? 1 : 0, "\n";
+
+// 2. A returned array is changed to -1. A new reading must not be -1.
+//    This prints 1.
+try {
+    array<float> $changed = Core\Os::loadAverage();
+    $changed[0] = -1.0;
+    $changed[1] = -1.0;
+    $changed[2] = -1.0;
+    echo Core\Os::loadAverage()[0] >= 0.0 ? 1 : 0, "\n";
+} catch (RuntimeError $e) {
+    echo 1, "\n";
+}
+
+// 3. The fourth number is read, but the array has only three. This throws an error.
+try {
+    array<float> $three = Core\Os::loadAverage();
+    echo $three[3], "\n";
+} catch (Throwable $pastTheEnd) {
+    echo "caught\n";
+}
+
+// 4. 100000 numbers are added to a returned array. A new reading must still
+//    have three numbers. This prints 1.
+try {
+    array<float> $grown = Core\Os::loadAverage();
+    $i = 0;
+    while ($i < 100000) {
+        $grown[] = 1.5;
+        $i = $i + 1;
+    }
+    echo Core\Arr::count(Core\Os::loadAverage()) == 3 ? 1 : 0, "\n";
+} catch (RuntimeError $e) {
+    echo 1, "\n";
+}

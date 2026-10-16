@@ -1,0 +1,16 @@
+--TEST--
+`tainted` and `secret` are independent axes, so a `secret tainted string` sets both bits on one token rather than the editor having to choose between them, `rule:security/secret-qualifier`
+--FILE--
+<?nvs
+class Handler {
+    public function handle(secret tainted string $body): secret tainted string {
+        return $body;
+    }
+}
+--REQUEST--
+semanticTokens
+--EXPECT--
+2:7+7 class
+3:21+6 method
+3:50+5 parameter tainted,secret
+4:16+5 variable tainted,secret

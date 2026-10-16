@@ -1,0 +1,88 @@
+--TEST--
+Spec § 4, `rule:classes/comparable`: `Core\Time\Duration::compareTo` is a total order over the signed length, asserted by counting trichotomy, antisymmetry, agreement with `toNanoseconds` and with `<` over every pair and transitivity over every triple; it answers the two ends of the range, whose difference no `int` holds, and `==` stays identity where it answers `0`
+--FILE--
+<?nvs
+// covers: Core\Time\Duration::compareTo
+// Out of order on purpose. Rows 0, 2 and 8 are three distinct values of one
+// length, built three ways, so `0` is reachable off the diagonal; rows 1 and
+// 6 are the two ends of the range.
+array<Core\Time\Duration> $table = [
+    1h30m,
+    Core\Time\Duration::nanoseconds(-9223372036854775807 - 1),
+    90m,
+    Core\Time\Duration::seconds(0),
+    1ns,
+    1ns->negated(),
+    Core\Time\Duration::nanoseconds(9223372036854775807),
+    Core\Time\Duration::minutes(-90),
+    Core\Time\Duration::seconds(5400),
+    1d,
+];
+
+// Every ordered pair. `key` counts where the sign is the sign of the two
+// nanosecond counts, which is the independent view of the same value, and
+// `operator` where `<` agrees with it.
+int $trichotomy = 0;
+int $zeros = 0;
+int $antisymmetric = 0;
+int $key = 0;
+int $operator = 0;
+uint $a = 0;
+for (; $a < 10; $a = $a + 1) {
+    uint $b = 0;
+    for (; $b < 10; $b = $b + 1) {
+        int $sign = $table[$a]->compareTo($table[$b]);
+        if ($sign == -1 || $sign == 0 || $sign == 1) {
+            $trichotomy = $trichotomy + 1;
+        }
+        if ($sign == 0) {
+            $zeros = $zeros + 1;
+        }
+        if ($sign + $table[$b]->compareTo($table[$a]) == 0) {
+            $antisymmetric = $antisymmetric + 1;
+        }
+        if ($sign == ($table[$a]->toNanoseconds() <=> $table[$b]->toNanoseconds())) {
+            $key = $key + 1;
+        }
+        if (($table[$a] < $table[$b]) == ($sign < 0)) {
+            $operator = $operator + 1;
+        }
+    }
+}
+echo "trichotomy=", $trichotomy, " zero=", $zeros, " antisym=", $antisymmetric,
+    " key=", $key, " operator=", $operator, "|\n";
+
+// Every ordered triple, with the chains counted so the implication is not
+// satisfied vacuously.
+int $transitive = 0;
+int $chains = 0;
+uint $i = 0;
+for (; $i < 10; $i = $i + 1) {
+    uint $j = 0;
+    for (; $j < 10; $j = $j + 1) {
+        uint $k = 0;
+        for (; $k < 10; $k = $k + 1) {
+            bool $chained = $table[$i]->compareTo($table[$j]) <= 0
+                && $table[$j]->compareTo($table[$k]) <= 0;
+            if ($chained) {
+                $chains = $chains + 1;
+            }
+            if (!$chained || $table[$i]->compareTo($table[$k]) <= 0) {
+                $transitive = $transitive + 1;
+            }
+        }
+    }
+}
+echo "transitive=", $transitive, " chains=", $chains, "|\n";
+
+// The two ends of the range. `$max - $min` would not fit in an `int`, and the
+// answer is still one sign each way.
+echo $table[1]->compareTo($table[6]), " ", $table[6]->compareTo($table[1]), "\n";
+
+// Equal length is not the same object: `==` on two objects is identity.
+echo (90m == 1h30m) ? "same" : "distinct", " ", 90m->compareTo(1h30m), "\n";
+--EXPECT--
+trichotomy=100 zero=16 antisym=100 key=100 operator=100|
+transitive=1000 chains=258|
+-1 1
+distinct 0

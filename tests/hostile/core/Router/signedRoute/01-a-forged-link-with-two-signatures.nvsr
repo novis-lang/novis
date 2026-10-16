@@ -1,0 +1,8 @@
+--METHOD--
+GET
+--PATH--
+/files/report
+--QUERY--
+name=other&q=%FF%FE&_sig=KB_8EVvXMeb593O513_TCCrJ5o1knMem5x31GwpANLwBAwAJAgcGcGFyYW1zCQEHBHllYXIHBDIwMjQHBXJvdXRlBxFSZXBvcnRzOjpkb3dubG9hZA&_sig=AAAA
+--HEADERS--
+host: shop.example.com

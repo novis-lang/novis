@@ -1,0 +1,95 @@
+--TEST--
+Core\Str::slice and Core\Str::replaceRange count graphemes, so a window never cuts a code point or a cluster of code points, and both read the same window
+--FILE--
+<?nvs
+final class Show {
+    // Returns the bytes of the text in hex.
+    public static function bytes(string $text): string {
+        return Core\Encoding::toHex($text as bytes);
+    }
+}
+
+// The first text has characters of 1, 2, 3 and 4 bytes. The second has an
+// emoji with a skin tone, and the third has an `e` with a combining accent.
+// Each of those is one grapheme (what a person counts as one character).
+string $mixed = "aé中👍";
+string $tone = "a👍🏽b";
+string $combining = "cafe\u{0301}";
+
+// Each line prints the number of graphemes, then the bytes in hex.
+echo Core\Str::length($mixed), " ", Show::bytes($mixed), "\n";
+echo Core\Str::length($tone), " ", Show::bytes($tone), "\n";
+echo Core\Str::length($combining), " ", Show::bytes($combining), "\n";
+
+// One grapheme at a time, as text and in hex. Each one is whole.
+// Position 3 of `a👍🏽b` is past the end, so the result is empty.
+array<int> $indices = [0, 1, 2, 3];
+foreach ($indices as int $index) {
+    echo "[", Core\Str::slice($mixed, $index, 1), "=", Show::bytes(Core\Str::slice($mixed, $index, 1)), "]";
+}
+echo "\n";
+foreach ($indices as int $spot) {
+    echo "[", Core\Str::slice($tone, $spot, 1), "=", Show::bytes(Core\Str::slice($tone, $spot, 1)), "]";
+}
+echo "\n";
+// This one is printed in hex only, because an accented `e` can be written in
+// two ways that look the same.
+foreach ($indices as int $place) {
+    echo "[", Show::bytes(Core\Str::slice($combining, $place, 1)), "]";
+}
+echo "\n";
+
+// This counts the windows of length 1 that return exactly one grapheme.
+// The one window past the end of `a👍🏽b` returns none, so the count is 11 of 12.
+array<string> $subjects = ["aé中👍", "a👍🏽b", "cafe\u{0301}"];
+int $whole = 0;
+int $cells = 0;
+foreach ($subjects as string $subject) {
+    foreach ($indices as int $at) {
+        $cells = $cells + 1;
+        if (Core\Str::length(Core\Str::slice($subject, $at, 1)) == 1) {
+            $whole = $whole + 1;
+        }
+    }
+}
+echo $whole, " of ", $cells, "\n";
+
+// Putting a window's own slice back into that window gives back the text.
+// This holds for every offset and every length, also a negative one.
+int $held = 0;
+int $windows = 0;
+array<int> $lengths = [0, 1, 2, 4, -1, -4];
+foreach ($subjects as string $text) {
+    foreach ($indices as int $anchor) {
+        foreach ($lengths as int $reach) {
+            $windows = $windows + 1;
+            if (Core\Str::replaceRange($text, $anchor, $reach, Core\Str::slice($text, $anchor, $reach)) == $text) {
+                $held = $held + 1;
+            }
+        }
+    }
+}
+echo $held, " of ", $windows, "\n";
+
+// `replaceRange` replaces whole graphemes: the emoji with its skin tone,
+// two characters of different widths, and the `e` with its accent.
+echo "[", Core\Str::replaceRange($tone, 1, 1, "<>"), "][", Core\Str::replaceRange($mixed, 1, 2, "<>"), "][", Core\Str::replaceRange($combining, 3, 1, "<>"), "]\n";
+
+// A negative offset counts graphemes back from the end.
+echo "[", Core\Str::slice($mixed, -2), "][", Core\Str::slice($tone, -1), "][", Show::bytes(Core\Str::slice($combining, -1)), "]\n";
+
+// The accented `e` is 3 bytes and the emoji with its skin tone is 8 bytes.
+// Each one is one grapheme.
+echo "[", Show::bytes(Core\Str::slice($combining, 3, 1)), "][", Show::bytes(Core\Str::slice($tone, 1, 1)), "]\n";
+--EXPECT--
+4 61c3a9e4b8adf09f918d
+3 61f09f918df09f8fbd62
+4 63616665cc81
+[a=61][é=c3a9][中=e4b8ad][👍=f09f918d]
+[a=61][👍🏽=f09f918df09f8fbd][b=62][=]
+[63][61][66][65cc81]
+11 of 12
+72 of 72
+[a<>b][a<>👍][caf<>]
+[中👍][b][65cc81]
+[65cc81][f09f918df09f8fbd]

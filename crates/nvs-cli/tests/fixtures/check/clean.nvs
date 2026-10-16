@@ -1,0 +1,12 @@
+<?nvs
+// A file with nothing wrong with it, which is the other half of the document:
+// an empty `diagnostics` array is what `no errors` says in the text rendering.
+class User {
+    public string $name;
+
+    public function constructor(string $name) {
+        $this->name = $name;
+    }
+}
+
+echo "hi", "\n";

@@ -1,0 +1,13 @@
+<?nvs
+// A first program: three quantities arrive as text, and it adds them up.
+// Every name says its type once, where it is created. `as` is how a piece of
+// text becomes a number.
+
+array<string> $quantities = ["3", "11", "7"];
+
+int $total = 0;
+foreach ($quantities as string $quantity) {
+    $total = $total + ($quantity as int);
+}
+
+echo "items ordered: ", $total, "\n";

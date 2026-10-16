@@ -1,0 +1,15 @@
+{
+  "title": "No method name changes a class's behaviour by being present; every PHP magic method is replaced by a declared interface or gone",
+  "status": "shipped",
+  "seeAlso": [
+    "classes/stringable",
+    "classes/no-destructors",
+    "classes/no-call-magic",
+    "classes/property-observer",
+    "classes/two-copy-depths",
+    "programs/no-runtime-autoload"
+  ],
+  "guardedBy": [
+    "tests/conformance/reject/every-magic-method-name-this-adr-closes-is-unspellable.nvst"
+  ]
+}

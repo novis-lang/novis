@@ -1,0 +1,23 @@
+<?nvs
+// Shows a column chart with a title on each axis and the value on each bar.
+use Novis\Spreadsheet\Chart;
+use Novis\Spreadsheet\Workbook;
+
+var $book = Workbook::createInMemory();
+var $sheet = $book->sheet('Stock');
+$sheet->addAll([
+    ['item' => 'Pens', 'qty' => 40],
+    ['item' => 'Pads', 'qty' => 25],
+    ['item' => 'Ink', 'qty' => 12],
+]);
+
+// `xTitle` is under the bars and `yTitle` is beside them. `labels: true` shows each value.
+var $chart = Chart::column({ xTitle: 'Item', yTitle: 'In stock', labels: true })
+    ->series($sheet->column('qty'), { categories: $sheet->column('item') });
+$sheet->chart('D2', $chart);
+bytes $file = $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
+
+var $xml = Core\Zip::read($file, 'xl/charts/chart1.xml') as string;
+echo Core\Str::contains($xml, '<a:t>Item</a:t>') ? 'the x axis has a title' : 'no x title', "\n";
+echo Core\Str::contains($xml, '<a:t>In stock</a:t>') ? 'the y axis has a title' : 'no y title', "\n";
+echo Core\Str::contains($xml, '<c:showVal val="1"/>') ? 'each bar shows its value' : 'no values', "\n";

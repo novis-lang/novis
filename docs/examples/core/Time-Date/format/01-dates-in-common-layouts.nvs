@@ -1,0 +1,15 @@
+<?nvs
+// Shows how to write one date in three common layouts.
+
+var $date = Core\Time\Date::at(2024, 4, 5);
+
+// `yyyy` is the year, `MM` the month and `dd` the day, each with leading zeros.
+// This prints 2024-04-05.
+echo $date->format("yyyy-MM-dd"), "\n";
+
+// The same fields in another order, with dots. This prints 05.04.2024.
+echo $date->format("dd.MM.yyyy"), "\n";
+
+// `EEEE` is the name of the weekday and `MMMM` the name of the month.
+// One `d` has no leading zero. This prints Friday, 5 April 2024.
+echo $date->format("EEEE, d MMMM yyyy"), "\n";

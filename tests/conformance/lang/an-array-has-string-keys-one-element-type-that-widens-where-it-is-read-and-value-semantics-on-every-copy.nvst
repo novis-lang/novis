@@ -1,0 +1,66 @@
+--TEST--
+An `array<T>` keys everything as a `string` with a number subscript normalised where it is written, iterates in insertion order, copies as a value into every binding and parameter, and widens its element type wherever it is read (`rule:types/arrays`)
+--FILE--
+<?nvs
+// covers: lang:types/array-t
+
+// `rule:types/arrays`: every key is a `string`, and an `int` subscript is
+// normalised to its decimal spelling at the subscript rather than converted,
+// so the append counter carries on from the largest integer-looking key.
+array<int> $a = [10, 20];
+$a[8] = 80;
+$a[] = 90;
+echo Core\Json::encode(Core\Arr::keys($a)), "\n";
+echo $a[1], " ", $a["1"], "\n";
+
+// `rule:types/arrays`: the normalisation is decimal, so a padded spelling
+// stays a key of its own.
+array<int> $padded = ["08" => 1, "8" => 2];
+echo Core\Arr::count($padded), "\n";
+
+// `rule:types/arrays`: iteration is insertion order, always, and the key
+// binding is a `string` whatever the key was written as.
+foreach ($a as string $k => int $v) {
+    echo $k, "=", $v, ";";
+}
+echo "\n";
+
+// `rule:types/arrays`: value semantics -- a copy is its own array, and so is
+// the argument a call receives, so neither write reaches the original.
+class Copy {
+    public static function bump(array<int> $in): array<int> {
+        $in["bumped"] = 1;
+        return $in;
+    }
+}
+array<int> $copy = $a;
+$copy["own"] = 1;
+array<int> $passed = Copy::bump($a);
+echo Core\Arr::count($a), " ", Core\Arr::count($copy), " ", Core\Arr::count($passed), "\n";
+
+// `rule:types/arrays`: one element type, nesting to any depth, with the empty
+// literal satisfying every `array<T>`.
+array<array<int>> $grid = [];
+$grid["row"] = [];
+$grid["row"][] = 1;
+$grid["row"][] = 2;
+echo Core\Json::encode($grid), "\n";
+
+// `rule:types/arrays`: covariant in its element type wherever it is read, so
+// an `array<int>` fills an `array<int|string>` binding and parameter as it
+// stands, and never the reverse.
+class Wide {
+    public static function size(array<int|string> $in): uint {
+        return Core\Arr::count($in);
+    }
+}
+array<int|string> $widened = $a;
+echo Wide::size($a), " ", Core\Arr::count($widened), "\n";
+--EXPECT--
+["0","1","8","9"]
+20 20
+2
+0=10;1=20;8=80;9=90;
+4 5 5
+{"row":[1,2]}
+4 4

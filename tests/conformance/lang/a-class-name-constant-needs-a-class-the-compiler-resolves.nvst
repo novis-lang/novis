@@ -1,0 +1,70 @@
+--TEST--
+`::class` on a side that carries no class is `E0702` — a `mixed`, a `?T`, a scalar and a `class<T>` each with the help that names where its answer actually lives — and on a name that resolves to nothing it is `E0303` (`rule:classes/no-free-functions-or-constants`, `rule:types/class-reference`)
+--FILE--
+<?nvs
+class User {
+}
+
+// `rule:classes/no-free-functions-or-constants` puts every reflective question on `Core\Reflect`, and an erased
+// receiver is exactly the one it is for: a `mixed` might hold an object and
+// might not, so accepting it would put a tag test and a throw behind a
+// spelling that reads like a member read.
+mixed $m = new User();
+echo $m::class;
+
+// The `null` half of a `?T` carries no descriptor, so the same refusal — and
+// the same narrowing that `->` already requires is what lifts it.
+?User $n = new User();
+echo $n::class;
+
+// A scalar never holds an object at all.
+int $i = 1;
+echo $i::class;
+
+// `rule:types/class-reference`'s `class<T>` is a class reference already, so its name is a
+// conversion rather than a member read — § 2's third row, `as string`.
+class<User> $c = User::class as class<User>;
+echo $c::class;
+
+// A name that resolves to nothing is the same mistake, and the same code,
+// `new Undeclared()` already takes. PHP folds this to `"Bogus"` because
+// the string is on its way to `new $name`; `rule:classes/no-free-functions-or-constants` leaves it nowhere to
+// go, so the typo has no later place to be caught.
+echo Bogus::class;
+--EXPECTF-ERROR--
+error[E0702]: `::class` needs a class named at compile time
+   --> %s:10:6
+   |
+10 | echo $m::class;
+   |      ^^ this is a `mixed`, which names no class
+   = help: narrow it to a class first — `if ($v is Foo)` — or ask `Core\Reflect::forObject($v)`, whose description carries the name for a receiver whose type was erased
+
+error[E0702]: `::class` needs a class named at compile time
+   --> %s:15:6
+   |
+15 | echo $n::class;
+   |      ^^ this is a `null|User`, which names no class
+   = help: narrow it to a class first — `if ($v is Foo)`, or a `!= null` test — or ask `Core\Reflect::forObject($v)`, whose description carries the name for a receiver whose type was erased
+
+error[E0702]: `::class` needs a class named at compile time
+   --> %s:19:6
+   |
+19 | echo $i::class;
+   |      ^^ this is a `int`, which names no class
+   = help: only an object carries a class at run time. Write the class itself — `Foo::class`, `self::class`, `static::class`
+
+error[E0702]: `::class` needs a class named at compile time
+   --> %s:24:6
+   |
+24 | echo $c::class;
+   |      ^^ this is a `class<User>`, which names no class
+   = help: a `class<T>` is already a class reference, so its name is a conversion rather than a member read — write `as string`
+
+error[E0303]: `Bogus` is not declared
+   --> %s:30:6
+   |
+30 | echo Bogus::class;
+   |      ^^^^^ no matching declaration
+
+error: aborting due to 5 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

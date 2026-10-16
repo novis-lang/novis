@@ -1,0 +1,17 @@
+<?nvs
+// Shows how much memory this program may still use. Take the memory the
+// program is using away from the limit, and what is left is the room it has.
+
+uint $limit = Core\Budget::memoryLimit();
+uint $held = Core\Budget::memoryHeld();
+
+if ($limit == 0) {
+    echo "there is no limit, so there is no number to give\n";
+} else {
+    uint $room = $limit - $held;
+    // A program that has just started uses very little, so nearly all of the
+    // limit is still free. This prints "more than half of the limit is free".
+    echo $room * 2 > $limit
+        ? "more than half of the limit is free\n"
+        : "less than half of the limit is free\n";
+}

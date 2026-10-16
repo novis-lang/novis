@@ -1,0 +1,11 @@
+<?nvs
+// Shows how to draw a line that reaches the edge of the screen and no further.
+// The heading takes room too, so its width is taken off first.
+
+string $heading = " orders ";
+
+// `Core\Cli::width` is never 0, so this subtraction needs no check.
+uint $rule = Core\Cli::width() - Core\Str::length($heading);
+
+// The heading and the line together are exactly as wide as the screen.
+echo $heading, Core\Str::repeat("-", $rule), "\n";

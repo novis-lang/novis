@@ -1,0 +1,20 @@
+<?nvs
+// Sends invitations in batches. A mail server limits how many addresses one
+// message may carry, so a long guest list is sent a batch at a time.
+
+array<string> $guests = [
+    'ada@example.com',
+    'grace@example.com',
+    'alan@example.com',
+    'ida@example.com',
+    'ina@example.com',
+];
+
+// Each batch holds at most 2 addresses, and the last batch holds what is left.
+array<array<string>> $batches = Core\Arr::chunk($guests, 2);
+
+int $number = 1;
+foreach ($batches as array<string> $batch) {
+    echo 'batch ', $number, ': ', Core\Str::join($batch, ', '), "\n";
+    $number = $number + 1;
+}

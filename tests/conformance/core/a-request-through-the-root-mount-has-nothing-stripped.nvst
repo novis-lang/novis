@@ -1,0 +1,22 @@
+--TEST--
+A request no mount stripped a prefix from reads its whole path, the prefix `""` and no captures, so the prefix and the path join back into the path that arrived -- `rule:http-server/a-request-resolves-in-five-steps`, `rule:http-server/a-mount-table-expands-at-boot` and `rule:routing/a-request-reads-its-mount`
+--HEADERS--
+Host: example.test
+--FILE--
+<?nvs
+// covers: tools:server/mounts-which-file-answers-a-request
+// Step 2 strips the matched prefix, and the mount at `/` is the one prefix
+// that comes off nothing. It reads back as `""` and never as `/`: a program
+// builds a link as the prefix followed by a path, and a `/` there would put
+// `//` in front of every link a deployment with no mount block builds.
+Core\Request\Mount $mount = Core\Request::mount();
+tainted string $path = Core\Request::path();
+echo "path: ", $path, "\n";
+echo "prefix: [", $mount->prefix(), "]\n";
+echo "captures: ", Core\Arr::count($mount->captures()), "\n";
+echo "joined: ", $mount->prefix() . $path, "\n";
+--EXPECT--
+path: /
+prefix: []
+captures: 0
+joined: /

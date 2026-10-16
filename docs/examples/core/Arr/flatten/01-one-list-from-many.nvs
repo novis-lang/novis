@@ -1,0 +1,15 @@
+<?nvs
+// Shows how to make one list out of the arrays inside an array.
+
+array<array<string>> $perDay = [
+    ['bread', 'milk'],
+    ['apples'],
+    [],
+];
+
+// `Core\Arr::flatten` gives you the values of every inner array, in order.
+// This prints ["bread","milk","apples"].
+echo Core\Json::encode(Core\Arr::flatten($perDay)), "\n";
+
+// An inner array with no entries adds nothing. This prints 3.
+echo Core\Arr::count(Core\Arr::flatten($perDay)), "\n";

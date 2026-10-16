@@ -1,0 +1,17 @@
+{
+  "title": "Equality has one row per type, and every row is the strict reading",
+  "status": "shipped",
+  "seeAlso": [
+    "expressions/one-equality-operator",
+    "expressions/object-identity-equality",
+    "expressions/mixed-equality",
+    "expressions/disjoint-comparison-refused",
+    "enums/representation"
+  ],
+  "guardedBy": [
+    "tests/conformance/lang/equality-over-strings-and-bools.nvst",
+    "tests/conformance/lang/equality-over-arrays-objects-and-mixed.nvst",
+    "tests/conformance/lang/float-comparisons-and-equality.nvst",
+    "tests/conformance/lang/two-nulls-are-equal-and-two-bools-order.nvst"
+  ]
+}

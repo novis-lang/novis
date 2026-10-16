@@ -1,0 +1,57 @@
+--TEST--
+`Core\Program::constructors<T, C>()` answers one `{class, make}` row per class `implementing<T>()` lists, in the same order, and each `make` builds its class with the arguments passed and the constructor's own defaults after them, `rule:programs/constructors`
+--FILE--
+<?nvs
+interface Greeter {
+    public function greet(): string;
+}
+
+class Config {
+    public function constructor(public string $name) {}
+}
+
+class Plain implements Greeter {
+    public function constructor(private Config $config, private string $mark = "!") {}
+    public function greet(): string { return "hello " . $this->config->name . $this->mark; }
+}
+
+class Loud implements Greeter {
+    public function constructor(private Config $config) {}
+    public function greet(): string { return "HELLO " . $this->config->name; }
+}
+
+abstract class Quiet implements Greeter {}
+
+// The rows are in the order `implementing` uses, so the two can be zipped.
+array<{class: string, make: callable(Config): Greeter}> $rows =
+    Core\Program::constructors<Greeter, callable(Config): Greeter>();
+foreach ($rows as {class: string, make: callable(Config): Greeter} $row) {
+    echo $row->class, ": ", ($row->make)(new Config("ada"))->greet(), "\n";
+}
+// Each call of `make` builds a new object with its own arguments.
+callable(Config): Greeter $make = $rows[0]->make;
+Greeter $first = $make(new Config("a"));
+Greeter $second = $make(new Config("b"));
+echo $first->greet(), " ", $second->greet(), "\n";
+// A class with no constructor fits a function type with no parameters.
+interface Shape {
+    public function name(): string;
+}
+class Dot implements Shape {
+    public function name(): string { return "dot"; }
+}
+foreach (Core\Program::constructors<Shape, callable(): Shape>() as {class: string, make: callable(): Shape} $shape) {
+    echo $shape->class, ": ", ($shape->make)()->name(), "\n";
+}
+// Nothing implements the interface: an empty array.
+interface Widget {
+    public function draw(): string;
+}
+echo Core\Arr::count(Core\Program::constructors<Widget, callable(int): Widget>()), "\n";
+// covers: Core\Program::constructors
+--EXPECT--
+Loud: HELLO ada
+Plain: hello ada!
+HELLO a HELLO b
+Dot: dot
+0

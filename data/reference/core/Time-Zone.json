@@ -1,0 +1,15 @@
+{
+  "summary": "a time zone — an IANA region, a fixed offset, or `UTC` — named explicitly at every conversion",
+  "keywords": [
+    "DateTimeZone",
+    "date_default_timezone_get",
+    "date_default_timezone_set",
+    "getOffset",
+    "timezone",
+    "IANA",
+    "Europe/Berlin",
+    "UTC",
+    "offset",
+    "DST"
+  ]
+}

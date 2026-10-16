@@ -1,0 +1,6 @@
+records go to: (nothing written — stderr, which is the floor default)
+send them to stderr: refused
+send them to file:/var/log/nvs.log: refused
+send them to syslog: refused
+trace this one run: accepted
+destination now: (nothing written — still stderr)

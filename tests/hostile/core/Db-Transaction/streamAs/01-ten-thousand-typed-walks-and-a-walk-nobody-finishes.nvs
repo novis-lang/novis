@@ -1,0 +1,108 @@
+<?nvs
+// Attack: transactions build objects from walks nobody may interrupt. One walk
+// is opened after its transaction ended, and two thousand more are asked for a
+// second statement. The last one builds objects from ten million rows. Every
+// bad call must throw, and nothing here may crash.
+// hostile: timeout-ms 60000
+use Core\Db\Derive;
+
+#[Derive]
+class Note
+{
+    public uint $id;
+    public tainted string $text;
+
+    public function constructor(uint $id, tainted string $text)
+    {
+        $this->id = $id;
+        $this->text = $text;
+    }
+}
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table notes (id integer primary key, text text not null)', []);
+$db->execute('insert into notes (text) values (?), (?), (?)', ['buy milk', 'call Ana', 'book train']);
+
+// 1. A transaction carried out of the work that owned it opens a typed walk.
+// The transaction has ended, so the walk must be refused.
+var $escaped = $db->transaction(fn (Core\Db\Transaction $tx): Core\Db\Transaction => $tx);
+try {
+    $escaped->streamAs<Note>('select id, text from notes', []);
+    echo "1 the late walk went through\n";
+} catch (Throwable $late) {
+    echo "1 the late walk was refused\n";
+}
+
+// 2. Ten thousand transactions each read a typed walk to its last row. Thirty
+// thousand objects are built, and only one is held at a time.
+uint $built = 0;
+uint $i = 0;
+while ($i < 10000) {
+    $built = $built + $db->transaction(fn (Core\Db\Transaction $tx): uint => {
+        uint $seen = 0;
+        foreach ($tx->streamAs<Note>('select id, text from notes order by id', []) as Note $note) {
+            $seen = $seen + 1;
+        }
+        return $seen;
+    });
+    $i = $i + 1;
+}
+echo '2 objects built: ', $built, "\n";
+
+// 3. A second statement in the middle of every walk. The connection is busy
+// until the last object, so all of these are refused and the walk goes on.
+uint $refused = 0;
+$i = 0;
+while ($i < 2000) {
+    $refused = $refused + $db->transaction(fn (Core\Db\Transaction $tx): uint => {
+        uint $stopped = 0;
+        foreach ($tx->streamAs<Note>('select id, text from notes order by id', []) as Note $note) {
+            try {
+                $tx->queryAs<Note>('select id, text from notes', []);
+            } catch (Throwable $busy) {
+                $stopped = $stopped + 1;
+            }
+        }
+        return $stopped;
+    });
+    $i = $i + 1;
+}
+echo '3 refused: ', $refused, "\n";
+
+// 4. Values written to look like the end of one statement and the start of
+// another. Each one is searched for as text, and the table is still there.
+array<string> $attempts = [
+    "buy milk' or '1'='1",
+    "'; drop table notes; --",
+    "' union select id, text from notes --",
+    Core\Str::repeat("'", 10000),
+];
+uint $found = $db->transaction(fn (Core\Db\Transaction $tx): uint => {
+    uint $seen = 0;
+    foreach ($attempts as string $attempt) {
+        foreach ($tx->streamAs<Note>('select id, text from notes where text = ?', [$attempt]) as Note $note) {
+            $seen = $seen + 1;
+        }
+    }
+    return $seen;
+});
+echo '4 objects found: ', $found, ', table still there: ', $db->query('select id from notes', [])->count(), "\n";
+
+// 5. Ten million rows are built into objects, and the walk is left after a
+// hundred. It still holds the connection, so the transaction cannot end.
+try {
+    $db->transaction(fn (Core\Db\Transaction $tx): void => {
+        uint $read = 0;
+        foreach ($tx->streamAs<Note>('with recursive many(n) as (select 1 union all select n + 1 from many where n < 10000000) select n as id, hex(zeroblob(200)) as text from many', []) as Note $note) {
+            $read = $read + 1;
+            if ($read == 100) {
+                echo '5 objects read: ', $read, "\n";
+                break;
+            }
+        }
+    });
+    echo "5 the transaction ended\n";
+} catch (Throwable $busy) {
+    echo "5 the end was refused\n";
+}
+echo '6 still connected: ', $db->isOpen() ? 'yes' : 'no', "\n";

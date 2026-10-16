@@ -1,0 +1,22 @@
+<?nvs
+// Shows the two differences from `Core\Encoding::toBase64`, and why they
+// matter in a web address.
+
+bytes $raw = Core\Encoding::fromHex("fbff");
+
+// The first difference is the alphabet. These two bytes reach both symbols,
+// so this prints +/8= and then -_8.
+echo Core\Encoding::toBase64($raw), "\n";
+echo Core\Encoding::toBase64Url($raw), "\n";
+
+// In a query string `+` means a space, and `/` starts a new part of a path.
+// So the first form changes meaning inside an address. The second one does not.
+
+// The second difference is the padding, which this form does not write. So the
+// length is not always a multiple of four. This prints 0 2 3 4 6 for sizes 0 to 4.
+uint $size = 0;
+while ($size <= 4) {
+    echo Core\Str::length(Core\Encoding::toBase64Url(Core\Bytes::fill($size, 65))), " ";
+    $size = $size + 1;
+}
+echo "\n";

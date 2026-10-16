@@ -1,0 +1,82 @@
+<?nvs
+// Attack: a program closes a connection many times, uses it after close, and opens thousands of connections.
+// Every extra close and every use after close should throw, and the request should end cleanly.
+// hostile: timeout-ms 30000
+
+Core\Net\Listener $server = Core\Net::listen('127.0.0.1', 0);
+
+// 1. Close the same connection three times.
+Core\Net\Stream $client = Core\Net::connect('127.0.0.1', $server->port(), 5s);
+$client->close();
+try {
+    $client->close();
+} catch (RuntimeError $e) {
+    echo "1a ok\n";
+}
+try {
+    $client->close();
+} catch (RuntimeError $e) {
+    echo "1b ok\n";
+}
+
+// 2. `read` and `write` after close.
+try {
+    $client->read(64, 1s);
+} catch (RuntimeError $e) {
+    echo "2a ok\n";
+}
+try {
+    $client->write('x' as bytes, 1s);
+} catch (RuntimeError $e) {
+    echo "2b ok\n";
+}
+
+// 3. Connect, accept and close both ends two hundred times.
+uint $i = 0;
+while ($i < 200) {
+    try {
+        Core\Net\Stream $out = Core\Net::connect('127.0.0.1', $server->port(), 1s);
+        Core\Net\Stream $in = $server->accept(1s);
+        $out->close();
+        $in->close();
+    } catch (TimeoutError $late) {
+    } catch (IOError $io) {
+    }
+    $i = $i + 1;
+}
+echo "3 ok\n";
+
+// 4. Close a connection while one megabyte it was sent is still unread.
+Core\Net\Stream $sender = Core\Net::connect('127.0.0.1', $server->port(), 5s);
+Core\Net\Stream $receiver = $server->accept(5s);
+try {
+    $sender->write(Core\Str::repeat('w', 1000000) as bytes, 1s);
+} catch (TimeoutError $late) {
+} catch (IOError $io) {
+}
+$receiver->close();
+echo "4 ok\n";
+
+// 5. Write to a connection whose other end is closed.
+try {
+    $sender->write('after' as bytes, 1s);
+    $sender->write('after' as bytes, 1s);
+} catch (TimeoutError $late) {
+} catch (IOError $io) {
+}
+$sender->close();
+echo "5 ok\n";
+
+// 6. One hundred connections whose two ends are never closed. The request closes them when it ends.
+array<Core\Net\Stream> $leftOpen = [];
+$i = 0;
+while ($i < 100) {
+    try {
+        $leftOpen[] = Core\Net::connect('127.0.0.1', $server->port(), 1s);
+        $leftOpen[] = $server->accept(1s);
+    } catch (TimeoutError $late) {
+    } catch (IOError $io) {
+    }
+    $i = $i + 1;
+}
+echo "6 ok\n";

@@ -1,0 +1,20 @@
+<?nvs
+// Shows what happens when the bytes are not valid in the encoding you named.
+// The result is an error, so a broken byte never ends up hidden in your text.
+
+// A single byte 0xFF. No UTF-8 character starts with it.
+bytes $broken = Core\Encoding::fromHex("ff");
+
+try {
+    echo Core\Encoding::decodeText($broken, Core\Charset::Utf8), "\n";
+} catch (RuntimeError $notUtf8) {
+    // The message names the position of the first byte that could not be read.
+    echo "could not read: ", $notUtf8->message, "\n";
+}
+
+// `Core\Encoding::isValidText` tests the same thing and returns a bool. Use it
+// when you want to choose what to do. This prints no.
+echo (Core\Encoding::isValidText($broken, Core\Charset::Utf8) ? "yes" : "no"), "\n";
+
+// The same byte is valid in ISO-8859-1, where it spells "ÿ". This prints yes.
+echo (Core\Encoding::isValidText($broken, Core\Charset::Latin1) ? "yes" : "no"), "\n";

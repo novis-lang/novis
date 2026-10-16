@@ -1,0 +1,14 @@
+<?nvs
+// Shows which characters `Core\Uri::encodeFormValue` escapes, so a value cannot change the form.
+
+// A `&` would start a new pair, and `=` would end a name. They become `%26` and `%3D`.
+// This prints salt+%26+pepper%3D1.
+echo Core\Uri::encodeFormValue("salt & pepper=1"), "\n";
+
+// A `+` means a space in a form, so a real `+` becomes `%2B`.
+// This prints 1%2B1.
+echo Core\Uri::encodeFormValue("1+1"), "\n";
+
+// Letters, digits and `-_.` are not changed. A `~` becomes `%7E`.
+// This prints version-2_final.txt%7E.
+echo Core\Uri::encodeFormValue("version-2_final.txt~"), "\n";

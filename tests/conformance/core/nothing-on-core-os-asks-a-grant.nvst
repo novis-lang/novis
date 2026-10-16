@@ -1,0 +1,68 @@
+--TEST--
+Every `Core\Os` member answers under a deployment that grants nothing, because a fact about the process asking is not a reach into anything — `rule:security/capability-check-at-the-door` and `rule:core-api/tier-roster`
+--FILE--
+<?nvs
+// The `nvs.toml` beside this file grants nothing at all, which is the state
+// every capability is in by default. `Core\IO::read` under this file would be
+// refused at the door; every member here answers, because a pid, a hostname, a
+// core count and this process's own memory are facts about the process doing
+// the asking and reach nothing it does not already inhabit. That is why
+// `Core\Os` has no row in the registry's capability table rather than five rows
+// saying `None`.
+//
+// Written as one branch per member rather than as an echo of each answer,
+// because a refusal is a throw and not a value: what this pins is that the
+// call returns at all.
+if (Core\Os::pid() > 0) {
+    echo "pid: answered\n";
+} else {
+    echo "pid: no number\n";
+}
+
+if (Core\Str::length(Core\Os::hostname()) > 0) {
+    echo "hostname: answered\n";
+} else {
+    echo "hostname: no name\n";
+}
+
+if (Core\Os::cpuCount() > 0) {
+    echo "cpuCount: answered\n";
+} else {
+    echo "cpuCount: no count\n";
+}
+
+if (Core\Os::residentBytes() > 0) {
+    echo "residentBytes: answered\n";
+} else {
+    echo "residentBytes: no figure\n";
+}
+
+// The one member that can refuse, and the refusal has to be about the
+// *platform* rather than about a grant: a capability refusal would name the
+// capability, and this branch prints the message when it is anything but the
+// sentence Windows gets.
+try {
+    var $load = Core\Os::loadAverage();
+    if (Core\Arr::count($load) == 3) {
+        echo "loadAverage: answered\n";
+    } else {
+        echo "loadAverage: the wrong number of figures\n";
+    }
+} catch (RuntimeError $refused) {
+    if (Core\Str::contains($refused->message, "keeps no load average")) {
+        echo "loadAverage: answered\n";
+    } else {
+        echo "loadAverage: ", $refused->message, "\n";
+    }
+}
+--FILE nvs.toml--
+# Deliberately empty of grants. A block with nothing in it is how an operator
+# writes "this program reaches nothing", and every member above still answers
+# under it.
+[capabilities]
+--EXPECT--
+pid: answered
+hostname: answered
+cpuCount: answered
+residentBytes: answered
+loadAverage: answered

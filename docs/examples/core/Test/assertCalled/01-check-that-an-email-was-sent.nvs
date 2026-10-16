@@ -1,0 +1,26 @@
+<?nvs
+// Shows how to check that your code called a method on a test double.
+
+interface Mailer {
+    public function send(string $to): bool;
+}
+
+class Signup {
+    public static function register(Mailer $mailer, string $email): void {
+        $mailer->send($email);
+    }
+}
+
+// `Core\Test::double` builds a `Mailer` for the test. It does not send anything.
+Mailer $mailer = Core\Test::double<Mailer>({
+    send: fn(string $to): bool => true,
+});
+
+Signup::register($mailer, "ada@example.com");
+
+// `Mailer::send` names the method. The check passes if it was called at least once.
+Core\Test::assertCalled($mailer, Mailer::send);
+
+// `with` checks the arguments of the call as well.
+Core\Test::assertCalled($mailer, Mailer::send, {with: ["ada@example.com"]});
+echo "the welcome email was sent\n";

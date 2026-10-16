@@ -1,0 +1,121 @@
+<?nvs
+// Attack: a join the compiler has to do over a whole program, asked for again
+// and again while it runs. The runtime has to keep up and stay standing.
+// hostile: timeout-ms 20000
+
+type Wide = {
+    label: string,
+    order: int,
+    group: string,
+    owner: string,
+    tier: int,
+    note: string
+};
+
+interface Handler
+{
+    public function handle(): int;
+}
+
+// 1. Many classes implement one interface, with names long enough that sorting
+//    them by name has real work to do.
+class HandlerForTheVeryFirstThingThisProgramEverHasToHandle implements Handler
+{
+    #[Wide(label: "first", order: 1, group: "a", owner: "team-one", tier: 1, note: "n")]
+    public function handle(): int
+    { return 1; }
+}
+
+class HandlerForTheSecondThingAndEverythingThatLooksLikeIt implements Handler
+{
+    #[Wide(label: "second", order: 2, group: "a", owner: "team-one", tier: 1, note: "n")]
+    public function handle(): int
+    { return 2; }
+}
+
+class HandlerForTheThirdThingWhoseNameIsLongerThanItsBody implements Handler
+{
+    #[Wide(label: "third", order: 3, group: "b", owner: "team-two", tier: 2, note: "n")]
+    public function handle(): int
+    { return 3; }
+}
+
+class HandlerForTheFourthThingThatCarriesNoAttributeAtAll implements Handler
+{
+    public function handle(): int
+    { return 4; }
+}
+
+class HandlerForTheFifthThingAndTheOnesThatFollowIt implements Handler
+{
+    #[Wide(label: "fifth", order: 5, group: "b", owner: "team-two", tier: 2, note: "n")]
+    public function handle(): int
+    { return 5; }
+}
+
+class HandlerForTheSixthThingWrittenExactlyLikeTheFifth implements Handler
+{
+    #[Wide(label: "sixth", order: 6, group: "c", owner: "team-three", tier: 3, note: "n")]
+    public function handle(): int
+    { return 6; }
+}
+
+class HandlerForTheSeventhThingWhichIsAlsoDocumented implements Handler
+{
+    #[Wide(label: "seventh", order: 7, group: "c", owner: "team-three", tier: 3, note: "n")]
+    public function handle(): int
+    { return 7; }
+}
+
+class HandlerForTheEighthThingAndTheLastOfTheFirstEight implements Handler
+{
+    #[Wide(label: "eighth", order: 8, group: "d", owner: "team-four", tier: 4, note: "n")]
+    public function handle(): int
+    { return 8; }
+}
+
+// 2. An interface nothing in the program implements, which should be an empty
+//    list rather than anything else.
+interface NobodyImplementsThisOne
+{
+    public function handle(): int;
+}
+
+class Attack
+{
+    // 3. The join is asked for again every round, so every round builds a fresh
+    //    object and a fresh row for every class in the program.
+    public static function hammer(uint $rounds): uint
+    {
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            array<{instance: Handler, attribute: ?Wide}> $rows =
+                Core\Program::implementingWith<Handler, Wide>('handle');
+            // Each round is picked with the total the round before left, so
+            // none of this can be dropped.
+            $total = $total + ($rows[$total % 7]->instance->handle() as uint);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Attack::hammer(200000), "\n";
+
+// 4. The empty member name reads the attributes on the class itself, where
+//    none of these classes has written one.
+uint $none = 0;
+foreach (Core\Program::implementingWith<Handler, Wide>('') as {instance: Handler, attribute: ?Wide} $row) {
+    if ($row->attribute == null) {
+        $none = $none + 1;
+    }
+}
+echo $none, "\n";
+
+// 5. An interface with no implementors at all.
+array<{instance: NobodyImplementsThisOne, attribute: ?Wide}> $empty =
+    Core\Program::implementingWith<NobodyImplementsThisOne, Wide>('handle');
+echo Core\Arr::count($empty), "\n";
+
+echo 'still here', "\n";

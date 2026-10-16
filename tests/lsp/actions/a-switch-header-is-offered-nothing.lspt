@@ -1,0 +1,16 @@
+--TEST--
+a cursor on the `switch` keyword meets no diagnostic's range, so it is offered nothing, `rule:ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`
+--FILE--
+<?nvs
+int $code = 1;
+switc<|>h ($code) {
+    case 1:
+        echo "one";
+        break;
+    default:
+        break;
+}
+--REQUEST--
+codeAction
+--EXPECT--
+none

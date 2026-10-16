@@ -1,0 +1,41 @@
+<?nvs
+// Shows a read inside a transaction that gives you one object at a time. The
+// rows the transaction has written are already there.
+use Core\Db\Derive;
+
+// `#[Derive]` writes the code that fills this class from a row. Each property
+// takes the column of the same name.
+#[Derive]
+class Note {
+    public uint $id;
+    // A text column arrives as `tainted`, because the value comes from the
+    // database.
+    public tainted string $text;
+
+    public function constructor(uint $id, tainted string $text)
+    {
+        $this->id = $id;
+        $this->text = $text;
+    }
+}
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table notes (id integer primary key, text text not null)', []);
+
+$db->transaction(fn (Core\Db\Transaction $tx): void => {
+    $tx->execute('insert into notes (text) values (?), (?)', ['buy milk', 'call Ana']);
+
+    // Each step of the loop reads one row and builds one `Note` from it. The
+    // object before it is gone by then, so only one is in memory at a time.
+    foreach ($tx->streamAs<Note>('select id, text from notes order by id', []) as Note $note) {
+        echo $note->id, ': ', $note->text, "\n";
+    }
+
+    // The last row ended the walk, so the transaction can run another statement.
+    echo 'rows: ', $tx->query('select id from notes', [])->count(), "\n";
+});
+
+// The transaction is over, so the rows are saved. This prints `2 notes`.
+echo $db->query('select id from notes', [])->count(), " notes\n";
+
+$db->close();

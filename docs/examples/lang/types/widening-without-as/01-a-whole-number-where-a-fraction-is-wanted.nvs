@@ -1,0 +1,25 @@
+<?nvs
+// A whole number goes wherever a fraction is wanted, and nothing is written
+// at the place where it moves across. This works when you store it, when you
+// pass it, when you hand it back, and on the far side of a sum.
+
+class Cart {
+    public static function withTax(float $amount): float {
+        return $amount * 1.2;
+    }
+
+    public static function base(int $units): float {
+        return $units;
+    }
+}
+
+int $units = 3;
+
+float $stored = $units;
+echo $stored, "\n";
+
+echo Cart::withTax($units), "\n";
+echo Cart::base($units), "\n";
+
+float $rate = 1.5;
+echo $rate + $units, "\n";

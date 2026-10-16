@@ -1,0 +1,14 @@
+<?nvs
+// Shows the error for a row number below 1.
+use Novis\Spreadsheet\Workbook;
+
+var $book = Workbook::createInMemory();
+var $sheet = $book->sheet('Orders');
+$sheet->add(['order' => 1042, 'total' => 19.9]);
+
+// The first row of a sheet is row 1, so row 0 throws a `LogicError`.
+try {
+    $sheet->cell('total', 0);
+} catch (LogicError $e) {
+    echo $e->message, "\n";
+}

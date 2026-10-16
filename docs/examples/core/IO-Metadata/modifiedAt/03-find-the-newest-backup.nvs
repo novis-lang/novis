@@ -1,0 +1,29 @@
+<?nvs
+// Shows how a program finds the newest file in a folder of backups.
+
+string $dir = Core\Path::join(Core\IO::temporaryDir(), "backups");
+Core\IO::makeDir($dir);
+
+// The program writes three backups, with a short wait between them.
+// The last one written is "monday.sql".
+array<string> $names = ["friday.sql", "sunday.sql", "monday.sql"];
+foreach ($names as string $name) {
+    Core\IO::write(Core\Path::join($dir, $name), "-- backup\n");
+    Core\Time::sleep(Core\Time\Duration::milliseconds(50));
+}
+
+// The program starts with the first file. Then one `stat` for each file,
+// and the loop keeps the name with the latest time.
+array<string> $files = Core\IO::list($dir);
+string $newest = $files[0];
+Core\Time\Instant $latest = Core\IO::stat(Core\Path::join($dir, $newest))->modifiedAt();
+foreach ($files as string $name) {
+    Core\Time\Instant $changed = Core\IO::stat(Core\Path::join($dir, $name))->modifiedAt();
+    if ($changed->compareTo($latest) > 0) {
+        $latest = $changed;
+        $newest = $name;
+    }
+}
+
+// This prints "newest backup: monday.sql".
+echo "newest backup: ", $newest, "\n";

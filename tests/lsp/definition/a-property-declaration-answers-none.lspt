@@ -1,0 +1,12 @@
+--TEST--
+a property's declaration answers `none` where an access to it answers this very line, the jump being from the reference and never from the line declaring it, `rule:ide/the-index-answers-the-cursor`
+--FILE--
+<?nvs
+class User
+{
+    public string $na<|>me = "";
+}
+--REQUEST--
+definition
+--EXPECT--
+none

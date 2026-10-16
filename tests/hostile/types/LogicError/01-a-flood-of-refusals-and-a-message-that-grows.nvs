@@ -1,0 +1,63 @@
+<?nvs
+// Attack: a program makes `Core\BigInt::format` throw a `LogicError` hundreds of
+// thousands of times. Then each level of a deep call chain throws a longer message.
+// Each error should be freed after use, so memory use should not keep growing.
+// hostile: timeout-ms 30000
+
+final class Churn
+{
+    // Each round passes a base that is not allowed, so each round builds a new error.
+    // The base is computed at run time, so the compiler cannot skip any round.
+    public static function refusals(int $rounds): uint
+    {
+        uint $read = 0;
+        int $i = 0;
+        while ($i < $rounds) {
+            try {
+                uint $noSuchBase = (($i % 7) + 64) as uint;
+                string $digits = Core\BigInt::of($i)->format({ radix: $noSuchBase });
+                $read = $read + Core\Str::length($digits);
+            } catch (LogicError $refused) {
+                // This reads the message, so the runtime has to build it.
+                if (Core\Str::length($refused->message) > 0) {
+                    $read = $read + 1;
+                }
+            }
+            $i = $i + 1;
+        }
+        return $read;
+    }
+
+    // Each level catches the error from the level below and throws a new one.
+    // The new message has one more character, so each message is longer than the last.
+    public static function grow(int $depth): string
+    {
+        if ($depth == 0) {
+            var $document = Core\Json::decode('[1]', { maxDepth: 0 });
+            return 'unreachable';
+        }
+        try {
+            return Churn::grow($depth - 1);
+        } catch (LogicError $rising) {
+            throw new LogicError($rising->message . 'x');
+        }
+    }
+}
+
+echo Churn::refusals(400000), "\n";
+
+// This chain reaches the bottom and returns to the top. The last message is
+// 2000 characters longer than the first.
+try {
+    echo Churn::grow(2000), "\n";
+} catch (LogicError $grown) {
+    echo 'grew to ', Core\Str::length($grown->message), "\n";
+}
+
+// This chain is deeper than the call stack allows. The recursion limit stops it
+// before the bottom, and every call above that point must still unwind.
+try {
+    echo Churn::grow(200000), "\n";
+} catch (Throwable $gaveUp) {
+    echo "the chain ended\n";
+}

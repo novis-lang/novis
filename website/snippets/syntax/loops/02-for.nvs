@@ -1,0 +1,22 @@
+<?nvs
+// `for` has three parts: the start, the condition and the step.
+for (var $i = 0; $i < 3; $i++) {
+    echo $i;
+}
+echo "\n";
+
+// The counter still exists after the loop. It has the value that ended the loop.
+echo $i, "\n";
+
+// The step can change more than one variable.
+int $j = 10;
+for (var $k = 0; $k < 3; $k++, $j--) {
+    echo $k, ":", $j, ";";
+}
+echo "\n";
+
+// `for (;;)` runs until `break`.
+for (;;) {
+    echo "once\n";
+    break;
+}

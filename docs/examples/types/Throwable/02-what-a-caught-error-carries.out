@@ -1,0 +1,3 @@
+the monthly report could not be built
+because: Core\Json::decode(): EOF while parsing a value at line 1 column 11
+frames travelled: 1

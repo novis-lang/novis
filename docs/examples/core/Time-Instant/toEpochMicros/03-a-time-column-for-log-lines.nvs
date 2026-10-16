@@ -1,0 +1,12 @@
+<?nvs
+// Writes log lines that start with the time in microseconds, as many log tools expect.
+
+array<string> $requests = [
+    "2024-03-01T12:00:00.000125Z" => "GET /orders",
+    "2024-03-01T12:00:00.000981Z" => "POST /orders",
+];
+
+foreach ($requests as string $at => string $request) {
+    echo Core\Time::fromIso($at)->toEpochMicros(), " ", $request, "\n";
+}
+// The two requests are 856 microseconds apart. A number in seconds or milliseconds would not show that.

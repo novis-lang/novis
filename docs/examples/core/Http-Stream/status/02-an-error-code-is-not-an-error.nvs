@@ -1,0 +1,12 @@
+<?nvs
+// Shows that a reply with an error code is returned like any other reply.
+
+// The server does not have this file, so it answers with 404.
+Core\Test::answerHttp("https://files.example.com/missing.txt", 404, {body: "not found"});
+
+// `Core\Http\Client::stream` does not throw an error for a 404.
+Core\Http\Stream $reply = Core\Http\Client::stream(Core\Http\Method::Get, "https://files.example.com/missing.txt");
+// Your program checks the code itself. This prints "the file does not exist (404)".
+if ($reply->status() == 404) {
+    echo "the file does not exist (", $reply->status(), ")\n";
+}

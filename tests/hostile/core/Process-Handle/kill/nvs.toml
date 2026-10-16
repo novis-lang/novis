@@ -1,0 +1,3 @@
+# The attack starts `/usr/bin/yes` and `/bin/echo` on Linux and macOS, and `cmd.exe` on Windows.
+[capabilities.process]
+exec = true

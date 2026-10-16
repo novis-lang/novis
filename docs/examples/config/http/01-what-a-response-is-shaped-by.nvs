@@ -1,0 +1,25 @@
+<?nvs
+// `[http]` configures every response: security headers, cross-origin calls, cookie
+// defaults and how much an error page shows. This file sets nothing, so each value
+// is the built-in default. Each default is the safest choice, like this one:
+//
+//     [http.errors]
+//     detail = "generic"
+
+echo 'error detail:    ', Core\Config::get('http.errors.detail') ?? '(no value)', "\n";
+echo 'cookies default: ', Core\Config::get('http.cookies.same_site') ?? '(no value)', "\n";
+echo 'CORS origins:    ', Core\Config::get('http.cors.origins') ?? '(nothing, so no cross-origin call is answered)', "\n";
+
+// A program may change these values for the request it is handling. The next request
+// uses the values from the file again. This prints `yes` and then `full`.
+echo 'say more:        ', Core\Config::set('http.errors.detail', 'full') ? 'yes' : 'no', "\n";
+echo 'now in force:    ', Core\Config::get('http.errors.detail') ?? '(nothing)', "\n";
+
+// A program cannot change `http.csrf_key`, the secret key that signs cross-site request
+// tokens. With that key, a request could sign its own tokens. This prints `no`.
+echo 'choose the key:  ', Core\Config::set('http.csrf_key', 'whatever-i-like') ? 'yes' : 'no', "\n";
+
+// `Core\Config::restore` deletes the value this program set. The file does not set
+// this value, so `get` returns the default again. This prints `generic`.
+Core\Config::restore('http.errors.detail');
+echo 'restored to:     ', Core\Config::get('http.errors.detail') ?? '(no value)', "\n";

@@ -1,0 +1,12 @@
+<?nvs
+// This program adds up a list of prices and prints the total.
+array<int> $prices = [250, 1200, 75];
+
+int $total = 0;
+foreach ($prices as int $price) {
+    $total = $total + $price;
+}
+
+// `Core\Arr::count` returns the number of items in an array.
+echo "Items: ", Core\Arr::count($prices), "\n";
+echo "Total: ", $total, " cents\n";

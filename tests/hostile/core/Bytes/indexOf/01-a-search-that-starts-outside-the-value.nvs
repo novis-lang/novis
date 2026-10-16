@@ -1,0 +1,65 @@
+<?nvs
+// Attack: a search is started far outside the value, at the largest whole
+// number there is. Then five million bytes are searched for bytes that almost
+// match everywhere. Every search must return a position or `null`, and the
+// program must keep running.
+// hostile: timeout-ms 30000
+
+final class Search
+{
+    // Returns the position as text, or "-" when the bytes are not found.
+    public static function at(bytes $h, bytes $n, int $from): string
+    {
+        var $found = Core\Bytes::indexOf($h, $n, { from: $from });
+        if ($found == null) {
+            return '-';
+        }
+        return $found as string;
+    }
+}
+
+bytes $short = 'abcabc' as bytes;
+bytes $needle = 'bc' as bytes;
+bytes $empty = '' as bytes;
+
+// 1. Positions far past both ends of a six-byte value. A position past the end
+//    finds nothing, so this prints "-", "1", "-" and "1".
+echo Search::at($short, $needle, 9223372036854775807), "\n";
+echo Search::at($short, $needle, -9223372036854775807), "\n";
+echo Search::at($short, $needle, 6), "\n";
+echo Search::at($short, $needle, -6), "\n";
+
+// 2. The same positions, with no bytes to look for. An empty value is found
+//    where the search starts, so this prints "6" and then "0".
+echo Search::at($short, $empty, 9223372036854775807), "\n";
+echo Search::at($short, $empty, -9223372036854775807), "\n";
+
+// 3. Five million copies of one byte, searched for 5000 of it followed by a
+//    different one. Every position matches for 5000 bytes. This prints "-".
+bytes $flat = Core\Bytes::fill(5000000, 97);
+bytes $almost = Core\Bytes::join([Core\Bytes::fill(5000, 97), 'b' as bytes]);
+echo Search::at($flat, $almost, 0), "\n";
+
+// 4. The same search over a value whose last byte is the one that was missing.
+//    The bytes are found at the very end, so this prints "4994999".
+bytes $ending = Core\Bytes::join([Core\Bytes::fill(4999999, 97), 'b' as bytes]);
+echo Search::at($ending, $almost, 0), "\n";
+
+// 5. Two hundred thousand searches, each starting one byte after the position
+//    the round before it found. This prints 100000.
+bytes $page = Core\Bytes::join([Core\Bytes::fill(999, 97), 'b' as bytes]);
+bytes $pair = 'ab' as bytes;
+uint $misses = 0;
+int $from = 0;
+uint $i = 0;
+while ($i < 200000) {
+    var $found = Core\Bytes::indexOf($page, $pair, { from: $from });
+    if ($found == null) {
+        $misses = $misses + 1;
+        $from = 0;
+    } else {
+        $from = ($found as int) + 1;
+    }
+    $i = $i + 1;
+}
+echo $misses, "\n";

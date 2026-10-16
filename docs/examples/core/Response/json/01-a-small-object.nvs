@@ -1,0 +1,6 @@
+<?nvs
+// Shows how to send a small JSON object.
+
+// A shape becomes a JSON object, with its keys in the order they are written.
+// This sends `{"status":"ok","version":3}`.
+Core\Response::json({ status: "ok", version: 3 });

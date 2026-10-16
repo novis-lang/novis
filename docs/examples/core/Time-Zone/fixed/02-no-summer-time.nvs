@@ -1,0 +1,14 @@
+<?nvs
+// Shows that a fixed zone keeps its offset all year, and a named zone does not.
+
+Core\Time\Zone $fixed = Core\Time\Zone::fixed(1h);
+Core\Time\Zone $berlin = Core\Time\Zone::of("Europe/Berlin");
+
+array<string> $days = ["2024-01-15T12:00:00Z", "2024-07-15T12:00:00Z"];
+
+// `offsetAt` returns the offset on that day, as a `Duration`.
+// The fixed zone prints 1h both times. Berlin prints 1h in January and 2h in July.
+foreach ($days as string $day) {
+    Core\Time\Instant $at = Core\Time::fromIso($day);
+    echo $fixed->offsetAt($at)->toString(), " ", $berlin->offsetAt($at)->toString(), "\n";
+}

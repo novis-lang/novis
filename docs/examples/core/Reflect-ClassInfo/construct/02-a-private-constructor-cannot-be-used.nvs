@@ -1,0 +1,52 @@
+<?nvs
+// Shows that `construct` follows the same rules as `new`.
+
+class Settings {
+    public string $file;
+
+    private function constructor(string $file) {
+        $this->file = $file;
+    }
+
+    // Code inside the class may use the private constructor.
+    public static function load(): mixed {
+        var $info = Core\Reflect::forClass("Settings");
+        if ($info == null) {
+            return null;
+        }
+        return $info->construct(["app.toml"]);
+    }
+}
+
+class Label {
+    public string $text;
+
+    public function constructor(string $text) {
+        $this->text = $text;
+    }
+}
+
+// This works, because `load` is inside the class. This prints "app.toml".
+var $settings = Settings::load() as Settings;
+echo $settings->file, "\n";
+
+// Code outside the class cannot use the private constructor.
+// `construct` throws a `LogicError`, the same as `new` would.
+var $settingsInfo = Core\Reflect::forClass("Settings");
+if ($settingsInfo != null) {
+    try {
+        $settingsInfo->construct(["other.toml"]);
+    } catch (LogicError $error) {
+        echo "the constructor is private\n";
+    }
+}
+
+// The constructor of `Label` needs one argument. An empty list throws a `LogicError`.
+var $labelInfo = Core\Reflect::forClass("Label");
+if ($labelInfo != null) {
+    try {
+        $labelInfo->construct([]);
+    } catch (LogicError $error) {
+        echo "an argument is missing\n";
+    }
+}

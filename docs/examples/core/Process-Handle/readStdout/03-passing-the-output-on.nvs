@@ -1,0 +1,19 @@
+<?nvs
+// Shows how to print the output of a long job while the job still runs.
+// requires: unix
+
+// This job prints three lines, with a short pause before each one.
+var $job = Core\Process::spawn(
+    "/bin/sh",
+    ["-c", 'for step in 1 2 3; do sleep 0.2; echo "step $step of 3 is done"; done'],
+);
+
+// Each part is printed as soon as it arrives. The loop does not wait for the end of the job.
+?bytes $part = $job->readStdout();
+while ($part != null) {
+    echo ($part as string);
+    $part = $job->readStdout();
+}
+
+// This prints `exit code 0`.
+echo "exit code ", $job->wait()->exitCode(), "\n";

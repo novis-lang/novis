@@ -1,0 +1,12 @@
+--TEST--
+a property's declaration answers nothing where an access to it answers the declared type, because the type is recorded on the read and not on the line that wrote it, `rule:ide/the-index-answers-the-cursor`
+--FILE--
+<?nvs
+class User
+{
+    public string $na<|>me = "";
+}
+--REQUEST--
+hover
+--EXPECT--
+none

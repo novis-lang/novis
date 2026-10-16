@@ -1,0 +1,89 @@
+--TEST--
+A variable, a property, an array element and a parameter all reach one object: a write through any of them is read through all, `==` answers identity across every pair, and a `clone` is outside the set — `rule:classes/two-copy-depths`
+--FILE--
+<?nvs
+// covers: lang:classes/objects-are-handles
+// `rule:classes/two-copy-depths`: assigning an object, passing it or storing it
+// never copies it, and `==` on two objects is identity. The section names four
+// carriers — a variable, a property, an array element and a parameter — and this
+// case asks the same question of each, counting the agreements rather than
+// reading one line per carrier: a carrier that grew its own copy still prints
+// plausibly on its own line and fails the count here.
+
+class Cell {
+    public int $value = 0;
+}
+
+class Holder {
+    public function constructor(public Cell $cell) {}
+}
+
+class Probe {
+    // The parameter is the one carrier that cannot be spelled at the call site.
+    public static function read(Cell $cell): int {
+        return $cell->value;
+    }
+
+    public static function same(Cell $left, Cell $right): bool {
+        return $left == $right;
+    }
+}
+
+var $cell = new Cell();
+var $holder = new Holder($cell);
+array<Cell> $row = [$cell];
+
+// Two writes, neither through the variable the object was born in.
+$holder->cell->value = 41;
+$row[0]->value = $row[0]->value + 1;
+
+// Every carrier reads the one object: four readings, all 42.
+array<int> $readings = [$cell->value, $holder->cell->value, $row[0]->value, Probe::read($cell)];
+int $agreed = 0;
+foreach ($readings as int $reading) {
+    if ($reading == 42) {
+        $agreed = $agreed + 1;
+    }
+}
+echo "agreed=", $agreed, " of ", Core\Arr::count($readings), "\n";
+
+// `==` is identity, so each carrier is equal to every carrier including itself.
+array<Cell> $carriers = [$cell, $holder->cell, $row[0]];
+int $identical = 0;
+foreach ($carriers as Cell $left) {
+    foreach ($carriers as Cell $right) {
+        if (Probe::same($left, $right)) {
+            $identical = $identical + 1;
+        }
+    }
+}
+echo "identical=", $identical, " of 9\n";
+
+// A second object carrying the same value is equal to none of them, which is
+// what says the nine above were identity and not a comparison of properties.
+var $twin = new Cell();
+$twin->value = 42;
+int $matched = 0;
+foreach ($carriers as Cell $each) {
+    if (Probe::same($each, $twin)) {
+        $matched = $matched + 1;
+    }
+}
+echo "matched=", $matched, " values equal=", ($twin->value == $cell->value) as string, "\n";
+
+// `clone` is the one operation that leaves the set: the copy is a different
+// object, and a write through it reaches no carrier.
+var $copy = clone $cell;
+$copy->value = 7;
+int $reached = 0;
+foreach ($carriers as Cell $each) {
+    if ($each->value == 7 || Probe::same($each, $copy)) {
+        $reached = $reached + 1;
+    }
+}
+echo "copy=", $copy->value, " carriers reached=", $reached, " original=", $cell->value, "\n";
+--EXPECT--
+agreed=4 of 4
+identical=9 of 9
+matched=0 values equal=1
+copy=7 carriers reached=0 original=42

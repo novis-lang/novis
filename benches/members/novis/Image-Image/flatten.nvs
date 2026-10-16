@@ -1,0 +1,22 @@
+<?nvs
+// Puts a small transparent image on a background and reads its pixels, as a program does before it saves a JPEG.
+// bench: iterations 256
+// bench: complexity constant
+use Novis\Image\Image;
+use Novis\Image\Color;
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        Image $logo = Image::create(4, 4, Color::rgba(51, 102, 153, 0.5));
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            uint $grey = ($total + $i) % 256;
+            $total = $total + $logo->flatten(Color::rgba($grey, $grey, $grey))->raw()->width;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

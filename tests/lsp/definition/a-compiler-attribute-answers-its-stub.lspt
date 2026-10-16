@@ -1,0 +1,17 @@
+--TEST--
+a compiler attribute is a name the checker recognises and no file declares, so a jump to one opens its generated stub, where the payload's shape is declared the way a userland attribute is, `rule:ide/the-stub-tree-is-where-core-is-declared`
+--FILE--
+<?nvs
+class Blog
+{
+    #[Core\Ro<|>ute(path: "/", method: Core\Http\Method::Get)]
+    #[Core\Access(allow: Core\Audience::Everyone)]
+    public static function index(): string
+    {
+        return "hello";
+    }
+}
+--REQUEST--
+definition
+--EXPECT--
+stubs/Core/Route.nvs:10:6

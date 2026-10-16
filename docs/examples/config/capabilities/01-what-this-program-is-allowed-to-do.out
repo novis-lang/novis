@@ -1,0 +1,5 @@
+read files:  true
+write files: (nothing)
+run scripts: false
+grant a db:  no
+drop one:    no

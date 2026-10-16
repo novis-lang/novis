@@ -1,0 +1,25 @@
+<?nvs
+// Shows how to make one file with the first page of each invoice, for a monthly summary.
+use Novis\Pdf\Document;
+use Novis\Pdf\Pages;
+use Novis\Pdf\Reader;
+
+// Each invoice has a first page with the total and a second page with the terms.
+array<int> $numbers = [1042, 1043, 1044];
+array<bytes> $invoices = [];
+foreach ($numbers as int $number) {
+    $invoices[] = Document::fromHtml("<style>h2 { break-before: page }</style>"
+        . "<h1>Invoice {$number}</h1><h2>Terms</h2><p>Pay within 14 days.</p>")->render()->bytes;
+}
+
+// `[1]` chooses page 1 of each file.
+array<Pages> $firstPages = [];
+foreach ($invoices as bytes $invoice) {
+    $firstPages[] = Pages::of($invoice, [1]);
+}
+
+var $reader = Reader::open(Pages::merge($firstPages));
+echo $reader->pageCount, " pages\n";
+for (uint $page = 1; $page <= $reader->pageCount; $page++) {
+    echo "page ", $page, ": ", $reader->text($page), "\n";
+}

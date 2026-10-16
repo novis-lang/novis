@@ -1,0 +1,27 @@
+<?nvs
+// Attack: a program reads the RID of SIDs at the smallest and largest numbers,
+// and uses it in sums. Each RID should be between 0 and 4294967295.
+
+// 1. The smallest and the largest RID.
+array<string> $texts = ['S-1-0-0', 'S-1-5-4294967295', 'S-1-0xffffffffffff-4294967295'];
+foreach ($texts as string $text) {
+    echo '1 ', Core\Ldap\Sid::parse($text)->rid(), "\n";
+}
+
+// 2. One past the largest RID throws.
+try {
+    var $past = Core\Ldap\Sid::parse('S-1-5-4294967296');
+    echo '2 ', $past->rid(), "\n";
+} catch (LogicError $refusal) {
+    echo "2 refused\n";
+}
+
+// 3. The sum of many largest RIDs stays a correct number.
+int $sum = 0;
+var $max = Core\Ldap\Sid::parse('S-1-5-4294967295');
+uint $i = 0;
+while ($i < 100000) {
+    $sum = $sum + $max->rid();
+    $i = $i + 1;
+}
+echo '3 sum: ', $sum, "\n";

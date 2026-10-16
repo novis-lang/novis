@@ -1,0 +1,11 @@
+<?nvs
+// Shows how to make a six-digit code to send to a user when they log in.
+
+// Any number from 0 to 999999 is allowed. `Core\Str::padStart` adds zeros at the
+// front, so 4711 becomes "004711".
+int $number = Core\Random::int(0, 999999);
+string $code = Core\Str::padStart($number as string, length: 6, padding: "0");
+
+// The code changes on every run, so this prints only what is always true.
+echo Core\Str::length($code), "\n";
+echo Core\Regex::matches($code, '^[0-9]{6}$') ? "six digits" : "not six digits", "\n";

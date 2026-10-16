@@ -1,0 +1,21 @@
+<?nvs
+// Shows a warning that a program writes when a server's certificate was not checked.
+
+class Warnings {
+    // Prints a warning when the certificate was not checked.
+    // Prints nothing when it was checked.
+    public static function check(string $host, Core\Http\TlsInfo $info): void {
+        if (!$info->verified()) {
+            echo "warning: the certificate of ", $host, " was not checked\n";
+        }
+    }
+}
+
+// Two TLS connections built for a test. The second one says that the
+// certificate was not checked, as with a server that uses a self-signed certificate.
+var $checked = Core\Test::tlsSession({});
+var $unchecked = Core\Test::tlsSession({verified: false});
+
+// This prints one line: `warning: the certificate of dev.example.com was not checked`.
+Warnings::check("api.example.com", $checked);
+Warnings::check("dev.example.com", $unchecked);

@@ -1,0 +1,13 @@
+{
+  "title": "An extension manifest may declare exactly two things: a parameter that refuses `tainted`, and a return that is always `tainted`",
+  "status": "shipped",
+  "seeAlso": [
+    "security/extension-manifest-only-tightens",
+    "security/extension-contagion",
+    "security/sink-predicate"
+  ],
+  "guardedBy": [
+    "tests/conformance/reject/a-tainted-argument-to-an-extension-sink-does-not-compile.nvst",
+    "tests/conformance/ext/an-extension-declared-source-taints-its-result.nvst"
+  ]
+}

@@ -1,0 +1,75 @@
+--TEST--
+`as` binds tighter than every binary operator and chains left to right — one agreement per operator, counted — `rule:types/conversion`
+--FILE--
+<?nvs
+// covers: lang:types/the-conversion-operator-as
+// `rule:types/conversion`: `as` binds tighter than any binary operator, so
+// `$a as int + 1` is `($a as int) + 1`. Each pair below writes the same
+// expression twice — once leaning on that, once with the parentheses written
+// out — and the count is what fails if any operator ever takes the operand
+// first. Reading a single line would not: the leaning form has to parse at all
+// before it can disagree.
+
+string $seven = "7";
+float $half = 0.5;
+decimal $quarter = 0.25;
+
+array<string> $leaning = [
+    ($seven as int + 1) as string,
+    ($seven as int - 1) as string,
+    ($seven as int * 2) as string,
+    ($seven as int / 2) as string,
+    ($seven as int % 4) as string,
+    $seven as int . "!",
+    ($seven as int < 10) as string,
+    ($seven as int == 7) as string,
+    ($half as decimal + $quarter) as string,
+    ($seven as float * $half) as string,
+];
+
+array<string> $written = [
+    (($seven as int) + 1) as string,
+    (($seven as int) - 1) as string,
+    (($seven as int) * 2) as string,
+    (($seven as int) / 2) as string,
+    (($seven as int) % 4) as string,
+    ($seven as int) . "!",
+    (($seven as int) < 10) as string,
+    (($seven as int) == 7) as string,
+    (($half as decimal) + $quarter) as string,
+    (($seven as float) * $half) as string,
+];
+
+uint $agreed = 0;
+uint $row = 0;
+
+while ($row < Core\Arr::count($leaning)) {
+    if ($leaning[$row] == $written[$row]) {
+        $agreed = $agreed + 1;
+    }
+    $row = $row + 1;
+}
+
+echo $agreed, " of ", Core\Arr::count($leaning), " agree\n";
+
+// Chaining: each conversion takes the value the one before it produced.
+echo $seven as int as float as string, "\n";
+echo "2.5" as float as decimal as string, "\n";
+echo $half as decimal as string as float as decimal as string, "\n";
+
+// Inside a `foreach` header the `as` belongs to `foreach`, so converting the
+// subject takes parentheses of its own.
+mixed $rows = [1, 2, 3];
+int $sum = 0;
+
+foreach (($rows as array<int>) as int $value) {
+    $sum = $sum + $value;
+}
+
+echo $sum, "\n";
+--EXPECT--
+10 of 10 agree
+7
+2.5
+0.5
+6

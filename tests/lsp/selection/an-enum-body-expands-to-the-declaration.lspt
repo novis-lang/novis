@@ -1,0 +1,13 @@
+--TEST--
+a cursor between two cases is inside the enum and inside neither of them, so the whole declaration is the one step the chain has, `rule:ide/the-index-answers-the-cursor`
+--FILE--
+<?nvs
+enum Status: int
+{
+    <|>
+    case Draft = 1;
+}
+--REQUEST--
+selectionRange
+--EXPECT--
+2:1-6:2

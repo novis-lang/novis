@@ -1,0 +1,32 @@
+<?nvs
+// Shows how to sign an object into a token with a key pair.
+
+// `#[Core\Json\Derive]` lets `Core\Json` write this class as JSON.
+// `signObject` needs this to write the claims.
+#[Core\Json\Derive]
+final class Claims {
+    public string $sub;
+    public int $level;
+
+    public function constructor(string $sub, int $level) {
+        $this->sub = $sub;
+        $this->level = $level;
+    }
+}
+
+// An `Ed25519` key pair has a private half and a public half. The private half signs.
+Core\Crypto\KeyPair $pair = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::Ed25519);
+
+// `signObject` returns the token. It is valid for 15 minutes.
+string $token = Core\Jwt::signObject(new Claims("42", 3), 15m, $pair);
+
+// The second part of the token is the payload: the claims as JSON.
+// `level` is a number in the payload, not a string. This prints `42` and `3`.
+string $payload = Core\Encoding::fromBase64Url(Core\Str::split($token, ".")[1]) as string;
+var $claims = Core\Json::decodeAs<{sub: string, level: int, iat: int, exp: int}>($payload);
+echo $claims->sub, "\n";
+echo $claims->level, "\n";
+
+// `signObject` adds two claims: `iat` is the time of signing and `exp` is the expiry.
+// This prints `900`, the lifetime in seconds.
+echo $claims->exp - $claims->iat, "\n";

@@ -1,0 +1,19 @@
+---
+source: crates/nvs-ir/src/lower/mod.rs
+expression: "print_function(&f, map.file(file))"
+---
+fn add(object, int, int) -> int {
+  bb0:
+    safepoint
+    v0 = param 0  ; object
+    v1 = param 1  ; int
+    v2 = param 2  ; int
+    ; stmt s0 @4:5-4:24
+    v3 = add v1, v2 ! bb1  ; int
+    ; stmt s1 @5:5-5:17
+    release v0
+    return v3
+  bb1:
+    release v0
+    propagate "add() at t.nvs:4"
+}

@@ -1,0 +1,13 @@
+--TEST--
+a cursor on the `try` keyword meets no diagnostic's range, so it is offered nothing, `rule:ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`
+--FILE--
+<?nvs
+tr<|>y {
+    echo "work";
+} catch (RuntimeError $refused) {
+    echo "refused";
+}
+--REQUEST--
+codeAction
+--EXPECT--
+none

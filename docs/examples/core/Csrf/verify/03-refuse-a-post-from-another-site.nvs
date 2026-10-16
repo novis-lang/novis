@@ -1,0 +1,29 @@
+<?nvs
+// Shows how a request handler refuses a form whose token does not belong to
+// the session. The rest of the handler runs only after the token is accepted.
+
+class Handler {
+    public static function post(
+        string $token,
+        string $session,
+        secret bytes $key,
+        string $email
+    ): string {
+        if (!Core\Csrf::verify($token, $session, $key)) {
+            return "403 this form did not come from us";
+        }
+        return "200 the address is now " . $email;
+    }
+}
+
+secret bytes $key = Core\Crypto::generateKey();
+string $session = "sid-ada";
+
+// The form the program rendered comes back with its token. This prints the
+// `200` line.
+string $mine = Core\Csrf::issue($session, $key);
+echo Handler::post($mine, $session, $key, "ada@example.org"), "\n";
+
+// Another site sends the same form from the reader's browser. It cannot read
+// the token, so it sends none. This prints the `403` line.
+echo Handler::post("", $session, $key, "attacker@example.org"), "\n";

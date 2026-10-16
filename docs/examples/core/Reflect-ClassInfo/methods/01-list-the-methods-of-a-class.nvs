@@ -1,0 +1,28 @@
+<?nvs
+// Shows how to list every method of a class, with its visibility and its number of parameters.
+
+class Invoice {
+    public float $total = 0.0;
+
+    public function addLine(string $item, float $price): void {
+        $this->total = $this->total + $price;
+    }
+
+    public function total(): float {
+        return $this->total;
+    }
+
+    private function roundCents(float $amount): float {
+        return $amount;
+    }
+}
+
+var $info = Core\Reflect::forClass("Invoice");
+if ($info != null) {
+    // `methods()` returns one `Core\Reflect\MethodInfo` for each method, sorted by name.
+    // This prints three lines. The private method is in the list too.
+    foreach ($info->methods() as Core\Reflect\MethodInfo $method) {
+        string $visibility = $method->isPublic() ? "public" : "not public";
+        echo $method->name(), ": ", $visibility, ", ", $method->parameterCount(), " parameter(s)\n";
+    }
+}

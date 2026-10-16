@@ -1,0 +1,12 @@
+--TEST--
+a cursor on the `foreach` keyword is inside the loop and inside neither the subject it walks nor the binder it writes, so it answers nothing, `rule:ide/the-index-answers-the-cursor`
+--FILE--
+<?nvs
+array<int> $rows = [1, 2, 3];
+forea<|>ch ($rows as int $row) {
+    echo $row;
+}
+--REQUEST--
+hover
+--EXPECT--
+none

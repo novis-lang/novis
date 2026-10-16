@@ -1,0 +1,20 @@
+<?nvs
+// `[[include]]` splits one configuration into more than one file. Each entry
+// names a file or a directory of files, and the server reads them in place.
+// This configuration has no include, so this program shows what a program
+// sees when the configuration is one file.
+
+echo 'included files:   ', Core\Config::get('include') ?? '(none — this checkout is one file)', "\n";
+
+// `Core\Config::get('include')` returns `null`. A program sees only the final
+// value of each key. When two files set the same key, the later file wins.
+echo 'memory per request: ', Core\Config::get('limits.memory') ?? '(nothing)', "\n";
+
+// A program cannot add an include. Only the person who runs the server may
+// choose which files it reads, so each `Core\Config::set` call below returns `false`.
+echo 'pull one in:      ', Core\Config::set('include', 'conf.d/mine.toml') ? 'yes' : 'no', "\n";
+echo 'or a directory:   ', Core\Config::set('include.dir', '/tmp/conf.d') ? 'yes' : 'no', "\n";
+echo 'or an optional:   ', Core\Config::set('include.optional', 'true') ? 'yes' : 'no', "\n";
+
+// An entry with `optional = true` may name a file that does not exist. If the file
+// exists but cannot be read or parsed, the server does not start.

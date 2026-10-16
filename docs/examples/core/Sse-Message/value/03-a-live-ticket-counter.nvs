@@ -1,0 +1,19 @@
+<?nvs
+// Shows a live counter for a concert's ticket page. Each sale publishes how many
+// tickets were sold, and the stream sends the new total to the page.
+
+// The `.nvse` file beside this example publishes three sales on `sales`.
+Core\Sse $sse = Core\Sse::current();
+Core\Topic::subscribe("sales");
+
+int $sold = 0;
+?Core\Sse\Message $message = $sse->receive();
+while ($message != null) {
+    ?int $tickets = $message->value() as ?int;
+    if ($tickets != null) {
+        $sold = $sold + $tickets;
+        // This prints the totals `2`, `6` and `7`, each as a `sold` event.
+        $sse->send($sold, event: "sold");
+    }
+    $message = $sse->receive();
+}

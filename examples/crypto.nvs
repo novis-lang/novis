@@ -1,0 +1,54 @@
+<?nvs
+// This program stores a password as a hash, and seals a message so that a change is found.
+// `Core\Password::hash` takes the password and nothing else. It has no algorithm argument.
+// It takes a `secret` password and returns a hash that is not secret.
+// The last step removes one byte from a sealed message, so `Core\Crypto::open` throws an error.
+
+secret string $password = 'correct horse battery staple';
+
+// Stored, not kept. A freshly made hash is by definition current, so
+// `needsRehash` answering `false` is the assertion rather than a non-empty
+// string would be.
+string $stored = Core\Password::hash($password);
+if (Core\Password::needsRehash($stored)) {
+    echo 'hash stale on the day it was made', "\n";
+} else {
+    echo 'hash ok', "\n";
+}
+
+// The bound, named on both sides: the password that made it, and one that
+// did not.
+if (Core\Password::verify($password, $stored)) {
+    echo 'verify ok', "\n";
+} else {
+    echo 'verify refused the right password', "\n";
+}
+
+secret string $wrong = 'hunter2';
+if (Core\Password::verify($wrong, $stored)) {
+    echo 'verify accepted the wrong password', "\n";
+} else {
+    echo 'verify failed', "\n";
+}
+
+// AEAD, both directions.
+secret bytes $key = Core\Crypto::generateKey();
+bytes $message = 'attack at dawn' as bytes;
+bytes $sealed = Core\Crypto::seal($message, $key, Core\Crypto::Cipher::XChaCha20Poly1305);
+echo 'sealed', "\n";
+
+if (Core\Crypto::open($sealed, $key, Core\Crypto::Cipher::XChaCha20Poly1305) == $message) {
+    echo 'opened', "\n";
+} else {
+    echo 'opened the wrong plaintext', "\n";
+}
+
+// One byte short is a forgery, and an authenticated mode says so rather
+// than returning what is left.
+bytes $tampered = Core\Bytes::slice($sealed, 0, (Core\Bytes::length($sealed) as int) - 1);
+try {
+    bytes $forged = Core\Crypto::open($tampered, $key, Core\Crypto::Cipher::XChaCha20Poly1305);
+    echo 'tamper accepted', "\n";
+} catch (RuntimeError $refused) {
+    echo 'tamper refused', "\n";
+}

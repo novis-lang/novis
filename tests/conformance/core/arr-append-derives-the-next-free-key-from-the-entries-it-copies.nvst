@@ -1,0 +1,39 @@
+--TEST--
+Core\Arr::append derives the next free integer key from the entries it copies, while `$a[] = $v` on the same array keeps the counter a removed key left behind, `rule:core-api/shape-rules`
+--FILE--
+<?nvs
+final class Render {
+    public static function of(array<int> $a): string {
+        var $out = "";
+        foreach ($a as string $k => int $v) {
+            $out = $out . $k . "=" . $v . ";";
+        }
+        return $out;
+    }
+}
+
+// `$a[] = $v` changes one array. `unset` does not lower its counter, so the
+// new entry lands on key 10.
+array<int> $mutated = ["5" => 1, "x" => 2, "9" => 3];
+unset($mutated["9"]);
+$mutated[] = 9;
+echo Render::of($mutated), "\n";
+
+// `Core\Arr::append` returns a new array. Its next key is one past the
+// largest integer key present, so the new entry lands on key 6.
+array<int> $pure = ["5" => 1, "x" => 2, "9" => 3];
+unset($pure["9"]);
+echo Render::of(Core\Arr::append($pure, 9)), "\n";
+
+// `withoutLast` and then `append` give the same key 6.
+array<int> $mixed = ["5" => 1, "x" => 2, "9" => 3];
+echo Render::of(Core\Arr::append(Core\Arr::withoutLast($mixed), 9)), "\n";
+
+// The gap is at the front here. Only key 0 remains, so the new entry is key 1.
+array<int> $gapped = ["0" => 1, "4" => 2];
+echo Render::of(Core\Arr::append(Core\Arr::withoutLast($gapped), 9)), "\n";
+--EXPECT--
+5=1;x=2;10=9;
+5=1;x=2;6=9;
+5=1;x=2;6=9;
+0=1;1=9;

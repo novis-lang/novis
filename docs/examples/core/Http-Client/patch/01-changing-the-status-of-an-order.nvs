@@ -1,0 +1,11 @@
+<?nvs
+// Shows how to change one field of a record on another server with a `PATCH` request.
+
+// `json` is the data to send, and it has only the field that changes.
+// 10.0.0.7 is a private address, so the call throws a `RuntimeError` before it sends anything.
+try {
+    Core\Http\Response $response = Core\Http\Client::patch("http://10.0.0.7/orders/1042", {json: ["status" => "paid"]});
+    echo "status: ", $response->status(), "\n";
+} catch (RuntimeError $refused) {
+    echo $refused->message, "\n";
+}

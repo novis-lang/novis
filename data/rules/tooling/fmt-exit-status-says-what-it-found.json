@@ -1,0 +1,10 @@
+{
+  "title": "`nvs fmt` exits `1` when a file would change and `2` when a file is refused",
+  "status": "designed",
+  "seeAlso": [
+    "tooling/fmt-check-writes-nothing",
+    "tooling/fmt-is-never-a-diagnostic"
+  ],
+  "guardedBy": [],
+  "goal": "formatter-complete"
+}

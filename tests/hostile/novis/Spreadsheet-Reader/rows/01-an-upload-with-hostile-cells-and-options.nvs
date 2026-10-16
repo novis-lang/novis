@@ -1,0 +1,71 @@
+<?nvs
+// Attack: a request uploads a file with cells that look like formulas or markup, a very long cell and many rows.
+// It also passes options that are not valid. Each value should read as plain data, and each bad option should throw an error.
+use Novis\Spreadsheet\Reader;
+use Novis\Spreadsheet\Workbook;
+
+class Attack
+{
+    // This method reads every row of `$file` with `$options` and prints how many rows it read, or the class of the error.
+    public static function attempt(int $step, bytes $file, Reader::RowOptions $options): void
+    {
+        try {
+            int $count = 0;
+            foreach (Reader::open($file)->rows(0, $options) as var $row) {
+                $count++;
+            }
+            echo 'step ', $step, ' read ', $count, " rows\n";
+        } catch (Throwable $e) {
+            echo 'step ', $step, ' stopped ', $e::class, "\n";
+        }
+    }
+}
+
+// 1. Cells with formula text, markup and control characters. Each one reads back as the same text.
+var $book = Workbook::createInMemory();
+$book->sheet('Shop')->addAll([
+    ['=cmd|"/c calc"!A1', '<script>alert(1)</script>', "line\nbreak", '@SUM(1+1)', '+1-1'],
+]);
+bytes $cells = $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
+foreach (Reader::open($cells)->rows(0) as var $row) {
+    foreach ($row->values as tainted string $key => mixed $value) {
+        echo 'step 1 ', $key, ' is ', $value is tainted string ? 'text' : 'another value', "\n";
+    }
+}
+
+// 2. A row of 30 cells with 32,767 characters each, which is the most a cell has. Then 5,000 rows, read with `limit: 10`.
+var $big = Workbook::createInMemory();
+var $sheet = $big->sheet('Shop');
+array<string> $wide = [];
+for (int $column = 0; $column < 30; $column++) {
+    $wide[] = Core\Str::repeat('A', 32767);
+}
+$sheet->add($wide);
+for (int $n = 0; $n < 5000; $n++) {
+    $sheet->add([$n]);
+}
+bytes $large = $big->finish()->bytes ?? Core\Bytes::fill(0, 0);
+Attack::attempt(2, $large, null);
+Attack::attempt(2, $large, { limit: 10 });
+
+// 3. Options that are not valid. An error is caught, so the next option is tried.
+Attack::attempt(3, $cells, { header: 0 });
+Attack::attempt(3, $cells, { header: -5 });
+Attack::attempt(3, $cells, { emptyRows: 'all' });
+Attack::attempt(3, $cells, { merged: 'every' });
+Attack::attempt(3, $cells, { hidden: 'show' });
+Attack::attempt(3, $cells, { zone: 'Mars/Base' });
+Attack::attempt(3, $cells, { text: ['../../etc/passwd'] });
+Attack::attempt(3, $cells, { columns: ['ZZZZZZ'] });
+Attack::attempt(3, $cells, { locale: 'xx-INVALID' });
+
+// 4. The same file cut short, and with each 50th byte set to zero.
+int $size = Core\Bytes::length($cells) as int;
+Attack::attempt(4, Core\Bytes::slice($cells, 0, $size - 1), null);
+array<bytes> $parts = [];
+for (int $at = 0; $at < $size; $at += 50) {
+    int $length = $size - $at < 50 ? $size - $at : 50;
+    $parts[] = Core\Bytes::slice($cells, $at, $length - 1);
+    $parts[] = Core\Bytes::fill(1, 0);
+}
+Attack::attempt(4, Core\Bytes::join($parts), null);

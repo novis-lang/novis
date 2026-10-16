@@ -1,0 +1,53 @@
+<?nvs
+// Attack: two methods have parameters with the same names, and every parameter has an attribute.
+// Each attribute should name its own method and parameter, and nothing should be mixed up.
+
+class Handlers
+{
+    public function first(
+        #[{n: 1}] int $a,
+        #[{n: 2}] int $b,
+        #[{n: 3}] int $c,
+        #[{n: 4}] int $d,
+        #[{n: 5}] int $e,
+        #[{n: 6}] int $f,
+        #[{n: 7}] int $g,
+        #[{n: 8}] int $h,
+    ): void
+    {
+    }
+
+    public function second(
+        #[{n: 11}] int $a,
+        #[{n: 12}] int $b,
+        #[{n: 13}] int $c,
+        #[{n: 14}] int $d,
+        #[{n: 15}] int $e,
+        #[{n: 16}] int $f,
+        #[{n: 17}] int $g,
+        #[{n: 18}] int $h,
+    ): void
+    {
+    }
+}
+
+var $info = Core\Reflect::forObject(new Handlers());
+
+// 1. Print where each of the 16 attributes is written, with its value.
+foreach ($info->attributes() as Core\Reflect\AttributeInfo $attribute) {
+    echo $attribute->target(), '($', $attribute->parameter(), ') = ', $attribute->field('n') as string, "\n";
+}
+
+// 2. Count the attributes on parameter `$h` of both methods, 100000 times.
+// Each list is freed before the next one.
+uint $found = 0;
+uint $i = 0;
+while ($i < 100000) {
+    foreach ($info->attributes() as Core\Reflect\AttributeInfo $attribute) {
+        if ($attribute->parameter() == 'h') {
+            $found = $found + 1;
+        }
+    }
+    $i = $i + 1;
+}
+echo $found, "\n";

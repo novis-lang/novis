@@ -1,0 +1,27 @@
+<?nvs
+// Measures `Core\Html::join` on one list of links, at growing list lengths.
+// bench: start 64
+// bench: max 1024
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        array<Core\Html\Markup> $links = [];
+        uint $n = 0;
+        while ($n < $size) {
+            $links[] = '<a>Home</a>' as Core\Html\Markup;
+            $n = $n + 1;
+        }
+        var $separator = ' | ' as Core\Html\Markup;
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            $total = $total + Core\Str::length(Core\Html::toSource(Core\Html::join($links, $separator), 'measuring the joined text'));
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(64), "\n";

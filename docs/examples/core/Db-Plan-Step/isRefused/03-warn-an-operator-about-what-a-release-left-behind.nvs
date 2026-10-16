@@ -1,0 +1,40 @@
+<?nvs
+// Shows what a deployment does with the steps it may not run: it applies the
+// rest, then asks a person about them.
+
+use Core\Db;
+use Core\Db\Plan\Step;
+use Core\Db\Schema;
+
+var $db = Db::connect('notes');
+
+// What the last release left in the database.
+$db->execute('create table notes (id integer primary key autoincrement, title varchar(200) not null)', []);
+$db->execute('create table notes_import (id integer primary key)', []);
+
+var $schema = Schema::fromArray([
+    'tables' => [
+        [
+            'name' => 'notes',
+            'columns' => [
+                ['name' => 'id', 'type' => 'int64', 'identity' => true],
+                ['name' => 'title', 'type' => 'text(200)'],
+                ['name' => 'body', 'type' => 'text(4000)', 'null' => true],
+            ],
+            'primary_key' => ['id'],
+        ],
+    ],
+]);
+
+// `applySafe` runs the steps it may and leaves every reported step where it is.
+$schema->applySafe($db);
+echo "the release is applied\n";
+
+// What is left is the deployment's message to a person.
+foreach ($schema->planAgainst($db)->steps() as Step $step) {
+    if ($step->isRefused()) {
+        echo 'please decide: ', $step->reason(), "\n";
+    }
+}
+
+$db->close();

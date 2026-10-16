@@ -1,0 +1,23 @@
+--TEST--
+`rule:types/numeric-literal-placement`: a class constant declared `decimal` folds to the digits it was written with, so a read inlines the exact value, and a parameter default naming it gets the same value
+--FILE--
+<?nvs
+class Tax {
+    public const decimal VAT = 0.20;
+    public const decimal REFUND = -1.5;
+    public const decimal WHOLE = 3;
+
+    public static function net(decimal $gross, decimal $rate = Tax::VAT): decimal {
+        return $gross - $gross * $rate;
+    }
+}
+
+echo Tax::VAT, " ", Tax::REFUND, " ", Tax::WHOLE, "\n";
+echo Tax::VAT + Tax::REFUND, "\n";
+
+// The omitted rate names `Tax::VAT`, so it is the same `0.20`.
+echo Tax::net(10), "\n";
+--EXPECT--
+0.20 -1.5 3
+-1.30
+8.00

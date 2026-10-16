@@ -1,0 +1,39 @@
+<?nvs
+// `rule:testing/in-process-request`'s in-process request, as the runner sees it: a `#[Test]` method
+// asks for a path, and what answers is this same program's entry with the match
+// of `rule:routing/matched-once-before-the-handler` already on the carrier.
+//
+// The top level is the entry, so it runs twice for two different reasons: once
+// when the suite is loaded, with no request in front of it, and once per
+// synthetic request. `Core\Env::context()` is what tells those apart — it is
+// `Request` only in the run that answers one (`rule:core-classes/env-context`).
+class Api {
+    #[Core\Route(path: "/users/1", method: Core\Http\Method::Get, name: "Api::show")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function show(): string { return "shown"; }
+
+    #[Core\Test]
+    public function itReachesTheCompiledTableWithNoSocket(): void {
+        var $answered = Core\Test::request(Core\Http\Method::Get, "/users/1");
+        Core\Test::assertEquals($answered->status(), 201);
+        Core\Test::assertEquals($answered->body(), "Api::show");
+    }
+
+    #[Core\Test]
+    public function itAnswersAPathTheTableDoesNotClaim(): void {
+        var $answered = Core\Test::request(Core\Http\Method::Get, "/nothing/here");
+        Core\Test::assertEquals($answered->status(), 200);
+        Core\Test::assertEquals($answered->body(), "unclaimed");
+    }
+}
+
+// The suite's own load has nothing to answer, so it writes nothing.
+if (Core\Env::context() == Core\Env::Context::Request) {
+    var $matched = Core\Request::route();
+    if ($matched == null) {
+        echo "unclaimed";
+    } else {
+        Core\Response::setStatus(201);
+        echo $matched->name() ?? "unnamed";
+    }
+}

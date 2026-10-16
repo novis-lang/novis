@@ -1,0 +1,19 @@
+--TEST--
+A file whose first two bytes are `#!` starts in code mode, and line 1 is trivia rather than output — `rule:tooling/shebang-opens-code-mode`
+--FILE--
+#!/usr/bin/env nvs
+// `rule:tooling/shebang-opens-code-mode`: the line above is trivia — not a token, not emitted — so the
+// first byte this program writes is the `o` of `opened`. Before the lexer
+// slice landed the whole shebang line was inline HTML and was copied to
+// stdout (findings.md § Divergences D27).
+echo "opened", "\n";
+
+// Nothing else changes: `?>` still leaves code mode and writes literal bytes,
+// and a later `<?nvs` reopens it, both per `rule:statements/nvs-is-the-only-open-tag`.
+?>literal
+<?nvs
+echo "reopened", "\n";
+--EXPECT--
+opened
+literal
+reopened

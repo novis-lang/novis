@@ -1,0 +1,25 @@
+{
+  "title": "A relative path given as a string literal at a path parameter names a file beside the source file that wrote it, and a relative path built at run time throws",
+  "status": "shipped",
+  "seeAlso": [
+    "programs/path-case",
+    "security/path-scope-canonicalise-then-prefix",
+    "config/a-relative-path-resolves-against-the-file-it-is-written-in"
+  ],
+  "guardedBy": [
+    "crates/nvs-types/tests/paths.rs",
+    "crates/nvs-ir/tests/path_constants.rs",
+    "tests/conformance/core/path-a-written-relative-path-resolves-from-the-file-that-wrote-it.nvst",
+    "tests/conformance/core/path-a-relative-path-built-at-run-time-throws.nvst",
+    "tests/conformance/core/path-from-cwd-gives-a-path-core-io-read-accepts.nvst",
+    "tests/conformance/core/path-from-cwd-joins-the-working-directory.nvst",
+    "tests/conformance/core/path-from-cwd-throws-while-a-request-is-answered.nvst",
+    "tests/conformance/core/path-this-file-and-this-dir-name-the-file-that-wrote-them.nvst",
+    "tests/conformance/reject/path-this-dir-joins-only-a-written-relative-path.nvst",
+    "tests/conformance/isolate/a-spawn-script-path-written-in-the-code-names-the-script-beside-the-file-that-wrote-it.nvst",
+    "tests/conformance/reject/the-path-marker-is-only-for-a-string-parameter.nvst",
+    "tests/conformance/reject/path-a-tainted-path-not-from-cwd-does-not-reach-io-read.nvst",
+    "crates/nvs-runtime/src/capability.rs",
+    "crates/nvs-stdlib/src/queue.rs"
+  ]
+}

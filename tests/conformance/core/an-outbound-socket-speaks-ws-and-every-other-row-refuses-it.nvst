@@ -1,0 +1,61 @@
+--TEST--
+`Core\Http\Client::openSocket` speaks `ws` and `wss` and no other row does, so what a URL is for is written in the row that takes it — `rule:http-server/allow-url-pins-the-address`, `rule:http-server/an-outbound-socket-is-opened-like-an-outbound-call`
+--FILE--
+<?nvs
+// Agreement over the roster: the same question is asked of both halves of the
+// class, and each answers with the two schemes it speaks rather than with the
+// four the launderer admits. A row that grew its own roster fails here while
+// still looking right on its own line.
+Core\Test::answerSocket("ws://gateway.example.test/plain", ["over plain ws"]);
+
+// `ws` is allowed as plain `http` is, and there is no downgrade question,
+// because a socket follows no redirect.
+var $plain = Core\Http\Client::openSocket("ws://gateway.example.test/plain");
+echo "plain ", $plain->receive()?->text() ?? "-", "\n";
+echo "protocol=", $plain->protocol() ?? "none", "\n";
+
+// The socket row refuses the two a request takes.
+try {
+    var $https = Core\Http\Client::openSocket("https://gateway.example.test/plain");
+} catch (RuntimeError $secure) {
+    echo $secure->message, "\n";
+}
+try {
+    var $plainHttp = Core\Http\Client::openSocket("http://gateway.example.test/plain");
+} catch (RuntimeError $cleartext) {
+    echo $cleartext->message, "\n";
+}
+
+// And every request row refuses the two the socket row takes, so a URL
+// laundered meaning one thing cannot be spent as the other.
+try {
+    var $fetched = Core\Http\Client::get("wss://gateway.example.test/plain");
+} catch (RuntimeError $fetch) {
+    echo $fetch->message, "\n";
+}
+try {
+    var $streamed = Core\Http\Client::stream(Core\Http\Method::Post, "ws://gateway.example.test/plain");
+} catch (RuntimeError $streamref) {
+    echo $streamref->message, "\n";
+}
+
+// The launderer admits all four, so the socket URL gets past the roster and is
+// refused for the grant it has not been given instead — what it approves is a
+// host and its addresses rather than an intention.
+try {
+    var $target = Core\Http::allowUrl("wss://gateway.example.test/plain" as tainted string);
+} catch (RuntimeError $laundered) {
+    echo $laundered->message, "\n";
+}
+
+echo "sent=", Core\Arr::count(Core\Test::sentSocket()), "\n";
+--EXPECT--
+plain over plain ws
+protocol=none
+Core\Http\Client::openSocket: the scheme must be `ws` or `wss`, and this URL names `https`
+Core\Http\Client::openSocket: the scheme must be `ws` or `wss`, and this URL names `http`
+Core\Http\Client::get: the scheme must be `http` or `https`, and this URL names `wss`
+Core\Http\Client::stream: the scheme must be `http` or `https`, and this URL names `ws`
+Core\Http::allowUrl needs the capability `net.connect` for gateway.example.test, which is not granted
+help: grant it in nvs.toml under `[capabilities.net]`
+sent=0

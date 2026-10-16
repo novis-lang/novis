@@ -1,0 +1,44 @@
+--TEST--
+A call to a PHP built-in is `E0320` with the same general help as a name nobody has, and the help names no PHP function — `rule:tooling/an-agent-asks-the-binary`, `rule:classes/no-free-functions-or-constants`
+--FILE--
+<?nvs
+// covers: tools:agents/nvs-agent
+// A call to a function that does not exist does not compile. Every call
+// below gets the same help, which shows where the built-in methods are.
+
+array<int> $sizes = [3, 1, 2];
+echo count($sizes), "\n";
+echo intval("42"), "\n";
+echo addslashes("it's"), "\n";
+echo tally($sizes), "\n";
+--EXPECTF-ERROR--
+error[E0320]: `count` is not a function that exists
+  --> %s:7:6
+  |
+7 | echo count($sizes), "\n";
+  |      ^^^^^ no free function has this name
+  = help: `rule:classes/no-free-functions-or-constants`: every callable is a method, and the built-ins live under the reserved `Core` namespace — `Core\Str::length($s)`, or `use Core\Str;` and then `Str::length($s)`
+
+error[E0320]: `intval` is not a function that exists
+  --> %s:8:6
+  |
+8 | echo intval("42"), "\n";
+  |      ^^^^^^ no free function has this name
+  = help: `rule:classes/no-free-functions-or-constants`: every callable is a method, and the built-ins live under the reserved `Core` namespace — `Core\Str::length($s)`, or `use Core\Str;` and then `Str::length($s)`
+
+error[E0320]: `addslashes` is not a function that exists
+  --> %s:9:6
+  |
+9 | echo addslashes("it's"), "\n";
+  |      ^^^^^^^^^^ no free function has this name
+  = help: `rule:classes/no-free-functions-or-constants`: every callable is a method, and the built-ins live under the reserved `Core` namespace — `Core\Str::length($s)`, or `use Core\Str;` and then `Str::length($s)`
+
+error[E0320]: `tally` is not a function that exists
+   --> %s:10:6
+   |
+10 | echo tally($sizes), "\n";
+   |      ^^^^^ no free function has this name
+   = help: `rule:classes/no-free-functions-or-constants`: every callable is a method, and the built-ins live under the reserved `Core` namespace — `Core\Str::length($s)`, or `use Core\Str;` and then `Str::length($s)`
+
+error: aborting due to 4 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

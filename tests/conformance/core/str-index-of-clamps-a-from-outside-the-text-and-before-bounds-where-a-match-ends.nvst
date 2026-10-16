@@ -1,0 +1,33 @@
+--TEST--
+Core\Str::indexOf and lastIndexOf clamp a `from` or `before` outside the text to its start or end, and `before` limits where a match ends
+--FILE--
+<?nvs
+final class Show {
+    public static function render(?uint $found): string {
+        if ($found == null) {
+            return "none";
+        }
+        return $found as string;
+    }
+}
+
+// "haystack" is 8 characters long. A `from` past the end searches nothing,
+// and a `from` before the start searches the whole text.
+// An empty needle with a `from` past the end is found at the end, 8.
+echo Show::render(Core\Str::indexOf("haystack", "st", {from: 20})), "\n";
+echo Show::render(Core\Str::indexOf("haystack", "st", {from: -20})), "\n";
+echo Show::render(Core\Str::indexOf("haystack", "", {from: 20})), "\n";
+
+// `before` is where a match must end. `{before: -3}` is position 6 of 9,
+// so the last match that ends there starts at 3.
+// `before` outside the text is clamped the same way as `from`.
+echo Show::render(Core\Str::lastIndexOf("abcabcabc", "abc", {before: -3})), "\n";
+echo Show::render(Core\Str::lastIndexOf("abcabcabc", "abc", {before: 20})), "\n";
+echo Show::render(Core\Str::lastIndexOf("abcabcabc", "abc", {before: -20})), "\n";
+--EXPECT--
+none
+3
+8
+3
+6
+none

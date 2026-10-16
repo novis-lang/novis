@@ -1,0 +1,17 @@
+--TEST--
+`===` is refused with `E0232`, and the parser recovers it as a comparison, so the names on either side stay named while the operator itself receives no token — there is no operator type in the legend to dress it in — `rule:expressions/one-equality-operator`, `rule:ide/rejected-syntax-gets-no-colour`
+--FILE--
+<?nvs
+class Real {}
+var $a = 1;
+var $same = $a === $a;
+var $b = 2;
+--REQUEST--
+semanticTokens
+--EXPECT--
+2:7+4 class
+3:5+2 variable
+4:5+5 variable
+4:13+2 variable
+4:20+2 variable
+5:5+2 variable

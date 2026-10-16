@@ -1,0 +1,66 @@
+<?nvs
+// Attack: a program closes the same connection over and over, uses it after
+// closing it, and closes one while it is still reading rows. Every attempt
+// should either work or throw an error, and the program must reach its end.
+// hostile: timeout-ms 60000
+
+// 1. Two hundred thousand closes of one connection. Only the first gives the
+// connection back, and the rest must not pile anything up.
+var $db = Core\Db::connect('notes');
+$db->execute('create table if not exists notes (id integer primary key, text text not null)', []);
+uint $closed = 0;
+uint $i = 0;
+while ($i < 200000) {
+    $db->close();
+    $closed = $closed + 1;
+    $i = $i + 1;
+}
+echo '1 closed ', $closed, ' times, open: ', $db->isOpen() ? 'yes' : 'no', "\n";
+
+// 2. A hundred thousand statements on the closed connection. Every one is an
+// error, and a hundred thousand errors must not fill the memory.
+uint $refused = 0;
+$i = 0;
+while ($i < 100000) {
+    try {
+        $db->query('select id from notes', []);
+    } catch (Throwable $error) {
+        $refused = $refused + 1;
+    }
+    $i = $i + 1;
+}
+echo '2 refused: ', $refused, "\n";
+
+// 3. Twenty thousand connections, each closed at once. A close frees the name,
+// so every round opens a new connection that the round has to give back.
+uint $rounds = 0;
+$i = 0;
+while ($i < 20000) {
+    var $one = Core\Db::connect('notes');
+    $one->close();
+    $rounds = $rounds + 1;
+    $i = $i + 1;
+}
+echo '3 opened and closed: ', $rounds, "\n";
+
+// 4. A connection closed while it is reading rows. The rows after the close are
+// the attack: nothing may be read out of a connection that was given back.
+var $walk = Core\Db::connect('notes');
+$walk->execute('create table if not exists many (n integer not null)', []);
+$i = 0;
+while ($i < 200) {
+    $walk->execute('insert into many (n) values (?)', [$i as int]);
+    $i = $i + 1;
+}
+uint $seen = 0;
+try {
+    foreach ($walk->stream('select n from many order by n', []) as Core\Db\Row $row) {
+        $seen = $seen + 1;
+        if ($seen == 1) {
+            $walk->close();
+        }
+    }
+} catch (Throwable $error) {
+    echo "4 the walk stopped with an error\n";
+}
+echo '4 rows read: ', $seen, "\n";

@@ -1,0 +1,49 @@
+--TEST--
+A child placed `on: "worker"` that loops forever is charged on the core that runs it and stopped by its request's `cpu_time`, and the request is stopped at its next poll: the child's CPU time is the tree's — `rule:security/isolate-budget-is-the-trees`, `rule:errors/on-limit`
+--FILE nvs.toml--
+# `rule:security/capability-check-at-the-door`: `spawn script` goes through a
+# door that asks for `script.spawn` first.
+[capabilities.script]
+spawn = true
+
+# The tree's one ceiling, which the parent and the child it placed share.
+[limits]
+cpu_time = "200ms"
+--FILE--
+<?nvs
+// The method form, so the child crosses with no resolver in the picture.
+final class Spinner
+{
+    // The condition is a comparison rather than `true`, so the loop is compiled
+    // as written and nothing may treat it as one that never exits.
+    public static function spin(int $from): int {
+        int $spins = $from;
+        while ($spins >= 0) {
+            $spins = $spins + 1;
+        }
+        return $spins;
+    }
+}
+
+Core\Fatal::onLimit(fn (array<string> $report): void => {
+    echo "onLimit ", $report['limit'], "\n";
+});
+echo "start\n";
+
+// The parent parks in the `await` and spends nothing. The child spends the
+// whole ceiling on another core, which is what stops it.
+var $child = spawn script Spinner::spin(...)
+    with(args: ["from" => 0], output: "capture", on: "worker");
+var $done = await $child;
+echo "child ok=", $done->ok ? "true" : "false", "\n";
+
+// The ceiling is the tree's, so the parent is over too: its next poll is the
+// first loop of this call, and the line after it never runs.
+int $again = Spinner::spin(0);
+echo "spun again ", $again, "\n";
+--EXPECT--
+start
+child ok=false
+onLimit cpu_time
+--EXPECT-ERROR--
+FATAL: the request exceeded its CPU-time limit

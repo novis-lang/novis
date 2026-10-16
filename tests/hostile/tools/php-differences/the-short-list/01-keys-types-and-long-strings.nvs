@@ -1,0 +1,67 @@
+<?nvs
+// Attack: a program mixes number and string keys, converts bad input, and measures a very long character.
+// Each step should end with an error or a clean result, and never a crash.
+// hostile: timeout-ms 30000
+
+class Counter
+{
+    public static function down(inout int $n): void
+    {
+        if ($n > 0) {
+            $n = $n - 1;
+            Counter::down(inout $n);
+        }
+    }
+}
+
+// 1. The keys 7 and "7" are the same key, and "07" is a different key.
+array<int> $seen = [];
+uint $i = 0;
+while ($i < 200000) {
+    $seen[$i % 1000] = 1;
+    $seen[($i % 1000) as string] = 2;
+    $seen['0' . (($i % 1000) as string)] = 3;
+    $i = $i + 1;
+}
+echo Core\Arr::count($seen), "\n";
+
+// 2. Input that is not a number, or is too big for `int`, is converted with `as int`.
+array<string> $inputs = ['12', '012', '', '12abc', '99999999999999999999999', '-', ' 5'];
+foreach ($inputs as string $input) {
+    try {
+        echo ($input as int), "\n";
+    } catch (Throwable $e) {
+        echo 'caught: ', $e->message, "\n";
+    }
+}
+
+// 3. A `mixed` variable changes type on every round, and is then converted.
+mixed $value = 0;
+$i = 0;
+while ($i < 100000) {
+    $value = $i % 2 == 0 ? $i : 'text';
+    $i = $i + 1;
+}
+try {
+    echo ($value as int), "\n";
+} catch (Throwable $e) {
+    echo 'caught: ', $e->message, "\n";
+}
+
+// 4. One letter is followed by 1,000,000 accent marks, so the string is one character.
+string $long = 'e' . Core\Str::repeat("\u{0301}", 1000000);
+echo Core\Str::length($long), "\n";
+
+// 5. `==` compares two strings of 10,000,000 bytes that differ only in the last byte.
+string $left = Core\Str::repeat('a', 10000000) . 'b';
+string $right = Core\Str::repeat('a', 10000000) . 'c';
+echo $left == $right ? 'eq' : 'ne', "\n";
+
+// 6. A method passes an `inout` value to itself 1,000,000 times.
+int $depth = 1000000;
+try {
+    Counter::down(inout $depth);
+    echo $depth, "\n";
+} catch (Throwable $e) {
+    echo 'caught: ', $e->message, "\n";
+}

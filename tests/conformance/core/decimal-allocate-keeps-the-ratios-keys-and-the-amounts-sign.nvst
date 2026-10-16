@@ -1,0 +1,38 @@
+--TEST--
+`rule:types/decimal`: `Core\Decimal::allocate` answers under the ratios' own keys, gives the remainder by position rather than by weight, and splits the magnitude so a negative amount mirrors a positive one
+--FILE--
+<?nvs
+// The keys are the ratios', so a split written under the names of its parties
+// answers under those names -- and a list answers a list, which is the same
+// rule read over the keys a list already has.
+array<decimal> $shares = ["alice" => 1, "bob" => 2];
+foreach (Core\Decimal::allocate(10.00, $shares) as string $name => decimal $part) {
+    echo $name, "=", $part, " ";
+}
+echo "\n";
+
+// Position decides who takes a leftover unit, not weight: a ratio of zero
+// takes no share of its own and is still a part, so coming first is enough.
+// A caller who means "nothing here at all" leaves the part out.
+foreach (Core\Decimal::allocate(0.05, [0, 1, 1]) as decimal $penny) {
+    echo $penny, " ";
+}
+echo "\n";
+
+// The magnitude is what is split and the sign goes back on afterwards, so the
+// parts of a debt are the negatives of the parts of the same sum owed the
+// other way -- not a truncation leaning towards the larger loss. A negative
+// `decimal` is built by subtraction, since a unary minus in front of a literal
+// is an operator over an `int` (`rule:types/numeric-literal-placement`).
+decimal $nickel = 0.05;
+decimal $owed = 0 - $nickel;
+decimal $back = 0.00;
+foreach (Core\Decimal::allocate($owed, [1, 1, 1]) as decimal $part) {
+    echo $part, " ";
+    $back = $back + $part;
+}
+echo "= ", $back, "\n";
+--EXPECT--
+alice=3.34 bob=6.66
+0.01 0.02 0.02
+-0.02 -0.02 -0.01 = -0.05

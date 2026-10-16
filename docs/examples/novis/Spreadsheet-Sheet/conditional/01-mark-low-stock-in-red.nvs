@@ -1,0 +1,21 @@
+<?nvs
+// Shows how to mark each quantity below 10 with a red fill.
+use Novis\Spreadsheet\Style;
+use Novis\Spreadsheet\Workbook;
+
+var $book = Workbook::createInMemory();
+var $sheet = $book->sheet('Stock');
+$sheet->addAll([['item' => 'Pen', 'qty' => 120], ['item' => 'Ink', 'qty' => 3], ['item' => 'Pad', 'qty' => 60]]);
+
+// Excel fills each cell of B2:B4 whose value is less than 10.
+$sheet->conditional($sheet->column('qty'), {
+    kind: 'cell',
+    operator: 'less',
+    values: ['10'],
+    style: Style::of({ fill: '#FFC7CE', color: '#9C0006' }),
+});
+bytes $file = $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
+
+// `Core\Zip::read` returns the XML of the sheet. This line checks that the rule is in it.
+var $xml = Core\Zip::read($file, 'xl/worksheets/sheet1.xml') as string;
+echo Core\Str::contains($xml, '<conditionalFormatting sqref="B2:B4">') ? 'B2:B4 has a rule' : 'no rule', "\n";

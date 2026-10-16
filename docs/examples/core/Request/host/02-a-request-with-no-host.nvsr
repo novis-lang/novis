@@ -1,0 +1,6 @@
+--METHOD--
+GET
+--PATH--
+/status
+--HEADERS--
+accept: text/plain

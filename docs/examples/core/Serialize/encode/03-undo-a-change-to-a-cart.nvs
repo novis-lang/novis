@@ -1,0 +1,29 @@
+<?nvs
+// Shows how to keep a copy of a shopping cart, so a change can be undone.
+
+class Cart {
+    public array<uint> $items = [];
+
+    public function total(): uint {
+        uint $sum = 0;
+        foreach ($this->items as uint $count) {
+            $sum = $sum + $count;
+        }
+        return $sum;
+    }
+}
+
+Cart $cart = new Cart();
+$cart->items["apple"] = 3;
+$cart->items["bread"] = 1;
+
+// The bytes are a copy of the cart at this moment.
+bytes $saved = Core\Serialize::encode($cart);
+
+// The customer adds ten more apples. This prints 14.
+$cart->items["apple"] = 13;
+echo $cart->total(), "\n";
+
+// The customer undoes the change. `decode()` returns the cart as it was, so this prints 4.
+$cart = Core\Serialize::decode($saved) as Cart;
+echo $cart->total(), "\n";

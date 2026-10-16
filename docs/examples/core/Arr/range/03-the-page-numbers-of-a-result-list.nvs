@@ -1,0 +1,15 @@
+<?nvs
+// Shows how to build the page links under a list of search results. This
+// search filled 5 pages, and the reader is on page 3.
+
+int $pages = 5;
+int $current = 3;
+
+// One line per page. The page the reader is on is printed without a link.
+foreach (Core\Arr::range(1, $pages) as int $page) {
+    if ($page == $current) {
+        echo $page, "\n";
+    } else {
+        echo '<a href="?page=', $page, '">', $page, '</a>', "\n";
+    }
+}

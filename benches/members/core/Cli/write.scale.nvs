@@ -1,0 +1,22 @@
+<?nvs
+// Measures `Core\Cli::write` printing one line to standard output, at growing line lengths.
+// bench: start 256
+// bench: max 4096
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        string $row = Core\Str::repeat('a', $size);
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            Core\Cli::write($row, {newline: true});
+            $total = $total + Core\Str::length($row);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

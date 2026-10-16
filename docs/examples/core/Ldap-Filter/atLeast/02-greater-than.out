@@ -1,0 +1,2 @@
+(!(badPwdCount<=5))
+(badPwdCount>=6)

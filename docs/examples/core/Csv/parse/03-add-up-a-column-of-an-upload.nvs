@@ -1,0 +1,22 @@
+<?nvs
+// Shows how to read a price list somebody uploaded and add up one column. The
+// file was written by a spreadsheet, so the fields are separated by semicolons
+// and one product name contains a semicolon of its own.
+
+string $upload = "product;count;price\n"
+    . "Beans, dried;3;4.10\n"
+    . "\"Salt; coarse\";2;1.50\n";
+
+var $lines = Core\Csv::parse($upload, {separator: ";", header: true});
+
+float $total = 0.0;
+foreach ($lines as array<string> $line) {
+    // A field is always text, so the two numbers are converted before they are
+    // used. `as ?float` gives `null` for a field that is not a number.
+    float $price = ($line['price'] as ?float) ?? 0.0;
+    float $count = ($line['count'] as ?float) ?? 0.0;
+    $total = $total + $price * $count;
+}
+
+// This prints `order total: 15.3`.
+echo 'order total: ', $total, "\n";

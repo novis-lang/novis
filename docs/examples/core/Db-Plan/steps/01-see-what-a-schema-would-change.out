@@ -1,0 +1,3 @@
+2 steps
+- A nullable column with no default is a catalog write on all four: every existing row already has its value, and it is null.
+- A new table holds no rows: nothing to lose, nothing to validate, nothing to block.

@@ -1,0 +1,45 @@
+<?nvs
+// Attack: a request sends angles that are not numbers or that grow the image again and again.
+// Each attempt should throw an error or return an image, and the server keeps running.
+use Novis\Image\Color;
+use Novis\Image\Image;
+
+Image $small = Image::create(8, 8, Color::hex('#ff0000'));
+
+// 1. An angle that is not a number.
+try {
+    $small->rotate(Core\Math::sqrt(-1.0))->raw();
+    echo "step 1 ran\n";
+} catch (Throwable $e) {
+    echo "step 1 stopped\n";
+}
+
+// 2. An angle of infinity.
+try {
+    $small->rotate(1.0e308 * 10.0)->raw();
+    echo "step 2 ran\n";
+} catch (Throwable $e) {
+    echo "step 2 stopped\n";
+}
+
+// 3. A very large angle.
+try {
+    $small->rotate(1.0e300, { background: Color::hex('#ffffff') })->raw();
+    echo "step 3 ran\n";
+} catch (Throwable $e) {
+    echo "step 3 stopped\n";
+}
+
+// 4. Many turns by 45 degrees in a row. Each turn makes the image larger.
+try {
+    Image $growing = $small;
+    uint $i = 0;
+    while ($i < 80) {
+        $growing = $growing->rotate(45.0);
+        $i = $i + 1;
+    }
+    var $last = $growing->raw();
+    echo 'step 4 ran ', $last->width, "\n";
+} catch (Throwable $e) {
+    echo "step 4 stopped\n";
+}

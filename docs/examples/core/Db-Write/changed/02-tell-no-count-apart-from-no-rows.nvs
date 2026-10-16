@@ -1,0 +1,24 @@
+<?nvs
+// Shows the difference `changed` keeps and `affected` does not: a statement
+// that changed no rows, and a statement the server gave no count for.
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table notes (id integer primary key, text text not null)', []);
+$db->execute('insert into notes (text) values (?)', ['buy milk']);
+
+var $write = $db->execute('update notes set text = ? where id = ?', ['buy bread', 99]);
+var $count = $write->changed();
+
+if ($count == null) {
+    // Some servers report no count for a statement such as `create table`.
+    echo "the server reported no count\n";
+} else {
+    // SQLite reports a count for every statement, so this is the line that
+    // runs here. No note has id 99, so it prints `0 rows matched`.
+    echo $count, " rows matched\n";
+}
+
+// `affected` is the same count with the `null` folded to `0`. This prints `0`.
+echo $write->affected(), "\n";
+
+$db->close();

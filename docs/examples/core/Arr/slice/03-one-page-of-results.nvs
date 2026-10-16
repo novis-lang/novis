@@ -1,0 +1,19 @@
+<?nvs
+// Shows one page of search results. The page number and the page size decide
+// where the window opens, which is how a long list is shown a page at a time.
+
+array<string> $found = [
+    'Keyboard', 'Lamp', 'Monitor', 'Mouse', 'Notebook', 'Pen', 'Printer',
+];
+
+int $perPage = 3;
+int $page = 2;
+
+// The second page opens at position 3. This prints `Mouse, Notebook, Pen`.
+array<string> $shown = Core\Arr::slice($found, ($page - 1) * $perPage, $perPage);
+echo 'page ', $page, ': ', Core\Str::join($shown, ', '), "\n";
+
+// The last page holds what is left, which can be less than the page size.
+// This prints `Printer`.
+array<string> $rest = Core\Arr::slice($found, 2 * $perPage, $perPage);
+echo 'page 3: ', Core\Str::join($rest, ', '), "\n";

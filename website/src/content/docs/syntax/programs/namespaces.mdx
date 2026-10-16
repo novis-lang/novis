@@ -1,0 +1,57 @@
+---
+title: Namespaces, use and autoload
+covers: ['lang:programs/namespaces-and-use', 'lang:programs/autoload-find-a-class-by-its-namespace']
+description: How to put a class in a namespace, import it with use, and let autoload find the file it is in.
+---
+import Snippet from '@components/Snippet.astro'
+
+A namespace is the first part of a class name. `App\Text\Greeter` is the class `Greeter` in the
+namespace `App\Text`. A file says its namespace in one line at the top.
+
+This is the file `lib/Text/Greeter.nvs`:
+
+<Snippet src="syntax/namespaces/lib/Text/Greeter.nvs" />
+
+The program below uses that class. It never names the file. `autoload` finds the file from the
+class name.
+
+<Snippet src="syntax/namespaces/01-namespaces.nvs" />
+
+## Namespaces and use
+
+- A file has at most one `namespace` line. It comes before everything else.
+- `use App\Text\Greeter;` imports one class. After it, you write `Greeter`.
+- Write one `use` for each class. `use A\B as C;` and `use A\{B, C};` do not compile.
+- `namespace` and `use` are only allowed at the top level of a file. They are not allowed inside a
+  class or a function.
+- A name with a backslash, like `Core\Str`, is always the full name. It needs no `use`.
+- A name without a backslash is looked up in the `use` lines first. Then it is looked up in the
+  namespace of the file. Novis looks nowhere else.
+- A name never starts with a backslash. `\Core\Str` does not compile.
+- `Core` is reserved for the classes Novis ships. `namespace Core;` does not compile.
+- Names are case-sensitive. `greeter` and `Greeter` are two different names.
+
+## Autoload
+
+`autoload 'App' from './lib';` connects a namespace to a folder. To find `App\Text\Greeter`,
+Novis removes `App` from the front. The rest becomes the path `./lib/Text/Greeter.nvs`.
+
+- The folder is relative to the folder of the file that has the `autoload` line.
+- One prefix can have several folders: `autoload 'Acme' from './lib', './compat';`. Novis searches
+  them in order.
+- `autoload discover './packages/*/src';` adds every folder that matches the pattern. The `*`
+  part of the path is the namespace.
+- A file that `autoload` finds declares exactly one class, interface, enum or `type`. Its full name
+  must be the name Novis looked for.
+- Novis finds every file while it compiles. A class that is not found is a compile error. The
+  error lists the folders Novis searched.
+- A folder that does not exist is allowed. `nvs check --autoload-map` lists it under `missing`.
+- `autoload` reads each file once, however many times you use the class.
+
+## Do and don't
+
+- Do give each class its own file, in the folder its namespace names.
+- Do write one `autoload` line in the file that starts your program.
+- Do write `use` for a class you name often, and the full name for one you name once.
+- Don't use `require` to load a class. Use `autoload`, so the file is read only once.
+- Don't start a name with a backslash. A name with a backslash in it is already the full name.

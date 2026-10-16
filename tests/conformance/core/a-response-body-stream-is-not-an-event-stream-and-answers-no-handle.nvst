@@ -1,0 +1,31 @@
+--TEST--
+A response body written over time is not an event stream, so `Core\Sse::current` refuses in a program that opened one — `rule:concurrency/a-stream-that-outlives-its-request-is-a-connection` and `rule:security/response-body-is-one-typed-member`
+--FILE--
+<?nvs
+// The two members open the same cell and only one of them opens an *event*
+// stream. A `current()` that asked whether a body was being written would hand
+// an event-stream handle to a program writing CSV, and every event it then sent
+// would be framed into the middle of that body — which is why the question the
+// member asks is the door having been opened and not the body.
+var $written = Core\Out::capture(fn (): void => {
+    var $rows = Core\Response::stream("text/csv");
+    $rows->write("id,name\n");
+    $rows->write("1,ada\n");
+});
+echo $written;
+echo "--\n";
+
+// The body that was opened is untouched by the refusal: what is refused is the
+// handle, not the response.
+var $refused = "";
+try {
+    Core\Sse::current();
+} catch (LogicError $caught) {
+    $refused = $caught->message;
+}
+echo $refused, "\n";
+--EXPECT--
+id,name
+1,ada
+--
+`Core\Sse::current` needs a program writing an event stream and this is not one: a stream is opened by `Core\Sse::stream` for the request that answers with it and by `Core\Sse::upgrade` for the isolate that outlives it, and a response writing an ordinary body over time is neither

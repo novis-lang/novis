@@ -1,0 +1,10 @@
+<?nvs
+// Shows how to read a UUID from its sixteen bytes and print it as text.
+
+// `Core\Encoding::fromHex` gives the sixteen bytes of one UUID.
+bytes $octets = Core\Encoding::fromHex("f9168c5eceb24faab6bf329bf39fa1e4");
+
+// `Core\Uuid::fromBytes` reads them as a UUID.
+// This prints f9168c5e-ceb2-4faa-b6bf-329bf39fa1e4.
+var $id = Core\Uuid::fromBytes($octets);
+echo $id, "\n";

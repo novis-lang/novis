@@ -1,0 +1,4 @@
+shop: saved
+blog: not saved. Core\Http::allowUrl refuses 192.168.1.20: it is private (10/8, 172.16/12, 192.168/16), which `net.internal` does not except
+chat: saved
+2 webhooks are ready.

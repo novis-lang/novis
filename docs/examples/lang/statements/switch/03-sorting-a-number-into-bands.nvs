@@ -1,0 +1,27 @@
+<?nvs
+// Shows `switch (true)`, which tests one condition after another and runs the
+// first one that is true. A program does this to sort a number into bands.
+
+class Shipping
+{
+    public static function band(uint $grams): string
+    {
+        switch (true) {
+            case $grams <= 500:
+                return "letter";
+            case $grams <= 2000:
+                return "small parcel";
+            case $grams <= 20000:
+                return "parcel";
+            default:
+                return "freight";
+        }
+    }
+}
+
+array<uint> $weights = [120, 1500, 9000, 45000];
+
+foreach ($weights as uint $grams) {
+    // This prints letter, small parcel, parcel and freight, one per line.
+    echo $grams, "g: ", Shipping::band($grams), "\n";
+}

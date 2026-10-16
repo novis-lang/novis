@@ -1,0 +1,23 @@
+--TEST--
+The cursor on `is` expands to the whole test and then out to the `if` that holds it, `rule:ide/the-request-set-is-closed`
+--FILE--
+<?nvs
+interface Shape
+{
+    public function area(): int;
+}
+
+class Square implements Shape
+{
+    public function area(): int { return 4; }
+}
+
+mixed $s = new Square();
+if ($s i<|>s Shape) {
+    echo $s->area();
+}
+--REQUEST--
+selectionRange
+--EXPECT--
+13:5-13:16
+13:1-15:2

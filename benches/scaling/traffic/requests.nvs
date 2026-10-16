@@ -1,0 +1,14 @@
+<?nvs
+// Answers each request with a JSON list of 20 products, as a shop's product page does.
+// scaling: kind serve
+// scaling: start 64
+// scaling: max 8192
+// scaling: expect linear
+
+array<mixed> $products = [];
+uint $i = 0;
+while ($i < 20) {
+    $products[] = { name: "Product " . $i, price: 100 + $i * 7 };
+    $i = $i + 1;
+}
+echo Core\Json::encode($products), "\n";

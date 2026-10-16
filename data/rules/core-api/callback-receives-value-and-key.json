@@ -1,0 +1,13 @@
+{
+  "title": "A callback always receives `($value, $key)`, and may declare fewer parameters than the call site passes",
+  "status": "shipped",
+  "seeAlso": [
+    "core-api/no-mode-strings",
+    "types/callable-arity",
+    "types/callable-values"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/arr-map-and-filter.nvst",
+    "tests/conformance/core/arr-map-keys-rekeys-and-group-by-partitions.nvst"
+  ]
+}

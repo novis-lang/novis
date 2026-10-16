@@ -1,0 +1,17 @@
+<?nvs
+// Shows the highest amount of memory a program has used. The peak is never
+// lower than the memory the program is using right now.
+
+array<string> $report = [];
+int $i = 0;
+while ($i < 10000) {
+    $report[] = "one line of the report";
+    $i = $i + 1;
+}
+
+uint $held = Core\Budget::memoryHeld();
+uint $peak = Core\Budget::memoryPeak();
+
+// The program is at its highest point right now, so the two readings are close
+// together. This prints "yes".
+echo $peak >= $held ? "yes\n" : "no\n";

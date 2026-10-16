@@ -1,0 +1,22 @@
+--TEST--
+A value an `Ldap\Entry` returns is `tainted`, so `string`'s result does not compile as a search `base` — `rule:core-classes/ldap-value-types` and `rule:security/tainted-qualifier`
+--FILE--
+<?nvs
+class Reports {
+    public static function under(Core\Ldap\Connection $corp, Core\Ldap\Entry $manager): void {
+        var $base = $manager->string("distinguishedName");
+        if ($base != null) {
+            var $found = $corp->search(Core\Ldap\Filter::present("cn"), {base: $base});
+        }
+    }
+}
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `string|Core\Ldap\Dn`, found `tainted string`
+  --> case.nvs:6:80
+%A
+  = help: a `tainted` DN is a sink: build it with `Core\Ldap\Dn::of($attribute, $value)` or `$dn->child($attribute, $value)`, which escape the value and return the `Core\Ldap\Dn` this parameter accepts
+
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

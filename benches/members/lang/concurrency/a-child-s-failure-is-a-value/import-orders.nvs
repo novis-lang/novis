@@ -1,0 +1,5 @@
+<?nvs
+// The bench beside this folder starts this script. It stops at the first row
+// it cannot read.
+
+throw new RuntimeError("row 31 has no price");

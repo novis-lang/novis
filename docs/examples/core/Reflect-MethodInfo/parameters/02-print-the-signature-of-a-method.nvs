@@ -1,0 +1,18 @@
+<?nvs
+// Shows how to print a method with the name and the type of each parameter.
+
+class Search {
+    public function find(string $text, ?int $limit, array<string> $tags): array<string> {
+        return $tags;
+    }
+}
+
+foreach (Core\Reflect::forObject(new Search())->methods() as Core\Reflect\MethodInfo $method) {
+    array<string> $parts = [];
+    foreach ($method->parameters() as Core\Reflect\ParameterInfo $parameter) {
+        // `type` returns the type as the method writes it, for example `?int`.
+        $parts[] = ($parameter->type() ?? "?") . " $" . $parameter->name();
+    }
+    // This prints `find(string $text, ?int $limit, array<string> $tags)`.
+    echo $method->name(), "(", Core\Str::join($parts, ", "), ")\n";
+}

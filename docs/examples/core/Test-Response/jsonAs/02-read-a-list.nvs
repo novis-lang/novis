@@ -1,0 +1,31 @@
+<?nvs
+// Shows how to read a JSON array of objects into a list of your own class.
+
+use Core\Http\Method;
+use Core\Test;
+
+#[Core\Json\Derive]
+class Product {
+    public string $sku;
+    public int $price;
+
+    public function constructor(string $sku, int $price) {
+        $this->sku = $sku;
+        $this->price = $price;
+    }
+}
+
+if (Core\Env::context() == Core\Env::Context::Request) {
+    // This part answers each request. It sends a list of two products.
+    Core\Response::json([["sku" => "mug-7", "price" => 12], ["sku" => "cup-2", "price" => 8]]);
+} else {
+    var $response = Test::request(Method::Get, "/products");
+
+    // `array<Product>` creates one `Product` for each element.
+    var $products = $response->jsonAs<array<Product>>();
+
+    // This prints `mug-7` and then `cup-2`.
+    foreach ($products as Product $product) {
+        echo $product->sku, "\n";
+    }
+}

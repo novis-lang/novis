@@ -1,0 +1,4 @@
+4 passed
+3 is odd: Core\Test::assertSame failed: `$actual` is 1, `$expected` is 0
+a fresh counter is one: Core\Test::assertEquals failed: `$actual` is 1, `$expected` is 2
+a ParseError is a RuntimeError

@@ -1,0 +1,87 @@
+--TEST--
+Core\Str::codePoints returns the Unicode scalar values of a text, Core\Str::fromCodePoint encodes one as UTF-8, and fromCodePoint throws on a surrogate and on a value past U+10FFFF
+--FILE--
+<?nvs
+final class Show {
+    // Returns the bytes of the text in hex.
+    public static function bytes(string $text): string {
+        return Core\Encoding::toHex($text as bytes);
+    }
+}
+
+// `é`, `中` and `👍` are one code point each, in 2, 3 and 4 bytes.
+// `e` with a combining accent, and `👍` with a skin tone, are two code points
+// each but one grapheme (what a person counts as one character).
+// `\r\n` is two code points and one grapheme.
+array<string> $subjects = ["é", "e\u{0301}", "中", "👍", "👍\u{1F3FD}", "aé中👍", "\r\n"];
+
+// Each line prints the bytes in hex, the code points, the number of code
+// points, and the number of graphemes that `Core\Str::length` counts.
+foreach ($subjects as string $subject) {
+    echo Show::bytes($subject), " ",
+        Core\Json::encode(Core\Str::codePoints($subject)), " ",
+        Core\Arr::count(Core\Str::codePoints($subject)), " ",
+        Core\Str::length($subject), "\n";
+}
+
+// This counts the texts where the number of code points and the number of
+// graphemes are the same. It is 4 of the 7.
+int $agree = 0;
+int $cells = 0;
+foreach ($subjects as string $one) {
+    $cells = $cells + 1;
+    if (Core\Arr::count(Core\Str::codePoints($one)) == Core\Str::length($one)) {
+        $agree = $agree + 1;
+    }
+}
+echo $agree, " of ", $cells, "\n";
+
+// Every text is rebuilt from its code points, first with `fromCodePoints`
+// and then one code point at a time with `fromCodePoint`.
+// Both give back the same text for all seven.
+int $back = 0;
+int $piece = 0;
+foreach ($subjects as string $each) {
+    if (Core\Str::fromCodePoints(Core\Str::codePoints($each)) == $each) {
+        $back = $back + 1;
+    }
+    string $out = "";
+    foreach (Core\Str::codePoints($each) as uint $point) {
+        $out = $out . Core\Str::fromCodePoint($point);
+    }
+    if ($out == $each) {
+        $piece = $piece + 1;
+    }
+}
+echo $back, " ", $piece, " of ", $cells, "\n";
+
+// `fromCodePoint` throws an error on a surrogate (55296 to 57343) and on any
+// value above 1114111 (U+10FFFF). Each of those is listed beside the value
+// next to it that is allowed. 127 and 128 are the last 1-byte and the first
+// 2-byte code points.
+array<int> $probes = [127, 128, 233, 55295, 55296, 57343, 57344, 65533, 1114111, 1114112];
+int $made = 0;
+int $threw = 0;
+foreach ($probes as int $probe) {
+    try {
+        string $built = Core\Str::fromCodePoint($probe as uint);
+        echo "[", Show::bytes($built), "]";
+        $made = $made + 1;
+    } catch (Throwable $refused) {
+        echo "[refused]";
+        $threw = $threw + 1;
+    }
+}
+echo "\n", $made, " built, ", $threw, " refused\n";
+--EXPECT--
+c3a9 [233] 1 1
+65cc81 [101,769] 2 1
+e4b8ad [20013] 1 1
+f09f918d [128077] 1 1
+f09f918df09f8fbd [128077,127997] 2 1
+61c3a9e4b8adf09f918d [97,233,20013,128077] 4 4
+0d0a [13,10] 2 1
+4 of 7
+7 7 of 7
+[7f][c280][c3a9][ed9fbf][refused][refused][ee8080][efbfbd][f48fbfbf][refused]
+7 built, 3 refused

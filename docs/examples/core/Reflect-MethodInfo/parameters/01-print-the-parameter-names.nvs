@@ -1,0 +1,21 @@
+<?nvs
+// Shows how to print the parameter names of every method of a class.
+
+class Mailer {
+    public function send(string $to, string $subject, int $retries): bool {
+        return true;
+    }
+
+    public function ping(): bool {
+        return true;
+    }
+}
+
+// This prints `ping:` with no names, and `send: to subject retries`.
+foreach (Core\Reflect::forObject(new Mailer())->methods() as Core\Reflect\MethodInfo $method) {
+    echo $method->name(), ":";
+    foreach ($method->parameters() as Core\Reflect\ParameterInfo $parameter) {
+        echo " ", $parameter->name();
+    }
+    echo "\n";
+}

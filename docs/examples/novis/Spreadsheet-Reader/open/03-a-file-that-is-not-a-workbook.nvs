@@ -1,0 +1,16 @@
+<?nvs
+// Shows what happens when an upload is a damaged spreadsheet file.
+use Novis\Spreadsheet\Reader;
+use Novis\Spreadsheet\Workbook;
+
+// This file is cut after its first 100 bytes, as an upload that did not finish.
+bytes $whole = Workbook::fromRows([['item' => 'Widget']])->bytes();
+bytes $cut = Core\Bytes::slice($whole, 0, 100);
+
+// `Reader::open` throws a `ParseError`. You can catch it and tell the person what is wrong.
+try {
+    Reader::open($cut);
+    echo "opened\n";
+} catch (ParseError $e) {
+    echo 'The upload could not be read: ', $e->message, "\n";
+}

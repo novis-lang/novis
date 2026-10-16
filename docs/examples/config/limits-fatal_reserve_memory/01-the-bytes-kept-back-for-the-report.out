@@ -1,0 +1,7 @@
+the heap a request starts with: 256M
+held back for the report:       1M
+ask for a bigger net:           refused
+ask for no net:                 refused
+still:                          1M
+keep myself small:              accepted
+heap now:                       64M

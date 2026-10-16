@@ -1,0 +1,16 @@
+<?nvs
+// Shows how `resolve` removes the `.` and `..` parts of a path.
+
+Core\Uri $docs = Core\Uri::parse("https://example.com/docs/guide/");
+
+// `.` is the current folder and `..` is the folder above it.
+// This prints https://example.com/docs/api/start.
+echo $docs->resolve("../api/./start")->toString(), "\n";
+
+// A `..` at the top of the path is removed, so the result stays on the site.
+// This prints https://example.com/secret.
+echo $docs->resolve("../../../../secret")->toString(), "\n";
+
+// An empty link returns the address of the base itself.
+// This prints https://example.com/docs/guide/.
+echo $docs->resolve("")->toString(), "\n";

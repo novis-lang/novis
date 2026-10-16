@@ -1,0 +1,28 @@
+<?nvs
+// Shows what happens when the code throws an error, and how to add your own message.
+
+class Settings {
+    public static function load(string $text): void {
+        if (!Core\Str::contains($text, "=")) {
+            throw new LogicError("a setting needs a name and a value");
+        }
+    }
+}
+
+// The code throws a `LogicError`, so the check throws a `Core\Test\Failure`.
+// The message contains the message of the `LogicError`.
+try {
+    Core\Test::assertDoesNotThrow(fn (): void => { Settings::load("mode"); });
+} catch (Core\Test\Failure $failure) {
+    echo $failure->message, "\n";
+}
+
+// The option `message` adds your own text at the start of the message.
+try {
+    Core\Test::assertDoesNotThrow(
+        fn (): void => { Settings::load("mode"); },
+        {message: "a setting without a value is allowed"},
+    );
+} catch (Core\Test\Failure $failure) {
+    echo $failure->message, "\n";
+}

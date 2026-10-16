@@ -1,0 +1,130 @@
+<?nvs
+// Attack: a request tries to raise its own `[limits]` past `[limits.hard]`, or to
+// set them to values that cannot be read correctly. Every such write should fail,
+// and the limits should end at the configured values.
+// hostile: timeout-ms 30000
+
+// 1. Sets every key above its ceiling. Some values write the same size in other
+//    ways, like `700 M` or `700MiB`. Every write should fail.
+array<string> $overshoot = [
+    '1G',
+    '512G',
+    '700 M',
+    '700m',
+    '700MiB',
+    '700 MiB',
+    '1 G',
+    '1g',
+    '1GiB',
+    '2GB',
+    '0x40000000',
+    '1024T',
+    '18446744073709551615',
+    '18446744073709551616',
+    '340282366920938463463374607431768211456',
+    Core\Str::repeat('9', 4096),
+    Core\Str::repeat('9', 100000) . 'G',
+];
+array<string> $keys = ['memory', 'cpu_time', 'wall_time', 'max_tasks', 'max_output', 'max_regex_steps'];
+foreach ($keys as string $key) {
+    foreach ($overshoot as string $value) {
+        Core\Config::set('limits.' . $key, $value);
+        Core\Config::get('limits.' . $key);
+    }
+    Core\Config::restore('limits.' . $key);
+}
+
+// 2. Tries values that are not valid sizes: negative, zero, huge, or with extra
+//    text. Every write should fail, so no read returns one of these values.
+array<string> $nonsense = [
+    '',
+    ' ',
+    '-1',
+    '-0',
+    '+256M',
+    '0',
+    '0x100000',
+    '0b1',
+    '1e999',
+    'Infinity',
+    'NaN',
+    '256 M',
+    '256MM',
+    '256m',
+    '256MiB',
+    '256 megabytes',
+    '２５６Ｍ',
+    "256M\u{0000}",
+    "256M\u{0000}1G",
+    "256M\r\nhard = \"1G\"",
+    "256M\n[limits.hard]\nmemory = \"1T\"",
+    '256M; hard.memory = 1G',
+    '../../etc/passwd',
+    Core\Str::repeat('0', 100000) . '256M',
+    Core\Str::repeat(' ', 100000) . '256M',
+];
+foreach ($nonsense as string $value) {
+    Core\Config::set('limits.memory', $value);
+    Core\Config::get('limits.memory');
+    Core\Config::set('limits.hard.memory', $value);
+    Core\Config::get('limits.hard.memory');
+}
+Core\Config::restore('limits.memory');
+Core\Config::restore('limits.hard.memory');
+
+// 3. Tries the keys that only the person who runs the server may set: the
+//    ceilings, the reserves, the script depth and the decompression limits.
+array<string> $operators = [
+    'limits.hard.memory',
+    'limits.hard.cpu_time',
+    'limits.hard.wall_time',
+    'limits.hard.max_output',
+    'limits.fatal_reserve_memory',
+    'limits.fatal_reserve_time',
+    'limits.max_script_depth',
+    'limits.max_decompressed',
+    'limits.max_decompression_ratio',
+];
+foreach ($operators as string $key) {
+    Core\Config::set($key, '1T');
+    Core\Config::set($key, '0');
+    Core\Config::set($key, '18446744073709551615');
+    Core\Config::get($key);
+    Core\Config::restore($key);
+}
+
+// 4. Tries keys that are almost a real key. None of them may change a limit
+//    or a ceiling.
+array<string> $spellings = [
+    'limits.hard',
+    'limits.hard.hard.memory',
+    'limits.memory.hard',
+    'limits..memory',
+    'limits.Hard.memory',
+    'LIMITS.MEMORY',
+    'limit.memory',
+    'limits-hard.memory',
+    'limits.hard_memory',
+    'app.limits.hard.memory',
+    'limits.hard.' . Core\Str::repeat('sub.', 20000) . 'memory',
+];
+foreach ($spellings as string $key) {
+    Core\Config::set($key, '1T');
+    Core\Config::get($key);
+    Core\Config::restore($key);
+}
+
+// 5. Makes 100,000 allowed writes and 100,000 failed writes. The request's
+//    memory should not grow with the number of writes.
+uint $i = 0;
+while ($i < 100000) {
+    Core\Config::set('limits.memory', '200M');
+    Core\Config::set('limits.hard.memory', '1G');
+    $i = $i + 1;
+}
+Core\Config::restore('limits.memory');
+
+// 6. Prints both values. They should be the configured values. Any other
+//    value means the request changed a limit it may not change.
+echo 'memory:  ', Core\Config::get('limits.memory') ?? '(nothing)', "\n";
+echo 'ceiling: ', Core\Config::get('limits.hard.memory') ?? '(nothing)', "\n";

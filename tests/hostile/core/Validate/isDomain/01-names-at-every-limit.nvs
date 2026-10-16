@@ -1,0 +1,32 @@
+<?nvs
+// Attack: a program checks very long names and names at every length limit.
+// `isDomain` should give the right answer each time, stay fast and free every text.
+// hostile: timeout-ms 20000
+
+// 1. A text of 64 million characters is far too long. This prints no.
+string $huge = Core\Str::repeat('a.', 32000000);
+echo Core\Validate::isDomain($huge) ? 'yes' : 'no', "\n";
+$huge = '';
+
+// 2. 127 parts of one letter make a name of 253 characters. This prints yes.
+string $many = Core\Str::repeat('a.', 126) . 'a';
+echo Core\Validate::isDomain($many) ? 'yes' : 'no', "\n";
+
+// 3. The same name with a dot at the end has 254 characters. This prints no.
+echo Core\Validate::isDomain($many . '.') ? 'yes' : 'no', "\n";
+
+// 4. A null byte in the last part is not allowed. This prints no.
+echo Core\Validate::isDomain('example.te' . "\0" . 't') ? 'yes' : 'no', "\n";
+
+// 5. One million new names are checked and freed at once. Every second name contains "_".
+// This prints 500000.
+int $domains = 0;
+int $i = 0;
+while ($i < 1000000) {
+    string $name = $i % 2 == 0 ? 'host-' . $i as string . '.example.com' : 'host_' . $i as string . '.example.com';
+    if (Core\Validate::isDomain($name)) {
+        $domains = $domains + 1;
+    }
+    $i = $i + 1;
+}
+echo $domains, "\n";

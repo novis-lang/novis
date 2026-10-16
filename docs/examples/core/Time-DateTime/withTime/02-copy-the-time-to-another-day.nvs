@@ -1,0 +1,14 @@
+<?nvs
+// Shows how to copy the time of day to another date, and what happens when the clocks change.
+
+var $berlin = Core\Time\Zone::of("Europe/Berlin");
+var $firstRun = Core\Time::at(2024, 3, 1, $berlin, {hour: 2, minute: 30});
+
+// `timeOfDay` gives the clock time of `$firstRun`. This prints 2024-03-15 02:30.
+var $later = Core\Time::at(2024, 3, 15, $berlin);
+echo $later->withTime($firstRun->timeOfDay())->format("yyyy-MM-dd HH:mm"), "\n";
+
+// On 31 March 2024, Berlin moves its clocks from 02:00 to 03:00. That day has no 02:30.
+// `withTime` moves the time forward by the missing hour. This prints 2024-03-31 03:30.
+var $spring = Core\Time::at(2024, 3, 31, $berlin);
+echo $spring->withTime($firstRun->timeOfDay())->format("yyyy-MM-dd HH:mm"), "\n";

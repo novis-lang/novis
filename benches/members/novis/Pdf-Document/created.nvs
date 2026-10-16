@@ -1,0 +1,27 @@
+<?nvs
+// Sets the creation time of an invoice, as a shop does for each invoice before it renders it.
+// bench: iterations 4096
+// bench: complexity constant
+use Novis\Pdf\Document;
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        var $invoice = Document::fromHtml("<h1>Invoice</h1>");
+        array<Core\Time\Instant> $times = [
+            Core\Time::fromIso("2026-01-01T00:00:00Z"),
+            Core\Time::fromIso("2026-03-01T09:30:00Z"),
+            Core\Time::fromIso("2026-12-31T23:59:59Z"),
+        ];
+        array<Document> $documents = [];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            $documents[] = $invoice->created($times[($total % 3) as int]);
+            $total = $total + 1;
+            $i = $i + 1;
+        }
+        return $total + Core\Arr::count($documents);
+    }
+}
+
+echo Bench::run(4096), "\n";

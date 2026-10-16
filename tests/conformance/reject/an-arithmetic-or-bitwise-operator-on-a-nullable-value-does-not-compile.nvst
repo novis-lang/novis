@@ -1,0 +1,46 @@
+--TEST--
+every arithmetic and bitwise operator refuses an operand that can be `null`, where it is written, because `null` has no arithmetic row; a `mixed` operand is still answered from its tag — `rule:types/arithmetic`
+--FILE--
+<?nvs
+final class Calc
+{
+    public static function run(?float $x, ?int $n, int|float|null $u, mixed $m): void
+    {
+        // A binary operator, with the nullable value on either side.
+        mixed $a = $x + 1.5;
+        mixed $b = 2 * $n;
+        // A union with more than one number in it is refused the same way.
+        mixed $c = $u - 1;
+        // A prefix operator.
+        mixed $d = -$x;
+        // The bitwise operators take their own code.
+        mixed $e = $n & 1;
+        mixed $f = ~$n;
+        // `++` is `+ 1`.
+        $n++;
+        // `mixed` compiles, and its tag decides when the program runs.
+        mixed $g = $m + 1;
+        // A test or a default is the fix, and both compile.
+        if ($x != null) {
+            float $h = $x + 1.5;
+        }
+        float $i = ($x ?? 0.0) + 1.5;
+    }
+}
+--EXPECTF-ERROR--
+error[E0716]: `+` has no meaning for `null|float`
+%A
+error[E0716]: `*` has no meaning for `int|null`
+%A
+error[E0716]: `-` has no meaning for `int|null|float`
+%A
+error[E0716]: `-` has no meaning for `null|float`
+%A
+error[E0706]: `&` has no meaning for `int|null`
+%A
+error[E0706]: `~` has no meaning for `int|null`
+%A
+error[E0716]: `++`/`--` has no meaning for `int|null`
+%A
+error: aborting due to 7 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

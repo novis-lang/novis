@@ -1,0 +1,12 @@
+{
+  "title": "The never-written marker is not in the type system and is never handed to user code",
+  "status": "shipped",
+  "seeAlso": [
+    "core-api/a-nullable-field-omits-as-the-never-written-marker",
+    "core-api/the-bag-abi-is-unchanged",
+    "core-api/required-optional-and-nullable"
+  ],
+  "guardedBy": [
+    "crates/nvs-runtime/src/value.rs"
+  ]
+}

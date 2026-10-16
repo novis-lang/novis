@@ -1,0 +1,9 @@
+<?nvs
+// Shows that `Core\Uuid::fromBytes` reads the bytes back as the same UUID.
+
+var $id = Core\Uuid::v4();
+bytes $octets = $id->toBytes();
+var $again = Core\Uuid::fromBytes($octets);
+
+// Both UUIDs have the same text. This prints "same".
+echo $again->toString() == $id->toString() ? "same" : "different", "\n";

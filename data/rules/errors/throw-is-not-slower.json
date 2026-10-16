@@ -1,0 +1,11 @@
+{
+  "title": "A throw costs no more than a return, and only its raise allocates",
+  "status": "shipped",
+  "seeAlso": [
+    "errors/propagation"
+  ],
+  "guardedBy": [
+    "benches/abi-probe/tests/perf_guards.rs",
+    "tests/conformance/error/a-helper-fault-names-the-frame-it-was-raised-in-when-it-is-caught-there.nvst"
+  ]
+}

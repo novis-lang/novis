@@ -1,0 +1,95 @@
+#!/bin/sh
+# Reject a commit message carrying an attribution trailer, and, where looper is installed, one whose
+# shape looper's check refuses.
+#
+# A commit message in this repository documents the work and stops -- docs/agent/conventions.md
+# § *A commit message* is the home of that rule. `Co-Authored-By`, `Signed-off-by`,
+# `Generated-with` and their relatives are boilerplate every future reader of `git log` pays for,
+# and several agent harnesses append one by default without ever having read the convention. So
+# the convention is enforced here rather than trusted.
+#
+# This catches one arriving by `git commit -m`, `-F`, an editor, a merge, or a tool nobody thought
+# about.
+#
+# Enabled per clone, because git does not version `.git/hooks`:
+#
+#     git config core.hooksPath tools/git-hooks
+#
+# `bun nv verify` says so when it is not set, so a clone that forgot is told once rather
+# than finding out in review. Never bypass with `--no-verify`: the message names the offending
+# lines and deleting them is the whole fix.
+#
+# sh and awk, not python, on purpose. Git for Windows runs a hook through its own sh and resolves
+# a `python3` shebang to the Microsoft Store stub, which fails and would block EVERY commit --
+# the playbook's "`python`, not `python3`" trap, in the one place where getting it wrong looks
+# like the hook working.
+
+msg="$1"
+[ -f "$msg" ] || exit 0
+
+keys='co-authored-by|signed-off-by|generated-by|generated-with|assisted-by|authored-by|reviewed-by|on-behalf-of|committed-by|created-by|made-with'
+
+# The prose spelling of the same thing -- `Generated with [Some Tool](url)` -- is not a
+# `Key: value` trailer, so it needs its own pattern. Narrow on purpose: it wants the markdown
+# link, because "generated with" is an ordinary phrase a commit about a code generator may use.
+# `[[]` and not `\[`: this reaches awk as a *dynamic* regex built from a string, where a
+# backslash is consumed by the string literal first and awk then sees a bare `[` opening a
+# bracket expression that never closes. That spelling failed fatally and, before the exit-status
+# check below existed, the hook then let the commit through -- a gate that fails open.
+# The phrase is found by POSITION, not by an anchored pattern, and that is the whole reason the
+# awk below is shaped as it is. `^[^a-z]*(generated...` reads as though it steps over any
+# decoration in front of the phrase -- an emoji, a bullet -- and it does, until git runs the hook.
+# Git sets `LC_CTYPE=C.UTF-8`, and under that locale gawk 5 does not match an emoji with `[^a-z]`.
+# So that spelling silently stopped catching `🤖 Generated with [...]`, the single most common
+# real form of this line, while still passing every test run from a shell with no locale set.
+# Locating the phrase and then asserting that nothing before it is an ASCII letter is a pure-ASCII
+# question either way, and cannot drift with the locale.
+prose='(generated|created|made)[ \t]+(with|by)[ \t]+[[]'
+
+offenders=$(awk -v keys="$keys" -v prose="$prose" '
+    /^[ \t]*#/ { next }                     # git own commentary, stripped before the message is stored
+    {
+        lower = tolower($0)
+        bad = (lower ~ "^[ \t]*(" keys ")[ \t]*:")
+        # Decoration before the phrase is boilerplate; a word or a backtick before it is prose
+        # ABOUT the boilerplate, which this file and conventions.md both have to be able to write.
+        if (!bad && match(lower, prose))
+            bad = (substr(lower, 1, RSTART - 1) !~ /[a-z`]/)
+        if (bad) printf "  line %d: %s\n", NR, substr($0, 1, 100)
+    }
+' "$msg")
+status=$?
+
+# Fail CLOSED. If awk could not run, or died on its own pattern, the message has not been checked
+# and must not be assumed clean -- refusing a commit is recoverable, letting boilerplate into the
+# history unnoticed is what this hook exists to prevent.
+if [ "$status" -ne 0 ]; then
+    echo "commit-msg: the trailer check did not run (awk exited $status); refusing." >&2
+    echo "Fix tools/git-hooks/commit-msg rather than passing --no-verify." >&2
+    exit 1
+fi
+
+if [ -n "$offenders" ]; then
+    echo "commit-msg: this repository keeps no attribution trailers." >&2
+    echo "A commit message documents the work and stops -- docs/agent/conventions.md, A commit message." >&2
+    echo "" >&2
+    echo "$offenders" >&2
+    echo "" >&2
+    echo "Delete those lines and commit again. Do not pass --no-verify." >&2
+    exit 1
+fi
+
+# The shape of the message -- `type(scope): subject`, its type list and its length, as `looper.toml`'s
+# `[commits]` sets them -- is looper's check. A contributor to this public repository may not have
+# looper, so without it on PATH the trailer check above is the whole hook. Four subjects are not
+# checked for shape. A merge and git's own `fixup!`, `squash!` and `amend!` are written by git, and
+# a rebase rewrites the last three away. Looper's sweep commit, `wip(loop): the unfinished slice of
+# session NNNN`, is written by looper when a loop session ends with its own files uncommitted, and
+# `wip` is not a type this repository allows. A refused sweep ends the loop's run.
+command -v looper >/dev/null 2>&1 || exit 0
+[ -f "$(git rev-parse --git-path MERGE_HEAD)" ] && exit 0
+case "$(head -n 1 "$msg")" in
+    'fixup! '* | 'squash! '* | 'amend! '*) exit 0 ;;
+    'wip(loop): the unfinished slice of session '[0-9][0-9][0-9][0-9]*) exit 0 ;;
+esac
+exec looper hook commit-msg "$msg"

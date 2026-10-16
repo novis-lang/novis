@@ -1,0 +1,9 @@
+<?nvs
+// Shows how to sort a list of names the way a German reader expects.
+use Novis\Intl\Collator;
+
+array<string> $names = ["Zimmermann", "Ärzte", "Bauer", "Öztürk", "Adler"];
+
+// `Ä` sorts next to `A`, and `Ö` sorts next to `O`.
+// This prints Adler, Ärzte, Bauer, Öztürk, Zimmermann.
+echo Core\Str::join(Collator::sort($names, "de"), ", "), "\n";

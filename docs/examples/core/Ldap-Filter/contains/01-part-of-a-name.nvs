@@ -1,0 +1,7 @@
+<?nvs
+// Shows how to find the people whose name contains a part that somebody typed.
+
+string $typed = 'lee';
+var $filter = Core\Ldap\Filter::contains('displayName', $typed);
+// This prints (displayName=*lee*).
+echo $filter->toString(), "\n";

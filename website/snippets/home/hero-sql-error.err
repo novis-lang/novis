@@ -1,0 +1,8 @@
+error[E0401]: expected `string`, found `tainted string`
+  --> hero-sql-error.nvs:7:12
+  |
+7 | $db->query("select * from users where id = $id", []);
+  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ this is `tainted string`
+
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

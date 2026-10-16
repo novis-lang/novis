@@ -1,0 +1,56 @@
+<?nvs
+// Attack: the check renders very large and very deep values, and compares them with
+// very long snapshots. Each check should pass or throw a `Core\Test\Failure`.
+
+// Step 1: a string of ten million characters is compared with an empty snapshot.
+// `Core\Debug::render` shortens a long string, so the message is short too.
+string $long = Core\Str::repeat('a', 10000000);
+try {
+    Core\Test::assertMatchesInline($long, '');
+} catch (Core\Test\Failure $failure) {
+    echo 'long string: ', Core\Str::length($failure->message), "\n";
+}
+
+// Step 2: an array of one million entries is compared with a wrong snapshot.
+array<int> $big = [];
+int $i = 0;
+while ($i < 1000000) {
+    $big[] = $i;
+    $i = $i + 1;
+}
+try {
+    Core\Test::assertMatchesInline($big, 'array(0) []');
+} catch (Core\Test\Failure $failure) {
+    echo "big array\n";
+}
+
+// Step 3: an array nested ten thousand levels deep.
+array<mixed> $deep = [];
+$i = 0;
+while ($i < 10000) {
+    $deep = [$deep];
+    $i = $i + 1;
+}
+try {
+    Core\Test::assertMatchesInline($deep, '');
+} catch (Core\Test\Failure $failure) {
+    echo "deep array\n";
+}
+
+// Step 4: the snapshot is ten million characters, and the value is one character.
+try {
+    Core\Test::assertMatchesInline('a', $long);
+} catch (Core\Test\Failure $failure) {
+    echo "long snapshot\n";
+}
+
+// Step 5: a thousand failed checks in a row. Each one is caught.
+$i = 0;
+while ($i < 1000) {
+    try {
+        Core\Test::assertMatchesInline($i, '');
+    } catch (Core\Test\Failure $failure) {
+    }
+    $i = $i + 1;
+}
+echo "a thousand failures\n";

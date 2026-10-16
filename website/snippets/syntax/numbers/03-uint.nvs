@@ -1,0 +1,11 @@
+<?nvs
+// `uint` is a whole number that is never negative.
+uint $stock = 3;
+
+// A number without a type takes the type of the variable it goes into.
+float $rate = 2;
+echo $stock + 1, " ", $rate, "\n";
+
+// `int` and `uint` do not mix. Convert one side with `as`.
+int $change = -1;
+echo ($stock as int) + $change, "\n";

@@ -1,0 +1,22 @@
+<?nvs
+// `Core\Program::implementing<T>()` lists classes that nothing names, as a program.
+//
+// Nothing below names `App\Alpha`, `App\Beta` or `App\Gamma`, and no `require`
+// anywhere reaches their files. The one declaration that can find them is the
+// `autoload` root on the next line: `Core\Program::implementing<T>()` is the
+// one query resolution is not lazy for, so the compiler parses every file
+// under every root, collects what each declares, and filters the result to the
+// non-abstract classes implementing `App\Module`.
+autoload 'App' from './program';
+
+// This returns a new `App\Alpha`, `App\Beta` and `App\Gamma`, sorted by full class name.
+// Each request gets new objects. `App\Base` is abstract and `App\Module` is the interface, so neither is in the list.
+var $modules = Core\Program::implementing<App\Module>();
+
+// The interface is not the selector's crutch — it is what gives `$module` a
+// static type, so `name()` resolves. An `object` would be opaque here.
+foreach ($modules as App\Module $module) {
+    echo $module->name(), "\n";
+}
+
+echo 'count=', Core\Arr::count($modules), "\n";

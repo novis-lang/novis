@@ -1,0 +1,14 @@
+<?nvs
+// Shows the angles that `Core\Math::acos` returns for a few cosines.
+
+// A cosine of 1.0 belongs to an angle of 0. This prints 0.
+echo Core\Math::acos(1.0), "\n";
+
+// The angle is in radians. A cosine of 0.0 gives half of PI, so this prints 1.5707963267949.
+echo Core\Math::acos(0.0), "\n";
+
+// `Core\Math::toDegrees` converts radians to degrees. This prints 90.
+echo Core\Math::toDegrees(Core\Math::acos(0.0)), "\n";
+
+// A cosine of -1.0 gives the largest angle, PI. This prints 180.
+echo Core\Math::toDegrees(Core\Math::acos(-1.0)), "\n";

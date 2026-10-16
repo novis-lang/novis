@@ -1,0 +1,52 @@
+--TEST--
+`queryAs<T>` gives an enum field the case itself, so a nullable field is still a case and a case backed by `0` is truthy, on both backings — `rule:enums/representation`, `rule:enums/truthiness` and `rule:core-classes/db-column-types`
+--FILE--
+<?nvs
+// The row is turned into an object outside compiled code, so each enum field
+// has to carry the enum tag compiled code would have written.
+use Core\Db\Derive;
+
+enum Status: int {
+    Draft = 0,
+    Live = 5,
+}
+
+enum Size: uint {
+    Small = 0,
+    Large = 40,
+}
+
+#[Derive]
+class Post {
+    public ?Status $status;
+    public ?Size $size;
+
+    public function constructor(?Status $status, ?Size $size)
+    {
+        $this->status = $status;
+        $this->size = $size;
+    }
+}
+
+var $db = Core\Db::connect("main");
+$db->execute("create table posts (status integer, size integer)", []);
+$db->execute("insert into posts (status, size) values (?, ?)", [0, 0]);
+
+foreach ($db->queryAs<Post>("select status, size from posts", [])->all() as Post $post) {
+    mixed $status = $post->status;
+    echo "status is a Status: ", ($status is Status) ? "yes" : "no", ", truthy: ", $status ? "yes" : "no", "\n";
+    mixed $size = $post->size;
+    echo "size is a Size: ", ($size is Size) ? "yes" : "no", ", truthy: ", $size ? "yes" : "no", "\n";
+    echo "draft: ", $post->status == Status::Draft ? "yes" : "no", "\n";
+}
+--FILE nvs.toml--
+[capabilities.db]
+connect = ["main"]
+
+[db.main]
+driver = "sqlite"
+path = ":memory:"
+--EXPECT--
+status is a Status: yes, truthy: yes
+size is a Size: yes, truthy: yes
+draft: yes

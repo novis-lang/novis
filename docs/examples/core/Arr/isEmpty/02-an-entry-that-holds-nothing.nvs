@@ -1,0 +1,10 @@
+<?nvs
+// Shows what counts as an entry. An empty text is still an entry, so the
+// array is not empty. Removing that entry leaves an array that is.
+
+array<string> $lines = [""];
+array<string> $nothingLeft = Core\Arr::withoutLast($lines);
+
+// This prints "one entry: no" and then "nothing left: yes".
+echo "one entry: ", Core\Arr::isEmpty($lines) ? "yes" : "no", "\n";
+echo "nothing left: ", Core\Arr::isEmpty($nothingLeft) ? "yes" : "no", "\n";

@@ -1,0 +1,7 @@
+<?nvs
+// `Core\Cli::arguments()` returns the words after the file name on the command line.
+var $arguments = Core\Cli::arguments();
+
+// `??` gives "World" when the list is empty.
+var $who = Core\Arr::first($arguments) ?? "World";
+echo Core\Str::format("Hello, %s!\n", $who);

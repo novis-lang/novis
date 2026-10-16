@@ -1,0 +1,15 @@
+{
+  "title": "An implemented `Core` member carries its reference card in the registry declaration beside its code",
+  "status": "shipped",
+  "seeAlso": [
+    "core-api/field-wise-precedence",
+    "core-api/parameters-are-callable-by-name",
+    "core-api/shape-parameter"
+  ],
+  "guardedBy": [
+    "crates/nvs-stdlib/src/registry.rs",
+    "crates/nvs-cli/tests/meta.rs",
+    "crates/nvs-types/src/derive.rs",
+    "tests/lsp/hover/a-core-class-name-answers-its-card.lspt"
+  ]
+}

@@ -1,0 +1,18 @@
+<?nvs
+// Shows how to read the key of the last entry of an array.
+
+array<int> $stock = ['apples' => 12, 'pears' => 4];
+
+// Last means last in the order the entries were put in. This prints `pears`.
+echo Core\Arr::lastKey($stock) ?? 'nothing', "\n";
+
+// The key reads the value. This prints `4`.
+?string $name = Core\Arr::lastKey($stock);
+if ($name != null) {
+    echo $stock[$name], "\n";
+}
+
+// Every key of an array is text, so a list gives you its last position as
+// text. This prints `1`.
+array<string> $colours = ['red', 'green'];
+echo Core\Arr::lastKey($colours) ?? 'nothing', "\n";

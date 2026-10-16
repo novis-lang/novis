@@ -1,0 +1,24 @@
+<?nvs
+// Shows how a sales report works out the share of visits that ended in an order.
+
+class Report {
+    // Prints the share as a percentage.
+    // A page with no visits gives `NaN`, so it prints "no visits".
+    public static function printRate(string $page, float $orders, float $visits): void {
+        float $rate = Core\Math::fdiv($orders, $visits);
+        if (Core\Math::isFinite($rate)) {
+            echo $page, ": ", Core\Math::round($rate * 100.0, {precision: 1}), "%\n";
+        } else {
+            echo $page, ": no visits\n";
+        }
+    }
+}
+
+// This prints "Home: 2.5%".
+Report::printRate("Home", 12.0, 480.0);
+
+// This prints "Sale: 7.5%".
+Report::printRate("Sale", 30.0, 400.0);
+
+// This page is new and has no visits yet. This prints "New page: no visits".
+Report::printRate("New page", 0.0, 0.0);

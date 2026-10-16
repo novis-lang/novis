@@ -1,0 +1,2 @@
+environment: staging
+host: staging.example.com

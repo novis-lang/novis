@@ -1,0 +1,10 @@
+<?nvs
+// Shows how to find a name that is written exactly so, or is close to it.
+
+string $typed = 'Meyer';
+var $filter = Core\Ldap\Filter::any(
+    Core\Ldap\Filter::equals('sn', $typed),
+    Core\Ldap\Filter::approx('sn', $typed),
+);
+// This prints (|(sn=Meyer)(sn~=Meyer)).
+echo $filter->toString(), "\n";

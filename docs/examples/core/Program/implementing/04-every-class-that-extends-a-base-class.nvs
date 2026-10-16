@@ -1,0 +1,47 @@
+<?nvs
+// Shows how to find every class that extends a base class, not only the classes that implement an interface.
+
+abstract class Discount {
+    abstract public function name(): string;
+    abstract public function percent(): uint;
+
+    public function describe(): string {
+        return $this->name() . " takes " . $this->percent() . "% off.";
+    }
+}
+
+class Holiday extends Discount {
+    public function name(): string {
+        return "Holiday";
+    }
+
+    public function percent(): uint {
+        return 20;
+    }
+}
+
+class Member extends Discount {
+    public function name(): string {
+        return "Member";
+    }
+
+    public function percent(): uint {
+        return 10;
+    }
+}
+
+// `Student` extends `Member`, so it is a `Discount` too and is in the list.
+class Student extends Member {
+    public function name(): string {
+        return "Student";
+    }
+
+    public function percent(): uint {
+        return 15;
+    }
+}
+
+// `Discount` is abstract, so it is not in the list. This prints three lines.
+foreach (Core\Program::implementing<Discount>() as Discount $discount) {
+    echo $discount->describe(), "\n";
+}

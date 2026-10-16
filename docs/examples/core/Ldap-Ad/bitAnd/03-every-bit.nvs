@@ -1,0 +1,5 @@
+<?nvs
+// Shows a test of two bits at once. Both bits must be set.
+
+// 2 is "disabled" and 16 is "locked out". The number in the filter is 18.
+echo Core\Ldap\Ad::bitAnd('userAccountControl', 2 | 16)->toString(), "\n";

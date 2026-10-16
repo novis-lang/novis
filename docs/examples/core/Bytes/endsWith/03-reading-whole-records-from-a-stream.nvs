@@ -1,0 +1,22 @@
+<?nvs
+// Shows how a program reading from a network connection keeps the part of a
+// record that has not arrived yet. Each record ends with a newline.
+
+final class Stream {
+    // Returns the bytes that have to be kept for the next read. Nothing is
+    // kept when the chunk ends on a complete record.
+    public static function leftover(bytes $chunk): bytes {
+        if (Core\Bytes::endsWith($chunk, Core\Encoding::fromHex("0a"))) {
+            return Core\Encoding::fromHex("");
+        }
+        // The record is not finished, so the whole chunk waits for the bytes
+        // that come next.
+        return $chunk;
+    }
+}
+
+// This chunk ends on a complete record, so nothing is kept. This prints 0.
+echo Core\Bytes::length(Stream::leftover("id=1042\nid=1043\n" as bytes)), "\n";
+
+// This one stops in the middle of a line, so all 13 bytes are kept.
+echo Core\Bytes::length(Stream::leftover("id=1042\nid=10" as bytes)), "\n";

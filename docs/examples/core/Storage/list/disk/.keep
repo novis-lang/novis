@@ -1,0 +1,2 @@
+This file keeps the `disk` folder in the repository.
+Its name starts with a `.`, so it is not a key and `Core\Storage::list` does not return it.

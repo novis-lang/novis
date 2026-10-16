@@ -1,0 +1,21 @@
+<?nvs
+// Shows how to wait before you try an action again, and wait longer after each failure.
+
+class Upload {
+    // This is a fake upload. It fails twice and works on the third try.
+    public static function send(int $attempt): bool {
+        return $attempt >= 3;
+    }
+}
+
+// `Core\Time::sleep` waits for a `Duration`. `50ms` is 50 milliseconds.
+// After each failure the wait doubles, so this waits 50ms and then 100ms.
+Core\Time\Duration $wait = 50ms;
+int $attempt = 1;
+while (!Upload::send($attempt)) {
+    echo "attempt ", $attempt, " failed, waiting ", $wait->toString(), "\n";
+    Core\Time::sleep($wait);
+    $wait = $wait->multipliedBy(2);
+    $attempt = $attempt + 1;
+}
+echo "attempt ", $attempt, " worked\n";

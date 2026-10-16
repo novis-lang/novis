@@ -1,0 +1,15 @@
+<?nvs
+// Shows the three results of `compareTo`.
+
+Core\Time\TimeOfDay $morning = Core\Time\TimeOfDay::at(9, 30);
+Core\Time\TimeOfDay $evening = Core\Time\TimeOfDay::at(21, 30);
+
+// This prints -1, then 1, then 0.
+echo $morning->compareTo($evening), "\n";
+echo $evening->compareTo($morning), "\n";
+echo $morning->compareTo(Core\Time\TimeOfDay::at(9, 30)), "\n";
+
+// `<` uses `compareTo`. This prints "morning first".
+if ($morning < $evening) {
+    echo "morning first\n";
+}

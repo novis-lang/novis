@@ -1,0 +1,16 @@
+{
+  "title": "A path is fixed segments and three capture forms, each capture a whole segment naming a parameter",
+  "status": "shipped",
+  "seeAlso": [
+    "routing/precedence-is-structural",
+    "security/route-capture-is-laundered-by-its-type",
+    "errors/ambiguous-input-refused",
+    "classes/names-resolve-case-sensitively",
+    "routing/a-trailing-segment-may-be-absent"
+  ],
+  "guardedBy": [
+    "tests/conformance/reject/a-route-table-refuses-its-seven-contradictions.nvst",
+    "crates/nvs-types/tests/routes.rs",
+    "tests/conformance/core/router-url-encodes-a-capture-into-its-own-segment.nvst"
+  ]
+}

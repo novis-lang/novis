@@ -1,0 +1,9 @@
+<?nvs
+// Shows that a client cannot change the scheme by sending a header.
+
+// The request came over `http` and has the header `X-Forwarded-Proto: https`.
+// The server trusts no proxy, so it ignores the header. This prints "http".
+echo Core\Request::scheme(), "\n";
+
+// You can still read the header yourself. This prints "https".
+echo Core\Request::header("x-forwarded-proto") ?? "none", "\n";

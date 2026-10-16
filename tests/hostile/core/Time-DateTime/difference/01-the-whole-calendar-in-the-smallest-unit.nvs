@@ -1,0 +1,52 @@
+<?nvs
+// Attack: `difference` counts from the first moment in time to the last, in the smallest unit and in the farthest time zones.
+// A count that does not fit in an `int` should throw an error, and nothing should crash.
+
+var $ahead = Core\Time\Zone::fixed(25h59m59s);
+var $behind = Core\Time\Zone::fixed(25h59m59s->negated());
+var $first = Core\Time::fromIso('-009999-01-02T01:59:59Z')->in($behind);
+var $last = Core\Time::fromIso('9999-12-30T22:00:00Z')->in($ahead);
+
+// 1. About 20000 years in nanoseconds does not fit in an `int`. This throws an error.
+try {
+    echo $first->difference($last, Core\Unit::Nanosecond), "\n";
+} catch (RuntimeError $e) {
+    echo 'nanoseconds: ', $e->message, "\n";
+}
+
+// 2. The same count, from the last moment back to the first. This throws an error too.
+try {
+    echo $last->difference($first, Core\Unit::Nanosecond), "\n";
+} catch (RuntimeError $e) {
+    echo 'back: ', $e->message, "\n";
+}
+
+// 3. The same span in years, quarters, weeks and seconds. Each result fits in an `int`.
+echo $first->difference($last, Core\Unit::Year), "\n";
+echo $first->difference($last, Core\Unit::Quarter), "\n";
+echo $first->difference($last, Core\Unit::Week), "\n";
+echo $last->difference($first, Core\Unit::Second), "\n";
+
+// 4. Samoa skipped 30 December 2011. Every pair of hours in four days around it is counted in days.
+// No result should be more than 4 days.
+var $apia = Core\Time\Zone::of('Pacific/Apia');
+var $from = Core\Time::at(2011, 12, 28, $apia);
+int $pairs = 0;
+int $wide = 0;
+int $i = 0;
+while ($i < 96) {
+    var $to = Core\Time::at(2011, 12, 28, $apia);
+    int $j = 0;
+    while ($j < 96) {
+        int $days = $from->difference($to, Core\Unit::Day);
+        if ($days > 4 || $days < -4) {
+            $wide = $wide + 1;
+        }
+        $pairs = $pairs + 1;
+        $to = $to->plus(1, Core\Unit::Hour);
+        $j = $j + 1;
+    }
+    $from = $from->plus(1, Core\Unit::Hour);
+    $i = $i + 1;
+}
+echo $pairs, ' pairs, ', $wide, " more than 4 days apart\n";

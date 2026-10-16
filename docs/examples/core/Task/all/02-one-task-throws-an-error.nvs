@@ -1,0 +1,16 @@
+<?nvs
+// Shows what happens when one of the tasks throws an error.
+
+try {
+    var $result = Core\Task::all({
+        price: fn (): int => 1999,
+        stock: fn (): int => {
+            throw new RuntimeError("the stock service is down");
+        },
+    });
+    echo "price: ", $result->price, "\n";
+} catch (RuntimeError $e) {
+    // The first error stops the other tasks, and `Core\Task::all` throws it.
+    // This prints `failed: the stock service is down`.
+    echo "failed: ", $e->message, "\n";
+}

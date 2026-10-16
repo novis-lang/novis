@@ -1,0 +1,25 @@
+<?nvs
+// Shows `throw` written after `??`. The value on the left is used when it is
+// there. When it is missing, the `throw` on the right stops the method with an
+// error.
+
+final class Rows {
+    public static function email(array<string> $row): string {
+        // `??` gives the value stored under `"email"`. If the row has no such
+        // key, `throw` raises a `LogicError` and the method returns nothing.
+        return $row["email"] ?? throw new LogicError("the row has no email");
+    }
+}
+
+array<string> $complete = ["id" => "7", "email" => "ada@example.com"];
+array<string> $partial = ["id" => "8"];
+
+// This prints ada@example.com.
+echo Rows::email($complete), "\n";
+
+try {
+    echo Rows::email($partial), "\n";
+} catch (LogicError $missing) {
+    // This prints "the row has no email".
+    echo $missing->message, "\n";
+}

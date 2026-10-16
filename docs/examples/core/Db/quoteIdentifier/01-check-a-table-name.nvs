@@ -1,0 +1,14 @@
+<?nvs
+// Shows how to check a table or column name before you write it into a
+// statement. A name that is allowed comes back exactly as you gave it.
+
+array<string> $names = ["orders", "created_at", "_draft", "Line2"];
+// This prints the four names, one per line, unchanged.
+foreach ($names as string $name) {
+    echo Core\Db::quoteIdentifier($name), "\n";
+}
+
+// A checked name is safe to write into the text of a statement. The value
+// stays a placeholder.
+string $table = Core\Db::quoteIdentifier("orders");
+echo "SELECT id, total FROM ", $table, " WHERE total > ?", "\n";

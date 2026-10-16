@@ -1,0 +1,62 @@
+<?nvs
+// Attack: a program registers replies with status codes outside the range HTTP allows,
+// then reads the status of many replies many times. Each bad code must throw an error
+// or come back unchanged. Nothing may crash.
+
+// 1. Codes that are not HTTP status codes. Each one must throw an error, or
+//    `status()` must return the same code.
+array<uint> $codes = [0, 99, 600, 999, 1000, 4294967496, 18446744073709551615];
+uint $n = 0;
+uint $allowed = 0;
+foreach ($codes as uint $code) {
+    string $url = 'https://api.example.com/odd/' . $n;
+    $n = $n + 1;
+    try {
+        Core\Test::answerHttp($url, $code, {});
+    } catch (LogicError $notAllowed) {
+        // The code was not allowed. That is also a pass.
+        continue;
+    }
+    $allowed = $allowed + 1;
+    int $read = Core\Http\Client::get($url)->status();
+    if (($read as string) != ($code as string)) {
+        throw new LogicError('status ' . $code . ' came back as ' . $read);
+    }
+}
+echo 'step 1: ', $allowed, ' of ', $n, ' codes allowed', "\n";
+
+// 2. The first and the last status codes HTTP allows must come back unchanged.
+Core\Test::answerHttp('https://api.example.com/low', 100, {});
+Core\Test::answerHttp('https://api.example.com/high', 599, {});
+try {
+    if (Core\Http\Client::get('https://api.example.com/low')->status() != 100) {
+        throw new LogicError('status 100 changed');
+    }
+} catch (RuntimeError $error) {
+    // A reply that is only an interim reply may be refused. That is also a pass.
+}
+if (Core\Http\Client::get('https://api.example.com/high')->status() != 599) {
+    throw new LogicError('status 599 changed');
+}
+echo 'step 2: done', "\n";
+
+// 3. Ten thousand replies are kept, and the status of each is read a hundred times.
+Core\Test::answerHttp('https://api.example.com/*', 503, { body: Core\Str::repeat('busy ', 1000) });
+array<Core\Http\Response> $kept = [];
+uint $i = 0;
+while ($i < 10000) {
+    $kept[] = Core\Http\Client::get('https://api.example.com/items/' . $i);
+    $i = $i + 1;
+}
+uint $total = 0;
+foreach ($kept as Core\Http\Response $reply) {
+    uint $round = 0;
+    while ($round < 100) {
+        $total = $total + ($reply->status() as uint);
+        $round = $round + 1;
+    }
+}
+if ($total != 503000000) {
+    throw new LogicError('a status changed while it was read');
+}
+echo 'step 3: ', $total, "\n";

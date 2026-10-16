@@ -1,0 +1,16 @@
+<?nvs
+// Shows one update changing several rows. The count is the number of rows the
+// database changed, and not the number of statements that ran.
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table tasks (id integer primary key, done int not null)', []);
+$db->execute('insert into tasks (done) values (?)', [0]);
+$db->execute('insert into tasks (done) values (?)', [0]);
+$db->execute('insert into tasks (done) values (?)', [1]);
+
+var $changed = $db->execute('update tasks set done = ? where done = ?', [1, 0]);
+
+// This prints `2 tasks were changed`.
+echo $changed->affected(), " tasks were changed\n";
+
+$db->close();

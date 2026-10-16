@@ -1,0 +1,11 @@
+--TEST--
+Core\Str::length counts graphemes, so a letter with a combining accent and an emoji with a skin tone are each one
+--FILE--
+<?nvs
+echo Core\Str::length("héllo"), "\n";
+echo Core\Str::length("e\u{0301}"), "\n";
+echo Core\Str::length("👍🏽"), "\n";
+--EXPECT--
+5
+1
+1

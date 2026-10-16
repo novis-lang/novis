@@ -1,0 +1,18 @@
+<?nvs
+// Checks if a shop is open at a given time of day.
+
+Core\Time\TimeOfDay $opens = Core\Time\TimeOfDay::at(9, 0);
+Core\Time\TimeOfDay $closes = Core\Time\TimeOfDay::at(18, 30);
+
+array<Core\Time\TimeOfDay> $visits = [
+    Core\Time\TimeOfDay::at(8, 59),
+    Core\Time\TimeOfDay::at(9, 0),
+    Core\Time\TimeOfDay::at(18, 30),
+];
+
+// The shop is open from the opening time until just before the closing time.
+// This prints closed, open and closed.
+foreach ($visits as Core\Time\TimeOfDay $visit) {
+    bool $open = $visit->compareTo($opens) >= 0 && $visit->compareTo($closes) < 0;
+    echo $visit->format("HH:mm"), " ", $open ? "open" : "closed", "\n";
+}

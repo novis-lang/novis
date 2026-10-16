@@ -1,0 +1,17 @@
+<?nvs
+// Shows how to read a whole number out of a row.
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table tables (name text not null, seats int not null)', []);
+$db->execute(
+    'insert into tables (name, seats) values (?, ?), (?, ?)',
+    ['by the window', 4, 'in the corner', 2]
+);
+
+// `int` reads the named column as a whole number. This prints one line for
+// each table.
+foreach ($db->query('select name, seats from tables order by name', []) as Core\Db\Row $row) {
+    echo $row->string('name') ?? '', ' has ', $row->int('seats') ?? 0, " seats\n";
+}
+
+$db->close();

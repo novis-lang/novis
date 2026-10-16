@@ -1,0 +1,20 @@
+<?nvs
+// Shows how to spread requests over several servers by choosing one at random each time.
+
+array<string> $servers = ["10.0.0.1", "10.0.0.2", "10.0.0.3"];
+array<int> $used = ["10.0.0.1" => 0, "10.0.0.2" => 0, "10.0.0.3" => 0];
+
+// This loop sends 3000 requests. Each one goes to a server chosen at random.
+int $i = 0;
+while ($i < 3000) {
+    ?string $server = Core\Random::pick($servers);
+    if ($server != null) {
+        $used[$server] = $used[$server] + 1;
+    }
+    $i = $i + 1;
+}
+
+// Each server gets about 1000 requests. This prints `true` three times.
+foreach ($used as string $address => int $count) {
+    echo $count > 800 && $count < 1200 ? "true" : "false", "\n";
+}

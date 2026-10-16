@@ -1,0 +1,5 @@
+<?nvs
+// The request has `?name=<script>alert(1)</script>`.
+// In a web response, `echo` escapes HTML.
+// The browser shows the script as text. It does not run.
+echo Core\Request::query("name");

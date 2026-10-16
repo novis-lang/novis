@@ -1,0 +1,82 @@
+<?nvs
+// Attack: a database is made to describe columns that would push a driver into
+// guessing. Two thousand columns are declared `not null`, one statement names one
+// column two thousand times, and thousands of descriptions are held open at once.
+// Every step has to answer or throw an error, and none may stop the program.
+// hostile: timeout-ms 60000
+
+var $db = Core\Db::connect('notes');
+
+// 1. Two thousand columns, every one of them declared `not null`. The database
+// has a limit on this, so the answer is a count or an error.
+string $columns = 'c0 integer not null';
+uint $i = 1;
+while ($i < 2000) {
+    $columns = $columns . ', c' . ($i as string) . ' text not null';
+    $i = $i + 1;
+}
+uint $may = 0;
+try {
+    $db->execute('create table wide (' . $columns . ')', []);
+    foreach ($db->query('select * from wide', [])->columns() as Core\Db\Column $one) {
+        if ($one->nullable()) {
+            $may = $may + 1;
+        }
+    }
+    echo '1 may be empty: ', $may, "\n";
+} catch (Throwable $error) {
+    echo "1 refused\n";
+}
+
+// 2. One column named two thousand times in a single statement. There is one
+// entry per column and not one per label, so every entry has its own answer.
+$db->execute('create table notes (id integer primary key, note text)', []);
+string $repeated = 'note';
+$i = 1;
+while ($i < 2000) {
+    $repeated = $repeated . ', note';
+    $i = $i + 1;
+}
+try {
+    array<Core\Db\Column> $wide = $db->query('select ' . $repeated . ' from notes', [])->columns();
+    uint $answered = 0;
+    foreach ($wide as Core\Db\Column $same) {
+        if ($same->nullable()) {
+            $answered = $answered + 1;
+        }
+    }
+    echo '2 columns: ', Core\Arr::count($wide), ', answered: ', $answered, "\n";
+} catch (Throwable $error) {
+    echo "2 refused\n";
+}
+
+// 3. Two thousand descriptions held at once, and each one asked after the last
+// is made. A description a program still holds may not be freed under it.
+array<array<Core\Db\Column>> $kept = [];
+$i = 0;
+while ($i < 2000) {
+    $kept[] = $db->query('select id, note from notes', [])->columns();
+    $i = $i + 1;
+}
+uint $answers = 0;
+foreach ($kept as array<Core\Db\Column> $described) {
+    foreach ($described as Core\Db\Column $held) {
+        if ($held->nullable()) {
+            $answers = $answers + 1;
+        }
+    }
+}
+echo '3 answers: ', $answers, "\n";
+
+// 4. One description asked a hundred thousand times. Nothing may pile up over
+// the reads.
+array<Core\Db\Column> $twice = $db->query('select id, note from notes', [])->columns();
+uint $reads = 0;
+$i = 0;
+while ($i < 100000) {
+    if ($twice[($i % 2) as int]->nullable()) {
+        $reads = $reads + 1;
+    }
+    $i = $i + 1;
+}
+echo '4 reads: ', $reads, "\n";

@@ -1,0 +1,12 @@
+<?nvs
+// Shows a meeting time to each user in the time zone saved in their profile.
+
+array<string> $profiles = ["Ana" => "America/Sao_Paulo", "Ben" => "Europe/London", "Chitra" => "Asia/Kolkata"];
+Core\Time\Instant $meeting = Core\Time::fromIso("2024-11-20T21:30:00Z");
+
+// Each saved name becomes a zone, and the meeting is shown in that zone.
+// This prints 18:30, 21:30 and 03:00 on the next day.
+foreach ($profiles as string $user => string $zoneName) {
+    Core\Time\Zone $zone = Core\Time\Zone::of($zoneName);
+    echo $user, ": ", $meeting->in($zone)->format("uuuu-MM-dd HH:mm"), "\n";
+}

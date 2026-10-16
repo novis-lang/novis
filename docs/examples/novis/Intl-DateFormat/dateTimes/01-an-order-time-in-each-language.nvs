@@ -1,0 +1,12 @@
+<?nvs
+// Shows how to write the time of an order in the reader's language.
+use Novis\Intl\DateFormat;
+
+var $order = Core\Time::at(2026, 3, 1, Core\Time\Zone::of("Europe/Vienna"), {hour: 21, minute: 30});
+
+// American English uses a 12-hour clock. This prints Mar 1, 2026, 9:30 PM.
+echo DateFormat::dateTimes([$order], "en-US")[0], "\n";
+
+// German and Japanese use a 24-hour clock. This prints 01.03.2026, 21:30 and 2026/03/01 21:30.
+echo DateFormat::dateTimes([$order], "de")[0], "\n";
+echo DateFormat::dateTimes([$order], "ja")[0], "\n";

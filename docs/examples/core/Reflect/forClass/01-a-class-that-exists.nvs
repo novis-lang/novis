@@ -1,0 +1,18 @@
+<?nvs
+// Shows how to describe a class by its name, and what happens when no class has that name.
+
+class Invoice {
+    public int $number = 0;
+    public string $customer = "";
+}
+
+// `Invoice` exists, so the result is a description. This prints `Invoice`.
+var $info = Core\Reflect::forClass("Invoice");
+if ($info != null) {
+    echo $info->name(), "\n";
+}
+
+// No class is called `Receipt`, so the result is `null`. This prints `no such class`.
+if (Core\Reflect::forClass("Receipt") == null) {
+    echo "no such class\n";
+}

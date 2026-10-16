@@ -1,0 +1,12 @@
+{
+  "title": "An extension call is an ordinary operation for taint, so contagion is the default and needs no declaration",
+  "status": "shipped",
+  "seeAlso": [
+    "security/taint-propagation",
+    "security/extension-manifest-only-tightens",
+    "security/image-component-declares-nothing"
+  ],
+  "guardedBy": [
+    "tests/conformance/ext/an-extension-result-is-tainted-when-an-argument-was.nvst"
+  ]
+}

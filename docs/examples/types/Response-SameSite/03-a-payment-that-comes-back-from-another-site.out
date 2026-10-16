@@ -1,0 +1,3 @@
+session: Lax, so the provider's post does not carry it
+checkout: None with secure, so the provider's post does carry it
+checkout: taken back once ORD-1042 was paid for

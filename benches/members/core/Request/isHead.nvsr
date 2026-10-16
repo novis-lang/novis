@@ -1,0 +1,10 @@
+--METHOD--
+HEAD
+--PATH--
+/blog/welcome
+--SCHEME--
+https
+--HEADERS--
+host: example.com
+user-agent: LinkChecker/2.1
+accept: text/html

@@ -1,0 +1,17 @@
+<?nvs
+// Shows how to put a title over three columns of a report.
+use Novis\Spreadsheet\Reader;
+use Novis\Spreadsheet\Workbook;
+
+var $book = Workbook::createInMemory();
+var $sheet = $book->sheet('Report');
+$sheet->add(['Sales by shop']);
+$sheet->addAll([['Shop', 'Orders', 'Sales'], ['North', 12, 340.5], ['South', 8, 210.0]]);
+
+// The title in A1 now covers the cells A1, B1 and C1.
+$sheet->merge('A1:C1');
+bytes $file = $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
+
+foreach (Reader::open($file)->merged('Report') as var $range) {
+    echo $range, "\n";
+}

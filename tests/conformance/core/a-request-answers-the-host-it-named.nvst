@@ -1,0 +1,27 @@
+--TEST--
+a request answers the host it named, folded the way a host mount is compared `rule:http-server/trusted-proxies-is-empty-and-empty-reads-nothing`
+--CLIENT_IP--
+2001:db8::1
+--HEADERS--
+Host: Example.Test.:8443
+--FILE--
+<?nvs
+// The three equivalences the relevant specifications define — the case, the
+// port, one trailing dot — applied once here, so a host-mounted deployment
+// looks its tenant up under the same name the mount table compared.
+echo Core\Request::host() ?? "none", "\n";
+// The line as the peer wrote it is still readable, which is what makes the
+// folded answer a second member rather than a repair of the first: a program
+// that wants the port back asks for the field.
+echo Core\Request::header("host") ?? "none", "\n";
+// One spelling per address, whatever the peer's was: the carrier holds an
+// address rather than the text of one.
+echo Core\Request::clientIp() ?? "none", "\n";
+// A request that named no scheme arrived over plaintext — fail-closed, since
+// `https` is the claim.
+echo Core\Request::scheme(), "\n";
+--EXPECT--
+example.test
+Example.Test.:8443
+2001:db8::1
+http

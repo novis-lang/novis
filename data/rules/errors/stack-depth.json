@@ -1,0 +1,11 @@
+{
+  "title": "Recursion is bounded twice: a catchable error, then a fatal",
+  "status": "shipped",
+  "seeAlso": [
+    "errors/on-limit",
+    "errors/propagation"
+  ],
+  "guardedBy": [
+    "crates/nvs-codegen/tests/stack_limit.rs"
+  ]
+}

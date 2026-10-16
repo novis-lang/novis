@@ -1,0 +1,12 @@
+{
+  "title": "A task's recursion limit is armed from the real bounds of the stack it was handed",
+  "status": "shipped",
+  "seeAlso": [
+    "errors/on-limit",
+    "concurrency/a-task-stack-is-reserved-wide-and-pooled"
+  ],
+  "guardedBy": [
+    "crates/nvs-host/src/stack.rs",
+    "crates/nvs-host/src/scheduler.rs"
+  ]
+}

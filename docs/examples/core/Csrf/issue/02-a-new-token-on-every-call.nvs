@@ -1,0 +1,16 @@
+<?nvs
+// Shows that two tokens for one session are two different texts, and that both
+// of them work. This is why a program never compares tokens itself.
+
+secret bytes $key = Core\Crypto::generateKey();
+
+string $first = Core\Csrf::issue("sid-ada", $key);
+string $second = Core\Csrf::issue("sid-ada", $key);
+
+// The two tokens are different. This prints `different`.
+echo ($first == $second ? "the same" : "different"), "\n";
+
+// Both are accepted for the session they were created for. This prints `yes`
+// twice.
+echo (Core\Csrf::verify($first, "sid-ada", $key) ? "yes" : "no"), "\n";
+echo (Core\Csrf::verify($second, "sid-ada", $key) ? "yes" : "no"), "\n";

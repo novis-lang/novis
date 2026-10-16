@@ -1,0 +1,13 @@
+{
+  "title": "A `FATAL` and a cancellation run no exit hook — `Core\\Fatal::onLimit` is the one observer of a limit breach",
+  "status": "shipped",
+  "seeAlso": [
+    "observability/three-endings-fire-the-exit-queue",
+    "errors/on-limit",
+    "errors/escalation-ladder",
+    "concurrency/cancellation-runs-no-user-code"
+  ],
+  "guardedBy": [
+    "crates/nvs-stdlib/src/script.rs"
+  ]
+}

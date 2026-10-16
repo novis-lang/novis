@@ -1,0 +1,9 @@
+<?nvs
+// Shows how one page shows a form for `GET` and saves it for `POST`.
+
+// The request below uses the method `POST`, so this prints "Saving the form.".
+if (Core\Request::method() == Core\Http\Method::Post) {
+    echo "Saving the form.\n";
+} else {
+    echo "Showing the form.\n";
+}

@@ -1,0 +1,11 @@
+{
+  "title": "The roster of features is read from the registry and the reference chapters, never kept as a list",
+  "status": "shipped",
+  "seeAlso": [
+    "testing/feature-proofs",
+    "testing/proof-attribution"
+  ],
+  "guardedBy": [
+    "tools/nv/cmd/proofs.ts"
+  ]
+}

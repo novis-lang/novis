@@ -1,0 +1,70 @@
+<?nvs
+// Attack: the function fails and catches two hundred thousand checks, throws huge errors
+// and nests `expectFailure` very deep. Each call should pass or throw an error, and the program must not crash.
+// hostile: timeout-ms 60000
+
+// Each level expects the level below it to fail. The deepest level fails a check.
+final class Nested
+{
+    public static function expect(int $depth): void
+    {
+        if ($depth == 0) {
+            Core\Test::assertTrue(false);
+            return;
+        }
+        Core\Test::expectFailure(fn (): void => Nested::expect($depth - 1));
+    }
+}
+
+// Step 1: two hundred thousand failed checks, each caught inside the function.
+Core\Test::expectFailure(fn (): void => {
+    uint $i = 0;
+    while ($i < 200000) {
+        try {
+            Core\Test::assertTrue(false);
+        } catch (Core\Test\Failure $failure) {
+        }
+        Core\Test::assertTrue(true);
+        $i = $i + 1;
+    }
+});
+echo "many failures\n";
+
+// Step 2: a failed check, and then an error with a message of ten million characters.
+string $long = Core\Str::repeat('e', 10000000);
+try {
+    Core\Test::expectFailure(fn (): void => {
+        try {
+            Core\Test::assertTrue(false, { message: $long });
+        } catch (Core\Test\Failure $failure) {
+        }
+        throw new RuntimeError($long);
+    });
+    echo "long error: passed\n";
+} catch (Throwable $error) {
+    echo 'long error: ', Core\Str::length($error->message), "\n";
+}
+
+// Step 3: one hundred thousand calls in a row.
+uint $round = 0;
+while ($round < 100000) {
+    Core\Test::expectFailure(fn (): void => Core\Test::assertTrue($round > 100000));
+    $round = $round + 1;
+}
+echo "many calls\n";
+
+// Step 4: `expectFailure` nested one hundred levels deep.
+try {
+    Nested::expect(100);
+    echo "nested: passed\n";
+} catch (Throwable $failure) {
+    echo "nested: failed\n";
+}
+
+// Step 5: nested one hundred thousand levels deep. The deepest call throws a `RecursionError`.
+try {
+    Nested::expect(100000);
+    echo "very deep: passed\n";
+} catch (Throwable $error) {
+    echo "very deep: error\n";
+}

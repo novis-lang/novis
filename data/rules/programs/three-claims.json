@@ -1,0 +1,10 @@
+{
+  "title": "Novis claims three things, and \"faster than PHP\" is not one of them",
+  "status": "shipped",
+  "seeAlso": [
+    "programs/audience",
+    "programs/no-compatibility-promise",
+    "programs/memory-priority"
+  ],
+  "guardedBy": []
+}

@@ -1,0 +1,16 @@
+<?nvs
+// Shows how to write every file of a zip archive into a folder.
+
+// A small archive, written as base64 text so it fits in this file. It contains
+// the folder `site/` with `site/index.html` and `site/css/style.css`.
+bytes $archive = Core\Encoding::fromBase64("UEsDBBQAAAAAAAAAIVoAAAAAAAAAAAAAAAAFAAAAc2l0ZS9QSwMEFAAAAAgAAAAhWmWf6MURAAAAEQAAAA8AAABzaXRlL2luZGV4Lmh0bWyzyTC0C0/NSc7PTbXRB7K5AFBLAwQUAAAACAAAACFa5ti4fBYAAAAUAAAAEgAAAHNpdGUvY3NzL3N0eWxlLmNzc8swVKhWSM7PyS+yUshLLKu0VqjlAgBQSwECFAAUAAAAAAAAACFaAAAAAAAAAAAAAAAABQAAAAAAAAAAAAAA7UEAAAAAc2l0ZS9QSwECFAAUAAAACAAAACFaZZ/oxREAAAARAAAADwAAAAAAAAAAAAAApIEjAAAAc2l0ZS9pbmRleC5odG1sUEsBAhQAFAAAAAgAAAAhWubYuHwWAAAAFAAAABIAAAAAAAAAAAAAAKSBYQAAAHNpdGUvY3NzL3N0eWxlLmNzc1BLBQYAAAAAAwADALAAAACnAAAAAAA=");
+string $folder = Core\IO::temporaryDir();
+
+// `Core\Zip::extract` writes each file under `$folder` and creates the folders
+// it needs. It returns the number of files. Folders are not counted, so this prints 2.
+uint $written = Core\Zip::extract($archive, $folder);
+echo $written, "\n";
+
+// The files are where the archive put them. This prints the two lines of HTML and CSS.
+echo Core\IO::readText(Core\Path::join($folder, 'site/index.html'));
+echo Core\IO::readText(Core\Path::join($folder, 'site/css/style.css'));

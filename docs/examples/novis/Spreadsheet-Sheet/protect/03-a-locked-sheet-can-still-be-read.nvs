@@ -1,0 +1,15 @@
+<?nvs
+// Shows that a program can read every value of a locked sheet without its password.
+use Novis\Spreadsheet\Reader;
+use Novis\Spreadsheet\Workbook;
+
+var $book = Workbook::createInMemory();
+var $sheet = $book->sheet('Salaries');
+$sheet->addAll([['name' => 'Ann', 'salary' => 52000], ['name' => 'Ben', 'salary' => 48000]]);
+$sheet->protect({ password: 'do-not-open' });
+bytes $file = $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
+
+// The reader does not need the password. Protection does not hide any value.
+foreach (Reader::open($file)->rows('Salaries', { header: true }) as var $row) {
+    echo $row->values['name'], ': ', $row->values['salary'], "\n";
+}

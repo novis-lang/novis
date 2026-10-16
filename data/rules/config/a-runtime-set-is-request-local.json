@@ -1,0 +1,14 @@
+{
+  "title": "Every runtime change lives in the request's own overlay and dies with the request",
+  "status": "shipped",
+  "seeAlso": [
+    "config/three-changeability-classes",
+    "config/the-config-is-an-immutable-snapshot",
+    "security/isolate-shares-nothing",
+    "config/ini-set-is-core-config-set"
+  ],
+  "guardedBy": [
+    "tests/conformance/config/config-set-is-invisible-to-the-next-request.nvst",
+    "crates/nvs-config/tests/request.rs"
+  ]
+}

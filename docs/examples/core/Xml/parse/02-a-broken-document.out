@@ -1,0 +1,3 @@
+Core\Xml::parse(): `<price>` is closed by `</item>`, and an element closes as what it opened as.
+Salt & Pepper
+Core\Xml::parse(): `&nbsp;` is not one of the five predefined entities, and no entity is resolved from a document type declaration, an internal subset or the network.

@@ -1,0 +1,61 @@
+<?nvs
+// Attack: `Core\Str::lastIndexOf` searches long texts for long needles that match at almost every position, or almost match.
+// Each call should return a position or `null` quickly, and must not crash or hang.
+// hostile: timeout-ms 20000
+
+class Attack
+{
+    /// 1. Searches 4 MiB of letters for 64 KiB of the same letter, so the needle matches at millions of positions.
+    public static function matchesEverywhere(uint $mib): string
+    {
+        var $hay = Core\Str::repeat(Core\Str::repeat('a', 1048576), $mib);
+        var $needle = Core\Str::repeat('a', 65536);
+        return (Core\Str::lastIndexOf($hay, $needle) ?? 'none') . '';
+    }
+
+    /// 2. Does the same search and ignores case.
+    public static function matchesEverywhereIgnoringCase(uint $mib): string
+    {
+        var $hay = Core\Str::repeat(Core\Str::repeat('a', 1048576), $mib);
+        var $needle = Core\Str::repeat('A', 65536);
+        return (Core\Str::lastIndexOf($hay, $needle, { caseInsensitive: true }) ?? 'none') . '';
+    }
+
+    /// 3. Searches 4 MiB of letters for 64 KiB of letters and a `b`, ignoring case.
+    public static function nearMissIgnoringCase(uint $mib): string
+    {
+        var $hay = Core\Str::repeat(Core\Str::repeat('a', 1048576), $mib);
+        var $needle = Core\Str::repeat('A', 65536) . 'B';
+        return (Core\Str::lastIndexOf($hay, $needle, { caseInsensitive: true }) ?? 'none') . '';
+    }
+
+    /// 4. Searches for a needle that is longer than the text.
+    public static function needleLongerThanText(): string
+    {
+        var $needle = Core\Str::repeat('é', 1000000);
+        return (Core\Str::lastIndexOf('é', $needle, { caseInsensitive: true }) ?? 'none') . '';
+    }
+
+    /// 5. Ends the search at the smallest and the largest possible `before`.
+    public static function beforeAtBothEnds(): string
+    {
+        var $s = Core\Str::repeat('👍🏽', 1000);
+        var $low = Core\Str::lastIndexOf($s, '👍🏽', { before: -9223372036854775807 - 1 }) ?? 'none';
+        var $high = Core\Str::lastIndexOf($s, '', { before: 9223372036854775807 }) ?? 'none';
+        return $low . ' ' . $high;
+    }
+
+    /// 6. Searches for a needle that starts in the middle of a character: an accent without its letter.
+    public static function halfACharacter(uint $count): string
+    {
+        var $s = 'x' . Core\Str::repeat("e\u{301}", $count);
+        return (Core\Str::lastIndexOf($s, "\u{301}", { caseInsensitive: true }) ?? 'none') . '';
+    }
+}
+
+echo Attack::matchesEverywhere(4), "\n";
+echo Attack::matchesEverywhereIgnoringCase(4), "\n";
+echo Attack::nearMissIgnoringCase(4), "\n";
+echo Attack::needleLongerThanText(), "\n";
+echo Attack::beforeAtBothEnds(), "\n";
+echo Attack::halfACharacter(200000), "\n";

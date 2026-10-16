@@ -1,0 +1,20 @@
+<?nvs
+// Shows how the output of `nvs config dump` matches the settings a program gets when it runs.
+
+// `nvs config check nvs.toml` reads the file and runs nothing. It prints this line and exits with `0`:
+//     ok: 1 file, 4 directives set, 0 overrides, 0 warnings
+
+// `nvs config dump nvs.toml` prints every setting. Each `[[app]]` block gets a number, here `0`:
+//     app.0.limits.wall_time = "120s"
+//     app.0.root             = "."
+//     limits.memory          = "256M"
+//     limits.wall_time       = "30s"
+// `--origin` adds the file that set each line. `--toml` prints all of it as one TOML file.
+
+// This program is in the directory of block `app.0`, so its time limit is the block's value.
+// This prints `time limit: 120s`.
+echo 'time limit: ', Core\Config::get('limits.wall_time') ?? '(unset)', "\n";
+
+// The block does not set `memory`, so the value from `[limits]` is used.
+// This prints `memory:     256M`.
+echo 'memory:     ', Core\Config::get('limits.memory') ?? '(unset)', "\n";

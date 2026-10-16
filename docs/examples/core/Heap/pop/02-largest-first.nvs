@@ -1,0 +1,13 @@
+<?nvs
+// Shows how to make `pop` return the largest value first.
+
+// The comparator returns `$b - $a`, which is the opposite of the normal order.
+var $heap = new Core\Heap<int>(fn (int $a, int $b): int => $b - $a);
+$heap->push(20);
+$heap->push(50);
+$heap->push(10);
+
+// This prints 50, 20 and 10.
+while (!$heap->isEmpty()) {
+    echo $heap->pop(), "\n";
+}

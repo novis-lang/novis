@@ -1,0 +1,5 @@
+# The benches open UDP sockets on this computer and send messages between them.
+[capabilities.net]
+listen = ["127.0.0.1:0"]
+connect = ["127.0.0.1"]
+internal = ["127.0.0.1"]

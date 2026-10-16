@@ -1,0 +1,27 @@
+<?nvs
+// Shows a test of an object that a function builds. The password is a `secret` property.
+
+final class User {
+    public function constructor(
+        public string $email,
+        public secret string $password,
+        public bool $active,
+    ) {}
+}
+
+class Signup {
+    // Builds a new user. The email is stored in lower case.
+    public static function register(string $email, string $password): User {
+        return new User(Core\Str::lower($email), $password, false);
+    }
+}
+
+User $user = Signup::register("Ana@Example.com", "correct horse");
+
+// A `secret` property is shown as `[redacted]`. The password is not in the snapshot.
+// A `$` inside a double-quoted string is written as `\$`.
+Core\Test::assertMatchesInline(
+    $user,
+    "User#1 (3) {\n  \$email => string(15) \"ana@example.com\"\n  \$password => [redacted]\n  \$active => bool(false)\n}",
+);
+echo "the new user matches the snapshot\n";

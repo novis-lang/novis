@@ -1,0 +1,6 @@
+event: prices
+data: ACME 18.42
+
+event: news
+data: The market opens at nine
+

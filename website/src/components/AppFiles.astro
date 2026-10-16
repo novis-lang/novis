@@ -1,0 +1,42 @@
+---
+/**
+ * Every file of one example app, one tab per file, read in place from
+ * `apps/<app>/` by `appFiles` in src/lib/apps.ts. A reader sees the whole app
+ * on its page without cloning the repository.
+ */
+import { Code, TabItem, Tabs } from '@astrojs/starlight/components'
+import { appFiles } from '~/lib/apps'
+
+interface Props {
+  app: string
+}
+
+const files = appFiles(Astro.props.app)
+---
+
+<div class="app-files">
+  <Tabs>
+    {
+      files.map((file) => (
+        <TabItem label={file.path}>
+          <Code code={file.code} lang={file.lang} title={`apps/${Astro.props.app}/${file.path}`} wrap />
+        </TabItem>
+      ))
+    }
+  </Tabs>
+</div>
+
+<style>
+  /* An app has more files than one row of tabs holds, so the tabs wrap onto
+     more rows and every file name stays in sight. */
+  .app-files :global(.tablist-wrapper) {
+    overflow-x: visible;
+  }
+  .app-files :global([role='tablist']) {
+    flex-wrap: wrap;
+  }
+  .app-files :global([role='tab']) {
+    padding-inline: 0.75rem;
+    font-size: var(--sl-text-sm);
+  }
+</style>

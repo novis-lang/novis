@@ -1,0 +1,65 @@
+<?nvs
+// Attack: a request formats very large lists, extreme numbers and broken options as percentages.
+// Each call should return a list or throw an error, and the server keeps running.
+// hostile: timeout-ms 20000
+use Novis\Intl\NumberFormat;
+
+// 1. An empty list.
+try {
+    echo 'step 1 ran ', Core\Arr::count(NumberFormat::percent([], 'de')), "\n";
+} catch (Throwable $e) {
+    echo "step 1 stopped\n";
+}
+
+// 2. Twenty thousand shares in one call.
+try {
+    array<int|float|decimal> $many = [];
+    for (int $i = 0; $i < 20000; $i++) {
+        $many[] = $i / 20000.0;
+    }
+    echo 'step 2 ran ', Core\Arr::count(NumberFormat::percent($many, 'fr')), "\n";
+} catch (Throwable $e) {
+    echo "step 2 stopped\n";
+}
+
+// 3. The largest and the smallest floats, with every fraction digit allowed.
+try {
+    echo 'step 3 ran ', Core\Arr::count(NumberFormat::percent([1.7976931348623157e308, 5e-324, -0.0], 'en', { maxFractionDigits: 20 })), "\n";
+} catch (Throwable $e) {
+    echo "step 3 stopped\n";
+}
+
+// 4. A number that is not finite.
+try {
+    NumberFormat::percent([Core\Math::NAN], 'en');
+    echo "step 4 ran\n";
+} catch (Throwable $e) {
+    echo "step 4 stopped\n";
+}
+
+// 5. Fraction digits one over the limit.
+try {
+    NumberFormat::percent([0.5], 'en', { minFractionDigits: 21 });
+    echo "step 5 ran\n";
+} catch (Throwable $e) {
+    echo "step 5 stopped\n";
+}
+
+// 6. A locale tag with a broken extension.
+try {
+    NumberFormat::percent([0.5], 'de-u-nu-');
+    echo "step 6 ran\n";
+} catch (Throwable $e) {
+    echo "step 6 stopped\n";
+}
+
+// 7. A bad locale tag a thousand times. Each call must still return or throw.
+uint $stopped = 0;
+for (int $j = 0; $j < 1000; $j++) {
+    try {
+        NumberFormat::percent([0.5], '%%');
+    } catch (Throwable $e) {
+        $stopped = $stopped + 1;
+    }
+}
+echo 'step 7 stopped ', $stopped, "\n";

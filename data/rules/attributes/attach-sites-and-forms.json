@@ -1,0 +1,17 @@
+{
+  "title": "An attribute attaches to a declaration or a parameter, and a named one's name is a shape-typed `type` alias",
+  "status": "shipped",
+  "seeAlso": [
+    "attributes/inert-metadata",
+    "attributes/payload-is-a-compile-time-constant",
+    "attributes/repeatable",
+    "statements/a-qualified-name-is-absolute"
+  ],
+  "guardedBy": [
+    "tests/conformance/reject/an-attribute-name-is-a-shape-typed-type-alias.nvst",
+    "tests/conformance/reject/a-malformed-attribute-is-one-error.nvst",
+    "tests/conformance/lang/an-attribute-names-a-type-alias-declared-in-an-interface-or-class.nvst",
+    "crates/nvs-syntax/src/parser/tests/decl.rs",
+    "crates/nvs-types/src/attributes.rs"
+  ]
+}

@@ -1,0 +1,20 @@
+<?nvs
+// Attack: the program is full of text that looks like an open tag. Only `<?nvs`
+// should start code, and the program should run to its last line.
+
+// 1. `<?php`, `?>` and `#!` inside strings are data, so the program compiles.
+string $old = '<?php echo "x"; ?>';
+string $shebang = "#!/usr/bin/env nvs\n<?php\n";
+echo Core\Str::length($old), ' ', Core\Str::length($shebang), "\n";
+
+// 2. A loop leaves code and comes back 100000 times. Each pass prints `<?` as text.
+uint $i = 0;
+while ($i < 100000) {
+    ?><?<?nvs
+    $i = $i + 1;
+}
+echo "\n";
+
+// 3. A string of one million `<?php` tags is built at run time. It is only text.
+string $many = Core\Str::repeat('<?php ?>', 1000000);
+echo Core\Str::length($many), "\n";

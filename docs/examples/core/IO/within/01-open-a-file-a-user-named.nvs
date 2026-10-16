@@ -1,0 +1,19 @@
+<?nvs
+// Shows how `Core\IO::within` checks that a file name from a user stays inside one folder.
+
+string $folder = Core\IO::temporaryDir();
+Core\IO::write(Core\Path::join($folder, "readme.txt"), "Welcome!\n");
+
+// "readme.txt" is inside the folder. `within` returns its full path, so the program can read it.
+// This prints "Welcome!".
+string $path = Core\IO::within($folder, "readme.txt");
+echo Core\IO::readText($path);
+
+// "../secret.txt" points to the folder above. `within` throws a `RuntimeError`.
+// This prints "refused: ../secret.txt".
+try {
+    Core\IO::within($folder, "../secret.txt");
+    echo "allowed: ../secret.txt\n";
+} catch (RuntimeError $error) {
+    echo "refused: ../secret.txt\n";
+}

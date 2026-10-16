@@ -1,0 +1,30 @@
+<?nvs
+// Shows how the `zone` option writes an `Instant` as a date and time in one time zone.
+use Novis\Spreadsheet\Cell;
+use Novis\Spreadsheet\Reader;
+use Novis\Spreadsheet\Style;
+use Novis\Spreadsheet\Template;
+use Novis\Spreadsheet\Workbook;
+
+var $design = Workbook::createInMemory();
+$design->sheet('Log')->addAll([['Shipped', Cell::of('{{shipped}}', Style::of({ format: 'yyyy-mm-dd hh:mm' }))]]);
+bytes $template = $design->finish()->bytes ?? Core\Bytes::fill(0, 0);
+
+// An `Instant` is one moment, with no time zone. 12:00 in UTC is 14:00 in Berlin in summer.
+var $shipped = Core\Time::parse('2024-06-01 12:00', 'yyyy-MM-dd HH:mm', Core\Time\Zone::of('UTC'))->toInstant();
+
+// With `zone`, the cell has the local date and time of Berlin.
+bytes $file = Template::open($template, { zone: 'Europe/Berlin' })->fill(['shipped' => $shipped])->bytes();
+foreach (Reader::open($file)->rows('Log') as var $row) {
+    mixed $value = $row->values['B'];
+    if ($value is Core\Time\DateTime) {
+        echo 'Shipped: ', $value->format('yyyy-MM-dd HH:mm'), "\n";
+    }
+}
+
+// Without `zone`, an `Instant` throws an error, because the time in the cell would be a guess.
+try {
+    Template::open($template)->fill(['shipped' => $shipped])->bytes();
+} catch (LogicError $e) {
+    echo $e->message, "\n";
+}

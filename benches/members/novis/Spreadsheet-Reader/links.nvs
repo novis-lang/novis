@@ -1,0 +1,25 @@
+<?nvs
+// Lists the links of a product sheet, as an import does to find each product page.
+// bench: iterations 32
+// bench: complexity constant
+use Novis\Spreadsheet\Reader;
+use Novis\Spreadsheet\Workbook;
+
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        var $book = Workbook::createInMemory();
+        $book->sheet('Products')->link('A2', 'https://example.com/widget')->link('A3', 'https://example.com/gadget')->addAll([['Product'], ['Widget'], ['Gadget']]);
+        Reader $reader = Reader::open($book->finish()->bytes ?? Core\Bytes::fill(0, 0));
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            $total = $total + Core\Arr::count($reader->links('Products'));
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(32), "\n";

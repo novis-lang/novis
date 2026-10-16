@@ -1,0 +1,11 @@
+--TEST--
+an import carries no diagnostic of its own, so the cursor in one is offered nothing, `rule:ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`
+--FILE--
+<?nvs
+us<|>e App\User;
+
+var $u = new User();
+--REQUEST--
+codeAction
+--EXPECT--
+none

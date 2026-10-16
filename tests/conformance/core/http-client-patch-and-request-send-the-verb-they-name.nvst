@@ -1,0 +1,40 @@
+--TEST--
+`Core\Http\Client::patch` sends the verb its own name spells, and `::request` sends the `Core\Http\Method` it is handed — including the verbs no row is named after — `rule:http-server/no-spelling-for-an-unbounded-wait`
+--FILE--
+<?nvs
+// The claim is *agreement*: the verb on the wire is asked of both halves of the
+// class — the row whose name is the verb, and the row that is handed one — and
+// read back off the record rather than off the call, so a member sending the
+// verb it was named after by accident still fails here. Nothing below is
+// granted `net.connect` and no socket is opened
+// (`rule:testing/an-outbound-call-is-answered-from-a-table`).
+Core\Test::answerHttp("https://api.example.com/*", 200, {body: "ok"});
+
+// The named row. `patch` is the sixth verb this class spells, and a `PATCH` is
+// a `POST`'s neighbour under `rule:http-server/a-non-idempotent-retry-needs-an-idempotency-key`.
+var $named = Core\Http\Client::patch("https://api.example.com/orders/7", {json: ["status" => "paid"]});
+
+// The same request through the row that takes the verb as an argument: there is
+// no request object, and the bag is the one every other row takes.
+var $handed = Core\Http\Client::request(Core\Http\Method::Patch, "https://api.example.com/orders/7", {json: ["status" => "paid"]});
+
+// And the verbs `Core\Http\Method` has that this class is not named after,
+// which is the whole reason the row exists — the last one chosen at run time,
+// so no call site here spells it.
+var $options = Core\Http\Client::request(Core\Http\Method::Options, "https://api.example.com/orders/7");
+var $trace = Core\Http\Client::request(Core\Http\Method::Trace, "https://api.example.com/orders/7");
+Core\Http\Method $chosen = Core\Http\Method::Delete;
+var $dynamic = Core\Http\Client::request($chosen, "https://api.example.com/orders/7");
+
+// One line per record: the verb's ordinal, then what the call carried. The two
+// `Patch` records agree on every one of them.
+var $sent = Core\Test::sentHttp();
+foreach ($sent as Core\Test\SentRequest $call) {
+    echo ($call->method() as int), " ", $call->header("content-type") ?? "-", " ", Core\Bytes::length($call->body()), "\n";
+}
+--EXPECT--
+6 application/json 17
+6 application/json 17
+2 - 0
+3 - 0
+7 - 0

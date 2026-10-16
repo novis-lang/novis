@@ -1,0 +1,19 @@
+<?nvs
+// Shows what `Core\Arr::lastKey` gives you when there is no last entry.
+
+array<int> $stock = [];
+
+// The result is `null`, so this prints `the shelf is empty`.
+?string $name = Core\Arr::lastKey($stock);
+if ($name == null) {
+    echo "the shelf is empty\n";
+}
+
+// One entry is added, and its key is now the last key. This prints `pears`.
+$stock['pears'] = 4;
+echo Core\Arr::lastKey($stock) ?? 'nothing', "\n";
+
+// A second entry goes in behind the first one, so the last key changes. This
+// prints `apples`.
+$stock['apples'] = 12;
+echo Core\Arr::lastKey($stock) ?? 'nothing', "\n";

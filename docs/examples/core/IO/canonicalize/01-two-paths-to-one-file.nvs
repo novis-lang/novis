@@ -1,0 +1,17 @@
+<?nvs
+// Shows that two different ways to write the path of one file give the same result.
+
+string $dir = Core\IO::temporaryDir();
+Core\IO::makeDir(Core\Path::join($dir, "docs"));
+Core\IO::write(Core\Path::join($dir, "readme.txt"), "hello");
+
+string $short = Core\Path::join($dir, "readme.txt");
+string $long = Core\Path::join($dir, "docs/../././readme.txt");
+
+// The two texts are different, but the results are equal. This prints "the same file".
+if (Core\IO::canonicalize($short) == Core\IO::canonicalize($long)) {
+    echo "the same file", "\n";
+}
+
+// The result has no `..` in it. This prints "readme.txt".
+echo Core\Path::basename(Core\IO::canonicalize($long)), "\n";

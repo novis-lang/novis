@@ -1,0 +1,26 @@
+<?nvs
+// This program reads the JSON body of a request into a class.
+#[Core\Json\Derive]
+class Order {
+    // The body comes from the client, so a text field is `tainted string`.
+    public tainted string $product;
+    public uint $quantity;
+
+    public function constructor(tainted string $product, uint $quantity) {
+        $this->product = $product;
+        $this->quantity = $quantity;
+    }
+}
+
+try {
+    // `jsonAs<Order>` reads the body and returns an `Order`.
+    var $order = Core\Request::jsonAs<Order>();
+    Core\Response::setStatus(201);
+    echo $order->quantity, " x ", $order->product, "\n";
+} catch (ParseError $error) {
+    // A body with a missing or wrong field throws a `ParseError`.
+    Core\Response::setStatus(422);
+    foreach ($error->issues as {path: string, message: string} $issue) {
+        echo $issue->path, ": ", $issue->message, "\n";
+    }
+}

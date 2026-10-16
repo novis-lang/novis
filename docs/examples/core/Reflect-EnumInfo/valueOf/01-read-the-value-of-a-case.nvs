@@ -1,0 +1,17 @@
+<?nvs
+// Shows how to read the value of each case of an enum.
+
+enum HttpStatus: int {
+    Ok = 200,
+    NotFound = 404,
+    ServerError = 500,
+}
+
+?Core\Reflect\EnumInfo $found = Core\Reflect\EnumInfo::of(HttpStatus::class);
+if ($found != null) {
+    Core\Reflect\EnumInfo $info = $found;
+    // This prints `Ok = 200`, `NotFound = 404` and `ServerError = 500`.
+    foreach ($info->cases() as string $case) {
+        echo $case, " = ", $info->valueOf($case), "\n";
+    }
+}

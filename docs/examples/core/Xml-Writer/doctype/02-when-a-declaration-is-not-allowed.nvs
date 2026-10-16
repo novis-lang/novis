@@ -1,0 +1,34 @@
+<?nvs
+// Shows the errors `doctype` throws, and that a failed call writes nothing.
+
+Core\Xml\Writer $writer = Core\Xml::writer();
+$writer->startDocument();
+
+// A name cannot start with a digit. This prints the error message.
+try {
+    $writer->doctype("2024-report");
+} catch (LogicError $error) {
+    echo $error->message, "\n";
+}
+
+$writer->doctype("report");
+
+// A document has only one declaration. This prints the error message.
+try {
+    $writer->doctype("report");
+} catch (LogicError $error) {
+    echo $error->message, "\n";
+}
+
+$writer->startElement("report");
+
+// The root element is already started, so it is too late. This prints the error message.
+try {
+    $writer->doctype("report");
+} catch (LogicError $error) {
+    echo $error->message, "\n";
+}
+
+// The document has one declaration and the root element.
+$writer->endElement();
+echo $writer->endDocument(), "\n";

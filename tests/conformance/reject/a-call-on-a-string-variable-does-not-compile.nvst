@@ -1,0 +1,19 @@
+--TEST--
+A call on a variable whose type can never be a callable does not compile, which refuses PHP's variable function — `rule:types/callable-values`
+--FILE--
+<?nvs
+// `rule:types/callable-values`: only a callable can be called, so a
+// `string` holding a function's name is refused where it is called.
+string $name = "Zoë";
+string $function = 'strlen';
+echo $function($name), "\n";
+--EXPECTF-ERROR--
+error[E0420]: a value of type `string` is not callable
+  --> case.nvs:6:6
+  |
+6 | echo $function($name), "\n";
+  |      ^^^^^^^^^^^^^^^^ called with `(...)` here
+  = help: only an anonymous function or a method reference can be called. Write `fn (...) => ...`, or `Class::method(...)` or `$obj->method(...)`. A string with a function's name cannot be called
+
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

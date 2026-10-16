@@ -1,0 +1,30 @@
+<?nvs
+// `[capabilities]` says what a program may do. By default, a program may do nothing.
+// It may open a file, connect to an address or use a database only if a block allows it.
+// The server running this program has these settings, for this program only:
+//
+//     [app.capabilities.fs]
+//     read = true
+//
+//     [app.capabilities.script]
+//     spawn = false
+
+echo 'read files:  ', Core\Config::get('capabilities.fs.read') ?? '(nothing)', "\n";
+
+// No block allows writing files, so `Core\Config::get` returns `null`.
+// A right that no block gives is not allowed.
+echo 'write files: ', Core\Config::get('capabilities.fs.write') ?? '(nothing)', "\n";
+
+// A block can also take a right away. A wider block lets every program run scripts.
+// The block for this program says `false`. That block wins, so this prints `false`.
+echo 'run scripts: ', Core\Config::get('capabilities.script.spawn') ?? '(nothing)', "\n";
+
+// Some rights are lists, such as the directories a program may read.
+// `Core\Config::get` cannot read a list. Run `nvs config dump` to see them.
+
+// A program can never give itself a right. `Core\Config::set` returns `false`.
+echo 'grant a db:  ', Core\Config::set('capabilities.db.connect', 'main') ? 'yes' : 'no', "\n";
+
+// A program cannot give a right back either, so this prints `no` too.
+// Only the configuration file gives rights and takes them away.
+echo 'drop one:    ', Core\Config::set('capabilities.fs.read', 'false') ? 'yes' : 'no', "\n";

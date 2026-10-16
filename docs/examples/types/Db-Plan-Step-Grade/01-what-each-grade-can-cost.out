@@ -1,0 +1,3 @@
+Safe: keeps your data, does not trip over rows that are already there, and holds no long lock
+Locking: keeps your data, but can block writes for a long time or fail on the rows you already have
+Destructive: can lose data, and every drop is in here

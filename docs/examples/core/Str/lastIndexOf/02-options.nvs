@@ -1,0 +1,19 @@
+<?nvs
+// Shows the two options: `before` ends the search early, and `caseInsensitive` ignores case.
+
+var $text = "one-two-three-four";
+
+// Without options, the last "-" is at position 13. This prints `13`.
+echo Core\Str::lastIndexOf($text, "-") ?? 0, "\n";
+
+// `before: 10` searches only the first 10 characters, "one-two-th". This prints `7`.
+echo Core\Str::lastIndexOf($text, "-", {before: 10}) ?? 0, "\n";
+
+// A negative `before` counts back from the end. -5 is the same as 13 here, so this prints `7`.
+echo Core\Str::lastIndexOf($text, "-", {before: -5}) ?? 0, "\n";
+
+// With case, only the lower-case "tea" at 5 matches. This prints `5`.
+// With `caseInsensitive: true`, "TEA" at 10 matches too. This prints `10`.
+var $drinks = "Tea, tea, TEA";
+echo Core\Str::lastIndexOf($drinks, "tea") ?? 0, "\n";
+echo Core\Str::lastIndexOf($drinks, "tea", {caseInsensitive: true}) ?? 0, "\n";

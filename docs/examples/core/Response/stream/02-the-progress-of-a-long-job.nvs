@@ -1,0 +1,14 @@
+<?nvs
+// Shows how a long job sends one line of progress after each step.
+
+array<string> $steps = ["Reading the orders", "Checking the prices", "Writing the invoices"];
+
+// Each `write` sends its line as soon as the step is done.
+// The client can show that line before the next step starts.
+Core\Response\Stream $log = Core\Response::stream("text/plain; charset=utf-8");
+uint $done = 0;
+foreach ($steps as string $step) {
+    $done = $done + 1;
+    $log->write("Step " . ($done as string) . " of 3: " . $step . "\n");
+}
+$log->write("Finished.\n");

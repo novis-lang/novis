@@ -1,0 +1,19 @@
+<?nvs
+// Reads an XML order of n items into a tree, as a program does with a large order a partner system sends.
+// scaling: start 1000
+// scaling: max 64000
+// scaling: expect linear
+
+class Bench {
+    public static function run(uint $size): uint {
+        string $items = Core\Str::repeat('<item sku="A-100" qty="2"/>', $size);
+        Core\Xml\Node $document = Core\Xml::parse('<order id="1">' . $items . '</order>');
+        uint $total = 0;
+        foreach ($document->children() as Core\Xml\Node $order) {
+            $total = $total + Core\Arr::count($order->children());
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(1000), "\n";

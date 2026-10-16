@@ -1,0 +1,47 @@
+--TEST--
+The implicit widening into a `float` stops exactly at 2^53: the last whole number that fits goes through and the first one that does not throws, for `int` and `uint` alike — `rule:types/implicit-widening`
+--FILE--
+<?nvs
+// covers: lang:types/widening-without-as
+// The bound is named on both sides in one case on purpose. A widening that
+// stopped one number early, or one number late, prints plausibly against
+// either half alone.
+int $last = 9007199254740992;
+float $fits = $last;
+echo $fits, "\n";
+
+int $first = 9007199254740993;
+try {
+    float $over = $first;
+    echo "widened ", $over, "\n";
+} catch (ArithmeticError $e) {
+    echo "int: ", $e->message, "\n";
+}
+
+// The unsigned row is the same bound, and it is `uint`'s own diagnostic
+// rather than a shared one that names `int`.
+uint $ulast = 9007199254740992;
+float $ufits = $ulast;
+echo $ufits, "\n";
+
+uint $ufirst = 9007199254740993;
+try {
+    float $uover = $ufirst;
+    echo "widened ", $uover, "\n";
+} catch (ArithmeticError $e) {
+    echo "uint: ", $e->message, "\n";
+}
+
+// It is the same conversion a written `as float` performs, so the two
+// spellings agree at the boundary rather than each having a bound of its own.
+try {
+    echo $first as float, "\n";
+} catch (ArithmeticError $e) {
+    echo "as: ", $e->message, "\n";
+}
+--EXPECT--
+9.007199254741E+15
+int: cannot convert `int` 9007199254740993 to `float`
+9.007199254741E+15
+uint: cannot convert `uint` 9007199254740993 to `float`
+as: cannot convert `int` 9007199254740993 to `float`

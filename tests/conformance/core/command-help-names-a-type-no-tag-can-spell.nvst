@@ -1,0 +1,51 @@
+--TEST--
+`Core\Command::help` names a parameter declared at a class, which is a type no runtime tag can spell and no conversion arm can name — `rule:tooling/commands-are-compiled`
+--FILE--
+<?nvs
+// `Parses` needs no `use`: it is one of the interfaces the compiler declares
+// for every program. A parameter declared at such a class is the argument a
+// command line converts through the class's own `parse`.
+class Slug implements Parses
+{
+    public tainted string $text = "";
+
+    public function constructor(tainted string $text)
+    {
+        $this->text = $text;
+    }
+
+    public static function parse(tainted string $s): static
+    {
+        return new static($s);
+    }
+}
+
+class Releases
+{
+    #[Core\Command(name: "publish", about: "Publish one release")]
+    public static function publish(
+        Slug $target,
+        #[Core\Option(about: "The release to publish")] Core\Uuid $release,
+    ): uint {
+        return 0;
+    }
+}
+
+// This is the boundary the page's middle column exists for, and the reason it
+// is read off the declaration rather than off anything the table already
+// carried. Both parameters below reach the matcher as *one* thing each — a
+// conversion arm — and a runtime tag is narrower still: a tag says "an object"
+// and a conversion says "through some class's `parse`", so neither can say
+// which class, and `Slug` and `Core\Uuid` would print the same word. The
+// declaration is the only place either name survives.
+echo "" . Core\Command::help("publish");
+--EXPECT--
+usage: publish <target> [--release]
+
+Publish one release
+
+arguments:
+  <target>  Slug
+
+options:
+  --release  Core\Uuid  The release to publish

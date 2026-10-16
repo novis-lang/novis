@@ -1,0 +1,15 @@
+package geo:atlas;
+
+/// The proof extension `Geo\Atlas`. It reads and writes files under the
+/// folders it was granted, and sends HTTP requests to the hosts it was granted.
+interface api {
+    use nvs:ext/types@1.0.0.{error};
+
+    /// The text of the file at `path`, looked up in each granted folder in turn.
+    read: func(path: string) -> result<string, error>;
+    /// Writes `text` to the file at `path` in the first granted folder that
+    /// allows it.
+    write: func(path: string, text: string) -> result<_, error>;
+    /// Sends `GET /` to `host` over HTTP and returns the response's status.
+    status: func(host: string) -> result<s64, error>;
+}

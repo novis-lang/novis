@@ -1,0 +1,13 @@
+<?nvs
+// Shows the error when the pixels do not match the width and the height.
+use Novis\Image\Image;
+
+// A 4 by 4 image needs 4 times 4 times 4, which is 64 bytes. These are only 3 bytes.
+Image $image = Image::fromRaw({width: 4, height: 4, pixels: "abc" as bytes});
+
+// `raw` throws an error that names both lengths.
+try {
+    $image->raw();
+} catch (Throwable $e) {
+    echo $e->message, "\n";
+}

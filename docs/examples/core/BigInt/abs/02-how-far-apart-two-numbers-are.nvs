@@ -1,0 +1,15 @@
+<?nvs
+// Shows how to measure the distance between two numbers. You subtract one from
+// the other and call `abs` on the result.
+
+var $first = Core\BigInt::parse("90000000000000000000");
+var $second = Core\BigInt::parse("90000000000000000007");
+
+// The difference carries a sign, so this prints -7.
+echo $first->sub($second), "\n";
+
+// `abs` removes it, and what is left is the distance. This prints 7.
+echo $first->sub($second)->abs(), "\n";
+
+// Subtracting the other way round gives the same distance. This prints 7.
+echo $second->sub($first)->abs(), "\n";

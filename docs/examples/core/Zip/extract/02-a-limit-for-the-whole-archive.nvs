@@ -1,0 +1,22 @@
+<?nvs
+// Shows how one size limit applies to all the files of an archive together.
+
+// This archive contains `january.csv` and `february.csv`. Each file has 27 bytes.
+bytes $archive = Core\Encoding::fromBase64("UEsDBBQAAAAIAAAAIVosewUBHQAAABsAAAALAAAAamFudWFyeS5jc3ZLSazUKU7MSS3mMtQxNDLgMtKxNOUy1jE0MeYCAFBLAwQUAAAACAAAACFaR4Xlqx0AAAAbAAAADAAAAGZlYnJ1YXJ5LmNzdktJrNQpTsxJLeYy1LGw4DLSMTQ25DLWMTQw4gIAUEsBAhQAFAAAAAgAAAAhWix7BQEdAAAAGwAAAAsAAAAAAAAAAAAAAKSBAAAAAGphbnVhcnkuY3N2UEsBAhQAFAAAAAgAAAAhWkeF5asdAAAAGwAAAAwAAAAAAAAAAAAAAKSBRgAAAGZlYnJ1YXJ5LmNzdlBLBQYAAAAAAgACAHMAAACNAAAAAAA=");
+string $folder = Core\IO::temporaryDir();
+
+// The third argument is the most bytes all files may have together.
+// 27 + 27 is more than 40, so the second file throws a `ParseError`.
+try {
+    Core\Zip::extract($archive, $folder, 40);
+    echo "all files written\n";
+} catch (ParseError $error) {
+    echo "the archive is too large\n";
+}
+
+// The files written before the error stay on the disk.
+// This prints "january.csv: yes" and "february.csv: no".
+array<string> $names = ['january.csv', 'february.csv'];
+foreach ($names as string $name) {
+    echo $name, ': ', Core\IO::exists(Core\Path::join($folder, $name)) ? 'yes' : 'no', "\n";
+}

@@ -1,0 +1,99 @@
+<?nvs
+// Attack: an id column holding text that is not an id, and columns of other
+// types. Then names that belong to no column, and a million reads of one row.
+// Every step has to answer or throw an error, and none may stop the program.
+// hostile: timeout-ms 60000
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table orders (row_id integer primary key, id uuid not null, label text not null, seats int not null)', []);
+$db->execute('insert into orders (id, label, seats) values (?, ?, ?)', ['3f2504e0-4f89-41d3-9a0c-0305e82c3301', 'one tea', 2]);
+
+array<Core\Db\Row> $one = $db->query('select id, label, seats from orders', [])->all();
+var $row = $one[0];
+
+// 1. Columns of another type. An id is not a text and not a number, so both of
+// these throw an error.
+uint $refused = 0;
+array<string> $others = ['label', 'seats'];
+foreach ($others as string $column) {
+    try {
+        $row->uuid($column);
+    } catch (Throwable $error) {
+        $refused = $refused + 1;
+    }
+}
+echo '1 refused: ', $refused, "\n";
+
+// 2. Ten thousand reads of a name that belongs to no column. Every one throws
+// an error, and ten thousand errors may not fill the memory.
+$refused = 0;
+uint $i = 0;
+while ($i < 10000) {
+    try {
+        $row->uuid('missing');
+    } catch (Throwable $error) {
+        $refused = $refused + 1;
+    }
+    $i = $i + 1;
+}
+echo '2 refused: ', $refused, "\n";
+
+// 3. A column name of ten million characters. No row has such a column, so the
+// read throws and the row still works after it.
+try {
+    $row->uuid(Core\Str::repeat('a', 10000000));
+    echo "3 the long name found a column\n";
+} catch (Throwable $error) {
+    echo "3 refused\n";
+}
+
+// 4. A million reads of the same id. The id is not built again for each read,
+// so nothing may pile up over them.
+uint $read = 0;
+$i = 0;
+while ($i < 1000000) {
+    if ($row->uuid('id') != null) {
+        $read = $read + 1;
+    }
+    $i = $i + 1;
+}
+echo '4 read: ', $read, "\n";
+
+// 5. Fifty thousand rows kept at once, and the id of every one of them read. A
+// row a program still holds may not be freed under it.
+array<array<Core\Db\Row>> $kept = [];
+$i = 0;
+while ($i < 50000) {
+    $kept[] = $db->query('select id from orders where row_id = ?', [1])->all();
+    $i = $i + 1;
+}
+$read = 0;
+foreach ($kept as array<Core\Db\Row> $rows) {
+    foreach ($rows as Core\Db\Row $held) {
+        if ($held->uuid('id') != null) {
+            $read = $read + 1;
+        }
+    }
+}
+echo '5 read: ', $read, "\n";
+
+// 6. An id column holding `not an id at all`, which is no id. Reading the row
+// throws, and the connection has to work after that.
+$db->execute('insert into orders (id, label, seats) values (?, ?, ?)', ['not an id at all', 'broken', 1]);
+try {
+    $db->query('select id from orders order by row_id', []);
+    echo "6 the text was read as an id\n";
+} catch (Throwable $error) {
+    echo "6 refused\n";
+}
+
+// 7. An id one character short. The read throws, and the connection still
+// answers after it.
+$db->execute('insert into orders (id, label, seats) values (?, ?, ?)', ['3f2504e0-4f89-41d3-9a0c-0305e82c330', 'one short', 1]);
+try {
+    $db->query('select id from orders where label = ?', ['one short']);
+    echo "7 the short text was read as an id\n";
+} catch (Throwable $error) {
+    echo "7 refused\n";
+}
+echo '8 still there: ', $db->query('select id from orders where row_id = ?', [1])->count(), "\n";

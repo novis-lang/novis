@@ -1,0 +1,28 @@
+<?nvs
+// `continue` starts the next run of the loop. `break` ends the loop.
+for (int $i = 0; $i < 6; $i++) {
+    if ($i == 1) {
+        continue;
+    }
+    if ($i == 4) {
+        break;
+    }
+    echo $i;
+}
+echo "\n";
+
+// `continue 2` and `break 2` act on the outer loop.
+array<string> $outer = ["a", "b"];
+array<string> $inner = ["x", "y", "z"];
+foreach ($outer as string $o) {
+    foreach ($inner as string $in) {
+        if ($in == "y") {
+            continue 2;
+        }
+        if ($o == "b") {
+            break 2;
+        }
+        echo $o, $in, ";";
+    }
+}
+echo "\n";

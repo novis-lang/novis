@@ -1,0 +1,3 @@
+# Two updates on the topic the program subscribes to.
+publish: orders order 1042 was paid
+publish: orders order 1042 has shipped

@@ -1,0 +1,39 @@
+--TEST--
+`Core\Zip::extract` writes an archive's entries under a destination, creating every directory it names, and answers how many files it wrote — `rule:core-api/tier-roster` and `rule:security/path-scope-canonicalise-then-prefix`
+--FILE--
+<?nvs
+// `notes/one.txt` holding `first` and `notes/two.txt` holding `second`, both
+// stored rather than deflated — the archive
+// `zip-lists-what-an-archive-holds-and-reads-one-entry.nvst` reads.
+bytes $ordinary = Core\Encoding::fromBase64("UEsDBBQAAAAAAAAAAABX7nGSBQAAAAUAAAANAAAAbm90ZXMvb25lLnR4dGZpcnN0UEsDBBQAAAAAAAAAAABpER+2BgAAAAYAAAANAAAAbm90ZXMvdHdvLnR4dHNlY29uZFBLAQIeAxQAAAAAAAAAAABX7nGSBQAAAAUAAAANAAAAAAAAAAAAAACkgQAAAABub3Rlcy9vbmUudHh0UEsBAh4DFAAAAAAAAAAAAGkRH7YGAAAABgAAAA0AAAAAAAAAAAAAAKSBMAAAAG5vdGVzL3R3by50eHRQSwUGAAAAAAIAAgB2AAAAYQAAAAAA");
+
+// The destination is created if it is not there, and so is every directory an
+// entry names under it — each one resolved and proved to be inside the
+// destination before anything is created in it. The answer is the number of
+// *files*, which is what a caller compares against.
+uint $written = Core\Zip::extract($ordinary, "out");
+echo "wrote ", $written, " file(s)\n";
+
+// They are where the archive said they were, holding what it held.
+echo "out/notes/one.txt: ", Core\IO::read("out/notes/one.txt"), "\n";
+echo "out/notes/two.txt: ", Core\IO::read("out/notes/two.txt"), "\n";
+
+// A file is created exclusively rather than overwritten: what is already at a
+// name may be a link somebody else wrote, and following it is the escape the
+// resolution above exists to stop. So a second extraction over the same
+// destination is an `IOError` about the name, and never a silent replacement.
+try {
+    Core\Zip::extract($ordinary, "out");
+    echo "second extraction: replaced what was there\n";
+} catch (IOError $taken) {
+    echo "second extraction: refused, the name is taken\n";
+}
+--FILE nvs.toml--
+[capabilities.fs]
+read = ["."]
+write = ["."]
+--EXPECT--
+wrote 2 file(s)
+out/notes/one.txt: first
+out/notes/two.txt: second
+second extraction: refused, the name is taken

@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-lsp/src/hints.rs",
+  "title": "A call the checker recorded as anything but `nvs_types::ExprInfo::Call` gets no parameter hints.",
+  "text": "A `new`, a call through a `callable` signature and an erased call on a `mixed` receiver each record a different variant, and only one of those carries `param_names` at all. Widening is a table question rather than a walk one.",
+  "milestone": "M10"
+}

@@ -1,0 +1,279 @@
+//! `Core\Taint` — `rule:security/launderers-are-sink-named`
+//! 's one narrow escape hatch, and nothing else.
+//!
+//! The `tainted` twin of `crate::secret`, and deliberately the same shape: one
+//! call, written where the judgement is made, carrying a reason for the next
+//! reader. Every other launderer names one sink; this is the row that names
+//! none, and [`crate::registry::Qual`]'s own doc comment is the home of why
+//! that is a [`Qual::Launder`] row rather than a sixth mark. This module does
+//! not restate that argument.
+//!
+//! # What it is for, and what it is not
+//!
+//! § 3's rule is that laundering is sink-named — a value safe for HTML text is
+//! not safe for a shell argument, so there is no generic `sanitize()`. This
+//! member is the case that rule cannot cover: the developer has validated the
+//! value themselves and needs to say so. It is modeled on this project's own
+//! `unsafe` policy — forbidden by default, rare, greppable, and never a silent
+//! cast. `rule:core-classes/db-capabilities` is where it is
+//! load-bearing rather than a fallback: `Settings.host` refuses `tainted` and
+//! **has no launderer**, because no string check can establish that a hostname
+//! is safe to send credentials to, and a malicious server answers any query
+//! with a `LOCAL INFILE` request.
+//!
+//! # `assertTrustedBytes` is the `bytes` row, as `revealBytes` is
+//!
+//! A registry row has one signature, so the `bytes` form is a second member, the
+//! shape `crate::secret` already has with a row per qualifiable base. Its
+//! sink is `Core\Serialize::decode`: `Core\Serialize::encode` answers `tainted
+//! bytes` for a value that may carry outside text
+//! (`rule:security/taint-propagation`), and a program decoding what it encoded
+//! itself says so here, once. Bytes another host chose stay refused by `decode`
+//! with no sink-named launderer (`rule:classes/serialize-is-a-closed-format`),
+//! and this row is the same written oath the string row is, not a check.
+//!
+//! # One axis, and the two hatches compose in one order
+//!
+//! [`Qual::Launder`] refuses a `secret` argument — `admits_secret_argument` is
+//! `Qual::Reveal`'s alone, and `rule:security/sink-predicate`'s over-strictness there costs a refusal
+//! rather than a leak. So a `secret tainted string` does not reach this member
+//! at all: it passes `Core\Secret::reveal` first, whose answer is still
+//! `tainted`, and this member second. The reverse order does not compile, and
+//! that is the honest reading of two independent bits rather than an ordering
+//! rule anything had to write down.
+//!
+//! # The reason is checked as a `string` and read by nobody
+//!
+//! Exactly as `crate::secret`'s is, for the same reasons and with the same
+//! deliberate omission: [`Qual::Neutral`] because no byte of it reaches the
+//! answer, and **not** required to be a literal, since a `const` holding the
+//! reason is as greppable at the call site as the text would have been.
+
+use crate::registry::{ClassDoc, CoreClass, CoreMethod, CoreTy, MethodDoc, ParamDoc, Qual};
+
+/// `Core\Taint`'s class card — `rule:core-api/reference-card`.
+const CARD: ClassDoc = ClassDoc {
+    short: "A `tainted` value came from outside the program, such as a visitor's request. \
+            `assertTrusted()` returns it as a plain `string` after your own check, and \
+            `assertTrustedBytes()` returns plain `bytes`. Each call needs a reason, which says \
+            what was checked.",
+};
+
+/// `rule:security/launderers-are-sink-named`'s escape hatch, and the one launderer that names no single sink.
+pub(crate) const CLASS: CoreClass = CoreClass {
+    name: r"Core\Taint",
+    doc: Some(&CARD),
+    methods: &[
+        CoreMethod {
+            name: "assertTrusted",
+            names: &["value", "reason"],
+            params: &[CoreTy::Text(Qual::Launder), CoreTy::Text(Qual::Neutral)],
+            defaults: &[],
+            return_ty: CoreTy::Str,
+            symbol: "nvs_core_taint_assert_trusted",
+            doc: Some(&ASSERT_TRUSTED_DOC),
+        },
+        CoreMethod {
+            name: "assertTrustedBytes",
+            names: &["value", "reason"],
+            params: &[CoreTy::Blob(Qual::Launder), CoreTy::Text(Qual::Neutral)],
+            defaults: &[],
+            return_ty: CoreTy::Bytes,
+            symbol: "nvs_core_taint_assert_trusted_bytes",
+            doc: Some(&ASSERT_TRUSTED_BYTES_DOC),
+        },
+    ],
+    instance: &[],
+    slots: &[],
+    constants: &[],
+};
+
+/// `Core\Taint::assertTrusted`'s reference card — `rule:core-api/reference-card`.
+const ASSERT_TRUSTED_DOC: MethodDoc = MethodDoc {
+    short: "Returns a `tainted string` as a plain `string`. Use it only after your own check, when \
+            no function made for that one place fits, such as `Core\\Html::escape`.",
+    params: &[
+        ParamDoc {
+            name: "value",
+            desc: "The value your program has checked. A plain `string` is also allowed, and \
+                   the result is the same text.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "reason",
+            desc: "What was checked, and why the value can be trusted. It is written for the \
+                   people who read the code. The program never reads it.",
+            shape: &[],
+        },
+    ],
+    ret: "The same text as a plain `string`. Nothing is escaped or removed. A `secret` value does \
+          not compile here, so call `Core\\Secret::reveal` on it first. For `tainted bytes`, use \
+          `assertTrustedBytes()`.",
+    errors: &[],
+};
+
+/// `Core\Taint::assertTrustedBytes`'s reference card — `rule:core-api/reference-card`.
+const ASSERT_TRUSTED_BYTES_DOC: MethodDoc = MethodDoc {
+    short: "Returns `tainted bytes` as plain `bytes`. Use it after your own check, for example \
+            when `Core\\Serialize::decode` reads bytes that your program wrote itself.",
+    params: &[
+        ParamDoc {
+            name: "value",
+            desc: "The bytes your program has checked. Plain `bytes` are also allowed, and the \
+                   result is the same bytes.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "reason",
+            desc: "What was checked, and why the bytes can be trusted. It is written for the \
+                   people who read the code. The program never reads it.",
+            shape: &[],
+        },
+    ],
+    ret: "The same bytes as plain `bytes`. Nothing is changed. A `secret` value does not compile \
+          here, so call `Core\\Secret::revealBytes` on it first.",
+    errors: &[],
+};
+
+/// The address of one of *this* module's symbols, or `None` for a symbol that
+/// belongs to another domain. See `crate::address_of`.
+pub(crate) fn address(symbol: &str) -> Option<*const u8> {
+    Some(match symbol {
+        "nvs_core_taint_assert_trusted" => (nvs_core_taint_assert_trusted as *const ()).cast(),
+        "nvs_core_taint_assert_trusted_bytes" => {
+            (nvs_core_taint_assert_trusted_bytes as *const ()).cast()
+        }
+        _ => return None,
+    })
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Taint::assertTrusted(tainted string $value, string $reason): string`
+    /// — the identity at run time.
+    ///
+    /// **The sink it launders for is all of them**, which is the obligation a
+    /// `Qual::Launder` row carries and the one place it is answered this way:
+    /// `rule:core-api/shape-rules` R11's four grammars, `Core\Db`'s query text, an outbound URL,
+    /// a filesystem path, an environment variable's name, and — the case that
+    /// earns the row — `Settings.host`, which `rule:core-classes/db-capabilities` leaves with no
+    /// launderer of its own. `nvs_stdlib::registry`'s `Qual` doc comment
+    /// argues once why naming all of them is allowed here and nowhere else.
+    ///
+    /// Like `Core\Secret::reveal`, the whole member is a compile-time
+    /// judgement: `tainted` has no run-time representation at all
+    /// (`nvs_types::ty::Ty` carries it and `nvs_ir::ty::Ty` does not), so
+    /// there is nothing here to strip. What the call buys is the checker's
+    /// admission, and what it costs is the line the author had to write.
+    fn nvs_core_taint_assert_trusted(_ctx, args: [2]) {
+        // The answer is the argument itself, and the slot's own reference
+        // belongs to the caller for the length of the call — so the reference
+        // handed back is a new one.
+        #[expect(
+            unsafe_code,
+            reason = "the argument slot holds a live reference for the length of \
+                      the call, which is `Value::retain`'s whole obligation"
+        )]
+        unsafe {
+            args[0].retain();
+        }
+        Ok(args[0])
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Taint::assertTrustedBytes(tainted bytes $value, string $reason): bytes`
+    /// — the identity at run time, for `nvs_core_taint_assert_trusted`'s reason.
+    fn nvs_core_taint_assert_trusted_bytes(_ctx, args: [2]) {
+        #[expect(
+            unsafe_code,
+            reason = "the argument slot holds a live reference for the length of \
+                      the call, which is `Value::retain`'s whole obligation"
+        )]
+        unsafe {
+            args[0].retain();
+        }
+        Ok(args[0])
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use nvs_runtime::{Ctx, NvsStr, StrHeader, Value};
+
+    /// `assertTrusted` is the identity at run time: the answer is the
+    /// argument's own allocation with one more owner, and the reason is never
+    /// read, so a `null` in its slot is answered the same as a text. The
+    /// fixture carries the characters an escaper would rewrite, so a member
+    /// that sanitised anything would hand back a different allocation.
+    // covers: Core\Taint::assertTrusted
+    #[test]
+    fn assert_trusted_hands_back_the_argument_itself_and_reads_no_reason() {
+        for written in [Some("the column is one of three the program allows"), None] {
+            let value = Value::str(NvsStr::new("<a href='x'>Tom & Jerry</a> ünï".as_bytes()));
+            let header: *const StrHeader = value.buffer_ptr().expect("the value is a `string`");
+            let reason =
+                written.map_or_else(Value::null, |text| Value::str(NvsStr::new(text.as_bytes())));
+            let mut ctx = Ctx::buffered();
+            let answer = nvs_runtime::call(
+                super::nvs_core_taint_assert_trusted,
+                &mut ctx,
+                &[value, reason],
+            )
+            .expect("asserting a value trusted never throws");
+            assert!(
+                answer.bits() == value.bits() && answer.tag() == value.tag(),
+                "`assertTrusted` answers its own argument, with reason {written:?}"
+            );
+            #[expect(
+                unsafe_code,
+                reason = "`value` keeps `header` live, the caller owns the one reference the \
+                          member handed back, and built both arguments, each released once"
+            )]
+            unsafe {
+                assert_eq!(
+                    NvsStr::refcount_of(header),
+                    2,
+                    "the answer is one more owner"
+                );
+                answer.release();
+                assert_eq!(
+                    NvsStr::refcount_of(header),
+                    1,
+                    "releasing it leaves the caller's"
+                );
+                value.release();
+                reason.release();
+            }
+        }
+    }
+
+    /// `assertTrustedBytes` is the same identity over `bytes`, including
+    /// octets that are not UTF-8: the answer is the argument's own allocation.
+    // covers: Core\Taint::assertTrustedBytes
+    #[test]
+    fn assert_trusted_bytes_hands_back_the_argument_itself() {
+        let value = Value::bytes(NvsStr::new(&[0x00, 0xff, b'<', 0xc3]));
+        let reason = Value::str(NvsStr::new(b"the program wrote these bytes itself"));
+        let mut ctx = Ctx::buffered();
+        let answer = nvs_runtime::call(
+            super::nvs_core_taint_assert_trusted_bytes,
+            &mut ctx,
+            &[value, reason],
+        )
+        .expect("asserting bytes trusted never throws");
+        assert!(
+            answer.bits() == value.bits() && answer.tag() == value.tag(),
+            "`assertTrustedBytes` answers its own argument"
+        );
+        #[expect(
+            unsafe_code,
+            reason = "the caller owns the one reference the member handed back, and built \
+                      both arguments, each released once"
+        )]
+        unsafe {
+            answer.release();
+            value.release();
+            reason.release();
+        }
+    }
+}

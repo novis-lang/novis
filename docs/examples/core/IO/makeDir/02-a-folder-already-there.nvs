@@ -1,0 +1,20 @@
+<?nvs
+// Shows that `Core\IO::makeDir` accepts a folder that already exists, and throws when a file is in the way.
+
+string $dir = Core\IO::temporaryDir();
+string $cache = Core\Path::join($dir, "cache");
+
+// The second call finds the folder already there. It does nothing, so this prints "ready".
+Core\IO::makeDir($cache);
+Core\IO::makeDir($cache);
+echo "ready", "\n";
+
+// "notes.txt" is a file, so there cannot be a folder inside it.
+// `makeDir` throws an `IOError`, and this prints "a file is in the way".
+string $notes = Core\Path::join($dir, "notes.txt");
+Core\IO::write($notes, "hello\n");
+try {
+    Core\IO::makeDir(Core\Path::join($notes, "old"));
+} catch (IOError $e) {
+    echo "a file is in the way", "\n";
+}

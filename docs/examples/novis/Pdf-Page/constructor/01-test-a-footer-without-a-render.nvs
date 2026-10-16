@@ -1,0 +1,12 @@
+<?nvs
+// Shows how to test a footer function with a page you make yourself.
+use Novis\Pdf\Page;
+
+// The footer prints the page number and the page count.
+var $footer = fn(Page $page): Core\Html\Markup => html`<p>Page {$page->number} of {$page->count}</p>`;
+
+// This page is page 2 of 5. It has no named page, no `string-set` values and no marks.
+var $page = new Page(2, 5, null, [], []);
+
+// This prints `<p>Page 2 of 5</p>`.
+echo Core\Html::toSource($footer($page), "the example prints the markup"), "\n";

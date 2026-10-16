@@ -1,0 +1,39 @@
+<?nvs
+// Attack: `abs` copies numbers a million bits wide, hundreds of times over.
+// It is then given the widest number a single call may produce, and the
+// smallest `int` there is. A copy that is never freed would use up the memory
+// of the machine. The program should run to its last line.
+
+// 1. A number of 1 000 001 bits is copied 200 times. Only the last copy is
+//    kept, so the memory the program holds must not grow with the rounds.
+var $wide = Core\BigInt::of(1)->shl(1000000);
+int $round = 0;
+while ($round < 200) {
+    $wide = $wide->neg()->abs();
+    $round = $round + 1;
+}
+echo $wide->sign(), "\n";
+
+// 2. The widest number one call may produce. A wider one is not allowed, and
+//    that error is caught here so the step after this still runs.
+try {
+    var $widest = Core\BigInt::of(1)->shl(1048575);
+    echo $widest->neg()->abs()->sign(), "\n";
+    echo Core\BigInt::of(1)->shl(1048576)->abs()->sign(), "\n";
+} catch (ArithmeticError $tooWide) {
+    echo "refused\n";
+}
+
+// 3. The smallest `int` there is. `Core\Math::abs` throws an error for it, and
+//    this member must not.
+echo Core\BigInt::parse('-9223372036854775808')->abs(), "\n";
+
+// 4. A number that grows one bit each round, 1000 rounds long. Each round
+//    throws away the number the round before it made.
+var $growing = Core\BigInt::of(-1);
+int $step = 0;
+while ($step < 1000) {
+    $growing = $growing->shl(1)->neg()->abs()->neg();
+    $step = $step + 1;
+}
+echo $growing->sign(), "\n";

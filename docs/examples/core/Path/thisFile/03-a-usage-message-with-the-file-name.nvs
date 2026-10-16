@@ -1,0 +1,11 @@
+<?nvs
+// Shows how a command-line tool puts its own file name into its usage message.
+
+array<tainted string> $words = Core\Cli::arguments();
+
+// The tool needs one file name. When it gets none, it prints how to start it.
+// This prints `Usage: nvs run 03-a-usage-message-with-the-file-name.nvs <file>`.
+if (Core\Arr::count($words) == 0) {
+    string $name = Core\Path::basename(Core\Path::thisFile());
+    echo "Usage: nvs run ", $name, " <file>\n";
+}

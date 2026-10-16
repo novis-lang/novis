@@ -1,0 +1,48 @@
+--TEST--
+`Core\Http\Stream::lines()` and `events()` throw a `RuntimeError` for a framed piece that is not well-formed UTF-8, and `chunks()` reads the same octets as `bytes` (`rule:types/bytes`)
+--FILE--
+<?nvs
+// covers: Core\Http\Client::stream
+// A `string` is well-formed UTF-8, and a reply's octets are whatever the origin sent,
+// so every line, event data, event name and event id is checked before it becomes one.
+Core\Test::answerHttp('https://feed.example.com/lines', 200, { body: Core\Encoding::fromHex('6f6b0aff0a') });
+Core\Test::answerHttp('https://feed.example.com/data', 200, { body: Core\Encoding::fromHex('646174613a20ff0a0a') });
+Core\Test::answerHttp('https://feed.example.com/name', 200, { body: Core\Encoding::fromHex('6576656e743a20c0800a646174613a206f6b0a0a') });
+Core\Test::answerHttp('https://feed.example.com/id', 200, { body: Core\Encoding::fromHex('69643a20eda0800a646174613a206f6b0a0a') });
+Core\Test::answerHttp('https://feed.example.com/chunks', 200, { body: Core\Encoding::fromHex('6f6b0aff0a') });
+
+// The line before the broken one is still returned.
+var $lines = Core\Http\Client::stream(Core\Http\Method::Get, 'https://feed.example.com/lines');
+try {
+    foreach ($lines->lines() as tainted string $line) {
+        echo 'line: ', $line, "\n";
+    }
+} catch (RuntimeError $error) {
+    echo 'lines: ', Core\Str::contains($error->message, 'not valid UTF-8') ? 'refused' : $error->message, "\n";
+}
+
+array<string> $broken = ['data', 'name', 'id'];
+foreach ($broken as string $field) {
+    var $events = Core\Http\Client::stream(Core\Http\Method::Get, 'https://feed.example.com/' . $field);
+    try {
+        foreach ($events->events() as Core\Http\Event $event) {
+            echo $field, ': an event was given', "\n";
+        }
+    } catch (RuntimeError $error) {
+        echo $field, ': ', Core\Str::contains($error->message, 'not valid UTF-8') ? 'refused' : $error->message, "\n";
+    }
+}
+
+var $chunks = Core\Http\Client::stream(Core\Http\Method::Get, 'https://feed.example.com/chunks');
+uint $octets = 0;
+foreach ($chunks->chunks() as tainted bytes $chunk) {
+    $octets = $octets + Core\Bytes::length($chunk);
+}
+echo 'chunks: ', $octets, "\n";
+--EXPECT--
+line: ok
+lines: refused
+data: refused
+name: refused
+id: refused
+chunks: 5

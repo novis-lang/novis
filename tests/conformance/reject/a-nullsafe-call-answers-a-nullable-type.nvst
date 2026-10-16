@@ -1,0 +1,27 @@
+--TEST--
+`?->` adds `null` to the member's own type, so its result does not fit a non-nullable binding
+--FILE--
+<?nvs
+class Box {
+    public string $label;
+
+    public function constructor(string $label) {
+        $this->label = $label;
+    }
+
+    public function name(): string {
+        return $this->label;
+    }
+}
+
+?Box $maybe = new Box("here");
+string $name = $maybe?->name();
+echo $name . "\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `string`, found `string|null`
+   --> case.nvs:15:16
+%A
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

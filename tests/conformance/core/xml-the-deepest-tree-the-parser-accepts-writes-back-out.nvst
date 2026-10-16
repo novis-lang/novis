@@ -1,0 +1,26 @@
+--TEST--
+The depth bound is asserted on both sides: the deepest document the parser accepts is a tree that writes back out, and one element deeper never becomes a tree at all — `rule:core-classes/xml-tree-and-stream`, `rule:core-classes/xml-refuses-by-construction`
+--FILE--
+<?nvs
+// Depth is the bound a walk over a tree has to survive, and both halves of it
+// are here. Writing a subtree out holds its path on the heap rather than a
+// native frame per node, so the answer at the deepest document the parser will
+// accept is the document — a serialiser written the obvious recursive way
+// takes the process down here instead of printing anything.
+string $deep = Core\Str::repeat("<a>", 1024) . "x" . Core\Str::repeat("</a>", 1024);
+Core\Xml\Node $tree = Core\Xml::parse($deep);
+tainted string $written = $tree->source();
+echo "same: ", $written == $deep ? "y" : "n", "\n";
+
+// One deeper is refused where the depth is counted, so nothing past the
+// ceiling reaches the tree, the walk or this member.
+string $deeper = Core\Str::repeat("<a>", 1025) . "x" . Core\Str::repeat("</a>", 1025);
+try {
+    Core\Xml::parse($deeper);
+    echo "parsed\n";
+} catch (ParseError $refused) {
+    echo "refused: ", $refused->message, "\n";
+}
+--EXPECT--
+same: y
+refused: Core\Xml::parse(): elements nest deeper than 1024, which is as deep as a document may be.

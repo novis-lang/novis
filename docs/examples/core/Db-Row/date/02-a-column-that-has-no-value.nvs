@@ -1,0 +1,20 @@
+<?nvs
+// Shows what you get when the day column has no value in this row.
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table tasks (title text not null, due date)', []);
+$db->execute('insert into tasks (title, due) values (?, ?), (?, ?)', ['buy milk', null, 'pay the rent', '2026-02-01']);
+
+// `date` returns `null` for a column with no value, so your program says what
+// to print instead. This prints `buy milk: no day` and the day of the other row.
+foreach ($db->query('select title, due from tasks order by title', []) as Core\Db\Row $row) {
+    ?Core\Time\Date $due = $row->date('due');
+    echo $row->string('title') ?? '', ': ';
+    if ($due != null) {
+        echo $due->format('yyyy-MM-dd'), "\n";
+    } else {
+        echo "no day\n";
+    }
+}
+
+$db->close();

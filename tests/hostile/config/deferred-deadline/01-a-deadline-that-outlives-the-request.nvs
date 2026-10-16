@@ -1,0 +1,82 @@
+<?nvs
+// Attack: a request tries to make work after the response run longer than allowed.
+// A request may set `[deferred] deadline`, so it sets invalid, huge and many values.
+// It also tries to raise `max_concurrent`, which only the person who runs the server may change.
+// Nothing should crash, and every change to `max_concurrent` should fail.
+
+// 1. Raise `max_concurrent`, or set values that could mean "no limit". Each change should fail.
+array<string> $caps = ['4096', '18446744073709551615', '-1', '0', 'true', '', 'unlimited'];
+foreach ($caps as string $cap) {
+    Core\Config::set('deferred.max_concurrent', $cap);
+}
+Core\Config::restore('deferred.max_concurrent');
+
+// 2. Set the deadline to values at and past the limits of a duration. Nothing should crash.
+array<string> $deadlines = [
+    '0s',
+    '0',
+    '-1s',
+    '-9223372036854775808s',
+    '9223372036854775807s',
+    '99999999999999999999999h',
+    '30',
+    '30 s',
+    '30ss',
+    '3.0e10s',
+    'banana',
+    '',
+    ' ',
+    "30s\u{0000}forever",
+];
+foreach ($deadlines as string $deadline) {
+    Core\Config::set('deferred.deadline', $deadline);
+    Core\Config::get('deferred.deadline');
+}
+Core\Config::restore('deferred.deadline');
+
+// 3. Set the deadline to a number with 1,000,000 digits. It should fail quickly.
+string $flood = Core\Str::repeat('9', 1000000) . 's';
+Core\Config::set('deferred.deadline', $flood);
+Core\Config::get('deferred.deadline');
+Core\Config::restore('deferred.deadline');
+
+// 4. Set keys that are almost the real key: extra dots, capital letters and other names.
+array<string> $nearby = [
+    'deferred.deadline.',
+    '.deferred.deadline',
+    'deferred..deadline',
+    'deferreddeadline',
+    'deferred.deadline.default',
+    'DEFERRED.DEADLINE',
+    'Deferred.Deadline',
+    'deadline',
+    'deferred',
+    'deferred.max_concurrent.deadline',
+    'app.deferred.deadline',
+];
+foreach ($nearby as string $key) {
+    Core\Config::set($key, '9999h');
+    Core\Config::get($key);
+    Core\Config::restore($key);
+}
+
+// 5. Use a key with 10,000 parts. A slow key lookup or a stack overflow would show here.
+string $deep = 'deferred.deadline.' . Core\Str::repeat('scope.', 10000) . 'default';
+Core\Config::set($deep, '9999h');
+Core\Config::get($deep);
+Core\Config::restore($deep);
+
+// 6. Set the deadline 50,000 times with no restore. Only the last value should use memory.
+uint $i = 0;
+while ($i < 50000) {
+    Core\Config::set('deferred.deadline', $i . 's');
+    $i = $i + 1;
+}
+Core\Config::restore('deferred.deadline');
+
+// 7. Restore two keys that this program has not changed. Nothing should happen.
+Core\Config::restore('deferred.deadline');
+Core\Config::restore('deferred.max_concurrent');
+
+echo 'deadline: ', Core\Config::get('deferred.deadline') ?? '(nothing)', "\n";
+echo 'cap:      ', Core\Config::get('deferred.max_concurrent') ?? '(nothing)', "\n";

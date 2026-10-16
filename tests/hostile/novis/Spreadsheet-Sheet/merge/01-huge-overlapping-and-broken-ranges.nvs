@@ -1,0 +1,51 @@
+<?nvs
+// Attack: a request merges ranges that are huge, broken, outside the sheet or overlapping, and very many of them.
+// `merge` should write each good range once and throw an error for every other one.
+use Novis\Spreadsheet\Reader;
+use Novis\Spreadsheet\Workbook;
+
+class Attack
+{
+    // This method merges `$range` on a new sheet and prints the ranges read back, or the class of the error.
+    public static function attempt(int $step, string $range): void
+    {
+        try {
+            var $book = Workbook::createInMemory();
+            $book->sheet('Shop')->merge($range)->add(['Title']);
+            bytes $file = $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
+            echo 'step ', $step, ' read ', Core\Arr::count(Reader::open($file)->merged('Shop')), " range\n";
+        } catch (Throwable $e) {
+            echo 'step ', $step, ' stopped ', $e::class, "\n";
+        }
+    }
+}
+
+// 1. The whole sheet, and a range past the last row and the last column.
+Attack::attempt(1, 'A1:XFD1048576');
+Attack::attempt(1, 'A1:A1048577');
+Attack::attempt(1, 'A1:XFE1');
+
+// 2. One cell, a reversed range, an empty text, and text with markup.
+Attack::attempt(2, 'B2');
+Attack::attempt(2, 'C3:A1');
+Attack::attempt(2, '');
+Attack::attempt(2, 'A1:B2"/><script>');
+
+// 3. A range of another sheet, and a range of 10,000 characters.
+Attack::attempt(3, 'Blog!A1:B2');
+Attack::attempt(3, 'A1:' . Core\Str::repeat('B', 10000) . '2');
+
+// 4. 5,000 ranges on one sheet, and one range that overlaps the first.
+var $book = Workbook::createInMemory();
+var $sheet = $book->sheet('Shop');
+for (int $n = 1; $n <= 5000; $n++) {
+    $sheet->merge("A{$n}:C{$n}");
+}
+try {
+    $sheet->merge('B1:B2');
+} catch (LogicError $e) {
+    echo "step 4 stopped LogicError\n";
+}
+$sheet->add(['Title']);
+bytes $file = $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
+echo 'step 4 read ', Core\Arr::count(Reader::open($file)->merged('Shop')), " ranges\n";

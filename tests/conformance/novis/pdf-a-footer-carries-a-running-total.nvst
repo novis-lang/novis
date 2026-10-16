@@ -1,0 +1,34 @@
+--TEST--
+A footer function runs once for each page and prints a carried-forward total from the `data-mark` amounts of every page so far: rule:core-classes/pdf-header-is-a-page-function
+--FILE--
+<?nvs
+// covers: Novis\Pdf\Document::footer
+// covers: Novis\Pdf\Page::marks
+// covers: Novis\Pdf\Page::marksUpTo
+use Novis\Pdf\Document;
+use Novis\Pdf\Page;
+
+// Each row has a `data-mark` with its amount. Each `h2` starts a new page.
+var $html = "<style>h2 { break-before: page }</style>"
+    . "<h1>Shop</h1><p data-mark=\"amount:12.50\">Tea</p><p data-mark=\"amount:3.20\">Cups</p>"
+    . "<h2>Books</h2><p data-mark=\"amount:20.00\">A book</p>"
+    . "<h2>Toys</h2><p data-mark=\"amount:0.15\">A ball</p>";
+
+// The footer adds up the amounts on this page and on every page before it.
+// The amounts are strings, so `as ?decimal` converts each one to an exact number.
+var $footer = fn(Page $page): Core\Html\Markup => {
+    decimal $total = 0.0;
+    foreach ($page->marksUpTo("amount") as string $amount) {
+        $total = $total + (($amount as ?decimal) ?? 0.0 as decimal);
+    }
+    echo "page ", $page->number, " of ", $page->count, ": ", Core\Arr::count($page->marks("amount")), " rows, total ", $total, "\n";
+    return html`<p>Carried forward: {$total}</p>`;
+};
+
+var $rendered = Document::fromHtml($html)->footer($footer)->render();
+echo $rendered->pageCount, " pages, ", Core\Arr::count($rendered->overflows), " overflows\n";
+--EXPECT--
+page 1 of 3: 2 rows, total 15.70
+page 2 of 3: 1 rows, total 35.70
+page 3 of 3: 1 rows, total 35.85
+3 pages, 0 overflows

@@ -1,0 +1,17 @@
+<?nvs
+// Shows how to join several `bytes` values into one. You give the list, and a
+// separator when you want one between the parts.
+
+array<bytes> $parts = ["GET /orders" as bytes, "HTTP/1.1" as bytes];
+
+// Without a separator the parts follow each other directly. This prints
+// "GET /ordersHTTP/1.1".
+echo Core\Bytes::join($parts) as string, "\n";
+
+// With a separator it is written between the parts. This prints
+// "GET /orders HTTP/1.1".
+echo Core\Bytes::join($parts, " " as bytes) as string, "\n";
+
+// The length of the result is the length of the parts plus the separator.
+// This prints 20.
+echo Core\Bytes::length(Core\Bytes::join($parts, " " as bytes)), "\n";

@@ -1,0 +1,18 @@
+<?nvs
+// Shows how to find the route that a method and a path belong to.
+
+class Articles {
+    #[Core\Route(path: "/articles/{id}", method: Core\Http\Method::Get, name: "Articles::show")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function show(uint $id): string { return "one article"; }
+}
+
+// `Core\Router::match` checks the path against every `#[Route]` in the program.
+// The result is a `Core\Router\Match` with the route's name and its captures.
+?Core\Router\Match $found = Core\Router::match(Core\Http\Method::Get, "/articles/42");
+if ($found != null) {
+    // This prints `Articles::show`.
+    echo $found->name() ?? "no name", "\n";
+    // `{id}` is a `uint` in `show`, so the capture is the number 42.
+    echo $found->param("id"), "\n";
+}

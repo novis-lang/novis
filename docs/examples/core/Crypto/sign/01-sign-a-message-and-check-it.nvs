@@ -1,0 +1,24 @@
+<?nvs
+// Shows how to sign a message, and how the other side checks it. The signature
+// travels next to the message.
+
+Core\Crypto\KeyPair $pair = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::Ed25519);
+
+bytes $message = "ship 2 boxes to Ada" as bytes;
+bytes $signature = Core\Crypto::sign($message, $pair);
+
+// An Ed25519 signature is 64 bytes. This prints `the signature is 64 bytes`.
+echo "the signature is ", Core\Bytes::length($signature), " bytes", "\n";
+
+// The other side needs the message, the signature and your public key.
+// `Core\Crypto::verify` returns nothing, and throws an error when the check fails.
+Core\Crypto::verify($message, $signature, $pair->publicKey());
+echo "the signature belongs to this key", "\n";
+
+// One changed word in the message makes the check fail.
+try {
+    Core\Crypto::verify("ship 3 boxes to Ada" as bytes, $signature, $pair->publicKey());
+    echo "the changed message passed", "\n";
+} catch (Throwable $e) {
+    echo "the changed message was refused", "\n";
+}

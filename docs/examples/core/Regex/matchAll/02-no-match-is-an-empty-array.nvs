@@ -1,0 +1,11 @@
+<?nvs
+// Shows that `matchAll` returns an empty array when the pattern matches nowhere.
+
+array<string> $lines = ["Contact: help@example.com, sales@example.com", "No address here."];
+
+// The first line has two addresses, so this prints 2.
+// The second line has none. The array is empty, so this prints 0.
+foreach ($lines as string $line) {
+    var $found = Core\Regex::matchAll($line, '[a-z]+@[a-z.]+');
+    echo Core\Arr::count($found), " address(es) in: ", $line, "\n";
+}

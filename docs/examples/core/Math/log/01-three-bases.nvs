@@ -1,0 +1,14 @@
+<?nvs
+// Shows the logarithm in the three bases programs use most.
+
+// With no base, the base is `E`. The logarithm of `E` is 1, so this prints 1.
+echo Core\Math::log(Core\Math::E), "\n";
+
+// `10 ** 3` is 1000, so this prints 3.
+echo Core\Math::log(1000.0, {base: 10.0}), "\n";
+
+// `2 ** 10` is 1024, so this prints 10.
+echo Core\Math::log(1024.0, {base: 2.0}), "\n";
+
+// Any number above zero can be the base. `3 ** 4` is 81, so this prints 4.
+echo Core\Math::round(Core\Math::log(81.0, {base: 3.0}), {precision: 6}), "\n";

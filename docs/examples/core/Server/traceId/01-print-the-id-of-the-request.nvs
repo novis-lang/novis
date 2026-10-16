@@ -1,0 +1,10 @@
+<?nvs
+// Shows how to read the id of the current request.
+
+// The request has a `traceparent` header, so `Core\Server::traceId` returns the id in that header.
+// This prints "4bf92f3577b34da6a3ce929d0e0e4736".
+string $id = Core\Server::traceId();
+echo $id, "\n";
+
+// The id always has 32 characters. This prints "32".
+echo Core\Str::length($id), "\n";

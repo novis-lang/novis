@@ -1,0 +1,23 @@
+<?nvs
+// Checks an uploaded workbook for macros, as an import does before it accepts the file.
+// bench: iterations 32
+// bench: complexity constant
+use Novis\Spreadsheet\Reader;
+use Novis\Spreadsheet\Workbook;
+
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        Reader $reader = Reader::open(Workbook::fromRows([['item' => 'Widget', 'price' => 2.5]])->bytes());
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            $total = $total + Core\Arr::count($reader->macros()) + 1;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(32), "\n";

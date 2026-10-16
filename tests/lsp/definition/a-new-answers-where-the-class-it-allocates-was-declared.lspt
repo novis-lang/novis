@@ -1,0 +1,15 @@
+--TEST--
+a cursor on the class a `new` allocates answers the declaration's own name span, read back out of the resolution the type phase already made, `rule:ide/the-index-answers-the-cursor`
+--FILE--
+<?nvs
+class User
+{
+    public string $name = "";
+}
+
+$u = new Us<|>er();
+echo $u->name;
+--REQUEST--
+definition
+--EXPECT--
+case.nvs:2:7

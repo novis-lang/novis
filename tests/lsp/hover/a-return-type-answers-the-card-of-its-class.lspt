@@ -1,0 +1,23 @@
+--TEST--
+a class written as a method's return type answers that class's `///` run, `rule:ide/the-index-answers-the-cursor`
+--FILE--
+<?nvs
+/// One person, as the store holds them.
+class User
+{
+    public string $name = "";
+}
+
+class Store
+{
+    public function first(): Us<|>er
+    {
+        return new User();
+    }
+}
+
+echo new Store()->first()->name;
+--REQUEST--
+hover
+--EXPECT--
+One person, as the store holds them.

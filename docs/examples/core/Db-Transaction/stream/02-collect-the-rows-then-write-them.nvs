@@ -1,0 +1,28 @@
+<?nvs
+// Shows how to write with the rows of a walk. The walk holds the connection
+// until its last row, so the loop collects the values and the writes come after.
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table tasks (id integer primary key, title text not null, done int not null)', []);
+$db->execute('insert into tasks (title, done) values (?, 0), (?, 0), (?, 0)', ['pack', 'label', 'ship']);
+
+$db->transaction(fn (Core\Db\Transaction $tx): void => {
+    // A second statement while rows remain is a `LogicError`, so this loop only
+    // reads. It keeps one number per row and nothing else.
+    array<int> $todo = [];
+    foreach ($tx->stream('select id, title from tasks where done = 0 order by id', []) as Core\Db\Row $row) {
+        $todo[] = $row->int('id') ?? 0;
+        echo 'found: ', $row->string('title') ?? '', "\n";
+    }
+
+    // The walk read its last row, so the connection is free again. All three
+    // updates run on the same transaction and are saved together.
+    foreach ($todo as int $id) {
+        $tx->execute('update tasks set done = 1 where id = ?', [$id]);
+    }
+});
+
+// This prints `3 of 3 done`.
+echo $db->query('select id from tasks where done = 1', [])->count(), ' of ', $db->query('select id from tasks', [])->count(), " done\n";
+
+$db->close();

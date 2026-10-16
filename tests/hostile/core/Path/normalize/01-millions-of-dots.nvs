@@ -1,0 +1,41 @@
+<?nvs
+// Attack: `Core\Path::normalize` is given paths with millions of `.` and `..` parts,
+// very long parts and roots in strange places. Each call should return a path, and the program must not crash.
+// hostile: timeout-ms 60000
+
+// 1. Two million `..` parts on a relative path, and every one of them stays.
+echo Core\Str::length(Core\Path::normalize(Core\Str::repeat('../', 2097152))), "\n";
+
+// 2. Two million `..` parts above a root, and every one of them is removed.
+echo Core\Str::replace(Core\Path::normalize('/' . Core\Str::repeat('../', 2097152)), Core\Path::SEPARATOR, '/'), "\n";
+
+// 3. One million folders, each removed again by the `..` after it.
+echo Core\Path::normalize(Core\Str::repeat('a/../', 1048576)), "\n";
+
+// 4. One million folders, then one million `..` parts that remove them all.
+echo Core\Path::normalize(Core\Str::repeat('d/', 1048576) . Core\Str::repeat('../', 1048576)), "\n";
+
+// 5. The path is 8 MiB of `.` parts and separators.
+echo Core\Path::normalize(Core\Str::repeat("./\\", 2796202)), "\n";
+
+// 6. One part is 8 MiB long.
+echo Core\Str::length(Core\Path::normalize('/' . Core\Str::repeat('x', 8388608) . '/.')), "\n";
+
+// 7. The same path is normalized 200 times, and every result is freed.
+string $long = Core\Str::repeat('dir/./sub/../', 20000);
+uint $seen = 0;
+int $r = 0;
+while ($r < 200) {
+    $seen = $seen + Core\Str::length(Core\Path::normalize($long));
+    $r = $r + 1;
+}
+echo $seen, "\n";
+
+// 8. A network share climbed out of, a share with no name, and a drive with nothing after it.
+echo Core\Str::replace(Core\Path::normalize("\\\\server\\share\\..\\..\\.."), Core\Path::SEPARATOR, '/'), "\n";
+echo Core\Str::replace(Core\Path::normalize("\\\\"), Core\Path::SEPARATOR, '/'), ' ', Core\Path::normalize('C:'), "\n";
+
+// 9. The parts have emoji, a null byte and characters from other scripts.
+echo Core\Str::replace(Core\Path::normalize("/données/./報告\u{0}/../😀"), Core\Path::SEPARATOR, '/'), "\n";
+
+echo 'the runtime is still standing', "\n";

@@ -1,0 +1,15 @@
+<?nvs
+// Shows ranges of decimal numbers, and a range that has no values in it.
+
+// Here the range is from 0.5 to 1.0, so this prints 1.
+echo Core\Math::clamp(1.25, 0.5, 1.0), "\n";
+
+// The lowest value and the highest value can be the same. This prints 0.5.
+echo Core\Math::clamp(1.25, 0.5, 0.5), "\n";
+
+// A lowest value above the highest is not a range. The call throws a `RuntimeError`.
+try {
+    echo Core\Math::clamp(1.25, 1.0, 0.5), "\n";
+} catch (RuntimeError $e) {
+    echo "error: ", $e->message, "\n";
+}

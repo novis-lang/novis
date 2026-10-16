@@ -1,0 +1,21 @@
+<?nvs
+// Writes the header line of a CSV export from the properties of a class.
+
+class Product {
+    public string $sku = "A-100";
+    public string $title = "Desk lamp";
+    public float $price = 24.9;
+    public int $stock = 12;
+}
+
+// The loop adds each name to the line, with a comma between two names.
+string $header = "";
+foreach (Core\Reflect::forObject(new Product())->properties() as Core\Reflect\PropertyInfo $property) {
+    if ($header != "") {
+        $header = $header . ",";
+    }
+    $header = $header . $property->name();
+}
+
+// This prints `sku,title,price,stock`.
+echo $header, "\n";

@@ -1,0 +1,11 @@
+<?nvs
+// Shows how to check if two times are the same time.
+
+Core\Time\TimeOfDay $a = Core\Time\TimeOfDay::at(12, 0);
+Core\Time\TimeOfDay $b = Core\Time\TimeOfDay::at(12, 0);
+
+// `==` checks if both variables are the same object. They are not, so this prints "different objects".
+echo $a == $b ? "same object" : "different objects", "\n";
+
+// `compareTo` checks the time itself. This prints "same time".
+echo $a->compareTo($b) == 0 ? "same time" : "different time", "\n";

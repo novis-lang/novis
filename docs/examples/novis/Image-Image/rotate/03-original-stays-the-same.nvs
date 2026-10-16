@@ -1,0 +1,15 @@
+<?nvs
+// Shows that `rotate` returns a new image, so you can make several versions from one image.
+use Novis\Image\Image;
+use Novis\Image\Color;
+
+Image $photo = Image::create(300, 200, Color::hex("#22aa55"));
+Image $left = $photo->rotate(-90.0);
+Image $right = $photo->rotate(90.0);
+
+// `$photo` has no steps, so it keeps its size. This prints 300x200, 200x300 and 200x300.
+array<Image> $versions = [$photo, $left, $right];
+foreach ($versions as Image $version) {
+    var $raw = $version->raw();
+    echo $raw->width, "x", $raw->height, "\n";
+}

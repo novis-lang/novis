@@ -1,0 +1,27 @@
+<?nvs
+// Shows a server that acts only on messages from addresses it trusts.
+
+// This server trusts two machines of its own network. Every other sender is ignored.
+array<string> $trusted = ["10.0.0.7", "10.0.0.8"];
+
+Core\Net\Datagram $server = Core\Net::bindDatagram("127.0.0.1", 0);
+Core\Net\Datagram $stranger = Core\Net::bindDatagram("127.0.0.1", 0);
+$stranger->send("127.0.0.1", $server->port(), "restart" as bytes, 1s);
+
+Core\Net\Datagram\Message $message = $server->receive(64, 5s);
+bool $known = false;
+foreach ($trusted as string $address) {
+    if ($message->host() == $address) {
+        $known = true;
+    }
+}
+
+// `127.0.0.1` is not in the list. This prints `ignored a message from 127.0.0.1`.
+if ($known) {
+    echo "restarting\n";
+} else {
+    echo "ignored a message from ", $message->host(), "\n";
+}
+
+$stranger->close();
+$server->close();

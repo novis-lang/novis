@@ -1,0 +1,11 @@
+<?nvs
+// Shows what happens to the keys. The result is a list numbered from 0, so
+// every key you gave is replaced by a number.
+
+array<int> $first = ["a" => 1, "b" => 2];
+array<int> $second = ["b" => 3];
+
+// This prints [1,2,3]. Both entries named "b" are kept, because nothing is
+// compared here.
+array<int> $joined = Core\Arr::appendAll($first, $second);
+echo Core\Json::encode($joined), "\n";

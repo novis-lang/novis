@@ -1,0 +1,40 @@
+--TEST--
+A file starts in text mode and every byte outside the tags is written verbatim, `<?nvs` opens code mode and `?>` closes it, `?>` swallows one following newline, `<?= expr ?>` writes one value where it stands, a `{ … }` block may begin in one mode and end in the other, and neither `<?` nor `<?xml` is an open tag (`rule:statements/nvs-is-the-only-open-tag`)
+--FILE--
+before
+<?nvs
+// covers: lang:programs/code-mode-and-html-mode
+// The file above this tag was text mode: those bytes went out as they stood.
+string $who = "world";
+?>
+after <?= $who ?>!
+<?nvs
+// `rule:statements/nvs-is-the-only-open-tag`: there is no short open tag, so
+// neither of the next two lines is code.
+?>
+<? not an open tag ?>
+<?xml version="1.0"?>
+<?nvs
+// A `?>` takes the single newline directly after it, so the line below this
+// tag starts where the text starts rather than after a blank line.
+?>
+no blank line above
+<?nvs
+// A block may open in code mode, hold page text, and close in code mode.
+array<string> $products = ["pen", "ink"];
+foreach ($products as string $name) {
+?>
+  <li><?= $name ?></li>
+<?nvs
+}
+?>
+end
+--EXPECT--
+before
+after world!
+<? not an open tag ?>
+<?xml version="1.0"?>
+no blank line above
+  <li>pen</li>
+  <li>ink</li>
+end

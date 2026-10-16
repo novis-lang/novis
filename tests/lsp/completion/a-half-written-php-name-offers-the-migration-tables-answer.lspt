@@ -1,0 +1,10 @@
+--TEST--
+a half-written PHP built-in name is offered nothing, because no completion maps a PHP name to a Novis one, `rule:programs/no-compatibility-promise`
+--FILE--
+<?nvs
+var $total = 1;
+strip<|>
+--REQUEST--
+completion prefix=strip
+--EXPECT--
+none

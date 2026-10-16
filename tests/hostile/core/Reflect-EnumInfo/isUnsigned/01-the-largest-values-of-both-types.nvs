@@ -1,0 +1,50 @@
+<?nvs
+// Attack: a program checks the type of enums whose values are at the ends of both ranges,
+// many times. Every check should return the declared type, and the runtime must not crash.
+
+enum Huge: uint
+{
+    Top = 18446744073709551615,
+    Zero = 0,
+}
+
+enum Wide: int
+{
+    Top = 9223372036854775807,
+    Bottom = -9223372036854775807,
+}
+
+enum Empty: uint
+{
+}
+
+// 1. Each enum is described and checked, 100000 times.
+array<string> $names = [Huge::class, Wide::class, Empty::class];
+uint $unsigned = 0;
+uint $i = 0;
+while ($i < 100000) {
+    ?Core\Reflect\EnumInfo $found = Core\Reflect\EnumInfo::of($names[($i % 3) as int]);
+    if ($found != null) {
+        Core\Reflect\EnumInfo $info = $found;
+        if ($info->isUnsigned()) {
+            $unsigned = $unsigned + 1;
+        }
+    }
+    $i = $i + 1;
+}
+echo $unsigned, "\n";
+
+// 2. The largest value of each type is read back with the type the check gave.
+foreach ($names as string $name) {
+    ?Core\Reflect\EnumInfo $edge = Core\Reflect\EnumInfo::of($name);
+    if ($edge != null) {
+        Core\Reflect\EnumInfo $described = $edge;
+        foreach ($described->cases() as string $case) {
+            if ($described->isUnsigned()) {
+                echo $name, '::', $case, ' = ', $described->valueOf($case) as uint, "\n";
+            } else {
+                echo $name, '::', $case, ' = ', $described->valueOf($case) as int, "\n";
+            }
+        }
+    }
+}

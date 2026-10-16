@@ -1,0 +1,16 @@
+<?nvs
+// Shows how to write one number the way different countries write it.
+
+float $amount = 1234567.891;
+
+// With no `groupSeparator`, the digits are not grouped. This prints 1234567.89.
+echo Core\Math::format($amount, {decimals: 2}), "\n";
+
+// This prints 1,234,567.89, as in the United States.
+echo Core\Math::format($amount, {decimals: 2, groupSeparator: ","}), "\n";
+
+// This prints 1.234.567,89, as in Germany.
+echo Core\Math::format($amount, {decimals: 2, decimalSeparator: ",", groupSeparator: "."}), "\n";
+
+// This prints 1 234 567,89, as in France.
+echo Core\Math::format($amount, {decimals: 2, decimalSeparator: ",", groupSeparator: " "}), "\n";

@@ -1,0 +1,17 @@
+<?nvs
+// Shows that `retryAfter` is `null` when a call is allowed, and a wait time
+// when it is refused.
+
+// The limit is 1 call per 15 minutes. The first call is allowed,
+// so this prints `no wait`.
+var $first = Core\RateLimit::shed("feedback:form", 1, 15m);
+var $firstWait = $first->retryAfter();
+echo $firstWait == null ? "no wait" : "wait", "\n";
+
+// The second call is refused. The wait is just under 15 minutes,
+// so rounded up to whole seconds this prints `wait 900 seconds`.
+var $second = Core\RateLimit::shed("feedback:form", 1, 15m);
+var $secondWait = $second->retryAfter();
+if ($secondWait != null) {
+    echo "wait ", Core\Math::intDiv($secondWait->toMilliseconds() + 999, 1000), " seconds\n";
+}

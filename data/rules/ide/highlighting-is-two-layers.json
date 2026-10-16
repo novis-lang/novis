@@ -1,0 +1,19 @@
+{
+  "title": "Syntax highlighting is a TextMate grammar and a semantic-token provider, each with its own test, and each must cover what makes Novis not PHP",
+  "status": "shipped",
+  "seeAlso": [
+    "ide/rejected-syntax-gets-no-colour",
+    "ide/semantic-tokens-carry-the-qualifiers",
+    "ide/novis-ships-names-not-colours",
+    "ide/case-files-have-their-own-grammar",
+    "types/object-top",
+    "types/duration",
+    "types/decimal",
+    "tooling/doc-comment-is-three-slashes"
+  ],
+  "guardedBy": [
+    "editors/vscode/test/grammar/keywords.test.ts",
+    "editors/vscode/test/host/colour.test.ts",
+    "tests/lsp/semantic/a-legacy-cast-is-refused-so-its-type-name-is-not-coloured.lspt"
+  ]
+}

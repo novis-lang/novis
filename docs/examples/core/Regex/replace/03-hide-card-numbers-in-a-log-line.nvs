@@ -1,0 +1,18 @@
+<?nvs
+// Shows how to hide card numbers before a line is written to a log file.
+
+// The pattern is compiled once. It finds 12 digits followed by 4 more digits,
+// and keeps the last 4 digits in group 1.
+Core\Regex\Pattern $card = Core\Regex::compile('\b\d{12}(\d{4})\b');
+
+array<string> $lines = [
+    "order 1042 paid with card 4111111111111111",
+    "order 1043 paid with card 5500000000000004, refund to 4000056655665556",
+    "order 1044 paid by bank transfer",
+];
+
+// Every card number becomes "************" and its last 4 digits.
+// A line with no card number does not change.
+foreach ($lines as string $line) {
+    echo Core\Regex::replace($line, $card, '************$1'), "\n";
+}

@@ -1,0 +1,53 @@
+<?nvs
+// Attack: a server sends a message of eight megabytes and a hundred thousand small messages.
+// The program keeps every message it reads, and then reads past the end many times.
+// Each step must finish or throw an error. Nothing may crash.
+
+// 1. One text message and one binary message of eight megabytes each.
+string $big = Core\Str::repeat('m', 8388608);
+Core\Test::answerSocket('wss://feed.example.com/big', [$big, $big as bytes]);
+Core\Http\Socket $large = Core\Http\Client::openSocket('wss://feed.example.com/big');
+uint $size = 0;
+try {
+    ?Core\Socket\Message $first = $large->receive();
+    ?Core\Socket\Message $second = $large->receive();
+    $size = Core\Str::length($first?->text() ?? ('' as tainted string))
+        + Core\Bytes::length($second?->bytes() ?? ('' as tainted bytes));
+} catch (RuntimeError $tooBig) {
+    // A message that is too large may throw an error. That is also a pass.
+}
+echo 'step 1: ', $size, "\n";
+
+// 2. A hundred thousand small messages, and every one is kept in an array.
+array<string|bytes> $frames = [];
+uint $i = 0;
+while ($i < 100000) {
+    $frames[] = 'tick ' . $i;
+    $i = $i + 1;
+}
+Core\Test::answerSocket('wss://feed.example.com/many', $frames);
+Core\Http\Socket $many = Core\Http\Client::openSocket('wss://feed.example.com/many');
+array<Core\Socket\Message> $kept = [];
+?Core\Socket\Message $message = $many->receive();
+while ($message != null) {
+    $kept[] = $message;
+    $message = $many->receive();
+}
+if (Core\Arr::count($kept) != 100000) {
+    throw new LogicError('a message was lost or read twice');
+}
+echo 'step 2: ', Core\Arr::count($kept), "\n";
+
+// 3. The finished connection is read a hundred thousand more times. Each read must return `null`.
+uint $nulls = 0;
+$i = 0;
+while ($i < 100000) {
+    if ($many->receive() == null) {
+        $nulls = $nulls + 1;
+    }
+    $i = $i + 1;
+}
+if ($nulls != 100000) {
+    throw new LogicError('a finished connection returned a message');
+}
+echo 'step 3: ', $nulls, "\n";

@@ -1,0 +1,28 @@
+--TEST--
+Core\Arr::slice renumbers a window of string or mixed keys from zero by default, and keeps every key with `preserveKeys: true`, `rule:types/preserve-keys`
+--FILE--
+<?nvs
+final class Render {
+    public static function of(array<int> $a): string {
+        var $out = "";
+        foreach ($a as string $k => int $v) {
+            $out = $out . $k . "=" . $v . ";";
+        }
+        return $out;
+    }
+}
+
+// Only string keys. The window is a list from key 0.
+array<int> $map = ["x" => 1, "y" => 2, "z" => 3, "w" => 4];
+echo Render::of(Core\Arr::slice($map, 1, 2)), "\n";
+
+// Integer and string keys together. The window is a list from key 0.
+array<int> $mixed = ["5" => 1, "x" => 2, "9" => 3, "b" => 4];
+echo Render::of(Core\Arr::slice($mixed, 0, 3)), "\n";
+
+// `preserveKeys: true` keeps every key in the window.
+echo Render::of(Core\Arr::slice($mixed, 0, 3, {preserveKeys: true})), "\n";
+--EXPECT--
+0=2;1=3;
+0=1;1=2;2=3;
+5=1;x=2;9=3;

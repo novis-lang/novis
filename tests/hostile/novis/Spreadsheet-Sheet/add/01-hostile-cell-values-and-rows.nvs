@@ -1,0 +1,64 @@
+<?nvs
+// Attack: a request sends cell values that look like formulas, very long text, too many columns and values of the wrong type.
+// `add` should write each formula-like text as plain text, and throw an error for a row the sheet cannot hold.
+use Novis\Spreadsheet\Reader;
+use Novis\Spreadsheet\Workbook;
+
+class Attack
+{
+    // This method writes `$value` to a CSV file and prints the first character of the cell.
+    public static function csv(int $step, string $value): void
+    {
+        var $book = Workbook::createInMemory({ format: 'csv' });
+        $book->sheet('Shop')->add([$value]);
+        string $text = ($book->finish()->bytes ?? Core\Bytes::fill(0, 0)) as string;
+        echo 'step ', $step, ' wrote a CSV cell that starts with ', Core\Str::slice($text, 0, 2), "\n";
+    }
+
+    // This method writes one row to an xlsx file and reads it back, or prints the class of the error.
+    public static function xlsx(int $step, array<mixed> $row): void
+    {
+        try {
+            var $book = Workbook::createInMemory();
+            $book->sheet('Shop')->add($row);
+            bytes $file = $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
+            foreach (Reader::open($file)->rows('Shop') as var $read) {
+                echo 'step ', $step, ' read ', Core\Arr::count($read->values), " cells\n";
+            }
+        } catch (Throwable $e) {
+            echo 'step ', $step, ' stopped ', $e::class, "\n";
+        }
+    }
+}
+
+// 1. Text that a spreadsheet program could run as a formula.
+Attack::csv(1, "=cmd|' /C calc'!A0");
+Attack::csv(1, '+1+1');
+Attack::csv(1, '-2+3');
+Attack::csv(1, '@SUM(A1:A2)');
+Attack::xlsx(1, ['=HYPERLINK("https://example.com","click")']);
+
+// 2. Text of 40,000 characters, more than the 32,767 of one cell, and text with markup and a zero byte.
+Attack::xlsx(2, [Core\Str::repeat('a', 40000)]);
+Attack::xlsx(2, ["<script>alert(1)</script>\u{0}"]);
+
+// 3. A row of 20,000 values, more than the 16,384 columns of a sheet.
+array<mixed> $wide = [];
+for (int $n = 0; $n < 20000; $n++) {
+    $wide[] = $n;
+}
+Attack::xlsx(3, $wide);
+
+// 4. A value that is an array, and a value that is an object.
+Attack::xlsx(4, [['nested' => 1]]);
+Attack::xlsx(4, [new LogicError('not a cell')]);
+
+// 5. A row added to a sheet that is already finished.
+var $book = Workbook::createInMemory();
+var $first = $book->sheet('Shop');
+$book->sheet('Blog');
+try {
+    $first->add(['late']);
+} catch (LogicError $e) {
+    echo "step 5 stopped LogicError\n";
+}

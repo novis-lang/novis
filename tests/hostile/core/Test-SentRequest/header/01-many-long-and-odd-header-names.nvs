@@ -1,0 +1,58 @@
+<?nvs
+// Attack: a program sends a request with thousands of headers and a very large header
+// value, then reads headers with empty, very long and strange names. The program
+// should not crash.
+
+use Core\Http\Client;
+use Core\Test;
+use Core\Test\SentRequest;
+
+Test::answerHttp('https://api.example.com/*', 200);
+
+// Step 1: one request with five thousand headers and one value of one megabyte.
+array<string> $headers = [];
+uint $index = 0;
+while ($index < 5000) {
+    $headers['X-Field-' . $index] = 'value ' . $index;
+    $index = $index + 1;
+}
+$headers['X-Big'] = Core\Str::repeat('v', 1048576);
+try {
+    Client::post('https://api.example.com/upload', { headers: $headers, body: 'x', contentType: 'text/plain' });
+    echo "sent\n";
+} catch (Throwable $error) {
+    echo "refused\n";
+}
+
+// Step 2: a header whose value tries to start a second header.
+try {
+    Client::get('https://api.example.com/a', { headers: ['X-Note' => "a\r\nX-Injected: yes"] });
+    echo "sent a line break\n";
+} catch (Throwable $error) {
+    echo "refused a line break\n";
+}
+
+// Step 3: the first request is read with names that exist in other cases, and names that do not exist.
+SentRequest $request = Test::sentHttp()[0];
+echo $request->header('x-field-4999') ?? 'missing', "\n";
+echo Core\Str::length($request->header('X-BIG') ?? ''), "\n";
+echo $request->header('') ?? 'no empty name', "\n";
+echo $request->header("\0") ?? 'no zero byte', "\n";
+echo $request->header('x-field-4999 ') ?? 'no trailing space', "\n";
+echo $request->header(Core\Str::repeat('X', 1048576)) ?? 'no long name', "\n";
+echo $request->header('X-Injected') ?? 'nothing injected', "\n";
+
+// Step 4: every header is read by name one hundred times.
+uint $found = 0;
+uint $round = 0;
+while ($round < 100) {
+    $index = 0;
+    while ($index < 5000) {
+        if ($request->header('X-FIELD-' . $index) != null) {
+            $found = $found + 1;
+        }
+        $index = $index + 1;
+    }
+    $round = $round + 1;
+}
+echo $found, "\n";

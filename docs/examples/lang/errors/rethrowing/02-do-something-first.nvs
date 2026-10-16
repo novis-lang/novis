@@ -1,0 +1,30 @@
+<?nvs
+// Shows the common reason to rethrow. This code counts the failure and writes a
+// line about it. It cannot decide what to do next, so it sends the error on.
+
+final class Uploads {
+    public static int $failures = 0;
+
+    public static function send(string $name): string {
+        try {
+            if ($name == "photo.raw") {
+                throw new IOError("the upload was cut off");
+            }
+            return "sent " . $name;
+        } catch (IOError $cut) {
+            Uploads::$failures = Uploads::$failures + 1;
+            echo "upload ", $name, " failed\n";
+            throw $cut;
+        }
+    }
+}
+
+echo Uploads::send("notes.txt"), "\n";
+
+try {
+    echo Uploads::send("photo.raw"), "\n";
+} catch (IOError $failed) {
+    echo "giving up: ", $failed->message, "\n";
+}
+
+echo "failures so far: ", Uploads::$failures, "\n";

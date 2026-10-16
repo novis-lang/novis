@@ -1,0 +1,30 @@
+<?nvs
+// Attack: a program builds changes whose names are broken dotted numbers, such
+// as `2.5.4.3`. Each change should be built or throw a `LogicError`.
+
+// 1. Leading zeros, empty parts, a single number and a sign.
+array<string> $names = ['0.1', '01.2', '1..2', '1.', '.1', '7', '1.-2', '1.2;x', '1.2;'];
+foreach ($names as string $name) {
+    try {
+        var $odd = Core\Ldap\Change::remove($name, 'x');
+        echo "1 built\n";
+    } catch (LogicError $refusal) {
+        echo "1 refused\n";
+    }
+}
+
+// 2. A dotted number with a hundred thousand parts.
+try {
+    var $deep = Core\Ldap\Change::remove('1' . Core\Str::repeat('.9', 100000), 'x');
+    echo "2 built\n";
+} catch (LogicError $refusal) {
+    echo "2 refused\n";
+}
+
+// 3. A part with a million digits.
+try {
+    var $wide = Core\Ldap\Change::remove('1.' . Core\Str::repeat('9', 1000000), 'x');
+    echo "3 built\n";
+} catch (LogicError $refusal) {
+    echo "3 refused\n";
+}

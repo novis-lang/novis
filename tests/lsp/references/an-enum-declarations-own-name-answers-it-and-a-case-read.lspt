@@ -1,0 +1,16 @@
+--TEST--
+an enum's own declaration answers itself and the read of one of its cases, which is recorded against the enum rather than against the case, `rule:ide/five-features-are-one-reference-index`
+--FILE--
+<?nvs
+enum Sta<|>tus: int
+{
+    case Draft = 1;
+    case Live = 2;
+}
+
+var $s = Status::Draft;
+--REQUEST--
+references
+--EXPECT--
+case.nvs:2:6
+case.nvs:8:10

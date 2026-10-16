@@ -1,0 +1,7 @@
+--METHOD--
+GET
+--PATH--
+/
+--HEADERS--
+host: example.com
+cookie: theme=dark; lang=de

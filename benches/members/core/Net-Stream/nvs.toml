@@ -1,0 +1,5 @@
+# The benches open a server on this computer and connect to it.
+[capabilities.net]
+listen = ["127.0.0.1:0"]
+connect = ["127.0.0.1"]
+internal = ["127.0.0.1"]

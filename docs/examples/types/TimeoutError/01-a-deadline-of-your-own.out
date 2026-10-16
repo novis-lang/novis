@@ -1,0 +1,3 @@
+looking up the customer took 30ms
+reading their orders took 40ms
+gave up: asking the shipper needs 60ms and only 30ms are left

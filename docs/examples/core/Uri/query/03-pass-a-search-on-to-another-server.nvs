@@ -1,0 +1,18 @@
+<?nvs
+// Shows how to pass the query of a request on to another server, for example a search service.
+
+class Search {
+    public static function forward(string $request): string {
+        var $incoming = Core\Uri::parse($request);
+        var $service = Core\Uri::parse("https://search.internal.example.com/v2/find");
+        // `with` copies the query unchanged. A `null` query removes it.
+        return $service->with({query: $incoming->query()})->toString();
+    }
+}
+
+// This prints https://search.internal.example.com/v2/find?q=garden+chair&sort=price.
+echo Search::forward("/search?q=garden+chair&sort=price"), "\n";
+
+// This request has no query, so the new address has none either.
+// This prints https://search.internal.example.com/v2/find.
+echo Search::forward("/search"), "\n";

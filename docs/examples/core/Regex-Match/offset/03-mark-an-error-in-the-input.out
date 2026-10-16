@@ -1,0 +1,5 @@
+AB-1234 is valid
+AB-12x4
+     ^ not allowed
+Ä-1234
+^ not allowed

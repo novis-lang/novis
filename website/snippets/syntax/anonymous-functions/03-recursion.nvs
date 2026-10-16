@@ -1,0 +1,13 @@
+<?nvs
+// An anonymous function can have a name after `fn`. It uses that name to call itself.
+callable $factorial = fn fact(int $n): int => $n <= 1 ? 1 : $n * fact($n - 1);
+
+// The name also works with a block body.
+callable $fib = fn fib(int $n): int => {
+    if ($n <= 1) {
+        return $n;
+    }
+    return fib($n - 1) + fib($n - 2);
+};
+
+echo $factorial(5), " ", $fib(10), "\n";

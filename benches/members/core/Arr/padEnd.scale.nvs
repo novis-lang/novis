@@ -1,0 +1,23 @@
+<?nvs
+// Measures `Core\Arr::padEnd` doubling the length of one list, at growing list lengths.
+// bench: start 256
+// bench: max 4096
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        array<int> $row = Core\Arr::range(1, $size as int);
+        uint $length = $size * 2;
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            array<int> $padded = Core\Arr::padEnd($row, $length, ($total % 7) as int);
+            $total = $total + Core\Arr::count($padded);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

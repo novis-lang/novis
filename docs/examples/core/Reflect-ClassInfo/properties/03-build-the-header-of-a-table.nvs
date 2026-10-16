@@ -1,0 +1,33 @@
+<?nvs
+// Shows how an export builds the header line of a CSV table from the public properties of a class.
+
+class Product {
+    public string $sku = "A-100";
+    public string $name = "Desk lamp";
+    public int $stock = 12;
+    private float $cost = 8.5;
+}
+
+class Export {
+    public static function header(string $className): string {
+        var $info = Core\Reflect::forClass($className);
+        if ($info == null) {
+            return "";
+        }
+        string $line = "";
+        foreach ($info->properties() as Core\Reflect\PropertyInfo $property) {
+            // A private property is internal data, so the table does not show it.
+            if (!$property->isPublic()) {
+                continue;
+            }
+            if ($line != "") {
+                $line = $line . ",";
+            }
+            $line = $line . $property->name();
+        }
+        return $line;
+    }
+}
+
+// This prints `sku,name,stock`.
+echo Export::header("Product"), "\n";

@@ -1,0 +1,15 @@
+--TEST--
+a cursor on the `try` keyword is in the statement and in neither its body nor a catch, so it is offered the words that open a statement, `rule:ide/the-index-answers-the-cursor`
+--FILE--
+<?nvs
+tr<|>y {
+    echo "work";
+} catch (RuntimeError $refused) {
+    echo "refused";
+}
+--REQUEST--
+completion prefix=t
+--EXPECT--
+throw   keyword
+true    keyword
+try     keyword

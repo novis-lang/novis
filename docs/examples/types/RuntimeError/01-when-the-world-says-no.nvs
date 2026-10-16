@@ -1,0 +1,29 @@
+<?nvs
+// This program throws a `RuntimeError` when something outside the program fails.
+// The rate feed has no rate for `SEK`. The code cannot fix that,
+// so it throws the error and the caller catches it.
+
+final class Rates {
+    public static function forCurrency(string $code): int {
+        array<string> $known = ["EUR", "GBP", "CHF"];
+        array<int> $perThousand = [1000, 1183, 1067];
+        int $row = 0;
+        while ($row < 3) {
+            if ($known[$row] == $code) {
+                return $perThousand[$row];
+            }
+            $row = $row + 1;
+        }
+        throw new RuntimeError("no rate for " . $code . " in today's feed");
+    }
+}
+
+array<string> $wanted = ["GBP", "SEK"];
+foreach ($wanted as string $code) {
+    try {
+        int $rate = Rates::forCurrency($code);
+        echo $code, ": ", $rate, "\n";
+    } catch (RuntimeError $noRate) {
+        echo $code, ": ", $noRate->message, "\n";
+    }
+}

@@ -1,0 +1,10 @@
+<?nvs
+// Shows how to find an account by a login that may be its name or its mail address.
+
+string $login = 'anna@example.test';
+var $filter = Core\Ldap\Filter::any(
+    Core\Ldap\Filter::equals('sAMAccountName', $login),
+    Core\Ldap\Filter::equals('mail', $login),
+);
+// This prints (|(sAMAccountName=anna@example.test)(mail=anna@example.test)).
+echo $filter->toString(), "\n";

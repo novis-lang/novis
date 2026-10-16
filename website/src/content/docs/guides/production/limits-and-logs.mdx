@@ -1,0 +1,87 @@
+---
+title: Limits and logs
+covers: []
+description: The limits and log settings a production server needs, and how to change them while it runs.
+---
+
+A production server needs limits for each request and a log you can read. Both are set in
+`nvs.toml`.
+
+## Limits for each request
+
+Each request has a memory limit of `128M` and a processor time limit of `30s` by default. Set the
+values your application needs, and a maximum that a request may raise itself to. Also set
+`wall_time`, because it has no default:
+
+```toml
+[limits]
+memory = "128M"
+cpu_time = "10s"
+wall_time = "30s"
+memory_high_water = 0.8      # write a warning when a request uses 80% of its memory
+
+[limits.hard]
+memory = "512M"
+cpu_time = "60s"
+```
+
+A request that goes over a limit stops, and the other requests keep running.
+[Limits](/guides/how-to-use/limits/) explains each key.
+
+## Limits for the server
+
+The `[server]` block limits the whole server:
+
+```toml
+[server]
+max_in_flight = 10000        # more requests than this get the status 503
+header_timeout = "10s"       # the longest wait for the headers of a request
+body_idle_timeout = "30s"    # the longest pause while a client sends the body
+```
+
+Every wait has a time limit. If you do not set one, Novis uses a default. A slow client cannot keep a connection open
+forever.
+
+## The log
+
+`[log] target` is where the server writes a failure, such as a request that went over a limit. It
+can be `stderr`, a file or `syslog`. When nothing is set, it is `stderr`. A server that runs as a
+service writes to `logs/nvs.log` in its data folder instead. Read
+[Run as a service](/guides/production/run-as-a-service/).
+
+```toml
+[log]
+target = "file:/var/log/shop/nvs.log"
+max_size = "10M"
+keep = 5
+level = "info"
+format = "json"
+```
+
+A log file never grows past `max_size`. When it reaches that size, Novis renames it to `nvs.log.1`
+and starts a new file. `keep` is the number of old files that are kept. When nothing is set,
+`max_size` is `10M` and `keep` is `5`.
+
+`level` is the lowest level that is written. When nothing is set, `level` is `Info` in production, so
+a `Debug` record is not written. In development it is `Debug`. `format` is `json` in production and
+`text` in development when nothing is set. Only the person
+who runs the server can change `target`. A program can change `level` and `format` for one request,
+for example to write more detail.
+
+## Change a setting while the server runs
+
+Save `nvs.toml`, and the server applies it. The server checks its configuration files every two
+seconds. When a file changed, it reads and checks the whole configuration first. If a file has an
+error, the server writes the error to the log and keeps its current settings.
+
+Check the log to see the result. Each reload writes one `configuration reloaded` line:
+
+- `applied` lists the keys that changed.
+- `ignored` lists the changed keys that need a restart.
+- `invalidated` is the number of program files that the server compiles again.
+
+Four keys need a restart: `[server] listen`, `socket_mode`, `workers` and `watchdog_margin`.
+`nvs config dump --origin` prints every key in the files on disk, and the file that set it.
+
+Read more in [Reference: nvs config dump](/reference/cli/nvs-config-check-and-nvs-config-dump/) and
+[Reference: log](/reference/config/log/).

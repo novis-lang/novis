@@ -1,0 +1,36 @@
+<?nvs
+// Attack: a program builds changes with a very long name, broken names and a
+// very long list of values. Each change should be built or throw a `LogicError`.
+
+// 1. A name of a million letters.
+try {
+    var $long = Core\Ldap\Change::add(Core\Str::repeat('a', 1000000), 'x');
+    echo "1 built\n";
+} catch (LogicError $refusal) {
+    echo "1 refused\n";
+}
+
+// 2. Names with a null byte, a line break, a filter, a non-ASCII letter and options.
+array<string> $names = ["cn\0", "cn\n", 'cn)(objectClass=*', 'cé', 'cn;', 'cn;;lang-de', ';', '-cn'];
+foreach ($names as string $name) {
+    try {
+        var $odd = Core\Ldap\Change::add($name, 'x');
+        echo "2 built\n";
+    } catch (LogicError $refusal) {
+        echo "2 refused\n";
+    }
+}
+
+// 3. A list of two hundred thousand values in one change.
+array<string> $values = [];
+uint $i = 0;
+while ($i < 200000) {
+    $values[] = 'value ' . ($i as string);
+    $i = $i + 1;
+}
+try {
+    var $many = Core\Ldap\Change::add('otherTelephone', $values);
+    echo "3 built\n";
+} catch (LogicError $refusal) {
+    echo "3 refused\n";
+}

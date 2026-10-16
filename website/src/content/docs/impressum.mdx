@@ -1,0 +1,64 @@
+---
+title: Legal notice
+covers: []
+description: The legal notice (Impressum) for the Novis website, as Austrian law requires it.
+template: splash
+tableOfContents: false
+pagefind: false
+head:
+  - tag: meta
+    attrs:
+      name: robots
+      content: noindex
+---
+
+import { DISCORD_URL, githubFile } from '@config/site.mjs'
+import { externalLinkAttrs } from '@config/external-links.mjs'
+import ProtectedEmail from '@components/ProtectedEmail.astro'
+
+This page has the information that Austrian law requires for this website. The German
+name of each item is in brackets.
+
+## Owner and publisher (Medieninhaber und Herausgeber)
+
+Roland Eigelsreiter<br />
+Feldgasse 5<br />
+3142 Perschling<br />
+Austria
+
+The website is run by a sole proprietorship (Einzelunternehmen). The address above is the
+location of its trade licence (Standort der Gewerbeberechtigung).
+
+## Contact
+
+E-mail: <ProtectedEmail /><br />
+Discord: <a href={DISCORD_URL} {...externalLinkAttrs(DISCORD_URL)}>the Novis server</a>
+
+## Business details
+
+- **Business (Unternehmensgegenstand):** services in automatic data processing and
+  information technology (Dienstleistungen in der automatischen Datenverarbeitung und
+  Informationstechnik)
+- **Trade licence (Gewerbeberechtigung):** free trade (freies Gewerbe), GISA number 30647695
+- **Trade authority (Gewerbebehörde):** Bezirkshauptmannschaft St. Pölten
+- **Chamber membership (Kammerzugehörigkeit):** Wirtschaftskammer Niederösterreich
+- **Applicable law (Berufsrecht):** the Austrian Trade Regulation Act (Gewerbeordnung), at
+  [www.ris.bka.gv.at](https://www.ris.bka.gv.at/)
+
+## Purpose of this website (Blattlinie)
+
+This website gives information about the Novis programming language. It shows how to
+install Novis, how to use it, and how it is developed.
+
+## Copyright (Urheberrecht)
+
+The texts, the documentation and the graphics on this website are under the
+<a href={githubFile('LICENSE')} {...externalLinkAttrs(githubFile('LICENSE'))}>license of the Novis project</a>,
+unless a page says something else. The source code of Novis and of this website is in the
+public repository. Product names and brand names of other companies belong to their owners.
+
+## Links to other websites (Haftung für Links)
+
+We check the content of this website carefully. We are not responsible for the content of
+other websites that this website links to. The operators of those websites are responsible
+for their content.

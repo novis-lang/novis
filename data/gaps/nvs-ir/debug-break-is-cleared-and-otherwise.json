@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-ir/src/lib.rs",
+  "title": "`DEBUG_BREAK` is cleared and otherwise ignored.",
+  "text": "The poll [`ir::InstKind::Safepoint`] lowers to drops that flag where `CPU_LIMIT` and `CANCEL` stop the request: there is no debugger to hand the frame to, and the frame a breakpoint stops in is `nvs dap`'s question rather than this crate's. Nothing in this crate is what is missing; see `nvs_runtime::nvs_safepoint`.",
+  "milestone": "M10"
+}

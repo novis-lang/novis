@@ -1,0 +1,47 @@
+<?nvs
+// Shows what a schema would change in a database. `Core\Db\Plan::steps` gives
+// you the list of changes, and each one says why it is there.
+
+use Core\Db;
+use Core\Db\Plan\Step;
+use Core\Db\Schema;
+
+var $db = Db::connect('notes');
+
+// What an earlier version of this program left in the database.
+$db->execute('create table notes (id integer primary key)', []);
+
+// The tables this program needs now. One of them is missing a column, and the
+// other is not there at all.
+var $schema = Schema::fromArray([
+    'tables' => [
+        [
+            'name' => 'notes',
+            'columns' => [
+                ['name' => 'id', 'type' => 'int64', 'identity' => true],
+                ['name' => 'title', 'type' => 'text(200)', 'null' => true],
+            ],
+            'primary_key' => ['id'],
+        ],
+        [
+            'name' => 'tags',
+            'columns' => [
+                ['name' => 'note_id', 'type' => 'int64'],
+                ['name' => 'tag', 'type' => 'text(40)'],
+            ],
+            'primary_key' => ['note_id', 'tag'],
+        ],
+    ],
+]);
+
+// Planning reads the database. It changes nothing.
+var $plan = $schema->planAgainst($db);
+
+echo Core\Arr::count($plan->steps()), " steps\n";
+
+// The steps come in the order they must run.
+foreach ($plan->steps() as Step $step) {
+    echo '- ', $step->reason(), "\n";
+}
+
+$db->close();

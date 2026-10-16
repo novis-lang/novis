@@ -1,0 +1,18 @@
+<?nvs
+// Computes how long a program waits before each new attempt, when a request to a server keeps failing.
+
+int $delayMillis = 100;
+int $attempt = 1;
+while ($attempt <= 6) {
+    Core\Time\Duration $wait = Core\Time\Duration::milliseconds($delayMillis);
+
+    // The wait is never longer than 2 seconds.
+    if ($wait->compareTo(2s) > 0) {
+        $wait = 2s;
+    }
+
+    // The wait doubles each time. This prints 100ms, 200ms, 400ms, 800ms, 1s600ms and 2s.
+    echo "attempt ", $attempt, ": wait ", $wait->toString(), "\n";
+    $delayMillis = $delayMillis * 2;
+    $attempt = $attempt + 1;
+}

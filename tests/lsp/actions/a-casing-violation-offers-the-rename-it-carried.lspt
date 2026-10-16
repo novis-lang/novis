@@ -1,0 +1,10 @@
+--TEST--
+a casing violation offers the rename its own diagnostic already carried, in a document whose next statement does not parse — the fix has to be reachable on the file that needs it, `rule:core-api/identifier-casing`, `rule:ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`
+--FILE--
+<?nvs
+class user_ac<|>count {}
+var $u = new
+--REQUEST--
+codeAction
+--EXPECT--
+2:7-2:19 quickfix rename to `UserAccount` -> "UserAccount"

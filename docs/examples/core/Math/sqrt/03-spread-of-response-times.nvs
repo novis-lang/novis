@@ -1,0 +1,26 @@
+<?nvs
+// Shows how a monitoring page finds how much response times vary (the standard deviation).
+
+class Stats {
+    // Returns the standard deviation: the square root of the average squared distance
+    // from the average.
+    public static function spread(array<float> $times): float {
+        float $sum = 0.0;
+        float $count = 0.0;
+        foreach ($times as float $time) {
+            $sum = $sum + $time;
+            $count = $count + 1.0;
+        }
+        float $average = $sum / $count;
+        float $squares = 0.0;
+        foreach ($times as float $time) {
+            float $distance = $time - $average;
+            $squares = $squares + $distance * $distance;
+        }
+        return Core\Math::sqrt($squares / $count);
+    }
+}
+
+// The average is 100 ms. This prints a spread of 28.3 ms.
+array<float> $times = [120.0, 80.0, 100.0, 140.0, 60.0];
+echo "Spread: ", Core\Math::round(Stats::spread($times), { precision: 1 }), " ms\n";

@@ -1,0 +1,32 @@
+<?nvs
+// Shows the three errors `instruction` throws, and that a failed call writes nothing.
+
+Core\Xml\Writer $writer = Core\Xml::writer();
+$writer->startDocument();
+
+// `startDocument` already wrote the `xml` declaration, so `xml` is not allowed as a target.
+// This prints the error message.
+try {
+    $writer->instruction("XML", "version=\"1.0\"");
+} catch (LogicError $error) {
+    echo $error->message, "\n";
+}
+
+// A target must be an XML name, so it cannot contain a space. This prints the error message.
+try {
+    $writer->instruction("my app", "go");
+} catch (LogicError $error) {
+    echo $error->message, "\n";
+}
+
+// `?>` ends an instruction, so the data cannot contain it. This prints the error message.
+try {
+    $writer->instruction("app", "done?> <admin/>");
+} catch (LogicError $error) {
+    echo $error->message, "\n";
+}
+
+// The three calls above wrote nothing. The document has only the root element.
+$writer->startElement("page");
+$writer->endElement();
+echo $writer->endDocument(), "\n";

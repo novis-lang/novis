@@ -1,0 +1,29 @@
+{
+  "summary": "a civil date and time in a zone — calendar arithmetic and CLDR formatting",
+  "keywords": [
+    "date",
+    "gmdate",
+    "idate",
+    "strftime",
+    "date_format",
+    "date_add",
+    "date_sub",
+    "modify",
+    "strtotime",
+    "setDate",
+    "setTime",
+    "setISODate",
+    "date_diff",
+    "DateInterval",
+    "date(\"N\")",
+    "date(\"z\")",
+    "date(\"L\")",
+    "DateTimeImmutable",
+    "CLDR",
+    "format pattern",
+    "calendar arithmetic",
+    "DST",
+    "next monday",
+    "last day of month"
+  ]
+}

@@ -1,0 +1,3 @@
+first: https://api.example.com/v1/orders
+same: https://api.example.com/v1/stock
+changed: https://api.example.com/v2/orders

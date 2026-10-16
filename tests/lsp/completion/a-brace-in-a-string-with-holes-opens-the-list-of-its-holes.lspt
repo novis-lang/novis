@@ -1,0 +1,23 @@
+--TEST--
+inside a string literal at a `string<propertyPath<T>>` parameter, the text after an unclosed `{` is a path written one segment at a time: a `.` after a valid prefix offers the public properties of the class that prefix reaches, and a `{{` before it opens no hole — `rule:ide/a-field-path-completes-one-segment-at-a-time`
+--FILE--
+<?nvs
+class Customer {
+    public string $name = "Ada";
+    private string $secret = "x";
+}
+class Order {
+    public string $id = "o1";
+    public ?Customer $customer = null;
+}
+class Grid {
+    public static function where(string<propertyPath<Order>> $condition): string {
+        return $condition as string;
+    }
+}
+
+echo Grid::where("{{literal}} {id} = 1 and {customer.<|>");
+--REQUEST--
+completion
+--EXPECT--
+name    property  string

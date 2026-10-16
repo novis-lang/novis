@@ -1,0 +1,19 @@
+<?nvs
+// Shows how to read the time an entry was created.
+// requires: samba-ad
+
+var $corp = Core\Ldap::connect("corp");
+var $person = $corp->read("CN=Anna Berg,OU=Company,DC=example,DC=test", {select: ["whenCreated"]});
+
+if ($person != null) {
+    ?Core\Time\Instant $created = $person->instant("whenCreated");
+    if ($created != null) {
+        // The time is different in every directory, so this prints only a comparison.
+        // `compareTo` returns -1 for an earlier time. This prints `-1`.
+        echo $created->compareTo(Core\Time::now()), "\n";
+
+        // `toIso` writes the time as text, such as `2024-01-01T12:00:00Z`.
+        // This prints only the last letter of that text: `Z`, which means UTC.
+        echo Core\Str::slice($created->toIso(), -1), "\n";
+    }
+}

@@ -1,0 +1,61 @@
+<?nvs
+// Attack: a program changes each method name a little and calls it, many times.
+// No changed name should reach a method, and the names in the list should not change.
+
+class Vault
+{
+    public function open(): string
+    {
+        return 'open';
+    }
+
+    private function drain(): string
+    {
+        return 'drained';
+    }
+}
+
+var $vault = new Vault();
+var $info = Core\Reflect::forObject($vault);
+array<Core\Reflect\MethodInfo> $list = $info->methods();
+
+// 1. Call each name with a space, in upper case, with a NUL byte, and empty. Every call throws, so this prints 0.
+uint $reached = 0;
+uint $i = 0;
+while ($i < 20000) {
+    string $name = $list[($i % 2) as int]->name();
+    array<string> $changed = [$name . ' ', Core\Str::upper($name), $name . "\0", ''];
+    foreach ($changed as string $wrong) {
+        try {
+            $info->call($vault, $wrong, []);
+            $reached = $reached + 1;
+        } catch (LogicError $missing) {
+            $reached = $reached + 0;
+        }
+    }
+    $i = $i + 1;
+}
+echo $reached, "\n";
+
+// 2. Add text to a name 200000 times. The name in the list stays `open`.
+string $grown = $list[1]->name();
+$i = 0;
+while ($i < 200000) {
+    $grown = $grown . 'x';
+    $i = $i + 1;
+}
+echo Core\Str::length($grown), ' ', $list[1]->name(), "\n";
+
+// 3. Keep 100000 names after the description is freed, then read them all.
+array<string> $kept = [];
+$i = 0;
+while ($i < 100000) {
+    array<Core\Reflect\MethodInfo> $fresh = Core\Reflect::forObject(new Vault())->methods();
+    $kept[] = $fresh[($i % 2) as int]->name();
+    $i = $i + 1;
+}
+uint $bytes = 0;
+foreach ($kept as string $one) {
+    $bytes = $bytes + Core\Str::length($one);
+}
+echo $bytes, "\n";

@@ -1,0 +1,14 @@
+--TEST--
+no identifier may start with `_`, so a leading-underscore local is rejected before anything runs — `rule:classes/no-leading-underscore-identifiers`
+--FILE--
+<?nvs
+int $_total = 1;
+echo $_total, "\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0112]: local variable names must be camelCase, e.g. `total`
+  --> case.nvs:2:5
+%A
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

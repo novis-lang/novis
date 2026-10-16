@@ -1,0 +1,20 @@
+<?nvs
+// Shows a database a program opens only for itself. A report can put its numbers
+// into a `:memory:` database and let SQL group them.
+
+var $db = Core\Db::open({ driver: Core\Db\Driver::Sqlite, path: ':memory:' });
+$db->execute('create table sales (city text not null, amount integer not null)', []);
+
+// One prepared statement, three rows.
+$db->executeMany('insert into sales (city, amount) values (?, ?)', [
+    ['Berlin', 120],
+    ['Hamburg', 90],
+    ['Berlin', 30],
+]);
+
+// This prints `Berlin 150` and `Hamburg 90`.
+foreach ($db->query('select city, sum(amount) as total from sales group by city order by city', []) as Core\Db\Row $row) {
+    echo $row->string('city') ?? '', ' ', $row->int('total') ?? 0, "\n";
+}
+
+$db->close();

@@ -1,0 +1,27 @@
+--TEST--
+A program run with a request is matched against its own route table before it starts, as a served one is at the door, so `Core\Request::route` returns the route that claimed the request — `rule:routing/matched-once-before-the-handler`
+--GET--
+page=2
+--FILE--
+<?nvs
+// The case's request is `GET /`, which the first route claims. The second
+// route shares the path under another method, so a match that ignored the
+// method would name it instead.
+class Home {
+    #[Core\Route(path: "/", method: Core\Http\Method::Get, name: "Home::index")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function index(): string { return "home"; }
+
+    #[Core\Route(path: "/", method: Core\Http\Method::Post, name: "Home::submit")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function submit(): string { return "sent"; }
+}
+
+?Core\Router\Match $matched = Core\Request::route();
+if ($matched != null) {
+    echo $matched->name() ?? "no name", "\n";
+} else {
+    echo "no route\n";
+}
+--EXPECT--
+Home::index

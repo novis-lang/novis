@@ -1,0 +1,7 @@
+<?nvs
+// Shows that `macros` works for every file type, and a CSV file has no macros.
+use Novis\Spreadsheet\Reader;
+
+// A CSV file is only text. So the list is empty, and the same check works for every upload.
+bytes $file = "Item,Price\nWidget,2.50\n" as bytes;
+echo Core\Arr::count(Reader::open($file)->macros()), " macro modules\n";

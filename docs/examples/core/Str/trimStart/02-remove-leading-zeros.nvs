@@ -1,0 +1,14 @@
+<?nvs
+// Shows how to remove the zeros before a number, such as an order number.
+
+array<string> $numbers = ["000042", "1050", "0000"];
+
+foreach ($numbers as string $number) {
+    string $short = Core\Str::trimStart($number, {characters: "0"});
+    // "0000" has only zeros, so the result is the empty string. It is printed as `0`.
+    if ($short == "") {
+        $short = "0";
+    }
+    // This prints `42`, `1050` and `0`.
+    echo $short, "\n";
+}

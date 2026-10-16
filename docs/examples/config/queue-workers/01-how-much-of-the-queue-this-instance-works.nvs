@@ -1,0 +1,17 @@
+<?nvs
+// `[queue] workers` is how many jobs this server runs at the same time. Some
+// servers run jobs from the queue. Others only add jobs to it.
+
+echo 'workers here:  ', Core\Config::get('queue.workers') ?? '(no value)', "\n";
+echo 'claiming from: ', Core\Config::get('queue.connection') ?? '(nothing written)', "\n";
+
+// With `workers = 0`, this server still adds jobs to the queue. Another server
+// takes the jobs and runs them. Here the value is `1`, so this prints `no`.
+echo 'enqueue-only:  ', (Core\Config::get('queue.workers') ?? '4') == '0' ? 'yes' : 'no', "\n";
+
+// A program cannot add workers, so the call returns `false`. More workers would
+// take CPU time from the other requests on the same server.
+echo 'hire eight more:        ', Core\Config::set('queue.workers', '8') ? 'accepted' : 'refused', "\n";
+
+// A program cannot set the workers to `0` either. This call also returns `false`.
+echo 'stop working the queue: ', Core\Config::set('queue.workers', '0') ? 'accepted' : 'refused', "\n";

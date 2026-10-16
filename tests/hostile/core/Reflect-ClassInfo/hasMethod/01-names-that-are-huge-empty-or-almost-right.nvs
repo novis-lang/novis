@@ -1,0 +1,51 @@
+<?nvs
+// Attack: a program checks for methods with names that are huge, empty, or almost right.
+// Every check should return `true` or `false`, and the runtime must not crash or leak.
+
+class Target
+{
+    public function open(): int
+    {
+        return 1;
+    }
+
+    private function secret(): int
+    {
+        return 2;
+    }
+}
+
+var $found = Core\Reflect::forClass('Target');
+if ($found == null) {
+    echo "no class\n";
+} else {
+    Core\Reflect\ClassInfo $info = $found;
+
+    // 1. A name of ten million characters that starts with a real name.
+    string $huge = 'open' . Core\Str::repeat('x', 10000000);
+    echo $info->hasMethod($huge) ? 'found' : 'absent', "\n";
+
+    // 2. The empty name, a name with a zero byte, and names that differ by one character.
+    array<string> $names = ['', "open\0", "\0open", 'ope', 'opens', 'OPEN', ' open', 'secret '];
+    foreach ($names as string $name) {
+        echo $info->hasMethod($name) ? 'found' : 'absent', "\n";
+    }
+
+    // 3. Names the compiler uses inside, which a program never declares.
+    array<string> $inside = ['gen#unwind', '#', 'open#', 'constructor'];
+    foreach ($inside as string $name) {
+        echo $info->hasMethod($name) ? 'found' : 'absent', "\n";
+    }
+
+    // 4. The same checks are repeated many times with a new name each round.
+    uint $hits = 0;
+    uint $i = 0;
+    while ($i < 200000) {
+        string $probe = $i % 2 == 0 ? 'secret' : 'secret' . $i;
+        if ($info->hasMethod($probe)) {
+            $hits = $hits + 1;
+        }
+        $i = $i + 1;
+    }
+    echo $hits, "\n";
+}

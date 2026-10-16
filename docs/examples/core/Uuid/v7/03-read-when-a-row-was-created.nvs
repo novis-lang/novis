@@ -1,0 +1,19 @@
+<?nvs
+// Shows how to read the time a row was created from its key.
+
+class Key {
+    // The first 12 hex digits are the time in milliseconds. A hyphen is after digit 8.
+    public static function createdAt(Core\Uuid $key): int {
+        string $text = $key->toString();
+        string $digits = Core\Str::slice($text, 0, 8) . Core\Str::slice($text, 9, 4);
+        return Core\Math::fromBase($digits, 16);
+    }
+}
+
+// A new row gets a new key.
+Core\Uuid $key = Core\Uuid::v7();
+
+// The time in the key is the current time, so the difference is less than one second.
+// This prints created just now.
+int $age = Core\Time::now()->toEpochMillis() - Key::createdAt($key);
+echo $age >= 0 && $age < 1000 ? "created just now" : "created earlier", "\n";

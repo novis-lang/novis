@@ -1,0 +1,6 @@
+<?nvs
+// Shows how to make a DN with one part.
+
+var $top = Core\Ldap\Dn::of('DC', 'test');
+// This prints DC=test.
+echo $top->toString(), "\n";

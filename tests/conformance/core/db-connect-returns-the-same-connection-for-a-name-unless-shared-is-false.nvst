@@ -1,0 +1,42 @@
+--TEST--
+Core\Db::connect takes the name of a configured block, a second call with that name in the same request returns the same connection, and `{shared: false}` opens a separate one — `rule:core-classes/db-connection-is-named`, `rule:core-classes/db-capabilities` and `rule:security/db-pool-reset-is-a-boundary`
+--FILE--
+<?nvs
+// A `:memory:` SQLite database exists once per connection. A table created on
+// one connection is visible on a second call only if both calls returned the
+// same connection.
+use Core\Db;
+
+var $first = Db::connect("main");
+$first->execute("create table t (id integer primary key, name text not null)", []);
+$first->execute("insert into t (name) values (?)", ["ada"]);
+
+// The same name in the same request returns the same connection.
+var $again = Db::connect("main");
+echo "shared sees ", $again->query("select count(*) as n from t", [])->first()?->int("n") ?? -1, "\n";
+
+// `{shared: false}` opens a separate connection, so it has its own empty
+// database and the table is missing.
+var $dedicated = Db::connect("main", {shared: false});
+try {
+    var $rows = $dedicated->query("select count(*) as n from t", []);
+    echo "dedicated sees ", $rows->first()?->int("n") ?? -1, "\n";
+} catch (RuntimeError $missing) {
+    echo "dedicated sees nothing\n";
+}
+
+// The shared connection still works after the separate one is opened.
+$first->execute("insert into t (name) values (?)", ["grace"]);
+echo "shared sees ", $again->query("select count(*) as n from t", [])->first()?->int("n") ?? -1, "\n";
+--FILE nvs.toml--
+# The program connects by name. The path to the database is only in this file.
+[capabilities.db]
+connect = ["main"]
+
+[db.main]
+driver = "sqlite"
+path = ":memory:"
+--EXPECT--
+shared sees 1
+dedicated sees nothing
+shared sees 2

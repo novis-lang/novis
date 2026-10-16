@@ -1,0 +1,19 @@
+{
+  "title": "Exactly four things become a span, and a `call` event never does",
+  "status": "shipped",
+  "seeAlso": [
+    "observability/a-query-is-a-trace-event",
+    "observability/a-trace-id-exists-for-every-request",
+    "observability/sampling-is-head-based",
+    "testing/debug-probes",
+    "observability/trace-events-carry-a-kind",
+    "observability/gc-pause-is-its-own-event",
+    "observability/spawn-is-its-own-event",
+    "observability/default-series",
+    "observability/a-registry-is-per-core-and-nothing-reads-it"
+  ],
+  "guardedBy": [
+    "crates/nvs-server/src/trace.rs",
+    "crates/nvs-server/src/otlp.rs"
+  ]
+}

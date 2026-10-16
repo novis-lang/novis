@@ -1,0 +1,17 @@
+<?nvs
+// Shows how to find every line of a log that starts with "ERROR".
+
+string $log = "INFO server started\n"
+    . "ERROR disk is full\n"
+    . "INFO request done\n"
+    . "ERROR database timeout\n";
+
+// `multiline: true` makes `^` and `$` match at the start and end of each line.
+// Without it, `^` matches only at the start of the whole text.
+Core\Regex\Pattern $errorLine = Core\Regex::compile('^ERROR (.+)$', {multiline: true});
+
+// `matchAll` returns one match for each line. `group(1)` is the text after "ERROR ".
+// This prints "disk is full" and "database timeout".
+foreach (Core\Regex::matchAll($log, $errorLine) as Core\Regex\Match $found) {
+    echo $found->group(1), "\n";
+}

@@ -1,0 +1,14 @@
+<?nvs
+// Shows how to add rows without keys, one call after another.
+use Novis\Spreadsheet\Workbook;
+
+var $book = Workbook::createInMemory({ format: 'csv' });
+
+// These rows have no keys, so the values go to the columns in order, from column `A`.
+// `add` returns the sheet, so the next `add` can follow it.
+$book->sheet('Stock')->add(['Item', 'In stock'])->add(['Pen', 120])->add(['Ink', 35]);
+
+var $written = $book->finish();
+if ($written->bytes != null) {
+    echo $written->bytes as string;
+}

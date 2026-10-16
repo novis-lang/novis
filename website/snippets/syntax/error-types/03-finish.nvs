@@ -1,0 +1,13 @@
+<?nvs
+// `Core\Script::finish()` ends the program. It runs every `finally` block on the way out.
+// No `catch` block catches it, not even a `catch` for `Throwable`.
+try {
+    echo "writing the report\n";
+    Core\Script::finish();
+} catch (Throwable $error) {
+    echo "caught: ", $error->message, "\n";
+} finally {
+    echo "closing the report file\n";
+}
+
+echo "this line does not print\n";

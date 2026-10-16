@@ -1,0 +1,43 @@
+<?nvs
+// Six places ask this question without being told to: an `if`, a `while`, the
+// middle part of a `for`, the test of a short `? :`, the values either side of
+// `&&` and `||`, and `!`. Anywhere else you ask it yourself, with `as bool`.
+
+array<string> $queue = ["ship order", "send receipt"];
+string $note = "";
+
+// An `if`: the list counts as something because it has elements in it.
+if ($queue) {
+    echo "the queue has work\n";
+}
+
+// A `while`: a plain number stops the loop when it reaches zero.
+int $left = 2;
+while ($left) {
+    echo "still to do: ", $left, "\n";
+    $left = $left - 1;
+}
+
+// The middle part of a `for`, which is the same test in another spelling.
+for (int $tries = 2; $tries; $tries = $tries - 1) {
+    echo "attempt ", $tries, "\n";
+}
+
+// The test of a short `? :`, here choosing a stand-in for an empty note.
+echo "note: ", $note ? $note : "(none)", "\n";
+
+// Either side of `&&` and `||`. The second question is only asked when the
+// first one leaves the answer open.
+if ($queue && !$note) {
+    echo "work to do, and nothing to say about it\n";
+}
+
+// `!` turns the answer around.
+if (!$note) {
+    echo "the note is empty\n";
+}
+
+// Anywhere else the question is yours to ask. This slot holds yes or no, so
+// the list has to be turned into one before it goes in.
+bool $hasWork = $queue as bool;
+echo "has work: ", $hasWork ? "yes" : "no", "\n";

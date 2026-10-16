@@ -1,0 +1,13 @@
+--TEST--
+an `autoload` declaration declares no name, so a cursor on it highlights nothing — `rule:ide/five-features-are-one-reference-index`
+--FILE--
+<?nvs
+auto<|>load 'App' from 'src';
+--FILE src/User.nvs--
+<?nvs
+namespace App;
+class User { }
+--REQUEST--
+documentHighlight
+--EXPECT--
+none

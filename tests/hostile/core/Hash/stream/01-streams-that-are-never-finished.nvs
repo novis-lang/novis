@@ -1,0 +1,53 @@
+<?nvs
+// Attack: a program opens streams under every algorithm and never finishes most of them. Every
+// open stream should be freed with its variable. The program must stop at its memory limit.
+// hostile: ends-early 3 FATAL
+
+// A lower memory limit, so the last step reaches the limit quickly.
+Core\Config::set('memory', '64M');
+
+// 1. A stream under every algorithm, finished with nothing fed. Each digest has its normal size.
+array<Core\Hash::Digest> $all = [
+    Core\Hash::Digest::Crc32,
+    Core\Hash::Digest::Md5,
+    Core\Hash::Digest::Sha1,
+    Core\Hash::Digest::Sha256,
+    Core\Hash::Digest::Sha384,
+    Core\Hash::Digest::Sha512,
+    Core\Hash::Digest::Sha224,
+    Core\Hash::Digest::Sha512_224,
+    Core\Hash::Digest::Sha512_256,
+    Core\Hash::Digest::Sha3_224,
+    Core\Hash::Digest::Sha3_256,
+    Core\Hash::Digest::Sha3_384,
+    Core\Hash::Digest::Sha3_512,
+    Core\Hash::Digest::Crc32c,
+    Core\Hash::Digest::Blake3,
+];
+foreach ($all as Core\Hash::Digest $digest) {
+    Core\Hash\Stream $empty = Core\Hash::stream($digest);
+    echo 'empty: ', Core\Bytes::length($empty->finish()), " bytes\n";
+}
+
+// 2. One hundred thousand streams are opened and fed, and none is finished. Each one is
+// freed when the variable gets the next stream, so memory use must stay flat.
+string $piece = Core\Str::repeat('p', 1000);
+uint $round = 0;
+while ($round < 100000) {
+    Core\Hash\Stream $abandoned = Core\Hash::stream(Core\Hash::Digest::Sha512);
+    $abandoned->update($piece);
+    $round = $round + 1;
+}
+echo "abandoned streams: freed\n";
+
+// 3. Every stream is kept, and each one keeps its own text. This step ends the program at
+// its memory limit.
+echo "step 3\n";
+array<Core\Hash\Stream> $kept = [];
+uint $n = 0;
+while (true) {
+    Core\Hash\Stream $stream = Core\Hash::stream(Core\Hash::Digest::Blake3);
+    $stream->update(Core\Str::repeat('k', 1000) . $n);
+    $kept[] = $stream;
+    $n = $n + 1;
+}

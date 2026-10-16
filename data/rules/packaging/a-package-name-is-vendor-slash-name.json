@@ -1,0 +1,12 @@
+{
+  "title": "A package name is `vendor/name`, lowercase ASCII compared exactly, and `nvs` is reserved for first-party packages",
+  "status": "designed",
+  "seeAlso": [
+    "packaging/a-package-is-its-digest",
+    "core-api/reserved-namespace",
+    "programs/path-case",
+    "packaging/a-c-dependency-answers-two-questions"
+  ],
+  "guardedBy": [],
+  "milestone": "M15"
+}

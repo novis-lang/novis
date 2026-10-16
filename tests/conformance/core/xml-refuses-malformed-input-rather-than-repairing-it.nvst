@@ -1,0 +1,72 @@
+--TEST--
+`Core\Xml::parse` throws on a document that is not well-formed, and a document type declaration is refused whole rather than resolved — the opposite contract to the never-failing WHATWG parser on the same node family, `rule:core-classes/html-parsing`
+--FILE--
+<?nvs
+// Every way one document can fail to be well-formed, each refused with a
+// sentence naming what was written. Nothing here answers a partial tree:
+// `rule:errors/ambiguous-input-refused` is why a document that does not parse
+// produces nothing rather than as much of one as could be built.
+array<string> $malformed = [
+    "an element closed as something else" => "<a></b>",
+    "an element never closed" => "<a><b></b>",
+    "a closing tag with nothing open" => "</a>",
+    "no root element at all" => "<!--only a comment-->",
+    "a second root element" => "<a/><b/>",
+    "text outside the root" => "<a/>trailing",
+    "an unquoted attribute value" => "<a k=v/>",
+    "an attribute with no value" => "<a k/>",
+    "a tag with no name" => "<1a/>",
+    "a comment holding a double hyphen" => "<a><!-- -- --></a>",
+    "a CDATA closer written in content" => "<a>]]></a>",
+    "the empty document" => "",
+];
+
+foreach ($malformed as string $why => string $document) {
+    try {
+        Core\Xml::parse($document);
+        echo $why, ": accepted\n";
+    } catch (ParseError $refused) {
+        echo $why, ": refused\n";
+    }
+}
+
+// The one refusal worth printing whole, because it is the class's answer to
+// XXE: there is no code path here that resolves an entity, so an external
+// subset is never something that could have been fetched and an internal one
+// defines nothing that could be expanded.
+try {
+    Core\Xml::parse("<!DOCTYPE a SYSTEM \"http://example.invalid/a.dtd\"><a/>");
+    echo "a document type declaration was read\n";
+} catch (ParseError $doctype) {
+    echo $doctype->message, "\n";
+}
+
+// And an internal subset, which is the half that is legal XML and still gets
+// nothing: a declaration that defines an entity is refused at the declaration,
+// before there is anything to expand.
+try {
+    Core\Xml::parse("<!DOCTYPE a [<!ENTITY x \"y\">]><a>&x;</a>");
+    echo "an internal subset was read\n";
+} catch (ParseError $internal) {
+    echo $internal->message, "\n";
+}
+
+// What survives all of that is the ordinary document, which parses.
+Core\Xml\Node $fine = Core\Xml::parse("<a><b/></a>");
+echo "well formed: ", Core\Arr::count($fine->children()), " child\n";
+--EXPECT--
+an element closed as something else: refused
+an element never closed: refused
+a closing tag with nothing open: refused
+no root element at all: refused
+a second root element: refused
+text outside the root: refused
+an unquoted attribute value: refused
+an attribute with no value: refused
+a tag with no name: refused
+a comment holding a double hyphen: refused
+a CDATA closer written in content: refused
+the empty document: refused
+Core\Xml::parse(): a document type declaration is not read at all — no entity is resolved from an external subset, from an internal subset or from the network, so there is nothing a `<!DOCTYPE …>` could mean here.
+Core\Xml::parse(): a document type declaration is not read at all — no entity is resolved from an external subset, from an internal subset or from the network, so there is nothing a `<!DOCTYPE …>` could mean here.
+well formed: 1 child

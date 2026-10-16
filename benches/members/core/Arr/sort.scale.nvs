@@ -1,0 +1,25 @@
+<?nvs
+// Measures `Core\Arr::sort` on one list of prices in no order, at growing list lengths.
+// bench: start 256
+// bench: max 4096
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        array<uint> $prices = Core\Arr::map(
+            Core\Arr::range(1, $size as int),
+            fn(int $n): uint => (($n * 7919) % 10007) as uint,
+        );
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            array<uint> $ordered = Core\Arr::sort($prices);
+            $total = $total + $ordered[($total % 6) as int];
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

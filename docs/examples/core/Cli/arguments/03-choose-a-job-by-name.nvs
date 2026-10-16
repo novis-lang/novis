@@ -1,0 +1,36 @@
+<?nvs
+// Shows the everyday use: the first word says which job to run. The word came
+// from outside the program, so only these three names are accepted. Start it
+// with `nvs run 03-choose-a-job-by-name.nvs weekly` to build the weekly report.
+
+class Reports {
+    public static function run(array<tainted string> $words): void {
+        array<string> $known = ["daily", "weekly", "monthly"];
+        if (Core\Arr::isEmpty($words)) {
+            Reports::usage($known);
+            return;
+        }
+
+        tainted string $asked = $words[0];
+        foreach ($known as string $name) {
+            if ($asked == $name) {
+                // `$name` is the program's own text, so it is safe to use as a
+                // file name. The word from the command line is only compared.
+                echo "building the ", $name, " report\n";
+                return;
+            }
+        }
+
+        echo "there is no report called ", $asked, "\n";
+        Reports::usage($known);
+    }
+
+    public static function usage(array<string> $known): void {
+        echo "usage: reports <name>\n";
+        foreach ($known as string $name) {
+            echo "  ", $name, "\n";
+        }
+    }
+}
+
+Reports::run(Core\Cli::arguments());

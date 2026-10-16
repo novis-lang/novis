@@ -1,0 +1,5 @@
+# The attack has the rights of the account that runs `nvs` after the Windows steps.
+# It may read `config` and `logs`, and it may write only in `logs`.
+[capabilities.fs]
+read = ["config", "logs"]
+write = ["logs"]

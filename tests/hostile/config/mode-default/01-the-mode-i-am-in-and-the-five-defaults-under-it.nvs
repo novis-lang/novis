@@ -1,0 +1,75 @@
+<?nvs
+// Attack: a request changes `mode.default` many times. A mode change also sets
+// the default of five other settings. The server should still run in production
+// at the end, and a failed change must not change any of the five.
+// hostile: timeout-ms 20000
+
+// 1. Sets the five settings first, then changes the mode. A mode change only sets
+//    the ones this request has not set itself.
+array<string> $derived = ['log.format', 'log.level', 'log.access', 'http.errors.detail', 'debug.inline'];
+foreach ($derived as string $key) {
+    Core\Config::set($key, 'json');
+    Core\Config::set($key, 'debug');
+    Core\Config::set($key, 'true');
+}
+Core\Config::set('mode.default', 'development');
+Core\Config::set('mode.default', 'production');
+foreach ($derived as string $key) {
+    Core\Config::get($key);
+    Core\Config::restore($key);
+}
+
+// 2. Tries values that look like a mode: other names, hidden characters, a list
+//    and a very long string. None of them is a valid mode.
+array<string> $modes = [
+    '',
+    'production',
+    'development',
+    'PRODUCTION',
+    ' production ',
+    "production\u{0000}",
+    "producti\u{043E}n",
+    'prod',
+    'staging',
+    'local',
+    'test',
+    'production;development',
+    "production\nmode.default = \"development\"",
+    '0',
+    Core\Str::repeat('production ', 100000),
+];
+foreach ($modes as string $mode) {
+    Core\Config::set('mode.default', $mode);
+    Core\Config::set('mode', $mode);
+    Core\Config::set('app.0.mode.default', $mode);
+    Core\Config::restore('mode.default');
+}
+
+// 3. Writes and restores 200,000 times. The request's memory should not grow,
+//    and `restore` should return each key to its configured value.
+uint $i = 0;
+while ($i < 200000) {
+    Core\Config::set('log.level', 'debug');
+    Core\Config::set('mode.default', 'development');
+    Core\Config::restore('mode.default');
+    Core\Config::set('log.level', 'info');
+    Core\Config::restore('log.level');
+    $i = $i + 1;
+}
+
+// 4. Reads the mode 200,000 times in two ways. `Core\Env::mode()` and
+//    `Core\Config::get` should always give the same mode, so this prints `0`.
+uint $disagreements = 0;
+uint $j = 0;
+while ($j < 200000) {
+    string $typed = Core\Env::mode() == Core\Env::Mode::Development ? 'development' : 'production';
+    string $written = Core\Config::get('mode.default') ?? '(no value)';
+    if ($typed != $written) {
+        $disagreements = $disagreements + 1;
+    }
+    $j = $j + 1;
+}
+
+echo 'disagreements: ', $disagreements, "\n";
+echo 'running in: ', Core\Env::mode() == Core\Env::Mode::Development ? 'development' : 'production', "\n";
+echo 'log.level: ', Core\Config::get('log.level') ?? '(no value)', "\n";

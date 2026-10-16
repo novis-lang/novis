@@ -1,0 +1,35 @@
+<?nvs
+// Shows how a call is written and how calls chain. A static method is called
+// on the class and an instance method on an object. The object a call gives
+// back can be written on straight away.
+
+class Greeting {
+    public function constructor(private string $word) {}
+
+    // Builds a greeting so the caller does not have to know the word for each
+    // language.
+    public static function in(string $language): Greeting {
+        return new Greeting(match ($language) {
+            "de" => "Hallo",
+            "fr" => "Bonjour",
+            default => "Hello",
+        });
+    }
+
+    public function to(string $name): string {
+        return $this->word . ", " . $name . "!";
+    }
+}
+
+// The static call gives back an object, and the instance call is written on
+// it. This prints: Bonjour, Ada!
+echo Greeting::in("fr")->to("Ada"), "\n";
+
+// `new` chains in the same place, with no brackets around it.
+// This prints: Hello, Bob!
+echo new Greeting("Hello")->to("Bob"), "\n";
+
+// The same two steps written out, which is what you do when the object is
+// needed more than once. This prints: Hallo, Cem! Hallo, Dara!
+Greeting $german = Greeting::in("de");
+echo $german->to("Cem"), " ", $german->to("Dara"), "\n";

@@ -1,0 +1,34 @@
+<?nvs
+// Shows how to copy rows from one table into another. This program is not
+// written for one table, so it reads every column with `get`.
+
+var $db = Core\Db::connect('notes');
+$db->execute(
+    'create table orders (item text not null, quantity int not null, price real not null)',
+    []
+);
+$db->execute(
+    'create table archive (item text not null, quantity int not null, price real not null)',
+    []
+);
+$db->execute(
+    'insert into orders (item, quantity, price) values (?, ?, ?), (?, ?, ?)',
+    ['cups', 30, 2.25, 'tea', 12, 4.5]
+);
+
+array<string> $columns = ['item', 'quantity', 'price'];
+foreach ($db->query('select item, quantity, price from orders order by item', []) as Core\Db\Row $row) {
+    // Each value keeps the type its column has, and the insert takes it as it
+    // is. Nothing here has to know what that type was.
+    array<mixed> $values = [];
+    foreach ($columns as string $name) {
+        $values[] = $row->get($name);
+    }
+    $db->execute('insert into archive (item, quantity, price) values (?, ?, ?)', $values);
+}
+
+foreach ($db->query('select item, quantity from archive order by item', []) as Core\Db\Row $copied) {
+    echo $copied->string('item') ?? '', ': ', $copied->int('quantity') ?? 0, "\n";
+}
+
+$db->close();

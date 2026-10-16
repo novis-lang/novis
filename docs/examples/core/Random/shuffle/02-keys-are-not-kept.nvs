@@ -1,0 +1,15 @@
+<?nvs
+// Shows that a shuffled array gets new keys, and what happens with an empty array.
+
+array<int> $stock = ["apples" => 4, "pears" => 4, "plums" => 4];
+
+// The result is a list, so its keys are 0, 1 and 2. This prints ["0","1","2"].
+array<int> $shuffled = Core\Random::shuffle($stock);
+echo Core\Json::encode(Core\Arr::keys($shuffled)), "\n";
+
+// Every value is 4, so the result looks the same in any order. This prints [4,4,4].
+echo Core\Json::encode($shuffled), "\n";
+
+// An empty array gives an empty list. This prints [].
+array<int> $empty = [];
+echo Core\Json::encode(Core\Random::shuffle($empty)), "\n";

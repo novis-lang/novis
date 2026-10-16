@@ -1,0 +1,12 @@
+<?nvs
+// Shows how to divide one large number by another. `Core\BigInt::div` returns
+// the whole part of the division.
+
+var $total = Core\BigInt::parse("1000000000000000000000000");
+
+// 1000000000000000000000000 divided by 7000000000000 leaves a remainder. `div`
+// returns the whole part, so this prints 142857142857.
+echo $total->div(Core\BigInt::parse("7000000000000")), "\n";
+
+// This division is exact and has nothing left over. It prints 1000000000.
+echo $total->div(Core\BigInt::parse("1000000000000000")), "\n";

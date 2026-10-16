@@ -1,0 +1,43 @@
+--TEST--
+`Core\Command::help` names each parameter's declared type and the default beside it, and names a flag's type alone because an unwritten flag is `false` whatever its declaration says — `rule:tooling/commands-are-compiled`
+--FILE--
+<?nvs
+// The table carries what a parameter is *called* and the conversion the checker
+// picked for it, never the type it was declared at. So every type below reached
+// the page through the handler's own signature, by the `Class::method` label
+// the row already holds — one source of truth, and no second copy of a
+// signature in the table.
+class Fetcher {
+    #[Core\Command(name: "fetch", about: "Download one thing")]
+    public static function fetch(
+        string $url = "https://example.test",
+        #[Core\Option(about: "How many times to retry")] uint $retries = 3,
+        #[Core\Option(short: "v")] bool $verbose = false,
+    ): uint {
+        return 0;
+    }
+}
+
+// Three declarations and three different answers in the same column:
+//
+//   * `$url` is a positional carrying a default, so it is bracketed in the
+//     usage line and names both halves of its declaration below.
+//   * `$retries` is the § 6 example, and `uint` is the half a matcher's own
+//     conversion could not have said: `int` and `uint` are one arm apart in
+//     the table and one word apart in the declaration.
+//   * `$verbose` is a flag. It names `bool` and *not* `bool = false`, because
+//     § 6 gives an option declared `bool` by its being written — a page
+//     printing the declaration's default there would name a value the matcher
+//     does not hand the handler.
+echo "" . Core\Command::help("fetch");
+--EXPECT--
+usage: fetch [<url>] [--retries] [--verbose]
+
+Download one thing
+
+arguments:
+  <url>  string = https://example.test
+
+options:
+  --retries      uint = 3  How many times to retry
+  -v, --verbose  bool

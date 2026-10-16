@@ -1,0 +1,17 @@
+<?nvs
+// Shows how to read a calendar day out of a row.
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table tasks (title text not null, due date not null)', []);
+$db->execute('insert into tasks (title, due) values (?, ?), (?, ?)', ['pay the rent', '2026-02-01', 'call Ana', '2026-01-19']);
+
+// `date` reads the named column as a `Core\Time\Date`, and `format` writes that
+// day out. This prints `call Ana: 2026-01-19` and `pay the rent: 2026-02-01`.
+foreach ($db->query('select title, due from tasks order by due', []) as Core\Db\Row $row) {
+    ?Core\Time\Date $due = $row->date('due');
+    if ($due != null) {
+        echo $row->string('title') ?? '', ': ', $due->format('yyyy-MM-dd'), "\n";
+    }
+}
+
+$db->close();

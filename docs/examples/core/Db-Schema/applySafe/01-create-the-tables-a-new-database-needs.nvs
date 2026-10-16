@@ -1,0 +1,33 @@
+<?nvs
+// Shows how a program creates the tables it needs. `applySafe` plans the
+// schema against the database and runs the steps. Creating a table is safe.
+
+use Core\Db;
+use Core\Db\Schema;
+
+var $db = Db::connect('notes');
+
+var $schema = Schema::fromArray([
+    'tables' => [
+        [
+            'name' => 'notes',
+            'columns' => [
+                ['name' => 'id', 'type' => 'int64', 'identity' => true],
+                ['name' => 'title', 'type' => 'text(200)'],
+            ],
+            'primary_key' => ['id'],
+        ],
+    ],
+]);
+
+// The database is empty, so this call creates the table.
+$schema->applySafe($db);
+
+// The table is there and has no rows yet. This prints `rows: 0`.
+echo 'rows: ', $db->query('select id from notes', [])->count(), "\n";
+
+// The database now matches the schema, so there is nothing left to run. This
+// prints `steps left: 0`.
+echo 'steps left: ', Core\Arr::count($schema->planAgainst($db)->steps()), "\n";
+
+$db->close();

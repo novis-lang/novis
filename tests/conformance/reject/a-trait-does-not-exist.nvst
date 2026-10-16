@@ -1,0 +1,19 @@
+--TEST--
+there is no `trait`; the diagnostic names both replacements — an interface default method, or `by` delegation, `rule:classes/no-traits`
+--FILE--
+<?nvs
+trait Greets {
+    public function hi(): string {
+        return "hi";
+    }
+}
+echo "after\n";
+// covers: lang:classes/interfaces
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0227]: traits do not exist
+  --> case.nvs:2:1
+%A
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

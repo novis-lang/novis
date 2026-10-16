@@ -1,0 +1,17 @@
+<?nvs
+// Shows how to check a signed link, and what happens when somebody changes it.
+
+array<secret bytes> $keys = [Core\Crypto::generateKey()];
+Core\Uri $link = Core\Uri::parse("https://example.com/invoice?id=7")->sign({keys: $keys, until: null});
+
+// `verifySignature` returns nothing. The next line runs only when the link is valid.
+$link->verifySignature($keys);
+echo "the link is valid", "\n";
+
+// Somebody changes the invoice number from 7 to 8. `verifySignature` throws a `RuntimeError`.
+try {
+    $link->withQueryParameter("id", "8")->verifySignature($keys);
+    echo "the changed link is valid", "\n";
+} catch (RuntimeError $error) {
+    echo "the changed link is not valid", "\n";
+}

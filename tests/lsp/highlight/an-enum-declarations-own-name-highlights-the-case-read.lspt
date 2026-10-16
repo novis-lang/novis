@@ -1,0 +1,15 @@
+--TEST--
+an enum's own declaration highlights the read of one of its cases, because that read was recorded against the enum — the case beside it pinning that the enum is what the highlight is keyed on, `rule:ide/five-features-are-one-reference-index`
+--FILE--
+<?nvs
+enum Sta<|>tus: int
+{
+    case Draft = 1;
+    case Live = 2;
+}
+
+var $s = Status::Draft;
+--REQUEST--
+documentHighlight
+--EXPECT--
+case.nvs:8:10

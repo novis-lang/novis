@@ -1,0 +1,18 @@
+<?nvs
+// Shows how to read `[queue] connection`, the database block where queued jobs are stored.
+// There is no default. A deployment that uses the queue must set it.
+
+echo 'jobs are stored in: ', Core\Config::get('queue.connection') ?? '(nothing written — this deployment queues no work)', "\n";
+echo 'workers here:       ', Core\Config::get('queue.workers') ?? '(nothing written)', "\n";
+
+// Use the application's own database. Then a job is added in the same transaction
+// as the work that caused it, and a rolled-back transaction creates no job.
+
+// A program cannot change this setting. `Core\Config::set` returns `false`, so this prints `refused`.
+echo 'store them elsewhere:      ', Core\Config::set('queue.connection', 'somewhere-else') ? 'accepted' : 'refused', "\n";
+
+// The same is true for the value that is already set.
+echo 'write the same one back:   ', Core\Config::set('queue.connection', Core\Config::get('queue.connection') ?? 'main') ? 'accepted' : 'refused', "\n";
+
+// The server applies a new value in the file while it runs. Workers on the old
+// connection put their current job back, and new workers use the new connection.

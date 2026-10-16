@@ -1,0 +1,38 @@
+--TEST--
+A `Core\Response` write the checker cannot see in `Core\Task::afterResponse` work throws `LogicError` at run time, in the work and in a task it starts, and the same call in the main script does not throw -- `rule:concurrency/deferred-work-cannot-write-the-response`
+--FILE--
+<?nvs
+// The work is in a variable, so the compiler does not see the calls inside it.
+// Each call changes the response, so each one throws `LogicError`.
+var $work = fn(): void => {
+    try {
+        Core\Response::setStatus(500);
+    } catch (LogicError $e) {
+        echo $e->message, "\n";
+    }
+    try {
+        Core\Response::text("late");
+    } catch (LogicError $e) {
+        echo $e->message, "\n";
+    }
+    // A task the work starts also runs after the response was sent.
+    var $done = Core\Task::all({
+        header: fn(): string => {
+            try {
+                Core\Response::setHeader("X-Shop", "1");
+                return "set";
+            } catch (LogicError $e) {
+                return $e->message;
+            }
+        },
+    });
+    echo $done->header, "\n";
+};
+Core\Task::afterResponse($work);
+Core\Response::setStatus(200);
+echo "the response\n";
+--EXPECT--
+the response
+A function passed to `Core\Task::afterResponse` cannot call `Core\Response::setStatus`. It runs after the response was sent.
+A function passed to `Core\Task::afterResponse` cannot call `Core\Response::text`. It runs after the response was sent.
+A function passed to `Core\Task::afterResponse` cannot call `Core\Response::setHeader`. It runs after the response was sent.

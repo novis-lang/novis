@@ -1,0 +1,3 @@
+[capabilities.net]
+connect = ["127.0.0.1"]
+internal = ["127.0.0.1"]

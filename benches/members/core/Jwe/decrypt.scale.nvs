@@ -1,0 +1,23 @@
+<?nvs
+// Measures `Core\Jwe::decrypt` on one token, at growing lengths of the value inside it.
+// bench: start 1024
+// bench: max 16384
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        Core\Jwe\Key $key = Core\Jwe\Key::shared(Core\Crypto::generateKey());
+        array<Core\Jwe\Key> $keys = [$key];
+        string $token = Core\Jwe::encrypt(Core\Str::repeat('a', $size), $key);
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            $total = $total + Core\Str::length(Core\Jwe::decrypt($token, $keys));
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(1024), "\n";

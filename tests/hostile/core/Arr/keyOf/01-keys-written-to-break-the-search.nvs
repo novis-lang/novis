@@ -1,0 +1,47 @@
+<?nvs
+// Attack: an array whose keys and values are as large as they can be is
+// searched. Every step should finish or throw an error, and the runtime must
+// not crash.
+// hostile: timeout-ms 60000
+
+// 1. A list of 400000 entries, searched for a value that is not in it, so
+//    every entry is looked at.
+array<int> $long = [];
+int $i = 0;
+while ($i < 400000) {
+    $long[] = $i;
+    $i = $i + 1;
+}
+echo 'step 1: ', Core\Arr::keyOf($long, -1) ?? 'none', '|', "\n";
+
+// 2. The same list, searched for its last value, so the largest key is built.
+echo 'step 2: ', Core\Arr::keyOf($long, 399999) ?? 'none', '|', "\n";
+
+// 3. An entry under a key of one million characters is found, so that whole
+//    key is built and returned.
+array<int> $wide = [];
+string $huge = Core\Str::repeat('k', 1000000);
+$wide[$huge] = 7;
+echo 'step 3: ', Core\Str::length(Core\Arr::keyOf($wide, 7) ?? ''), '|', "\n";
+
+// 4. A key and a value that both contain a zero byte in the middle.
+array<string> $odd = [];
+$odd["a\0b"] = "c\0d";
+echo 'step 4: ', Core\Str::length(Core\Arr::keyOf($odd, "c\0d") ?? ''), '|', "\n";
+
+// 5. 5000 searches that each look at all 2000 entries and build a key.
+array<int> $mid = [];
+int $k = 0;
+while ($k < 2000) {
+    $mid[] = $k;
+    $k = $k + 1;
+}
+uint $width = 0;
+int $r = 0;
+while ($r < 5000) {
+    $width = $width + Core\Str::length(Core\Arr::keyOf($mid, 1999) ?? '');
+    $r = $r + 1;
+}
+echo 'step 5: ', $width, '|', "\n";
+
+echo 'the runtime is still standing', "\n";

@@ -1,0 +1,11 @@
+<?nvs
+// Shows the angles `Core\Math::atan2` returns for points that lie on an axis.
+
+// A point straight up is at 90 degrees. This prints 90.
+echo Core\Math::toDegrees(Core\Math::atan2(1.0, 0.0)), "\n";
+
+// A point to the left is at `PI` radians. This prints 3.1415926535898.
+echo Core\Math::atan2(0.0, -1.0), "\n";
+
+// The point (0, 0) has no direction. The result is 0, and this prints 0.
+echo Core\Math::atan2(0.0, 0.0), "\n";

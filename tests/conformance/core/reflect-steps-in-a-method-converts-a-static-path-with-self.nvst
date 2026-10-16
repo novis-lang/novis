@@ -1,0 +1,31 @@
+--TEST--
+Inside a method, a `propertyPath<static>` parameter is the path's text, so the body converts it with `as propertyPath<self>` before `Core\Reflect::steps` reads it — `rule:statements/static-is-a-member-modifier`, `rule:core-classes/str-parts-and-reflect-steps`
+--FILE--
+<?nvs
+// Inside the method, `$path` is a `string`.
+// `as propertyPath<self>` checks it against `Model` while the program runs.
+class Model {
+    public int $id = 0;
+
+    public static function describe(propertyPath<static> $path): void {
+        var $checked = $path as propertyPath<self>;
+        foreach (Core\Reflect::steps($checked) as var $step) {
+            echo $step->name(), ": ", $step->type() ?? "no type", "\n";
+        }
+    }
+}
+
+class Category extends Model {
+    public ?Category $parent = null;
+}
+
+Category::describe("id");
+// `parent` is declared on `Category` and not on `Model`, so the conversion fails.
+try {
+    Category::describe("parent.id");
+} catch (RuntimeError $e) {
+    echo "not a path of Model\n";
+}
+--EXPECT--
+id: int
+not a path of Model

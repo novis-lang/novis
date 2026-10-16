@@ -1,0 +1,21 @@
+<?nvs
+// The unit every `units` column in docs/perf/members.md is expressed in: a plain integer loop,
+// chained so nothing can hoist it. One iteration of this is 1.000 units, on any machine.
+//
+// DO NOT EDIT. Every ratio ever recorded is relative to this loop; changing it re-bases the whole
+// history silently. A different unit is a new file and a new ledger.
+// bench: iterations 2000000
+
+class Unit {
+    public static function run(int $rounds): int {
+        var $total = 0;
+        var $i = 0;
+        while ($i < $rounds) {
+            $total = ($total + $i * 3 - 1) % 1000003;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Unit::run(2000000), "\n";

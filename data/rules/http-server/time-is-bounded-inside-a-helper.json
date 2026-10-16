@@ -1,0 +1,15 @@
+{
+  "title": "A helper whose runtime scales with its input polls the request's deadline flag through a bounded-loop combinator, or bounds its input instead",
+  "status": "shipped",
+  "seeAlso": [
+    "http-server/a-requests-blast-radius-is-bounded-at-four-tiers",
+    "http-server/a-wedged-core-is-detected-by-its-deadline",
+    "core-classes/regex-two-tiers",
+    "errors/on-limit",
+    "concurrency/cancellation-runs-no-user-code"
+  ],
+  "guardedBy": [
+    "crates/nvs-stdlib/tests/deadline_poll.rs",
+    "benches/abi-probe/tests/perf_guards.rs"
+  ]
+}

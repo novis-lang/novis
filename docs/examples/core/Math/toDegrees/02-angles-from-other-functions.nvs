@@ -1,0 +1,8 @@
+<?nvs
+// Shows how to read an angle that another function returns in radians.
+
+// `Core\Math::atan2` returns the angle of the point (1, 1). This prints 45.
+echo Core\Math::toDegrees(Core\Math::atan2(1.0, 1.0)), "\n";
+
+// `Core\Math::acos` returns the angle whose cosine is 0.5. This prints 60.
+echo Core\Math::toDegrees(Core\Math::acos(0.5)), "\n";

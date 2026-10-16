@@ -1,0 +1,16 @@
+--TEST--
+a class name written before `::` offers the enum the class declares beside its static half, because `Owner::Name` reaches an owned enum from anywhere, `rule:enums/class-scoped-enum`
+--FILE--
+<?nvs
+class Order {
+    enum Status { Draft, Paid }
+    public const int LIMIT = 10;
+}
+
+var $s = Order::<|>
+if (true) {
+--REQUEST--
+completion
+--EXPECT--
+LIMIT = 10 constant  int
+Status  enum      Order::Status

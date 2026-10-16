@@ -1,0 +1,30 @@
+<?nvs
+// `rule:testing/task-tree-and-virtual-clock`, from the language surface: the runner owns the test's task
+// tree. The first test asks whether there is a calling task at all — a
+// `Core\Task::all` with no task beneath it has nowhere to put its children —
+// and the second leaves one running on purpose, which `rule:testing/task-tree-and-virtual-clock` fails and names.
+//
+// The child path is a literal, so it names the file beside this one
+// (`rule:programs/relative-paths-resolve-from-their-file`).
+// `crates/nvs-cli/src/runner.rs`'s own tests are the only reader of this file.
+use Core\Task;
+use Core\Test;
+
+final class TaskTreeTest {
+    #[Test]
+    public function itRunsInsideATaskOfTheRunners(): void {
+        var $answers = Task::all({
+            first:  fn(): int => 1,
+            second: fn(): int => 2,
+        });
+        Test::assertSame($answers->first + $answers->second, 3);
+    }
+
+    #[Test]
+    public function itLeavesAnUnawaitedChildRunning(): void {
+        var $orphan = spawn script 'task-tree-child.nvs';
+        // The one assertion the ledger needs, so that the only thing this test
+        // is reported for is the child it never awaited.
+        Test::assertTrue(true);
+    }
+}

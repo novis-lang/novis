@@ -1,0 +1,14 @@
+{
+  "title": "A missing path and a refused verb are different answers, and `methodsFor` is what tells them apart",
+  "status": "shipped",
+  "seeAlso": [
+    "routing/matched-once-before-the-handler",
+    "routing/a-trailing-segment-may-be-absent",
+    "routing/matching-is-not-dispatching"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/methods-for-answers-nothing-for-an-unclaimed-path-and-every-verb-for-a-claimed-one.nvst",
+    "tests/conformance/core/both-forms-of-an-optional-capture-claim-the-same-verbs.nvst",
+    "tests/conformance/core/a-paths-verbs-are-answered-once-each-as-http-method-cases.nvst"
+  ]
+}

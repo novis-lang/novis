@@ -1,0 +1,14 @@
+<?nvs
+// One section of the report: a heading and the lines under it. Whoever
+// requires this file fills in `Section` first. Variables do not cross between
+// files, so a class is how you hand something over.
+
+class Section {
+    public static string $title = "";
+    public static array<string> $rows = [];
+}
+
+echo Section::$title, "\n";
+foreach (Section::$rows as string $row) {
+    echo "  ", $row, "\n";
+}

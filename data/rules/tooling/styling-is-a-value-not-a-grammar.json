@@ -1,0 +1,16 @@
+{
+  "title": "Styling is a value type — `Cli\\Style` and `Cli\\Color` — and never a fifth grammar",
+  "status": "shipped",
+  "seeAlso": [
+    "tooling/text-is-the-one-raw-path",
+    "tooling/the-terminal-profile-resolves-once",
+    "security/every-grammar-is-a-sink",
+    "core-api/shape-rules",
+    "enums/closed-integer-type"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/cli-styling-is-a-value-type-and-not-a-grammar.nvst",
+    "tests/conformance/core/cli-the-sixteen-named-colours-are-class-constants.nvst",
+    "tests/conformance/core/cli-a-styles-seven-slots-are-independent.nvst"
+  ]
+}

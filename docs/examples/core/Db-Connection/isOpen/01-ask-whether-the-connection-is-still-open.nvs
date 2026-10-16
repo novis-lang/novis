@@ -1,0 +1,13 @@
+<?nvs
+// Shows the two answers. A connection is open from the moment you get it, and
+// closed once you give it back.
+
+var $db = Core\Db::connect('notes');
+
+// This prints `open`.
+echo $db->isOpen() ? 'open' : 'closed', "\n";
+
+$db->close();
+
+// This prints `closed`.
+echo $db->isOpen() ? 'open' : 'closed', "\n";

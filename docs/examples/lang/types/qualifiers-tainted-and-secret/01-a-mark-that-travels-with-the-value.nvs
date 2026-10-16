@@ -1,0 +1,23 @@
+<?nvs
+// Shows how a value marked as untrusted keeps that mark while your program
+// works with it, and what takes the mark off again.
+
+tainted string $typed = "42 apples";
+
+// Joining and reshaping keep the mark. Both of these are still untrusted text.
+tainted string $shouted = Core\Str::upper($typed);
+tainted string $line = "you asked for: " . $typed;
+
+// A question about the text gets a plain answer. A length is a number, not the
+// text somebody typed.
+uint $length = Core\Str::length($typed);
+bool $hasApples = Core\Str::contains($typed, "apples");
+
+// A checked conversion takes the mark off, because the answer is a number.
+tainted string $digits = "42";
+int $count = $digits as int;
+
+echo $shouted, "\n";
+echo $line, "\n";
+echo $length, " characters, apples: ", $hasApples ? "yes" : "no", "\n";
+echo $count + 1, "\n";

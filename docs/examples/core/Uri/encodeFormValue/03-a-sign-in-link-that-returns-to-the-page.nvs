@@ -1,0 +1,9 @@
+<?nvs
+// Shows how a server builds a sign-in link that sends the user back to the page they came from.
+
+// In a real program, this is the address of the page the user opened.
+string $page = "/cart?item=42&size=L";
+
+// `/`, `?`, `&` and `=` are escaped, so the whole address is the value of `next`.
+// This prints /login?next=%2Fcart%3Fitem%3D42%26size%3DL.
+echo "/login?next=", Core\Uri::encodeFormValue($page), "\n";

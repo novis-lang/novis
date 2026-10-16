@@ -1,0 +1,4 @@
+import-orders: failed, row 3 has no price
+build-invoices: done
+send-receipts: done
+1 of 3 jobs failed

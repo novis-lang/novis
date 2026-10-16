@@ -1,0 +1,13 @@
+<?nvs
+// Shows how to read the highest score and the name that holds it.
+
+array<int> $scores = ['ada' => 42, 'lin' => 91, 'alan' => 67];
+
+// `Core\Arr::max` gives you the value. The `?? 0` covers the case of a list
+// with no scores in it. This prints 91.
+int $best = Core\Arr::max($scores) ?? 0;
+echo 'best score: ', $best, "\n";
+
+// `Core\Arr::keyOf` gives you the key of the first entry with that value.
+// This prints lin.
+echo 'who: ', Core\Arr::keyOf($scores, $best) ?? 'nobody', "\n";

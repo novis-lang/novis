@@ -1,0 +1,32 @@
+--TEST--
+A written `Core\Cap::has` naming something outside the roster is refused while compiling, because `false` is what a merely ungranted capability answers too — `rule:security/optional-capability-degrades` and `rule:security/capability-roster-is-closed`
+--FILE--
+<?nvs
+// `rule:security/capability-roster-is-closed`'s roster is closed, and the two spellings below are the two
+// ways a misspelling arrives: a capability that does not exist, and a name
+// spelled the way a neighbouring system spells it. Both would answer `false`
+// on every deployment, which is exactly what a real capability nobody granted
+// answers, so the branch would simply never run and nothing at run time could
+// say why.
+if (Core\Cap::has("fs.delete")) {
+    echo "unreachable\n";
+}
+
+if (Core\Cap::has("network.connect")) {
+    echo "unreachable\n";
+}
+
+// The bound on the other side: the real name compiles, in the same file, so
+// what is being refused is the name and not the member.
+if (Core\Cap::has("net.connect")) {
+    echo "net.connect: granted\n";
+}
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0616]: `fs.delete` is not a capability
+%A
+error[E0616]: `network.connect` is not a capability
+%A
+error: aborting due to 2 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

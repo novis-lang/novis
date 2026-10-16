@@ -1,0 +1,32 @@
+--TEST--
+A loop that writes a variable anywhere drops what a test before the loop proved about it, also for a read written before the write — `rule:types/narrowing`
+--FILE--
+<?nvs
+final class Node {
+    public function label(): string {
+        return "node";
+    }
+}
+
+final class Walk {
+    public static function labels(?Node $node, array<?Node> $rest): string {
+        if ($node == null) {
+            return "";
+        }
+        string $out = "";
+        foreach ($rest as ?Node $next) {
+            $out = $out . $node->label();
+            $node = $next;
+        }
+        return $out;
+    }
+}
+// covers: lang:types/narrowing
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0459]: `null|Node` may be `null`, so `->` cannot reach a member of it
+   --> case.nvs:15:27
+%A
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

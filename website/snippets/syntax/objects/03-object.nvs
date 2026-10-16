@@ -1,0 +1,20 @@
+<?nvs
+// A variable of type `object` can contain any object.
+class Tag {
+    public function constructor(public string $text) {}
+
+    public function shout(): string {
+        return Core\Str::upper($this->text);
+    }
+}
+
+object $o = new Tag("x");
+
+// `is` checks the class. Inside the `if`, you can call the methods of `Tag`.
+if ($o is Tag) {
+    echo $o->shout(), "\n";
+}
+
+// `as Tag` converts the value to a `Tag`. It throws an error if the object is not a `Tag`.
+Tag $t = $o as Tag;
+echo $t->text, "\n";

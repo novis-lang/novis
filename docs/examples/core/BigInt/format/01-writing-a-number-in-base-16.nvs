@@ -1,0 +1,12 @@
+<?nvs
+// Shows how to write a very large number as text in base 16 and in base 10.
+
+var $value = Core\BigInt::parse("123456789012345678901234567890");
+
+// `format` with `radix: 16` writes the number in base 16. This prints
+// 18ee90ff6c373e0ee4e3f0ad2.
+echo $value->format({radix: 16}), "\n";
+
+// Without the option the base is 10. These two lines print the same text.
+echo $value->format(), "\n";
+echo $value->toString(), "\n";

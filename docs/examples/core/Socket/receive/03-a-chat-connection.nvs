@@ -1,0 +1,21 @@
+<?nvs
+// Shows a chat connection that reads from its client and from a chat room with one loop.
+
+// The `.nvsp` file beside this example plays a client that sends two chat lines and then closes.
+Core\Socket $conn = Core\Socket::current();
+Core\Topic::subscribe("room:lobby");
+
+// This prints two `sent:` lines, one for each chat line, as JSON text.
+?Core\Socket\Message $message = $conn->receive();
+while ($message != null) {
+    if ($message->topic() == null) {
+        // A message from the client has no topic. It is posted to the room,
+        // so every connection in the room receives it, this one too.
+        Core\Topic::publish("room:lobby", ["text" => $message->text() ?? ""]);
+    } else {
+        // A message from the room goes to the client.
+        $conn->send(Core\Json::encode($message->value()));
+    }
+    $message = $conn->receive();
+}
+echo "the client left the room\n";

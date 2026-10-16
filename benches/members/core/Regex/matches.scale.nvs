@@ -1,0 +1,26 @@
+<?nvs
+// Measures `Core\Regex::matches` on one code, at growing code lengths.
+// bench: start 256
+// bench: max 4096
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        string $code = 'AB-' . Core\Str::repeat('1', $size);
+        Core\Regex\Pattern $pattern = Core\Regex::compile('^[A-Z]{2}-\d+$');
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            if (Core\Regex::matches($code, $pattern)) {
+                $total = $total + 2;
+            } else {
+                $total = $total + 1;
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

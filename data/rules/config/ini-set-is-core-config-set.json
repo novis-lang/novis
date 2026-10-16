@@ -1,0 +1,15 @@
+{
+  "title": "`Core\\Config` reads and writes directives at run time, and the whole family crosses as strings",
+  "status": "shipped",
+  "seeAlso": [
+    "config/one-parser-for-the-boot-path-and-config-set",
+    "classes/no-free-functions-or-constants",
+    "config/three-changeability-classes",
+    "config/ceilings-are-their-own-directives"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/config-every-set-refusal-answers-false-and-moves-nothing.nvst",
+    "tests/conformance/core/config-a-bare-limit-name-and-its-dotted-spelling-are-one-key.nvst",
+    "crates/nvs-config/tests/request.rs"
+  ]
+}

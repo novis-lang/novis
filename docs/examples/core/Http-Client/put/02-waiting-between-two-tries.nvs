@@ -1,0 +1,10 @@
+<?nvs
+// Shows the options that send a `PUT` request again when the server is busy.
+
+// A `PUT` request sent twice gives the same result, so `retryAttempts` needs no other option.
+// `retryBackoff` is the wait between two tries. It must be longer than zero, so this call throws a `RuntimeError`.
+try {
+    var $saved = Core\Http\Client::put("https://203.0.113.10/settings/theme", {body: "dark", contentType: "text/plain", retryAttempts: 3, retryBackoff: 0s});
+} catch (RuntimeError $noWait) {
+    echo $noWait->message, "\n";
+}

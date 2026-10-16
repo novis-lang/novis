@@ -1,0 +1,86 @@
+--TEST--
+The option a validation, a conditional format, a totals row and the print setup are given becomes its `RuleKind`, `Operator`, `ConditionalKind`, `TotalFunction` and `Orientation` case, and the sheet and table parts write each case as Excel names it: rule:core-classes/spreadsheet-sheet-end-parts
+--FILE--
+<?nvs
+// covers: Novis\Spreadsheet\RuleKind, Novis\Spreadsheet\Operator, Novis\Spreadsheet\ConditionalKind
+// covers: Novis\Spreadsheet\TotalFunction, Novis\Spreadsheet\Orientation
+use Novis\Spreadsheet\Style;
+use Novis\Spreadsheet\Workbook;
+
+var $book = Workbook::createInMemory();
+var $orders = $book->sheet("Orders");
+$orders->print({orientation: "landscape"});
+$orders->add(["item" => "Tea", "qty" => 3, "price" => 2.5, "day" => "2026-03-01", "code" => "T-1"]);
+$orders->add(["item" => "Cake", "qty" => 4, "price" => 3.0, "day" => "2026-03-02", "code" => "C-2"]);
+
+$orders->validate("A2:A9", {list: ["Tea", "Cake"]});
+$orders->validate("B2:B9", {whole: {min: 1, max: 99}});
+$orders->validate("C2:C9", {decimal: {min: 0}});
+$orders->validate("D2:D9", {date: {max: "2026-12-31"}});
+$orders->validate("E2:E9", {length: {max: 8}});
+$orders->validate("F2:F9", {formula: "F2<>\"\""});
+
+var $bold = Style::of({bold: true});
+$orders->conditional("B2:B9", {kind: "cell", operator: "notBetween", values: ["1", "9"], style: $bold});
+$orders->conditional("B2:B9", {kind: "cell", operator: "greaterOrEqual", values: ["4"], style: $bold});
+$orders->conditional("A2:A9", {kind: "formula", values: ['$B2>3'], style: $bold});
+$orders->conditional("C2:C9", {kind: "colorScale", colors: ["#F8696B", "#63BE7B"]});
+$orders->conditional("C2:C9", {kind: "iconSet", icons: "3Arrows"});
+$orders->conditional("B2:B9", {kind: "bottom", rank: 1, style: $bold});
+$orders->conditional("A2:A9", {kind: "unique", style: $bold});
+
+$orders->table("A1:C3", {name: "Orders", totals: ["qty" => "count", "price" => "max"]});
+
+try {
+    $orders->conditional("B2:B9", {kind: "cell", operator: "around", values: ["1"], style: $bold});
+    echo "not reached\n";
+} catch (LogicError $e) {
+    echo $e->message, "\n";
+}
+try {
+    $orders->print({orientation: "square"});
+    echo "not reached\n";
+} catch (LogicError $e) {
+    echo $e->message, "\n";
+}
+
+bytes $file = $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
+var $sheet = Core\Zip::read($file, "xl/worksheets/sheet1.xml") as string;
+var $table = Core\Zip::read($file, "xl/tables/table1.xml") as string;
+
+var $checks = Core\Str::split($sheet, "<dataValidation type=\"");
+foreach (Core\Arr::slice($checks, 1) as tainted string $check) {
+    echo "validation ", Core\Str::before($check, " allowBlank") ?? "", "\n";
+}
+var $rules = Core\Str::split($sheet, "<cfRule type=\"");
+foreach (Core\Arr::slice($rules, 1) as tainted string $rule) {
+    echo "format ", Core\Str::before($rule, "\"") ?? "", "\n";
+}
+echo Core\Str::contains($sheet, "operator=\"notBetween\"") ? "notBetween is written" : "notBetween is missing", "\n";
+echo Core\Str::contains($sheet, "operator=\"greaterThanOrEqual\"") ? "greaterOrEqual is written" : "greaterOrEqual is missing", "\n";
+echo Core\Str::contains($sheet, "bottom=\"1\"") ? "bottom is written" : "bottom is missing", "\n";
+echo Core\Str::contains($table, "name=\"qty\" totalsRowFunction=\"count\"") ? "qty is counted" : "qty is not counted", "\n";
+echo Core\Str::contains($table, "name=\"price\" totalsRowFunction=\"max\"") ? "price has its max" : "price has no max", "\n";
+echo Core\Str::contains($sheet, "<pageSetup orientation=\"landscape\"/>") ? "landscape is written" : "landscape is missing", "\n";
+--EXPECT--
+The `operator` is `'between'`, `'notBetween'`, `'equal'`, `'notEqual'`, `'greater'`, `'greaterOrEqual'`, `'less'` or `'lessOrEqual'`. It has `'around'`.
+The print option `orientation` is `'portrait'` or `'landscape'`. It has `'square'`.
+validation list"
+validation whole"
+validation decimal" operator="greaterThanOrEqual"
+validation date" operator="lessThanOrEqual"
+validation textLength" operator="lessThanOrEqual"
+validation custom"
+format cellIs
+format cellIs
+format expression
+format colorScale
+format iconSet
+format top10
+format uniqueValues
+notBetween is written
+greaterOrEqual is written
+bottom is written
+qty is counted
+price has its max
+landscape is written

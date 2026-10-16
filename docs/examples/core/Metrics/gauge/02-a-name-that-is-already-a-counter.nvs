@@ -1,0 +1,16 @@
+<?nvs
+// Shows the error you get when a name that is already a counter is used as a gauge.
+
+// The first use makes `logins_total` a counter.
+Core\Metrics::increment("logins_total");
+
+// A gauge with the same name throws a `LogicError`.
+try {
+    Core\Metrics::gauge("logins_total", 12.0);
+} catch (LogicError $e) {
+    echo "logins_total is already a counter\n";
+}
+
+// A gauge needs its own name. This call works.
+Core\Metrics::gauge("users_online", 12.0);
+echo "users_online is 12\n";

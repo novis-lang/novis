@@ -1,0 +1,18 @@
+<?nvs
+// Shows how to send binary data to a server over a WebSocket connection.
+
+// A fixed server, so the example runs without a network. It sends nothing back.
+Core\Test::answerSocket("wss://files.example.com/upload", []);
+
+Core\Http\Socket $socket = Core\Http\Client::openSocket("wss://files.example.com/upload");
+
+// `sendBytes()` sends a `bytes` value as one binary message.
+bytes $data = Core\Bytes::fill(4, 255);
+$socket->sendBytes($data);
+$socket->close();
+
+// `Core\Test::sentSocket()` returns what the program sent. This prints `4 bytes: ffffffff`.
+foreach (Core\Test::sentSocket() as Core\Socket\Message $sent) {
+    tainted bytes $octets =$sent->bytes() ?? ("" as tainted bytes);
+    echo Core\Bytes::length($octets), " bytes: ", Core\Encoding::toHex($octets), "\n";
+}

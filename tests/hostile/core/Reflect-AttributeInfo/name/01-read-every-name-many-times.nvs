@@ -1,0 +1,44 @@
+<?nvs
+// Attack: the names of many attributes are read again and again, on a class that has them and on a class that has none.
+// Every name that is read should be freed, so the memory used should not grow.
+
+type Route = {path: string};
+type Cache = {seconds: int};
+
+#[Route(path: '/a')]
+#[Cache(seconds: 1)]
+#[{bare: true}]
+class Busy
+{
+    #[Route(path: '/b')]
+    #[Cache(seconds: 2)]
+    public function one(): void
+    {
+    }
+
+    #[Route(path: '/c')]
+    public function two(#[{from: 'query'}] int $id): void
+    {
+    }
+}
+
+class Empty
+{
+}
+
+// 1. A class with no attributes returns an empty list.
+echo Core\Arr::count(Core\Reflect::forObject(new Empty())->attributes()), "\n";
+
+// 2. Read the name of every attribute 200000 times, and join all of them each time.
+var $info = Core\Reflect::forObject(new Busy());
+uint $length = 0;
+uint $i = 0;
+while ($i < 200000) {
+    array<string> $names = [];
+    foreach ($info->attributes() as Core\Reflect\AttributeInfo $attribute) {
+        $names[] = $attribute->name();
+    }
+    $length = $length + Core\Str::length(Core\Str::join($names, ',')) as uint;
+    $i = $i + 1;
+}
+echo $length, "\n";

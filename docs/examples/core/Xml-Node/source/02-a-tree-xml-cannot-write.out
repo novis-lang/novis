@@ -1,0 +1,1 @@
+Core\Xml\Node::source(): a comment has no escape grammar, so it cannot hold `--` or end with `-`.

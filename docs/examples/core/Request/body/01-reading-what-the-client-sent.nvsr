@@ -1,0 +1,9 @@
+--METHOD--
+POST
+--PATH--
+/notes
+--HEADERS--
+content-type: text/plain; charset=utf-8
+--BODY--
+Call the supplier about order 1042.
+Ask for delivery before Friday.

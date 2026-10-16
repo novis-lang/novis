@@ -1,0 +1,36 @@
+<?nvs
+// Shows the `Iterator<T>` interface. A class that has `advance()` and `current()` can be
+// walked by a `foreach` loop, and by a `while` loop that calls the two methods itself.
+
+class Letters implements Iterator<string> {
+    // The cursor starts before the first element, so the first `advance()` reaches it.
+    private int $at = -1;
+
+    public function constructor(private array<string> $items) {}
+
+    // Moves to the next element. The result is `false` once there are none left.
+    public function advance(): bool {
+        $this->at = $this->at + 1;
+        return $this->at < (Core\Arr::count($this->items) as int);
+    }
+
+    // Returns the element the last `advance()` moved to.
+    public function current(): string {
+        return $this->items[$this->at];
+    }
+}
+
+array<string> $abc = ["a", "b", "c"];
+
+// The two methods are the whole protocol, so this loop does what a `foreach` does.
+var $byHand = new Letters($abc);
+while ($byHand->advance()) {
+    echo $byHand->current();
+}
+echo "\n";
+
+// The same three letters, with the loop calling the two methods for you.
+foreach (new Letters($abc) as string $letter) {
+    echo $letter;
+}
+echo "\n";

@@ -1,0 +1,35 @@
+--TEST--
+A tag with twenty thousand attributes is read, and a name repeated after all of them is still refused, by the tree and the stream alike — `rule:core-classes/xml-tree-and-stream`
+--FILE--
+<?nvs
+array<string> $parts = [];
+int $i = 0;
+while ($i < 20000) {
+    $parts[] = ' a' . $i as string . '="' . $i as string . '"';
+    $i = $i + 1;
+}
+string $tag = '<item' . Core\Str::join($parts, '');
+
+Core\Xml\Node $wide = Core\Xml::parse($tag . '/>');
+foreach ($wide->children() as Core\Xml\Node $item) {
+    echo Core\Arr::count($item->attributes()), " ", $item->attributes()["a19999"], "\n";
+}
+
+try {
+    Core\Xml::parse($tag . ' a0="again"/>');
+    echo "parsed\n";
+} catch (ParseError $tree) {
+    echo $tree->message, "\n";
+}
+
+Core\Xml\Reader $reader = Core\Xml::reader($tag . ' a19999="again"/>');
+try {
+    $reader->read();
+    echo "read\n";
+} catch (ParseError $stream) {
+    echo $stream->message, "\n";
+}
+--EXPECT--
+20000 19999
+Core\Xml::parse(): attribute `a0` is written twice on `item`.
+Core\Xml\Reader::read(): attribute `a19999` is written twice on `item`.

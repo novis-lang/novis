@@ -1,0 +1,86 @@
+<?nvs
+// Attack: a request tries to change the `[[app]]` blocks, or the rights and limits they
+// give it. Every change to a block, a right or a limit above the maximum should fail.
+// Some steps use very large keys, so this test needs more time than usual.
+// hostile: timeout-ms 20000
+
+// 1. Change and read the `[[app]]` blocks directly, by index and by key.
+array<string> $roster = [
+    'app',
+    'app.0',
+    'app.0.root',
+    'app.0.entry',
+    'app.0.mode',
+    'app.0.origin',
+    'app.0.limits.memory',
+    'app.0.limits.hard.memory',
+    'app.0.capabilities.fs.read',
+    'app.0.capabilities.fs.write',
+    'app.0.capabilities.process.exec',
+    'app.0.capabilities.script.spawn',
+    'app.9999.capabilities.net.connect',
+];
+foreach ($roster as string $key) {
+    Core\Config::set($key, '/');
+    Core\Config::set($key, 'true');
+    Core\Config::get($key);
+}
+
+// 2. Raise the rights and limits that a block gives to this request.
+array<string> $folded = [
+    'capabilities.fs.read',
+    'capabilities.fs.write',
+    'capabilities.process.exec',
+    'capabilities.script.spawn',
+    'capabilities.net.connect',
+    'capabilities.net.internal',
+    'limits.hard.memory',
+    'limits.hard.cpu_time',
+];
+foreach ($folded as string $key) {
+    Core\Config::set($key, 'true');
+    Core\Config::set($key, '/');
+    Core\Config::set($key, '1024G');
+}
+
+// 3. Set the memory limit to huge values in several units, and to `-1` and `0`.
+array<string> $enormous = ['4G', '16777216M', '9223372036854775807', '-1', '0'];
+foreach ($enormous as string $value) {
+    Core\Config::set('limits.memory', $value);
+}
+
+// 4. Use an `app.` key with 100,000 parts, and an `app.` key that is 4 MB long.
+string $deep = 'app' . Core\Str::repeat('.0', 100000);
+Core\Config::set($deep, '1');
+Core\Config::get($deep);
+
+string $wide = Core\Str::repeat('a', 4000000);
+Core\Config::set('app.' . $wide, $wide);
+Core\Config::get('app.' . $wide);
+
+// 5. Use keys that are almost real keys: a longer name, an extra dot, a `..` path, a null byte.
+array<string> $nearly = [
+    'appx.root',
+    'app.',
+    '.app',
+    'app..0.root',
+    'app.0.root/../../etc',
+    "app\u{0000}.0.root",
+];
+foreach ($nearly as string $key) {
+    Core\Config::set($key, 'true');
+    Core\Config::get($key);
+}
+
+// 6. Set and restore an allowed value 100,000 times. The memory used should not grow.
+uint $round = 0;
+while ($round < 100000) {
+    Core\Config::set('limits.memory', '32M');
+    Core\Config::restore('limits.memory');
+    $round = $round + 1;
+}
+
+// Read all settings again. A key that no block set, or any `[[app]]` key, means the attack worked.
+array<string> $all = Core\Config::all();
+echo Core\Arr::count($all), " directive(s) still in force\n";
+echo Core\Config::get('limits.memory') ?? '(no value)', "\n";

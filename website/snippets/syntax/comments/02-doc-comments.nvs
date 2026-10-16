@@ -1,0 +1,13 @@
+<?nvs
+/// A price in cents.
+final class Price {
+    /// The lowest price a shop can set.
+    public const int MIN = 0;
+
+    /// Returns the price multiplied by two.
+    public static function double(int $cents): int {
+        return $cents * 2;
+    }
+}
+
+echo Price::double(250), "\n";

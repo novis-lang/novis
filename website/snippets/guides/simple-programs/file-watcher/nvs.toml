@@ -1,0 +1,4 @@
+# The program writes a file and reads it back, so it may read and write files.
+[capabilities.fs]
+read = true
+write = true

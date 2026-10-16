@@ -1,0 +1,21 @@
+<?nvs
+// A payment provider calls your server when a payment goes through. It has no
+// account with you, so its route is open to everyone. It also sends no browser
+// form, so the form token check has nothing to check and is turned off here.
+
+class Checkout {
+    // A form a shopper submits. Open to everyone, and the token check stays on.
+    #[Core\Route(path: "/checkout", method: Core\Http\Method::Post, name: "Checkout::start")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function start(): string { return "started"; }
+
+    // The provider's call. Open as well, and without the token check.
+    #[Core\Route(path: "/hooks/payments", method: Core\Http\Method::Post, name: "Checkout::settled")]
+    #[Core\Access(allow: Core\Audience::Public, csrf: false)]
+    public function settled(): string { return "recorded"; }
+}
+
+// Open says who may reach the route. It does not say that the handler believes
+// what it is given: a webhook still checks the signature the provider sends.
+echo Core\Router::url("Checkout::start", []), "\n";
+echo Core\Router::url("Checkout::settled", []), "\n";

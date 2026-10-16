@@ -1,0 +1,57 @@
+--TEST--
+`Core\Db\Row::decimal` answers the exact number a `DECIMAL` column holds, and it and `Core\Db\Row::float` do not read each other's columns — `rule:types/decimal` and `rule:core-classes/db-column-types`
+--FILE--
+<?nvs
+// covers: Core\Db\Row::decimal
+// SQLite runs for real, and a `DECIMAL` column and a `REAL` column both hold a
+// number there, so nothing but the declaration separates them. That is what
+// makes this table the place the separation can fail: a reader that answered
+// whatever was numeric would answer both columns and look right on each one.
+use Core\Db\Row;
+
+var $db = Core\Db::connect("main");
+$db->execute("create table order_lines (amount decimal(10,2) not null, rate real not null, item text not null)", []);
+decimal $amount = 19.95;
+$db->execute("insert into order_lines (amount, rate, item) values (?, ?, ?)", [$amount, 0.19, "teapot"]);
+
+array<Row> $one = $db->query("select amount, rate, item from order_lines", [])->all();
+var $row = $one[0];
+
+// The number itself, with the digits it was stored with.
+?decimal $read = $row->decimal("amount");
+if ($read != null) {
+    echo "amount ", $read, "\n";
+}
+
+// And the three crossings that are refused, which are one rule read in both
+// directions: a `DECIMAL` column is `decimal`'s and nothing else's, and
+// `decimal` reads no `REAL` and no `TEXT` column.
+array<string> $others = ["rate", "item"];
+foreach ($others as string $column) {
+    try {
+        $row->decimal($column);
+        echo "decimal over ", $column, ": answered\n";
+    } catch (LogicError $refused) {
+        echo "decimal over ", $column, ": refused\n";
+    }
+}
+try {
+    $row->float("amount");
+    echo "float over amount: answered\n";
+} catch (LogicError $refused) {
+    echo "float over amount: refused\n";
+}
+--FILE nvs.toml--
+# § 3: a SQLite connection's file path comes from its config block, so
+# `db.connect` covers it.
+[capabilities.db]
+connect = ["main"]
+
+[db.main]
+driver = "sqlite"
+path = ":memory:"
+--EXPECT--
+amount 19.95
+decimal over rate: refused
+decimal over item: refused
+float over amount: refused

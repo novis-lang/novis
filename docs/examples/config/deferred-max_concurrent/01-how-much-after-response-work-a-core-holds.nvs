@@ -1,0 +1,25 @@
+<?nvs
+// Work that runs after the response is sent keeps its request open a little longer.
+// `[deferred] max_concurrent` is how many of those requests one core keeps at one time.
+// This file sets it:
+//
+//     [deferred]
+//     max_concurrent = 256
+
+echo 'requests held per core: ', Core\Config::get('deferred.max_concurrent') ?? '(no value)', "\n";
+
+// The limit counts requests, not pieces of work. A request that adds ten callables counts once.
+// Each of these requests may use up to `limits.hard.memory`, so this prints `512M`.
+echo 'each may hold up to:    ', Core\Config::get('limits.hard.memory') ?? '(nothing)', "\n";
+
+// The right limit depends on the size of the machine. A program may read it but not
+// change it. `Core\Config::set` returns `false`, so this prints `no`.
+echo 'raise it from code:     ', Core\Config::set('deferred.max_concurrent', '4096') ? 'yes' : 'no', "\n";
+
+// `Core\Task::afterResponse` runs this anonymous function after the response is sent.
+// Over the limit, it throws an error while the request still runs, so the work can run at once.
+Core\Task::afterResponse(fn (): void => {
+    echo "and the work itself runs once the answer is on its way\n";
+});
+
+echo "answered\n";

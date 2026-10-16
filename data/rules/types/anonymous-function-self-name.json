@@ -1,0 +1,13 @@
+{
+  "title": "An anonymous function may carry a self-name, visible only inside its own body",
+  "status": "shipped",
+  "seeAlso": [
+    "types/anonymous-function",
+    "types/implicit-capture",
+    "types/callable-signature"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/a-named-anonymous-function-recurses.nvst",
+    "tests/conformance/lang/a-self-name-recursive-call-is-checked-against-the-anonymous-functions-own-parameters.nvst"
+  ]
+}

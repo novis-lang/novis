@@ -1,0 +1,23 @@
+--TEST--
+a class written as a method parameter's type answers that class's `///` run, `rule:ide/the-index-answers-the-cursor`
+--FILE--
+<?nvs
+/// One person, as the store holds them.
+class User
+{
+    public string $name = "";
+}
+
+class Greeter
+{
+    public function greet(Us<|>er $u): string
+    {
+        return "hi " . $u->name;
+    }
+}
+
+echo new Greeter()->greet(new User());
+--REQUEST--
+hover
+--EXPECT--
+One person, as the store holds them.

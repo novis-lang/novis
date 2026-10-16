@@ -1,0 +1,37 @@
+<?nvs
+// A report page shows an average for every row, and a price list turns a
+// missing rate into a clear error. `catch` binds looser than the arithmetic,
+// so the guard covers the whole division.
+
+class Report {
+    public static function line(string $label, int $total, int $count): string {
+        // A row with no entries would stop the page with an error. The arm
+        // supplies 0 instead.
+        var $average = $total / $count catch (ArithmeticError $zero) => 0;
+        return $label . ": " . $average as string;
+    }
+}
+
+class Rates {
+    public static function read(string $code): int {
+        throw new IOError("no rate for " . $code);
+    }
+
+    // An arm may throw instead of giving a value. The caller then sees an error
+    // that says what went wrong at this level.
+    public static function forCode(string $code): int {
+        return Rates::read($code)
+            catch (IOError $e) => throw new RuntimeError("price list is incomplete: " . $e->message);
+    }
+}
+
+// This prints `north: 300`, then `south: 0`, then `east: 0`.
+echo Report::line("north", 900, 3), "\n";
+echo Report::line("south", 120, 0), "\n";
+echo Report::line("east", 0, 7), "\n";
+
+try {
+    echo Rates::forCode("EUR"), "\n";
+} catch (RuntimeError $stopped) {
+    echo $stopped->message, "\n";
+}

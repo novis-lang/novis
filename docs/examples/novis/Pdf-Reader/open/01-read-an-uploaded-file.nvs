@@ -1,0 +1,18 @@
+<?nvs
+// Shows how to read the page count and the title of an uploaded PDF file.
+use Novis\Pdf\Document;
+use Novis\Pdf\Reader;
+
+// The uploaded file. Here the program renders it first, so the example has a file to read.
+var $upload = Document::fromHtml("<html><head><title>Order 1042</title><meta name=\"author\" content=\"Shop\"></head>"
+    . "<body><p>Order 1042</p><p style=\"break-before: page\">Delivery note</p></body></html>")
+    ->render()->bytes;
+
+// `Reader::open` reads the file once. This prints `2 pages`, then the title and the author.
+var $reader = Reader::open($upload);
+echo $reader->pageCount, " pages\n";
+echo "title: ", $reader->metadata->title, "\n";
+echo "author: ", $reader->metadata->author, "\n";
+
+// A value the file does not have is `null`.
+echo "subject: ", $reader->metadata->subject ?? "none", "\n";

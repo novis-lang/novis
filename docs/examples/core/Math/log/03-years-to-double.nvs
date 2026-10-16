@@ -1,0 +1,15 @@
+<?nvs
+// Shows how a savings calculator finds how many years it takes for money to double.
+
+class Savings {
+    // Returns the whole years until the money doubles. Each year the money is multiplied
+    // by `1 + $rate`, so the logarithm of 2 in that base is the number of years.
+    public static function yearsToDouble(float $rate): float {
+        return Core\Math::ceil(Core\Math::log(2.0, {base: 1.0 + $rate}));
+    }
+}
+
+// This prints 15 for 5%, 8 for 10% and 70 for 1%.
+echo "At 5%: ", Savings::yearsToDouble(0.05), " years\n";
+echo "At 10%: ", Savings::yearsToDouble(0.10), " years\n";
+echo "At 1%: ", Savings::yearsToDouble(0.01), " years\n";

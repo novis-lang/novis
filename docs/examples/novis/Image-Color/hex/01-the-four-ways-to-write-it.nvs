@@ -1,0 +1,12 @@
+<?nvs
+// Shows the four ways to write a colour in hex.
+use Novis\Image\Color;
+
+array<string> $texts = ["#f80", "#f808", "#ff8800", "ff880088"];
+
+// Each line prints 255 136 0. The alpha is 1 without a fourth value
+// and 0.53333333333333 with one.
+foreach ($texts as string $text) {
+    Color $c = Color::hex($text);
+    echo $text, ": ", $c->r, " ", $c->g, " ", $c->b, " ", $c->alpha, "\n";
+}

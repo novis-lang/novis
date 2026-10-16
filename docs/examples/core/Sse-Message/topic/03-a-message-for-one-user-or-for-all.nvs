@@ -1,0 +1,20 @@
+<?nvs
+// Shows a notification stream for one user of a web app. It gets messages for this
+// user and messages for everybody, and marks the second kind.
+
+string $user = "user:42";
+Core\Sse $sse = Core\Sse::current();
+Core\Topic::subscribe($user);
+Core\Topic::subscribe("everybody");
+
+// The `.nvse` file also publishes a message on `user:7`. It does not arrive here,
+// because this stream did not subscribe to that topic.
+?Core\Sse\Message $message = $sse->receive();
+while ($message != null) {
+    if ($message->topic() == "everybody") {
+        $sse->send($message->value() as string, event: "announcement");
+    } else {
+        $sse->send($message->value() as string, event: "notification");
+    }
+    $message = $sse->receive();
+}

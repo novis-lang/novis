@@ -1,0 +1,15 @@
+{
+  "title": "`.nvst` proves the language; `#[Test]` is how a program written in Novis tests itself",
+  "status": "shipped",
+  "seeAlso": [
+    "testing/test-attribute",
+    "testing/report-formats",
+    "testing/feature-proofs"
+  ],
+  "guardedBy": [
+    "crates/nvs-test/src/lib.rs",
+    "crates/nvs-cli/src/main.rs",
+    "tests/conformance/lang/a-test-attribute-builds-a-table-the-runner-reports.nvst",
+    "crates/nvs-test/src/case.rs"
+  ]
+}

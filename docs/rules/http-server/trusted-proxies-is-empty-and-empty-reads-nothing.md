@@ -1,0 +1,7 @@
+`[server] trusted_proxies` defaults to empty, and **empty means the forwarded headers are not read at all**: `Core\Request::clientIp()` is the socket peer and `X-Forwarded-For` is never parsed. `Core\Request::header` still returns it, `tainted`, for an application that wants to decide for itself. Trusting loopback by default is wrong on a multi-tenant host, where another tenant can connect over loopback and forge the header; trust is written down, and the shipped default is the safe one.
+
+Non-empty, `clientIp` is the **rightmost** `X-Forwarded-For` entry that is not itself trusted, walking right-to-left from the peer. Leftmost-wins is fully attacker-controlled. A Unix-socket listener is implicitly trusted, because the operating system enforces who may connect to it.
+
+`clientIp(): ?tainted string`, and the `null` is not an absence to be filled in later: a Unix-socket peer that forwarded nothing, or a hop that withheld the address, genuinely has none, and `""` or `"0.0.0.0"` would be a repair. `scheme()` is not nullable; every request arrived over one.
+
+One `Warn` at boot when the mode is `production`, every listener is loopback or a Unix socket, and `trusted_proxies` is empty — a proxied deployment that forgot the line and will now log the proxy's address as every client's. It is asked only of a tree that wrote a `[server]` block: `nvs serve app.nvs` with no configuration is the development server, and a line every dev run prints is one every operator learns to skip.

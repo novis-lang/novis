@@ -1,0 +1,6 @@
+<?nvs
+// The examples in the folder above start this script. It reads orders and
+// stops at the first row it cannot read.
+
+echo "read 2 orders\n";
+throw new RuntimeError("row 3 has no price");

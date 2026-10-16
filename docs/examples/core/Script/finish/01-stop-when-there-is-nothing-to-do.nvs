@@ -1,0 +1,13 @@
+<?nvs
+// Shows how to end a script early when its work is already done.
+// `Core\Script::finish()` ends the script, and the exit status is 0.
+
+array<string> $newOrders = [];
+
+if (Core\Arr::count($newOrders) == 0) {
+    echo "no new orders\n";
+    Core\Script::finish();
+}
+
+// This line does not print, because the script has ended.
+echo "sending the invoices\n";

@@ -1,0 +1,11 @@
+{
+  "title": "A compile failure is catchable mid-execution and reaches the ladder at entry",
+  "status": "shipped",
+  "seeAlso": [
+    "errors/throwable-hierarchy",
+    "errors/escalation-ladder"
+  ],
+  "guardedBy": [
+    "tests/conformance/error/a-parse-error-carries-an-issue-list.nvst"
+  ]
+}

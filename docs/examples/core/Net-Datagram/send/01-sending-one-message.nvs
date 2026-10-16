@@ -1,0 +1,16 @@
+<?nvs
+// Shows how to send one message from one UDP socket to another.
+
+Core\Net\Datagram $sender = Core\Net::bindDatagram("127.0.0.1", 0);
+Core\Net\Datagram $receiver = Core\Net::bindDatagram("127.0.0.1", 0);
+
+// `send` needs the host, the port, the message as `bytes`, and how long it may wait.
+// It returns the number of bytes it sent. This prints `sent: 5`.
+uint $sent = $sender->send("127.0.0.1", $receiver->port(), "hello" as bytes, 1s);
+echo "sent: ", $sent, "\n";
+
+// The receiver gets the whole message. This prints `received: hello`.
+echo "received: ", $receiver->receive(64, 5s)->payload() as string, "\n";
+
+$sender->close();
+$receiver->close();

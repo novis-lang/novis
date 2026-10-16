@@ -1,0 +1,26 @@
+<?nvs
+// Shows how a deployment reads the schema it stored as JSON and brings the
+// database up to it. `nvs schema dump` writes this form, so the text below is
+// what a program keeps in a file next to its code.
+
+use Core\Db;
+use Core\Db\Schema;
+
+string $stored = '{"tables":[{"name":"notes","columns":[{"name":"id","type":"int64","identity":true},{"name":"title","type":"text(200)"}],"primary_key":["id"]}]}';
+
+var $schema = Schema::fromArray(Core\Json::decode($stored) as array<mixed>);
+
+var $db = Db::connect('notes');
+
+// The table is not there yet, so the plan has work in it. This prints
+// `steps before: 1`.
+echo 'steps before: ', Core\Arr::count($schema->planAgainst($db)->steps()), "\n";
+
+// `applySafe` runs the steps that cannot lose data.
+$schema->applySafe($db);
+
+// The database now matches the schema, so the new plan is empty. This prints
+// `steps after: 0`.
+echo 'steps after: ', Core\Arr::count($schema->planAgainst($db)->steps()), "\n";
+
+$db->close();

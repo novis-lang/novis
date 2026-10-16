@@ -1,0 +1,77 @@
+<?nvs
+// Attack: the program uses `mixed` values in ways their real type does not allow.
+// It adds text, arrays and `null`, reads keys from values that are not arrays,
+// and converts numbers that are too large. It also nests arrays deeply and changes
+// types often. Each step should give a correct result or throw an error.
+// hostile: timeout-ms 60000
+
+class Poke
+{
+    // Each method checks the types of its arguments while the program runs.
+    // If an operation is not allowed, the method catches the error and returns 'refused'.
+    public static function add(mixed $a, mixed $b): tainted string
+    {
+        try {
+            return ($a + $b) as string;
+        } catch (Throwable $e) {
+            return 'refused';
+        }
+    }
+    public static function key(mixed $base, mixed $k): tainted string
+    {
+        try {
+            return $base[$k] as string;
+        } catch (Throwable $e) {
+            return 'refused';
+        }
+    }
+    public static function whole(mixed $v): string
+    {
+        try {
+            return ($v as int) as string;
+        } catch (Throwable $e) {
+            return 'refused';
+        }
+    }
+}
+
+// Adds a number to text, to an array and to `null`, and adds text to text.
+mixed $text = 'abc';
+mixed $table = ['k' => 'v'];
+mixed $nothing = null;
+mixed $number = 7;
+echo Poke::add($text, $number), ' ', Poke::add($table, $number), ' ', Poke::add($nothing, $number), ' ', Poke::add($text, $text), "\n";
+
+// Reads a key from values that are not arrays, and uses an array as a key.
+echo Poke::key($number, 'k'), ' ', Poke::key($text, 0), ' ', Poke::key($nothing, 'k'), ' ', Poke::key($table, $table), "\n";
+
+// Converts to `int`: the largest `int` as text, the number one larger,
+// a very large `float` and a number with 100000 digits.
+mixed $huge = '9223372036854775807';
+mixed $past = '9223372036854775808';
+mixed $wide = 1.0e300;
+echo Poke::whole($huge), ' ', Poke::whole($past), ' ', Poke::whole($wide), ' ', Poke::whole(Core\Str::repeat('9', 100000)), "\n";
+
+// Fifty thousand arrays nested inside each other, in one `mixed` variable.
+// Then all of them are freed at once.
+mixed $deep = [];
+uint $depth = 0;
+while ($depth < 50000) {
+    $deep = ['inner' => $deep];
+    $depth = $depth + 1;
+}
+$deep = 0;
+echo "nested and released\n";
+
+// A million loop rounds. The value in `$v` has a different type in each round.
+array<mixed> $rotation = [1, '2', 3.5, true, null, ['x'], 4];
+int $seen = 0;
+uint $i = 0;
+while ($i < 1000000) {
+    mixed $v = $rotation[$i % 7];
+    if ($v is int) {
+        $seen = $seen + 1;
+    }
+    $i = $i + 1;
+}
+echo $seen, " whole numbers out of a million turns\n";

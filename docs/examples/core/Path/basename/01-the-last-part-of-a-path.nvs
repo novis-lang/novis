@@ -1,0 +1,14 @@
+<?nvs
+// Shows how to get the last part of a path with `Core\Path::basename`.
+
+// A file name. This prints `invoice-1042.pdf`.
+echo Core\Path::basename("/srv/shop/invoices/invoice-1042.pdf"), "\n";
+
+// A folder with a separator at the end. The separator is ignored, so this prints `invoices`.
+echo Core\Path::basename("/srv/shop/invoices/"), "\n";
+
+// A Windows path works on every platform. This prints `notes.txt`.
+echo Core\Path::basename("C:\\Users\\sam\\notes.txt"), "\n";
+
+// A root has no name, so the result is the empty string. This prints `[]`.
+echo "[", Core\Path::basename("/"), "]\n";

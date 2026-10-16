@@ -1,0 +1,8 @@
+<?nvs
+// Shows how to split a list of people into two halves by the first letter of their name.
+
+var $firstHalf = Core\Ldap\Filter::atMost('sn', 'M');
+var $secondHalf = Core\Ldap\Filter::not($firstHalf);
+// For text, the order is alphabetical. These print (sn<=M) and (!(sn<=M)).
+echo $firstHalf->toString(), "\n";
+echo $secondHalf->toString(), "\n";

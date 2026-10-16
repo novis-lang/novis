@@ -1,0 +1,30 @@
+<?nvs
+// Shows that a value in both sets is in the result only once.
+
+final class Tag {
+    public string $name;
+
+    public function constructor(string $name) {
+        $this->name = $name;
+    }
+}
+
+Tag $sale = new Tag("sale");
+
+Core\ObjectSet<Tag> $first = new Core\ObjectSet<Tag>();
+$first->add($sale);
+$first->add(new Tag("new"));
+
+Core\ObjectSet<Tag> $second = new Core\ObjectSet<Tag>();
+$second->add($sale);
+$second->add(new Tag("new"));
+
+// `$sale` is the same object in both sets, so the result has it once.
+// The two "new" tags are two different objects, so the result has both.
+Core\ObjectSet<Tag> $both = $first->union($second);
+// This prints 3.
+echo $both->count(), "\n";
+// This prints "sale", "new" and "new", one on each line.
+foreach ($both as Tag $tag) {
+    echo $tag->name, "\n";
+}

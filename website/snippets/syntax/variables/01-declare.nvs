@@ -1,0 +1,10 @@
+<?nvs
+// Each variable is declared once, with its type in front of its name.
+int $count = 1;
+string $label;
+
+// Later lines assign a new value. They do not write the type again.
+$label = "count: ";
+$count = $count + 1;
+
+echo $label, $count, "\n";

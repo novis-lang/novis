@@ -1,0 +1,42 @@
+<?nvs
+// Attack: a program fills memory and calls a method until the stack runs out.
+// It then prints a lot of output and calls `exit` deep inside `finally` blocks.
+// The exit status is larger than a shell can store. The program should end
+// there, and the `finally` blocks should not run.
+// hostile: timeout-ms 20000
+// hostile: ends-early 1 exit
+
+echo "step 1\n";
+
+class Ending
+{
+    public static array<string> $kept = [];
+
+    public static function down(uint $n): uint
+    {
+        Ending::$kept[] = Core\Str::repeat(s: 'x', times: 256);
+        try {
+            if ($n == 0) {
+                echo Core\Str::repeat(s: 'the end, and then some. ', times: 400000);
+                exit(2147483647);
+            }
+            return Ending::down($n - 1);
+        } finally {
+            Ending::$kept[] = 'this never gets to run';
+        }
+    }
+}
+
+uint $i = 0;
+while ($i < 400000) {
+    Ending::$kept[] = Core\Str::repeat(s: 'y', times: 256);
+    $i = $i + 1;
+}
+
+try {
+    echo Ending::down(4000000), "\n";
+} catch (Throwable $stackRanOut) {
+    echo "the stack ran out first\n";
+}
+
+echo Ending::down(500), "\n";

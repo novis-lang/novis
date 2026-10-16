@@ -1,0 +1,27 @@
+<?nvs
+// Shows why money is added up in `decimal`. Ten additions of 0.1 as a `float`
+// look right and are not, and the same ten in `decimal` are exact.
+
+float $floatTotal = 0.0;
+decimal $step = 0.1;
+decimal $decimalTotal = 0.0;
+int $item = 0;
+
+while ($item < 10) {
+    $floatTotal = $floatTotal + 0.1;
+    $decimalTotal = $decimalTotal + $step;
+    $item = $item + 1;
+}
+
+// The `float` total prints as 1 and is still not equal to 1.0, so this prints
+// "1 no". The `decimal` total is equal, so the next line prints "1.0 yes".
+echo $floatTotal, " ", $floatTotal == 1.0 ? "yes" : "no", "\n";
+echo $decimalTotal, " ", $decimalTotal == (1.0 as decimal) ? "yes" : "no", "\n";
+
+decimal $price = 19.99;
+decimal $rate = 0.2;
+decimal $goods = $price * 3;
+decimal $tax = $goods * $rate;
+
+// Every digit of this is exact. It prints "59.97 + 11.994 = 71.964".
+echo $goods, " + ", $tax, " = ", $goods + $tax, "\n";

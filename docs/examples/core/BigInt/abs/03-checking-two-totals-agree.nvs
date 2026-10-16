@@ -1,0 +1,32 @@
+<?nvs
+// Shows a check a program runs at the end of a day. Two systems report the same
+// total in the smallest unit of a currency, and they may differ by a little.
+
+class Ledger {
+    // Returns true when the two totals are no further apart than $allowed.
+    public static function agrees(Core\BigInt $ours, Core\BigInt $theirs, Core\BigInt $allowed): bool {
+        var $distance = $ours->sub($theirs)->abs();
+        return $distance->compareTo($allowed) <= 0;
+    }
+}
+
+var $allowed = Core\BigInt::of(100);
+var $ours = Core\BigInt::parse("184467440737095516150");
+
+// The other system reports 40 units less. That is inside what is allowed, so
+// this prints "in agreement".
+var $theirs = $ours->sub(Core\BigInt::of(40));
+if (Ledger::agrees($ours, $theirs, $allowed)) {
+    echo "in agreement\n";
+} else {
+    echo "too far apart\n";
+}
+
+// This time it reports 4000 units more. `abs` gives the same distance whichever
+// system is the larger, so this prints "too far apart".
+var $later = $ours->add(Core\BigInt::of(4000));
+if (Ledger::agrees($ours, $later, $allowed)) {
+    echo "in agreement\n";
+} else {
+    echo "too far apart\n";
+}

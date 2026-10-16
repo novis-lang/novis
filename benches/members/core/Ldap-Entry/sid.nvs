@@ -1,0 +1,32 @@
+<?nvs
+// Measures how fast `sid` reads one SID, as a program does to find the account behind a user.
+// bench: iterations 400000
+// bench: calls 0
+// bench: complexity constant
+// requires: samba-ad
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        var $corp = Core\Ldap::connect("corp");
+        var $found = $corp->read("CN=Anna Berg,OU=Company,DC=example,DC=test", {select: ["objectSid"]});
+        if ($found == null) {
+            return 0;
+        }
+        Core\Ldap\Entry $person = $found;
+        // The count so far chooses the attribute, so the loop cannot be left out.
+        array<string> $names = ["objectSid", "title"];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            if ($person->sid($names[($total % 2) as int]) == null) {
+                $total = $total + 1;
+            } else {
+                $total = $total + 3;
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";

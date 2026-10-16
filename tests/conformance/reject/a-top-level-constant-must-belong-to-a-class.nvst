@@ -1,0 +1,14 @@
+--TEST--
+every constant is a class constant, so a top-level `const` is refused — `rule:classes/no-free-functions-or-constants`
+--FILE--
+<?nvs
+const int MAX = 10;
+echo MAX, "\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0216]: a constant must belong to a class
+  --> case.nvs:2:1
+%A
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

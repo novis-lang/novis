@@ -1,0 +1,17 @@
+{
+  "title": "`run` waits by suspending the coroutine, and hands back the exit code with both captures as `bytes`",
+  "status": "shipped",
+  "seeAlso": [
+    "core-classes/process-is-argv-only",
+    "core-classes/process-options",
+    "types/bytes",
+    "types/conversion"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/process-a-completed-run-answers-the-status-the-child-chose.nvst",
+    "tests/conformance/core/process-a-completed-runs-two-streams-stay-apart.nvst",
+    "tests/conformance/core/process-a-non-zero-status-keeps-both-captures.nvst",
+    "tests/conformance/core/process-a-capture-is-whole-not-a-pipes-worth.nvst",
+    "tests/conformance/core/process-a-child-that-writes-nothing-answers-two-empty-captures.nvst"
+  ]
+}

@@ -1,0 +1,18 @@
+<?nvs
+// Shows how to read the text inside a token, and what happens when the token was changed.
+
+Core\Jwe\Key $key = Core\Jwe\Key::shared(Core\Crypto::generateKey());
+string $token = Core\Jwe::encrypt("invoice 2024-117", $key);
+
+// `decrypt` needs a list of keys. With the key that made the token,
+// it returns the text. This prints `invoice 2024-117`.
+echo Core\Jwe::decrypt($token, [$key]), "\n";
+
+// One extra character makes the token invalid. `decrypt` throws a `RuntimeError`.
+// This prints `the token was changed`.
+try {
+    Core\Jwe::decrypt($token . "A", [$key]);
+    echo "opened", "\n";
+} catch (RuntimeError $changed) {
+    echo "the token was changed", "\n";
+}

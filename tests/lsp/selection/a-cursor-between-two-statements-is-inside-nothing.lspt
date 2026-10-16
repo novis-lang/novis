@@ -1,0 +1,11 @@
+--TEST--
+an offset inside no node answers nothing rather than the whole file, because the index answers about bytes and a caret between two statements is on none of them, `rule:ide/the-index-answers-the-cursor`
+--FILE--
+<?nvs
+echo "one";
+<|>
+echo "two";
+--REQUEST--
+selectionRange
+--EXPECT--
+none

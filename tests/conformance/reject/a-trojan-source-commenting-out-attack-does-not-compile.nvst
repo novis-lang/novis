@@ -1,0 +1,15 @@
+--TEST--
+the Trojan Source paper's commenting-out pattern, transliterated to Novis, does not compile — `rule:security/bidi-predicate`
+--FILE--
+<?nvs
+bool $isAdmin = false;
+/* ‮ } if ($isAdmin) begin admins only */
+echo "you are an admin\n";
+/* end admins only { */
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0008]: unterminated bidirectional control U+202E RIGHT-TO-LEFT OVERRIDE
+%A
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

@@ -1,0 +1,22 @@
+<?nvs
+// Shows how to read several rows with one list of ids. `Core\Db::inList` marks an
+// array as a list of values. The single `?` in the SQL text then stands for all
+// of them.
+
+var $db = Core\Db::open({ driver: Core\Db\Driver::Sqlite, path: ':memory:' });
+$db->execute('create table city (id integer primary key, name text not null)', []);
+$db->executeMany('insert into city (id, name) values (?, ?)', [
+    [1, 'Berlin'],
+    [2, 'Hamburg'],
+    [3, 'Bremen'],
+    [4, 'Cologne'],
+]);
+
+array<int> $wanted = [2, 4];
+
+// This prints `Hamburg` and `Cologne`.
+foreach ($db->query('select name from city where id in ? order by id', [Core\Db::inList($wanted)]) as Core\Db\Row $row) {
+    echo $row->string('name') ?? '', "\n";
+}
+
+$db->close();

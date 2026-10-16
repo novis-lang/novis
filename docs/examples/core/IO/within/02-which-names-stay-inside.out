@@ -1,0 +1,6 @@
+allowed: photos/cat.jpg
+allowed: photos/../notes.txt
+allowed: new-file.txt
+refused: ../other-folder/file.txt
+refused: photos/../../file.txt
+refused: /etc/passwd

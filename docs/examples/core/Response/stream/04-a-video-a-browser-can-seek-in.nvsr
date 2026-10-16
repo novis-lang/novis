@@ -1,0 +1,6 @@
+--METHOD--
+GET
+--PATH--
+/videos/intro
+--HEADERS--
+host: example.com

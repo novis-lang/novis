@@ -1,0 +1,37 @@
+<?nvs
+// Attack: `isLeapYear` reads the first and last years of the calendar and every year of a
+// 400-year cycle. The answers should follow the calendar, and nothing should crash.
+
+// 1. The year 9999 is not a leap year. The year -9999 is not one either.
+var $last = Core\Time::fromIso('9999-12-30T22:00:00Z')->in(Core\Time\Zone::fixed(25h59m59s));
+var $first = Core\Time::fromIso('-009999-01-02T01:59:59Z')->in(Core\Time\Zone::fixed(25h59m59s->negated()));
+echo $last->isLeapYear() ? 'leap' : 'common', ' ', $first->isLeapYear() ? 'leap' : 'common', "\n";
+
+// 2. A cycle of 400 years has 97 leap years. Each year is read on 1 March.
+var $year = Core\Time::at(1601, 3, 1, Core\Time\Zone::UTC);
+int $leaps = 0;
+int $count = 0;
+while ($count < 400) {
+    if ($year->isLeapYear()) {
+        $leaps = $leaps + 1;
+    }
+    $year = $year->plus(1, Core\Unit::Year);
+    $count = $count + 1;
+}
+echo $leaps, " leap years\n";
+
+// 3. One moment is in 2024 in Tokyo and still in 2023 in Honolulu.
+var $moment = Core\Time::fromIso('2023-12-31T20:00:00Z');
+echo $moment->in(Core\Time\Zone::of('Asia/Tokyo'))->isLeapYear() ? 'leap' : 'common', ' ';
+echo $moment->in(Core\Time\Zone::of('Pacific/Honolulu'))->isLeapYear() ? 'leap' : 'common', "\n";
+
+// 4. One million answers are read.
+int $round = 0;
+int $sum = 0;
+while ($round < 1000000) {
+    if ($first->isLeapYear() == false) {
+        $sum = $sum + 1;
+    }
+    $round = $round + 1;
+}
+echo $sum, "\n";

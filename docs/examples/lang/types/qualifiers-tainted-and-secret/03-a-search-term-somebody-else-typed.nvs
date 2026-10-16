@@ -1,0 +1,38 @@
+<?nvs
+// Shows a search term that somebody else typed being used twice over, and an
+// API key that must never reach the output. The marks are what stop the term
+// becoming a pattern of its own and the key becoming a log line.
+
+class Orders {
+    public static function search(tainted string $term, secret string $apiKey): void {
+        array<string> $labels = [
+            "Order 1042, coffee beans",
+            "Order 1043, filter papers",
+            "Order 1044, coffee grinder",
+        ];
+
+        // Quoting the term first means a search for "c.ffee" looks for those six
+        // characters, instead of letting the dot match any character at all.
+        Core\Regex\Pattern $pattern = Core\Regex::compile(Core\Regex::quote($term));
+        uint $hits = 0;
+        foreach ($labels as string $label) {
+            if (Core\Regex::matches($label, $pattern)) {
+                $hits = $hits + 1;
+            }
+        }
+
+        // Encoding it makes the term safe to put in a link, whatever was typed.
+        string $link = "https://example.test/orders?q=" . Core\Uri::encodeComponent($term);
+
+        // Only the line that hands the key to the service is allowed to uncover
+        // it, and it has to say why. Everything else still refuses it.
+        string $authorization = "Bearer " . Core\Secret::reveal($apiKey, "sending it to the orders service");
+
+        echo $hits, " of ", Core\Arr::count($labels), " orders match\n";
+        echo $link, "\n";
+        echo "the authorization header is ", Core\Str::length($authorization), " characters long\n";
+    }
+}
+
+Orders::search("coffee", "sk-live-abc123");
+Orders::search("c.ffee", "sk-live-abc123");

@@ -1,0 +1,11 @@
+--TEST--
+the same document with `phase=all`, which hands back what the gate held so the suppression is pinned as a filter rather than as an analysis that never ran, `rule:ide/diagnostics-are-phase-gated`
+--FILE--
+<?nvs
+var $broken = ;
+var $other = $nope;
+--REQUEST--
+diagnostics phase=all
+--EXPECT--
+2:15-2:15 error E0102 expected an expression
+3:14-3:19 error E0301 `$nope` is not declared

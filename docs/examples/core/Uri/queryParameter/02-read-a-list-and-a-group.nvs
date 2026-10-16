@@ -1,0 +1,17 @@
+<?nvs
+// Shows how to read a list and a group of values from a query.
+
+// A browser writes `[` as `%5B` and `]` as `%5D`. So `size%5B%5D` is `size[]`,
+// and `filter%5Bcolor%5D` is `filter[color]`.
+var $link = Core\Uri::parse("/shirts?size%5B%5D=M&size%5B%5D=L&filter%5Bcolor%5D=red");
+
+// `size[]` builds a list. `queryParameter("size")` returns the whole list.
+// This prints M and L.
+array<mixed> $sizes = $link->queryParameter("size") as array<mixed>;
+foreach ($sizes as mixed $size) {
+    echo $size as string, "\n";
+}
+
+// `filter[color]` builds an array with the key `color`. This prints red.
+array<mixed> $filter = $link->queryParameter("filter") as array<mixed>;
+echo $filter["color"] as string, "\n";

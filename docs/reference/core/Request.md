@@ -1,0 +1,76 @@
+---
+summary: the request a program is answering — query, form fields, cookies, headers, uploads and the body in one class, every answer of it `tainted`
+keywords: request, query string, query parameters, form fields, POST data, cookies, headers, request body, JSON body, multipart, upload, HEAD, request method, path, tainted input
+---
+
+`Core\Request` is the whole of what arrived: `method`, `isHead`, `path`, `query`, `header`, `headers`,
+`cookie` and the body readers, plus `route` and `mount` for where the router put it. The host never
+fills a variable for the program. No lookup merges the query, the form fields and the cookies into
+one. Every member throws `LogicError` in a program that is
+not answering a request, so a CLI run, a scheduled script and a job worker say "no request arrived"
+rather than answering empty.
+
+**The body is read once, and every reader is one of two kinds.** `body()`, `post()`, `postAs<T>()`,
+`json()` and `jsonAs<T>()` **buffer**: the first of them fills the request's hold, bounded by
+`[limits] request_body`, and any of the five may follow any other in any order and answer the same
+octets. `bodyStream()` and
+`files()` **stream**: they hand the octets over as they arrive, keep none, and so consume the body — a
+reader after one of those is refused, naming the member that consumed it. That refusal is a defect in
+the program, never something a peer can provoke.
+
+`json()` decodes the body as one JSON document and answers `mixed`; `jsonAs<T>()` hydrates it straight
+into a class carrying `#[Core\Json\Derive]`, exactly as `Core\Json::decodeAs` does, so a handler names
+the shape it expects instead of walking an array. Neither consults the `Content-Type` the peer
+declared — a header is what a peer wrote, not what a body is — and both throw `ParseError` on a
+document that is malformed, too deep, or absent altogether. `json()` keeps what it decoded and
+`jsonAs<T>()` hydrates per call, so writing to what a second call answered leaves the first alone.
+
+`queryAs<T>()` and `postAs<T>()` are that idea over the parameters rather than the body: each reads what
+`query()` and `post()` parse as the type written at the call site — an inline shape, `{page: uint}`, or a
+class carrying `#[Core\Json\Derive]` — converting every named field with `as` and leaving the keys the
+type does not name behind. Called with nothing, the whole parameter set is the subject, and that is the
+only way a program reaches it: there is no `query(): array<mixed>`. Called with
+`{name: "filter"}`, the subject is the one bracket-named subtree under that name. A field that is absent,
+or that holds a value `as` refuses for its declared type, is a `ParseError` listing every field that
+failed at its own path — so a form reports the whole list rather than the first item of it.
+
+Everything a peer chose is `tainted`, including the path, every header and the body, so it reaches a
+sink only through a launderer named for that sink — `echo` escapes for HTML on its own. A class hydrated
+from a body declares that on the fields receiving it: an unqualified `string` property is a compile
+error at the `jsonAs<T>()` call rather than a silent laundering.
+
+```nvs skip
+<?nvs
+#[Core\Json\Derive]
+class Author {
+    public tainted string $name;
+    public int $tags;
+
+    public function constructor(tainted string $name, int $tags) {
+        $this->name = $name;
+        $this->tags = $tags;
+    }
+}
+
+if (Core\Request::method() == Core\Http\Method::Post) {
+    Author $author = Core\Request::jsonAs<Author>();
+    echo "hello ", $author->name, "\n";
+}
+```
+
+That one needs a request in front of it; `examples/json-body.nvs` is the same program as a fixture, run
+with `nvs run --request <file>`, which answers the request a file describes without standing a listener
+up. Without one, this is what every member does:
+
+```nvs
+<?nvs
+try {
+    Core\Request::method();
+    echo "not reached\n";
+} catch (LogicError $none) {
+    echo "no request here\n";
+}
+```
+```output
+no request here
+```

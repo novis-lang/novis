@@ -1,0 +1,16 @@
+<?nvs
+// Shows how to round a number. The mode comes before the number of digits,
+// because the mode is always needed and the digits are not.
+
+decimal $value = 0.125;
+
+// Two digits are kept. 0.125 sits exactly between 0.12 and 0.13, and
+// `HalfUp` sends it to the larger one. This prints 0.13.
+echo Core\Decimal::round($value, Core\RoundMode::HalfUp, 2), "\n";
+
+// Without the last argument the answer is a whole number. This prints 0.
+echo Core\Decimal::round($value, Core\RoundMode::HalfUp), "\n";
+
+// The answer always has the number of digits you asked for, so this
+// prints 0.1250.
+echo Core\Decimal::round($value, Core\RoundMode::HalfUp, 4), "\n";

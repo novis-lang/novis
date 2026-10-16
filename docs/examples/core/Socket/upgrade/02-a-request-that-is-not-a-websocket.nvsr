@@ -1,0 +1,7 @@
+--METHOD--
+GET
+--PATH--
+/live/echo
+--HEADERS--
+host: example.com
+accept: text/html

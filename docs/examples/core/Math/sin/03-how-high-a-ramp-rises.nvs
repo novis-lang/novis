@@ -1,0 +1,19 @@
+<?nvs
+// Shows how a building tool finds how high a ramp rises.
+
+class Ramp {
+    // The height is the length of the ramp times the sine of its angle.
+    public static function rise(float $meters, float $angleDegrees): float {
+        float $height = $meters * Core\Math::sin(Core\Math::toRadians($angleDegrees));
+        return Core\Math::round($height, {precision: 2});
+    }
+}
+
+// A flat ramp does not rise. This prints 0.
+echo Ramp::rise(12.0, 0.0), "\n";
+
+// A ramp of 12 meters at an angle of 5 degrees. This prints 1.05.
+echo Ramp::rise(12.0, 5.0), "\n";
+
+// A ramp of 3 meters at 30 degrees. This prints 1.5.
+echo Ramp::rise(3.0, 30.0), "\n";

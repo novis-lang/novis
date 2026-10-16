@@ -1,0 +1,331 @@
+//! `nvs doc <entry>` — one Markdown page per class, rendered from
+//! `nvs meta --json`'s document and from nothing else.
+//!
+//! `rule:tooling/nvs-doc-renders-and-decides-nothing` is the whole design, and
+//! this module is deliberately the least interesting part of it: it reads
+//! [`crate::meta::program_document`]'s value — the same document a consumer
+//! outside the binary reads — and turns it into text. It resolves no name,
+//! reaches no source file and asks nothing of the compiler, so a page can never
+//! say something `nvs meta --json` did not, and replacing it later costs
+//! nothing.
+//!
+//! It exists for a project that does not have this repository's
+//! `bun nv reference` or the website's Core reference, which are the other two
+//! renderers on that one document (`rule:tooling/one-json-several-renderers`).
+//!
+//! **A page per class, an interface and an enum**, named for the declaration it
+//! documents with `\` written as `.`, so a namespaced class lands in one flat
+//! directory rather than a tree that has to be walked to be read. A `type`
+//! alias gets no page: it is one line, and a line is not a page.
+//!
+//! **Text is rendered, never escaped.** A doc comment's prose is Markdown by
+//! `rule:tooling/doc-comment-tags-are-see-and-example`, so it is written out as
+//! it was authored, and the lexer has already refused an unterminated
+//! directional control anywhere in the file
+//! (`rule:security/bidi-boundaries`) — this renderer grows no check of its own.
+
+use std::path::{Path, PathBuf};
+use std::process::ExitCode;
+
+use serde_json::Value;
+
+/// Writes one page per class under `out`, and prints each path written.
+///
+/// The program goes through the same front end `nvs check` does, so a program
+/// that does not check writes nothing at all — a half-rendered directory of
+/// pages describing a program that does not compile is worse than none.
+pub(crate) fn run(entry: &Path, out: &Path) -> ExitCode {
+    let document = match crate::meta::program_document(entry) {
+        Ok(document) => document,
+        Err(code) => return code,
+    };
+    let program = &document["program"];
+    let pages = pages(program);
+    if pages.is_empty() {
+        eprintln!("no class, interface or enum in this program: nothing to render");
+        return ExitCode::SUCCESS;
+    }
+    if let Err(err) = std::fs::create_dir_all(out) {
+        eprintln!("error: could not create {}: {err}", out.display());
+        return ExitCode::FAILURE;
+    }
+    let names: Vec<&str> = pages.iter().map(|page| page.name).collect();
+    for page in &pages {
+        let path = out.join(file_name(page.name));
+        if let Err(err) = std::fs::write(&path, render(page, &pages, &names)) {
+            eprintln!("error: could not write {}: {err}", path.display());
+            return ExitCode::FAILURE;
+        }
+        println!("{}", path.display());
+    }
+    ExitCode::SUCCESS
+}
+
+/// One declaration that gets a page: its roster's own word for what it is, and
+/// the document's object for it.
+struct Page<'a> {
+    name: &'a str,
+    kind: &'a str,
+    value: &'a Value,
+}
+
+/// Every page the program half asks for, in the document's own order — which is
+/// load order, so two runs over one program render the same directory.
+fn pages(program: &Value) -> Vec<Page<'_>> {
+    let mut out = Vec::new();
+    for (roster, kind) in [
+        ("classes", "class"),
+        ("interfaces", "interface"),
+        ("enums", "enum"),
+    ] {
+        let Some(values) = program[roster].as_array() else {
+            continue;
+        };
+        for value in values {
+            if let Some(name) = value["name"].as_str() {
+                out.push(Page { name, kind, value });
+            }
+        }
+    }
+    out
+}
+
+/// `Shop\Money` as `Shop.Money.md`. A backslash is a path separator on the one
+/// platform that would read it as one, so a namespace becomes a dotted name
+/// rather than a directory nobody asked for.
+fn file_name(name: &str) -> PathBuf {
+    PathBuf::from(format!("{}.md", name.replace('\\', ".")))
+}
+
+/// One page: the declaration's lineage and its own card, then a section per
+/// roster it carries.
+fn render(page: &Page<'_>, pages: &[Page<'_>], names: &[&str]) -> String {
+    let mut out = format!("# {}\n\n*{}*\n", page.name, page.kind);
+    lineage(&mut out, page.value, names);
+    card(&mut out, &page.value["doc"], page, names);
+    section(&mut out, page, "cases", "Cases", pages, names);
+    section(&mut out, page, "constants", "Constants", pages, names);
+    section(&mut out, page, "members", "Members", pages, names);
+    out
+}
+
+/// One roster as a `##` section, or nothing when the document omitted it —
+/// which is what an empty roster is, per `rule:tooling/meta-json`'s omission
+/// rule.
+///
+/// A method with no `doc` of its own shows the card of the method it
+/// overrides or implements, found by [`inherited`], under a line naming
+/// where it comes from. That is the same doc comment `nvs check
+/// --strict-docs` accepts for it (`rule:tooling/strict-docs`).
+fn section(
+    out: &mut String,
+    page: &Page<'_>,
+    key: &str,
+    title: &str,
+    pages: &[Page<'_>],
+    names: &[&str],
+) {
+    let Some(entries) = page.value[key].as_array() else {
+        return;
+    };
+    let shown: Vec<&Value> = entries.iter().filter(|entry| reachable(entry)).collect();
+    if shown.is_empty() {
+        return;
+    }
+    out.push_str(&format!("\n## {title}\n"));
+    for entry in shown {
+        let name = entry["name"].as_str().unwrap_or_default();
+        out.push_str(&format!("\n### {name}\n"));
+        if let Some(signature) = entry["signature"].as_str() {
+            // The document carries `static` as the member's `kind` and leaves
+            // it out of `signature`, so the page writes it back in front.
+            let prefix = if entry["kind"] == "static" {
+                "static "
+            } else {
+                ""
+            };
+            out.push_str(&format!("\n```nvs\n{prefix}{signature}\n```\n"));
+        } else if let Some(value) = entry["value"].as_str() {
+            let ty = entry["type"]
+                .as_str()
+                .map_or(String::new(), |ty| format!("{ty} "));
+            out.push_str(&format!("\n```nvs\n{ty}{name} = {value}\n```\n"));
+        }
+        let is_method = entry["signature"].is_string() && entry["kind"] != "property";
+        let from = if entry["doc"].is_null() && is_method {
+            inherited(page.value, name, pages, &mut Vec::new())
+        } else {
+            None
+        };
+        match from {
+            Some((owner, doc)) => {
+                let target = format!("{}::{name}", owner.name);
+                out.push_str(&format!(
+                    "\nInherited from {}.\n",
+                    see(&target, owner, names)
+                ));
+                card(out, doc, owner, names);
+            }
+            None => card(out, &entry["doc"], page, names),
+        }
+    }
+}
+
+/// The page and the `doc` of the nearest documented method called `name` on
+/// something `value` extends or implements, searched depth first in the order
+/// the document lists them: the parent class, then each interface. Only the
+/// pages of this run are searched, so a method inherited from a `Core` class
+/// or interface shows no card. `seen` stops a cycle.
+fn inherited<'a, 'p>(
+    value: &Value,
+    name: &str,
+    pages: &'p [Page<'a>],
+    seen: &mut Vec<&'a str>,
+) -> Option<(&'p Page<'a>, &'a Value)> {
+    let parents = match &value["extends"] {
+        Value::String(parent) => vec![parent.as_str()],
+        Value::Array(items) => items.iter().filter_map(Value::as_str).collect(),
+        _ => Vec::new(),
+    };
+    let interfaces = value["implements"]
+        .as_array()
+        .map_or_else(Vec::new, |items| {
+            items.iter().filter_map(Value::as_str).collect()
+        });
+    for ancestor in parents.into_iter().chain(interfaces) {
+        let Some(owner) = pages.iter().find(|page| page.name == ancestor) else {
+            continue;
+        };
+        if seen.contains(&owner.name) {
+            continue;
+        }
+        seen.push(owner.name);
+        let documented = owner.value["members"].as_array().and_then(|members| {
+            members
+                .iter()
+                .find(|member| member["name"] == name && member["doc"].is_object())
+        });
+        if let Some(member) = documented {
+            return Some((owner, &member["doc"]));
+        }
+        if let Some(found) = inherited(owner.value, name, pages, seen) {
+            return Some(found);
+        }
+    }
+    None
+}
+
+/// Whether a reader of this package can reach the entry — the document's own
+/// `visibility` key, which a `private` or `protected` member carries and an
+/// enum case, having no visibility, does not.
+///
+/// **A page is the surface**, which is the one thing this renderer decides that
+/// the document does not say outright: a helper nobody outside the class can
+/// call is not documentation, and `rule:tooling/strict-docs` reports the same
+/// set from the other side rather than a different one.
+fn reachable(entry: &Value) -> bool {
+    entry["visibility"]
+        .as_str()
+        .is_none_or(|seen| seen == "public")
+}
+
+/// The declaration's parent and interfaces, one line each, from the document's
+/// `extends` and `implements` keys. A class's `extends` is one name and an
+/// interface's is a list, and both render the same way. Nothing is written
+/// for a key the document omitted.
+fn lineage(out: &mut String, value: &Value, names: &[&str]) {
+    for (key, title) in [("extends", "Extends"), ("implements", "Implements")] {
+        let listed: Vec<&str> = match &value[key] {
+            Value::String(name) => vec![name.as_str()],
+            Value::Array(items) => items.iter().filter_map(Value::as_str).collect(),
+            _ => continue,
+        };
+        if listed.is_empty() {
+            continue;
+        }
+        let rendered: Vec<String> = listed.iter().map(|name| link(name, names)).collect();
+        out.push_str(&format!("\n{title}: {}\n", rendered.join(", ")));
+    }
+}
+
+/// A declaration's name as a link to its page in this run, or as code when it
+/// has none — the same choice [`see`] makes for a `@see` target.
+fn link(name: &str, names: &[&str]) -> String {
+    if names.contains(&name) {
+        format!("[{name}]({})", file_name(name).display())
+    } else {
+        format!("`{name}`")
+    }
+}
+
+/// A card: its prose as it was written, then each tag as its own line.
+///
+/// `@see` renders as a link when its target has a page in this run and as code
+/// when it does not — a `Core` member's page is the reference this renderer does
+/// not produce, and a link to a file that was never written is worse than the
+/// name.
+fn card(out: &mut String, doc: &Value, owner: &Page<'_>, names: &[&str]) {
+    if let Some(short) = doc["short"].as_str() {
+        out.push_str(&format!("\n{short}\n"));
+    }
+    if let Some(targets) = doc["see"].as_array() {
+        let rendered: Vec<String> = targets
+            .iter()
+            .filter_map(|target| target.as_str())
+            .map(|target| see(target, owner, names))
+            .collect();
+        out.push_str(&format!("\nSee also: {}\n", rendered.join(", ")));
+    }
+    if let Some(files) = doc["example"].as_array() {
+        let rendered: Vec<String> = files
+            .iter()
+            .filter_map(|file| file.as_str())
+            .map(|file| format!("`{file}`"))
+            .collect();
+        out.push_str(&format!("\nExample: {}\n", rendered.join(", ")));
+    }
+}
+
+/// One `@see` target as a link into this run's own pages, or as code.
+///
+/// `self` and `static` name the page they were written on, exactly as they name
+/// a class in code, and `parent` names the class that page's `extends` key
+/// names. An interface's `extends` is a list, so on an interface's page
+/// `parent` names nothing and stays code.
+fn see(target: &str, owner: &Page<'_>, names: &[&str]) -> String {
+    let (class, member) = match target.split_once("::") {
+        Some((class, member)) => (class.trim(), Some(member.trim())),
+        None => (target.trim(), None),
+    };
+    let class = match class {
+        "self" | "static" => owner.name,
+        "parent" => owner.value["extends"].as_str().unwrap_or(class),
+        other => other,
+    };
+    if !names.contains(&class) {
+        return format!("`{target}`");
+    }
+    let file = file_name(class);
+    let file = file.display();
+    match member {
+        Some(member) => format!("[{target}]({file}#{})", anchor(member)),
+        None => format!("[{target}]({file})"),
+    }
+}
+
+/// A `###` heading's own anchor, in the spelling every Markdown renderer agrees
+/// on: lower case, a space as a hyphen, and nothing else kept. `$text`'s
+/// heading is `### $text`, so its anchor is `text` — which is why the sigil and
+/// a trailing `()` come off here rather than at the call site.
+fn anchor(member: &str) -> String {
+    member
+        .trim_end_matches("()")
+        .trim_start_matches('$')
+        .chars()
+        .filter_map(|c| match c {
+            ' ' => Some('-'),
+            c if c.is_ascii_alphanumeric() || c == '-' || c == '_' => Some(c.to_ascii_lowercase()),
+            _ => None,
+        })
+        .collect()
+}

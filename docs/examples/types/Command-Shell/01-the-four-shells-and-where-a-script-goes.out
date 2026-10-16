@@ -1,0 +1,4 @@
+bash -> ~/.local/share/bash-completion/completions/tool
+zsh -> ~/.zsh/completions/_tool
+fish -> ~/.config/fish/completions/tool.fish
+powershell -> the file $PROFILE names

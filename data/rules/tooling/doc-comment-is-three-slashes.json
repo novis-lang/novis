@@ -1,0 +1,17 @@
+{
+  "title": "A doc comment is exactly `///`; `////` and longer runs are ordinary comments, and `#` never is one",
+  "status": "shipped",
+  "seeAlso": [
+    "tooling/doc-comment-attaches-to-the-next-declaration",
+    "tooling/doc-comment-tags-are-see-and-example",
+    "core-api/reference-card",
+    "security/bidi-boundaries",
+    "statements/nothing-gets-a-second-name",
+    "ide/one-grammar-one-tree",
+    "ide/an-lsp-answer-is-frozen-as-an-lspt-case"
+  ],
+  "guardedBy": [
+    "crates/nvs-syntax/tests/trivia.rs",
+    "crates/nvs-syntax/tests/doc_comments.rs"
+  ]
+}

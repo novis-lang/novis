@@ -1,0 +1,17 @@
+--METHOD--
+GET
+--PATH--
+/orders
+--SCHEME--
+http
+--HEADERS--
+host: shop.example.com
+x-forwarded-proto: https
+x-forwarded-proto: HTTPS
+x-forwarded-ssl: on
+x-forwarded-scheme: https
+x-url-scheme: https
+front-end-https: on
+forwarded: for=198.51.100.9;proto=https
+forwarded: proto=https, proto=https
+x-forwarded-for: 127.0.0.1

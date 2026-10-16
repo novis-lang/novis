@@ -1,0 +1,39 @@
+<?nvs
+// Shows how to find the distinct customers in a list of orders.
+
+final class Customer {
+    public string $name;
+
+    public function constructor(string $name) {
+        $this->name = $name;
+    }
+}
+
+final class Order {
+    public Customer $customer;
+    public int $total;
+
+    public function constructor(Customer $customer, int $total) {
+        $this->customer = $customer;
+        $this->total = $total;
+    }
+}
+
+Customer $ana = new Customer("Ana");
+Customer $li = new Customer("Li");
+array<Order> $orders = [
+    new Order($ana, 30),
+    new Order($li, 12),
+    new Order($ana, 45),
+];
+
+Core\ObjectSet<Customer> $customers = new Core\ObjectSet<Customer>();
+foreach ($orders as Order $order) {
+    $customers->add($order->customer);
+}
+
+// A `foreach` gives the customers in the order they were first added.
+// This prints "Ana", then "Li".
+foreach ($customers as Customer $customer) {
+    echo $customer->name, "\n";
+}

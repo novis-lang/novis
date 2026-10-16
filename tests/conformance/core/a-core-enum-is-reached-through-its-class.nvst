@@ -1,0 +1,35 @@
+--TEST--
+A `Core` enum one class uses is declared in that class: `Core\Arr::Order` is a type and `Core\Arr::Order::Desc` a value, through the full name and through an imported owner — `rule:enums/an-enum-lives-in-the-class-that-uses-it`
+--FILE--
+<?nvs
+// covers: Core\Arr::Order
+use Core\Arr;
+
+final class Render {
+    public static function of(array<int> $a): string {
+        var $out = "";
+        foreach ($a as string $k => int $v) {
+            $out = $out . $k . "=" . $v . ";";
+        }
+        return $out;
+    }
+
+    // The owned enum types a parameter and a return.
+    public static function flip(Arr::Order $order): Core\Arr::Order {
+        return $order == Arr::Order::Asc ? Core\Arr::Order::Desc : Arr::Order::Asc;
+    }
+}
+
+array<int> $nums = [3, 1, 2];
+Core\Arr::Order $order = Core\Arr::Order::Desc;
+echo Render::of(Core\Arr::sort($nums, {order: $order})), "\n";
+echo Render::of(Arr::sort($nums, {order: Render::flip($order)})), "\n";
+
+// A case is its integer, and the integer converts back to the case.
+echo Arr::Order::Desc as int, "\n";
+echo ((1 as ?Arr::Order) == Core\Arr::Order::Desc) as string, "\n";
+--EXPECT--
+0=3;1=2;2=1;
+0=1;1=2;2=3;
+1
+1

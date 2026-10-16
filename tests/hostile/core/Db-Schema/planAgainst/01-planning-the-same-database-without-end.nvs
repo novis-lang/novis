@@ -1,0 +1,67 @@
+<?nvs
+// Attack: a schema of five hundred tables is planned against an empty
+// database, and then the same plan is computed five hundred times on one
+// connection. Last, the database is given a column type the schema vocabulary
+// has no name for. Every step has to finish, and none may stop the program.
+// hostile: timeout-ms 20000
+
+use Core\Db;
+use Core\Db\Plan\Step;
+use Core\Db\Schema;
+
+var $db = Db::connect('notes');
+
+// 1. Five hundred tables the database has none of. Every one of them is
+// compared, so the plan is as long as the schema.
+array<mixed> $tables = [];
+uint $i = 0;
+while ($i < 500) {
+    $tables[] = [
+        'name' => Core\Str::format('t%d', $i),
+        'columns' => [
+            ['name' => 'id', 'type' => 'int64', 'identity' => true],
+            ['name' => 'title', 'type' => 'text(200)'],
+        ],
+        'primary_key' => ['id'],
+    ];
+    $i = $i + 1;
+}
+var $schema = Schema::fromArray(['tables' => $tables]);
+echo '1 steps: ', Core\Arr::count($schema->planAgainst($db)->steps()), "\n";
+
+// 2. The same plan five hundred times on one connection. Each plan reads the
+// database again and builds one object per step, and none of that may pile up.
+uint $seen = 0;
+$i = 0;
+while ($i < 500) {
+    $seen = $seen + Core\Arr::count($schema->planAgainst($db)->steps());
+    $i = $i + 1;
+}
+echo '2 seen: ', $seen, "\n";
+
+// 3. A hundred tables the schema does not describe. They are reported and
+// never removed, so they are still there after the plan.
+$i = 0;
+while ($i < 100) {
+    $db->execute(Core\Str::format('create table old%d (id integer not null)', $i), []);
+    $i = $i + 1;
+}
+uint $refused = 0;
+foreach ($schema->planAgainst($db)->steps() as Step $step) {
+    if ($step->isRefused()) {
+        $refused = $refused + 1;
+    }
+}
+echo '3 refused: ', $refused, "\n";
+
+// 4. A column whose type the schema vocabulary has no name for. No plan
+// against this database would be complete, so planning throws.
+$db->execute('create table odd (x wildly_unknown_type not null)', []);
+try {
+    $schema->planAgainst($db);
+    echo "4 planned\n";
+} catch (LogicError $e) {
+    echo "4 refused\n";
+}
+
+$db->close();

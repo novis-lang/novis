@@ -1,0 +1,13 @@
+{
+  "title": "An `all` field answers its own callable's declared return type, and a callable declaring none answers `mixed`",
+  "status": "shipped",
+  "seeAlso": [
+    "types/callable-signature",
+    "types/anonymous-function",
+    "types/callable-is-the-only-function-type"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/a-task-all-field-answers-what-its-own-callable-declares.nvst",
+    "crates/nvs-types/tests/core_members.rs"
+  ]
+}

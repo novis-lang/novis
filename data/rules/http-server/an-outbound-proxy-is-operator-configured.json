@@ -1,0 +1,19 @@
+{
+  "title": "`[http.client.proxy]` is the only way an outbound call is proxied: `System` class, written by the operator, and never a call option or an environment variable",
+  "status": "shipped",
+  "seeAlso": [
+    "http-server/a-proxied-call-keeps-its-pin-unless-the-operator-says-otherwise",
+    "http-server/the-client-trust-roots-are-the-operators",
+    "http-server/an-outbound-connection-is-pooled-per-core-and-stays-pinned",
+    "http-server/retry-is-opt-in-jittered-and-closed",
+    "security/no-cross-request-state",
+    "config/three-changeability-classes",
+    "config/a-secret-is-a-file-whose-content-is-the-value"
+  ],
+  "guardedBy": [
+    "crates/nvs-config/tests/resolve.rs",
+    "crates/nvs-config/tests/secret.rs",
+    "crates/nvs-stdlib/src/http/transport.rs",
+    "crates/nvs-stdlib/src/http.rs"
+  ]
+}

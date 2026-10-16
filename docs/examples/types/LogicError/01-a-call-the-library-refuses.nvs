@@ -1,0 +1,14 @@
+<?nvs
+// The plainest way to meet this error: a call the program itself got wrong.
+// Adding days to a date moves it. Adding hours to one does not mean anything,
+// so the member refuses rather than guessing, and says which call it was.
+
+var $released = Core\Time\Date::at(2026, 4, 1);
+
+echo $released->plus(30, Core\Unit::Day)->format("yyyy-MM-dd"), "\n";
+
+try {
+    echo $released->plus(30, Core\Unit::Hour)->format("yyyy-MM-dd"), "\n";
+} catch (LogicError $ourMistake) {
+    echo $ourMistake->message, "\n";
+}

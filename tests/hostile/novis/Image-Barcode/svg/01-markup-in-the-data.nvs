@@ -1,0 +1,42 @@
+<?nvs
+// Attack: a request puts HTML markup in the data of an SVG barcode, to run a script in the page.
+// The markup should appear as plain text under the bars, or throw an error. It should never be a tag.
+use Novis\Image\Barcode;
+
+// 1. A script tag as the text under the bars.
+try {
+    string $script = Barcode::svg('<script>alert(1)</script>', Barcode::Symbology::Code128, { text: true });
+    echo 'step 1 ran ', Core\Str::contains($script, '<script') ? 'TAG' : 'text', "\n";
+} catch (Throwable $e) {
+    echo "step 1 stopped\n";
+}
+
+// 2. Quotes and an ampersand that try to close the text element and add a link.
+try {
+    string $link = Barcode::svg('"/><a href="x">&amp;</a>', Barcode::Symbology::Code128, { text: true });
+    echo 'step 2 ran ', Core\Str::contains($link, '<a href') ? 'TAG' : 'text', "\n";
+} catch (Throwable $e) {
+    echo "step 2 stopped\n";
+}
+
+// 3. Markup in a DataMatrix, which has no text under it.
+try {
+    string $matrix = Barcode::svg('<svg onload="x()">', Barcode::Symbology::DataMatrix);
+    echo 'step 3 ran ', Core\Str::contains($matrix, 'onload') ? 'TAG' : 'text', "\n";
+} catch (Throwable $e) {
+    echo "step 3 stopped\n";
+}
+
+// 4. A Code 128 of 200000 characters, with the text under the bars.
+try {
+    echo 'step 4 ran ', Core\Str::length(Barcode::svg(Core\Str::repeat('<', 200000), Barcode::Symbology::Code128, { text: true })), "\n";
+} catch (Throwable $e) {
+    echo "step 4 stopped\n";
+}
+
+// 5. The largest possible bar width and border.
+try {
+    echo 'step 5 ran ', Core\Str::length(Barcode::svg('Shop', Barcode::Symbology::Code128, { module: 18446744073709551615, margin: 18446744073709551615 })), "\n";
+} catch (Throwable $e) {
+    echo "step 5 stopped\n";
+}

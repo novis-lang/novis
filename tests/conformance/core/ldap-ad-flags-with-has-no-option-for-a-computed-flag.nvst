@@ -1,0 +1,22 @@
+--TEST--
+`Ad\AccountFlags::with` has no `lockedOut` option, because Active Directory computes lockout, and an option of `with` does not accept `null` — `rule:core-classes/ldap-value-types`
+--FILE--
+<?nvs
+class Accounts {
+    public static function unlock(Core\Ldap\Ad\AccountFlags $flags): Core\Ldap\Ad\AccountFlags {
+        return $flags->with({lockedOut: false});
+    }
+
+    public static function keep(Core\Ldap\Ad\GroupType $type): Core\Ldap\Ad\GroupType {
+        return $type->with({security: null});
+    }
+}
+--EXPECTF-ERROR--
+error[E0454]: `lockedOut` is not an option of this member
+  --> case.nvs:4:30
+%A
+error[E0401]: expected `bool`, found `null`
+  --> case.nvs:8:39
+%A
+error: aborting due to 2 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

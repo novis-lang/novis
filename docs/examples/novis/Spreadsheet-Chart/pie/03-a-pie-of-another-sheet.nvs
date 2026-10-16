@@ -1,0 +1,19 @@
+<?nvs
+// Shows a pie chart on a summary sheet that uses the rows of another sheet.
+use Novis\Spreadsheet\Chart;
+use Novis\Spreadsheet\Workbook;
+
+var $book = Workbook::createInMemory();
+var $sales = $book->sheet('Sales');
+$sales->addAll([['shop' => 'North', 'sales' => 340], ['shop' => 'South', 'sales' => 210]]);
+string $values = $sales->column('sales');
+string $names = $sales->column('shop');
+
+// A range with the name of a sheet, such as `Sales!B2:B3`, uses the cells of that sheet.
+var $summary = $book->sheet('Summary');
+$summary->add(['note' => 'Sales of each shop']);
+$summary->chart('A3', Chart::pie()->series("Sales!{$values}", { categories: "Sales!{$names}" }));
+bytes $file = $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
+
+var $xml = Core\Zip::read($file, 'xl/charts/chart1.xml') as string;
+echo Core\Str::contains($xml, '<c:f>Sales!$B$2:$B$3</c:f>') ? 'the slices are Sales!B2:B3' : 'other values', "\n";

@@ -1,0 +1,44 @@
+<?nvs
+// Shows `class<T>` and `is`. A job runner reads the name of a class from its
+// queue, makes an object of that class, and runs it.
+
+class Task {
+    public function constructor(public string $subject) {}
+
+    public function run(): string {
+        return "nothing to do for " . $this->subject;
+    }
+}
+
+class EmailTask extends Task {
+    public function run(): string {
+        return "email sent to " . $this->subject;
+    }
+}
+
+class ReportTask extends Task {
+    public function run(): string {
+        return "report written for " . $this->subject;
+    }
+}
+
+// In a real program these names come from a queue or a configuration file, so
+// they are text.
+array<string> $queue = ["EmailTask", "ReportTask"];
+
+foreach ($queue as string $name) {
+    // `as class<Task>` converts the text to a class. It throws an error when
+    // the text is not the name of a class that extends `Task`.
+    class<Task> $cls = $name as class<Task>;
+
+    // `new $cls(...)` makes an object of that class.
+    Task $task = new $cls("Ada");
+    echo $task->run(), "\n";
+}
+
+// `is` tests what an object really is. `$first` is declared `Task`, and the
+// object in it is an `EmailTask`, so this prints the line below.
+Task $first = new EmailTask("Bo");
+if ($first is EmailTask) {
+    echo "the first task is an email task\n";
+}

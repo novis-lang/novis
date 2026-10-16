@@ -1,0 +1,8 @@
+--METHOD--
+GET
+--PATH--
+/profile
+--QUERY--
+field=city&value=%3Cscript%3E
+--HEADERS--
+host: shop.example.com

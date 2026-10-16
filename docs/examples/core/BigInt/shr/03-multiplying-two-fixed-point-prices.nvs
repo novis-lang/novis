@@ -1,0 +1,29 @@
+<?nvs
+// Shows a program multiplying two fixed-point numbers. A price is stored as a
+// whole number with 64 bits after the point. The product of two of them has
+// 128 bits after the point, so it is shifted right by 64 to get back.
+
+class Fixed {
+    // Returns $whole as a value with 64 bits after the point.
+    public static function of(int $whole): Core\BigInt {
+        return Core\BigInt::of($whole)->shl(64);
+    }
+
+    // Returns the product of two such values, at the same scale again.
+    public static function mul(Core\BigInt $left, Core\BigInt $right): Core\BigInt {
+        return $left->mul($right)->shr(64);
+    }
+
+    // Returns the whole part of such a value.
+    public static function whole(Core\BigInt $value): Core\BigInt {
+        return $value->shr(64);
+    }
+}
+
+// 3 times 5 is 15, and the result is stored at the same scale. This prints 15.
+echo Fixed::whole(Fixed::mul(Fixed::of(3), Fixed::of(5))), "\n";
+
+// A half is 1 shifted 63 places to the left. 7 times a half is 3.5, and the
+// whole part of that is 3. This prints 3.
+var $half = Core\BigInt::of(1)->shl(63);
+echo Fixed::whole(Fixed::mul(Fixed::of(7), $half)), "\n";

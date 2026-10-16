@@ -1,0 +1,16 @@
+--TEST--
+a cursor on the `switch` keyword is inside the statement and inside neither its subject nor an arm, so it answers `none`, `rule:ide/the-index-answers-the-cursor`
+--FILE--
+<?nvs
+int $code = 1;
+switc<|>h ($code) {
+    case 1:
+        echo "one";
+        break;
+    default:
+        break;
+}
+--REQUEST--
+definition
+--EXPECT--
+none

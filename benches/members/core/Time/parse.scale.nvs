@@ -1,0 +1,24 @@
+<?nvs
+// Measures `Core\Time::parse` reading one date and time through a pattern, at growing lengths of the text and the pattern.
+// bench: start 256
+// bench: max 4096
+
+class Bench
+{
+    public static function run(uint $size): int
+    {
+        var $berlin = Core\Time\Zone::of('Europe/Berlin');
+        string $label = Core\Str::repeat('a', $size);
+        string $text = $label . ' 05.06.2024 14:30';
+        string $pattern = "'" . $label . "' dd.MM.yyyy HH:mm";
+        int $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            $total = $total + 1 + Core\Time::parse($text, $pattern, $berlin)->toInstant()->toEpochSeconds() % 1000;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

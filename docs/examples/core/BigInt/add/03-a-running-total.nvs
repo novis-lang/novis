@@ -1,0 +1,20 @@
+<?nvs
+// Shows a running total that grows past what an `int` holds: the number of bytes
+// three jobs have written, reported as text and added up.
+
+array<string> $written = [
+    "8070450532247928832",
+    "8070450532247928832",
+    "1152921504606846976",
+];
+
+var $total = Core\BigInt::of(0);
+foreach ($written as string $bytes) {
+    // Each report is read as a number and added to the total so far. `add`
+    // returns the new total, so the result is kept in `$total`.
+    $total = $total->add(Core\BigInt::parse($bytes));
+}
+
+// The three numbers together are larger than an `int`. This prints
+// 17293822569102704640.
+echo $total, "\n";

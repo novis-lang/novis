@@ -1,0 +1,15 @@
+<?nvs
+// Shows why `Core\Math::hypot` is safer than the `sqrt` form for very big numbers.
+
+float $side = 1.0e200;
+
+// `$side * $side` is too big for a `float`, so it is `INFINITY`.
+// The square root of `INFINITY` is `INFINITY`. This prints "INF".
+echo Core\Math::sqrt($side * $side + $side * $side), "\n";
+
+// `Core\Math::hypot` gives the correct length. This prints "1.4142135623731E+200".
+echo Core\Math::hypot($side, $side), "\n";
+
+// For small numbers, both forms give the same result. This prints "5" twice.
+echo Core\Math::sqrt(3.0 * 3.0 + 4.0 * 4.0), "\n";
+echo Core\Math::hypot(3.0, 4.0), "\n";

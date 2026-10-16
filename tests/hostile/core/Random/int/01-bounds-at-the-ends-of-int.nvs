@@ -1,0 +1,44 @@
+<?nvs
+// Attack: a request asks for numbers at the far ends of `int`, and for ranges in the
+// wrong order. Each draw should stay inside its range or throw an error, and the
+// program must not crash.
+
+// 1. The whole range of `int`, from the smallest value to the largest.
+int $smallest = -9223372036854775807 - 1;
+int $largest = 9223372036854775807;
+uint $i = 0;
+while ($i < 100000) {
+    Core\Random::int($smallest, $largest);
+    $i = $i + 1;
+}
+echo '1 drew over the whole range', "\n";
+
+// 2. Ranges of one value at both ends. Each should return that value.
+echo '2 ', Core\Random::int($smallest, $smallest) == $smallest ? 'smallest' : 'wrong', ' ',
+    Core\Random::int($largest, $largest) == $largest ? 'largest' : 'wrong', "\n";
+
+// 3. Ranges of two values at both ends. Each result should be one of the two.
+uint $outside = 0;
+uint $j = 0;
+while ($j < 100000) {
+    int $low = Core\Random::int($smallest, $smallest + 1);
+    int $high = Core\Random::int($largest - 1, $largest);
+    if ($low > $smallest + 1 || $high < $largest - 1) {
+        $outside = $outside + 1;
+    }
+    $j = $j + 1;
+}
+echo '3 results outside their range: ', $outside, "\n";
+
+// 4. Bounds in the wrong order, from one apart to the whole range. Each throws an
+// error, and each error is caught here.
+uint $errors = 0;
+array<int> $upper = [$largest - 1, 0, $smallest];
+foreach ($upper as int $top) {
+    try {
+        Core\Random::int($largest, $top);
+    } catch (Throwable $e) {
+        $errors = $errors + 1;
+    }
+}
+echo '4 errors: ', $errors, "\n";

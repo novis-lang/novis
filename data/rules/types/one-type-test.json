@@ -1,0 +1,14 @@
+{
+  "title": "`instanceof` is refused where it is written, and `is` is the one type test",
+  "status": "shipped",
+  "seeAlso": [
+    "types/type-test",
+    "types/narrowing",
+    "types/class-reference-sites",
+    "statements/let-and-is-are-reserved"
+  ],
+  "guardedBy": [
+    "tests/conformance/reject/instanceof-is-spelled-is.nvst",
+    "tests/conformance/lang/an-is-test-against-a-class-reference-is-the-dynamic-class-test.nvst"
+  ]
+}

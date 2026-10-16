@@ -1,0 +1,18 @@
+--TEST--
+A certificate name's value that holds a special character reads back escaped as RFC 4514 § 2.4 escapes it, so a one-attribute name never reads as the same text as a name with two — `rule:testing/a-failing-proof-is-fixed-or-recorded`
+--FILE--
+<?nvs
+// covers: Core\Http\TlsInfo::subject
+// covers: Core\Http\TlsInfo::issuer
+// `CN=x+O=y` is one common name whose value is `x+O=y`, so its `+` is escaped.
+var $one = Core\Test::tlsSession({subject: "CN=x+O=y", issuer: "CN=#1 \"CA\"; <a> b\\c"});
+echo $one->subject(), "\n";
+echo $one->issuer(), "\n";
+
+// A plain name reads back exactly as it was written.
+var $plain = Core\Test::tlsSession({subject: "CN=api.example.com, O=Shop"});
+echo $plain->subject(), "\n";
+--EXPECT--
+CN=x\+O=y
+CN=\#1 \"CA\"\; \<a\> b\\c
+CN=api.example.com, O=Shop

@@ -1,0 +1,88 @@
+--TEST--
+`=` is an expression whose value is what was written, so it chains and nests; every compound form is `$x = $x op e` over the same ten operators; and the target of a compound form is evaluated exactly once, which a subscript whose index is a call makes observable — counted across all four target kinds, `rule:types/arithmetic`
+--FILE--
+<?nvs
+// covers: lang:expressions/assignment
+// Four things are pinned here. `=` is an expression, so `$a = $b = 3` writes
+// both and `($a = 5) + 1` is 6. Each compound form is its long spelling
+// written once. Every one of the four targets — a local, a property, a
+// static property and an array element — takes the same forms. And the
+// target of a compound form is worked out once: `Probe::at` counts each time
+// an index is computed, so a second evaluation shows up in the count.
+
+class Probe {
+    public static uint $computed = 0;
+    public static uint $shared = 0;
+    public uint $held = 0;
+
+    public static function at(uint $index): uint {
+        Probe::$computed += 1;
+        return $index;
+    }
+}
+
+// `=` answers the value it wrote, so it chains right to left and nests.
+int $a = 0;
+int $b = 0;
+$a = $b = 3;
+int $c = ($a = 5) + 1;
+echo $a, " ", $b, " ", $c, "\n";
+
+// Every compound form over an `int`, applied in turn. None of them changes
+// the target's type.
+int $n = 10;
+$n += 5;
+$n -= 3;
+$n *= 2;
+$n %= 7;
+$n **= 3;
+$n <<= 1;
+$n >>= 2;
+$n &= 7;
+$n |= 8;
+$n ^= 1;
+echo $n, "\n";
+
+// `/=` is the one that needs a target wide enough for what `/` answers.
+float $f = 9.0;
+$f /= 2;
+echo $f, "\n";
+
+// The same operator reaches all four target kinds, and the four agree.
+uint $local = 4;
+Probe $object = new Probe();
+$object->held = 4;
+Probe::$shared = 4;
+array<uint> $slots = [4, 0];
+$local += 6;
+$object->held += 6;
+Probe::$shared += 6;
+$slots[0] += 6;
+uint $agreed = 0;
+if ($local == 10) { $agreed = $agreed + 1; }
+if ($object->held == 10) { $agreed = $agreed + 1; }
+if (Probe::$shared == 10) { $agreed = $agreed + 1; }
+if ($slots[0] == 10) { $agreed = $agreed + 1; }
+echo $agreed, " of 4\n";
+
+// A compound form evaluates its target once. A plain read and a plain write
+// each compute the index once, so the three statements below leave the
+// counter at 3 rather than at 4.
+Probe::$computed = 0;
+$slots[Probe::at(1)] = 5;
+$slots[Probe::at(1)] += 7;
+echo $slots[Probe::at(1)], " ", Probe::$computed, "\n";
+
+// A string target takes `.=` the same way, in a local and in an element.
+string $line = "a";
+$line .= "b";
+array<string> $named = ["k" => "p"];
+$named["k"] .= "q";
+echo $line, " ", $named["k"], "\n";
+--EXPECT--
+5 3 6
+12
+4.5
+4 of 4
+12 3
+ab pq

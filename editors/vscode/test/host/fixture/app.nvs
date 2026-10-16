@@ -1,0 +1,19 @@
+<?nvs
+// The file every colour test in this tier opens. It is a whole program the compiler accepts, for the
+// reason `hello.nvs` gives: the tier asserts what the editor shows for real code, so a file that does not
+// compile would answer about the error recovery instead.
+//
+// Two of its bindings are load-bearing. `$password` is `secret`, so the semantic layer has something that
+// must come back carrying the `secret` modifier (`rule:ide/semantic-tokens-carry-the-qualifiers`) and the
+// grammar has a qualifier to scope before the server has started. `$total` is the word a double-click has
+// to select whole, `$` included, which is the editor applying the `wordPattern` this extension declares.
+
+secret string $password = 'correct horse battery staple';
+
+string $stored = Core\Password::hash($password);
+if (Core\Password::verify($password, $stored)) {
+    echo 'verified', "\n";
+}
+
+int $total = 2 + 3 + 5;
+echo $total, "\n";

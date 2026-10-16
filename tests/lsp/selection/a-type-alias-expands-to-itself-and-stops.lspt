@@ -1,0 +1,9 @@
+--TEST--
+a type alias is a top-level declaration and the type it names is written rather than parsed into a node, so the chain is one step, `rule:ide/the-index-answers-the-cursor`
+--FILE--
+<?nvs
+type I<|>d = uint;
+--REQUEST--
+selectionRange
+--EXPECT--
+2:1-2:16

@@ -1,0 +1,51 @@
+---
+title: Hello, World!
+covers: []
+description: Your first Novis program, and how to run it.
+---
+
+import Snippet from '@components/Snippet.astro'
+
+A Novis program is a text file with the extension `.nvs`. Create a file called `hello.nvs`
+with these two lines:
+
+<Snippet src="install/01-hello.nvs" />
+
+Run it:
+
+```sh
+nvs run hello.nvs
+```
+
+`nvs run` checks the program first. If there is an error, it prints the error and does not
+run the program.
+
+Three things in this program:
+
+- `<?nvs` starts the code. Everything after it is code until the end of the file.
+- `echo` writes text. In a program you run in a terminal, the text goes to the terminal.
+- `"\n"` is a line break.
+
+## A program that reads the command line
+
+This program says hello to the name you give it. Save it as `hello.nvs` again:
+
+<Snippet src="install/02-hello-name.nvs" />
+
+Run it with a name after the file name:
+
+```sh
+nvs run hello.nvs Ada
+```
+
+```txt
+Hello, Ada!
+```
+
+`var` declares a variable. Novis gets its type from the value. `Core\Str::format` puts
+values into a text. The compiler checks that the `%s` placeholders match the values.
+
+Every function in the standard library is a method of a `Core\` class. The
+[Core reference](/reference/core/) lists all of them.
+
+Next: [A Tour of Novis](/guides/tour/) builds on this program, one step at a time.

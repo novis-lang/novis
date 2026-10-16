@@ -1,0 +1,8 @@
+<?nvs
+// `mixed` can contain a value of any type.
+mixed $value = 5;
+echo $value + 1, "\n";
+
+// Convert a `mixed` value with `as` before you pass it to a typed parameter.
+$value = "text";
+echo Core\Str::upper($value as string), "\n";

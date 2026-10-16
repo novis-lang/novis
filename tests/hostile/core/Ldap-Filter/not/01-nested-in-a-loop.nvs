@@ -1,0 +1,40 @@
+<?nvs
+// Attack: a program puts `not` around a filter in a loop, one hundred thousand
+// times, so that writing it as text uses up the stack. The 101st level should
+// throw an error, and the program must keep running.
+// hostile: timeout-ms 60000
+
+// 1. `not` around `not`, until it throws an error.
+var $filter = Core\Ldap\Filter::present('mail');
+uint $levels = 1;
+try {
+    while ($levels < 100000) {
+        $filter = Core\Ldap\Filter::not($filter);
+        $levels = $levels + 1;
+    }
+    echo "1 not refused\n";
+} catch (LogicError $tooDeep) {
+    echo '1 refused at level ', $levels + 1, "\n";
+}
+
+// 2. The deepest filter that is allowed, written as text and read back.
+try {
+    var $text = $filter->toString();
+    echo '2 length: ', Core\Str::length($text), "\n";
+} catch (Throwable $error) {
+    echo "2 threw\n";
+}
+
+// 3. The deepest filter inside `all` and `any`. Each one must throw an error.
+uint $refused = 0;
+try {
+    Core\Ldap\Filter::all($filter);
+} catch (LogicError $tooDeep) {
+    $refused = $refused + 1;
+}
+try {
+    Core\Ldap\Filter::any(Core\Ldap\Filter::present('cn'), $filter);
+} catch (LogicError $tooDeep) {
+    $refused = $refused + 1;
+}
+echo '3 refused: ', $refused, " of 2\n";

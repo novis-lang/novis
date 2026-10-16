@@ -1,0 +1,15 @@
+<?nvs
+// Shows where a value that is not an array ends up, and how this member differs
+// from `Core\Arr::flatten`.
+
+array<mixed> $mixed = [1, [2, 3], [[4]], 5];
+
+// A value that is not an array keeps its place in the order. This prints
+// [1,2,3,4,5].
+echo Core\Json::encode(Core\Arr::flattenDeep($mixed)), "\n";
+
+array<array<array<int>>> $levels = [[[4]], [[5]]];
+
+// `Core\Arr::flatten` removes one level, so its values are still arrays. This
+// prints [[4],[5]].
+echo Core\Json::encode(Core\Arr::flatten($levels)), "\n";

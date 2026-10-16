@@ -1,0 +1,17 @@
+<?nvs
+// This program uses a class from another file, found through `autoload`.
+namespace App;
+
+// `use` imports one class. After it, the short name `Greeter` is enough.
+use App\Text\Greeter;
+use Core\Str;
+
+// Every class whose name starts with `App\` is read from the folder `lib`.
+// `App\Text\Greeter` is read from lib/Text/Greeter.nvs.
+autoload 'App' from './lib';
+
+echo Greeter::greet("Ada"), "\n";
+echo Str::upper("shout"), "\n";
+
+// A name with a backslash is a full name. It needs no `use`.
+echo Core\Str::lower("QUIET"), "\n";

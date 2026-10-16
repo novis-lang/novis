@@ -1,0 +1,84 @@
+<?nvs
+// Attack: an object's `compareTo` method calls `assertEquals` again, without end, and
+// other `compareTo` methods throw or return huge numbers. Each check should pass or
+// throw an error, and the program should not crash.
+
+// Each comparison starts a new check of the same two objects.
+final class Echo implements Comparable
+{
+    public function constructor(public int $n)
+    {}
+
+    public function compareTo(self $other): int
+    {
+        Core\Test::assertEquals($this, $other);
+        return 0;
+    }
+}
+
+// Each comparison throws an error of its own.
+final class Angry implements Comparable
+{
+    public function constructor(public int $n)
+    {}
+
+    public function compareTo(self $other): int
+    {
+        throw new LogicError('compareTo refused');
+    }
+}
+
+// Each comparison returns the largest or the smallest `int`.
+final class Extreme implements Comparable
+{
+    public function constructor(public int $n)
+    {}
+
+    public function compareTo(self $other): int
+    {
+        return $this->n > $other->n ? 9223372036854775807 : -9223372036854775807 - 1;
+    }
+}
+
+// Step 1: the check calls itself until the program runs out of stack.
+try {
+    Core\Test::assertEquals(new Echo(1), new Echo(1));
+    echo "echo equal\n";
+} catch (Throwable $error) {
+    echo "echo stopped\n";
+}
+
+// Step 2: the error from `compareTo` comes out of the check.
+try {
+    Core\Test::assertEquals(new Angry(1), new Angry(1));
+} catch (LogicError $refused) {
+    echo $refused->message, "\n";
+}
+
+// Step 3: a result far from 0 in both directions is not equal.
+try {
+    Core\Test::assertEquals(new Extreme(2), new Extreme(1));
+} catch (Core\Test\Failure $failure) {
+    echo "extreme differs\n";
+}
+try {
+    Core\Test::assertEquals(new Extreme(1), new Extreme(2));
+} catch (Core\Test\Failure $failure) {
+    echo "extreme differs\n";
+}
+
+// Step 4: two strings of ten million characters that differ in the last one.
+// The message shows only the start of each string.
+string $long = Core\Str::repeat('a', 10000000);
+try {
+    Core\Test::assertEquals($long . 'x', $long . 'y');
+} catch (Core\Test\Failure $failure) {
+    echo 'message of ', Core\Str::length($failure->message) < 1000 ? 'few' : 'many', " characters\n";
+}
+
+// Step 5: a `message` option of ten million characters.
+try {
+    Core\Test::assertEquals(1, 2, { message: $long });
+} catch (Core\Test\Failure $failure) {
+    echo "long message\n";
+}

@@ -1,0 +1,14 @@
+<?nvs
+// Shows how to create a duration from a number of milliseconds that the program computes.
+
+int $frames = 60;
+Core\Time\Duration $animation = Core\Time\Duration::milliseconds($frames * 25);
+
+// 1500 milliseconds is 1 second and 500 milliseconds. This prints 1s500ms.
+echo $animation->toString(), "\n";
+
+// `toMilliseconds` returns the number again. This prints 1500.
+echo $animation->toMilliseconds(), "\n";
+
+// A negative number gives a negative duration. This prints -250ms.
+echo Core\Time\Duration::milliseconds(-250)->toString(), "\n";

@@ -1,0 +1,16 @@
+{
+  "title": "The derive generates only the half the class does not write, at compile time, storing nothing per object",
+  "status": "shipped",
+  "seeAlso": [
+    "core-classes/derive-attribute",
+    "core-classes/derive-field-list",
+    "types/anonymous-object",
+    "types/shape-type"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/json-encodes-a-shape-as-an-object.nvst",
+    "tests/conformance/reject/json-encode-refuses-a-secret.nvst",
+    "tests/conformance/core/json-decode-as-reads-only-a-class-that-declared-a-codec.nvst",
+    "tests/conformance/core/json-decode-as-admits-exactly-its-declared-type.nvst"
+  ]
+}

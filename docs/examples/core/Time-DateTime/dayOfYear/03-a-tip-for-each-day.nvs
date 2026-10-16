@@ -1,0 +1,20 @@
+<?nvs
+// Shows how to pick a different tip of the day from a list, one after the other.
+
+array<string> $tips = [
+    "Save your work often.",
+    "Use a password manager.",
+    "Check your backups.",
+];
+var $zone = Core\Time\Zone::of("America/New_York");
+
+// The day number divided by the number of tips leaves a remainder of 0, 1 or 2.
+// The remainder is the position of today's tip, so the tips repeat every three days.
+var $day = Core\Time::at(2024, 6, 10, $zone);
+int $shown = 0;
+while ($shown < 4) {
+    int $position = ($day->dayOfYear() % 3) as int;
+    echo $day->format("d MMMM"), ": ", $tips[$position], "\n";
+    $day = $day->plus(1, Core\Unit::Day);
+    $shown = $shown + 1;
+}

@@ -1,0 +1,17 @@
+<?nvs
+// Shows how to clean the tags a user typed into a form and save them as one line of text.
+
+array<string> $typed = [" coffee", "tea ", "", "   ", "cocoa"];
+
+// `Core\Str::trim` removes the spaces around each tag.
+// An empty tag is skipped, so the line never has two commas in a row.
+array<string> $tags = [];
+foreach ($typed as string $tag) {
+    string $clean = Core\Str::trim($tag);
+    if (!Core\Str::isEmpty($clean)) {
+        $tags[] = $clean;
+    }
+}
+
+// This prints `coffee,tea,cocoa`.
+echo Core\Str::join($tags, ","), "\n";

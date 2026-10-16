@@ -1,0 +1,26 @@
+<?nvs
+// Shows an admin page that prints every public limit of a service.
+// A new limit in the class appears on the page with no other change.
+
+class ApiLimits {
+    public const int REQUESTS_PER_MINUTE = 600;
+    public const int MAX_BODY_KB = 512;
+    public const bool ALLOW_BATCH = true;
+    private const string SIGNING_KEY = "internal";
+}
+
+class LimitReport {
+    // Prints one line for each public constant that has a value.
+    public static function show(Core\Reflect\ClassInfo $info): void {
+        foreach ($info->constants() as Core\Reflect\ConstantInfo $constant) {
+            if (!$constant->isPublic() || !$constant->hasValue()) {
+                continue;
+            }
+            // `constant` returns a `mixed` value, and `Core\Json::encode` prints any of them.
+            echo $constant->name(), " = ", Core\Json::encode($info->constant($constant->name())), "\n";
+        }
+    }
+}
+
+// The private `SIGNING_KEY` is not printed.
+LimitReport::show(Core\Reflect::forObject(new ApiLimits()));

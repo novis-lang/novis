@@ -1,0 +1,35 @@
+--TEST--
+`Core\Socket::upgrade` accepts `rule:security/isolate-shares-nothing`'s second entry spelling — a static method reference — and it reaches the same body the path form does rather than any compile question — `rule:concurrency/a-connection-is-a-root-isolate` and `rule:concurrency/an-upgrade-is-spawn-shaped`
+--FILE--
+<?nvs
+// `rule:concurrency/an-upgrade-is-spawn-shaped` makes the operand `spawn script`'s, and `rule:security/isolate-shares-nothing`
+// gives that operand two spellings: a file path, and a static method whose
+// parameters `args:` binds by name. This case is the accepted half of the rule
+// at this second site; `an-upgrade-refuses-an-entry-it-cannot-see-the-function-
+// behind.nvst` is the refused half, and the two together are the whole of it.
+class Chat {
+    public static function run(string $room): void {
+        echo "ran ", $room, "\n";
+    }
+}
+
+// A script run from the command line arrived on no connection, so what says
+// the entry was *accepted* is that the member reaches its own body and reports
+// the missing connection from there — byte for byte the report the path form
+// gets, never a diagnostic and never a silent `void`. The connection is asked
+// about before the entry is read, which is why both spellings answer alike;
+// `nvs_stdlib::socket`'s § *The method form waits on a name* owns what this
+// form still cannot prepare once there is a slot to prepare it into.
+try {
+    Core\Socket::upgrade(Chat::run(...), args: {room: "lobby"});
+    echo "upgraded\n";
+} catch (RuntimeError $refused) {
+    echo $refused->message, "\n";
+}
+
+// The entry is *named*, not called: `ran lobby` is nowhere above, because the
+// isolate § 1 opens is the only place that body ever runs.
+echo "not run here\n";
+--EXPECT--
+`Core\Socket::upgrade` needs a connection to upgrade and this request arrived on none: only a request a server framed an upgrade for is offered one
+not run here

@@ -1,0 +1,12 @@
+<?nvs
+// Shows how to make a random session ID, and how long it is.
+
+// Without an argument, `Core\Random::token` draws 32 bytes. This prints 64.
+string $session = Core\Random::token();
+echo Core\Str::length($session), "\n";
+
+// With 8 bytes, the token has 16 characters. This prints 16.
+echo Core\Str::length(Core\Random::token(8)), "\n";
+
+// The token is hex, so `Core\Encoding::fromHex` turns it back into the 32 bytes. This prints 32.
+echo Core\Bytes::length(Core\Encoding::fromHex($session)), "\n";

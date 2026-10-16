@@ -1,0 +1,43 @@
+<?nvs
+// A job's settings are a mode, which is one of three words, and a mailbox that may be `null`.
+// Checking a field such as `$job->mode` does not change its type.
+// Checking a local variable does. So `plan` copies each field to a variable first.
+
+class Job
+{
+    public ?string $failureMailbox = null;
+    public "read"|"write"|"admin" $mode = "read";
+}
+
+class Runner
+{
+    public static function plan(Job $job): string
+    {
+        ?string $mailbox = $job->failureMailbox;
+        "read"|"write"|"admin" $mode = $job->mode;
+
+        string $notify = $mailbox != null ? "failures go to " . $mailbox : "nobody is told";
+
+        if ($mode == "admin") {
+            // Inside this `if`, `$mode` can only be "admin". So it can be
+            // assigned to a variable of type "admin".
+            "admin" $elevated = $mode;
+            return "running as " . $elevated . "; " . $notify;
+        }
+
+        if ($mode == "write") {
+            return "writing; " . $notify;
+        }
+
+        return "reading only; " . $notify;
+    }
+}
+
+Job $nightly = new Job();
+$nightly->mode = "admin";
+$nightly->failureMailbox = "ops@example.com";
+
+Job $report = new Job();
+
+echo Runner::plan($nightly), "\n";
+echo Runner::plan($report), "\n";

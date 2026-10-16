@@ -1,0 +1,8 @@
+<?nvs
+// Shows how to list the Unicode number of each symbol in a string.
+
+// This prints `72`, `105`, `32` and `8364`, one on each line.
+// 32 is the space and 8364 is the euro sign.
+foreach (Core\Str::codePoints("Hi €") as uint $point) {
+    echo $point, "\n";
+}

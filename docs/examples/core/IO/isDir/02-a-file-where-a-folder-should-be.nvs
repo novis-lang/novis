@@ -1,0 +1,19 @@
+<?nvs
+// Shows how a program checks that an upload folder really is a folder before it writes into it.
+
+string $uploads = Core\Path::join(Core\IO::temporaryDir(), "uploads");
+
+// A file has the name the folder should have.
+Core\IO::write($uploads, "old data");
+
+// `exists` returns `true`, but `isDir` returns `false`. This prints "uploads is not a folder".
+if (Core\IO::exists($uploads) && !Core\IO::isDir($uploads)) {
+    echo "uploads is not a folder", "\n";
+}
+
+// The program removes the file and creates the folder. This prints "uploads is a folder".
+Core\IO::remove($uploads);
+Core\IO::makeDir($uploads);
+if (Core\IO::isDir($uploads)) {
+    echo "uploads is a folder", "\n";
+}

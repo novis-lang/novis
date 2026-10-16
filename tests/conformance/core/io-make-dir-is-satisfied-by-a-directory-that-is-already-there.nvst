@@ -1,0 +1,53 @@
+--TEST--
+Core\IO::makeDir over a directory that already exists succeeds and keeps everything in it, so the member's contract is that the directory exists afterwards — while a *file* at the same path is an IOError, because that is not the directory that was asked for — spec § 14
+--FILE--
+<?nvs
+// The decision this pins is in `capability::create_dir`'s doc: refusing an
+// existing directory would leave every caller writing an `exists` check in
+// front of this member, which is a window between a question and an act. So
+// repeating the call is success -- but "success" must not mean "emptied", and
+// it must not stretch to a path that is a file.
+Core\IO::makeDir("cache");
+Core\IO::write("cache/entry.txt", "kept");
+
+int $calls = 3;
+int $c = 0;
+for (; $c < $calls; $c = $c + 1) {
+    Core\IO::makeDir("cache");
+}
+
+array<string> $entries = Core\IO::list("cache");
+echo "calls: ", $calls as string,
+     ", entries still there: ", Core\Arr::count($entries) as string,
+     ", holding: '", Core\IO::read("cache/entry.txt"), "'\n";
+
+// A deeper path whose parents already exist is the same story: what is missing
+// is created and what is there is left alone.
+Core\IO::makeDir("cache/inner/deeper");
+echo "cache after a deeper call: ",
+     Core\Str::join(Core\Arr::sort(Core\IO::list("cache")), ", "), "\n";
+
+// And the boundary. A file is a component that exists and is not a directory,
+// so there is no way to satisfy the contract and the member says so rather than
+// replacing the file.
+Core\IO::write("occupied", "a file, not a directory");
+try {
+    Core\IO::makeDir("occupied");
+    echo "not reached\n";
+} catch (IOError $failed) {
+    echo "a file at the path: refused\n";
+}
+if (Core\IO::read("occupied") == "a file, not a directory") {
+    echo "and the file is still a file, holding what it held\n";
+} else {
+    echo "and the file did not survive\n";
+}
+--FILE nvs.toml--
+[capabilities.fs]
+read = ["."]
+write = ["."]
+--EXPECT--
+calls: 3, entries still there: 1, holding: 'kept'
+cache after a deeper call: entry.txt, inner
+a file at the path: refused
+and the file is still a file, holding what it held

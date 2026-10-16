@@ -1,0 +1,13 @@
+<?nvs
+// Shows how to make a `Font` from the bytes of a font file and measure a word with it.
+use Novis\Image\Font;
+use Novis\Image\Image;
+
+require 'fonts/box-font.nvs';
+
+// `BoxFont::load` calls `Font::fromBytes` with the bytes of a small font file.
+Font $font = BoxFont::load();
+
+// This prints 24 and 10.
+var $size = Image::measureText("Shop", $font, {size: 10.0});
+echo $size->width, "\n", $size->height, "\n";

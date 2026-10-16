@@ -1,0 +1,15 @@
+<?nvs
+// Shows how to build the `Content-Type` header for a stored file from its bytes.
+
+class Download {
+    public static function contentType(bytes $file): string {
+        return "Content-Type: " . Core\Mime::mediaType(Core\Mime::detect($file));
+    }
+}
+
+// The first bytes of a GIF image, then of a gzip archive, then of a text file.
+array<string> $files = ["474946383961", "1f8b0800", "48656c6c6f"];
+
+foreach ($files as string $hex) {
+    echo Download::contentType(Core\Encoding::fromHex($hex)), "\n";
+}

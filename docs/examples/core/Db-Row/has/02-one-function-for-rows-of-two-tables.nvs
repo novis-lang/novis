@@ -1,0 +1,34 @@
+<?nvs
+// Shows how one function reads rows that do not carry the same columns.
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table books (title text not null, pages int not null)', []);
+$db->execute('create table songs (title text not null, seconds int not null)', []);
+$db->execute('insert into books (title, pages) values (?, ?)', ['The Long Road', 412]);
+$db->execute('insert into songs (title, seconds) values (?, ?)', ['Morning Light', 218]);
+
+class Library {
+    // The row comes from one table or the other, so the function tests each
+    // column name before it reads that column.
+    public static function describe(Core\Db\Row $row): void {
+        echo $row->string('title') ?? '';
+        if ($row->has('pages')) {
+            echo ', ', $row->int('pages') ?? 0, " pages\n";
+            return;
+        }
+        if ($row->has('seconds')) {
+            echo ', ', $row->int('seconds') ?? 0, " seconds\n";
+            return;
+        }
+        echo "\n";
+    }
+}
+
+foreach ($db->query('select title, pages from books', []) as Core\Db\Row $book) {
+    Library::describe($book);
+}
+foreach ($db->query('select title, seconds from songs', []) as Core\Db\Row $song) {
+    Library::describe($song);
+}
+
+$db->close();

@@ -1,0 +1,19 @@
+<?nvs
+// Shows a connection that sends the live score of a match to the client each time it changes.
+
+// The `.nvsp` file beside this example plays a client that sends nothing and closes.
+Core\Socket $conn = Core\Socket::current();
+Core\Topic::subscribe("match:final");
+
+// In a real application, another script publishes the score when a team scores.
+// Here the same script publishes two scores, so the example runs alone.
+Core\Topic::publish("match:final", ["home" => 1, "away" => 0]);
+Core\Topic::publish("match:final", ["home" => 1, "away" => 1]);
+
+// `value()` returns each published score. This sends it to the client as JSON.
+// This prints `sent: {"home":1,"away":0}`, then `sent: {"home":1,"away":1}`.
+?Core\Socket\Message $message = $conn->receive();
+while ($message != null) {
+    $conn->send(Core\Json::encode($message->value()));
+    $message = $conn->receive();
+}

@@ -1,0 +1,26 @@
+<?nvs
+// Shows how to store a value for an object, and how to replace it later.
+
+final class Order {
+    public string $number;
+
+    public function constructor(string $number) {
+        $this->number = $number;
+    }
+}
+
+Order $first = new Order("A-1");
+Order $second = new Order("A-2");
+
+Core\ObjectMap<Order, string> $status = new Core\ObjectMap<Order, string>();
+$status->set($first, "new");
+$status->set($second, "new");
+
+// The key is already in the map, so `set` replaces its value.
+$status->set($first, "shipped");
+
+// The map still has two entries, and the first order keeps its place.
+// This prints "A-1 shipped" and "A-2 new".
+foreach ($status as Order $order) {
+    echo $order->number, " ", $status->get($order) ?? "-", "\n";
+}

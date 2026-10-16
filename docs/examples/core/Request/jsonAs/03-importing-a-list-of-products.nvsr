@@ -1,0 +1,12 @@
+--METHOD--
+PUT
+--PATH--
+/api/products
+--SCHEME--
+https
+--HEADERS--
+host: shop.example.com
+content-type: application/json
+authorization: Bearer s7f3a9c2e1
+--BODY--
+[{"sku":"TEA-01","cents":450},{"sku":"MUG-02","cents":0},{"sku":"HON-03","cents":1250}]

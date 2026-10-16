@@ -1,0 +1,30 @@
+<?nvs
+// This program limits how many tasks run at once, and how long they may take together.
+class Gauge {
+    public static int $running = 0;
+    public static int $most = 0;
+}
+
+// `limit: 2` runs at most two tasks at once. The other tasks wait for their turn.
+Core\Task::map(Core\Arr::range(1, 6), fn(int $n): int => {
+    Gauge::$running += 1;
+    if (Gauge::$running > Gauge::$most) {
+        Gauge::$most = Gauge::$running;
+    }
+    Core\Time::sleep(5ms);
+    Gauge::$running -= 1;
+    return $n;
+}, {limit: 2});
+echo "at most ", Gauge::$most, " at once\n";
+
+// `deadline: 20ms` is the time for the whole call. These tasks need 200ms,
+// so the tasks are stopped and the call throws `TimeoutError`.
+try {
+    Core\Task::map([1, 2], fn(int $n): int => {
+        Core\Time::sleep(200ms);
+        return $n;
+    }, {deadline: 20ms});
+    echo "finished\n";
+} catch (TimeoutError $late) {
+    echo "deadline reached\n";
+}

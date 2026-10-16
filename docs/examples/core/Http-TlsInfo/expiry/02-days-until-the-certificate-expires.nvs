@@ -1,0 +1,14 @@
+<?nvs
+// Shows how to count the days until a certificate expires.
+
+// A TLS connection built for a test, so the example runs without a network.
+var $session = Core\Test::tlsSession({expiry: Core\Time::fromIso("2031-06-11T00:00:00Z")});
+
+// A real program uses `Core\Time::now()`. The example uses a fixed day,
+// so it prints the same result every time.
+var $today = Core\Time::fromIso("2031-06-01T00:00:00Z");
+
+// `since()` returns the time between the two instants as a `Core\Time\Duration`.
+// One day has 86400 seconds. This prints `days left: 10`.
+int $seconds = $session->expiry()->since($today)->toSeconds();
+echo "days left: ", Core\Math::intDiv($seconds, 86400), "\n";

@@ -1,0 +1,12 @@
+<?nvs
+// Shows how to build the name of a stored image from its real format.
+use Novis\Image\Image;
+use Novis\Image\Color;
+use Novis\Image\Format;
+
+// The user named this file "avatar.png", but the bytes are a JPEG file.
+bytes $upload = Image::create(48, 48, Color::hex("#336699"))->format(Format::Jpeg)->encode();
+
+// The extension comes from the bytes. This prints avatar-42.jpg.
+string $name = "avatar-42." . Image::extension(Image::info($upload)->format);
+echo $name, "\n";

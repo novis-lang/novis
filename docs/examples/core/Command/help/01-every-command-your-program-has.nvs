@@ -1,0 +1,19 @@
+<?nvs
+// Shows the page a program prints when somebody starts it with no command: the
+// list of commands it has.
+
+class Tool {
+    #[Core\Command(name: "deploy", about: "Push the current build")]
+    public static function deploy(string $target): uint {
+        return 0;
+    }
+
+    #[Core\Command(name: "version", about: "Print the version and stop")]
+    public static function version(): uint {
+        return 0;
+    }
+}
+
+// With `null`, `Core\Command::help` returns the program's own page. Both
+// commands above are on it, each with the text from its own `about:`.
+echo Core\Command::help(null);

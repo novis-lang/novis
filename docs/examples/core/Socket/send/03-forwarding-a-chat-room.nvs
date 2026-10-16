@@ -1,0 +1,20 @@
+<?nvs
+// Shows a chat connection that sends every message posted in a room to its client.
+
+Core\Socket $conn = Core\Socket::current();
+Core\Topic::subscribe("room:lobby");
+
+// Other connections post to the room. Here the script posts two messages itself,
+// so the example runs on its own.
+Core\Topic::publish("room:lobby", ["from" => "ana", "text" => "hi all"]);
+Core\Topic::publish("room:lobby", ["from" => "ben", "text" => "hello ana"]);
+
+// `receive()` returns the two room messages, then `null` when the client closes.
+// Each room message goes to the client as JSON text.
+?Core\Socket\Message $message = $conn->receive();
+while ($message != null) {
+    if ($message->topic() != null) {
+        $conn->send(Core\Json::encode($message->value()));
+    }
+    $message = $conn->receive();
+}

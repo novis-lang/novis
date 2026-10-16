@@ -1,0 +1,43 @@
+--TEST--
+`Pages::merge` puts the chosen pages of several PDF files into one file in the order of the lists, a part without a list gives every page, a page past the end throws `LogicError` and bytes that are not a PDF throw `ParseError`: rule:core-classes/pdf-reader-and-merge
+--FILE--
+<?nvs
+// covers: Novis\Pdf\Pages::of
+// covers: Novis\Pdf\Pages::merge
+use Novis\Pdf\Document;
+use Novis\Pdf\Pages;
+use Novis\Pdf\Reader;
+
+// A letter of three pages, and the terms of the shop on one page.
+var $letter = Document::fromHtml("<style>p { break-after: page }</style>"
+    . "<p>Letter one</p><p>Letter two</p><p>Letter three</p>")->render()->bytes;
+var $terms = Document::fromHtml("<p>Terms of Shop</p>")->render()->bytes;
+
+// Page 3 comes first, page 2 is left out, and the terms come last.
+var $merged = Pages::merge([Pages::of($letter, [3, 1]), Pages::of($terms)]);
+var $reader = Reader::open($merged);
+echo $reader->pageCount, " pages\n";
+echo $reader->text(1), "\n";
+echo $reader->text(2), "\n";
+echo $reader->text(3), "\n";
+
+// The letter has three pages, so page 4 throws a `LogicError`.
+try {
+    Pages::merge([Pages::of($letter, [4])]);
+} catch (LogicError $past) {
+    echo "LogicError\n";
+}
+
+// Bytes that are not a PDF file throw a `ParseError`.
+try {
+    Pages::merge([Pages::of("not a PDF" as bytes)]);
+} catch (ParseError $broken) {
+    echo "ParseError\n";
+}
+--EXPECT--
+3 pages
+Letter three
+Letter one
+Terms of Shop
+LogicError
+ParseError

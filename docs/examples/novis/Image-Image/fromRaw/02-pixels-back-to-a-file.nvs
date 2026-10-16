@@ -1,0 +1,15 @@
+<?nvs
+// Shows how to decode an image, keep its pixels, and later encode them as a new file.
+use Novis\Image\Image;
+use Novis\Image\Color;
+use Novis\Image\Format;
+
+// `raw` decodes a 64 by 48 image into pixels.
+var $pixels = Image::create(64, 48, Color::hex("#336699"))->raw();
+
+// `fromRaw` starts a new image from those pixels. `format` and `encode` write a WebP file.
+bytes $file = Image::fromRaw($pixels)->format(Format::Webp)->encode();
+
+// This prints image/webp 64x48.
+var $info = Image::info($file);
+echo Image::mime($info->format), " ", $info->width, "x", $info->height, "\n";

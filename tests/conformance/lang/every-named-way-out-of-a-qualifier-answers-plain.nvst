@@ -1,0 +1,98 @@
+--TEST--
+Every named way out of `tainted` and `secret` answers a plain value, and the count of ways out is the assertion rather than any one line — `rule:security/sink-predicate`, `rule:security/every-grammar-is-a-sink`, `rule:core-classes/secret-reveal`
+--FILE--
+<?nvs
+// covers: lang:types/qualifiers-tainted-and-secret
+// `rule:security/sink-predicate` decides which parameters refuse a marked
+// value; this case pins the other half of it, the named ways back out. Every
+// list below is declared `array<string>`, so an element that still carried a
+// mark would not compile, and the counts are what is asserted. A way out that
+// disappeared, or a member that grew a mark on its answer, changes a count
+// rather than a single line.
+//
+// `Core\Regex::quote` is the one launderer the grammar roster keeps
+// (`rule:security/every-grammar-is-a-sink`), and `Core\Secret::reveal` is the
+// one named way out of `secret` (`rule:core-classes/secret-reveal`), which
+// removes `secret` and leaves `tainted` where it was.
+class Ways {
+    // A launderer takes the mark off for one sink and answers a plain string.
+    public static function launderers(tainted string $raw): array<string> {
+        return [
+            Core\Regex::quote($raw),
+            Core\Uri::encodeComponent($raw),
+            Core\Uri::encodeFormValue($raw),
+        ];
+    }
+
+    // A checked conversion takes the mark off because the answer is no longer
+    // the text that carried it.
+    public static function conversions(tainted string $digits): array<string> {
+        int $i = $digits as int;
+        uint $u = $digits as uint;
+        float $f = $digits as float;
+        bool $b = $digits as bool;
+        return [$i as string, $u as string, $f as string, $b as string];
+    }
+
+    // `reveal` is the only member that removes `secret`, and it has a `bytes`
+    // twin. Both write down why at the call.
+    public static function reveals(secret string $token, secret bytes $key): array<string> {
+        return [
+            Core\Secret::reveal($token, "pinning the one way out of secret"),
+            Core\Secret::revealBytes($key, "pinning the bytes twin") as string,
+        ];
+    }
+
+    // A member answering a count or a truth takes a marked value and answers
+    // plain, for both marks and for `bytes` as well as `string`.
+    public static function answersPlain(tainted string $raw, tainted bytes $blob, secret string $token): array<string> {
+        uint $length = Core\Str::length($raw);
+        uint $size = Core\Bytes::length($blob);
+        bool $has = Core\Str::contains($raw, "+");
+        bool $same = $token == "hunter2";
+        return [$length as string, $size as string, $has as string, $same as string];
+    }
+}
+
+array<string> $laundered = Ways::launderers("a+b c");
+array<string> $converted = Ways::conversions("42");
+array<string> $revealed = Ways::reveals("hunter2", "key" as bytes);
+array<string> $plain = Ways::answersPlain("a+b c", "abc" as bytes, "hunter2");
+
+echo "launderers ", Core\Arr::count($laundered), "\n";
+echo "conversions ", Core\Arr::count($converted), "\n";
+echo "reveals ", Core\Arr::count($revealed), "\n";
+echo "plain answers ", Core\Arr::count($plain), "\n";
+echo "ways out ", Core\Arr::count($laundered) + Core\Arr::count($converted) + Core\Arr::count($revealed), "\n";
+
+foreach ($laundered as string $one) {
+    echo $one, "\n";
+}
+foreach ($converted as string $one) {
+    echo $one, "\n";
+}
+foreach ($revealed as string $one) {
+    echo $one, "\n";
+}
+foreach ($plain as string $one) {
+    echo $one, "\n";
+}
+--EXPECT--
+launderers 3
+conversions 4
+reveals 2
+plain answers 4
+ways out 9
+a\+b c
+a%2Bb%20c
+a%2Bb+c
+42
+42
+42
+1
+hunter2
+key
+5
+3
+1
+1

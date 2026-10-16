@@ -1,0 +1,44 @@
+<?nvs
+// Attack: a program reads very long paths, paths of many `..` parts, many escapes and many `/`.
+// Each read should return the path exactly as written, or `parse` should throw an error.
+
+class Path
+{
+    public static function length(string $address): string
+    {
+        try {
+            return Core\Str::length(Core\Uri::parse($address)->path()) as string;
+        } catch (Throwable $e) {
+            return 'error';
+        }
+    }
+}
+
+// 1. A path of one million letters. This prints 1000001.
+echo Path::length('http://h/' . Core\Str::repeat('a', 1000000)), "\n";
+
+// 2. 200000 `/..` parts. They stay in the path, so this prints 600000.
+echo Path::length('http://h' . Core\Str::repeat('/..', 200000)), "\n";
+
+// 3. 300000 escapes. They stay in the path, so this prints 900001.
+echo Path::length('http://h/' . Core\Str::repeat('%2F', 300000)), "\n";
+
+// 4. One million `/` and no host. The first two `/` start an empty host, so this prints 999998.
+echo Path::length(Core\Str::repeat('/', 1000000)), "\n";
+
+// 5. A path with a space in the middle. A space is not allowed, so this prints "error".
+echo Path::length('http://h/' . Core\Str::repeat('a', 500000) . ' ' . Core\Str::repeat('a', 500000)), "\n";
+
+// 6. A path of one million `:` and `@`, which are allowed in a path. This prints 1000001.
+echo Path::length('http://h/' . Core\Str::repeat(':@', 500000)), "\n";
+
+// 7. 100000 different paths, and every path is freed. This prints 100000.
+uint $read = 0;
+uint $i = 0;
+while ($i < 100000) {
+    if (Core\Uri::parse('https://example.com/p/' . $i . '/../x')->path() != '') {
+        $read = $read + 1;
+    }
+    $i = $i + 1;
+}
+echo $read, "\n";

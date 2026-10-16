@@ -1,0 +1,19 @@
+<?nvs
+// Shows how to open a TCP connection to a server and send it one line.
+
+// A small server on this computer, so the example needs no network.
+// Port `0` lets the operating system pick a free port.
+Core\Net\Listener $server = Core\Net::listen("127.0.0.1", 0);
+
+// `Core\Net::connect` opens the connection and returns a `Core\Net\Stream`.
+// The last argument is how long the connection may take to open.
+Core\Net\Stream $client = Core\Net::connect("127.0.0.1", $server->port(), 5s);
+$client->write("PING\n" as bytes, 5s);
+
+// The server side reads what arrived. This prints `PING`.
+Core\Net\Stream $incoming = $server->accept(5s);
+echo Core\Str::trim($incoming->read(64, 5s) as string), "\n";
+
+$client->close();
+$incoming->close();
+$server->close();

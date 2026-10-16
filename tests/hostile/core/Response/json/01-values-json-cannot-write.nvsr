@@ -1,0 +1,8 @@
+--METHOD--
+GET
+--PATH--
+/api/profile
+--QUERY--
+name=%22%2C%22admin%22%3Atrue%2C%22x%22%3A%22%3C%2Fscript%3E%00%0D%0A
+--HEADERS--
+host: example.com

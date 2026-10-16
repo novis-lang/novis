@@ -1,0 +1,71 @@
+--TEST--
+An `array<int>` or `array<uint>` that already exists is not an `array<float>`, at any depth, as an assignment, an argument, a return or a spread, because its elements are not converted where it is passed on; `as array<float>` is the conversion — `rule:types/arrays`, `rule:types/implicit-widening`
+--FILE--
+<?nvs
+// covers: lang:types/array-t
+
+class Shop
+{
+    public static function total(array<float> $xs): float
+    {
+        return 0.0;
+    }
+
+    public static function back(array<int> $xs): array<float>
+    {
+        return $xs;
+    }
+}
+
+array<int> $whole = [1, 2];
+
+// An assignment.
+array<float> $f = $whole;
+
+// An argument.
+echo Shop::total($whole), "\n";
+
+// A nullable target, and a nested array.
+?array<float> $maybe = $whole;
+array<array<int>> $rows = [[1]];
+array<array<float>> $grid = $rows;
+
+// A `uint` element type.
+array<uint> $counts = [1];
+array<float> $c = $counts;
+
+// A spread into an array literal.
+array<float> $spread = [...$whole];
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0403]: this method declares `array<float>` but returns `array<int>`
+   --> case.nvs:13:16
+%A
+   = help: an `array<int>` that already exists keeps the type of its elements, so it is not converted to `array<float>`. Convert it with `as`, which builds a new array: `$value as array<float>`
+%A
+error[E0401]: expected `array<float>`, found `array<int>`
+   --> case.nvs:20:19
+%A
+error[E0401]: expected `array<float>`, found `array<int>`
+   --> case.nvs:23:18
+%A
+error[E0401]: expected `null|array<float>`, found `array<int>`
+   --> case.nvs:26:24
+%A
+   = help: an `array<int>` that already exists keeps the type of its elements, so it is not converted to `array<float>`. Convert it with `as`, which builds a new array: `$value as array<float>`
+%A
+error[E0401]: expected `array<array<float>>`, found `array<array<int>>`
+   --> case.nvs:28:29
+%A
+   = help: an `array<array<int>>` that already exists keeps the type of its elements, so it is not converted to `array<array<float>>`. Convert it with `as`, which builds a new array: `$value as array<array<float>>`
+%A
+error[E0401]: expected `array<float>`, found `array<uint>`
+   --> case.nvs:32:19
+%A
+error[E0401]: expected `array<float>`, found `array<int>`
+   --> case.nvs:35:28
+%A
+error: aborting due to 7 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

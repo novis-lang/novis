@@ -1,0 +1,3 @@
+# The client sends two messages and then closes the connection.
+text: hello
+text: bye

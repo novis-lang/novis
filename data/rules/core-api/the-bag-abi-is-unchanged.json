@@ -1,0 +1,13 @@
+{
+  "title": "The three-state bag changes which constant fills a slot and nothing else about the ABI",
+  "status": "shipped",
+  "seeAlso": [
+    "core-api/shape-flattens-at-the-abi",
+    "core-api/a-nullable-field-omits-as-the-never-written-marker",
+    "programs/memory-priority"
+  ],
+  "guardedBy": [
+    "crates/nvs-runtime/src/value.rs",
+    "crates/nvs-ir/src/ir.rs"
+  ]
+}

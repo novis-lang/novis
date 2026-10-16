@@ -1,0 +1,17 @@
+<?nvs
+// Shows how to sign two values and read them back from the token.
+
+secret bytes $key = Core\Crypto::generateKey();
+array<secret bytes> $keys = [$key];
+
+// `until: null` means the token never expires.
+array<string> $values = ["file" => "report.pdf", "user" => "42"];
+string $token = Core\Signature::sign($values, { keys: $keys, until: null });
+
+// The token is text that you can put in a URL.
+// For these two values it is always 87 characters long.
+echo Core\Str::length($token), "\n";
+
+// `verify` returns the values that were signed.
+array<tainted string> $back = Core\Signature::verify($token, $keys);
+echo $back["user"], " may download ", $back["file"], "\n";

@@ -1,0 +1,32 @@
+<?nvs
+// `global $x;` and a `static` variable inside a function do not parse. Shows
+// what to write instead: a parameter, and a `private static` property.
+
+class Retry
+{
+    // The count belongs to the class, so it is still there on the next call.
+    private static int $attempts = 0;
+
+    // The limit arrives as a parameter. Nothing is read from outside.
+    public static function attempt(int $limit): bool
+    {
+        self::$attempts = self::$attempts + 1;
+        return self::$attempts <= $limit;
+    }
+
+    public static function attempts(): int
+    {
+        return self::$attempts;
+    }
+}
+
+int $round = 0;
+while ($round < 3) {
+    // The first two calls are allowed, the third is not.
+    if (Retry::attempt(2)) {
+        echo "attempt ", Retry::attempts(), ": allowed\n";
+    } else {
+        echo "attempt ", Retry::attempts(), ": too many\n";
+    }
+    $round = $round + 1;
+}

@@ -1,0 +1,36 @@
+<?nvs
+// Shows how to read one row as an object of your own class. A program loads a
+// single record this way, on a page that shows one order.
+use Core\Db\Derive;
+
+// `#[Derive]` writes the code that fills this class from a row. Each property
+// takes the column of the same name.
+#[Derive]
+class Order {
+    public uint $id;
+    // A text column arrives as `tainted`, because the value comes from the
+    // database.
+    public tainted string $customer;
+    public uint $cents;
+
+    public function constructor(uint $id, tainted string $customer, uint $cents)
+    {
+        $this->id = $id;
+        $this->customer = $customer;
+        $this->cents = $cents;
+    }
+}
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table orders (id integer primary key, customer text not null, cents int not null)', []);
+$db->execute('insert into orders (customer, cents) values (?, ?), (?, ?)', ['Ada Ahmed', 1250, 'Bo Berg', 800]);
+
+// `queryAs<Order>` builds `Order` objects, so `first` gives back an `Order`.
+var $order = $db->queryAs<Order>('select id, customer, cents from orders where id = ?', [2])->first();
+
+// This prints `Bo Berg pays 800`.
+if ($order != null) {
+    echo $order->customer, ' pays ', $order->cents, "\n";
+}
+
+$db->close();

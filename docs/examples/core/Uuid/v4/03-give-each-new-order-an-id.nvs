@@ -1,0 +1,25 @@
+<?nvs
+// Shows how to give each new order its own ID before it is saved anywhere.
+
+class Order {
+    public function constructor(public Core\Uuid $id, public string $customer) {}
+}
+
+// The ID is created with the order, so no database is needed to choose it.
+array<Order> $orders = [
+    new Order(Core\Uuid::v4(), "Anna"),
+    new Order(Core\Uuid::v4(), "Ben"),
+];
+
+// A link to the order contains its ID as text. This prints 44.
+string $link = "/orders/" . $orders[1]->id->toString();
+echo Core\Str::length($link), "\n";
+
+// Later, the ID is read back from the link and the order is found again.
+// This prints Ben.
+Core\Uuid $asked = Core\Uuid::parse(Core\Str::slice($link, 8, 36));
+foreach ($orders as Order $order) {
+    if ($order->id->toString() == $asked->toString()) {
+        echo $order->customer, "\n";
+    }
+}

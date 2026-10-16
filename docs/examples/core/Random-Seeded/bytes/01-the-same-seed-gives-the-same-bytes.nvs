@@ -1,0 +1,12 @@
+<?nvs
+// Shows that two generators with the same seed return the same bytes.
+
+Core\Random\Seeded $first = new Core\Random\Seeded(42);
+Core\Random\Seeded $second = new Core\Random\Seeded(42);
+
+// `Core\Encoding::toHex` shows each byte as two characters. Both lines are the same.
+echo Core\Encoding::toHex($first->bytes(8)), "\n";
+echo Core\Encoding::toHex($second->bytes(8)), "\n";
+
+// The next call returns the next bytes, so this line is different.
+echo Core\Encoding::toHex($first->bytes(8)), "\n";

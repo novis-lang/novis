@@ -1,0 +1,9 @@
+{
+  "title": "A job names a script file, and its payload crosses as a copied value",
+  "status": "shipped",
+  "seeAlso": [
+    "concurrency/a-job-runs-as-a-root-isolate",
+    "concurrency/a-payload-refuses-secret-and-keeps-its-qualifiers"
+  ],
+  "guardedBy": []
+}

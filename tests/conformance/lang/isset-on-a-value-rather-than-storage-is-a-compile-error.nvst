@@ -1,0 +1,43 @@
+--TEST--
+An `isset(...)` operand that names no storage is refused where it is written, and parentheses are transparent — `rule:classes/unset-is-refused-on-a-property`
+--FILE--
+<?nvs
+// PHP refuses the identical shape at compile time and its own message names
+// the replacement: `isset` asks whether *storage* holds something, and an
+// operand that is already a value has nothing to ask that `rule:classes/unset-is-refused-on-a-property`'s own
+// definition — `$x != null` — does not ask more plainly.
+final class Reg {
+    public const string NAME = "n";
+    public static function tag(): ?string {
+        return null;
+    }
+}
+string $s = "x";
+echo isset(Reg::tag()) ? "y" : "n", "\n";
+echo isset($s . "z") ? "y" : "n", "\n";
+echo isset(Reg::NAME) ? "y" : "n", "\n";
+
+// Every operand of a list is judged on its own, so one bad one in a
+// conjunction is one report and the others still stand.
+echo isset($s, Reg::tag()) ? "y" : "n", "\n";
+
+// Parentheses are transparent, exactly as they are in PHP: `isset(($s))` is
+// `isset($s)`, and neither is refused.
+echo isset(($s)) ? "y" : "n", "\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0498]: `isset` asks about storage, and this operand is a value
+   --> case.nvs:13:12
+%A
+error[E0498]: `isset` asks about storage, and this operand is a value
+   --> case.nvs:14:12
+%A
+error[E0498]: `isset` asks about storage, and this operand is a value
+   --> case.nvs:15:12
+%A
+error[E0498]: `isset` asks about storage, and this operand is a value
+   --> case.nvs:19:16
+%A
+error: aborting due to 4 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

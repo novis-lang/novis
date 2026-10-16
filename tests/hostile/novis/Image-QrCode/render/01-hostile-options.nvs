@@ -1,0 +1,47 @@
+<?nvs
+// Attack: a request makes QR codes with extreme text and extreme options.
+// Each attempt should return an image or throw an error, and the server keeps running.
+use Novis\Image\Format;
+use Novis\Image\QrCode;
+
+// 1. An empty text.
+try {
+    echo 'step 1 ran ', Core\Bytes::length(QrCode::render('')), "\n";
+} catch (Throwable $e) {
+    echo "step 1 stopped\n";
+}
+
+// 2. A text of one million characters.
+try {
+    echo 'step 2 ran ', Core\Bytes::length(QrCode::render(Core\Str::repeat('x', 1000000))), "\n";
+} catch (Throwable $e) {
+    echo "step 2 stopped\n";
+}
+
+// 3. A size of 100000 pixels, which makes an image over the pixel limit.
+try {
+    echo 'step 3 ran ', Core\Bytes::length(QrCode::render('https://example.com', { size: 100000 })), "\n";
+} catch (Throwable $e) {
+    echo "step 3 stopped\n";
+}
+
+// 4. The largest possible margin, which overflows when it is added to the code.
+try {
+    echo 'step 4 ran ', Core\Bytes::length(QrCode::render('https://example.com', { margin: 18446744073709551615 })), "\n";
+} catch (Throwable $e) {
+    echo "step 4 stopped\n";
+}
+
+// 5. A size of 0 pixels.
+try {
+    echo 'step 5 ran ', Core\Bytes::length(QrCode::render('https://example.com', { size: 0 })), "\n";
+} catch (Throwable $e) {
+    echo "step 5 stopped\n";
+}
+
+// 6. A format that can only be read, not written.
+try {
+    echo 'step 6 ran ', Core\Bytes::length(QrCode::render('https://example.com', { format: Format::Pdf })), "\n";
+} catch (Throwable $e) {
+    echo "step 6 stopped\n";
+}

@@ -1,0 +1,20 @@
+---
+title: Read a JSON body
+covers: []
+description: Read the JSON that a client sends into an instance of your own class.
+---
+
+import Snippet from '@components/Snippet.astro'
+
+A client sends an order as JSON in the body of a `POST` request. This program reads the body into
+an `Order` object.
+
+<Snippet src="guides/cookbook/read-json-body/read-json-body.nvs" />
+
+The output above is for the body `{"product":"green tea","quantity":3}`.
+
+`#[Core\Json\Derive]` lets Novis fill an `Order` from JSON. Each public field reads the key with
+the same name. If a key is missing, or has the wrong type, `Core\Request::jsonAs` throws a
+`ParseError`. Its `issues` list has one entry for each wrong field.
+
+Read [Core\Request](/reference/core/request/) for the other ways to read a request.

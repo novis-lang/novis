@@ -1,0 +1,61 @@
+--TEST--
+A request carries one body, and which of the four keys it was written under is what says how it is framed and what type it is sent as — `rule:http-server/an-outbound-request-carries-one-body`
+--FILE--
+<?nvs
+// The claim is *invariance over a sweep*: four calls differing only in which
+// body key they wrote, asserted by walking the records rather than by reading
+// one of them, so a framing that answers one key plausibly and sends another
+// under the wrong type still fails here. Nothing below is granted `net.connect`
+// and no socket is opened — the table answers every call, and what a record
+// holds is the framing a real call would have written
+// (`rule:testing/an-outbound-call-is-answered-from-a-table`).
+Core\Test::answerHttp("https://api.example.com/*", 200, {body: "ok"});
+
+// `json` is the value as a document, encoded once for the call: an object stays
+// an object rather than being sniffed out of an array of strings, which is why
+// there are four keys and no mode beside one of them
+// (`rule:core-api/no-mode-strings`).
+var $json = Core\Http\Client::post("https://api.example.com/json", {json: ["name" => "ada", "active" => true]});
+// `form` percent-encodes the same map under the encoding its name gives, where
+// a space is `+` and `+` is not a space.
+var $form = Core\Http\Client::post("https://api.example.com/form", {form: ["name" => "ada lovelace", "note" => "a+b"]});
+// `body` sends the octets as given, under the `contentType` that types them and
+// means nothing without them.
+var $raw = Core\Http\Client::post("https://api.example.com/raw", {body: "the octets as given", contentType: "text/plain"});
+// `multipart` frames a map as segments, and a `Core\Http\Part` is the arm of a
+// field that carries a name and a type of its own.
+var $multipart = Core\Http\Client::post("https://api.example.com/multipart", {multipart: [
+    "name" => "ada",
+    "avatar" => Core\Http\Part::bytes("PNG.", "avatar.png", {contentType: "image/png"}),
+]});
+
+// One line per call, read off the record rather than off the option: the type
+// is the framing's own answer and the program wrote none of the four. A
+// multipart boundary is drawn per call, so what is asserted about that one is
+// the part of the header that cannot vary and the length, which the boundary's
+// fixed width leaves fixed.
+var $sent = Core\Test::sentHttp();
+echo Core\Arr::count($sent), "\n";
+foreach ($sent as Core\Test\SentRequest $call) {
+    string $type = $call->header("content-type") ?? "-";
+    if (Core\Str::startsWith($type, "multipart/form-data; boundary=----NovisBoundary")) {
+        $type = "multipart/form-data, boundary drawn per call";
+    }
+    echo $call->url(), " ", $type, " ", Core\Bytes::length($call->body()), "\n";
+}
+
+// The three whose framing is fixed, byte for byte.
+foreach ($sent as Core\Test\SentRequest $call) {
+    if (!Core\Str::startsWith($call->header("content-type") ?? "-", "multipart/")) {
+        echo ($call->body() as string), "\n";
+    }
+}
+--EXPECT--
+4
+https://api.example.com/json application/json 28
+https://api.example.com/form application/x-www-form-urlencoded 28
+https://api.example.com/raw text/plain 19
+https://api.example.com/multipart multipart/form-data, boundary drawn per call 316
+{"name":"ada","active":true}
+name=ada+lovelace&note=a%2Bb
+the octets as given

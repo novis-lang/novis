@@ -1,0 +1,26 @@
+<?nvs
+// Attack: a request sends a name made only of the characters that have a meaning in a
+// DN. The text should keep it as one value, and the program must keep running.
+// hostile: timeout-ms 60000
+
+// 1. Every special character, with a space and a `#` at the start.
+tainted string $name = " #\"+,;<>\\= \n ";
+var $dn = Core\Ldap\Dn::of('DC', 'test')->child('CN', $name);
+var $text = $dn->toString();
+echo '1 length: ', Core\Str::length($text), "\n";
+
+// 2. The same characters, one hundred thousand times.
+try {
+    var $long = Core\Ldap\Dn::of('CN', Core\Str::repeat($name, 100000));
+    echo '2 length: ', Core\Str::length($long->toString()), "\n";
+} catch (Throwable $error) {
+    echo "2 threw\n";
+}
+
+// 3. The text, written into a `Core\Ldap\Filter`, is still one value.
+try {
+    var $filter = Core\Ldap\Filter::equals('distinguishedName', $text);
+    echo '3 length: ', Core\Str::length($filter->toString()), "\n";
+} catch (Throwable $error) {
+    echo "3 threw\n";
+}

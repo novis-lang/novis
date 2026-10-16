@@ -1,0 +1,46 @@
+--TEST--
+A `private` method publishes its parameters' declared types exactly as a `public` one does, and a method declaring no parameter has no row to ask rather than a row answering nothing — `rule:core-classes/reflect`
+--FILE--
+<?nvs
+// A parameter's type is *shape*, not access: it is what the declaration
+// published, and no call is made to learn it. So visibility gates reading and
+// writing a value and gates nothing here — a description that filtered the
+// roster by visibility would answer a `private` method's arity and refuse to
+// say what it takes, which is the half-answer this asserts against.
+class Say {
+    public static function text(?string $value): string {
+        if ($value == null) { return "<none>"; }
+        return $value;
+    }
+}
+
+class Vault {
+    public function open(string $key): bool {
+        return true;
+    }
+
+    private function seal(string $key, int $turns): bool {
+        return true;
+    }
+
+    // Declared, and declaring nothing. Its roster is empty because there is
+    // nothing to list, which is the same empty a member no source spelled
+    // answers with — and there the *count* is what tells the two apart.
+    public function close(): bool {
+        return true;
+    }
+}
+
+var $described = Core\Reflect::forObject(new Vault());
+
+foreach ($described->methods() as Core\Reflect\MethodInfo $method) {
+    echo $method->name(), " count=", $method->parameterCount(), " types=";
+    foreach ($method->parameters() as Core\Reflect\ParameterInfo $parameter) {
+        echo " ", Say::text($parameter->type());
+    }
+    echo "\n";
+}
+--EXPECT--
+close count=0 types=
+open count=1 types= string
+seal count=2 types= string int

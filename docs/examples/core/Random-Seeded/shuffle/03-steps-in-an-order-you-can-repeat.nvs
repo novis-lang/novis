@@ -1,0 +1,12 @@
+<?nvs
+// Shows how to run test steps in a random order that you can repeat.
+
+// Running steps in a new order finds a step that needs another step to run first.
+// The seed is printed, so a failed run can be repeated in exactly the same order.
+array<string> $steps = ["create user", "log in", "add to cart", "pay", "log out"];
+int $seed = 7;
+Core\Random\Seeded $generator = new Core\Random\Seeded($seed);
+echo "seed ", $seed, "\n";
+foreach ($generator->shuffle($steps) as string $step) {
+    echo "run: ", $step, "\n";
+}

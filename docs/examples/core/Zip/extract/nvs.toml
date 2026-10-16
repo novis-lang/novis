@@ -1,0 +1,6 @@
+# The examples write files in a new folder from `Core\IO::temporaryDir()`.
+# The path of that folder is different on every computer, so these lines allow
+# reading and writing files, and nothing else.
+[capabilities.fs]
+read = true
+write = true

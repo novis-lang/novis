@@ -1,0 +1,26 @@
+<?nvs
+// Shows a `while` loop. The condition is tested before every round, including
+// the first one, so a list that is already empty means no round at all.
+
+class Queue
+{
+    public static function drain(array<string> $jobs): int
+    {
+        int $done = 0;
+        int $at = 0;
+        while ($at < Core\Arr::count($jobs)) {
+            echo "running ", $jobs[$at as string], "\n";
+            $done = $done + 1;
+            $at = $at + 1;
+        }
+        return $done;
+    }
+}
+
+array<string> $jobs = ["backup", "send mail", "clean up"];
+// This prints one line per job, then 3.
+echo Queue::drain($jobs), "\n";
+
+array<string> $none = [];
+// This prints 0. The condition was false at the start, so the body never ran.
+echo Queue::drain($none), "\n";

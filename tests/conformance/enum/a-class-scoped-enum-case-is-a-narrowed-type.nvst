@@ -1,0 +1,34 @@
+--TEST--
+`Owner::Name::Case` in type position is that case's own narrowed type, and inside the owner `Name::Case` is the same type — `rule:enums/class-scoped-enum`, `rule:types/enum-case-type`
+--FILE--
+<?nvs
+namespace Shop;
+
+final class Order {
+    enum Status { Open, Paid, Cancelled }
+
+    // Inside the owner, a union of two cases with the bare spelling.
+    public static function settle(Status::Paid|Status::Cancelled $done): string {
+        return $done == Status::Paid ? "paid" : "cancelled";
+    }
+}
+
+final class Ledger {
+    // Outside the owner, one case with the qualified spelling.
+    public static function book(Order::Status::Paid $paid): int {
+        return $paid as int;
+    }
+}
+
+echo Order::settle(Order::Status::Paid), "\n";
+echo Order::settle(Order::Status::Cancelled), "\n";
+echo Ledger::book(Order::Status::Paid), "\n";
+
+// A case type widens to its whole enum.
+Order::Status $any = Order::Status::Paid;
+echo $any as int, "\n";
+--EXPECT--
+paid
+cancelled
+1
+1

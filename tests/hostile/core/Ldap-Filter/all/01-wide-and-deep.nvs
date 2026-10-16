@@ -1,0 +1,41 @@
+<?nvs
+// Attack: a program combines very many filters, and puts combinations inside
+// each other until the limit. Too deep must throw an error, and nothing may crash.
+// hostile: timeout-ms 60000
+
+// 1. One `all` with one hundred thousand filters in it.
+array<Core\Ldap\Filter> $parts = [];
+uint $i = 0;
+while ($i < 100000) {
+    $parts[] = Core\Ldap\Filter::equals('cn', $i as string);
+    $i = $i + 1;
+}
+try {
+    var $wide = Core\Ldap\Filter::all(...$parts);
+    echo '1 length: ', Core\Str::length($wide->toString()), "\n";
+} catch (Throwable $error) {
+    echo "1 threw\n";
+}
+
+// 2. `all` inside `all`, one thousand times. The 101st level must throw an error.
+var $deep = Core\Ldap\Filter::present('mail');
+uint $levels = 1;
+try {
+    while ($levels < 1000) {
+        $deep = Core\Ldap\Filter::all($deep, Core\Ldap\Filter::present('cn'));
+        $levels = $levels + 1;
+    }
+    echo "2 not refused\n";
+} catch (LogicError $tooDeep) {
+    echo '2 refused at level ', $levels + 1, "\n";
+}
+echo '2 length: ', Core\Str::length($deep->toString()), "\n";
+
+// 3. No filter at all. It must throw an error.
+try {
+    array<Core\Ldap\Filter> $none = [];
+    Core\Ldap\Filter::all(...$none);
+    echo "3 built\n";
+} catch (LogicError $empty) {
+    echo "3 refused\n";
+}

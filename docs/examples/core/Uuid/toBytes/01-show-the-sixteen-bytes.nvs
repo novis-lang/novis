@@ -1,0 +1,12 @@
+<?nvs
+// Shows the sixteen bytes of a UUID, written as hexadecimal.
+
+var $id = Core\Uuid::parse("f9168c5e-ceb2-4faa-b6bf-329bf39fa1e4");
+bytes $octets = $id->toBytes();
+
+// This prints 16.
+echo Core\Bytes::length($octets), "\n";
+
+// The bytes are the digits of the text without the hyphens.
+// This prints f9168c5eceb24faab6bf329bf39fa1e4.
+echo Core\Encoding::toHex($octets), "\n";

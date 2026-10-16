@@ -1,0 +1,50 @@
+--TEST--
+Core\Encoding::encodeText throws on the first character the charset cannot write, and the message names the charset, the character's code point and its byte offset
+--FILE--
+<?nvs
+final class Refusal {
+    // Checks that the message names the method, the charset, the code point
+    // and the offset.
+    public static function names(string $message, string $case, string $point, string $offset): string {
+        bool $ok = Core\Str::startsWith($message, "Core\\Encoding::encodeText(): ")
+            && Core\Str::contains($message, "Core\\Charset::" . $case)
+            && Core\Str::contains($message, "(U+" . $point . ")")
+            && Core\Str::contains($message, "at offset " . $offset);
+        return $ok as string;
+    }
+}
+
+uint $refused = 0;
+
+// `é` has no ASCII byte.
+try { Core\Encoding::encodeText("café au lait", Core\Charset::Ascii); }
+catch (Throwable $e) { $refused = $refused + 1; echo "ascii|", Refusal::names($e->message, "Ascii", "00E9", "3"), "\n"; }
+
+// A snowman has no Latin-1 byte. The offset counts bytes of the UTF-8 input.
+try { Core\Encoding::encodeText("a☃b", Core\Charset::Latin1); }
+catch (Throwable $snow) { $refused = $refused + 1; echo "latin1|", Refusal::names($snow->message, "Latin1", "2603", "1"), "\n"; }
+
+// Shift_JIS can write both kana. It cannot write the euro sign.
+try { Core\Encoding::encodeText("あ€ア", Core\Charset::ShiftJis); }
+catch (Throwable $jis) { $refused = $refused + 1; echo "shiftjis|", Refusal::names($jis->message, "ShiftJis", "20AC", "3"), "\n"; }
+
+// ISO-8859-2 can write `žluť`. The error names the euro sign, seven bytes in.
+try { Core\Encoding::encodeText("žluť €", Core\Charset::Iso88592); }
+catch (Throwable $cz) { $refused = $refused + 1; echo "iso88592|", Refusal::names($cz->message, "Iso88592", "20AC", "7"), "\n"; }
+
+// All four calls above must throw.
+echo "refused=", $refused, "/4\n";
+
+// To skip a character, remove it from the text first.
+echo Core\Encoding::toHex(Core\Encoding::encodeText(Core\Str::replace("a☃b", "☃", ""), Core\Charset::Latin1)), "\n";
+
+// To write a similar character, replace it in the text first.
+echo Core\Encoding::toHex(Core\Encoding::encodeText(Core\Str::replace("café au lait", "é", "e"), Core\Charset::Ascii)), "\n";
+--EXPECT--
+ascii|1
+latin1|1
+shiftjis|1
+iso88592|1
+refused=4/4
+6162
+63616665206175206c616974

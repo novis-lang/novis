@@ -1,0 +1,11 @@
+<?nvs
+// `limits.memory_high_water` writes a warning to the log when a request uses most of its memory limit.
+
+echo 'memory limit:    ', Core\Config::get('limits.memory'), "\n";
+echo 'warning at:      ', Core\Config::get('limits.memory_high_water') ?? '(unset)', "\n";
+
+// Only the person who runs the server may set the warning. A program cannot
+// turn it on or change it, so both calls return `false`.
+echo 'warn at half:    ', Core\Config::set('limits.memory_high_water', '0.5') ? 'accepted' : 'refused', "\n";
+echo 'warn always:     ', Core\Config::set('limits.memory_high_water', '0') ? 'accepted' : 'refused', "\n";
+echo 'still:           ', Core\Config::get('limits.memory_high_water') ?? '(unset)', "\n";

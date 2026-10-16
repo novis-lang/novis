@@ -1,0 +1,20 @@
+--TEST--
+a method's own declaration highlights the two calls in the file that resolve to it and not the declaration under the cursor, `rule:ide/five-features-are-one-reference-index`
+--FILE--
+<?nvs
+class User
+{
+    public function gr<|>eet(): string
+    {
+        return "hi";
+    }
+}
+
+var $u = new User();
+echo $u->greet();
+echo $u->greet();
+--REQUEST--
+documentHighlight
+--EXPECT--
+case.nvs:11:10
+case.nvs:12:10

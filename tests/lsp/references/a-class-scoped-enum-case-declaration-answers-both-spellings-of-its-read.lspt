@@ -1,0 +1,22 @@
+--TEST--
+a case of an enum a class declares answers itself, the read written through its owner and the bare read inside the owner, and not the case beside it, `rule:enums/class-scoped-enum`, `rule:ide/five-features-are-one-reference-index`
+--FILE--
+<?nvs
+class Order
+{
+    enum Status { Dr<|>aft, Paid }
+
+    public function fresh(): Status
+    {
+        return Status::Draft;
+    }
+}
+
+var $s = Order::Status::Draft;
+var $t = Order::Status::Paid;
+--REQUEST--
+references
+--EXPECT--
+case.nvs:4:19
+case.nvs:8:24
+case.nvs:12:25

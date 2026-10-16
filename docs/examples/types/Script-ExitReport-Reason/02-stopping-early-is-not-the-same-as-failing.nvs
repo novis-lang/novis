@@ -1,0 +1,24 @@
+<?nvs
+// `Core\Script::finish()` stops a script that has done its work. The exit reason is `Finish`.
+// It is not a failure. The status is `0` and every `finally` block still runs.
+// It is not an error either, so no `catch` block runs.
+
+Core\Script::onExit(fn (Core\Script\ExitReport $report): void => {
+    string $ending = match ($report->reason()) {
+        Core\Script\ExitReport::Reason::Normal => "ran to the end",
+        Core\Script\ExitReport::Reason::ExitCall => "called exit",
+        Core\Script\ExitReport::Reason::UncaughtThrow => "threw something nobody caught",
+        Core\Script\ExitReport::Reason::Finish => "stopped itself, having finished",
+    };
+    echo "on the way out: ", $ending, ", status ", $report->status(), "\n";
+});
+
+try {
+    echo "the answer is ready\n";
+    Core\Script::finish();
+    echo "this line never runs\n";
+} catch (Throwable $caught) {
+    echo "no catch arm sees a finish\n";
+} finally {
+    echo "but every finally does\n";
+}

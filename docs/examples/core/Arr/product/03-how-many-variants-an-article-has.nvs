@@ -1,0 +1,19 @@
+<?nvs
+// Shows how to count the variants of an article in a shop. Every option has
+// its own choices, and all the counts multiplied together give the number of
+// variants a customer can order.
+
+array<array<string>> $options = [
+    'size' => ['S', 'M', 'L', 'XL'],
+    'colour' => ['black', 'white'],
+    'print' => ['none', 'logo', 'photo'],
+];
+
+// `Core\Arr::map` turns every option into how many choices it has.
+array<int> $counts = Core\Arr::map(
+    $options,
+    fn(array<string> $choices): int => Core\Arr::count($choices) as int
+);
+
+// This prints 24.
+echo 'variants: ', Core\Arr::product($counts), "\n";

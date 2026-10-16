@@ -1,0 +1,28 @@
+---
+title: "8. Tests"
+covers: []
+description: Write tests next to your code and run them with nvs test.
+---
+
+import Snippet from '@components/Snippet.astro'
+
+Tests live in the same files as the code. A method with `#[Test]` is a test:
+
+<Snippet src="guides/tour/08-tests.nvs" />
+
+`nvs run` runs the program and skips the tests. `nvs test tour.nvs` runs only the tests, and
+prints one line for each:
+
+```txt
+  TaskTest
+    ✓ newTaskIsOpen                    0.3 ms
+    ✓ doneTaskIsChecked                0.0 ms
+
+  0 failed, 2 passed, 0 skipped, 0 flaky in 2 ms
+```
+
+`Test::assertSame` checks that two values are the same. When they are not, the test fails.
+
+Read more in [Syntax: writing tests](/syntax/testing/writing-tests/).
+
+Next: [step 9, HTML](/guides/tour/09-html/).

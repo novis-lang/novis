@@ -1,0 +1,12 @@
+{
+  "title": "`exit` is the only process-termination keyword; `die` is refused",
+  "status": "shipped",
+  "seeAlso": [
+    "statements/nvs-is-the-only-open-tag",
+    "statements/exit-stops-the-program-where-it-stands"
+  ],
+  "guardedBy": [
+    "tests/conformance/reject/die-is-refused-in-favour-of-exit.nvst",
+    "crates/nvs-syntax/src/parser/tests/stmt.rs"
+  ]
+}

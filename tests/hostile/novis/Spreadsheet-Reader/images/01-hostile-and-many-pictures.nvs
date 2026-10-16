@@ -1,0 +1,52 @@
+<?nvs
+// Attack: a request uploads a sheet with pictures that are not pictures, very large pictures, or very many pictures.
+// `images` should return the bytes as they are and run nothing. A picture the writer does not allow should throw an error.
+use Novis\Spreadsheet\Reader;
+use Novis\Spreadsheet\Workbook;
+
+class Attack
+{
+    // This method puts `$data` at C2, reads it back and prints its format and size, or the class of the error.
+    public static function attempt(int $step, bytes $data): void
+    {
+        try {
+            var $book = Workbook::createInMemory();
+            $book->sheet('Shop')->image('C2', $data)->add(['Widget']);
+            bytes $file = $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
+            foreach (Reader::open($file)->images(0) as var $image) {
+                echo 'step ', $step, ' read ', $image->format, ', ', $image->image == $data ? 'the same bytes' : 'other bytes', "\n";
+            }
+        } catch (Throwable $e) {
+            echo 'step ', $step, ' stopped ', $e::class, "\n";
+        }
+    }
+}
+
+bytes $png = Core\Encoding::fromBase64('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==');
+
+// 1. An HTML page, an SVG file with a script, and no bytes.
+Attack::attempt(1, '<html><script>alert(1)</script></html>' as bytes);
+Attack::attempt(1, '<svg xmlns="http://www.w3.org/2000/svg" onload="alert(1)"/>' as bytes);
+Attack::attempt(1, Core\Bytes::fill(0, 0));
+
+// 2. The first 8 bytes of a PNG file alone, and followed by a script.
+bytes $start = Core\Bytes::slice($png, 0, 8);
+Attack::attempt(2, $start);
+Attack::attempt(2, Core\Bytes::join([$start, '<script>alert(1)</script>' as bytes]));
+
+// 3. A PNG file followed by 5 MB of zeros. In the file it is a few kB, so reading it should throw an error.
+Attack::attempt(3, Core\Bytes::join([$png, Core\Bytes::fill(5000000, 0)]));
+
+// 4. 2,000 pictures on one sheet, read 10 times.
+var $book = Workbook::createInMemory();
+var $sheet = $book->sheet('Shop');
+for (int $n = 1; $n <= 2000; $n++) {
+    $sheet->image("A{$n}", $png);
+}
+$sheet->add(['Widget']);
+Reader $reader = Reader::open($book->finish()->bytes ?? Core\Bytes::fill(0, 0));
+uint $count = 0;
+for (int $round = 0; $round < 10; $round++) {
+    $count = Core\Arr::count($reader->images('Shop'));
+}
+echo 'step 4 read ', $count, " pictures\n";

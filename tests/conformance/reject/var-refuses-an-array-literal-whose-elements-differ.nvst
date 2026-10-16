@@ -1,0 +1,52 @@
+--TEST--
+`var` refuses an array literal whose elements have two types, a qualifier included, an empty one at any depth, and the same as a `foreach` subject, each once with the type to write — `rule:types/var-inference`
+--FILE--
+<?nvs
+// covers: lang:types/every-binding-has-a-type, lang:types/array-t
+class User {}
+class Admin extends User {}
+class Form {
+    public static function row(tainted string $name): void {
+        var $pair = [$name, "plain"];
+    }
+}
+
+var $row = [1, "a"];
+var $maybe = [1, null];
+var $prices = [10, 12.5];
+var $people = [new User(), new Admin()];
+var $empty = [];
+var $nested = [[1], []];
+var $grid = [[1], ["a"]];
+foreach ([1, "a"] as var $x) {
+}
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0414]: `var` cannot infer an array whose elements have different types
+  --> case.nvs:7:21
+%A
+  = help: write the type: `array<tainted string|string> $pair = [$name, "plain"];`
+%A
+   = help: write the type: `array<int|string> $row = [1, "a"];`
+%A
+   = help: write the type: `array<?int> $maybe = [1, null];`
+%A
+   = help: write the type: `array<int|float> $prices = [10, 12.5];`
+%A
+   = help: write the type: `array<User|Admin> $people = [new User(), new Admin()];`
+
+error[E0414]: `var` cannot infer the type of an empty array
+   --> case.nvs:15:14
+%A
+   = help: write the type: `array<T> $empty = [];`, with the element type in place of `T`
+
+error[E0414]: `var` cannot infer the type of an empty array
+   --> case.nvs:16:21
+%A
+   = help: write the type: `array<array<int>|array<string>> $grid = [[1], ["a"]];`
+%A
+   = help: put the array in a typed local first, `array<int|string> $items = [1, "a"];`, and loop over `$items`
+
+error: aborting due to 9 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

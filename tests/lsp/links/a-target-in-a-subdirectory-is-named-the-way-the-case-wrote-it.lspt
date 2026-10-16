@@ -1,0 +1,17 @@
+--TEST--
+two links in one document, each naming its target as the case spelled it rather than as the machine stores it, `rule:ide/the-rendering-has-one-home`
+--FILE--
+<?nvs
+require 'lib/user.nvs';
+require 'lib/cart.nvs';
+--FILE lib/user.nvs--
+<?nvs
+class User { }
+--FILE lib/cart.nvs--
+<?nvs
+class Cart { }
+--REQUEST--
+documentLink
+--EXPECT--
+2:9-2:23 -> lib/user.nvs
+3:9-3:23 -> lib/cart.nvs

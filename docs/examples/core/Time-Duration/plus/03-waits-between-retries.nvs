@@ -1,0 +1,14 @@
+<?nvs
+// Adds up the waits of a program that tries a request again, and waits twice as long each time.
+
+Core\Time\Duration $wait = 200ms;
+Core\Time\Duration $waited = 0s;
+
+// This prints the total after each wait: 200ms, 600ms, 1s400ms and 3s.
+int $attempt = 1;
+while ($attempt <= 4) {
+    $waited = $waited->plus($wait);
+    echo $waited->toString(), "\n";
+    $wait = $wait->multipliedBy(2);
+    $attempt = $attempt + 1;
+}

@@ -1,0 +1,19 @@
+<?nvs
+// Shows how to check if a map has any entries.
+
+final class Room {
+    public string $name;
+
+    public function constructor(string $name) {
+        $this->name = $name;
+    }
+}
+
+Core\ObjectMap<Room, int> $guests = new Core\ObjectMap<Room, int>();
+
+// A new map has no entries. This prints `true`.
+echo $guests->isEmpty() ? "true" : "false", "\n";
+
+// After one `set`, the map is not empty. This prints `false`.
+$guests->set(new Room("Blue"), 2);
+echo $guests->isEmpty() ? "true" : "false", "\n";

@@ -1,0 +1,44 @@
+<?nvs
+// Attack: a program reads a port very many times, opens many servers and reads each port, then reads a closed one.
+// No read should use more memory each time, and the closed server should throw.
+
+// 1. One port, read one hundred thousand times.
+Core\Net\Listener $server = Core\Net::listen('127.0.0.1', 0);
+uint $first = $server->port();
+uint $same = 0;
+uint $i = 0;
+while ($i < 100000) {
+    if ($server->port() == $first) {
+        $same = $same + 1;
+    }
+    $i = $i + 1;
+}
+echo '1 same ', $same, "\n";
+
+// 2. Many servers that are never closed. The request closes them when it ends.
+uint $real = 0;
+$i = 0;
+while ($i < 100) {
+    try {
+        uint $port = Core\Net::listen('127.0.0.1', 0)->port();
+        if ($port >= 1 && $port <= 65535) {
+            $real = $real + 1;
+        }
+    } catch (RuntimeError $e) {
+    }
+    $i = $i + 1;
+}
+echo '2 real ', $real > 0 ? 'some' : 'none', "\n";
+
+// 3. A port read on a server that is already closed, twice.
+$server->close();
+try {
+    $server->port();
+} catch (RuntimeError $e) {
+    echo "3a ok\n";
+}
+try {
+    $server->port();
+} catch (RuntimeError $e) {
+    echo "3b ok\n";
+}

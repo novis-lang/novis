@@ -1,0 +1,15 @@
+<?nvs
+// Shows how to convert a `Core\BigInt` to a `uint`, which holds whole numbers
+// from 0 upwards.
+
+// `toUint` returns the `uint` equal to this number. This prints 42.
+echo Core\BigInt::of(42)->toUint(), "\n";
+
+// The result is a `uint`, so you can use it where a count is needed. This
+// prints 84.
+uint $count = Core\BigInt::of(42)->toUint();
+echo $count * 2, "\n";
+
+// A `uint` reaches one bit further up than an `int` does. This prints
+// 18446744073709551615, the largest number a `uint` holds.
+echo Core\BigInt::parse("18446744073709551615")->toUint(), "\n";

@@ -1,0 +1,17 @@
+--TEST--
+one answer is about one document: the graph is resolved through the required file, and that file's own diagnostics are not published under this one's URI, `rule:ide/an-open-document-is-its-own-entry-point`
+--FILE--
+<?nvs
+require 'lib.nvs';
+var $stray = $nope;
+--FILE lib.nvs--
+<?nvs
+class Counter {
+    public function count(): int {
+        return "not an int";
+    }
+}
+--REQUEST--
+diagnostics
+--EXPECT--
+3:14-3:19 error E0301 `$nope` is not declared

@@ -1,0 +1,41 @@
+<?nvs
+// Attack: text typed into a search box is full of `*` and `)`, to make the
+// search match everything. Each text must stay one value, and nothing may crash.
+
+// 1. Texts that would be wildcards or new filters, if they were filter text.
+array<string> $typed = ['*', '**', 'a*b', '*)(objectClass=*', "\\", "\x00"];
+foreach ($typed as string $text) {
+    try {
+        echo '1 ', Core\Ldap\Filter::startsWith('cn', $text)->toString(), "\n";
+    } catch (Throwable $error) {
+        echo "1 threw\n";
+    }
+}
+
+// 2. An empty text. It must throw an error and not match everything.
+try {
+    Core\Ldap\Filter::startsWith('cn', '');
+    echo "2 built\n";
+} catch (LogicError $empty) {
+    echo "2 refused\n";
+}
+
+// 3. A text of one million characters.
+try {
+    var $long = Core\Ldap\Filter::startsWith('cn', Core\Str::repeat('*', 1000000));
+    echo '3 length: ', Core\Str::length($long->toString()), "\n";
+} catch (Throwable $error) {
+    echo "3 threw\n";
+}
+
+// 4. Attribute names that try to carry filter text. Each one must throw an error.
+array<string> $names = ['', 'cn=*', 'cn)(cn', '*'];
+uint $refused = 0;
+foreach ($names as string $name) {
+    try {
+        Core\Ldap\Filter::startsWith($name, 'a');
+    } catch (LogicError $notAName) {
+        $refused = $refused + 1;
+    }
+}
+echo '4 refused: ', $refused, ' of ', Core\Arr::count($names), "\n";

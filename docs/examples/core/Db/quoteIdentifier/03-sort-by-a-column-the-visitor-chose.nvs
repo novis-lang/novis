@@ -1,0 +1,26 @@
+<?nvs
+// Shows a list page that sorts by a column the visitor picked. A column name
+// cannot be sent as a placeholder, so it is checked before the statement is
+// built.
+
+class Report {
+    public static function statement(string $sort, string $direction): string {
+        string $column = Core\Db::quoteIdentifier($sort);
+        string $order = "ASC";
+        if ($direction == "desc") {
+            $order = "DESC";
+        }
+        return "SELECT id, total FROM orders ORDER BY " . $column . " " . $order . " LIMIT ?";
+    }
+}
+
+// This prints the statement the database will run.
+echo Report::statement("created_at", "desc"), "\n";
+
+// A visitor who sends something else gets no statement at all. The error comes
+// from the check, before any text is built.
+try {
+    echo Report::statement("total, (SELECT secret FROM users)", "asc"), "\n";
+} catch (LogicError $error) {
+    echo "there is no column with that name", "\n";
+}

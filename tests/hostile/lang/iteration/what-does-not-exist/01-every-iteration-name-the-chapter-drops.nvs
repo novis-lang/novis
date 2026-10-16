@@ -1,0 +1,74 @@
+<?nvs
+// Attack: give the compiler every iteration name this chapter does not have, in one file,
+// nested as deep as the parser will follow. The compiler must print errors and stop. It must
+// not crash, hang, or run any line of this.
+// covers: lang:iteration/what-does-not-exist
+// hostile: expect-refusal
+// hostile: timeout-ms 20000
+
+// 1. The interfaces that are not declared, each one in an `implements` clause.
+class Sized implements Countable
+{
+    public function count(): int
+    {
+        return 1;
+    }
+}
+
+class Indexed implements ArrayAccess
+{
+    public function offsetGet(int $at): int
+    {
+        return $at;
+    }
+}
+
+class Aggregate implements IteratorAggregate
+{
+    public function getIterator(): Iterator<int>
+    {
+        yield 1;
+    }
+}
+
+class Walkable implements Traversable, Countable, ArrayAccess, IteratorAggregate
+{
+}
+
+// 2. The same names written as types, on a property, a parameter and a return.
+class Holder
+{
+    public Countable $counted;
+
+    public function take(Traversable $t, ArrayAccess $a): IteratorAggregate
+    {
+        return $t;
+    }
+}
+
+// 3. The `Generator` class, which a generator never returns.
+class Steps
+{
+    public static function upTo(int $n): Generator
+    {
+        yield $n;
+    }
+}
+
+Generator $g = Steps::upTo(3);
+var $built = new Generator();
+
+// 4. The free functions, plain and nested inside each other.
+var $rows = iterator_to_array(Steps::upTo(3));
+echo count($rows), "\n";
+echo count(iterator_to_array(Steps::upTo(count([1, 2])))), "\n";
+echo current($rows), next($rows), reset($rows), "\n";
+echo current(next(reset(current($rows)))), "\n";
+
+// 5. Reading and writing an element of an object, which has no interface behind it.
+var $bag = new Sized();
+echo $bag[0], "\n";
+$bag[1] = 2;
+echo $bag[0][1][2], "\n";
+
+echo "this line must never run\n";

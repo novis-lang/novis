@@ -1,0 +1,23 @@
+<?nvs
+// Sets the PDF standard of a document, as an archive does for each file before it renders it.
+// bench: iterations 4096
+// bench: complexity constant
+use Novis\Pdf\Document;
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        var $report = Document::fromHtml("<html lang=\"en\"><head><title>Report</title></head><body><h1>Report</h1></body></html>");
+        array<Document::Standard> $standards = [Document::Standard::PdfA2b, Document::Standard::PdfA3b, Document::Standard::PdfUa1];
+        array<Document> $documents = [];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            $documents[] = $report->standard($standards[($total % 3) as int]);
+            $total = $total + 1;
+            $i = $i + 1;
+        }
+        return $total + Core\Arr::count($documents);
+    }
+}
+
+echo Bench::run(4096), "\n";

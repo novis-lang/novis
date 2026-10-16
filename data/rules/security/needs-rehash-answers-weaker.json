@@ -1,0 +1,14 @@
+{
+  "title": "`needsRehash` measures weaker rather than different, so every bcrypt hash asks to be rewritten",
+  "status": "shipped",
+  "seeAlso": [
+    "security/bcrypt-read-roster",
+    "security/hash-writes-argon2id-only"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/password-needs-rehash-answers-weaker-not-different.nvst",
+    "tests/conformance/core/password-needs-rehash-names-both-sides-of-its-cost-floor.nvst",
+    "crates/nvs-stdlib/src/password.rs",
+    "tests/conformance/core/password-verify-reads-a-php-stored-bcrypt-hash-and-upgrades-it.nvst"
+  ]
+}

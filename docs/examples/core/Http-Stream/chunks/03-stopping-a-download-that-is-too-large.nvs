@@ -1,0 +1,25 @@
+<?nvs
+// Shows how to stop a download when it becomes larger than a limit you choose.
+
+// This server sends 60 bytes. The program allows at most 32.
+Core\Test::answerHttp("https://images.example.com/avatar.jpg", 200, {body: Core\Str::repeat("x", 60)});
+
+uint $limit = 32;
+uint $received = 0;
+bool $tooLarge = false;
+Core\Http\Stream $avatar = Core\Http\Client::stream(Core\Http\Method::Get, "https://images.example.com/avatar.jpg");
+foreach ($avatar->chunks() as tainted bytes $piece) {
+    $received = $received + Core\Bytes::length($piece);
+    // `break` stops the loop. The rest of the body is not read.
+    if ($received > $limit) {
+        $tooLarge = true;
+        break;
+    }
+}
+
+// This prints "the image is larger than 32 bytes".
+if ($tooLarge) {
+    echo "the image is larger than ", $limit, " bytes\n";
+} else {
+    echo "the image has ", $received, " bytes\n";
+}

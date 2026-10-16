@@ -1,0 +1,18 @@
+<?nvs
+// Shows how a duration is written as text.
+
+// The largest unit comes first. This prints 1m30s.
+echo (90s)->toString(), "\n";
+
+// A unit with a count of zero is left out. This prints 2h5s.
+echo (2h)->plus(5s)->toString(), "\n";
+
+// 1.5 seconds prints as 1s500ms.
+echo (1500ms)->toString(), "\n";
+
+// A duration of zero prints as 0s.
+echo (0s)->toString(), "\n";
+
+// Inside a string, a duration is written the same way. This prints "wait 1h30m".
+Core\Time\Duration $wait = 90m;
+echo "wait {$wait}\n";

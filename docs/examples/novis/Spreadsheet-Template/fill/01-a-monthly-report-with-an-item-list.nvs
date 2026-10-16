@@ -1,0 +1,37 @@
+<?nvs
+// Shows how to fill a monthly sales report from a template with a list of items.
+use Novis\Spreadsheet\Formula;
+use Novis\Spreadsheet\Reader;
+use Novis\Spreadsheet\Template;
+use Novis\Spreadsheet\Workbook;
+
+// This workbook is the template. In a real program it is a file made in Excel.
+// Row 3 is the item row, and row 4 adds up the totals.
+var $design = Workbook::createInMemory();
+$design->sheet('Report')->addAll([
+    ['Sales for {{month}}', '{{shop}}'],
+    ['Product', 'Sold', 'Price', 'Total'],
+    ['{{items.product}}', '{{items.sold}}', '{{items.price}}', Formula::of('B3*C3')],
+    ['Sum', null, null, Formula::of('SUM(D3:D3)')],
+]);
+bytes $template = $design->finish()->bytes ?? Core\Bytes::fill(0, 0);
+
+// `fill` writes row 3 once for each item. The sum row moves down and covers every item.
+bytes $report = Template::open($template)->fill([
+    'month' => 'May 2024',
+    'shop' => 'Shop',
+    'items' => [
+        ['product' => 'Pen', 'sold' => 120, 'price' => 1.5],
+        ['product' => 'Ink', 'sold' => 40, 'price' => 4.25],
+        ['product' => 'Pad', 'sold' => 75, 'price' => 2.75],
+    ],
+])->bytes();
+
+// `formulas: true` reads a formula cell as a `Formula`, so this prints its text.
+foreach (Reader::open($report)->rows('Report', { formulas: true }) as var $row) {
+    echo 'row ', $row->number;
+    foreach ($row->values as tainted string $column => mixed $value) {
+        echo ' ', $column, ': ', $value is Formula ? '=' . $value->text : Core\Json::encode($value);
+    }
+    echo "\n";
+}

@@ -1,0 +1,12 @@
+{
+  "title": "`Core\\Validate` carries no predicate that names a type, because `as ?T` already is one",
+  "status": "shipped",
+  "seeAlso": [
+    "expressions/nullable-conversion",
+    "expressions/try-parse",
+    "types/conversion"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/validate-members.nvst"
+  ]
+}

@@ -1,0 +1,19 @@
+--TEST--
+`status` answers a `Core\Queue::State` and not the ordinal the row stores it as, so a program reads a state rather than a magic integer — `rule:concurrency/queue-four-members` and `rule:concurrency/attempts-are-finite-and-a-dead-letter-is-kept`, `rule:enums/closed-integer-type`
+--FILE--
+<?nvs
+// The `state` column *is* an ordinal — the enum and the column are one
+// representation rather than two, which is `crate::queue`'s own module doc —
+// but that is the runtime's business and not the program's. What `status`
+// hands back is the closed type `rule:enums/closed-integer-type` gives an enum, so `Pending` is a name
+// a program writes and `0` is never something it has to know.
+var $receipt = Core\Queue::push("jobs/send-receipt.nvs");
+
+int $wrong = Core\Queue::status($receipt);
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `int`, found `Core\Queue::State`
+%A
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

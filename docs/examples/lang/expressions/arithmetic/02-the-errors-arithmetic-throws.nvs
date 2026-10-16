@@ -1,0 +1,31 @@
+<?nvs
+// Shows the errors arithmetic throws instead of giving you a wrong number.
+// Each one is an `ArithmeticError` and can be caught.
+
+int $largest = 9223372036854775807;
+
+// A whole number that grows past what it can hold throws. It does not wrap
+// around to a negative number.
+try {
+    echo $largest + 1, "\n";
+} catch (ArithmeticError $overflow) {
+    echo $overflow->message, "\n";
+}
+
+// Dividing by zero throws, whatever kind of numbers you divide.
+try {
+    echo 1 / 0, "\n";
+} catch (ArithmeticError $divide) {
+    echo $divide->message, "\n";
+}
+
+// A negative exponent has no whole-number result, so it throws too.
+try {
+    echo 2 ** -1, "\n";
+} catch (ArithmeticError $power) {
+    echo $power->message, "\n";
+}
+
+// `Core\Math::fdiv` is the division that gives `INF` instead of throwing.
+// This prints INF.
+echo Core\Math::fdiv(1.0, 0.0), "\n";

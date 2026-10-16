@@ -1,0 +1,23 @@
+<?nvs
+// Shows a line chart of the visitors of a blog on each day.
+use Novis\Spreadsheet\Chart;
+use Novis\Spreadsheet\Workbook;
+
+var $book = Workbook::createInMemory();
+var $sheet = $book->sheet('Blog');
+$sheet->addAll([
+    ['day' => 'Monday', 'visitors' => 420],
+    ['day' => 'Tuesday', 'visitors' => 515],
+    ['day' => 'Wednesday', 'visitors' => 480],
+]);
+
+// A line joins the values of the series in the order of the rows.
+var $chart = Chart::line({ title: 'Visitors', yTitle: 'Visitors per day' })
+    ->series($sheet->column('visitors'), { categories: $sheet->column('day') });
+$sheet->chart('D2', $chart);
+bytes $file = $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
+
+// `Core\Zip::read` returns the XML of the chart. These lines check what it contains.
+var $xml = Core\Zip::read($file, 'xl/charts/chart1.xml') as string;
+echo Core\Str::contains($xml, '<c:lineChart>') ? 'a line chart' : 'another type', "\n";
+echo Core\Str::contains($xml, '<c:f>Blog!$A$2:$A$4</c:f>') ? 'the days are A2:A4' : 'other days', "\n";

@@ -1,0 +1,31 @@
+--TEST--
+The token walk descends into a type test, so the subject of `is` is coloured like any other read — `rule:ide/the-request-set-is-closed`
+--FILE--
+<?nvs
+interface Shape
+{
+    public function area(): int;
+}
+
+class Square implements Shape
+{
+    public function area(): int { return 4; }
+}
+
+mixed $s = new Square();
+if ($s is Shape) {
+    echo $s->area();
+}
+--REQUEST--
+semanticTokens
+--EXPECT--
+2:11+5 interface
+4:21+4 method
+7:7+6 class
+7:25+5 interface
+9:21+4 method
+12:7+2 variable
+12:16+6 class
+13:5+2 variable
+14:10+2 variable
+14:14+4 method

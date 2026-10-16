@@ -1,0 +1,18 @@
+--TEST--
+a class declared in lower case is a hard compiler error, checked on the leading character only — `rule:core-api/casing-checks-the-leading-character`
+--FILE--
+<?nvs
+class thing {
+    public static function go(): int {
+        return 1;
+    }
+}
+echo thing::go(), "\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0110]: `thing` must be PascalCase, e.g. `Thing`
+  --> case.nvs:2:7
+%A
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

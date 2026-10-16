@@ -1,0 +1,47 @@
+--TEST--
+Core\Str::format throws for every argument-mismatch PHP's printf family hides, on the runtime path `rule:expressions/intrinsic-constant-arguments` leaves to it
+--FILE--
+<?nvs
+// Every template below is read out of a variable rather than written at the
+// call. `rule:expressions/intrinsic-list-is-closed` makes `Core\Str::format` an intrinsic, so a *literal*
+// template is checked while compiling and each of these four would be a
+// compile error instead — pinned as one in crates/nvs-types/tests/intrinsics.rs.
+// § 2 leaves a computed argument to run time with ordinary runtime validation,
+// and this case is what asserts that half is unchanged: the same four
+// mismatches, the same four messages, from the one implementation both paths
+// share — and one class, spec § 10's `LogicError`, since a template and its
+// argument list are the program's own writing rather than input.
+
+// Too few arguments for the placeholders written.
+string $few = "%s and %s";
+try {
+    echo Core\Str::format($few, "one"), "\n";
+} catch (LogicError $e) {
+    echo "few: ", $e->message, "\n";
+}
+// An argument no placeholder ever read — PHP ignores this one.
+string $one = "%s";
+try {
+    echo Core\Str::format($one, "read", "unread"), "\n";
+} catch (LogicError $e) {
+    echo "extra: ", $e->message, "\n";
+}
+// A conversion outside the closed list the template grammar allows.
+string $unknown = "%q";
+try {
+    echo Core\Str::format($unknown, 1), "\n";
+} catch (LogicError $e) {
+    echo "unknown: ", $e->message, "\n";
+}
+// A value with no reading for the conversion it reached.
+string $number = "%d";
+try {
+    echo Core\Str::format($number, "twelve"), "\n";
+} catch (LogicError $e) {
+    echo "reading: ", $e->message, "\n";
+}
+--EXPECT--
+few: Core\Str::format(): the template reads argument 2 of 1
+extra: Core\Str::format(): argument 2 is never read by the template
+unknown: Core\Str::format(): `%q` is not one of the conversions the template grammar allows (`%s %d %u %f %e %g %x %X %o %b %%`)
+reading: Core\Str::format(): `%d` has no reading for this value

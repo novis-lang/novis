@@ -1,0 +1,6403 @@
+//! `nvs service` — `rule:packaging/a-service-is-one-stored-argv`'s operator surface: the one argv a service
+//! manager stores, the closed set of things that argv may name, and the two
+//! spellings of "print exactly what would be installed".
+//!
+//! # The installer is a sink
+//!
+//! `rule:security/sink-predicate` defines a sink as a parameter whose content becomes an
+//! instruction rather than data, and `rule:packaging/the-installer-is-a-sink` calls the trailing argv here
+//! the sharpest case in the project: the command runs elevated, and what it
+//! stores is executed by a privileged account at every boot until somebody
+//! removes it. So [`plan`] is the whole surface's front door and its default is
+//! refusal — every path out of it is either a [`Plan`], which is constructed
+//! nowhere else, or one of `rule:packaging/the-installer-is-a-sink`'s refusal classes as an `E063x`
+//! diagnostic. Nothing downstream re-checks, because nothing downstream can
+//! obtain a `Plan` without having gone through it.
+//!
+//! The codes are `E0630` (the argv names something other than a server),
+//! `E0631` (a relative path), `E0633` (a password on a command line),
+//! `E0634` (a bundle installing itself), `E0653` (a data folder the
+//! service cannot use) and `E0654` (a Linux `--account` this machine does not
+//! have, which is looked up after [`plan`], through the manager, because the
+//! lookup is the machine's). `rule:packaging/the-installer-is-a-sink`'s table carries more rows than there are codes
+//! here, because rows that share a reason share a code: the subcommand
+//! allowlist, `--fault-inject` and an argv the command line's own parser
+//! refuses are all "the stored argv names something a service manager must
+//! not be handed". Each code's own doc comment in `nvs_diagnostics::code` owns
+//! the reasoning.
+//!
+//! **An argv with no `--config` is completed, not refused.** A service would
+//! otherwise look for `./nvs.toml` in whatever directory its manager starts
+//! it in, so [`plan`] stores `--config` with the absolute path of the
+//! service's data folder's `nvs.toml` — the argv's own `--data`, else
+//! `.nvsdata` beside the binary the service runs — and every check below runs
+//! over that file as if the operator had named it. An install that is not a
+//! dry run then creates the folder privately and writes the shipped template
+//! there if no file is there yet, and refuses with `E0653` when it cannot:
+//! that file is the service's whole configuration. With a `--config` named
+//! elsewhere, an unusable folder is only the warning every command prints,
+//! because the service still boots.
+//!
+//! **A service never gets write on its own configuration.** `rule:packaging/a-service-runs-as-a-virtual-account`'s grants on
+//! the data folder are read on the folder and its `nvs.toml`, and read/write
+//! on `cache/`, `tmp/`, `lsp/` and `logs/` alone, each inherited only inside
+//! its own subfolder.
+//!
+//! **On Linux the same list is owners and modes.** `nvs_config::data` creates
+//! the folder as root's `0700`, which a `User=` account could not even enter,
+//! so an install with `--account` gives the folder to root and the account's
+//! primary group at `0750`, its `nvs.toml` likewise at `0640`, and every
+//! read/write path to the account at `0700`, creating one that is missing.
+//! The account must exist, since its ids are what the steps are written in.
+//! Every path the service then reads is owned by root or by the account and
+//! writable by no group, so it passes `nvs_config::trust::check` made as that
+//! account; `registration`'s `owners` module states why, and an uninstall
+//! gives each path back to root, private.
+//!
+//! **What counts as a path is a closed list, not a guess.** Every `--config`
+//! and `--data` value in the argv, the entry file `serve`/`run` names, and the
+//! three paths of the configuration the service reads that `rule:packaging/a-service-runs-as-a-virtual-account` grants on and
+//! the server opens as written — the file of a `[log] target`,
+//! `[opcache] file_cache_dir` and `[io] temp_root` — and nothing else, because
+//! a rule that refused any word that *looked* like a path would refuse a
+//! `--listen` and an `rule:tooling/terminal-output-is-a-sink`
+//! program argument that happen to contain a separator. `Path::is_absolute` is
+//! the test, so it answers for **the host the installer is running on**: a
+//! Unix-shaped `/etc/nvs/nvs.toml` is not absolute on Windows, and refusing it
+//! there is correct rather than a portability gap — a service is installed on
+//! the machine it will run on.
+//!
+//! **A service logs to its data folder unless the configuration says
+//! otherwise.** A process the manager starts with no `[log] target` in its
+//! configuration writes to `logs/nvs.log` in its data folder, under the
+//! `[log] max_size` and `[log] keep` bound every `file:` target has; the
+//! default is set by `main`'s `log_like_a_service` and applied by
+//! `nvs_config::log`. That is why `logs/` is in the grant above. A target the
+//! configuration names is used as written, `stderr` included: under a manager
+//! `stderr` is the journal or the Event Log, and nothing here refuses it. A
+//! `file:` target outside the data folder gets write on its directory, which
+//! rotation needs.
+//!
+//! # What is on disk, and what is not
+//!
+//! [`unit()`] renders `rule:packaging/the-generated-unit-is-hardened`'s systemd unit and [`image_path`] `rule:packaging/the-argv-lives-in-imagepath`'s Windows
+//! `ImagePath`, both from a `Plan` and both pure. `nvs service unit` prints
+//! one of them and touches nothing, which is `rule:packaging/the-unit-is-printed-and-install-is-the-opt-in`'s whole design on Linux and
+//! its `--print` on Windows.
+//!
+//! **On Linux the grants are the unit's sandbox.** The unit runs under
+//! `ProtectSystem=strict`, which leaves the service no writable path at all,
+//! so its `ReadWritePaths=` is the write half of the same grant list a Windows
+//! install applies as ACLs ([`registration::grants`]), and nothing else is
+//! opened. `ProtectHome=true` masks `/home`, `/root` and `/run/user` so
+//! completely that a `ReadWritePaths=` under them is masked too — systemd drops
+//! every path under an inaccessible one — so a service whose binary, entry file
+//! or granted path is under a home directory gets `ProtectHome=read-only`
+//! instead, and every other unit keeps `true`. Refusing such an install was the
+//! other choice; it would refuse the common layout of a binary in a user's
+//! home, and `read-only` still leaves the service no write outside its grants.
+//!
+//! **Every verb is a plan of actions, and [`registration`] builds them.**
+//! `install`, `uninstall`, `start`, `stop` and `status` are each a pure
+//! function from a [`Plan`] to a list of [`registration::Action`]s — the
+//! registration of `rule:packaging/the-argv-lives-in-imagepath`, the
+//! `PRESHUTDOWN`, failure actions and event-log source of
+//! `rule:packaging/a-service-answers-its-manager`, the grants of
+//! `rule:packaging/a-service-runs-as-a-virtual-account`, or the unit write and
+//! `daemon-reload` of `rule:packaging/the-unit-is-printed-and-install-is-the-opt-in`
+//! — applied in order through one [`registration::Manager`]. A case drives the
+//! recording manager and asserts the list, so every decision those rules take
+//! is held to with no administrator rights and on either platform.
+//!
+//! **`registration::scm::Scm` applies the Windows half** — the SCM for a
+//! registration and a control, the registry for the event-log source, the file
+//! ACLs for a grant — and no case reaches it, because a real registration needs
+//! administrator rights on a machine somebody chose. That is why a real
+//! registration is an end-to-end check rather than a case here.
+//! [`registration::Systemd`] applies the Linux half and is compiled everywhere,
+//! for the reason [`registration::Platform`] is a parameter.
+//!
+//! **[`at_host`] is the one `cfg` in the surface.** A list of actions is the
+//! same value on either machine, which is what makes every verb assertable
+//! from either one — but the manager that *performs* one is this machine's real
+//! SCM or its real `systemctl`, and only one of those exists to be named here.
+//!
+//! **An uninstall reads what it is undoing back from the platform**
+//! ([`registration::Manager::stored`]): the argv out of the `ImagePath`
+//! (`rule:packaging/the-argv-lives-in-imagepath`) or the unit's `ExecStart`,
+//! and the account beside it. That an uninstall leaves nothing behind
+//! (`rule:packaging/a-service-answers-its-manager`) is a property of the
+//! install that happened, and a second command line describes the one the
+//! operator believes happened. The directories
+//! `rule:packaging/a-service-runs-as-a-virtual-account` grants on are the
+//! residue — neither manager holds them, so they are derived again the way the
+//! install derived them: the data folder from the stored argv's `--data` or
+//! the default folder of the binary the platform holds, and the rest from the
+//! configuration the stored argv names.
+//!
+//! # The manager is told what state this process is in
+//!
+//! The `Type=notify` line [`unit()`] renders is a promise, and [`Notify`] is
+//! what keeps it: a unit of that type whose process never sends `READY=1` is
+//! one systemd ends at `TimeoutStartSec` however well it is serving.
+//! `rule:packaging/the-generated-unit-is-hardened` is the list — `READY=1` once
+//! every listener is bound, `RELOADING=1` and `READY=1` around a reload,
+//! `STOPPING=1` once the drain has begun, and a `WATCHDOG=1` ping for as long
+//! as the fleet is turning.
+//!
+//! **The ping is the `WatchdogSec=` line's promise, and it is gated rather than
+//! timed.** [`Heartbeat`] owns what it is gated on and why one wedged core does
+//! not withhold it; the short of it is that a beat a live thread writes proves
+//! only that the process exists, which is not what the manager is asking.
+//!
+//! **And the manager's own controls are answered with the drain that already
+//! exists.** [`hosted`] is that half of
+//! `rule:packaging/a-service-answers-its-manager`: a `STOP` or a `PRESHUTDOWN`
+//! enters [`crate::stop`]'s drain and is reported with a checkpoint that
+//! advances while requests finish. No control starts a reload: the server's own
+//! configuration check is the one thing that does ([`crate::reload`]). The
+//! dispatcher that hands it a control — the SCM's own, which only a process
+//! that manager started has — is [`crate::dispatch`], and it reports through
+//! [`Supervisor`] like everything else here.
+//!
+//! **The protocol is written by hand.** `sd_notify` is one datagram of
+//! `NAME=value` lines to whatever `$NOTIFY_SOCKET` names, so what a crate for
+//! it would save is the page below, and `libsystemd` would be a C dependency
+//! `rule:packaging/a-c-dependency-answers-two-questions` would have to answer
+//! for. A process nothing started that way has no `NOTIFY_SOCKET` and sends
+//! nothing at all, which is every `nvs serve` an operator runs by hand.
+//!
+//! **A report is a sink call, so the states a process goes through are
+//! assertable without a service manager.** [`Supervisor`] is that seam, and the
+//! datagram is one implementation of it. What it spends is one unbound socket
+//! for the life of a process systemd started, and nothing per request or per
+//! report.
+
+use std::path::{Path, PathBuf};
+use std::process::ExitCode;
+use std::sync::{Arc, Condvar, Mutex, OnceLock, PoisonError};
+use std::thread::JoinHandle;
+use std::time::Duration;
+
+use nvs_diagnostics::{Diagnostic, Diagnostics, SourceMap, code};
+
+use crate::render_diagnostics;
+
+/// The closed allowlist of `rule:packaging/the-installer-is-a-sink`'s first row: the two subcommands that stay
+/// running and mean something with no terminal attached.
+const ALLOWED: [&str; 2] = ["serve", "run"];
+
+/// Where a systemd unit goes when `rule:packaging/the-unit-is-printed-and-install-is-the-opt-in`'s explicit request is made. Named here
+/// rather than inside [`destination`] so a test can point that function at a
+/// directory it owns.
+const UNIT_DIRECTORY: &str = "/etc/systemd/system";
+
+/// The options in a stored argv whose value is a path, so [`plan`] knows which
+/// words `rule:packaging/the-installer-is-a-sink`'s relative-path row applies to. `--listen` is deliberately absent: an
+/// address is not a path.
+const PATH_OPTIONS: [&str; 2] = ["--config", "--data"];
+
+/// The options in a stored argv that take a separate value word, so the walk
+/// looking for the entry file does not read one of them as the entry.
+const VALUED: [&str; 4] = ["--config", "--data", "--listen", "--port"];
+
+/// What an operator asked to have stored, before `rule:packaging/the-installer-is-a-sink` has looked at any of it.
+pub(crate) struct Request<'a> {
+    /// The service's name, which the platform's service manager knows it by
+    /// (`rule:packaging/a-service-is-one-stored-argv`).
+    pub(crate) name: &'a str,
+    /// Everything to the right of `--`, stored untouched and never
+    /// interpreted, which is what makes `rule:packaging/a-service-is-one-stored-argv`'s "every parameter is passable"
+    /// true.
+    pub(crate) argv: &'a [String],
+    /// `rule:packaging/a-service-runs-as-a-virtual-account`'s `--account`, for a deployment that needs a domain identity rather
+    /// than the default virtual account.
+    pub(crate) account: Option<&'a str>,
+    /// A password written on the command line. It exists in order to be
+    /// refused by name (`E0633`); the value is prompted for instead.
+    pub(crate) password: Option<&'a str>,
+    /// Why this binary's own parser refuses `argv`, where it does. The parser
+    /// belongs to the command line and not to this module, so the caller asks
+    /// it and `rule:packaging/the-installer-is-a-sink` refuses on what it said.
+    pub(crate) unaccepted: Option<&'a str>,
+}
+
+/// What the process running the installer can answer about itself and about
+/// the configuration the argv names.
+///
+/// A parameter rather than something [`plan`] reads for itself, so every `rule:packaging/the-installer-is-a-sink`
+/// refusal is reachable in a test with no service manager, no elevation and no
+/// files — which is the whole of that section's *Verification* that does not
+/// need a privileged machine.
+pub(crate) struct Host {
+    /// This binary, absolute. `rule:packaging/the-argv-lives-in-imagepath` quotes it unconditionally.
+    pub(crate) exe: PathBuf,
+    /// Whether this binary is an `rule:packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host` bundle (`rule:programs/bundle-trust-domain`).
+    ///
+    pub(crate) from_a_bundle: bool,
+    /// `[limits] memory`, which `rule:packaging/the-generated-unit-is-hardened` derives `MemoryMax` from rather than
+    /// inventing one.
+    pub(crate) memory_max: Option<String>,
+    /// Whether `[server] listen` includes a privileged port, which is the only
+    /// condition under which `rule:packaging/the-generated-unit-is-hardened` emits `AmbientCapabilities` at all.
+    pub(crate) privileged_port: bool,
+    /// The file a `[log] target` of `file:<path>` names, whose **directory** is
+    /// one of `rule:packaging/a-service-runs-as-a-virtual-account`'s grants.
+    pub(crate) log_file: Option<PathBuf>,
+    /// `[opcache] file_cache_dir`, the artifact cache `rule:packaging/a-service-runs-as-a-virtual-account` grants read/write on.
+    /// Derived rather than asked for, so an uninstall names the same directory
+    /// the install granted.
+    pub(crate) cache_directory: Option<PathBuf>,
+    /// `[io] temp_root`, the temporary-folder root `rule:packaging/a-service-runs-as-a-virtual-account` grants read/write on,
+    /// where the configuration writes one.
+    pub(crate) temp_root: Option<PathBuf>,
+    /// The service's data folder: the argv's `--data` where it is absolute,
+    /// else `.nvsdata` beside [`Host::exe`]. `None` for a relative `--data`,
+    /// which [`plan`] refuses, and for a binary whose path does not resolve.
+    pub(crate) data_folder: Option<nvs_config::data::Folder>,
+    /// Whether the config the service reads writes `[[server.mount]]` and the
+    /// table mounts at least one entry that is on disk, which is what `serve`
+    /// with no file named answers with.
+    pub(crate) config_mounts_an_entry: bool,
+}
+
+/// A checked request: every `rule:packaging/the-installer-is-a-sink` refusal has already been made against it.
+///
+/// Constructed on exactly one code path — the far side of [`plan`] — so a
+/// caller holding one is holding the installer's guarantee rather than an
+/// intention to check later.
+#[derive(Debug)]
+pub(crate) struct Plan {
+    name: String,
+    exe: PathBuf,
+    /// The argv as stored, with `--config` added where the request named none.
+    argv: Vec<String>,
+    account: Option<String>,
+    memory_max: Option<String>,
+    privileged_port: bool,
+    /// The service's data folder, which an install creates and `rule:packaging/a-service-runs-as-a-virtual-account` grants
+    /// on. `None` once an install found it unusable, so nothing is granted.
+    data: Option<nvs_config::data::Folder>,
+    /// Whether the stored `--config` is the data folder's own `nvs.toml`, so
+    /// an install writes the shipped template there if it is missing.
+    reads_data_config: bool,
+    /// [`Host::log_file`], whose directory `rule:packaging/a-service-runs-as-a-virtual-account` grants read/write on.
+    log_file: Option<PathBuf>,
+    /// [`Host::cache_directory`], granted read/write.
+    cache_directory: Option<PathBuf>,
+    /// [`Host::temp_root`], granted read/write.
+    temp_root: Option<PathBuf>,
+    /// The Linux account `account` names, once
+    /// [`registration::resolve_account`] has looked it up: what `rule:packaging/a-service-runs-as-a-virtual-account`'s grants
+    /// are spelled in on that platform. `None` for root, on Windows, and
+    /// before the lookup.
+    owner: Option<registration::Account>,
+}
+
+/// Whether a rendered unit is printed for review or written where the service
+/// manager reads it.
+///
+/// `rule:packaging/the-unit-is-printed-and-install-is-the-opt-in`'s asymmetry, as a value: on Linux the representation of a service *is*
+/// a text file the operator's configuration management already owns the
+/// directory for, so printing is the default and writing is the explicit
+/// request.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub(crate) enum Delivery {
+    /// Write the unit to standard output and touch nothing.
+    Print,
+    /// Write it into the system unit directory.
+    ///
+    /// [`registration::install_actions`] builds that write out of it, and
+    /// [`at_host`] names the applier that performs one.
+    Install,
+}
+
+/// `rule:packaging/the-installer-is-a-sink`, in order, and the only way to obtain a [`Plan`].
+///
+/// The order is the order the refusals are worth reading in: what the argv
+/// *names* first, then what it could not find, then what it could not write,
+/// so an operator fixing one refusal is not immediately handed a second about
+/// a word they were already going to change.
+///
+/// # Errors
+///
+/// One of `rule:packaging/the-installer-is-a-sink`'s refusal classes, as an `E063x` diagnostic naming what was
+/// refused and why — never a bare non-zero exit, which is that section's
+/// closing sentence.
+pub(crate) fn plan(request: &Request<'_>, host: &Host) -> Result<Plan, Diagnostic> {
+    if host.from_a_bundle {
+        return Err(Diagnostic::error(
+            code::E_SERVICE_FROM_A_BUNDLE,
+            "a bundled executable may not install itself as a service".to_owned(),
+        )
+        .with_note(
+            "a bundle is trusted because the only person involved is the one who runs it; a \
+             service adds a privileged account that runs the same program at every boot"
+                .to_owned(),
+        )
+        .with_help(
+            "install the `nvs` binary and name the program in the stored argv instead".to_owned(),
+        ));
+    }
+
+    let Some(subcommand) = request.argv.first() else {
+        return Err(not_allowed(
+            "the stored argv is empty",
+            "a service manager starts this argv and expects a process that keeps running",
+        ));
+    };
+    if !ALLOWED.contains(&subcommand.as_str()) {
+        return Err(not_allowed(
+            &format!("`nvs {subcommand}` may not be installed as a service"),
+            "only `serve` and `run` are allowed: every other subcommand either exits immediately, \
+             which a service manager reports as a crash loop forever, or is meaningless with no \
+             terminal attached",
+        ));
+    }
+    if let Some(word) = request
+        .argv
+        .iter()
+        .find(|word| *word == "--fault-inject" || word.starts_with("--fault-inject="))
+    {
+        return Err(not_allowed(
+            &format!("`{word}` may not be installed as a service"),
+            "that hook provokes a contained engine panic and must never be reachable from a \
+             served request, which a service carrying it is — with a privileged account attached",
+        ));
+    }
+    if let Some(why) = request.unaccepted {
+        return Err(Diagnostic::error(
+            code::E_SERVICE_ARGV_NOT_ALLOWED,
+            format!(
+                "`nvs {}` is not a command line this binary accepts: {why}",
+                request.argv.join(" ")
+            ),
+        )
+        .with_note(
+            "the service manager would start it, it would write a usage error to a console \
+             that is not there and exit, and the manager would start it again"
+                .to_owned(),
+        )
+        .with_help(
+            "run the same words as a command first, and store them once they start a server"
+                .to_owned(),
+        ));
+    }
+
+    if subcommand == "serve" && entry_file(request.argv).is_none() && !host.config_mounts_an_entry {
+        return Err(not_allowed(
+            "the stored argv names no file, and the configuration it names mounts nothing",
+            "`nvs serve` with no file answers with the configuration's `[[server.mount]]` blocks; \
+             with none written, or none of their entries on disk, it exits at once, which a \
+             service manager reports as a crash loop forever",
+        ));
+    }
+
+    if request.password.is_some() {
+        return Err(Diagnostic::error(
+            code::E_SERVICE_PASSWORD_ON_A_COMMAND_LINE,
+            "an account password may not be passed on the command line".to_owned(),
+        )
+        .with_note(
+            "a command line is readable by other users on this machine, and the value would \
+             outlive the invocation in whatever recorded it"
+                .to_owned(),
+        )
+        .with_help(
+            "drop the option and enter the password when the installer prompts for it".to_owned(),
+        ));
+    }
+
+    // The first one only. An operator fixing a path re-runs this, and a list
+    // of every relative word in an argv reads as a worse failure than the one
+    // that is actually being reported.
+    if let Some((option, written)) = relative_paths(request, host).into_iter().next() {
+        return Err(Diagnostic::error(
+            code::E_SERVICE_PATH_NOT_ABSOLUTE,
+            format!("`{option}` is relative: `{written}`"),
+        )
+        .with_note(
+            "a service does not start in the directory of this terminal, so a relative path \
+             names another file there and the service fails at its first start"
+                .to_owned(),
+        )
+        .with_help("write the path absolutely".to_owned()));
+    }
+
+    let mut argv = request.argv.to_vec();
+    let reads_data_config = values_of(request.argv, "--config").is_empty();
+    if reads_data_config {
+        // Explicit, so the service never looks for `./nvs.toml` in the
+        // directory its manager starts it in. Right after the subcommand,
+        // where no program argument of `run` can be read as it.
+        let Some(data) = &host.data_folder else {
+            return Err(data_unusable(
+                None,
+                "the folder of the `nvs` program could not be found",
+            ));
+        };
+        let config = data.config_file().to_string_lossy().into_owned();
+        argv.splice(1..1, ["--config".to_owned(), config]);
+    }
+
+    Ok(Plan {
+        name: request.name.to_owned(),
+        exe: host.exe.clone(),
+        argv,
+        account: request.account.map(str::to_owned),
+        memory_max: host.memory_max.clone(),
+        privileged_port: host.privileged_port,
+        data: host.data_folder.clone(),
+        reads_data_config,
+        log_file: host.log_file.clone(),
+        cache_directory: host.cache_directory.clone(),
+        temp_root: host.temp_root.clone(),
+        owner: None,
+    })
+}
+
+/// `E0653`: the service's data folder `folder`, where it was found, cannot be
+/// used, for `reason`.
+fn data_unusable(folder: Option<&Path>, reason: &str) -> Diagnostic {
+    let message = match folder {
+        Some(folder) => format!(
+            "the service cannot use the data folder `{}`: {reason}",
+            folder.display()
+        ),
+        None => format!("the service has no data folder: {reason}"),
+    };
+    Diagnostic::error(code::E_SERVICE_DATA_UNUSABLE, message)
+        .with_note(
+            "the service keeps its configuration file, its compile cache and its temporary \
+             files in this folder"
+                .to_owned(),
+        )
+        .with_help(
+            "add `--data <folder>` to the service command, with a full path to a folder that \
+             only administrators can change"
+                .to_owned(),
+        )
+}
+
+/// Creates the service's data folder for an install, privately, and writes
+/// the shipped `nvs.toml` into it when the stored argv reads that file and
+/// there is none yet. A file that is already there is kept as it is, unless
+/// it is a template an older Novis wrote and nobody changed, which
+/// `nvs_config::data::Folder::refresh_config` replaces.
+///
+/// Returns whether the folder is usable. Where the stored `--config` names
+/// another file, an unusable folder is the one warning every command prints
+/// for it and `false`: the service still boots, without a compile cache, and
+/// the install grants nothing on the folder.
+///
+/// # Errors
+///
+/// `E0653`, naming the folder and what failed, when the stored `--config` is
+/// the folder's own `nvs.toml`: a service whose configuration cannot be read
+/// refuses to start at every boot.
+fn prepare_data(plan: &Plan) -> Result<bool, Diagnostic> {
+    let Some(data) = &plan.data else {
+        return Ok(false);
+    };
+    if let Err(unusable) = data.prepare() {
+        if plan.reads_data_config {
+            return Err(data_unusable(Some(data.root()), unusable.reason()));
+        }
+        eprintln!("{}", unusable.warning());
+        return Ok(false);
+    }
+    if plan.reads_data_config {
+        let reason = match crate::config::write_default_in(data) {
+            Ok(_) => return Ok(true),
+            Err(crate::config::Declined::Exists) => {
+                // The service may be unable to write the file once the install has given it
+                // to root, so an unedited older template is brought up to date here.
+                let _ = data.refresh_config();
+                return Ok(true);
+            }
+            Err(crate::config::Declined::Untrusted(why)) => why.message().to_owned(),
+            Err(crate::config::Declined::Unwritable(why)) => why,
+        };
+        return Err(data_unusable(
+            Some(data.root()),
+            &format!(
+                "`{}` cannot be written: {reason}",
+                data.config_file().display()
+            ),
+        ));
+    }
+    Ok(true)
+}
+
+/// `E0630`, whose two rows share a message shape.
+fn not_allowed(message: &str, note: &str) -> Diagnostic {
+    Diagnostic::error(code::E_SERVICE_ARGV_NOT_ALLOWED, message.to_owned())
+        .with_note(note.to_owned())
+        .with_help("a service runs `nvs serve` or `nvs run` and nothing else".to_owned())
+}
+
+/// Every relative path in the request, as the option that carried it and the
+/// word itself, in the order an operator would fix them.
+///
+/// The paths of the configuration the service reads follow the request's own.
+/// The server opens `[log] target`, `[opcache] file_cache_dir` and
+/// `[io] temp_root` as written, so under a service a relative one is resolved
+/// against the service manager's starting directory, and `rule:packaging/a-service-runs-as-a-virtual-account`'s grant on it
+/// would be made against this shell's.
+fn relative_paths<'a>(request: &'a Request<'_>, host: &Host) -> Vec<(&'a str, String)> {
+    let mut out = Vec::new();
+    for option in PATH_OPTIONS {
+        for written in values_of(request.argv, option) {
+            if !Path::new(written).is_absolute() {
+                out.push((option, written.to_owned()));
+            }
+        }
+    }
+    if let Some(entry) = entry_file(request.argv)
+        && !Path::new(entry).is_absolute()
+    {
+        out.push(("the entry file", entry.to_owned()));
+    }
+    for (key, written) in [
+        ("[log] target", &host.log_file),
+        ("[opcache] file_cache_dir", &host.cache_directory),
+        ("[io] temp_root", &host.temp_root),
+    ] {
+        if let Some(written) = written
+            && !written.is_absolute()
+        {
+            out.push((key, written.display().to_string()));
+        }
+    }
+    out
+}
+
+/// Every value `option` was given in `argv`, in both the `--opt value` and
+/// `--opt=value` spellings.
+fn values_of<'a>(argv: &'a [String], option: &str) -> Vec<&'a str> {
+    let mut out = Vec::new();
+    let mut words = argv.iter();
+    while let Some(word) = words.next() {
+        if word == option {
+            if let Some(value) = words.next() {
+                out.push(value.as_str());
+            }
+        } else if let Some(value) = word.strip_prefix(option)
+            && let Some(value) = value.strip_prefix('=')
+        {
+            out.push(value);
+        }
+    }
+    out
+}
+
+/// The file `serve` or `run` was given, if the argv names one.
+///
+/// The first bare word after the subcommand, with the value of a
+/// separately-spelled option skipped so a `--config /etc/nvs.toml` is not read
+/// as the entry.
+fn entry_file(argv: &[String]) -> Option<&str> {
+    let mut words = argv.iter().skip(1);
+    while let Some(word) = words.next() {
+        if VALUED.contains(&word.as_str()) {
+            words.next();
+        } else if !word.starts_with('-') {
+            return Some(word);
+        }
+    }
+    None
+}
+
+/// `rule:packaging/the-argv-lives-in-imagepath`'s Windows `ImagePath` for a checked plan: its binary
+/// and stored argv through [`nvs_diagnostics::argv::image_path`], which owns the encoding and its
+/// round trip.
+pub(crate) fn image_path(plan: &Plan) -> String {
+    nvs_diagnostics::argv::image_path(&plan.exe.display().to_string(), &plan.argv)
+}
+
+/// `rule:packaging/the-generated-unit-is-hardened`'s systemd unit, rendered from a checked plan.
+///
+/// Some of its lines are conditions rather than constants, and each is stated
+/// in that section: `AmbientCapabilities` is emitted **only** when the
+/// configured listen addresses include a privileged port, so the ordinary case
+/// grants nothing at all, and `MemoryMax` is derived from `[limits]` rather
+/// than invented.
+///
+/// `ReadWritePaths=` is the write half of [`registration::grants`], and
+/// `ProtectHome=` is `read-only` only for a service that needs a home
+/// directory; the module doc says why each is what it is.
+///
+/// No value the plan carries is written raw: each `ExecStart` word is an
+/// [`exec_word`], each `ReadWritePaths=` entry a [`unit_path`], and the `%`
+/// of a name is doubled in `Description=`, so none of them can split a word,
+/// be expanded by systemd or start a line of its own.
+pub(crate) fn unit(plan: &Plan) -> String {
+    let mut out = String::new();
+    out.push_str("[Unit]\n");
+    out.push_str(&format!(
+        "Description=Novis service {}\n",
+        plan.name.replace('%', "%%")
+    ));
+    out.push_str("After=network.target\n\n");
+
+    out.push_str("[Service]\n");
+    out.push_str("Type=notify\n");
+    out.push_str("ExecStart=");
+    out.push_str(&exec_word(&plan.exe.display().to_string(), true));
+    for word in &plan.argv {
+        out.push(' ');
+        out.push_str(&exec_word(word, false));
+    }
+    out.push('\n');
+    out.push_str("WatchdogSec=30\n");
+    if let Some(account) = &plan.account {
+        out.push_str(&format!("User={account}\n"));
+    }
+    if let Some(memory) = &plan.memory_max {
+        out.push_str(&format!("MemoryMax={memory}\n"));
+    }
+    out.push_str("NoNewPrivileges=true\n");
+    let grants = registration::grants(plan);
+    let needs_a_home = grants
+        .iter()
+        .map(|(path, _)| path.as_path())
+        .chain([plan.exe.as_path()])
+        .chain(entry_file(&plan.argv).map(Path::new))
+        .any(under_a_home);
+    out.push_str("ProtectSystem=strict\n");
+    if needs_a_home {
+        out.push_str("ProtectHome=read-only\n");
+    } else {
+        out.push_str("ProtectHome=true\n");
+    }
+    let writable: Vec<String> = grants
+        .iter()
+        .filter(|(_, write)| *write)
+        .map(|(path, _)| unit_path(path))
+        .collect();
+    if !writable.is_empty() {
+        out.push_str(&format!("ReadWritePaths={}\n", writable.join(" ")));
+    }
+    out.push_str("PrivateTmp=true\n");
+    out.push_str("CapabilityBoundingSet=\n");
+    if plan.privileged_port {
+        out.push_str("AmbientCapabilities=CAP_NET_BIND_SERVICE\n");
+    }
+    out.push_str("RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX\n");
+    out.push_str("SystemCallFilter=@system-service\n\n");
+
+    out.push_str("[Install]\n");
+    out.push_str("WantedBy=multi-user.target\n");
+    out
+}
+
+/// The directories `ProtectHome=true` hides from a service.
+const HOME_DIRECTORIES: [&str; 3] = ["/home", "/root", "/run/user"];
+
+/// Whether `path` lies under one of [`HOME_DIRECTORIES`].
+fn under_a_home(path: &Path) -> bool {
+    HOME_DIRECTORIES.iter().any(|home| path.starts_with(home))
+}
+
+/// One path of a `ReadWritePaths=` list, with the `-` prefix that skips it
+/// when it is missing: a listed path missing at start fails the whole unit
+/// with `226/NAMESPACE`, and a skipped one leaves the server running with the
+/// one warning any unusable folder gets. Every `%` is doubled, because systemd
+/// expands `%` specifiers in a path setting, and the word is then a
+/// [`unit_word`]. systemd expands no `$` in this setting, so a `$` stays single.
+fn unit_path(path: &Path) -> String {
+    unit_word(&format!("-{}", path.display()).replace('%', "%%"))
+}
+
+/// One word of a systemd `ExecStart`: the binary when `binary` is set, and
+/// one argument of the stored argv otherwise.
+///
+/// Every `%` is doubled, because systemd expands `%` specifiers in every word.
+/// Every `$` of an argument is doubled, because systemd expands `$VAR` and
+/// `${VAR}` in the arguments when it starts the service; it expands none in
+/// the binary, so a `$` there stays single. The word is then a [`unit_word`].
+fn exec_word(word: &str, binary: bool) -> String {
+    let word = word.replace('%', "%%");
+    if binary {
+        unit_word(&word)
+    } else {
+        unit_word(&word.replace('$', "$$"))
+    }
+}
+
+/// A word of a systemd word list, written so systemd reads it back unchanged.
+///
+/// It is quoted when it is empty, is `;`, or has a space, a quote, a backslash
+/// or a control character. Inside the quotes `\` and `"` are escaped and a
+/// control character is written `\xNN`. systemd decodes backslash escapes
+/// inside quotes and outside, so a bare backslash would be read as the start of
+/// one; a bare `;` ends an `ExecStart` command; and a bare newline would end
+/// the setting and start a line of its own. Every other word is written as it
+/// is.
+fn unit_word(word: &str) -> String {
+    let plain = !word.is_empty()
+        && word != ";"
+        && !word.chars().any(|character| {
+            matches!(character, ' ' | '"' | '\'' | '\\') || character.is_ascii_control()
+        });
+    if plain {
+        return word.to_owned();
+    }
+    let mut out = String::with_capacity(word.len() + 2);
+    out.push('"');
+    for character in word.chars() {
+        match character {
+            '\\' | '"' => {
+                out.push('\\');
+                out.push(character);
+            }
+            _ if character.is_ascii_control() => {
+                out.push_str(&format!("\\x{:02x}", u32::from(character)));
+            }
+            _ => out.push(character),
+        }
+    }
+    out.push('"');
+    out
+}
+
+/// An `ExecStart` line read back into the binary and the argv
+/// [`exec_word`] wrote it from, which is how a Linux uninstall learns what it
+/// is undoing: the words of [`shell_words`], with each `$$` of an argument
+/// halved.
+fn exec_words(line: &str) -> Vec<String> {
+    let mut words = shell_words(line);
+    for word in words.iter_mut().skip(1) {
+        *word = word.replace("$$", "$");
+    }
+    words
+}
+
+/// A systemd word list read back into the words [`unit_word`] wrote it from,
+/// the way systemd reads one: split at whitespace outside quotes, with `"` and
+/// `'` quotes removed, backslash escapes decoded inside quotes and outside,
+/// and each `%%` halved. An escape systemd does not know is kept as written.
+///
+/// [`nvs_diagnostics::argv::decode`] is the same half of the Windows round trip, and the two are
+/// separate because the encodings are: `CommandLineToArgvW`'s backslash rule
+/// has nothing to do with systemd's, and one function serving both would be a
+/// third encoding neither platform reads.
+fn shell_words(line: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    // Bytes, because `\xNN` writes one byte and the word is UTF-8 only whole.
+    let mut current = Vec::new();
+    let mut quote = None;
+    let mut started = false;
+    let mut characters = line.chars();
+    let finish = |bytes: Vec<u8>| String::from_utf8_lossy(&bytes).replace("%%", "%");
+    while let Some(character) = characters.next() {
+        match character {
+            '\\' => {
+                unescape(&mut characters, &mut current);
+                started = true;
+            }
+            '"' | '\'' if quote.is_none() => {
+                quote = Some(character);
+                started = true;
+            }
+            _ if quote == Some(character) => quote = None,
+            ' ' | '\t' if quote.is_none() => {
+                if started {
+                    out.push(finish(std::mem::take(&mut current)));
+                    started = false;
+                }
+            }
+            _ => {
+                let mut buffer = [0; 4];
+                current.extend_from_slice(character.encode_utf8(&mut buffer).as_bytes());
+                started = true;
+            }
+        }
+    }
+    if started {
+        out.push(finish(current));
+    }
+    out
+}
+
+/// The escape after a backslash [`shell_words`] read, decoded into `out` as
+/// systemd decodes it: `\\`, `\"`, `\'`, `\s` for a space, the C escapes
+/// `\a \b \f \n \r \t \v`, and `\xNN` for the byte `NN`. Any other escape,
+/// and a backslash that ends the line, is kept as written.
+fn unescape(characters: &mut std::str::Chars<'_>, out: &mut Vec<u8>) {
+    let hex = characters
+        .as_str()
+        .get(1..3)
+        .filter(|digits| digits.bytes().all(|byte| byte.is_ascii_hexdigit()))
+        .and_then(|digits| u8::from_str_radix(digits, 16).ok());
+    let Some(character) = characters.next() else {
+        out.push(b'\\');
+        return;
+    };
+    let byte = match character {
+        '\\' => b'\\',
+        '"' => b'"',
+        '\'' => b'\'',
+        's' => b' ',
+        'a' => 0x07,
+        'b' => 0x08,
+        'f' => 0x0c,
+        'n' => b'\n',
+        'r' => b'\r',
+        't' => b'\t',
+        'v' => 0x0b,
+        'x' if hex.is_some() => {
+            characters.nth(1);
+            hex.unwrap_or_default()
+        }
+        _ => {
+            let mut buffer = [0; 4];
+            out.push(b'\\');
+            out.extend_from_slice(character.encode_utf8(&mut buffer).as_bytes());
+            return;
+        }
+    };
+    out.push(byte);
+}
+
+/// What a service manager is told this process is doing, and the whole set.
+///
+/// There is no `STATUS=` line beside these: what an operator reads a refusal
+/// out of is the diagnostic the reload rendered and `Core\Log`, and a summary
+/// in a third place is a third place for it to be wrong in.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum State {
+    /// The boot is finished — every listener is bound and every mounted entry
+    /// is compiled — so `systemctl start` returns when the port accepts rather
+    /// than when this process was forked.
+    Ready,
+    /// A reload has begun. What ends it is [`State::Ready`] whatever the
+    /// reload's own outcome was: a refused reload leaves this process serving
+    /// the tree it already had, and a manager left in `reloading` over it would
+    /// be reporting a state the process is not in.
+    Reloading,
+    /// The drain has begun, so this process is answering what it accepted and
+    /// accepting nothing further.
+    Stopping,
+    /// The fleet is still turning, which is the only thing a `WatchdogSec=`
+    /// unit takes as evidence that this process is doing its job.
+    ///
+    /// A keepalive rather than a transition, so it is sent over and over while
+    /// the others are sent once each — and it is a [`State`] anyway, because
+    /// what a case has to be able to read back is the line, and the seam that
+    /// hands a case the other three is the one holding [`Heartbeat`] up.
+    Alive,
+}
+
+impl State {
+    /// The assignment this state sends. A datagram carries this line, and for a
+    /// reload the timestamp beneath it.
+    ///
+    /// Present where there is something to write it to: a datagram on Unix, and
+    /// a case standing in for a manager anywhere.
+    #[cfg(any(unix, test))]
+    fn line(self) -> &'static str {
+        match self {
+            State::Ready => "READY=1",
+            State::Reloading => "RELOADING=1",
+            State::Stopping => "STOPPING=1",
+            State::Alive => "WATCHDOG=1",
+        }
+    }
+}
+
+/// Where this process's state changes go.
+///
+/// A seam rather than the datagram itself, so that what a boot, a reload and a
+/// stop report is what a case reads back — a service manager is not something
+/// a test may assume it is running under.
+pub(crate) trait Supervisor: std::fmt::Debug + Send + Sync {
+    /// Say that this process is now in `state`.
+    ///
+    /// Nothing is returned, because there is nothing a caller could do with a
+    /// failure: a server that refused to serve because the manager that started
+    /// it stopped listening would be an outage bought for a status line. An
+    /// implementation reports its own.
+    fn told(&self, state: State);
+}
+
+/// The service manager this process reports to, or nobody.
+///
+/// Cheap to clone and held by each half that has something to report — the boot
+/// here, the reload in [`crate::reload`] and the stop in [`crate::stop`].
+#[derive(Clone, Debug)]
+pub(crate) struct Notify(Option<Arc<dyn Supervisor>>);
+
+/// What [`Notify::install`] left, for the reporter that is handed nothing.
+static PROCESS: OnceLock<Notify> = OnceLock::new();
+
+impl Notify {
+    /// The manager `$NOTIFY_SOCKET` names, or silence where the variable is
+    /// unset — which is every process an operator started by hand. On
+    /// Windows a service's state is the SCM's and not a datagram's, and the
+    /// manager is whatever `crate::dispatch` installed before the server ran:
+    /// silence on a console, the SCM under one.
+    pub(crate) fn from_env() -> Self {
+        #[cfg(unix)]
+        {
+            match std::env::var_os("NOTIFY_SOCKET") {
+                Some(name) if !name.is_empty() => systemd::manager(&name),
+                _ => Self::silent(),
+            }
+        }
+        #[cfg(not(unix))]
+        {
+            Self::process()
+        }
+    }
+
+    /// A process that reports to nobody.
+    pub(crate) fn silent() -> Self {
+        Self(None)
+    }
+
+    /// A process that reports to `sink`.
+    pub(crate) fn to(sink: Arc<dyn Supervisor>) -> Self {
+        Self(Some(sink))
+    }
+
+    /// Report `state`, or do nothing at all.
+    pub(crate) fn state(&self, state: State) {
+        if let Some(sink) = &self.0 {
+            sink.told(state);
+        }
+    }
+
+    /// Keep this as the process's, for the one reporter that is handed nothing:
+    /// a terminating signal's thread is given no boot and no server, which is
+    /// why it takes this and `nvs_server::Draining::process()` the same way.
+    ///
+    /// Installed once — a second call keeps the first, because a process has
+    /// one manager for its whole life.
+    pub(crate) fn install(&self) {
+        drop(PROCESS.set(self.clone()));
+    }
+
+    /// What [`Notify::install`] left, or silence before a boot installed
+    /// anything.
+    pub(crate) fn process() -> Self {
+        PROCESS.get().cloned().unwrap_or_else(Self::silent)
+    }
+}
+
+/// A [`Notify`] whose reports a case reads back, and the log it writes them to.
+///
+/// What it records is the line each state would have sent, so a case asserts
+/// the protocol rather than the spelling of an enum.
+#[cfg(test)]
+pub(crate) fn recording() -> (Notify, Arc<std::sync::Mutex<Vec<&'static str>>>) {
+    #[derive(Debug)]
+    struct Recorder(Arc<std::sync::Mutex<Vec<&'static str>>>);
+
+    impl Supervisor for Recorder {
+        fn told(&self, state: State) {
+            self.0
+                .lock()
+                .expect("the recorded states are only taken here")
+                .push(state.line());
+        }
+    }
+
+    let log = Arc::new(std::sync::Mutex::new(Vec::new()));
+    (Notify::to(Arc::new(Recorder(Arc::clone(&log)))), log)
+}
+
+/// What a service manager asks of a hosted server, answered with the drain
+/// this process already has.
+///
+/// `rule:packaging/a-service-answers-its-manager`'s table is the whole of what
+/// is here, and the rule's own wording is why nothing in it is re-implemented:
+/// a hosted server answers with the operations it already has, *rather than a
+/// shim reporting what it can see from outside*. So a stop enters
+/// [`crate::stop::deliver_to`], the one drain a `SIGTERM` enters, and what is
+/// left for this module is the mapping and watching that drain on the
+/// manager's behalf. No control here starts a reload: the server's own
+/// configuration check is the one thing that does ([`crate::reload`]), so a
+/// `PARAMCHANGE` is not a control this process accepts.
+///
+/// **The mapping is a value on both platforms.** A control arrives as one of
+/// the SCM's ABI numbers, and those are matched here rather than behind a `cfg`
+/// for [`registration::Platform`]'s reason: a case that could only be written
+/// on the machine it describes is a case nobody runs, and a control mapped to
+/// the wrong operation is silent until an administrator stops a machine
+/// somebody else owns.
+///
+/// What it spends, as `rule:programs/memory-priority` requires: one borrowed
+/// thread for the length of a drain, and no allocation — nothing per request
+/// and nothing that outlives the stop.
+#[cfg_attr(
+    all(not(test), not(windows)),
+    expect(
+        dead_code,
+        reason = "the caller is `crate::dispatch`, the SCM's handler, which only Windows builds; \
+                  a case drives every item here on every platform"
+    )
+)]
+pub(crate) mod hosted {
+    use std::time::{Duration, Instant};
+
+    use nvs_server::Draining;
+
+    /// What a drain reports to the manager about the running server.
+    ///
+    /// A trait so that a case drives [`stop`] with a recording process rather
+    /// than a running one; `nvs serve`'s is [`crate::reload::Process`].
+    pub(crate) trait Running {
+        /// Requests in flight across this process right now.
+        fn in_flight(&self) -> usize;
+    }
+
+    /// `SERVICE_CONTROL_STOP`.
+    const STOP: u32 = 0x0000_0001;
+    /// `SERVICE_CONTROL_PRESHUTDOWN`, which `rule:packaging/a-service-answers-its-manager` asks for at install because
+    /// plain `SHUTDOWN` allows roughly five seconds and a drain needs more.
+    const PRESHUTDOWN: u32 = 0x0000_000F;
+
+    /// Whether the control `code` asks this process to drain: answer what was
+    /// accepted, accept nothing further, and say so while it happens.
+    ///
+    /// `STOP` and `PRESHUTDOWN` ask for the same thing, and what differs
+    /// between them — how long the machine agrees to wait — is settled at
+    /// install by [`super::registration::Action::Preshutdown`] rather than
+    /// here. They are the whole set this process answers with an operation.
+    ///
+    /// `false` is not a failure. The SCM sends `SERVICE_CONTROL_INTERROGATE`
+    /// to any service at all, and what a handler owes it is the status it is
+    /// already holding — so a caller's answer to everything outside this set
+    /// is to say again what it last said, or that it does not implement it.
+    pub(crate) fn stops(code: u32) -> bool {
+        matches!(code, STOP | PRESHUTDOWN)
+    }
+
+    /// One thing the service manager is told while a drain runs.
+    ///
+    /// A reload has no member here: the SCM has no state for one, and the
+    /// reload function itself reports the pair a `Type=notify` unit is owed
+    /// ([`super::State`]).
+    #[derive(Clone, Copy, PartialEq, Eq, Debug)]
+    pub(crate) enum Progress {
+        /// The drain is running. `checkpoint` is the number the SCM reads as
+        /// progress and `in_flight` is what it is advancing over.
+        Stopping {
+            /// Advanced on every report, and never repeated: a stop that stops
+            /// advancing this is one the machine stops waiting for.
+            checkpoint: u32,
+            /// Requests still being answered at the moment of the report.
+            in_flight: usize,
+        },
+        /// The drain is finished and this process may exit.
+        Stopped,
+    }
+
+    /// Where a hosted server's drain progress goes.
+    ///
+    /// A seam for [`super::Supervisor`]'s reason and one more: the only
+    /// implementation there can be is `SetServiceStatus` over a
+    /// `SERVICE_STATUS_HANDLE` the SCM hands a process it started itself, so a
+    /// case holding this surface to the rule's table could otherwise not be
+    /// written on any machine at all.
+    pub(crate) trait Reporting: std::fmt::Debug + Send + Sync {
+        /// Say that the drain has reached `progress`.
+        ///
+        /// Nothing is returned for [`super::Supervisor::told`]'s reason: a
+        /// drain that stopped because the manager stopped listening would be
+        /// requests dropped to buy a status line.
+        fn told(&self, progress: Progress);
+    }
+
+    /// How often a drain is reported, and how long it is watched for.
+    ///
+    /// The caller's, because the period a drain takes is `[server]
+    /// drain_timeout` resolved out of the tree this process is serving
+    /// (`nvs_config::Waits`), and a case may not wait one.
+    #[derive(Clone, Copy, Debug)]
+    pub(crate) struct Pace {
+        /// The period between two checkpoints.
+        pub(crate) poll: Duration,
+        /// The period after which the drain is reported finished whatever is
+        /// still in flight.
+        pub(crate) bound: Duration,
+    }
+
+    /// The drain a stop asks for, over the process it is about, and the
+    /// manager watching it finish.
+    ///
+    /// Called on a thread of its own: the SCM ends a handler that does not
+    /// return promptly, and a drain is bounded by `[server] drain_timeout`
+    /// rather than by anything that fast.
+    ///
+    /// Entered through [`crate::stop::deliver_to`] rather than begun here, so
+    /// that a stop arriving from the SCM is the same state machine a
+    /// terminating signal enters and reports the same `STOPPING=1`.
+    ///
+    /// Reaching [`Pace::bound`] still ends in [`Progress::Stopped`]. By then
+    /// `drain_timeout` has closed what it was going to close, and a process
+    /// reporting anything else would be one the machine waits out the rest of
+    /// `rule:packaging/a-service-answers-its-manager`'s `PRESHUTDOWN` for before killing it anyway.
+    pub(crate) fn stop(
+        process: &dyn Running,
+        draining: &Draining,
+        manager: &dyn Reporting,
+        pace: Pace,
+    ) {
+        crate::stop::deliver_to(draining);
+        let began = Instant::now();
+        let mut checkpoint = 0;
+        loop {
+            let in_flight = process.in_flight();
+            checkpoint += 1;
+            manager.told(Progress::Stopping {
+                checkpoint,
+                in_flight,
+            });
+            if in_flight == 0 || began.elapsed() >= pace.bound {
+                break;
+            }
+            std::thread::sleep(pace.poll);
+        }
+        manager.told(Progress::Stopped);
+    }
+}
+
+/// The `WATCHDOG=1` ping a `WatchdogSec=` unit is owed, and the thread sending
+/// it.
+///
+/// [`unit()`] renders `WatchdogSec=30`, which means the manager stops this
+/// process unless a ping arrives inside half that period — so the ping has to
+/// be evidence of something. A beat written by a thread that lives whether or
+/// not a core turns proves only that the process exists, and a process that
+/// exists while answering nothing is the exact fault a watchdog is bought for.
+/// So the gate is [`nvs_host::Watchdog::turning`]:
+/// `rule:http-server/a-wedged-core-is-detected-by-its-deadline`'s detector,
+/// read rather than written to, which is what keeps this off every request
+/// path.
+///
+/// **One wedged core does not withhold the ping.** Withholding it there would
+/// hand the manager a whole process to restart over a fault
+/// `rule:http-server/a-wedged-core-is-shed-never-killed` sheds — every healthy
+/// core's in-flight requests ended to answer one core's wedge, which spends
+/// availability and buys nothing. The ping stops when *no* core is turning,
+/// and there a restart is the only recovery left: nothing in this process can
+/// kill a thread, and there is no core left to shed the work onto.
+///
+/// It spends one OS thread, and only under a manager that asked for a watchdog
+/// at all.
+#[derive(Debug)]
+pub(crate) struct Heartbeat {
+    shared: Arc<Beating>,
+    /// Taken by [`Heartbeat::drop`], which joins it.
+    thread: Option<JoinHandle<()>>,
+}
+
+/// What the pinging thread and its handle share.
+#[derive(Debug)]
+struct Beating {
+    /// Cleared by [`Heartbeat::drop`].
+    beating: Mutex<bool>,
+    /// Signalled to end the wait early, so a drop does not wait out an interval
+    /// to join.
+    change: Condvar,
+}
+
+impl Heartbeat {
+    /// The ping this process's manager asked for, or `None` where it asked for
+    /// none — which is every process an operator started by hand, and every
+    /// process at all on Windows.
+    pub(crate) fn start(
+        told: &Notify,
+        turning: impl Fn() -> bool + Send + 'static,
+    ) -> Option<Self> {
+        // A process reporting to nobody has nothing to ping, and the thread
+        // would be an OS thread spent writing datagrams into silence.
+        told.0.as_ref()?;
+        Self::every(told, half_the_period()?, turning)
+    }
+
+    /// The same ping on an interval a caller names, which is what makes the
+    /// gate assertable without a manager and without waiting out a real period.
+    fn every(
+        told: &Notify,
+        interval: Duration,
+        turning: impl Fn() -> bool + Send + 'static,
+    ) -> Option<Self> {
+        let shared = Arc::new(Beating {
+            beating: Mutex::new(true),
+            change: Condvar::new(),
+        });
+        let ticking = Arc::clone(&shared);
+        let told = told.clone();
+        match std::thread::Builder::new()
+            .name("nvs-watchdog-ping".to_owned())
+            .spawn(move || {
+                loop {
+                    {
+                        let beating = ticking
+                            .beating
+                            .lock()
+                            .unwrap_or_else(PoisonError::into_inner);
+                        let (beating, _) = ticking
+                            .change
+                            .wait_timeout(beating, interval)
+                            .unwrap_or_else(PoisonError::into_inner);
+                        if !*beating {
+                            return;
+                        }
+                    }
+                    // Outside the lock, because the gate walks the watched set
+                    // and the report writes a datagram: neither is work a drop
+                    // waiting to join should be held up by.
+                    if turning() {
+                        told.state(State::Alive);
+                    }
+                }
+            }) {
+            Ok(thread) => Some(Self {
+                shared,
+                thread: Some(thread),
+            }),
+            Err(error) => {
+                eprintln!(
+                    "warning: this process could not start the thread that answers \
+                     `WatchdogSec`, so the manager that started it will stop it once the period \
+                     is up: {error}"
+                );
+                None
+            }
+        }
+    }
+}
+
+impl Drop for Heartbeat {
+    fn drop(&mut self) {
+        *self
+            .shared
+            .beating
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner) = false;
+        self.shared.change.notify_all();
+        if let Some(thread) = self.thread.take() {
+            // Joined rather than left, so a fleet that has finished cannot be
+            // followed by one more ping saying it is turning.
+            let _ = thread.join();
+        }
+    }
+}
+
+/// Half of `WATCHDOG_USEC`, or `None` where this process is not the one being
+/// watched.
+///
+/// The two variables are the manager's half of `WatchdogSec=`: the period in
+/// microseconds, and — where it set one — the PID it will accept a ping from,
+/// which is what keeps a child that inherited the environment from answering
+/// for its parent. Half the period is the interval the protocol asks for,
+/// because a ping that is late once still lands inside it.
+fn half_the_period() -> Option<Duration> {
+    let usec: u64 = std::env::var("WATCHDOG_USEC").ok()?.trim().parse().ok()?;
+    let ours = match std::env::var("WATCHDOG_PID") {
+        Ok(pid) => pid.trim().parse::<u32>().ok()? == std::process::id(),
+        Err(_) => true,
+    };
+    (ours && usec > 0).then(|| Duration::from_micros((usec / 2).max(1)))
+}
+
+#[cfg(unix)]
+mod systemd {
+    //! `sd_notify` as the protocol is: one `AF_UNIX` datagram of `NAME=value`
+    //! lines to the address `$NOTIFY_SOCKET` holds.
+
+    use std::ffi::OsStr;
+    use std::io;
+    use std::os::unix::ffi::OsStrExt;
+    use std::os::unix::net::{SocketAddr, UnixDatagram};
+    use std::path::Path;
+    use std::sync::Arc;
+
+    use super::{Notify, State, Supervisor};
+
+    /// The manager listening at `name`, or silence and one line saying why.
+    ///
+    /// A boot that cannot reach the manager that started it will be stopped at
+    /// `TimeoutStartSec` with no explanation of its own, so the only useful
+    /// place to say what went wrong is here.
+    pub(super) fn manager(name: &OsStr) -> Notify {
+        match opened(name) {
+            Ok(manager) => Notify::to(Arc::new(manager)),
+            Err(error) => {
+                eprintln!(
+                    "warning: `$NOTIFY_SOCKET` names `{}`, and this process cannot report its \
+                     state to it: {error}",
+                    Path::new(name).display()
+                );
+                Notify::silent()
+            }
+        }
+    }
+
+    /// The socket and the address, both taken once: a report is then a `send`
+    /// and nothing else.
+    fn opened(name: &OsStr) -> io::Result<Manager> {
+        Ok(Manager {
+            socket: UnixDatagram::unbound()?,
+            at: address(name)?,
+        })
+    }
+
+    /// `$NOTIFY_SOCKET` as an address: a path, or — where it begins with `@` —
+    /// a name in Linux's abstract namespace, which is the same socket with no
+    /// file to find it by.
+    fn address(name: &OsStr) -> io::Result<SocketAddr> {
+        if let [b'@', rest @ ..] = name.as_bytes() {
+            #[cfg(target_os = "linux")]
+            {
+                use std::os::linux::net::SocketAddrExt;
+                return SocketAddr::from_abstract_name(rest);
+            }
+            #[cfg(not(target_os = "linux"))]
+            {
+                let _ = rest;
+                return Err(io::Error::other(
+                    "an abstract socket name is Linux's, and this platform has no namespace to \
+                     look one up in",
+                ));
+            }
+        }
+        SocketAddr::from_pathname(Path::new(name))
+    }
+
+    /// One datagram per report, over a socket held for the life of the process.
+    ///
+    /// A report is rare — the boot's, a reload's pair, the stop's — so what
+    /// this holds is one descriptor rather than one per report, and nothing
+    /// that grows with either.
+    #[derive(Debug)]
+    struct Manager {
+        /// Unbound, because `sd_notify` is one-way: a manager never answers,
+        /// and a socket with a name of its own would be a file in a directory
+        /// this process was not told it may write to.
+        socket: UnixDatagram,
+        /// Where `$NOTIFY_SOCKET` pointed when this process started.
+        at: SocketAddr,
+    }
+
+    impl Supervisor for Manager {
+        fn told(&self, state: State) {
+            if let Err(error) = self
+                .socket
+                .send_to_addr(message(state).as_bytes(), &self.at)
+            {
+                eprintln!(
+                    "warning: the service manager was not told `{}`: {error}",
+                    state.line()
+                );
+            }
+        }
+    }
+
+    /// The datagram's whole text, one assignment per line.
+    ///
+    /// A reload carries `MONOTONIC_USEC` as well: it is the clock reading a
+    /// manager matches a reload it asked for against, and a `RELOADING` with
+    /// none can be read as the answer to a request that had not been made when
+    /// it was sent. A clock this platform will not read is left off rather than
+    /// guessed at — the state itself is still the honest half of the message.
+    fn message(state: State) -> String {
+        match state {
+            State::Reloading => match monotonic_usec() {
+                Some(usec) => format!("{}\nMONOTONIC_USEC={usec}\n", state.line()),
+                None => format!("{}\n", state.line()),
+            },
+            _ => format!("{}\n", state.line()),
+        }
+    }
+
+    /// `CLOCK_MONOTONIC` in microseconds, which is the clock the protocol
+    /// names. `Instant` is the same reading with no way to ask for its value.
+    #[expect(
+        unsafe_code,
+        reason = "`clock_gettime` is the platform's only reading of `CLOCK_MONOTONIC`, and \
+                  `std` hands back an opaque `Instant` instead of one"
+    )]
+    fn monotonic_usec() -> Option<u64> {
+        // SAFETY: `timespec` is a plain C struct whose all-zero value is a
+        // valid one, and the call below overwrites every field of it.
+        let mut now: libc::timespec = unsafe { std::mem::zeroed() };
+        // SAFETY: the platform writes one `timespec`, which this frame owns.
+        if unsafe { libc::clock_gettime(libc::CLOCK_MONOTONIC, &raw mut now) } != 0 {
+            return None;
+        }
+        let seconds = u64::try_from(now.tv_sec).ok()?;
+        let nanos = u64::try_from(now.tv_nsec).ok()?;
+        seconds.checked_mul(1_000_000)?.checked_add(nanos / 1_000)
+    }
+}
+
+/// Where a rendered unit goes, which for [`Delivery::Print`] is nowhere.
+///
+/// `root` is the system unit directory rather than a constant, so the printing
+/// half of `rule:packaging/the-unit-is-printed-and-install-is-the-opt-in` can be asserted against a directory a test owns and can then
+/// find still empty.
+pub(crate) fn destination(delivery: Delivery, name: &str, root: &Path) -> Option<PathBuf> {
+    match delivery {
+        Delivery::Print => None,
+        Delivery::Install => Some(root.join(format!("{name}.service"))),
+    }
+}
+
+/// Deliver a rendered unit to wherever [`destination`] said, which for `None`
+/// is standard output.
+///
+/// # Errors
+///
+/// The write's own error.
+pub(crate) fn deliver(text: &str, destination: Option<&Path>) -> std::io::Result<()> {
+    match destination {
+        None => {
+            print!("{text}");
+            Ok(())
+        }
+        Some(path) => std::fs::write(path, text),
+    }
+}
+
+/// `rule:packaging/the-argv-lives-in-imagepath`'s registration and `rule:packaging/the-unit-is-printed-and-install-is-the-opt-in`'s write, as a list of actions and the manager
+/// they go through.
+///
+/// **Every verb is a pure function from a [`Plan`] to a list of [`registration::Action`]s**,
+/// and the manager that performs them is a parameter. That is what makes this
+/// half of the surface assertable with no administrator rights and on either
+/// platform: a case drives `Recording` and asserts the list, and the list is
+/// where every decision of `rule:packaging/the-argv-lives-in-imagepath`,
+/// `rule:packaging/a-service-runs-as-a-virtual-account` and
+/// `rule:packaging/a-service-answers-its-manager` actually lives — the encoded
+/// `ImagePath`, the account, `PRESHUTDOWN`, the failure actions, the grants and
+/// the event-log source. `--dry-run` describes that same
+/// list rather than a second rendering of it, so the change-management artifact
+/// `rule:packaging/the-unit-is-printed-and-install-is-the-opt-in` argues for and the thing that is performed cannot drift apart.
+///
+/// The appliers `Scm` and `Systemd` arrive at [`registration::Manager`], which is one method
+/// rather than one per verb: a [`registration::Action`] already names what to do in its
+/// platform's own terms, and a trait with a method per row would grow one every
+/// time `rule:packaging/the-argv-lives-in-imagepath` or `rule:packaging/the-unit-is-printed-and-install-is-the-opt-in` gains a line.
+#[cfg_attr(
+    not(test),
+    expect(
+        dead_code,
+        reason = "the subcommands that reach this seam are the slice after it"
+    )
+)]
+pub(crate) mod registration {
+    use super::*;
+
+    /// How long `rule:packaging/a-service-answers-its-manager`'s `PRESHUTDOWN` asks the machine to wait for this process.
+    ///
+    /// Plain `SHUTDOWN` allows roughly five seconds, and a drain finishes the
+    /// requests already in flight rather than dropping them, so this is a
+    /// ceiling over whatever bound `[server]` places on the drain rather than a
+    /// guess at how long one takes.
+    const PRESHUTDOWN: Duration = Duration::from_secs(180);
+
+    /// `rule:packaging/a-service-answers-its-manager`'s reset period: how long the service stays up before the manager
+    /// stops counting earlier failures against it.
+    const FAILURE_RESET: Duration = Duration::from_secs(600);
+
+    /// The `HKEY_LOCAL_MACHINE` key whose subkeys are event-log sources, which
+    /// is what `rule:packaging/a-service-answers-its-manager`'s *Output* registers at install and removes at uninstall.
+    const EVENT_SOURCES: &str = r"SYSTEM\CurrentControlSet\Services\EventLog\Application";
+
+    /// Which service manager holds the service.
+    ///
+    /// A parameter rather than a `cfg!`, because `rule:packaging/the-argv-lives-in-imagepath`'s registration and `rule:packaging/the-unit-is-printed-and-install-is-the-opt-in`'s
+    /// unit are each one list of actions, and a case that could only be written
+    /// on the platform it describes is a case nobody runs.
+    #[derive(Clone, Copy, PartialEq, Eq, Debug)]
+    pub(crate) enum Platform {
+        /// The SCM, whose own state is the only representation a service has.
+        Windows,
+        /// systemd, whose representation is a unit file.
+        Linux,
+    }
+
+    impl Platform {
+        /// The platform the installer is running on, which is the one the
+        /// service will run on — the same reading `rule:packaging/the-installer-is-a-sink`'s relative-path row takes paths
+        /// against.
+        pub(crate) fn host() -> Self {
+            if cfg!(windows) {
+                Self::Windows
+            } else {
+                Self::Linux
+            }
+        }
+    }
+
+    /// `rule:packaging/a-service-answers-its-manager`'s failure actions, as the one decision they carry.
+    #[derive(Clone, Copy, PartialEq, Eq, Debug, Default, clap::ValueEnum)]
+    pub(crate) enum Restart {
+        // `nvs service install --help` prints these two `///` lines.
+        /// The service manager starts the service again when it fails. This is
+        /// the default.
+        #[default]
+        OnFailure,
+        /// The service stays stopped when it fails.
+        Never,
+    }
+
+    impl Restart {
+        /// The word an operator wrote, for the line `--dry-run` prints.
+        fn word(self) -> &'static str {
+            match self {
+                Self::OnFailure => "on-failure",
+                Self::Never => "never",
+            }
+        }
+    }
+
+    /// When the manager starts the service after a boot (`rule:packaging/a-service-answers-its-manager`).
+    #[derive(Clone, Copy, PartialEq, Eq, Debug, Default, clap::ValueEnum)]
+    pub(crate) enum StartMode {
+        // `nvs service install --help` prints these three `///` lines. `Delayed`
+        // is `rule:packaging/a-service-answers-its-manager`'s delayed auto-start.
+        /// The service starts with the computer, together with the other
+        /// automatic services. This is the default.
+        #[default]
+        Automatic,
+        /// The service starts with the computer. On Windows, it starts after
+        /// the automatic services.
+        Delayed,
+        /// The service starts only when somebody starts it.
+        Manual,
+    }
+
+    impl StartMode {
+        /// The word an operator wrote, for the line `--dry-run` prints.
+        fn word(self) -> &'static str {
+            match self {
+                Self::Automatic => "automatic",
+                Self::Delayed => "delayed",
+                Self::Manual => "manual",
+            }
+        }
+
+        /// Whether systemd is asked to want this service at boot, which is what
+        /// `[Install] WantedBy` in the rendered unit is there for: on Linux the
+        /// two auto-start modes are one `enable`, and the manual one is the
+        /// unit sitting there unwanted.
+        fn enabled(self) -> bool {
+            matches!(self, Self::Automatic | Self::Delayed)
+        }
+    }
+
+    /// The installer's own options that `rule:packaging/the-installer-is-a-sink` has nothing to refuse about.
+    #[derive(Debug, Default)]
+    pub(crate) struct Registration {
+        /// `rule:packaging/a-service-answers-its-manager`'s `--start`.
+        pub(crate) start: StartMode,
+        /// `rule:packaging/a-service-answers-its-manager`'s `--restart`.
+        pub(crate) restart: Restart,
+        /// `rule:packaging/a-service-answers-its-manager`'s `--depends-on`, for a database that must come up first.
+        pub(crate) depends_on: Vec<String>,
+        /// What an administrator reads beside the name. The service's own name,
+        /// where the operator wrote nothing.
+        pub(crate) description: Option<String>,
+    }
+
+    /// What the platform still holds about an installed service.
+    ///
+    /// On Windows that is the `ImagePath` and nothing else (`rule:packaging/the-argv-lives-in-imagepath`), read back
+    /// through [`nvs_diagnostics::argv::decode`]; on Linux it is the unit's `ExecStart`. A value
+    /// rather than something [`uninstall_actions`] reads for itself, so the
+    /// property `rule:packaging/a-service-answers-its-manager` closes on — an uninstall leaves no key, no source, no unit
+    /// and no granted ACL — is one a case can assert against the very install
+    /// that granted them.
+    #[derive(Debug)]
+    pub(crate) struct Stored {
+        /// The identity the manager holds it under.
+        pub(crate) name: String,
+        /// The stored argv, decoded, which is what names the configuration
+        /// files the install granted read on.
+        pub(crate) argv: Vec<String>,
+        /// The account those grants were made to.
+        pub(crate) account: String,
+        /// The file the configuration's `[log] target` named at install, if it
+        /// named one.
+        pub(crate) log_file: Option<PathBuf>,
+        /// The artifact cache directory it granted read/write on.
+        pub(crate) cache_directory: Option<PathBuf>,
+        /// The temporary-folder root it granted read/write on.
+        pub(crate) temp_root: Option<PathBuf>,
+        /// The service's data folder, which it granted on.
+        pub(crate) data_folder: Option<PathBuf>,
+        /// The binary the service runs, read back with the argv, whose
+        /// default data folder is the one the install granted on.
+        pub(crate) exe: Option<PathBuf>,
+    }
+
+    /// A Linux account as the password database holds it: what `User=` names
+    /// in the unit, and the ids `rule:packaging/a-service-runs-as-a-virtual-account`'s grants are spelled in there.
+    #[derive(Clone, PartialEq, Eq, Debug)]
+    pub(crate) struct Account {
+        /// The name `--account` gave.
+        pub(crate) name: String,
+        /// Its user id, which owns the paths the service writes.
+        pub(crate) uid: u32,
+        /// Its primary group, which systemd starts the service in when the
+        /// unit names no `Group=`, and which reads the data folder and its
+        /// `nvs.toml`.
+        pub(crate) gid: u32,
+    }
+
+    /// One step a verb performs, in its platform's own terms.
+    ///
+    /// A union over both platforms rather than one enum each: the verbs are one
+    /// surface and [`Manager`] is one seam, and an applier never meets an action
+    /// its platform has no call for, because the builder that produced the list
+    /// was told which platform it was building for.
+    #[derive(Clone, PartialEq, Eq, Debug)]
+    pub(crate) enum Action {
+        /// Register the service with the SCM, carrying `rule:packaging/the-argv-lives-in-imagepath`'s encoded
+        /// `ImagePath`.
+        Register {
+            name: String,
+            image_path: String,
+            account: String,
+            start: StartMode,
+            depends_on: Vec<String>,
+            /// What an administrator reads beside the name, where the operator
+            /// wrote one. Nothing is generated in its place.
+            description: Option<String>,
+        },
+        /// Ask for `SERVICE_CONTROL_PRESHUTDOWN`, and for the time a drain
+        /// needs.
+        Preshutdown { name: String, timeout: Duration },
+        /// Set `rule:packaging/a-service-answers-its-manager`'s failure actions and the period after which the manager
+        /// forgets earlier failures.
+        Failure {
+            name: String,
+            restart: Restart,
+            reset: Duration,
+        },
+        /// Grant the service's identity access to one path, and `rule:packaging/a-service-runs-as-a-virtual-account`'s list
+        /// closes what may be granted at all.
+        Grant {
+            account: String,
+            path: PathBuf,
+            write: bool,
+        },
+        /// Register the event-log source `rule:packaging/a-service-answers-its-manager`'s *Output* writes lifecycle
+        /// records to, which is a subkey under [`EVENT_SOURCES`].
+        EventSource { name: String, exe: PathBuf },
+        /// Take the registration away.
+        Deregister { name: String },
+        /// Take one granted entry away again.
+        Revoke { account: String, path: PathBuf },
+        /// One path of `rule:packaging/a-service-runs-as-a-virtual-account`'s grant list as Linux spells a grant: an owner, a
+        /// group and a mode. A directory the service writes in is created
+        /// first when it is not there (`create`), for the reason
+        /// [`Action::Grant`] creates one.
+        Own {
+            path: PathBuf,
+            uid: u32,
+            gid: u32,
+            mode: u32,
+            create: bool,
+        },
+        /// Give one path back to root, private: owner and group `root`, and
+        /// `mode`, which keeps no bit for the group or anyone else. A path
+        /// that is not there is already given back.
+        Disown { path: PathBuf, mode: u32 },
+        /// Remove the event-log source's subkey.
+        RemoveEventSource { name: String },
+        /// Write `rule:packaging/the-generated-unit-is-hardened`'s rendered unit where systemd reads it.
+        WriteUnit { path: PathBuf, text: String },
+        /// Remove it.
+        RemoveUnit { path: PathBuf },
+        /// Run `systemctl` with these arguments — by argv and with no shell,
+        /// per `rule:core-classes/process-is-argv-only`.
+        Systemctl { argv: Vec<String> },
+        /// Ask the SCM itself to start, stop or report on the service.
+        Scm { name: String, control: Control },
+    }
+
+    /// The three verbs that act on an installed service rather than on its
+    /// registration.
+    ///
+    /// `Status` is the manager's own answer and nothing more.
+    #[derive(Clone, Copy, PartialEq, Eq, Debug)]
+    pub(crate) enum Control {
+        /// Start it now.
+        Start,
+        /// Stop it, which a hosted server answers with a drain
+        /// (`rule:packaging/a-service-answers-its-manager`).
+        Stop,
+        /// Ask what state the manager has it in.
+        Status,
+    }
+
+    impl Control {
+        /// The `systemctl` verb, which is also the word the SCM line prints.
+        fn word(self) -> &'static str {
+            match self {
+                Self::Start => "start",
+                Self::Stop => "stop",
+                Self::Status => "is-active",
+            }
+        }
+    }
+
+    /// The service manager an action is applied through.
+    ///
+    /// One method, because an [`Action`] already says what to do: `Scm` and
+    /// `Systemd` are the real implementations, and `Recording` is what a case
+    /// drives instead.
+    pub(crate) trait Manager {
+        /// Perform `action`, answering whatever the platform said about it —
+        /// which for a [`Control::Status`] query is the state it reported.
+        ///
+        /// # Errors
+        ///
+        /// The platform's own failure, unchanged: nothing above this can
+        /// anticipate what a service manager refuses.
+        fn apply(&self, action: &Action) -> std::io::Result<Option<String>>;
+
+        /// What the platform still holds under `name`: the argv it was
+        /// registered with, and the account its grants were made to.
+        ///
+        /// Read back rather than asked for a second time, because `rule:packaging/a-service-answers-its-manager`'s
+        /// closing property is about the install that happened and a second
+        /// command line describes the one an operator believes happened. The
+        /// directories `rule:packaging/a-service-runs-as-a-virtual-account` grants read/write on are left empty: neither
+        /// manager holds them, and the caller derives them from the stored
+        /// argv and the configuration it names.
+        ///
+        /// # Errors
+        ///
+        /// The platform's own failure, and `Unsupported` from a manager
+        /// holding no registration to read — which is the recording one a case
+        /// drives, where the [`Stored`] is the case's own value.
+        fn stored(&self, name: &str, unit_root: &Path) -> std::io::Result<Stored> {
+            let _ = (name, unit_root);
+            Err(std::io::Error::new(
+                std::io::ErrorKind::Unsupported,
+                "this service manager holds no registration to read back",
+            ))
+        }
+
+        /// The Linux account `name` names, which `rule:packaging/a-service-runs-as-a-virtual-account`'s grants are spelled in
+        /// on that platform.
+        ///
+        /// # Errors
+        ///
+        /// `NotFound` when this machine has no such account, the password
+        /// database's own failure, and `Unsupported` from a manager whose
+        /// platform names an account in its grants rather than by its ids.
+        fn account(&self, name: &str) -> std::io::Result<Account> {
+            let _ = name;
+            Err(std::io::Error::new(
+                std::io::ErrorKind::Unsupported,
+                "this service manager has no Linux accounts",
+            ))
+        }
+    }
+
+    /// Where a verb is being performed.
+    ///
+    /// `unit_root` is a parameter for the reason [`destination`] takes one: the
+    /// directory `rule:packaging/the-unit-is-printed-and-install-is-the-opt-in` writes into is the machine's, and a case asserting what an
+    /// install writes has to own the directory it looks in.
+    pub(crate) struct Site<'a> {
+        /// Which manager holds the service.
+        pub(crate) platform: Platform,
+        /// The system unit directory, on the platform that has one.
+        pub(crate) unit_root: &'a Path,
+        /// The manager itself.
+        pub(crate) manager: &'a dyn Manager,
+    }
+
+    /// Why a verb did not finish.
+    #[derive(Debug)]
+    pub(crate) enum Refused {
+        /// `rule:packaging/the-installer-is-a-sink`, reached before the manager was touched at all — which is
+        /// `rule:packaging/the-installer-is-a-sink`'s whole claim.
+        Installer(Diagnostic),
+        /// The platform's own failure at the step it names.
+        Manager(std::io::Error),
+    }
+
+    /// The identity a service runs as: [`LOCAL_SYSTEM`], the local system
+    /// account every hand-registered Windows service gets, unless `--account`
+    /// names another (`rule:packaging/a-service-runs-as-a-virtual-account`).
+    /// `SYSTEM` and `NT AUTHORITY\SYSTEM` are that same account under the
+    /// names an operator types, and are stored as the SCM spells it.
+    fn account_of(plan: &Plan) -> String {
+        match &plan.account {
+            Some(account) if !is_local_system(account) => account.clone(),
+            _ => LOCAL_SYSTEM.to_owned(),
+        }
+    }
+
+    /// The account the SCM already trusts with everything, which is why an
+    /// install grants it nothing and an uninstall revokes nothing from it.
+    pub(crate) const LOCAL_SYSTEM: &str = "LocalSystem";
+
+    /// Whether `account` names [`LOCAL_SYSTEM`] under any of its spellings.
+    pub(crate) fn is_local_system(account: &str) -> bool {
+        let account = account.trim();
+        account.eq_ignore_ascii_case(LOCAL_SYSTEM)
+            || account.eq_ignore_ascii_case("SYSTEM")
+            || account.eq_ignore_ascii_case(r"NT AUTHORITY\SYSTEM")
+            || account.eq_ignore_ascii_case(r".\LocalSystem")
+    }
+
+    /// The directories `rule:packaging/a-service-runs-as-a-virtual-account` grants on, beside the configuration files the
+    /// stored argv names.
+    #[derive(Clone, Copy)]
+    struct Writable<'a> {
+        /// The service's data folder: read on itself, read/write on its
+        /// `cache/`, `tmp/`, `lsp/` and `logs/`.
+        data_folder: Option<&'a Path>,
+        /// The file of a `[log] target`, whose directory is the grant.
+        log_file: Option<&'a Path>,
+        /// `[opcache] file_cache_dir`.
+        cache_directory: Option<&'a Path>,
+        /// `[io] temp_root`.
+        temp_root: Option<&'a Path>,
+    }
+
+    /// `rule:packaging/a-service-runs-as-a-virtual-account`'s grant list for a checked plan, as `(path, write)` pairs: what an
+    /// install on Windows grants a named account, and what [`super::unit`] opens with
+    /// `ReadWritePaths=`. One list, so the two platforms cannot drift apart.
+    pub(crate) fn grants(plan: &Plan) -> Vec<(PathBuf, bool)> {
+        granted(
+            &plan.argv,
+            Writable {
+                data_folder: plan.data.as_ref().map(nvs_config::data::Folder::root),
+                log_file: plan.log_file.as_deref(),
+                cache_directory: plan.cache_directory.as_deref(),
+                temp_root: plan.temp_root.as_deref(),
+            },
+        )
+    }
+
+    /// `rule:packaging/a-service-runs-as-a-virtual-account`'s grant list, closed: read on the service's data folder and on
+    /// every configuration file the argv names, read/write on the data
+    /// folder's `cache/`, `tmp/`, `lsp/` and `logs/`, read/write on the log
+    /// directory, the artifact cache and the temporary-folder root, and
+    /// nothing further.
+    ///
+    /// **The service never gets write on its own configuration.** The data
+    /// folder's grant is read, and that is all its `nvs.toml` inherits; the
+    /// write grants sit on the four subfolders and are inherited only inside
+    /// them. A path inside one of those four gets no grant of its own, since
+    /// it already inherits read/write.
+    ///
+    /// Read off the stored argv rather than off the installer's own options, so
+    /// an uninstall that has only the `ImagePath` to go on derives the same list
+    /// the install granted.
+    fn granted(argv: &[String], writable: Writable<'_>) -> Vec<(PathBuf, bool)> {
+        let data = writable
+            .data_folder
+            .map(|root| nvs_config::data::Folder::new(root.to_path_buf()));
+        let subfolders: Vec<PathBuf> = data
+            .iter()
+            .flat_map(|data| [data.cache(), data.tmp(), data.lsp_root(), data.logs()])
+            .collect();
+        let mut out: Vec<(PathBuf, bool)> = writable
+            .data_folder
+            .map(|root| (root.to_path_buf(), false))
+            .into_iter()
+            .collect();
+        out.extend(
+            values_of(argv, "--config")
+                .into_iter()
+                .map(|config| (PathBuf::from(config), false)),
+        );
+        out.extend(subfolders.iter().map(|sub| (sub.clone(), true)));
+        // The directory and not the file: a process that may write the log but
+        // not the directory holding it cannot rotate one.
+        let log_directory = writable.log_file.and_then(Path::parent);
+        for directory in [log_directory, writable.cache_directory, writable.temp_root]
+            .into_iter()
+            .flatten()
+        {
+            if !subfolders.iter().any(|sub| directory.starts_with(sub)) {
+                out.push((directory.to_path_buf(), true));
+            }
+        }
+        out
+    }
+
+    /// How one path of `rule:packaging/a-service-runs-as-a-virtual-account`'s grant list is spelled on Linux, where a grant is
+    /// an owner, a group and a mode rather than an entry in an ACL.
+    #[derive(Clone, Copy, PartialEq, Eq, Debug)]
+    enum Owned {
+        /// The data folder: root's, readable and searchable by the account's
+        /// group, `0750`.
+        Folder,
+        /// A configuration file inside the data folder: root's, readable by
+        /// the account's group, `0640`.
+        Config,
+        /// A directory the service writes in: the account's own, `0700`.
+        Writable,
+    }
+
+    impl Owned {
+        /// The mode the install gives the path.
+        fn mode(self) -> u32 {
+            match self {
+                Self::Folder => 0o750,
+                Self::Config => 0o640,
+                Self::Writable => 0o700,
+            }
+        }
+
+        /// The mode a path goes back to: the owner's bits of [`Owned::mode`]
+        /// and nothing for the group or anyone else, which is the mode
+        /// `nvs_config::data` creates the folder with.
+        fn private(self) -> u32 {
+            self.mode() & 0o700
+        }
+    }
+
+    /// [`granted`]'s list as [`Owned`] paths, which is the one list a Linux
+    /// install and uninstall walk.
+    ///
+    /// A read entry outside the data folder is left out: it is a `--config`
+    /// file the operator keeps elsewhere, and its owner and mode are theirs.
+    /// [`unreadable_configs`] names one the account cannot read instead.
+    fn owned(list: Vec<(PathBuf, bool)>, data_folder: Option<&Path>) -> Vec<(PathBuf, Owned)> {
+        list.into_iter()
+            .filter_map(|(path, write)| {
+                let owned = if write {
+                    Owned::Writable
+                } else if data_folder.is_some_and(|root| path == root) {
+                    Owned::Folder
+                } else if data_folder.is_some_and(|root| path.starts_with(root)) {
+                    Owned::Config
+                } else {
+                    return None;
+                };
+                Some((path, owned))
+            })
+            .collect()
+    }
+
+    /// The `--config` files of `plan` outside its data folder that `account`
+    /// cannot read, by the owner, group and mode bits a Linux kernel checks.
+    ///
+    /// A warning and never a refusal, and never a `chmod`: the file is the
+    /// operator's, and a supplementary group or an ACL this does not read may
+    /// give the account read all the same.
+    fn unreadable_configs(plan: &Plan, account: &Account) -> Vec<PathBuf> {
+        let data_folder = plan.data.as_ref().map(nvs_config::data::Folder::root);
+        grants(plan)
+            .into_iter()
+            .filter(|(path, write)| {
+                !write && !data_folder.is_some_and(|root| path.starts_with(root))
+            })
+            .map(|(path, _)| path)
+            .filter(|path| !readable_by(path, account))
+            .collect()
+    }
+
+    /// Whether `account` may read `path` by its owner, group and mode bits.
+    /// A path that cannot be examined reads as readable: the warning it would
+    /// raise could not be established.
+    #[cfg(unix)]
+    pub(crate) fn readable_by(path: &Path, account: &Account) -> bool {
+        use std::os::unix::fs::MetadataExt;
+
+        let Ok(meta) = std::fs::metadata(path) else {
+            return true;
+        };
+        let mode = meta.mode();
+        if meta.uid() == account.uid {
+            mode & 0o400 != 0
+        } else if meta.gid() == account.gid {
+            mode & 0o040 != 0
+        } else {
+            mode & 0o004 != 0
+        }
+    }
+
+    /// No Unix modes to read: every path reads as readable.
+    #[cfg(not(unix))]
+    fn readable_by(path: &Path, account: &Account) -> bool {
+        let _ = (path, account);
+        true
+    }
+
+    /// The account `plan` names, looked up through `site`'s manager on Linux,
+    /// where `rule:packaging/a-service-runs-as-a-virtual-account`'s grants are spelled in its ids. Stored on the plan, so
+    /// [`install_actions`] stays a pure function of it.
+    ///
+    /// Nothing is stored for root, which owns every path already, or on
+    /// Windows, where a grant names the account itself.
+    ///
+    /// # Errors
+    ///
+    /// `E0654`, when the password database has no such account: systemd
+    /// would start the unit as a `User=` that is not there and fail at every
+    /// boot.
+    pub(crate) fn resolve_account(plan: &mut Plan, site: &Site<'_>) -> Result<(), Diagnostic> {
+        if site.platform != Platform::Linux {
+            return Ok(());
+        }
+        let Some(name) = plan.account.clone() else {
+            return Ok(());
+        };
+        let account = site
+            .manager
+            .account(&name)
+            .map_err(|why| no_such_account(&name, &why))?;
+        plan.owner = (account.uid != 0).then_some(account);
+        Ok(())
+    }
+
+    /// `E0654` for `name`, which the lookup could not find for `why`.
+    fn no_such_account(name: &str, why: &std::io::Error) -> Diagnostic {
+        let message = if why.kind() == std::io::ErrorKind::NotFound {
+            format!("the account `{name}` does not exist on this machine")
+        } else {
+            format!("the account `{name}` could not be looked up: {why}")
+        };
+        Diagnostic::error(code::E_SERVICE_NO_SUCH_ACCOUNT, message)
+            .with_note(
+                "the service runs as this account, and systemd cannot start it as an account \
+                 that does not exist"
+                    .to_owned(),
+            )
+            .with_help(format!(
+                "create the account first, for example with `useradd --system --no-create-home \
+                 {name}`, or name an account that exists"
+            ))
+    }
+
+    /// `install`'s steps, in the order the platform takes them.
+    pub(crate) fn install_actions(
+        platform: Platform,
+        plan: &Plan,
+        registration: &Registration,
+        unit_root: &Path,
+    ) -> Vec<Action> {
+        match platform {
+            Platform::Windows => {
+                let account = account_of(plan);
+                let mut out = vec![
+                    Action::Register {
+                        name: plan.name.clone(),
+                        image_path: image_path(plan),
+                        account: account.clone(),
+                        start: registration.start,
+                        depends_on: registration.depends_on.clone(),
+                        description: registration.description.clone(),
+                    },
+                    Action::Preshutdown {
+                        name: plan.name.clone(),
+                        timeout: PRESHUTDOWN,
+                    },
+                    Action::Failure {
+                        name: plan.name.clone(),
+                        restart: registration.restart,
+                        reset: FAILURE_RESET,
+                    },
+                ];
+                // The system account holds every one of these already, so the
+                // grants are for an account the operator named.
+                if !is_local_system(&account) {
+                    for (path, write) in grants(plan) {
+                        out.push(Action::Grant {
+                            account: account.clone(),
+                            path,
+                            write,
+                        });
+                    }
+                }
+                // Last, and after the grants: it is the destination a failure
+                // to start is reported to, so it is registered while the
+                // service still cannot have been started.
+                out.push(Action::EventSource {
+                    name: plan.name.clone(),
+                    exe: plan.exe.clone(),
+                });
+                out
+            }
+            Platform::Linux => {
+                let mut out = vec![Action::WriteUnit {
+                    path: destination(Delivery::Install, &plan.name, unit_root)
+                        .expect("an installing delivery names a unit file"),
+                    text: unit(plan),
+                }];
+                // Then, and never before: `daemon-reload` is what makes the
+                // file a unit systemd knows about, and an `enable` ahead of it
+                // would be asked about a name it has not read yet.
+                out.push(Action::Systemctl {
+                    argv: vec!["daemon-reload".to_owned()],
+                });
+                // Where the Windows grants go: after the registration, and
+                // before the step that lets a boot start the service. Root
+                // owns everything already, so the owner is a named account.
+                if let Some(account) = &plan.owner {
+                    let data_folder = plan.data.as_ref().map(nvs_config::data::Folder::root);
+                    for (path, owned) in owned(grants(plan), data_folder) {
+                        out.push(Action::Own {
+                            path,
+                            uid: if owned == Owned::Writable {
+                                account.uid
+                            } else {
+                                0
+                            },
+                            gid: account.gid,
+                            mode: owned.mode(),
+                            create: owned == Owned::Writable,
+                        });
+                    }
+                }
+                if registration.start.enabled() {
+                    out.push(Action::Systemctl {
+                        argv: vec!["enable".to_owned(), plan.name.clone()],
+                    });
+                }
+                out
+            }
+        }
+    }
+
+    /// `uninstall`'s steps, which leave no key, no source, no unit and no
+    /// granted entry behind (`rule:packaging/a-service-answers-its-manager`).
+    pub(crate) fn uninstall_actions(
+        platform: Platform,
+        stored: &Stored,
+        unit_root: &Path,
+    ) -> Vec<Action> {
+        match platform {
+            Platform::Windows => {
+                // Stopped first: the SCM marks a running service for deletion
+                // and removes it when the process exits, which would leave the
+                // key behind for as long as it keeps running. An applier reads
+                // "already stopped" as done.
+                let mut out = vec![Action::Scm {
+                    name: stored.name.clone(),
+                    control: Control::Stop,
+                }];
+                if !is_local_system(&stored.account) {
+                    let writable = Writable {
+                        data_folder: stored.data_folder.as_deref(),
+                        log_file: stored.log_file.as_deref(),
+                        cache_directory: stored.cache_directory.as_deref(),
+                        temp_root: stored.temp_root.as_deref(),
+                    };
+                    for (path, _) in granted(&stored.argv, writable) {
+                        out.push(Action::Revoke {
+                            account: stored.account.clone(),
+                            path,
+                        });
+                    }
+                }
+                out.push(Action::RemoveEventSource {
+                    name: stored.name.clone(),
+                });
+                out.push(Action::Deregister {
+                    name: stored.name.clone(),
+                });
+                out
+            }
+            Platform::Linux => {
+                let mut out = vec![Action::Systemctl {
+                    argv: vec![
+                        "disable".to_owned(),
+                        "--now".to_owned(),
+                        stored.name.clone(),
+                    ],
+                }];
+                // A unit with no `User=` ran as root, and the install gave
+                // root nothing.
+                if stored.account != "root" {
+                    let writable = Writable {
+                        data_folder: stored.data_folder.as_deref(),
+                        log_file: stored.log_file.as_deref(),
+                        cache_directory: stored.cache_directory.as_deref(),
+                        temp_root: stored.temp_root.as_deref(),
+                    };
+                    let list = granted(&stored.argv, writable);
+                    for (path, owned) in owned(list, stored.data_folder.as_deref()) {
+                        out.push(Action::Disown {
+                            path,
+                            mode: owned.private(),
+                        });
+                    }
+                }
+                out.push(Action::RemoveUnit {
+                    path: destination(Delivery::Install, &stored.name, unit_root)
+                        .expect("an installing delivery names a unit file"),
+                });
+                out.push(Action::Systemctl {
+                    argv: vec!["daemon-reload".to_owned()],
+                });
+                out
+            }
+        }
+    }
+
+    /// `start`, `stop` and `status`: the SCM directly on Windows, `systemctl`
+    /// by argv with no shell on Linux.
+    pub(crate) fn control_actions(platform: Platform, control: Control, name: &str) -> Vec<Action> {
+        match platform {
+            Platform::Windows => vec![Action::Scm {
+                name: name.to_owned(),
+                control,
+            }],
+            Platform::Linux => vec![Action::Systemctl {
+                argv: vec![control.word().to_owned(), name.to_owned()],
+            }],
+        }
+    }
+
+    /// One line naming what an action does, which is what `--dry-run` prints.
+    fn describe(action: &Action) -> String {
+        match action {
+            Action::Register {
+                name,
+                image_path,
+                account,
+                start,
+                depends_on,
+                description,
+            } => {
+                let depends = if depends_on.is_empty() {
+                    String::new()
+                } else {
+                    format!(", after {}", depends_on.join(", "))
+                };
+                let described = description
+                    .as_deref()
+                    .map_or_else(String::new, |text| format!(", description `{text}`"));
+                format!(
+                    "register `{name}` as {account}, {} start{described}, \
+                     ImagePath {image_path}{depends}",
+                    start.word()
+                )
+            }
+            Action::Preshutdown { name, timeout } => format!(
+                "ask `{name}` for PRESHUTDOWN with {} seconds to drain in",
+                timeout.as_secs()
+            ),
+            Action::Failure {
+                name,
+                restart,
+                reset,
+            } => format!(
+                "set `{name}` to restart {}, forgetting failures after {} seconds",
+                restart.word(),
+                reset.as_secs()
+            ),
+            Action::Grant {
+                account,
+                path,
+                write,
+            } => format!(
+                "grant {account} {} on {}",
+                if *write { "read/write" } else { "read" },
+                path.display()
+            ),
+            Action::EventSource { name, exe } => format!(
+                "register the event-log source `{name}` under {EVENT_SOURCES}, reporting from {}",
+                exe.display()
+            ),
+            Action::Deregister { name } => format!("remove the registration of `{name}`"),
+            Action::Revoke { account, path } => {
+                format!("revoke {account}'s access to {}", path.display())
+            }
+            Action::Own {
+                path,
+                uid,
+                gid,
+                mode,
+                create,
+            } => format!(
+                "{}set {} to owner uid {uid}, group gid {gid}, mode {mode:04o}",
+                if *create {
+                    "create if missing and "
+                } else {
+                    ""
+                },
+                path.display()
+            ),
+            Action::Disown { path, mode } => format!(
+                "set {} back to owner root, group root, mode {mode:04o}",
+                path.display()
+            ),
+            Action::RemoveEventSource { name } => {
+                format!("remove the event-log source `{name}` under {EVENT_SOURCES}")
+            }
+            Action::WriteUnit { path, text } => {
+                format!("write {} ({} bytes)", path.display(), text.len())
+            }
+            Action::RemoveUnit { path } => format!("remove {}", path.display()),
+            Action::Systemctl { argv } => format!("run systemctl {}", argv.join(" ")),
+            Action::Scm { name, control } => format!("{} `{name}`", control.word()),
+        }
+    }
+
+    /// Apply every action in order, or — for a dry run — describe them and
+    /// touch nothing.
+    ///
+    /// The description goes to `out` rather than straight to standard output,
+    /// because `rule:packaging/the-unit-is-printed-and-install-is-the-opt-in`'s argument for the printed unit is that it is the artifact a
+    /// change-management review wants, and an artifact nothing can read back is
+    /// one nothing holds to the list that is actually performed.
+    ///
+    /// # Errors
+    ///
+    /// The manager's failure at the first action it refuses, carrying that
+    /// action's own line, so a verb stops where it stopped rather than carrying
+    /// on past it and says where that was.
+    pub(crate) fn perform(
+        actions: &[Action],
+        site: &Site<'_>,
+        dry_run: bool,
+        out: &mut dyn std::io::Write,
+    ) -> Result<Vec<String>, Refused> {
+        if dry_run {
+            for action in actions {
+                writeln!(out, "{}", describe(action)).map_err(Refused::Manager)?;
+            }
+            return Ok(Vec::new());
+        }
+        apply_all(actions, site).map_err(|(_, error)| Refused::Manager(error))
+    }
+
+    /// Every action applied in order, stopping at the first the manager
+    /// refuses.
+    ///
+    /// # Errors
+    ///
+    /// How many actions were applied in full before the refused one, and the
+    /// manager's failure carrying that action's own line. The platform's own
+    /// text names no step and no object, and in an operator's locale "access
+    /// denied" is the whole of it.
+    fn apply_all(
+        actions: &[Action],
+        site: &Site<'_>,
+    ) -> Result<Vec<String>, (usize, std::io::Error)> {
+        let mut answers = Vec::new();
+        for (applied, action) in actions.iter().enumerate() {
+            match site.manager.apply(action) {
+                Ok(Some(answer)) => answers.push(answer),
+                Ok(None) => {}
+                Err(error) => {
+                    return Err((
+                        applied,
+                        std::io::Error::new(
+                            error.kind(),
+                            format!("could not {}: {error}", describe(action)),
+                        ),
+                    ));
+                }
+            }
+        }
+        Ok(answers)
+    }
+
+    /// What takes `applied` back, last step first.
+    ///
+    /// Built from the steps that were applied and never from the plan, so a
+    /// registration the SCM refused because the name is taken is not followed
+    /// by a deregistration of the service that holds the name. `PRESHUTDOWN`
+    /// and the failure actions leave with the registration they were set on. A
+    /// path given to the account on Linux goes back to root with the owner's
+    /// bits of its mode, which is how the data folder was created. A directory
+    /// a grant or an ownership step created stays: it is empty, and removing a
+    /// directory is not something an install that failed should be doing.
+    pub(crate) fn undo_actions(applied: &[Action]) -> Vec<Action> {
+        let mut out = Vec::new();
+        for action in applied.iter().rev() {
+            match action {
+                Action::Register { name, .. } => {
+                    out.push(Action::Deregister { name: name.clone() })
+                }
+                Action::Grant { account, path, .. } => out.push(Action::Revoke {
+                    account: account.clone(),
+                    path: path.clone(),
+                }),
+                Action::Own { path, mode, .. } => out.push(Action::Disown {
+                    path: path.clone(),
+                    mode: mode & 0o700,
+                }),
+                Action::EventSource { name, .. } => {
+                    out.push(Action::RemoveEventSource { name: name.clone() });
+                }
+                Action::WriteUnit { path, .. } => {
+                    out.push(Action::RemoveUnit { path: path.clone() });
+                    // After the file is gone, so systemd forgets the unit it
+                    // read from it.
+                    out.push(Action::Systemctl {
+                        argv: vec!["daemon-reload".to_owned()],
+                    });
+                }
+                Action::Systemctl { argv } if argv.first().is_some_and(|verb| verb == "enable") => {
+                    let mut argv = argv.clone();
+                    argv[0] = "disable".to_owned();
+                    out.push(Action::Systemctl { argv });
+                }
+                Action::Preshutdown { .. }
+                | Action::Failure { .. }
+                | Action::Deregister { .. }
+                | Action::Revoke { .. }
+                | Action::Disown { .. }
+                | Action::RemoveEventSource { .. }
+                | Action::RemoveUnit { .. }
+                | Action::Systemctl { .. }
+                | Action::Scm { .. } => {}
+            }
+        }
+        out
+    }
+
+    /// `error` with what became of the steps in front of it.
+    ///
+    /// Every undo step is tried, because one that fails is no reason to leave
+    /// the ones behind it in place.
+    fn undone(
+        applied: &[Action],
+        site: &Site<'_>,
+        name: &str,
+        error: std::io::Error,
+    ) -> std::io::Error {
+        if applied.is_empty() {
+            return error;
+        }
+        let left: Vec<String> = undo_actions(applied)
+            .iter()
+            .filter_map(|action| {
+                site.manager
+                    .apply(action)
+                    .err()
+                    .map(|why| format!("could not {}: {why}", describe(action)))
+            })
+            .collect();
+        let outcome = if left.is_empty() {
+            "the steps before it were undone, so nothing is left installed".to_owned()
+        } else {
+            format!(
+                "undoing the steps before it did not finish ({}), and `nvs service uninstall \
+                 {name}` removes what is left",
+                left.join("; ")
+            )
+        };
+        std::io::Error::new(error.kind(), format!("{error}\n  = note: {outcome}"))
+    }
+
+    /// `nvs service install` — `rule:packaging/the-installer-is-a-sink` first, then the platform's own steps.
+    ///
+    /// Nothing reaches [`Manager`] until [`plan`] has returned a [`Plan`],
+    /// which is `rule:packaging/the-installer-is-a-sink`'s whole claim: a
+    /// refusal touches nothing, and no step below re-checks, because none of
+    /// them could have been reached without one.
+    ///
+    /// An install the manager stops part way takes its own steps back
+    /// ([`undo_actions`]), so a failed install leaves what a refused one leaves.
+    ///
+    /// # Errors
+    ///
+    /// `rule:packaging/the-installer-is-a-sink`'s refusal, or the manager's own failure at the step it names, with
+    /// what became of the steps in front of it.
+    pub(crate) fn install(
+        request: &Request<'_>,
+        host: &Host,
+        registration: &Registration,
+        site: &Site<'_>,
+        dry_run: bool,
+        out: &mut dyn std::io::Write,
+    ) -> Result<(), Refused> {
+        let mut checked = plan(request, host).map_err(Refused::Installer)?;
+        resolve_account(&mut checked, site).map_err(Refused::Installer)?;
+        if dry_run {
+            if let Some(data) = &checked.data {
+                writeln!(out, "create the data folder {}", data.root().display())
+                    .map_err(Refused::Manager)?;
+            }
+            let actions = install_actions(site.platform, &checked, registration, site.unit_root);
+            return perform(&actions, site, true, out).map(drop);
+        }
+        // Before the manager is asked for anything: a service registered over
+        // a configuration file that could not be written fails at every boot.
+        // A folder that could not be made is granted nothing.
+        if !prepare_data(&checked).map_err(Refused::Installer)? {
+            checked.data = None;
+        }
+        if let Some(account) = &checked.owner {
+            for path in unreadable_configs(&checked, account) {
+                eprintln!(
+                    "warning: the account `{}` cannot read `{}`\n  \
+                     note: the service reads this configuration file when it starts, and stops \
+                     when it cannot read it.\n  \
+                     help: give the account read access to the file, for example with `chgrp` \
+                     and `chmod g+r`.",
+                    account.name,
+                    path.display()
+                );
+            }
+        }
+        let actions = install_actions(site.platform, &checked, registration, site.unit_root);
+        match apply_all(&actions, site) {
+            Ok(_) => Ok(()),
+            Err((applied, error)) => Err(Refused::Manager(undone(
+                &actions[..applied],
+                site,
+                &checked.name,
+                error,
+            ))),
+        }
+    }
+
+    /// `nvs service uninstall` — the install's steps undone, from what the
+    /// platform still holds.
+    ///
+    /// # Errors
+    ///
+    /// The manager's own failure at the step it names. There is no `rule:packaging/the-installer-is-a-sink` refusal
+    /// here: nothing new is being stored.
+    pub(crate) fn uninstall(
+        stored: &Stored,
+        site: &Site<'_>,
+        dry_run: bool,
+        out: &mut dyn std::io::Write,
+    ) -> Result<(), Refused> {
+        let actions = uninstall_actions(site.platform, stored, site.unit_root);
+        perform(&actions, site, dry_run, out).map(drop)
+    }
+
+    /// `nvs service start`, `stop` and `status` — one manager call, and
+    /// whatever it answered.
+    ///
+    /// # Errors
+    ///
+    /// The manager's own failure.
+    pub(crate) fn control(
+        control: Control,
+        name: &str,
+        site: &Site<'_>,
+    ) -> Result<Vec<String>, Refused> {
+        let actions = control_actions(site.platform, control, name);
+        perform(&actions, site, false, &mut std::io::sink())
+    }
+
+    /// The Linux applier: `rule:packaging/the-unit-is-printed-and-install-is-the-opt-in`'s unit written where systemd reads it, and
+    /// `systemctl` run by argv with no shell
+    /// (`rule:core-classes/process-is-argv-only`).
+    ///
+    /// Not `#[cfg(unix)]`, for the reason [`Platform`] is a parameter rather
+    /// than a `cfg!`: a write, a remove and a child process are `std` on every
+    /// platform, so compiling this everywhere is what keeps it compiled at all
+    /// on the machine somebody happens to be working on. `scm::Scm` has no
+    /// such choice — `windows-sys` is a dependency only where it exists.
+    #[cfg_attr(
+        all(test, windows),
+        expect(
+            dead_code,
+            reason = "on Windows the applier `at_host` names is `scm::Scm`, and a case drives the \
+                      recording manager"
+        )
+    )]
+    #[derive(Debug)]
+    pub(crate) struct Systemd;
+
+    impl Manager for Systemd {
+        fn apply(&self, action: &Action) -> std::io::Result<Option<String>> {
+            match action {
+                Action::WriteUnit { path, text } => {
+                    if let Some(directory) = path.parent() {
+                        std::fs::create_dir_all(directory)?;
+                    }
+                    std::fs::write(path, text)?;
+                    Ok(None)
+                }
+                Action::RemoveUnit { path } => match std::fs::remove_file(path) {
+                    // The unit being gone is the state an uninstall asks for,
+                    // which is what lets one finish after an install that
+                    // stopped part way through its own list.
+                    Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
+                    other => other.map(|()| None),
+                },
+                Action::Systemctl { argv } => systemctl(argv),
+                Action::Own {
+                    path,
+                    uid,
+                    gid,
+                    mode,
+                    create,
+                } => owners::own(path, *uid, *gid, *mode, *create).map(|()| None),
+                Action::Disown { path, mode } => owners::disown(path, *mode).map(|()| None),
+                Action::Register { .. }
+                | Action::Preshutdown { .. }
+                | Action::Failure { .. }
+                | Action::Grant { .. }
+                | Action::EventSource { .. }
+                | Action::Deregister { .. }
+                | Action::Revoke { .. }
+                | Action::RemoveEventSource { .. }
+                | Action::Scm { .. } => Err(std::io::Error::new(
+                    std::io::ErrorKind::Unsupported,
+                    "an SCM action on Linux",
+                )),
+            }
+        }
+
+        fn stored(&self, name: &str, unit_root: &Path) -> std::io::Result<Stored> {
+            let path = destination(Delivery::Install, name, unit_root)
+                .expect("an installing delivery names a unit file");
+            let text = std::fs::read_to_string(path)?;
+            let mut argv = Vec::new();
+            let mut exe = None;
+            // A unit with no `User=` runs as root, which is what the grants
+            // were made to.
+            let mut account = "root".to_owned();
+            for line in text.lines() {
+                if let Some(command) = line.strip_prefix("ExecStart=") {
+                    // The first word is the binary the unit names, and the
+                    // stored argv is the rest.
+                    let mut words = exec_words(command).into_iter();
+                    exe = words.next().map(PathBuf::from);
+                    argv = words.collect();
+                } else if let Some(user) = line.strip_prefix("User=") {
+                    account = user.trim().to_owned();
+                }
+            }
+            Ok(Stored {
+                name: name.to_owned(),
+                argv,
+                account,
+                log_file: None,
+                cache_directory: None,
+                temp_root: None,
+                data_folder: None,
+                exe,
+            })
+        }
+
+        fn account(&self, name: &str) -> std::io::Result<Account> {
+            owners::lookup(name)
+        }
+    }
+
+    /// `rule:packaging/a-service-runs-as-a-virtual-account`'s grants as Linux spells them: `chown` and `chmod` on the paths
+    /// [`owned`] lists, and the password database that turns `--account` into
+    /// the ids they take.
+    ///
+    /// What the service then reads passes `nvs_config::trust::check` as that
+    /// account, because each path is owned by root or by the account and none
+    /// is writable by its group or anyone else: the data folder is root's
+    /// `0750`, its `nvs.toml` root's `0640`, and every directory the service
+    /// writes in the account's `0700`. The group bits give read and nothing
+    /// more, which is why the service cannot change its own configuration.
+    #[cfg(unix)]
+    mod owners {
+        use std::os::unix::fs::PermissionsExt;
+        use std::path::Path;
+
+        use super::Account;
+
+        /// `path` given to `uid` and `gid` with `mode`, after creating it when
+        /// `create` says it is a directory the service writes in. Its missing
+        /// parents get the default mode: the service has to reach the
+        /// directory through them.
+        pub(super) fn own(
+            path: &Path,
+            uid: u32,
+            gid: u32,
+            mode: u32,
+            create: bool,
+        ) -> std::io::Result<()> {
+            if create && !path.exists() {
+                std::fs::create_dir_all(path)?;
+            }
+            std::os::unix::fs::chown(path, Some(uid), Some(gid))?;
+            std::fs::set_permissions(path, std::fs::Permissions::from_mode(mode))
+        }
+
+        /// `path` given back to root with `mode`. The mode comes first, so the
+        /// path is private before its owner changes.
+        pub(super) fn disown(path: &Path, mode: u32) -> std::io::Result<()> {
+            match std::fs::set_permissions(path, std::fs::Permissions::from_mode(mode)) {
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+                other => other?,
+            }
+            std::os::unix::fs::chown(path, Some(0), Some(0))
+        }
+
+        /// The account `name` names, from the password database.
+        #[expect(
+            unsafe_code,
+            reason = "`getpwnam_r` has no spelling in `std`; it writes into a record and a \
+                      buffer this function owns, and is unsafe only because it is `extern`"
+        )]
+        pub(super) fn lookup(name: &str) -> std::io::Result<Account> {
+            let wanted = std::ffi::CString::new(name).map_err(|_| {
+                std::io::Error::new(
+                    std::io::ErrorKind::NotFound,
+                    "an account name cannot contain a NUL byte",
+                )
+            })?;
+            let mut buffer: Vec<libc::c_char> = vec![0; 4096];
+            loop {
+                let mut record = std::mem::MaybeUninit::<libc::passwd>::uninit();
+                let mut found: *mut libc::passwd = std::ptr::null_mut();
+                // SAFETY: a NUL-terminated name, a record and a buffer that
+                // outlive the call with the buffer's true length, and an
+                // out-pointer the call sets to the record or to null.
+                let status = unsafe {
+                    libc::getpwnam_r(
+                        wanted.as_ptr(),
+                        record.as_mut_ptr(),
+                        buffer.as_mut_ptr(),
+                        buffer.len(),
+                        &mut found,
+                    )
+                };
+                if status == libc::ERANGE && buffer.len() < 1 << 20 {
+                    buffer.resize(buffer.len() * 4, 0);
+                    continue;
+                }
+                if status != 0 {
+                    return Err(std::io::Error::from_raw_os_error(status));
+                }
+                if found.is_null() {
+                    return Err(std::io::Error::new(
+                        std::io::ErrorKind::NotFound,
+                        "no such account",
+                    ));
+                }
+                // SAFETY: a zero status with a non-null `found` means the call
+                // filled `record`, and `found` points at it.
+                let record = unsafe { record.assume_init() };
+                return Ok(Account {
+                    name: name.to_owned(),
+                    uid: record.pw_uid,
+                    gid: record.pw_gid,
+                });
+            }
+        }
+    }
+
+    /// No Unix owners on this platform: every step is `Unsupported`, which
+    /// is never reached, because [`Platform::host`] names Linux only where
+    /// there are.
+    #[cfg(not(unix))]
+    #[cfg_attr(
+        all(test, windows),
+        expect(
+            dead_code,
+            reason = "on Windows the applier `at_host` names is `scm::Scm`, and a case drives the \
+                      recording manager"
+        )
+    )]
+    mod owners {
+        use std::path::Path;
+
+        use super::Account;
+
+        fn unsupported() -> std::io::Error {
+            std::io::Error::new(
+                std::io::ErrorKind::Unsupported,
+                "this platform has no Unix owners and modes",
+            )
+        }
+
+        pub(super) fn own(
+            path: &Path,
+            uid: u32,
+            gid: u32,
+            mode: u32,
+            create: bool,
+        ) -> std::io::Result<()> {
+            let _ = (path, uid, gid, mode, create);
+            Err(unsupported())
+        }
+
+        pub(super) fn disown(path: &Path, mode: u32) -> std::io::Result<()> {
+            let _ = (path, mode);
+            Err(unsupported())
+        }
+
+        pub(super) fn lookup(name: &str) -> std::io::Result<Account> {
+            let _ = name;
+            Err(unsupported())
+        }
+    }
+
+    /// One `systemctl` run, by argv and with no shell, answering what it wrote
+    /// to standard output.
+    ///
+    /// `is-active` answers by **exit status** — a unit that is not running is
+    /// reported with a non-zero exit and the state on standard output — so for
+    /// that verb alone the output is the answer rather than a failure. Every
+    /// other verb here means what its status says, and a failing one carries
+    /// whatever systemd wrote to standard error.
+    #[cfg_attr(
+        all(test, windows),
+        expect(
+            dead_code,
+            reason = "on Windows the applier `at_host` names is `scm::Scm`, and a case drives the \
+                      recording manager"
+        )
+    )]
+    fn systemctl(argv: &[String]) -> std::io::Result<Option<String>> {
+        let answered = argv.first().is_some_and(|verb| verb == "is-active");
+        let run = std::process::Command::new("systemctl")
+            .args(argv)
+            .output()?;
+        if run.status.success() || answered {
+            let out = String::from_utf8_lossy(&run.stdout).trim().to_owned();
+            return Ok((!out.is_empty()).then_some(out));
+        }
+        Err(std::io::Error::other(format!(
+            "systemctl {} failed: {}",
+            argv.join(" "),
+            String::from_utf8_lossy(&run.stderr).trim()
+        )))
+    }
+
+    /// The Windows applier: the SCM for a registration and a control, the
+    /// registry for the event-log source, and the file ACLs for a grant.
+    ///
+    /// Nothing here decides anything. The builder that produced the [`Action`]
+    /// already chose the start type, the timeout, the account and the rights,
+    /// and every function below spells one of those the platform's way, so the
+    /// cases that assert `rule:packaging/the-argv-lives-in-imagepath`'s and `rule:packaging/a-service-answers-its-manager`'s lists keep asserting the decisions
+    /// even though no case can reach this module: a real registration needs
+    /// administrator rights on a machine somebody chose.
+    ///
+    /// The three verbs that ask for a state rather than a change — `Deregister`,
+    /// a `Stop` and `RemoveEventSource` — answer for the state and not for the
+    /// call, so a service already stopped, already gone or a source that was
+    /// never there is a step that is done. That is what lets an uninstall of a
+    /// half-finished install still leave no key, no source and no granted ACL.
+    #[cfg(windows)]
+    #[cfg_attr(
+        test,
+        expect(
+            dead_code,
+            reason = "the `ServiceCommand` variants that choose an applier are the slice after it"
+        )
+    )]
+    #[expect(
+        unsafe_code,
+        reason = "registering a service, writing an event-log source and granting a right on a \
+                  path are `advapi32` calls, and none of the three has a spelling in `std`"
+    )]
+    pub(crate) mod scm {
+        use std::io::{Error, ErrorKind};
+        use std::os::windows::ffi::OsStrExt;
+        use std::path::Path;
+        use std::time::Duration;
+
+        use windows_sys::Win32::Foundation::{
+            ERROR_FILE_NOT_FOUND, ERROR_PATH_NOT_FOUND, ERROR_SERVICE_ALREADY_RUNNING,
+            ERROR_SERVICE_DOES_NOT_EXIST, ERROR_SERVICE_MARKED_FOR_DELETE,
+            ERROR_SERVICE_NOT_ACTIVE, ERROR_SUCCESS, LocalFree, WIN32_ERROR,
+        };
+        use windows_sys::Win32::Security::Authorization::{
+            ACCESS_MODE, EXPLICIT_ACCESS_W, GRANT_ACCESS, GetNamedSecurityInfoW,
+            NO_MULTIPLE_TRUSTEE, REVOKE_ACCESS, SE_FILE_OBJECT, SetEntriesInAclW,
+            SetNamedSecurityInfoW, TRUSTEE_IS_NAME, TRUSTEE_IS_UNKNOWN, TRUSTEE_W,
+        };
+        use windows_sys::Win32::Security::{
+            ACL, DACL_SECURITY_INFORMATION, NO_INHERITANCE, PSECURITY_DESCRIPTOR,
+            SUB_CONTAINERS_AND_OBJECTS_INHERIT,
+        };
+        use windows_sys::Win32::Storage::FileSystem::{
+            DELETE, FILE_GENERIC_EXECUTE, FILE_GENERIC_READ, FILE_GENERIC_WRITE,
+        };
+        use windows_sys::Win32::System::EventLog::{
+            EVENTLOG_ERROR_TYPE, EVENTLOG_INFORMATION_TYPE, EVENTLOG_WARNING_TYPE,
+        };
+        use windows_sys::Win32::System::Registry::{
+            HKEY, HKEY_LOCAL_MACHINE, KEY_WRITE, REG_DWORD, REG_EXPAND_SZ, REG_OPTION_NON_VOLATILE,
+            RegCloseKey, RegCreateKeyExW, RegDeleteTreeW, RegSetValueExW,
+        };
+        use windows_sys::Win32::System::Services::{
+            ChangeServiceConfig2W, CloseServiceHandle, ControlService, CreateServiceW,
+            DeleteService, OpenSCManagerW, OpenServiceW, QUERY_SERVICE_CONFIGW,
+            QueryServiceConfigW, QueryServiceStatusEx, SC_ACTION, SC_ACTION_NONE,
+            SC_ACTION_RESTART, SC_HANDLE, SC_MANAGER_CONNECT, SC_MANAGER_CREATE_SERVICE,
+            SC_STATUS_PROCESS_INFO, SERVICE_AUTO_START, SERVICE_CHANGE_CONFIG,
+            SERVICE_CONFIG_DELAYED_AUTO_START_INFO, SERVICE_CONFIG_DESCRIPTION,
+            SERVICE_CONFIG_FAILURE_ACTIONS, SERVICE_CONFIG_FAILURE_ACTIONS_FLAG,
+            SERVICE_CONFIG_PRESHUTDOWN_INFO, SERVICE_CONTINUE_PENDING, SERVICE_CONTROL_STOP,
+            SERVICE_DELAYED_AUTO_START_INFO, SERVICE_DEMAND_START, SERVICE_DESCRIPTIONW,
+            SERVICE_ERROR_NORMAL, SERVICE_FAILURE_ACTIONS_FLAG, SERVICE_FAILURE_ACTIONSW,
+            SERVICE_PAUSE_PENDING, SERVICE_PAUSED, SERVICE_PRESHUTDOWN_INFO, SERVICE_QUERY_CONFIG,
+            SERVICE_QUERY_STATUS, SERVICE_RUNNING, SERVICE_START, SERVICE_START_PENDING,
+            SERVICE_STATUS, SERVICE_STATUS_PROCESS, SERVICE_STOP, SERVICE_STOP_PENDING,
+            SERVICE_STOPPED, SERVICE_WIN32_OWN_PROCESS, StartServiceW,
+        };
+        use windows_sys::core::BOOL;
+
+        use super::{Action, Control, EVENT_SOURCES, Manager, Restart, StartMode};
+
+        /// How long the SCM waits before starting the service again, once per
+        /// consecutive failure.
+        ///
+        /// A back-off rather than one delay: a server that cannot bind its
+        /// listener fails again as fast as it is started, and a fixed short
+        /// delay turns that into a restart loop that fills the event log
+        /// instead of leaving the failure visible in it.
+        const RESTART_DELAYS: [u32; 3] = [1_000, 10_000, 60_000];
+
+        /// The record types the event-log source declares, which is what the
+        /// viewer renders `rule:packaging/a-service-answers-its-manager`'s *Output* lifecycle records from.
+        const REPORTED: u32 =
+            (EVENTLOG_ERROR_TYPE | EVENTLOG_WARNING_TYPE | EVENTLOG_INFORMATION_TYPE) as u32;
+
+        /// The Windows applier.
+        ///
+        /// A unit struct: an [`Action`] carries everything a step needs, and
+        /// the handles one step opens belong to that step rather than to the
+        /// process.
+        #[derive(Debug)]
+        pub(crate) struct Scm;
+
+        impl Manager for Scm {
+            fn apply(&self, action: &Action) -> std::io::Result<Option<String>> {
+                match action {
+                    Action::Register {
+                        name,
+                        image_path,
+                        account,
+                        start,
+                        depends_on,
+                        description,
+                    } => register(
+                        name,
+                        image_path,
+                        account,
+                        *start,
+                        depends_on,
+                        description.as_deref(),
+                    )
+                    .map(|()| None),
+                    Action::Preshutdown { name, timeout } => {
+                        preshutdown(name, *timeout).map(|()| None)
+                    }
+                    Action::Failure {
+                        name,
+                        restart,
+                        reset,
+                    } => failure(name, *restart, *reset).map(|()| None),
+                    Action::Grant {
+                        account,
+                        path,
+                        write,
+                    } => grant(account, path, *write).map(|()| None),
+                    Action::EventSource { name, exe } => event_source(name, exe).map(|()| None),
+                    Action::Deregister { name } => deregister(name).map(|()| None),
+                    Action::Revoke { account, path } => revoke(account, path).map(|()| None),
+                    Action::RemoveEventSource { name } => remove_event_source(name).map(|()| None),
+                    Action::Scm { name, control } => ask(name, *control),
+                    Action::WriteUnit { .. }
+                    | Action::RemoveUnit { .. }
+                    | Action::Own { .. }
+                    | Action::Disown { .. }
+                    | Action::Systemctl { .. } => Err(Error::new(
+                        ErrorKind::Unsupported,
+                        "a systemd action on Windows",
+                    )),
+                }
+            }
+
+            fn stored(&self, name: &str, _unit_root: &Path) -> std::io::Result<super::Stored> {
+                let (image_path, account) = configured(name)?;
+                // `rule:packaging/the-argv-lives-in-imagepath` encodes the binary ahead of the stored argv.
+                let mut words = nvs_diagnostics::argv::decode(&image_path).into_iter();
+                let exe = words.next().map(std::path::PathBuf::from);
+                Ok(super::Stored {
+                    name: name.to_owned(),
+                    argv: words.collect(),
+                    account,
+                    log_file: None,
+                    cache_directory: None,
+                    temp_root: None,
+                    data_folder: None,
+                    exe,
+                })
+            }
+        }
+
+        /// `rule:packaging/the-argv-lives-in-imagepath`'s `ImagePath` and the account the SCM holds under `name`, which
+        /// together are everything a Windows uninstall undoes.
+        ///
+        /// `QueryServiceConfigW` is asked its size first and then answered
+        /// with exactly that, which is the only way it is willing to be
+        /// called: the structure it writes ends in the strings its own fields
+        /// point at.
+        fn configured(name: &str) -> std::io::Result<(String, String)> {
+            let (_database, handle) = service(name, SERVICE_QUERY_CONFIG)?;
+            let mut needed = 0u32;
+            // SAFETY: a null buffer of length zero, which is how this call is
+            // asked for the size it wants rather than given one.
+            unsafe { QueryServiceConfigW(handle.0, std::ptr::null_mut(), 0, &mut needed) };
+            // A `u64` buffer rather than a `u8` one: the structure holds
+            // pointers, and the cast below has to land on their alignment.
+            let mut buffer = vec![0u64; (needed as usize).div_ceil(8).max(1)];
+            let config = buffer.as_mut_ptr().cast::<QUERY_SERVICE_CONFIGW>();
+            // SAFETY: a buffer of exactly the size the call just asked for,
+            // aligned for the structure it writes into it.
+            ok(unsafe { QueryServiceConfigW(handle.0, config, needed, &mut needed) })?;
+            // SAFETY: the call above filled the structure, and both strings
+            // it points at live in the buffer that is still borrowed here.
+            let (image_path, account) = unsafe {
+                (
+                    text((*config).lpBinaryPathName),
+                    text((*config).lpServiceStartName),
+                )
+            };
+            Ok((image_path, account))
+        }
+
+        /// A NUL-terminated UTF-16 string the SCM wrote, as a `String`.
+        ///
+        /// # Safety
+        ///
+        /// `start` is null, or points at a NUL-terminated run of `u16` that
+        /// outlives the call.
+        unsafe fn text(start: *const u16) -> String {
+            if start.is_null() {
+                return String::new();
+            }
+            let mut length = 0;
+            // SAFETY: the caller's run is NUL-terminated, so this walk stops
+            // inside it.
+            while unsafe { *start.add(length) } != 0 {
+                length += 1;
+            }
+            // SAFETY: `length` units from `start` is the run it just walked.
+            String::from_utf16_lossy(unsafe { std::slice::from_raw_parts(start, length) })
+        }
+
+        /// A NUL-terminated UTF-16 copy, which is what every `…W` call takes.
+        fn wide(text: &str) -> Vec<u16> {
+            text.encode_utf16().chain(std::iter::once(0)).collect()
+        }
+
+        /// The same for a path, whose characters are already UTF-16 here.
+        fn wide_path(path: &Path) -> Vec<u16> {
+            path.as_os_str()
+                .encode_wide()
+                .chain(std::iter::once(0))
+                .collect()
+        }
+
+        /// The dependency list `CreateServiceW` takes: each name
+        /// NUL-terminated, the list closed by an empty one.
+        fn wide_list(names: &[String]) -> Vec<u16> {
+            let mut out = Vec::new();
+            for name in names {
+                out.extend(name.encode_utf16());
+                out.push(0);
+            }
+            out.push(0);
+            out
+        }
+
+        /// What a `BOOL`-returning call said, as this thread's last error.
+        fn ok(result: BOOL) -> std::io::Result<()> {
+            if result == 0 {
+                Err(Error::last_os_error())
+            } else {
+                Ok(())
+            }
+        }
+
+        /// The same for a call that answers its error code directly.
+        fn ok_status(status: WIN32_ERROR) -> std::io::Result<()> {
+            if status == ERROR_SUCCESS {
+                Ok(())
+            } else {
+                Err(Error::from_raw_os_error(
+                    i32::try_from(status).unwrap_or(i32::MAX),
+                ))
+            }
+        }
+
+        /// The platform code behind one of these errors, for the steps that
+        /// read "already in the state you asked for" as done.
+        fn code(error: &Error) -> Option<WIN32_ERROR> {
+            error.raw_os_error().and_then(|raw| u32::try_from(raw).ok())
+        }
+
+        /// A duration as the milliseconds the SCM counts in, saturating: a
+        /// timeout past the range of a `u32` is one no machine waits out.
+        fn millis(duration: Duration) -> u32 {
+            u32::try_from(duration.as_millis()).unwrap_or(u32::MAX)
+        }
+
+        /// A duration as whole seconds, saturating for the same reason.
+        fn seconds(duration: Duration) -> u32 {
+            u32::try_from(duration.as_secs()).unwrap_or(u32::MAX)
+        }
+
+        /// An `SC_HANDLE` closed when the step that opened it ends.
+        struct Handle(SC_HANDLE);
+
+        impl Drop for Handle {
+            fn drop(&mut self) {
+                // SAFETY: a handle this value owns, closed exactly once.
+                unsafe { CloseServiceHandle(self.0) };
+            }
+        }
+
+        /// An open registry key, closed the same way.
+        struct Key(HKEY);
+
+        impl Drop for Key {
+            fn drop(&mut self) {
+                // SAFETY: a key this value owns, closed exactly once.
+                unsafe { RegCloseKey(self.0) };
+            }
+        }
+
+        /// A handle to this machine's service database.
+        fn manager(access: u32) -> std::io::Result<Handle> {
+            // SAFETY: two null names, which is the active database on this
+            // machine; the access mask is one of this module's constants.
+            let handle = unsafe { OpenSCManagerW(std::ptr::null(), std::ptr::null(), access) };
+            if handle.is_null() {
+                return Err(Error::last_os_error());
+            }
+            Ok(Handle(handle))
+        }
+
+        /// A handle to one registered service, beside the database handle it
+        /// was opened through, so both close together.
+        fn service(name: &str, access: u32) -> std::io::Result<(Handle, Handle)> {
+            let database = manager(SC_MANAGER_CONNECT)?;
+            let name = wide(name);
+            // SAFETY: an open database handle and a NUL-terminated name that
+            // outlives the call.
+            let handle = unsafe { OpenServiceW(database.0, name.as_ptr(), access) };
+            if handle.is_null() {
+                return Err(Error::last_os_error());
+            }
+            Ok((database, Handle(handle)))
+        }
+
+        /// `rule:packaging/the-argv-lives-in-imagepath`'s registration, and the two parameters `CreateServiceW` has no
+        /// field for: the description, and whether an automatic start is the
+        /// delayed one.
+        ///
+        /// A registration one of those two refuses is deleted again before the
+        /// error is returned, so this step either happened or did not, which
+        /// is what [`super::undo_actions`] reads a failed step as.
+        fn register(
+            name: &str,
+            image_path: &str,
+            account: &str,
+            start: StartMode,
+            depends_on: &[String],
+            description: Option<&str>,
+        ) -> std::io::Result<()> {
+            let database = manager(SC_MANAGER_CONNECT | SC_MANAGER_CREATE_SERVICE)?;
+            let wide_name = wide(name);
+            let wide_image = wide(image_path);
+            let wide_account = wide(account);
+            let dependencies = wide_list(depends_on);
+            let start_type = if matches!(start, StartMode::Manual) {
+                SERVICE_DEMAND_START
+            } else {
+                SERVICE_AUTO_START
+            };
+            // SAFETY: every pointer is to a NUL-terminated local that outlives
+            // the call. The nulls are the load-order group, the tag, and the
+            // password a virtual account does not have.
+            let handle = unsafe {
+                CreateServiceW(
+                    database.0,
+                    wide_name.as_ptr(),
+                    wide_name.as_ptr(),
+                    SERVICE_CHANGE_CONFIG
+                        | SERVICE_QUERY_STATUS
+                        | SERVICE_START
+                        | SERVICE_STOP
+                        | DELETE,
+                    SERVICE_WIN32_OWN_PROCESS,
+                    start_type,
+                    SERVICE_ERROR_NORMAL,
+                    wide_image.as_ptr(),
+                    std::ptr::null(),
+                    std::ptr::null_mut(),
+                    if depends_on.is_empty() {
+                        std::ptr::null()
+                    } else {
+                        dependencies.as_ptr()
+                    },
+                    wide_account.as_ptr(),
+                    std::ptr::null(),
+                )
+            };
+            if handle.is_null() {
+                return Err(Error::last_os_error());
+            }
+            let handle = Handle(handle);
+            let described = describe_registration(&handle, start, description);
+            if described.is_err() {
+                // SAFETY: the handle `CreateServiceW` returned, which carries
+                // `DELETE`. What this answers is not read: the error being
+                // returned is the one the operator has to see.
+                unsafe { DeleteService(handle.0) };
+            }
+            described
+        }
+
+        /// The description and the delayed-start flag, set on the handle a
+        /// registration was just created through.
+        fn describe_registration(
+            handle: &Handle,
+            start: StartMode,
+            description: Option<&str>,
+        ) -> std::io::Result<()> {
+            // Only where the operator wrote one: a service nobody described
+            // shows no description, rather than a line nobody asked for.
+            if let Some(description) = description {
+                let mut wide_description = wide(description);
+                let info = SERVICE_DESCRIPTIONW {
+                    lpDescription: wide_description.as_mut_ptr(),
+                };
+                // SAFETY: the structure and the string it points at are locals
+                // that outlive the call, at the info level that names the
+                // structure.
+                ok(unsafe {
+                    ChangeServiceConfig2W(
+                        handle.0,
+                        SERVICE_CONFIG_DESCRIPTION,
+                        std::ptr::from_ref(&info).cast(),
+                    )
+                })?;
+            }
+            if start.enabled() {
+                let info = SERVICE_DELAYED_AUTO_START_INFO {
+                    fDelayedAutostart: BOOL::from(matches!(start, StartMode::Delayed)),
+                };
+                // SAFETY: as above.
+                ok(unsafe {
+                    ChangeServiceConfig2W(
+                        handle.0,
+                        SERVICE_CONFIG_DELAYED_AUTO_START_INFO,
+                        std::ptr::from_ref(&info).cast(),
+                    )
+                })?;
+            }
+            Ok(())
+        }
+
+        /// `rule:packaging/a-service-answers-its-manager`'s `PRESHUTDOWN`: the machine agreeing to wait while a drain
+        /// finishes, rather than the few seconds plain `SHUTDOWN` allows.
+        fn preshutdown(name: &str, timeout: Duration) -> std::io::Result<()> {
+            let (_database, handle) = service(name, SERVICE_CHANGE_CONFIG)?;
+            let info = SERVICE_PRESHUTDOWN_INFO {
+                dwPreshutdownTimeout: millis(timeout),
+            };
+            // SAFETY: a local structure that outlives the call, at the info
+            // level that names it.
+            ok(unsafe {
+                ChangeServiceConfig2W(
+                    handle.0,
+                    SERVICE_CONFIG_PRESHUTDOWN_INFO,
+                    std::ptr::from_ref(&info).cast(),
+                )
+            })
+        }
+
+        /// `rule:packaging/a-service-answers-its-manager`'s failure actions and the period after which the SCM forgets
+        /// earlier failures.
+        ///
+        /// The handle carries `SERVICE_START` beside `SERVICE_CHANGE_CONFIG`
+        /// because `ChangeServiceConfig2W` requires it of any handle that sets
+        /// an `SC_ACTION_RESTART`, and answers `ERROR_ACCESS_DENIED` to an
+        /// administrator without it.
+        fn failure(name: &str, restart: Restart, reset: Duration) -> std::io::Result<()> {
+            let (_database, handle) = service(name, SERVICE_CHANGE_CONFIG | SERVICE_START)?;
+            let mut actions: Vec<SC_ACTION> = Vec::new();
+            match restart {
+                Restart::OnFailure => {
+                    for delay in RESTART_DELAYS {
+                        actions.push(SC_ACTION {
+                            Type: SC_ACTION_RESTART,
+                            Delay: delay,
+                        });
+                    }
+                }
+                Restart::Never => actions.push(SC_ACTION {
+                    Type: SC_ACTION_NONE,
+                    Delay: 0,
+                }),
+            }
+            let info = SERVICE_FAILURE_ACTIONSW {
+                dwResetPeriod: seconds(reset),
+                lpRebootMsg: std::ptr::null_mut(),
+                lpCommand: std::ptr::null_mut(),
+                cActions: u32::try_from(actions.len()).unwrap_or(u32::MAX),
+                lpsaActions: actions.as_mut_ptr(),
+            };
+            // SAFETY: the structure and the action array are locals that
+            // outlive the call, and `cActions` is that array's own length.
+            ok(unsafe {
+                ChangeServiceConfig2W(
+                    handle.0,
+                    SERVICE_CONFIG_FAILURE_ACTIONS,
+                    std::ptr::from_ref(&info).cast(),
+                )
+            })?;
+            // A server that cannot bind its listener exits non-zero rather
+            // than crashing, and the SCM counts only a crash as a failure
+            // unless this flag is set — so without it the restart `rule:packaging/a-service-answers-its-manager` asks for
+            // would not happen in the case it exists for.
+            let flag = SERVICE_FAILURE_ACTIONS_FLAG {
+                fFailureActionsOnNonCrashFailures: BOOL::from(matches!(
+                    restart,
+                    Restart::OnFailure
+                )),
+            };
+            // SAFETY: as above.
+            ok(unsafe {
+                ChangeServiceConfig2W(
+                    handle.0,
+                    SERVICE_CONFIG_FAILURE_ACTIONS_FLAG,
+                    std::ptr::from_ref(&flag).cast(),
+                )
+            })
+        }
+
+        /// `rule:packaging/a-service-runs-as-a-virtual-account`'s grant, and the whole of what it gives: read on a file the
+        /// argv named, read/write on a directory the service writes in.
+        ///
+        /// Inheritance follows the object rather than the flag, because a
+        /// grant on a log directory buys nothing if the file rotation creates
+        /// in it does not carry the same entry.
+        ///
+        /// A directory the service writes in is created when it is not there.
+        /// The service's own account holds nothing on the parent, so a log
+        /// directory left for the first record to create is one that record
+        /// cannot create.
+        fn grant(account: &str, path: &Path, write: bool) -> std::io::Result<()> {
+            if write && !path.exists() {
+                std::fs::create_dir_all(path)?;
+            }
+            let rights = if write {
+                FILE_GENERIC_READ | FILE_GENERIC_WRITE | FILE_GENERIC_EXECUTE | DELETE
+            } else {
+                FILE_GENERIC_READ
+            };
+            entry(account, path, GRANT_ACCESS, rights)
+        }
+
+        /// The same entry taken away.
+        ///
+        /// `REVOKE_ACCESS` removes every entry the account holds on the object
+        /// rather than subtracting the rights the install added, which is what
+        /// "no granted ACL" means when an install was interrupted part way
+        /// through its own list.
+        ///
+        /// An object that is not there holds no entry, so it is already
+        /// revoked: a log directory nothing ever created must not be what
+        /// keeps a service installed.
+        fn revoke(account: &str, path: &Path) -> std::io::Result<()> {
+            match entry(account, path, REVOKE_ACCESS, 0) {
+                Err(error)
+                    if matches!(
+                        code(&error),
+                        Some(ERROR_FILE_NOT_FOUND | ERROR_PATH_NOT_FOUND)
+                    ) =>
+                {
+                    Ok(())
+                }
+                other => other,
+            }
+        }
+
+        /// One explicit entry, merged into the object's own DACL and written
+        /// back — the writing half of the walk
+        /// `crates/nvs-config/src/trust.rs` reads.
+        fn entry(
+            account: &str,
+            path: &Path,
+            mode: ACCESS_MODE,
+            rights: u32,
+        ) -> std::io::Result<()> {
+            let object = wide_path(path);
+            let mut trustee = wide(account);
+            let access = EXPLICIT_ACCESS_W {
+                grfAccessPermissions: rights,
+                grfAccessMode: mode,
+                grfInheritance: if path.is_dir() {
+                    SUB_CONTAINERS_AND_OBJECTS_INHERIT
+                } else {
+                    NO_INHERITANCE
+                },
+                Trustee: TRUSTEE_W {
+                    pMultipleTrustee: std::ptr::null_mut(),
+                    MultipleTrusteeOperation: NO_MULTIPLE_TRUSTEE,
+                    TrusteeForm: TRUSTEE_IS_NAME,
+                    TrusteeType: TRUSTEE_IS_UNKNOWN,
+                    ptstrName: trustee.as_mut_ptr(),
+                },
+            };
+            let mut dacl: *mut ACL = std::ptr::null_mut();
+            let mut descriptor: PSECURITY_DESCRIPTOR = std::ptr::null_mut();
+            // SAFETY: a NUL-terminated path that outlives the call, and
+            // out-parameters of the types the signature names. A failing read
+            // allocates no descriptor, which is why the early return below
+            // frees nothing.
+            let read = unsafe {
+                GetNamedSecurityInfoW(
+                    object.as_ptr(),
+                    SE_FILE_OBJECT,
+                    DACL_SECURITY_INFORMATION,
+                    std::ptr::null_mut(),
+                    std::ptr::null_mut(),
+                    &mut dacl,
+                    std::ptr::null_mut(),
+                    &mut descriptor,
+                )
+            };
+            ok_status(read)?;
+            let mut merged: *mut ACL = std::ptr::null_mut();
+            // SAFETY: one entry, the DACL the read above returned, and an
+            // out-parameter for the list `advapi32` allocates.
+            let built = unsafe { SetEntriesInAclW(1, &access, dacl, &mut merged) };
+            let written = if built == ERROR_SUCCESS {
+                // SAFETY: the merged list, onto the same object the read
+                // named; both outlive the call.
+                unsafe {
+                    SetNamedSecurityInfoW(
+                        object.as_ptr(),
+                        SE_FILE_OBJECT,
+                        DACL_SECURITY_INFORMATION,
+                        std::ptr::null_mut(),
+                        std::ptr::null_mut(),
+                        merged,
+                        std::ptr::null(),
+                    )
+                }
+            } else {
+                built
+            };
+            // SAFETY: two blocks `advapi32` allocated, each freed once and
+            // neither read afterwards; `LocalFree` of a null pointer is a
+            // no-op, which is the path a failed merge takes.
+            unsafe {
+                LocalFree(merged.cast());
+                LocalFree(descriptor);
+            }
+            ok_status(written)
+        }
+
+        /// `rule:packaging/a-service-answers-its-manager`'s *Output*: the event-log source is a subkey under
+        /// [`EVENT_SOURCES`], and `EventMessageFile` is the binary the viewer
+        /// reads a record's text out of.
+        fn event_source(name: &str, exe: &Path) -> std::io::Result<()> {
+            let path = wide(&format!(r"{EVENT_SOURCES}\{name}"));
+            let mut created: HKEY = std::ptr::null_mut();
+            // SAFETY: a NUL-terminated subkey path that outlives the call, and
+            // an out-parameter for the key; the disposition is not read.
+            let opened = unsafe {
+                RegCreateKeyExW(
+                    HKEY_LOCAL_MACHINE,
+                    path.as_ptr(),
+                    0,
+                    std::ptr::null(),
+                    REG_OPTION_NON_VOLATILE,
+                    KEY_WRITE,
+                    std::ptr::null(),
+                    &mut created,
+                    std::ptr::null_mut(),
+                )
+            };
+            ok_status(opened)?;
+            let valued = event_source_values(&Key(created), exe);
+            if valued.is_err() {
+                // A key holding half its values is a source the viewer reads
+                // wrongly, so it goes. What removing it answers is not read: the
+                // error being returned is the one the operator has to see.
+                let _ = remove_event_source(name);
+            }
+            valued
+        }
+
+        /// The two values a source's subkey holds.
+        fn event_source_values(key: &Key, exe: &Path) -> std::io::Result<()> {
+            let message_file = wide_path(exe);
+            let value = wide("EventMessageFile");
+            // SAFETY: both strings outlive the call, and the byte count is the
+            // UTF-16 length including its terminator.
+            ok_status(unsafe {
+                RegSetValueExW(
+                    key.0,
+                    value.as_ptr(),
+                    0,
+                    REG_EXPAND_SZ,
+                    message_file.as_ptr().cast::<u8>(),
+                    u32::try_from(message_file.len() * 2).unwrap_or(u32::MAX),
+                )
+            })?;
+            let value = wide("TypesSupported");
+            let reported = REPORTED;
+            // SAFETY: four bytes from a local `u32`, at the type that names
+            // that width.
+            ok_status(unsafe {
+                RegSetValueExW(
+                    key.0,
+                    value.as_ptr(),
+                    0,
+                    REG_DWORD,
+                    std::ptr::from_ref(&reported).cast::<u8>(),
+                    4,
+                )
+            })
+        }
+
+        /// The source's subkey taken away again.
+        fn remove_event_source(name: &str) -> std::io::Result<()> {
+            let path = wide(&format!(r"{EVENT_SOURCES}\{name}"));
+            // SAFETY: a NUL-terminated subkey path that outlives the call.
+            let removed = unsafe { RegDeleteTreeW(HKEY_LOCAL_MACHINE, path.as_ptr()) };
+            if removed == ERROR_FILE_NOT_FOUND {
+                return Ok(());
+            }
+            ok_status(removed)
+        }
+
+        /// The registration taken away.
+        fn deregister(name: &str) -> std::io::Result<()> {
+            let (_database, handle) = match service(name, DELETE) {
+                Ok(handles) => handles,
+                Err(error) if code(&error) == Some(ERROR_SERVICE_DOES_NOT_EXIST) => return Ok(()),
+                Err(error) => return Err(error),
+            };
+            // SAFETY: a handle opened for `DELETE` on the line above.
+            match ok(unsafe { DeleteService(handle.0) }) {
+                Err(error) if code(&error) == Some(ERROR_SERVICE_MARKED_FOR_DELETE) => Ok(()),
+                other => other,
+            }
+        }
+
+        /// `start`, `stop` and `status`, through the SCM itself rather than an
+        /// `sc.exe` this process would have to quote a name for.
+        fn ask(name: &str, control: Control) -> std::io::Result<Option<String>> {
+            match control {
+                Control::Start => {
+                    let (_database, handle) = service(name, SERVICE_START)?;
+                    // SAFETY: a handle opened for `SERVICE_START`, and no
+                    // arguments — the argv a service runs is its `ImagePath`.
+                    match ok(unsafe { StartServiceW(handle.0, 0, std::ptr::null()) }) {
+                        Err(error) if code(&error) == Some(ERROR_SERVICE_ALREADY_RUNNING) => {
+                            Ok(None)
+                        }
+                        other => other.map(|()| None),
+                    }
+                }
+                Control::Stop => {
+                    let (_database, handle) = match service(name, SERVICE_STOP) {
+                        Ok(handles) => handles,
+                        Err(error) if code(&error) == Some(ERROR_SERVICE_DOES_NOT_EXIST) => {
+                            return Ok(None);
+                        }
+                        Err(error) => return Err(error),
+                    };
+                    // SAFETY: a `repr(C)` structure of integers, whose all-zero
+                    // value the call below overwrites.
+                    let mut status: SERVICE_STATUS = unsafe { std::mem::zeroed() };
+                    // SAFETY: a handle opened for `SERVICE_STOP`, and a local
+                    // out-parameter the call fills in.
+                    match ok(unsafe { ControlService(handle.0, SERVICE_CONTROL_STOP, &mut status) })
+                    {
+                        Err(error) if code(&error) == Some(ERROR_SERVICE_NOT_ACTIVE) => Ok(None),
+                        other => other.map(|()| None),
+                    }
+                }
+                Control::Status => {
+                    let (_database, handle) = service(name, SERVICE_QUERY_STATUS)?;
+                    // SAFETY: as above.
+                    let mut status: SERVICE_STATUS_PROCESS = unsafe { std::mem::zeroed() };
+                    let mut needed = 0_u32;
+                    // SAFETY: a buffer that is exactly the structure the info
+                    // level names, its own size, and an out-parameter for the
+                    // size the call would have wanted.
+                    ok(unsafe {
+                        QueryServiceStatusEx(
+                            handle.0,
+                            SC_STATUS_PROCESS_INFO,
+                            std::ptr::from_mut(&mut status).cast::<u8>(),
+                            u32::try_from(size_of::<SERVICE_STATUS_PROCESS>()).unwrap_or(u32::MAX),
+                            &mut needed,
+                        )
+                    })?;
+                    Ok(Some(state(status.dwCurrentState)))
+                }
+            }
+        }
+
+        /// The word an SCM state number means, which is all a service manager
+        /// knows: what `nvs service status` adds to it comes from the control
+        /// socket.
+        fn state(current: u32) -> String {
+            match current {
+                SERVICE_STOPPED => "stopped".to_owned(),
+                SERVICE_START_PENDING => "start-pending".to_owned(),
+                SERVICE_STOP_PENDING => "stop-pending".to_owned(),
+                SERVICE_RUNNING => "running".to_owned(),
+                SERVICE_CONTINUE_PENDING => "continue-pending".to_owned(),
+                SERVICE_PAUSE_PENDING => "pause-pending".to_owned(),
+                SERVICE_PAUSED => "paused".to_owned(),
+                other => format!("state {other}"),
+            }
+        }
+    }
+
+    /// A manager that performs nothing and remembers every action it was
+    /// handed.
+    ///
+    /// What every case drives: `rule:packaging/the-argv-lives-in-imagepath`'s registration and `rule:packaging/the-unit-is-printed-and-install-is-the-opt-in`'s write both need
+    /// administrator rights on a machine somebody chose, while the property a
+    /// case is about is the list of actions rather than the platform's answer
+    /// to one of them.
+    #[cfg(test)]
+    #[derive(Debug, Default)]
+    pub(crate) struct Recording {
+        applied: Mutex<Vec<Action>>,
+        /// A machine with no account but root, for the case about `E0654`.
+        no_accounts: bool,
+    }
+
+    #[cfg(test)]
+    impl Recording {
+        /// The uid and gid every account but root has on the recording
+        /// manager's machine.
+        pub(crate) const ID: u32 = 1001;
+
+        /// A recording manager on a machine where only root exists.
+        pub(crate) fn without_accounts() -> Self {
+            Self {
+                no_accounts: true,
+                ..Self::default()
+            }
+        }
+
+        /// Everything applied through it, in order.
+        pub(crate) fn applied(&self) -> Vec<Action> {
+            self.applied
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .clone()
+        }
+    }
+
+    #[cfg(test)]
+    impl Manager for Recording {
+        fn apply(&self, action: &Action) -> std::io::Result<Option<String>> {
+            self.applied
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .push(action.clone());
+            Ok(None)
+        }
+
+        fn account(&self, name: &str) -> std::io::Result<Account> {
+            let id = match name {
+                "root" => 0,
+                _ if self.no_accounts => {
+                    return Err(std::io::Error::from(std::io::ErrorKind::NotFound));
+                }
+                _ => Self::ID,
+            };
+            Ok(Account {
+                name: name.to_owned(),
+                uid: id,
+                gid: id,
+            })
+        }
+    }
+}
+
+/// `nvs service unit <name> [options] -- <argv…>` — print what would be
+/// installed, and install nothing.
+///
+/// `rule:packaging/the-unit-is-printed-and-install-is-the-opt-in` on Linux, and its `--print` on Windows: the same generation, the same
+/// `rule:packaging/the-installer-is-a-sink` refusals in front of it, and the artifact a change-management review
+/// actually wants rather than one a binary wrote behind the operator's
+/// configuration management.
+pub(crate) fn print_unit(
+    config: &[PathBuf],
+    name: &str,
+    argv: &[String],
+    account: Option<&str>,
+    password: Option<&str>,
+    unaccepted: Option<&str>,
+) -> ExitCode {
+    let request = Request {
+        name,
+        argv,
+        account,
+        password,
+        unaccepted,
+    };
+    let mut sources = SourceMap::new();
+    let host = match describe_host(config, argv, Unresolved::Refuses, &mut sources) {
+        Ok(host) => host,
+        Err(diagnostic) => return refuse(diagnostic, &mut sources),
+    };
+    let mut plan = match plan(&request, &host) {
+        Ok(plan) => plan,
+        Err(diagnostic) => return refuse(diagnostic, &mut sources),
+    };
+    // The unit's `User=` has to name an account this machine has, which is
+    // the one check an install makes that `plan` cannot.
+    if let Err(diagnostic) = at_host(|site| registration::resolve_account(&mut plan, site)) {
+        return refuse(diagnostic, &mut sources);
+    }
+
+    let text = if cfg!(windows) {
+        format!(
+            "New-Service -Name {} -BinaryPathName '{}' -StartupType Automatic\n",
+            plan.name,
+            image_path(&plan)
+        )
+    } else {
+        unit(&plan)
+    };
+    // Through the same seam an install will use, rather than around it: the
+    // printing delivery is the one that has no destination, and routing this
+    // command past `destination` would leave that a comment instead of the
+    // thing that decides.
+    let destination = destination(Delivery::Print, &plan.name, Path::new(UNIT_DIRECTORY));
+    if let Err(error) = deliver(&text, destination.as_deref()) {
+        eprintln!("error: could not write the unit: {error}");
+        return ExitCode::FAILURE;
+    }
+    ExitCode::SUCCESS
+}
+
+/// The site this installer acts in: the platform it is running on, that
+/// platform's real manager, and the directory `rule:packaging/the-unit-is-printed-and-install-is-the-opt-in` writes a unit into.
+///
+/// The one `cfg` in the surface, and it is here rather than in a verb because
+/// every verb is the same list of actions on either machine — what differs is
+/// only which manager performs one, and only this machine's exists.
+fn at_host<T>(body: impl FnOnce(&registration::Site<'_>) -> T) -> T {
+    #[cfg(windows)]
+    let manager = registration::scm::Scm;
+    #[cfg(not(windows))]
+    let manager = registration::Systemd;
+    body(&registration::Site {
+        platform: registration::Platform::host(),
+        unit_root: Path::new(UNIT_DIRECTORY),
+        manager: &manager,
+    })
+}
+
+/// A refusal, rendered as whichever of the two it is: `rule:packaging/the-installer-is-a-sink`'s diagnostic, or the
+/// platform's own failure at the step the verb stopped on.
+fn report(refused: registration::Refused, sources: &mut SourceMap) -> ExitCode {
+    match refused {
+        registration::Refused::Installer(diagnostic) => refuse(diagnostic, sources),
+        registration::Refused::Manager(error) => {
+            eprintln!("error: {error}");
+            ExitCode::FAILURE
+        }
+    }
+}
+
+/// What the platform holds under `name`, with the name in the failure.
+///
+/// The service manager's own error is "the specified service is not an
+/// installed service" and nothing else, which in an operator's locale and with
+/// no name in it is a sentence about no particular service.
+fn held(
+    site: &registration::Site<'_>,
+    name: &str,
+) -> Result<registration::Stored, registration::Refused> {
+    site.manager.stored(name, site.unit_root).map_err(|error| {
+        registration::Refused::Manager(std::io::Error::new(
+            error.kind(),
+            format!("this machine's service manager holds no `{name}`: {error}"),
+        ))
+    })
+}
+
+/// The installer's own options — everything `nvs service install` was given to
+/// the left of `--`, where the argv to its right is the request itself.
+pub(crate) struct InstallOptions<'a> {
+    /// `rule:packaging/a-service-runs-as-a-virtual-account`'s `--account`, replacing the per-service virtual account.
+    pub(crate) account: Option<&'a str>,
+    /// `rule:packaging/the-installer-is-a-sink` refuses it and exists to name it (`E0633`).
+    pub(crate) password: Option<&'a str>,
+    /// Why this binary's own parser refuses the argv, where it does.
+    pub(crate) unaccepted: Option<&'a str>,
+    /// `rule:packaging/a-service-answers-its-manager`'s `--start`.
+    pub(crate) start: registration::StartMode,
+    /// `rule:packaging/a-service-answers-its-manager`'s `--restart`.
+    pub(crate) restart: registration::Restart,
+    /// `rule:packaging/a-service-answers-its-manager`'s `--depends-on`.
+    pub(crate) depends_on: &'a [String],
+    /// What an administrator reads beside the name.
+    pub(crate) description: Option<&'a str>,
+    /// Print the actions and touch nothing.
+    pub(crate) dry_run: bool,
+}
+
+/// `nvs service install <name> [options] -- <argv…>` — `rule:packaging/the-installer-is-a-sink`'s refusals, then
+/// this platform's own steps.
+///
+/// The grants are derived here rather than passed in: the data folder is the
+/// argv's `--data` or the binary's default, the log destination is the `file:`
+/// target the configuration the service reads carries, and the artifact cache
+/// and the temporary root are that configuration's `[opcache] file_cache_dir`
+/// and `[io] temp_root`. An uninstall re-derives them the same way, which is
+/// what makes `rule:packaging/a-service-runs-as-a-virtual-account`'s closing property hold against the install that granted
+/// them.
+pub(crate) fn install(
+    config: &[PathBuf],
+    name: &str,
+    argv: &[String],
+    options: &InstallOptions<'_>,
+) -> ExitCode {
+    let request = Request {
+        name,
+        argv,
+        account: options.account,
+        password: options.password,
+        unaccepted: options.unaccepted,
+    };
+    let mut sources = SourceMap::new();
+    let host = match describe_host(config, argv, Unresolved::Refuses, &mut sources) {
+        Ok(host) => host,
+        Err(diagnostic) => return refuse(diagnostic, &mut sources),
+    };
+    let registration = registration::Registration {
+        start: options.start,
+        restart: options.restart,
+        depends_on: options.depends_on.to_vec(),
+        description: options.description.map(str::to_owned),
+    };
+    let performed = at_host(|site| {
+        registration::install(
+            &request,
+            &host,
+            &registration,
+            site,
+            options.dry_run,
+            &mut std::io::stdout(),
+        )
+    });
+    match performed {
+        Ok(()) => {
+            // Said once the manager holds it, because a command that changed
+            // the machine and printed nothing reads as one that did not run.
+            if !options.dry_run {
+                println!("installed service `{name}`; `nvs service start {name}` starts it");
+            }
+            ExitCode::SUCCESS
+        }
+        Err(refused) => report(refused, &mut sources),
+    }
+}
+
+/// `nvs service uninstall <name>` — the install's steps undone, from what the
+/// platform still holds.
+pub(crate) fn uninstall(config: &[PathBuf], name: &str, dry_run: bool) -> ExitCode {
+    let mut sources = SourceMap::new();
+    let performed = at_host(|site| {
+        let mut stored = held(site, name)?;
+        let host = describe_host(config, &stored.argv, Unresolved::ReadsAsEmpty, &mut sources)
+            .map_err(registration::Refused::Installer)?;
+        // The ones the platform does not hold, back from where the install
+        // read them.
+        stored.log_file = host.log_file;
+        stored.cache_directory = host.cache_directory;
+        stored.temp_root = host.temp_root;
+        stored.data_folder = installed_data_folder(&stored, &host.exe);
+        registration::uninstall(&stored, site, dry_run, &mut std::io::stdout())
+    });
+    match performed {
+        Ok(()) => {
+            if !dry_run {
+                println!("uninstalled service `{name}`");
+            }
+            ExitCode::SUCCESS
+        }
+        Err(refused) => report(refused, &mut sources),
+    }
+}
+
+/// The data folder an installed service uses, for an uninstall to revoke
+/// what the install granted on it: the stored argv's `--data`, else the
+/// default folder of the binary the service runs. `uninstaller` stands in for
+/// that binary only where the platform held none.
+fn installed_data_folder(stored: &registration::Stored, uninstaller: &Path) -> Option<PathBuf> {
+    let exe = stored.exe.as_deref().unwrap_or(uninstaller);
+    data_folder(&stored.argv, exe).map(|data| data.root().to_path_buf())
+}
+
+/// `nvs service start <name>`.
+pub(crate) fn start(name: &str) -> ExitCode {
+    answered(name, registration::Control::Start)
+}
+
+/// `nvs service stop <name>`, which a hosted server answers with a drain
+/// (`rule:packaging/a-service-answers-its-manager`).
+pub(crate) fn stop(name: &str) -> ExitCode {
+    answered(name, registration::Control::Stop)
+}
+
+/// `nvs service status <name>` — the manager's own answer.
+pub(crate) fn status(name: &str) -> ExitCode {
+    answered(name, registration::Control::Status)
+}
+
+/// `nvs service run <name>` — the argv the platform holds under `name`, so
+/// this process can run the line a service manager would have started.
+///
+/// A manager never invokes this verb: `rule:packaging/the-argv-lives-in-imagepath`'s `ImagePath` and `rule:packaging/the-generated-unit-is-hardened`'s `ExecStart`
+/// both carry the stored argv directly, so what the manager starts is
+/// `nvs serve …` itself. What this is for is running that same line in the
+/// foreground, where its output is on a terminal — which is how an operator
+/// watches a boot that fails under the manager with nothing in the log.
+///
+/// # Errors
+///
+/// The platform's own failure to say what it holds, already reported.
+pub(crate) fn stored_argv(name: &str) -> Result<Vec<String>, ExitCode> {
+    let mut sources = SourceMap::new();
+    at_host(|site| held(site, name))
+        .map(|stored| stored.argv)
+        .map_err(|refused| report(refused, &mut sources))
+}
+
+/// One control verb, and whatever the manager answered.
+fn answered(name: &str, control: registration::Control) -> ExitCode {
+    let mut sources = SourceMap::new();
+    match at_host(|site| registration::control(control, name, site)) {
+        Ok(answers) => {
+            for answer in answers {
+                println!("{answer}");
+            }
+            ExitCode::SUCCESS
+        }
+        Err(refused) => report(refused, &mut sources),
+    }
+}
+
+/// What [`describe_host`] does with a named configuration that does not
+/// resolve.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum Unresolved {
+    /// The configuration's own diagnostic is the refusal. `install` and `unit`
+    /// take this one: the service would refuse the same file at every boot,
+    /// and reading it as empty would install a service over a tree the
+    /// operator can see is broken — a key written with no live header above
+    /// it is the usual way to get there.
+    Refuses,
+    /// It reads as a configuration that says nothing. `uninstall` takes this
+    /// one, because a service whose configuration has since been broken or
+    /// deleted is exactly one an operator still has to be able to remove.
+    ReadsAsEmpty,
+}
+
+/// What this process and the named configuration answer about themselves.
+///
+/// The configuration questions are read off the merged table rather than the
+/// typed tree, because each is one key and the tree would have to be
+/// deserialized in full to reach them.
+fn describe_host(
+    config: &[PathBuf],
+    argv: &[String],
+    unresolved: Unresolved,
+    sources: &mut SourceMap,
+) -> Result<Host, Diagnostic> {
+    let exe = std::env::current_exe()
+        .map_err(|error| {
+            Diagnostic::error(
+                code::E_SERVICE_PATH_NOT_ABSOLUTE,
+                format!("could not locate this executable: {error}"),
+            )
+            .with_note("a service is stored with the absolute path of its executable".to_owned())
+        })?
+        .clone();
+
+    let data_folder = data_folder(argv, &exe);
+    // The tree the *service* will read is the one these questions are asked
+    // of — not whatever `nvs service` was itself pointed at, which would
+    // answer for this shell instead. That is the argv's own `--config`, or the
+    // data folder's `nvs.toml` that `plan` stores in its place. Until an
+    // install writes that file it is not there, and the template it will be
+    // sets nothing, so it is asked as a tree that says nothing.
+    let mut named: Vec<PathBuf> = values_of(argv, "--config")
+        .into_iter()
+        .map(PathBuf::from)
+        .collect();
+    if named.is_empty()
+        && let Some(file) = data_folder
+            .as_ref()
+            .map(nvs_config::data::Folder::config_file)
+            .filter(|file| file.is_file())
+    {
+        named.push(file);
+    }
+    let files = crate::config::LocalFiles;
+    let roots = crate::config::named_roots(config, &named);
+    let resolved = if roots.is_empty() {
+        None
+    } else {
+        let cwd = crate::config::working_directory()?;
+        let resolved =
+            nvs_config::resolve::resolve(&crate::config::roots_in(&roots, &cwd), sources, &files);
+        // With nothing of the service's named, what resolved is this shell's
+        // own `--config`, whose faults are not the service's.
+        match resolved {
+            Err(diagnostic) if unresolved == Unresolved::Refuses && !named.is_empty() => {
+                return Err(diagnostic);
+            }
+            resolved => resolved.ok(),
+        }
+    };
+    // The table `serve` builds when the argv names no file, asked of the same
+    // tree. Why it would be refused is `serve`'s to report; here it is only
+    // whether there is one.
+    let writes_mounts = resolved
+        .as_ref()
+        .and_then(|resolved| resolved.config.server.as_ref())
+        .is_some_and(|server| !server.mount.is_empty());
+    let config_mounts_an_entry = writes_mounts
+        && resolved.as_ref().is_some_and(|resolved| {
+            nvs_config::mount::expand(&resolved.config, &resolved.origins, &files)
+                .is_ok_and(|mounts| !mounts.is_empty())
+        });
+    let table = resolved.map(|resolved| resolved.table).unwrap_or_default();
+
+    let target = table
+        .get("log")
+        .and_then(toml::Value::as_table)
+        .and_then(|log| log.get("target"))
+        .and_then(toml::Value::as_str);
+    let memory_max = table
+        .get("limits")
+        .and_then(toml::Value::as_table)
+        .and_then(|limits| limits.get("memory"))
+        .and_then(toml::Value::as_str)
+        .map(str::to_owned);
+    let listen = table
+        .get("server")
+        .and_then(toml::Value::as_table)
+        .and_then(|server| server.get("listen"));
+    let cache_directory = table
+        .get("opcache")
+        .and_then(toml::Value::as_table)
+        .and_then(|opcache| opcache.get("file_cache_dir"))
+        .and_then(toml::Value::as_str)
+        .map(PathBuf::from);
+    let temp_root = table
+        .get("io")
+        .and_then(toml::Value::as_table)
+        .and_then(|io| io.get("temp_root"))
+        .and_then(toml::Value::as_str)
+        .filter(|root| !root.is_empty())
+        .map(PathBuf::from);
+
+    Ok(Host {
+        exe,
+        from_a_bundle: crate::bundle::embedded().is_some(),
+        memory_max,
+        privileged_port: listen.is_some_and(privileged),
+        log_file: target
+            .and_then(|target| target.strip_prefix("file:"))
+            .map(PathBuf::from),
+        cache_directory,
+        temp_root,
+        data_folder,
+        config_mounts_an_entry,
+    })
+}
+
+/// The data folder of a service that runs `argv` with the binary `exe`: the
+/// argv's `--data`, else `.nvsdata` beside `exe` — the folder that binary
+/// finds for itself when the service starts.
+///
+/// A relative `--data` gives `None`. [`plan`] refuses it as `E0631`, and
+/// resolving it here would name a folder in this shell's directory.
+fn data_folder(argv: &[String], exe: &Path) -> Option<nvs_config::data::Folder> {
+    match values_of(argv, "--data").last() {
+        Some(written) => Path::new(written)
+            .is_absolute()
+            .then(|| nvs_config::data::Folder::new(PathBuf::from(written))),
+        None => nvs_config::data::Folder::beside_binary(exe).ok(),
+    }
+}
+
+/// Whether a `[server] listen` value — one address or a list of them — names a
+/// port below 1024, which is `rule:packaging/the-generated-unit-is-hardened`'s one condition for granting a capability.
+fn privileged(listen: &toml::Value) -> bool {
+    match listen {
+        toml::Value::String(address) => address
+            .rsplit_once(':')
+            .and_then(|(_, port)| port.parse::<u16>().ok())
+            .is_some_and(|port| port < 1024),
+        toml::Value::Array(addresses) => addresses.iter().any(privileged),
+        _ => false,
+    }
+}
+
+/// A refusal, rendered as the diagnostic it is.
+fn refuse(diagnostic: Diagnostic, sources: &mut SourceMap) -> ExitCode {
+    let mut diags = Diagnostics::new();
+    diags.report(diagnostic);
+    render_diagnostics(&mut diags, sources);
+    ExitCode::FAILURE
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The code a refusal carries. `rule:packaging/the-installer-is-a-sink`'s closing sentence is that each refusal
+    /// is a diagnostic naming what was refused and why, never a bare non-zero
+    /// exit, so an uncoded one is a failure of that rule rather than of the
+    /// case reading it.
+    fn coded(refusal: &Diagnostic) -> nvs_diagnostics::Code {
+        refusal.code.expect("every § 2 refusal carries a code")
+    }
+
+    /// A path that is absolute on the host these tests run on.
+    ///
+    /// `Path::is_absolute` answers for the platform, and `rule:packaging/the-installer-is-a-sink`'s relative-path row is a
+    /// claim about the machine the service will start on, so a fixture that
+    /// hardcoded a Unix root would assert nothing on Windows and vice versa.
+    fn absolute(tail: &str) -> String {
+        if cfg!(windows) {
+            format!("C:\\nvs\\{}", tail.replace('/', "\\"))
+        } else {
+            format!("/etc/nvs/{tail}")
+        }
+    }
+
+    /// A host with nothing wrong with it, so a refusal in a case below is the
+    /// one that case is about.
+    fn host() -> Host {
+        Host {
+            exe: PathBuf::from(absolute("bin/nvs")),
+            from_a_bundle: false,
+            memory_max: Some("512M".to_owned()),
+            privileged_port: false,
+            // Both named, so `rule:packaging/a-service-runs-as-a-virtual-account`'s grant list is exercised whole rather than
+            // in its empty case.
+            log_file: Some(PathBuf::from(absolute("log/web.log"))),
+            cache_directory: Some(PathBuf::from(absolute("cache"))),
+            temp_root: None,
+            // None, so an install a case performs creates no folder; the cases
+            // about the data folder name one in a scratch directory.
+            data_folder: None,
+            config_mounts_an_entry: true,
+        }
+    }
+
+    /// [`host`], with the data folder `.nvsdata` under [`absolute`]'s root,
+    /// for the cases that only plan.
+    fn host_with_data() -> Host {
+        Host {
+            data_folder: Some(nvs_config::data::Folder::new(PathBuf::from(absolute(
+                ".nvsdata",
+            )))),
+            ..host()
+        }
+    }
+
+    /// An argv that survives `rule:packaging/the-installer-is-a-sink` whole.
+    fn argv() -> Vec<String> {
+        vec![
+            "serve".to_owned(),
+            absolute("app/index.nvs"),
+            "--config".to_owned(),
+            absolute("nvs.toml"),
+        ]
+    }
+
+    fn request<'a>(argv: &'a [String]) -> Request<'a> {
+        Request {
+            name: "web",
+            argv,
+            account: None,
+            password: None,
+            unaccepted: None,
+        }
+    }
+
+    #[test]
+    fn a_request_that_survives_every_refusal_plans() {
+        let argv = argv();
+        assert!(plan(&request(&argv), &host()).is_ok());
+    }
+
+    /// `rule:packaging/the-installer-is-a-sink`, row 1 and row 2 — one code, because the reason is one:
+    /// what the argv names has to keep running and must carry no testing hook.
+    // covers: tools:server/nvs-service
+    #[test]
+    fn the_installer_refuses_a_subcommand_outside_the_serve_and_run_allowlist() {
+        for subcommand in ["ast", "check", "test", "fmt", "info", "config", "service"] {
+            let mut argv = argv();
+            argv[0] = subcommand.to_owned();
+            let refusal = plan(&request(&argv), &host()).expect_err(subcommand);
+            assert_eq!(coded(&refusal), code::E_SERVICE_ARGV_NOT_ALLOWED);
+            assert!(refusal.message.contains(subcommand), "{subcommand}");
+        }
+
+        // Both spellings of the hook, on a subcommand that *is* allowed — so
+        // the refusal is the flag's and not the allowlist's reached twice.
+        for hook in ["--fault-inject", "--fault-inject=helper-panic"] {
+            let mut argv = argv();
+            argv.push(hook.to_owned());
+            let refusal = plan(&request(&argv), &host()).expect_err(hook);
+            assert_eq!(coded(&refusal), code::E_SERVICE_ARGV_NOT_ALLOWED);
+            assert!(refusal.message.contains("--fault-inject"), "{hook}");
+        }
+
+        // The empty argv is the same claim with nothing to name.
+        assert_eq!(
+            coded(&plan(&request(&[]), &host()).expect_err("empty")),
+            code::E_SERVICE_ARGV_NOT_ALLOWED
+        );
+    }
+
+    /// `rule:packaging/the-installer-is-a-sink`, row 3: a relative path is a
+    /// first-boot failure.
+    // covers: tools:server/nvs-service
+    #[test]
+    fn the_installer_refuses_a_relative_path() {
+        // In the argv's `--config` and `--data`, in both spellings.
+        for written in [
+            "--config nvs.toml",
+            "--config=nvs.toml",
+            "--data nvs.toml",
+            "--data=nvs.toml",
+        ] {
+            let argv: Vec<String> = format!("serve {} {written}", absolute("app/index.nvs"))
+                .split(' ')
+                .map(str::to_owned)
+                .collect();
+            let refusal = plan(&request(&argv), &host()).expect_err(written);
+            assert_eq!(coded(&refusal), code::E_SERVICE_PATH_NOT_ABSOLUTE);
+            assert!(refusal.message.contains("nvs.toml"), "{written}");
+        }
+
+        // As the entry file, with an absolute `--config` beside it, so the
+        // walk is shown reading past the option's value rather than stopping
+        // at the first bare word it sees.
+        let entry = vec![
+            "serve".to_owned(),
+            "--config".to_owned(),
+            absolute("nvs.toml"),
+            "app/index.nvs".to_owned(),
+        ];
+        let refusal = plan(&request(&entry), &host()).expect_err("entry");
+        assert_eq!(coded(&refusal), code::E_SERVICE_PATH_NOT_ABSOLUTE);
+        assert!(refusal.message.contains("app/index.nvs"));
+
+        // And in the three paths the configuration carries, which the server
+        // opens as written and `rule:packaging/a-service-runs-as-a-virtual-account` grants on. With no `--config` that is the
+        // data folder's file, and the same three are asked of it.
+        let bare = vec!["serve".to_owned(), absolute("app/index.nvs")];
+        for good in [argv(), bare] {
+            for (key, written) in [
+                ("[log] target", "../../logs/novis.log"),
+                ("[opcache] file_cache_dir", "cache"),
+                ("[io] temp_root", "tmp"),
+            ] {
+                let mut configured = host_with_data();
+                match key {
+                    "[log] target" => configured.log_file = Some(PathBuf::from(written)),
+                    "[io] temp_root" => configured.temp_root = Some(PathBuf::from(written)),
+                    _ => configured.cache_directory = Some(PathBuf::from(written)),
+                }
+                let refusal = plan(&request(&good), &configured).expect_err(key);
+                assert_eq!(coded(&refusal), code::E_SERVICE_PATH_NOT_ABSOLUTE);
+                assert!(refusal.message.contains(key), "{}", refusal.message);
+                assert!(refusal.message.contains(written), "{}", refusal.message);
+            }
+            let mut configured = host_with_data();
+            configured.log_file = Some(PathBuf::from(absolute("log/web.log")));
+            configured.cache_directory = Some(PathBuf::from(absolute("cache")));
+            configured.temp_root = Some(PathBuf::from(absolute("tmp")));
+            assert!(plan(&request(&good), &configured).is_ok());
+        }
+
+        // The control: the same shapes, absolute, plan.
+        assert!(plan(&request(&argv()), &host()).is_ok());
+        let data = vec![
+            "serve".to_owned(),
+            "--data".to_owned(),
+            absolute(".nvsdata"),
+            absolute("app/index.nvs"),
+        ];
+        assert!(plan(&request(&data), &host_with_data()).is_ok());
+    }
+
+    /// An argv with no `--config` is stored with the absolute path of the
+    /// data folder's `nvs.toml`, right after the subcommand, so the service
+    /// never looks for `./nvs.toml` where its manager starts it. The data
+    /// folder is the argv's own `--data`, else the one beside the binary.
+    // covers: tools:server/nvs-service
+    #[test]
+    fn an_argv_with_no_config_stores_the_data_folders_nvs_toml() {
+        let config = |data: &str| {
+            Path::new(&absolute(data))
+                .join("nvs.toml")
+                .display()
+                .to_string()
+        };
+        let bare = vec!["serve".to_owned(), absolute("app/index.nvs")];
+        let stored = plan(&request(&bare), &host_with_data()).expect("a plan");
+        assert_eq!(
+            stored.argv,
+            [
+                "serve".to_owned(),
+                "--config".to_owned(),
+                config(".nvsdata"),
+                absolute("app/index.nvs"),
+            ]
+        );
+        // `run` passes the words after its file to the program, so a
+        // `--config` added at the end would be the program's.
+        let run = vec![
+            "run".to_owned(),
+            absolute("app/job.nvs"),
+            "--verbose".to_owned(),
+        ];
+        let stored = plan(&request(&run), &host_with_data()).expect("a plan");
+        assert_eq!(
+            stored.argv[1..3],
+            ["--config".to_owned(), config(".nvsdata")]
+        );
+        assert_eq!(stored.argv[3..], run[1..]);
+
+        // An absolute `--data` is the folder, and stays in the argv.
+        let exe = std::env::current_exe().expect("this test's binary");
+        for written in [
+            vec!["--data".to_owned(), absolute("srv/data")],
+            vec![format!("--data={}", absolute("srv/data"))],
+        ] {
+            let mut argv = vec!["serve".to_owned()];
+            argv.extend(written);
+            argv.push(absolute("app/index.nvs"));
+            let named = data_folder(&argv, &exe).expect("an absolute folder");
+            assert_eq!(named.root(), Path::new(&absolute("srv/data")));
+            assert!(!named.is_default());
+            let host = Host {
+                data_folder: Some(named),
+                ..host()
+            };
+            let stored = plan(&request(&argv), &host).expect("a plan");
+            assert_eq!(
+                stored.argv[1..3],
+                ["--config".to_owned(), config("srv/data")]
+            );
+            assert!(stored.argv.ends_with(&argv[1..]), "{:?}", stored.argv);
+        }
+
+        // A relative one names no folder, and `plan` refuses it as `E0631`.
+        let relative = vec!["serve".to_owned(), "--data".to_owned(), "data".to_owned()];
+        assert_eq!(data_folder(&relative, &exe), None);
+
+        // With none, it is the default folder beside the binary.
+        let beside = data_folder(&bare, &exe).expect("the default folder");
+        assert!(beside.is_default());
+        assert_eq!(
+            beside.root(),
+            nvs_config::trust::canonical(&exe)
+                .expect("a canonical path")
+                .parent()
+                .expect("a folder")
+                .join(".nvsdata")
+        );
+
+        // A `--config` the operator wrote is stored as written.
+        let stored = plan(&request(&argv()), &host_with_data()).expect("a plan");
+        assert_eq!(stored.argv, argv());
+
+        // With no folder to name, there is no file to store: `E0653`.
+        let refusal = plan(&request(&bare), &host()).expect_err("no data folder");
+        assert_eq!(coded(&refusal), code::E_SERVICE_DATA_UNUSABLE);
+    }
+
+    /// An install creates the data folder and writes the shipped `nvs.toml`
+    /// into it before the manager is asked for anything, keeps a file that is
+    /// already there, and is refused with `E0653` when the folder cannot be
+    /// made. A dry run names the folder and creates nothing.
+    #[test]
+    fn an_install_prepares_the_data_folder_or_is_refused_before_the_manager() {
+        let scratch = nvs_repo::scratch_private("service-data");
+        let unit = unit_root("data");
+        let bare = vec!["serve".to_owned(), absolute("app/index.nvs")];
+        let install = |data: &Path, argv: &[String], dry_run: bool| {
+            let manager = registration::Recording::default();
+            let site = registration::Site {
+                platform: registration::Platform::Windows,
+                unit_root: &unit,
+                manager: &manager,
+            };
+            let host = Host {
+                data_folder: Some(nvs_config::data::Folder::new(data.to_path_buf())),
+                ..host()
+            };
+            let mut printed = Vec::new();
+            let mut named = request(argv);
+            named.account = Some("EXAMPLE\\nvs-web");
+            let done =
+                registration::install(&named, &host, &registration(), &site, dry_run, &mut printed);
+            (
+                done,
+                manager.applied(),
+                String::from_utf8(printed).expect("utf-8"),
+            )
+        };
+
+        let data = scratch.join("data");
+        let (done, applied, printed) = install(&data, &bare, true);
+        assert!(done.is_ok(), "{done:?}");
+        assert!(applied.is_empty());
+        assert!(printed.starts_with("create the data folder"), "{printed}");
+        assert!(!data.exists(), "a dry run created {}", data.display());
+
+        let (done, applied, _) = install(&data, &bare, false);
+        assert!(done.is_ok(), "{done:?}");
+        assert!(!applied.is_empty());
+        for sub in ["cache", "tmp", "lsp", "logs"] {
+            assert!(data.join(sub).is_dir(), "{sub}");
+        }
+        let file = data.join("nvs.toml");
+        let written = std::fs::read_to_string(&file).expect("the template");
+        assert_eq!(written, nvs_config::data::config_template());
+        assert!(
+            nvs_config::data::unedited(&written),
+            "the installer's file carries the marker line"
+        );
+
+        // The operator's own file is kept.
+        std::fs::write(&file, "# the operator's\n").expect("a file");
+        let (done, _, _) = install(&data, &bare, false);
+        assert!(done.is_ok(), "{done:?}");
+        assert_eq!(
+            std::fs::read_to_string(&file).expect("a file"),
+            "# the operator's\n"
+        );
+
+        // A template an older version wrote, unchanged, is brought up to date.
+        std::fs::write(&file, nvs_config::data::mark("0.0.1", "[control]\n")).expect("a file");
+        let (done, _, _) = install(&data, &bare, false);
+        assert!(done.is_ok(), "{done:?}");
+        assert_eq!(
+            std::fs::read_to_string(&file).expect("a file"),
+            nvs_config::data::config_template()
+        );
+
+        // A file where the folder should be cannot become one.
+        let blocked = scratch.join("blocked");
+        std::fs::write(&blocked, "").expect("a file");
+        let (done, applied, _) = install(&blocked, &bare, false);
+        let Err(registration::Refused::Installer(refusal)) = done else {
+            panic!("an unusable data folder was installed over: {done:?}")
+        };
+        assert_eq!(coded(&refusal), code::E_SERVICE_DATA_UNUSABLE);
+        assert!(
+            refusal.message.contains(&blocked.display().to_string()),
+            "{}",
+            refusal.message
+        );
+        assert!(applied.is_empty(), "the manager was asked: {applied:?}");
+
+        // With a `--config` named elsewhere the service still boots, so the
+        // same folder is a warning: the install goes ahead and grants nothing
+        // on the folder.
+        let (done, applied, _) = install(&blocked, &argv(), false);
+        assert!(done.is_ok(), "{done:?}");
+        assert!(!applied.is_empty());
+        assert!(
+            !applied.iter().any(|action| matches!(
+                action,
+                registration::Action::Grant { path, .. } if path.starts_with(&blocked)
+            )),
+            "{applied:?}"
+        );
+    }
+
+    /// `rule:packaging/the-installer-is-a-sink`, row 5 — and the refusal is by name, so an operator is not
+    /// left believing they mistyped a flag.
+    #[test]
+    fn the_installer_refuses_a_password_on_a_command_line() {
+        let argv = argv();
+        let mut asked = request(&argv);
+        asked.account = Some("EXAMPLE\\nvs-web");
+        asked.password = Some("hunter2");
+        let refusal = plan(&asked, &host()).expect_err("password");
+        assert_eq!(coded(&refusal), code::E_SERVICE_PASSWORD_ON_A_COMMAND_LINE);
+        // The value itself is never echoed back — it is `secret` for its whole
+        // life under `rule:security/secret-qualifier`, and a diagnostic quoting it would put it in a
+        // second place.
+        assert!(!refusal.message.contains("hunter2"));
+
+        // The account alone is not a refusal: `rule:packaging/a-service-runs-as-a-virtual-account` has it take a domain
+        // identity for a deployment that needs one.
+        let mut named = request(&argv);
+        named.account = Some("EXAMPLE\\nvs-web");
+        assert!(plan(&named, &host()).is_ok());
+    }
+
+    /// A named configuration that does not resolve is refused as itself. The
+    /// file here writes `target` and leaves `[log]` commented out above it,
+    /// which makes `target` a root key the tree refuses. An uninstall reads
+    /// the same file as saying nothing, so a broken configuration never keeps
+    /// a service installed.
+    #[test]
+    fn a_configuration_that_does_not_resolve_is_refused_as_itself_and_never_blocks_an_uninstall() {
+        let root = unit_root("unresolved");
+        let file = root.join("nvs.toml");
+        std::fs::write(&file, "#[log]\ntarget = \"file:/var/log/nvs.log\"\n").expect("a file");
+        let named = file.to_str().expect("a UTF-8 path").to_owned();
+        let argv = vec!["serve".to_owned(), "--config".to_owned(), named];
+
+        let refusal = describe_host(&[], &argv, Unresolved::Refuses, &mut SourceMap::new())
+            .err()
+            .expect("a root `target` is not a key");
+        assert_eq!(coded(&refusal), code::E_BAD_DIRECTIVE);
+
+        let host = describe_host(&[], &argv, Unresolved::ReadsAsEmpty, &mut SourceMap::new())
+            .expect("an uninstall reads it as empty");
+        assert_eq!(host.log_file, None);
+
+        // The same file named as the data folder's `nvs.toml`, through
+        // `--data` and no `--config`, is the same refusal.
+        let data = vec![
+            "serve".to_owned(),
+            "--data".to_owned(),
+            root.to_str().expect("a UTF-8 path").to_owned(),
+        ];
+        let refusal = describe_host(&[], &data, Unresolved::Refuses, &mut SourceMap::new())
+            .err()
+            .expect("the data folder's file is the service's");
+        assert_eq!(coded(&refusal), code::E_BAD_DIRECTIVE);
+
+        // An argv naming no `--config` is described over the data folder's
+        // file, and this shell's own tree is not the service's, so its faults
+        // are not refused here.
+        let bare = vec!["serve".to_owned()];
+        assert!(describe_host(&[file], &bare, Unresolved::Refuses, &mut SourceMap::new()).is_ok());
+    }
+
+    /// An argv the command line's own parser refuses is `E0630`, on the row's
+    /// own reasoning: it exits at once, which a service manager reports as a
+    /// crash loop forever. The allowlist is asked first, so a subcommand that
+    /// is not a server is refused as that.
+    #[test]
+    fn the_installer_refuses_an_argv_this_binary_would_not_run() {
+        let argv = argv();
+        let mut asked = request(&argv);
+        asked.unaccepted = Some("the following required arguments were not provided: <FILE>");
+        let refusal = plan(&asked, &host()).expect_err("unaccepted");
+        assert_eq!(coded(&refusal), code::E_SERVICE_ARGV_NOT_ALLOWED);
+        assert!(refusal.message.contains("<FILE>"), "{}", refusal.message);
+
+        let mut wrong = argv.clone();
+        wrong[0] = "ast".to_owned();
+        let mut asked = request(&wrong);
+        asked.unaccepted = Some("anything");
+        let refusal = plan(&asked, &host()).expect_err("allowlist first");
+        assert!(refusal.message.contains("`nvs ast`"), "{}", refusal.message);
+    }
+
+    /// `serve` with no file is an argv this binary runs only where the named
+    /// configuration mounts an entry, so that is what the installer asks: with
+    /// one it is stored as written, and with none it is `E0630` for the row's
+    /// own reason.
+    #[test]
+    fn a_serve_argv_with_no_file_is_stored_only_over_a_configuration_that_mounts_an_entry() {
+        let bare = vec![
+            "serve".to_owned(),
+            "--config".to_owned(),
+            absolute("nvs.toml"),
+        ];
+        let stored = plan(&request(&bare), &host()).expect("the configuration mounts an entry");
+        assert_eq!(stored.argv, bare);
+
+        let mut nothing_mounted = host();
+        nothing_mounted.config_mounts_an_entry = false;
+        let refusal = plan(&request(&bare), &nothing_mounted).expect_err("nothing to serve");
+        assert_eq!(coded(&refusal), code::E_SERVICE_ARGV_NOT_ALLOWED);
+        assert!(
+            refusal.message.contains("mounts nothing"),
+            "{}",
+            refusal.message
+        );
+
+        // A named file is `serve`'s own table of one, and asks nothing of the mounts.
+        assert!(plan(&request(&argv()), &nothing_mounted).is_ok());
+
+        // With no `--config` the data folder's file is the configuration, and
+        // the same question is asked of it.
+        let mut data_mounts_nothing = host_with_data();
+        data_mounts_nothing.config_mounts_an_entry = false;
+        let refusal = plan(&request(&["serve".to_owned()]), &data_mounts_nothing)
+            .expect_err("the data folder's file mounts nothing");
+        assert_eq!(coded(&refusal), code::E_SERVICE_ARGV_NOT_ALLOWED);
+    }
+
+    /// `rule:packaging/a-bundle-may-not-install-itself`.
+    #[test]
+    fn the_installer_refuses_to_install_from_a_bundle() {
+        let argv = argv();
+        let mut bundled = host();
+        bundled.from_a_bundle = true;
+        let refusal = plan(&request(&argv), &bundled).expect_err("bundle");
+        assert_eq!(coded(&refusal), code::E_SERVICE_FROM_A_BUNDLE);
+
+        // It is refused first, before anything about the argv is looked at:
+        // `rule:packaging/a-bundle-may-not-install-itself`'s answer does not depend on what the payload would have run.
+        let mut wrong = argv;
+        wrong[0] = "ast".to_owned();
+        assert_eq!(
+            coded(&plan(&request(&wrong), &bundled).expect_err("bundle first")),
+            code::E_SERVICE_FROM_A_BUNDLE
+        );
+    }
+
+    /// `rule:packaging/the-argv-lives-in-imagepath`: the SCM stores one string, the process gets it back
+    /// through `CommandLineToArgvW`, and that string is the only record of
+    /// what the service runs. `nvs_diagnostics::argv` holds the encoder's
+    /// round trip; this holds a plan's absolute binary and argv coming back.
+    #[test]
+    fn a_windows_image_path_is_quoted_and_absolute() {
+        let corpus: Vec<Vec<String>> = vec![
+            argv(),
+            // A trailing backslash immediately before the closing quote, which
+            // is the case a hand-written joiner gets wrong.
+            vec![
+                "serve".to_owned(),
+                "--config".to_owned(),
+                absolute("app dir\\"),
+            ],
+            // An embedded quote, and a backslash run in front of one.
+            vec![
+                "run".to_owned(),
+                absolute("app/index.nvs"),
+                "--config".to_owned(),
+                absolute("nvs.toml"),
+                "a\"b".to_owned(),
+                "c\\\\\"d".to_owned(),
+            ],
+            // A space, an empty word, and a lone backslash.
+            vec![
+                "serve".to_owned(),
+                absolute("app/index.nvs"),
+                "--config".to_owned(),
+                absolute("with space/nvs.toml"),
+                String::new(),
+                "\\".to_owned(),
+            ],
+        ];
+
+        for argv in corpus {
+            let plan = Plan {
+                name: "web".to_owned(),
+                exe: PathBuf::from(absolute("bin/nvs")),
+                argv: argv.clone(),
+                account: None,
+                memory_max: None,
+                privileged_port: false,
+                data: None,
+                reads_data_config: false,
+                log_file: None,
+                cache_directory: None,
+                temp_root: None,
+                owner: None,
+            };
+            let line = image_path(&plan);
+
+            // Quoted unconditionally — the path here contains no space.
+            assert!(line.starts_with('"'), "{line}");
+            let decoded = nvs_diagnostics::argv::decode(&line);
+            let (image, rest) = decoded.split_first().expect("an image path");
+            assert!(Path::new(image).is_absolute(), "{image}");
+            assert_eq!(image, &absolute("bin/nvs"));
+            assert_eq!(rest, argv.as_slice(), "{line}");
+        }
+    }
+
+    /// `rule:packaging/the-unit-is-printed-and-install-is-the-opt-in`: `nvs service unit` writes the unit to stdout and touches
+    /// nothing, and installing it is the explicit request rather than the
+    /// default.
+    // covers: tools:server/nvs-service
+    #[test]
+    fn a_systemd_unit_is_printed_and_written_only_on_install() {
+        let plan = Plan {
+            name: "web".to_owned(),
+            exe: PathBuf::from(absolute("bin/nvs")),
+            argv: argv(),
+            account: Some("nvs-web".to_owned()),
+            memory_max: Some("512M".to_owned()),
+            privileged_port: false,
+            data: None,
+            reads_data_config: false,
+            log_file: None,
+            cache_directory: None,
+            temp_root: None,
+            owner: None,
+        };
+        let text = unit(&plan);
+        for line in [
+            "Type=notify",
+            "WatchdogSec=30",
+            "User=nvs-web",
+            "MemoryMax=512M",
+            "NoNewPrivileges=true",
+            "ProtectSystem=strict",
+            "ProtectHome=true",
+            "PrivateTmp=true",
+            "CapabilityBoundingSet=",
+            "RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX",
+            "SystemCallFilter=@system-service",
+        ] {
+            assert!(text.contains(line), "missing `{line}` in\n{text}");
+        }
+        assert!(text.contains(&format!(
+            "ExecStart={} serve",
+            exec_word(&absolute("bin/nvs"), true)
+        )));
+        // No data folder and no configured path: nothing is granted write, so
+        // nothing is opened.
+        assert!(!text.contains("ReadWritePaths="), "{text}");
+
+        // `rule:packaging/the-generated-unit-is-hardened`'s capability condition: nothing is granted unless a privileged
+        // port is configured, asserted on both sides so a generator that
+        // always emitted it would fail here rather than read plausibly.
+        assert!(!text.contains("AmbientCapabilities"));
+        let mut privileged = plan;
+        privileged.privileged_port = true;
+        assert!(unit(&privileged).contains("AmbientCapabilities=CAP_NET_BIND_SERVICE"));
+
+        // Printed, and written only on install: the printing delivery has no
+        // destination at all, so a directory it was pointed at is still empty
+        // afterwards, while the installing one names the unit file.
+        let root = nvs_repo::scratch("service");
+        assert_eq!(destination(Delivery::Print, "web", &root), None);
+        deliver(&text, destination(Delivery::Print, "web", &root).as_deref())
+            .expect("the printing delivery");
+        assert_eq!(
+            std::fs::read_dir(&root).expect("readable").count(),
+            0,
+            "printing wrote into {}",
+            root.display()
+        );
+
+        let installed = destination(Delivery::Install, "web", &root).expect("a destination");
+        assert_eq!(installed, root.join("web.service"));
+        deliver(&text, Some(&installed)).expect("the installing delivery");
+        assert_eq!(std::fs::read_to_string(&installed).expect("written"), text);
+        std::fs::remove_dir_all(&root).expect("a removed scratch directory");
+    }
+
+    /// The `WatchdogSec=30` line [`unit`] renders is a promise: the manager
+    /// stops this process unless the ping arrives inside half that period. So
+    /// both halves of what the ping *means* are asserted here — it is sent
+    /// while the fleet turns, and it stops the moment the fleet does, which is
+    /// the difference between evidence and a beat any live thread can write.
+    ///
+    /// The interval is this case's rather than a manager's, because the only
+    /// thing [`Heartbeat::start`] adds is reading two environment variables,
+    /// and a case may not set those out from under another running beside it.
+    #[test]
+    fn the_watchdog_ping_is_sent_while_the_fleet_turns_and_stops_when_it_does_not() {
+        use std::sync::atomic::{AtomicBool, Ordering};
+
+        let (told, sent) = recording();
+        let turning = Arc::new(AtomicBool::new(true));
+        let gate = Arc::clone(&turning);
+        let interval = Duration::from_millis(5);
+        let beat = Heartbeat::every(&told, interval, move || gate.load(Ordering::Relaxed))
+            .expect("the thread that answers `WatchdogSec`");
+        let pings = || {
+            sent.lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .iter()
+                .filter(|line| **line == "WATCHDOG=1")
+                .count()
+        };
+        // Generous on purpose: what this waits for is that pings arrive at all,
+        // and a loaded machine can take far longer than the interval to
+        // schedule the thread sending them.
+        let patience = Duration::from_secs(10);
+        let deadline = std::time::Instant::now() + patience;
+        while pings() < 2 && std::time::Instant::now() < deadline {
+            std::thread::sleep(interval);
+        }
+        assert!(pings() >= 2, "a turning fleet's manager was told nothing");
+
+        // No core turning, so the process stops saying otherwise. Counted twice
+        // with intervals in between rather than once, so that a ping already
+        // past the gate when the fleet stopped is not read as a live one.
+        turning.store(false, Ordering::Relaxed);
+        std::thread::sleep(interval * 20);
+        let last = pings();
+        std::thread::sleep(interval * 20);
+        assert_eq!(
+            pings(),
+            last,
+            "a process whose every core had stopped went on telling its manager it was alive"
+        );
+
+        // And a fleet that comes back is reported again, rather than left
+        // condemned by the sweep that found it wedged.
+        turning.store(true, Ordering::Relaxed);
+        let deadline = std::time::Instant::now() + patience;
+        while pings() == last && std::time::Instant::now() < deadline {
+            std::thread::sleep(interval);
+        }
+        assert!(pings() > last, "a fleet that came back was not reported");
+
+        drop(beat);
+        let stopped = pings();
+        std::thread::sleep(interval * 20);
+        assert_eq!(
+            pings(),
+            stopped,
+            "the thread outlived the handle that owns it and is still pinging"
+        );
+    }
+
+    /// A scratch unit directory this case owns, so what an install would write
+    /// is asserted against a directory nothing else is looking at.
+    fn unit_root(case: &str) -> nvs_repo::Scratch {
+        nvs_repo::scratch(&format!("service-{case}"))
+    }
+
+    /// The installer's options an operator who named none of them gets.
+    fn registration() -> registration::Registration {
+        registration::Registration::default()
+    }
+
+    /// The words of a unit's `ReadWritePaths=` line, read back the way
+    /// systemd's list parser reads them; empty when the unit has none.
+    fn opened(text: &str) -> Vec<String> {
+        text.lines()
+            .find_map(|line| line.strip_prefix("ReadWritePaths="))
+            .map(shell_words)
+            .unwrap_or_default()
+    }
+
+    /// A path as `ReadWritePaths=` names it, with the prefix that skips it
+    /// when it is missing.
+    fn skipped_if_missing(path: &Path) -> String {
+        format!("-{}", path.display())
+    }
+
+    /// `rule:packaging/the-generated-unit-is-hardened`: `ProtectSystem=strict`
+    /// leaves the service nothing writable, so `ReadWritePaths=` names exactly
+    /// the paths `rule:packaging/a-service-runs-as-a-virtual-account`'s grant list marks read/write. The data folder itself and
+    /// its `nvs.toml` stay read-only.
+    #[test]
+    fn the_unit_opens_exactly_the_paths_the_grants_mark_writable() {
+        let bare = vec!["serve".to_owned(), absolute("app/index.nvs")];
+        let rendered = |host: &Host| unit(&plan(&request(&bare), host).expect("a plan"));
+        let data = nvs_config::data::Folder::new(PathBuf::from(absolute(".nvsdata")));
+        let subfolders = [data.cache(), data.tmp(), data.lsp_root(), data.logs()];
+
+        // The default data folder and nothing configured: its four subfolders.
+        let alone = Host {
+            log_file: None,
+            cache_directory: None,
+            ..host_with_data()
+        };
+        let words = opened(&rendered(&alone));
+        assert_eq!(
+            words,
+            subfolders.clone().map(|sub| skipped_if_missing(&sub))
+        );
+        assert!(!words.contains(&skipped_if_missing(data.root())));
+        assert!(!words.contains(&skipped_if_missing(&data.config_file())));
+
+        // A log folder outside the data folder is opened as well. A cache
+        // directory inside `cache/` is opened already, so it is not named.
+        let outside = Host {
+            log_file: Some(PathBuf::from(absolute("log/web.log"))),
+            cache_directory: Some(data.cache().join("compiled")),
+            ..host_with_data()
+        };
+        let mut expected = subfolders.map(|sub| skipped_if_missing(&sub)).to_vec();
+        expected.push(skipped_if_missing(Path::new(&absolute("log"))));
+        assert_eq!(opened(&rendered(&outside)), expected);
+
+        // A path with a space is quoted, and reads back whole.
+        let spaced = nvs_config::data::Folder::new(PathBuf::from(absolute("my data/.nvsdata")));
+        let host = Host {
+            data_folder: Some(spaced.clone()),
+            log_file: None,
+            cache_directory: None,
+            ..host()
+        };
+        let text = rendered(&host);
+        assert!(text.contains("ReadWritePaths=\"-"), "{text}");
+        assert_eq!(
+            opened(&text),
+            [
+                spaced.cache(),
+                spaced.tmp(),
+                spaced.lsp_root(),
+                spaced.logs()
+            ]
+            .map(|sub| skipped_if_missing(&sub))
+        );
+
+        // systemd expands `%` in a path setting, so a literal one is doubled.
+        assert_eq!(unit_path(Path::new("/srv/100%")), "-/srv/100%%");
+    }
+
+    /// A plan for the binary `exe` and the stored argv `argv`, with nothing
+    /// else configured.
+    fn plan_running(exe: &str, argv: Vec<String>) -> Plan {
+        Plan {
+            name: "web".to_owned(),
+            exe: PathBuf::from(exe),
+            argv,
+            account: None,
+            memory_max: None,
+            privileged_port: false,
+            data: None,
+            reads_data_config: false,
+            log_file: None,
+            cache_directory: None,
+            temp_root: None,
+            owner: None,
+        }
+    }
+
+    /// The one `ExecStart` line of a unit, without its key.
+    fn exec_start(text: &str) -> &str {
+        let lines: Vec<&str> = text
+            .lines()
+            .filter(|line| line.starts_with("ExecStart"))
+            .collect();
+        assert_eq!(lines.len(), 1, "{text}");
+        lines[0]
+            .strip_prefix("ExecStart=")
+            .expect("an `ExecStart=` setting")
+    }
+
+    /// `rule:packaging/the-generated-unit-is-hardened`: systemd decodes
+    /// backslash escapes in every `ExecStart` word, expands `%` in every word
+    /// and `$` in every argument, ends the command at a bare `;` and the
+    /// setting at a newline, so each of those is escaped.
+    #[test]
+    fn an_exec_start_word_is_escaped_the_way_systemd_reads_it() {
+        assert_eq!(exec_word("100%", false), "100%%");
+        assert_eq!(exec_word("/opt/100%/nvs", true), "/opt/100%%/nvs");
+        // A backslash alone is enough to quote the word.
+        assert_eq!(exec_word(r"C:\nvs\nvs", true), r#""C:\\nvs\\nvs""#);
+        assert_eq!(exec_word("$HOME", false), "$$HOME");
+        assert_eq!(exec_word("/opt/$bin/nvs", true), "/opt/$bin/nvs");
+        assert_eq!(exec_word("a b", false), "\"a b\"");
+        assert_eq!(exec_word(";", false), "\";\"");
+        assert_eq!(exec_word("", false), "\"\"");
+        assert_eq!(exec_word("a\nb", false), r#""a\x0ab""#);
+        assert_eq!(exec_word("%$ \\\"\n;", false), r#""%%$$ \\\"\x0a;""#);
+        assert_eq!(exec_word("serve", false), "serve");
+    }
+
+    /// An uninstall reads the binary and the argv back out of `ExecStart`, so
+    /// the encoder's round trip is the property: every word reads back as it
+    /// was, and no word starts a line of its own.
+    #[test]
+    fn an_exec_start_line_reads_back_the_words_it_was_written_from() {
+        let exe = "/opt/my nvs%/$bin/nvs";
+        let argv: Vec<String> = [
+            "serve",
+            "%",
+            "\\",
+            "${HOME}",
+            "$HOME",
+            "with space",
+            "trailing\\",
+            ";",
+            "",
+            "line\nUser=root",
+        ]
+        .map(str::to_owned)
+        .to_vec();
+        let text = unit(&plan_running(exe, argv.clone()));
+        let command = exec_start(&text);
+        assert!(
+            !text.lines().any(|line| line.starts_with("User=")),
+            "{text}"
+        );
+
+        let mut words = exec_words(command).into_iter();
+        assert_eq!(words.next().as_deref(), Some(exe), "{command}");
+        assert_eq!(words.collect::<Vec<_>>(), argv, "{command}");
+    }
+
+    /// A newline in a granted path is escaped like any control character, so
+    /// the path stays one word of `ReadWritePaths=` and adds no line.
+    #[test]
+    fn a_control_character_in_a_writable_path_adds_no_line_to_the_unit() {
+        let folder = "/srv/log\nUser=root";
+        assert_eq!(unit_path(Path::new(folder)), r#""-/srv/log\x0aUser=root""#);
+
+        let plan = Plan {
+            log_file: Some(PathBuf::from(format!("{folder}/web.log"))),
+            ..plan_running("/usr/bin/nvs", vec!["serve".to_owned()])
+        };
+        let text = unit(&plan);
+        assert!(
+            !text.lines().any(|line| line.starts_with("User=")),
+            "{text}"
+        );
+        assert_eq!(opened(&text), [format!("-{folder}")]);
+    }
+
+    /// `ProtectHome=true` masks every path under `/home`, `/root` and
+    /// `/run/user`, a `ReadWritePaths=` entry included. A unit whose binary,
+    /// entry file or granted path is under one of them gets
+    /// `ProtectHome=read-only`, and every other unit keeps `true`.
+    #[test]
+    fn a_unit_that_needs_a_home_directory_reads_it_and_every_other_unit_hides_it() {
+        let bare = vec!["serve".to_owned(), absolute("app/index.nvs")];
+        let protect = |host: &Host| {
+            let text = unit(&plan(&request(&bare), host).expect("a plan"));
+            let line = text
+                .lines()
+                .find(|line| line.starts_with("ProtectHome="))
+                .map(str::to_owned);
+            (line, opened(&text))
+        };
+
+        assert_eq!(
+            protect(&host_with_data()).0.as_deref(),
+            Some("ProtectHome=true")
+        );
+
+        let home = nvs_config::data::Folder::new(PathBuf::from("/home/someone/app/.nvsdata"));
+        let (line, words) = protect(&Host {
+            data_folder: Some(home.clone()),
+            ..host()
+        });
+        assert_eq!(line.as_deref(), Some("ProtectHome=read-only"));
+        assert!(
+            words.contains(&skipped_if_missing(&home.cache())),
+            "{words:?}"
+        );
+
+        let (line, _) = protect(&Host {
+            exe: PathBuf::from("/home/someone/bin/nvs"),
+            ..host_with_data()
+        });
+        assert_eq!(line.as_deref(), Some("ProtectHome=read-only"));
+
+        for (path, needs) in [
+            ("/home/someone/x", true),
+            ("/root/x", true),
+            ("/run/user/1000/x", true),
+            ("/homeless/x", false),
+            ("/run/x", false),
+            ("/srv/x", false),
+        ] {
+            assert_eq!(under_a_home(Path::new(path)), needs, "{path}");
+        }
+    }
+
+    /// `rule:packaging/the-argv-lives-in-imagepath` and `rule:packaging/a-service-runs-as-a-virtual-account`'s identity and
+    /// controls: what an install *is* on Windows is one registration carrying
+    /// the encoded `ImagePath`, a virtual account nobody holds a password for,
+    /// and a shutdown control that leaves room for a drain.
+    #[test]
+    fn service_install_on_windows_registers_the_encoded_image_path_a_virtual_account_and_preshutdown()
+     {
+        let argv = argv();
+        let checked = plan(&request(&argv), &host()).expect("a plan");
+        let root = unit_root("install-windows");
+        let actions = registration::install_actions(
+            registration::Platform::Windows,
+            &checked,
+            &registration(),
+            &root,
+        );
+
+        let registered = actions
+            .iter()
+            .find_map(|action| match action {
+                registration::Action::Register {
+                    image_path: stored,
+                    account,
+                    start,
+                    description,
+                    ..
+                } => Some((stored, account, *start, description)),
+                _ => None,
+            })
+            .expect("a registration");
+        // The encoder's output and not a second rendering of it: `rule:packaging/the-argv-lives-in-imagepath` has that
+        // one string be the only record of what the service runs.
+        assert_eq!(registered.0, &image_path(&checked));
+        assert_eq!(registered.1, registration::LOCAL_SYSTEM);
+        assert_eq!(registered.2, registration::StartMode::Automatic);
+        // The description is the operator's or nothing: none is generated.
+        assert_eq!(registered.3, &registration().description);
+        // And the system account, which already holds every right, is granted
+        // nothing.
+        assert!(
+            !actions
+                .iter()
+                .any(|action| matches!(action, registration::Action::Grant { .. })),
+            "the system account was granted something it already has"
+        );
+        for spelling in ["SYSTEM", "LocalSystem", "NT AUTHORITY\\SYSTEM"] {
+            let mut named = request(&argv);
+            named.account = Some(spelling);
+            let system = plan(&named, &host()).expect("a plan");
+            assert!(
+                registration::install_actions(
+                    registration::Platform::Windows,
+                    &system,
+                    &registration(),
+                    &root
+                )
+                .iter()
+                .any(|action| matches!(
+                    action,
+                    registration::Action::Register { account, .. }
+                        if account == registration::LOCAL_SYSTEM
+                )),
+                "`{spelling}` was not read as the system account"
+            );
+        }
+
+        // `--account` replaces the system account and nothing else about the
+        // registration.
+        let mut named = request(&argv);
+        named.account = Some("EXAMPLE\\nvs-web");
+        let domain = plan(&named, &host()).expect("a plan");
+        assert!(
+            registration::install_actions(
+                registration::Platform::Windows,
+                &domain,
+                &registration(),
+                &root
+            )
+            .iter()
+            .any(|action| matches!(
+                action,
+                registration::Action::Register { account, .. } if account == "EXAMPLE\\nvs-web"
+            ))
+        );
+
+        // PRESHUTDOWN, with room for a drain: plain SHUTDOWN allows roughly
+        // five seconds, which is the whole reason `rule:packaging/a-service-answers-its-manager` asks for this control.
+        let timeout = actions
+            .iter()
+            .find_map(|action| match action {
+                registration::Action::Preshutdown { timeout, .. } => Some(*timeout),
+                _ => None,
+            })
+            .expect("a preshutdown request");
+        assert!(timeout > Duration::from_secs(5), "{timeout:?}");
+
+        // `rule:packaging/a-service-answers-its-manager`'s failure actions and its *Output*: both are part of installing,
+        // not a second command an operator has to remember.
+        assert!(actions.iter().any(|action| matches!(
+            action,
+            registration::Action::Failure {
+                restart: registration::Restart::OnFailure,
+                ..
+            }
+        )));
+        assert!(
+            actions
+                .iter()
+                .any(|action| matches!(action, registration::Action::EventSource { .. }))
+        );
+
+        // `--restart never` is the other half of that decision, and it changes
+        // nothing else about the registration.
+        let never = registration::Registration {
+            restart: registration::Restart::Never,
+            ..registration()
+        };
+        assert!(
+            registration::install_actions(registration::Platform::Windows, &checked, &never, &root)
+                .iter()
+                .any(|action| matches!(
+                    action,
+                    registration::Action::Failure {
+                        restart: registration::Restart::Never,
+                        ..
+                    }
+                ))
+        );
+
+        // Windows has no unit file, and nothing here writes one.
+        assert!(!actions.iter().any(|action| matches!(
+            action,
+            registration::Action::WriteUnit { .. } | registration::Action::Systemctl { .. }
+        )));
+        std::fs::remove_dir_all(&root).expect("a removed scratch directory");
+    }
+
+    /// `rule:packaging/the-unit-is-printed-and-install-is-the-opt-in`: an
+    /// install on Linux is the same generation `unit` prints, written into the
+    /// system unit directory and followed by a `daemon-reload` — in that order,
+    /// because a reload is what makes the file a unit systemd knows the name
+    /// of.
+    #[test]
+    fn service_install_on_linux_writes_the_unit_then_runs_daemon_reload() {
+        let argv = argv();
+        let checked = plan(&request(&argv), &host()).expect("a plan");
+        let root = unit_root("install-linux");
+        let actions = registration::install_actions(
+            registration::Platform::Linux,
+            &checked,
+            &registration(),
+            &root,
+        );
+
+        match &actions[0] {
+            registration::Action::WriteUnit { path, text } => {
+                assert_eq!(path, &root.join("web.service"));
+                assert_eq!(text, &unit(&checked));
+            }
+            other => panic!("the first action is not the unit write: {other:?}"),
+        }
+        assert_eq!(
+            actions[1],
+            registration::Action::Systemctl {
+                argv: vec!["daemon-reload".to_owned()]
+            }
+        );
+        // Automatic start is an `enable`, after the reload; a manual one is the
+        // unit sitting there unwanted.
+        assert_eq!(
+            actions[2],
+            registration::Action::Systemctl {
+                argv: vec!["enable".to_owned(), "web".to_owned()]
+            }
+        );
+        let manual = registration::Registration {
+            start: registration::StartMode::Manual,
+            ..registration()
+        };
+        assert_eq!(
+            registration::install_actions(registration::Platform::Linux, &checked, &manual, &root)
+                .len(),
+            2
+        );
+
+        // Delayed auto-start is still an auto-start: on Linux the difference is
+        // the manager's own ordering and not whether the unit is wanted, so the
+        // list is the same one.
+        let delayed = registration::Registration {
+            start: registration::StartMode::Delayed,
+            ..registration()
+        };
+        assert_eq!(
+            registration::install_actions(registration::Platform::Linux, &checked, &delayed, &root),
+            actions
+        );
+
+        // Linux holds no registration and no event-log source.
+        assert!(!actions.iter().any(|action| matches!(
+            action,
+            registration::Action::Register { .. }
+                | registration::Action::EventSource { .. }
+                | registration::Action::Grant { .. }
+        )));
+
+        // Building the list writes nothing: the write is an action an applier
+        // performs, which is what makes `--dry-run` possible at all.
+        assert_eq!(
+            std::fs::read_dir(&root).expect("readable").count(),
+            0,
+            "planning wrote into {}",
+            root.display()
+        );
+        std::fs::remove_dir_all(&root).expect("a removed scratch directory");
+    }
+
+    /// `rule:packaging/the-unit-is-printed-and-install-is-the-opt-in`'s change-management artifact, as the thing that is actually
+    /// performed rather than a second rendering of it: a dry run describes
+    /// every action and reaches the manager with none of them.
+    // covers: tools:server/nvs-service
+    #[test]
+    fn service_install_dry_run_prints_the_actions_and_touches_nothing() {
+        let argv = argv();
+        let checked = plan(&request(&argv), &host()).expect("a plan");
+        let root = unit_root("dry-run");
+
+        for platform in [
+            registration::Platform::Windows,
+            registration::Platform::Linux,
+        ] {
+            let manager = registration::Recording::default();
+            let site = registration::Site {
+                platform,
+                unit_root: &root,
+                manager: &manager,
+            };
+            let actions = registration::install_actions(platform, &checked, &registration(), &root);
+            let mut printed = Vec::new();
+            registration::install(
+                &request(&argv),
+                &host(),
+                &registration(),
+                &site,
+                true,
+                &mut printed,
+            )
+            .expect("a dry run");
+
+            // One line per action, and the manager was not asked for any of
+            // them.
+            let text = String::from_utf8(printed).expect("utf-8");
+            assert_eq!(text.lines().count(), actions.len(), "{platform:?}\n{text}");
+            assert!(manager.applied().is_empty(), "{platform:?}");
+            assert_eq!(
+                std::fs::read_dir(&root).expect("readable").count(),
+                0,
+                "a dry run wrote into {}",
+                root.display()
+            );
+
+            // And the same call without it applies exactly that list, so the
+            // artifact and the steps cannot drift apart.
+            registration::install(
+                &request(&argv),
+                &host(),
+                &registration(),
+                &site,
+                false,
+                &mut std::io::sink(),
+            )
+            .expect("an install");
+            assert_eq!(manager.applied(), actions, "{platform:?}");
+        }
+        std::fs::remove_dir_all(&root).expect("a removed scratch directory");
+    }
+
+    /// `rule:packaging/a-service-answers-its-manager`'s closing sentence: an
+    /// uninstall leaves no registration, no event-log source, no unit file and
+    /// no granted access — and the grants it revokes are exactly the ones the
+    /// install made, because both derive them from the stored argv.
+    #[test]
+    fn service_uninstall_leaves_no_key_no_event_source_no_unit_and_no_acl() {
+        let argv = argv();
+        // A named account, because the default system account is granted
+        // nothing and so has nothing to revoke.
+        let mut named = request(&argv);
+        named.account = Some("EXAMPLE\\nvs-web");
+        let host = Host {
+            temp_root: Some(PathBuf::from(absolute("tmp"))),
+            ..host_with_data()
+        };
+        let checked = plan(&named, &host).expect("a plan");
+        let root = unit_root("uninstall");
+        let stored = registration::Stored {
+            name: "web".to_owned(),
+            argv: argv.clone(),
+            account: "EXAMPLE\\nvs-web".to_owned(),
+            log_file: host.log_file.clone(),
+            cache_directory: host.cache_directory.clone(),
+            temp_root: host.temp_root.clone(),
+            data_folder: Some(PathBuf::from(absolute(".nvsdata"))),
+            exe: Some(PathBuf::from(absolute("bin/nvs"))),
+        };
+
+        let installed = registration::install_actions(
+            registration::Platform::Windows,
+            &checked,
+            &registration(),
+            &root,
+        );
+        let removed =
+            registration::uninstall_actions(registration::Platform::Windows, &stored, &root);
+
+        let mut granted: Vec<&PathBuf> = installed
+            .iter()
+            .filter_map(|action| match action {
+                registration::Action::Grant { path, .. } => Some(path),
+                _ => None,
+            })
+            .collect();
+        let mut revoked: Vec<&PathBuf> = removed
+            .iter()
+            .filter_map(|action| match action {
+                registration::Action::Revoke { path, .. } => Some(path),
+                _ => None,
+            })
+            .collect();
+        assert!(!granted.is_empty(), "nothing was granted to revoke");
+        let data = PathBuf::from(absolute(".nvsdata"));
+        assert!(granted.contains(&&data), "{granted:?}");
+        granted.sort();
+        revoked.sort();
+        assert_eq!(granted, revoked);
+
+        assert!(
+            removed
+                .iter()
+                .any(|action| matches!(action, registration::Action::Deregister { .. }))
+        );
+        assert!(
+            removed
+                .iter()
+                .any(|action| matches!(action, registration::Action::RemoveEventSource { .. }))
+        );
+        // Stopped before the key is taken away: the SCM removes a running
+        // service when its process exits, which would leave the key behind for
+        // as long as it kept running.
+        assert_eq!(
+            removed[0],
+            registration::Action::Scm {
+                name: "web".to_owned(),
+                control: registration::Control::Stop
+            }
+        );
+        assert!(!removed.iter().any(|action| matches!(
+            action,
+            registration::Action::Register { .. } | registration::Action::Grant { .. }
+        )));
+
+        // On Linux the unit file is the registration, so removing it is what
+        // leaves nothing behind — and the reload is what makes systemd forget
+        // the name.
+        let linux = registration::uninstall_actions(registration::Platform::Linux, &stored, &root);
+        assert!(linux.contains(&registration::Action::RemoveUnit {
+            path: root.join("web.service")
+        }));
+        assert!(linux.contains(&registration::Action::Systemctl {
+            argv: vec!["daemon-reload".to_owned()]
+        }));
+        assert!(
+            !linux
+                .iter()
+                .any(|action| matches!(action, registration::Action::WriteUnit { .. }))
+        );
+        // Through the front door, and nothing added on the way: what an
+        // uninstall performs is that list, in that order.
+        let manager = registration::Recording::default();
+        let site = registration::Site {
+            platform: registration::Platform::Linux,
+            unit_root: &root,
+            manager: &manager,
+        };
+        registration::uninstall(&stored, &site, false, &mut std::io::sink()).expect("an uninstall");
+        assert_eq!(manager.applied(), linux);
+
+        std::fs::remove_dir_all(&root).expect("a removed scratch directory");
+    }
+
+    /// An uninstall revokes on the data folder of the binary the platform
+    /// holds for the service, not on the folder of the binary running the
+    /// uninstall. A stored `--data` is the folder whatever the binary.
+    #[test]
+    fn an_uninstall_finds_the_data_folder_of_the_service_binary() {
+        let scratch = nvs_repo::scratch("service-installed-exe");
+        let installed = scratch.join("nvs");
+        std::fs::write(&installed, "").expect("a stand-in binary");
+        let uninstaller = std::env::current_exe().expect("this test's binary");
+        let stored = |argv: Vec<String>, exe: Option<PathBuf>| registration::Stored {
+            name: "web".to_owned(),
+            argv,
+            account: "EXAMPLE\\nvs-web".to_owned(),
+            log_file: None,
+            cache_directory: None,
+            temp_root: None,
+            data_folder: None,
+            exe,
+        };
+        let beside = |exe: &Path| {
+            nvs_config::trust::canonical(exe)
+                .expect("a canonical path")
+                .parent()
+                .expect("a folder")
+                .join(".nvsdata")
+        };
+
+        let found = installed_data_folder(&stored(argv(), Some(installed.clone())), &uninstaller);
+        assert_eq!(found, Some(beside(&installed)));
+        assert_ne!(found, Some(beside(&uninstaller)));
+
+        // A platform that held no binary leaves the uninstalling one's.
+        let found = installed_data_folder(&stored(argv(), None), &uninstaller);
+        assert_eq!(found, Some(beside(&uninstaller)));
+
+        let mut named = argv();
+        named.extend(["--data".to_owned(), absolute("srv/data")]);
+        let found = installed_data_folder(&stored(named, Some(installed)), &uninstaller);
+        assert_eq!(found, Some(PathBuf::from(absolute("srv/data"))));
+    }
+
+    /// `rule:packaging/a-service-runs-as-a-virtual-account`'s grants for a named account: read on the data folder and its
+    /// `nvs.toml`, read/write on `cache/`, `tmp/`, `lsp/` and `logs/` only, and
+    /// a grant of its own for a path the configuration names outside those four.
+    #[test]
+    fn the_data_folder_is_granted_and_its_nvs_toml_stays_read_only() {
+        let bare = vec!["serve".to_owned(), absolute("app/index.nvs")];
+        let mut named = request(&bare);
+        named.account = Some("EXAMPLE\\nvs-web");
+        let host = Host {
+            log_file: Some(PathBuf::from(absolute("log/web.log"))),
+            cache_directory: Some(PathBuf::from(absolute(".nvsdata/cache/compiled"))),
+            temp_root: Some(PathBuf::from(absolute("tmp"))),
+            ..host_with_data()
+        };
+        let checked = plan(&named, &host).expect("a plan");
+        let data = |tail: &str| PathBuf::from(absolute(&format!(".nvsdata/{tail}")));
+        let root = unit_root("grants");
+        let granted: Vec<(PathBuf, bool)> = registration::install_actions(
+            registration::Platform::Windows,
+            &checked,
+            &registration(),
+            &root,
+        )
+        .into_iter()
+        .filter_map(|action| match action {
+            registration::Action::Grant { path, write, .. } => Some((path, write)),
+            _ => None,
+        })
+        .collect();
+        assert_eq!(
+            granted,
+            [
+                (PathBuf::from(absolute(".nvsdata")), false),
+                (data("nvs.toml"), false),
+                (data("cache"), true),
+                (data("tmp"), true),
+                (data("lsp"), true),
+                (data("logs"), true),
+                (PathBuf::from(absolute("log")), true),
+                (PathBuf::from(absolute("tmp")), true),
+            ]
+        );
+        // The service's own configuration is read-only for it: no write grant
+        // is on the file or on a folder it would inherit one from.
+        let config = data("nvs.toml");
+        for (path, write) in &granted {
+            assert!(
+                !(*write && config.starts_with(path)),
+                "{} gives write on {}",
+                path.display(),
+                config.display()
+            );
+        }
+    }
+
+    /// The host and request of the Linux ownership cases: no `--config`, so
+    /// the service reads the data folder's `nvs.toml`; a log directory and a
+    /// temporary root outside the data folder; a cache inside it.
+    fn owned_host() -> Host {
+        Host {
+            log_file: Some(PathBuf::from(absolute("log/web.log"))),
+            cache_directory: Some(PathBuf::from(absolute(".nvsdata/cache/compiled"))),
+            temp_root: Some(PathBuf::from(absolute("tmp"))),
+            ..host_with_data()
+        }
+    }
+
+    /// The `Own` steps of a Linux install, as `(path, uid, gid, mode, create)`.
+    fn owns(actions: &[registration::Action]) -> Vec<(PathBuf, u32, u32, u32, bool)> {
+        actions
+            .iter()
+            .filter_map(|action| match action {
+                registration::Action::Own {
+                    path,
+                    uid,
+                    gid,
+                    mode,
+                    create,
+                } => Some((path.clone(), *uid, *gid, *mode, *create)),
+                _ => None,
+            })
+            .collect()
+    }
+
+    /// `rule:packaging/a-service-runs-as-a-virtual-account`'s Linux half: the
+    /// same grant list, spelled as owners and modes. The data folder and its
+    /// `nvs.toml` are root's and readable by the account's group; every folder
+    /// the service writes in is the account's own; an uninstall gives each one
+    /// back to root, private.
+    #[test]
+    fn a_linux_install_gives_the_grant_list_to_the_account_by_owner_and_mode() {
+        use registration::{Action, Platform, Recording};
+
+        let bare = vec!["serve".to_owned(), absolute("app/index.nvs")];
+        let mut named = request(&bare);
+        named.account = Some("nvs-web");
+        let root = unit_root("owners");
+        let manager = Recording::default();
+        let site = registration::Site {
+            platform: Platform::Linux,
+            unit_root: &root,
+            manager: &manager,
+        };
+        let mut checked = plan(&named, &owned_host()).expect("a plan");
+        registration::resolve_account(&mut checked, &site).expect("an account");
+        let actions =
+            registration::install_actions(Platform::Linux, &checked, &registration(), &root);
+
+        let id = Recording::ID;
+        let data = |tail: &str| PathBuf::from(absolute(&format!(".nvsdata/{tail}")));
+        let writable = |path: PathBuf| (path, id, id, 0o700, true);
+        assert_eq!(
+            owns(&actions),
+            [
+                (PathBuf::from(absolute(".nvsdata")), 0, id, 0o750, false),
+                (data("nvs.toml"), 0, id, 0o640, false),
+                writable(data("cache")),
+                writable(data("tmp")),
+                writable(data("lsp")),
+                writable(data("logs")),
+                writable(PathBuf::from(absolute("log"))),
+                writable(PathBuf::from(absolute("tmp"))),
+            ]
+        );
+        // From the grant list and nothing else: one step per entry, write
+        // entries the account's, read entries root's.
+        let grants = registration::grants(&checked);
+        assert_eq!(owns(&actions).len(), grants.len());
+        for ((path, write), (owned, uid, ..)) in grants.iter().zip(owns(&actions)) {
+            assert_eq!(*path, owned);
+            assert_eq!(*write, uid == id, "{}", path.display());
+        }
+        // After the unit and the reload, before `enable`.
+        assert!(matches!(actions[1], Action::Systemctl { ref argv } if argv[0] == "daemon-reload"));
+        assert!(matches!(actions[2], Action::Own { .. }));
+        assert!(matches!(actions.last(), Some(Action::Systemctl { argv }) if argv[0] == "enable"));
+
+        // The uninstall gives the same paths back to root, private.
+        let stored = registration::Stored {
+            name: "web".to_owned(),
+            argv: checked.argv.clone(),
+            account: "nvs-web".to_owned(),
+            log_file: owned_host().log_file,
+            cache_directory: owned_host().cache_directory,
+            temp_root: owned_host().temp_root,
+            data_folder: Some(PathBuf::from(absolute(".nvsdata"))),
+            exe: Some(PathBuf::from(absolute("bin/nvs"))),
+        };
+        let removed = registration::uninstall_actions(Platform::Linux, &stored, &root);
+        let disowned: Vec<(PathBuf, u32)> = removed
+            .iter()
+            .filter_map(|action| match action {
+                Action::Disown { path, mode } => Some((path.clone(), *mode)),
+                _ => None,
+            })
+            .collect();
+        let expected: Vec<(PathBuf, u32)> = owns(&actions)
+            .into_iter()
+            .map(|(path, _, _, mode, _)| (path, mode & 0o700))
+            .collect();
+        assert_eq!(disowned, expected);
+        assert_eq!(disowned[0].1, 0o700);
+        assert_eq!(disowned[1].1, 0o600);
+        // Stopped first, and the unit removed after.
+        assert!(matches!(&removed[0], Action::Systemctl { argv } if argv[0] == "disable"));
+        assert!(matches!(removed[1], Action::Disown { .. }));
+        assert!(matches!(
+            removed[removed.len() - 2],
+            Action::RemoveUnit { .. }
+        ));
+
+        // A dry run prints the steps, so `install` looks the account up on the
+        // way to them.
+        let mut printed = Vec::new();
+        registration::install(
+            &named,
+            &owned_host(),
+            &registration(),
+            &site,
+            true,
+            &mut printed,
+        )
+        .expect("a dry run");
+        let text = String::from_utf8(printed).expect("utf-8");
+        assert!(
+            text.contains(&format!(
+                "set {} to owner uid 0, group gid {id}, mode 0750",
+                absolute(".nvsdata")
+            )),
+            "{text}"
+        );
+        assert!(manager.applied().is_empty());
+
+        // With no account, or root, the unit runs as root and nothing changes
+        // owner; an uninstall of a unit with no `User=` gives nothing back.
+        for account in [None, Some("root")] {
+            let mut asked = request(&bare);
+            asked.account = account;
+            let mut checked = plan(&asked, &owned_host()).expect("a plan");
+            registration::resolve_account(&mut checked, &site).expect("an account");
+            let actions =
+                registration::install_actions(Platform::Linux, &checked, &registration(), &root);
+            assert!(owns(&actions).is_empty(), "{account:?}: {actions:?}");
+        }
+        let as_root = registration::Stored {
+            account: "root".to_owned(),
+            ..stored
+        };
+        assert!(
+            !registration::uninstall_actions(Platform::Linux, &as_root, &root)
+                .iter()
+                .any(|action| matches!(action, Action::Disown { .. }))
+        );
+    }
+
+    /// A Linux account that does not exist is `E0654`, before the manager is
+    /// asked for anything: systemd would fail to start the unit at every boot.
+    /// Windows names the account in its grants and looks nothing up.
+    #[test]
+    fn a_linux_install_for_an_account_that_does_not_exist_is_refused_before_the_manager() {
+        let argv = argv();
+        let mut named = request(&argv);
+        named.account = Some("nvs-web");
+        let root = unit_root("no-account");
+        for dry_run in [false, true] {
+            let manager = registration::Recording::without_accounts();
+            let site = registration::Site {
+                platform: registration::Platform::Linux,
+                unit_root: &root,
+                manager: &manager,
+            };
+            let refused = registration::install(
+                &named,
+                &host(),
+                &registration(),
+                &site,
+                dry_run,
+                &mut std::io::sink(),
+            )
+            .expect_err("an account that does not exist");
+            let registration::Refused::Installer(diagnostic) = refused else {
+                panic!("the manager was reached");
+            };
+            assert_eq!(coded(&diagnostic), code::E_SERVICE_NO_SUCH_ACCOUNT);
+            assert!(diagnostic.message.contains("`nvs-web`"), "{diagnostic:?}");
+            assert!(manager.applied().is_empty());
+        }
+
+        let manager = registration::Recording::without_accounts();
+        let site = registration::Site {
+            platform: registration::Platform::Windows,
+            unit_root: &root,
+            manager: &manager,
+        };
+        registration::install(
+            &named,
+            &host(),
+            &registration(),
+            &site,
+            false,
+            &mut std::io::sink(),
+        )
+        .expect("a Windows install looks no account up");
+    }
+
+    /// The ownership steps on a real filesystem, as the account running the
+    /// test: the modes come out as the rule states them, and every path the
+    /// service reads passes the trust check that account makes at boot.
+    #[cfg(unix)]
+    #[test]
+    fn the_ownership_steps_leave_modes_the_service_account_trusts() {
+        use std::os::unix::fs::{MetadataExt, PermissionsExt};
+
+        use registration::Manager;
+
+        let scratch = nvs_repo::scratch_private("service-owned");
+        let folder = nvs_config::data::Folder::new(scratch.join(".nvsdata"));
+        for path in [
+            folder.root().to_path_buf(),
+            folder.cache(),
+            folder.tmp(),
+            folder.lsp_root(),
+            folder.logs(),
+        ] {
+            nvs_config::data::create_private_root(&path).expect("a private folder");
+        }
+        std::fs::write(folder.config_file(), "").expect("an nvs.toml");
+        std::fs::set_permissions(folder.config_file(), std::fs::Permissions::from_mode(0o600))
+            .expect("a private nvs.toml");
+        let me = std::fs::metadata(folder.root()).expect("the folder");
+        let outside = scratch.join("outside").join("logs");
+
+        let bare = vec!["serve".to_owned(), absolute("app/index.nvs")];
+        let host = Host {
+            log_file: Some(outside.join("web.log")),
+            cache_directory: None,
+            temp_root: None,
+            data_folder: Some(folder.clone()),
+            ..host()
+        };
+        let mut checked = plan(&request(&bare), &host).expect("a plan");
+        let account = registration::Account {
+            name: "this-account".to_owned(),
+            uid: me.uid(),
+            gid: me.gid(),
+        };
+        checked.owner = Some(account.clone());
+        let root = unit_root("owned-units");
+        let actions = registration::install_actions(
+            registration::Platform::Linux,
+            &checked,
+            &registration(),
+            &root,
+        );
+        // Root's paths are this account's here: only root may give a path to
+        // root, and the trust check accepts either owner.
+        for action in &actions {
+            if let registration::Action::Own {
+                path,
+                uid,
+                gid,
+                mode,
+                create,
+            } = action
+            {
+                let action = registration::Action::Own {
+                    path: path.clone(),
+                    uid: if *uid == 0 { me.uid() } else { *uid },
+                    gid: *gid,
+                    mode: *mode,
+                    create: *create,
+                };
+                registration::Systemd
+                    .apply(&action)
+                    .unwrap_or_else(|error| panic!("{action:?}: {error}"));
+            }
+        }
+
+        let mode = |path: &Path| {
+            std::fs::metadata(path)
+                .unwrap_or_else(|error| panic!("{}: {error}", path.display()))
+                .mode()
+                & 0o7777
+        };
+        assert_eq!(mode(folder.root()), 0o750);
+        assert_eq!(mode(&folder.config_file()), 0o640);
+        for sub in [
+            folder.cache(),
+            folder.tmp(),
+            folder.lsp_root(),
+            folder.logs(),
+        ] {
+            assert_eq!(mode(&sub), 0o700, "{}", sub.display());
+            nvs_config::trust::check(&sub)
+                .unwrap_or_else(|why| panic!("{}: {}", sub.display(), why.message()));
+        }
+        assert_eq!(mode(&outside), 0o700, "the outside log folder is created");
+        nvs_config::trust::check_alone(&outside).expect("a trusted log folder");
+        nvs_config::trust::check(&folder.config_file()).expect("a trusted nvs.toml");
+        nvs_config::trust::check(folder.root()).expect("a trusted data folder");
+
+        // A path that is not there is already given back.
+        registration::Systemd
+            .apply(&registration::Action::Disown {
+                path: scratch.join("never-made"),
+                mode: 0o700,
+            })
+            .expect("a missing path is given back");
+
+        // A configuration file elsewhere is only read: another account with
+        // no read bit is named, and a world-readable file is not.
+        let elsewhere = scratch.join("elsewhere.toml");
+        std::fs::write(&elsewhere, "").expect("a configuration file");
+        std::fs::set_permissions(&elsewhere, std::fs::Permissions::from_mode(0o600))
+            .expect("a private file");
+        let stranger = registration::Account {
+            name: "another".to_owned(),
+            uid: me.uid().wrapping_add(1),
+            gid: me.gid().wrapping_add(1),
+        };
+        assert!(registration::readable_by(&elsewhere, &account));
+        assert!(!registration::readable_by(&elsewhere, &stranger));
+        std::fs::set_permissions(&elsewhere, std::fs::Permissions::from_mode(0o644))
+            .expect("a readable file");
+        assert!(registration::readable_by(&elsewhere, &stranger));
+
+        // The password database: root is uid 0, and a made-up name is not
+        // there.
+        let root_account = registration::Systemd.account("root").expect("root");
+        assert_eq!((root_account.uid, root_account.gid), (0, 0));
+        let missing = registration::Systemd
+            .account("nvs-no-such-account")
+            .expect_err("no such account");
+        assert_eq!(missing.kind(), std::io::ErrorKind::NotFound);
+    }
+
+    /// `rule:packaging/a-service-is-one-stored-argv`: the three thin verbs go
+    /// to the SCM directly on Windows and to `systemctl` on Linux **by argv**,
+    /// which is `rule:core-classes/process-is-argv-only` — the service's name
+    /// is one element and never a word inside a command line somebody has to
+    /// quote.
+    // covers: tools:server/nvs-service
+    #[test]
+    fn service_start_stop_and_status_reach_the_manager_by_argv_with_no_shell() {
+        let root = unit_root("control");
+
+        // The manager is the host's, read rather than chosen: a service is
+        // installed on the machine it will run on, which is the reading `rule:packaging/the-installer-is-a-sink`'s
+        // third row already takes paths against.
+        assert_eq!(
+            registration::Platform::host(),
+            if cfg!(windows) {
+                registration::Platform::Windows
+            } else {
+                registration::Platform::Linux
+            }
+        );
+        for (control, verb) in [
+            (registration::Control::Start, "start"),
+            (registration::Control::Stop, "stop"),
+            (registration::Control::Status, "is-active"),
+        ] {
+            assert_eq!(
+                registration::control_actions(registration::Platform::Windows, control, "web"),
+                vec![registration::Action::Scm {
+                    name: "web".to_owned(),
+                    control
+                }]
+            );
+            assert_eq!(
+                registration::control_actions(registration::Platform::Linux, control, "a name"),
+                vec![registration::Action::Systemctl {
+                    argv: vec![verb.to_owned(), "a name".to_owned()]
+                }],
+                "{verb}"
+            );
+
+            // One manager call, and whatever it answered comes back.
+            let manager = registration::Recording::default();
+            let site = registration::Site {
+                platform: registration::Platform::Linux,
+                unit_root: &root,
+                manager: &manager,
+            };
+            registration::control(control, "web", &site).expect("a control");
+            assert_eq!(manager.applied().len(), 1, "{verb}");
+        }
+        std::fs::remove_dir_all(&root).expect("a removed scratch directory");
+    }
+
+    /// `rule:packaging/the-installer-is-a-sink`: `plan` is the front door, so
+    /// every `rule:packaging/the-installer-is-a-sink` refusal happens with the manager untouched. The cases above
+    /// assert each refusal's code; this one asserts that reaching one costs the
+    /// machine nothing.
+    #[test]
+    fn every_install_refusal_runs_before_the_manager_is_touched() {
+        let root = unit_root("refusals");
+        let good = argv();
+
+        // One fixture per refusal class `rule:packaging/the-installer-is-a-sink` lists, built as the cases above
+        // build them.
+        let mut wrong_subcommand = good.clone();
+        wrong_subcommand[0] = "ast".to_owned();
+        let mut relative = good.clone();
+        relative[3] = "nvs.toml".to_owned();
+        let hook = {
+            let mut argv = good.clone();
+            argv.push("--fault-inject".to_owned());
+            argv
+        };
+
+        for (case, argv, bundled, password) in [
+            ("a bundle", good.clone(), true, None),
+            ("the allowlist", wrong_subcommand, false, None),
+            ("a testing hook", hook, false, None),
+            ("a relative path", relative, false, None),
+            ("a password", good.clone(), false, Some("hunter2")),
+        ] {
+            let mut asked = request(&argv);
+            asked.password = password;
+            if password.is_some() {
+                asked.account = Some("EXAMPLE\\nvs-web");
+            }
+            let mut host = host();
+            host.from_a_bundle = bundled;
+
+            for platform in [
+                registration::Platform::Windows,
+                registration::Platform::Linux,
+            ] {
+                let manager = registration::Recording::default();
+                let site = registration::Site {
+                    platform,
+                    unit_root: &root,
+                    manager: &manager,
+                };
+                let refusal = registration::install(
+                    &asked,
+                    &host,
+                    &registration(),
+                    &site,
+                    false,
+                    &mut std::io::sink(),
+                )
+                .expect_err(case);
+                match refusal {
+                    registration::Refused::Installer(diagnostic) => {
+                        assert!(diagnostic.code.is_some(), "{case}");
+                    }
+                    registration::Refused::Manager(error) => {
+                        panic!("{case} reached the manager: {error}")
+                    }
+                }
+                assert!(manager.applied().is_empty(), "{case} on {platform:?}");
+                assert_eq!(
+                    std::fs::read_dir(&root).expect("readable").count(),
+                    0,
+                    "{case} wrote into {}",
+                    root.display()
+                );
+            }
+        }
+        std::fs::remove_dir_all(&root).expect("a removed scratch directory");
+    }
+
+    /// A manager that refuses the actions `refuses` picks, the way the SCM
+    /// answers "access denied" to one step of a list, and applies the rest.
+    #[derive(Debug)]
+    struct Refusing {
+        refuses: fn(&registration::Action) -> bool,
+        applied: registration::Recording,
+    }
+
+    impl Refusing {
+        fn of(refuses: fn(&registration::Action) -> bool) -> Self {
+            Self {
+                refuses,
+                applied: registration::Recording::default(),
+            }
+        }
+    }
+
+    impl registration::Manager for Refusing {
+        fn apply(&self, action: &registration::Action) -> std::io::Result<Option<String>> {
+            if (self.refuses)(action) {
+                return Err(std::io::Error::from(std::io::ErrorKind::PermissionDenied));
+            }
+            self.applied.apply(action)
+        }
+
+        fn account(&self, name: &str) -> std::io::Result<registration::Account> {
+            self.applied.account(name)
+        }
+    }
+
+    /// An install of `argv()` on `platform` through `manager`, which refuses
+    /// part of it, as the error's text.
+    fn refused_install(case: &str, platform: registration::Platform, manager: &Refusing) -> String {
+        let root = unit_root(case);
+        let site = registration::Site {
+            platform,
+            unit_root: &root,
+            manager,
+        };
+        let argv = argv();
+        // A named account, so the install has grants to undo: the default
+        // system account is granted nothing.
+        let mut named = request(&argv);
+        named.account = Some("EXAMPLE\\nvs-web");
+        let refused = registration::install(
+            &named,
+            &host(),
+            &registration(),
+            &site,
+            false,
+            &mut std::io::sink(),
+        )
+        .expect_err(case);
+        std::fs::remove_dir_all(&root).expect("a removed scratch directory");
+        let registration::Refused::Manager(error) = refused else {
+            panic!("§ 2 refused an argv that survives it")
+        };
+        assert_eq!(error.kind(), std::io::ErrorKind::PermissionDenied, "{case}");
+        error.to_string()
+    }
+
+    /// The platform's own text for a refused step is "access denied" and
+    /// nothing else, so the error carries the line `--dry-run` prints for the
+    /// step it stopped on. The steps in front of it are taken back, last first,
+    /// so a failed install leaves nothing installed.
+    #[test]
+    fn an_install_the_manager_stops_part_way_names_the_step_and_undoes_the_ones_before_it() {
+        use registration::Action;
+
+        // Windows, stopped at the event-log source: the last step, so every
+        // other one has been applied and has to go.
+        let manager = Refusing::of(|action| matches!(action, Action::EventSource { .. }));
+        let text = refused_install("undo-windows", registration::Platform::Windows, &manager);
+        assert!(
+            text.contains("could not register the event-log source `web`"),
+            "{text}"
+        );
+        assert!(text.contains("nothing is left installed"), "{text}");
+        let applied = manager.applied.applied();
+        let undo: Vec<&Action> = applied
+            .iter()
+            .skip_while(|action| !matches!(action, Action::Revoke { .. }))
+            .collect();
+        // Three grants — the config, the log directory and the cache — revoked
+        // in the reverse of the order they were made in, then the registration.
+        assert_eq!(undo.len(), 4, "{undo:?}");
+        let revoked: Vec<&PathBuf> = undo
+            .iter()
+            .filter_map(|action| match action {
+                Action::Revoke { path, .. } => Some(path),
+                _ => None,
+            })
+            .collect();
+        let granted: Vec<&PathBuf> = applied
+            .iter()
+            .filter_map(|action| match action {
+                Action::Grant { path, .. } => Some(path),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(revoked, granted.into_iter().rev().collect::<Vec<_>>());
+        assert_eq!(
+            undo.last(),
+            Some(&&Action::Deregister {
+                name: "web".to_owned()
+            })
+        );
+
+        // Linux, stopped at `enable`: the log directory and the cache go back
+        // to root last first, then the unit is removed and systemd told.
+        let manager = Refusing::of(
+            |action| matches!(action, Action::Systemctl { argv } if argv[0] == "enable"),
+        );
+        let text = refused_install("undo-linux", registration::Platform::Linux, &manager);
+        assert!(
+            text.contains("could not run systemctl enable web"),
+            "{text}"
+        );
+        let applied = manager.applied.applied();
+        let log = PathBuf::from(absolute("log"));
+        let cache = PathBuf::from(absolute("cache"));
+        assert!(
+            matches!(&applied[2], Action::Own { path, .. } if *path == log),
+            "{applied:?}"
+        );
+        assert!(
+            matches!(&applied[3], Action::Own { path, .. } if *path == cache),
+            "{applied:?}"
+        );
+        assert_eq!(
+            applied[4..6],
+            [
+                Action::Disown {
+                    path: cache,
+                    mode: 0o700
+                },
+                Action::Disown {
+                    path: log,
+                    mode: 0o700
+                },
+            ]
+        );
+        assert!(
+            matches!(applied[6], Action::RemoveUnit { .. }),
+            "{applied:?}"
+        );
+        assert_eq!(
+            applied[7],
+            Action::Systemctl {
+                argv: vec!["daemon-reload".to_owned()]
+            }
+        );
+        assert_eq!(applied.len(), 8);
+    }
+
+    /// The undo is built from what was applied and never from the plan. A
+    /// registration refused because the name is taken is followed by nothing:
+    /// a deregistration there would delete the service that holds the name.
+    #[test]
+    fn a_refused_registration_is_followed_by_no_deregistration() {
+        use registration::Action;
+
+        let manager = Refusing::of(|action| matches!(action, Action::Register { .. }));
+        let text = refused_install("undo-nothing", registration::Platform::Windows, &manager);
+        assert!(text.contains("could not register `web`"), "{text}");
+        assert!(!text.contains("note:"), "{text}");
+        assert!(manager.applied.applied().is_empty());
+    }
+
+    /// An undo step that fails does not stop the ones behind it, and the error
+    /// says what is left and which command removes it.
+    #[test]
+    fn an_undo_that_does_not_finish_says_what_is_left() {
+        use registration::Action;
+
+        let manager = Refusing::of(|action| {
+            matches!(action, Action::EventSource { .. } | Action::Revoke { .. })
+        });
+        let text = refused_install("undo-partial", registration::Platform::Windows, &manager);
+        assert!(text.contains("did not finish"), "{text}");
+        assert!(text.contains("could not revoke"), "{text}");
+        assert!(text.contains("`nvs service uninstall web`"), "{text}");
+        assert_eq!(
+            manager.applied.applied().last(),
+            Some(&Action::Deregister {
+                name: "web".to_owned()
+            })
+        );
+    }
+
+    /// The process a stop is answered over: a count that falls the way a
+    /// drain makes one fall.
+    ///
+    /// The count is a list rather than a request that really finishes, because
+    /// what the case below is about is the sequence the manager is told — a
+    /// real drain would make that sequence a property of how fast this machine
+    /// happens to be.
+    #[derive(Debug)]
+    struct Hosted {
+        /// What `in_flight` answers, one call at a time, and `0` once the list
+        /// is spent.
+        falling: Mutex<Vec<usize>>,
+    }
+
+    impl hosted::Running for Hosted {
+        fn in_flight(&self) -> usize {
+            let mut falling = self.falling.lock().unwrap_or_else(PoisonError::into_inner);
+            if falling.is_empty() {
+                0
+            } else {
+                falling.remove(0)
+            }
+        }
+    }
+
+    /// The service manager a case reads the drain's progress back out of.
+    #[derive(Debug, Default)]
+    struct Watching(Mutex<Vec<hosted::Progress>>);
+
+    impl hosted::Reporting for Watching {
+        fn told(&self, progress: hosted::Progress) {
+            self.0
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .push(progress);
+        }
+    }
+
+    impl Watching {
+        /// Everything the manager was told, in order.
+        fn reported(&self) -> Vec<hosted::Progress> {
+            self.0
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .clone()
+        }
+    }
+
+    /// A pace that waits for nothing, for a case whose in-flight count falls
+    /// because the case said so.
+    fn at_once() -> hosted::Pace {
+        hosted::Pace {
+            poll: Duration::ZERO,
+            bound: Duration::from_secs(30),
+        }
+    }
+
+    /// `rule:packaging/a-service-answers-its-manager`, both rows: a machine
+    /// restart drains in-flight requests instead of killing them, and what
+    /// keeps the machine waiting while that happens is a checkpoint the SCM
+    /// watches advance.
+    ///
+    /// The controls arrive as their ABI numbers, because the mapping is half of
+    /// what this case is about — `PRESHUTDOWN` is the control `rule:packaging/a-service-answers-its-manager` pays for at
+    /// install, and one read as "no operation" would drain nothing at the only
+    /// moment that row exists for. `PARAMCHANGE` is held to the other side: a
+    /// saved configuration file is what starts a reload, so no control does.
+    ///
+    /// The drain is `Draining::detached`: this server's stopping is not this
+    /// process's, and the bit a terminating signal sets stays the case about
+    /// signals' own (`crate::stop`).
+    #[test]
+    fn service_run_turns_a_stop_into_a_drain_with_advancing_checkpoints() {
+        // The stop below enters `crate::stop::deliver_to`, which reports
+        // `STOPPING=1` to the manager this process installed — a sink another
+        // case owns and reads — so this case takes its turn with the others
+        // that stop this process.
+        let _in_turn = crate::stop::ONE_STOP_AT_A_TIME
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
+
+        // The numbers are matched on both platforms and defined by one, so on
+        // the one that defines them they are held to it.
+        #[cfg(windows)]
+        assert_eq!(
+            (
+                windows_sys::Win32::System::Services::SERVICE_CONTROL_STOP,
+                windows_sys::Win32::System::Services::SERVICE_CONTROL_PRESHUTDOWN,
+            ),
+            (0x0000_0001, 0x0000_000F),
+            "the SCM's own constants are not what `hosted` matches",
+        );
+        assert!(
+            hosted::stops(0x0000_0001),
+            "STOP is a control this process answers"
+        );
+        assert!(
+            hosted::stops(0x0000_000F),
+            "PRESHUTDOWN is what § 4 asks for at install, and it means drain",
+        );
+        assert!(
+            !hosted::stops(0x0000_0006),
+            "PARAMCHANGE starts nothing: a saved configuration file is what starts a reload",
+        );
+        assert!(
+            !hosted::stops(0x0000_0004),
+            "INTERROGATE asks for no operation: a handler answers it with the status it holds",
+        );
+        let process = Hosted {
+            falling: Mutex::new(vec![3, 2, 1, 0]),
+        };
+        let draining = nvs_server::Draining::detached();
+        let manager = Watching::default();
+
+        hosted::stop(&process, &draining, &manager, at_once());
+
+        assert!(
+            draining.is_draining(),
+            "the SCM's stop did not enter the drain every other stop enters",
+        );
+        assert_eq!(
+            manager.reported(),
+            vec![
+                hosted::Progress::Stopping {
+                    checkpoint: 1,
+                    in_flight: 3,
+                },
+                hosted::Progress::Stopping {
+                    checkpoint: 2,
+                    in_flight: 2,
+                },
+                hosted::Progress::Stopping {
+                    checkpoint: 3,
+                    in_flight: 1,
+                },
+                hosted::Progress::Stopping {
+                    checkpoint: 4,
+                    in_flight: 0,
+                },
+                hosted::Progress::Stopped,
+            ],
+            "the checkpoint advances on every report and the last word is STOPPED",
+        );
+    }
+}

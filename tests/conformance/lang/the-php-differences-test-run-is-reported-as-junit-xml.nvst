@@ -1,0 +1,46 @@
+--TEST--
+The run "The tools you do not install" in the PHP-differences chapter describes is written as JUnit XML with no reporter installed, a data row, a skip and a failure each in the element a CI server reads — `rule:testing/report-formats`
+--RUN--
+test --format=junit
+--FILE--
+<?nvs
+// covers: tools:php-differences/the-tools-you-do-not-install
+// The chapter's "JUnit and JSON output". The JSON document renders the same
+// outcomes and is pinned in `a-test-run-reports-a-versioned-json-document.nvst`.
+use Core\Test;
+use Core\Test\TestWith;
+
+final class PriceTest {
+    #[TestWith(cents: 1000, want: 1200)]
+    #[TestWith(cents: 0, want: 0)]
+    #[Test]
+    public function taxIsAdded(int $cents, int $want): void {
+        Test::assertSame($cents + Core\Math::intDiv($cents * 20, 100), $want);
+    }
+
+    #[Test(skip: "refunds are not written yet")]
+    public function aRefundIsNegative(): void {
+        Test::assertTrue(false);
+    }
+
+    #[Test]
+    public function aFailureNamesBothValues(): void {
+        Test::assertSame(1098, 1099);
+    }
+}
+--EXPECTF--
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites tests="4" failures="1" skipped="1" time="%f">
+  <testsuite name="PriceTest" tests="4" failures="1" skipped="1" time="%f">
+    <testcase name="taxIsAdded#0" classname="PriceTest" time="%f"/>
+    <testcase name="taxIsAdded#1" classname="PriceTest" time="%f"/>
+    <testcase name="aRefundIsNegative" classname="PriceTest" time="%f">
+      <skipped message="refunds are not written yet"/>
+    </testcase>
+    <testcase name="aFailureNamesBothValues" classname="PriceTest" time="%f">
+      <failure message="Core\Test::assertSame failed: `$actual` is 1098, `$expected` is 1099">Core\Test::assertSame failed: `$actual` is 1098, `$expected` is 1099
+</failure>
+    </testcase>
+  </testsuite>
+</testsuites>
+--EXPECTF-ERROR--

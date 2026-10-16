@@ -1,0 +1,29 @@
+<?nvs
+// Measures reading a one-table schema out of its array, at growing numbers of columns.
+// bench: start 16
+// bench: max 128
+use Core\Db\Schema;
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        array<mixed> $columns = [['name' => 'id', 'type' => 'int64', 'identity' => true]];
+        uint $column = 1;
+        while ($column < $size) {
+            $columns[] = ['name' => 'c' . $column, 'type' => 'text(200)', 'null' => true];
+            $column = $column + 1;
+        }
+        array<mixed> $tables = [['name' => 'notes', 'columns' => $columns, 'primary_key' => ['id']]];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            var $schema = Schema::fromArray(['tables' => $tables]);
+            $total = $total + Core\Arr::count($schema->toArray());
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(16), "\n";

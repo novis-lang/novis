@@ -1,0 +1,2 @@
+avatar.png: decoded
+bomb.png: the image is 16384x16384, which is 268435456 pixels, over the cap of 1024 pixels

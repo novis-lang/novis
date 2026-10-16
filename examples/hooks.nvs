@@ -1,0 +1,38 @@
+<?nvs
+class Counter implements Stringable
+{
+    public int $hits;
+
+    public int $doubled {
+        get => $this->hits * 2;
+    }
+
+    public function constructor(int $hits)
+    {
+        $this->hits = $hits;
+    }
+
+    public function toString(): string
+    {
+        return 'Counter(' . $this->hits . ')';
+    }
+}
+
+class Adder
+{
+    public static function bump(inout int $slot): void
+    {
+        $slot = $slot + 5;
+    }
+}
+
+var $c = new Counter(3);
+echo $c->doubled . "\n";
+
+$c->hits = 10;
+echo $c->doubled . "\n";
+echo $c->toString() . "\n";
+
+int $n = 1;
+Adder::bump(inout $n);
+echo 'n=' . $n . "\n";

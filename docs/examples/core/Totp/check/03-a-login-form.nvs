@@ -1,0 +1,30 @@
+<?nvs
+// Shows the second step of a login form, which stores the last step number with the account.
+
+class Account {
+    public int $lastStep = 0;
+
+    public function constructor(public secret bytes $secret) {}
+}
+
+class Login {
+    // Checks the code from the form. A right code saves its step number in the account.
+    public static function secondFactor(Account $account, string $typed): string {
+        ?int $step = Core\Totp::check($typed, $account->secret, $account->lastStep);
+        if ($step == null) {
+            return "Wrong or used code. Please try again.";
+        }
+        $account->lastStep = $step;
+        return "Welcome back.";
+    }
+}
+
+Account $account = new Account(Core\Random::bytes(20));
+string $fromPhone = Core\Totp::code($account->secret);
+
+// The user types a space by mistake, then the right code, then sends the form again.
+// This prints the error message, "Welcome back." and the error message again.
+array<string> $attempts = ["123 456", $fromPhone, $fromPhone];
+foreach ($attempts as string $attempt) {
+    echo Login::secondFactor($account, $attempt), "\n";
+}

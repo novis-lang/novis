@@ -1,0 +1,38 @@
+--TEST--
+`as string<K>` keeps `tainted` on the text, unlike `as propertyPath<T>`: a `tainted string` converts to a `tainted string<K>`, which a `string<K>` parameter does not accept, and its `as string` is a `tainted string`, which `Core\Db`'s query text does not accept — `rule:types/string-holes`, `rule:security/sink-predicate`
+--FILE--
+<?nvs
+// The holes of a condition are checked, but the text around them is still
+// the caller's text. So a condition from outside stays tainted.
+class Order {
+    public int $total = 40;
+}
+
+class Query {
+    public static function where(string<propertyPath<Order>> $condition): string {
+        return $condition as string;
+    }
+}
+
+tainted string $outside = "{total} > 0 OR 1 = 1";
+
+// A path alone is only a declared name, so it is not tainted.
+propertyPath<Order> $path = "total" as propertyPath<Order>;
+// A condition is the caller's text with holes in it, so it stays tainted.
+var $condition = $outside as string<propertyPath<Order>>;
+echo Query::where($condition), "\n";
+
+var $db = Core\Db::connect("main");
+var $rows = $db->query($condition as string, []);
+--EXPECTF-ERROR--
+error[E0401]: expected `string<propertyPath<Order>>`, found `tainted string<propertyPath<Order>>`
+   --> %s:20:19
+   |
+20 | echo Query::where($condition), "\n";
+   |                   ^^^^^^^^^^ this is `tainted string<propertyPath<Order>>`
+
+error[E0401]: expected `string`, found `tainted string`
+   --> %s:23:24
+%A
+error: aborting due to 2 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

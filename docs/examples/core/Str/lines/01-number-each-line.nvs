@@ -1,0 +1,16 @@
+<?nvs
+// Shows how to split a text into lines and print each line with its number.
+
+string $poem = "Roses are red,\nviolets are blue,\n\nsugar is sweet.\n";
+
+// There are four lines. The third line is empty, so it prints as `3: `.
+// The line break at the end does not add a fifth line.
+array<string> $lines = Core\Str::lines($poem);
+uint $number = 1;
+foreach ($lines as string $line) {
+    echo $number, ": ", $line, "\n";
+    $number = $number + 1;
+}
+
+// An empty text has no lines. This prints `0`.
+echo Core\Arr::count(Core\Str::lines("")), "\n";

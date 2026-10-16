@@ -1,0 +1,14 @@
+<?nvs
+// Shows that `toString` returns an address exactly as it was written.
+
+var $uri = Core\Uri::parse("HTTP://Example.COM/a%2fb");
+
+// Upper-case letters and the escape `%2f` do not change.
+// This prints HTTP://Example.COM/a%2fb.
+echo $uri->toString(), "\n";
+
+// `echo` prints the same text. This prints HTTP://Example.COM/a%2fb again.
+echo $uri, "\n";
+
+// A relative link comes back unchanged too. This prints /docs/start?page=2.
+echo Core\Uri::parse("/docs/start?page=2")->toString(), "\n";

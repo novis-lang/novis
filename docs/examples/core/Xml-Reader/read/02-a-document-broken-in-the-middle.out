@@ -1,0 +1,6 @@
+list
+item
+one
+item
+two
+error: Core\Xml\Reader::read(): `<item>` is closed by `</list>`, and an element closes as what it opened as.

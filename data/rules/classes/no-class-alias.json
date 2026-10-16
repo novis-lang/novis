@@ -1,0 +1,10 @@
+{
+  "title": "A class is reachable under its declared name and nowhere else",
+  "status": "shipped",
+  "seeAlso": [
+    "statements/nothing-gets-a-second-name",
+    "types/type-alias",
+    "types/alias-is-never-a-bare-class"
+  ],
+  "guardedBy": []
+}

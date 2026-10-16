@@ -1,0 +1,17 @@
+<?nvs
+// Shows what `neg` returns for a positive number, a negative number and zero.
+
+var $owed = Core\BigInt::of(4500);
+
+// `neg` flips the sign. This prints -4500.
+echo $owed->neg(), "\n";
+
+// A negative number becomes positive. This prints 4500.
+echo Core\BigInt::of(-4500)->neg(), "\n";
+
+// Zero stays zero. This prints 0.
+echo Core\BigInt::of(0)->neg(), "\n";
+
+// `neg` returns a new number, so the one you called it on still has its own
+// sign. This prints 4500.
+echo $owed, "\n";

@@ -1,0 +1,17 @@
+<?nvs
+// Shows how to find the start of the hour, the day, the month and the year that a date and time is in.
+
+var $at = Core\Time::at(2024, 8, 21, Core\Time\Zone::of("Europe/Madrid"), {hour: 17, minute: 42, second: 9});
+
+// `startOf` returns the first moment of the unit you give it.
+// This prints 2024-08-21 17:00:00.
+echo $at->startOf(Core\Unit::Hour)->format("yyyy-MM-dd HH:mm:ss"), "\n";
+
+// This prints 2024-08-21 00:00:00.
+echo $at->startOf(Core\Unit::Day)->format("yyyy-MM-dd HH:mm:ss"), "\n";
+
+// This prints 2024-08-01 00:00:00.
+echo $at->startOf(Core\Unit::Month)->format("yyyy-MM-dd HH:mm:ss"), "\n";
+
+// This prints 2024-01-01 00:00:00.
+echo $at->startOf(Core\Unit::Year)->format("yyyy-MM-dd HH:mm:ss"), "\n";

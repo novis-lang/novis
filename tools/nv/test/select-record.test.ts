@@ -1,0 +1,335 @@
+import { describe, expect, test } from "bun:test";
+import { existsSync, readFileSync, rmSync, utimesSync } from "node:fs";
+import { join } from "node:path";
+import { sinceOverlay } from "../select/change.ts";
+import { CovMap, recordedIn, recordsIn, staleMaps } from "../select/extract.ts";
+import { ALL_NAMES, pathKeys, readsKeys, spawnKeys } from "../select/keys.ts";
+import { advance, caseLabels, depInfoPaths, lostBlock, NO_ADVANCE_ENV, recordingOf, Recorder, redReason, unexplainedReds } from "../select/record.ts";
+import { type ChangeSet, query } from "../select/select.ts";
+import { SelectStore, type Verdict } from "../select/store.ts";
+import { digest } from "../keys/scan.ts";
+import { scratch } from "./scratch.ts";
+
+describe("a recorded tree with an overlay", () => {
+  test("a path the overlay names is changed when its bytes moved, and put back as the commit holds it too", () => {
+    const s = scratch();
+    try {
+      s.put("a.txt", "edited");
+      s.put("b.txt", "as recorded");
+      const overlay = { "a.txt": digest("older edit"), "b.txt": digest("as recorded"), "c.txt": digest("reverted since") };
+      // git says a, b and d differ from the commit; c is as the commit holds it again.
+      const changes = sinceOverlay(
+        [
+          { path: "a.txt", status: "modified" },
+          { path: "b.txt", status: "modified" },
+          { path: "d.txt", status: "added" },
+        ],
+        overlay,
+        s.root,
+      );
+      expect(changes).toEqual([
+        { path: "a.txt", status: "modified" },
+        { path: "c.txt", status: "deleted" },
+        { path: "d.txt", status: "added" },
+      ]);
+    } finally {
+      s.cleanup();
+    }
+  });
+
+  test("a path recorded as absent that is on disk now came into being", () => {
+    const s = scratch();
+    try {
+      s.put("n.txt", "new");
+      expect(sinceOverlay([], { "n.txt": null }, s.root)).toEqual([{ path: "n.txt", status: "added" }]);
+      expect(sinceOverlay([], { "gone.txt": null }, s.root)).toEqual([]);
+    } finally {
+      s.cleanup();
+    }
+  });
+
+  test("the store keeps the commit and the overlay together", () => {
+    const st = new SelectStore(":memory:", "test-os");
+    expect(st.overlay()).toEqual({});
+    st.setBase("abc", { "x.rs": "d1", "y.rs": null });
+    expect(st.base()).toBe("abc");
+    expect(st.overlay()).toEqual({ "x.rs": "d1", "y.rs": null });
+  });
+});
+
+function change(over: Partial<ChangeSet> = {}): ChangeSet {
+  return { since: "base", changes: [], moved: new Map(), global: null, rustFiles: 0, itemChanges: 0, wideFiles: [], items: [], view: new Map(), tree: { commit: "c2", overlay: { "u.rs": "d" } }, ...over };
+}
+
+describe("moving the base past a green run", () => {
+  test("every selected atom the run did not run is owed, the tree is recorded, and vanished items leave the footprints", () => {
+    const st = new SelectStore(":memory:", "test-os");
+    st.recordRun("test:a lib a", { def: "", verdict: "green", keys: new Map([["fn:crates/x/src/a.rs#f", ""], ["fn:crates/x/src/a.rs#gone", ""]]) });
+    st.recordRun("test:b lib b", { def: "", verdict: "green", keys: new Map([["fn:crates/x/src/a.rs#f", ""]]) });
+    st.recordRun("test:r lib r", { def: "", verdict: "red", keys: new Map([["fn:crates/x/src/a.rs#f", ""]]) });
+    const item = { id: "gone", kind: "fn", start: 1, end: 2, digest: "x", refs: [], defines: [] } as never;
+    const now = { file: "crates/x/src/a.rs", raw: "r", parsed: true, items: [] } as never;
+    const c = change({
+      changes: [{ path: "crates/x/src/a.rs", status: "modified" }],
+      moved: new Map([["fn:crates/x/src/a.rs#f", { path: "crates/x/src/a.rs", how: "changed" }]]),
+      items: [{ file: "crates/x/src/a.rs", id: "gone", how: "removed", item, was: item }],
+      view: new Map([["crates/x/src/a.rs", now]]),
+    });
+    const sel = query(st, c);
+    expect([...sel.selected.keys()].sort()).toEqual(["test:a lib a", "test:b lib b", "test:r lib r"]);
+    const { owed } = advance(st, c, sel, new Set(["test:a lib a"]), null);
+    expect(owed).toBe(1);
+    expect(st.base()).toBe("c2");
+    expect(st.overlay()).toEqual({ "u.rs": "d" });
+    expect(st.atom("test:a lib a")!.verdict).toBe("green");
+    expect(st.atom("test:b lib b")!.verdict).toBe("owed");
+    expect(st.atom("test:r lib r")!.verdict).toBe("red");
+    expect(st.footprint("test:a lib a")).toEqual(["fn:crates/x/src/a.rs#f"]);
+    expect(st.items("crates/x/src/a.rs")).toMatchObject({ file: "crates/x/src/a.rs" });
+    // With the base moved the change is gone, and only what is owed or red is selected.
+    const after = query(st, change());
+    expect(Object.fromEntries([...after.selected.values()].map((x) => [x.id, x.why]))).toEqual({ "test:b lib b": "owed", "test:r lib r": "red" });
+  });
+
+  test("a change replayed from history records no tree", () => {
+    const st = new SelectStore(":memory:", "test-os");
+    const { tree: _, ...replay } = change();
+    advance(st, replay, null, new Set(), null);
+    expect(st.base()).toBeNull();
+  });
+
+  test("a red run moves the tree too: what ran red stays red, and the next run repeats only it", () => {
+    const st = new SelectStore(":memory:", "test-os");
+    const key = "fn:crates/x/src/a.rs#f";
+    for (const id of ["test:a lib a", "test:b lib b"]) st.recordRun(id, { def: "", verdict: "green", keys: new Map([[key, ""]]) });
+    const c = change({ changes: [{ path: "crates/x/src/a.rs", status: "modified" }], moved: new Map([[key, { path: "crates/x/src/a.rs", how: "changed" }]]) });
+    const sel = query(st, c);
+    st.recordRun("test:a lib a", { def: "", verdict: "red", keys: new Map([[key, ""]]) });
+    st.recordRun("test:b lib b", { def: "", verdict: "green", keys: new Map([[key, ""]]) });
+    advance(st, c, sel, new Set(["test:a lib a", "test:b lib b"]), null);
+    expect(st.base()).toBe("c2");
+    const next = query(st, change());
+    expect(Object.fromEntries([...next.selected.values()].map((x) => [x.id, x.why]))).toEqual({ "test:a lib a": "red" });
+  });
+
+  test("a run another recording run started leaves the tree to it", () => {
+    const st = new SelectStore(":memory:", "test-os");
+    st.recordRun("test:a lib a", { def: "", verdict: "green", keys: new Map([["file:x", ""]]) });
+    const c = change({ moved: new Map([["file:x", { path: "x", how: "path" }]]) });
+    const sel = query(st, c);
+    process.env[NO_ADVANCE_ENV] = "1";
+    try {
+      expect(advance(st, c, sel, new Set(), null)).toEqual({ owed: 0 });
+    } finally {
+      delete process.env[NO_ADVANCE_ENV];
+    }
+    expect(st.base()).toBeNull();
+    expect(st.atom("test:a lib a")!.verdict).toBe("green");
+  });
+});
+
+describe("what a started program read", () => {
+  test("git keeps no log: a listing holds every name, a grep its extensions or the whole tree, and history nothing", () => {
+    expect(spawnKeys(["C:\\Program Files\\Git\\bin\\git.exe", "ls-files", "-z"])).toEqual([ALL_NAMES]);
+    expect(spawnKeys(["git", "grep", "-h", "-o", "fn x", "--", "*.rs"])).toEqual(["ext:rs"]);
+    expect(spawnKeys(["git", "grep", "-l", "x", "--", "*.rs", "*.TOML", "*.rs"])).toEqual(["ext:rs", "ext:toml"]);
+    expect(spawnKeys(["git", "grep", "fn x", "*.rs"])).toEqual(["tree:."]);
+    expect(spawnKeys(["git", "grep", "x", "--", "crates/*.rs"])).toEqual(["tree:."]);
+    expect(spawnKeys(["git", "grep", "-f", "patterns.txt", "--", "*.rs"])).toEqual(["tree:."]);
+    expect(spawnKeys(["git", "grep", "x", "--"])).toEqual(["tree:."]);
+    expect(spawnKeys(["git", "-c", "core.quotepath=off", "status", "--porcelain"])).toEqual(["tree:."]);
+    expect(spawnKeys(["git", "rev-parse", "HEAD"])).toEqual([]);
+    expect(spawnKeys(["git", "-C", "/elsewhere/scratch", "ls-files"])).toEqual([]);
+    expect(spawnKeys(["bun", "nv", "rules"])).toEqual([]);
+    const keys = readsKeys({ files: ["a.md"], exists: [], dirs: [], spawns: [["git", "ls-files"]] });
+    expect([...keys].sort()).toEqual([ALL_NAMES, "file:a.md"]);
+  });
+
+  test("a path that came or went moves every name, and an edit does not", () => {
+    expect(pathKeys("docs/new.md", true)).toContain(ALL_NAMES);
+    expect(pathKeys("docs/old.md", false)).not.toContain(ALL_NAMES);
+  });
+});
+
+describe("the readers a recorded run needs", () => {
+  test("a case report's failures and skips are read by label", () => {
+    const out = "SKIP tests\\a.nvst — no php\r\nFAIL tests\\b\\c.nvst\r\n  want 1\n1 passed, 1 failed, 1 skipped\n";
+    expect([...caseLabels(out, "FAIL")]).toEqual(["tests/b/c.nvst"]);
+    expect([...caseLabels(out, "SKIP")]).toEqual(["tests/a.nvst"]);
+  });
+
+  test("a batch with passed cases that left no recording prints both listings, and a recording only the second one saw", () => {
+    const lost = ["tests/t/a.nvst", "tests/t/b.nvst", "tests/t/c.nvst", "tests/t/d.nvst"];
+    const block = lostBlock({ tree: "tests/t", index: 2, batches: 3, size: 128, lost, listed: 124, listError: null, relooked: [], parent: true, dir: "exists", fresh: ["tests~t~b.nvst-77.profraw", "tests~t~b.nvst.log"] });
+    expect(block).toBe(
+      "coverage lost: batch 2/3 of tests/t (128 cases): 4 passed case(s) left no recording\n" +
+        "  cases: tests/t/a.nvst, tests/t/b.nvst, tests/t/c.nvst (+1 more)\n" +
+        "  at extraction: 124 recorded atom(s) listed; parent recorded: yes; directory: exists\n" +
+        "  listed again: 1 .profraw, 1 .log, 0 other: tests~t~b.nvst-77.profraw, tests~t~b.nvst.log\n" +
+        "  1 of the 4 have a recording now, so the listing at extraction time missed files that were there: tests/t/b.nvst\n",
+    );
+    const gone = lostBlock({ tree: "tests/t", index: 1, batches: 1, size: 1, lost: ["tests/t/a.nvst"], listed: 0, listError: "EPERM", relooked: [], parent: false, dir: "EPERM", fresh: "EPERM" });
+    expect(gone).toContain("at extraction: listing threw EPERM; parent recorded: no; directory: EPERM\n  listed again: threw EPERM\n");
+    const missed = lostBlock({ tree: "tests/t", index: 1, batches: 1, size: 2, lost: ["tests/t/a.nvst", "tests/t/b.nvst"], listed: 2, listError: null, relooked: ["tests/t/a.nvst"], parent: true, dir: "exists", fresh: [] });
+    expect(missed).toContain("directory: exists\n  1 of the 2 are in that listing when looked up again, so the lookup missed names it held: tests/t/a.nvst\n  listed again: 0 .profraw");
+  });
+
+  test("a red case gets its reason, and a red case no FAIL line or lost recording explains is listed with it", () => {
+    const base = { failed: false, recorded: true, skipped: false, timedOut: false, counted: true };
+    expect(redReason(base)).toBeNull();
+    expect(redReason({ ...base, recorded: false, skipped: true })).toBeNull();
+    expect(redReason({ ...base, failed: true })).toBe("it failed");
+    expect(redReason({ ...base, recorded: false })).toBe("it left no recording");
+    expect(redReason({ ...base, timedOut: true })).toBe("its batch ran out of time");
+    expect(redReason({ ...base, counted: false })).toBe("its batch printed no count line");
+    const got = {
+      out: "FAIL tests/t/a.nvst\n3 passed, 1 failed, 0 skipped\n",
+      passed: 3,
+      failed: 1,
+      skipped: 0,
+      verdicts: new Map<string, Verdict>([["tests/t/a.nvst", "red"], ["tests/t/b.nvst", "red"], ["tests/t/c.nvst", "red"], ["tests/t/d.nvst", "green"]]),
+      unrecorded: ["tests/t/b.nvst"],
+      reds: new Map([["tests/t/a.nvst", "it failed (batch 1/1)"], ["tests/t/b.nvst", "it left no recording (batch 1/1)"]]),
+      processes: 0,
+    };
+    expect(unexplainedReds(got)).toBe("1 case(s) are red, and nothing above says why:\n  1: no reason was kept: tests/t/c.nvst\n");
+    got.verdicts.set("tests/t/c.nvst", "green");
+    expect(unexplainedReds(got)).toBe("");
+  });
+
+  test("a recording the map's lookup misses is found by a scan of the listing, and the miss is named", () => {
+    const listed = recordsIn("cases", ["tests~t~a.nvst-1.profraw", "tests~t~a.nvst.log", "tests~t~b.nvst.log"]);
+    expect(recordingOf(listed, "tests/t/a.nvst")).toEqual({ rec: listed.get("tests~t~a.nvst")!, missed: null });
+    expect(recordingOf(listed, "tests/t/c.nvst")).toEqual({ rec: null, missed: null });
+    // A map whose lookup misses one name it holds, which is what a long `verify` has seen.
+    class Missing<K, V> extends Map<K, V> {
+      override get(k: K): V | undefined {
+        return k === "tests~t~b.nvst" ? undefined : super.get(k);
+      }
+    }
+    const missing = new Missing(listed);
+    expect(recordingOf(missing, "tests/t/b.nvst")).toEqual({ rec: listed.get("tests~t~b.nvst")!, missed: "the map's lookup missed a name it holds" });
+  });
+
+  test("a record directory that cannot be listed is an error, and one that does not exist is empty", () => {
+    const s = scratch();
+    try {
+      expect(recordedIn(join(s.root, "absent")).size).toBe(0);
+      s.put("file", "");
+      expect(() => recordedIn(join(s.root, "file"))).toThrow();
+    } finally {
+      s.cleanup();
+    }
+  });
+
+  test("a dep-info file's paths are read, an escaped space kept and a path outside the repository dropped", () => {
+    const s = scratch();
+    try {
+      s.put("deps/a.d", `${s.root}/deps/liba.rmeta: ${s.root}/src/lib.rs ${s.root}/src/my\\ file.rs /elsewhere/x.rs\n\n${s.root}/src/lib.rs:\n`);
+      const repo = (p: string) => {
+        const n = p.replace(/\\/g, "/");
+        const r = s.root.replace(/\\/g, "/");
+        return n.startsWith(`${r}/`) ? n.slice(r.length + 1) : null;
+      };
+      expect([...depInfoPaths(join(s.root, "deps"), repo)].sort()).toEqual(["src/lib.rs", "src/my file.rs"]);
+    } finally {
+      s.cleanup();
+    }
+  });
+
+  test("a rebuilt object's coverage map replaces its old one on disk", async () => {
+    const s = scratch();
+    try {
+      s.put("obj.bin", "one");
+      const dir = join(s.root, "covmap");
+      const cm = new CovMap(dir);
+      const load = (cm as unknown as { replaced(o: string, c: string): void }).replaced.bind(cm);
+      s.put("covmap/first.json", "{}");
+      load(join(s.root, "obj.bin"), join(dir, "first.json"));
+      s.put("covmap/second.json", "{}");
+      load(join(s.root, "obj.bin"), join(dir, "second.json"));
+      expect(existsSync(join(dir, "first.json"))).toBe(false);
+      expect(JSON.parse(readFileSync(join(dir, "index.json"), "utf8"))[join(s.root, "obj.bin")]).toBe(join(dir, "second.json"));
+    } finally {
+      s.cleanup();
+    }
+  });
+
+  test("writing a map deletes the map of an object that no longer exists", async () => {
+    const s = scratch();
+    try {
+      s.put("old.exe", "one");
+      s.put("new.exe", "two");
+      const dir = join(s.root, "covmap");
+      const cm = new CovMap(dir);
+      const load = (cm as unknown as { replaced(o: string, c: string): void }).replaced.bind(cm);
+      s.put("covmap/old.json", "{}");
+      load(join(s.root, "old.exe"), join(dir, "old.json"));
+      rmSync(join(s.root, "old.exe"));
+      s.put("covmap/new.json", "{}");
+      load(join(s.root, "new.exe"), join(dir, "new.json"));
+      expect(existsSync(join(dir, "old.json"))).toBe(false);
+      expect(Object.keys(JSON.parse(readFileSync(join(dir, "index.json"), "utf8")))).toEqual([join(s.root, "new.exe")]);
+    } finally {
+      s.cleanup();
+    }
+  });
+
+  test("a stale map is one whose object is gone, or one no index names that is past the grace", async () => {
+    const s = scratch();
+    try {
+      s.put("live.exe", "x");
+      const dir = join(s.root, "covmap");
+      for (const f of ["live.json", "gone.json", "unnamed-old.json", "unnamed-new.json"]) s.put(`covmap/${f}`, "{}");
+      const old = Date.now() / 1000 - 5 * 3600;
+      for (const f of ["live.json", "gone.json", "unnamed-old.json"]) utimesSync(join(dir, f), old, old);
+      s.put("covmap/index.json", JSON.stringify({ [join(s.root, "live.exe")]: join(dir, "live.json"), [join(s.root, "gone.exe")]: join(dir, "gone.json") }));
+      expect(staleMaps(dir, 2).map((p) => p.split(/[\\/]/).pop())).toEqual(["gone.json", "unnamed-old.json"]);
+    } finally {
+      s.cleanup();
+    }
+  });
+
+  test("an object rebuilt while the map is open is looked up in its new build's map", async () => {
+    const s = scratch();
+    try {
+      const obj = join(s.root, "obj.bin");
+      const cm = new CovMap(join(s.root, "covmap"));
+      const cacheFile = (cm as unknown as { cacheFile(o: string): string }).cacheFile.bind(cm);
+      const build = async (content: string, name: string) => {
+        s.put("obj.bin", content);
+        s.put(`covmap/${cacheFile(obj).split(/[\\/]/).pop()}`, JSON.stringify({ [name]: ["src/a.rs", 1, 2] }));
+        await cm.ensure([obj], join(s.root, "unused.profdata"));
+      };
+      await build("first build", "_RNvCsOLD_3pkg3run");
+      expect(cm.get("_RNvCsOLD_3pkg3run")).toEqual(["src/a.rs", 1, 2]);
+      await build("the second, longer build", "_RNvCsNEW_3pkg3run");
+      expect(cm.get("_RNvCsNEW_3pkg3run")).toEqual(["src/a.rs", 1, 2]);
+      expect(cm.get("_RNvCsOLD_3pkg3run")).toBeUndefined();
+    } finally {
+      s.cleanup();
+    }
+  });
+
+  test("a pinned copy keeps the build it was taken from, and its map is cached under the original's key", async () => {
+    const s = scratch();
+    const store = new SelectStore(":memory:");
+    try {
+      const nvs = join(s.root, "nvs.bin");
+      s.put("nvs.bin", "the build the run started with");
+      const cacheFile = (cm: CovMap) => (cm as unknown as { cacheFile(o: string): string }).cacheFile.bind(cm);
+      const originalKey = cacheFile(new CovMap())(nvs);
+      const r = await Recorder.open(store, new Map(), null, "pin", { root: s.root });
+      const copy = r.pin(nvs);
+      expect(copy).not.toBe(nvs);
+      expect(cacheFile(r.covmap)(copy)).toBe(originalKey);
+      s.put("nvs.bin", "a build another process made later");
+      expect(readFileSync(copy, "utf8")).toBe("the build the run started with");
+      r.close();
+      expect(existsSync(copy)).toBe(false);
+    } finally {
+      store.close();
+      s.cleanup();
+    }
+  });
+});

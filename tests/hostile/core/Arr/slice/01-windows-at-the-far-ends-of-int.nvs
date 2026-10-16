@@ -1,0 +1,43 @@
+<?nvs
+// Attack: very large windows are copied out of a large array. The offset and
+// the length are pushed to the far ends of `int`. Every step should finish or
+// throw an error, and the runtime must not crash.
+// hostile: timeout-ms 60000
+
+// 1. A window that copies all 200000 entries of a list.
+array<int> $long = [];
+int $i = 0;
+while ($i < 200000) {
+    $long[] = $i;
+    $i = $i + 1;
+}
+echo 'step 1: ', Core\Arr::count(Core\Arr::slice($long, 0, 200000)), '|', "\n";
+
+// 2. The offset and the length are both the largest `int`.
+array<int> $far = Core\Arr::slice($long, 9223372036854775807, 9223372036854775807);
+echo 'step 2: ', Core\Arr::count($far), '|', "\n";
+
+// 3. Both of them are the smallest `int` that can be written.
+array<int> $back = Core\Arr::slice($long, -9223372036854775807, -9223372036854775807);
+echo 'step 3: ', Core\Arr::count($back), '|', "\n";
+
+// 4. 20000 windows are taken and dropped, so nothing may be left behind.
+uint $seen = 0;
+int $r = 0;
+while ($r < 20000) {
+    $seen = $seen + Core\Arr::count(Core\Arr::slice($long, $r, 10));
+    $r = $r + 1;
+}
+echo 'step 4: ', $seen, '|', "\n";
+
+// 5. A window over a key of one million characters, kept under its own key.
+array<int> $wide = [];
+$wide[Core\Str::repeat('k', 1000000)] = 1;
+array<int> $kept = Core\Arr::slice($wide, 0, 1, { preserveKeys: true });
+echo 'step 5: ', Core\Str::length(Core\Arr::firstKey($kept) ?? ''), '|', "\n";
+
+// 6. A window over an array with no entries.
+array<int> $empty = [];
+echo 'step 6: ', Core\Arr::count(Core\Arr::slice($empty, -5, 10)), '|', "\n";
+
+echo 'the runtime is still standing', "\n";

@@ -1,0 +1,39 @@
+<?nvs
+// Attack: a program checks very long texts and addresses that are broken in small ways.
+// `isIp` should give the right answer each time, stay fast and free every text.
+// hostile: timeout-ms 20000
+
+// 1. A text of 60 million characters with 30 million ":" separators. This prints no.
+string $huge = Core\Str::repeat('0:', 30000000);
+echo Core\Validate::isIp($huge) ? 'yes' : 'no', "\n";
+$huge = '';
+
+// 2. A number with 40 digits, far past the largest number an address can have. This prints no.
+echo Core\Validate::isIp('192.0.2.' . Core\Str::repeat('9', 40)) ? 'yes' : 'no', "\n";
+
+// 3. A null byte after a correct address. This prints no.
+echo Core\Validate::isIp('192.0.2.1' . "\0") ? 'yes' : 'no', "\n";
+
+// 4. Two "::" in one IPv6 address, and nine groups. This prints no twice.
+echo Core\Validate::isIp('2001::db8::1') ? 'yes' : 'no', "\n";
+echo Core\Validate::isIp('1:2:3:4:5:6:7:8:9', { version: 6 }) ? 'yes' : 'no', "\n";
+
+// 5. An IPv4 address at the end of an IPv6 address, with a leading zero. This prints no.
+echo Core\Validate::isIp('::ffff:192.0.2.01') ? 'yes' : 'no', "\n";
+
+// 6. Digits that are not ASCII, such as the Arabic-Indic digit one. This prints no.
+echo Core\Validate::isIp('١٩٢.0.2.1') ? 'yes' : 'no', "\n";
+
+// 7. One million new addresses are checked and freed at once. Every second one has 256 in it.
+// This prints 500000.
+int $valid = 0;
+int $i = 0;
+while ($i < 1000000) {
+    string $last = $i % 2 == 0 ? '255' : '256';
+    string $address = '10.' . ($i % 200) as string . '.0.' . $last;
+    if (Core\Validate::isIp($address, { version: 4 })) {
+        $valid = $valid + 1;
+    }
+    $i = $i + 1;
+}
+echo $valid, "\n";

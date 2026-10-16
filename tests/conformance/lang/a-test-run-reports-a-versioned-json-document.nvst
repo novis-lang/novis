@@ -1,0 +1,78 @@
+--TEST--
+`nvs test --format=json` writes one versioned object per run, every record locating its own test, and the program's own output goes to standard error (`rule:testing/report-formats`)
+--RUN--
+test --format=json
+--FILE--
+<?nvs
+// § 22: the same run the plaintext report renders a line at a time, written
+// as one document at the end. `--RUN--` above is what selects the format;
+// `a-test-attribute-builds-a-table-the-runner-reports.nvst` is the plaintext
+// twin of this program, and the verdicts are the same because both formats
+// render one `Outcome`.
+use Core\Test;
+use Core\Test\AfterClass;
+
+final class ReportTest {
+    public static int $attempts = 0;
+
+    #[Test]
+    public function aPassingTestCarriesOnlyItsVerdict(): void {
+        Test::assertSame(1, 1);
+    }
+
+    // § 20: a skip states a reason, and the reason is a string the document
+    // has to escape — a quote is `\"` in JSON and `&quot;` in the XML twin.
+    #[Test(skip: "a reason with \"quotes\" and a < sign")]
+    public function aSkipCarriesItsReason(): void {
+        Test::assertSame(2, 3);
+    }
+
+    // § 5: every failed assertion the ledger recorded is reported, not the
+    // first — which is why the array is plural and why this test has to catch
+    // its own first failure to reach a second assertion at all.
+    #[Test]
+    public function everyFailedAssertionIsReported(): void {
+        try {
+            Test::assertSame("first", "wrong");
+        } catch (Core\Test\Failure $swallowed) {
+        }
+        Test::assertSame("second", "also wrong");
+    }
+
+    // § 22 redirects the document, so standard output is the document and
+    // nothing else: a passing test's output is dropped, and what the class
+    // hook below printed is on standard error.
+    #[Test]
+    public function aTestsOwnOutputIsNotTheDocument(): void {
+        echo "this is dropped, because the test passes\n";
+        Test::assertTrue(true);
+    }
+
+    // § 20: a test that passed within its retry allowance is its own verdict
+    // in every format — never the passing one — and it carries the attempt
+    // count beside the failures the attempt that flaked produced.
+    #[Test(retries: 1, because: "a static counter stands in for the real DNS § 20 names")]
+    public function aRetriedTestIsReportedAsFlaky(): void {
+        ReportTest::$attempts = ReportTest::$attempts + 1;
+        Test::assertSame(ReportTest::$attempts, 2);
+    }
+
+    #[AfterClass]
+    public static function finish(): void {
+        echo "this goes to standard error\n";
+    }
+}
+--EXPECTF--
+{
+  "schemaVersion": 2,
+  "summary": {"total": 5, "passed": 2, "failed": 1, "skipped": 1, "flaky": 1, "durationMs": %f},
+  "tests": [
+    {"class": "ReportTest", "method": "aPassingTestCarriesOnlyItsVerdict", "file": "case.nvs", "line": 14, "column": 21, "verdict": "passed", "durationMs": %f},
+    {"class": "ReportTest", "method": "aSkipCarriesItsReason", "file": "case.nvs", "line": 21, "column": 21, "verdict": "skipped", "durationMs": %f, "reason": "a reason with \"quotes\" and a < sign"},
+    {"class": "ReportTest", "method": "everyFailedAssertionIsReported", "file": "case.nvs", "line": 29, "column": 21, "verdict": "failed", "durationMs": %f, "failures": ["Core\\Test::assertSame failed: `$actual` is \"first\", `$expected` is \"wrong\"", "Core\\Test::assertSame failed: `$actual` is \"second\", `$expected` is \"also wrong\""]},
+    {"class": "ReportTest", "method": "aTestsOwnOutputIsNotTheDocument", "file": "case.nvs", "line": 41, "column": 21, "verdict": "passed", "durationMs": %f},
+    {"class": "ReportTest", "method": "aRetriedTestIsReportedAsFlaky", "file": "case.nvs", "line": 50, "column": 21, "verdict": "flaky", "durationMs": %f, "attempts": 2, "failures": ["Core\\Test::assertSame failed: `$actual` is 1, `$expected` is 2"]}
+  ]
+}
+--EXPECTF-ERROR--
+this goes to standard error

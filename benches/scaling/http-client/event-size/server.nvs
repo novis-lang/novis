@@ -1,0 +1,6 @@
+<?nvs
+// Answers every request with one event that has as many lines of data as its `lines` parameter gives.
+
+?uint $lines = Core\Request::query("lines") as ?uint;
+// Each line is 64 bytes: `data: `, 57 letters and a line end. The empty line at the end finishes the event.
+echo Core\Str::repeat("data: " . Core\Str::repeat("a", 57) . "\n", $lines ?? 0), "\n";

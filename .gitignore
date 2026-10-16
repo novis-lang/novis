@@ -1,0 +1,115 @@
+# looper:begin gitignore v1
+# Scratch for every agent and tool, and looper's run directory.
+/.agent-tmp/
+/.loop/
+
+# Build output and dependencies of each stack.
+/target/
+node_modules/
+
+# Editors and OS.
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.swp
+*~
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# Claude Code's per-machine settings. The shared ones are .claude/settings.json.
+.claude/settings.local.json
+.claude/worktrees/
+# looper:end gitignore
+
+# Rust build output below the root
+**/target
+# A feature named `target` has a proof directory of that name, and it is source
+!/docs/examples/**/target
+!/tests/hostile/**/target
+*.pdb
+
+# Cargo
+Cargo.lock.bak
+
+# Novis artifact cache (content-addressed native code; never committed)
+/.nvs-cache
+*.nvso
+
+# Insta snapshot review leftovers
+*.snap.new
+*.pending-snap
+
+# Fuzzing
+/fuzz/target
+/fuzz/corpus
+/fuzz/artifacts
+
+# Profiling / benchmark output
+# Every file the acceptance sweep records there but the image component's committed figures.
+/benches/results/*
+!/benches/results/image-guest.json
+perf.data*
+flamegraph.svg
+*.profraw
+
+# The compose fixtures' CA, copied out of the `certs` volume by the command `tests/db/compose.yaml`'s header names, and named by
+# `nvs.toml`'s `[db.main] tls_ca_file`. Remade whenever that volume is, so committing it would
+# pin an anchor no server on any other machine holds the key to.
+/tests/db/ca.crt
+
+# Editors
+!.vscode/settings.shared.json
+*.iml
+
+# Local developer config (nvs.toml is server config; keep local overrides out)
+/nvs.local.toml
+/.env
+
+# Bytecode from importing a repo script under tools/
+__pycache__/
+
+# The queue `examples/queue-sqlite.nvs` runs against — the one database in this
+# repository that is a file rather than a server, named by that fixture's own
+# `examples/queue-sqlite.toml` and created by `nvs queue migrate`. It holds
+# every job that fixture ever pushed, and a checkout that has never run the
+# acceptance sweep has no reason to hold one.
+/tests/db/queue-sqlite.db
+
+# The proxied benchmark's two derived inputs (benches/proxied/README.md).
+# `.bin/nvs` is a Linux binary staged by `--nvs-bin`, and `generated/pool.conf`
+# is rendered from the committed template because php-fpm interpolates no
+# environment variable in a pool file. Both are outputs of the tool that reads
+# them, and both are digested into every record, so neither is lost by not
+# being here.
+/benches/proxied/.bin/
+/benches/proxied/generated/
+
+# The comparison's rendered FPM pool and its self-signed TLS certificate (benches/compare/README.md).
+/benches/compare/generated/
+
+# The Docker build context's staged binaries (docs/docker.md § *Building an
+# image locally*). `docker/Dockerfile` compiles nothing: the release workflow
+# unpacks the published archives into here, so these are release outputs that
+# happen to sit in the tree for the length of one build.
+/docker/bin/
+
+# The editor clients' build output; their `node_modules` is the block's line. The lockfile IS
+# committed -- `npm ci` needs one, and an unpinned tree makes the grammar snapshots reproducible
+# only by luck. Anchored under `editors/` because an unanchored `out/` also swallows
+# website/src/content/docs/docs/core/out/.
+/editors/*/out/
+/editors/*/.vscode-test/
+/editors/*/*.vsix
+/editors/*/LICENSE
+
+# `bun nv`'s index, `.cache/nv.sqlite`, which is rebuilt from the records under `data/` and never
+# read as a source.
+/.cache/
+
+a.out
+
+# `::absorb`, made by a shell command under WSL that ran an unquoted Rust path such as
+# `Type>::absorb` as a redirect. NTFS allows no `:`, so WSL stores each colon as U+F03A. The `*`
+# matches those characters, so this file stays ASCII.
+/*absorb

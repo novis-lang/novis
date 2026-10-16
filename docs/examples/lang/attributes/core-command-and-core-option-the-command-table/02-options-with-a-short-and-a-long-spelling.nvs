@@ -1,0 +1,32 @@
+<?nvs
+// Shows the two spellings an option can have. `short:` is the one letter form
+// and `long:` is the word form. Without `long:` the word form is the parameter's
+// own name. A `bool` option is a flag, and every other type takes a value.
+
+type Option = {short: string, long: string, about: string};
+
+class Serve {
+    #[Core\Command(name: "serve", about: "Run the web server")]
+    public static function serve(
+        #[Core\Option(short: "p", long: "port", about: "The port to listen on")] uint $listenPort,
+        #[Core\Option(short: "q", long: "quiet", about: "Print nothing")] bool $silent,
+    ): uint {
+        echo "listening on ", $listenPort, $silent ? " (quiet)" : "", "\n";
+        return 0;
+    }
+}
+
+// Build the help lines from the table. This is what a program prints for
+// `serve --help`.
+array<Option> $options = [];
+// Write the parameter name here. A name you compute is not looked up, and the
+// result is `null`.
+$options[] = Core\Attributes::get<Option>(Serve::serve(...), "listenPort") ?? throw new RuntimeError("no option");
+$options[] = Core\Attributes::get<Option>(Serve::serve(...), "silent") ?? throw new RuntimeError("no option");
+
+foreach ($options as Option $option) {
+    echo "  -", $option->short, ", --", $option->long, "  ", $option->about, "\n";
+}
+
+uint $status = Serve::serve(8080, false);
+echo "exit status ", $status, "\n";

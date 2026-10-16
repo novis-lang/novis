@@ -1,0 +1,11 @@
+<?nvs
+// Shows that a zone with summer time has a different offset in winter and in summer.
+
+Core\Time\Zone $berlin = Core\Time\Zone::of("Europe/Berlin");
+Core\Time\Instant $january = Core\Time::fromIso("2024-01-15T12:00:00Z");
+Core\Time\Instant $july = Core\Time::fromIso("2024-07-15T12:00:00Z");
+
+// `offsetAt` returns the offset as a `Duration`. `toSeconds` turns it into a number.
+// One hour is 3600 seconds, so this prints 3600 and 7200.
+echo $berlin->offsetAt($january)->toSeconds(), "\n";
+echo $berlin->offsetAt($july)->toSeconds(), "\n";

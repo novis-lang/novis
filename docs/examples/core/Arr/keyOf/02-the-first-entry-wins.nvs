@@ -1,0 +1,12 @@
+<?nvs
+// Shows which entry is found when two entries hold the same value, and what
+// you get when no entry holds it.
+
+array<string> $seats = ["a1" => "free", "a2" => "taken", "a3" => "free"];
+
+// Two seats are free. The first one is found, so this prints a1.
+echo Core\Arr::keyOf($seats, "free"), "\n";
+
+// No seat is broken. The result is `null`, and `??` replaces it with your own
+// text. This prints none.
+echo Core\Arr::keyOf($seats, "broken") ?? "none", "\n";

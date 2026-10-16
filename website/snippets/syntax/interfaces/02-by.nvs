@@ -1,0 +1,28 @@
+<?nvs
+// `implements Greets by $voice` sends every `Greets` method to the object in `$voice`.
+interface Greets {
+    public function greet(string $who): string;
+    public function wave(): string;
+}
+
+class Polite implements Greets {
+    public function greet(string $who): string {
+        return "Hello, " . $who;
+    }
+
+    public function wave(): string {
+        return "*wave*";
+    }
+}
+
+class Desk implements Greets by $voice {
+    public function constructor(private Greets $voice) {}
+
+    // A method the class writes itself is used, not the one in `$voice`.
+    public function wave(): string {
+        return "*nod*";
+    }
+}
+
+var $d = new Desk(new Polite());
+echo $d->greet("Ada"), " ", $d->wave(), "\n";

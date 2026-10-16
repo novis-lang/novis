@@ -1,0 +1,6 @@
+666f6f
+666f6f
+666f6f
+666f6f
+refused: Core\Encoding::fromBase32(): "MZXW YTB" is not base32 — the byte at offset 4 is not one of `A`-`Z` or `2`-`7` — the digits `0`, `1` and `8` are not in this alphabet, and a space grouping a secret for a reader is a byte like any other
+refused: Core\Encoding::fromBase32(): "MZXW0YTB" is not base32 — the byte at offset 4 is not one of `A`-`Z` or `2`-`7` — the digits `0`, `1` and `8` are not in this alphabet, and a space grouping a secret for a reader is a byte like any other

@@ -1,0 +1,12 @@
+<?nvs
+// Shows one moment on the clocks of three cities.
+
+Core\Time\Instant $call = Core\Time::fromIso("2024-03-01T15:00:00Z");
+
+array<string> $cities = ["Europe/London", "Europe/Berlin", "America/New_York"];
+foreach ($cities as string $city) {
+    // `in` returns a `DateTime`: the same moment, on this zone's calendar and clock.
+    Core\Time\DateTime $local = $call->in(Core\Time\Zone::of($city));
+    echo $city, ": ", $local->format("HH:mm"), "\n";
+}
+// This prints 15:00, 16:00 and 10:00.

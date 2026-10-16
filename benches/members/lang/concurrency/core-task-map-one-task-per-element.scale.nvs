@@ -1,0 +1,29 @@
+<?nvs
+// Measures `Core\Task::map` over one array, at growing array lengths.
+// It starts one job for each element.
+// bench: start 8
+// bench: max 128
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        array<int> $rows = [];
+        uint $n = 0;
+        while ($n < $size) {
+            $rows[] = $n as int;
+            $n = $n + 1;
+        }
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 16) {
+            uint $seed = $total % 5;
+            var $done = Core\Task::map($rows, fn(int $value): uint => ($value as uint) + $seed);
+            $total = $total + $done[0] + $done[($size - 1) as int];
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(8), "\n";

@@ -1,0 +1,74 @@
+--TEST--
+`Core\Response::setHeader` names both sides of what a header line carries — a field name is a token and a field value is printable ASCII -- spec § 15
+--FILE--
+<?nvs
+// A bound asserted on both sides: a member that admitted one byte more than
+// RFC 9110's token would let a program write a name no peer can parse, and one
+// that admitted a control character would let a value carry a second header.
+array<string> $names = ["X-Request-Id", "cache-control", "x_trace", "a1!#-.^_`|~*+'"];
+uint $set = 0;
+foreach ($names as string $name) {
+    try {
+        Core\Response::setHeader($name, "ok");
+        $set = $set + 1;
+    } catch (LogicError $refused) {
+    }
+}
+echo "set ", $set, " of 4 names\n";
+
+// The other side of that bound: empty, a space, the separator that ends a name
+// on the wire, and a newline that would end the whole line early.
+array<string> $unnameable = ["", "X Request", "X:Request", "X-Requ\nest"];
+uint $refusedNames = 0;
+foreach ($unnameable as string $rejected) {
+    try {
+        Core\Response::setHeader($rejected, "ok");
+    } catch (LogicError $why) {
+        $refusedNames = $refusedNames + 1;
+    }
+}
+echo "refused ", $refusedNames, " of 4 names\n";
+
+// A value is the wider of the two: every printable byte, and the empty string
+// as well, because a header with no value is still a header a program means.
+array<string> $values = ["no-store", "", "text/plain; q=0.9", "a=1; b=2"];
+uint $carried = 0;
+foreach ($values as string $value) {
+    try {
+        Core\Response::setHeader("X-Probe", $value);
+        $carried = $carried + 1;
+    } catch (LogicError $unspellable) {
+    }
+}
+echo "carried ", $carried, " of 4 values\n";
+
+// And what it will not carry: the injection this check exists for, a bare
+// newline, a bare carriage return, and a tab — legal in RFC 9110's grammar and
+// refused here, because a program that means a tab in a header value is rarer
+// than one that has been handed a control character it did not inspect.
+array<string> $uncarriable = ["ok\r\nX-Injected: yes", "two\nlines", "end\rhere", "a\tb"];
+uint $refusedValues = 0;
+foreach ($uncarriable as string $smuggled) {
+    try {
+        Core\Response::setHeader("X-Probe", $smuggled);
+    } catch (LogicError $inert) {
+        $refusedValues = $refusedValues + 1;
+    }
+}
+echo "refused ", $refusedValues, " of 4 values\n";
+
+// The sentence names what it was given rather than only that something was
+// wrong. The name is what is read back and not the value: a refused value is
+// the one holding the control characters, and a message carrying them would
+// pin this case's expectation to a byte no editor shows.
+try {
+    Core\Response::setHeader("X Request", "ok");
+} catch (LogicError $spaced) {
+    echo $spaced->message, "\n";
+}
+--EXPECT--
+set 4 of 4 names
+refused 4 of 4 names
+carried 4 of 4 values
+refused 4 of 4 values
+Core\Response::setHeader(): `X Request` is not a header name — a field name is a non-empty token, so it carries letters, digits and the marks RFC 9110 admits and nothing else

@@ -1,0 +1,20 @@
+<?nvs
+// Shows how to upload a picture that your program already has in memory, as one field of a form.
+
+// A small SVG picture. A real program gets it from a user or creates it.
+string $picture = '<svg xmlns="http://www.w3.org/2000/svg" width="8" height="8"><circle cx="4" cy="4" r="4"/></svg>';
+
+// `Core\Http\Part::bytes` creates the field. "avatar.svg" is the file name the other server sees.
+Core\Http\Part $avatar = Core\Http\Part::bytes($picture, "avatar.svg", {contentType: "image/svg+xml"});
+
+// The form has two fields: a plain text field and the picture.
+// 10.0.0.7 is a private address, so the call throws a `RuntimeError` before it sends anything.
+try {
+    Core\Http\Response $response = Core\Http\Client::post("http://10.0.0.7/profile", {multipart: [
+        "userName" => "ada",
+        "avatar" => $avatar,
+    ]});
+    echo "status: ", $response->status(), "\n";
+} catch (RuntimeError $refused) {
+    echo $refused->message, "\n";
+}

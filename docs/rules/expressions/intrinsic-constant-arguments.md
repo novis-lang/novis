@@ -1,0 +1,41 @@
+A short, closed roster of `Core` methods takes an argument that is really a small program — a regex
+pattern, a URI, a date format, a duration, a format string, a SQL placeholder list. When that
+argument is a compile-time constant, the compiler **validates it while checking** and **prepares**
+whatever the runtime call would otherwise derive on first use.
+
+**What crosses to the call is a fact, never an object.** The engine tier a regex pattern settled in,
+that a date pattern was written rather than assembled: one word, emitted with the unit as the
+member's leading argument. The compiled artifact itself belongs to the core that builds it, which is
+what keeps an automaton or a pattern's field list out of a store shared between requests, and it is
+what a runtime cache keyed only on what a program *wrote* can then hold for the life of that core.
+
+**A call can also be compiled away.** A `Core\Str::format` template that is a constant, whose
+placeholders all read their arguments in order with no flag or width, over types whose text cannot
+differ, lowers to the string concatenation it describes, and no call is made. Nothing crosses, so the
+bound above holds; `nvs_types::expr_table::FormatPiece` owns which calls qualify.
+
+A malformed constant is a diagnostic pointing at the exact offset inside the string literal. The check on
+`Core\Str::format`'s placeholders also counts and types them against the argument list, which turns a
+whole family of `printf`-shaped bugs into compile errors.
+
+"Constant" is the existing definition — a literal, a class constant, or an expression over them. No
+new notion is introduced, and **nothing is refused for being dynamic**: an argument that does not
+qualify compiles to an ordinary runtime call with ordinary runtime validation. The early error, the
+static tier report and the preparation are what a constant argument buys, and they are a reason to
+prefer it.
+
+This adds no syntax. It is a property of a call whose arguments happen to be constants.
+
+The check exists because an argument of this kind is a program, and a program parsed on first use
+fails on whichever path reaches it first — often the error path, often in production. Moving the
+failure to check time also makes a security control possible: a regex pattern's engine tier is known
+before any request runs, so a deployment can refuse a pattern that can be made to backtrack
+(`rule:core-classes/regex-compile-time-tiering`).
+
+**Declined:**
+- **Regex and date literal syntax, such as `/pattern/i`.** `/` is division, and the rules other
+  languages use to tell the two apart are a recurring source of parser bugs. The grammar cost is
+  permanent, and the benefit over a checked string literal is only how the call looks.
+- **Validating every such argument at run time.** It keeps errors that are decidable while compiling
+  among the ones found in production, and it leaves a backtracking pattern unrefusable until a request
+  reaches it.

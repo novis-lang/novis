@@ -1,0 +1,12 @@
+--TEST--
+a duration unit has one spelling, and it is lower case — `rule:types/duration` over `rule:classes/reserved-spellings-are-lower-case`
+--FILE--
+<?nvs
+var $shouted = 30S;
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0231]: `30S` must be written in lower case
+  --> case.nvs:2:16
+%A

@@ -1,0 +1,33 @@
+<?nvs
+// Shows how to import every text file from an uploaded archive, with a size limit for each file.
+
+class Import {
+    // Returns one line per file: its name and its text.
+    // The text comes from the upload, so each line is a `tainted string`.
+    public static function texts(bytes $upload): array<tainted string> {
+        array<tainted string> $lines = [];
+        foreach (Core\Zip::entries($upload) as tainted string $name) {
+            // A folder name ends with `/`. A folder has no content to read.
+            if (Core\Str::endsWith($name, "/")) {
+                continue;
+            }
+            // Each file may have at most 10000 bytes. A larger file throws a
+            // `ParseError`, and the line says "too large" instead.
+            try {
+                tainted bytes $content = Core\Zip::read($upload, $name, 10000);
+                $lines[] = $name . ": " . Core\Str::trim($content as string);
+            } catch (ParseError $error) {
+                $lines[] = $name . ": too large";
+            }
+        }
+        return $lines;
+    }
+}
+
+// This upload contains the folder `products/` and three text files in it.
+bytes $upload = Core\Encoding::fromBase64("UEsDBBQAAAAAAAAAIVwAAAAAAAAAAAAAAAAJAAAAcHJvZHVjdHMvUEsDBBQAAAAIAAAAIVyWa17GIwAAACEAAAASAAAAcHJvZHVjdHMvY2hhaXIudHh0c1Qoz89PSc1TSM5IzCxSKM8syVBIVCjOTytRKE5NLNHjAgBQSwMEFAAAAAgAAAAhXEwqV0EbAAAAGQAAABEAAABwcm9kdWN0cy9kZXNrLnR4dHNUSEktzlYozyzJUCgpz1dIKUosTy0q1uMCAFBLAwQUAAAACAAAACFcDWTkchwAAAAaAAAAEQAAAHByb2R1Y3RzL2xhbXAudHh0c1TIScwtUCjPLMlQSFQoTyzKVcjJTM8o0eMCAFBLAQIUABQAAAAAAAAAIVwAAAAAAAAAAAAAAAAJAAAAAAAAAAAAAADtQQAAAABwcm9kdWN0cy9QSwECFAAUAAAACAAAACFclmtexiMAAAAhAAAAEgAAAAAAAAAAAAAApIEnAAAAcHJvZHVjdHMvY2hhaXIudHh0UEsBAhQAFAAAAAgAAAAhXEwqV0EbAAAAGQAAABEAAAAAAAAAAAAAAKSBegAAAHByb2R1Y3RzL2Rlc2sudHh0UEsBAhQAFAAAAAgAAAAhXA1k5HIcAAAAGgAAABEAAAAAAAAAAAAAAKSBxAAAAHByb2R1Y3RzL2xhbXAudHh0UEsFBgAAAAAEAAQA9QAAAA8BAAAAAA==");
+
+// This prints three lines, one for each product.
+foreach (Import::texts($upload) as tainted string $line) {
+    echo $line, "\n";
+}

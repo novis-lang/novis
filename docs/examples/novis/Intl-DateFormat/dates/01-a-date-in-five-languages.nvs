@@ -1,0 +1,12 @@
+<?nvs
+// Shows how one date is written in five languages.
+use Novis\Intl\DateFormat;
+
+var $holiday = Core\Time\Date::at(2026, 12, 24);
+array<string> $locales = ["en-US", "en-GB", "de", "ja", "fr"];
+
+// The locale decides the order of day, month and year.
+// This prints Dec 24, 2026, then 24 Dec 2026, 24.12.2026, 2026/12/24 and 24 déc. 2026.
+foreach ($locales as string $locale) {
+    echo DateFormat::dates([$holiday], $locale)[0], "\n";
+}

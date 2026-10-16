@@ -1,0 +1,14 @@
+<?nvs
+namespace App;
+
+// The interface the entry point lists. `T` is an interface or a class, so
+// you can call methods on the result. `usage()` is declared here, and an
+// `object` would have no `usage()` to call.
+interface Command
+{
+    // The usage line `rule:tooling/command-run-dispatches-and-help-is-generated` says nobody should have to write: it is
+    // generated from the table by `Core\Command::help`, and this member exists
+    // only so the fixture can read the same fact before `Core\Cli\Text` has a
+    // member to render one with.
+    public function usage(): string;
+}

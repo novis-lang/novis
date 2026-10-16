@@ -1,0 +1,14 @@
+{
+  "title": "Two layers enforce a capability and only the static one grants; nothing anywhere widens",
+  "status": "shipped",
+  "seeAlso": [
+    "security/capability-check-at-the-door",
+    "security/closed-doors",
+    "security/script-spawn-capability",
+    "security/optional-capability-degrades"
+  ],
+  "guardedBy": [
+    "tests/conformance/isolate/a-child-inherits-a-narrowed-capability-and-cannot-widen-it.nvst",
+    "tests/conformance/core/a-capability-query-answers-the-grant-table-both-ways.nvst"
+  ]
+}

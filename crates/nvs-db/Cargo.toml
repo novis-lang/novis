@@ -1,0 +1,98 @@
+[package]
+name = "nvs-db"
+build = "../../tools/build/tests_without_pdb.rs"
+description = "The five database drivers: a borrowed sans-IO codec and a state machine of our own, over the parking stream"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+
+[lib]
+# No doc comment in this crate has a runnable example, so `cargo test` does
+# not run rustdoc over it. A crate that gains one deletes this table.
+doctest = false
+
+# `rule:core-classes/db-crate-boundary` fixes this crate's place in the graph, and the direction is the
+# part that matters: `nvs-stdlib` depends on this crate and never the reverse.
+# `Core\Db`'s registry rows, reference cards and helper bodies stay where every
+# other class's are; the wire lives here. A single `use nvs_stdlib::…` added to
+# this crate turns the workspace into a cycle, which is why the rule is stated
+# on both manifests rather than only on the one that adds the edge.
+[dependencies]
+# Values, `Ctx` and faults. A driver answers with `nvs-runtime`'s values for ADR
+# `rule:core-classes/db-column-types`'s scalar rows, and with parsed components of its own — `PgScalar` —
+# for the structured ones, since a `Core\Time` or `Core\Uuid` instance needs
+# `nvs-stdlib`'s class descriptors and that edge is the cycle above. A protocol
+# failure becomes a `Fault` there, so this crate defines no error type that has
+# to be translated at the `Core\Db` boundary.
+nvs-runtime.workspace = true
+# The parking stream, its TLS session, and the blocking pool `rule:core-classes/db-crate-boundary` hands
+# SQLite to. This edge is why no driver here needs an async runtime: a socket
+# that hands the core back is a plain `Read`/`Write` to everything above it, so
+# a sans-IO codec is the only other half required.
+nvs-host.workspace = true
+# `rule:core-classes/db-connection-is-named`'s `[db.*]` block, which is the only place a connection is named,
+# and the capability enum that gates reaching one at all.
+nvs-config.workspace = true
+
+# The wire crates of `rule:core-classes/db-crate-boundary` are declared in the workspace manifest and are
+# taken here one driver at a time, so the audit surface this crate exists to
+# concentrate stays a list of what is actually reachable. `rusqlite` is the one
+# that costs something to add: it is a C dependency, and `rule:core-classes/db-crate-boundary` requires
+# the slice that takes it to add its row to `tools/nv/cmd/gen-attribution.ts`'s
+# `C_DEPENDENCIES` ledger in the same commit -- that gate fails both ways, on an
+# unrecorded C crate in the graph and on a recorded one that is not in it.
+#
+# PostgreSQL's half of that rule: framing and the SASL mechanism are borrowed,
+# and the startup sequence, the `SSLRequest` upgrade and the extended-query
+# state machine in `pg.rs` are written here.
+postgres-protocol.workspace = true
+# MySQL's half of the same rule, and MariaDB's when its driver lands: packet
+# framing, the sequence-id discipline and every authentication plugin are
+# borrowed, and the handshake's *sequencing* -- what the greeting's capability
+# bits must contain before a credential goes anywhere, which plugins this driver
+# will answer at all, and where the TLS upgrade sits inside the packet stream --
+# is written in `mysql.rs`. The workspace manifest takes it with its default
+# features off, which is what keeps `flate2` off `libz-sys` and this crate's
+# graph free of C.
+mysql_common.workspace = true
+# Named only to select the backend `mysql_common` compresses with -- the
+# workspace manifest owns why, and nothing in this crate calls it. `Core\Db`
+# offers no compressed connection, so the code behind this is unreachable; what
+# the entry buys is that the unreachable half is `miniz-oxide` rather than
+# `libz-sys`.
+flate2.workspace = true
+# What that codec is called through: it frames into a `BytesMut` and hands its
+# message bodies back as fallible iterators, so these are the spelling of
+# `postgres-protocol`'s own surface rather than two more dependencies of ours.
+bytes.workspace = true
+fallible-iterator.workspace = true
+# SQLite, and the edge the comment at the top of this block is about: taking it
+# puts `libsqlite3-sys` in the shipped graph, so this crate's slice also carries
+# that crate's row in `tools/nv/cmd/gen-attribution.ts`'s `C_DEPENDENCIES` ledger. It
+# is the only backend with no wire at all -- there is no framing to borrow and
+# no handshake to write, so unlike the other four this dependency *is* the
+# protocol, and what `sqlite.rs` adds around it is the blocking-pool handoff
+# `rule:core-classes/db-crate-boundary` requires and `Core\Db`'s own vocabulary on top.
+rusqlite.workspace = true
+
+# The SCRAM server `pg.rs`'s tests answer with. It exists because the compose
+# file's PostgreSQL serves a self-signed certificate and `NvsTls` verifies
+# against the compiled-in anchors, so no reachable server can complete the
+# handshake this crate needs before it can authenticate at all -- the exchange
+# would otherwise be code that has never run. These are the workspace's own
+# hashes, deliberately not the ones `postgres-protocol` vendors for its client
+# half: a test that shared them could pass on a bug they shared.
+[dev-dependencies]
+base64.workspace = true
+hmac.workspace = true
+sha2.workspace = true
+# Test-only: the socket cases in `src/pg.rs` and `src/mysql.rs` bind under `target/` through
+# `nvs_repo::socket`.
+nvs-repo.workspace = true
+
+[lints]
+workspace = true

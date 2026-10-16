@@ -1,0 +1,10 @@
+--TEST--
+a cursor on the `echo` keyword is inside the statement and inside none of its arguments, and a statement documents nothing, `rule:ide/the-index-answers-the-cursor`
+--FILE--
+<?nvs
+var $total = 3;
+ech<|>o $total;
+--REQUEST--
+hover
+--EXPECT--
+none

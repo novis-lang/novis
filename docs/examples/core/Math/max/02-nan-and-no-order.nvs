@@ -1,0 +1,17 @@
+<?nvs
+// Shows the result for `NaN`, and what happens when two values cannot be compared.
+
+// `NaN` is smaller than every other `float`. This prints 0.
+echo Core\Math::max(Core\Math::NAN, 0.0), "\n";
+
+// Two `NaN` values give `NaN`. This prints NAN.
+echo Core\Math::max(Core\Math::NAN, Core\Math::NAN), "\n";
+
+// A number and a string cannot be compared. This throws a `RuntimeError`.
+mixed $count = 5;
+mixed $label = "5";
+try {
+    echo Core\Math::max($count, $label), "\n";
+} catch (RuntimeError $error) {
+    echo "These two values cannot be compared.\n";
+}

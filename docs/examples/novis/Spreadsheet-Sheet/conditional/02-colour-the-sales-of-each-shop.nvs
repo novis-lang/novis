@@ -1,0 +1,19 @@
+<?nvs
+// Shows how to colour sales from red for the lowest value to green for the highest.
+use Novis\Spreadsheet\Workbook;
+
+var $book = Workbook::createInMemory();
+var $sheet = $book->sheet('Sales');
+$sheet->addAll([['shop' => 'North', 'sales' => 340], ['shop' => 'South', 'sales' => 210], ['shop' => 'East', 'sales' => 95]]);
+
+// A colour scale takes two or three `colors` and no `style`.
+$sheet->conditional('B2:B4', { kind: 'colorScale', colors: ['#F8696B', '#63BE7B'] });
+
+// A data bar draws a bar in each cell. Its length follows the value.
+$sheet->conditional('B2:B4', { kind: 'dataBar', colors: ['#638EC6'] });
+bytes $file = $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
+
+// `Core\Zip::read` returns the XML of the sheet. These lines check that both rules are in it.
+var $xml = Core\Zip::read($file, 'xl/worksheets/sheet1.xml') as string;
+echo Core\Str::contains($xml, '<colorScale>') ? 'a colour scale' : 'no colour scale', "\n";
+echo Core\Str::contains($xml, '<dataBar>') ? 'a data bar' : 'no data bar', "\n";

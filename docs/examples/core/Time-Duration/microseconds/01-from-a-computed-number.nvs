@@ -1,0 +1,14 @@
+<?nvs
+// Shows how to create a duration from a number of microseconds that the program computes.
+
+int $samples = 3;
+Core\Time\Duration $read = Core\Time\Duration::microseconds($samples * 500);
+
+// 1500 microseconds is 1 millisecond and 500 microseconds. This prints 1ms500us.
+echo $read->toString(), "\n";
+
+// `toMicroseconds` returns the number again. This prints 1500.
+echo $read->toMicroseconds(), "\n";
+
+// A negative number gives a negative duration. This prints -42us.
+echo Core\Time\Duration::microseconds(-42)->toString(), "\n";

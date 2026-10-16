@@ -1,0 +1,40 @@
+<?nvs
+// Attack: a request downloads files whose names try to add response headers or break out of quotes.
+// The name should never become a new header. Each download should finish or throw an error.
+use Novis\Spreadsheet\Workbook;
+
+class Attack
+{
+    // This method sends a small CSV download named `$name`, and prints whether it finished or threw.
+    public static function attempt(int $step, string $name): void
+    {
+        try {
+            var $book = Workbook::createForDownload($name, { format: 'csv' });
+            $book->sheet('Shop')->add(['order' => $step]);
+            $book->finish();
+            echo "\nstep ", $step, " ran\n";
+        } catch (Throwable $e) {
+            echo "\nstep ", $step, ' stopped ', $e::class, "\n";
+        }
+    }
+}
+
+// 1. A line break and a second header in the name.
+Attack::attempt(1, "orders.csv\r\nSet-Cookie: session=stolen");
+Attack::attempt(1, "orders.csv\nLocation: https://example.com/");
+
+// 2. Quotes and backslashes that try to end the file name early.
+Attack::attempt(2, "orders\"; filename=\"evil.exe");
+Attack::attempt(2, "orders\\\".csv");
+
+// 3. A NUL byte, an empty name, and a path to another folder.
+Attack::attempt(3, "orders\u{0}.exe");
+Attack::attempt(3, '');
+Attack::attempt(3, '../../etc/passwd');
+
+// 4. A name of 100,000 characters, and one with right-to-left marks and emoji.
+Attack::attempt(4, Core\Str::repeat('a', 100000) . '.csv');
+Attack::attempt(4, "\u{202e}vsc.exe\u{1F4B8}");
+
+// 5. A second download in the same request, after the first one sent its headers.
+Attack::attempt(5, 'second.csv');

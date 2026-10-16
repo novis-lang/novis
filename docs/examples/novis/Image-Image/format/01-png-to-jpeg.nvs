@@ -1,0 +1,14 @@
+<?nvs
+// Shows how to turn a PNG upload into a JPEG file with a chosen quality.
+use Novis\Image\Image;
+use Novis\Image\Color;
+use Novis\Image\Format;
+
+// These PNG bytes replace a file that a user uploaded.
+bytes $upload = Image::create(200, 100, Color::hex("#336699"))->format(Format::Png)->encode();
+
+// `format` chooses JPEG with quality 80. This prints image/jpeg and jpg.
+bytes $jpeg = Image::open($upload)->format(Format::Jpeg, {quality: 80})->encode();
+var $info = Image::info($jpeg);
+echo Image::mime($info->format), "\n";
+echo Image::extension($info->format), "\n";

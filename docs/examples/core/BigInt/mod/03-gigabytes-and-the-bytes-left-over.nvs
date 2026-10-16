@@ -1,0 +1,10 @@
+<?nvs
+// Shows a report line for a number of bytes that is larger than an `int` holds:
+// how many whole gigabytes it is, and how many bytes are left over.
+
+var $perGigabyte = Core\BigInt::parse("1073741824");
+var $written = Core\BigInt::parse("98765432109876543210");
+
+// `div` gives the whole gigabytes and `mod` gives the rest. Put together, the
+// two are the number you started with.
+echo $written->div($perGigabyte), " GB and ", $written->mod($perGigabyte), " bytes\n";

@@ -1,0 +1,15 @@
+<?nvs
+// Shows how to give a file a new name with `Core\IO::move`.
+
+string $dir = Core\IO::temporaryDir();
+string $draft = Core\Path::join($dir, "draft.txt");
+string $final = Core\Path::join($dir, "final.txt");
+Core\IO::write($draft, "Dear customer,\n");
+
+Core\IO::move($draft, $final);
+
+// The old name is gone, so this prints "draft.txt: false".
+echo "draft.txt: ", Core\IO::exists($draft) ? "true" : "false", "\n";
+
+// The content is now at the new name. This prints "final.txt: Dear customer,".
+echo "final.txt: ", Core\IO::read($final);

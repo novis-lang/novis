@@ -1,0 +1,24 @@
+<?nvs
+// Shows how a program decides whether it can take on a large job. It works out
+// how much memory the job needs, and compares that with the limit before it
+// starts.
+
+// This job reads a file of about 40 MB into memory.
+uint $needed = (40 * 1048576) as uint;
+
+uint $limit = Core\Budget::memoryLimit();
+uint $held = Core\Budget::memoryHeld();
+
+// A program with no limit may always go ahead.
+bool $fits = true;
+if ($limit > 0) {
+    // The job may use three quarters of the limit at most. The last quarter
+    // stays free for everything else the program does.
+    $fits = ($held + $needed) * 4 < $limit * 3;
+}
+
+if ($fits) {
+    echo "reading the file\n";
+} else {
+    echo "the file is too large for this program\n";
+}

@@ -1,0 +1,14 @@
+<?nvs
+// Shows how to create a duration from a number of hours that the program computes.
+
+int $shifts = 3;
+Core\Time\Duration $work = Core\Time\Duration::hours($shifts * 8);
+
+// 24 hours is written as one day, so this prints 1d.
+echo $work->toString(), "\n";
+
+// An hour is 3600 seconds, so this prints 86400.
+echo $work->toSeconds(), "\n";
+
+// A negative number gives a negative duration. This prints -5h.
+echo Core\Time\Duration::hours(-5)->toString(), "\n";

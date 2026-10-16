@@ -1,0 +1,41 @@
+<?nvs
+// Attack: `mod` is asked for remainders of numbers about a million bits wide, a
+// thousand times over. A remainder that is never freed would use up the memory
+// of the machine. The program should run to its last line.
+
+// 1. A number of about a million bits is divided by 7, a thousand times. Every
+//    bit is read for a result of one digit. This prints 1.
+var $wide = Core\BigInt::of(1)->shl(1000000)->sub(Core\BigInt::of(1));
+var $seven = Core\BigInt::of(7);
+var $small = $wide;
+int $round = 0;
+while ($round < 1000) {
+    $small = $wide->mod($seven);
+    $round = $round + 1;
+}
+echo $small->sign(), "\n";
+
+// 2. The divisor is one bit narrower, so the result is nearly as wide as the
+//    number itself. Only the last one is kept, so the memory held must not grow.
+var $half = Core\BigInt::of(1)->shl(999999);
+var $rest = $wide;
+int $again = 0;
+while ($again < 1000) {
+    $rest = $wide->mod($half);
+    $again = $again + 1;
+}
+echo $rest->sign(), "\n";
+
+// 3. The number is negative, so the remainder is negative too. This prints -1.
+echo $wide->neg()->mod($seven)->sign(), "\n";
+
+// 4. A number is its own divisor, however wide it is. Nothing is left over, so
+//    this prints 0.
+echo $wide->mod($wide)->sign(), "\n";
+
+// 5. A divisor of zero is refused, however wide the number it divides is.
+try {
+    $wide->mod(Core\BigInt::of(0));
+} catch (ArithmeticError $error) {
+    echo $error->message, "\n";
+}

@@ -1,0 +1,69 @@
+<?nvs
+// Attack: the description of a result is read a million times. A result of two
+// hundred columns is described. A hundred thousand answers are held at the same
+// time, and a column name of a hundred thousand characters is described once.
+// Every step has to finish, and none may stop the program.
+// hostile: timeout-ms 20000
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table seatings (id integer primary key, seats int not null, label text not null)', []);
+$db->execute('insert into seatings (seats, label) values (?, ?), (?, ?)', [4, 'north', 2, 'east']);
+
+// 1. A million reads of the description of a three-column result. Every read
+// gives the same columns, so the memory the program holds may not grow.
+var $three = $db->query('select id, seats, label from seatings order by id', []);
+uint $described = 0;
+uint $i = 0;
+while ($i < 1000000) {
+    $described = Core\Arr::count($three->columns());
+    $i = $i + 1;
+}
+echo '1 described: ', $described, "\n";
+
+// 2. A query that matched no rows, described a hundred thousand times. It has
+// the same three columns a matching query has.
+var $none = $db->query('select id, seats, label from seatings where seats < ?', [0]);
+uint $empty = 0;
+$i = 0;
+while ($i < 100000) {
+    $empty = Core\Arr::count($none->columns());
+    $i = $i + 1;
+}
+echo '2 empty: ', $empty, "\n";
+
+// 3. A result of two hundred columns. Every name is read, so two hundred
+// strings are touched, and the longest name is two hundred characters.
+string $select = 'select seats as c';
+uint $at = 2;
+while ($at <= 200) {
+    $select = $select . ', seats as ' . Core\Str::repeat('c', $at);
+    $at = $at + 1;
+}
+var $wide = $db->query($select . ' from seatings', []);
+uint $letters = 0;
+foreach ($wide->columns() as Core\Db\Column $column) {
+    $letters = $letters + Core\Str::length($column->name());
+}
+echo '3 letters: ', $letters, "\n";
+
+// 4. A hundred thousand answers held at the same time. Each one is another
+// reference to the same description, and all of them are freed together.
+array<mixed> $held = [];
+$i = 0;
+while ($i < 100000) {
+    $held[] = $three->columns();
+    $i = $i + 1;
+}
+echo '4 held: ', Core\Arr::count($held), "\n";
+$held = [];
+
+// 5. A column name of a hundred thousand characters. The server may refuse the
+// statement, so the throw is caught and the program goes on.
+try {
+    var $long = $db->query('select seats as ' . Core\Str::repeat('n', 100000) . ' from seatings', []);
+    echo '5 named: ', Core\Str::length($long->columns()[0]->name()), "\n";
+} catch (Throwable $refused) {
+    echo "5 refused\n";
+}
+
+$db->close();

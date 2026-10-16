@@ -1,0 +1,106 @@
+--TEST--
+`is` through a subject whose tag nothing proved — a `mixed`, a plain `object`, a `?Class` tested and untested — walks the concrete class, and every non-object tag answers `false` rather than throwing — `rule:types/conversion`, `rule:types/type-test`
+--FILE--
+<?nvs
+final class Ask {
+    // `bool as string` renders `false` as the empty string, so a row of
+    // predicates read through it silently loses its false columns.
+    public static function yn(bool $b): string {
+        if ($b) {
+            return "y";
+        }
+        return "n";
+    }
+}
+
+interface Named {
+    public function name(): string;
+}
+
+class Animal implements Named {
+    public function name(): string {
+        return "animal";
+    }
+}
+
+final class Dog extends Animal {
+    public function name(): string {
+        return "dog";
+    }
+}
+
+// `rule:types/conversion`'s one unchecked position: nothing proved this holds an object
+// at all, which is precisely the question `is` is being asked.
+mixed $erased = new Dog();
+echo Ask::yn($erased is Dog),
+    Ask::yn($erased is Animal),
+    Ask::yn($erased is Named),
+    "\n";
+
+// The same three questions through a plain `object` and through a nullable
+// class, tested and untested — the answers agree, because every one of them
+// walks the *concrete* class behind the handle and none of them reads the
+// declared type. A subject shape that grew its own answer fails here while
+// still looking right on its own line.
+object $opaque = new Dog();
+?Animal $untested = new Dog();
+?Animal $narrowed = new Dog();
+echo Ask::yn($opaque is Dog),
+    Ask::yn($opaque is Animal),
+    Ask::yn($opaque is Named),
+    "\n";
+echo Ask::yn($untested is Dog),
+    Ask::yn($untested is Animal),
+    Ask::yn($untested is Named),
+    "\n";
+if ($narrowed != null) {
+    echo Ask::yn($narrowed is Dog),
+        Ask::yn($narrowed is Animal),
+        Ask::yn($narrowed is Named),
+        "\n";
+}
+
+// The test still walks up and never sideways or down through an erased
+// subject: a base instance is not its own subclass.
+mixed $base = new Animal();
+echo Ask::yn($base is Animal), Ask::yn($base is Dog), "\n";
+
+// Every tag a `mixed` can carry that is not an object answers `false`, which
+// is the answer PHP gives.
+mixed $num = 7;
+mixed $ratio = 1.5;
+mixed $flag = true;
+mixed $txt = "dog";
+mixed $arr = ["k" => "v"];
+mixed $nil = null;
+echo Ask::yn($num is Dog),
+    Ask::yn($ratio is Dog),
+    Ask::yn($flag is Dog),
+    Ask::yn($txt is Dog),
+    Ask::yn($arr is Dog),
+    Ask::yn($nil is Dog),
+    "\n";
+
+// The nullable half of the same rule: a `?Class` holding `null` is not an
+// instance of anything, and asking costs no test.
+?Animal $missing = null;
+echo Ask::yn($missing is Animal), Ask::yn($missing is Named), "\n";
+
+// A subject nothing names is only read, so the test releases it once it has
+// answered — a fresh object here used to outlive the expression that built it,
+// which `tools/leak-check.sh` is what pins.
+echo Ask::yn((new Dog()) is Named), Ask::yn((new Animal()) is Dog), "\n";
+
+// A method call through the concrete class the test just proved, so the row
+// above is answering about a live object rather than a stale handle.
+echo $erased is Named ? "named" : "anonymous", "\n";
+--EXPECT--
+yyy
+yyy
+yyy
+yyy
+yn
+nnnnnn
+nn
+yn
+named

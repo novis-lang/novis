@@ -1,0 +1,74 @@
+<?nvs
+// Attack: values written to end the statement and start another one, a
+// statement with thousands of values, and statements whose values do not fit.
+// A value must stay a value, and a bad call must throw instead of breaking.
+// hostile: timeout-ms 60000
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table notes (id integer primary key, text text not null)', []);
+
+// 1. Values that look like the end of one statement and the start of another.
+// Each one is stored as text, and the table is still there afterwards.
+array<string> $attempts = [
+    "buy milk'); drop table notes; --",
+    "' or 1=1 --",
+    "'; delete from notes where '1'='1",
+    Core\Str::repeat("'", 10000),
+];
+foreach ($attempts as string $attempt) {
+    $db->execute('insert into notes (text) values (?)', [$attempt]);
+}
+foreach ($db->query('select count(*) as n from notes', []) as Core\Db\Row $row) {
+    echo '1 rows stored: ', $row->int('n') ?? 0, "\n";
+}
+
+// 2. A statement carrying five thousand values at once.
+string $places = '(?)';
+array<mixed> $values = ['row 0'];
+uint $i = 1;
+while ($i < 5000) {
+    $places = $places . ',(?)';
+    $values[] = 'row ' . ($i as string);
+    $i = $i + 1;
+}
+try {
+    $db->execute('insert into notes (text) values ' . $places, $values);
+    echo "2 five thousand values were written\n";
+} catch (Throwable $error) {
+    echo "2 five thousand values were refused\n";
+}
+
+// 3. Ten thousand calls whose values do not match the statement. Every one
+// throws an error, and ten thousand errors may not fill the memory.
+string $tooMany = 'insert into notes (text) values (?' . Core\Str::repeat(', ?', 2) . ')';
+uint $refused = 0;
+$i = 0;
+while ($i < 10000) {
+    try {
+        $db->execute($tooMany, []);
+    } catch (Throwable $error) {
+        $refused = $refused + 1;
+    }
+    $i = $i + 1;
+}
+echo '3 refused: ', $refused, "\n";
+
+// 4. A statement of two million characters. It is not a statement any database
+// knows, so it must be refused rather than sent again and again.
+try {
+    $db->execute(Core\Str::repeat('select ', 250000), []);
+    echo "4 the long statement ran\n";
+} catch (Throwable $error) {
+    echo "4 the long statement was refused\n";
+}
+
+// 5. A single value of ten million characters. The program must either write
+// it or stop at a limit, and it must not lose the connection over it.
+try {
+    $db->execute('insert into notes (text) values (?)', [Core\Str::repeat('a', 10000000)]);
+    echo "5 the long value was written\n";
+} catch (Throwable $error) {
+    echo "5 the long value was refused\n";
+}
+
+$db->close();

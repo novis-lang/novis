@@ -1,0 +1,36 @@
+<?nvs
+// Attack: a program tries to mark a valid password as expired, or an expired one as valid, with
+// `with`. `passwordExpired` must only come from the server, and nothing may crash.
+// hostile: timeout-ms 60000
+// requires: samba-ad
+
+var $corp = Core\Ldap::connect('corp');
+
+try {
+    var $anna = $corp->read('CN=Anna Berg,OU=Company,DC=example,DC=test', { select: ['userAccountControl'] })?->accountFlags();
+    var $carla = $corp->read('CN=Carla Diaz,OU=Company,DC=example,DC=test', { select: ['userAccountControl'] })?->accountFlags();
+    if ($anna != null && $carla != null) {
+        Core\Ldap\Ad\AccountFlags $valid = $anna;
+        Core\Ldap\Ad\AccountFlags $other = $carla;
+
+        // 1. Every flag beside it changed one hundred thousand times. The value must never change.
+        uint $wrong = 0;
+        uint $i = 0;
+        while ($i < 100000) {
+            bool $on = $i % 2 == 0;
+            if ($valid->with({ noPreauthRequired: $on, trustedToAuthForDelegation: $on, passwordNeverExpires: !$on })->passwordExpired() != $valid->passwordExpired()) {
+                $wrong = $wrong + 1;
+            }
+            if ($other->with({ noPreauthRequired: $on, passwordNeverExpires: $on })->passwordExpired() != $other->passwordExpired()) {
+                $wrong = $wrong + 1;
+            }
+            $i = $i + 1;
+        }
+        echo '1 wrong: ', $wrong, "\n";
+
+        // 2. The stored number never has the bit `0x800000`, which is `8388608`.
+        echo '2 bits: ', $other->bits(), ' below the bit: ', $other->bits() < 8388608 ? 'yes' : 'no', "\n";
+    }
+} catch (Throwable $error) {
+    echo "threw\n";
+}

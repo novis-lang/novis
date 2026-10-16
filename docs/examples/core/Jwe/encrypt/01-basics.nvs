@@ -1,0 +1,19 @@
+<?nvs
+// Shows how to encrypt a text with a secret key and read it back.
+
+// `Core\Crypto::generateKey` returns 32 random secret bytes.
+// `Core\Jwe\Key::shared` makes a key from them.
+secret bytes $secret = Core\Crypto::generateKey();
+Core\Jwe\Key $key = Core\Jwe\Key::shared($secret);
+
+// `encrypt` returns the token. The token has five parts, separated by dots.
+// This prints `5`.
+string $token = Core\Jwe::encrypt("order 1042 is paid", $key);
+echo Core\Arr::count(Core\Str::split($token, ".")), "\n";
+
+// The same text gives a different token each time. This prints `different`.
+string $again = Core\Jwe::encrypt("order 1042 is paid", $key);
+echo $token == $again ? "equal" : "different", "\n";
+
+// `decrypt` with the same key returns the text. This prints `order 1042 is paid`.
+echo Core\Jwe::decrypt($token, [$key]), "\n";

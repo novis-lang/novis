@@ -1,0 +1,26 @@
+# The attacks call the extension `Geo\Atlas` from the examples of this feature.
+# The extension may read and write the folder `data/geo/`, and connect to two hosts.
+# It asks to read files and to connect to `tiles.example.com` and `routes.example.com`.
+[[extension]]
+path = "../../../../../docs/examples/tools/config/extension-grants-what-a-component-may-reach/atlas.nvsx"
+sha256 = "e05d5aefc48218c936ce53aa42030872f4e16f4687284a00df8bc6be9a2af72a"
+grants = { read = ["data/geo/"], write = ["data/geo/"], connect = ["tiles.example.com", "maps.example.com"] }
+
+# The attacks may read and write the folder `data/`, and connect to any host.
+[capabilities.fs]
+read = ["data/"]
+write = ["data/"]
+
+[capabilities.net]
+connect = true
+
+# The third attack may only read the folder `data/geo/roads/`. It may not write or connect.
+[[app]]
+entry = "03-past-what-the-program-may-reach.nvs"
+
+[app.capabilities.fs]
+read = ["data/geo/roads/"]
+write = false
+
+[app.capabilities.net]
+connect = false

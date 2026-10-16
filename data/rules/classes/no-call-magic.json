@@ -1,0 +1,13 @@
+{
+  "title": "There is no `__call` or `__callStatic`: a call to a method the class does not declare is a diagnostic",
+  "status": "shipped",
+  "seeAlso": [
+    "classes/no-magic-methods",
+    "classes/no-dynamic-properties",
+    "types/callable-values"
+  ],
+  "guardedBy": [
+    "tests/conformance/class/an-unknown-method-is-a-compile-error.nvst",
+    "tests/conformance/reject/every-magic-method-name-this-adr-closes-is-unspellable.nvst"
+  ]
+}

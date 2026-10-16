@@ -1,0 +1,14 @@
+<?nvs
+// Shows how to get the number of a day within its year.
+
+var $utc = Core\Time\Zone::UTC;
+
+// `dayOfYear` counts from 1, so 1 January is day 1 and 1 February is day 32.
+// This prints 1 and then 32.
+echo Core\Time::at(2024, 1, 1, $utc)->dayOfYear(), "\n";
+echo Core\Time::at(2024, 2, 1, $utc)->dayOfYear(), "\n";
+
+// 2024 is a leap year, so 1 March is one day later than in 2023.
+// This prints 60 and then 61.
+echo Core\Time::at(2023, 3, 1, $utc)->dayOfYear(), "\n";
+echo Core\Time::at(2024, 3, 1, $utc)->dayOfYear(), "\n";

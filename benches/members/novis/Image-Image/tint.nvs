@@ -1,0 +1,23 @@
+<?nvs
+// Colours a small image with one colour and reads its pixels, as a program does when it makes a photo look old.
+// bench: iterations 256
+// bench: complexity constant
+use Novis\Image\Image;
+use Novis\Image\Color;
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        Image $photo = Image::create(4, 4, Color::hex("#ffffff"));
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            Color $tint = Color::rgba(255, ($total + $i) % 256, 153);
+            bytes $pixels = $photo->tint($tint)->raw()->pixels;
+            $total = $total + Core\Bytes::length($pixels);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

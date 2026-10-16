@@ -1,0 +1,10 @@
+--TEST--
+a type alias declares a name for a type rather than a value, and its own name answers nothing, `rule:ide/the-index-answers-the-cursor`
+--FILE--
+<?nvs
+/// What a row is keyed by.
+type I<|>d = uint;
+--REQUEST--
+hover
+--EXPECT--
+none

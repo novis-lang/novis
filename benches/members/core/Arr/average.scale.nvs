@@ -1,0 +1,22 @@
+<?nvs
+// Measures `Core\Arr::average` on one list of numbers, at growing list lengths.
+// bench: start 256
+// bench: max 4096
+
+class Bench
+{
+    public static function run(uint $size): float
+    {
+        array<float> $times = Core\Arr::map(Core\Arr::range(1, $size as int), fn(int $n): float => $n as float);
+        float $mean = 0.0;
+        uint $i = 0;
+        while ($i < 64) {
+            $times[0] = $mean;
+            $mean = (Core\Arr::average($times) ?? 0.0) as float;
+            $i = $i + 1;
+        }
+        return $mean;
+    }
+}
+
+echo Bench::run(256), "\n";

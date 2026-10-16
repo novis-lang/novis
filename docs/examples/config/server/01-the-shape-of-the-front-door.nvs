@@ -1,0 +1,28 @@
+<?nvs
+// Shows how to read the `[server]` block: where the server listens, which proxies
+// it trusts, and how long it waits for a request's headers.
+//
+//     [server]
+//     listen            = ["127.0.0.1:8000"]  # or an absolute path: a Unix socket
+//     root              = "/www"
+//     dispatch          = "entry"
+//     trusted_proxies   = []                  # trust no forwarding header
+//     header_timeout    = "10s"
+//     keepalive_timeout = "75s"
+
+// This file does not write `[server]`. `listen` is a list, so `get` returns `null`.
+// `header_timeout` is the default, `10s`.
+echo 'listening on:   ', Core\Config::get('server.listen') ?? '(a list: loopback on port 8000)', "\n";
+echo 'header wait:    ', Core\Config::get('server.header_timeout') ?? '(no value)', "\n";
+echo 'believed proxy: ', Core\Config::get('server.trusted_proxies') ?? '(nothing written — no forwarding header is believed)', "\n";
+
+// A program cannot change any setting in this block. `Core\Config::set`
+// returns `false`, so each line below prints `refused`.
+echo 'listen somewhere else:  ', Core\Config::set('server.listen', '0.0.0.0:80') ? 'accepted' : 'refused', "\n";
+
+// A trusted proxy decides which client address the logs and rate limits use.
+// With an empty list, the server trusts no forwarding header.
+echo 'believe my proxy:       ', Core\Config::set('server.trusted_proxies', '0.0.0.0/0') ? 'accepted' : 'refused', "\n";
+
+// The header timeout closes a connection that sends its headers too slowly.
+echo 'wait all day for me:    ', Core\Config::set('server.header_timeout', '86400s') ? 'accepted' : 'refused', "\n";

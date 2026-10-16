@@ -1,0 +1,4 @@
+# The programs start other programs with `spawn script`.
+# This line allows that.
+[capabilities.script]
+spawn = true

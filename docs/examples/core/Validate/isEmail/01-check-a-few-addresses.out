@@ -1,0 +1,6 @@
+ada@example.com: yes
+ada.lovelace+news@mail.example.org: yes
+admin@localhost: no
+ada..l@example.com: no
+ada @example.com: no
+example.com: no

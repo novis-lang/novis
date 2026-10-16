@@ -1,0 +1,19 @@
+<?nvs
+// Shows how to write text as bytes. The encoding you name decides how many
+// bytes each character takes, and which bytes they are.
+
+string $accented = "é";
+
+// UTF-8 writes this character as two bytes. This prints c3a9.
+echo Core\Encoding::toHex(Core\Encoding::encodeText($accented, Core\Charset::Utf8)), "\n";
+
+// ISO-8859-1 has a single byte for it. This prints e9.
+echo Core\Encoding::toHex(Core\Encoding::encodeText($accented, Core\Charset::Latin1)), "\n";
+
+// UTF-16 always uses two bytes per character, smallest byte first here. This
+// prints e900.
+echo Core\Encoding::toHex(Core\Encoding::encodeText($accented, Core\Charset::Utf16Le)), "\n";
+
+// Japanese text in Shift_JIS, the encoding many Japanese systems still use.
+// This prints 82a082a2.
+echo Core\Encoding::toHex(Core\Encoding::encodeText("あい", Core\Charset::ShiftJis)), "\n";

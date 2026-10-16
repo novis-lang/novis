@@ -1,0 +1,26 @@
+<?nvs
+// Shows a program that sends counters to a metrics collector over UDP, the way StatsD clients do.
+
+// The collector usually runs on another server. Here it is a second socket in the same program.
+Core\Net\Datagram $collector = Core\Net::bindDatagram("127.0.0.1", 0);
+Core\Net\Datagram $app = Core\Net::bindDatagram("127.0.0.1", 0);
+
+// Each counter is one short message. `send` returns the number of bytes it sent.
+// The program does not wait for an answer, so a slow collector never slows it down.
+array<string> $lines = ["orders.created:1|c", "orders.paid:1|c"];
+foreach ($lines as string $line) {
+    $app->send("127.0.0.1", $collector->port(), $line as bytes, 1s);
+}
+
+// The collector reads each message. This prints the two lines that were sent.
+// Text from the network is `tainted`, which means it is not checked yet.
+uint $i = 0;
+while ($i < 2) {
+    Core\Net\Datagram\Message $message = $collector->receive(512, 5s);
+    tainted string $text = $message->payload() as string;
+    echo "collector got: ", $text, "\n";
+    $i = $i + 1;
+}
+
+$app->close();
+$collector->close();

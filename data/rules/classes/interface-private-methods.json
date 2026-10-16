@@ -1,0 +1,11 @@
+{
+  "title": "A `private` interface method is visible only to that interface's own bodies",
+  "status": "shipped",
+  "seeAlso": [
+    "classes/interface-default-methods",
+    "classes/no-traits"
+  ],
+  "guardedBy": [
+    "crates/nvs-types/tests/interface_defaults.rs"
+  ]
+}

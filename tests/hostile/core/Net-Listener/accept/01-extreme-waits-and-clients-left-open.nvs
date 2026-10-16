@@ -1,0 +1,57 @@
+<?nvs
+// Attack: a server waits for no time, for the longest time there is, and on a closed socket.
+// Then it accepts many clients and never closes them. Each bad call should throw, and the request should end cleanly.
+
+Core\Net\Listener $server = Core\Net::listen('127.0.0.1', 0);
+uint $port = $server->port();
+
+// 1. A wait of zero.
+try {
+    $server->accept(0ns);
+} catch (RuntimeError $e) {
+    echo "1 ok\n";
+}
+
+// 2. The longest wait a duration can have, with a client already waiting.
+Core\Net\Stream $early = Core\Net::connect('127.0.0.1', $port, 5s);
+try {
+    $server->accept(9223372036854775807ns);
+    echo "2 ok\n";
+} catch (RuntimeError $e) {
+    echo "2 threw\n";
+}
+
+// 3. A very short wait, many times in a row, with nobody connecting.
+uint $late = 0;
+uint $i = 0;
+while ($i < 50) {
+    try {
+        $server->accept(1ns);
+    } catch (TimeoutError $timeout) {
+        $late = $late + 1;
+    }
+    $i = $i + 1;
+}
+echo '3 late ', $late, "\n";
+
+// 4. Many clients, all accepted and never closed. The request closes them when it ends.
+uint $accepted = 0;
+$i = 0;
+while ($i < 100) {
+    try {
+        Core\Net::connect('127.0.0.1', $port, 5s);
+        $server->accept(5s);
+        $accepted = $accepted + 1;
+    } catch (RuntimeError $e) {
+    }
+    $i = $i + 1;
+}
+echo '4 accepted ', $accepted > 0 ? 'some' : 'none', "\n";
+
+// 5. A wait on a server that is already closed.
+$server->close();
+try {
+    $server->accept(5s);
+} catch (RuntimeError $e) {
+    echo "5 ok\n";
+}

@@ -1,0 +1,4 @@
+445
+445
+Core\BigInt::pow(): the answer would be 3000000 bits wide, past the 1048576 one call may produce
+880007888

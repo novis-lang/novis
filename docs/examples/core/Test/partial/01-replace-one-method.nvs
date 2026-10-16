@@ -1,0 +1,25 @@
+<?nvs
+// Shows how to replace one method of a real object and keep the others.
+
+interface Shop {
+    public function name(): string;
+    public function openAt(): int;
+}
+
+final class RealShop implements Shop {
+    public function name(): string {
+        return "Corner Shop";
+    }
+
+    public function openAt(): int {
+        return 8;
+    }
+}
+
+// Only `openAt` is replaced. `name` still runs the method of `RealShop`.
+Shop $late = Core\Test::partial<Shop>(new RealShop(), {
+    openAt: fn(): int => 10,
+});
+
+// This prints `Corner Shop opens at 10`.
+echo $late->name(), " opens at ", $late->openAt(), "\n";

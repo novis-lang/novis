@@ -1,0 +1,15 @@
+<?nvs
+// Shows that you check the folder, not the file, before you create a new file.
+
+string $dir = Core\IO::temporaryDir();
+string $report = Core\Path::join($dir, "report.csv");
+
+// The file does not exist yet, so `isWritable` returns `false`. This prints "file: false".
+echo "file: ", Core\IO::isWritable($report) ? "true" : "false", "\n";
+
+// The folder is the right path to check. This prints "folder: true".
+echo "folder: ", Core\IO::isWritable(Core\Path::dirname($report)) ? "true" : "false", "\n";
+
+// After `write` creates the file, it is writable. This prints "file: true".
+Core\IO::write($report, "id,total\n");
+echo "file: ", Core\IO::isWritable($report) ? "true" : "false", "\n";

@@ -1,0 +1,6 @@
+<?nvs
+// Shows how to find every person whose mail address is in one domain.
+
+var $filter = Core\Ldap\Filter::endsWith('mail', '@example.test');
+// This prints (mail=*@example.test).
+echo $filter->toString(), "\n";

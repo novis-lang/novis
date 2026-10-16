@@ -1,0 +1,53 @@
+--TEST--
+`Core\Db\Row::bytes` answers a `BLOB` column's octets unchanged, and neither it nor `Core\Db\Row::string` reads the other's column — `rule:types/bytes`, `rule:core-classes/db-column-types`
+--FILE--
+<?nvs
+// covers: Core\Db\Row::bytes
+// SQLite runs for real, so the octets below are the ones the engine stored and
+// gave back. `00 ff 80` is not valid UTF-8 in any encoding, which is the value a
+// reader that spanned `string` and `bytes` would fail on and the only one it
+// would fail on: the rest of the table is text either way.
+use Core\Db\Row;
+
+var $db = Core\Db::connect("main");
+$db->execute("create table files (label text not null, body blob not null)", []);
+$db->execute(
+    "insert into files (label, body) values (?, ?), (?, ?)",
+    ["binary", Core\Encoding::fromHex("00ff80"), "text", "hello" as bytes]
+);
+
+// What the column holds, written back out as hex so the octets are visible.
+foreach ($db->query("select label, body from files order by label", []) as Row $row) {
+    echo $row->string("label") ?? "", " ", Core\Encoding::toHex($row->bytes("body") ?? "" as bytes), "\n";
+}
+
+// And the two refusals, which are one rule read in both directions: a text
+// column has no `bytes` reading and a `BLOB` column has no `string` one. Each
+// names the column it was asked about.
+array<Row> $one = $db->query("select label, body from files order by label", [])->all();
+try {
+    $one[0]->bytes("label");
+    echo "label: not refused\n";
+} catch (LogicError $refused) {
+    echo "label: ", Core\Str::contains($refused->message, "label") ? "names it" : "does not", "\n";
+}
+try {
+    $one[0]->string("body");
+    echo "body: not refused\n";
+} catch (LogicError $refused) {
+    echo "body: ", Core\Str::contains($refused->message, "body") ? "names it" : "does not", "\n";
+}
+--FILE nvs.toml--
+# § 3: a SQLite connection's file path comes from its config block, so
+# `db.connect` covers it.
+[capabilities.db]
+connect = ["main"]
+
+[db.main]
+driver = "sqlite"
+path = ":memory:"
+--EXPECT--
+binary 00ff80
+text 68656c6c6f
+label: names it
+body: names it

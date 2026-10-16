@@ -1,0 +1,10 @@
+{
+  "title": "A leading separator does not parse, in any of the three positions PHP writes one",
+  "status": "shipped",
+  "seeAlso": [
+    "statements/a-qualified-name-is-absolute"
+  ],
+  "guardedBy": [
+    "tests/conformance/reject/a-name-is-absolute-and-a-leading-separator-does-not-parse.nvst"
+  ]
+}

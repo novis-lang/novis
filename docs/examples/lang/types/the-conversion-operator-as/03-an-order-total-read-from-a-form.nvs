@@ -1,0 +1,36 @@
+<?nvs
+// An order is sent as rows of text: a quantity and a price.
+// `as uint` converts the quantity to a whole number that is not negative.
+// `as decimal` converts the price to an exact amount of money.
+// If a conversion fails, it throws an error. The program prints the row and skips it.
+
+class Order
+{
+    public static function lineTotal(array<string> $row): decimal
+    {
+        uint $quantity = $row[0] as uint;
+        decimal $price = $row[1] as decimal;
+
+        // `as decimal` converts only `$quantity`, the value directly before it.
+        // The result is then multiplied by `$price`.
+        return $quantity as decimal * $price;
+    }
+}
+
+array<array<string>> $rows = [
+    ["3", "19.90"],
+    ["1", "4.05"],
+    ["two", "9.99"],
+];
+
+decimal $total = 0.00;
+
+foreach ($rows as array<string> $row) {
+    try {
+        $total = $total + Order::lineTotal($row);
+    } catch (RuntimeError $e) {
+        echo "left out a row whose quantity is not a number: ", $row[0], "\n";
+    }
+}
+
+echo "total ", $total as string, "\n";

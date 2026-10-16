@@ -1,0 +1,74 @@
+<?nvs
+// Attack: a request tries to raise `[http.client] pool_idle`, the number of open connections each
+// core keeps. It uses invalid values, keys that are almost the real key, and 200,000 tries.
+// Every change should fail.
+// hostile: timeout-ms 30000
+
+// 1. Set the limit to huge, negative, empty and invalid values, and to `false`.
+array<string> $values = [
+    '18446744073709551615',
+    '9223372036854775808',
+    '-1',
+    '0',
+    '',
+    'false',
+    'true',
+    'null',
+    '512M',
+    '1e9',
+    '0x10000',
+    '  4096  ',
+    "16\u{0000}1048576",
+    Core\Str::repeat('9', 100000),
+];
+foreach ($values as string $value) {
+    Core\Config::set('http.client.pool_idle', $value);
+    Core\Config::get('http.client.pool_idle');
+}
+Core\Config::restore('http.client.pool_idle');
+
+// 2. Set new keys under `pool_idle`. A request may set other keys in this block, but not these.
+array<string> $beneath = [
+    'http.client.pool_idle.max',
+    'http.client.pool_idle.default',
+    'http.client.pool_idle.per_core',
+    'http.client.pool_idle.0',
+    'http.client.pool_idle..max',
+    'http.client.pool_idle.' . Core\Str::repeat('sub.', 20000) . 'max',
+];
+foreach ($beneath as string $key) {
+    Core\Config::set($key, '1048576');
+    Core\Config::get($key);
+    Core\Config::restore($key);
+}
+
+// 3. Set keys that are almost the real key: extra dots or spaces, capital letters and other names.
+array<string> $sideways = [
+    'http.client.pool_idlex',
+    'http.client.pool_idle ',
+    ' http.client.pool_idle',
+    'HTTP.CLIENT.POOL_IDLE',
+    'Http.Client.Pool_Idle',
+    'http..client.pool_idle',
+    'httpclient.pool_idle',
+    'http.client.poolidle',
+    'pool_idle',
+    'client.pool_idle',
+    'app.http.client.pool_idle',
+    'http.client.pool_idle.pool_idle',
+];
+foreach ($sideways as string $key) {
+    Core\Config::set($key, '1048576');
+    Core\Config::get($key);
+    Core\Config::restore($key);
+}
+
+// 4. Try the same change 200,000 times with no restore. A failed change should use no memory.
+uint $i = 0;
+while ($i < 200000) {
+    Core\Config::set('http.client.pool_idle', '1048576');
+    $i = $i + 1;
+}
+Core\Config::restore('http.client.pool_idle');
+
+echo 'pool_idle: ', Core\Config::get('http.client.pool_idle') ?? '(nothing)', "\n";

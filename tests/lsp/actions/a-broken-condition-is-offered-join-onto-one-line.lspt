@@ -1,0 +1,16 @@
+--TEST--
+a cursor on an operand of a broken condition is offered Join onto one line, which puts the condition and its parentheses back on the `if` line, `rule:ide/a-list-splits-onto-lines-and-joins-onto-one`
+--FILE--
+<?nvs
+bool $active = true;
+bool $admin = false;
+if (
+    $active
+    && $ad<|>min
+) {
+    echo "both";
+}
+--REQUEST--
+codeAction
+--EXPECT--
+4:5-7:1 refactor.rewrite Join onto one line -> "$active && $admin"

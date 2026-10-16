@@ -1,0 +1,23 @@
+<?nvs
+// Shows how to download from a second server when the first one is busy.
+
+// The main server answers 503, which means it is busy. The mirror answers 200.
+Core\Test::answerHttp("https://downloads.example.com/prices.csv", 503, {body: ""});
+Core\Test::answerHttp("https://mirror.example.com/prices.csv", 200, {body: "apples,1.20\npears,0.95\n"});
+
+array<string> $servers = ["https://downloads.example.com/prices.csv", "https://mirror.example.com/prices.csv"];
+foreach ($servers as string $url) {
+    Core\Http\Stream $download = Core\Http\Client::stream(Core\Http\Method::Get, $url);
+    // A code from 500 to 599 means the server has a problem. The loop tries the next server.
+    if ($download->status() >= 500) {
+        echo $url, " is busy\n";
+        continue;
+    }
+    uint $rows = 0;
+    foreach ($download->lines() as tainted string $line) {
+        $rows = $rows + 1;
+    }
+    // This prints "2 rows from https://mirror.example.com/prices.csv".
+    echo $rows, " rows from ", $url, "\n";
+    break;
+}

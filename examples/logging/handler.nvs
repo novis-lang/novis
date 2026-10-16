@@ -1,0 +1,6 @@
+<?nvs
+// This is the error handler script that `nvs.toml` sets with `handler` in a `[log]` block.
+// Novis runs it when `examples/logging/throws.nvs` stops with an error that nothing caught.
+// It has its own memory and time limits, so it still runs when the failed program used all of its memory.
+// It prints one line to show that it ran.
+echo 'handler ran', "\n";

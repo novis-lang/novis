@@ -1,0 +1,65 @@
+<?nvs
+// Attack: every level of a deep call stack throws a new `IOError` from its
+// `finally` block. The error is replaced hundreds of times while the stack unwinds.
+// The program should finish, and every error should be freed.
+// hostile: timeout-ms 20000
+
+class Unwind
+{
+    public static function down(uint $depth): void
+    {
+        if ($depth == 0) {
+            throw new IOError('the bottom');
+        }
+        try {
+            Unwind::down($depth - 1);
+        } finally {
+            // This cleanup code fails too. The error from the level below is
+            // freed, and the new error replaces it.
+            throw new IOError('cleanup failed on the way up');
+        }
+    }
+}
+
+uint $round = 0;
+while ($round < 200) {
+    try {
+        Unwind::down(400);
+    } catch (Throwable $whatever) {
+        // The error is caught and not used. Every error from this round should
+        // be freed when this block ends.
+    }
+    $round = $round + 1;
+}
+echo "unwound\n";
+
+// Now each `catch` block throws a new error, many times. Each new error keeps
+// the error before it in `previous`.
+uint $nested = 0;
+while ($nested < 2000) {
+    try {
+        try {
+            try {
+                throw new IOError('first');
+            } catch (IOError $first) {
+                throw new IOError('second', { previous: $first });
+            }
+        } catch (IOError $second) {
+            throw new IOError('third', { previous: $second });
+        }
+    } catch (IOError $third) {
+        var $under = $third->previous;
+        if ($under == null) {
+            echo "a cause went missing\n";
+        }
+    }
+    $nested = $nested + 1;
+}
+echo "nested\n";
+
+// A much deeper stack. Only the outer `catch` block catches the error.
+try {
+    Unwind::down(100000);
+} catch (Throwable $deep) {
+    echo "deep\n";
+}

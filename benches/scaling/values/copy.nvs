@@ -1,0 +1,25 @@
+<?nvs
+// Passes a list of n prices to a function that changes one of them, so the function works on its own copy.
+// scaling: start 1000
+// scaling: max 64000
+// scaling: expect linear
+
+class Bench {
+    private static function raise(array<uint> $prices): array<uint> {
+        $prices[0] = $prices[0] + 1;
+        return $prices;
+    }
+
+    public static function run(uint $size): uint {
+        array<uint> $prices = [];
+        uint $i = 0;
+        while ($i < $size) {
+            $prices[] = $i % 1000;
+            $i = $i + 1;
+        }
+        array<uint> $raised = Bench::raise($prices);
+        return $raised[0] + $prices[0] + Core\Arr::count($raised);
+    }
+}
+
+echo Bench::run(1000), "\n";

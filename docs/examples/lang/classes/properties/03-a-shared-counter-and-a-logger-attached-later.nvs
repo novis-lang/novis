@@ -1,0 +1,42 @@
+<?nvs
+// Shows a `static` property, which belongs to the class itself, and a `lateinit`
+// property, which is written after the object is created.
+
+class Printer {
+    public function write(int $number, string $subject): void {
+        echo "#", $number, " ", $subject, "\n";
+    }
+}
+
+class Ticket {
+    // One value for the whole class. Every request starts it again at 0.
+    public static int $issued = 0;
+
+    // The printer is chosen elsewhere, so it arrives after `new` returns.
+    public lateinit Printer $printer;
+
+    public readonly int $number;
+
+    public function constructor(public string $subject) {
+        self::$issued = self::$issued + 1;
+        $this->number = self::$issued;
+    }
+
+    // A class may read its own `lateinit` property once a write came first on
+    // the same path. This method does both.
+    public function printWith(Printer $printer): void {
+        $this->printer = $printer;
+        $this->printer->write($this->number, $this->subject);
+    }
+}
+
+var $printer = new Printer();
+
+var $first = new Ticket("The printer is out of paper");
+$first->printWith($printer);
+
+var $second = new Ticket("A new keyboard");
+$second->printWith($printer);
+
+// This prints 2. The counter belongs to the class, so both tickets added to it.
+echo "tickets so far: ", Ticket::$issued, "\n";

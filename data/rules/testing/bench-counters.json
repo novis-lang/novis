@@ -1,0 +1,11 @@
+{
+  "title": "`#[Bench]` reports counted semantic work, and CI may gate on the counts but never on wall-clock",
+  "status": "designed",
+  "seeAlso": [
+    "testing/debug-probes",
+    "testing/perf-two-mechanisms",
+    "testing/member-perf-ledger"
+  ],
+  "guardedBy": [],
+  "goal": "bench-counters"
+}

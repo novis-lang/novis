@@ -1,0 +1,11 @@
+<?nvs
+// Shows the offset of New York one second before and at the moment summer time starts.
+
+Core\Time\Zone $newYork = Core\Time\Zone::of("America/New_York");
+Core\Time\Instant $change = Core\Time::fromIso("2024-03-10T07:00:00Z");
+Core\Time\Instant $before = $change->minus(1s);
+
+// The offset changes at exactly one instant.
+// This prints -5h and then -4h.
+echo $newYork->offsetAt($before)->toString(), "\n";
+echo $newYork->offsetAt($change)->toString(), "\n";

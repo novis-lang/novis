@@ -1,0 +1,30 @@
+<?nvs
+// A timeout is the one failure that says nothing about what happened. The
+// charge may have gone through and only the answer been lost, so the safe move
+// is to ask rather than to charge again.
+
+class Payments {
+    public static function charge(string $reference, int $pence): string {
+        // Stands in for the call to the payment company. No answer came back,
+        // which is not the same as nothing having happened.
+        throw new TimeoutError("no answer from the payment company after 5000ms");
+    }
+
+    public static function stateOf(string $reference): string {
+        // Asking about a reference changes nothing, so it is always safe to
+        // repeat.
+        return "taken";
+    }
+}
+
+try {
+    echo Payments::charge("order-1042", 2599), "\n";
+} catch (TimeoutError $silence) {
+    echo $silence->message, "\n";
+    string $state = Payments::stateOf("order-1042");
+    if ($state == "taken") {
+        echo "it went through after all — not charging twice\n";
+    } else {
+        echo "nothing was taken — safe to try once more\n";
+    }
+}

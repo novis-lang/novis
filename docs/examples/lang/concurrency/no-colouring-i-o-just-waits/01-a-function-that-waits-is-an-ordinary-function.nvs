@@ -1,0 +1,22 @@
+<?nvs
+// Shows that waiting needs no special syntax. `Core\Time::sleep` stops this task
+// until the time has passed. The lines around it run one after another, in order.
+
+class Report {
+    public static function rows(): array<string> {
+        // A real program reads a file or asks a database here. Both of those wait.
+        Core\Time::sleep(10ms);
+        return ["north", "south"];
+    }
+}
+
+echo "asking for the rows\n";
+
+// The result is the array itself. There is nothing to unwrap.
+array<string> $rows = Report::rows();
+
+echo "got ", Core\Arr::count($rows), " rows\n";
+
+foreach ($rows as string $row) {
+    echo $row, "\n";
+}

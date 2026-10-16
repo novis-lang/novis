@@ -1,0 +1,67 @@
+---
+/**
+ * A member's parameters or options: name, type and default from core.json,
+ * and each entry's sentence from the registry card when it has one, with one
+ * line per key of a shape-typed parameter. This is the one place a parameter's
+ * description is printed: each row has an id (`param-<name>`, `option-<name>`)
+ * that the signature above links to.
+ */
+import { findMember } from '~/lib/core'
+
+interface Props {
+  id: string
+  kind: 'params' | 'options'
+}
+
+const { id, kind } = Astro.props
+const found = findMember(id)
+if (!found) throw new Error(`ParamDocs: unknown member id "${id}"`)
+const { member } = found
+
+const docFor = (name: string) => member.doc?.params?.find((p) => p.name === name)
+
+const rows =
+  kind === 'params'
+    ? member.params.map((p) => ({
+        anchor: `param-${p.name}`,
+        label: `${p.variadic ? '...' : ''}$${p.name}`,
+        type: p.type || 'mixed',
+        extra: p.default !== null ? `default ${p.default}` : p.variadic ? 'variadic' : '',
+        doc: docFor(p.name),
+      }))
+    : member.options.map((o) => ({
+        anchor: `option-${o.name}`,
+        label: o.name,
+        type: o.type || '',
+        extra: 'optional',
+        doc: docFor(o.name),
+      }))
+---
+
+<ul class="nv-param-docs">
+  {
+    rows.map((r) => (
+      <li id={r.anchor}>
+        <span class="nv-param-head">
+          <code class="nv-param-name">{r.label}</code>
+          {r.type && <code class="nv-param-type">{r.type}</code>}
+          {r.extra && <span class="nv-param-extra">{r.extra}</span>}
+        </span>
+        {r.doc?.descHtml && <span class="nv-param-desc" set:html={r.doc.descHtml} />}
+        {r.doc?.shape && r.doc.shape.length > 0 && (
+          <ul>
+            {r.doc.shape.map((k) => (
+              <li>
+                <span class="nv-param-head">
+                  <code class="nv-param-name">{k.key}</code>
+                  {k.type && <code class="nv-param-type">{k.type}</code>}
+                </span>
+                {k.descHtml && <span class="nv-param-desc" set:html={k.descHtml} />}
+              </li>
+            ))}
+          </ul>
+        )}
+      </li>
+    ))
+  }
+</ul>

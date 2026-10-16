@@ -1,0 +1,14 @@
+<?nvs
+// Shows the file extension of every image format.
+use Novis\Image\Image;
+use Novis\Image\Format;
+
+array<Format> $formats = [
+    Format::Jpeg, Format::Png, Format::Webp, Format::Gif,
+    Format::Avif, Format::Jxl, Format::Svg, Format::Pdf,
+];
+
+// This prints one extension on each line. `Format::Jpeg` gives jpg.
+foreach ($formats as Format $format) {
+    echo Image::extension($format), "\n";
+}

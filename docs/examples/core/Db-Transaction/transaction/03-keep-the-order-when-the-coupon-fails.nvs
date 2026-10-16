@@ -1,0 +1,49 @@
+<?nvs
+// Shows the work a program really does here: an order is saved, and a coupon is
+// applied in a step of its own. A coupon that is used up costs the order
+// nothing.
+use Core\Db\RolledBack;
+use Core\Db\Transaction;
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table orders (id integer primary key, email text not null, cents int not null)', []);
+$db->execute('create table coupons (code text not null, remaining int not null)', []);
+$db->execute('insert into coupons (code, remaining) values (?, ?), (?, ?)', ['SPRING', 3, 'GONE', 0]);
+
+class Checkout {
+    public static function place(Core\Db\Connection $db, string $email, int $cents, string $code): void
+    {
+        $db->transaction(fn (Transaction $order): void => {
+            $order->execute('insert into orders (email, cents) values (?, ?)', [$email, $cents]);
+
+            try {
+                // The discount is a step inside the order. Both writes it makes
+                // are undone together if the coupon turns out to be used up.
+                $order->transaction(fn (Transaction $step): void => {
+                    $step->execute('update coupons set remaining = remaining - 1 where code = ?', [$code]);
+                    $step->execute('update orders set cents = cents - 500 where email = ?', [$email]);
+
+                    var $coupon = $step->query('select remaining from coupons where code = ?', [$code])->first();
+                    if (($coupon?->int('remaining') ?? -1) < 0) {
+                        $step->rollBack('the coupon ' . $code . ' is used up');
+                    }
+                });
+            } catch (RolledBack $noDiscount) {
+                // This prints `no discount: the coupon GONE is used up`. The
+                // order around this step is still saved.
+                echo 'no discount: ', $noDiscount->reason, "\n";
+            }
+        });
+    }
+}
+
+Checkout::place($db, 'ana@example.com', 4000, 'SPRING');
+Checkout::place($db, 'bo@example.com', 4000, 'GONE');
+
+// Both orders are there, and only the first one was given the discount. This
+// prints `ana@example.com: 3500` and `bo@example.com: 4000`.
+foreach ($db->query('select email, cents from orders order by id', []) as Core\Db\Row $row) {
+    echo $row->string('email') ?? '', ': ', $row->int('cents') ?? 0, "\n";
+}
+
+$db->close();

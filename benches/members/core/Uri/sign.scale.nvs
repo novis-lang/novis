@@ -1,0 +1,24 @@
+<?nvs
+// Measures `sign` on a link with a long query, at growing query lengths.
+// bench: start 256
+// bench: max 4096
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        array<secret bytes> $keys = [Core\Crypto::generateKey()];
+        Core\Time\Instant $until = Core\Time::now()->plus(1h);
+        Core\Uri $link = Core\Uri::parse("https://files.example.com/download?file=" . Core\Str::repeat('report', $size));
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            Core\Uri $signed = $link->sign({keys: $keys, until: $until});
+            $total = $total + Core\Str::length($signed->toString());
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

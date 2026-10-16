@@ -1,0 +1,12 @@
+--TEST--
+an enum declares its cases and nothing else, so its body offers one word rather than the ten a class body does — `rule:enums/no-class-machinery`
+--FILE--
+<?nvs
+enum Signal {
+    Stop = 10,
+    <|>
+}
+--REQUEST--
+completion
+--EXPECT--
+case    keyword

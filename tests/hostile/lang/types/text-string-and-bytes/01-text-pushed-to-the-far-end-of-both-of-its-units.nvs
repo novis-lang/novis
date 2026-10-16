@@ -1,0 +1,78 @@
+<?nvs
+// Attack: the program gives very large and broken input to `string` and `bytes` methods.
+// It counts a character made of 100,000 accents, reads past the end and decodes bytes that are not text.
+// Every error should be caught, and the program should not crash.
+// hostile: timeout-ms 60000
+
+// 1. One letter with 100,000 accents on it. A reader sees one character,
+// and `Core\Str::length` must read all of the text to count it.
+string $oneCharacter = 'e' . Core\Str::repeat("\u{301}", 100000);
+echo Core\Str::length($oneCharacter), ' character, ', Core\Bytes::length($oneCharacter as bytes), " bytes\n";
+
+// 2. Take the first character, then read position 1, which does not exist.
+echo Core\Str::length(Core\Str::slice($oneCharacter, 0, 1)), " character taken\n";
+try {
+    echo Core\Str::at($oneCharacter, 1), "\n";
+    echo "read a character that is not there\n";
+} catch (Throwable $e) {
+    echo "refused: a position past the end\n";
+}
+
+// 3. One megabyte of valid text with one invalid byte at the end.
+// The check must read every byte before it finds the invalid one.
+bytes $almost = Core\Encoding::fromHex(Core\Str::repeat('61', 1048576) . 'ff');
+echo Core\Bytes::length($almost), " bytes\n";
+echo ($almost as ?string) == null ? "not text\n" : "text\n";
+try {
+    echo Core\Str::length($almost as string), "\n";
+    echo "turned a bad buffer into text\n";
+} catch (Throwable $e) {
+    echo 'refused: ', $e->message, "\n";
+}
+
+// 4. The data ends after the first byte of a two-byte character.
+// Converting it to a `string` must throw an error.
+try {
+    echo Core\Encoding::fromHex('616263c3') as string, "\n";
+    echo "read a half character\n";
+} catch (Throwable $e) {
+    echo 'refused: ', $e->message, "\n";
+}
+
+// 5. Decode hex text with an odd number of digits, and text that is not valid base64.
+try {
+    echo Core\Bytes::length(Core\Encoding::fromHex('abc')), "\n";
+    echo "read an odd number of hex digits\n";
+} catch (Throwable $e) {
+    echo "refused: an odd hex digit count\n";
+}
+try {
+    echo Core\Bytes::length(Core\Encoding::fromBase64('not base64 at all!!')), "\n";
+    echo "read something that is not base64\n";
+} catch (Throwable $e) {
+    echo "refused: not base64\n";
+}
+
+// 6. One buffer with all 256 byte values. It is compared with itself,
+// and `as ?string` checks if it is text. It is not, so this prints `not text`.
+string $hex = '';
+array<string> $digits = Core\Str::graphemes('0123456789abcdef');
+foreach ($digits as string $high) {
+    foreach ($digits as string $low) {
+        $hex = $hex . $high . $low;
+    }
+}
+bytes $everyByte = Core\Encoding::fromHex($hex);
+echo Core\Bytes::length($everyByte), ' octets, ', Core\Bytes::compare($everyByte, $everyByte), " against itself\n";
+echo ($everyByte as ?string) == null ? "not text\n" : "text\n";
+
+// 7. Double the text 21 times, to about 14 megabytes, and then free it at once.
+string $big = 'grüße';
+uint $round = 0;
+while ($round < 21) {
+    $big = $big . $big;
+    $round = $round + 1;
+}
+echo Core\Bytes::length($big as bytes), " bytes held\n";
+$big = '';
+echo "released\n";

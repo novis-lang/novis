@@ -1,0 +1,2 @@
+Core\Http\Client::post: `notes "final".txt` is not a filename this request can carry — a quote or a control byte in it would end the part's own header early, which is a second part the caller did not write
+notes final.txt

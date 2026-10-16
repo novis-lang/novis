@@ -1,0 +1,38 @@
+<?nvs
+// Shows that the work can be given up from anywhere it reaches. `rollBack`
+// throws, so a function deep inside the work stops the whole transaction. The
+// code around it needs no return value and no flag to check.
+use Core\Db\RolledBack;
+use Core\Db\Transaction;
+
+class Cart {
+    // This function stops the transaction itself. It returns `void`, so nothing
+    // that calls it has to pass an answer back up.
+    public static function addItem(Transaction $tx, string $item, int $count): void
+    {
+        if ($count <= 0) {
+            $tx->rollBack('the order asked for ' . $count . ' of ' . $item);
+        }
+        $tx->execute('insert into items (item, count) values (?, ?)', [$item, $count]);
+    }
+}
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table items (id integer primary key, item text not null, count int not null)', []);
+
+try {
+    $db->transaction(fn (Transaction $tx): void => {
+        Cart::addItem($tx, 'Coffee', 2);
+        Cart::addItem($tx, 'Tea', 0);
+        echo "this line never runs\n";
+    });
+} catch (RolledBack $gaveUp) {
+    // This prints `gave up: the order asked for 0 of Tea`.
+    echo 'gave up: ', $gaveUp->reason, "\n";
+}
+
+// The coffee was written before the second call, and it is gone with the rest.
+// This prints `0 items`.
+echo $db->query('select id from items', [])->count(), " items\n";
+
+$db->close();

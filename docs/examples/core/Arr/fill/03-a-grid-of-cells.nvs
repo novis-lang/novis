@@ -1,0 +1,17 @@
+<?nvs
+// Shows how to build a grid. A game or a report does this before it writes the
+// cells.
+
+// Three rows, each one a list of three zeros.
+array<array<int>> $grid = Core\Arr::fill(3, Core\Arr::fill(3, 0));
+
+// Every row is a copy of its own, so this writes one cell in one row.
+$grid[1][2] = 5;
+
+// This prints three rows of three numbers. Only the middle row has the 5.
+foreach ($grid as array<int> $row) {
+    foreach ($row as int $cell) {
+        echo $cell, ' ';
+    }
+    echo "\n";
+}

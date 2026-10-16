@@ -1,0 +1,54 @@
+<?nvs
+// Attack: `Core\Str::isEmpty` checks a very long string many times, and strings that look empty but are not.
+// Each call should return `true` or `false` quickly, and must not crash or hang.
+// hostile: timeout-ms 20000
+
+class Attack
+{
+    /// 1. Checks a 4 MiB string 20000 times.
+    public static function longStringManyTimes(uint $rounds): uint
+    {
+        var $s = Core\Str::repeat(Core\Str::repeat('a', 1048576), 4);
+        uint $empty = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            if (Core\Str::isEmpty($s)) {
+                $empty = $empty + 1;
+            }
+            $i = $i + 1;
+        }
+        return $empty;
+    }
+
+    /// 2. Checks strings with one invisible character: a zero byte, a zero-width space and an accent without its letter.
+    public static function almostEmpty(): string
+    {
+        array<string> $values = ["\0", "\u{200B}", "\u{301}", "\u{FEFF}"];
+        string $result = '';
+        foreach ($values as string $value) {
+            $result = $result . (Core\Str::isEmpty($value) ? 'empty ' : 'not-empty ');
+        }
+        return $result;
+    }
+
+    /// 3. Checks empty strings made in different ways: a slice of length zero, zero repeats, a trim and a replace.
+    public static function madeEmpty(): string
+    {
+        var $long = Core\Str::repeat('👍🏽', 100000);
+        array<string> $values = [
+            Core\Str::slice($long, 50000, 0),
+            Core\Str::repeat($long, 0),
+            Core\Str::trim(Core\Str::repeat(' ', 1000000)),
+            Core\Str::replace($long, '👍🏽', ''),
+        ];
+        string $result = '';
+        foreach ($values as string $value) {
+            $result = $result . (Core\Str::isEmpty($value) ? 'empty ' : 'not-empty ');
+        }
+        return $result;
+    }
+}
+
+echo Attack::longStringManyTimes(20000), "\n";
+echo Attack::almostEmpty(), "\n";
+echo Attack::madeEmpty(), "\n";

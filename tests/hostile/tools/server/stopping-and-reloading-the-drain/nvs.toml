@@ -1,0 +1,3 @@
+# After a stop, a connection with no request stays open for 2 seconds at most.
+[server]
+drain_timeout = "2s"

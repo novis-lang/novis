@@ -1,0 +1,42 @@
+<?nvs
+// Attack: this script starts itself again and again, with no end. Each level first
+// tries to raise `limits.max_script_depth`. Every write should fail, and the chain
+// should stop at the depth limit before memory runs out.
+// hostile: timeout-ms 60000
+
+// Tries values that would remove the limit, at every level. `false` and `0` both
+// mean "no limit", so both must fail.
+array<string> $asks = [
+    'false',
+    '0',
+    '18446744073709551615',
+    '4294967296',
+    '1000000',
+    '-1',
+    'true',
+    '',
+];
+foreach ($asks as string $ask) {
+    Core\Config::set('limits.max_script_depth', $ask);
+    Core\Config::restore('limits.max_script_depth');
+}
+
+// `Here::path` returns its argument as a full path. A relative path written in quotes
+// starts at the folder of this file.
+class Here
+{
+    public static function path(#[Core\Path] string $path): string
+    {
+        return $path;
+    }
+}
+
+// Starts this same script one level deeper.
+// `capture` keeps each child's output in its parent's memory.
+string $self = Here::path('01-a-chain-of-spawns-with-no-end.nvs');
+var $deeper = spawn script $self with(
+    output: 'capture',
+);
+var $done = await $deeper;
+echo $done->output;
+echo $done->ok ? "a level deeper ran\n" : "the chain ended one level further down\n";

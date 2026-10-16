@@ -1,0 +1,13 @@
+<?nvs
+// Shows the largest number of seconds a duration can have.
+
+// This is the largest number that fits. This prints 15250w1d23h47m16s.
+echo Core\Time\Duration::seconds(9223372036)->toString(), "\n";
+
+// One more second does not fit, so `seconds` throws a `RuntimeError`.
+int $tooMany = 9223372037;
+try {
+    Core\Time\Duration::seconds($tooMany);
+} catch (RuntimeError $e) {
+    echo $e->message, "\n";
+}

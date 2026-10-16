@@ -1,0 +1,5 @@
+<?nvs
+// Answers every request with as many bytes as its `bytes` parameter gives.
+
+?uint $bytes = Core\Request::query("bytes") as ?uint;
+echo Core\Str::repeat("a", $bytes ?? 0);

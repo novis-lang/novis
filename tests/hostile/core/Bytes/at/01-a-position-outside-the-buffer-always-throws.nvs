@@ -1,0 +1,52 @@
+<?nvs
+// Attack: extreme positions are given to `Core\Bytes::at`, including the
+// largest and the smallest whole number a program can write. None of them
+// names a byte that is there, so every one must throw an error. The program
+// must keep running.
+// hostile: timeout-ms 20000
+
+class Probe
+{
+    // Returns 1 when the position throws an error, and 0 when it returns a byte.
+    public static function threw(bytes $b, int $index): int
+    {
+        try {
+            Core\Bytes::at($b, $index);
+            return 0;
+        } catch (Throwable $e) {
+            return 1;
+        }
+    }
+}
+
+bytes $small = 'ab' as bytes;
+bytes $empty = '' as bytes;
+
+// 1. The positions at both ends of the whole numbers, and both ends of an
+//    empty value. All six throw, so this prints 6.
+int $threw = 0;
+$threw = $threw + Probe::threw($small, 9223372036854775807);
+$threw = $threw + Probe::threw($small, -9223372036854775807 - 1);
+$threw = $threw + Probe::threw($small, 4611686018427387904);
+$threw = $threw + Probe::threw($empty, 0);
+$threw = $threw + Probe::threw($empty, -1);
+$threw = $threw + Probe::threw($empty, 9223372036854775807);
+echo $threw, "\n";
+
+// 2. One position past each end, 200000 times over. The answer must be the
+//    same every time, so this prints 400000.
+$threw = 0;
+int $i = 0;
+while ($i < 200000) {
+    $threw = $threw + Probe::threw($small, 2);
+    $threw = $threw + Probe::threw($small, -3);
+    $i = $i + 1;
+}
+echo $threw, "\n";
+
+// 3. A value of 40 million bytes is read at both of its ends, and one byte
+//    past the end. This prints 97, 97 and 1.
+bytes $large = Core\Bytes::fill(40000000, 97);
+echo Core\Bytes::at($large, 0), "\n";
+echo Core\Bytes::at($large, -1), "\n";
+echo Probe::threw($large, 40000000), "\n";

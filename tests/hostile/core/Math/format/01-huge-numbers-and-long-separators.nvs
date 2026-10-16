@@ -1,0 +1,50 @@
+<?nvs
+// Attack: `Core\Math::format` is given the largest numbers, values with no digits, too many
+// decimals and separators of one million characters. Each bad call should throw an error that
+// the program catches, and the program should run to its end.
+
+// 1. The largest `float` with 100 decimals, and the smallest `int` with groups.
+echo Core\Str::length(Core\Math::format(Core\Math::FLOAT_MAX, { decimals: 100, groupSeparator: ',' })), "\n";
+echo Core\Math::format(Core\Math::INT_MIN, { groupSeparator: ',' }), "\n";
+echo Core\Math::format(Core\Math::FLOAT_MIN, { decimals: 100 }), "\n";
+
+// 2. Values that have no digits, and one decimal more than the limit.
+array<float> $noDigits = [Core\Math::INFINITY, -Core\Math::INFINITY, Core\Math::NAN];
+foreach ($noDigits as float $value) {
+    try {
+        echo Core\Math::format($value), "\n";
+    } catch (RuntimeError $e) {
+        echo "no digits\n";
+    }
+}
+array<uint> $counts = [100, 101, 18446744073709551615];
+foreach ($counts as uint $count) {
+    try {
+        echo Core\Str::length(Core\Math::format(1.5, { decimals: $count })), "\n";
+    } catch (RuntimeError $e) {
+        echo "too many decimals\n";
+    }
+}
+
+// 3. A `uint` one past the largest `int`.
+try {
+    uint $big = 9223372036854775808;
+    echo Core\Math::format($big), "\n";
+} catch (ArithmeticError $overflow) {
+    echo "too large\n";
+}
+
+// 4. Separators of one million characters. The result has one separator per group.
+string $wide = Core\Str::repeat('-', 1000000);
+echo Core\Str::length(Core\Math::format(Core\Math::INT_MAX, { groupSeparator: $wide })), "\n";
+echo Core\Str::length(Core\Math::format(0.5, { decimals: 100, decimalSeparator: $wide })), "\n";
+
+// 5. A million calls. Each result feeds the next one, and `% 1000` keeps it small.
+int $total = 0;
+int $round = 0;
+while ($round < 1000000) {
+    string $text = Core\Math::format($total * 1.5 + $round, { decimals: 2 });
+    $total = ($total + (Core\Str::length($text) as int)) % 1000;
+    $round = $round + 1;
+}
+echo $total, "\n";

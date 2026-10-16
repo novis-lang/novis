@@ -1,0 +1,33 @@
+<?nvs
+// Some `Core` methods check a string literal argument while the program compiles.
+// Each method below is called twice: once with a string literal and once with a variable.
+// A malformed literal is a compile error. A malformed variable throws an error at run time.
+// Each line prints the result of both calls, or `diverged` if the two results differ.
+
+// `Core\Time\DateTime::format` checks a literal date pattern while the program compiles.
+var $utc = Core\Time\Zone::UTC;
+var $when = Core\Time::at(2026, 8, 28, $utc);
+var $datePattern = 'yyyy-MM-dd';
+var $foldedDate = $when->format('yyyy-MM-dd');
+var $runtimeDate = $when->format($datePattern);
+echo $foldedDate == $runtimeDate ? $foldedDate : 'diverged', "\n";
+
+// `Core\Regex::compile` checks the pattern syntax while the program compiles.
+// `matches` is not checked, so each call below passes it a compiled pattern.
+var $regexSource = "^order-\\d+$";
+var $foldedHit = Core\Regex::matches('order-4711', Core\Regex::compile("^order-\\d+$"));
+var $runtimeHit = Core\Regex::matches('order-4711', Core\Regex::compile($regexSource));
+echo ($foldedHit == $runtimeHit) && $foldedHit ? 'matched' : 'diverged', "\n";
+
+// `Core\Str::format` also checks the other arguments. Their count and types
+// must match the placeholders in the format string, or the program does not compile.
+var $template = 'total: %d';
+var $foldedText = Core\Str::format('total: %d', 42);
+var $runtimeText = Core\Str::format($template, 42);
+echo $foldedText == $runtimeText ? $foldedText : 'diverged', "\n";
+
+// `Core\Uri::parse` checks that a literal URI is well formed while the program compiles.
+var $source = 'https://example.test/users/7?page=2';
+var $foldedHost = Core\Uri::parse('https://example.test/users/7?page=2')->host() ?? 'absent';
+var $runtimeHost = Core\Uri::parse($source)->host() ?? 'absent';
+echo 'host=', $foldedHost == $runtimeHost ? $foldedHost : 'diverged', "\n";

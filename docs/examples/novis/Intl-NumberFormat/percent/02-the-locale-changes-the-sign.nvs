@@ -1,0 +1,11 @@
+<?nvs
+// Shows that each language writes the percent sign in its own way.
+use Novis\Intl\NumberFormat;
+
+array<int|float|decimal> $discounts = [0.1, 0.25];
+
+// English writes the sign right after the number. This prints 10% | 25%.
+echo Core\Str::join(NumberFormat::percent($discounts, "en"), " | "), "\n";
+
+// German puts a space before the sign. This prints 10 % | 25 %.
+echo Core\Str::join(NumberFormat::percent($discounts, "de"), " | "), "\n";

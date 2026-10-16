@@ -1,0 +1,36 @@
+Every user-written identifier is checked against exactly one pattern for its category, and a mismatch is a
+hard compile error — not a lint, not a warning.
+
+| Category | Convention | Example |
+|---|---|---|
+| Class, interface, enum | `PascalCase` | `HTTPClient`, `Comparable` |
+| `type` alias, at file scope or in a body | `PascalCase` | `UserId` |
+| Enum case | `PascalCase` | `Active` |
+| Namespace segment | `PascalCase` | `Core\Html\Markup` |
+| Method, instance or `static` | `camelCase` | `parseXMLPayload` |
+| Property, any visibility | `camelCase` | `userName` |
+| Parameter, local variable | `camelCase` | `$rowCount` |
+| Class constant | `SCREAMING_SNAKE_CASE` | `MAX_RETRIES` |
+
+Built-in type keywords and language keywords are reserved words the grammar already lowercases and are not
+checked. No identifier may begin with `_`, in any category, which is what leaves the rule exception-free:
+with the constructor spelled as a word rather than with underscores, there is no reserved name a casing
+rule has to be told to skip.
+
+The check needs no name resolution — every category is already its own syntax node — so it runs before
+anything is resolved and its diagnostic carries a mechanically derived rename. It is decided while the
+standard library is unwritten because renaming a member later is a breaking change with no deprecation path
+(`rule:statements/nothing-gets-a-second-name`). The cost is that `snake_case` source does not compile, so a
+ported program renames every such identifier, and two names that collide after renaming are the author's
+to separate. What it buys is that no codebase can drift into two competing house styles, and that a
+reader or an editor knows a name's category from its spelling before anything resolves it.
+
+**Declined:**
+- **Acronyms written as one word** (`HttpClient` required). Deciding what is an acronym needs a
+  dictionary (`rule:core-api/casing-checks-the-leading-character`).
+- **A warning instead of an error, or an attribute to suppress one**
+  (`rule:core-api/casing-has-no-suppression`).
+- **An `I` prefix for interfaces** (`IComparable`). It is a role marker no other kind of name carries,
+  and every interface already written would be renamed.
+- **Lower-case namespace segments** (`core\str`). Every `Core\...` reference already written would be
+  renamed.

@@ -1,0 +1,16 @@
+{
+  "title": "`nvs.toml` states defaults, not ceilings, and every directive carries one of three changeability classes",
+  "status": "shipped",
+  "seeAlso": [
+    "config/ceilings-are-their-own-directives",
+    "config/a-refused-set-returns-false",
+    "config/a-runtime-set-is-request-local",
+    "config/system-means-a-request-may-not-set-it",
+    "config/reloadability-is-its-own-field",
+    "config/an-app-block-may-widen-bounded-by-the-global-ceiling"
+  ],
+  "guardedBy": [
+    "crates/nvs-config/tests/request.rs",
+    "crates/nvs-config/tests/directives.rs"
+  ]
+}

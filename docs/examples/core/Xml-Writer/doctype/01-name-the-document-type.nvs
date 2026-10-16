@@ -1,0 +1,21 @@
+<?nvs
+// Shows how to write a document type declaration, and that the Novis parser does not read it.
+
+Core\Xml\Writer $writer = Core\Xml::writer({indent: "  "});
+$writer->startDocument();
+// The declaration comes before the root element. Its name is the name of the root element.
+$writer->doctype("note");
+$writer->startElement("note");
+$writer->content("Call the supplier on Monday.");
+$writer->endElement();
+
+string $document = $writer->endDocument();
+echo $document, "\n";
+
+// `Core\Xml::parse` throws an error for a document with a declaration.
+// This prints the error message.
+try {
+    Core\Xml::parse($document);
+} catch (ParseError $error) {
+    echo $error->message, "\n";
+}

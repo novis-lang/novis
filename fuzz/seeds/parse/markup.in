@@ -1,0 +1,4 @@
+<!doctype html>
+<title>no region at all</title>
+<p>A file that opens no code region is inert text, and parsing it answers a
+tree with nothing in it rather than a refusal.</p>

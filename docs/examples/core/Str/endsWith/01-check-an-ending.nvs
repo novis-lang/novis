@@ -1,0 +1,16 @@
+<?nvs
+// Shows how to check whether a string ends with a piece of text.
+
+string $file = "report-2024.pdf";
+
+// The string ends with ".pdf". This prints `true`.
+echo Core\Str::endsWith($file, ".pdf") ? "true" : "false", "\n";
+
+// "2024" is in the string, but not at its end. This prints `false`.
+echo Core\Str::endsWith($file, "2024") ? "true" : "false", "\n";
+
+// The check is case-sensitive. This prints `false`.
+echo Core\Str::endsWith($file, ".PDF") ? "true" : "false", "\n";
+
+// An empty text is at the end of every string. This prints `true`.
+echo Core\Str::endsWith($file, "") ? "true" : "false", "\n";

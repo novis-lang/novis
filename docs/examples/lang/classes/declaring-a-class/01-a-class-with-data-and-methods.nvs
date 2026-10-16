@@ -1,0 +1,34 @@
+<?nvs
+// Shows how to declare a class, create an object with `new`, and use it.
+// Every member writes `public`, `protected` or `private`.
+
+class User {
+    public string $name;
+    public string $email;
+    private string $role = "member";
+
+    public function constructor(string $name, string $email) {
+        $this->name = $name;
+        $this->email = $email;
+    }
+
+    public function label(): string {
+        return $this->name . " <" . $this->email . ">";
+    }
+
+    public function roleName(): string {
+        return $this->role;
+    }
+}
+
+var $user = new User("Ada Lovelace", "ada@example.com");
+
+// A `public` property is read and written from anywhere with `->`.
+$user->email = "ada@example.org";
+
+// This prints `Ada Lovelace <ada@example.org>`.
+echo $user->label(), "\n";
+
+// `$role` is `private`. Only `User`'s own methods read it, so this class gives
+// you a method for it. This prints `member`.
+echo $user->roleName(), "\n";

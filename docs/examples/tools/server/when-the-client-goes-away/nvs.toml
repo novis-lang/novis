@@ -1,0 +1,5 @@
+# A request with no `wall_time` stops 10 seconds after its client went away.
+# A `GET` or `HEAD` request stops as soon as its client went away.
+[limits]
+disconnect_grace = "10s"
+cancel_on_disconnect = ["GET", "HEAD"]

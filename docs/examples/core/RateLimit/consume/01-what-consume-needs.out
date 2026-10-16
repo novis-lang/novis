@@ -1,0 +1,2 @@
+Core\RateLimit::consume needs the capability `cache.shared`, which is not granted
+help: grant it in nvs.toml under `[capabilities.cache]`

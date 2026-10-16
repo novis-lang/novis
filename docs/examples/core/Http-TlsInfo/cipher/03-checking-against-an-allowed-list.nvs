@@ -1,0 +1,36 @@
+<?nvs
+// Shows a security check that allows only the ciphers on a company's approved list.
+
+class CipherPolicy {
+    // Returns `true` when the connection uses one of the approved ciphers.
+    public static function allows(Core\Http\TlsInfo $info): bool {
+        array<string> $approved = [
+            "TLS_AES_256_GCM_SHA384",
+            "TLS_AES_128_GCM_SHA256",
+            "TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384",
+        ];
+        return Core\Arr::contains($approved, $info->cipher());
+    }
+}
+
+// Fixed replies with TLS connections built for a test, so the example runs without a network.
+Core\Test::answerHttp("https://billing.example.com/invoices", 200, {
+    tls: Core\Test::tlsSession({cipher: "TLS_AES_256_GCM_SHA384"}),
+});
+Core\Test::answerHttp("https://legacy.example.com/invoices", 200, {
+    tls: Core\Test::tlsSession({version: "TLSv1.2", cipher: "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256"}),
+});
+
+// The program sends the invoice data only when the cipher is approved.
+// This prints `billing.example.com: send` and then `legacy.example.com: blocked`.
+array<string> $hosts = ["billing.example.com", "legacy.example.com"];
+foreach ($hosts as string $host) {
+    ?Core\Http\TlsInfo $info = Core\Http\Client::get("https://" . $host . "/invoices")->tls();
+    string $decision = "blocked";
+    if ($info != null) {
+        if (CipherPolicy::allows($info)) {
+            $decision = "send";
+        }
+    }
+    echo $host, ": ", $decision, "\n";
+}

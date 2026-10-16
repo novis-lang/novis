@@ -1,0 +1,24 @@
+<?nvs
+// Makes German sort keys for a short list of names, as a program does before it stores them in a column.
+// bench: iterations 1000
+// bench: complexity constant
+use Novis\Intl\Collator;
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<array<string>> $lists = [
+            ["Zimmermann", "Ärzte", "Bauer", "Öztürk", "Adler"],
+            ["Müller", "Schmidt", "Weber", "Wagner", "Becker"],
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            array<bytes> $keys = Collator::sortKeys($lists[$total % 2], "de");
+            $total = $total + Core\Bytes::length($keys[0]) % 3;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(1000), "\n";

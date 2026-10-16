@@ -1,0 +1,22 @@
+--TEST--
+`Core\Csv::parse` accepts a tainted document and every cell it answers is `tainted string`, while a plain document answers plain cells — `rule:security/unclassified-parameter-refuses-tainted`
+--FILE--
+<?nvs
+// An uploaded spreadsheet is tainted. The text parameter is contagious, so the
+// call compiles and the qualifier lands on the innermost element.
+tainted string $upload = "name,qty\nbolt,3\n" as tainted string;
+array<array<tainted string>> $rows = Core\Csv::parse($upload, {header: true});
+echo Core\Arr::count($rows), " ", $rows[0]["name"], " ", $rows[0]["qty"], "\n";
+
+// A cell is still tainted after it leaves the array.
+tainted string $qty = $rows[0]["qty"];
+echo $qty, "\n";
+
+// The contagion is the argument's: the same document as a plain string
+// answers plain cells.
+array<array<string>> $plain = Core\Csv::parse("name,qty\nbolt,3\n", {header: true});
+echo $plain[0]["name"], "\n";
+--EXPECT--
+1 bolt 3
+3
+bolt

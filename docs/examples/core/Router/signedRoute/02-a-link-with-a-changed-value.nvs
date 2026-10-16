@@ -1,0 +1,20 @@
+<?nvs
+// Shows what happens when somebody changes a value in a signed link.
+
+class Reports {
+    #[Core\Route(path: "/reports/{year}", method: Core\Http\Method::Get, name: "Reports::download")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function download(uint $year): string { return "the report"; }
+}
+
+bytes $raw = "example-key-for-signed-links-001" as bytes;
+array<secret bytes> $keys = [$raw as secret bytes];
+
+// The link was signed for 2024, but the visitor changed the path to `/reports/2025`.
+// So `signedRoute` throws a `RuntimeError`, and this prints `The link is not valid.`
+try {
+    Core\Router::signedRoute($keys);
+    echo "The report for 2025.\n";
+} catch (RuntimeError $e) {
+    echo "The link is not valid.\n";
+}

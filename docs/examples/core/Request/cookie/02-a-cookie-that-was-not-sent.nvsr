@@ -1,0 +1,7 @@
+--METHOD--
+GET
+--PATH--
+/shop
+--HEADERS--
+host: example.com
+cookie: lang=de

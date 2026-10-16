@@ -1,0 +1,78 @@
+--TEST--
+A capture declared at a user class implementing `Parses` stands exactly where one declared at `Core\Uuid` stands, and both arrive as the class rather than as the segment's text — `rule:security/route-capture-is-laundered-by-its-type` and `rule:routing/a-capture-narrows-to-a-closed-set`
+--FILE--
+<?nvs
+// The roster a capture narrows to ends in a *predicate* rather than in one more
+// name: `Core\Uuid` is admitted because it is a class built from text, and so is
+// any other class that says so by implementing `Parses`. This case asks the same
+// question of the engine's class and of a user's -- what does the program get
+// handed -- and asserts they agree in kind, which is the thing a roster listing
+// `Core\Uuid` by name could not have said.
+//
+// `Parses` needs no `use`: it is one of the interfaces the compiler declares for
+// every program, beside `Comparable` and `Stringable`.
+class Slug implements Parses
+{
+    public tainted string $text = "";
+
+    public function constructor(tainted string $text)
+    {
+        $this->text = $text;
+    }
+
+    // The one member the contract requires. It accepts anything here, because
+    // what this case asks is which *type* the capture arrives at and never what
+    // the class does with the text.
+    public static function parse(tainted string $s): static
+    {
+        return new static($s);
+    }
+}
+
+class Posts
+{
+    #[Core\Route(path: "/posts/{slug}", method: Core\Http\Method::Get, name: "Posts::show")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function show(Slug $slug): string
+    {
+        return "one post";
+    }
+
+    #[Core\Route(path: "/posts/by-id/{id}", method: Core\Http\Method::Get, name: "Posts::byId")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function byId(Core\Uuid $id): string
+    {
+        return "one post";
+    }
+}
+
+// The user's class. `Core\Router\Match::param` answers the union every capture
+// converts to, and `Parses` is its last arm, so the value narrows to the class
+// the route declared before anything reads it -- not to the text the peer wrote.
+?Core\Router\Match $mine = Core\Router::match(Core\Http\Method::Get, "/posts/hello-world");
+if ($mine != null) {
+    var $capture = $mine->param("slug");
+    if ($capture != null) {
+        Slug $slug = $capture as Slug;
+        echo "a user class arrives as ", $slug->text, "\n";
+    }
+}
+
+// The engine's own, at the same site and through the same member. The conversion
+// happens in a different place -- the matcher performs this one itself, at the
+// door -- and the program cannot tell, which is the agreement being asserted.
+//
+// It is read by rendering rather than by `as`, because `as` names a *declared*
+// class to test the value against and `Core\Uuid` is not one
+// (`rule:types/conversion`). That the two arms are read two ways is the language's
+// own asymmetry and not the router's: what arrives is the class either way.
+?Core\Router\Match $engines = Core\Router::match(
+    Core\Http\Method::Get,
+    "/posts/by-id/123e4567-e89b-12d3-a456-426614174000",
+);
+if ($engines != null) {
+    echo "the engine's class arrives as ", $engines->param("id"), "\n";
+}
+--EXPECT--
+a user class arrives as hello-world
+the engine's class arrives as 123e4567-e89b-12d3-a456-426614174000

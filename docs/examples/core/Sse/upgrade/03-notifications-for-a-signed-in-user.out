@@ -1,0 +1,6 @@
+event: notification
+data: Your order has shipped
+
+event: notification
+data: You have a new message
+

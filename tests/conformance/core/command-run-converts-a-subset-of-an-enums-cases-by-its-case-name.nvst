@@ -1,0 +1,40 @@
+--TEST--
+`Core\Command::run` converts an argument declared at a subset of an enum's cases by the case's own name, exactly as the whole enum is — `rule:tooling/commands-are-compiled`, `rule:enums/no-class-machinery`
+--FILE--
+<?nvs
+// § 3 admits a union of an enum's cases wherever § 6 admits the enum, and the
+// two are one conversion read twice: `nvs_types::commands::ArgConv::Enum`
+// carries the subset as the same word/value pairs the whole enum's row does,
+// with the cases the union did not name dropped. So `Warn` writes the same word
+// here as in `command-run-converts-an-enum-argument-by-its-case-name` and
+// arrives as the same backing integer, which is what stops a subset and its
+// enum from coming to disagree about a case they both admit.
+//
+// The backing is deliberately neither the case's position nor a run of ones:
+// `Warn` is 10 in a three-case enum whose first case is 1, so a conversion
+// handing back an index — or the position within the *subset* — would answer
+// with a plausible small number rather than with this one.
+enum Level: uint {
+    Quiet = 1,
+    Warn = 10,
+    Error = 20,
+}
+
+class Logs {
+    #[Core\Command(name: "emit", about: "Write one line at a level")]
+    public static function emit(Level::Warn|Level::Error $level): uint {
+        echo "level: ", $level as uint, "\n";
+        return 0;
+    }
+}
+
+// The status is taken first, because the handler writes while `run` is still
+// being evaluated.
+uint $status = Core\Command::run();
+echo "status: ", $status, "\n";
+--ARGS--
+emit
+Warn
+--EXPECT--
+level: 10
+status: 0

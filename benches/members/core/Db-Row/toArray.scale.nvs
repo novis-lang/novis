@@ -1,0 +1,36 @@
+<?nvs
+// Measures reading a whole row as an array, at growing numbers of columns.
+// bench: start 64
+// bench: max 512
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        var $db = Core\Db::connect('notes');
+        string $columns = 'c0 int not null';
+        string $names = 'c0';
+        string $marks = '?';
+        array<mixed> $values = [0];
+        uint $column = 1;
+        while ($column < $size) {
+            $columns = $columns . ', c' . $column . ' int not null';
+            $names = $names . ', c' . $column;
+            $marks = $marks . ', ?';
+            $values[] = $column as int;
+            $column = $column + 1;
+        }
+        $db->execute('create table wide (id integer primary key, ' . $columns . ')', []);
+        $db->execute('insert into wide (' . $names . ') values (' . $marks . ')', $values);
+        var $row = $db->query('select ' . $names . ' from wide', [])->all()[0];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            $total = $total + Core\Arr::count($row->toArray());
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(64), "\n";

@@ -1,0 +1,3 @@
+Core\Xml\Writer::attribute(): this element already carries an attribute named `lang`.
+Core\Xml\Writer::attribute(): no start tag is still taking attributes — an attribute goes on its element before anything is written inside it.
+<?xml version="1.0" encoding="UTF-8"?><note lang="en">Back at noon.</note>

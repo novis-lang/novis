@@ -1,0 +1,30 @@
+<?nvs
+// Shows that the output and the error output of a program are kept apart.
+// requires: unix
+
+// This program writes its result to the output, and a note to the error output.
+var $program = Core\Process::spawn(
+    "/bin/sh",
+    ["-c", 'echo "42"; echo "note: this took 3 tries" >&2'],
+);
+
+// `readStdout()` returns only the result. The note is not in it.
+string $result = "";
+?bytes $part = $program->readStdout();
+while ($part != null) {
+    $result = $result . ($part as string);
+    $part = $program->readStdout();
+}
+
+// `readStderr()` returns only the note.
+string $note = "";
+$part = $program->readStderr();
+while ($part != null) {
+    $note = $note . ($part as string);
+    $part = $program->readStderr();
+}
+$program->wait();
+
+// This prints `result: 42` and then the note.
+echo "result: ", $result;
+echo "error output: ", $note;

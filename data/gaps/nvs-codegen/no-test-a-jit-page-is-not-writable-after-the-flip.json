@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-codegen/src/lib.rs",
+  "title": "No test proves a JIT page is not writable once it is executable.",
+  "text": "`rule:http-server/a-jit-page-is-never-writable-and-executable-at-once` says a code page is writable or executable, never both. No test compiles a unit, takes an address in it, and asks the OS for that page's protection after the flip. Closing it means that test on each platform CI runs, for both the compiled and the loaded arm of a unit.",
+  "goal": "completeness-holes"
+}

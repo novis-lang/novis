@@ -1,0 +1,40 @@
+<?nvs
+// Attack: `plus` gets the largest and smallest counts in every unit, and steps forward past the last day of the calendar.
+// Each bad call should throw an error, and the long loop at the end should finish without a leak.
+
+var $start = Core\Time\Date::at(2024, 1, 31);
+var $last = Core\Time\Date::at(9999, 12, 31);
+array<Core\Unit> $calendar = [Core\Unit::Day, Core\Unit::Week, Core\Unit::Month, Core\Unit::Quarter, Core\Unit::Year];
+array<Core\Unit> $clock = [Core\Unit::Nanosecond, Core\Unit::Microsecond, Core\Unit::Millisecond, Core\Unit::Second, Core\Unit::Minute, Core\Unit::Hour];
+int $refused = 0;
+
+foreach ($calendar as Core\Unit $unit) {
+    // 1. The largest and the smallest whole number as the count.
+    try { $start->plus(9223372036854775807, $unit); } catch (RuntimeError $high) { $refused = $refused + 1; }
+    try { $start->plus(-9223372036854775807 - 1, $unit); } catch (RuntimeError $low) { $refused = $refused + 1; }
+    // 2. One step forward from the last day the calendar has.
+    try { $last->plus(1, $unit); } catch (RuntimeError $past) { $refused = $refused + 1; }
+    // 3. A count that fits a whole number, but not once it is turned into days or months.
+    try { $start->plus(4611686018427387904, $unit); } catch (RuntimeError $scaled) { $refused = $refused + 1; }
+}
+echo $refused, " refused\n";
+
+// 4. Every unit smaller than a day, with the smallest count.
+int $notAllowed = 0;
+foreach ($clock as Core\Unit $unit) {
+    try { $start->plus(-9223372036854775807 - 1, $unit); } catch (LogicError $small) { $notAllowed = $notAllowed + 1; }
+}
+echo $notAllowed, " not allowed\n";
+
+// 5. Walk forward one month at a time from 31 January of year -9999 until the calendar ends.
+// Every date on the way is freed, and the last step throws.
+var $date = Core\Time\Date::at(-9999, 1, 31);
+int $steps = 0;
+try {
+    while (true) {
+        $date = $date->plus(1, Core\Unit::Month);
+        $steps = $steps + 1;
+    }
+} catch (RuntimeError $end) {
+    echo $steps, ' steps forward to ', $date->format('yyyy-MM-dd'), "\n";
+}

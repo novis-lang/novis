@@ -1,0 +1,24 @@
+<?nvs
+// Measures `Core\Regex::replace` on one line of dates, at growing line lengths.
+// The line has one date for every sixteen characters.
+// bench: start 256
+// bench: max 4096
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        string $line = Core\Str::repeat('Due 2027-01-05, ', $size);
+        Core\Regex\Pattern $date = Core\Regex::compile('(\d{4})-(\d{2})-(\d{2})');
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            string $shown = Core\Regex::replace($line, $date, '$3/$2/$1');
+            $total = $total + Core\Str::length($shown) + 1;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

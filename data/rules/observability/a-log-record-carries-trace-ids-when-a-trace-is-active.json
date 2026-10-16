@@ -1,0 +1,14 @@
+{
+  "title": "A log record inside an active trace carries `trace_id` and `span_id`, and outside one omits both rather than writing them empty",
+  "status": "shipped",
+  "seeAlso": [
+    "errors/log-write",
+    "errors/log-fields",
+    "errors/diagnostic-record",
+    "observability/a-trace-id-exists-for-every-request"
+  ],
+  "guardedBy": [
+    "crates/nvs-stdlib/src/log.rs",
+    "crates/nvs-server/src/trace.rs"
+  ]
+}

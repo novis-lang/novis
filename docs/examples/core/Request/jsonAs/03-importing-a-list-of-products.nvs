@@ -1,0 +1,28 @@
+<?nvs
+// Shows an API that receives a list of products as JSON and checks each price.
+
+#[Core\Json\Derive]
+class Product {
+    public tainted string $sku;
+    public int $cents;
+
+    public function constructor(tainted string $sku, int $cents) {
+        $this->sku = $sku;
+        $this->cents = $cents;
+    }
+}
+
+// The body is a JSON array. `array<Product>` gives one `Product` for each element.
+var $products = Core\Request::jsonAs<array<Product>>();
+
+uint $imported = 0;
+foreach ($products as Product $product) {
+    if ($product->cents <= 0) {
+        echo "refused: ", $product->sku, "\n";
+    } else {
+        $imported = $imported + 1;
+    }
+}
+
+// This prints "refused: MUG-02" and then "2 of 3 products imported".
+echo $imported, " of ", Core\Arr::count($products), " products imported\n";

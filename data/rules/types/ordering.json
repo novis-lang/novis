@@ -1,0 +1,14 @@
+{
+  "title": "Only the types the table orders may be ordered, and two objects need `Comparable`",
+  "status": "shipped",
+  "seeAlso": [
+    "types/arithmetic",
+    "types/conversion",
+    "types/unions-and-mixed"
+  ],
+  "guardedBy": [
+    "tests/conformance/lang/an-ordering-over-a-mixed-operand-is-decided-by-its-tag.nvst",
+    "tests/conformance/lang/an-operator-agrees-whether-its-operand-is-typed-or-tagged.nvst",
+    "crates/nvs-types/tests/comparable_and_stringable.rs"
+  ]
+}

@@ -1,0 +1,21 @@
+---
+title: JSON with types
+covers: []
+description: Core\Json::decodeAs reads JSON into an object of your class and checks every field.
+---
+
+import Snippet from '@components/Snippet.astro'
+
+JSON from another program may have a missing field or a field of the wrong type. `Core\Json::decodeAs`
+reads JSON text into an object of a class, and it checks every field:
+
+<Snippet src="guides/why-novis/typed-json.nvs" />
+
+`#[Core\Json\Derive]` on the class is all you write. Novis reads the fields and their types from the
+class.
+
+When the JSON does not match the class, the call throws an error. After the call, every field has the
+type that the class declares.
+
+Read more in [Syntax: JSON attributes](/syntax/attributes/json/) and
+[Reference: `Core\Json`](/reference/core/json/).

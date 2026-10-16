@@ -1,0 +1,30 @@
+<?nvs
+// Shows how to link a style sheet to a news feed, so a browser shows the feed as a formatted page.
+
+array<string> $posts = [
+    "New teas in stock" => "https://example.com/news/new-teas",
+    "Summer sale" => "https://example.com/news/summer-sale",
+];
+
+Core\Xml\Writer $writer = Core\Xml::writer({indent: "  "});
+$writer->startDocument();
+// A browser reads this instruction and uses `feed.xsl` to show the feed.
+$writer->instruction("xml-stylesheet", 'href="/feed.xsl" type="text/xsl"');
+$writer->startElement("rss");
+$writer->attribute("version", "2.0");
+$writer->startElement("channel");
+
+foreach ($posts as string $title => string $link) {
+    $writer->startElement("item");
+    $writer->startElement("title");
+    $writer->content($title);
+    $writer->endElement();
+    $writer->startElement("link");
+    $writer->content($link);
+    $writer->endElement();
+    $writer->endElement();
+}
+
+$writer->endElement();
+$writer->endElement();
+echo $writer->endDocument(), "\n";

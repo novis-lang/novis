@@ -1,0 +1,49 @@
+--TEST--
+`rule:types/conversion`: `Core\Decimal`'s cuts are three different directions, and they part on a negative value — `floor` goes down the line, `ceil` up it, and `truncate` and `Core\RoundMode` go towards zero
+--FILE--
+<?nvs
+// Positive, the three agree on which way is which: down, up, and towards
+// zero, where towards zero is down.
+echo Core\Decimal::floor(0.4), "|",
+     Core\Decimal::ceil(0.4), "|",
+     Core\Decimal::truncate(0.4), "\n";
+
+// Negative is where they part, and it is the half of the answer PHP's `floor`
+// and `ceil` get right while `(int)` does not. A negative `decimal` is built
+// by subtraction: `rule:types/numeric-literal-placement` target-types the
+// literal, and a unary minus in front of one is an operator over a `float`.
+decimal $half = 1.5;
+decimal $loss = 0 - $half;
+echo Core\Decimal::floor($loss), "|",
+     Core\Decimal::ceil($loss), "|",
+     Core\Decimal::truncate($loss), "\n";
+
+// `Core\RoundMode` names directions away from and towards zero, not
+// directions along the line -- so `Down` is `truncate` here and not `floor`,
+// and `Up` is neither of them.
+echo Core\Decimal::round($loss, Core\RoundMode::Down), "|",
+     Core\Decimal::round($loss, Core\RoundMode::Up), "\n";
+
+// The value no truncated answer can be read back off: -0.4 cuts to a zero,
+// and `rule:types/decimal` has no `-0` for `floor` to find the sign on. It
+// reaches -1 anyway, because the sign it moves is the value's.
+decimal $fraction = 0.4;
+decimal $tiny = 0 - $fraction;
+echo Core\Decimal::floor($tiny), "|",
+     Core\Decimal::ceil($tiny), "|",
+     Core\Decimal::truncate($tiny), "\n";
+
+// A value already cut is left alone, in every direction and either sign:
+// nothing was discarded, so there is nothing to move.
+decimal $two = 2;
+decimal $whole = 0 - $two;
+echo Core\Decimal::floor($whole), "|",
+     Core\Decimal::ceil($whole), "|",
+     Core\Decimal::truncate($whole), "|",
+     Core\Decimal::round($whole, Core\RoundMode::Up), "\n";
+--EXPECT--
+0|1|0
+-2|-1|-1
+-1|-2
+-1|0|0
+-2|-2|-2|-2

@@ -1,0 +1,44 @@
+--TEST--
+`Core\Sse::current` answers the event stream this program is already writing, so an event written through it lands on the same wire in the same order — `rule:concurrency/two-doors-one-isolate`
+--FILE--
+<?nvs
+// The handle carries nothing, so `current()` is not a second stream beside the
+// one `stream()` answered: both are handles onto the one stream this context is
+// writing, and what proves it is that events sent through either arrive
+// interleaved rather than in two runs. That is what lets a helper taking a
+// `Core\Sse` be written once and called from both doors — door one's isolate
+// never held the handle its upgrade left behind, so `current()` is the only way
+// it reaches one, and door two is where the claim is assertable at all, no
+// `.nvst` case being a request a server is answering.
+var $events = Core\Out::capture(fn (): void => {
+    var $opened = Core\Sse::stream();
+    $opened->send("ready");
+    Core\Sse::current()->send("halfway", event: "progress");
+    $opened->send("done");
+});
+echo $events;
+echo "--\n";
+
+// Asking twice is asking the same question twice: neither call opens anything,
+// so a program that reaches for the handle in two places writes one stream.
+var $twice = Core\Out::capture(fn (): void => {
+    Core\Sse::stream();
+    Core\Sse::current()->send("first");
+    Core\Sse::current()->send("second");
+});
+echo $twice;
+echo "--\n";
+--EXPECT--
+data: ready
+
+event: progress
+data: halfway
+
+data: done
+
+--
+data: first
+
+data: second
+
+--

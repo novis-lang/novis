@@ -1,0 +1,16 @@
+<?nvs
+// Shows how to find the earliest delivery date in a list of orders. A date
+// written as `YYYY-MM-DD` compares byte by byte in the same order as time, so
+// no date library is needed for this question.
+
+array<array<string>> $orders = [
+    ['id' => 'A-17', 'delivery' => '2026-03-04'],
+    ['id' => 'A-18', 'delivery' => '2026-01-29'],
+    ['id' => 'A-19', 'delivery' => '2026-11-02'],
+];
+
+// `Core\Arr::column` takes one field out of every order.
+array<string> $dates = Core\Arr::column($orders, 'delivery');
+
+// This prints 2026-01-29.
+echo 'first delivery: ', Core\Arr::min($dates) ?? 'none', "\n";

@@ -1,0 +1,16 @@
+--TEST--
+PHP 8.5's `|>` — a right side with no `$_` — is refused with `E0129`, and because a pipeline is substitution rather than a node, the piped value never reaches the tree and so is never coloured — `rule:expressions/pipeline-substitution`, `rule:ide/rejected-syntax-gets-no-colour`
+--FILE--
+<?nvs
+class Real {}
+var $n = 1;
+var $r = $n |> $n;
+var $b = 2;
+--REQUEST--
+semanticTokens
+--EXPECT--
+2:7+4 class
+3:5+2 variable
+4:5+2 variable
+4:16+2 variable
+5:5+2 variable

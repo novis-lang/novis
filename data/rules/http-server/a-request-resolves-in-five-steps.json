@@ -1,0 +1,14 @@
+{
+  "title": "A request resolves by longest mount match, prefix strip, static file, path dispatch, then the entry — and production runs only match, strip, entry",
+  "status": "shipped",
+  "seeAlso": [
+    "http-server/a-mount-table-expands-at-boot",
+    "http-server/static-serving-is-one-policy",
+    "config/a-startup-default-is-never-flipped",
+    "routing/matched-once-before-the-handler"
+  ],
+  "guardedBy": [
+    "crates/nvs-server/src/mount.rs",
+    "crates/nvs-cli/src/serve.rs"
+  ]
+}

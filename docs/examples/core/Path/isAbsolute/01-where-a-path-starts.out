@@ -1,0 +1,4 @@
+"/srv/shop/logo.png": absolute
+"uploads/logo.png": relative
+"../logo.png": relative
+"": relative

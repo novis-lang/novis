@@ -1,0 +1,14 @@
+--METHOD--
+GET
+--PATH--
+/../../%2e%2e/files/..%2f..%5c/{1}/{2:lower}/%00
+--MOUNT--
+/%2e%2e
+%2e%2e
+..
+{1}
+{999999999999:lower}
+*/*/*.nvs
+<script>alert(1)</script>
+--HEADERS--
+host: example.com

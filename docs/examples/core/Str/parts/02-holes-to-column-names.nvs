@@ -1,0 +1,32 @@
+<?nvs
+// Shows how a small query builder turns the holes of a condition into column names.
+
+class Customer {
+    public string $email = "";
+}
+
+class Order {
+    public int $total = 0;
+    public ?Customer $customer = null;
+}
+
+class Query {
+    public static function where(string<propertyPath<Order>> $condition): string {
+        string $sql = "";
+        bool $hole = false;
+        foreach (Core\Str::parts($condition) as var $part) {
+            if ($hole) {
+                // A hole is a property path. The builder writes it as a quoted column name.
+                $sql = $sql . '"' . Core\Str::replace($part as string, ".", "_") . '"';
+            } else {
+                // The text between the holes is added without a change.
+                $sql = $sql . ($part as string);
+            }
+            $hole = !$hole;
+        }
+        return "SELECT * FROM orders WHERE " . $sql;
+    }
+}
+
+// This prints the query with "total" and "customer_email" as column names.
+echo Query::where("{total} > 100 AND {customer.email} LIKE '%@example.com'"), "\n";

@@ -1,0 +1,4 @@
+47 111 78
+6
+refused: Core\Encoding::fromHex(): "0xff" is not hexadecimal — only the digits `0`-`9`, `a`-`f` and `A`-`F` spell one, with nothing between the pairs
+refused: Core\Encoding::fromHex(): "abc" is not hexadecimal — it has an odd number of digits, and an octet takes two

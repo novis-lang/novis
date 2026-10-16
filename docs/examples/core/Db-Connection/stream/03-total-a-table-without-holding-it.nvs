@@ -1,0 +1,26 @@
+<?nvs
+// Shows the work a program really does with a walk: a report over a table that
+// is larger than memory, written one row at a time.
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table orders (id integer primary key, customer text not null, cents int not null)', []);
+$db->execute('insert into orders (customer, cents) values (?, ?), (?, ?), (?, ?), (?, ?)', ['Ana', 1200, 'Bo', 4500, 'Ana', 800, 'Cy', 300]);
+
+// Only one row is in memory at a time, so the totals below cost the same for
+// four orders and for four million.
+int $total = 0;
+int $large = 0;
+foreach ($db->stream('select customer, cents from orders order by id', []) as Core\Db\Row $row) {
+    int $cents = $row->int('cents') ?? 0;
+    $total = $total + $cents;
+    if ($cents >= 1000) {
+        $large = $large + 1;
+    }
+    echo $row->string('customer') ?? '', ': ', $cents, "\n";
+}
+
+// This prints 6800 and 2.
+echo 'total: ', $total, "\n";
+echo 'orders over 1000: ', $large, "\n";
+
+$db->close();

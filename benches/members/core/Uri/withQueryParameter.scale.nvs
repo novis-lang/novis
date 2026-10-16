@@ -1,0 +1,22 @@
+<?nvs
+// Measures `withQueryParameter` on an address with a long query, at growing query lengths.
+// bench: start 256
+// bench: max 4096
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        Core\Uri $link = Core\Uri::parse("/search?q=" . Core\Str::repeat('shoes', $size) . "&page=2");
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            var $next = $link->withQueryParameter("page", $i);
+            $total = $total + Core\Str::length($next->toString());
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

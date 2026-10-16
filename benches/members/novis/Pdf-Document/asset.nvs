@@ -1,0 +1,27 @@
+<?nvs
+// Adds a logo to a document, as a shop does for each invoice before it renders it.
+// bench: iterations 4096
+// bench: complexity constant
+use Novis\Pdf\Document;
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        var $invoice = Document::fromHtml("<img src=\"logo.svg\" alt=\"Shop\"><h1>Invoice</h1>");
+        array<bytes> $logos = [
+            "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"1\" height=\"1\"/>" as bytes,
+            "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"2\" height=\"2\"/>" as bytes,
+            "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"3\" height=\"3\"/>" as bytes,
+        ];
+        array<Document> $documents = [];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            $documents[] = $invoice->asset("logo.svg", $logos[($total % 3) as int]);
+            $total = $total + 1;
+            $i = $i + 1;
+        }
+        return $total + Core\Arr::count($documents);
+    }
+}
+
+echo Bench::run(4096), "\n";

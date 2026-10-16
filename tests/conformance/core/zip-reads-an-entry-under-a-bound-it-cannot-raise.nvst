@@ -1,0 +1,62 @@
+--TEST--
+An entry decompressing past either half of the bound is refused rather than truncated, and the bound is `Core\Compress`'s rather than a second one — `rule:core-classes/decompression-bound`
+--FILE--
+<?nvs
+// One entry, `big.txt`, holding 65536 octets of `A` in 79 octets of deflate.
+// That is the shape a decompression bomb has: small on the wire, large in the
+// heap, and indistinguishable from an ordinary archive until it is read.
+bytes $bomb = Core\Encoding::fromBase64("UEsDBBQAAAAIAAAAAACABpugTwAAAAAAAQAHAAAAYmlnLnR4dO3BgQAAAACAILb9pRapCgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAGpQSwECHgMUAAAACAAAAAAAgAaboE8AAAAAAAEABwAAAAAAAAAAAAAApIEAAAAAYmlnLnR4dFBLBQYAAAAAAQABADUAAAB0AAAAAAA=");
+
+// Listing it costs the central directory and nothing else — no entry is
+// decompressed to answer what an archive holds.
+echo "entries: ", Core\Arr::count(Core\Zip::entries($bomb)), "\n";
+
+// The absolute half, asserted on both sides of the boundary. One octet short of
+// the entry refuses; the entry's own size is read whole. A reader that stopped
+// one octet early would print plausibly against either half alone.
+try {
+    Core\Zip::read($bomb, "big.txt", 65535);
+    echo "the ceiling did not hold\n";
+} catch (ParseError $ceiling) {
+    echo $ceiling->message, "\n";
+}
+echo "at the ceiling: ", Core\Bytes::length(Core\Zip::read($bomb, "big.txt", 65536)), " octets\n";
+
+// The ratio half, with the absolute half wide open: 79 octets of input at
+// 100:1 buys 7900, and this entry wants 65536.
+try {
+    Core\Zip::read($bomb, "big.txt", 67108864, 100);
+    echo "the ratio did not hold\n";
+} catch (ParseError $ratio) {
+    echo $ratio->message, "\n";
+}
+
+// Neither argument can be raised past what the operator configured, and there
+// is no value of either that means "no bound" — `0` is a bound of zero.
+try {
+    Core\Zip::read($bomb, "big.txt", 0);
+    echo "zero read something\n";
+} catch (ParseError $zero) {
+    echo "asking for zero octets: refused\n";
+}
+
+// Under the shipped defaults the same entry reads whole, so the refusals above
+// are the policy rather than the decoder failing.
+echo "under the defaults: ", Core\Bytes::length(Core\Zip::read($bomb, "big.txt")), " octets\n";
+
+// And a refusal is never a truncation: nothing here answers the prefix it had
+// reached when it stopped.
+try {
+    tainted bytes $partial = Core\Zip::read($bomb, "big.txt", 1024);
+    echo "a bounded-out read answers: ", Core\Bytes::length($partial), " octets\n";
+} catch (ParseError $nothing) {
+    echo "a bounded-out read answers: nothing at all\n";
+}
+--EXPECT--
+entries: 1
+Core\Zip: an entry decompressing past the 65535 octet ceiling is refused rather than truncated (rule:core-classes/decompression-bound): "big.txt". Lower `$maxBytes` or `$maxRatio` to read less; neither can be raised past `[limits] max_decompressed` and `[limits] max_decompression_ratio`.
+at the ceiling: 65536 octets
+Core\Zip: an entry decompressing past the 100:1 ratio over 79 octets of input is refused rather than truncated (rule:core-classes/decompression-bound): "big.txt". Lower `$maxBytes` or `$maxRatio` to read less; neither can be raised past `[limits] max_decompressed` and `[limits] max_decompression_ratio`.
+asking for zero octets: refused
+under the defaults: 65536 octets
+a bounded-out read answers: nothing at all

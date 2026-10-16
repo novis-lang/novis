@@ -1,0 +1,19 @@
+--TEST--
+an expression `catch` arm names one class, and a union is refused asking for a second arm — `rule:expressions/catch-expression`'s E0245
+--FILE--
+<?nvs
+// `rule:expressions/catch-expression`: an arm's `( Type $var? )` is the block form's, resolved and
+// refused the same way — the binding carries one static type, so a union has
+// no type to give it. Only the fix differs: another arm, where the block
+// form asks for another clause.
+uint $len = Core\Str::length("hi") catch (RuntimeError|LogicError $e) => Core\Str::length("");
+echo $len, "\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0245]: a `catch` clause names one class
+%A
+  = help: write one `catch` arm per class, each with its own variable name, or one arm naming a class they all extend
+%A
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

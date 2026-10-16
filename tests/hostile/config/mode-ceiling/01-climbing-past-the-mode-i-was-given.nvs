@@ -1,0 +1,76 @@
+<?nvs
+// Attack: a program in production tries to switch to `development` or to raise
+// `mode.ceiling`. Every attempt should fail, and the server should still run in
+// production at the end.
+// hostile: timeout-ms 20000
+
+// 1. Tries `mode.ceiling`, `mode.default` and keys that are almost the same.
+array<string> $names = [
+    'mode',
+    'mode.ceiling',
+    'mode.default',
+    'ceiling',
+    'MODE.CEILING',
+    'Mode.Ceiling',
+    'mode..ceiling',
+    '.mode.ceiling',
+    'mode.ceiling.',
+    'mode.ceiling.mode',
+    'app.mode.ceiling',
+    'app.0.mode.ceiling',
+    "mode.ceiling\u{0000}",
+    "mode.default\u{0000}mode.ceiling",
+    'mode.default/../ceiling',
+    'mode.' . Core\Str::repeat('sub.', 20000) . 'ceiling',
+];
+foreach ($names as string $key) {
+    Core\Config::set($key, 'development');
+    Core\Config::get($key);
+    Core\Config::restore($key);
+}
+
+// 2. Tries `development` with other letter case, spaces or hidden characters,
+//    and names that are not a mode. Every write should fail.
+array<string> $modes = [
+    '',
+    ' ',
+    'development',
+    ' development ',
+    'Development',
+    'DEVELOPMENT',
+    "development\u{0000}",
+    "developmen\u{0074}",
+    "dev\u{0435}lopment",
+    'dev',
+    'debug',
+    'staging',
+    'test',
+    'production,development',
+    'true',
+    '1',
+    Core\Str::repeat('development', 65536),
+];
+foreach ($modes as string $mode) {
+    Core\Config::set('mode.ceiling', $mode);
+    Core\Config::set('mode.default', $mode);
+    Core\Config::set('app.0.mode.ceiling', $mode);
+}
+Core\Config::restore('mode.ceiling');
+Core\Config::restore('mode.default');
+
+// 3. Tries to switch to `development` 200,000 times. Every try should fail, so
+//    this prints `0`. The request's memory should not grow.
+uint $granted = 0;
+uint $i = 0;
+while ($i < 200000) {
+    if (Core\Config::set('mode.default', 'development')) {
+        $granted = $granted + 1;
+    }
+    Core\Config::set('mode.default', 'production');
+    Core\Config::restore('mode.default');
+    $i = $i + 1;
+}
+
+echo 'flips granted: ', $granted, "\n";
+echo 'ceiling: ', Core\Config::get('mode.ceiling') ?? '(no value)', "\n";
+echo 'running in: ', Core\Env::mode() == Core\Env::Mode::Development ? 'development' : 'production', "\n";

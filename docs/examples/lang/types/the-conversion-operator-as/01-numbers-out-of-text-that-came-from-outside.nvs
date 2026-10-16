@@ -1,0 +1,19 @@
+<?nvs
+// Anything a program reads from a file, a form or a command line arrives as
+// text, even when it looks like a number. `as` is how you ask for the number,
+// and the whole of the text has to spell one.
+
+array<string> $fields = ["12", "-4", "2.5", "19.90"];
+
+int $units = $fields[0] as int;
+int $adjustment = $fields[1] as int;
+float $weight = $fields[2] as float;
+decimal $price = $fields[3] as decimal;
+
+echo $units + $adjustment, "\n";
+echo $weight * 2, "\n";
+
+// A number becomes text whenever you ask, and `decimal` keeps the two places
+// it was written with.
+echo $price as string, "\n";
+echo ($units as string) . " units", "\n";

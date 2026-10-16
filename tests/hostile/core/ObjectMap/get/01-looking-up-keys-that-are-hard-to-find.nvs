@@ -1,0 +1,55 @@
+<?nvs
+// Attack: a program looks up keys that are very large, deeply nested, or not in the map.
+// Every lookup should return a value or `null`, and the program must not crash or leak.
+
+final class Node
+{
+    public ?Node $next = null;
+}
+
+Core\ObjectMap<mixed, int> $map = new Core\ObjectMap<mixed, int>();
+
+// 1. A key that is a string of 10 million characters. An equal string finds it.
+string $big = Core\Str::repeat('x', 10000000);
+$map->set($big, 1);
+string $same = Core\Str::repeat('x', 10000000);
+echo '1: ', $map->get($same) ?? -1, "\n";
+
+// 2. A key that is an array nested 10000 levels deep.
+mixed $deep = [];
+int $i = 0;
+while ($i < 10000) {
+    $deep = [$deep];
+    $i = $i + 1;
+}
+$map->set($deep, 2);
+echo '2: ', $map->get($deep) ?? -1, "\n";
+
+// 3. One million lookups for objects that were never stored. Each one returns `null`.
+int $missing = 0;
+int $k = 0;
+while ($k < 1000000) {
+    if ($map->get(new Node()) == null) {
+        $missing = $missing + 1;
+    }
+    $k = $k + 1;
+}
+echo '3: ', $missing, "\n";
+
+// 4. A long chain of 100000 objects is a key. The lookup must not walk the chain.
+Node $head = new Node();
+Node $tail = $head;
+int $n = 0;
+while ($n < 100000) {
+    Node $link = new Node();
+    $tail->next = $link;
+    $tail = $link;
+    $n = $n + 1;
+}
+$map->set($head, 4);
+echo '4: ', $map->get($head) ?? -1, "\n";
+
+// 5. The map looks itself up.
+$map->set($map, 5);
+echo '5: ', $map->get($map) ?? -1, "\n";
+$map->clear();

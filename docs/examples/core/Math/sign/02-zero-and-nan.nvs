@@ -1,0 +1,17 @@
+<?nvs
+// Shows the result for negative zero and the infinities, and what happens for `NaN`.
+
+// `-0.0` is zero. This prints 0.
+echo Core\Math::sign(-0.0), "\n";
+
+// The infinities are below and above zero. This prints -1, then 1.
+echo Core\Math::sign(-Core\Math::INFINITY), "\n";
+echo Core\Math::sign(Core\Math::INFINITY), "\n";
+
+// `NaN` means "not a number". It is not below, above or equal to zero,
+// so this throws a `RuntimeError`.
+try {
+    echo Core\Math::sign(Core\Math::NAN), "\n";
+} catch (RuntimeError $error) {
+    echo "NaN has no sign.\n";
+}

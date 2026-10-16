@@ -1,0 +1,40 @@
+<?nvs
+// Shows an order that reads two fields, and how a program branches on the
+// number `<=>` returns.
+
+final class Release implements Comparable {
+    public function constructor(public uint $major, public uint $minor) {}
+
+    // The major number decides first. Two releases with the same major number
+    // are ordered by their minor number.
+    public function compareTo(self $other): int {
+        int $byMajor = $this->major <=> $other->major;
+        if ($byMajor != 0) {
+            return $byMajor;
+        }
+        return $this->minor <=> $other->minor;
+    }
+}
+
+final class Report {
+    // Prints which of the two releases is the newer one.
+    public static function say(Release $installed, Release $available): void {
+        int $order = $installed <=> $available;
+        if ($order < 0) {
+            echo "an update is available\n";
+        } elseif ($order > 0) {
+            echo "your release is newer than the one on the server\n";
+        } else {
+            echo "you are up to date\n";
+        }
+    }
+}
+
+Report::say(new Release(2, 4), new Release(3, 0));
+Report::say(new Release(2, 4), new Release(2, 4));
+Report::say(new Release(2, 9), new Release(2, 4));
+
+// The operators read the same method, so the minor number orders these two.
+if (new Release(2, 4) < new Release(2, 9)) {
+    echo "2.4 comes before 2.9\n";
+}

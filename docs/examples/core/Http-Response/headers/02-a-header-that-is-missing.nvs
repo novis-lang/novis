@@ -1,0 +1,12 @@
+<?nvs
+// Shows what `headers()` returns for a header that the reply has once, and for
+// a header that the reply does not have.
+
+Core\Test::answerHttp("https://api.example.com/status", 200, {headers: ["Vary" => "Accept"]});
+Core\Http\Response $response = Core\Http\Client::get("https://api.example.com/status");
+
+// A header that arrived once gives an array with one string. This prints 1.
+echo Core\Arr::count($response->headers("Vary")), "\n";
+
+// A missing header gives an empty array, not `null`. This prints 0.
+echo Core\Arr::count($response->headers("Warning")), "\n";

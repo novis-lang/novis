@@ -1,0 +1,21 @@
+<?nvs
+// Shows how to tell an attribute on a method from an attribute on one of its parameters.
+
+class InvoiceController {
+    #[{path: "/invoices/{id}"}]
+    public function show(#[{source: "path"}] int $id): int {
+        return $id;
+    }
+}
+
+var $info = Core\Reflect::forObject(new InvoiceController());
+
+// Both attributes have the target `show`, but only the second one is written on a parameter.
+// This prints `show()` and then `show($id)`.
+foreach ($info->attributes() as Core\Reflect\AttributeInfo $attribute) {
+    if ($attribute->parameter() == "") {
+        echo $attribute->target(), "()\n";
+    } else {
+        echo $attribute->target(), "($", $attribute->parameter(), ")\n";
+    }
+}

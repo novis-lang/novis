@@ -1,0 +1,52 @@
+{
+  "manifest": 1,
+  "world": "1.0.0",
+  "class": "Novis\\Pdf\\Engine",
+  "interface": "nvs:pdf/engine",
+  "help": "The functions that render, merge and read PDF files. `Novis\\Pdf\\Document` calls them for you, so most programs use `Document` instead.",
+  "methods": [
+    {
+      "name": "render",
+      "params": [
+        {"name": "pass", "type": "Pass"}
+      ],
+      "returns": "{data: bytes, pageCount: uint, pages: array<{number: uint, name: ?string, strings: array<{name: string, value: string}>, marks: array<{name: string, value: string}>}>, dropped: array<{property: string, value: string, selector: string, line: uint, column: uint}>, missingGlyphs: array<{text: string, fonts: array<string>, page: uint}>, overflows: array<{page: uint, area: string, text: string}>}",
+      "help": "Renders an HTML document to a PDF file. Returns the file, its pages, and what the render could not draw."
+    },
+    {
+      "name": "merge",
+      "params": [
+        {"name": "parts", "type": "array<{data: bytes, pages: ?array<uint>}>"}
+      ],
+      "returns": "bytes",
+      "help": "Returns one PDF file with the chosen pages of each part, in order. An encrypted part throws a `ParseError`."
+    },
+    {
+      "name": "read",
+      "params": [
+        {"name": "data", "type": "bytes"}
+      ],
+      "returns": "{pageCount: uint, metadata: {title: ?string, author: ?string, subject: ?string, keywords: ?string, creator: ?string, producer: ?string}, attachments: array<{name: string, data: bytes}>, invoiceXml: ?string}",
+      "help": "Reads the page count, the metadata and the attached files of a PDF file."
+    },
+    {
+      "name": "readText",
+      "params": [
+        {"name": "data", "type": "bytes"},
+        {"name": "pages", "type": "array<uint>"}
+      ],
+      "returns": "array<string>",
+      "help": "Returns the text of each page in `pages` of a PDF file. Pages count from 1."
+    }
+  ],
+  "enums": [
+    {"name": "Standard", "owner": "Document", "cases": ["PdfA2b", "PdfA3b", "PdfUa1"], "help": "A PDF standard the file follows. `PdfA2b` and `PdfA3b` are for archiving, and `PdfUa1` is for screen readers."}
+  ],
+  "unions": [
+    {"name": "Pass", "cases": [
+      {"name": "Whole", "shape": "{html: string, assets: array<{name: string, data: bytes}>, options: {standard: ?Standard, password: ?string, invoiceXml: ?string, created: ?Core\\Time\\Instant}}"},
+      {"name": "First", "shape": "{document: {html: string, assets: array<{name: string, data: bytes}>, options: {standard: ?Standard, password: ?string, invoiceXml: ?string, created: ?Core\\Time\\Instant}}, headerHeight: ?string, footerHeight: ?string}"},
+      {"name": "Second", "shape": "{pages: array<{header: ?string, footer: ?string, slots: array<{name: string, value: string}>}>}"}
+    ]}
+  ]
+}

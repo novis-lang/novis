@@ -1,0 +1,29 @@
+<?nvs
+// Shows the second way to use a value that may be `null`. Inside `if ($x != null)`
+// the value is no longer nullable, so plain `->` works for the whole branch.
+
+class Session {
+    public function constructor(public string $user, public int $minutes) {}
+
+    public function isFresh(): bool {
+        return $this->minutes < 30;
+    }
+}
+
+class Greeting {
+    public static function forSession(?Session $session): string {
+        if ($session != null) {
+            // Three uses of the value, and none of them needs `?->`.
+            if ($session->isFresh()) {
+                return "Welcome back, " . $session->user;
+            }
+            return "Please sign in again, " . $session->user;
+        }
+        return "Hello, guest";
+    }
+}
+
+// This prints one line for each case.
+echo Greeting::forSession(new Session("ada", 5)), "\n";
+echo Greeting::forSession(new Session("ada", 90)), "\n";
+echo Greeting::forSession(null), "\n";

@@ -1,0 +1,19 @@
+--METHOD--
+POST
+--PATH--
+/trips/upload
+--HEADERS--
+host: example.com
+content-type: multipart/form-data; boundary=trip-51d0
+--BODY_CRLF--
+--trip-51d0
+Content-Disposition: form-data; name="photo"; filename="holiday.jpg"
+Content-Type: image/jpeg
+
+JPEG bytes of a holiday
+--trip-51d0
+Content-Disposition: form-data; name="photo"; filename="map of the route.png"
+Content-Type: image/png
+
+PNG bytes of a map
+--trip-51d0--

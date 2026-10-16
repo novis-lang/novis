@@ -1,0 +1,45 @@
+--TEST--
+`Core\Random::pick` over an array with removed entries returns only entries still in it, and reaches every one of them
+--FILE--
+<?nvs
+// covers: Core\Random::pick
+// Removing 9 of 20 entries leaves holes in the array, since fewer than half of its
+// slots are empty. A pick lands only on the 11 entries left, and on each of them.
+array<int> $values = Core\Arr::range(0, 19);
+int $gone = 0;
+while ($gone < 9) {
+    unset($values[$gone]);
+    $gone = $gone + 1;
+}
+
+uint $outside = 0;
+array<int> $seen = [];
+uint $round = 0;
+while ($round < 2000) {
+    ?int $drawn = Core\Random::pick($values);
+    if ($drawn == null || $drawn < 9) {
+        $outside = $outside + 1;
+    } else {
+        $seen[$drawn as string] = 1;
+    }
+    $round = $round + 1;
+}
+echo "outside: ", $outside, "\n";
+echo "seen: ", Core\Arr::count($seen), "\n";
+
+// The seeded generator shares the draw.
+Core\Random\Seeded $rng = new Core\Random\Seeded(7);
+uint $seededOutside = 0;
+$round = 0;
+while ($round < 2000) {
+    ?int $replayed = $rng->pick($values);
+    if ($replayed == null || $replayed < 9) {
+        $seededOutside = $seededOutside + 1;
+    }
+    $round = $round + 1;
+}
+echo "seeded outside: ", $seededOutside, "\n";
+--EXPECT--
+outside: 0
+seen: 11
+seeded outside: 0

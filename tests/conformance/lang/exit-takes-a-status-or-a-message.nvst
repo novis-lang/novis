@@ -1,0 +1,15 @@
+--TEST--
+`exit("…")` writes its message and ends with status zero, PHP's other spelling of the one construct — `rule:statements/exit-stops-the-program-where-it-stands`
+--FILE--
+<?nvs
+// covers: lang:programs/ending-a-program
+// The operand carries both of PHP's spellings at once: an `int` is the
+// process status, and a `string` is a message written first, after which the
+// status is `0`. Anything else is a type mismatch at the operand, since
+// `rule:types/conversion` has no implicit conversion to offer there.
+string $msg = "goodbye\n";
+echo "start\n";
+exit($msg);
+--EXPECT--
+start
+goodbye

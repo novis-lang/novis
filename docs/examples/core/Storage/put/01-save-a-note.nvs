@@ -1,0 +1,11 @@
+<?nvs
+// Saves a short text as a file on the `files` disk, and reads it back.
+
+Core\Storage::put("files", "shopping-list.txt", "milk\nbread\n" as bytes);
+
+// `get` returns the saved bytes. This prints `milk` and `bread`.
+bytes $saved = Core\Storage::get("files", "shopping-list.txt") ?? "" as bytes;
+echo $saved as string;
+
+// This deletes the file again, so the next run starts with an empty disk.
+Core\Storage::delete("files", "shopping-list.txt");

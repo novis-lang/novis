@@ -1,0 +1,15 @@
+--TEST--
+the suppression is one-directional: resolution and the type check read the same whole tree, so a file with one of each publishes both, `rule:ide/diagnostics-are-phase-gated`
+--FILE--
+<?nvs
+class Greeter {
+    public function count(): int {
+        return "not an int";
+    }
+}
+var $stray = $nope;
+--REQUEST--
+diagnostics
+--EXPECT--
+4:16-4:28 error E0403 this method declares `int` but returns `string`
+7:14-7:19 error E0301 `$nope` is not declared

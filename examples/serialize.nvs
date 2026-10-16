@@ -1,0 +1,70 @@
+<?nvs
+// This program turns objects into bytes with `Core\Serialize::encode` and back with `decode`.
+// A class cannot change how this works. Only its declared properties are saved.
+class Slot
+{
+    public int $n = 0;
+
+    public function constructor(int $n)
+    {
+        $this->n = $n;
+    }
+}
+
+// A `Ring` can point at itself. The copy must stop at a loop like this.
+class Ring
+{
+    public int $id = 0;
+    public ?Ring $self;
+
+    public function constructor(int $id)
+    {
+        $this->id = $id;
+        $this->self = null;
+    }
+}
+
+// `decode` sets the properties directly. It does not run the constructor.
+// This prints `round-trip ok`.
+var $blob = Core\Serialize::encode(new Slot(7));
+Slot $back = Core\Serialize::decode($blob) as Slot;
+if ($back->n == 7) {
+    echo 'round-trip ok', "\n";
+} else {
+    echo 'round-trip lost the value', "\n";
+}
+
+// `$ring->self` points at `$ring`. The copy points at itself in the same way.
+// This prints `cycle ok`.
+var $ring = new Ring(1);
+$ring->self = $ring;
+Ring $copy = Core\Serialize::decode(Core\Serialize::encode($ring)) as Ring;
+if (($copy->self?->id ?? 0) == 1) {
+    echo 'cycle ok', "\n";
+} else {
+    echo 'cycle was not preserved', "\n";
+}
+
+// `decode` only reads bytes that `encode` wrote. Other bytes throw a `ParseError`.
+// This prints `refused: not our format`.
+try {
+    Core\Serialize::decode('not novis bytes' as bytes);
+    echo 'garbage was accepted', "\n";
+} catch (ParseError $e) {
+    echo 'refused: not our format', "\n";
+}
+
+// These bytes start with `NVS` and the escape character. They are an older `Slot` with a
+// second property, `$extra`, so `decode` throws a `ParseError` and this prints `refused: shape changed`.
+var $stale = ('NVS' . Core\Str::fromCodePoint(27) . "\x01\x09\x04Slot\x02\x01n\x05extra\x02\x07\x00\x00\x00\x00\x00\x00\x00\x02\x00\x00\x00\x00\x00\x00\x00\x00") as bytes;
+try {
+    Core\Serialize::decode($stale);
+    echo 'a changed shape was accepted', "\n";
+} catch (ParseError $e) {
+    echo 'refused: shape changed', "\n";
+}
+
+// Each ring still points at itself, so it is never freed.
+// Setting `self` to `null` breaks the loop, and the memory is freed.
+$ring->self = null;
+$copy->self = null;

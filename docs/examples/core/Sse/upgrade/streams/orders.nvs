@@ -1,0 +1,11 @@
+<?nvs
+// The stream script that `01-opening-an-order-stream.nvs` starts.
+// It sends every update on `orders` to the client as an `order` event.
+
+Core\Sse $sse = Core\Sse::current();
+Core\Topic::subscribe("orders");
+?Core\Sse\Message $message = $sse->receive();
+while ($message != null) {
+    $sse->send($message->value() as string, event: "order");
+    $message = $sse->receive();
+}

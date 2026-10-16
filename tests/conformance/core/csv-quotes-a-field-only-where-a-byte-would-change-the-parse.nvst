@@ -1,0 +1,111 @@
+--TEST--
+`Core\Csv::format` quotes a field exactly where a byte in it would otherwise change the parse, and the four bytes that trigger it move with the dialect — counted over a sweep, not read off a rendering — spec § 12's second table
+--FILE--
+<?nvs
+// The round trip pins that reading undoes writing
+// (`csv-format-then-parse-is-the-identity-over-awkward-records.nvst`), and a
+// writer that quoted *every* field would satisfy it exactly as well. The rule
+// `crates/nvs-stdlib/src/csv.rs`'s module doc actually states is narrower —
+// quote a field where a byte in it would otherwise change the parse, and
+// otherwise write its bytes through — so what is asserted here is the
+// **minimality**, by counting which fields came out quoted against which
+// fields hold one of the four bytes. That is a property of the whole table: a
+// writer quoting plausibly row by row still fails it.
+final class Q {
+    // Whether a one-field record came out quoted. The document is that field
+    // then `LF`, so the first byte is the whole question.
+    public static function def(string $field): bool {
+        return Core\Str::startsWith(Core\Csv::format([[$field]]), "\"");
+    }
+
+    // The same question under a dialect naming two different bytes.
+    public static function alt(string $field): bool {
+        return Core\Str::startsWith(Core\Csv::format([[$field]], {separator: ";", quote: "'"}), "'");
+    }
+}
+
+// Seven fields nothing structural is in — including the ones a writer that
+// quoted "when in doubt" would take: an empty field, leading and trailing
+// space, a tab, and the backslash that is not an escape under either dialect
+// here — then the four bytes that are structural under one dialect or the
+// other.
+array<string> $probes = [
+    "plain",
+    "",
+    "  sp  ",
+    "a\tb",
+    "a\\b",
+    "a=b",
+    "aab",
+    "a,b",
+    "a\"b",
+    "a;b",
+    "a'b",
+    "a\nb",
+    "a\rb",
+];
+
+int $n = 0;
+int $agreeDef = 0;
+int $agreeAlt = 0;
+int $quotedDef = 0;
+int $quotedAlt = 0;
+int $moved = 0;
+
+foreach ($probes as string $p) {
+    $n = $n + 1;
+    // The predicate is written out from the rule rather than from the answer:
+    // the separator, the quote, `CR` and `LF`. `CR` and `LF` are structural
+    // under every dialect because they terminate a record whatever the other
+    // two bytes are.
+    bool $wantDef = Core\Str::contains($p, ",") || Core\Str::contains($p, "\"")
+        || Core\Str::contains($p, "\r") || Core\Str::contains($p, "\n");
+    bool $wantAlt = Core\Str::contains($p, ";") || Core\Str::contains($p, "'")
+        || Core\Str::contains($p, "\r") || Core\Str::contains($p, "\n");
+    bool $gotDef = Q::def($p);
+    bool $gotAlt = Q::alt($p);
+    if ($gotDef == $wantDef) {
+        $agreeDef = $agreeDef + 1;
+    }
+    if ($gotAlt == $wantAlt) {
+        $agreeAlt = $agreeAlt + 1;
+    }
+    if ($gotDef) {
+        $quotedDef = $quotedDef + 1;
+    }
+    if ($gotAlt) {
+        $quotedAlt = $quotedAlt + 1;
+    }
+    // The rows the two dialects answer differently. A writer holding a fixed
+    // trigger set — RFC 4180's `,` and `"` whatever the caller asked for —
+    // agrees with the default column on every row and answers zero here.
+    if ($gotDef != $gotAlt) {
+        $moved = $moved + 1;
+    }
+}
+
+echo "probes ", $n, "\n";
+echo "default agree ", $agreeDef, " quoted ", $quotedDef, "\n";
+echo "alt agree ", $agreeAlt, " quoted ", $quotedAlt, "\n";
+echo "moved ", $moved, "\n";
+
+// Minimality has an arithmetic side the counts above cannot see: inside a
+// quoted field the quote byte is doubled and nothing else is, so the record is
+// the field plus two wrapping bytes, plus one per quote in it, plus the `LF`.
+// A writer escaping anything further — a backslash, a newline — is longer than
+// this line says.
+string $twoQuotes = "a\"b\"c";
+echo "field ", Core\Str::length($twoQuotes),
+    " record ", Core\Str::length(Core\Csv::format([[$twoQuotes]])), "\n";
+
+// And the field that holds nothing is the empty document line, which is what
+// makes the lone-empty-record loss the round-trip case names a consequence of
+// this rule rather than a separate decision.
+echo "empty record ", Core\Str::length(Core\Csv::format([[""]])), "\n";
+--EXPECT--
+probes 13
+default agree 13 quoted 4
+alt agree 13 quoted 4
+moved 4
+field 5 record 10
+empty record 1

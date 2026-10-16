@@ -1,0 +1,4539 @@
+//! `Core\Cache` — `rule:concurrency/cross-request-state-is-explicit`'s
+//! sanctioned exception to `rule:security/no-cross-request-state`'s closed door on cross-request state,
+//! as a member per tier that hands back a store, and the operations on that store.
+//!
+//! § 1's tiers are a member each rather than one API with a flag, so the choice
+//! a program made is visible in review rather than in an argument list. Not one
+//! of them takes a parameter at all, which is what makes that structural: there
+//! is no spelling of `memory()` that can be turned into `shared()` by a value
+//! computed at run time.
+//!
+//! # Decision: an entry is § 3's byte payload, not a live graph
+//!
+//! § 2 fixes the *operation* — the recursive graph copy
+//! `rule:classes/two-copy-depths`
+//! already defines, not a third mechanism — and leaves which of its two
+//! carriers open. This tier uses the **byte** carrier
+//! ([`nvs_runtime::encode`]/[`nvs_runtime::decode`]), which is the same walk
+//! the live one is, for two reasons the live carrier cannot answer:
+//!
+//! 1. **A copied object holds a raw `ClassDesc` pointer**, and this store
+//!    outlives the request that filled it — so under
+//!    `rule:config/an-edit-reaches-the-next-request-without-a-restart`'s
+//!    unit swap a live entry would name a descriptor the old unit owned. A
+//!    payload names its classes by *name*, resolved against the receiving
+//!    program's own table on the way out, exactly as
+//!    [`crate::serialize`]'s `decode` does; a class the new unit no longer has
+//!    is refused by name rather than dereferenced.
+//! 2. **The shared tier needs bytes anyway.** A Redis entry is bytes over a
+//!    socket, so a live-graph memory tier would be a second representation to
+//!    keep in agreement with the first — the two-writers shape this project
+//!    treats as the bug rather than the redundancy.
+//!
+//! What it costs is one encode per `put` and one decode per `get`, both
+//! O(graph) exactly as the live copy is, on a path that is already a copy by
+//! § 2's own decision. That is latency spent on security, which is the
+//! direction `rule:programs/memory-priority`'s ordering allows.
+//!
+//! # Decision: the memory tier needs no grant
+//!
+//! `Core\Cache::memory()` asks for **no grant**, because
+//! `rule:security/capability-question-is-grant-and-scope`
+//! checks a capability at the door to an *effect* and this tier has no
+//! door: nothing leaves the process, no name is resolved and no file is opened.
+//! What is left to bound is footprint, and `[cache.memory] max_size` is the
+//! instrument for a bound — a boolean grant would not be one. The shared tier
+//! has the `cache.shared` row instead, in [`crate::registry::CAPABILITIES`]
+//! beside it, and that asymmetry is the whole of what the two rows say.
+//!
+//! # Decision: `shared()` is the door, and the two operations are behind it
+//!
+//! [`nvs_core_cache_shared`] is where the grant is asked for and where the
+//! store is dialled; `put` and `get` on the store it answers ask nothing, and
+//! so [`STORE`] carries no capability row of its own — exactly as
+//! `Core\Http\Client` carries none behind `Core\Http::allowUrl`. A check at the
+//! operation instead would ask the same unscoped question once per command and
+//! answer it the same way every time, which is a cost with no boundary in it.
+//!
+//! The grant is `cache.shared` and it is asked at `Scope::Unscoped`, which is
+//! `rule:config/cache-shared-is-the-grant-over-the-configured-store`: the store
+//! is the one an operator wrote into root-owned configuration, and that writing
+//! is the authorization, so nothing here asks `net.connect` about the host or
+//! `rule:security/net-address-policy`'s table about the address. The name is
+//! resolved once and the connection is made to what it answered.
+//!
+//! The door is [`open_configured`] rather than the member, because it has a
+//! second caller: `Core\RateLimit::consume` limits over the same store — a
+//! deployment has one — and `rule:core-classes/ratelimit-two-members` and `rule:core-classes/ratelimit-unreachable-store-throws` both write that member standing
+//! alone, so it opens the store itself instead of requiring `shared()` to have
+//! been called first. Both callers ask for the same grant and reuse the same
+//! per-core socket; what differs is the sentence each appends to the refusal,
+//! since what to do instead is the caller's own contract.
+//!
+//! Which store, and how long a command may take, are `[cache.shared] url` and
+//! `[cache.shared] timeout`; what the tier behind `memory()` may hold is
+//! `[cache.memory] max_size`. All three are `System`-class, because neither
+//! where a fleet's coherent state lives nor how much of a process's memory it
+//! keeps is a decision one request may make for the rest of them.
+//!
+//! # Decision: the cap is bytes in this process, and forgetting is how it is kept
+//!
+//! `rule:concurrency/the-memory-tier-is-one-store-per-process` caps the memory
+//! tier by an `nvs.toml` directive and says exceeding it
+//! **evicts rather than failing an allocation**, so [`Entries::put`] never
+//! refuses: it forgets entries until the arrival fits, and an arrival too large
+//! for the whole tier is itself forgotten as it lands. Nothing about `put`'s
+//! contract changes, because § 1 already says an entry may be absent at any
+//! time — the cap is a second reason for the `null` a caller had to handle
+//! anyway, and a `put` that threw would be a third failure mode for a store
+//! whose whole contract is that it has none.
+//!
+//! **The victim is the key written longest ago**, not the least recently read:
+//! a read that reordered the queue would make `get` a write, taking a shard's
+//! write lock on the request path where a read lock is enough. What that
+//! costs is that a hot key
+//! written once and read forever ages out under a cold key rewritten often;
+//! what it buys is that `get` is a lookup and `put` is O(1) amortised. An
+//! eviction policy that measured *use* would need a clock or a counter per
+//! entry, which is footprint spent to protect footprint.
+//!
+//! # Decision: a lifetime is a deadline the write records and the read judges
+//!
+//! `put`'s trailing `{ttl?: Duration}` is `rule:core-api/shape-rules` R2's
+//! options shape carrying R12's unit-as-a-type, and it is *optional* where
+//! `rule:core-api/a-lifetime-is-written` makes a signature's lifetime a
+//! required key. That rule is about a bearer credential that leaves the
+//! process and never stops being one; an entry left here without a lifetime
+//! is forgotten by the cap above and reaches nobody. So an omitted `ttl` is
+//! § 1's contract unchanged, and nothing a program already wrote reads
+//! differently.
+//!
+//! **The memory tier holds a deadline read from [`Instant`]**, never
+//! from the wall clock, because a lifetime is an elapsed length of time
+//! rather than a date: a clock step would otherwise lengthen or shorten every
+//! lifetime in the process at once. The shared tier holds no deadline at all
+//! — it is told how long to keep the entry and keeps its own clock — which is
+//! why [`Lifetime`] carries the duration the call *wrote* and each tier turns
+//! that into what it can hold.
+//!
+//! **The read judges, and never writes.** An entry past its deadline answers
+//! `null` and stays where it is until the cap forgets it, a `put` replaces it,
+//! or a later write's sweep takes it out, because taking it out would make
+//! `get` a write:
+//! `rule:concurrency/the-memory-tier-is-one-store-per-process` fixes that a
+//! lookup takes a shard's read lock and nothing more, which is also why the
+//! eviction policy above is by write age. What that spends is the bytes of an expired entry
+//! nobody has asked for again, still counted against the cap; what it buys is
+//! that every core reading one hot key reads it at the same moment.
+//!
+//! **A lifetime already over is not a write.** A `ttl` of zero — and a
+//! negative one, which lands in the same place — forgets whatever was under
+//! the key and stores nothing, exactly as an arrival too large for the tier
+//! is forgotten as it lands. It is not a refusal, because § 1's store has no
+//! failure mode for one to be.
+//!
+//! # What it spends
+//!
+//! On the memory tier, one map entry and one queue slot per live key — the
+//! key's bytes, its payload's and [`ENTRY_OVERHEAD`] — held once for the whole
+//! process until it is overwritten or forgotten, charged to the process rather
+//! than to any request
+//! (`rule:concurrency/a-cross-request-stores-bytes-are-its-own-balance`), and
+//! bounded by `[cache.memory] max_size`, which ships at [`DEFAULT_MAX_SIZE`].
+//! That is O(working set), and it is deliberately not O(requests served): a key
+//! rewritten on every request costs what it cost the first time. Beside it,
+//! [`SHARDS`] locks and their empty queues, which is a fixed cost paid once and
+//! not a per-entry one. `Core\RateLimit::shed`'s arrivals are entries of this
+//! tier too, under the same cap.
+//! On the shared tier, one socket per core and nothing per entry: the bytes are
+//! the store's. A store spelled `rediss://` adds one `rustls` connection state
+//! to that socket, which is what `Core\Http\Client` holds per connection today,
+//! and still nothing per entry.
+
+use std::cell::RefCell;
+use std::collections::{HashMap, VecDeque};
+use std::hash::{DefaultHasher, Hash, Hasher};
+use std::net::SocketAddr;
+use std::sync::{Arc, LazyLock, Mutex, RwLock};
+use std::time::{Duration, Instant};
+
+use nvs_config::capability::{Cap, Scope};
+use nvs_config::{Quantity, Setting, Unit};
+use nvs_runtime::{Ctx, Fault, NvsStr, Tag, ThrownClass, Value, budget};
+use nvs_syntax::duration;
+
+use crate::registry::{
+    ClassDoc, Const, CoreClass, CoreMethod, CoreOption, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
+};
+
+pub(crate) mod redis;
+
+/// The class name, once, for the messages that all name it.
+pub(crate) const NAME: &str = r"Core\Cache";
+
+/// [`STORE`]'s name — see [`NAME`].
+pub(crate) const STORE_NAME: &str = r"Core\Cache\Store";
+
+/// [`SECRET_ENTRY`]'s name — see [`NAME`].
+pub(crate) const SECRET_ENTRY_NAME: &str = r"Core\Cache\SecretEntry";
+
+/// `Core\Cache`'s class card — `rule:core-api/reference-card`.
+const CARD: ClassDoc = ClassDoc {
+    short: "Keeps values between requests. `memory` keeps them in the memory of the server \
+            process. `shared` keeps them in an external store such as Redis. Each one returns a \
+            `Core\\Cache\\Store`.",
+};
+
+/// `Core\Cache\Store`'s class card — `rule:core-api/reference-card`.
+const STORE_CARD: ClassDoc = ClassDoc {
+    short: "One cache, from `Core\\Cache`. It saves a copy of a value under a key and returns a \
+            copy when you read it. A change to the value after you save it does not change the \
+            cache.",
+};
+
+/// `Core\Cache\SecretEntry`'s class card — `rule:core-api/reference-card`.
+const SECRET_ENTRY_CARD: ClassDoc = ClassDoc {
+    short: "A secret and how long it stays valid, such as a token and the time until it expires. \
+            The `fill` function of `getSecret` returns one.",
+};
+
+/// § 1's tiers, as a member per tier that hands one back.
+pub(crate) const CLASS: CoreClass = CoreClass {
+    name: NAME,
+    doc: Some(&CARD),
+    methods: &[
+        CoreMethod {
+            name: "memory",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Instance(STORE_NAME),
+            symbol: "nvs_core_cache_memory",
+            doc: Some(&MEMORY_DOC),
+        },
+        CoreMethod {
+            name: "shared",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Instance(STORE_NAME),
+            symbol: "nvs_core_cache_shared",
+            doc: Some(&SHARED_DOC),
+        },
+    ],
+    instance: &[],
+    slots: &[],
+    constants: &[],
+};
+
+/// `Core\Cache::memory`'s reference card — `rule:core-api/reference-card`.
+const MEMORY_DOC: MethodDoc = MethodDoc {
+    short: "Returns the cache in the memory of this server process. Every request this process \
+            serves reads the same entries. The cache is empty again when the process stops. Use \
+            it for ordinary application caching.",
+    params: &[],
+    ret: "A `Core\\Cache\\Store` for the entries of this process. Every request this process \
+          serves can read them. An entry can be missing at any time. The cache deletes old \
+          entries to stay under its size limit, and another server process has its own entries. \
+          If your program is wrong when `get` returns `null`, use `shared` instead.",
+    errors: &[],
+};
+
+/// `Core\Cache::shared`'s reference card — `rule:core-api/reference-card`.
+const SHARED_DOC: MethodDoc = MethodDoc {
+    short: "Returns the cache in the external store that `[cache.shared] url` names. Every server \
+            process and every machine that uses this store reads the same entries.",
+    params: &[],
+    ret: "A `Core\\Cache\\Store` for the configured shared store. Every server process that uses \
+          the store reads the same entries.",
+    errors: &[
+        ErrorDoc {
+            error: "RuntimeError",
+            desc: "The capability `cache.shared` is not granted; or no `[cache.shared] url` is \
+                   configured, or it is not a URL this client reads. Each is a deployment that \
+                   was not configured rather than a store that failed.",
+        },
+        ErrorDoc {
+            error: "IOError",
+            desc: "The configured store cannot be reached — it throws rather than answering as \
+                   though the entry were absent, since the two mean opposite things to whatever \
+                   asked.",
+        },
+    ],
+};
+
+/// `{ttl?: Duration}` — [`STORE`]'s one trailing options shape, and the whole
+/// of what a program writes about how long an entry lives.
+///
+/// A `Core\Time\Duration` rather than a count of seconds, which is
+/// `rule:core-api/shape-rules` R12: the unit is the type, so no call site has
+/// to remember which scale this member chose. Optional, where
+/// `rule:core-api/a-lifetime-is-written` makes a signature's lifetime a
+/// required key — the module doc's own decision says why the two differ.
+const PUT_OPTIONS: &[CoreOption] = &[CoreOption {
+    name: "ttl",
+    ty: CoreTy::Instance(crate::time::DURATION_NAME),
+    default: Const::Null,
+}];
+
+/// `{fill?: callable(): Core\Cache\SecretEntry, wait?: Duration}` — [`STORE`]'s
+/// other trailing options shape, and the whole of what a program writes about
+/// supplying a miss.
+///
+/// The fill answers an object rather than the value alone, because the fetch is
+/// the only party that knows how long what it fetched stays good —
+/// [`SECRET_ENTRY`] is where that is argued. Its signature is written out
+/// rather than left a bare `callable`, so a callable of the wrong shape is
+/// refused where the call is written (`rule:types/callable-signature`).
+///
+/// `wait` is a `Core\Time\Duration` for [`PUT_OPTIONS`]' R12 reason, and there
+/// is no spelling here for waiting forever: an omitted one inherits
+/// `[cache.memory] fill_wait` rather than removing the bound, which is
+/// `rule:http-server/no-spelling-for-an-unbounded-wait`'s shape one class over.
+/// Both defaults are [`Const::Null`] — the absent callable that variant's own
+/// docs describe, and the absent bound the directive then supplies.
+const GET_SECRET_OPTIONS: &[CoreOption] = &[
+    CoreOption {
+        name: "fill",
+        ty: CoreTy::CallableSig(&[], &CoreTy::Instance(SECRET_ENTRY_NAME)),
+        default: Const::Null,
+    },
+    CoreOption {
+        name: "wait",
+        ty: CoreTy::Instance(crate::time::DURATION_NAME),
+        default: Const::Null,
+    },
+];
+
+/// § 1's store, as the two operations § 2 defines over it.
+///
+/// One class for both tiers rather than two, because a tier is a *destination*
+/// and not a different operation: `put` copies out and `get` copies in
+/// whichever end the copy is going to. Which tier this one is, is the `tier`
+/// slot, written by the member that produced it and readable by no program —
+/// asking a store what it is would be the flag § 1 refuses, arriving one call
+/// later.
+pub(crate) const STORE: CoreClass = CoreClass {
+    name: STORE_NAME,
+    doc: Some(&STORE_CARD),
+    methods: &[],
+    instance: &[
+        CoreMethod {
+            name: "put",
+            names: &["key", "value"],
+            // The key is `Qual::Neutral` and the value is unclassified, and the
+            // difference is `rule:security/unclassified-parameter-refuses-tainted`'s. Not a byte of the key reaches any
+            // answer, so a `tainted` one is admitted — a cache key derived from
+            // a request is ordinary, and the key is data rather than an
+            // instruction (§ 7). The *value* is refused, because `mixed` has
+            // nowhere to carry the qualifier back out of `get` and admitting one
+            // would launder it (`nvs_types`' `admits_tainted_argument`).
+            params: &[
+                CoreTy::Text(Qual::Neutral),
+                CoreTy::Mixed,
+                CoreTy::Options(PUT_OPTIONS),
+            ],
+            defaults: &[],
+            return_ty: CoreTy::Void,
+            symbol: "nvs_core_cache_put",
+            doc: Some(&PUT_DOC),
+        },
+        CoreMethod {
+            name: "get",
+            names: &["key"],
+            params: &[CoreTy::Text(Qual::Neutral)],
+            defaults: &[],
+            // `mixed` rather than `rule:core-api/shape-rules` R7's `?T`: what went in is any value
+            // the copy admits, so there is no `T` to make nullable, and `mixed`
+            // already spells the absent answer.
+            return_ty: CoreTy::Mixed,
+            symbol: "nvs_core_cache_get",
+            doc: Some(&GET_DOC),
+        },
+        CoreMethod {
+            name: "forget",
+            names: &["key"],
+            // `Qual::Neutral` for `put`'s reason, and the more plainly: a key
+            // that is only ever compared and then dropped reaches no answer at
+            // all, so a `tainted` one is as ordinary here as it is there.
+            params: &[CoreTy::Text(Qual::Neutral)],
+            defaults: &[],
+            return_ty: CoreTy::Void,
+            symbol: "nvs_core_cache_forget",
+            doc: Some(&FORGET_DOC),
+        },
+        CoreMethod {
+            name: "putSecret",
+            names: &["key", "value", "ttl", "keys"],
+            // The value is a **demand** and not an admission, which is
+            // `rule:security/secret-qualifier` read through `nvs_types`'
+            // assignment relation: it widens onto a qualifier bit and narrows
+            // through none, so a plain `string` reaches this parameter and a
+            // `secret` one does too, with nothing laundered either way. What
+            // the row says is that this member is written for a confidential
+            // value — `put`'s `mixed` refuses one, and this is where it goes
+            // instead.
+            //
+            // The `ttl` is required where `put`'s is an option, because a
+            // secret never outlives a lifetime someone stated.
+            params: &[
+                CoreTy::Text(Qual::Neutral),
+                CoreTy::SecretText(Qual::Neutral),
+                CoreTy::Instance(crate::time::DURATION_NAME),
+                CoreTy::Array(&crate::keyring::KEY),
+            ],
+            defaults: &[],
+            return_ty: CoreTy::Void,
+            symbol: "nvs_core_cache_put_secret",
+            doc: Some(&PUT_SECRET_DOC),
+        },
+        CoreMethod {
+            name: "getSecret",
+            names: &["key", "keys"],
+            params: &[
+                CoreTy::Text(Qual::Neutral),
+                CoreTy::Array(&crate::keyring::KEY),
+                CoreTy::Options(GET_SECRET_OPTIONS),
+            ],
+            defaults: &[],
+            // `rule:core-api/shape-rules` R7's `?T` where `get` had no `T` to
+            // make nullable: a sealed entry holds the one type `putSecret`
+            // admitted. The `secret` is a promise rather than a conditional —
+            // what comes back out is confidential whatever the `string` that
+            // went in was typed as — which is why the return spells
+            // `CoreTy::SecretStr` and not the parameter form beside it.
+            return_ty: CoreTy::Nullable(&CoreTy::SecretStr),
+            symbol: "nvs_core_cache_get_secret",
+            doc: Some(&GET_SECRET_DOC),
+        },
+    ],
+    slots: &["tier"],
+    constants: &[],
+};
+
+/// [`STORE`]'s tier slot, by index — the layout its `slots` names.
+const TIER_SLOT: usize = 0;
+
+/// What [`nvs_core_cache_memory`] writes into [`TIER_SLOT`].
+const MEMORY_TIER: &str = "memory";
+
+/// What [`nvs_core_cache_shared`] writes into [`TIER_SLOT`].
+const SHARED_TIER: &str = "shared";
+
+/// `[cache.shared] url` — which store the coherent tier is, in one of the
+/// spellings [`READS`] names. Absent, there is no shared tier and `shared()`
+/// says so.
+const URL: &str = "cache.shared.url";
+
+/// `[cache.shared] password` — the credential the store is behind, which arrives
+/// here already materialized: `rule:config/a-secret-is-a-file-whose-content-is-the-value`
+/// reads the `_file` half at boot and `Core\Config` answers this key with the
+/// value, so there is one spelling to ask for and no file to open on a request.
+const PASSWORD: &str = "cache.shared.password";
+
+/// `[cache.shared] database` — which of the store's databases this deployment's
+/// entries live in. Absent, the one the store opens a connection on.
+const DATABASE: &str = "cache.shared.database";
+
+/// The scheme [`socket`]'s spelling of [`URL`] carries, from the crate that owns
+/// the key — `rule:config/unix-scheme-in-a-url-and-a-bare-path-in-a-host` names
+/// the transport and no protocol, because the block speaks RESP and nothing else.
+///
+/// An alias and not a second copy of the string: `[cache.shared]`'s vocabulary is
+/// `nvs_config`'s, and this module is what reads a value written in it.
+const UNIX: &str = nvs_config::store::UNIX_SCHEME;
+
+/// The scheme a store reached in the clear is written with.
+///
+/// Owned here and not by `nvs_config`, which validates the `unix:` spelling and
+/// asks nothing about the other two: what a RESP scheme means is this module's
+/// answer, and [`UNIX`] is owned there because that is where it is refused at
+/// boot.
+const PLAIN: &str = "redis://";
+
+/// The scheme that says the same store is reached through
+/// `rule:security/one-tls-client`'s session.
+///
+/// A scheme rather than a key beside [`URL`] because TLS is the transport and
+/// not a value carried over one, which is the same reason [`UNIX`] is one. It
+/// is not a [`PLAIN`] with a letter on the end — the two prefixes are
+/// disjoint — so a URL settles on exactly one of them.
+const TLS: &str = "rediss://";
+
+/// The spellings of [`URL`] this client reads, named by every refusal.
+///
+/// The `unix:` half only where there is a transport for it: naming a spelling
+/// this build refuses would be advice the operator taking it lands back here
+/// with.
+#[cfg(unix)]
+const READS: &str = "`redis://host[:port]`, `rediss://host[:port]` or `unix:/path/to.sock`";
+
+/// [`READS`] on a build with no Unix-domain transport.
+#[cfg(not(unix))]
+const READS: &str = "`redis://host[:port]` or `rediss://host[:port]`";
+
+/// `[cache.shared] timeout` — the bound on a handshake and on a command, each.
+const TIMEOUT: &str = "cache.shared.timeout";
+
+/// The bound a deployment that configured none inherits.
+///
+/// A shared `get` is on the request path, so this is a latency question and not
+/// a patience one: a store that has not answered in five seconds is a store the
+/// request should be told about rather than one it should keep waiting for. It
+/// is deliberately not "unbounded unless configured", which
+/// `rule:http-server/no-spelling-for-an-unbounded-wait`
+/// refuses to give any outbound wait a spelling for.
+const DEFAULT_TIMEOUT: Duration = nvs_config::defaults::CACHE_SHARED_TIMEOUT;
+
+/// `Core\Cache\Store::put`'s reference card — `rule:core-api/reference-card`.
+const PUT_DOC: MethodDoc = MethodDoc {
+    short: "Copies `$value` into the store under `$key`, replacing whatever was there — a recursive \
+            graph copy, so the entry shares nothing with the request that wrote it.",
+    params: &[
+        ParamDoc {
+            name: "key",
+            desc: "The name to store under; `tainted` is admitted, since no byte of it reaches any \
+                   answer.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "value",
+            desc: "The value to copy in. It cannot be a callable or a `secret`, the same as for a \
+                   value sent to an isolate.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "ttl",
+            desc: "How long the entry stays readable, counted from this call. Without it, the \
+                   entry stays until the cache deletes it to stay under its size limit, or until \
+                   another `put` replaces it. A lifetime that has already run out deletes the \
+                   entry under the key and stores nothing.",
+            shape: &[],
+        },
+    ],
+    ret: "Nothing. A later `get` can still return `null`, because an entry can be deleted at any \
+          time.",
+    errors: &[
+        ErrorDoc {
+            error: "LogicError",
+            desc: "The value cannot cross: it is or contains a callable, or an object with a `secret` \
+                   property that was not revealed.",
+        },
+        ErrorDoc {
+            error: "IOError",
+            desc: "Only on a `shared` cache: the store cannot be reached, or it does not accept \
+                   the write.",
+        },
+    ],
+};
+
+/// `Core\Cache\Store::get`'s reference card — `rule:core-api/reference-card`.
+const GET_DOC: MethodDoc = MethodDoc {
+    short: "Copies the entry stored under `$key` back into this request, or answers `null` when \
+            there is none.",
+    params: &[ParamDoc {
+        name: "key",
+        desc: "The name to read; `tainted` is admitted, as it is on `put`.",
+        shape: &[],
+    }],
+    ret: "The value as it was copied in, or `null` when there is no entry. An entry can be \
+          missing at any time, so your program has to handle `null`.",
+    errors: &[
+        ErrorDoc {
+            error: "ParseError",
+            desc: "The entry names a class this program cannot resolve — the same refusal \
+                   `Core\\Serialize::decode` makes, and the ordinary consequence of a deployment \
+                   whose classes changed under a store that outlives them.",
+        },
+        ErrorDoc {
+            error: "IOError",
+            desc: "Only on a `shared` cache: the store cannot be reached. A missing entry returns \
+                   `null` on both caches and is not an error.",
+        },
+    ],
+};
+
+/// `Core\Cache\Store::forget`'s reference card — `rule:core-api/reference-card`.
+const FORGET_DOC: MethodDoc = MethodDoc {
+    short: "Takes the entry under `$key` out of this store, whether or not there was one there.",
+    params: &[ParamDoc {
+        name: "key",
+        desc: "The name to forget; `tainted` is admitted, as it is on `put`.",
+        shape: &[],
+    }],
+    ret: "Nothing. If there is no entry under the key, the call does nothing. An entry can be \
+          missing at any time, so the call does not tell you whether there was one.",
+    errors: &[ErrorDoc {
+        error: "IOError",
+        desc: "Only on a `shared` cache: the store cannot be reached, or it does not accept the \
+               command.",
+    }],
+};
+
+/// `Core\Cache\Store::putSecret`'s reference card — `rule:core-api/reference-card`.
+const PUT_SECRET_DOC: MethodDoc = MethodDoc {
+    short: "Encrypts `$value` with the newest key in `$keys` and stores the encrypted bytes under \
+            `$key`. This is the only way to put a secret in a cache. The cache never contains the \
+            unencrypted value.",
+    params: &[
+        ParamDoc {
+            name: "key",
+            desc: "The name to store under; `tainted` is admitted, as it is on `put`. It is bound \
+                   into the ciphertext, so the same entry moved to another name does not open.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "value",
+            desc: "The secret to store. A plain `string` reaches this parameter too, and nothing is \
+                   laundered either way — what makes the value confidential is its own type.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "ttl",
+            desc: "How long the secret stays readable, counted from this call. It is required. \
+                   The lifetime is also stored inside the encrypted entry, so a copy of the entry \
+                   written back later still expires at the same time.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "keys",
+            desc: "The key ring, newest first, as `Core\\SignedCookie` takes one. The newest key \
+                   seals; every key opens, so a rotated ring reads what the retired one wrote.",
+            shape: &[],
+        },
+    ],
+    ret: "Nothing. What sealing buys is that code which knows an entry's name but not the ring \
+          cannot read it, and that a tampered, moved or replayed entry is a miss — **it does not \
+          protect a secret from a compromised process**, which holds the ring in the same memory.",
+    errors: &[
+        ErrorDoc {
+            error: "LogicError",
+            desc: "`$keys` is empty, or an entry of it is not a key of the construction's length. \
+                   A ring that cannot key anything is the program's bug rather than a miss.",
+        },
+        ErrorDoc {
+            error: "IOError",
+            desc: "Only on a `shared` cache: the store cannot be reached, or it does not accept \
+                   the write.",
+        },
+    ],
+};
+
+/// `Core\Cache\Store::getSecret`'s reference card — `rule:core-api/reference-card`.
+const GET_SECRET_DOC: MethodDoc = MethodDoc {
+    short: "Opens the secret stored under `$key` against every key of `$keys`, or answers `null` \
+            when there is none that opens.",
+    params: &[
+        ParamDoc {
+            name: "key",
+            desc: "The name to read; the one `putSecret` wrote under, since the name is sealed in.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "keys",
+            desc: "The key ring, newest first. Every key is tried, so an entry sealed under a key \
+                   still in the ring opens after a rotation.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "fill",
+            desc: "What supplies a miss: a callable answering a \
+                   `Core\\Cache\\SecretEntry`, which carries both the secret it fetched and how \
+                   long that secret stays good. Exactly one caller in this process runs it, in \
+                   that caller's own request and under its own capabilities, while every other \
+                   waits; a `fill` that throws releases the waiters with nothing and the next \
+                   caller runs it again, so no failure crosses from one request into another.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "wait",
+            desc: "How long this caller waits for another's `fill`, defaulting to \
+                   `[cache.memory] fill_wait`. There is no spelling for waiting forever.",
+            shape: &[],
+        },
+    ],
+    ret: "The secret, or `null`. A sealed entry that opens under no key of this ring, or whose own \
+          expiry has passed, is a miss like any other — never an error, so a rotated ring re-fetches \
+          rather than failing. A plain `get` on the same name is a miss too: the sealed door is the \
+          only door.",
+    errors: &[
+        ErrorDoc {
+            error: "LogicError",
+            desc: "`$keys` is empty, or an entry of it is not a key of the construction's length — \
+                   `putSecret`'s refusal, unchanged. Also a `fill` that asks for the key it is \
+                   filling, which would be a wait on itself.",
+        },
+        ErrorDoc {
+            error: "TimeoutError",
+            desc: "Another caller in this process was still running `fill` when this call's \
+                   `wait` was up, which defaults to `[cache.memory] fill_wait`.",
+        },
+        ErrorDoc {
+            error: "IOError",
+            desc: "Only on a `shared` cache: the store cannot be reached. A missing entry returns \
+                   `null`, as on `get`.",
+        },
+    ],
+};
+
+/// What a `getSecret` fill answers with: a secret, and how long it stays good.
+///
+/// An object rather than a pair, because `rule:core-api/shape-rules` R14 makes
+/// anything with a lifetime one — and a fill that answered the value alone
+/// would leave this store guessing at a lifetime only the fetch knows. A token
+/// endpoint says how long its token lasts, and that answer is what belongs in
+/// the entry beside the token.
+///
+/// It answers nothing. A program builds one for a fill to hand back and never
+/// reads one, so a member that read a secret back out of it would be a second
+/// door onto the value that `getSecret` is the only door onto — which is why
+/// the class is a singular noun with one static and no instance member at all
+/// (R16, R18).
+pub(crate) const SECRET_ENTRY: CoreClass = CoreClass {
+    name: SECRET_ENTRY_NAME,
+    doc: Some(&SECRET_ENTRY_CARD),
+    methods: &[CoreMethod {
+        name: "of",
+        names: &["value", "ttl"],
+        // `Qual::Neutral` on a `secret string`: the value is confidential, and
+        // the answer is an object, which carries no qualifier on either axis.
+        // That admits a `tainted` secret, which is the ordinary case rather
+        // than the exception — a token fetched from an endpoint came off the
+        // wire — and the mark says only that this object is not what carries
+        // the mark onward.
+        params: &[
+            CoreTy::SecretText(Qual::Neutral),
+            CoreTy::Instance(crate::time::DURATION_NAME),
+        ],
+        defaults: &[],
+        return_ty: CoreTy::Instance(SECRET_ENTRY_NAME),
+        symbol: "nvs_core_cache_secret_entry_of",
+        doc: Some(&SECRET_ENTRY_OF_DOC),
+    }],
+    instance: &[],
+    // The lifetime is held as the count of nanoseconds the `Duration` carries,
+    // not as the `Duration` itself, because [`Lifetime::of`] is what every
+    // sealing path takes it through and that is the number it reads. A slot
+    // holding the instance would be the same count one dereference further
+    // away, and readable by no program either way.
+    slots: &["value", "nanos"],
+    constants: &[],
+};
+
+/// `Core\Cache\SecretEntry::of`'s reference card — `rule:core-api/reference-card`.
+const SECRET_ENTRY_OF_DOC: MethodDoc = MethodDoc {
+    short: "Builds the entry a `getSecret` fill answers with: the secret the fill fetched, and how \
+            long that secret stays good.",
+    params: &[
+        ParamDoc {
+            name: "value",
+            desc: "The secret to store. A plain `string` reaches this parameter too, and nothing \
+                   is laundered either way — what makes the value confidential is its own type.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "ttl",
+            desc: "How long the entry stays readable, counted from the write that stores it — \
+                   what the fetch itself said, rather than a lifetime the caller guessed at.",
+            shape: &[],
+        },
+    ],
+    ret: "The entry. It answers nothing about either half: a program builds one for a fill to hand \
+          back, and reads a secret out of `getSecret` instead.",
+    errors: &[],
+};
+
+/// The address of one of *this* module's symbols, or `None` for a symbol that
+/// belongs to another domain. See [`crate::address`].
+pub(crate) fn address(symbol: &str) -> Option<*const u8> {
+    Some(match symbol {
+        "nvs_core_cache_memory" => (nvs_core_cache_memory as *const ()).cast(),
+        "nvs_core_cache_shared" => (nvs_core_cache_shared as *const ()).cast(),
+        "nvs_core_cache_put" => (nvs_core_cache_put as *const ()).cast(),
+        "nvs_core_cache_get" => (nvs_core_cache_get as *const ()).cast(),
+        "nvs_core_cache_forget" => (nvs_core_cache_forget as *const ()).cast(),
+        "nvs_core_cache_put_secret" => (nvs_core_cache_put_secret as *const ()).cast(),
+        "nvs_core_cache_get_secret" => (nvs_core_cache_get_secret as *const ()).cast(),
+        "nvs_core_cache_secret_entry_of" => (nvs_core_cache_secret_entry_of as *const ()).cast(),
+        _ => return None,
+    })
+}
+
+/// `[cache.memory] max_size` — what this process's entries may hold together.
+const MAX_SIZE: &str = "cache.memory.max_size";
+
+/// `[cache.memory] fill_wait` — how long a caller waits for the one filler in
+/// this process before it gives up on that fill.
+const FILL_WAIT: &str = "cache.memory.fill_wait";
+
+/// The cap a deployment that configured none inherits: the 32 MiB APCu ships
+/// for the extension `rule:core-api/tier-placement` records this class as
+/// answering, held once per process.
+const DEFAULT_MAX_SIZE: usize = nvs_config::defaults::CACHE_MAX_SIZE;
+
+/// What one entry costs beyond its own bytes: a map bucket, an `Arc` header, a
+/// queue slot, the deadline held beside the payload, and the fat pointers over
+/// them, rounded to something a reader can hold in their head. Charged so the
+/// cap bounds the *allocation* — a tier full of one-byte entries under a cap
+/// that counted payloads alone would be a cap measuring almost none of what it
+/// holds.
+const ENTRY_OVERHEAD: usize = 64;
+
+/// How long an entry stays readable, as the call wrote it.
+///
+/// The duration rather than the deadline it becomes, because the tiers keep it
+/// two ways: the memory tier turns it into an [`Instant`] at the moment of
+/// the write, and the shared one is told a length of time and keeps its own
+/// clock. A deadline here would have to be turned back into a remaining length
+/// against a clock that tier does not share.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Lifetime {
+    /// No `ttl` was written: the entry stays until the cap forgets it or a
+    /// `put` replaces it, which is § 1's contract for every entry.
+    Forever,
+    /// The `ttl` that was written, counted from the moment of the write. Zero
+    /// is a lifetime that is already over, which is where a negative one lands
+    /// too — [`Lifetime::of`] is where that happens.
+    For(Duration),
+}
+
+impl Lifetime {
+    /// The lifetime `nanos` names, with everything at or below zero reading as
+    /// one that is already over.
+    ///
+    /// A negative `ttl` is not refused, because `put` has none to make: § 3
+    /// turns a tier at its cap into an eviction rather than a throw precisely
+    /// so that this store keeps the one contract it has, and a second answer
+    /// for a duration a program computed to be negative would be the failure
+    /// mode it says it has none of.
+    fn of(nanos: i64) -> Self {
+        Self::For(Duration::from_nanos(nanos.max(0).unsigned_abs()))
+    }
+
+    /// Whether this lifetime is over at the moment it is written.
+    fn elapsed(self) -> bool {
+        matches!(self, Self::For(ttl) if ttl.is_zero())
+    }
+
+    /// The instant an entry written now stops being readable, or `None` for
+    /// one that never does — which a lifetime the monotonic clock cannot name
+    /// an end for also is, there being no instant left to compare against.
+    fn until(self) -> Option<Instant> {
+        match self {
+            Self::Forever => None,
+            Self::For(ttl) => Instant::now().checked_add(ttl),
+        }
+    }
+}
+
+/// One entry of the memory tier: the payload and when it stops being
+/// readable.
+///
+/// The deadline is beside the payload rather than in a queue of its own,
+/// because the only thing that ever asks is the read that just found the entry
+/// — a second structure ordered by deadline would buy a sweeper this tier does
+/// not have and cannot afford, `get` being a read lock and nothing more.
+struct Entry {
+    /// The entry's `rule:classes/serialize-is-a-closed-format` payload.
+    payload: Box<[u8]>,
+    /// The instant this stops being readable, or `None` for an entry only the
+    /// cap or an overwrite takes out.
+    until: Option<Instant>,
+    /// The number of this entry's slot in [`Entries::order`], which is what
+    /// tells that slot apart from one an earlier entry under the same key left.
+    slot: u64,
+}
+
+/// The fewest slots [`Entries::order`] holds before a write sweeps it, so a
+/// tier of a handful of keys is not swept on every write.
+const SWEEP_FLOOR: usize = 64;
+
+/// One shard's entries and what they cost, together, because a size is only
+/// meaningful against the map it measures: a second cell holding the number
+/// beside the map would be two writers of one fact.
+///
+/// Keys are `Arc` handles because every core of the process reaches the same
+/// map. The eviction policy
+/// `rule:concurrency/the-memory-tier-is-one-store-per-process` states — by
+/// write age, oldest first, an arrival too large for the shard forgotten as it
+/// lands — is this one implementation.
+struct Entries {
+    /// The entries themselves, each a payload and the deadline it is readable
+    /// until. Keys are handles so that `order` below names one without a
+    /// second copy of the bytes.
+    entries: HashMap<Arc<[u8]>, Entry>,
+    /// Every live key, in the order it was **first** written, which is the
+    /// order [`Entries::forget_oldest`] gives them up in.
+    ///
+    /// First written rather than last: an overwrite keeps its place, so this
+    /// holds exactly one slot per live key and a hot key rewritten a million
+    /// times leaves nothing behind it. Ordering by last write instead would
+    /// need a slot per *write*, which is the O(requests served) growth
+    /// `AGENTS.md` calls a leak rather than a policy.
+    ///
+    /// Each slot carries the number its entry has in [`Entry::slot`]. A key
+    /// that is forgotten leaves its slot here, and the same key written again
+    /// takes a new one; the number is how [`Entries::forget_oldest`] and
+    /// [`Entries::sweep`] tell the old slot from the live one. Those stale
+    /// slots are taken out by the sweep, which runs when this queue reaches
+    /// `sweep_at`, so it holds at most twice the live keys plus
+    /// [`SWEEP_FLOOR`] — sixteen bytes and a key handle per slot, per shard.
+    order: VecDeque<(u64, Arc<[u8]>)>,
+    /// The number the next new slot in `order` gets.
+    next_slot: u64,
+    /// The length of `order` at which the next write sweeps it.
+    sweep_at: usize,
+    /// What `entries` costs by [`charged`], maintained on every write so that
+    /// the cap is a comparison rather than a walk of the map.
+    held: usize,
+}
+
+/// The empty shard, written out rather than derived because `sweep_at` starts
+/// at [`SWEEP_FLOOR`] and not at zero.
+impl Default for Entries {
+    fn default() -> Self {
+        Self {
+            entries: HashMap::new(),
+            order: VecDeque::new(),
+            next_slot: 0,
+            sweep_at: SWEEP_FLOOR,
+            held: 0,
+        }
+    }
+}
+
+impl Entries {
+    /// Writes `payload` under `key` for as long as `lifetime` names, forgetting
+    /// whatever it has to.
+    ///
+    /// `cap` is `None` for the `false` an operator writes for no ceiling. The
+    /// bytes are copied into an allocation of the store's own rather than taken
+    /// from the caller's `Vec`, so that everything this tier holds was
+    /// allocated where [`memory_put`]'s bracket will free it again.
+    fn put(&mut self, key: &[u8], payload: &[u8], lifetime: Lifetime, cap: Option<usize>) {
+        let incoming = charged(key.len(), payload.len());
+
+        if lifetime.elapsed() || cap.is_some_and(|cap| incoming > cap) {
+            // An arrival with nothing left to live, and one the tier could not
+            // hold even empty, take the same exit: it is forgotten as it lands
+            // rather than failing the write — § 3 evicts, and § 1 has already
+            // told the caller a `get` may answer nothing. What was under the
+            // key goes with it, because `put` replaced it.
+            self.forget(key);
+            return;
+        }
+
+        // Before the old entry is taken out, so that a key evicted here is
+        // evicted from both halves at once. The cost is that an overwrite is
+        // priced as an arrival: a tier at its cap forgets one more entry than
+        // the net change needs. Netting the two would have to name an entry
+        // this loop may have just forgotten, which is the more expensive bug.
+        if let Some(cap) = cap {
+            while self.held + incoming > cap && self.forget_oldest() {}
+        }
+
+        let (handle, slot) = match self.entries.remove_entry(key) {
+            Some((held, previous)) => {
+                self.held -= charged(key.len(), previous.payload.len());
+                (held, previous.slot)
+            }
+            None => {
+                let fresh = Arc::<[u8]>::from(key);
+                let slot = self.next_slot;
+                self.next_slot += 1;
+                self.order.push_back((slot, Arc::clone(&fresh)));
+                (fresh, slot)
+            }
+        };
+        self.held += incoming;
+        self.entries.insert(
+            handle,
+            Entry {
+                payload: Box::from(payload),
+                until: lifetime.until(),
+                slot,
+            },
+        );
+        if self.order.len() >= self.sweep_at {
+            self.sweep();
+        }
+    }
+
+    /// Takes the entry under `key` out, and answers nothing about whether
+    /// there was one.
+    ///
+    /// The slot `order` holds for it is left behind, because finding it would
+    /// cost a scan of the queue on every forget. [`Entries::forget_oldest`]
+    /// skips it when it reaches the front, and [`Entries::sweep`] takes it out.
+    fn forget(&mut self, key: &[u8]) {
+        if let Some(previous) = self.entries.remove(key) {
+            self.held -= charged(key.len(), previous.payload.len());
+        }
+    }
+
+    /// The payload under `key` while it is still readable, and `None` once it
+    /// is not.
+    ///
+    /// An entry past its deadline is **left where it is** rather than taken
+    /// out: this is `&self` so that a lookup holds a shard's read lock and
+    /// nothing more, which is the property
+    /// `rule:concurrency/the-memory-tier-is-one-store-per-process` fixes about
+    /// a `get`. Its bytes stay against the cap until the eviction order reaches
+    /// it, a `put` replaces it, or the next [`Entries::sweep`] takes it out,
+    /// which is footprint spent on every core reading one hot key at the same
+    /// moment.
+    ///
+    /// The clock is read only once an entry with a deadline is in hand, so a
+    /// tier nothing wrote a `ttl` to pays nothing for the question.
+    fn get(&self, key: &[u8]) -> Option<&[u8]> {
+        let held = self.entries.get(key)?;
+        match held.until {
+            Some(until) if Instant::now() >= until => None,
+            _ => Some(&held.payload),
+        }
+    }
+
+    /// Forgets the entry whose key was written longest ago, and answers whether
+    /// there was one to forget — which is what bounds [`Entries::put`]'s loop.
+    ///
+    /// A stale slot is skipped rather than counted: one whose key is gone, or
+    /// whose key was forgotten and written again under a newer slot. Evicting
+    /// on the stale slot would take the newer entry out at the old one's age.
+    fn forget_oldest(&mut self) -> bool {
+        while let Some((slot, key)) = self.order.pop_front() {
+            let raw: &[u8] = &key;
+            if self
+                .entries
+                .get(raw)
+                .is_some_and(|entry| entry.slot == slot)
+            {
+                if let Some(previous) = self.entries.remove(raw) {
+                    self.held -= charged(raw.len(), previous.payload.len());
+                }
+                return true;
+            }
+        }
+        false
+    }
+
+    /// Takes every entry past its deadline out of the map, and every stale
+    /// slot out of `order`, then sets the next sweep at twice what is left.
+    ///
+    /// The sweep walks the whole tier, and the doubling is what makes that
+    /// a constant per write on average: a sweep over `n` slots comes only after
+    /// at least `n` new ones. It runs on a write because a `get` takes no write
+    /// lock, so a tier nobody writes to keeps its expired entries until the
+    /// next write.
+    fn sweep(&mut self) {
+        let now = Instant::now();
+        let Self {
+            entries,
+            order,
+            held,
+            ..
+        } = self;
+        entries.retain(|key, entry| {
+            let live = entry.until.is_none_or(|until| now < until);
+            if !live {
+                *held -= charged(key.len(), entry.payload.len());
+            }
+            live
+        });
+        order.retain(|(slot, key)| entries.get(key).is_some_and(|entry| entry.slot == *slot));
+        self.sweep_at = SWEEP_FLOOR.max(2 * self.order.len());
+    }
+}
+
+/// What an entry of these two lengths costs the cap.
+fn charged(key: usize, payload: usize) -> usize {
+    key + payload + ENTRY_OVERHEAD
+}
+
+/// The wait a call inherits when neither its own `wait` nor `nvs.toml` names
+/// one, which is the figure `nvs_config`'s `default.toml` states beside that
+/// key.
+///
+/// Long enough for a token endpoint on the other side of the internet to answer
+/// once, and short enough that a request behind a fetch that will never answer
+/// ends as a request rather than holding a core for as long as the fetch takes.
+const DEFAULT_FILL_WAIT: Duration = nvs_config::defaults::CACHE_MEMORY_FILL_WAIT;
+
+/// How many pieces the memory tier's map is cut into, so that two cores
+/// writing keys that hash apart do not wait on each other.
+///
+/// A fixed constant rather than a directive or a function of `[server] workers`,
+/// which `rule:concurrency/the-memory-tier-is-one-store-per-process` fixes for
+/// a reason about *when* the map exists: it is created before a worker does
+/// under `nvs serve`, and there is one worker under `nvs run`, so the number
+/// cannot be read from either.
+const SHARDS: usize = 64;
+
+/// The memory tier itself: the one map every core of this process reads and
+/// writes, in [`SHARDS`] pieces behind a read/write lock each.
+///
+/// A `static` and not something a core is handed, because there is exactly one
+/// of it per process and a map reachable only through whatever had a reference
+/// would be a second answer to "which store is this" — the tier *is* the
+/// process's. Creating it allocates nothing at all, since an empty [`HashMap`]
+/// and an empty [`VecDeque`] each hold no heap, so [`arm_memory_tier`] costs
+/// the fleet nothing and buys that no worker is the one that built the map.
+static MEMORY: LazyLock<[Shard; SHARDS]> =
+    LazyLock::new(|| std::array::from_fn(|_| Shard::new(Entries::default())));
+
+/// One piece of [`MEMORY`]: a share of this process's entries under one lock.
+type Shard = RwLock<Entries>;
+
+/// Creates the memory tier, for a caller that is about to start the cores that
+/// will share it — `nvs serve` before its first worker accepts.
+///
+/// Calling it is not a precondition for using the tier: the first operation on a
+/// process that never called it creates the map on the spot. What it buys is
+/// that the creation is not on a request path at all, which is the claim
+/// `rule:concurrency/the-memory-tier-is-one-store-per-process` makes when it
+/// says the map exists before the workers do.
+pub fn arm_memory_tier() {
+    LazyLock::force(&MEMORY);
+}
+
+/// The shard `key` lives in.
+///
+/// A hash of the whole key and not a slice of it, because a program's keys share
+/// prefixes — one namespace per feature is the ordinary shape, and every key
+/// here already carries [`scoped`]'s prefix — so slicing would put a whole
+/// namespace, or a whole application, on one lock.
+fn shard_of(key: &[u8]) -> &'static Shard {
+    let mut hash = DefaultHasher::new();
+    key.hash(&mut hash);
+    let index = usize::try_from(hash.finish() % SHARDS as u64)
+        .expect("a remainder under `SHARDS` fits a `usize` on every host");
+    &MEMORY[index]
+}
+
+/// What one shard may hold: the tier's cap, divided evenly.
+///
+/// Each shard evicts against its own share rather than against the tier's total,
+/// because a total is one number every writer would have to agree on and that is
+/// a lock over every shard on the write path — the lock sharding exists to
+/// remove. It costs two things, both stated rather than discovered: a perfectly
+/// skewed key set holds less than the cap, since a shard fills while its
+/// neighbours are empty, which is the direction a footprint ceiling must err in;
+/// and the largest entry the tier holds is a share rather than the whole cap,
+/// past which an arrival is forgotten as it lands.
+fn shard_cap(cap: Option<usize>) -> Option<usize> {
+    cap.map(|cap| cap / SHARDS)
+}
+
+/// `[cache.memory] max_size` as a byte count, or [`DEFAULT_MAX_SIZE`], and
+/// `None` for the `false` that removes the ceiling.
+///
+/// Read per operation rather than once per process, because the directive is
+/// `Reload` and a cap cached at the first `put` would outlive the configuration
+/// that set it. What that costs is one small string and one parse on a path
+/// that is already an O(graph) encode, and [`nvs_config::Quantity`] is the
+/// parse every other size directive uses — a second reading of what `32M`
+/// means is exactly the divergence `rule:config/ini-set-is-core-config-set`
+/// keeps one parser to prevent.
+///
+/// A value that will not parse is the shipped cap, which is [`timeout_of`]'s
+/// reasoning: `nvs.toml` is refused where it is loaded, by the boundary that can
+/// name the file and the line.
+///
+/// Crate-visible because [`crate::ratelimit`]'s `shed` keeps its arrivals in
+/// this tier under the same cap.
+pub(crate) fn memory_cap(ctx: &Ctx) -> Option<usize> {
+    let Some(written) = configured(ctx, MAX_SIZE) else {
+        return Some(DEFAULT_MAX_SIZE);
+    };
+    match Quantity::parse(MAX_SIZE, Unit::Bytes, &Setting::Text(written)) {
+        Ok(Quantity::Unbounded) => None,
+        Ok(Quantity::Bytes(bytes)) => Some(usize::try_from(bytes).unwrap_or(usize::MAX)),
+        _ => Some(DEFAULT_MAX_SIZE),
+    }
+}
+
+/// Writes `payload` under `key` for every core of this process, replacing any
+/// entry there and forgetting whatever `cap` does not leave room for.
+///
+/// One shard's write lock and no other, held across the map write and the
+/// evictions it makes: a core writing a key that hashes elsewhere waits on
+/// nothing, and a `get` on another shard never waits at all.
+///
+/// **What the store allocates is detached from the request that wrote it.** The
+/// copy [`Entries::put`] keeps, the map and queue that name it, and the frees an
+/// eviction makes are all inside `nvs_runtime::budget::Detached`, so they move
+/// the process's balance and not the reading any request is measured by —
+/// `rule:concurrency/a-cross-request-stores-bytes-are-its-own-balance` as
+/// arithmetic rather than as a sentence. An entry here is written by one request
+/// and forgotten by another, on another core, so a balance that moved with it
+/// would credit whichever request happened to make the room: fill the tier
+/// under one request and evict it under the next, and the ceiling is widened at
+/// will.
+///
+/// `payload` is the caller's own temporary, allocated under the request and
+/// released here outside the bracket, under the same request. That symmetry is
+/// what a bracket owes — a block allocated on one balance and freed on the other
+/// corrupts both — and it is why the entry is copied rather than this `Vec`
+/// being kept. What that spends is one copy of the payload per write, on a path
+/// that has already encoded the value it is storing.
+fn memory_put(key: &[u8], payload: Vec<u8>, lifetime: Lifetime, cap: Option<usize>) {
+    {
+        let _bracket = budget::Detached::begin();
+        let mut shard = shard_of(key)
+            .write()
+            .expect("a cache shard's lock is never poisoned");
+        shard.put(key, &payload, lifetime, shard_cap(cap));
+    }
+    // Where it was allocated: the caller's `Vec` is the request's, and what the
+    // tier holds is the copy made above.
+    drop(payload);
+}
+
+/// This process's payload for `key`, or `None` — an ordinary answer and not a
+/// failure, and also the answer for an entry the cap made room by forgetting,
+/// for one whose lifetime has run out, and for one another process wrote.
+///
+/// **A read lock and never a write one**, which is what
+/// `rule:concurrency/the-memory-tier-is-one-store-per-process` fixes about a
+/// lookup: every core reading the same hot key reads it at the same moment, and
+/// nothing on the request path takes a shard exclusively to answer a question.
+/// That is also why eviction is by write age rather than by use — a policy that
+/// reordered anything on a read would need the lock this one does not take.
+///
+/// Crate-visible for the cases of the modules that keep state here.
+pub(crate) fn memory_get(key: &[u8]) -> Option<Vec<u8>> {
+    shard_of(key)
+        .read()
+        .expect("a cache shard's lock is never poisoned")
+        .get(key)
+        .map(<[u8]>::to_vec)
+}
+
+/// Takes `key`'s entry out of this process's tier, whether or not there was one.
+///
+/// One shard's write lock and no other, exactly as [`memory_put`] takes one,
+/// and inside the same [`budget::Detached`] bracket, because the release has to
+/// land on the balance the allocation did — a free credited to the request that
+/// happened to call `forget` is the asymmetry
+/// `rule:concurrency/a-cross-request-stores-bytes-are-its-own-balance` says a
+/// bracket owes against, arriving from the other direction.
+fn memory_forget(key: &[u8]) {
+    let _bracket = budget::Detached::begin();
+    shard_of(key)
+        .write()
+        .expect("a cache shard's lock is never poisoned")
+        .forget(key);
+}
+
+/// Reads `key`'s payload and writes what `step` makes of it, as one operation
+/// no other core can come between.
+///
+/// `step` is handed the payload still readable under `key`, or `None`, and
+/// answers what the caller wants back beside the payload to store, if any. The
+/// whole of it runs under the shard's write lock, so two cores stepping the
+/// same key take turns: the second reads what the first wrote. That is what
+/// [`crate::ratelimit`]'s `shed` needs from a read followed by a write, and a
+/// separate [`memory_get`] and [`memory_put`] would let two cores read the same
+/// arrival and both be admitted against it.
+///
+/// The payload `step` answers is allocated inside the [`budget::Detached`]
+/// bracket and freed inside it too, after [`Entries::put`] has copied it, so
+/// the request is charged for none of it. The answer `T` is built under the
+/// same bracket and handed to the request, so it is meant to hold no heap of
+/// its own: `shed`'s is three integers. What the lock costs is that a step
+/// which stores nothing still takes the write lock, on one shard of
+/// [`SHARDS`].
+pub(crate) fn memory_update<T>(
+    key: &[u8],
+    lifetime: Lifetime,
+    cap: Option<usize>,
+    step: impl FnOnce(Option<&[u8]>) -> (T, Option<Vec<u8>>),
+) -> T {
+    let _bracket = budget::Detached::begin();
+    let mut shard = shard_of(key)
+        .write()
+        .expect("a cache shard's lock is never poisoned");
+    let (answer, stored) = step(shard.get(key));
+    if let Some(payload) = stored {
+        shard.put(key, &payload, lifetime, shard_cap(cap));
+    }
+    answer
+}
+
+/// The `{wait?: Duration}` written in argument slot `at`, or
+/// `[cache.memory] fill_wait`, or [`DEFAULT_FILL_WAIT`].
+///
+/// An omitted option inherits the directive rather than removing the bound, and
+/// a directive naming none inherits the figure above, so a caller waits on
+/// another request's `fill` for a time it can name and never for as long as that
+/// `fill` takes. Neither place has a spelling for waiting until the filler
+/// answers, which is `rule:http-server/no-spelling-for-an-unbounded-wait`'s
+/// shape one class over: the guarantee is the absence of the spelling rather
+/// than a check.
+///
+/// A directive that will not parse, or that parses to nothing, leaves the
+/// shipped bound standing — [`timeout_of`]'s reasoning, that `nvs.toml` is
+/// refused where it is loaded, and `nvs_config::store` has already failed both
+/// of those spellings with `E0642` where the operator can still see the file. A
+/// `wait` a program writes is taken as written, and one written negative is no
+/// wait at all rather than its magnitude.
+///
+/// # Errors
+///
+/// [`crate::time::nanos_of`]'s fatal for a slot holding neither a duration nor
+/// the `null` [`GET_SECRET_OPTIONS`] defaults it to, which the option's own
+/// declared type has already refused at the call site.
+fn wait_of(ctx: &Ctx, args: &[Value], at: usize, member: &str) -> Result<Duration, Fault> {
+    if let Some(held) = args.get(at)
+        && !matches!(held.tag(), Some(Tag::Null))
+    {
+        let nanos = crate::time::nanos_of(args, at, member)?;
+        return Ok(Duration::from_nanos(u64::try_from(nanos).unwrap_or(0)));
+    }
+    let written = configured(ctx, FILL_WAIT)
+        .and_then(|text| Quantity::parse(FILL_WAIT, Unit::Duration, &Setting::Text(text)).ok());
+    Ok(match written {
+        Some(Quantity::Nanos(nanos)) if nanos > 0 => Duration::from_nanos(nanos),
+        _ => DEFAULT_FILL_WAIT,
+    })
+}
+
+/// How often a caller waiting on somebody else's `fill` looks at the table
+/// again.
+///
+/// A look on a tick rather than a wake, because the caller it is waiting for is
+/// on another core and a `nvs_runtime::host::Waker` belongs to the one task that
+/// made it — there is nothing a table every core shares could hold that would
+/// reach across. `Core\Sse`'s cross-core tick is the same shape for the same
+/// reason, and both end the day a wake can cross cores.
+///
+/// **What it spends:** one wakeup per waiting caller per tick, for as long as a
+/// fill is in flight, and nothing at all on a hit. The number trades latency
+/// against itself — a shorter tick buys the waiters' latency with wakeups —
+/// against a fetch that is an outbound request and so is measured in tens of
+/// milliseconds at best.
+const FILL_TICK: Duration = Duration::from_millis(10);
+
+/// The fills this process is running at this moment: one entry per key being
+/// filled, holding the address of the [`Ctx`] whose call is filling it.
+///
+/// One table for every tier, keyed as [`scoped`] keys the memory tier, because
+/// what `rule:concurrency/a-secret-fill-runs-once-per-process` elects is one
+/// caller per **process** per name: a second fetch of the same secret is the
+/// cost the election exists to remove, whichever store the answer is written
+/// to. It is not once per fleet, which is a lease over the shared tier and
+/// nothing this key spells.
+///
+/// The owner is an address rather than a task or a thread identity because it
+/// answers one question: whether the caller now asking is the very call that is
+/// filling, which is a `fill` asking for its own key and so a wait on itself. A
+/// context is alive for as long as the call holding the key is, so an entry
+/// never names a freed one, and two requests sharing a core hold two contexts.
+///
+/// **What it spends:** one key and one machine word per fill in flight, on the
+/// detached balance — O(concurrent fills), and nothing between them.
+static FILLS: LazyLock<Mutex<HashMap<Vec<u8>, usize>>> =
+    LazyLock::new(|| Mutex::new(HashMap::new()));
+
+/// One caller's hold on a key for as long as it is filling it.
+///
+/// A guard rather than a pair of calls because **every** ending has to release:
+/// a `fill` that throws, a request cancelled while it fetched and the ordinary
+/// answer alike leave the key to the next caller rather than wedging it for the
+/// life of the process.
+struct Filling {
+    /// The table key this hold was taken under, which is this frame's own
+    /// allocation — the table's copy is [`elected`]'s, made and freed on the
+    /// process's balance.
+    key: Vec<u8>,
+}
+
+impl Drop for Filling {
+    fn drop(&mut self) {
+        // The entry the table holds is the process's, so its release lands on
+        // the balance the claim moved —
+        // `rule:concurrency/a-cross-request-stores-bytes-are-its-own-balance`'s
+        // symmetry, owed here exactly as [`memory_put`] owes it. This frame's
+        // own copy of the key is freed after the bracket, where it was
+        // allocated.
+        let _bracket = budget::Detached::begin();
+        FILLS
+            .lock()
+            .expect("the fill table's lock is never poisoned")
+            .remove(&self.key);
+    }
+}
+
+/// Elects this call as the one caller in the process that fills `key`, or
+/// answers `None` for a key another call is already filling.
+///
+/// # Errors
+///
+/// A `LogicError` when the call already holding `key` is this one, which is a
+/// `fill` asking for the key it is filling. Waiting would be a wait on itself,
+/// so it is said here rather than discovered when the bound runs out.
+fn elected(ctx: &Ctx, key: &[u8], who: &str) -> Result<Option<Filling>, Fault> {
+    let mine = std::ptr::from_ref(ctx).addr();
+    let mut fills = FILLS
+        .lock()
+        .expect("the fill table's lock is never poisoned");
+    match fills.get(key) {
+        Some(&owner) if owner == mine => Err(Fault::thrown_as(
+            ThrownClass::Logic,
+            format!(
+                "{who}: this call's `fill` asked for the key it is filling, which would be a \
+                 wait on itself"
+            ),
+        )),
+        Some(_) => Ok(None),
+        None => {
+            {
+                let _bracket = budget::Detached::begin();
+                fills.insert(key.to_vec(), mine);
+            }
+            Ok(Some(Filling { key: key.to_vec() }))
+        }
+    }
+}
+
+/// Waits for whichever call holds `key` to be done with it and then answers
+/// what `look` finds, for at most `wait`.
+///
+/// The state this waits on is another core's, so it is looked at on a
+/// [`FILL_TICK`] rather than woken, and the park is where the core goes back to
+/// its neighbours. The clock is what ends the wait: a waiter is released with
+/// whatever the filler left, which is the value on the ordinary path and
+/// nothing at all where the `fill` threw —
+/// `rule:concurrency/a-secret-fill-runs-once-per-process` makes that a miss for
+/// this caller rather than another request's failure crossing into it.
+///
+/// # Errors
+///
+/// A thrown `TimeoutError` for a fill still running when `wait` was up, which
+/// is `rule:http-server/no-spelling-for-an-unbounded-wait`'s ending one class
+/// over: the caller gets its request back rather than the core standing still
+/// for as long as somebody else's fetch takes. Whatever `look` answers with,
+/// and [`Ctx::cancel`]'s status for a request cancelled while it waited, which
+/// no `catch` sees.
+fn waited<T>(
+    ctx: &mut Ctx,
+    key: &[u8],
+    wait: Duration,
+    who: &str,
+    look: impl FnOnce(&mut Ctx) -> Result<T, Fault>,
+) -> Result<T, Fault> {
+    let until = Instant::now() + wait;
+    loop {
+        let filling = FILLS
+            .lock()
+            .expect("the fill table's lock is never poisoned")
+            .contains_key(key);
+        if !filling {
+            return look(ctx);
+        }
+        let now = Instant::now();
+        if now >= until {
+            return Err(Fault::thrown_as(
+                ThrownClass::Timeout,
+                format!(
+                    "{who}: another request in this process is still supplying this key, and \
+                     this call's `wait` of {wait:?} is up"
+                ),
+            ));
+        }
+        let tick = until.min(now + FILL_TICK);
+        match nvs_runtime::host::with_current(|host| host.park(Some(tick))) {
+            Some(nvs_runtime::host::Woken::Cancelled) => return Err(ctx.cancel()),
+            Some(_) => {}
+            // No scheduler on this thread at all, which is a `nvs run` and a
+            // `#[test]`: there is no core here to give back, so the wait is the
+            // sleep `nvs_host::timer::park_until` performs off a core for the
+            // same reason.
+            None => std::thread::sleep(tick.saturating_duration_since(Instant::now())),
+        }
+    }
+}
+
+/// The key an entry is really held under: the `[[app]]` it was written for and
+/// the configuration generation that was live when it was written, ahead of the
+/// key the program wrote.
+///
+/// That scoping is `rule:concurrency/the-memory-tier-is-one-store-per-process`
+/// and it answers two questions at once — two applications on one server never
+/// read each other's entries, and a reload never serves an entry written under
+/// the configuration it replaced. The application is the most specific `[[app]]`
+/// block that matched this entry file, which is the name an operator wrote; a
+/// deployment with no block at all is one application and names none.
+///
+/// **The generation is [`nvs_config::Snapshot`]'s own number and not the address
+/// of the `Arc` holding it**, which is the one difference from
+/// `nvs_runtime::pool::Ticket`'s database-pool key. That ticket holds its
+/// generation alive for as long as a connection names it, so the address cannot
+/// be reused underneath it; an entry in this map cannot hold one, because
+/// freeing a boot-time allocation inside a [`budget::Detached`] bracket is
+/// exactly the asymmetry
+/// `rule:concurrency/a-cross-request-stores-bytes-are-its-own-balance` says a
+/// bracket owes against. A number that is never reused needs nothing held.
+///
+/// Two `NUL` separators and not one: neither a path nor a decimal number can
+/// contain one, so the three parts are unambiguous however a program spells its
+/// own key — a key that spells another application's prefix is still the third
+/// part and still inside the application that wrote it.
+///
+/// Crate-visible because [`crate::ratelimit`]'s `shed` keeps its arrivals in
+/// this tier, under keys scoped the same way.
+pub(crate) fn scoped(ctx: &Ctx, key: &[u8]) -> Vec<u8> {
+    let snapshot = ctx.config().map(nvs_config::Request::snapshot);
+    let app = application(ctx);
+    let generation = snapshot.map_or(0, |snapshot| snapshot.generation);
+
+    let mut real = Vec::with_capacity(app.len() + key.len() + 24);
+    real.extend_from_slice(app);
+    real.push(0);
+    real.extend_from_slice(generation.to_string().as_bytes());
+    real.push(0);
+    real.extend_from_slice(key);
+    real
+}
+
+/// The application this request belongs to, as the bytes that name it, or
+/// nothing at all on a context nobody configured.
+///
+/// The innermost configured block, which is the application in the sense both
+/// callers mean: [`scoped`] keeps one application's memory-tier entries away
+/// from another's, and [`bound`] keeps one application's sealed entries from
+/// opening inside another. One reader so the two cannot come to disagree about
+/// which block that is.
+///
+/// `pub(crate)` because [`crate::session`]'s sealed pair binds a record entry to
+/// the same application through the same [`bound`], and a second reading of
+/// which block that is would be the disagreement this one reader exists to
+/// prevent.
+pub(crate) fn application(ctx: &Ctx) -> &[u8] {
+    ctx.config()
+        .map(nvs_config::Request::snapshot)
+        .and_then(|snapshot| snapshot.blocks.last())
+        .map(|block| block.as_os_str().as_encoded_bytes())
+        .unwrap_or_default()
+}
+
+/// The octet this store's sealed entries open their additional data with.
+///
+/// A number rather than a name because it is never read back and never shown:
+/// the whole of what it does is differ from whatever the next construction over
+/// a key ring picks for itself, so a `Core\SignedCookie` answer pasted into
+/// this store opens under none of the ring it was sealed with.
+///
+/// [`bound`] takes it as an argument rather than reading it here, because
+/// `crate::session`'s sealed pair writes the same additional data under an octet
+/// of its own: one construction, and two numbers that differ, is the whole of
+/// why a value sealed for a cache does not open as a session secret.
+pub(crate) const SEAL_DOMAIN: u8 = 1;
+
+/// The key space sealed entries live in.
+///
+/// **A space of its own is why `get` answers `null` for a sealed entry** rather
+/// than throwing over a payload it cannot read: the sealed door is the only
+/// door, and a miss is what every other name that was never written gives. The
+/// separator is a `NUL` for [`scoped`]'s reason. A program that writes these
+/// octets into its own key does reach the space — a cache key is arbitrary text
+/// — and what a `get` there finds is a payload `Core\Serialize` refuses, which
+/// is the `ParseError` that member already documents; no secret is readable
+/// either way, the payload being ciphertext.
+const SEALED_SPACE: &[u8] = b"\0secret\0";
+
+/// The name `key`'s sealed entry is stored under.
+///
+/// `pub(crate)` because [`crate::session`]'s record holds its sealed values in
+/// the same space — a record is an array rather than a tier, and what the two
+/// share is the rule that one program-visible name reaches a sealed value only
+/// through the sealed door.
+pub(crate) fn sealed_key(key: &[u8]) -> Vec<u8> {
+    let mut stored = Vec::with_capacity(SEALED_SPACE.len() + key.len());
+    stored.extend_from_slice(SEALED_SPACE);
+    stored.extend_from_slice(key);
+    stored
+}
+
+/// What a sealed entry is bound to: this construction, the application that
+/// wrote it, and the name it was written under.
+///
+/// The AEAD's additional data rather than a prefix of the plaintext, so the tag
+/// covers it without the value needing a frame to be told apart from it. It
+/// travels with neither the ciphertext nor the ring, so the reader states it
+/// again from what it knows and an entry lifted into another application or
+/// moved to another name opens under none of them —
+/// [`crate::crypto::open_under`]'s `None` is where that becomes the miss this
+/// module reads.
+///
+/// The configuration's generation is deliberately absent where [`scoped`] has
+/// it: a reload renames every memory-tier key on purpose, and doing the same
+/// here would make an operator's reload silently discard every secret the
+/// shared tier is holding for the whole fleet.
+///
+/// `app` is [`application`]'s answer at every call site; it is an argument
+/// rather than read here so that the two halves a sealed entry is bound to can
+/// be varied one at a time by whatever is asking. `domain` is the door's own
+/// octet — [`SEAL_DOMAIN`] here, `crate::session`'s beside it — so that the two
+/// doors share this construction instead of each writing one.
+pub(crate) fn bound(domain: u8, app: &[u8], key: &[u8]) -> Vec<u8> {
+    let mut aad = Vec::with_capacity(app.len() + key.len() + 2);
+    aad.push(domain);
+    aad.extend_from_slice(app);
+    aad.push(0);
+    aad.extend_from_slice(key);
+    aad
+}
+
+/// How wide the expiry written ahead of a sealed value is.
+const EXPIRY_LEN: usize = 8;
+
+/// How wide the lifetime written after it is.
+const LIFETIME_LEN: usize = 8;
+
+/// What fraction of a lifetime the refresh-ahead window is — the last fifth,
+/// which `rule:concurrency/a-secret-fill-runs-once-per-process` fixes.
+///
+/// A fraction rather than a duration because the tier does not know what a
+/// lifetime means to its caller: a fifth of a minute and a fifth of a day are
+/// both "nearly over" to whoever wrote them.
+const REFRESH_WINDOW: i64 = 5;
+
+/// What an opened seal holds: the secret, and whether it is inside the last
+/// fifth of the lifetime it was written for.
+///
+/// One shape for both readings of that pair, where `T` is the secret's bytes
+/// while the plaintext is still borrowed and the `string` value a member hands
+/// back once it is not — so the flag cannot come to mean one thing in
+/// [`sealed_value`] and another in [`opened`].
+struct Held<T> {
+    /// The secret itself.
+    value: T,
+    /// Whether a `fill` written beside this read replaces the entry now, which
+    /// is `rule:concurrency/a-secret-fill-runs-once-per-process`'s refresh
+    /// ahead of an expiry: the entry is still answered to every caller, and
+    /// exactly one of them fetches its replacement.
+    refreshing: bool,
+}
+
+/// The plaintext a sealed entry holds: when the secret stops being readable,
+/// how long it was given, and the secret.
+///
+/// Milliseconds since the epoch, big-endian, because the reading has to survive
+/// the shared tier — a monotonic instant means nothing in the process that
+/// reads it back, and [`Entry::until`]'s deadline is the writing core's own
+/// clock. The value is the rest of the buffer and carries no length of its own:
+/// both numbers are fixed-width, and the tag covers the whole of it.
+///
+/// **The lifetime is sealed in beside the expiry** because [`REFRESH_WINDOW`]
+/// is a fraction of it and there is nowhere else to read it from: the shared
+/// tier keeps no deadline this process can see, and a tier's own lifetime is
+/// what an operator may have copied the entry forward under.
+fn sealed_plaintext(expiry: i64, lifetime: i64, value: &[u8]) -> Vec<u8> {
+    let mut plain = Vec::with_capacity(EXPIRY_LEN + LIFETIME_LEN + value.len());
+    plain.extend_from_slice(&expiry.to_be_bytes());
+    plain.extend_from_slice(&lifetime.to_be_bytes());
+    plain.extend_from_slice(value);
+    plain
+}
+
+/// What an opened entry holds at `now`, or `None` for one whose sealed expiry
+/// has passed.
+///
+/// **Whatever the store says.** A tier slow to forget an entry, and one an
+/// operator copied forward under a longer store lifetime, both answer a miss
+/// here: the expiry the secret was sealed with is the one that decides, and it
+/// is under the tag rather than beside it.
+///
+/// A buffer too short to carry both numbers is that same miss, which is what
+/// keeps a truncated payload from being read as a secret.
+fn sealed_value(plain: &[u8], now: i64) -> Option<Held<&[u8]>> {
+    let (expiry, rest) = plain.split_first_chunk::<EXPIRY_LEN>()?;
+    let (lifetime, value) = rest.split_first_chunk::<LIFETIME_LEN>()?;
+
+    let expiry = i64::from_be_bytes(*expiry);
+    if now >= expiry {
+        return None;
+    }
+    Some(Held {
+        value,
+        refreshing: expiry.saturating_sub(now) <= i64::from_be_bytes(*lifetime) / REFRESH_WINDOW,
+    })
+}
+
+/// What every step of one sealed operation holds in common: which tier it is
+/// over, the name the entry is under, the ring it seals or opens against, and
+/// the two spellings of the member a refusal names.
+///
+/// One shape rather than the same five arguments threaded through each step, so
+/// that a step cannot be handed one member's ring under another member's name.
+struct Sealing<'a> {
+    /// Which tier this operation is over.
+    tier: Tier,
+    /// The name the program wrote, which [`sealed_key`] turns into the one the
+    /// entry is stored under and [`bound`] seals in.
+    key: &'a [u8],
+    /// The ring, newest first.
+    ring: &'a nvs_runtime::NvsArray,
+    /// The member as the registry names it, for [`on_shared`]'s refusals.
+    member: &'a str,
+    /// The member as a refusal spells it, which is `Class::member`.
+    who: &'a str,
+}
+
+/// Seals `value` under the ring's newest key and writes it to the tier under
+/// the sealed name, for the lifetime `nanos` names.
+///
+/// One writer for both doors — the `putSecret` a program writes and the `fill`
+/// `getSecret` runs — so that what a fill leaves behind is the entry the other
+/// door would have written: the same seal, the same [`bound`] it may not be
+/// moved away from, and the same lifetime written twice for
+/// [`nvs_core_cache_put_secret`]'s reason.
+///
+/// # Errors
+///
+/// [`crate::keyring`]'s `LogicError` for a ring whose newest entry is not a
+/// key, and a thrown `IOError` on the shared tier for a store that cannot be
+/// reached or that refuses the write.
+fn seal_and_store(ctx: &mut Ctx, at: &Sealing<'_>, value: &[u8], nanos: i64) -> Result<(), Fault> {
+    let &Sealing {
+        tier,
+        key,
+        ring,
+        member,
+        who,
+    } = at;
+    let (slot, held) = crate::keyring::newest(ring);
+    let cipher = crate::keyring::cipher_at(&held, slot, who)?;
+
+    // Rounded up rather than down, so that a lifetime shorter than this
+    // clock's resolution is still a lifetime: an entry whose sealed expiry
+    // had passed before the write would be a miss no program could account
+    // for. A zero stays zero, which is the lifetime that is already over.
+    let ttl = nanos.max(0).saturating_add(999_999) / 1_000_000;
+    let expiry = clock_ms(ctx, member)?.saturating_add(ttl);
+    let aad = bound(SEAL_DOMAIN, application(ctx), key);
+    let plain = sealed_plaintext(expiry, ttl, value);
+    let sealed = crate::crypto::seal_under(ctx, &cipher, &aad, &plain, who)?;
+
+    let stored = sealed_key(key);
+    let lifetime = Lifetime::of(nanos);
+    match tier {
+        Tier::Memory => {
+            memory_put(&scoped(ctx, &stored), sealed, lifetime, memory_cap(ctx));
+        }
+        // [`nvs_core_cache_put`]'s three commands, unchanged: the store keeps
+        // its own clock, so it is told a length of time, and a lifetime already
+        // over leaves it in the state the memory tier is left in.
+        Tier::Shared => on_shared(STORE_NAME, member, |open| {
+            if lifetime.elapsed() {
+                return open.del(&stored);
+            }
+            match lifetime {
+                Lifetime::Forever => open.set(&stored, &sealed),
+                Lifetime::For(ttl) => open.set_expiring(&stored, &sealed, ttl),
+            }
+        })?,
+    }
+    Ok(())
+}
+
+/// The secret `tier` holds under `key`, or `None` for every way of not opening
+/// one.
+///
+/// **Every way of not opening is the same miss**, and never an error: a ring
+/// that has rotated past the key this entry was sealed under, an entry moved to
+/// another name or lifted into another application, a tampered payload, and one
+/// past its sealed expiry all answer `None`. A caller that could tell them apart
+/// would learn something about the ring from an entry it cannot read, and a
+/// rotated ring is meant to re-fetch rather than fail. A ring that is wrong in
+/// itself is a different thing and throws.
+///
+/// Every key of the ring is tried rather than the newest alone, which is
+/// `Core\SignedCookie`'s walk and buys the same thing: an entry written before a
+/// rotation stays readable until it expires on its own.
+///
+/// # Errors
+///
+/// [`crate::keyring`]'s `LogicError` for an entry of the ring that is not a key,
+/// and a thrown `IOError` on the shared tier for a store that cannot be reached.
+fn opened(ctx: &Ctx, at: &Sealing<'_>) -> Result<Option<Held<Value>>, Fault> {
+    let &Sealing {
+        tier,
+        key,
+        ring,
+        member,
+        who,
+    } = at;
+    let stored = sealed_key(key);
+    let held = match tier {
+        Tier::Memory => memory_get(&scoped(ctx, &stored)),
+        Tier::Shared => on_shared(STORE_NAME, member, |open| open.get(&stored))?,
+    };
+    let Some(sealed) = held else {
+        return Ok(None);
+    };
+
+    let aad = bound(SEAL_DOMAIN, application(ctx), key);
+    let now = clock_ms(ctx, member)?;
+    for (slot, entry) in crate::keyring::entries(ring) {
+        let cipher = crate::keyring::cipher_at(&entry, slot, who)?;
+        if let Some(plain) = crate::crypto::open_under(&cipher, &aad, &sealed, who)?
+            && let Some(held) = sealed_value(&plain, now)
+        {
+            return Ok(Some(Held {
+                value: Value::str(NvsStr::new(held.value)),
+                refreshing: held.refreshing,
+            }));
+        }
+    }
+    Ok(None)
+}
+
+/// Runs `fill` as the one caller in this process filling `key`, storing what it
+/// answers and handing the secret back — or `None` for a key another call is
+/// already filling.
+///
+/// The hold is released by its own `Drop` whichever way this ends, and it is
+/// released **after** the entry is written: a waiter let go a step earlier
+/// would look at a store the fill had not reached yet.
+///
+/// # Errors
+///
+/// [`elected`]'s `LogicError` for a `fill` that asked for the key it is
+/// filling, whatever the `fill` itself threw — which reaches the request that
+/// ran it and no other — and [`supplied`]'s.
+fn filled(
+    ctx: &mut Ctx,
+    at: &Sealing<'_>,
+    filling: &[u8],
+    fill: Value,
+) -> Result<Option<Value>, Fault> {
+    let Some(_held) = elected(ctx, filling, at.who)? else {
+        return Ok(None);
+    };
+    let entry = nvs_runtime::call_callable(ctx, fill, &[])?;
+    let answered = supplied(ctx, at, entry);
+    #[expect(
+        unsafe_code,
+        reason = "`call_callable` hands back a value this frame owns, and the \
+                  entry is never handed on -- what leaves here is the secret it \
+                  carried"
+    )]
+    unsafe {
+        entry.release();
+    }
+    answered.map(Some)
+}
+
+/// Stores what a `fill` answered and hands its secret back to the caller that
+/// ran it.
+///
+/// The entry is read rather than kept: what a program holds afterwards is the
+/// secret, and the object it arrived in is this frame's to release. The
+/// lifetime is the one the fetch learned, a token endpoint being the authority
+/// on how long its own token stays good.
+///
+/// # Errors
+///
+/// [`seal_and_store`]'s, and a [`Fault::fatal`] for an entry whose value slot is
+/// not text — the row declares the callable returns a
+/// `Core\Cache\SecretEntry`, so that is compiled code's bug rather than
+/// anything a program can write.
+fn supplied(ctx: &mut Ctx, at: &Sealing<'_>, entry: Value) -> Result<Value, Fault> {
+    let receiver = crate::instance::receiver(entry, &SECRET_ENTRY, at.member)?;
+    let held = crate::instance::slot(receiver, 0);
+    let nanos = crate::instance::slot(receiver, 1).as_int().unwrap_or(0);
+    let Some(value) = held.as_text() else {
+        return Err(Fault::fatal(format!(
+            "{} expected a `string` from its `fill`, got tag {}",
+            at.who,
+            held.tag_byte()
+        )));
+    };
+
+    seal_and_store(ctx, at, value.as_bytes(), nanos)?;
+    Ok(Value::str(NvsStr::new(value.as_bytes())))
+}
+
+/// The wall clock this request reads, in milliseconds since the epoch.
+///
+/// [`crate::time::wall_clock`] and not a [`std::time::SystemTime`] of this
+/// module's own, so that a `#[Test(at: …)]` moves a sealed expiry exactly as it
+/// moves every other reading in `Core`.
+///
+/// # Errors
+///
+/// A [`Fault::fatal`] for a fixed reading outside the representable range,
+/// which `Core\Test::advance` refuses to store — so it is a state no program
+/// can reach and no member has anything to say about.
+fn clock_ms(ctx: &Ctx, member: &str) -> Result<i64, Fault> {
+    crate::time::wall_clock(ctx)
+        .map(|at| at.as_millisecond())
+        .ok_or_else(|| {
+            Fault::fatal(format!(
+                "{STORE_NAME}::{member} read a fixed clock outside the representable range"
+            ))
+        })
+}
+
+/// The `secret string` in argument slot `at`.
+///
+/// # Errors
+///
+/// A [`Fault::fatal`] naming the member, for [`key_of`]'s reason with one more
+/// on top: `secret` is checked once and erased before codegen, so what arrives
+/// here is a `string` or compiled code's bug.
+fn secret_of<'a>(args: &'a [Value], at: usize, member: &str) -> Result<&'a str, Fault> {
+    args[at].as_text().ok_or_else(|| {
+        Fault::fatal(format!(
+            "{STORE_NAME}::{member} expected a `string` value, got tag {}",
+            args[at].tag_byte()
+        ))
+    })
+}
+
+/// The `string` in argument slot `at`.
+///
+/// # Errors
+///
+/// A [`Fault::fatal`] naming the member: the row declares a `string` there, so
+/// another tag is compiled-code's bug rather than anything a program can write
+/// — `E0401` refuses the call first.
+fn key_of<'a>(args: &'a [Value], at: usize, member: &str) -> Result<&'a str, Fault> {
+    args[at].as_text().ok_or_else(|| {
+        Fault::fatal(format!(
+            "{STORE_NAME}::{member} expected a `string` key, got tag {}",
+            args[at].tag_byte()
+        ))
+    })
+}
+
+/// The `{ttl?: Duration}` in argument slot `at`, as the lifetime the call
+/// wrote.
+///
+/// An omitted option arrives as the [`Const::Null`] [`PUT_OPTIONS`] defaults it
+/// to, which is the one reading that cannot be a written duration: the option's
+/// declared type admits no `null`, so there is no second spelling for
+/// `rule:core-api/omission-is-not-a-written-null` to have to tell apart here.
+///
+/// # Errors
+///
+/// [`crate::time::nanos_of`]'s fatal for a slot holding neither a duration nor
+/// that `null`, which the row's own type has already refused at the call site.
+fn lifetime_of(args: &[Value], at: usize, member: &str) -> Result<Lifetime, Fault> {
+    if args
+        .get(at)
+        .is_none_or(|held| matches!(held.tag(), Some(Tag::Null)))
+    {
+        return Ok(Lifetime::Forever);
+    }
+    Ok(Lifetime::of(crate::time::nanos_of(args, at, member)?))
+}
+
+/// Which tier a store is — [`TIER_SLOT`] read back, as the one choice every
+/// operation on it makes.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Tier {
+    /// Every core of this process's entries, in the one map [`MEMORY`] holds.
+    Memory,
+    /// The configured store, over the connection [`nvs_core_cache_shared`]
+    /// opened for this core.
+    Shared,
+}
+
+/// The tier of the store the call was made on.
+///
+/// # Errors
+///
+/// A [`Fault::fatal`] for a slot holding neither word: the two members that
+/// build a store write one of the two and nothing else can build one, so a third
+/// value is compiled code's bug rather than anything a program can write.
+fn tier_of(args: &[Value], member: &str) -> Result<Tier, Fault> {
+    let receiver = crate::instance::receiver(args[0], &STORE, member)?;
+    let tier = crate::instance::slot(receiver, TIER_SLOT);
+    match tier.as_text() {
+        Some(MEMORY_TIER) => Ok(Tier::Memory),
+        Some(SHARED_TIER) => Ok(Tier::Shared),
+        _ => Err(Fault::fatal(format!(
+            "{STORE_NAME}::{member} found a `tier` slot naming neither `{MEMORY_TIER}` nor \
+             `{SHARED_TIER}`"
+        ))),
+    }
+}
+
+thread_local! {
+    /// This core's connection to the shared store, opened by
+    /// [`nvs_core_cache_shared`] and reused by every request that runs here.
+    ///
+    /// Per core rather than per request for the reason a socket is expensive and
+    /// a round trip is not: a request that had to hand-shake before its first
+    /// `get` would pay the handshake on the request path, every request. What it
+    /// spends is one socket per core — O(cores), released when the core ends.
+    static SHARED: RefCell<Option<redis::Connection>> = const { RefCell::new(None) };
+}
+
+/// The directive `key`'s value, with an empty one read as absent.
+///
+/// Absent and blank are the same answer on purpose: `url = ""` is an operator
+/// clearing a setting, and reading it as a host would produce a refusal about a
+/// name rather than about the configuration.
+///
+/// `pub(crate)` because [`crate::session`] reads its own three directives the
+/// same way and a second copy of "blank is absent" would be a second rule.
+pub(crate) fn configured(ctx: &Ctx, key: &str) -> Option<String> {
+    ctx.config()
+        .and_then(|config| config.get(key))
+        .map(|text| text.trim().to_owned())
+        .filter(|text| !text.is_empty())
+}
+
+/// `[cache.shared] timeout`, or [`DEFAULT_TIMEOUT`].
+///
+/// A directive that will not parse, or that parses to zero, is the shipped bound
+/// rather than a refusal — `crate::http`'s `bound_of` reasoning, that `nvs.toml`
+/// is validated where it is loaded and failing a request over a key the operator
+/// can no longer see is the wrong direction.
+fn timeout_of(ctx: &Ctx) -> Duration {
+    bound_of(configured(ctx, TIMEOUT).as_deref())
+}
+
+/// `[cache.shared] timeout` as an operator wrote it, or [`DEFAULT_TIMEOUT`].
+///
+/// Taken as text rather than read off a `Ctx`, because [`Lease`] has no context
+/// to read it from and a lease command waits on the same store every other
+/// command does: one bound, parsed in one place.
+fn bound_of(written: Option<&str>) -> Duration {
+    written
+        .and_then(|text| duration::parse(text).ok())
+        .map(|nanos| Duration::from_nanos(nanos.unsigned_abs()))
+        .filter(|bound| !bound.is_zero())
+        .unwrap_or(DEFAULT_TIMEOUT)
+}
+
+/// `[cache.shared] url` read into the place this core's connection goes.
+///
+/// # Errors
+///
+/// A thrown `RuntimeError` naming what this client reads, for a URL carrying a
+/// scheme it does not speak, userinfo, a path, or a port that is not one. Each
+/// is refused rather than ignored, and the middle two for one reason: a
+/// credential is `[cache.shared] password` and an index is
+/// `[cache.shared] database`, so a URL carrying either gives one value two
+/// homes, which is two sources those keys exist to be the only one of. Plus
+/// everything [`socket`] refuses, for the third spelling.
+fn endpoint(url: &str, member: &str) -> Result<Target, Fault> {
+    let refuse = |why: &str| {
+        Fault::thrown(format!(
+            "{member}: `{URL}` is `{url}`, and {why} — this client reads {READS}"
+        ))
+    };
+    if let Some(path) = url.strip_prefix(UNIX) {
+        return socket(path).map_err(refuse);
+    }
+    let Some((authority, tls)) = url
+        .strip_prefix(TLS)
+        .map(|authority| (authority, true))
+        .or_else(|| url.strip_prefix(PLAIN).map(|authority| (authority, false)))
+    else {
+        return Err(refuse("that is not a scheme it speaks"));
+    };
+    let authority = authority.trim_end_matches('/');
+    if authority.contains('/') {
+        return Err(refuse(
+            "a database index is written as `[cache.shared] database` and never as a path here, \
+             because one value spelled two ways is one nobody can read without being told which \
+             spelling wins",
+        ));
+    }
+    // Ahead of the port split, because userinfo carries a colon of its own and
+    // a `redis://:pw@host` read past this point is a credential handed to a
+    // resolver, whose failure then names it.
+    //
+    // This one refusal builds its own text rather than going through `refuse`,
+    // which quotes the URL: what makes userinfo the wrong home is that a
+    // credential there reaches everything reporting the store, and a refusal
+    // echoing it would be the first of those things.
+    if let Some((_, host)) = authority.split_once('@') {
+        let scheme = if tls { TLS } else { PLAIN };
+        return Err(Fault::thrown(format!(
+            "{member}: `{URL}` is `{scheme}<credential>@{host}`, and a credential is written as \
+             `[cache.shared] password` and never as userinfo here, because one value with two \
+             homes is one nobody can read without being told which home wins — this client reads \
+             {READS}"
+        )));
+    }
+    // An IPv6 address is written `[::1]` and carries colons of its own, so the
+    // last one is a port separator only when nothing after it belongs to the
+    // address. `resolve_host` takes the brackets off itself.
+    let (host, port) = match authority.rsplit_once(':') {
+        Some((head, tail)) if !tail.contains(']') => {
+            let port = tail
+                .parse::<u16>()
+                .map_err(|_| refuse(&format!("`{tail}` is not a port")))?;
+            (head, port)
+        }
+        _ => (authority, redis::DEFAULT_PORT),
+    };
+    if host.is_empty() {
+        return Err(refuse("it names no host"));
+    }
+    // Resolved and not pinned: `rule:config/cache-shared-is-the-grant-over-the-configured-store` is
+    // that the endpoint an operator wrote carries the authority that granted the capability, so
+    // there is no attacker-influenced name here for `rule:security/net-address-policy`'s table to
+    // hold at arm's length — and holding it there is what made a loopback store need `net.internal`.
+    let address = nvs_runtime::capability::resolve_host(host, member)?;
+    let address = SocketAddr::new(address, port);
+    if !tls {
+        return Ok(Target::Tcp(address));
+    }
+    // An IPv6 address's brackets belong to the URL's grammar rather than to the
+    // name a certificate is checked against, and `resolve_host` takes them off
+    // for the same reason.
+    let name = host
+        .trim_start_matches('[')
+        .trim_end_matches(']')
+        .to_owned();
+    Ok(Target::Tls { address, name })
+}
+
+/// The `unix:` spelling's target, on a build whose reactor carries `AF_UNIX`.
+///
+/// `rule:config/unix-scheme-in-a-url-and-a-bare-path-in-a-host` is the scheme,
+/// and the path after it must be absolute for the reason a bare path in a key
+/// called `url` is refused outright: a socket named against a working directory
+/// this process promises nothing about is a store two readers cannot point at
+/// twice.
+///
+/// # Errors
+///
+/// The clause [`endpoint`]'s refusal appends, for a `unix:` with nothing after
+/// it or with a relative path.
+#[cfg(unix)]
+fn socket(path: &str) -> Result<Target, &'static str> {
+    if path.is_empty() {
+        return Err("it names no socket after the scheme");
+    }
+    if !path.starts_with('/') {
+        return Err("a socket is named by an absolute path and this one is relative");
+    }
+    Ok(Target::Socket(std::path::PathBuf::from(path)))
+}
+
+/// The same arm on a build with no Unix-domain transport, where the answer is a
+/// refusal.
+///
+/// `rule:config/a-unix-spelling-with-no-af-unix-transport-refuses-at-boot` puts
+/// this refusal at boot, where `E0627` names the key an operator wrote; this is
+/// the same answer at the door, for a snapshot that reached one anyway.
+///
+/// # Errors
+///
+/// Always. There is nothing here a socket could be dialled with, and reading the
+/// spelling as loopback TCP instead is the thing that rule refuses.
+#[cfg(not(unix))]
+fn socket(_path: &str) -> Result<Target, &'static str> {
+    Err(
+        "this build carries no Unix-domain transport, so there is nothing to dial a socket \
+         with — and reading it as loopback TCP instead is refused, because a store that reads \
+         as one transport and runs as another is invisible in the review that would catch it",
+    )
+}
+
+/// Where this core's connection to the shared store goes.
+///
+/// The transport half of the [`Dial`] [`open_shared`] compares to decide
+/// reuse-or-replace, and the half a URL settles on its own. It is not a
+/// [`SocketAddr`] because
+/// `rule:config/unix-scheme-in-a-url-and-a-bare-path-in-a-host`'s second
+/// spelling has no address for one to hold, and it lives here rather than beside
+/// the wire for the split [`redis`]'s module doc states: this module decides
+/// *which* store is reached, and that one speaks to it.
+///
+/// The socket half is `#[cfg(unix)]` rather than a variant that refuses when it
+/// is dialled, so a build with no `AF_UNIX` transport cannot hold a path to dial
+/// at all — the platform half of
+/// `rule:config/a-unix-spelling-with-no-af-unix-transport-refuses-at-boot`, made
+/// impossible by the type instead of caught by a check.
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub(crate) enum Target {
+    /// A `redis://host[:port]`, resolved to the one address the connection is
+    /// made to, carrying the URL's port or [`redis::DEFAULT_PORT`].
+    Tcp(SocketAddr),
+    /// A `rediss://host[:port]`, resolved the same way, with the name beside
+    /// the address because the socket and the session ask different questions
+    /// of one URL: where to connect, and who is expected to answer.
+    Tls {
+        /// Where the socket goes, which is [`Target::Tcp`]'s whole value.
+        address: SocketAddr,
+        /// The host an operator wrote, with an IPv6 address's brackets off,
+        /// handed to `rule:security/one-tls-client`'s session as the name to
+        /// verify the peer's certificate against and to send as SNI.
+        name: String,
+    },
+    /// A `unix:/path`, exactly as an operator wrote it: there is nothing to
+    /// resolve, and
+    /// `rule:config/a-unix-socket-is-admitted-only-where-an-operator-wrote-it`
+    /// is why no program can name one.
+    #[cfg(unix)]
+    Socket(std::path::PathBuf),
+}
+
+impl std::fmt::Display for Target {
+    /// What a failure names the store as, which is the spelling an operator
+    /// wrote rather than a description of it.
+    ///
+    /// The TLS arm names the host and not the address it resolved to, because
+    /// the name is what the peer's certificate is checked against: a handshake
+    /// that fails is a fact about the name, and a store behind a rotating
+    /// address is the deployment where the address is not a fact at all.
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Tcp(address) => write!(f, "{address}"),
+            Self::Tls { address, name } => write!(f, "{name}:{}", address.port()),
+            #[cfg(unix)]
+            Self::Socket(path) => write!(f, "{}", path.display()),
+        }
+    }
+}
+
+/// Everything one connection to the shared store is made with: which socket it
+/// is, and what is applied over that socket before any command.
+///
+/// One value rather than three arguments, because
+/// [`redis::Connection::ensure`] dials on the first command and silently again
+/// after a dropped socket: a credential or an index applied anywhere but there
+/// is a reconnect that comes back unauthenticated and pointed at whichever index
+/// the store hands out. It is settled where the URL is read — [`open_configured`]
+/// for a request's connection and [`Lease::open`] for the fleet's — and the wire
+/// applies the whole of it every time it dials.
+///
+/// It is also the key [`open_shared`] compares to decide reuse-or-replace, which
+/// is what a reloaded configuration looks like from there: a store whose
+/// credential changed is one to reach again, not the same connection kept.
+///
+/// What it holds is one `String` per process for a store behind a credential and
+/// nothing per entry, which is `rule:programs/memory-priority`'s accounting for
+/// the tier that is one socket per core.
+#[derive(PartialEq, Eq)]
+pub(crate) struct Dial {
+    /// Which socket, which is the whole of what a URL says.
+    target: Target,
+    /// The credential the store is behind, sent as `AUTH` ahead of every command
+    /// on a connection this dial opens.
+    ///
+    /// This type carries no `Debug` on purpose: one derived here would put the
+    /// credential into the output of everything that prints a connection.
+    password: Option<String>,
+    /// The database index this store's entries live in, sent as `SELECT` on
+    /// every connection. Absent is the index the store opens on, which is what a
+    /// deployment that configured only a URL reaches and costs no round trip.
+    database: Option<u32>,
+}
+
+impl Dial {
+    /// The store at `target`, behind `password` and at `database` — the whole of
+    /// what `[cache.shared]` says, as the one value the wire applies.
+    ///
+    /// The only constructor the shipped code has, so a door that read a URL and
+    /// stopped there says so by passing nothing twice rather than by reaching
+    /// for a shorter one that would quietly drop a key added later.
+    pub(crate) fn configured(
+        target: Target,
+        password: Option<String>,
+        database: Option<u32>,
+    ) -> Self {
+        Self {
+            target,
+            password,
+            database,
+        }
+    }
+}
+
+/// Makes this core's connection the one `dial` describes, and dials it.
+///
+/// A connection already open on an equal dial is kept — the ordinary case, since
+/// every request on this core asks for the same configured store. One open on
+/// any different dial is replaced, which is what a reloaded configuration looks
+/// like from here, and it is the whole reason [`Target`] carries the address or
+/// the path rather than only what one of the two transports can say.
+///
+/// # Errors
+///
+/// A thrown `IOError` for a store that cannot be reached, which is the second
+/// half of [`SHARED_DOC`]'s card: an unreachable store throws at the door rather
+/// than answering a handle whose every operation would fail.
+fn open_shared(dial: Dial, timeout: Duration, member: &str) -> Result<(), Fault> {
+    SHARED.with_borrow_mut(|held| {
+        if held.as_ref().is_none_or(|open| open.dial() != &dial) {
+            *held = Some(redis::Connection::new(dial, timeout));
+        }
+        held.as_mut()
+            .expect("the connection was just written")
+            .ensure()
+            .map_err(|why| Fault::thrown_as(ThrownClass::Io, format!("{member}: {why}")))
+    })
+}
+
+/// Opens this core's connection to the configured shared store — the **door**,
+/// as the module doc's third decision defines one: the directives are read here,
+/// the grant is asked for here, the whole block becomes the [`Dial`] here, and
+/// the connection is made to that and to nothing the store answers with later.
+///
+/// `remedy` is the clause a caller appends to the unconfigured refusal, because
+/// what to do instead is the caller's own contract: `Core\Cache::shared()` can
+/// name the memory tier, and a limiter enforced across every machine cannot.
+///
+/// # Errors
+///
+/// A thrown `RuntimeError` when `cache.shared` is not granted, when no
+/// `[cache.shared] url` is set, or when the URL is not one this client reads —
+/// each a deployment that has not been configured rather than the world saying
+/// no. A thrown `IOError` for a store that is configured and cannot be reached,
+/// which is the class `rule:core-classes/ratelimit-unreachable-store-throws`'s fail-open `catch` holds.
+pub(crate) fn open_configured(ctx: &Ctx, member: &str, remedy: &str) -> Result<(), Fault> {
+    let Some(url) = configured(ctx, URL) else {
+        return Err(Fault::thrown(format!(
+            "{member}: no shared store is configured, so there is nothing coherent to answer \
+             with — set `[cache.shared] url`{remedy}"
+        )));
+    };
+
+    // After the directive and before anything is dialled. A deployment that configured no store
+    // hears that first, because there is no tier for a grant to be about yet — and asking here
+    // rather than at the top is `rule:security/capability-costs-nothing-unasked`'s shape: the
+    // question is put beside the effect it authorizes.
+    nvs_runtime::capability::require(ctx, Cap::CacheShared, Scope::Unscoped, member)?;
+
+    open_shared(
+        dial_of(ctx, endpoint(&url, member)?),
+        timeout_of(ctx),
+        member,
+    )
+}
+
+/// The whole of what this deployment configured for the store at `target`.
+///
+/// Settled here, where the URL is read, because that is what makes [`Dial`] one
+/// value: [`redis::Connection::ensure`] applies all of it on every socket it
+/// opens, including the one it opens again after a dropped socket, so a
+/// credential or an index picked up anywhere else would be a reconnect the store
+/// answers as somebody else.
+///
+/// An index that is not a number is the one the store opens on rather than a
+/// refusal, which is [`timeout_of`]'s reasoning: `[cache.shared] database`
+/// parses as an integer where `nvs.toml` is loaded, so a request throwing over
+/// it would be a request failing over a file the operator can no longer see.
+fn dial_of(ctx: &Ctx, target: Target) -> Dial {
+    Dial::configured(
+        target,
+        credential(ctx),
+        configured(ctx, DATABASE).and_then(|index| index.parse().ok()),
+    )
+}
+
+/// `[cache.shared] password` as the operator wrote it, or `None` for a store
+/// behind none.
+///
+/// Not [`configured`], which trims. A credential is kept byte for byte
+/// (`rule:config/a-secret-is-a-file-whose-content-is-the-value`, whose boot says
+/// `W1007` about an edge space rather than removing it), and a reader that
+/// trimmed one would send an `AUTH` the store refuses while the file it was
+/// mounted from holds exactly the right bytes — which is the bug
+/// `crate::mail`'s own reader was written against. Blank is still absent,
+/// because `password = ""` is an operator clearing the key.
+fn credential(ctx: &Ctx) -> Option<String> {
+    ctx.config()
+        .and_then(|config| config.get(PASSWORD))
+        .filter(|written| !written.trim().is_empty())
+}
+
+/// One command on this core's connection to the shared store, for `owner`'s
+/// `member`.
+///
+/// Two names rather than one because the connection now has two owners: the
+/// store's own operations, and `Core\RateLimit::consume`, which reaches the
+/// same socket because a deployment has one shared store and a limiter that
+/// named a second would be a second thing to configure.
+///
+/// # Errors
+///
+/// A thrown `IOError` for a store this core never opened, for one that cannot
+/// be reached, and for one that refuses the command. Never an answer that looks
+/// like absence: `rule:core-classes/ratelimit-unreachable-store-throws`'s standing rule is that an unreachable store
+/// throws, because the failure mode belongs to the application that knows
+/// whether the entry was a cache or a lock.
+pub(crate) fn on_shared<T>(
+    owner: &str,
+    member: &str,
+    command: impl FnOnce(&mut redis::Connection) -> Result<T, String>,
+) -> Result<T, Fault> {
+    SHARED.with_borrow_mut(|held| {
+        let open = held.as_mut().ok_or_else(|| {
+            Fault::thrown_as(
+                ThrownClass::Io,
+                format!(
+                    "{owner}::{member}: this core has no connection to the shared store, and \
+                     `{NAME}::shared()` is the only thing that opens one"
+                ),
+            )
+        })?;
+        command(open)
+            .map_err(|why| Fault::thrown_as(ThrownClass::Io, format!("{owner}::{member}: {why}")))
+    })
+}
+
+/// Where a fleet lease's keys live, away from every entry a program wrote.
+///
+/// [`crate::ratelimit`]'s `PREFIX` for that module's reason: a lease is not a
+/// cache entry, and a `put` under a name a schedule happens to share must not be
+/// able to hand a host an interval. What follows it is the ticker's key — the
+/// entry's `name` and the fire's scheduled instant — so two deployments sharing
+/// one store share the lease for an entry they both call the same thing, which
+/// is the reading `[cache.shared]` already has: the store belongs to the
+/// deployment.
+const LEASE_PREFIX: &str = "nvs:lease:";
+
+/// What a lease's refusal names itself as, where a member's name goes.
+const LEASE_MEMBER: &str = "the fleet lease";
+
+/// `rule:config/a-fleet-entry-fires-at-most-once-under-a-lease`'s lease, as the
+/// two commands `nvs serve` needs and not as a store.
+///
+/// The ticker's lease is the binary's: `nvs-server` names no `nvs-stdlib`, so
+/// `nvs-cli` is the one crate that can reach both this store and
+/// `nvs_server::Leases`, and what it needs from here is a key taken atomically
+/// and a key held longer. [`redis::Connection`] stays internal, and so does
+/// every other command on it.
+///
+/// **Its own connection, not this core's.** [`SHARED`] is a request's socket and
+/// the ticker is a task beside the accept loop: one socket between them would
+/// put a scheduled fire's reply in front of a request that parked mid-exchange.
+/// What this spends is one socket per process for as long as the server runs
+/// (`rule:programs/memory-priority`), which is O(1) and not O(requests served).
+///
+/// There is no path from a program to any of it. A compare-and-set a script
+/// could call is new cross-request coordination
+/// (`rule:concurrency/cross-request-state-is-explicit`), so this is a door for
+/// the binary and the tier's own wire is still `put` and `get`.
+pub struct Lease {
+    /// Dialled by [`Lease::open`], and reconnected under a command exactly as a
+    /// request's connection is.
+    connection: redis::Connection,
+}
+
+impl std::fmt::Debug for Lease {
+    /// The store this lease is over, and nothing about the socket holding it
+    /// open: what a caller can act on is which store its keys are taken in.
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Lease")
+            .field("target", &self.connection.dial().target)
+            .finish()
+    }
+}
+
+impl Lease {
+    /// A lease over the store `[cache.shared] url` names, dialled now.
+    ///
+    /// Every argument is that block's own key as the operator wrote it: the
+    /// bound, so a lease command waits what every other command to this store
+    /// waits, and the credential and the index, so the fleet's connection is the
+    /// same [`Dial`] a request's is. A lease that dialled the URL alone would be
+    /// the one connection in the process reaching the store as nobody, against
+    /// whichever database it opens on.
+    ///
+    /// Dialled here rather than at the first fire because a store that cannot be
+    /// reached is something an operator should hear while they are still reading
+    /// the boot — and because the caller's answer to it is to arm nothing, which
+    /// is a decision about the whole roster rather than about one interval.
+    ///
+    /// # Errors
+    ///
+    /// The refusal text for a URL this client does not read, and the connect
+    /// failure for a store that is not answering. Both are the caller's to
+    /// report: a boot that cannot reach the store still serves requests, and
+    /// what it does instead is leave every `fleet` entry unarmed and say so.
+    pub fn open(
+        url: &str,
+        password: Option<&str>,
+        database: Option<u32>,
+        timeout: Option<&str>,
+    ) -> Result<Self, String> {
+        let target = endpoint(url, LEASE_MEMBER).map_err(|refused| match refused {
+            Fault::Thrown(_, why) => why.into_owned(),
+            // `endpoint` builds nothing else. A variant it does not construct
+            // still has to read as a refusal rather than reach an `unreachable`.
+            other => format!("{LEASE_MEMBER}: {other:?}"),
+        })?;
+        // Blank is absent here as it is at the door: `password = ""` is an
+        // operator clearing the key, and anything else is theirs byte for byte.
+        let password = password
+            .filter(|written| !written.trim().is_empty())
+            .map(str::to_owned);
+        let dial = Dial::configured(target, password, database);
+        let mut connection = redis::Connection::new(dial, bound_of(timeout));
+        connection.ensure()?;
+        Ok(Self { connection })
+    }
+
+    /// Take `key` for `ttl`, writing `token`, and say whether this host got it.
+    ///
+    /// § 3's set-if-absent, which is the store's decision and never this
+    /// process's: [`redis::Connection::set_if_absent`] owns why.
+    ///
+    /// # Errors
+    ///
+    /// The store's refusal, or the failure to reach it. The caller turns either
+    /// into "this host does not run this interval", which is § 3's safe answer.
+    pub fn take(&mut self, key: &str, token: &[u8], ttl: Duration) -> Result<bool, String> {
+        self.connection
+            .set_if_absent(namespaced(key).as_bytes(), token, ttl)
+    }
+
+    /// Hold `key` for `ttl` longer, and only while `token` is still what holds
+    /// it.
+    ///
+    /// # Errors
+    ///
+    /// As [`Lease::take`]. A `false` is a lease this host no longer holds, which
+    /// is not a failure: the run it was taken for outlived it, and § 3 bounds
+    /// `fleet` at at-most-once for exactly that case.
+    pub fn renew(&mut self, key: &str, token: &[u8], ttl: Duration) -> Result<bool, String> {
+        self.connection
+            .renew_if_holder(namespaced(key).as_bytes(), token, ttl)
+    }
+}
+
+/// A ticker's key under [`LEASE_PREFIX`].
+fn namespaced(key: &str) -> String {
+    format!("{LEASE_PREFIX}{key}")
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Cache::memory(): Core\Cache\Store` — `rule:core-api/two-cache-tiers`'s
+    /// memory tier, one store per serving process.
+    ///
+    /// Nothing is allocated for the tier itself and no grant is asked for: the
+    /// entries are in [`MEMORY`] whether a program has asked for a store or not,
+    /// so what this answers is a two-word handle naming which tier it is, and a
+    /// tier with no door onto an effect has nothing to check at one.
+    fn nvs_core_cache_memory(_ctx, _args: [0]) {
+        Ok(crate::instance::build(
+            &STORE,
+            [Value::str(NvsStr::new(MEMORY_TIER.as_bytes()))],
+        ))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Cache::shared(): Core\Cache\Store` — `rule:core-api/two-cache-tiers`'s coherent tier,
+    /// which no deployment can configure yet.
+    ///
+    /// This is the **door**, and the module doc's third decision is why: the
+    /// grant is asked for here, the address is pinned here, and the connection
+    /// is dialled here, so the two operations on the store it answers ask
+    /// nothing and re-resolve nothing.
+    ///
+    /// A deployment that configured no store gets a refusal rather than a store
+    /// that would silently behave like the memory one: the two tiers make
+    /// different promises, and a `shared` that quietly served one process's
+    /// entries would be the accident § 1 splits the members to prevent.
+    ///
+    /// # Errors
+    ///
+    /// A thrown `RuntimeError` when `cache.shared` is not granted, when no
+    /// `[cache.shared] url` is set, or when the URL is not one this client
+    /// reads; a thrown `IOError` when the store cannot be reached.
+    fn nvs_core_cache_shared(ctx, _args: [0]) {
+        let member = format!("{NAME}::shared()");
+        open_configured(
+            ctx,
+            &member,
+            ", or use `Core\\Cache::memory()`, which needs no configuration",
+        )?;
+
+        Ok(crate::instance::build(
+            &STORE,
+            [Value::str(NvsStr::new(SHARED_TIER.as_bytes()))],
+        ))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Cache\Store::put(string $key, mixed $value): void` — `rule:concurrency/a-cached-value-is-copied-across-the-boundary`'s
+    /// copy out of the request heap.
+    ///
+    /// # Errors
+    ///
+    /// A thrown `LogicError` for a value that may not cross — the graph copy's
+    /// own refusal, classified as [`crate::serialize`]'s `encode` classifies it,
+    /// because a value the program itself built is the program's bug — and a
+    /// thrown `IOError` on the shared tier for a store that cannot be reached
+    /// or that refuses the write.
+    ///
+    /// **The copy happens before the tier is consulted**, which is § 2's "not a
+    /// third mechanism" written as control flow: there is one call to the walk
+    /// in this module and both tiers are downstream of it, so a tier cannot grow
+    /// a representation of its own without deleting that structure first.
+    ///
+    /// The lifetime is read before the copy and carried into whichever tier
+    /// the store names, because the two keep it differently and neither may
+    /// read the option for itself — the module doc's own
+    /// decision on a lifetime says which keeps what.
+    fn nvs_core_cache_put(ctx, args: [4]) {
+        let tier = tier_of(args, "put")?;
+        let key = key_of(args, 1, "put")?.as_bytes().to_vec();
+        let lifetime = lifetime_of(args, 3, "put")?;
+
+        // The walk consumes one reference and the argument slot keeps its own,
+        // so this is the reference the walk gives up.
+        #[expect(
+            unsafe_code,
+            reason = "the argument slot holds a live reference for the length of \
+                      the call, which is `Value::retain`'s whole obligation"
+        )]
+        unsafe {
+            args[2].retain();
+        }
+        let payload = nvs_runtime::encode(args[2]).map_err(|why| {
+            Fault::thrown_as(ThrownClass::Logic, format!("{STORE_NAME}::put(): {why}"))
+        })?;
+
+        match tier {
+            Tier::Memory => {
+                memory_put(&scoped(ctx, &key), payload, lifetime, memory_cap(ctx));
+            }
+            Tier::Shared => on_shared(STORE_NAME, "put", |open| {
+                // The store keeps its own clock, so it is told a length of
+                // time rather than an instant — and a lifetime already over
+                // is not a write here either, which is the one command that
+                // leaves the same state the memory tier does.
+                if lifetime.elapsed() {
+                    return open.del(&key);
+                }
+                match lifetime {
+                    Lifetime::Forever => open.set(&key, &payload),
+                    Lifetime::For(ttl) => open.set_expiring(&key, &payload, ttl),
+                }
+            })?,
+        }
+        Ok(Value::null())
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Cache\Store::get(string $key): mixed` — `rule:concurrency/a-cached-value-is-copied-across-the-boundary`'s copy back
+    /// in, and § 1's "may be absent at any time" as the `null` it answers.
+    ///
+    /// # Errors
+    ///
+    /// A thrown `ParseError` for an entry naming a class this program cannot
+    /// resolve, which is [`crate::serialize`]'s `decode` refusal reached through
+    /// the same resolver — the program's own class table — and, on the shared
+    /// tier, a thrown `IOError` for a store that cannot be reached. An
+    /// entry that is simply not there is `null` on either tier, which is the
+    /// difference § 1 draws between a miss and a failure.
+    ///
+    /// **The tier is consulted before the copy, and only for the bytes**: it
+    /// answers where the payload comes from and nothing about how it is read
+    /// back, which is [`nvs_core_cache_put`]'s structure in the other direction.
+    fn nvs_core_cache_get(ctx, args: [2]) {
+        let tier = tier_of(args, "get")?;
+        let key = key_of(args, 1, "get")?.as_bytes().to_vec();
+
+        let held = match tier {
+            Tier::Memory => memory_get(&scoped(ctx, &key)),
+            Tier::Shared => on_shared(STORE_NAME, "get", |open| open.get(&key))?,
+        };
+        let Some(payload) = held else {
+            return Ok(Value::null());
+        };
+        let resolve = |name: &str| ctx.class_desc(name);
+        nvs_runtime::decode(&payload, &resolve).map_err(|why| {
+            Fault::thrown_as(ThrownClass::Parse, format!("{STORE_NAME}::get(): {why}"))
+        })
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Cache\Store::forget(string $key): void` — the second reason an
+    /// entry goes, after the cap and the lifetime that are the tier's own.
+    ///
+    /// **It answers nothing, not even whether there was an entry.** § 1 already
+    /// says one may be absent at any time for any reason, so a program that
+    /// could act on that answer would be acting on a coincidence of the cap and
+    /// the clock; a store whose `get` reports a miss as an ordinary answer
+    /// cannot report the same state as news here.
+    ///
+    /// The tier decides where the key is and nothing else, which is
+    /// [`nvs_core_cache_get`]'s structure: the memory tier takes the entry out
+    /// of its own map, and the shared tier sends the one command that leaves
+    /// the store in the state the memory tier is left in.
+    ///
+    /// # Errors
+    ///
+    /// A thrown `IOError` on the shared tier for a store that cannot be
+    /// reached or that refuses the command. The memory tier has no failure to
+    /// report, so it has no error at all.
+    fn nvs_core_cache_forget(ctx, args: [2]) {
+        let tier = tier_of(args, "forget")?;
+        let key = key_of(args, 1, "forget")?.as_bytes().to_vec();
+
+        match tier {
+            Tier::Memory => memory_forget(&scoped(ctx, &key)),
+            Tier::Shared => on_shared(STORE_NAME, "forget", |open| open.del(&key))?,
+        }
+        Ok(Value::null())
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Cache\Store::putSecret(string $key, secret string $value, Duration
+    /// $ttl, array<secret bytes> $keys): void` — the one door through which a
+    /// secret meets a cache.
+    ///
+    /// **What reaches the tier is ciphertext**, by that tier's ordinary path
+    /// and as bytes, so `rule:security/secret-crosses-no-boundary` is untouched
+    /// — no `secret` value crosses the copy at all, and a sealed entry is as
+    /// safe on the shared tier as on this core's own. The ring's newest key
+    /// seals and [`bound`] is what the entry may not be moved away from.
+    ///
+    /// **The lifetime is written twice, on purpose.** The tier is told it, so
+    /// that a secret nobody reads is forgotten on the ordinary schedule and
+    /// costs the cap nothing after it is over; and it is sealed in as an
+    /// absolute expiry, so that a tier which kept the entry longer than it was
+    /// asked to still answers a miss. [`sealed_value`] is where the second
+    /// reading wins.
+    ///
+    /// # Errors
+    ///
+    /// [`crate::keyring`]'s `LogicError` for a ring that is empty or holds
+    /// something that is not a key, and a thrown `IOError` on the shared tier
+    /// for a store that cannot be reached or that refuses the write.
+    fn nvs_core_cache_put_secret(ctx, args: [5]) {
+        let tier = tier_of(args, "putSecret")?;
+        let key = key_of(args, 1, "putSecret")?.as_bytes().to_vec();
+        let value = secret_of(args, 2, "putSecret")?;
+        let nanos = crate::time::nanos_of(args, 3, "putSecret")?;
+
+        let who = format!("{STORE_NAME}::putSecret");
+        let ring = crate::keyring::borrow(args, 4, &who)?;
+
+        let at = Sealing {
+            tier,
+            key: &key,
+            ring: &ring,
+            member: "putSecret",
+            who: &who,
+        };
+        seal_and_store(ctx, &at, value.as_bytes(), nanos)?;
+        Ok(Value::null())
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Cache\Store::getSecret(string $key, array<secret bytes> $keys,
+    /// {fill?: callable(): Core\Cache\SecretEntry, wait?: Duration}): ?secret
+    /// string` — [`nvs_core_cache_put_secret`]'s door in the other direction.
+    ///
+    /// [`opened`] is the read, and it is every caller's first step: a hit
+    /// outside its refresh window is answered without the fill table being
+    /// touched at all.
+    ///
+    /// **A miss with a `fill` written is supplied exactly once per process.**
+    /// [`elected`] chooses the one caller that runs it, in that caller's own
+    /// request and under its own capabilities; every other caller on every core
+    /// [`waited`]s for it, for at most the bound [`wait_of`] answers. What the
+    /// filler leaves behind is [`seal_and_store`]'s entry, which is the one
+    /// `putSecret` writes — so a waiter's second look is an ordinary read. A
+    /// miss with no `fill` is a miss, unchanged.
+    ///
+    /// **An entry inside the last fifth of its lifetime is answered to every
+    /// caller** while exactly one of them runs the `fill` that replaces it, so
+    /// the expiry of a hot key costs nobody a wait: a caller that already has
+    /// the entry never waits here, and only the one that was elected pays the
+    /// fetch. [`Held::refreshing`] is that window, and a plain `get` past a
+    /// lifetime is simply absent — refresh-ahead is `getSecret`-with-a-`fill`
+    /// and nothing else.
+    ///
+    /// # Errors
+    ///
+    /// [`crate::keyring`]'s `LogicError` for a ring that is empty or holds
+    /// something that is not a key, and [`elected`]'s for a `fill` that asked
+    /// for the key it is filling. [`waited`]'s `TimeoutError` for a fill still
+    /// running when this call's `wait` was up, and a thrown `IOError` on the
+    /// shared tier for a store that cannot be reached. What a `fill` itself
+    /// throws reaches the request that ran it and no other.
+    fn nvs_core_cache_get_secret(ctx, args: [5]) {
+        let tier = tier_of(args, "getSecret")?;
+        let key = key_of(args, 1, "getSecret")?.as_bytes().to_vec();
+
+        let who = format!("{STORE_NAME}::getSecret");
+        let ring = crate::keyring::borrow(args, 2, &who)?;
+
+        let at = Sealing {
+            tier,
+            key: &key,
+            ring: &ring,
+            member: "getSecret",
+            who: &who,
+        };
+        let held = opened(ctx, &at)?;
+        let fill = args[3];
+        if matches!(fill.tag(), Some(Tag::Null)) {
+            return Ok(held.map_or_else(Value::null, |held| held.value));
+        }
+        let filling = scoped(ctx, &sealed_key(&key));
+
+        let Some(held) = held else {
+            // Read before the election so that what this call waits for does
+            // not depend on which caller won it.
+            let wait = wait_of(ctx, args, 4, "getSecret")?;
+            if let Some(value) = filled(ctx, &at, &filling, fill)? {
+                return Ok(value);
+            }
+            return waited(ctx, &filling, wait, &who, |ctx| {
+                Ok(opened(ctx, &at)?.map_or_else(Value::null, |held| held.value))
+            });
+        };
+        if !held.refreshing {
+            return Ok(held.value);
+        }
+
+        let refreshed = filled(ctx, &at, &filling, fill);
+        if matches!(refreshed, Ok(None)) {
+            // Another caller is already replacing it, and this one is answered
+            // what is there rather than waiting for a value it already holds.
+            return Ok(held.value);
+        }
+        #[expect(
+            unsafe_code,
+            reason = "the entry this frame opened is replaced by what the fill \
+                      answered, so the reference it built is never handed on"
+        )]
+        unsafe {
+            held.value.release();
+        }
+        refreshed.map(Option::unwrap_or_default)
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Cache\SecretEntry::of(secret string $value, Duration $ttl):
+    /// Core\Cache\SecretEntry` — the two halves a fill learned, as the one
+    /// value it hands back.
+    ///
+    /// The lifetime is read here rather than where the entry is stored, so
+    /// that the `Duration` instance is finished with at the call that wrote it
+    /// and what the entry holds is the number every tier turns into its own
+    /// deadline — [`Lifetime`]'s own doc is the home of that split.
+    ///
+    /// **What it spends:** one object allocation per entry, charged to the
+    /// request like every other `Core` instance. The secret's bytes are not
+    /// copied — the slot holds one more reference to the same [`NvsStr`], and
+    /// the copy happens at the seal.
+    fn nvs_core_cache_secret_entry_of(_ctx, args: [2]) {
+        let nanos = crate::time::nanos_of(args, 1, "of")?;
+
+        // Unreachable from source: the row declares a `secret string` there
+        // and `E0401` refuses another type at the call site, so a non-text tag
+        // here is compiled code's bug rather than anything a program can
+        // write.
+        if args[0].as_text().is_none() {
+            return Err(Fault::fatal(format!(
+                "{SECRET_ENTRY_NAME}::of expected a `string` value, got tag {}",
+                args[0].tag_byte()
+            )));
+        }
+
+        // A `CoreCall`'s arguments are borrowed and `instance::build` takes
+        // over each slot's reference, so the reference the entry ends up
+        // holding is taken here rather than handed over by the caller.
+        #[expect(
+            unsafe_code,
+            reason = "the argument slot holds a live reference for the length of \
+                      the call, which is `Value::retain`'s whole obligation"
+        )]
+        unsafe {
+            args[0].retain();
+        }
+        Ok(crate::instance::build(
+            &SECRET_ENTRY,
+            [args[0], Value::int(nanos)],
+        ))
+    }
+}
+
+#[cfg(test)]
+pub(crate) mod tests {
+    use std::net::TcpListener;
+    use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+    use std::sync::{Arc, Barrier, Mutex, mpsc};
+    use std::time::{Duration, Instant};
+
+    use nvs_runtime::budget;
+    use nvs_runtime::{Fault, ThrownClass};
+
+    use crate::tests::granting;
+
+    use super::{
+        CLASS, Ctx, DEFAULT_FILL_WAIT, DEFAULT_MAX_SIZE, ENTRY_OVERHEAD, Entries, FILL_WAIT,
+        GET_DOC, Lifetime, MAX_SIZE, MEMORY, MEMORY_DOC, NvsStr, SEAL_DOMAIN, SECRET_ENTRY, SHARDS,
+        SHARED_DOC, Value, bound, charged, dial_of, elected, endpoint, memory_cap, memory_forget,
+        memory_get, memory_put, memory_update, nvs_core_cache_secret_entry_of, open_configured,
+        scoped, sealed_key, sealed_plaintext, sealed_value, shard_cap, shard_of, wait_of, waited,
+    };
+
+    /// Taken by every case that touches the memory tier, first thing — here
+    /// and in the other modules that keep state in it.
+    ///
+    /// That tier is the *process's*, and `cargo test` runs these cases on threads
+    /// of one process — so a case filling it under a cap would forget another
+    /// case's entry while that case was still reading it, and a case measuring a
+    /// balance would be credited for bytes it never allocated. What this
+    /// serializes is the cases; the tier itself needs no such thing, which is
+    /// what its shards are.
+    pub(crate) static TIER: Mutex<()> = Mutex::new(());
+
+    /// A key that lands in the same shard as `entry`, built from `stem`, for a
+    /// case that has to fill the shard an entry is in.
+    pub(crate) fn beside(entry: &[u8], stem: &str) -> Vec<u8> {
+        (0_u32..)
+            .map(|step| format!("{stem}-{step}").into_bytes())
+            .find(|key| std::ptr::eq(shard_of(key), shard_of(entry)))
+            .expect("some key of the stem hashes into every shard")
+    }
+
+    /// Writes unrelated entries into the shard `entry` lives in, under a cap of
+    /// `share` bytes a shard, until everything written there before them is
+    /// forgotten — the way any program's own caching can push an entry out.
+    ///
+    /// Each one takes half the share and its charge takes more, so the shard
+    /// holds one of them at a time and the second write already evicts
+    /// whatever was older than the first.
+    pub(crate) fn crowd_out(entry: &[u8], share: usize) {
+        for step in 0..2 {
+            let key = beside(entry, &format!("crowding-{step}"));
+            memory_put(
+                &key,
+                vec![b'x'; share / 2],
+                Lifetime::Forever,
+                Some(share * SHARDS),
+            );
+        }
+    }
+
+    /// Takes `key` out of the memory tier, for a case in another module that
+    /// leaves the tier as it found it.
+    pub(crate) fn forget(key: &[u8]) {
+        memory_forget(key);
+    }
+
+    /// A snapshot a process is serving: one `[[app]]` block and one generation
+    /// number, which is both halves of what [`scoped`] reads.
+    fn served(app: &str, generation: u64) -> Arc<nvs_config::Snapshot> {
+        Arc::new(nvs_config::Snapshot {
+            blocks: vec![std::path::PathBuf::from(app)],
+            generation,
+            ..Default::default()
+        })
+    }
+
+    /// The member a store's door names in a refusal, and what a case here is
+    /// standing in for.
+    const MEMBER: &str = "Core\\Cache::shared()";
+
+    /// A store that is listening and nothing more: a socket on loopback that
+    /// accepts the connection the door dials and never answers a command.
+    ///
+    /// Enough for every case below, because [`open_configured`] finishes at
+    /// `ensure` — what a store *says* is [`super::redis`]'s subject, and the
+    /// question here is only which questions were asked on the way to dialling
+    /// it. The listener is returned with the URL so it outlives the call.
+    fn listening() -> (TcpListener, String) {
+        let listener = TcpListener::bind("127.0.0.1:0").expect("a loopback port");
+        let port = listener.local_addr().expect("the bound port").port();
+        (listener, format!("redis://127.0.0.1:{port}"))
+    }
+
+    /// A context configured with `written`, which is a `[capabilities]` block
+    /// and a `[cache.shared]` one.
+    fn deployed(written: &str) -> Ctx {
+        let mut ctx = Ctx::buffered();
+        ctx.set_config(granting(written));
+        ctx
+    }
+
+    /// `rule:concurrency/a-cached-value-is-copied-across-the-boundary`: the copy across this boundary is the graph copy `rule:classes/two-copy-depths`
+    /// already defines and the isolate boundary already shares — not a third
+    /// mechanism, and still not a second one now that there are two tiers.
+    ///
+    /// Two claims, because either alone would pass a module that had grown a
+    /// carrier of its own. The **bytes** an entry holds are exactly what
+    /// `nvs_runtime::encode` answers for the value that went in, so an entry is
+    /// that walk's output rather than a rendering of it. And each half of the
+    /// carrier is reached from exactly **one** place in this module's shipped
+    /// code, so the tier a `put` is bound for cannot select a representation:
+    /// the copy happens first and the tier only decides where the bytes go.
+    #[test]
+    fn a_cache_put_and_get_use_the_same_graph_copy_as_the_isolate_boundary() {
+        let _serial = TIER.lock().expect("the tier's cases run one at a time");
+
+        let payload = nvs_runtime::encode(Value::int(7)).expect("an `int` crosses any boundary");
+        memory_put(b"the-same-walk", payload.clone(), Lifetime::Forever, None);
+        assert_eq!(
+            memory_get(b"the-same-walk"),
+            Some(payload),
+            "an entry is the carrier's own bytes, byte for byte"
+        );
+
+        // The scan stops where `crate::registry`'s own do, at the test module:
+        // what a member can reach at run time is the shipped half.
+        let shipped: Vec<&str> = include_str!("cache.rs")
+            .lines()
+            .take_while(|line| line.trim_start() != "#[cfg(test)]")
+            .filter(|line| !line.trim_start().starts_with("//"))
+            .collect();
+        for half in ["nvs_runtime::encode(", "nvs_runtime::decode("] {
+            let sites = shipped.iter().filter(|line| line.contains(half)).count();
+            assert_eq!(
+                sites, 1,
+                "`{half}` is reached from {sites} places in this module; both tiers share one \
+                 carrier, so there is exactly one"
+            );
+        }
+    }
+
+    /// `rule:core-api/two-cache-tiers`: a member per tier, not one API with a flag — and the check
+    /// that makes that structural is that not one of them takes an argument at
+    /// all, so no value computed at run time can choose the tier.
+    #[test]
+    fn memory_and_shared_are_separate_members_with_separate_contracts() {
+        let names: Vec<&str> = CLASS.methods.iter().map(|method| method.name).collect();
+        assert_eq!(
+            names,
+            ["memory", "shared"],
+            "the roster is one member per tier and nothing else"
+        );
+
+        for method in CLASS.methods {
+            assert!(
+                method.params.is_empty(),
+                "{}::{} takes an argument, which is the flag § 1 refuses",
+                CLASS.name,
+                method.name
+            );
+        }
+
+        // Separate *contracts*, which is the half a shared implementation would
+        // quietly lose: a store that may forget and is the whole process's, and
+        // a store that is coherent and can be unreachable.
+        assert_ne!(
+            MEMORY_DOC.short, SHARED_DOC.short,
+            "two tiers describe themselves the same way, which is one contract under two names"
+        );
+        assert!(
+            MEMORY_DOC.ret.contains("Every request this process serves"),
+            "the memory card has to state what its tier is coherent across"
+        );
+        assert!(
+            MEMORY_DOC
+                .ret
+                .contains("another server process has its own entries"),
+            "and where that coherence ends"
+        );
+        assert!(
+            MEMORY_DOC.errors.is_empty() && !SHARED_DOC.errors.is_empty(),
+            "an unreachable shared store throws; the memory tier has nothing to be unreachable"
+        );
+    }
+
+    /// `rule:core-api/two-cache-tiers`: any entry may be absent at any time, for any reason. The
+    /// store answers `None` for a key nothing wrote, and — the half a program
+    /// depends on — the card *says* so, since a contract nobody can read is one
+    /// every caller will assume away.
+    #[test]
+    fn an_entry_may_be_absent_at_any_time_and_the_contract_says_so() {
+        let _serial = TIER.lock().expect("the tier's cases run one at a time");
+
+        assert_eq!(memory_get(b"absent-by-construction"), None);
+
+        memory_put(b"present", b"payload".to_vec(), Lifetime::Forever, None);
+        assert_eq!(memory_get(b"present"), Some(b"payload".to_vec()));
+
+        assert!(
+            GET_DOC.ret.contains("null") && GET_DOC.ret.contains("missing at any time"),
+            "`get`'s card has to state the absence its caller must handle"
+        );
+        assert!(
+            GET_DOC
+                .errors
+                .iter()
+                .all(|error| error.error != "RuntimeError"),
+            "absence is an answer, never a throw"
+        );
+    }
+
+    /// `rule:concurrency/the-memory-tier-is-one-store-per-process`: exceeding the
+    /// cap **evicts** rather than failing an allocation. The write that crosses
+    /// it succeeds, and what goes is the key written longest ago — which § 1 has
+    /// already told every caller to expect, since an entry may be absent at any
+    /// time for any reason. Asked of one shard on its own, which is the unit a
+    /// cap is enforced over.
+    #[test]
+    fn the_cap_forgets_an_older_entry_rather_than_refusing_the_write() {
+        // Room for two of these three entries and no more.
+        let room = Some(2 * (2 + 6 + ENTRY_OVERHEAD));
+        let mut tier = Entries::default();
+        tier.put(b"k1", b"first!", Lifetime::Forever, room);
+        tier.put(b"k2", b"second", Lifetime::Forever, room);
+        assert_eq!(tier.get(b"k1"), Some(&b"first!"[..]));
+
+        tier.put(b"k3", b"third!", Lifetime::Forever, room);
+        assert_eq!(tier.get(b"k1"), None, "the oldest key is the one that goes");
+        assert_eq!(tier.get(b"k2"), Some(&b"second"[..]));
+        assert_eq!(tier.get(b"k3"), Some(&b"third!"[..]));
+    }
+
+    /// An entry the shard could not hold even empty is forgotten as it arrives,
+    /// and takes what was under its key with it — `put` replaced that entry.
+    /// The shard is unharmed afterwards, which is the half that would break if
+    /// the arrival's charge were left behind.
+    #[test]
+    fn an_entry_larger_than_the_whole_tier_is_forgotten_as_it_arrives() {
+        let room = Some(64 + ENTRY_OVERHEAD);
+        let mut tier = Entries::default();
+        tier.put(b"kept", &[0; 8], Lifetime::Forever, room);
+        tier.put(b"kept", &[0; 4096], Lifetime::Forever, room);
+        assert_eq!(tier.get(b"kept"), None);
+
+        tier.put(b"kept", &[7; 8], Lifetime::Forever, room);
+        assert_eq!(tier.get(b"kept"), Some(&[7; 8][..]));
+    }
+
+    /// `forget` takes the entry it names out and no other, and gives the bytes
+    /// back to the cap they were charged to.
+    ///
+    /// Two claims, because each alone passes something broken: a `forget` that
+    /// emptied the map would satisfy the first, and one that removed the entry
+    /// without crediting [`Entries::held`] would leave a shard evicting against
+    /// a cap it no longer measures. The member's own path is then asked once
+    /// over the process's map, where a key nothing is under is already
+    /// forgotten.
+    // covers: Core\Cache\Store::forget
+    #[test]
+    fn a_forget_takes_one_entry_out_and_credits_the_cap() {
+        const KEY: &[u8] = b"forgettable";
+
+        let mut tier = Entries::default();
+        tier.put(KEY, b"gone", Lifetime::Forever, None);
+        tier.put(b"kept-here", b"kept", Lifetime::Forever, None);
+
+        tier.forget(KEY);
+
+        assert_eq!(tier.get(KEY), None, "the entry named is gone");
+        assert_eq!(
+            tier.get(b"kept-here"),
+            Some(&b"kept"[..]),
+            "and nothing else in the shard went with it"
+        );
+        assert_eq!(
+            tier.held,
+            charged(b"kept-here".len(), b"kept".len()),
+            "the forgotten entry is still charged to the cap"
+        );
+
+        let _serial = TIER.lock().expect("the tier's cases run one at a time");
+        memory_put(KEY, b"gone".to_vec(), Lifetime::Forever, None);
+        memory_forget(KEY);
+        assert_eq!(memory_get(KEY), None);
+        // A key nothing is under is already forgotten, so this is the state the
+        // call above reached rather than a second one.
+        memory_forget(KEY);
+        assert_eq!(memory_get(KEY), None);
+    }
+
+    /// The module doc's *the read judges, and never writes*: an entry past its
+    /// deadline answers nothing and **stays where it is**, until the cap or an
+    /// overwrite reaches it.
+    ///
+    /// Two claims, because the absence alone would pass a `get` that took the
+    /// entry out — the shape
+    /// `rule:concurrency/the-memory-tier-is-one-store-per-process` refuses
+    /// when it fixes a lookup as a read lock and nothing more. The bytes still
+    /// standing against the cap afterwards are what that costs, and the
+    /// overwrite is what ends it.
+    // covers: Core\Cache\Store::get
+    #[test]
+    fn an_entry_past_its_lifetime_is_absent_and_the_read_leaves_it_there() {
+        const KEY: &[u8] = b"past-it";
+        const PAYLOAD: &[u8] = b"gone";
+
+        let mut tier = Entries::default();
+        tier.put(KEY, PAYLOAD, Lifetime::For(Duration::from_nanos(1)), None);
+        std::thread::sleep(Duration::from_millis(2));
+
+        assert_eq!(
+            tier.get(KEY),
+            None,
+            "an entry past its lifetime is the `null` § 1 had already promised"
+        );
+        assert!(
+            tier.entries.contains_key(KEY),
+            "the read took the entry out, which is what makes `get` a write"
+        );
+        assert_eq!(
+            tier.held,
+            charged(KEY.len(), PAYLOAD.len()),
+            "and it is still charged, which is what leaving it there costs"
+        );
+
+        // A lifetime already over is not a write at all, so the overwrite that
+        // reclaims those bytes leaves nothing under the key either.
+        tier.put(KEY, PAYLOAD, Lifetime::For(Duration::ZERO), None);
+        assert!(
+            tier.entries.is_empty(),
+            "a lifetime already over wrote an entry rather than forgetting one"
+        );
+        assert_eq!(tier.held, 0, "and the shard is holding bytes for nothing");
+    }
+
+    /// `AGENTS.md`'s O(in-flight) rule, which is what makes the cap a bound at
+    /// all: one key rewritten forever costs what it cost the first time. The
+    /// eviction order holds one slot per live key rather than one per write —
+    /// `Core\RateLimit::shed` rewrites a single key on every request, so the
+    /// other spelling would grow with the traffic served.
+    // covers: Core\Cache\Store::put
+    #[test]
+    fn a_key_rewritten_forever_costs_what_it_cost_the_first_time() {
+        let room = Some(4 * (4 + 8 + ENTRY_OVERHEAD));
+        let mut tier = Entries::default();
+        for step in 0..1_000u32 {
+            tier.put(
+                b"hot!",
+                step.to_string().as_bytes(),
+                Lifetime::Forever,
+                room,
+            );
+        }
+        assert_eq!(tier.get(b"hot!"), Some(&b"999"[..]));
+
+        assert_eq!(tier.entries.len(), 1);
+        assert_eq!(
+            tier.order.len(),
+            1,
+            "an overwrite keeps its place rather than taking a second one"
+        );
+    }
+
+    /// The same O(in-flight) rule for a key that is forgotten between writes,
+    /// with no cap to drain the queue. Each forget leaves a stale slot and each
+    /// write after it takes a new one, so only the sweep keeps the queue at the
+    /// size of what the tier holds.
+    // covers: Core\Cache\Store::forget
+    #[test]
+    fn a_key_forgotten_and_written_again_forever_keeps_the_queue_bounded() {
+        let mut tier = Entries::default();
+        for step in 0..10_000u32 {
+            tier.put(b"hot!", &step.to_be_bytes(), Lifetime::Forever, None);
+            tier.forget(b"hot!");
+        }
+        tier.put(b"hot!", b"last", Lifetime::Forever, None);
+        assert_eq!(tier.get(b"hot!"), Some(&b"last"[..]));
+        assert!(
+            tier.order.len() <= super::SWEEP_FLOOR,
+            "the queue grew with the writes served: {} slots",
+            tier.order.len()
+        );
+    }
+
+    /// An entry written once with a lifetime is taken out by a later write's
+    /// sweep once that lifetime is over, with no cap and no `get` asking for it.
+    /// And a stale slot never evicts the newer entry under its key.
+    #[test]
+    fn an_expired_entry_nobody_reads_again_is_swept_by_a_later_write() {
+        let mut tier = Entries::default();
+        for step in 0..1_000u32 {
+            let key = format!("session:{step}");
+            tier.put(
+                key.as_bytes(),
+                b"x",
+                Lifetime::For(Duration::from_millis(1)),
+                None,
+            );
+        }
+        std::thread::sleep(Duration::from_millis(5));
+        // The next sweep comes at most 2048 slots after the last one, and the
+        // queue holds at most 1000 of them, so 2048 writes reach it.
+        for step in 0..2048u32 {
+            let key = format!("kept:{step}");
+            tier.put(key.as_bytes(), b"y", Lifetime::Forever, None);
+        }
+        assert_eq!(
+            tier.entries.len(),
+            2048,
+            "expired entries stayed in the tier"
+        );
+        let live: usize = tier
+            .entries
+            .iter()
+            .map(|(key, entry)| super::charged(key.len(), entry.payload.len()))
+            .sum();
+        assert_eq!(tier.held, live, "the sweep freed bytes it did not count");
+
+        // A stale slot at the front of the queue names a key written again later.
+        let mut tier = Entries::default();
+        tier.put(b"a", b"1", Lifetime::Forever, None);
+        tier.put(b"b", b"2", Lifetime::Forever, None);
+        tier.forget(b"a");
+        tier.put(b"a", b"3", Lifetime::Forever, None);
+        assert!(tier.forget_oldest());
+        assert_eq!(
+            tier.get(b"a"),
+            Some(&b"3"[..]),
+            "the stale slot evicted `a`"
+        );
+        assert_eq!(tier.get(b"b"), None);
+    }
+
+    /// `rule:concurrency/the-memory-tier-is-one-store-per-process`: one map
+    /// every core of this process reads, and a `get` that takes a read lock and
+    /// never a write.
+    ///
+    /// Two claims, because either alone passes a tier that is not one. An entry
+    /// crosses **cores**, in both directions: a second thread reads what this one
+    /// wrote and this one reads what that thread wrote, which a map kept per
+    /// thread fails either way round. And a lookup is a *shared* borrow
+    /// of the shard — a second core reads a key while this one is holding that
+    /// shard's read guard, which a `get` taking the write lock could not answer
+    /// at all. It is asked with a timeout rather than with a `join`, so a `get`
+    /// that took the wrong lock fails this case instead of hanging the suite.
+    // covers: Core\Cache::memory
+    #[test]
+    fn memory_tier_is_one_map_every_core_reads() {
+        /// Long enough that a loaded machine is not why this fails, and short
+        /// enough that a wrong lock is a failure rather than a wedged run.
+        const WAIT: Duration = Duration::from_secs(5);
+
+        let _serial = TIER.lock().expect("the tier's cases run one at a time");
+
+        let mine = nvs_runtime::encode(Value::int(11)).expect("an `int` crosses any boundary");
+        memory_put(b"one-map-mine", mine.clone(), Lifetime::Forever, None);
+        let (read_there, written_there) = std::thread::spawn(|| {
+            let theirs =
+                nvs_runtime::encode(Value::int(13)).expect("an `int` crosses any boundary");
+            memory_put(b"one-map-theirs", theirs.clone(), Lifetime::Forever, None);
+            (memory_get(b"one-map-mine"), theirs)
+        })
+        .join()
+        .expect("the second core's thread runs to completion");
+        assert_eq!(
+            read_there,
+            Some(mine),
+            "a second core read nothing this one wrote, so the map is not the process's"
+        );
+        assert_eq!(
+            memory_get(b"one-map-theirs"),
+            Some(written_there),
+            "this core read nothing the second wrote, and one store answers both ways"
+        );
+
+        let held = shard_of(b"one-map-mine")
+            .read()
+            .expect("a cache shard's lock is never poisoned");
+        let (tx, rx) = mpsc::channel();
+        std::thread::spawn(move || {
+            let _ = tx.send(memory_get(b"one-map-mine").is_some());
+        });
+        assert_eq!(
+            rx.recv_timeout(WAIT),
+            Ok(true),
+            "a `get` waited on a read another core was holding, so it took the write lock"
+        );
+        drop(held);
+    }
+
+    /// [`memory_update`] is one step no other core can come between: a read
+    /// and the write that follows it, under one shard's write lock.
+    ///
+    /// Several threads each add one to the same counter many times. A read and
+    /// a write taken as two operations would let two threads read the same
+    /// count and both write the next one, and the total would come out short.
+    /// That is the race `Core\RateLimit::shed` would lose an arrival to.
+    #[test]
+    fn an_update_is_one_step_no_other_core_comes_between() {
+        /// How many threads step the counter at once.
+        const THREADS: usize = 4;
+        /// How many steps each one takes.
+        const STEPS: usize = 500;
+        const KEY: &[u8] = b"counted-by-every-core";
+
+        let _serial = TIER.lock().expect("the tier's cases run one at a time");
+        memory_forget(KEY);
+
+        let start = Arc::new(Barrier::new(THREADS));
+        let workers: Vec<_> = (0..THREADS)
+            .map(|_| {
+                let start = Arc::clone(&start);
+                std::thread::spawn(move || {
+                    start.wait();
+                    for _ in 0..STEPS {
+                        memory_update(KEY, Lifetime::Forever, None, |held| {
+                            let count = held.map_or(0, |bytes| {
+                                u64::from_be_bytes(bytes.try_into().expect("eight bytes"))
+                            });
+                            ((), Some((count + 1).to_be_bytes().to_vec()))
+                        });
+                    }
+                })
+            })
+            .collect();
+        for worker in workers {
+            worker.join().expect("a stepping thread runs to completion");
+        }
+
+        let total = memory_get(KEY).expect("the counter was written");
+        let counted = u64::from_be_bytes(total.try_into().expect("eight bytes"));
+        assert_eq!(
+            usize::try_from(counted).expect("a count of steps fits a `usize`"),
+            THREADS * STEPS,
+            "two cores read the same count, so an update was lost between a read and its write"
+        );
+        memory_forget(KEY);
+    }
+
+    /// `rule:concurrency/the-memory-tier-is-one-store-per-process`: an entry's
+    /// real key carries the `[[app]]` it was written for and the configuration
+    /// generation it was written under.
+    ///
+    /// Four claims about one name the program spells the same way every time.
+    /// Two applications are two scopes and two generations are two scopes, which
+    /// is what the rule asks for; the same application in the same generation is
+    /// **one** scope, without which nothing a request wrote would outlive it and
+    /// the tier would be per-request; and a program spelling another
+    /// application's prefix into its own key stays inside its own, which is what
+    /// the separators are there for. The entries are then read back through two
+    /// of those scopes, because keys that differ prove nothing about a map that
+    /// ignored them.
+    #[test]
+    fn memory_tier_keys_are_scoped_per_app_and_per_generation() {
+        let _serial = TIER.lock().expect("the tier's cases run one at a time");
+
+        let mut ctx = Ctx::buffered();
+        ctx.set_config(served("/srv/one", 1));
+        let one = scoped(&ctx, b"the-same-name");
+
+        ctx.set_config(served("/srv/two", 1));
+        let two = scoped(&ctx, b"the-same-name");
+        assert_ne!(one, two, "two applications on one server share a scope");
+
+        ctx.set_config(served("/srv/one", 2));
+        assert_ne!(
+            one,
+            scoped(&ctx, b"the-same-name"),
+            "a reload serves an entry written under the configuration it replaced"
+        );
+
+        ctx.set_config(served("/srv/one", 1));
+        assert_eq!(
+            one,
+            scoped(&ctx, b"the-same-name"),
+            "one application in one generation is two scopes, so nothing outlives a request"
+        );
+        assert_ne!(
+            scoped(&ctx, b"/srv/two\x001\x00the-same-name"),
+            two,
+            "a program wrote its own key into another application's namespace"
+        );
+
+        let first = nvs_runtime::encode(Value::int(1)).expect("an `int` crosses any boundary");
+        let second = nvs_runtime::encode(Value::int(2)).expect("an `int` crosses any boundary");
+        memory_put(&one, first.clone(), Lifetime::Forever, None);
+        memory_put(&two, second.clone(), Lifetime::Forever, None);
+        assert_eq!(memory_get(&one), Some(first));
+        assert_eq!(memory_get(&two), Some(second));
+    }
+
+    /// `rule:concurrency/a-cross-request-stores-bytes-are-its-own-balance`: an
+    /// entry's bytes move the process's detached balance, and the request that
+    /// made the write is measured as though it had not.
+    ///
+    /// Two halves. The write: the balance every ceiling is armed against, and
+    /// the reading a limit handler reports, both end where they started, and the
+    /// payload is built *after* those readings are taken and released by the
+    /// store — so a bracket that kept the caller's `Vec` instead of copying it
+    /// would leave the balance short by an entry and fail here. And the release:
+    /// the key is rewritten until many times one entry has been allocated, and
+    /// the balance ends up holding one — so the frees landed on the balance the
+    /// allocations did, which is the symmetry a bracket owes and the only way a
+    /// cross-request store's credit stays bounded.
+    #[test]
+    fn memory_tier_bytes_are_on_the_detached_balance() {
+        /// The charge one entry has to show through the noise.
+        const ENTRY: usize = 256 * 1024;
+        /// How many times the one key is written.
+        const REWRITES: usize = 16;
+
+        let _serial = TIER.lock().expect("the tier's cases run one at a time");
+
+        let ctx = Ctx::buffered();
+        let used = ctx.memory_used();
+        let live = budget::live_bytes();
+        let held = budget::detached_bytes();
+
+        memory_put(
+            b"memory-charged-to-the-process",
+            vec![b'p'; ENTRY],
+            Lifetime::Forever,
+            None,
+        );
+
+        assert!(
+            budget::detached_bytes() - held >= ENTRY.cast_signed(),
+            "the entry reached no balance at all, so nothing holds its bytes to the process"
+        );
+        assert_eq!(
+            budget::live_bytes(),
+            live,
+            "the entry was charged to the balance this request's ceiling is armed against"
+        );
+        assert_eq!(
+            ctx.memory_used(),
+            used,
+            "the request that happened to write the entry is measured as having written it"
+        );
+
+        let before = budget::detached_bytes();
+        for _ in 0..REWRITES {
+            memory_put(
+                b"memory-rewritten",
+                vec![b'r'; ENTRY],
+                Lifetime::Forever,
+                None,
+            );
+        }
+        let after = budget::detached_bytes() - before;
+        assert!(
+            after < (2 * ENTRY).cast_signed(),
+            "{REWRITES} writes of one key hold {after} bytes, so the entry each one replaced was \
+             freed somewhere other than where it was allocated"
+        );
+    }
+
+    /// `[cache.memory] max_size` is read per write, and what bounds a shard is
+    /// its own even share of it.
+    ///
+    /// The directive half: the shipped cap where nothing is written, a size
+    /// where one is, no ceiling for `false`, and a `Reload` row, which is why it
+    /// is read per operation rather than once per process. The tier half is the
+    /// eviction: a sweep writing many times the cap never fails a write and
+    /// leaves no shard holding more than its share, which is
+    /// `rule:concurrency/the-memory-tier-is-one-store-per-process`'s "evicts
+    /// rather than failing an allocation" on a map that is cut into pieces. The
+    /// survivors are counted rather than named, because which shard a key lands
+    /// in is a hash's business and the bound is what the cap promises.
+    ///
+    /// Then the two things the cap could stop measuring. The sweep leaves the
+    /// process's balance up by about the cap and not by what was written, so
+    /// the entries `forget_oldest` dropped gave their bytes back. And an entry
+    /// arrives in its shard with its whole charge, because what the cap compares
+    /// is [`Entries::held`] — maintained from the lengths the store was handed,
+    /// never from an allocator counter — and a write that escaped it would be
+    /// bytes the process holds and nothing bounds.
+    #[test]
+    fn the_memory_tiers_cap_is_a_share_per_shard_and_evicts() {
+        /// One sweep entry's payload.
+        const CHUNK: usize = 4 * 1024;
+        /// The whole tier's cap: three `CHUNK`s to a shard, which is room for two
+        /// entries once each one's key and [`ENTRY_OVERHEAD`] are charged too.
+        const CAP: usize = SHARDS * 3 * CHUNK;
+        /// How many entries, so that the sweep writes many times the cap.
+        const WRITES: usize = 2048;
+
+        let _serial = TIER.lock().expect("the tier's cases run one at a time");
+
+        let mut ctx = Ctx::buffered();
+        assert_eq!(memory_cap(&ctx), Some(DEFAULT_MAX_SIZE));
+        ctx.set_config(granting("[cache.memory]\nmax_size = \"128K\"\n"));
+        assert_eq!(memory_cap(&ctx), Some(128 * 1024));
+        ctx.set_config(granting("[cache.memory]\nmax_size = false\n"));
+        assert_eq!(memory_cap(&ctx), None, "`false` is no ceiling at all");
+        assert_eq!(
+            nvs_config::directive::lookup(MAX_SIZE).map(|row| row.apply),
+            Some(nvs_config::Apply::Reload),
+            "a cap read once per process would outlive the snapshot that set it"
+        );
+        assert_eq!(shard_cap(Some(CAP)), Some(3 * CHUNK));
+        assert_eq!(shard_cap(None), None, "no ceiling divides into no ceiling");
+
+        let before = budget::detached_bytes();
+        for step in 0..WRITES {
+            memory_put(
+                format!("memory-sweep-{step:04}").as_bytes(),
+                vec![b's'; CHUNK],
+                Lifetime::Forever,
+                Some(CAP),
+            );
+        }
+        let held = budget::detached_bytes() - before;
+        assert!(
+            held < (2 * CAP).cast_signed(),
+            "the process holds {held} more bytes after writing {}, so the cap bounds the \
+             bookkeeping and not the memory",
+            WRITES * CHUNK
+        );
+        let survived = (0..WRITES)
+            .filter(|step| memory_get(format!("memory-sweep-{step:04}").as_bytes()).is_some())
+            .count();
+        assert!(
+            survived > 0 && survived <= 2 * SHARDS,
+            "{survived} of {WRITES} entries survived a sweep of {} times the cap, where each \
+             shard's share holds two of them and the newest write is always one",
+            WRITES * CHUNK / CAP
+        );
+        let over = MEMORY
+            .iter()
+            .filter(|shard| {
+                shard
+                    .read()
+                    .expect("a cache shard's lock is never poisoned")
+                    .held
+                    > 3 * CHUNK
+            })
+            .count();
+        assert_eq!(
+            over, 0,
+            "{over} shard(s) hold more than the share the cap leaves them"
+        );
+
+        let key: &[u8] = b"counted-against-the-cap";
+        let held_of = || {
+            shard_of(key)
+                .read()
+                .expect("a cache shard's lock is never poisoned")
+                .held
+        };
+        memory_forget(key);
+        let empty = held_of();
+        memory_put(key, vec![b'c'; CHUNK], Lifetime::Forever, None);
+        assert_eq!(
+            held_of() - empty,
+            charged(key.len(), CHUNK),
+            "the entry arrived without its charge, so the cap is measuring something else"
+        );
+        memory_forget(key);
+    }
+
+    /// `rule:concurrency/a-secret-fill-runs-once-per-process`: a caller that
+    /// writes no `wait` is bounded by `[cache.memory] fill_wait`, and by the
+    /// shipped figure where the file names none.
+    ///
+    /// The refusals are the boot check's — `nvs_config::store` fails a `0` and
+    /// the `false` that removes a ceiling elsewhere with `E0642` — so what is
+    /// asked here is the half that check cannot cover: a configuration that
+    /// reaches a request having been cleared to nothing, or holding a word that
+    /// is not a measurement, leaves the bound standing rather than removing it.
+    /// A reader that answered "no wait" to either would make every concurrent
+    /// caller but the filler throw. The directive's class is asserted beside
+    /// them for [`memory_cap`]'s reason: a bound read once per process would
+    /// outlive the snapshot that set it.
+    #[test]
+    fn an_omitted_wait_inherits_the_memory_directive_and_never_removes_the_bound() {
+        let mut ctx = Ctx::buffered();
+        let waited = |ctx: &Ctx| wait_of(ctx, &[], 4, "getSecret").expect("an absent slot is null");
+
+        assert_eq!(waited(&ctx), DEFAULT_FILL_WAIT, "a file naming none");
+        ctx.set_config(granting("[cache.memory]\nfill_wait = \"250ms\"\n"));
+        assert_eq!(waited(&ctx), Duration::from_millis(250));
+        ctx.set_config(granting("[cache.memory]\nfill_wait = \"\"\n"));
+        assert_eq!(
+            waited(&ctx),
+            DEFAULT_FILL_WAIT,
+            "a cleared key is an absent one"
+        );
+        ctx.set_config(granting("[cache.memory]\nfill_wait = \"soon\"\n"));
+        assert_eq!(
+            waited(&ctx),
+            DEFAULT_FILL_WAIT,
+            "a word is not a measurement"
+        );
+        ctx.set_config(granting("[cache.memory]\nfill_wait = \"0s\"\n"));
+        assert_eq!(
+            waited(&ctx),
+            DEFAULT_FILL_WAIT,
+            "a wait of nothing is not a wait, and boot refuses it"
+        );
+        assert_eq!(
+            nvs_config::directive::lookup(FILL_WAIT).map(|row| row.apply),
+            Some(nvs_config::Apply::Reload),
+            "a wait read once per process would outlive the snapshot that set it"
+        );
+    }
+
+    /// The member the fill table is reached through, which is what a case here
+    /// stands in for.
+    const FILLER: &str = "Core\\Cache\\Store::getSecret";
+
+    /// `rule:concurrency/a-secret-fill-runs-once-per-process`: the election is
+    /// the whole of what makes a fill single-flight, so it is asserted where
+    /// every core reaches it at once rather than through one member's body.
+    ///
+    /// Two claims, because either alone passes a table that is not one. Exactly
+    /// **one** caller of the race holds the key — the barrier after the attempt
+    /// is what makes that a race rather than a queue, since no hold is released
+    /// until every core has asked. And every other caller is released only
+    /// *after* the holder was done with it, which the flag the filler sets
+    /// before it lets go is what a waiter reads.
+    #[test]
+    fn fill_runs_once_while_every_other_core_waits() {
+        const CORES: usize = 8;
+        let key = b"\0fills-once".to_vec();
+        let racing = Barrier::new(CORES);
+        let asked = Barrier::new(CORES);
+        let fills = AtomicUsize::new(0);
+        let waits = AtomicUsize::new(0);
+        let landed = AtomicBool::new(false);
+
+        std::thread::scope(|cores| {
+            for _ in 0..CORES {
+                cores.spawn(|| {
+                    let mut ctx = Ctx::buffered();
+                    racing.wait();
+                    let held = elected(&ctx, &key, FILLER).expect("no call of this one asks twice");
+                    asked.wait();
+                    match held {
+                        Some(held) => {
+                            fills.fetch_add(1, Ordering::SeqCst);
+                            std::thread::sleep(Duration::from_millis(40));
+                            landed.store(true, Ordering::SeqCst);
+                            drop(held);
+                        }
+                        None => {
+                            waited(&mut ctx, &key, Duration::from_secs(5), FILLER, |_| {
+                                assert!(
+                                    landed.load(Ordering::SeqCst),
+                                    "a waiter looks once the filler is done with the key, never \
+                                     before"
+                                );
+                                Ok(())
+                            })
+                            .expect("a waiter is released with what the filler left");
+                            waits.fetch_add(1, Ordering::SeqCst);
+                        }
+                    }
+                });
+            }
+        });
+
+        assert_eq!(
+            fills.load(Ordering::SeqCst),
+            1,
+            "one caller in the process runs the fill"
+        );
+        assert_eq!(
+            waits.load(Ordering::SeqCst),
+            CORES - 1,
+            "and every other one waits for it"
+        );
+    }
+
+    /// `rule:concurrency/a-secret-fill-runs-once-per-process`: a wait is bounded
+    /// and its end is a throw, which is
+    /// `rule:http-server/no-spelling-for-an-unbounded-wait`'s shape one class
+    /// over — the caller gets its request back rather than the core standing
+    /// still for as long as somebody else's fetch takes.
+    ///
+    /// The bound is waited *out* rather than refused on sight, which is the half
+    /// a class assertion alone would not catch: a reader that took every wait
+    /// for an expired one would throw here just as promptly.
+    #[test]
+    fn a_wait_past_its_bound_throws_timeout() {
+        let key = b"\0waits-past-its-bound".to_vec();
+        let filler = Ctx::buffered();
+        let _held = elected(&filler, &key, FILLER)
+            .expect("an unheld key is nobody's")
+            .expect("and the caller that asks for it holds it");
+
+        let mut ctx = Ctx::buffered();
+        let began = Instant::now();
+        let outcome = waited(
+            &mut ctx,
+            &key,
+            Duration::from_millis(60),
+            FILLER,
+            |_| -> Result<(), Fault> { panic!("a held key is never looked past") },
+        );
+
+        let Err(Fault::Thrown(class, message)) = outcome else {
+            panic!("a wait that ran out is catchable");
+        };
+        assert_eq!(class, ThrownClass::Timeout);
+        assert!(
+            message.contains(FILLER) && message.contains("60ms"),
+            "the refusal names the member and the bound that was up: {message}"
+        );
+        assert!(
+            began.elapsed() >= Duration::from_millis(60),
+            "the bound is waited out rather than refused on sight"
+        );
+    }
+
+    /// `rule:concurrency/a-secret-fill-runs-once-per-process`: a failure is not
+    /// shared. A `fill` that throws leaves no entry behind, so the waiters it
+    /// releases are released with whatever is there — nothing — rather than
+    /// with an exception that crossed from another request, and the key is free
+    /// for the next caller to fill.
+    #[test]
+    fn a_failed_fill_is_not_shared_and_the_next_caller_fills() {
+        let key = b"\0a-failed-fill".to_vec();
+        let looked = AtomicUsize::new(0);
+
+        let filler = Ctx::buffered();
+        let held = elected(&filler, &key, FILLER)
+            .expect("an unheld key is nobody's")
+            .expect("and the caller that asks for it holds it");
+
+        std::thread::scope(|cores| {
+            let waiting = cores.spawn(|| {
+                let mut ctx = Ctx::buffered();
+                waited(&mut ctx, &key, Duration::from_secs(5), FILLER, |_| {
+                    looked.fetch_add(1, Ordering::SeqCst);
+                    Ok(())
+                })
+                .expect("a waiter is released rather than handed what failed");
+            });
+            // Long enough that the waiter is waiting rather than racing the
+            // hold it is waiting on.
+            std::thread::sleep(Duration::from_millis(30));
+            // The `fill` throws: the hold goes with the frame that took it,
+            // and nothing was written under the key.
+            drop(held);
+            waiting.join().expect("the waiter ends with its own answer");
+        });
+
+        assert_eq!(
+            looked.load(Ordering::SeqCst),
+            1,
+            "a waiter looks once, at what the filler left"
+        );
+
+        let next = Ctx::buffered();
+        assert!(
+            elected(&next, &key, FILLER)
+                .expect("a released key is nobody's")
+                .is_some(),
+            "a failed fill leaves the key to the next caller rather than the failure"
+        );
+    }
+
+    /// `rule:concurrency/a-secret-fill-runs-once-per-process`: a request that
+    /// ends while it holds a fill releases the key, so a cancelled fetch never
+    /// wedges one for the life of the process.
+    ///
+    /// Both halves, because the release alone would pass a table that never
+    /// held anything: the key is held for as long as the frame that took it is,
+    /// and free the moment that frame is gone — by the ending a cancelled
+    /// request carries out rather than by any path that ending never took.
+    #[test]
+    fn a_request_ending_during_its_fill_releases_the_key() {
+        let key = b"\0a-request-that-ends".to_vec();
+        let other = Ctx::buffered();
+
+        let mut ending = Ctx::buffered();
+        {
+            let _held = elected(&ending, &key, FILLER)
+                .expect("an unheld key is nobody's")
+                .expect("and the caller that asks for it holds it");
+            let _cancelled = ending.cancel();
+            assert!(
+                elected(&other, &key, FILLER)
+                    .expect("a key another call holds is not this one's")
+                    .is_none(),
+                "the key is held for as long as the frame filling it is"
+            );
+        }
+
+        assert!(
+            elected(&other, &key, FILLER)
+                .expect("a released key is nobody's")
+                .is_some(),
+            "and is free the moment that frame is gone"
+        );
+    }
+
+    /// `rule:concurrency/a-secret-fill-runs-once-per-process`: an entry inside
+    /// the last fifth of its lifetime is still answered to every caller while
+    /// exactly one of them replaces it, so the expiry of a hot key costs
+    /// nobody a wait.
+    ///
+    /// The window is asserted on **both** sides of its edge, because a reader
+    /// that called every entry due for refresh prints plausibly against the
+    /// inside alone — and the edge is the whole of what
+    /// [`super::REFRESH_WINDOW`] fixes. Past the expiry there is no entry to
+    /// refresh at all, which is the third answer a fraction has to keep
+    /// separate from the second.
+    #[test]
+    fn an_entry_near_its_expiry_is_answered_while_one_caller_refreshes_it() {
+        let plain = sealed_plaintext(1_000, 1_000, b"hunter2");
+        let at = |now: i64| sealed_value(&plain, now).map(|held| held.refreshing);
+
+        assert_eq!(
+            at(799),
+            Some(false),
+            "an entry with more than a fifth of its lifetime left is answered and left alone"
+        );
+        assert_eq!(
+            at(800),
+            Some(true),
+            "the last fifth is where one caller replaces it ahead of its expiry"
+        );
+        assert_eq!(at(999), Some(true), "and every moment of that window is");
+        assert_eq!(
+            at(1_000),
+            None,
+            "past the expiry there is nothing to answer and nothing to refresh"
+        );
+
+        // And while one caller is replacing it, a second does not run a fill
+        // of its own: the key is held for the length of that fetch, which is
+        // what leaves every other caller the entry that is still there.
+        let key = b"\0near-its-expiry".to_vec();
+        let refresher = Ctx::buffered();
+        let held = elected(&refresher, &key, FILLER)
+            .expect("an unheld key is nobody's")
+            .expect("and the caller that asks for it holds it");
+        let other = Ctx::buffered();
+        assert!(
+            elected(&other, &key, FILLER)
+                .expect("a key another call holds is not this one's")
+                .is_none(),
+            "one caller refreshes, and it is the one that was elected"
+        );
+        drop(held);
+    }
+
+    /// The attack the cap does not stop on its own: an entry one request wrote
+    /// is freed by whichever later request's write evicts it, and a release
+    /// credited to *that* request is a ceiling any program widens at will.
+    ///
+    /// What the case asserts is the **gap** between the armed threshold and the
+    /// balance, because the threshold is absolute — `budget::armed_ceiling` is
+    /// a balance and not a size — so headroom is the only number a widening
+    /// moves. The eviction is asserted as well, since a write that forgot
+    /// nothing would pass the headroom half without ever freeing anything.
+    #[test]
+    fn an_eviction_from_a_later_request_lowers_no_ceiling() {
+        /// One entry's payload.
+        const ENTRY: usize = 128 * 1024;
+        /// The entry an earlier request wrote.
+        const KEY: &[u8] = b"inherited-from-an-earlier-request";
+
+        let _serial = TIER.lock().expect("the tier's cases run one at a time");
+
+        // Room in each shard for one of them and no more, and a second key in
+        // the first one's shard, so that writing it has to evict.
+        let room = Some(SHARDS * charged(KEY.len(), ENTRY));
+        let later = beside(KEY, "written-by-this-request");
+        memory_put(KEY, vec![b'i'; ENTRY], Lifetime::Forever, room);
+
+        // The request that comes next, under a ceiling of its own.
+        let mut ctx = Ctx::buffered();
+        ctx.set_config(granting("[limits]\nmemory = \"8M\"\n"));
+        let ceiling = budget::armed_ceiling();
+        assert_ne!(
+            ceiling, 0,
+            "the request armed no ceiling, so there is no headroom here to widen"
+        );
+        let headroom = ceiling - budget::live_bytes();
+
+        memory_put(&later, vec![b'w'; ENTRY], Lifetime::Forever, room);
+        assert_eq!(
+            memory_get(KEY),
+            None,
+            "the write forgot nothing, so no release happened to be credited"
+        );
+
+        assert_eq!(
+            budget::armed_ceiling(),
+            ceiling,
+            "an eviction moved the threshold the request is measured against"
+        );
+        assert_eq!(
+            budget::armed_ceiling() - budget::live_bytes(),
+            headroom,
+            "evicting what an earlier request stored bought this request headroom"
+        );
+    }
+
+    /// `rule:config/cache-shared-is-the-grant-over-the-configured-store`: the
+    /// grant over a store an operator configured names the store, so the door
+    /// opens one for a deployment that grants `cache.shared` and **nothing
+    /// else** — no `net.connect` for the URL's host, and no host in any grant
+    /// list at all.
+    ///
+    /// The absence is what the case is for. A door that had kept the address
+    /// question would refuse this configuration, and it would refuse it with
+    /// the same class of error the unconfigured case produces, so a case that
+    /// only asserted "it throws for the wrong deployment" would pass against
+    /// the rule this one replaces.
+    #[test]
+    fn a_configured_store_needs_no_address_grant() {
+        let (_listener, url) = listening();
+        let ctx = deployed(&format!(
+            "[capabilities]\ncache.shared = true\n\n[cache.shared]\nurl = \"{url}\"\n"
+        ));
+
+        open_configured(&ctx, MEMBER, "").expect("a granted store, configured, is dialled");
+    }
+
+    /// The same rule from the other side: `cache.shared` is a **grant**, so a
+    /// deployment carrying the old one is refused rather than quietly
+    /// migrated.
+    ///
+    /// `net.connect = true` is written here — the widest the old question had
+    /// a spelling for — because that is exactly the tree this change turns from
+    /// working into refused, and the refusal names the key an operator has to
+    /// write. Catchable, per
+    /// `rule:security/denial-is-a-runtime-error`, and not the `IOError` an
+    /// unreachable store answers with: nothing was dialled.
+    // covers: Core\Cache::shared
+    #[test]
+    fn a_configured_store_is_refused_without_its_own_grant() {
+        let (_listener, url) = listening();
+        let ctx = deployed(&format!(
+            "[capabilities]\nnet.connect = true\n\n[cache.shared]\nurl = \"{url}\"\n"
+        ));
+
+        let refused = open_configured(&ctx, MEMBER, ", or use `Core\\Cache::memory()`")
+            .expect_err("`net.connect` is not the grant over a configured store");
+        let Fault::Thrown(class, message) = refused else {
+            panic!("a denied capability is catchable");
+        };
+        assert_eq!(class, ThrownClass::Runtime);
+        assert!(
+            message.contains("cache.shared") && message.contains(MEMBER),
+            "the refusal names the capability in the spelling `nvs.toml` grants it under, and the \
+             member that wanted it: {message}"
+        );
+    }
+
+    /// The cost the old question had: a store on loopback — where an ordinary
+    /// single-machine deployment puts one — sat inside
+    /// `rule:security/net-address-policy`'s denied ranges, so reaching it took
+    /// a `net.internal` exception beside the grant.
+    ///
+    /// Both halves are asserted, because the door skipping the table and the
+    /// table no longer denying loopback would look identical from the first
+    /// half alone: the address the case connects to is still one
+    /// `denied_by_default` refuses, and the connection is still made. What
+    /// changed is which doors ask.
+    #[test]
+    fn a_loopback_store_needs_no_net_internal_exception() {
+        let (_listener, url) = listening();
+        let ctx = deployed(&format!(
+            "[capabilities]\ncache.shared = true\n\n[cache.shared]\nurl = \"{url}\"\n"
+        ));
+
+        open_configured(&ctx, MEMBER, "").expect("a loopback store is reached with no exception");
+        assert!(
+            nvs_config::capability::denied_by_default("127.0.0.1".parse().expect("a literal"))
+                .is_some(),
+            "the table still denies loopback for every door that asks it — one fewer does"
+        );
+    }
+
+    /// The door settles the **whole** block into one [`super::Dial`]: the store
+    /// the URL names, the credential it is behind, and the index its entries
+    /// live in — which is what `redis::Connection::ensure` applies on every
+    /// socket it opens, including the one it opens again by itself.
+    ///
+    /// The credential is written with a trailing space on purpose. A value is
+    /// kept byte for byte
+    /// (`rule:config/a-secret-is-a-file-whose-content-is-the-value`), and the
+    /// reader that trims one sends an `AUTH` the store refuses while the file it
+    /// was mounted from holds the right bytes — a failure that shows up as the
+    /// store's `-WRONGPASS` and nowhere near the reader that caused it.
+    #[test]
+    fn a_dial_carries_the_credential_and_the_index_beside_the_transport() {
+        let ctx = deployed(
+            "[capabilities]\ncache.shared = true\n\n[cache.shared]\n\
+             url = \"redis://127.0.0.1:6379\"\npassword = \"hunter2 \"\ndatabase = 3\n",
+        );
+
+        let dial = dial_of(
+            &ctx,
+            super::Target::Tcp("127.0.0.1:6379".parse().expect("a literal")),
+        );
+        assert_eq!(dial.password.as_deref(), Some("hunter2 "));
+        assert_eq!(dial.database, Some(3));
+    }
+
+    /// A deployment that wrote only `[cache.shared] url` settles into a dial
+    /// carrying neither half, so the connection it opens spends no round trip
+    /// applying nothing and reaches the store exactly as it did before either
+    /// key existed.
+    ///
+    /// Beside the case above rather than inside it: a pair of assertions that
+    /// only read a configured credential back would pass just as well if the
+    /// dial invented one, and every deployment on this chain today is this one.
+    #[test]
+    fn a_store_configured_with_neither_dials_exactly_as_it_did() {
+        let bare = deployed("[cache.shared]\nurl = \"redis://127.0.0.1:6379\"\n");
+        let plain = dial_of(
+            &bare,
+            super::Target::Tcp("127.0.0.1:6379".parse().expect("a literal")),
+        );
+        assert_eq!(
+            (plain.password, plain.database),
+            (None, None),
+            "a deployment that configured only a URL dials exactly as it did before there was \
+             anything to apply, and spends no round trip on either step",
+        );
+    }
+
+    /// `rule:core-classes/ratelimit-two-members`' coherent half and
+    /// `rule:core-api/two-cache-tiers`' coherent tier reach the same store
+    /// through [`open_configured`], so they declare one grant between them and
+    /// their in-process siblings declare none.
+    ///
+    /// Asserted as agreement rather than as two values: a limiter that grew a
+    /// grant of its own would still read plausibly on its own row, and what
+    /// makes the pair correct is that a deployment granting the tier has
+    /// granted the limiter and cannot do one without the other.
+    #[test]
+    fn the_limiter_and_the_tier_ask_one_grant_at_one_door() {
+        let asked = |class: &str, member: &str| {
+            crate::registry::CAPABILITIES
+                .iter()
+                .find(|(owner, name, _)| *owner == class && *name == member)
+                .map(|(_, _, cap)| *cap)
+                .expect("every capability-bearing member declares a row")
+        };
+
+        assert_eq!(
+            asked(super::NAME, "shared"),
+            asked(crate::ratelimit::NAME, "consume"),
+            "one door, one grant"
+        );
+        assert_eq!(
+            asked(super::NAME, "shared"),
+            Some(nvs_config::Cap::CacheShared)
+        );
+        assert_eq!(
+            asked(super::NAME, "memory"),
+            asked(crate::ratelimit::NAME, "shed"),
+            "and the two in-process halves ask nothing, for the reason the rows state"
+        );
+        assert_eq!(asked(super::NAME, "memory"), None);
+    }
+
+    /// One value has one home: a credential is `[cache.shared] password` and an
+    /// index is `[cache.shared] database`, so a URL carrying either is refused
+    /// with a sentence naming the key instead — `rule:errors/ambiguous-input-refused`
+    /// for the index, and
+    /// `rule:config/a-secret-is-a-file-whose-content-is-the-value`'s own
+    /// argument for the credential.
+    ///
+    /// The userinfo half is asserted on both schemes, because what refuses it is
+    /// one check over the authority and a reader that grew a second arm could
+    /// easily have put it in only one of them. And the credential is asserted
+    /// **absent** from the refusal: every other refusal here quotes the URL, so
+    /// the one whose whole argument is that a credential in a URL travels would
+    /// otherwise carry it into the first place it should not be.
+    #[test]
+    fn a_redis_url_carrying_userinfo_or_a_path_is_still_refused() {
+        let refusal = |url: &str| {
+            let Fault::Thrown(class, message) =
+                endpoint(url, MEMBER).expect_err("a value with two homes is refused")
+            else {
+                panic!("a URL this deployment spelled twice is catchable, not fatal");
+            };
+            assert_eq!(class, ThrownClass::Runtime);
+            message
+        };
+
+        for url in [
+            "redis://:hunter2@127.0.0.1:6379",
+            "rediss://:hunter2@127.0.0.1:6379",
+            "redis://user:hunter2@127.0.0.1",
+        ] {
+            let message = refusal(url);
+            assert!(
+                message.contains("[cache.shared] password"),
+                "the refusal names the key a credential is written in: {message}"
+            );
+            assert!(
+                !message.contains("hunter2"),
+                "and carries none of the credential it was handed: {message}"
+            );
+        }
+
+        for url in ["redis://127.0.0.1:6379/3", "rediss://127.0.0.1:6379/3"] {
+            let message = refusal(url);
+            assert!(
+                message.contains("[cache.shared] database"),
+                "and an index as a path names the key an index is written in: {message}"
+            );
+        }
+    }
+
+    /// `rediss://` is a third transport and not a second store: the same
+    /// authority, resolved the same way, with the name the peer's certificate is
+    /// checked against kept beside the address — which is the only thing the TLS
+    /// arm holds that the plaintext one does not.
+    ///
+    /// The bracketed address is here because the brackets belong to the URL's
+    /// grammar: a name handed to the session with them still on is neither a DNS
+    /// name nor an IP address, and `NvsTls::over` refuses it with an
+    /// `InvalidInput` that reads like a bug in this client.
+    #[test]
+    fn a_rediss_url_carries_the_name_its_certificate_is_checked_against() {
+        assert_eq!(
+            endpoint("rediss://127.0.0.1", MEMBER).expect("`rediss://` is a scheme this reads"),
+            super::Target::Tls {
+                address: "127.0.0.1:6379".parse().expect("a literal"),
+                name: "127.0.0.1".to_owned(),
+            },
+            "a URL with no port takes the store's own, exactly as the plaintext arm does"
+        );
+        assert_eq!(
+            endpoint("rediss://[::1]:6380", MEMBER).expect("an IPv6 address is a host"),
+            super::Target::Tls {
+                address: "[::1]:6380".parse().expect("a literal"),
+                name: "::1".to_owned(),
+            },
+        );
+        assert_eq!(
+            endpoint("rediss://127.0.0.1:6380", MEMBER)
+                .expect("a scheme this reads")
+                .to_string(),
+            "127.0.0.1:6380",
+            "and a failure names the host, because that is what the certificate answers for"
+        );
+    }
+
+    /// `rule:config/unix-scheme-in-a-url-and-a-bare-path-in-a-host`'s scheme at
+    /// the door, and
+    /// `rule:config/a-unix-spelling-with-no-af-unix-transport-refuses-at-boot`'s
+    /// answer on the platform that has none: one `url` is a socket target where
+    /// the reactor carries `AF_UNIX` and a refusal where it does not.
+    ///
+    /// Both sides are here for `nvs_config::store::validate`'s reason one layer
+    /// up — a case written for one of them passes against a door that answers
+    /// that way everywhere — and what the refusing side is really asserting is
+    /// that the spelling never quietly becomes loopback TCP, which is the
+    /// failure the rule exists to prevent and the only one review cannot see.
+    #[test]
+    fn a_unix_url_is_refused_where_the_platform_has_no_transport() {
+        let read = endpoint("unix:/run/redis.sock", MEMBER);
+
+        #[cfg(unix)]
+        {
+            assert_eq!(
+                read.expect("a socket is an ordinary store where there is a transport for one"),
+                super::Target::Socket(std::path::PathBuf::from("/run/redis.sock")),
+                "the path is taken as written: there is nothing here to resolve"
+            );
+            // And it is a *path*, so the two spellings that are not one are
+            // refused rather than read against a working directory this process
+            // promises nothing about.
+            assert!(endpoint("unix:redis.sock", MEMBER).is_err());
+            assert!(endpoint("unix:", MEMBER).is_err());
+        }
+
+        #[cfg(not(unix))]
+        {
+            let Fault::Thrown(class, message) =
+                read.expect_err("a socket with no transport under it is refused at the door")
+            else {
+                panic!("a store this build cannot reach is catchable, not fatal");
+            };
+            assert_eq!(class, ThrownClass::Runtime);
+            assert!(
+                message.contains("no Unix-domain transport") && message.contains("redis://"),
+                "the refusal says what is missing and what to write instead: {message}"
+            );
+        }
+    }
+
+    /// `rule:config/a-unix-socket-is-admitted-only-where-an-operator-wrote-it`:
+    /// one path is a store where an operator wrote it into `[cache.shared] url`
+    /// and is never a target where a program supplied it, so what separates the
+    /// two is the authority that wrote the endpoint and nothing about the path
+    /// itself. That asymmetry is this tier's rather than
+    /// `nvs_runtime::capability`'s, which is why the pair is asserted here and
+    /// not beside the members that happen to call the door.
+    ///
+    /// The refusal is asked twice, of a path that exists and of one that does
+    /// not, because reaching a socket is only half of what the rule prevents: a
+    /// refusal that opened the path before deciding would answer the two
+    /// differently, and that difference is a directory listing a program was
+    /// never granted. `nvs_runtime::capability::open_read` orders its two
+    /// questions for the same reason.
+    #[test]
+    fn a_program_supplied_socket_path_is_never_a_target() {
+        // The other authority, standing in here for all of it: `Core\Net::connect`,
+        // `Core\Http\Client` and `Core\Db::open`'s settings reach one door with a
+        // program's endpoint, and differ in nothing this case reads.
+        const SUPPLIED: &str = "Core\\Db::open()";
+
+        let ctx = deployed("[capabilities]\ncache.shared = true\n");
+        let dir = nvs_repo::scratch("supplied-socket");
+        let present = dir.join("present.sock");
+        let absent = dir.join("gone.sock");
+        std::fs::write(&present, b"").expect("a writable scratch directory");
+
+        let refused = |path: &std::path::Path| {
+            let host = path.to_str().expect("a temporary path is UTF-8");
+            let Fault::Thrown(class, message) =
+                nvs_runtime::capability::pinned_address(&ctx, host, SUPPLIED)
+                    .expect_err("a program-supplied socket path is not a target")
+            else {
+                panic!("a target this deployment cannot authorize is catchable, not fatal");
+            };
+            assert_eq!(class, ThrownClass::Runtime);
+            assert!(
+                message.contains("net.local"),
+                "the refusal names the grant that would answer it: {message}"
+            );
+            message.replace(host, "<the path>")
+        };
+
+        assert_eq!(
+            refused(&present),
+            refused(&absent),
+            "a socket that is there and one that is not are refused in the same words, because \
+             the difference between them is what a probe would read"
+        );
+
+        // And the same path down the other door, where an operator wrote it: a
+        // store. The refusal above is therefore about who supplied the endpoint,
+        // which is the only thing the two calls do not share.
+        #[cfg(unix)]
+        {
+            let written = format!("unix:{}", present.display());
+            assert_eq!(
+                endpoint(&written, MEMBER)
+                    .expect("a socket an operator configured is an ordinary store"),
+                super::Target::Socket(present.clone()),
+            );
+        }
+    }
+
+    /// The cipher every sealed-entry case keys, from one key, so that what
+    /// varies between the assertions below is the binding and never the key.
+    fn sealing() -> chacha20poly1305::XChaCha20Poly1305 {
+        crate::crypto::cipher(&[3_u8; crate::crypto::KEY_LEN])
+            .expect("a key of the construction's own length")
+    }
+
+    /// A sealed entry opens where it was written and nowhere else: the
+    /// application and the entry's name are both under the tag, so a ciphertext
+    /// an operator copied to another name, or one an application read out of a
+    /// store it shares with a neighbour, is a miss.
+    ///
+    /// Four refusals rather than one, because each alone passes something
+    /// broken: a binding that held only the name would open across
+    /// applications, one that held only the application would open across
+    /// names, one that compared prefixes would open `token` against `tok`, and
+    /// one with no domain octet would open a ciphertext another member of this
+    /// crate produced under the same ring.
+    // covers: Core\Cache\Store::putSecret
+    #[test]
+    fn sealed_entry_moved_to_another_key_or_app_is_a_miss() {
+        let mut ctx = nvs_runtime::Ctx::buffered();
+        ctx.set_random_state(11);
+        let cipher = sealing();
+        let plain = sealed_plaintext(i64::MAX, 0, b"hunter2");
+        let sealed = crate::crypto::seal_under(
+            &mut ctx,
+            &cipher,
+            &bound(SEAL_DOMAIN, b"shop", b"token"),
+            &plain,
+            "test",
+        )
+        .expect("a short value seals");
+
+        let opens = |app: &[u8], key: &[u8]| {
+            crate::crypto::open_under(&cipher, &bound(SEAL_DOMAIN, app, key), &sealed, "test")
+                .expect("nothing is unaffordable here")
+                .is_some()
+        };
+
+        assert!(opens(b"shop", b"token"), "where it was written, it opens");
+        assert!(
+            !opens(b"shop", b"other"),
+            "the same ring under another name does not"
+        );
+        assert!(
+            !opens(b"admin", b"token"),
+            "and another application under the same name does not"
+        );
+        assert!(
+            !opens(b"shop", b"tok"),
+            "nor a name the written one begins with, which a comparison by prefix would admit"
+        );
+        assert!(
+            crate::crypto::open_under(&cipher, &[], &sealed, "test")
+                .expect("nothing is unaffordable here")
+                .is_none(),
+            "and a construction that bound nothing at all does not open it either"
+        );
+    }
+
+    /// The expiry sealed into an entry is what decides whether it is readable,
+    /// and the tier's own answer does not enter into it.
+    ///
+    /// The bound is asserted on both sides — the last readable moment and the
+    /// first that is not — because a member that stopped one millisecond early
+    /// prints plausibly against either half alone. The tier holds the entry
+    /// [`Lifetime::Forever`] throughout, so what the second half reads is the
+    /// seal and not a store that had already forgotten it.
+    // covers: Core\Cache\Store::getSecret
+    #[test]
+    fn sealed_entry_past_its_sealed_expiry_is_a_miss_whatever_the_store_says() {
+        const KEY: &[u8] = b"past-its-seal";
+        let plain = sealed_plaintext(1_000, 1_000, b"hunter2");
+
+        let _serial = TIER.lock().expect("the tier's cases run one at a time");
+        memory_put(&sealed_key(KEY), plain, Lifetime::Forever, None);
+        let held = memory_get(&sealed_key(KEY)).expect("the tier was given no lifetime to run out");
+
+        assert_eq!(
+            sealed_value(&held, 999).map(|held| held.value),
+            Some(b"hunter2".as_ref()),
+            "a millisecond before the sealed expiry, the secret is readable"
+        );
+        assert!(
+            sealed_value(&held, 1_000).is_none(),
+            "at the expiry itself it is not, which is where a lifetime of zero lands"
+        );
+        assert!(
+            sealed_value(&held, 1_001).is_none(),
+            "and past it the store still holds the entry and still answers nothing"
+        );
+
+        memory_forget(&sealed_key(KEY));
+
+        // A buffer too short to carry the two numbers ahead of the secret is
+        // the same miss, which is what keeps a truncated payload from being
+        // read as a secret.
+        assert!(sealed_value(b"short", 0).is_none());
+    }
+
+    /// Every nonce a sealed entry carries is drawn through
+    /// [`crate::random::draw`], so one `#[Test(seed: …)]` reproduces a sealed
+    /// entry along with every other draw the test made.
+    ///
+    /// Both halves, because either alone passes something broken. The seeded
+    /// pair is what a generator of this module's own would fail; the scan of
+    /// the shipped half is what a *later* draw added beside one would fail,
+    /// and it is the same structural assertion `crate::crypto`'s own case
+    /// makes about its members' bodies.
+    #[test]
+    fn every_sealed_entry_nonce_is_drawn_through_core_random() {
+        let sealed_under = |seed: u64| {
+            let mut ctx = nvs_runtime::Ctx::buffered();
+            ctx.set_random_state(seed);
+            let aad = bound(SEAL_DOMAIN, b"shop", b"token");
+            crate::crypto::seal_under(
+                &mut ctx,
+                &sealing(),
+                &aad,
+                &sealed_plaintext(1_000, 1_000, b"hunter2"),
+                "test",
+            )
+            .expect("a short value seals")
+        };
+
+        assert_eq!(
+            sealed_under(9),
+            sealed_under(9),
+            "one seed seals one entry the same way, so the nonce came from the seeded generator"
+        );
+        assert_ne!(
+            sealed_under(9),
+            sealed_under(10),
+            "and another seed draws another nonce, so the first line is not a constant one"
+        );
+
+        let shipped: Vec<&str> = include_str!("cache.rs")
+            .lines()
+            .take_while(|line| line.trim_start() != "#[cfg(test)]")
+            .filter(|line| !line.trim_start().starts_with("//"))
+            .collect();
+        assert!(
+            !shipped
+                .iter()
+                .any(|line| line.contains("rand::") || line.contains("random::")),
+            "a sealed entry's nonce is `crate::crypto::seal_under`'s draw, so the shipped half \
+             of this module names no generator at all"
+        );
+    }
+
+    /// [`SECRET_ENTRY`] holds both halves a fill learned: the secret itself, and
+    /// the lifetime as the count of nanoseconds the `Duration` carried.
+    ///
+    /// Three claims, because each alone passes something broken. An entry that
+    /// dropped the lifetime would still hand the secret back; one that read the
+    /// count as seconds would still hold a lifetime; and one that copied the
+    /// bytes would satisfy both while doubling a token in memory ahead of the
+    /// seal, which is what the member's own doc says it does not spend — so the
+    /// reference count is asserted beside them.
+    // covers: Core\Cache\SecretEntry::of
+    #[test]
+    fn a_secret_entry_holds_the_secret_itself_and_the_lifetime_as_a_count() {
+        const NANOS: i64 = 90_500_000_000;
+        let mut ctx = Ctx::buffered();
+        let value = Value::str(NvsStr::new(b"at-7f3c9b21"));
+        let ttl = crate::instance::build(&crate::time::DURATION, [Value::int(NANOS)]);
+
+        #[expect(
+            unsafe_code,
+            reason = "this frame built the text and holds its one reference until \
+                      the entry below takes a second"
+        )]
+        let alone = unsafe { NvsStr::refcount_of(value.str_ptr().expect("the value is a text")) };
+
+        let entry = nvs_runtime::call(nvs_core_cache_secret_entry_of, &mut ctx, &[value, ttl])
+            .expect("a text and a `Duration` build an entry");
+        let held = crate::instance::receiver(entry, &SECRET_ENTRY, "test")
+            .expect("the member answers its own class");
+        let secret = crate::instance::slot(held, 0);
+
+        assert_eq!(
+            secret.as_text(),
+            Some("at-7f3c9b21"),
+            "the secret reads back as what the fill fetched"
+        );
+        assert_eq!(
+            crate::instance::slot(held, 1).as_int(),
+            Some(NANOS),
+            "and the lifetime is the `Duration`'s own count, to the nanosecond"
+        );
+
+        #[expect(
+            unsafe_code,
+            reason = "the entry holds the text for the length of this case, and \
+                      this frame's own reference is live beside it"
+        )]
+        let shared = unsafe { NvsStr::refcount_of(secret.str_ptr().expect("the slot is a text")) };
+        assert_eq!(
+            shared,
+            alone + 1,
+            "held as one more reference to the same text rather than a copy, so an \
+             entry does not double the token ahead of the seal"
+        );
+
+        #[expect(
+            unsafe_code,
+            reason = "this case owns the entry it built and the text and `Duration` \
+                      it was built from, and the member borrowed its arguments"
+        )]
+        unsafe {
+            entry.release();
+            ttl.release();
+            value.release();
+        }
+    }
+}

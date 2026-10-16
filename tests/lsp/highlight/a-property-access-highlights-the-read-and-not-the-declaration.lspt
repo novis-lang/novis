@@ -1,0 +1,15 @@
+--TEST--
+a cursor on a property access highlights the read itself and not the slot's declaration, the declaring class having been resolved off the receiver's type either way, `rule:ide/five-features-are-one-reference-index`
+--FILE--
+<?nvs
+class User
+{
+    public string $name = "";
+}
+
+var $u = new User();
+echo $u->na<|>me;
+--REQUEST--
+documentHighlight
+--EXPECT--
+case.nvs:8:10

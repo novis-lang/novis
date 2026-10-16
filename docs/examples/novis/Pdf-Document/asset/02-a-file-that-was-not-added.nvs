@@ -1,0 +1,20 @@
+<?nvs
+// Shows what happens when the HTML names a file that is not an asset.
+use Novis\Pdf\Document;
+
+string $html = "<img src=\"logo.png\" alt=\"Shop\"><h1>Invoice 1042</h1>";
+
+// The render reads no file from the disk and nothing from the network.
+// `logo.png` is not an asset, so `render` throws a `LogicError` that names it.
+try {
+    Document::fromHtml($html)->render();
+} catch (LogicError $e) {
+    echo $e->message, "\n";
+}
+
+// An address on another server throws the same error.
+try {
+    Document::fromHtml("<img src=\"https://example.com/logo.png\" alt=\"Shop\">")->render();
+} catch (LogicError $e) {
+    echo $e->message, "\n";
+}

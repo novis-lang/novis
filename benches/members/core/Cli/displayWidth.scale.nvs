@@ -1,0 +1,21 @@
+<?nvs
+// Measures `Core\Cli::displayWidth` on one label, at growing label lengths.
+// bench: start 256
+// bench: max 4096
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        string $label = Core\Str::repeat('注', $size);
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            $total = $total + Core\Cli::displayWidth($label);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

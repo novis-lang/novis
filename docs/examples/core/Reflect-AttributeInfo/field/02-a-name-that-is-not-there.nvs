@@ -1,0 +1,17 @@
+<?nvs
+// Shows what happens when you read a field that the attribute does not have.
+
+#[{timeout: 30}]
+class Import {}
+
+var $info = Core\Reflect::forObject(new Import());
+
+foreach ($info->attributes() as Core\Reflect\AttributeInfo $attribute) {
+    // The field is `timeout`, not `timeouts`, so `field` throws a `LogicError`.
+    // This prints `no field named timeouts`.
+    try {
+        echo $attribute->field("timeouts") as string, "\n";
+    } catch (LogicError $error) {
+        echo "no field named timeouts\n";
+    }
+}

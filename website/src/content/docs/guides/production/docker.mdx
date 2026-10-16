@@ -1,0 +1,81 @@
+---
+title: Docker
+covers: []
+description: Run a Novis application in a container, with nvs serve listening on every address.
+---
+
+A Novis application needs only the `nvs` binary and your files. A container for it is small.
+
+There is no published Novis image. Build `nvs` for Linux as [Install](/install/) shows. Then copy
+the binary into the image with your application:
+
+```dockerfile
+FROM debian:trixie-slim
+
+COPY --chmod=0755 nvs /usr/local/bin/nvs
+COPY . /app
+WORKDIR /app
+
+# A fixed account that is not root, and the data folder that this account owns.
+RUN useradd --uid 65532 --no-create-home --shell /usr/sbin/nologin app \
+ && install -d -o app -g app -m 0700 /usr/local/bin/.nvsdata
+USER app
+
+EXPOSE 8000
+ENTRYPOINT ["nvs"]
+CMD ["serve", "/app/public/index.nvs", "--listen", "0.0.0.0:8000"]
+```
+
+This image is Debian 13, which has glibc 2.41. Build `nvs` on a system with the same glibc or an
+older one, such as Ubuntu 22.04. A binary built on a newer system does not start in this image.
+
+## Listen on every address
+
+`nvs serve` listens on `127.0.0.1:8000` when nothing else is set. Inside a container, that address
+can only be reached from inside the same container. So the command above passes
+`--listen 0.0.0.0:8000`. Without it, the container runs, but every connection fails.
+
+## The configuration
+
+`WORKDIR /app` makes `/app` the working folder. `nvs` reads `/app/nvs.toml` from there, so the
+configuration in your project is found without `--config`.
+
+Keep secrets out of the image. Docker Compose can mount a secret as a file, and `nvs.toml` reads it
+with `password_file`:
+
+```toml
+[db.main]
+driver = "postgres"
+host = "db"
+password_file = "/run/secrets/db-password"
+```
+
+## The data folder
+
+`nvs` keeps its compile cache and its temporary files in a data folder. By default, this is
+`.nvsdata` next to the `nvs` program, here `/usr/local/bin/.nvsdata`. The account `app` cannot
+create a folder in `/usr/local/bin`, so the `RUN` line above creates it. Only `app` can open it.
+
+Without this folder, `nvs` prints a warning. It runs without the compile cache, and
+`Core\IO::temporaryDir` throws an error.
+
+## Run it
+
+```sh
+docker build -t shop .
+docker run -p 8000:8000 shop
+```
+
+The data folder is inside the container. When you remove the container, the compile cache is
+deleted, and the next container compiles every program again. To keep the cache, mount a volume
+on the data folder:
+
+```sh
+docker run -p 8000:8000 -v shop-data:/usr/local/bin/.nvsdata shop
+```
+
+A new volume starts with the owner and the permissions of the folder in the image. You can also
+pass `--data` with the full path of another folder that `app` owns.
+
+Put a reverse proxy in front of the container for TLS. Read
+[Behind a reverse proxy](/guides/production/reverse-proxy/).

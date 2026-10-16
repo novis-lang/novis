@@ -1,0 +1,24 @@
+<?nvs
+// Chooses pages of a PDF file, as a shop does for each file it puts into a merged document.
+// bench: iterations 4096
+// bench: complexity constant
+use Novis\Pdf\Pages;
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        bytes $pdf = "%PDF-1.7" as bytes;
+        array<array<uint>> $lists = [[1], [3, 1, 2, 4], [2, 2, 2, 2, 2, 2, 2]];
+        array<Pages> $chosen = [];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            array<uint> $list = $lists[($total % 3) as int];
+            $chosen[] = Pages::of($pdf, $list);
+            $total = $total + Core\Arr::count($list);
+            $i = $i + 1;
+        }
+        return $total + Core\Arr::count($chosen);
+    }
+}
+
+echo Bench::run(4096), "\n";

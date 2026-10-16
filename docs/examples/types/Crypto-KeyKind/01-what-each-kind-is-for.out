@@ -1,0 +1,7 @@
+P256     agrees and signs
+X25519   agrees only
+Ed25519  signs only
+RsaPkcs1 signs, the scheme JWS calls RS256
+RsaPss   signs, the scheme JWS calls PS256
+drew an Ed25519 pair
+Core\Crypto::generateKeyPair(): an RSA key is never generated here. A program is handed its RSA key by whoever issued it, so read that file with `Core\Crypto\KeyPair::read`.

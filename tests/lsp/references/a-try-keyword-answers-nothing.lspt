@@ -1,0 +1,13 @@
+--TEST--
+a cursor on the `try` keyword is on a statement rather than a name, and the class the `catch` clause names is not what was asked about, `rule:ide/five-features-are-one-reference-index`
+--FILE--
+<?nvs
+tr<|>y {
+    echo "work";
+} catch (RuntimeError $refused) {
+    echo "refused";
+}
+--REQUEST--
+references
+--EXPECT--
+none

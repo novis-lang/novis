@@ -1,0 +1,13 @@
+--TEST--
+Core\Str::upperFirst and Core\Str::lowerFirst change the case of the first letter, also when it is outside ASCII
+--FILE--
+<?nvs
+echo Core\Str::upperFirst("nvs rocks"), "\n";
+echo Core\Str::lowerFirst("NVS"), "\n";
+echo Core\Str::upperFirst("élan"), "\n";
+echo Core\Str::lowerFirst("Élan"), "\n";
+--EXPECT--
+Nvs rocks
+nVS
+Élan
+élan

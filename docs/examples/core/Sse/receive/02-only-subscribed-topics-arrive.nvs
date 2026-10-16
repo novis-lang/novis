@@ -1,0 +1,15 @@
+<?nvs
+// Shows that a stream receives values only from the topics it subscribed to.
+
+// The `.nvse` file beside this example publishes one value on `news:weather`
+// and one on `news:sport`. This script subscribes to `news:sport` only.
+Core\Sse $sse = Core\Sse::current();
+Core\Topic::subscribe("news:sport");
+
+// `topic()` returns the topic a message came from.
+// This prints `news:sport: the match starts at 8` and nothing for the weather.
+?Core\Sse\Message $message = $sse->receive();
+while ($message != null) {
+    echo $message->topic(), ": ", $message->value() as string, "\n";
+    $message = $sse->receive();
+}

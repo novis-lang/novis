@@ -1,0 +1,16 @@
+<?nvs
+// Shows how `pop` takes the smallest value out of a heap.
+
+var $heap = new Core\Heap<int>();
+$heap->push(4);
+$heap->push(1);
+$heap->push(3);
+
+// This prints 1.
+echo $heap->pop(), "\n";
+
+// The 1 is gone, so this prints 2.
+echo $heap->count(), "\n";
+
+// The next smallest value is now at the front. This prints 3.
+echo $heap->pop(), "\n";

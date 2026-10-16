@@ -1,0 +1,29 @@
+<?nvs
+// Measures `Core\Arr::findKey` on one keyed array with no match, at growing array sizes.
+// bench: start 256
+// bench: max 4096
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        array<int> $values = Core\Arr::range(1, $size as int);
+        array<string> $names = Core\Arr::map($values, fn(int $n): string => "s" . ($n as string));
+        array<int> $readings = Core\Arr::fromKeysAndValues($names, $values);
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            int $limit = -1 - (($total % 3) as int);
+            ?string $name = Core\Arr::findKey($readings, fn(int $n) => $n <= $limit);
+            if ($name == null) {
+                $total = $total + 1;
+            } else {
+                $total = $total + 2;
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

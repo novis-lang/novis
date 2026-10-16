@@ -1,0 +1,47 @@
+--TEST--
+Changing the array `toArray` returns does not change the entry: the readers and a second `toArray` still see the values the server sent
+--SKIPIF--
+<?nvs
+// The case needs the `samba-ad` server from `tests/db/compose.yaml`. Where it
+// does not answer, the case is skipped, unless `NVS_LDAP_SAMBA` is set: CI's
+// Linux leg runs the server and sets it, so a missing server fails there.
+try {
+    Core\Ldap::connect("corp");
+} catch (Core\Ldap\LdapError $down) {
+    if ($down->kind != Core\Ldap\LdapError::Kind::Unavailable || Core\Env::get("NVS_LDAP_SAMBA") != null) {
+        throw $down;
+    }
+    echo "skip - ", $down->message, "\n";
+}
+--FILE--
+<?nvs
+var $corp = Core\Ldap::connect("corp");
+?Core\Ldap\Entry $admin = $corp->read("CN=Administrator,CN=Users,DC=example,DC=test", {select: ["cn"]});
+if ($admin == null) {
+    echo "no entry", "\n";
+} else {
+    var $attributes = $admin->toArray();
+    $attributes["mail"] = $attributes["cn"];
+    $attributes["cn"] = [];
+    echo "changed copy: ", Core\Arr::count($attributes["cn"]), " cn, has mail: ", Core\Arr::hasKey($attributes, "mail") ? "yes" : "no", "\n";
+    echo "entry cn: ", $admin->string("cn") ?? "null", "\n";
+    echo "entry has mail: ", $admin->has("mail") ? "yes" : "no", "\n";
+    echo "second toArray: ", Core\Arr::count($admin->toArray()["cn"]), " cn, has mail: ", Core\Arr::hasKey($admin->toArray(), "mail") ? "yes" : "no", "\n";
+}
+--COPY--
+../../db/ca.crt
+--FILE nvs.toml--
+[capabilities.ldap]
+connect = ["corp"]
+
+[ldap.corp]
+url = "ldaps://localhost:16636"
+base = "DC=example,DC=test"
+user = "CN=Administrator,CN=Users,DC=example,DC=test"
+password = "Novis-test-1"
+tls_ca_file = "ca.crt"
+--EXPECT--
+changed copy: 0 cn, has mail: yes
+entry cn: Administrator
+entry has mail: no
+second toArray: 1 cn, has mail: no

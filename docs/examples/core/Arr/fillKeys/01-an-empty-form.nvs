@@ -1,0 +1,12 @@
+<?nvs
+// Shows how to build an array that holds the same value under several keys.
+
+array<string> $fields = ['name', 'email', 'city'];
+
+// One entry per field name, each holding an empty text.
+array<string> $form = Core\Arr::fillKeys($fields, '');
+
+// This prints one line per field, each ending in a colon and a space.
+foreach ($form as string $field => string $value) {
+    echo $field, ': ', $value, "\n";
+}

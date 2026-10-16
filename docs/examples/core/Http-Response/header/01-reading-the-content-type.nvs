@@ -1,0 +1,17 @@
+<?nvs
+// Shows how to read one header of a reply, and what you get for a header the
+// reply does not have.
+
+// `Core\Test::answerHttp` gives a fixed reply to this address, so the example runs
+// without a network.
+Core\Test::answerHttp("https://api.example.com/report", 200, {
+    body: "id,total",
+    headers: ["Content-Type" => "text/csv"],
+});
+Core\Http\Response $response = Core\Http\Client::get("https://api.example.com/report");
+
+// The name does not depend on upper or lower case. This prints `text/csv`.
+echo $response->header("content-type"), "\n";
+
+// The reply has no `ETag` header, so `header()` returns `null`. This prints `none`.
+echo $response->header("ETag") ?? "none", "\n";

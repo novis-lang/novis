@@ -1,0 +1,23 @@
+<?nvs
+// Shows how to open elements inside other elements to build a nested document.
+
+Core\Xml\Writer $writer = Core\Xml::writer({indent: "  "});
+$writer->startDocument();
+
+// `order` is the root element. Everything below goes inside it.
+$writer->startElement("order");
+$writer->attribute("id", "1042");
+
+// `customer` is inside `order`, and `name` is inside `customer`.
+$writer->startElement("customer");
+$writer->startElement("name");
+$writer->content("Anna Berger");
+$writer->endElement();
+$writer->endElement();
+
+$writer->startElement("total");
+$writer->content("25.90");
+$writer->endElement();
+
+$writer->endElement();
+echo $writer->endDocument(), "\n";

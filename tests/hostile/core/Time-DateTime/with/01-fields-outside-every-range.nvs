@@ -1,0 +1,55 @@
+<?nvs
+// Attack: `with` gets numbers that no field can have, and moves the last moment there is.
+// Each value outside a range should throw a `RuntimeError`, and nothing should crash.
+
+var $june = Core\Time::at(2024, 6, 30, Core\Time\Zone::of('Europe/Berlin'), { hour: 12 });
+
+// 1. The largest and the smallest `int`, and one year past each end, for `year`.
+array<int> $years = [9223372036854775807, -9223372036854775807 - 1, 10000, -10000];
+int $refused = 0;
+foreach ($years as int $year) {
+    try { $june->with({ year: $year }); } catch (RuntimeError $far) { $refused = $refused + 1; }
+}
+
+// 2. The largest `uint`, and numbers just past what each field can hold, for the six other options.
+array<uint> $numbers = [18446744073709551615, 4294967296, 2147483648, 256, 128, 1000000000];
+foreach ($numbers as uint $number) {
+    try { $june->with({ month: $number }); } catch (RuntimeError $a) { $refused = $refused + 1; }
+    try { $june->with({ day: $number }); } catch (RuntimeError $b) { $refused = $refused + 1; }
+    try { $june->with({ hour: $number }); } catch (RuntimeError $c) { $refused = $refused + 1; }
+    try { $june->with({ minute: $number }); } catch (RuntimeError $d) { $refused = $refused + 1; }
+    try { $june->with({ second: $number }); } catch (RuntimeError $e) { $refused = $refused + 1; }
+    try { $june->with({ nanos: $number }); } catch (RuntimeError $f) { $refused = $refused + 1; }
+}
+
+// 3. One past the end of each field, and a day that June does not have.
+try { $june->with({ month: 0 }); } catch (RuntimeError $g) { $refused = $refused + 1; }
+try { $june->with({ month: 13 }); } catch (RuntimeError $h) { $refused = $refused + 1; }
+try { $june->with({ day: 0 }); } catch (RuntimeError $i) { $refused = $refused + 1; }
+try { $june->with({ day: 31 }); } catch (RuntimeError $j) { $refused = $refused + 1; }
+try { $june->with({ month: 2, day: 30 }); } catch (RuntimeError $k) { $refused = $refused + 1; }
+try { $june->with({ hour: 24 }); } catch (RuntimeError $l) { $refused = $refused + 1; }
+try { $june->with({ minute: 60 }); } catch (RuntimeError $m) { $refused = $refused + 1; }
+try { $june->with({ second: 60 }); } catch (RuntimeError $n) { $refused = $refused + 1; }
+echo $refused, " refused\n";
+
+// 4. The last moment there is gets its last nanosecond, and the same fields in UTC.
+// In UTC that moment is past the range, so the second call throws.
+var $last = Core\Time::fromIso('9999-12-30T22:00:00Z')->in(Core\Time\Zone::fixed(25h59m59s));
+echo $last->with({ nanos: 999999999 })->format('yyyy-MM-dd HH:mm:ss.SSSSSSSSS'), "\n";
+try {
+    Core\Time::fromIso('9999-12-30T22:00:00Z')->in(Core\Time\Zone::UTC)->with({ day: 31, hour: 23 });
+} catch (RuntimeError $late) {
+    echo "past the range\n";
+}
+
+// 5. One million new values are built, one at a time. Each new value is freed.
+var $moving = Core\Time::at(2000, 1, 31, Core\Time\Zone::of('America/New_York'), { hour: 23, minute: 59 });
+int $round = 0;
+int $days = 0;
+while ($round < 1000000) {
+    var $built = $moving->with({ day: ($round % 28 + 1) as uint, hour: ($round % 24) as uint });
+    $days = $days + $built->dayOfYear() as int;
+    $round = $round + 1;
+}
+echo $days, "\n";

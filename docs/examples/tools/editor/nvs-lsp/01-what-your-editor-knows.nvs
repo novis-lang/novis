@@ -1,0 +1,33 @@
+<?nvs
+// The document you have open while `nvs lsp` is running: each comment points at
+// something the editor can tell you about the line under it.
+
+final class Receipt
+{
+    public string $customer = "";
+    public int $cents = 0;
+
+    // Hover over `Core\Str::padEnd` and the editor shows its signature and what
+    // it does, read from the compiler itself. There is no stub file to install.
+    public function line(): string
+    {
+        return Core\Str::padEnd($this->customer, 12)
+            . Core\Str::format("%d cents", $this->cents);
+    }
+
+    // Type `$this->` inside a method and the completion list is this class's own
+    // members: the editor resolved the receiver rather than matching on text.
+    public function shout(): string
+    {
+        return Core\Str::upper($this->line());
+    }
+}
+
+var $receipt = new Receipt();
+$receipt->customer = "Ada";
+$receipt->cents = 1250;
+
+// Ctrl-click `Receipt` and go-to-definition lands on the class above. The same
+// click works across files, wherever a `require` reached the declaration.
+echo $receipt->line(), "\n";
+echo $receipt->shout(), "\n";

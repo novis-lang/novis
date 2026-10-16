@@ -1,0 +1,16 @@
+--TEST--
+reading an enum case answers the case's declaration and the read itself, the enum written in front of it being one use of the enum and no use of the case, `rule:ide/five-features-are-one-reference-index`
+--FILE--
+<?nvs
+enum Status: int
+{
+    case Draft = 1;
+    case Live = 2;
+}
+
+var $s = Status::Dr<|>aft;
+--REQUEST--
+references
+--EXPECT--
+case.nvs:4:10
+case.nvs:8:18

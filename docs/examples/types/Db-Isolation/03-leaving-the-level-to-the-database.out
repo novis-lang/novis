@@ -1,0 +1,3 @@
+write the basket to the database: whatever the database is set to
+take the payment and reserve the stock: Serializable, and nothing weaker will do
+send the confirmation email: whatever the database is set to

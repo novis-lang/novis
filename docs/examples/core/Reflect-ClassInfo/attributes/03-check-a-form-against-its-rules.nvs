@@ -1,0 +1,50 @@
+<?nvs
+// Shows how a form library checks submitted values against rules written as
+// attributes on the properties of a form class.
+
+type MaxLength = {max: int};
+
+class SignupForm {
+    #[MaxLength(max: 12)]
+    public string $username = "";
+
+    #[MaxLength(max: 40)]
+    public string $email = "";
+
+    public string $note = "";
+}
+
+class Validator {
+    // Returns one error message for each value that is too long.
+    public static function errors(string $formClass, array<string> $input): array<string> {
+        array<string> $errors = [];
+        var $info = Core\Reflect::forClass($formClass);
+        if ($info == null) {
+            return $errors;
+        }
+        foreach ($info->attributes() as Core\Reflect\AttributeInfo $rule) {
+            if ($rule->name() != "MaxLength") {
+                continue;
+            }
+            string $field = $rule->target();
+            int $max = $rule->field("max") as int;
+            string $value = $input[$field] ?? "";
+            if (Core\Str::length($value) > $max) {
+                $errors[] = $field . " is longer than " . $max . " characters";
+            }
+        }
+        return $errors;
+    }
+}
+
+array<string> $submitted = [
+    "username" => "a_very_long_username",
+    "email" => "ana@example.com",
+    "note" => "Please call me after five.",
+];
+
+// Only `username` is too long. `note` has no rule, so it is not checked.
+// This prints "username is longer than 12 characters".
+foreach (Validator::errors("SignupForm", $submitted) as string $error) {
+    echo $error, "\n";
+}

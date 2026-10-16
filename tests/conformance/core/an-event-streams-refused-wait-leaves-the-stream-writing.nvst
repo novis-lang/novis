@@ -1,0 +1,27 @@
+--TEST--
+A refused `Core\Sse->receive` is a throw the program catches and nothing more: the stream it was called on is still open and its next event is on the wire — `rule:concurrency/two-doors-one-isolate`
+--FILE--
+<?nvs
+// The refusal is a `LogicError` and not a fatal, so a helper written against
+// `Core\Sse` can try the wait, catch the door it is standing in, and carry on
+// writing -- which is the whole reason both doors share one type. A refusal
+// that tore the stream down would make the shared helper a lie.
+var $events = Core\Out::capture(fn (): void => {
+    var $sse = Core\Sse::stream();
+    $sse->send("ready");
+    try {
+        $sse->receive();
+    } catch (LogicError $refused) {
+        $sse->send("nothing to wait for", event: "note");
+    }
+    $sse->send("done");
+});
+echo $events;
+--EXPECT--
+data: ready
+
+event: note
+data: nothing to wait for
+
+data: done
+

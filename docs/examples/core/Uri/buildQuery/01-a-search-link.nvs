@@ -1,0 +1,11 @@
+<?nvs
+// Shows how to build the query string of a link from an array.
+
+array<mixed> $search = ["q" => "red shoes", "page" => 2];
+
+// A space in a value is written as `+`. This prints /search?q=red+shoes&page=2.
+echo "/search?", Core\Uri::buildQuery($search), "\n";
+
+// A character with a meaning in a query string, such as `&` or `=`, is escaped.
+// This prints q=salt+%26+pepper.
+echo Core\Uri::buildQuery(["q" => "salt & pepper"]), "\n";

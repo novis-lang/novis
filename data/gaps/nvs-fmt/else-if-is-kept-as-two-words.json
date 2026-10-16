@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-fmt/src/lib.rs",
+  "title": "An `else if` is kept as two words, not respelled `elseif`.",
+  "text": "`brace.rs` lays out the run before an `elseif` and before an `else` alike, and nothing respells the two-word form, so `} else if ($b) {` comes back as written where `rule:tooling/fmt-base-style-is-per` says `elseif`. The parser reads both into one arm of the same `if` chain (`crates/nvs-syntax/src/parser/stmt.rs:409`), so the respelling changes no tree and no behaviour; what closes it is the printer writing the one spelling for that arm.",
+  "milestone": "M10"
+}

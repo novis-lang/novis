@@ -1,0 +1,50 @@
+--TEST--
+`Core\Json::decodeAs` hydrates an inline shape against the contract written at its call site, and an absent optional key is not a failure — `rule:types/shape-type`, `rule:core-api/required-optional-and-nullable` and `rule:core-classes/derive-reports-every-field`
+--FILE--
+<?nvs
+// `rule:types/shape-type`: a shape is a structural type, so the fields a
+// document must carry are the ones written here and no class declares them.
+// The class the compiler synthesizes for a shape is keyed on the field *names*
+// alone, so what says `n` is an `int` is the wire contract the call site
+// carries beside it — that fork is `nvs-ir`'s own module docs.
+echo Core\Json::encode(Core\Json::decodeAs<{n: int, s: string}>("{\"n\":1,\"s\":\"a\"}")), "\n";
+
+// Width subtyping's wire half: a key the shape does not name is ignored rather
+// than refused, so a client that adds a field does not break a server reading
+// two of its five.
+echo Core\Json::encode(Core\Json::decodeAs<{n: int}>("{\"n\":2,\"extra\":true}")), "\n";
+
+// `rule:core-api/required-optional-and-nullable`'s first column, written as
+// `rule:types/shape-type`'s `?` marker. An absent optional key leaves the slot
+// never written rather than holding `null` — which is what makes `{s?: string}`
+// and `{s: ?string}` different values and not just different types, and is why
+// this encodes back out as an absent key instead of as `"s":null`.
+echo Core\Json::encode(Core\Json::decodeAs<{n: int, s?: string}>("{\"n\":3}")), "\n";
+
+// The second column is the type's own, and it is answered by
+// `rule:expressions/nullable-conversion`: a shape's `?T` field is `as ?T`,
+// which yields `null` exactly where `as T` would throw. So a value the wire
+// type refuses is that `null` rather than a reported issue.
+echo Core\Json::encode(Core\Json::decodeAs<{n: ?int}>("{\"n\":\"not a number\"}")), "\n";
+
+// A required key the document does not carry is the failure, and the report is
+// `rule:core-classes/derive-reports-every-field`'s collected one — every field
+// that failed in a single throw, with its own path. It is the same report a
+// `#[Json\Derive]` class's decode throws because it is the same walk: a shape
+// changes which table the fields come from, not what a failure looks like.
+try {
+    Core\Json::decodeAs<{n: int, s: string}>("{}");
+    echo "not reached\n";
+} catch (ParseError $missing) {
+    echo "issues=", Core\Arr::count($missing->issues) as string, "\n";
+    echo "  ", $missing->issues["0"]->path, ": ", $missing->issues["0"]->message, "\n";
+    echo "  ", $missing->issues["1"]->path, ": ", $missing->issues["1"]->message, "\n";
+}
+--EXPECT--
+{"n":1,"s":"a"}
+{"n":2}
+{"n":3}
+{"n":null}
+issues=2
+  n: required field missing
+  s: required field missing

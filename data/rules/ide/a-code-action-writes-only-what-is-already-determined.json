@@ -1,0 +1,13 @@
+{
+  "title": "A code action that writes may write only text the type system has already fully determined, and never makes a choice",
+  "status": "designed",
+  "seeAlso": [
+    "ide/narrowing-is-a-diff-never-a-save-time-fix",
+    "classes/property-observer",
+    "statements/inout-is-the-by-reference-spelling",
+    "routing/a-quick-fix-writes-a-derived-path",
+    "ide/every-feature-is-staged-behind-its-dependency"
+  ],
+  "guardedBy": [],
+  "goal": "editor-fixes"
+}

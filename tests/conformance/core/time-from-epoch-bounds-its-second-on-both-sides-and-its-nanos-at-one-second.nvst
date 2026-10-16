@@ -1,0 +1,107 @@
+--TEST--
+Spec § 4: `Core\Time::fromEpoch` names the last epoch second it accepts and the first it refuses at both ends, and bounds its `nanos` option at exactly one second
+--FILE--
+<?nvs
+// `Core\Time::fromEpoch(int $seconds, {nanos?: uint}): Instant` has three
+// bounds and a member that stopped one entry early at any of them would still
+// print plausibly against half of each. So each is asserted with the last
+// value it accepts and the first it refuses, named together, and swept on both
+// sides of the edge with the two sides counted.
+final class Epoch {
+    // Whether the pair is representable, said as a word rather than echoed at
+    // the call site: an `echo` whose later argument throws has already printed
+    // its earlier ones, so a refusal has to be turned into a value first.
+    public static function at(int $seconds, uint $nanos): string {
+        try {
+            var $at = Core\Time::fromEpoch($seconds, {nanos: $nanos});
+            return $at->compareTo($at) == 0 ? "ok" : "wrong";
+        } catch (Throwable $refused) {
+            return "refused";
+        }
+    }
+}
+
+// The upper bound, swept from five seconds below it to four above. The edge is
+// the *instant* the representation stops at, not a round number of days or
+// years, which is why the sweep is written around the value rather than around
+// a date.
+int $top = 253402207200;
+int $topOk = 0;
+int $topRefused = 0;
+int $k = 0 - 5;
+while ($k < 5) {
+    if (Epoch::at($top + $k, 0 as uint) == "ok") {
+        $topOk = $topOk + 1;
+    } else {
+        $topRefused = $topRefused + 1;
+    }
+    $k = $k + 1;
+}
+echo $topOk as string, "|", $topRefused as string, "|\n";
+
+// The lower bound, swept the same way: four seconds below it and six from it
+// up. Both ends are inclusive, so the count is the mirror of the one above.
+int $bottom = 0 - 377705023201;
+int $bottomOk = 0;
+int $bottomRefused = 0;
+int $j = 0 - 4;
+while ($j < 6) {
+    if (Epoch::at($bottom + $j, 0 as uint) == "ok") {
+        $bottomOk = $bottomOk + 1;
+    } else {
+        $bottomRefused = $bottomRefused + 1;
+    }
+    $j = $j + 1;
+}
+echo $bottomOk as string, "|", $bottomRefused as string, "|\n";
+
+// The four values the two sweeps turn on, written out: the last second each
+// end accepts and the first it refuses. The accepted ones are shown as the
+// instants they are, which is what says the bound is the representation's and
+// not an arbitrary cut.
+echo Core\Time::fromEpoch($top)->toIso(), "|", Epoch::at($top + 1, 0 as uint), "|\n";
+echo Core\Time::fromEpoch($bottom)->toIso(), "|", Epoch::at($bottom - 1, 0 as uint), "|\n";
+
+// Both accepted ends read their own second back, so the bound is on a value
+// the member actually represents rather than on one it clamps to.
+echo Core\Time::fromEpoch($top)->toEpochSeconds() == $top ? "yes" : "no", "|",
+     Core\Time::fromEpoch($bottom)->toEpochSeconds() == $bottom ? "yes" : "no", "|\n";
+
+// `nanos` is a subsecond count, so its bound is one whole second and not the
+// end of its `uint` storage: 999999999 is the last accepted value and
+// 1000000000 the first refused, one nanosecond apart.
+array<int> $nanos = [0, 1, 999999998, 999999999, 1000000000, 1000000001, 2000000000];
+int $nanosOk = 0;
+int $nanosRefused = 0;
+foreach ($nanos as int $n) {
+    if (Epoch::at(0, $n as uint) == "ok") {
+        $nanosOk = $nanosOk + 1;
+    } else {
+        $nanosRefused = $nanosRefused + 1;
+    }
+}
+echo $nanosOk as string, "|", $nanosRefused as string, "|\n";
+
+// And the refusal is this member's own sentence, not the underlying
+// representation's, because the bound is a rule about what `nanos` means.
+try {
+    var $over = Core\Time::fromEpoch(0, {nanos: 1000000000});
+    echo "accepted|\n";
+} catch (Throwable $subsecond) {
+    echo $subsecond->message, "|\n";
+}
+
+// The option is added *after* the second rather than written into the slot
+// beside it, so a whole extra second's worth of nanoseconds on top of the last
+// accepted second is still representable — the ceiling belongs to the second.
+echo Core\Time::fromEpoch($top, {nanos: 999999999})->toIso(), "|",
+     Core\Time::fromEpoch($bottom, {nanos: 999999999})->toIso(), "|\n";
+--EXPECT--
+6|4|
+6|4|
+9999-12-30T22:00:00Z|refused|
+-009999-01-02T01:59:59Z|refused|
+yes|yes|
+4|3|
+Core\Time::fromEpoch(): `nanos` is a subsecond count, so it is below 1000000000|
+9999-12-30T22:00:00.999999999Z|-009999-01-02T01:59:59.999999999Z|

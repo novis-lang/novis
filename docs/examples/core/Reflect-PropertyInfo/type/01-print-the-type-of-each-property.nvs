@@ -1,0 +1,14 @@
+<?nvs
+// Shows how to print the declared type of each property of a class.
+
+class Order {
+    public int $id = 1042;
+    public float $total = 59.9;
+    public array<string> $items = [];
+    public ?string $coupon = null;
+}
+
+// This prints `id: int`, `total: float`, `items: array<string>` and `coupon: ?string`.
+foreach (Core\Reflect::forObject(new Order())->properties() as Core\Reflect\PropertyInfo $property) {
+    echo $property->name(), ": ", $property->type() ?? "no type", "\n";
+}

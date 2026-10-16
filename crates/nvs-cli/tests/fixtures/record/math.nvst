@@ -1,0 +1,7 @@
+--TEST--
+a square root, for `tests/nvst_select.rs`
+--FILE--
+<?nvs
+echo Core\Math::sqrt(9.0), "\n";
+--EXPECT--
+3

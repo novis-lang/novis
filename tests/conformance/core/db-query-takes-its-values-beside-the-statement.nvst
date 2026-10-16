@@ -1,0 +1,28 @@
+--TEST--
+`query` takes its values beside the statement and a one-argument call is refused, so there is no spelling that leaves a placeholder unbound — `rule:core-classes/db-one-api` and `rule:core-classes/db-statement-members`
+--FILE--
+<?nvs
+// covers: Core\Db\Connection::query
+// `rule:core-classes/db-one-api`: there is **no `prepare` step**. `Core\Db\Connection::query`
+// takes the SQL and the parameters together, and the per-connection statement
+// cache is what a separate `prepare` would have bought — so `PDO`'s two
+// spellings of one operation are one member here, and the bound below is what
+// a statement with nothing to bind passes.
+var $db = Core\Db::connect("main");
+
+// The last accepted call: an empty array is a statement with no placeholders,
+// not a missing argument, and it is accepted.
+var $none = $db->query("select 1", []);
+
+// And the first refused one, which is `PDO::query($sql)` exactly. A member
+// that defaulted the values would accept this and bind nothing, which is
+// where every unbound placeholder in the PHP corpus came from.
+var $bare = $db->query("select 1");
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0402]: expected 2 to 3 argument(s), found 1
+   --> case.nvs:17:13
+%A
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

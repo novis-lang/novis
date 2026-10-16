@@ -1,0 +1,70 @@
+--TEST--
+`Core\Db\Row::bool` reads a flag from a `BOOLEAN` column and from a whole-number column holding `0` or `1`, and refuses every other number naming the column — `rule:core-classes/db-column-types`
+--FILE--
+<?nvs
+// covers: Core\Db\Row::bool
+// The member as a program reaches it, over a SQLite that runs for real: § 6's
+// crossing is asserted from Rust over `requested_bool`, and what this case adds
+// is that the reader a caller writes lands on that rule and on no other — a
+// `boolean` column and a whole-number column answer the same two values, and
+// the numbers between and beyond them throw.
+use Core\Db\Row;
+
+var $db = Core\Db::connect("main");
+$db->execute("create table flags (n integer not null, live boolean not null, missing boolean)", []);
+$db->execute(
+    "insert into flags (n, live, missing) values (?, ?, ?), (?, ?, ?), (?, ?, ?), (?, ?, ?), (?, ?, ?)",
+    [-1, true, null, 0, false, null, 1, true, null, 2, false, null, 7, true, null]
+);
+
+// Both sides of the bound in one sweep, counted rather than read off a line:
+// `0` and `1` are the whole of what a flag column holds, `-1` and `2` are the
+// first refused value on either side, and `7` is the number PHP would have read
+// as `true`.
+string $read = "";
+string $flags = "";
+uint $absent = 0;
+foreach ($db->query("select n, live, missing from flags order by n", []) as Row $row) {
+    try {
+        ?bool $stored = $row->bool("n");
+        $read = $read . (($stored ?? false) ? "1" : "0");
+    } catch (LogicError $refused) {
+        // The column is named, so a program catching this knows which one it
+        // was — the refusal is `n` on every row of this table.
+        $read = $read . (Core\Str::contains($refused->message, "`n`") ? "x" : "?");
+    }
+    // The declared `BOOLEAN` column beside it, which needs no crossing at all
+    // and answers the value it holds.
+    $flags = $flags . (($row->bool("live") ?? false) ? "1" : "0");
+    // And a column with no value, which is an absence and never a `false`.
+    if ($row->bool("missing") == null) {
+        $absent = $absent + 1;
+    }
+}
+echo "n: ", $read, "\n";
+echo "live: ", $flags, "\n";
+echo "missing: ", $absent, "\n";
+
+// A name no column of this row carries is the other refusal, and it names the
+// name it was asked for rather than the value it did not find.
+array<Row> $one = $db->query("select n from flags", [])->all();
+try {
+    $one[0]->bool("nomatter");
+    echo "unknown: not refused\n";
+} catch (LogicError $refused) {
+    echo "unknown: ", Core\Str::contains($refused->message, "nomatter") ? "names it" : "does not", "\n";
+}
+--FILE nvs.toml--
+# § 3: a SQLite connection's file path comes from its config block, so
+# `db.connect` covers it.
+[capabilities.db]
+connect = ["main"]
+
+[db.main]
+driver = "sqlite"
+path = ":memory:"
+--EXPECT--
+n: x01xx
+live: 10101
+missing: 5
+unknown: names it

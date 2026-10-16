@@ -1,0 +1,6 @@
+invoice_no: written as it reads
+issued_on: written as 2026-09-18
+total: written as it reads
+meta: flattened to one line
+scan: left out, with the size written instead
+4 of 5 columns go into the file

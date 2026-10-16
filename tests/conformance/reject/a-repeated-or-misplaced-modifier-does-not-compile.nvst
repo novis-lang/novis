@@ -1,0 +1,80 @@
+--TEST--
+a modifier written twice, a second visibility, `abstract` beside `final`, and a modifier the declaration's kind does not take are each `E0106`, reported at the modifier
+--FILE--
+<?nvs
+// Each declaration takes its own set of modifiers, and each modifier once.
+// Every error below points at the one modifier to delete.
+
+// The accepted forms first, so a modifier that stops being accepted fails
+// here and not as a missing error.
+abstract class Accepted {
+    public const int LIMIT = 9;
+    final protected const int FLOOR = 1;
+    public private(set) static int $count = 0;
+    public readonly int $id;
+
+    public function constructor(private readonly int $seed) {
+        $this->id = $seed;
+    }
+
+    abstract protected function name(): string;
+
+    final public static function make(): int {
+        return 1;
+    }
+}
+
+class Twice {
+    public public static function f(): void {}
+}
+
+class TwoVisibilities {
+    public private int $p = 1;
+    public private(set) protected(set) int $q = 1;
+}
+
+abstract final class Both {}
+
+class WrongKind {
+    abstract public int $p = 1;
+    public static const int X = 1;
+    public readonly function g(): void {}
+
+    public function constructor(static int $n) {}
+}
+
+final public class OnAHeader {}
+
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0106]: `public` is written twice
+   --> case.nvs:25:12
+%A
+error[E0106]: a property has one visibility, and `private` is a second
+   --> case.nvs:29:12
+%A
+error[E0106]: a property has one visibility, and `protected(set)` is a second
+   --> case.nvs:30:25
+%A
+error[E0106]: `abstract` and `final` cannot both be written on a class
+   --> case.nvs:33:10
+%A
+error[E0106]: `abstract` is not allowed on a property
+   --> case.nvs:36:5
+%A
+error[E0106]: `static` is not allowed on a constant
+   --> case.nvs:37:12
+%A
+error[E0106]: `readonly` is not allowed on a method
+   --> case.nvs:38:12
+%A
+error[E0106]: `static` is not allowed on a parameter
+   --> case.nvs:40:33
+%A
+error[E0106]: `public` is not allowed on a class
+   --> case.nvs:43:7
+%A
+error: aborting due to 9 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

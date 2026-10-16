@@ -1,0 +1,23 @@
+<?nvs
+// Shows a column chart with one series for each shop.
+use Novis\Spreadsheet\Chart;
+use Novis\Spreadsheet\Workbook;
+
+var $book = Workbook::createInMemory();
+var $sheet = $book->sheet('Sales');
+$sheet->addAll([
+    ['month' => 'January', 'north' => 340, 'south' => 210, 'east' => 95],
+    ['month' => 'February', 'north' => 360, 'south' => 190, 'east' => 120],
+]);
+
+// `series` returns a new chart. This loop adds one series for each shop.
+string $months = $sheet->column('month');
+var $shops = [{ key: 'north', name: 'North' }, { key: 'south', name: 'South' }, { key: 'east', name: 'East' }];
+var $chart = Chart::column({ title: 'Sales by shop' });
+foreach ($shops as var $shop) {
+    $chart = $chart->series($sheet->column($shop->key), { categories: $months, name: $shop->name });
+}
+echo Core\Arr::count($chart->series), " series\n";
+echo $chart->series[2]?->name ?? 'no name', ' is ', $chart->series[2]?->values ?? 'no range', "\n";
+$sheet->chart('F2', $chart);
+echo "the chart is added\n";

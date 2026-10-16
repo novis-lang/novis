@@ -1,0 +1,54 @@
+--TEST--
+a `catch` clause's class is resolved the way the rest of the file resolves a name — through the imports, then the enclosing namespace — so a class written as the file names it is matched rather than refused — `rule:errors/throwable-hierarchy` and `rule:statements/a-qualified-name-is-absolute`
+--FILE--
+<?nvs
+namespace App\Billing;
+
+use Core\Db\RolledBack;
+use RuntimeError;
+
+// Declared here, so a bare `Declined` in this file is `App\Billing\Declined`
+// and the clause below has to reach the same answer the declaration did.
+class Declined extends RuntimeError
+{
+    public function constructor(string $message)
+    {
+        parent::constructor($message);
+    }
+}
+
+class Fail
+{
+    public static function charge(): int
+    {
+        throw new Declined("declined");
+    }
+
+    public static function commit(): int
+    {
+        throw new RolledBack("rolled back");
+    }
+}
+
+try {
+    echo Fail::charge(), "\n";
+} catch (Declined $own) {
+    echo "namespaced: ", $own->message, "\n";
+}
+
+// The import is the only thing that makes `RolledBack` a name at all here: the
+// enclosing namespace holds no such class.
+try {
+    echo Fail::commit(), "\n";
+} catch (RolledBack $brought) {
+    echo "imported: ", $brought->message, "\n";
+}
+
+// `rule:expressions/catch-expression`'s arms name a class the same way.
+echo Fail::charge() catch (Declined $arm) => 1, "\n";
+echo Fail::commit() catch (RolledBack $second) => 2, "\n";
+--EXPECT--
+namespaced: declined
+imported: rolled back
+1
+2

@@ -1,0 +1,12 @@
+<?nvs
+// Shows that the hyperbolic tangent never goes past 1 or -1.
+
+// At 3 the result is already close to 1. This prints 0.99505475368673.
+echo Core\Math::tanh(3.0), "\n";
+
+// At 20 the result is exactly 1. This prints yes.
+echo Core\Math::tanh(20.0) == 1.0 ? "yes" : "no", "\n";
+
+// An infinity gives 1 or -1. These lines print 1 and -1.
+echo Core\Math::tanh(Core\Math::INFINITY), "\n";
+echo Core\Math::tanh(-Core\Math::INFINITY), "\n";

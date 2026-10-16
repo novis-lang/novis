@@ -1,0 +1,9 @@
+--METHOD--
+POST
+--PATH--
+/order
+--HEADERS--
+host: shop.example.com
+content-type: application/x-www-form-urlencoded
+--BODY--
+deep[a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a]=x&list[]=a&list[]=b&list[]=c&list[]=d&list[]=e&list[]=f&list[]=g&list[]=h&list[x]=i&list[]=j

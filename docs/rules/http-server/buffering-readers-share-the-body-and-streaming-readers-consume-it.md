@@ -1,0 +1,27 @@
+A request body is read either by a **buffering** reader — `Core\Request::body()`, `::bytes()`, `::post()`, `::json()`, `::jsonAs<T>()` — which keeps what it read, so another buffering reader may follow it; or by a **streaming** reader — `::bodyStream()`, `::files()` — which hands the octets to the program as they arrive, keeps none of them, and so consumes the body. A buffering reader fills the request's hold, bounded by `[limits] request_body` (`rule:http-server/the-body-is-read-on-demand-under-two-caps`), and answers out of it: any buffering reader may follow any other, in any order, and each answers the same octets. A streaming reader may only be the first reader, and once it has run nothing reads those octets again.
+
+| Reader | Kind | Keeps |
+|---|---|---|
+| `body()` | buffering | the octets |
+| `bytes()` | buffering | the octets |
+| `post()` | buffering | the octets and the fields it decoded — over a multipart body, the fields alone |
+| `json()` | buffering | the octets, and the `Value` it decoded |
+| `jsonAs<T>()` | buffering | the octets |
+| `bodyStream()` | streaming | nothing |
+| `files()` | streaming | nothing of a file part; the non-file fields, which it buffers |
+
+A reader that arrives after the body was consumed throws `LogicError` naming the member that consumed it. It is refused rather than answered empty, because an empty answer from an exhausted stream is indistinguishable from a body that was empty, and that is the ambiguity `rule:errors/ambiguous-input-refused` exists to refuse. The refusal is a defect in the program, never something a peer can provoke.
+
+**`post()` after `files()` is this rule rather than an exception to it.** A `files()` walk streams the file parts and buffers everything else: a multipart form's non-file fields are held as the walk passes them (`rule:http-server/a-part-is-a-file-iff-it-carries-a-filename`), charged against `request_body` like any other buffered body, and `post()` answers out of that hold. It drains whatever the walk did not reach before answering, so it reports every field rather than the ones that arrived ahead of the part the walk stopped on — which is why a handler that wants the uploads takes `files()` first. `body()` after a walk is still refused: the hold carries the decoded fields, never the raw octets.
+
+**A multipart body's hold is whichever reader filled it, and only one of the two kinds can hold the octets.** `post()` and `files()` parse such a body off the wire as it arrives, so what they leave behind is the buffered fields and `body()` after either is refused for the reason above. `body()`, `json()` and `jsonAs<T>()` hold the octets instead, under `request_body`, and a `post()` following one parses *those* rather than the wire, which is drained by then and would answer a form with no fields in it. Any buffering reader still follows any other; what the order changes is only which hold the request has. This is the two caps of `rule:http-server/the-body-is-read-on-demand-under-two-caps` doing what they say rather than a case being carved out: a multipart body larger than `request_body` is read by `post()` and `files()`, which never hold one whole, and refused to `body()`, which does.
+
+`json()` keeps its decoded `Value` because `Core\Json::decode` produces only arrays and scalars, and an array is copy-on-write, so a second caller can be handed a refcount bump safely. `jsonAs<T>()` keeps nothing beyond the octets and decodes per call, because `decodeAs` builds objects and two callers must never be handed the same one. `post()` keeps its parsed fields for the same reason as `json()`: a form parses to arrays and strings alone, so each later call is a lookup in it. **What this spends**, per `rule:programs/memory-priority`: the held octets, at most `[limits] request_body` per in-flight request — already `post()`'s bill before this rule — plus one decoded value for a request that called `json()` and one parsed form for a request that called `post()`. Both are freed with the request, so the cost is O(in-flight) and never O(requests served).
+
+The kinds are not a roster to maintain: a member is buffering exactly when it fills the hold, which is a fact the runtime already has, so a body reader added later classifies itself. The alternative — a closed exclusive set of three members with `post()` and then `json()` each carved out of it — was rejected on the second carve-out, because two exceptions to a rule are the rule, unwritten.
+
+**Declined:**
+- **Adding `json()` and `jsonAs<T>()` to the exclusive set.** `json()` after `body()` would throw where nothing was consumed, and a handler that logs `body()` and then decodes `json()` is not a defect.
+- **Re-reading the wire for a second buffering reader.** A body already off the wire cannot be read again, and answering empty instead is the ambiguity `rule:errors/ambiguous-input-refused` refuses.
+- **Letting `bodyStream()` follow `body()` by replaying the hold.** The member would mean two things depending on what ran before it: bounded by the connection's idle timeout in one case and by nothing in the other. A streaming reader reads the wire or it is refused.
+- **Deciding a reader's kind by `Content-Type`.** A mislabelled but valid document is read, as `post()` reads one, and the kind of a reader is a property of the member, never of the request.

@@ -1,0 +1,7 @@
+<?nvs
+// Shows how to get the microseconds since 1 January 1970 in UTC.
+
+Core\Time\Instant $at = Core\Time::fromIso("2024-03-01T12:00:00.000123Z");
+
+// This prints 1709294400000123. The last six digits are the 123 microseconds.
+echo $at->toEpochMicros(), "\n";

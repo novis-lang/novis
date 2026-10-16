@@ -1,0 +1,19 @@
+<?nvs
+// Shows how to keep a compass heading between 0 and 360 degrees after a turn.
+
+class Compass {
+    // Returns the heading as a value from 0 up to, but not including, 360.
+    public static function heading(float $degrees): float {
+        // The first `mod` can give a negative result, so 360 is added and `mod` is used again.
+        return Core\Math::mod(Core\Math::mod($degrees, 360.0) + 360.0, 360.0);
+    }
+}
+
+// A ship at 350 degrees turns 20 degrees right. This prints 10.
+echo Compass::heading(350.0 + 20.0), "\n";
+
+// A ship at 0 degrees turns 30 degrees left. This prints 330.
+echo Compass::heading(0.0 - 30.0), "\n";
+
+// Two full circles and 5.5 degrees more. This prints 5.5.
+echo Compass::heading(725.5), "\n";

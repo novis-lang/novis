@@ -1,0 +1,13 @@
+<?nvs
+// Shows how to read the URL of a request your program sent.
+
+use Core\Http\Client;
+use Core\Test;
+
+// The `*` at the end answers every URL that starts with this text.
+Test::answerHttp("https://api.example.com/weather*", 200, {json: ["temp" => 21]});
+Client::get("https://api.example.com/weather?city=Oslo&days=3");
+
+// `url()` returns the whole URL, with the query string.
+// This prints `https://api.example.com/weather?city=Oslo&days=3`.
+echo Test::sentHttp()[0]->url(), "\n";

@@ -1,0 +1,9 @@
+{
+  "title": "A class cannot make `$obj[$k]` or a count into a method call",
+  "status": "shipped",
+  "seeAlso": [
+    "iteration/foreach-subjects",
+    "iteration/two-interfaces"
+  ],
+  "guardedBy": []
+}

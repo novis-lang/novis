@@ -1,0 +1,83 @@
+--TEST--
+Every binding site writes a type once — a local with and without an initializer, a `for` header's counter, a `foreach` key and value, a property, a parameter, a return and two `catch` bindings — `var` takes a local's type from its initializer exactly, and a name declared in one arm of an `if` is the same function-scoped binding the other arm assigns (`rule:types/declaration`, `rule:types/var-inference`)
+--FILE--
+<?nvs
+// covers: lang:types/every-binding-has-a-type
+
+// `rule:types/declaration`: a local writes its type where it is declared, and
+// a declaration with no initializer is filled in by a later bare assignment,
+// which carries no type of its own.
+int $count = 1;
+string $label;
+$label = "n=";
+$count = $count + 1;
+echo $label, $count, "\n";
+
+// `rule:types/var-inference`: `var` takes the initializer's own checked type
+// and fixes it there, so the binding is exactly as narrow as what fed it.
+var $n = 41;
+var $width = Core\Str::length("ab");
+var $ratio = 0.5;
+echo $n is int ? "int" : "?", " ", $width is uint ? "uint" : "?", " ",
+     $ratio is float ? "float" : "?", "\n";
+
+// `rule:types/declaration`: the declared type is fixed for the binding's whole
+// life, so an assignment answers at the type the declaration gave it.
+$ratio = $ratio * 2;
+echo $ratio, " ", $ratio is float ? "float" : "?", "\n";
+
+// `rule:types/declaration`: declaration is function-scoped -- a name written
+// down in one arm of an `if` is the same binding the other arm assigns, and it
+// is readable after the whole statement.
+if ($count > 1) {
+    string $verdict = "counted up";
+} else {
+    $verdict = "left alone";
+}
+echo $verdict, "\n";
+
+// `rule:types/declaration`: three of the positions PHP has no slot for -- a
+// `for` header's init clause and a `foreach`'s key and value -- each write one,
+// and the counter outlives the loop it drove.
+array<int> $xs = [10, 20, 30];
+int $sum = 0;
+for (uint $i = 0; $i < Core\Arr::count($xs); $i = $i + 1) {
+    $sum = $sum + $xs[$i];
+}
+echo $i, " ", $sum, "\n";
+foreach ($xs as string $k => int $v) {
+    echo $k, "=", $v, ";";
+}
+echo "\n";
+
+// `rule:types/declaration`: a property, a parameter and a return each write
+// their own type, and a `catch` binding is a declaration as well, so two catch
+// blocks in one function name two different variables.
+class Box {
+    public int $held = 0;
+    public function fill(int $n): string {
+        $this->held = $n;
+        return "held";
+    }
+}
+Box $box = new Box();
+echo $box->fill(7), " ", $box->held, "\n";
+try {
+    throw new RuntimeError("first");
+} catch (RuntimeError $first) {
+    echo $first->message, ";";
+}
+try {
+    throw new RuntimeError("second");
+} catch (Throwable $second) {
+    echo $second->message, "\n";
+}
+--EXPECT--
+n=2
+int uint float
+1 float
+counted up
+3 60
+0=10;1=20;2=30;
+held 7
+first;second

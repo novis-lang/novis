@@ -1,0 +1,12 @@
+--TEST--
+a class constant's own declaration is a value position with no local in scope and no word of its own, so it offers nothing, `rule:ide/the-index-answers-the-cursor`
+--FILE--
+<?nvs
+class Cart
+{
+    public const int LI<|>MIT = 10;
+}
+--REQUEST--
+completion
+--EXPECT--
+none

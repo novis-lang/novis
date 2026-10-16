@@ -1,0 +1,92 @@
+<?nvs
+// Attack: bytes that are not valid text are handed to the decoder. One pair is
+// the old trick of writing "/" with more bytes than UTF-8 allows. Each one
+// should be refused with an error naming the position. Every error is caught
+// here, so every step runs and the runtime should be standing at the end.
+// hostile: timeout-ms 30000
+
+// 1. The byte pair C0 AF, which has the shape of "/" written one byte too
+// long. A program that read it as "/" could have a path check walked around.
+try {
+    string $slash = Core\Encoding::decodeText(Core\Encoding::fromHex('c0af'), Core\Charset::Utf8);
+    echo 'step 1: the bytes were read as ', $slash, "\n";
+} catch (RuntimeError $overlong) {
+    echo 'step 1 stopped: ', $overlong->message, "\n";
+}
+
+// 2. The three bytes ED A0 80. They spell a number that only UTF-16 uses to
+// build a pair, and that is not a character on its own.
+try {
+    string $half = Core\Encoding::decodeText(Core\Encoding::fromHex('eda080'), Core\Charset::Utf8);
+    echo 'step 2: the bytes were read as ', $half, "\n";
+} catch (RuntimeError $surrogate) {
+    echo 'step 2 stopped: ', $surrogate->message, "\n";
+}
+
+// 3. Characters cut in half at the end of the buffer. Each one starts a
+// character that needs more bytes than the buffer has.
+array<string> $cut = ['c3', 'e282', 'f09f98'];
+uint $refused = 0;
+foreach ($cut as string $hex) {
+    try {
+        Core\Encoding::decodeText(Core\Encoding::fromHex($hex), Core\Charset::Utf8);
+    } catch (RuntimeError $truncated) {
+        $refused = $refused + 1;
+    }
+}
+echo 'step 3: ', $refused, " of 3 cut characters refused\n";
+
+// 4. UTF-16 reads two bytes at a time, so an odd number of bytes cannot be
+// whole. This one also ends on a lone half of a pair.
+try {
+    Core\Encoding::decodeText(Core\Encoding::fromHex('61003dd8'), Core\Charset::Utf16Le);
+    echo "step 4: the bytes were read\n";
+} catch (RuntimeError $odd) {
+    echo 'step 4 stopped: ', $odd->message, "\n";
+}
+
+// 5. Every one of the 256 single bytes, read as UTF-8. Only the 128 below
+// 0x80 are characters on their own, so exactly half should be refused.
+uint $alone = 0;
+uint $octet = 0;
+while ($octet < 256) {
+    if (Core\Encoding::isValidText(Core\Bytes::fill(1, $octet), Core\Charset::Utf8)) {
+        $alone = $alone + 1;
+    }
+    $octet = $octet + 1;
+}
+echo 'step 5: ', $alone, " of 256 single bytes are UTF-8 on their own\n";
+
+// 6. A long run of valid text with one bad byte at the very end. The position
+// in the message has to be the real one, not the start of the buffer.
+bytes $long = Core\Bytes::repeat(Core\Encoding::fromHex('c3a9'), 100000);
+try {
+    Core\Encoding::decodeText(Core\Bytes::join([$long, Core\Encoding::fromHex('ff')]), Core\Charset::Utf8);
+    echo "step 6: the bytes were read\n";
+} catch (RuntimeError $atTheEnd) {
+    echo 'step 6 stopped: ', $atTheEnd->message, "\n";
+}
+
+// 7. Eight million bytes of valid text, read in one call. Every byte is a
+// character in ISO-8859-1, so the answer is eight million characters.
+bytes $wide = Core\Bytes::fill(8000000, 65);
+echo 'step 7: ', Core\Str::length(Core\Encoding::decodeText($wide, Core\Charset::Latin1)), "\n";
+
+// 8. One hundred thousand decodes in a row, each one feeding the next round's
+// choice of encoding.
+array<Core\Charset> $charsets = [
+    Core\Charset::Utf8,
+    Core\Charset::Latin1,
+    Core\Charset::Windows1252,
+    Core\Charset::Ascii,
+];
+bytes $field = Core\Encoding::fromHex('6e7673');
+uint $total = 0;
+uint $round = 0;
+while ($round < 100000) {
+    $total = $total + Core\Str::length(Core\Encoding::decodeText($field, $charsets[$total % 4]));
+    $round = $round + 1;
+}
+echo 'step 8: ', $round, ' decodes made, ', $total, " characters read\n";
+
+echo "the runtime is still standing\n";

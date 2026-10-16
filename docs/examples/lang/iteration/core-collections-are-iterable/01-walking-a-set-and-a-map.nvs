@@ -1,0 +1,22 @@
+<?nvs
+// Shows how to walk a `Core\ObjectSet` and a `Core\ObjectMap` with `foreach`.
+
+var $tags = new Core\ObjectSet<string>();
+$tags->add("blue");
+$tags->add("green");
+$tags->add("blue");
+
+// A set holds each value once, so "blue" is in it once. The loop gives you the
+// members in the order you added them. This prints blue and then green.
+foreach ($tags as string $tag) {
+    echo $tag, "\n";
+}
+
+var $stock = new Core\ObjectMap<string, int>();
+$stock->set("apples", 12);
+$stock->set("pears", 4);
+
+// A loop over a map gives you the keys. Use `get` to read the value for a key.
+foreach ($stock as string $name) {
+    echo $name, " ", $stock->get($name), "\n";
+}

@@ -1,0 +1,11 @@
+<?nvs
+// Shows the error for text that is not a DN.
+
+try {
+    // A `;` is not allowed in a value. It must be written as `\;`.
+    var $dn = Core\Ldap\Dn::parse('CN=Ann;DC=test');
+    echo $dn->toString(), "\n";
+} catch (LogicError $error) {
+    // The message says that the text is wrong at character 7.
+    echo $error->message, "\n";
+}

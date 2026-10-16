@@ -1,0 +1,42 @@
+<?nvs
+// This measures reading a property, writing a property and reading a class constant.
+// Most method bodies do these three things.
+// Each round reads what the round before wrote, so no work can be skipped.
+// bench: iterations 4096
+// bench: allocations 0
+// bench: complexity constant
+
+class Limits
+{
+    public const int STEP = 3;
+}
+
+class Counter
+{
+    public int $seen = 1;
+    public int $carried = 1;
+
+    public function constructor()
+    {
+        $this->seen = 1;
+    }
+}
+
+class Bench
+{
+    public static function run(uint $rounds): int
+    {
+        Counter $counter = new Counter();
+        uint $i = 0;
+
+        while ($i < $rounds) {
+            $counter->carried = ($counter->seen + Limits::STEP) % 1021;   // chained: $counter->seen is last round's
+            $counter->seen = $counter->carried + 1;
+            $i = $i + 1;
+        }
+
+        return $counter->seen;
+    }
+}
+
+echo Bench::run(4096), "\n";

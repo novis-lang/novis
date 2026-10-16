@@ -1,0 +1,45 @@
+<?nvs
+// Attack: `Core\Time\Date::at` gets the largest and smallest numbers for every field, and days that do not exist.
+// Each bad call should throw a `RuntimeError`, and the loop at the end should finish without a leak.
+
+array<int> $years = [-9223372036854775807 - 1, -10000, 10000, 9223372036854775807];
+array<uint> $numbers = [0, 13, 32, 9223372036854775807, 18446744073709551615];
+int $refused = 0;
+
+// 1. A year past both ends of the calendar.
+foreach ($years as int $wrongYear) {
+    try { Core\Time\Date::at($wrongYear, 1, 1); } catch (RuntimeError $badYear) { $refused = $refused + 1; }
+}
+
+// 2. A month and a day past their ranges, up to the largest unsigned number.
+foreach ($numbers as uint $number) {
+    try { Core\Time\Date::at(2024, $number, 1); } catch (RuntimeError $badMonth) { $refused = $refused + 1; }
+    if ($number != 13) {
+        try { Core\Time\Date::at(2024, 1, $number); } catch (RuntimeError $badDay) { $refused = $refused + 1; }
+    }
+}
+echo $refused, " refused\n";
+
+// 3. Day 29, 30 and 31 of every month, in every year of the calendar.
+// Every date that is built is freed, and every day that does not exist throws.
+int $built = 0;
+int $missing = 0;
+int $year = -9999;
+while ($year <= 9999) {
+    uint $month = 1;
+    while ($month <= 12) {
+        uint $day = 29;
+        while ($day <= 31) {
+            try {
+                Core\Time\Date::at($year, $month, $day);
+                $built = $built + 1;
+            } catch (RuntimeError $noSuchDay) {
+                $missing = $missing + 1;
+            }
+            $day = $day + 1;
+        }
+        $month = $month + 1;
+    }
+    $year = $year + 1;
+}
+echo $built, ' built, ', $missing, " missing\n";

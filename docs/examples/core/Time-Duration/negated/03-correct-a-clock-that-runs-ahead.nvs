@@ -1,0 +1,11 @@
+<?nvs
+// Corrects the times that a device reports, when the clock of the device runs 90 seconds ahead.
+
+Core\Time\Duration $ahead = 90s;
+array<string> $reported = ["2024-06-10T09:01:30Z", "2024-06-10T12:00:00Z"];
+
+// Adding the negated offset moves each time 90 seconds back.
+// This prints 09:00:00 and 11:58:30 in full.
+foreach ($reported as string $time) {
+    echo Core\Time::fromIso($time)->plus($ahead->negated())->toIso(), "\n";
+}

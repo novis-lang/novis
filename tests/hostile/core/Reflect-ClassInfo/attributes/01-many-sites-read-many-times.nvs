@@ -1,0 +1,55 @@
+<?nvs
+// Attack: the attribute list of a class is read many times, on a class with many
+// attributes, on a subclass and on a class with none. Every list should be freed.
+
+type Route = {path: string};
+
+#[Route(path: '/a')]
+#[{a: 1}]
+#[{b: 'two'}]
+class Base
+{
+    #[{column: 'id'}]
+    public int $id = 0;
+
+    #[Route(path: '/b')]
+    #[{c: true}]
+    public function one(#[{from: 'query'}] int $x, #[{from: 'body'}] int $y): void
+    {
+    }
+}
+
+#[Route(path: '/child')]
+class Child extends Base
+{
+    #[{d: 1.5}]
+    public function two(): void
+    {
+    }
+}
+
+class Empty
+{
+}
+
+// 1. A class with no attributes returns an empty list.
+echo Core\Arr::count(Core\Reflect::forObject(new Empty())->attributes()), "\n";
+
+// 2. Change the returned list. A second call still returns the full list.
+var $base = Core\Reflect::forObject(new Base());
+array<Core\Reflect\AttributeInfo> $list = $base->attributes();
+$list[] = $list[0];
+$list[] = $list[0];
+echo Core\Arr::count($list), ' ', Core\Arr::count($base->attributes()), "\n";
+
+// 3. Describe the classes again and read every list 100000 times.
+uint $total = 0;
+uint $i = 0;
+while ($i < 100000) {
+    var $one = Core\Reflect::forObject(new Base());
+    var $two = Core\Reflect::forObject(new Child());
+    $total = $total + Core\Arr::count($one->attributes()) as uint;
+    $total = $total + Core\Arr::count($two->attributes()) as uint;
+    $i = $i + 1;
+}
+echo $total, "\n";

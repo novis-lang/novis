@@ -1,0 +1,15 @@
+<?nvs
+// Shows the newest temperature a sensor sent, and how much it changed. A
+// program keeps the readings in the order they arrived, so the newest one is
+// the last entry.
+
+array<int> $temperatures = [18, 19, 21, 20];
+
+?int $newest = Core\Arr::last($temperatures);
+?int $oldest = Core\Arr::first($temperatures);
+if ($newest == null || $oldest == null) {
+    echo "no readings yet\n";
+} else {
+    echo 'now: ', $newest, " degrees\n";
+    echo 'change since the first reading: ', $newest - $oldest, "\n";
+}

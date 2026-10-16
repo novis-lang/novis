@@ -1,0 +1,12 @@
+<?nvs
+// Shows how to read the size of a file in bytes.
+
+string $path = Core\Path::join(Core\IO::temporaryDir(), "greeting.txt");
+Core\IO::write($path, "Grüße\n");
+
+var $info = Core\IO::stat($path);
+
+// `size` counts bytes, not characters. "ü" and "ß" use 2 bytes each.
+// This prints "6 characters" and "8 bytes".
+echo Core\Str::length("Grüße\n"), " characters", "\n";
+echo $info->size(), " bytes", "\n";

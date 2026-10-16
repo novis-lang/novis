@@ -1,0 +1,14 @@
+<?nvs
+// Adds up the amounts of the orders that were paid, in one pass over the list.
+// A shop shows this number as the turnover of a day.
+
+array<int> $amounts = ['o-101' => 1250, 'o-102' => 800, 'o-103' => 2400];
+array<string> $states = ['o-101' => 'paid', 'o-102' => 'open', 'o-103' => 'paid'];
+
+// The key of the entry is the order number, so the function can look the state
+// of that order up.
+int $turnover = Core\Arr::reduce($amounts, fn(int $carry, int $cents, string $order)
+    => $states[$order] == 'paid' ? $carry + $cents : $carry, 0);
+
+// This prints `3650`.
+echo $turnover, "\n";

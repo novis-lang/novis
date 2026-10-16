@@ -1,0 +1,6 @@
+<?nvs
+// The examples in the folder above start this file with `spawn script`. It counts
+// the orders it was given and returns the number.
+
+echo "counted the orders\n";
+return 1200;

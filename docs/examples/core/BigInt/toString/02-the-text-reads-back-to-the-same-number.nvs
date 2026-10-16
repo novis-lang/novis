@@ -1,0 +1,15 @@
+<?nvs
+// Shows that the text is exact at every size. `Core\BigInt::parse` reads it
+// back to the number it came from.
+
+var $value = Core\BigInt::of(1)->shl(200);
+
+// The number has 61 digits. This prints 61.
+echo Core\Str::length($value->toString()), "\n";
+
+// Nothing is shortened and no separator is added, so parsing the text gives
+// the same number back. `compareTo` returns 0 for two numbers that are equal.
+echo Core\BigInt::parse($value->toString())->compareTo($value), "\n";
+
+// The minus sign reads back as well. This prints 0.
+echo Core\BigInt::parse($value->neg()->toString())->compareTo($value->neg()), "\n";

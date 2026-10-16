@@ -1,0 +1,27 @@
+<?nvs
+// Attack: very long, very deep and unusual paths are given to `Core\Path::basename`.
+// Each call should return a name, and the program must not crash.
+
+// 1. The path is 8 MiB of separators and nothing else. The result is empty.
+echo Core\Str::length(Core\Path::basename(Core\Str::repeat("/\\", 4194304))), "\n";
+
+// 2. The last part is one name of 8 MiB.
+echo Core\Str::length(Core\Path::basename('/tmp/' . Core\Str::repeat('x', 8388608))), "\n";
+
+// 3. The name is 8 MiB of dots, with the extension removed.
+echo Core\Str::length(Core\Path::basename(Core\Str::repeat('.', 8388608), { withoutExtension: true })), "\n";
+
+// 4. The path starts like a network share and has no share name.
+echo '[', Core\Path::basename("\\\\server"), "]\n";
+
+// 5. The path has 100000 levels of `..`.
+echo Core\Path::basename(Core\Str::repeat('../', 100000)), "\n";
+
+// 6. The names contain characters from many scripts, a null byte and emoji.
+echo Core\Path::basename("/données/日本/\u{0}😀.tar.gz", { withoutExtension: true }), "\n";
+
+// 7. The drive letter is followed by nothing.
+echo '[', Core\Path::basename('C:'), '][', Core\Path::basename("C:\\"), "]\n";
+
+// 8. The path has four million levels of one-letter folders.
+echo Core\Path::basename(Core\Str::repeat('a/', 4194304) . 'last'), "\n";

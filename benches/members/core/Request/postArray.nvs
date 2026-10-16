@@ -1,0 +1,22 @@
+<?nvs
+// Reads every value of one bracketed form field, as an order form does for the products a customer ticked.
+// bench: iterations 256
+// bench: complexity constant
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        // The form is in the file `postArray.nvsr` beside this one.
+        array<string> $names = ["item", "size", "note"];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            array<tainted string> $values = Core\Request::postArray($names[($i % 3) as int]);
+            $total = $total + Core\Arr::count($values);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

@@ -1,0 +1,21 @@
+<?nvs
+// Reads the amounts on the last page of an invoice, at a growing number of pages.
+// bench: start 64
+// bench: max 16384
+use Novis\Pdf\Page;
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        array<array<{name: string, value: string}>> $marks = [];
+        uint $i = 0;
+        while ($i < $size) {
+            $marks[] = [{name: "amount", value: "1.50"}, {name: "tax", value: "0.28"}];
+            $i = $i + 1;
+        }
+        return Core\Arr::count((new Page($size, $size, null, [], $marks))->marks("amount"));
+    }
+}
+
+echo Bench::run(64), "\n";

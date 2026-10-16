@@ -1,0 +1,14 @@
+<?nvs
+// Shows that a header value with a line break throws an error. A line break
+// would let the value add a header of its own.
+
+// This name came from a form, and somebody added a second line to it.
+string $name = "kim\nX-Admin: yes";
+
+// `headers` sets the headers of the request. This call throws a `RuntimeError`
+// before it sends anything.
+try {
+    var $profile = Core\Http\Client::get("https://203.0.113.10/profile", {headers: ["X-User" => $name]});
+} catch (RuntimeError $refused) {
+    echo $refused->message, "\n";
+}

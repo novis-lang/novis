@@ -1,0 +1,29 @@
+<?nvs
+// Shows how to put HTML into a news feed, so a feed reader can show it with its formatting.
+
+array<string> $posts = [
+    "New teas in stock" => "<p>Three new <b>green teas</b> are now in the shop.</p>",
+    "Summer sale" => "<p>Everything is 10% off &amp; shipping is free.</p>",
+];
+
+Core\Xml\Writer $writer = Core\Xml::writer({indent: "  "});
+$writer->startDocument();
+$writer->startElement("rss");
+$writer->attribute("version", "2.0");
+$writer->startElement("channel");
+
+foreach ($posts as string $title => string $html) {
+    $writer->startElement("item");
+    $writer->startElement("title");
+    $writer->content($title);
+    $writer->endElement();
+    // The HTML is written unchanged, so the feed stays easy to read.
+    $writer->startElement("description");
+    $writer->cdata($html);
+    $writer->endElement();
+    $writer->endElement();
+}
+
+$writer->endElement();
+$writer->endElement();
+echo $writer->endDocument(), "\n";

@@ -1,0 +1,60 @@
+<?nvs
+// Attack: a program reads the clock very many times and moves the time past the first and last year an `Instant` can have.
+// Each move past the range should throw a `RuntimeError`, and nothing should crash or leak.
+
+// 1. One million readings, each one a new `Instant` that is freed at once.
+int $sum = 0;
+uint $i = 0;
+while ($i < 1000000) {
+    $sum = $sum + Core\Time::now()->toEpochSeconds() % 7;
+    $i = $i + 1;
+}
+echo $sum >= 0 ? '1000000 readings' : 'negative', "\n";
+
+// 2. The longest `Duration` is added again and again, until the year is past 9999.
+Core\Time\Duration $longest = Core\Time\Duration::nanoseconds(9223372036854775807);
+var $late = Core\Time::now();
+int $steps = 0;
+try {
+    while ($steps < 100) {
+        $late = $late->plus($longest);
+        $steps = $steps + 1;
+    }
+    echo "never left the range\n";
+} catch (RuntimeError $e) {
+    echo 'stopped after ', $steps, ' steps: ', $e->message, "\n";
+}
+
+// 3. The same, going back, until the year is before -9999.
+var $early = Core\Time::now();
+int $back = 0;
+try {
+    while ($back < 100) {
+        $early = $early->minus($longest);
+        $back = $back + 1;
+    }
+    echo "never left the range\n";
+} catch (RuntimeError $e) {
+    echo 'stopped after ', $back, ' steps: ', $e->message, "\n";
+}
+
+// 4. The time between now and the last and first moments is longer than a `Duration` can be.
+array<Core\Time\Instant> $farthest = [$late, $early];
+foreach ($farthest as Core\Time\Instant $far) {
+    try {
+        echo $far->since(Core\Time::now())->toSeconds(), "\n";
+    } catch (RuntimeError $e) {
+        echo 'too far apart: ', $e->message, "\n";
+    }
+}
+
+// 5. The current time in every zone of a long list, including the ones at the far ends of the day.
+array<string> $zones = ['UTC', 'Pacific/Kiritimati', 'Etc/GMT+12', 'Asia/Kathmandu', 'America/St_Johns'];
+uint $length = 0;
+uint $round = 0;
+while ($round < 20000) {
+    string $zone = $zones[($round % 5) as int];
+    $length = $length + Core\Str::length(Core\Time::now()->in(Core\Time\Zone::of($zone))->format('yyyy-MM-dd HH:mm'));
+    $round = $round + 1;
+}
+echo $length, "\n";

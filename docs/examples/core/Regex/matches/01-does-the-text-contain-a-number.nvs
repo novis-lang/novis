@@ -1,0 +1,10 @@
+<?nvs
+// Shows how to check whether a text contains a number.
+
+array<string> $messages = ["Table for 4 people", "Table for four people"];
+
+// `\d` matches one digit. The first message has one, so this prints "yes".
+// The second message has no digit, so this prints "no".
+foreach ($messages as string $message) {
+    echo $message, ": ", Core\Regex::matches($message, '\d') ? "yes" : "no", "\n";
+}

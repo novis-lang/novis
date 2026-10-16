@@ -1,0 +1,25 @@
+<?nvs
+// Shows a game server that gives each player a number and tells each player its own number.
+
+Core\Net\Datagram $server = Core\Net::bindDatagram("127.0.0.1", 0);
+Core\Net\Datagram $alice = Core\Net::bindDatagram("127.0.0.1", 0);
+Core\Net\Datagram $bob = Core\Net::bindDatagram("127.0.0.1", 0);
+$alice->send("127.0.0.1", $server->port(), "join" as bytes, 1s);
+$bob->send("127.0.0.1", $server->port(), "join" as bytes, 1s);
+
+// The server answers each `join` at the host and port it came from.
+uint $player = 1;
+while ($player <= 2) {
+    Core\Net\Datagram\Message $join = $server->receive(64, 5s);
+    string $reply = "you are player " . $player;
+    $server->send($join->host(), $join->port(), $reply as bytes, 1s);
+    $player = $player + 1;
+}
+
+// Each player gets only its own reply. This prints `alice: you are player 1` and `bob: you are player 2`.
+echo "alice: ", $alice->receive(64, 5s)->payload() as string, "\n";
+echo "bob: ", $bob->receive(64, 5s)->payload() as string, "\n";
+
+$alice->close();
+$bob->close();
+$server->close();

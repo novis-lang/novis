@@ -1,0 +1,25 @@
+<?nvs
+// Shows how to keep only the attributes with one name and skip all the others.
+
+type Deprecated = {since: string};
+
+class Api {
+    #[Deprecated(since: "2.0")]
+    public function oldSearch(): void {}
+
+    #[{public: true}]
+    public function search(): void {}
+
+    #[Deprecated(since: "2.4")]
+    public function oldExport(): void {}
+}
+
+var $info = Core\Reflect::forObject(new Api());
+
+// `name` is the name written before the brackets. This prints
+// `oldSearch` and `oldExport`, the two methods that have `Deprecated`.
+foreach ($info->attributes() as Core\Reflect\AttributeInfo $attribute) {
+    if ($attribute->name() == "Deprecated") {
+        echo $attribute->target(), "\n";
+    }
+}

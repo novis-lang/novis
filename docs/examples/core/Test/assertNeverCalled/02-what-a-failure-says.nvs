@@ -1,0 +1,28 @@
+<?nvs
+// Shows the error that `Core\Test::assertNeverCalled` throws when the method was called.
+
+interface Cache {
+    public function clear(string $key): void;
+}
+
+Cache $cache = Core\Test::double<Cache>({
+    clear: fn(string $key): void => {},
+});
+
+$cache->clear("users");
+$cache->clear("orders");
+
+// The check throws a `Core\Test\Failure`. The message gives the number of calls
+// and the arguments of the first call.
+try {
+    Core\Test::assertNeverCalled($cache, Cache::clear);
+} catch (Core\Test\Failure $failure) {
+    echo $failure->message, "\n";
+}
+
+// `message` adds your own text at the start of the error message.
+try {
+    Core\Test::assertNeverCalled($cache, Cache::clear, {message: "a read must not clear the cache"});
+} catch (Core\Test\Failure $failure) {
+    echo $failure->message, "\n";
+}

@@ -1,0 +1,38 @@
+<?nvs
+// Shows how a link checker skips a page it has already visited, when the same page is linked in different ways.
+
+class Visited
+{
+    public static function contains(array<Core\Uri> $pages, Core\Uri $link): bool
+    {
+        foreach ($pages as Core\Uri $page) {
+            if ($page->compareTo($link) == 0) {
+                return true;
+            }
+        }
+        return false;
+    }
+}
+
+// In a real program, these links come from the pages the checker downloads.
+array<string> $found = [
+    "https://example.com/shop/",
+    "https://EXAMPLE.com/shop/",
+    "https://example.com/blog/../shop/",
+    "https://example.com/shop/%63art",
+    "https://example.com/shop/cart",
+];
+
+array<Core\Uri> $pages = [];
+foreach ($found as string $text) {
+    var $link = Core\Uri::parse($text);
+    if (Visited::contains($pages, $link)) {
+        echo "skip  ", $text, "\n";
+    } else {
+        $pages[] = $link;
+        echo "visit ", $text, "\n";
+    }
+}
+
+// Five links were found, but only two different pages. This prints 2.
+echo Core\Arr::count($pages), "\n";

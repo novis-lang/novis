@@ -1,0 +1,41 @@
+<?nvs
+// Shows the shape a request check has at work: several conditions joined
+// with `&&`, an alternative joined with `||`, and `!` for the one that has
+// to be absent. The result is a `bool`, so it can be stored and passed on.
+
+class Visitor {
+    public function constructor(
+        public string $role,
+        public bool $emailConfirmed,
+        public bool $suspended,
+        public uint $strikes,
+    ) {}
+
+    // Every part has to hold, and the whole thing is one `bool`. `!` reads
+    // "not suspended".
+    public function mayPost(): bool {
+        return $this->emailConfirmed && !$this->suspended && $this->strikes < 3;
+    }
+
+    // Either role is enough, and the second is checked only when the first
+    // one does not match.
+    public function maySeeReports(): bool {
+        return $this->role == "admin" || $this->role == "auditor";
+    }
+}
+
+Visitor $member = new Visitor("member", true, false, 1);
+Visitor $blocked = new Visitor("member", true, true, 0);
+Visitor $auditor = new Visitor("auditor", true, false, 0);
+
+// This prints 1, then an empty line for the suspended visitor.
+echo $member->mayPost() as string, "\n";
+echo $blocked->mayPost() as string, "\n";
+
+// This prints an empty line, then 1.
+echo $member->maySeeReports() as string, "\n";
+echo $auditor->maySeeReports() as string, "\n";
+
+// The answer is an ordinary `bool`, so it can be stored and combined again.
+bool $canDoBoth = $auditor->mayPost() && $auditor->maySeeReports();
+echo $canDoBoth as string, "\n";

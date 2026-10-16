@@ -1,0 +1,58 @@
+<?nvs
+// Attack: a program matches paths that a visitor chose: very long, badly encoded,
+// or with a huge number of slashes. Each match should return a result or throw
+// an error, and the program must not crash.
+
+class Files
+{
+    #[Core\Route(path: "/files/{name}", method: Core\Http\Method::Get, name: "Files::show")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function show(string $name): string
+    { return 'one file'; }
+
+    #[Core\Route(path: "/docs/{rest...}", method: Core\Http\Method::Get, name: "Files::docs")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function docs(string $rest): string
+    { return 'a page'; }
+
+    #[Core\Route(path: "/orders/{id}", method: Core\Http\Method::Get, name: "Files::order")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function order(uint $id): string
+    { return 'one order'; }
+}
+
+// 1. A capture of one million characters.
+string $long = '/files/' . Core\Str::repeat('a', 1000000);
+?Core\Router\Match $one = Core\Router::match(Core\Http\Method::Get, $long);
+echo $one == null ? 'long: no route' : 'long: matched', "\n";
+
+// 2. A capture whose escapes are not valid UTF-8. This throws a `RuntimeError`.
+try {
+    Core\Router::match(Core\Http\Method::Get, '/files/%ff%fe%C3');
+    echo 'bad escape: matched', "\n";
+} catch (RuntimeError $e) {
+    echo 'bad escape: error', "\n";
+}
+
+// 3. One hundred thousand slashes after a route that takes the rest of the path.
+string $deep = '/docs' . Core\Str::repeat('/a', 100000);
+?Core\Router\Match $three = Core\Router::match(Core\Http\Method::Get, $deep);
+echo $three == null ? 'deep: no route' : 'deep: matched', "\n";
+
+// 4. A number far too large for a `uint`, and one with a sign in front.
+?Core\Router\Match $big = Core\Router::match(Core\Http\Method::Get, '/orders/99999999999999999999999');
+echo $big == null ? 'big: no route' : 'big: matched', "\n";
+?Core\Router\Match $signed = Core\Router::match(Core\Http\Method::Get, '/orders/-1');
+echo $signed == null ? 'signed: no route' : 'signed: matched', "\n";
+
+// 5. Many matches in a loop, each with a capture, to check that no memory is lost.
+uint $found = 0;
+uint $i = 0;
+while ($i < 100000) {
+    ?Core\Router\Match $each = Core\Router::match(Core\Http\Method::Get, '/files/report-' . ($i as string));
+    if ($each != null) {
+        $found = $found + 1;
+    }
+    $i = $i + 1;
+}
+echo $found, ' matched', "\n";

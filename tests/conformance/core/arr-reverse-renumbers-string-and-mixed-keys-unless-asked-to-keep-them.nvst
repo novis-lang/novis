@@ -1,0 +1,34 @@
+--TEST--
+Core\Arr::reverse renumbers string and mixed keys from zero by default, and keeps every key with `preserveKeys: true`, `rule:types/preserve-keys`
+--FILE--
+<?nvs
+final class Render {
+    public static function of(array<int> $a): string {
+        var $out = "";
+        foreach ($a as string $k => int $v) {
+            $out = $out . $k . "=" . $v . ";";
+        }
+        return $out;
+    }
+}
+
+// By default the reversed entries get keys 0, 1, 2. String keys are not kept.
+array<int> $map = ["x" => 1, "y" => 2, "z" => 3];
+echo Render::of(Core\Arr::reverse($map)), "\n";
+
+array<int> $mixed = ["5" => 1, "x" => 2, "9" => 3];
+echo Render::of(Core\Arr::reverse($mixed)), "\n";
+
+// `preserveKeys: true` keeps every key.
+echo Render::of(Core\Arr::reverse($map, {preserveKeys: true})), "\n";
+echo Render::of(Core\Arr::reverse($mixed, {preserveKeys: true})), "\n";
+
+// A list.
+array<int> $list = [1, 2, 3];
+echo Render::of(Core\Arr::reverse($list)), "\n";
+--EXPECT--
+0=3;1=2;2=1;
+0=3;1=2;2=1;
+z=3;y=2;x=1;
+9=3;x=2;5=1;
+0=3;1=2;2=1;

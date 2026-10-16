@@ -1,0 +1,71 @@
+<?nvs
+// Attack: a program tries to get one token accepted for a second session. It
+// creates tokens for sessions that start with each other, and for sessions
+// that copy the text inside a token. It ends with a session of sixteen
+// megabytes.
+// hostile: timeout-ms 30000
+
+secret bytes $key = Core\Crypto::generateKey();
+
+// 1. Keys that are not 32 bytes, including the empty one and the one that is a
+// byte short. Every error is caught here, so the steps below still run.
+array<uint> $widths = [0, 1, 16, 31, 33, 64];
+foreach ($widths as uint $width) {
+    try {
+        Core\Csrf::issue('sid-ada', Core\Bytes::fill($width, 65));
+        echo '1 a key of ', $width, ' bytes was accepted', "\n";
+    } catch (Throwable $e) {
+        echo '1 a key of ', $width, ' bytes was refused', "\n";
+    }
+}
+
+// 2. Sessions that start with each other. No token may be accepted for a
+// session other than the one it was created for.
+array<string> $sessions = [
+    '',
+    'sid',
+    'sid-ada',
+    'sid-adam',
+    'nvs.csrf.v1',
+    'nvs.csrf.v1sid-ada',
+];
+uint $crossed = 0;
+foreach ($sessions as string $mine) {
+    string $token = Core\Csrf::issue($mine, $key);
+    foreach ($sessions as string $other) {
+        if ($mine != $other) {
+            if (Core\Csrf::verify($token, $other, $key)) {
+                $crossed = $crossed + 1;
+            }
+        }
+    }
+}
+echo '2 tokens accepted for another session: ', $crossed, "\n";
+
+// 3. A session of one million characters. A token for it is longer still, and
+// it is checked against the session it was created for.
+string $long = Core\Str::repeat('a', 1000000);
+string $longToken = Core\Csrf::issue($long, $key);
+echo '3 a token of ', Core\Str::length($longToken), ' characters', "\n";
+echo '3 and it is accepted: ', (Core\Csrf::verify($longToken, $long, $key) ? 'yes' : 'no'), "\n";
+
+// 4. Ten thousand tokens for one session under one key. Two that are the same
+// text would mean the same random value was drawn twice.
+array<string> $seen = [];
+uint $repeats = 0;
+uint $i = 0;
+while ($i < 10000) {
+    string $fresh = Core\Csrf::issue('sid-ada', $key);
+    if (Core\Arr::hasKey($seen, $fresh)) {
+        $repeats = $repeats + 1;
+    }
+    $seen[$fresh] = 'seen';
+    $i = $i + 1;
+}
+echo '4 tokens seen twice: ', $repeats, "\n";
+
+// 5. A session of sixteen megabytes. The session and the token it creates are
+// both held at the same time.
+string $huge = Core\Str::repeat('a', 16000000);
+echo '5 sixteen megabytes gives a token of ',
+    Core\Str::length(Core\Csrf::issue($huge, $key)), ' characters', "\n";

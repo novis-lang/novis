@@ -1,0 +1,31 @@
+<?nvs
+// Shows how to skip a test and say why. `skip:` needs a reason. The runner
+// reports the test as skipped and does not run its body.
+
+use Core\Test;
+
+class Coupon {
+    public static function percentFor(string $code): uint {
+        if ($code == "SPRING24") {
+            return 15;
+        }
+        return 0;
+    }
+}
+
+class CouponTest {
+    #[Test]
+    public function itGivesFifteenPercentForTheSpringCode(): void {
+        Test::assertSame(Coupon::percentFor("SPRING24"), 15);
+    }
+
+    // The reason is part of the report, so anybody reading a run sees why
+    // this test did not run.
+    #[Test(skip: "the refund table is not written yet")]
+    public function itGivesNothingOnARefundedOrder(): void {
+        Test::assertSame(Coupon::percentFor("SPRING24"), 0);
+    }
+}
+
+// This prints `15 0`.
+echo Coupon::percentFor("SPRING24"), " ", Coupon::percentFor("AUTUMN24"), "\n";

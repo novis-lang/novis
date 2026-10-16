@@ -1,0 +1,100 @@
+<?nvs
+// Attack: a program tries to delete entries that must stay, and DNs that are wrong or very long.
+// Each step should throw an error or work, and nothing may crash.
+// hostile: timeout-ms 60000
+// requires: samba-ad
+
+class Leftovers
+{
+    // Deletes a unit and every entry below it. A unit with entries below it cannot be
+    // deleted, so each round deletes what it can, and the next round tries the rest.
+    public static function clear(Core\Ldap\Connection $corp, string $unit): void
+    {
+        uint $round = 0;
+        while ($round < 4) {
+            array<Core\Ldap\Dn> $dns = [];
+            bool $found = false;
+            try {
+                foreach ($corp->search(Core\Ldap\Filter::present('objectClass'), { base: $unit, select: ['ou'] }) as Core\Ldap\Entry $entry) {
+                    $dns[] = $entry->dn();
+                    $found = true;
+                }
+            } catch (Throwable $error) {
+            }
+            if (!$found) {
+                return;
+            }
+            foreach ($dns as Core\Ldap\Dn $dn) {
+                try {
+                    $corp->delete($dn);
+                } catch (Throwable $error) {
+                }
+            }
+            $round = $round + 1;
+        }
+    }
+}
+
+var $corp = Core\Ldap::connect('corp-accounts');
+string $unit = 'OU=Hostile Delete,DC=example,DC=test';
+string $child = 'OU=Inner,' . $unit;
+// A run that stopped half-way leaves entries behind.
+Leftovers::clear($corp, $unit);
+try {
+    $corp->add($unit, ['objectClass' => 'organizationalUnit']);
+    $corp->add($child, ['objectClass' => 'organizationalUnit']);
+} catch (Throwable $error) {
+}
+
+// 1. The domain root, the container of deleted entries, the schema, and a unit with an entry below it.
+array<string> $kept = [
+    'DC=example,DC=test',
+    'CN=Deleted Objects,DC=example,DC=test',
+    'CN=Schema,CN=Configuration,DC=example,DC=test',
+    $unit,
+];
+uint $refused = 0;
+foreach ($kept as string $dn) {
+    try {
+        $corp->delete($dn);
+    } catch (Core\Ldap\LdapError $refusal) {
+        $refused = $refused + 1;
+    }
+}
+echo '1 refused: ', $refused, "\n";
+
+// 2. DNs that are not DNs, have a zero byte, are very long, or name another domain.
+array<string> $wrong = [
+    '',
+    'Inner',
+    'OU=Inner,',
+    "OU=Inner\x00,DC=example,DC=test",
+    'OU=' . Core\Str::repeat('x', 100000) . ',' . $unit,
+    'OU=Inner,DC=other,DC=test',
+];
+uint $threw = 0;
+foreach ($wrong as string $dn) {
+    try {
+        $corp->delete($dn);
+    } catch (Throwable $error) {
+        $threw = $threw + 1;
+    }
+}
+echo '2 threw: ', $threw, "\n";
+
+// 3. Fifty units added and deleted in a row. The loop stops at the first error.
+uint $done = 0;
+uint $i = 0;
+while ($i < 50) {
+    try {
+        $corp->add('OU=Again,' . $unit, ['objectClass' => 'organizationalUnit']);
+        $corp->delete('OU=Again,' . $unit);
+        $done = $done + 1;
+    } catch (Throwable $failed) {
+        break;
+    }
+    $i = $i + 1;
+}
+echo '3 deleted: ', $done, "\n";
+
+Leftovers::clear($corp, $unit);

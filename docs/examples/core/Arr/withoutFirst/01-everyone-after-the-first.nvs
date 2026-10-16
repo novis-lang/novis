@@ -1,0 +1,15 @@
+<?nvs
+// Shows how to get every value of a list except the first one.
+
+array<string> $queue = ["Ada", "Ben", "Cleo"];
+
+// `Core\Arr::withoutFirst` returns a new array with the other two names.
+array<string> $waiting = Core\Arr::withoutFirst($queue);
+
+// This prints "Ben" and "Cleo".
+foreach ($waiting as string $name) {
+    echo $name, "\n";
+}
+
+// Your own array is not changed, so this prints 3.
+echo Core\Arr::count($queue), "\n";

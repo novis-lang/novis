@@ -1,0 +1,16 @@
+<?nvs
+// Reports the first field of a form that a person has to correct. The checks
+// are stored in the order the form shows them, so the first key names the
+// field the page should jump to.
+
+array<string> $problems = [
+    'email' => 'this address is not complete',
+    'phone' => 'this number is too short',
+];
+
+?string $field = Core\Arr::firstKey($problems);
+if ($field == null) {
+    echo "the form is complete\n";
+} else {
+    echo 'please correct ', $field, ': ', $problems[$field], "\n";
+}

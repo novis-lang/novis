@@ -1,0 +1,20 @@
+<?nvs
+// Shows `as`, the one way to convert a value in Novis. PHP writes `(int)$x`
+// or `settype($x, "int")`; neither exists here, and both are replaced by this
+// one syntax.
+
+string $typed = "42";
+
+// `as int` converts the text to a whole number, and the result goes into a new
+// variable. This prints `44`.
+int $age = $typed as int;
+echo $age + 2, "\n";
+
+// A conversion that cannot work throws an error. `as ?int` returns `null`
+// instead, so you can test the result. This prints `not a number`.
+?int $maybe = "twelve o'clock" as ?int;
+echo $maybe ?? "not a number", "\n";
+
+// `as` never changes the variable it reads. `$typed` is still the text it was
+// given, so this prints `42`.
+echo $typed, "\n";

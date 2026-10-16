@@ -1,0 +1,40 @@
+--TEST--
+`Core\Time::parse` throws a time past either end of the timestamp range in the sentence `Core\Time::at` uses, and a field wider than an `int` is out of range rather than a crash — `rule:testing/a-failing-proof-is-fixed-or-recorded`
+--FILE--
+<?nvs
+// The last minute the range holds is read, and the first one past it at each
+// end throws the range itself rather than the calendar library's own words.
+// Berlin is ahead of UTC, so its last readable minute is an hour earlier.
+var $utc = Core\Time\Zone::of("UTC");
+var $berlin = Core\Time\Zone::of("Europe/Berlin");
+echo Core\Time::parse("9999-12-30 22:00", "uuuu-MM-dd HH:mm", $utc)->format("uuuu-MM-dd HH:mm XXX"), "\n";
+echo Core\Time::parse("9999-12-30 23:00", "uuuu-MM-dd HH:mm", $berlin)->format("uuuu-MM-dd HH:mm XXX"), "\n";
+try { Core\Time::parse("9999-12-30 22:01", "uuuu-MM-dd HH:mm", $utc); }
+catch (ParseError $high) { echo $high->message, "\n"; }
+try { Core\Time::parse("9999-12-30 23:01", "uuuu-MM-dd HH:mm", $berlin); }
+catch (ParseError $highBerlin) { echo $highBerlin->message, "\n"; }
+try { Core\Time::parse("-9999-01-02 01:58", "uuuu-MM-dd HH:mm", $utc); }
+catch (ParseError $low) { echo $low->message, "\n"; }
+
+// A pattern may repeat a letter as often as it likes, so a field can take more
+// digits than an `int` holds. Forty nines as a year is out of range. The same
+// digits under a fraction and a day count are out of range as well.
+string $nines = Core\Str::repeat("9", 40);
+try { Core\Time::parse($nines, Core\Str::repeat("y", 40), $utc); }
+catch (ParseError $year) { echo $year->message, "\n"; }
+try { Core\Time::parse($nines, Core\Str::repeat("u", 40), $utc); }
+catch (ParseError $extended) { echo $extended->message, "\n"; }
+try { Core\Time::parse("2024-06-05 12:00:00." . $nines, "yyyy-MM-dd HH:mm:ss." . Core\Str::repeat("S", 40), $utc); }
+catch (ParseError $fraction) { echo $fraction->message, "\n"; }
+try { Core\Time::parse($nines, Core\Str::repeat("g", 40), $utc); }
+catch (ParseError $julian) { echo $julian->message, "\n"; }
+--EXPECT--
+9999-12-30 22:00 Z
+9999-12-30 23:00 +01:00
+Core\Time::parse(): the time is outside -9999-01-02T01:59:59Z..=9999-12-30T22:00:00Z
+Core\Time::parse(): the time is outside -9999-01-02T01:59:59Z..=9999-12-30T22:00:00Z
+Core\Time::parse(): the time is outside -9999-01-02T01:59:59Z..=9999-12-30T22:00:00Z
+Core\Time::parse(): year out of range
+Core\Time::parse(): year out of range
+Core\Time::parse(): fractional second out of range
+Core\Time::parse(): modified Julian day out of range

@@ -1,0 +1,51 @@
+<?nvs
+// Attack: a program changes copies of a parameter list many times, and keeps many
+// lists after the description is freed. The list in the description should not
+// change, and every kept list should still be readable.
+
+class Mailer
+{
+    public function send(string $to, string $subject, int $retries): bool
+    {
+        return true;
+    }
+
+    public function wide(int $a1, int $a2, int $a3, int $a4, int $a5, int $a6, int $a7, int $a8, int $a9, int $a10, int $a11, int $a12, int $a13, int $a14, int $a15, int $a16, int $a17, int $a18): int
+    {
+        return $a1;
+    }
+}
+
+array<Core\Reflect\MethodInfo> $methods = Core\Reflect::forObject(new Mailer())->methods();
+Core\Reflect\MethodInfo $send = $methods[0];
+
+// 1. Add to a copy of the list and empty another copy, 100000 times.
+// The list of `send` still has 3 parameters, so this prints 3.
+uint $i = 0;
+while ($i < 100000) {
+    array<Core\Reflect\ParameterInfo> $grown = $send->parameters();
+    $grown[] = $grown[0];
+    array<Core\Reflect\ParameterInfo> $emptied = $send->parameters();
+    $emptied = [];
+    $i = $i + 1;
+}
+echo Core\Arr::count($send->parameters()), "\n";
+
+// 2. Keep 50000 lists, each from a new description that is freed at once.
+array<array<Core\Reflect\ParameterInfo>> $kept = [];
+$i = 0;
+while ($i < 50000) {
+    array<Core\Reflect\MethodInfo> $fresh = Core\Reflect::forObject(new Mailer())->methods();
+    $kept[] = $fresh[($i % 2) as int]->parameters();
+    $i = $i + 1;
+}
+// Half the lists have 3 parameters and half have 18. This prints 525000.
+uint $total = 0;
+foreach ($kept as array<Core\Reflect\ParameterInfo> $list) {
+    $total = $total + Core\Arr::count($list);
+}
+echo $total, "\n";
+
+// 3. Read the name of the last parameter of the 18. This prints `a18`.
+array<Core\Reflect\ParameterInfo> $long = $methods[1]->parameters();
+echo $long[17]->name(), "\n";

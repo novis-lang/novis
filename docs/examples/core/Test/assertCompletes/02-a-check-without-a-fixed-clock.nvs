@@ -1,0 +1,11 @@
+<?nvs
+// Shows what happens when the program has no fixed clock. Only a test with
+// `#[Test(at: ...)]` has a fixed clock, and this program runs under `nvs run`.
+
+// The check throws a `LogicError` before it calls the function.
+// So "the function ran" is not printed.
+try {
+    Core\Test::assertCompletes(fn (): void => { echo "the function ran\n"; }, {within: 50ms});
+} catch (LogicError $error) {
+    echo $error->message, "\n";
+}

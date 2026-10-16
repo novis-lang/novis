@@ -1,0 +1,11 @@
+<?nvs
+// Shows how to read the groups of a match by their numbers.
+
+// The pattern has two groups: the product code and the size.
+var $m = Core\Regex::match("Item: SHIRT-42 (L)", '([A-Z]+-\d+) \((\w+)\)');
+if ($m != null) {
+    // `group(0)` is the whole match. Group 1 and group 2 are the two parts in brackets.
+    echo "whole: ", $m->group(0), "\n";
+    echo "code: ", $m->group(1), "\n";
+    echo "size: ", $m->group(2), "\n";
+}

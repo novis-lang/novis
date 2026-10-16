@@ -1,0 +1,6 @@
+visit https://example.com/shop/
+skip  https://EXAMPLE.com/shop/
+skip  https://example.com/blog/../shop/
+visit https://example.com/shop/%63art
+skip  https://example.com/shop/cart
+2

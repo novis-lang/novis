@@ -1,0 +1,24 @@
+<?nvs
+// A handler converts each value once, at the start, and then works with typed values.
+// If a value does not convert, `as` throws an error. The program reports the line and skips it.
+// Only a line whose three values all converted is added to the total.
+
+array<mixed> $lines = [
+    ["sku" => "A-1", "quantity" => "2", "price" => "9.95"],
+    ["sku" => "B-7", "quantity" => "many", "price" => "4.00"],
+    ["sku" => "C-3", "quantity" => 1, "price" => "12.50"],
+];
+
+decimal $total = 0.00;
+foreach ($lines as mixed $line) {
+    try {
+        tainted string $sku =$line["sku"] as string;
+        uint $quantity = $line["quantity"] as uint;
+        decimal $price = $line["price"] as decimal;
+        $total = $total + $price * $quantity;
+        echo $sku, ": ", $quantity, " x ", $price, "\n";
+    } catch (Throwable $e) {
+        echo "skipped a line that did not convert\n";
+    }
+}
+echo "total ", $total, "\n";

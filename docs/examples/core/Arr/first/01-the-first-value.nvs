@@ -1,0 +1,15 @@
+<?nvs
+// Shows how to read the first value of an array.
+
+array<string> $queue = ['ada', 'grace', 'lin'];
+
+// First means first in the order the entries were put in. This prints `ada`.
+echo Core\Arr::first($queue) ?? 'nobody', "\n";
+
+// A map works the same way. The value that was added first is `3`.
+array<int> $scores = ['ada' => 3, 'lin' => 9];
+echo Core\Arr::first($scores) ?? 0, "\n";
+
+// The array is not changed, so asking again gives the same value. This
+// prints `ada`.
+echo Core\Arr::first($queue) ?? 'nobody', "\n";

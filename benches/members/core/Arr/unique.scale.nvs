@@ -1,0 +1,23 @@
+<?nvs
+// Measures `Core\Arr::unique` on one list of numbers with repeats, at growing list lengths.
+// bench: start 256
+// bench: max 4096
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        array<int> $tags = Core\Arr::map(Core\Arr::range(1, $size as int), fn(int $n): int => $n % 64);
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            $tags[0] = ($total % 4) as int;
+            array<int> $once = Core\Arr::unique($tags);
+            $total = $total + Core\Arr::count($once);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

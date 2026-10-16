@@ -1,0 +1,40 @@
+--TEST--
+`Core\Html::sanitize` grants the three global attributes that describe the text and none of the three a page selects on, so `class`, `id` and `style` reach no rebuilt document — `rule:core-classes/html-sanitize`
+--FILE--
+<?nvs
+// The allowlist grants attributes the same way it grants elements, and what it
+// grants globally is three that each say something about the text: what it is
+// called, what language it is in, which way it reads. None of the three is a
+// selector, and that boundary is what this case asks about.
+tainted string $submitted =
+    "<p title=\"a note\" lang=\"en\" dir=\"ltr\"" .
+    " class=\"modal-overlay\" id=\"submit\" style=\"position:fixed\">Hello.</p>";
+
+Core\Html\Markup $clean = Core\Html::sanitize($submitted);
+string $source = Core\Html::toSource($clean, "asking which attributes the rebuild granted");
+echo $source, "\n";
+
+// Counted rather than read off that line, because a rebuild that grew a value
+// test for one of the three refused would still print plausibly on whatever
+// input it was tried with. `class` and `id` are the two a receiving page's own
+// stylesheet and script select on, and the meaning of either value lives in a
+// document this member never sees, so there is no value test to write here;
+// `style` is a second grammar with no parser here at all.
+array<string> $granted = ["title", "lang", "dir"];
+array<string> $refused = ["class", "id", "style"];
+int $kept = 0;
+int $leaked = 0;
+foreach ($granted as string $name) {
+    if (Core\Str::contains($source, $name)) {
+        $kept = $kept + 1;
+    }
+}
+foreach ($refused as string $name) {
+    if (Core\Str::contains($source, $name)) {
+        $leaked = $leaked + 1;
+    }
+}
+echo "granted ", $kept, " of 3, refused ", $leaked, " of 3\n";
+--EXPECT--
+<p title="a note" lang="en" dir="ltr">Hello.</p>
+granted 3 of 3, refused 0 of 3

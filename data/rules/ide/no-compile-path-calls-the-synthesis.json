@@ -1,0 +1,13 @@
+{
+  "title": "The synthesis is one function in `nvs-types`, called only where `var` types a bare array literal, and a union it finds is never attached to a binding",
+  "status": "shipped",
+  "seeAlso": [
+    "types/var-inference",
+    "types/arrays",
+    "ide/narrow-an-annotation-to-its-literal"
+  ],
+  "guardedBy": [
+    "tests/conformance/reject/var-refuses-an-array-literal-whose-elements-differ.nvst",
+    "crates/nvs-types/tests/locals.rs"
+  ]
+}

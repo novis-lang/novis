@@ -1,0 +1,5 @@
+/api/orders/7 -> api
+/api/admin/users -> admin api
+/assets/logo.png -> static file
+/about -> page
+/apis -> page

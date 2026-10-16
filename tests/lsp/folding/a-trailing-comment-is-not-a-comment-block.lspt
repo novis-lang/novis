@@ -1,0 +1,11 @@
+--TEST--
+a comment sharing its line with code folds nothing, because a fold hides every line but its first and the code beside the second comment would go with it, `rule:ide/the-request-set-is-closed`
+--FILE--
+<?nvs
+echo "one"; // the first
+echo "two"; // the second
+echo "three"; // the third
+--REQUEST--
+foldingRange
+--EXPECT--
+none

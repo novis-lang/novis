@@ -1,0 +1,52 @@
+<?nvs
+// Attack: a program decodes very long form values full of `+` signs, broken escapes and bytes
+// that are not valid text. Each call should return its bytes, and each conversion to text
+// should return the text or throw an error.
+
+class Decode
+{
+    public static function length(string $s): string
+    {
+        return Core\Bytes::length(Core\Uri::decodeFormValue($s)) as string;
+    }
+
+    public static function text(string $s): string
+    {
+        try {
+            return Core\Str::length(Core\Uri::decodeFormValue($s) as string) as string;
+        } catch (RuntimeError $e) {
+            return 'error';
+        }
+    }
+}
+
+// 1. Two million `+` signs. Each one becomes a space. This prints 2000000.
+echo Decode::length(Core\Str::repeat('+', 2000000)), "\n";
+
+// 2. Two million `%` signs with no digits after them. Each one is kept. This prints 2000000.
+echo Decode::length(Core\Str::repeat('%', 2000000)), "\n";
+
+// 3. An escape cut off at the very end, after a million `%2B`. This prints 1000002.
+echo Decode::length(Core\Str::repeat('%2B', 1000000) . '%2'), "\n";
+
+// 4. A million `%FF` escapes. The bytes are not valid text. This prints 1000000, then "error".
+string $invalid = Core\Str::repeat('%FF', 1000000);
+echo Decode::length($invalid), "\n";
+echo Decode::text($invalid), "\n";
+
+// 5. A valid character, then half of one at the end. This prints "error".
+echo Decode::text(Core\Str::repeat('%C3%A9', 500000) . '%C3'), "\n";
+
+// 6. Escapes of escapes. Each call removes one level only. This prints %2B+.
+echo (Core\Uri::decodeFormValue('%252B%2B') as string), "\n";
+
+// 7. 100000 decodes, and every result is freed. This prints 100000.
+uint $done = 0;
+uint $i = 0;
+while ($i < 100000) {
+    if (Core\Bytes::length(Core\Uri::decodeFormValue('a+b%26%FF')) == 5) {
+        $done = $done + 1;
+    }
+    $i = $i + 1;
+}
+echo $done, "\n";

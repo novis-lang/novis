@@ -1,0 +1,14 @@
+<?nvs
+// Shows how to protect an exported list of customers with a password before you send it to a colleague.
+
+// The export is a JSON document. In real code, the rows come from a database.
+string $export = Core\Json::encode([
+    {id: 1, name: "Anna Berger", email: "anna@example.com"},
+    {id: 2, name: "Ben Okafor", email: "ben@example.com"},
+]);
+
+// You tell the colleague the password by phone, and send the token by email.
+string $token = Core\Jwe::encrypt($export, Core\Jwe\Key::password("green tea at noon"));
+
+// The colleague opens the token with the same password. This prints the JSON document.
+echo Core\Jwe::decrypt($token, [Core\Jwe\Key::password("green tea at noon")]), "\n";

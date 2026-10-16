@@ -1,0 +1,43 @@
+<?nvs
+// Attack: uploads try to choose the name a program stores them under, for example "shell.php".
+// Each attempt should throw an error or give an image extension, and the server keeps running.
+use Novis\Image\Color;
+use Novis\Image\Format;
+use Novis\Image\Image;
+
+// 1. A PHP script uploaded as "shell.php.jpg".
+try {
+    bytes $script = '<?php system($_GET["c"]); ?>' as bytes;
+    echo 'step 1 ran shell.', Image::extension(Image::info($script)->format), "\n";
+} catch (Throwable $e) {
+    echo "step 1 stopped\n";
+}
+
+// 2. A real GIF file with a PHP script added after its last byte.
+try {
+    bytes $gif = Image::create(4, 4, Color::hex('#ff0000'))->format(Format::Gif)->encode();
+    bytes $mixed = Core\Bytes::join([$gif, '<?php echo 1; ?>' as bytes], '' as bytes);
+    echo 'step 2 ran upload.', Image::extension(Image::info($mixed)->format), "\n";
+} catch (Throwable $e) {
+    echo "step 2 stopped\n";
+}
+
+// 3. No bytes at all.
+try {
+    echo 'step 3 ran upload.', Image::extension(Image::info('' as bytes)->format), "\n";
+} catch (Throwable $e) {
+    echo "step 3 stopped\n";
+}
+
+// 4. A million calls in one request.
+try {
+    uint $total = 0;
+    uint $i = 0;
+    while ($i < 1000000) {
+        $total = $total + Core\Str::length(Image::extension($i % 2 == 0 ? Format::Jpeg : Format::Jxl));
+        $i = $i + 1;
+    }
+    echo 'step 4 ran ', $total, "\n";
+} catch (Throwable $e) {
+    echo "step 4 stopped\n";
+}

@@ -1,0 +1,29 @@
+<?nvs
+// Shows the work a program really does here: a nightly total over a table that
+// is larger than memory, saved with the reading in one transaction.
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table orders (id integer primary key, customer text not null, cents int not null)', []);
+$db->execute('create table totals (day text primary key, cents int not null, orders int not null)', []);
+$db->execute('insert into orders (customer, cents) values (?, ?), (?, ?), (?, ?), (?, ?)', ['Ana', 1200, 'Bo', 4500, 'Ana', 800, 'Cy', 300]);
+
+$db->transaction(fn (Core\Db\Transaction $tx): void => {
+    // Only one row is in memory at a time, so this costs the same for four
+    // orders and for four million.
+    int $cents = 0;
+    int $orders = 0;
+    foreach ($tx->stream('select cents from orders order by id', []) as Core\Db\Row $row) {
+        $cents = $cents + ($row->int('cents') ?? 0);
+        $orders = $orders + 1;
+    }
+
+    // The walk is over, so the connection is free for this write. The reading
+    // and the writing are one transaction, so the total always matches the rows.
+    $tx->execute('insert into totals (day, cents, orders) values (?, ?, ?)', ['2026-09-21', $cents, $orders]);
+});
+
+// This prints `2026-09-21: 6800 cents, 4 orders`.
+var $saved = $db->query('select day, cents, orders from totals', [])->first();
+echo $saved?->string('day') ?? '', ': ', $saved?->int('cents') ?? 0, ' cents, ', $saved?->int('orders') ?? 0, " orders\n";
+
+$db->close();

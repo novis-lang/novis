@@ -1,0 +1,48 @@
+<?nvs
+// Attack: a request splits very long texts, many texts and texts made only of punctuation into
+// sentences. Each call should return a list or throw an error, and the server keeps running.
+// hostile: timeout-ms 20000
+use Novis\Intl\Segmenter;
+
+// 1. No strings, and an empty string.
+try {
+    echo 'step 1 ran ', Core\Arr::count(Segmenter::sentences([], 'en')), ' ', Core\Arr::count(Segmenter::sentences([''], 'en')[0]), "\n";
+} catch (Throwable $e) {
+    echo "step 1 stopped\n";
+}
+
+// 2. One sentence of one million characters with no end.
+try {
+    echo 'step 2 ran ', Core\Arr::count(Segmenter::sentences([Core\Str::repeat('word ', 200000)], 'en')[0]), "\n";
+} catch (Throwable $e) {
+    echo "step 2 stopped\n";
+}
+
+// 3. Two hundred thousand sentences of one character each.
+try {
+    echo 'step 3 ran ', Core\Arr::count(Segmenter::sentences([Core\Str::repeat('a. ', 200000)], 'en')[0]), "\n";
+} catch (Throwable $e) {
+    echo "step 3 stopped\n";
+}
+
+// 4. Twenty thousand strings of punctuation, quotes and control characters.
+try {
+    array<string> $many = [];
+    for (int $i = 0; $i < 20000; $i++) {
+        $many[] = "?!.\"'.)…。！\u{0}\u{2029}";
+    }
+    echo 'step 4 ran ', Core\Arr::count(Segmenter::sentences($many, 'ja')), "\n";
+} catch (Throwable $e) {
+    echo "step 4 stopped\n";
+}
+
+// 5. A bad locale tag a thousand times. Each call must still return or throw.
+uint $stopped = 0;
+for (int $j = 0; $j < 1000; $j++) {
+    try {
+        Segmenter::sentences(['Shop.'], 'en_US!');
+    } catch (Throwable $e) {
+        $stopped = $stopped + 1;
+    }
+}
+echo 'step 5 stopped ', $stopped, "\n";

@@ -1,0 +1,44 @@
+<?nvs
+// Attack: a request sends addresses with very long or broken user parts, and reads the user part many times.
+// Each read should return the user part, `null` or an error, and every value should be freed.
+
+class User
+{
+    public static function length(string $address): string
+    {
+        try {
+            ?string $user = Core\Uri::parse($address)->userInfo();
+            if ($user == null) {
+                return 'none';
+            }
+            return Core\Str::length($user) as string;
+        } catch (Throwable $e) {
+            return 'error';
+        }
+    }
+}
+
+// 1. A user part of one million letters. This prints 1000000.
+echo User::length('https://' . Core\Str::repeat('u', 1000000) . '@example.com/'), "\n";
+
+// 2. A user part of 500000 `:` characters. It is returned as one text. This prints 500000.
+echo User::length('https://' . Core\Str::repeat(':', 500000) . '@example.com/'), "\n";
+
+// 3. Two `@` characters. The second `@` is not allowed in the user part. This prints "error".
+echo User::length('https://ann@evil.example.net@example.com/'), "\n";
+
+// 4. A bad escape after one million letters. This prints "error".
+echo User::length('https://' . Core\Str::repeat('u', 1000000) . '%zz@example.com/'), "\n";
+
+// 5. A `@` in the path is not a user part. This prints "none".
+echo User::length('https://example.com/' . Core\Str::repeat('@', 100000)), "\n";
+
+// 6. The user part of one address is read 200000 times. It has 3 letters, so this prints 600000.
+Core\Uri $uri = Core\Uri::parse('ftp://ann@files.example.com/');
+uint $total = 0;
+int $i = 0;
+while ($i < 200000) {
+    $total = $total + Core\Str::length($uri->userInfo() ?? '');
+    $i = $i + 1;
+}
+echo $total, "\n";

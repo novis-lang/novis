@@ -1,0 +1,58 @@
+[package]
+name = "nvs-pdf"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+publish = false
+description = "The PDF component built into every `nvs` binary: `nvs:pdf/engine`, compiled for `wasm32-wasip2`"
+
+# `cdylib` is the wasm file the build packs; `rlib` lets the engine core's tests
+# run on the host, where the WIT glue is not compiled.
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+aes = "0.9"
+# HOLD (revisit 2026-11-16): 0.23 is out, and `krilla` 0.8.2, the latest, needs ^0.22.1, so 0.23 would build a second copy.
+base64 = "0.22"
+cssparser = "0.38"
+# HOLD (revisit 2026-11-16): 0.8 is out, and `krilla` 0.8.2, the latest, embeds a `hayro-syntax` 0.7 `Pdf` through `hayro-write` 0.7, which `merge.rs` hands it.
+hayro-interpret = { version = "0.7", default-features = false }
+html5ever = "0.40"
+hypher = "0.1.8"
+krilla = { version = "0.8", default-features = false, features = ["pdf", "raster-images"] }
+krilla-svg = "0.8.1"
+kurbo = "0.13"
+parley = { version = "0.12", default-features = false, features = ["std"] }
+precomputed-hash = "0.1"
+roxmltree = "0.21"
+selectors = "0.41"
+sha2 = { version = "0.11", default-features = false }
+taffy = { version = "0.15", default-features = false, features = ["std", "flexbox", "grid", "taffy_tree"] }
+# HOLD (revisit 2026-11-16): 0.48 is out, and `krilla-svg` 0.8.1, the latest, needs `usvg` and `resvg` ^0.47.
+usvg = { version = "0.47", default-features = false, features = ["text"] }
+
+[target.'cfg(target_family = "wasm")'.dependencies]
+wit-bindgen = "0.63"
+
+[dev-dependencies]
+png = "0.18"
+serde_json = "1"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+strip = true
+panic = "abort"
+
+# This crate is not a member of the repository's workspace (its `exclude` names
+# `extensions`), and this table makes it a workspace of its own, so `cargo`
+# never resolves it for the host as part of the tree's ordinary build.
+[workspace]
+
+# The repository's patched html5ever 0.40.1, which `rule:core-classes/html-parsing`
+# needs for its cap on open elements. The root `Cargo.toml`'s `[patch.crates-io]`
+# row says what the patch carries; a workspace of its own needs the row again.
+[patch.crates-io]
+html5ever = { path = "../../vendor/html5ever" }

@@ -1,0 +1,16 @@
+{
+  "title": "A property that the class does not declare cannot be read or written, and no user code runs for the attempt",
+  "status": "shipped",
+  "seeAlso": [
+    "classes/property-observer",
+    "types/erased-member-access",
+    "types/property-key",
+    "types/property-key-access",
+    "types/declaration"
+  ],
+  "guardedBy": [
+    "tests/conformance/class/an-undeclared-property-is-a-hard-error.nvst",
+    "tests/conformance/class/a-property-key-is-checked-where-the-name-arrives.nvst",
+    "crates/nvs-types/tests/classes.rs"
+  ]
+}

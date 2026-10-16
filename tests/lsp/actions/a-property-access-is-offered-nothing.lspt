@@ -1,0 +1,15 @@
+--TEST--
+a property access that resolved carries no diagnostic, so nothing is offered on it, `rule:ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`
+--FILE--
+<?nvs
+class User
+{
+    public string $name = "";
+}
+
+var $u = new User();
+echo $u->na<|>me;
+--REQUEST--
+codeAction
+--EXPECT--
+none

@@ -1,0 +1,39 @@
+--TEST--
+Core\Ldap::connect asks `ldap.connect` about the block's name before it reads any configuration, so an ungranted name throws `RuntimeError` and learns nothing about which blocks exist — `rule:security/ldap-pool-is-bound-as-its-block` and `rule:security/capability-question-is-grant-and-scope`
+--FILE--
+<?nvs
+// `ldap.connect` grants `corp` and nothing else. Both names below are blocks
+// in `nvs.toml`: the grant is what differs, so the throw is about the grant.
+try {
+    var $staff = Core\Ldap::connect("staff");
+    echo "opened staff", "\n";
+} catch (RuntimeError $refused) {
+    echo $refused->message, "\n";
+}
+
+// A name that is no block at all throws the same message, so a program
+// without the grant cannot tell which blocks exist.
+try {
+    var $nothing = Core\Ldap::connect("nothing");
+    echo "opened nothing", "\n";
+} catch (RuntimeError $refused) {
+    echo $refused->message, "\n";
+}
+
+// A denial is a runtime error, and the program keeps running.
+echo "still running", "\n";
+--FILE nvs.toml--
+[capabilities.ldap]
+connect = ["corp"]
+
+[ldap.corp]
+url = "ldaps://127.0.0.1:1"
+
+[ldap.staff]
+url = "ldaps://127.0.0.1:1"
+--EXPECT--
+Core\Ldap::connect needs the capability `ldap.connect` for staff, which is not granted
+help: grant it in nvs.toml under `[capabilities.ldap]`
+Core\Ldap::connect needs the capability `ldap.connect` for nothing, which is not granted
+help: grant it in nvs.toml under `[capabilities.ldap]`
+still running

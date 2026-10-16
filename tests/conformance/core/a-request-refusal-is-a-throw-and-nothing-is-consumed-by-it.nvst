@@ -1,0 +1,80 @@
+--TEST--
+`Core\Request`'s refusal is an ordinary `Throwable` a program continues past, and reading twice refuses twice -- `rule:security/request-state-throws-in-an-isolate`, `rule:errors/on-limit`, spec § 15
+--FILE--
+<?nvs
+// The edge on the other side of the refusal: what a program can do *after*
+// one. `rule:security/request-state-throws-in-an-isolate` asks for a throw rather than an empty value, and a throw
+// is a rung of `rule:errors/escalation-ladder`'s ladder every `catch` sees -- so the program is still
+// running here, which is what separates this from a fatal.
+uint $steps = 0;
+try {
+    Core\Request::method();
+} catch (LogicError $stopped) {
+    $steps = $steps + 1;
+}
+$steps = $steps + 1;
+echo "the program took ", $steps, " steps past the throw\n";
+
+// Twice, because the absence of a request is a property of this program and
+// not a state a read moves through: a refusal that consumed something would
+// answer differently the second time, and a member that cached its own first
+// answer would stop refusing.
+uint $caught = 0;
+try {
+    Core\Request::path();
+} catch (LogicError $first) {
+    $caught = $caught + 1;
+}
+try {
+    Core\Request::path();
+} catch (LogicError $second) {
+    $caught = $caught + 1;
+}
+echo "the same read refused ", $caught, " times\n";
+
+// And a `catch` on one member does not stand in front of another: the throw
+// carries no state that a later read of a different member could find already
+// spent.
+uint $after = 0;
+try {
+    Core\Request::query("page");
+} catch (LogicError $third) {
+    $after = $after + 1;
+}
+echo "a later read still refused ", $after, " time\n";
+
+// Four throws in, the verb's second reader is still refusing: `isHead` reads
+// the same token `method` did at the top of this program, and a member that
+// answered `false` here would be reporting that the peer sent something other
+// than `HEAD` -- which is a fact about a request there is none of.
+uint $verb = 0;
+try {
+    Core\Request::isHead();
+} catch (LogicError $fourth) {
+    $verb = $verb + 1;
+}
+echo "the verb's second reader still refused ", $verb, " time\n";
+
+// And the one reader whose successful path really does consume something:
+// `body()` pulls the request's bytes to their end, so it is the member a
+// half-spent or cached state would surface in first -- a second read that
+// answered "" where the first threw would be reporting a body that arrived
+// empty. There is no request here to spend, so both reads refuse alike.
+uint $raw = 0;
+try {
+    Core\Request::body();
+} catch (LogicError $fifth) {
+    $raw = $raw + 1;
+}
+try {
+    Core\Request::body();
+} catch (LogicError $sixth) {
+    $raw = $raw + 1;
+}
+echo "the body reader refused ", $raw, " times\n";
+--EXPECT--
+the program took 2 steps past the throw
+the same read refused 2 times
+a later read still refused 1 time
+the verb's second reader still refused 1 time
+the body reader refused 2 times

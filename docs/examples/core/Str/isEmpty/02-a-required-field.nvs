@@ -1,0 +1,18 @@
+<?nvs
+// Shows how to check that a required form field was filled in.
+
+class Form {
+    // `Core\Str::trim` removes the spaces around the value first.
+    // A field with only spaces then counts as empty.
+    public static function check(string $label, string $value): string {
+        if (Core\Str::isEmpty(Core\Str::trim($value))) {
+            return $label . " is required";
+        }
+        return $label . " is OK";
+    }
+}
+
+// This prints `Name is OK`, `Email is required` and `City is required`.
+echo Form::check("Name", "Anna"), "\n";
+echo Form::check("Email", ""), "\n";
+echo Form::check("City", "   "), "\n";

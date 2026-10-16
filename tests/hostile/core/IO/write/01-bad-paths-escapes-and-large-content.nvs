@@ -1,0 +1,70 @@
+<?nvs
+// Attack: a program writes one file thousands of times and writes to paths that are not files.
+// It tries to leave its folder with "..", and it writes a very large text. Each step must work or
+// throw an error.
+// hostile: timeout-ms 60000
+
+string $dir = Core\Path::join(Core\IO::temporaryDir(), 'attack');
+Core\IO::makeDir($dir);
+
+// 1. One file is written 5000 times with a long text and a short text in turn. At the end the
+// file must contain only the last text.
+string $file = Core\Path::join($dir, 'file.txt');
+string $long = Core\Str::repeat('long text ', 100);
+uint $i = 0;
+while ($i < 5000) {
+    Core\IO::write($file, $i % 2 == 0 ? $long : 'short');
+    $i = $i + 1;
+}
+if (Core\IO::read($file) != 'short') {
+    throw new LogicError('an old text is still in the file');
+}
+echo 'step 1: done', "\n";
+
+// 2. Paths that are not a file: empty, a folder, a missing folder, a null byte, a very long name
+// and a name that ends with a separator. Each call must throw an `IOError` or a `RuntimeError`.
+array<string> $bad = [
+    '',
+    $dir,
+    Core\Path::join($dir, 'missing', 'file.txt'),
+    Core\Path::join($dir, "nul\0byte"),
+    Core\Path::join($dir, Core\Str::repeat('a', 100000)),
+    Core\Path::join($dir, 'folder') . '/',
+];
+foreach ($bad as string $badPath) {
+    try {
+        Core\IO::write($badPath, 'x');
+        throw new LogicError('a path that is not a file was written');
+    } catch (RuntimeError $refused) {
+    }
+}
+if (!Core\IO::isDir($dir)) {
+    throw new LogicError('the folder was replaced by `write`');
+}
+echo 'step 2: done', "\n";
+
+// 3. Paths that use ".." to leave the folder and point into folders that do not exist. Each call
+// must throw an error. No file outside the folder may be created.
+array<string> $escapes = [
+    Core\Path::join($dir, '..', 'missing-outside', 'file.txt'),
+    Core\Path::join($dir, '..', '..', '..', '..', 'missing-outside', 'file.txt'),
+    $dir . '/../../missing-outside/file.txt',
+    Core\Path::join($dir, Core\Str::repeat('../', 5000), 'missing-outside', 'file.txt'),
+];
+foreach ($escapes as string $escape) {
+    try {
+        Core\IO::write($escape, 'x');
+        throw new LogicError('a file was created in a folder that does not exist');
+    } catch (RuntimeError $refused) {
+    }
+}
+echo 'step 3: done', "\n";
+
+// 4. A text of 32 MB is written. The file must have exactly that many bytes.
+string $big = Core\Str::repeat('0123456789abcdef', 2097152);
+Core\IO::write($file, $big);
+if (Core\IO::size($file) != 33554432) {
+    throw new LogicError('the large file has the wrong size');
+}
+Core\IO::remove($file);
+echo 'step 4: done', "\n";

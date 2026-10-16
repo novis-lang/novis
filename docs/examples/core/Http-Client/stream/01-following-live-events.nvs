@@ -1,0 +1,15 @@
+<?nvs
+// Shows how to follow a feed of live events from another server, one event at a time.
+
+// `Core\Http\Client::stream` returns when the status and the headers have arrived.
+// 10.0.0.12 is a private address, so the call throws a `RuntimeError` before it sends anything.
+try {
+    Core\Http\Stream $feed = Core\Http\Client::stream(Core\Http\Method::Get, "http://10.0.0.12/orders/live", {headers: ["Accept" => "text/event-stream"]});
+    echo "status: ", $feed->status(), "\n";
+    // `events()` gives each event when the server has sent all of it.
+    foreach ($feed->events() as Core\Http\Event $event) {
+        echo $event->name() ?? "message", ": ", $event->data(), "\n";
+    }
+} catch (RuntimeError $refused) {
+    echo $refused->message, "\n";
+}

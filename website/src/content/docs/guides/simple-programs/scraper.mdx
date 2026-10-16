@@ -1,0 +1,29 @@
+---
+title: A web scraper
+covers: []
+description: Download a web page and print the text and address of every link on it.
+---
+
+import Snippet from '@components/Snippet.astro'
+
+This program downloads a web page. It prints the text and the address of every link on the page.
+
+<Snippet src="guides/simple-programs/scraper/scraper.nvs" />
+
+Run it with `nvs run scraper.nvs`.
+
+## How it works
+
+`Core\Http\Client::get` sends a `GET` request and returns a `Core\Http\Response`. `status()`
+returns the status code, and `text()` returns the body as a string.
+
+`Core\Html::parse` reads the HTML into a tree of nodes. `Scraper::links` looks at each node. When
+the node is an `a` element with an `href`, it prints the link. Then it calls itself for the
+children of the node, so it finds links at any depth.
+
+The page comes from another server, so its text is `tainted`. You can print tainted text. Read
+[Input from outside is tainted](/guides/why-novis/tainted-input/) to see what that means.
+
+`Core\Test::answerHttp` gives a fixed reply, so the example runs without a network. Delete that
+call to download a real page. A program that connects to another server needs a network
+capability in `nvs.toml`. Read [Capabilities](/reference/config/capabilities/) to set it up.

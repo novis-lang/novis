@@ -1,0 +1,17 @@
+<?nvs
+// Shows the three rules of the count: no overlap, exact case, and no empty text.
+
+// Each match starts after the end of the previous one.
+// "aa" fits once into "aaa" and twice into "aaaa". This prints `1` and then `2`.
+echo Core\Str::countOf("aaa", "aa"), "\n";
+echo Core\Str::countOf("aaaa", "aa"), "\n";
+
+// The search is case-sensitive. Only the last word matches. This prints `1`.
+echo Core\Str::countOf("Error ERROR error", "error"), "\n";
+
+// An empty text to count throws a `RuntimeError`. This prints the error message.
+try {
+    echo Core\Str::countOf("abc", ""), "\n";
+} catch (RuntimeError $error) {
+    echo 'cannot count: ', $error->message, "\n";
+}

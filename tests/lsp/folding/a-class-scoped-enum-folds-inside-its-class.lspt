@@ -1,0 +1,18 @@
+--TEST--
+an enum a class declares over several lines folds as one declared at file scope does, inside the fold of its class, `rule:enums/class-scoped-enum`, `rule:ide/the-request-set-is-closed`
+--FILE--
+<?nvs
+class Order
+{
+    enum Status {
+        Draft,
+        Paid,
+    }
+
+    public Status $status = Status::Draft;
+}
+--REQUEST--
+foldingRange
+--EXPECT--
+2-9 -
+4-6 -

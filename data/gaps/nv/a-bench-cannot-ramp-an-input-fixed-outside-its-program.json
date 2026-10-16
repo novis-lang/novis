@@ -1,0 +1,6 @@
+{
+  "module": "tools/nv/cmd/scaling.ts",
+  "title": "A bench whose input is fixed outside its program cannot ramp that input's size.",
+  "text": "A `.scale.nvs` sibling ramps a size by rewriting the literal its closing `echo Bench::run(N)` passes, so only an input the program builds from `N` can grow. The request in a `.nvsr` file, standard input in a `.in` file, the process environment and the set of classes the program declares are all fixed before the program starts. The benches over members that read one of them and whose cost grows with it declare their class and carry this gap's marker: `Core\\Request`'s `body`, `bytes`, `bodyStream`, `files`, `headers`, `json`, `jsonAs`, `postAs` and `queryAs`, `Core\\Request\\Part`'s `content`, `readAll` and `saveTo`, `Core\\IO::stdin`, `Core\\Env::all`, `Core\\Router::signedRoute`, `Core\\Command`'s `help`, `completions` and `run`, and `Core\\Program`'s `implementing` and `implementingWith`. Closing it is a sibling form whose `N` sizes that input, such as a `.nvsr` the ramp writes at each size or a generated set of classes, and then one sibling per bench.",
+  "milestone": "M10"
+}

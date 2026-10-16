@@ -1,0 +1,27 @@
+<?nvs
+// Shows how a program splits a message it read from a network connection into
+// its header and its body. The header ends with an empty line, which is the
+// four bytes 13, 10, 13, 10.
+
+final class Message {
+    // Returns the body of the message. The body is empty while the header has
+    // not arrived in full.
+    public static function body(bytes $received): bytes {
+        var $at = Core\Bytes::indexOf($received, Core\Encoding::fromHex("0d0a0d0a"));
+        if ($at == null) {
+            return Core\Encoding::fromHex("");
+        }
+        // The search returns a byte position and `Core\Bytes::slice` takes
+        // one. The body starts 4 bytes after the empty line begins.
+        return Core\Bytes::slice($received, ($at as int) + 4);
+    }
+}
+
+bytes $whole = "POST /orders HTTP/1.1\r\nHost: example.com\r\n\r\nid=1042" as bytes;
+bytes $partial = "POST /orders HTTP/1.1\r\nHost: example.com\r\n" as bytes;
+
+// This prints "id=1042".
+echo Core\Encoding::decodeText(Message::body($whole), Core\Charset::Utf8), "\n";
+
+// The header is not finished, so there is no body yet. This prints 0.
+echo Core\Bytes::length(Message::body($partial)), "\n";

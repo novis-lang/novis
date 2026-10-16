@@ -1,0 +1,28 @@
+--TEST--
+`Core\Str::indexOf` with `caseInsensitive` answers a long near miss in linear time, and finds an empty needle at the end in both modes — spec § 1 *Search*
+--FILE--
+<?nvs
+// A needle of 4096 letters and a `b`, against 1 MiB of letters. Trying the
+// needle at every start is about four billion comparisons, which the runner's
+// timeout stops. A linear scan answers at once.
+var $hay = Core\Str::repeat('a', 1048576);
+var $needle = Core\Str::repeat('A', 4096) . 'B';
+echo Core\Str::indexOf($hay, $needle, {caseInsensitive: true}) ?? "none", "\n";
+echo Core\Str::indexOf($hay . 'b', $needle, {caseInsensitive: true}) ?? "none", "\n";
+
+// The overlap `aab` inside `aaab` is where a scan that restarts too far ahead
+// misses the match.
+echo Core\Str::indexOf("AABAABAAAB", "aaab", {caseInsensitive: true}) ?? "none", "\n";
+
+// An empty needle matches where the search starts, including at the very end,
+// with and without `caseInsensitive`.
+echo Core\Str::indexOf("one", "", {from: 3}) ?? "none", "\n";
+echo Core\Str::indexOf("one", "", {from: 3, caseInsensitive: true}) ?? "none", "\n";
+echo Core\Str::indexOf("", "", {caseInsensitive: true}) ?? "none", "\n";
+--EXPECT--
+none
+1044480
+6
+3
+3
+0

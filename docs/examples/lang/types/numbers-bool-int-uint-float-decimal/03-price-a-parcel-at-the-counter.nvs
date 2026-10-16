@@ -1,0 +1,19 @@
+<?nvs
+// Prices a parcel at a shop counter. The number of items is a `uint`.
+// The money is a `decimal`, so it stays exact to the cent.
+// The weight is a `float`, because a scale is not exact either.
+
+uint $items = 3;
+decimal $each = 12.75;
+float $kilos = 0.84;
+
+decimal $goods = $each * $items;
+decimal $postage = 2.50;
+if ($kilos > 0.5) {
+    $postage = 4.90;
+}
+decimal $due = $goods + $postage;
+
+echo $items, " items at ", $each, " each = ", $goods, "\n";
+echo "postage ", $postage, " for ", $kilos * 1000, " g\n";
+echo "due ", $due, "\n";

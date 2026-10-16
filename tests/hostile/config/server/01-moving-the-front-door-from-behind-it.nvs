@@ -1,0 +1,107 @@
+<?nvs
+// Attack: a request tries to change `[server]`: the address it listens on, the
+// trusted proxies and the timeouts. Every write should fail, and every value
+// should still be the configured one at the end.
+// hostile: timeout-ms 20000
+
+// 1. Tries many ways to write "every network address", such as `0.0.0.0:80`.
+//    These are valid addresses, but a program still may not set them.
+array<string> $addresses = [
+    '127.0.0.1:8000',
+    '0.0.0.0:80',
+    '0.0.0.0:0',
+    '[::]:80',
+    '[::ffff:0.0.0.0]:80',
+    '*:80',
+    ':80',
+    '0:80',
+    '2130706433:80',
+    '127.1:80',
+    '/tmp/nvs.sock',
+    '/var/run/nvs.sock',
+    "127.0.0.1:8000\u{0000}0.0.0.0:80",
+    "127.0.0.1:8000\n0.0.0.0:80",
+    '127.0.0.1:8000,0.0.0.0:80',
+    Core\Str::repeat('0.0.0.0:80,', 100000),
+];
+foreach ($addresses as string $address) {
+    Core\Config::set('server.listen', $address);
+    Core\Config::set('server.listen.0', $address);
+    Core\Config::set('app.0.server.listen', $address);
+    Core\Config::restore('server.listen');
+}
+
+// 2. Tries to add proxies. A trusted proxy makes the server believe the client
+//    address in a header, and this request could write that header.
+array<string> $proxies = [
+    '0.0.0.0/0',
+    '::/0',
+    '127.0.0.1',
+    '10.0.0.0/8',
+    '0.0.0.0/0,::/0',
+    '',
+    'true',
+    Core\Str::repeat('0.0.0.0/0,', 100000),
+];
+foreach ($proxies as string $proxy) {
+    Core\Config::set('server.trusted_proxies', $proxy);
+    Core\Config::set('server.trusted_proxies.0', $proxy);
+    Core\Config::restore('server.trusted_proxies');
+}
+
+// 3. Tries to remove or raise the timeouts, `max_in_flight` and the other
+//    `[server]` keys. Every write should fail.
+array<string> $bounds = [
+    'server.header_timeout',
+    'server.body_idle_timeout',
+    'server.write_idle_timeout',
+    'server.keepalive_timeout',
+    'server.drain_timeout',
+    'server.max_in_flight',
+    'server.workers',
+    'server.root',
+    'server.dispatch',
+    'server.static',
+    'server.health_path',
+    'server.socket_mode',
+    'SERVER.LISTEN',
+    'server..listen',
+    'app.0.server.header_timeout',
+];
+array<string> $values = ['0', '0s', 'false', '86400s', '4294967295', 'true', '/'];
+foreach ($bounds as string $bound) {
+    foreach ($values as string $value) {
+        Core\Config::set($bound, $value);
+    }
+    Core\Config::get($bound);
+    Core\Config::restore($bound);
+}
+
+// 4. Try 200000 times in a loop, and count how often the value read back changes.
+uint $changes = 0;
+string $standing = Core\Config::get('server.listen') ?? '(no value)';
+uint $i = 0;
+while ($i < 200000) {
+    Core\Config::set('server.listen', '0.0.0.0:80');
+    Core\Config::set('server.trusted_proxies', '0.0.0.0/0');
+    Core\Config::restore('server.listen');
+    if ((Core\Config::get('server.listen') ?? '(no value)') != $standing) {
+        $changes = $changes + 1;
+    }
+    $i = $i + 1;
+}
+
+// 5. Builds 20,000 strings, as a real request would. The settings should still
+//    be the configured values after this work.
+array<string> $connections = [];
+uint $j = 0;
+while ($j < 20000) {
+    $connections[] = 'conn-' . $j . '-' . Core\Str::repeat('c', $j % 64);
+    $j = $j + 1;
+}
+
+echo 'changes: ', $changes, "\n";
+echo 'connections built: ', Core\Arr::count($connections), "\n";
+echo 'listen:          ', Core\Config::get('server.listen') ?? '(no value)', "\n";
+echo 'trusted_proxies: ', Core\Config::get('server.trusted_proxies') ?? '(nothing written)', "\n";
+echo 'header_timeout:  ', Core\Config::get('server.header_timeout') ?? '(no value)', "\n";

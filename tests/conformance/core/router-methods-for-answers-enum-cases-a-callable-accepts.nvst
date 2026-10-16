@@ -1,0 +1,47 @@
+--TEST--
+`Core\Router::methodsFor`'s array holds each verb as an enum case, so a callable declaring `Core\Http\Method` accepts every element `Core\Arr` hands it and a case in a `mixed` is still a case — `rule:enums/representation`
+--FILE--
+<?nvs
+// covers: Core\Router::methodsFor
+// The array is built outside compiled code, so each element has to carry the
+// enum tag compiled code would have written. An element that is a bare `int`
+// fails every reader below that checks the tag.
+class Pages
+{
+    #[Core\Route(path: "/pages", method: Core\Http\Method::Get, name: "Pages::list")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function list(): string
+    {
+        return "";
+    }
+
+    #[Core\Route(path: "/pages", method: Core\Http\Method::Post, name: "Pages::create")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function create(): string
+    {
+        return "";
+    }
+}
+
+array<Core\Http\Method> $allowed = Core\Router::methodsFor("/pages");
+
+// The `Allow` header of a `405`, in one expression. `Core\Arr::map` calls the
+// callable itself, which checks each argument's tag.
+echo "allow: ", Core\Str::join(Core\Arr::map($allowed, Core\Http::methodName(...)), ", "), "\n";
+
+// The same check through `Core\Arr::filter`.
+echo "get: ", Core\Arr::count(Core\Arr::filter($allowed, fn(Core\Http\Method $m): bool => $m == Core\Http\Method::Get)) as string, "\n";
+
+// An enum case in a `mixed` is always truthy, whatever its backing value is.
+echo "truthy: ", Core\Arr::count(Core\Arr::filter($allowed, fn(mixed $m): bool => $m ? true : false)) as string, "\n";
+
+// A case read into a `mixed` is still a case, and is not an `int`.
+mixed $first = $allowed[0];
+echo "is a method: ", ($first is Core\Http\Method) ? "yes" : "no", "\n";
+echo "is an int: ", ($first is int) ? "yes" : "no", "\n";
+--EXPECT--
+allow: GET, POST
+get: 1
+truthy: 2
+is a method: yes
+is an int: no

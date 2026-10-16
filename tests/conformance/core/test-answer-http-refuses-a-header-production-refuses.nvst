@@ -1,0 +1,37 @@
+--TEST--
+A call the answer table serves refuses a header holding a control byte, as a real call does before it connects, and records nothing — `rule:testing/an-outbound-call-is-answered-from-a-table`
+--FILE--
+<?nvs
+// covers: Core\Test\SentRequest::header
+// The claim is *a bound asserted on both sides*: a header value one byte short
+// of a line break is recorded, and the same value with the line break throws
+// the error production throws and leaves no record. A tab is a control byte too.
+Core\Test::answerHttp("https://api.example.com/*", 200);
+
+Core\Http\Client::get("https://api.example.com/a", {headers: ["X-Note" => "a X-Injected: yes"]});
+
+array<string> $refused = ["a\r\nX-Injected: yes", "a\nb", "a\tb", "a\x7fb"];
+foreach ($refused as string $value) {
+    try {
+        Core\Http\Client::get("https://api.example.com/b", {headers: ["X-Note" => $value]});
+        echo "sent", "\n";
+    } catch (RuntimeError $error) {
+        echo "refused", "\n";
+    }
+}
+try {
+    Core\Http\Client::get("https://api.example.com/c", {headers: ["X:Note" => "a"]});
+    echo "sent", "\n";
+} catch (RuntimeError $error) {
+    echo "refused a colon in the name", "\n";
+}
+
+var $sent = Core\Test::sentHttp();
+echo Core\Arr::count($sent), " ", $sent[0]->url(), " ", $sent[0]->header("x-note") ?? "-", "\n";
+--EXPECT--
+refused
+refused
+refused
+refused
+refused a colon in the name
+1 https://api.example.com/a a X-Injected: yes

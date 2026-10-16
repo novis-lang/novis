@@ -1,0 +1,17 @@
+<?nvs
+// Shows that the functions also run after `exit`. A `finally` block does not
+// run after `exit`, so `Core\Script::onExit()` is the place for the last work.
+// proof: exit 2
+
+Core\Script::onExit(fn (Core\Script\ExitReport $report): void => {
+    // This prints "closing: status 2".
+    echo "closing: status ", $report->status(), "\n";
+});
+
+try {
+    echo "the input file is missing\n";
+    exit(2);
+} finally {
+    // This line does not print.
+    echo "the finally block\n";
+}

@@ -1,0 +1,17 @@
+--TEST--
+the class a `foreach` binding is typed with is a written name, so a cursor on it opens the class's declaration where a cursor on the `foreach` keyword itself still answers `none`, `rule:ide/the-index-answers-the-cursor`
+--FILE--
+<?nvs
+class View
+{
+    public string $name = "";
+}
+
+array<View> $views = [new View()];
+foreach ($views as Vi<|>ew $view) {
+    echo $view->name;
+}
+--REQUEST--
+definition
+--EXPECT--
+case.nvs:2:7

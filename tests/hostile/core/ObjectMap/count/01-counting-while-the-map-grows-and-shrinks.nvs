@@ -1,0 +1,63 @@
+<?nvs
+// Attack: a program adds and removes many keys and calls `count` after every change.
+// The count must always be right, and the program must finish without a crash or a leak.
+
+final class Item
+{
+    public int $id;
+
+    public function constructor(int $id)
+    {
+        $this->id = $id;
+    }
+}
+
+// 1. Add 300000 new objects and count after each one. A wrong count is reported.
+Core\ObjectMap<Item, int> $map = new Core\ObjectMap<Item, int>();
+array<Item> $items = [];
+int $wrong = 0;
+int $i = 0;
+while ($i < 300000) {
+    Item $item = new Item($i);
+    $items[] = $item;
+    $map->set($item, $i);
+    if ($map->count() != (($i + 1) as uint)) {
+        $wrong = $wrong + 1;
+    }
+    $i = $i + 1;
+}
+echo '1: ', $map->count(), ' wrong=', $wrong, "\n";
+
+// 2. Remove every object again, from the first to the last, and count after each one.
+int $left = 300000;
+foreach ($items as Item $gone) {
+    $map->remove($gone);
+    $left = $left - 1;
+    if ($map->count() != ($left as uint)) {
+        $wrong = $wrong + 1;
+    }
+}
+echo '2: ', $map->count(), ' wrong=', $wrong, "\n";
+
+// 3. Set the same key and remove it again one million times. The count goes 1, 0, 1, 0.
+Item $one = new Item(-1);
+int $k = 0;
+while ($k < 1000000) {
+    $map->set($one, $k);
+    if ($map->count() != 1) {
+        $wrong = $wrong + 1;
+    }
+    $map->remove($one);
+    $k = $k + 1;
+}
+echo '3: ', $map->count(), ' wrong=', $wrong, "\n";
+
+// 4. Use keys of every kind of value: numbers, strings, arrays and `null`.
+Core\ObjectMap<mixed, int> $mixed = new Core\ObjectMap<mixed, int>();
+$mixed->set(1, 1);
+$mixed->set('1', 2);
+$mixed->set(1.5, 3);
+$mixed->set([1, 2], 4);
+$mixed->set(null, 5);
+$mixed->set([1, 2], 6);
+echo '4: ', $mixed->count(), "\n";

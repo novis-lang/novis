@@ -1,0 +1,28 @@
+<?nvs
+// Shows what a wait does inside a group of tasks. `slow` waits 40 milliseconds and
+// `quick` waits 5. While `slow` waits, `quick` runs and finishes first. The steps are
+// kept in a variable, because a task collects what it prints until the group is done.
+
+class Trace {
+    public static string $steps = "";
+
+    public static function note(string $what): void {
+        Trace::$steps = Trace::$steps . $what . "\n";
+    }
+}
+
+Core\Task::all({
+    slow: fn(): void => {
+        Trace::note("slow starts");
+        Core\Time::sleep(40ms);
+        Trace::note("slow is done");
+    },
+    quick: fn(): void => {
+        Trace::note("quick starts");
+        Core\Time::sleep(5ms);
+        Trace::note("quick is done");
+    },
+});
+
+// Both tasks start, and `quick` is done long before `slow`.
+echo Trace::$steps;

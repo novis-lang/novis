@@ -1,0 +1,8 @@
+<?nvs
+// Shows how to compare a SID with bytes that were stored earlier.
+
+// These are the bytes of S-1-5-32-544, as a database might return them.
+bytes $stored = Core\Encoding::fromHex('01020000000000052000000020020000');
+var $admins = Core\Ldap\Sid::parse('S-1-5-32-544');
+// The bytes are equal, so this prints match.
+echo $admins->bytes() == $stored ? 'match' : 'no match', "\n";

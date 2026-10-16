@@ -1,0 +1,64 @@
+--TEST--
+Core\IO::temporaryDir answers a directory that already exists and is already empty, and two calls never answer the same one — so a program never races another for a name, which is the whole of what `sys_get_temp_dir` plus a hand-rolled suffix gets wrong — spec § 14
+--FILE--
+<?nvs
+// Nothing here prints a path: the answer is host-specific by construction, so
+// what is asserted is every property of it that is not. The first is the one
+// PHP's split cannot offer -- the directory is *made*, so it is there before
+// the caller sees the name, and there is no window in which somebody else can
+// take it.
+string $first = Core\IO::temporaryDir();
+
+if (Core\IO::exists($first)) {
+    echo "made: yes\n";
+} else {
+    echo "made: no\n";
+}
+
+// Empty, and asserted the only way emptiness can be asserted with the members
+// that exist: `removeDir` refuses a directory holding anything, so one that
+// removes on the first call held nothing.
+string $second = Core\IO::temporaryDir();
+
+if ($first == $second) {
+    echo "distinct: no\n";
+} else {
+    echo "distinct: yes\n";
+}
+
+Core\IO::removeDir($second);
+
+if (Core\IO::exists($second)) {
+    echo "second removed: no\n";
+} else {
+    echo "second removed: yes\n";
+}
+
+// And it is a place to put things, which is the reason it is a directory
+// rather than a file: the round trip below is the whole point of the member.
+string $note = Core\Path::join($first, "note.txt");
+Core\IO::write($note, "hello\n");
+int $size = Core\IO::size($note) as int;
+echo "wrote: ", $size as string, "\n";
+
+// The program removes what it made -- nothing sweeps this for it, because a
+// runtime deciding that lifetime would be deciding it for data it knows
+// nothing about.
+Core\IO::remove($note);
+Core\IO::removeDir($first);
+
+if (Core\IO::exists($first)) {
+    echo "first removed: no\n";
+} else {
+    echo "first removed: yes\n";
+}
+--FILE nvs.toml--
+[capabilities.fs]
+read = true
+write = true
+--EXPECT--
+made: yes
+distinct: yes
+second removed: yes
+wrote: 6
+first removed: yes

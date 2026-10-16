@@ -1,0 +1,25 @@
+--TEST--
+A payload naming a `Core` class resolves against the library's own table on the way back in, and comes back as that class with its slots intact — `rule:classes/serialize-is-a-closed-format`
+--FILE--
+<?nvs
+// A `Core\Time\Date` is an ordinary Novis object — one descriptor and three
+// slots — so the copy boundary has always been able to *write* one. Reading it
+// back needs a descriptor under the name the payload carries, and no compiled
+// unit's class table holds a `Core` class: what answers is the process-wide
+// resolver `nvs_codegen::Unit::install_in` installs, asked after the program's
+// own table has been asked and has not held it.
+var $day = Core\Time\Date::at(2026, 9, 16);
+var $back = Core\Serialize::decode(Core\Serialize::encode($day));
+
+// The class name and every slot, which together are what "resolved" means
+// here: a refusal would have thrown a `ParseError` naming the class instead.
+// `Core\Debug::render` is how the value is read rather than a member call,
+// because a program cannot yet narrow a `mixed` to a `Core` class —
+// `nvs_runtime::graph`'s known gap 2 owns that half.
+echo Core\Debug::render($back), "\n";
+--EXPECT--
+Core\Time\Date#1 (3) {
+  $year => int(2026)
+  $month => int(9)
+  $day => int(16)
+}

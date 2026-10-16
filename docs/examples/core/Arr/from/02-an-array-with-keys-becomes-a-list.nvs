@@ -1,0 +1,14 @@
+<?nvs
+// Shows how to turn an array that has keys into a plain list. The result of
+// `Core\Arr::from` is always numbered from 0.
+
+array<string> $byId = [17 => "Ada", 42 => "Grace", 91 => "Alan"];
+
+// The keys are dropped and the values keep their order.
+// This prints ["Ada","Grace","Alan"].
+array<string> $names = Core\Arr::from($byId);
+echo Core\Json::encode($names), "\n";
+
+// The array you started with is unchanged.
+// This prints {"17":"Ada","42":"Grace","91":"Alan"}.
+echo Core\Json::encode($byId), "\n";

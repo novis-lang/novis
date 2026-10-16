@@ -1,0 +1,15 @@
+{
+  "title": "One editor action rewrites an `array<mixed>` annotation to the type of the array literal that initializes it, and rewrites nothing else",
+  "status": "designed",
+  "seeAlso": [
+    "ide/narrowest-means-narrowest-base-type",
+    "ide/the-action-answers-from-the-literal-or-not-at-all",
+    "ide/narrowing-is-a-diff-never-a-save-time-fix",
+    "ide/a-code-action-writes-only-what-is-already-determined",
+    "types/arrays",
+    "types/var-inference",
+    "ide/one-grammar-one-tree"
+  ],
+  "guardedBy": [],
+  "goal": "editor-fixes"
+}

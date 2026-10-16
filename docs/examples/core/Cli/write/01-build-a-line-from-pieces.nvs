@@ -1,0 +1,15 @@
+<?nvs
+// Shows how to write text to the terminal. `Core\Cli::write` writes exactly the
+// characters you give it, so several calls build one line.
+
+array<string> $steps = ["read", "check", "save"];
+
+// No newline is added here, so these calls stay on one line.
+foreach ($steps as string $step) {
+    Core\Cli::write($step);
+    Core\Cli::write(" ");
+}
+
+// `{newline: true}` adds one newline at the end. The line now reads
+// "read check save done".
+Core\Cli::write("done", {newline: true});

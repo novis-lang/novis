@@ -1,0 +1,33 @@
+<?nvs
+// Attack: a client sends media types that no server expects, and then a part that gives
+// its `Content-Type` line twice. Each type should arrive unchanged, and the line given
+// twice should throw a `ParseError`.
+
+// 1. Checks the type of every file against a list, and keeps the parts.
+//    The last part gives `Content-Type` twice, so the loop throws a `ParseError` there.
+array<string> $accepted = ['image/png' => 'png', 'image/jpeg' => 'jpg'];
+array<Core\Request\Part> $parts = [];
+try {
+    foreach (Core\Request::files() as Core\Request\Part $part) {
+        tainted string $type = $part->contentType();
+        string $extension = $accepted[Core\Str::lower($type)] ?? 'refused';
+        echo Core\Str::length($type), ' characters: ', $extension, "\n";
+        $parts[] = $part;
+    }
+} catch (ParseError $twice) {
+    echo "a type given twice: ParseError\n";
+}
+
+// 2. Reads the type of the first part after the loop ended. The type is still there.
+echo 'first type after the loop: ', Core\Str::length($parts[0]->contentType()), " characters\n";
+
+// 3. Splits every type at each ";", one thousand times for each part.
+uint $pieces = 0;
+foreach ($parts as Core\Request\Part $kept) {
+    uint $round = 0;
+    while ($round < 1000) {
+        $pieces = $pieces + Core\Arr::count(Core\Str::split($kept->contentType(), ';'));
+        $round = $round + 1;
+    }
+}
+echo $pieces, " pieces\n";

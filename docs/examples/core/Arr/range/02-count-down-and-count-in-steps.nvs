@@ -1,0 +1,17 @@
+<?nvs
+// Shows the two things that change the numbers you get: the order of the
+// bounds, and the `step` option.
+
+// The first number is larger than the last, so this counts down. It prints
+// 3, 2 and 1.
+array<int> $countdown = Core\Arr::range(3, 1);
+foreach ($countdown as int $number) {
+    echo $number, "\n";
+}
+
+// A step of 2 puts a distance of 2 between neighbours. This prints 1, 3, 5, 7
+// and 9. A step of 2 from 9 passes 10, so the list stops at 9.
+array<int> $odd = Core\Arr::range(1, 10, {step: 2});
+foreach ($odd as int $number) {
+    echo $number, "\n";
+}

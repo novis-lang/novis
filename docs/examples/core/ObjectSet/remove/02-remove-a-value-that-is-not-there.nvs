@@ -1,0 +1,27 @@
+<?nvs
+// Shows that `remove` does nothing when the set does not have the value.
+
+final class Card {
+    public string $number;
+
+    public function constructor(string $number) {
+        $this->number = $number;
+    }
+}
+
+Card $saved = new Card("4111");
+Card $copy = new Card("4111");
+
+Core\ObjectSet<Card> $wallet = new Core\ObjectSet<Card>();
+$wallet->add($saved);
+
+// `$copy` has the same number, but it is a different object. The set does not change.
+$wallet->remove($copy);
+// This prints 1.
+echo $wallet->count(), "\n";
+
+// Removing the same value twice is allowed. The second call does nothing.
+$wallet->remove($saved);
+$wallet->remove($saved);
+// This prints 0.
+echo $wallet->count(), "\n";

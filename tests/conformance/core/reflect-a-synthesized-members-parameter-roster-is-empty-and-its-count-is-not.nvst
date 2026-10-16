@@ -1,0 +1,37 @@
+--TEST--
+`Core\Reflect\MethodInfo::parameters` is empty for a member no source declared, while `parameterCount` still answers what it takes — `rule:core-classes/reflect`
+--FILE--
+<?nvs
+// A name only a declaration can spell, beside a count the compiled code
+// carries: the exception tree's constructor is synthesized, so it has an arity
+// and no written parameter list. The two are asserted together because an
+// empty roster alone reads as "takes nothing", which is the wrong answer.
+class Describe {
+    public static function of(string $name): void {
+        var $info = Core\Reflect::forClass($name);
+        if ($info == null) {
+            echo $name, " absent\n";
+            return;
+        }
+        foreach ($info->methods() as Core\Reflect\MethodInfo $method) {
+            echo $name, "::", $method->name(), " ",
+                 $method->parameterCount(), " ",
+                 Core\Arr::count($method->parameters()), "\n";
+        }
+    }
+}
+
+// Written in source: the count and the roster agree.
+class Invoice {
+    public function total(int $net, int $tax): int {
+        return $net + $tax;
+    }
+}
+
+Describe::of("Invoice");
+
+// Synthesized by the compiler: the count stands alone.
+Describe::of("LogicError");
+--EXPECT--
+Invoice::total 2 2
+LogicError::constructor 2 0

@@ -1,0 +1,84 @@
+<?nvs
+// Attack: the class matching of the tree is pushed three ways. A throw unwinds
+// through two thousand arms that do not match. A hundred thousand rethrows walk
+// down the tree, and every branch is raised in one loop. Every step is caught,
+// and the runtime should still be standing at the end.
+// hostile: timeout-ms 30000
+
+final class Tunnel
+{
+    // Every level catches a class the throw is not, so the arm is tested and
+    // the throw keeps going.
+    public static function down(int $depth): void
+    {
+        if ($depth == 0) {
+            throw new TimeoutError('the bottom of the tunnel');
+        }
+        try {
+            Tunnel::down($depth - 1);
+        } catch (ParseError $wrong) {
+            echo "a parse error arm took a timeout\n";
+        } catch (ArithmeticError $alsoWrong) {
+            echo "an arithmetic arm took a timeout\n";
+        }
+    }
+}
+
+// Step 1: two thousand nested arms, none of them a match.
+try {
+    Tunnel::down(2000);
+    echo "step 1: nothing was thrown\n";
+} catch (TimeoutError $out) {
+    echo 'step 1: caught ', $out->message, "\n";
+}
+
+// Step 2: a hundred thousand rethrows, each one caught by the root and thrown
+// again as a class further down the tree.
+int $rounds = 0;
+int $caught = 0;
+while ($rounds < 100000) {
+    try {
+        try {
+            throw new LogicError('round ' . $rounds);
+        } catch (Throwable $wide) {
+            throw new RecursionError($wide->message, { previous: $wide });
+        }
+    } catch (RuntimeError $narrow) {
+        $caught = $caught + 1;
+    }
+    $rounds = $rounds + 1;
+}
+echo 'step 2: ', $caught, " rethrows caught by a supertype\n";
+
+// Step 3: every branch of the tree raised in one loop, all taken by one arm.
+int $seen = 0;
+int $each = 0;
+while ($each < 50000) {
+    int $zero = 0;
+    array<int> $empty = [];
+    mixed $text = 'abc';
+    try {
+        echo 1 / $zero;
+    } catch (Throwable $divided) {
+        $seen = $seen + 1;
+    }
+    try {
+        echo $empty['nothing'];
+    } catch (Throwable $missing) {
+        $seen = $seen + 1;
+    }
+    try {
+        echo $text as int;
+    } catch (Throwable $bad) {
+        $seen = $seen + 1;
+    }
+    try {
+        echo match ($zero) { 1 => 'one' };
+    } catch (Throwable $noArm) {
+        $seen = $seen + 1;
+    }
+    $each = $each + 1;
+}
+echo 'step 3: ', $seen, " failures raised and caught\n";
+
+echo "the runtime is still standing\n";

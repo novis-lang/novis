@@ -1,0 +1,44 @@
+--TEST--
+`self::Status::Paid`, `static::Status::Paid` and `parent::Status::Paid` are `E0135`, because an enum in a class body is reached by its owner's name or by its bare name inside the owner — `rule:enums/class-scoped-enum`
+--FILE--
+<?nvs
+// `rule:enums/class-scoped-enum`: the bare `Status` already names the
+// owner's enum, so a class keyword would be a third spelling.
+class Order {
+    enum Status { Open, Paid }
+
+    // The accepted spellings first.
+    public static function accepted(): int {
+        return (Status::Paid as int) + (Order::Status::Paid as int);
+    }
+
+    public static function throughSelf(): int {
+        return self::Status::Paid as int;
+    }
+
+    public static function throughStatic(): int {
+        return static::Status::Paid as int;
+    }
+}
+
+final class Rush extends Order {
+    public static function throughParent(): int {
+        return parent::Status::Paid as int;
+    }
+}
+
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0135]: `self::` does not reach an enum
+   --> case.nvs:13:16
+%A
+error[E0135]: `static::` does not reach an enum
+   --> case.nvs:17:16
+%A
+error[E0135]: `parent::` does not reach an enum
+   --> case.nvs:23:16
+%A
+error: aborting due to 3 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

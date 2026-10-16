@@ -1,0 +1,54 @@
+`$obj->$key` and `$obj->{$expr}` are admitted, and **only** when the operand's type is a `property<T>`
+whose argument the receiver satisfies (`rule:types/property-key-variance`). Every other operand keeps
+`E0235`, with its help naming `as property<T>`, and the refusal lives in the checker rather than the
+parser, because the operand's *type* is the question and the parser cannot see one. The spelling is no
+longer what is rejected; the missing check is.
+
+Three neighbours stay exactly as they are: `$obj->$m(...)` is `E0235` forever, because computed
+*dispatch* is rejected as a concept and a key is not a method name; `$obj->$key` on a `mixed` or
+shape-typed receiver is `E0235`, because there is no `T` to check the key's bound against; and
+`unset($obj->$key)` is `E0234`, as `unset` of any property already is.
+
+A **read** through a key is typed as the **union of the set's declared types** — `int|string|?Address`
+for a `User` declaring those three — which widens into `mixed` or any covering union without an `as`
+and narrows the way every union narrows (`rule:types/unions-and-mixed`).
+
+A **write** is the checked erased store (`rule:types/erased-member-access`): it writes an existing
+property, never creates one, and the incoming value is checked at run time against what the class
+declares that property to hold. Statically the value must satisfy at least one member of the union — a
+value no property of `T` could accept is refused where it is written. Both directions lower to the
+erased access the runtime already performs, so per-property hooks and a declared property observer
+behave exactly as they do there.
+
+**A value that carries `tainted` or `secret` must fit every property the key can name**, and is
+`E0401` at the first one it does not fit. Both qualifiers are erased at run time, so the run-time check
+sees a `tainted string` and a `string` as the same value: against the union `string|tainted string`
+alone, a request's text would land in the plain `string` property and leave it as trusted text. The
+same holds for `.=` and `??.=`, whose result is the property's own text with the value appended, and
+for `??=`. A value with no qualifier keeps the union check, because the run-time check already refuses
+a representation the named property does not hold — so `$stock->$key = 12` still writes the `int`
+member of a `string|int` set. An element write through a key needs no more than the union, because
+only an `array<T>` can be subscripted and a union of two types is not one. An `inout` argument through
+a key is refused (`E0439`): the callee could store a value only some of the properties accept.
+
+**A write is refused, at the write, where `T`'s public set holds a `readonly` property**, naming it
+(`E0782`) — the code an ordinary post-construction write already gets. Reading `$id` through a key is
+fine, and a class whose fields are all assignable is unaffected. It is deliberately compile-time:
+where a request-controlled name selects a field to write, refusing at build time is the direction
+security points in.
+
+Applying a key costs exactly what the erased access costs, because it is that access: one call per
+direction, with no new descriptor field and no new calling convention. A written-out `$user->email`
+pays nothing.
+
+**Declined:**
+- **Every write checked against every property, whatever its value.** It refuses a key over a class
+  whose properties have different types, which is the case a key exists for. Only a qualifier is
+  invisible to the run-time check, so only a qualified value needs the stricter one.
+- **A hook entry and a `readonly` flag per field on the class descriptor.** The hook entry buys
+  nothing, because the erased access already runs hooks. The flag buys a run-time throw where the
+  write above is already refused at compile time.
+- **A chain of name tests over the key's set, one ordinary read per public property.** It spends a
+  comparison and a basic block per property at every access to reach the slot the erased access finds
+  in one call. Each arm's read would also be tagged into the union before the join, so it gives no
+  statically typed read.

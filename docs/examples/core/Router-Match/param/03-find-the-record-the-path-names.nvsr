@@ -1,0 +1,6 @@
+--METHOD--
+GET
+--PATH--
+/invoices/1002
+--HEADERS--
+host: billing.example.com

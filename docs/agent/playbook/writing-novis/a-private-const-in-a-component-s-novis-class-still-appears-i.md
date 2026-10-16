@@ -1,0 +1,1 @@
+- **A `private const` in a component's Novis class still appears in `nvs meta`, and then fails `every_enum_and_constant_carries_a_doc_key` in `crates/nvs-cli/tests/meta.rs`.** The meta walk lists every constant of a built-in class, whatever its visibility. Use a private static function or a literal instead, as `extensions/spreadsheet/nvs/Workbook.nvs` does.

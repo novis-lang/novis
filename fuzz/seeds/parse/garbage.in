@@ -1,0 +1,5 @@
+<?nvs
+var $x = ;;;
+]) => **
+match {
+    "unreachable" =>

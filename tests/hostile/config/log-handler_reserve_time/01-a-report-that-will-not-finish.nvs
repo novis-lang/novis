@@ -1,0 +1,78 @@
+<?nvs
+// Attack: a program tries to set `log.handler_reserve_time` to no time. It then
+// fails with a handler that runs for a long time. Every write should fail, and
+// the server should stop the handler when its time is used up.
+// hostile: timeout-ms 60000
+// hostile: ends-early 1 FATAL
+
+echo "step 1\n";
+
+array<string> $names = [
+    'log.handler_reserve_time',
+    'handler_reserve_time',
+    'fatal_reserve_time',
+    'LOG.HANDLER_RESERVE_TIME',
+    'log..handler_reserve_time',
+    'log.handler.reserve.time',
+    'log.handler_reserve_time.',
+    'app.log.handler_reserve_time',
+    'app.0.log.handler_reserve_time',
+    'limits.log.handler_reserve_time',
+    "log.handler_reserve_time\u{0000}",
+    "limits.cpu_time\u{0000}log.handler_reserve_time",
+    'log.' . Core\Str::repeat('sub.', 20000) . 'handler_reserve_time',
+];
+foreach ($names as string $key) {
+    Core\Config::set($key, '0');
+    Core\Config::set($key, '1h');
+    Core\Config::get($key);
+    Core\Config::restore($key);
+}
+
+// Tries durations in many units on the real key, including `0` and `false`.
+// Every write should fail.
+array<string> $durations = [
+    '0',
+    '0s',
+    '0ms',
+    '1ns',
+    '-1ms',
+    '5s',
+    '5000ms',
+    '5000000us',
+    '1h',
+    '9999d',
+    'false',
+    '18446744073709551615',
+    '5 s',
+    '5S',
+    '',
+    'soon',
+];
+foreach ($durations as string $duration) {
+    Core\Config::set('log.handler_reserve_time', $duration);
+}
+Core\Config::restore('log.handler_reserve_time');
+
+echo 'the clock reads: ', Core\Config::get('log.handler_reserve_time') ?? '(nothing)', "\n";
+
+// The request runs out of memory, and this handler then loops 200,000,000 times.
+// The loop has an end, so the test passes whether the handler is stopped or not.
+Core\Fatal::onLimit(fn (): void => {
+    uint $spin = 0;
+    uint $acc = 0;
+    while ($spin < 200000000) {
+        $acc = $acc + $spin;
+        $spin = $spin + 1;
+    }
+    echo 'the handler spun to ', $acc, "\n";
+});
+
+Core\Config::set('limits.memory', '8M');
+array<string> $hoard = [];
+uint $i = 0;
+while ($i < 4000000) {
+    $hoard[] = Core\Str::repeat('z', 1024);
+    $i = $i + 1;
+}
+echo 'the program ran to its end: ', Core\Arr::count($hoard), "\n";

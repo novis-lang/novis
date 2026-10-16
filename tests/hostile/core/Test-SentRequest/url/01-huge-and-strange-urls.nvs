@@ -1,0 +1,52 @@
+<?nvs
+// Attack: a program sends requests to a very long URL and to URLs with unusual
+// characters, then reads each URL many times. The program should not crash.
+
+use Core\Http\Client;
+use Core\Test;
+use Core\Test\SentRequest;
+
+Test::answerHttp('https://api.example.com/*', 200);
+
+// Step 1: a URL with a path of four megabytes.
+string $long = 'https://api.example.com/' . Core\Str::repeat('a', 4194304);
+try {
+    Client::get($long);
+    echo "sent a long URL\n";
+} catch (Throwable $error) {
+    echo "refused a long URL\n";
+}
+
+// Step 2: URLs with encoded zero bytes, non-ASCII letters, spaces and line breaks.
+array<string> $strange = [
+    'https://api.example.com/%00%00',
+    'https://api.example.com/café/ö',
+    'https://api.example.com/a b',
+    "https://api.example.com/a\r\nX-Injected: yes",
+    'https://api.example.com/?' . Core\Str::repeat('&x=1', 100000),
+];
+foreach ($strange as string $url) {
+    try {
+        Client::get($url);
+        echo "sent\n";
+    } catch (Throwable $error) {
+        echo "refused\n";
+    }
+}
+
+// Step 3: every URL that was recorded is read, and its length is added up.
+array<SentRequest> $sent = Test::sentHttp();
+uint $total = 0;
+foreach ($sent as SentRequest $request) {
+    $total = $total + Core\Str::length($request->url());
+}
+echo $total, "\n";
+
+// Step 4: the first URL is read one hundred thousand times.
+uint $reads = 0;
+uint $sum = 0;
+while ($reads < 100000 && Core\Arr::count($sent) > 0) {
+    $sum = $sum + Core\Str::length($sent[0]->url()) % 7;
+    $reads = $reads + 1;
+}
+echo $sum, "\n";

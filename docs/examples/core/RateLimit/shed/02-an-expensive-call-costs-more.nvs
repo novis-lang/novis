@@ -1,0 +1,21 @@
+<?nvs
+// Shows how `cost` makes one call use several units of the same limit.
+
+class Work {
+    public static function run(string $task, uint $cost): void {
+        // Each user may use 10 units per minute.
+        var $decision = Core\RateLimit::shed("user:77", 10, 1m, {cost: $cost});
+        if ($decision->allowed()) {
+            echo $task, ": done, ", $decision->remaining(), " units left\n";
+        } else {
+            echo $task, ": refused\n";
+        }
+    }
+}
+
+// A search costs 1 unit and an export costs 4. This prints 9, 5 and 1 units left.
+// The last export needs 4 units and only 1 is left, so it is refused.
+Work::run("search", 1);
+Work::run("export", 4);
+Work::run("export", 4);
+Work::run("export", 4);

@@ -1,0 +1,11 @@
+<?nvs
+// Shows how to tell a `HEAD` request from a `GET` request.
+
+// The request below uses the method `HEAD`.
+// `Core\Request::method` returns `Get` for it. This prints "method is Get".
+if (Core\Request::method() == Core\Http\Method::Get) {
+    echo "method is Get\n";
+}
+
+// `Core\Request::isHead` returns `true` only for a `HEAD` request. This prints "isHead is true".
+echo "isHead is ", Core\Request::isHead() ? "true" : "false", "\n";

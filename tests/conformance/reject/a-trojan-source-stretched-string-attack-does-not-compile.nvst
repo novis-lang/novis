@@ -1,0 +1,13 @@
+--TEST--
+the Trojan Source paper's stretched-string pattern, transliterated to Novis, does not compile — `rule:security/bidi-predicate`
+--FILE--
+<?nvs
+string $accessLevel = "user⁧ // trusted";
+echo $accessLevel, "\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0008]: unterminated bidirectional control U+2067 RIGHT-TO-LEFT ISOLATE
+%A
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

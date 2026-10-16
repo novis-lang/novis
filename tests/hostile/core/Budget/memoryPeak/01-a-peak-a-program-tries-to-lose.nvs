@@ -1,0 +1,43 @@
+<?nvs
+// Attack: a program makes a very large list, frees it, and then does
+// everything it can to make the runtime forget the high point. Nothing a
+// program does may lower the peak. The program should run to its last line.
+
+// 1. A list of one million strings raises the high point above one megabyte.
+//    This prints 1.
+array<string> $payload = [];
+int $i = 0;
+while ($i < 1000000) {
+    $payload[] = 'a row of data';
+    $i = $i + 1;
+}
+uint $peak = Core\Budget::memoryPeak();
+echo $peak > 1048576 ? 1 : 0, "\n";
+
+// 2. The list is freed and the peak is read again. It must be the same number,
+//    so this prints 1.
+$payload = [];
+echo Core\Budget::memoryPeak() == $peak ? 1 : 0, "\n";
+
+// 3. The peak is read 200000 times, with a new string made and freed on every
+//    round. No reading may be below the high point, so this prints 0.
+int $lowered = 0;
+$i = 0;
+while ($i < 200000) {
+    string $noise = 'row ' . $i;
+    if (Core\Str::length($noise) > 0 && Core\Budget::memoryPeak() < $peak) {
+        $lowered = $lowered + 1;
+    }
+    $i = $i + 1;
+}
+echo $lowered, "\n";
+
+// 4. The peak is never below the memory the program is using right now, even
+//    after a second large list. This prints 1.
+array<string> $second = [];
+$i = 0;
+while ($i < 500000) {
+    $second[] = 'another row';
+    $i = $i + 1;
+}
+echo Core\Budget::memoryPeak() >= Core\Budget::memoryHeld() ? 1 : 0, "\n";

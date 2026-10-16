@@ -1,0 +1,13 @@
+<?nvs
+// Shows that the client gets one body, whatever the size of each part.
+
+Core\Response\Stream $body = Core\Response::stream("text/plain; charset=utf-8");
+
+// These three parts arrive as one line. This prints "Hello, world".
+$body->write("Hel");
+$body->write("lo, wor");
+$body->write("ld\n");
+
+// An empty part sends nothing, and it is not an error.
+$body->write("");
+$body->write("Done.\n");

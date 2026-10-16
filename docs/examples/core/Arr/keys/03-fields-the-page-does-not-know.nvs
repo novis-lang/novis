@@ -1,0 +1,11 @@
+<?nvs
+// Shows how a page finds the fields a form sent that it does not know about.
+
+array<string> $sent = ["name" => "Ada", "city" => "Wien", "colour" => "red"];
+array<string> $known = ["name", "city"];
+
+foreach (Core\Arr::keys($sent) as string $field) {
+    if (!Core\Arr::contains($known, $field)) {
+        echo "unknown field: ", $field, "\n";
+    }
+}

@@ -1,0 +1,24 @@
+<?nvs
+// Attack: `Core\Path::extension` is given names made of dots and very long names.
+// Each call should return an extension or `null`, and the program must not crash.
+
+// 1. The name is 8 MiB of dots. It ends with a dot, so the result is `null`.
+echo Core\Path::extension(Core\Str::repeat('.', 8388608)) ?? '(none)', "\n";
+
+// 2. The extension is 8 MiB long.
+echo Core\Str::length(Core\Path::extension('file.' . Core\Str::repeat('x', 8388608)) ?? ''), "\n";
+
+// 3. The name has four million dots between short parts.
+echo Core\Path::extension(Core\Str::repeat('a.', 4194304) . 'gz') ?? '(none)', "\n";
+
+// 4. The dot is in a folder name, and the file name has none.
+echo Core\Path::extension('/srv/site.v2/' . Core\Str::repeat('x', 1048576)) ?? '(none)', "\n";
+
+// 5. The path is 8 MiB of separators.
+echo Core\Path::extension(Core\Str::repeat("/\\", 4194304)) ?? '(none)', "\n";
+
+// 6. The extension has emoji, a null byte and characters from other scripts.
+echo Core\Path::extension("/données/報告.\u{0}😀") ?? '(none)', "\n";
+
+// 7. Only dots and separators, which name no file.
+echo Core\Path::extension('./../.') ?? '(none)', "\n";

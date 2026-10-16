@@ -1,0 +1,15 @@
+<?nvs
+// Shows that memory an exit function uses does not change the peak in the report.
+
+Core\Script::onExit(fn (Core\Script\ExitReport $report): void => {
+    int $before = $report->memoryPeak();
+
+    // This function makes an 8 MiB string of its own.
+    string $copy = Core\Str::repeat("y", 8388608);
+    echo "the function made ", Core\Str::length($copy), " bytes\n";
+
+    // The report was made before this function ran. This prints "same peak: yes".
+    echo "same peak: ", $report->memoryPeak() == $before ? "yes" : "no", "\n";
+});
+
+echo "the script is done\n";

@@ -1,0 +1,93 @@
+--TEST--
+An `Iterator<T>` is a single position living in the object: a `break` leaves it where it stood, a callee typed `Iterator<T>` moves the caller's own, a drained one runs a `foreach` zero times, and two cursors over one list are independent — `rule:iteration/two-interfaces`
+--FILE--
+<?nvs
+// covers: Iterator
+// `rule:iteration/two-interfaces`: the position a cursor walks lives in the cursor object, not in
+// the frame driving it, and `rule:iteration/foreach-subjects` drives an `Iterator<T>` subject
+// without asking it for a fresh one the way it asks an `Iterable<T>`. What this
+// pins is that nothing on the way copies that position: not leaving a `foreach`
+// early, not a parameter, not a second loop over the same cursor.
+class Words implements Iterator<string> {
+    private array<string> $items;
+    private int $at;
+
+    public function constructor(array<string> $items) {
+        $this->items = $items;
+        $this->at = -1;
+    }
+
+    public function advance(): bool {
+        $this->at = $this->at + 1;
+        return $this->at < Core\Arr::count($this->items) as int;
+    }
+
+    public function current(): string {
+        return $this->items[$this->at];
+    }
+}
+
+final class Drive {
+    // A cursor reaching a parameter typed `Iterator<string>` is the caller's own
+    // cursor, so the two elements taken here are two the caller will not see.
+    // The `advance()` guard is the whole liveness answer, and a cursor that is
+    // already exhausted answers `false` on the first call.
+    public static function takeTwo(Iterator<string> $cursor): string {
+        string $out = "";
+        int $taken = 0;
+        while ($taken < 2) {
+            if (!$cursor->advance()) {
+                return $out;
+            }
+            $out = $out . $cursor->current() . ";";
+            $taken = $taken + 1;
+        }
+        return $out;
+    }
+
+    public static function rest(Iterator<string> $cursor): string {
+        string $out = "";
+        foreach ($cursor as string $w) {
+            $out = $out . $w . ";";
+        }
+        return $out;
+    }
+}
+
+array<string> $source = ["red", "green", "blue", "grey", "pink"];
+
+// A `break` stops the loop calling `advance()` and leaves the cursor standing on
+// the element the body last read. Driving it by hand afterwards resumes at the
+// element after that one, so nothing is repeated and nothing is lost — unlike
+// `rule:iteration/generators`' cursor, which an abandoning `break` ends for good.
+var $paint = new Words($source);
+string $upToGreen = "";
+foreach ($paint as string $w) {
+    $upToGreen = $upToGreen . $w . ";";
+    if ($w == "green") {
+        break;
+    }
+}
+echo $upToGreen, "\n";
+echo Drive::takeTwo($paint), "\n";
+echo Drive::rest($paint), "\n";
+
+// Single-pass, which is the whole difference from `Iterable<T>`: the cursor is
+// used up, so a `foreach` over it runs zero times rather than starting over.
+echo "[", Drive::rest($paint), "]\n";
+echo "[", Drive::takeTwo($paint), "]\n";
+
+// Two cursors over the same list hold two positions, and draining one leaves the
+// other where it was.
+var $a = new Words($source);
+var $b = new Words($source);
+string $firstTwo = Drive::takeTwo($a);
+string $nextTwo = Drive::takeTwo($a);
+echo $firstTwo, $nextTwo, "|", Drive::takeTwo($b), "\n";
+--EXPECT--
+red;green;
+blue;grey;
+pink;
+[]
+[]
+red;green;blue;grey;|red;green;

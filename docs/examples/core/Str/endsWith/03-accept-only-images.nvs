@@ -1,0 +1,21 @@
+<?nvs
+// Shows how to accept only uploaded files whose names end like an image.
+
+class Upload
+{
+    public static function isImage(string $name): bool
+    {
+        // The name is changed to lower case first, so ".PNG" also counts.
+        string $lower = Core\Str::lower($name);
+        return Core\Str::endsWith($lower, ".png")
+            || Core\Str::endsWith($lower, ".jpg")
+            || Core\Str::endsWith($lower, ".jpeg");
+    }
+}
+
+array<string> $uploads = ["holiday.JPG", "logo.png", "invoice.pdf", "photo.png.exe"];
+
+// This prints `accepted` for the first two files and `rejected` for the other two.
+foreach ($uploads as string $name) {
+    echo $name, ": ", Upload::isImage($name) ? "accepted" : "rejected", "\n";
+}

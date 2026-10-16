@@ -1,0 +1,5 @@
+68656c6c6f3e776f726c643f
+616263
+6162
+refused: Core\Encoding::fromBase64Url(): "YWJjZA==" is not URL-safe base64 — it is padded, and the URL-safe form is written without `=`
+refused: Core\Encoding::fromBase64Url(): "aGVsbG8+d29ybGQ/" is not URL-safe base64 — the byte 0x2b at offset 7 is not a base64url character, and whitespace, a newline and a misplaced `=` are each that byte rather than something skipped

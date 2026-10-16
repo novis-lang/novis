@@ -1,0 +1,29 @@
+--TEST--
+Core\Jwe::decrypt takes a token that arrived `tainted`, because the payload comes back `tainted` whatever the token was — `rule:security/verification-does-not-launder`, `rule:security/jwe-compact-subset`
+--FILE--
+<?nvs
+// A token a program wrote as a literal and a token that arrived in a request
+// are the same text, and which of the two it is says nothing about whether the
+// payload inside is safe. So `decrypt` takes either, and what it answers is
+// `tainted` either way — the qualifier is on the way out, not on the way in.
+bytes $shared = Core\Encoding::fromHex("0e23743411f4f8a11b9b229ce598e431adb7994963d03c87e20dd6781939ef96");
+Core\Jwe\Key $dir = Core\Jwe\Key::shared($shared);
+
+// One of the frozen WebCrypto tokens, opened from a literal: the payload is
+// `tainted` here, where the token was not.
+tainted string $json = Core\Jwe::decrypt(
+    "eyJhbGciOiJkaXIiLCJlbmMiOiJBMjU2R0NNIn0..yWqDaI4F5_VELg4e.e5bOCA677wv94e09f00PgD5RGi2AUeTOlEL32fiH4gT3ikLU.J8rVCjtIvszJAlP-1o4yNg",
+    [$dir]
+);
+echo $json == "{\"scope\":[\"read\",\"write\"],\"user\":42}" ? "opened" : "opened wrong", "\n";
+
+// Sealing that payload again carries the qualifier into the token, because the
+// token is made of the payload: `encrypt` answers a `tainted string` here.
+tainted string $sealed = Core\Jwe::encrypt($json, $dir);
+
+// And that token opens, which is the whole of what a request-borne token needs.
+tainted string $again = Core\Jwe::decrypt($sealed, [$dir]);
+echo $again == $json ? "reopened" : "reopened wrong", "\n";
+--EXPECT--
+opened
+reopened

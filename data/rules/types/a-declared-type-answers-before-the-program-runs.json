@@ -1,0 +1,13 @@
+{
+  "title": "`->` on a receiver that can hold no object is refused where it is written",
+  "status": "shipped",
+  "seeAlso": [
+    "types/erased-member-access",
+    "types/unions-and-mixed",
+    "types/type-test",
+    "expressions/disjoint-comparison-refused"
+  ],
+  "guardedBy": [
+    "tests/conformance/lang/a-property-through-a-receiver-that-holds-no-object-is-a-compile-error.nvst"
+  ]
+}

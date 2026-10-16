@@ -1,0 +1,7 @@
+<?nvs
+// Shows that names and values are compared without case.
+
+var $domain = Core\Ldap\Dn::parse('DC=example,DC=test');
+var $ann = Core\Ldap\Dn::parse('cn=Ann,ou=staff,dc=EXAMPLE,dc=Test');
+// This prints yes.
+echo $ann->isWithin($domain) ? 'yes' : 'no', "\n";

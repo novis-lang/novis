@@ -1,0 +1,37 @@
+<?nvs
+// Shows how a release asks a person to approve a database change. The notes
+// are the reasons, numbered, and there is no SQL in them.
+
+use Core\Db;
+use Core\Db\Plan\Step;
+use Core\Db\Schema;
+
+var $db = Db::connect('notes');
+
+// What the last release left in the database.
+$db->execute('create table notes (id integer primary key autoincrement, title varchar(200) not null)', []);
+$db->execute('create table notes_archive (id integer primary key)', []);
+
+var $schema = Schema::fromArray([
+    'tables' => [
+        [
+            'name' => 'notes',
+            'columns' => [
+                ['name' => 'id', 'type' => 'int64', 'identity' => true],
+                ['name' => 'title', 'type' => 'text(200)'],
+                ['name' => 'body', 'type' => 'text(4000)', 'null' => true],
+            ],
+            'primary_key' => ['id'],
+        ],
+    ],
+]);
+
+// One numbered line per step. The reasons say what the release costs, so the
+// person who approves it does not need the statements.
+uint $at = 0;
+foreach ($schema->planAgainst($db)->steps() as Step $step) {
+    $at = $at + 1;
+    echo $at, '. ', $step->reason(), "\n";
+}
+
+$db->close();

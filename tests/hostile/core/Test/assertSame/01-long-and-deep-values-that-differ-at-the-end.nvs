@@ -1,0 +1,59 @@
+<?nvs
+// Attack: the check compares very long and very deep values that differ only at the end.
+// Each check should pass or throw a `Core\Test\Failure`.
+
+// Step 1: two strings of ten million characters. Only the last character differs.
+string $long = Core\Str::repeat('a', 10000000);
+try {
+    Core\Test::assertSame($long . 'b', $long . 'c');
+} catch (Core\Test\Failure $failure) {
+    echo 'long strings: ', Core\Str::length($failure->message), "\n";
+}
+
+// Step 2: two arrays of one million entries. Only the last entry differs.
+array<int> $left = [];
+array<int> $right = [];
+int $i = 0;
+while ($i < 1000000) {
+    $left[] = $i;
+    $right[] = $i;
+    $i = $i + 1;
+}
+$right[] = 1;
+$left[] = 2;
+try {
+    Core\Test::assertSame($left, $right);
+} catch (Core\Test\Failure $failure) {
+    echo "big arrays\n";
+}
+
+// Step 3: two arrays nested one hundred thousand levels deep, built separately.
+// The innermost values differ.
+array<mixed> $deepLeft = [1];
+array<mixed> $deepRight = [2];
+$i = 0;
+while ($i < 100000) {
+    $deepLeft = [$deepLeft];
+    $deepRight = [$deepRight];
+    $i = $i + 1;
+}
+try {
+    Core\Test::assertSame($deepLeft, $deepRight);
+} catch (Core\Test\Failure $failure) {
+    echo "deep arrays\n";
+}
+
+// Step 4: the same deep array is compared with itself. The check passes.
+Core\Test::assertSame($deepLeft, $deepLeft);
+echo "deep array with itself\n";
+
+// Step 5: a hundred thousand failed checks in a row. Each one is caught.
+$i = 0;
+while ($i < 100000) {
+    try {
+        Core\Test::assertSame($i, $i + 1);
+    } catch (Core\Test\Failure $failure) {
+    }
+    $i = $i + 1;
+}
+echo "many failures\n";

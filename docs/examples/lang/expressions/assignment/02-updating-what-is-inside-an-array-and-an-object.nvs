@@ -1,0 +1,37 @@
+<?nvs
+// Shows the other three things `=` can write into: an array element, a
+// property, and a property shared by the whole class. The compound forms
+// reach all of them the same way they reach a plain variable.
+
+class Basket {
+    public static uint $created = 0;
+
+    public function constructor(public decimal $total, public uint $items) {
+        Basket::$created += 1;
+    }
+
+    public function add(decimal $price): void {
+        // A property is updated in place, exactly like a variable.
+        $this->total += $price;
+        $this->items += 1;
+    }
+}
+
+Basket $basket = new Basket(0.00, 0);
+$basket->add(19.99);
+$basket->add(4.50);
+// This prints: 24.49 2
+echo $basket->total, " ", $basket->items, "\n";
+
+// A static property belongs to the class, so every basket made so far has
+// counted itself. This prints: 1
+echo Basket::$created, "\n";
+
+// An array element takes the same forms. The index is worked out once, even
+// with a compound operator.
+array<uint> $seen = ["get" => 0, "post" => 0];
+$seen["get"] += 1;
+$seen["get"] += 1;
+$seen["post"] = 5;
+// This prints: 2 5
+echo $seen["get"], " ", $seen["post"], "\n";

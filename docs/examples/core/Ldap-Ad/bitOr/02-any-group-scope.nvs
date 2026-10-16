@@ -1,0 +1,9 @@
+<?nvs
+// Shows the filter for groups that are global or universal.
+
+// In `groupType`, 2 is a global group and 8 is a universal group.
+var $filter = Core\Ldap\Filter::all(
+    Core\Ldap\Filter::equals('objectClass', 'group'),
+    Core\Ldap\Ad::bitOr('groupType', 2 | 8),
+);
+echo $filter->toString(), "\n";

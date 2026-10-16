@@ -1,0 +1,29 @@
+<?nvs
+// Shows how a program adds up the size of every image in an uploads folder and its sub-folders.
+
+class Uploads {
+    // Returns the total size in bytes of the ".jpg" files anywhere under `$root`.
+    // Folders and other files are left out.
+    public static function imageBytes(string $root): uint {
+        uint $total = 0;
+        foreach (Core\IO::walk($root) as string $entry) {
+            // `$entry` is relative to `$root`, so `Core\Path::join` builds the full path.
+            string $path = Core\Path::join($root, $entry);
+            if (Core\Str::endsWith($entry, ".jpg") && Core\IO::isFile($path)) {
+                $total = $total + Core\IO::size($path);
+            }
+        }
+        return $total;
+    }
+}
+
+string $uploads = Core\Path::join(Core\IO::temporaryDir(), "uploads");
+Core\IO::makeDir(Core\Path::join($uploads, "users", "anna"));
+Core\IO::makeDir(Core\Path::join($uploads, "users", "ben"));
+Core\IO::write(Core\Path::join($uploads, "banner.jpg"), "0123456789");
+Core\IO::write(Core\Path::join($uploads, "users", "anna", "avatar.jpg"), "01234");
+Core\IO::write(Core\Path::join($uploads, "users", "ben", "avatar.jpg"), "0123");
+Core\IO::write(Core\Path::join($uploads, "users", "ben", "notes.txt"), "not an image");
+
+// The three images have 10, 5 and 4 bytes, so this prints "images: 19 bytes".
+echo "images: ", Uploads::imageBytes($uploads), " bytes", "\n";

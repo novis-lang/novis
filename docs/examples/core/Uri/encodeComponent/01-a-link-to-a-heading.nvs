@@ -1,0 +1,8 @@
+<?nvs
+// Shows how to build a link to a heading on a page, when the heading contains spaces.
+
+string $heading = "Getting started";
+
+// `Core\Uri::encodeComponent` escapes each character a link cannot contain.
+// A space becomes `%20`, so this prints /help#Getting%20started.
+echo "/help#", Core\Uri::encodeComponent($heading), "\n";

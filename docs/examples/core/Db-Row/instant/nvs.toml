@@ -1,0 +1,14 @@
+# These examples use the PostgreSQL server on this computer at port 15432.
+# `tls_ca_file` is the certificate that the server's certificate is checked against.
+[db.shop]
+driver = "postgres"
+host = "127.0.0.1"
+port = 15432
+user = "novis"
+password = "Novis-Test-Pw1"
+database = "novis_test"
+tls_ca_file = "../../../../../tests/db/ca.crt"
+
+# The program may open the `shop` database.
+[capabilities.db]
+connect = ["shop"]

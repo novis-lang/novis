@@ -1,0 +1,31 @@
+<?nvs
+// Attack: `toInstant` reads the first and last moment in time in the farthest time zones, and runs a million times in a loop.
+// Each result should be the same moment the date and time had, and no memory should be left behind.
+
+var $ahead = Core\Time\Zone::fixed(25h59m59s);
+var $behind = Core\Time\Zone::fixed(25h59m59s->negated());
+
+// 1. The last moment in time, read in the zone farthest ahead. This prints 9999-12-30T22:00:00Z.
+echo Core\Time::fromIso('9999-12-30T22:00:00Z')->in($ahead)->toInstant()->toIso(), "\n";
+
+// 2. The first moment in time, read in the zone farthest behind. This prints -009999-01-02T01:59:59Z.
+echo Core\Time::fromIso('-009999-01-02T01:59:59Z')->in($behind)->toInstant()->toIso(), "\n";
+
+// 3. A local time that does not exist, because the clocks moved forward. The result is still one moment.
+var $gap = Core\Time::at(2024, 3, 31, Core\Time\Zone::of('Europe/Berlin'), { hour: 2, minute: 30 });
+echo $gap->toInstant()->toIso(), "\n";
+
+// 4. One million conversions, each back into the time zone it came from. Every one should be the same moment.
+var $zone = Core\Time\Zone::of('Pacific/Chatham');
+var $day = Core\Time::at(2024, 1, 1, $zone);
+int $moved = 0;
+int $count = 0;
+while ($count < 1000000) {
+    var $back = $day->toInstant()->in($zone);
+    if ($back->toInstant()->compareTo($day->toInstant()) != 0) {
+        $moved = $moved + 1;
+    }
+    $day = $back->plus(17, Core\Unit::Minute);
+    $count = $count + 1;
+}
+echo $moved, " moved\n";

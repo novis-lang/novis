@@ -1,0 +1,59 @@
+# Scoped to this directory's `Dockerfile` alone -- BuildKit reads `<dockerfile>.dockerignore` in
+# preference to the context's own `.dockerignore`, so this list never reaches any other tool that
+# walks the tree.
+#
+# The Dockerfile is named `Dockerfile` and not `Dockerfile.nvs`: `.nvs` is the language's own source
+# extension, and a build file wearing it reads as a Novis program to every editor, every glob in this
+# repository and every person.
+#
+# The context is the repository root because the build stage compiles the workspace. What that costs
+# is entirely decided here: `target/` is tens of gigabytes and `website/node_modules` tens of
+# thousands of files, and sending either takes longer than the compile it feeds.
+
+# Build output, on both sides of the mount.
+target/
+**/target/
+
+# The unattended loop's logs and scratch, and the tools' own state -- `.cache/` is the
+# test-selection store, gigabytes of it. No build reads any of them.
+.loop/
+.agent-tmp/
+.cache/
+
+# The counters an instrumented binary writes into whatever directory it was started in. No build
+# reads them, and a stray run can leave hundreds beside the sources.
+**/*.profraw
+
+# Version control and editor state.
+.git/
+.github/
+.vscode/
+.idea/
+
+# The tools' and the website's dependency trees, and the editor test host's downloaded VS Code --
+# none of them part of the workspace `cargo build` walks.
+node_modules/
+website/
+editors/*/node_modules/
+editors/*/.vscode-test/
+
+# Fuzzing corpora and artifacts: large, and regenerated rather than compiled.
+fuzz/corpus/
+fuzz/artifacts/
+
+# The benchmark's own outputs, so a rebuild never carries the previous run in. The staged binary is
+# the one exception and the negation is deliberate: the `prebuilt` stage's whole input is that file,
+# and an ignore rule matching it would make that stage fail with "file not found" for a file that is
+# plainly on disk. Last match wins, so this pair must stay in this order.
+benches/*.json
+benches/proxied/.bin/
+!benches/proxied/.bin/nvs
+
+# Documentation, except the pages the build compiles in: `crates/nvs-stdlib/build.rs` reads the
+# `docs/reference/core/` intros, and `crates/nvs-cli/src/agent.rs`
+# `include_str!`s the reference chapters. An edit to any other doc must not invalidate the context
+# layer and cost a rebuild of everything after it. Last match wins, so the negations stay below.
+docs/
+*.md
+!README.md
+!docs/reference/**

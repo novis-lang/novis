@@ -1,0 +1,25 @@
+<?nvs
+// Shows how a list page builds the links to its other pages and keeps the search of the reader.
+
+class Pager {
+    public static function links(string $current, int $pages): array<string> {
+        var $base = Core\Uri::parse($current);
+        array<string> $links = [];
+        int $page = 1;
+        while ($page <= $pages) {
+            // The first page gets no `page` parameter, so it has one address only.
+            if ($page == 1) {
+                $links[] = $base->withQueryParameter("page", null)->toString();
+            } else {
+                $links[] = $base->withQueryParameter("page", $page)->toString();
+            }
+            $page = $page + 1;
+        }
+        return $links;
+    }
+}
+
+// This prints three links. Each one keeps `q` and `sort`.
+foreach (Pager::links("/products?q=lamp&sort=price&page=2", 3) as string $link) {
+    echo $link, "\n";
+}

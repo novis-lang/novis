@@ -1,0 +1,3 @@
+GET    /orders   -> 200, the route runs
+DELETE /orders   -> 405, try one of: GET, POST
+GET    /invoices -> 404, no such page

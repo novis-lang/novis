@@ -1,0 +1,61 @@
+<?nvs
+// Attack: the renderer is given the values that would make a naive one run
+// forever or run out of memory. Two objects point at each other, a chain is
+// fifty thousand objects long, and a string holds five million bytes with
+// control characters in it. The runtime should still be standing at the end.
+// hostile: timeout-ms 60000
+
+final class Node
+{
+    public ?Node $next = null;
+    public secret string $token = 's3cr3t';
+
+    public function constructor(public int $id)
+    {
+    }
+}
+
+// Step 1: two objects that point at each other, rendered ten thousand times. A
+// renderer that follows the pointers would never return.
+var $first = new Node(1);
+var $second = new Node(2);
+$first->next = $second;
+$second->next = $first;
+int $rendered = 0;
+while ($rendered < 10000) {
+    var $cycle = Core\Debug::render($first);
+    $rendered = $rendered + 1;
+}
+echo 'step 1: ', $rendered, " renderings of a cycle\n";
+
+// Step 2: a chain of fifty thousand objects, rendered and then dropped.
+var $head = new Node(0);
+int $built = 0;
+while ($built < 50000) {
+    var $link = new Node($built + 1);
+    $link->next = $head;
+    $head = $link;
+    $built = $built + 1;
+}
+var $chain = Core\Debug::render($head);
+echo 'step 2: ', $built, " objects deep, rendered\n";
+
+// Step 3: a string of five million bytes, with a tab and a null byte in it.
+string $wide = Core\Str::repeat("a\tb\x00c", 1000000);
+var $long = Core\Debug::render($wide);
+echo 'step 3: ', Core\Str::length($wide), " bytes rendered\n";
+
+// Step 4: ten thousand renderings of an array holding the cycle, the chain and
+// the wide string together.
+array<mixed> $everything = ['cycle' => $first, 'chain' => $head, 'wide' => $wide];
+int $pass = 0;
+while ($pass < 10000) {
+    var $mixed = Core\Debug::render($everything);
+    $pass = $pass + 1;
+}
+echo 'step 4: ', $pass, " renderings of all three at once\n";
+
+// Step 5: the same values written to standard error, where a `dump` goes.
+Core\Debug::dump($first, $head, $everything);
+
+echo "the runtime is still standing\n";

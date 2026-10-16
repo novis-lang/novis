@@ -1,0 +1,19 @@
+<?nvs
+// Runs a check that is expected to fail, as a test of your own check does for a bad value.
+// bench: iterations 256
+// bench: complexity constant
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            Core\Test::expectFailure(fn (): void => Core\Test::assertTrue($total < $i));
+            $total = $total + 1 + ($total % 2);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

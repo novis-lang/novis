@@ -1,0 +1,15 @@
+--TEST--
+reading a class constant answers its declaration and the read itself, the read placed at the constant's own name and not at the class written before it, `rule:ide/five-features-are-one-reference-index`
+--FILE--
+<?nvs
+class Cart
+{
+    public const int LIMIT = 10;
+}
+
+echo Cart::LI<|>MIT;
+--REQUEST--
+references
+--EXPECT--
+case.nvs:4:22
+case.nvs:7:12

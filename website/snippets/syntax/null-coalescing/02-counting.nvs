@@ -1,0 +1,13 @@
+<?nvs
+// `??+=` adds to an array value. A missing key starts at 0.
+array<string> $orders = ["paid", "open", "paid"];
+array<int> $byStatus = [];
+foreach ($orders as string $status) {
+    $byStatus[$status] ??+= 1;
+}
+echo $byStatus["paid"], " ", $byStatus["open"], "\n";
+
+// `??=` also creates the missing keys above the value.
+array<array<string>> $config = [];
+$config["db"]["host"] ??= "localhost";
+echo $config["db"]["host"], "\n";

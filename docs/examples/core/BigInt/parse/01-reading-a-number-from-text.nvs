@@ -1,0 +1,13 @@
+<?nvs
+// Shows how to read a whole number out of text, in any size.
+
+// `parse` reads the text as a number written in base 10. This prints 4500.
+echo Core\BigInt::parse("4500"), "\n";
+
+// A leading `-` or `+` is allowed. This prints -4500 and 4500.
+echo Core\BigInt::parse("-4500"), "\n";
+echo Core\BigInt::parse("+4500"), "\n";
+
+// The text may hold a number far larger than an `int`. This prints the same
+// 40 digits back.
+echo Core\BigInt::parse("1234567890123456789012345678901234567890"), "\n";

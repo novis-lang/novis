@@ -1,0 +1,57 @@
+<?nvs
+// Attack: a program keeps 50000 descriptions at once and reads each name many times. Every name
+// should be right, and the runtime must not crash or leak when the descriptions are freed.
+
+enum Alpha: int
+{
+    One = 1,
+}
+
+enum Beta: uint
+{
+    Two = 2,
+}
+
+enum Gamma
+{
+}
+
+// 1. 50000 descriptions of three enums are kept in one array.
+array<string> $names = [Alpha::class, Beta::class, Gamma::class];
+array<Core\Reflect\EnumInfo> $kept = [];
+uint $i = 0;
+while ($i < 50000) {
+    ?Core\Reflect\EnumInfo $found = Core\Reflect\EnumInfo::of($names[($i % 3) as int]);
+    if ($found != null) {
+        Core\Reflect\EnumInfo $info = $found;
+        $kept[] = $info;
+    }
+    $i = $i + 1;
+}
+
+// 2. Every name is read four times, and compared with the name that was asked for.
+uint $wrong = 0;
+uint $round = 0;
+while ($round < 4) {
+    uint $at = 0;
+    foreach ($kept as Core\Reflect\EnumInfo $info) {
+        if ($info->name() != $names[($at % 3) as int]) {
+            $wrong = $wrong + 1;
+        }
+        $at = $at + 1;
+    }
+    $round = $round + 1;
+}
+echo $wrong, "\n";
+
+// 3. Each name goes back into `of` 30000 times, so each description is made from the last one.
+Core\Reflect\EnumInfo $last = $kept[0];
+$i = 0;
+while ($i < 30000) {
+    ?Core\Reflect\EnumInfo $next = Core\Reflect\EnumInfo::of($last->name());
+    if ($next != null) {
+        $last = $next;
+    }
+    $i = $i + 1;
+}
+echo $last->name(), "\n";

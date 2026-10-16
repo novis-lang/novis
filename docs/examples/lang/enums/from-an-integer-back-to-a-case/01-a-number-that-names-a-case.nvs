@@ -1,0 +1,20 @@
+<?nvs
+// Shows how a number becomes a case of an enum. `as Level` looks for the case
+// that carries the number.
+
+enum Level: int { Debug = 0, Info = 1, Warn = 2, Error = 3 }
+
+int $stored = 2;
+Level $level = $stored as Level;
+
+// This prints `warn`.
+echo $level == Level::Warn ? "warn" : "something else", "\n";
+
+// The number comes back out with `as int`. This prints 2.
+echo $level as int, "\n";
+
+// Text is converted to the number first, so this also finds `Level::Error`.
+Level $fromText = "3" as Level;
+
+// This prints 3.
+echo $fromText as int, "\n";

@@ -1,0 +1,37 @@
+<?nvs
+// Shows that a function receives the caller's object and not a copy. The same
+// object is also kept in an array and in a property. Every handle reads one object.
+
+class Order {
+    public int $total = 0;
+
+    public function constructor(public string $customer) {}
+}
+
+class Invoice {
+    public function constructor(public Order $order) {}
+}
+
+class Discount {
+    // The parameter holds the caller's object, so this write changes it.
+    public static function applyTo(Order $order, int $off): void {
+        $order->total = $order->total - $off;
+    }
+}
+
+var $order = new Order("Ada");
+$order->total = 100;
+
+// One object, now named in three places: a variable, an array element and a property.
+array<Order> $open = [$order];
+var $invoice = new Invoice($order);
+
+Discount::applyTo($order, 25);
+
+// All three read the one object, so this prints `75|75|75`.
+echo $order->total, "|", $open[0]->total, "|", $invoice->order->total, "\n";
+
+// The array element is the same object, so this second call changes it too.
+// This prints `70|70|70`.
+Discount::applyTo($open[0], 5);
+echo $order->total, "|", $open[0]->total, "|", $invoice->order->total, "\n";

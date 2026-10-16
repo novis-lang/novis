@@ -1,0 +1,29 @@
+<?nvs
+// Shows how a server checks that a redirect only goes to its own site.
+
+class Redirect {
+    public static function isSafe(string $target): bool {
+        var $uri = Core\Uri::parse($target);
+        if ($uri->host() == null) {
+            // A link such as `/account` has no host and no scheme, so it stays on this site.
+            // A link such as `javascript:alert(1)` has a scheme, so it is not allowed.
+            return $uri->scheme() == null;
+        }
+        // Upper-case letters stay in the host, so `lower` is used before the comparison.
+        return Core\Str::lower($uri->host() as string) == "example.com";
+    }
+}
+
+// In a real program, the target comes from the `next` value of a sign-in link.
+array<string> $targets = [
+    "/account",
+    "https://Example.COM/orders",
+    "https://evil.example.net/",
+    "//evil.example.net/",
+    "javascript:alert(1)",
+];
+
+// This prints allowed twice, then blocked three times.
+foreach ($targets as string $target) {
+    echo $target, ": ", Redirect::isSafe($target) ? "allowed" : "blocked", "\n";
+}

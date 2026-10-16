@@ -1,0 +1,16 @@
+{
+  "title": "The server is a development server or a proxied production origin, and nothing a proxy does earlier is in it",
+  "status": "shipped",
+  "seeAlso": [
+    "http-server/a-path-is-never-derived-from-a-url",
+    "errors/http-message-defects",
+    "security/one-tls-client",
+    "config/an-edit-reaches-the-next-request-without-a-restart",
+    "http-server/an-unsafe-or-unbounded-default-is-a-defect",
+    "core-classes/ratelimit-two-members"
+  ],
+  "guardedBy": [
+    "crates/nvs-server/src/io.rs",
+    "crates/nvs-server/src/serve.rs"
+  ]
+}

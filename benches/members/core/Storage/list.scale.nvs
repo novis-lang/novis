@@ -1,0 +1,31 @@
+<?nvs
+// Measures `Core\Storage::list` listing the keys that start with a prefix, at growing numbers of saved files.
+// bench: start 32
+// bench: max 512
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        array<string> $keys = [];
+        uint $n = 0;
+        while ($n < $size) {
+            string $key = 'bench-list-scale-' . $n . '.pdf';
+            Core\Storage::put('bench', $key, 'x' as bytes);
+            $keys[] = $key;
+            $n = $n + 1;
+        }
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            $total = $total + Core\Arr::count(Core\Storage::list('bench', {prefix: 'bench-list-scale-'}));
+            $i = $i + 1;
+        }
+        foreach ($keys as string $key) {
+            Core\Storage::delete('bench', $key);
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(32), "\n";

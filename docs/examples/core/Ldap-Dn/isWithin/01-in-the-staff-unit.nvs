@@ -1,0 +1,10 @@
+<?nvs
+// Shows how to check that an entry is in the staff unit before you change it.
+
+var $staff = Core\Ldap\Dn::parse('OU=Staff,DC=example,DC=test');
+var $ann = Core\Ldap\Dn::parse('CN=Ann,OU=Staff,DC=example,DC=test');
+var $printer = Core\Ldap\Dn::parse('CN=Printer,OU=Devices,DC=example,DC=test');
+// This prints yes.
+echo $ann->isWithin($staff) ? 'yes' : 'no', "\n";
+// This prints no.
+echo $printer->isWithin($staff) ? 'yes' : 'no', "\n";

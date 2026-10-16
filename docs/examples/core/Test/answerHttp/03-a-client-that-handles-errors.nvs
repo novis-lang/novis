@@ -1,0 +1,41 @@
+<?nvs
+// Shows how to test that your code handles every reply a service can give.
+// This includes errors that are hard to get from the real service.
+
+use Core\Http\Client;
+use Core\Http\Response;
+use Core\Test;
+
+#[Core\Json\Derive]
+class Stock {
+    public int $count;
+
+    public function constructor(int $count) {
+        $this->count = $count;
+    }
+}
+
+class StockClient {
+    public static function describe(string $sku): string {
+        Response $response = Client::get("https://stock.example.com/items/" . $sku);
+        if ($response->status() == 404) {
+            return $sku . ": unknown item";
+        }
+        if ($response->status() >= 500) {
+            return $sku . ": try again later";
+        }
+        Stock $stock = $response->jsonAs<Stock>();
+        return $sku . ": " . $stock->count . " in stock";
+    }
+}
+
+// One answer for each case the code must handle.
+Test::answerHttp("https://stock.example.com/items/mug", 200, {json: ["count" => 12]});
+Test::answerHttp("https://stock.example.com/items/lamp", 404);
+Test::answerHttp("https://stock.example.com/items/desk", 503);
+
+// This prints one line for each item.
+array<string> $skus = ["mug", "lamp", "desk"];
+foreach ($skus as string $sku) {
+    echo StockClient::describe($sku), "\n";
+}

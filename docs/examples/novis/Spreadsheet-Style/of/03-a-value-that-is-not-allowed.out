@@ -1,0 +1,3 @@
+The style field `border` is `'thin'`, `'medium'`, `'thick'`, `'dashed'`, `'dotted'` or `'double'`. It has `'wavy'`.
+The style field `align` is `'left'`, `'center'`, `'right'`, `'fill'` or `'justify'`. It has `'middle'`.
+same style

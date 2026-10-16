@@ -1,0 +1,33 @@
+<?nvs
+// Shows the one form `Core\Encoding::fromBase64` reads, and what to do with
+// text that is close to it and not in it.
+
+// Four symbols carry three bytes. This prints 616263, the bytes of "abc".
+echo Core\Encoding::toHex(Core\Encoding::fromBase64("YWJj")), "\n";
+
+// A last group of fewer than three bytes is filled up with `=`. This prints
+// 61626364.
+echo Core\Encoding::toHex(Core\Encoding::fromBase64("YWJjZA==")), "\n";
+
+// Text made for a URL uses `-` and `_` where this alphabet uses `+` and `/`.
+// `Core\Encoding::fromBase64Url` reads that form.
+try {
+    Core\Encoding::fromBase64("aGVsbG8-d29ybGQ_");
+} catch (RuntimeError $urlSafe) {
+    echo "refused: ", $urlSafe->message, "\n";
+}
+
+// Long base64 in an email is written over several lines. A newline is not a
+// base64 symbol, so take the newlines out first with `Core\Str::replace`.
+string $wrapped = "YWJjZGVmZ2hp\namtsbW5vcHFy\nc3R1dnd4eXo=";
+bytes $joined = Core\Encoding::fromBase64(Core\Str::replace($wrapped, "\n", ""));
+
+// This prints abcdefghijklmnopqrstuvwxyz.
+echo Core\Encoding::decodeText($joined, Core\Charset::Utf8), "\n";
+
+// The `=` at the end belongs to the text and may not be left off.
+try {
+    Core\Encoding::fromBase64("YWJ");
+} catch (RuntimeError $unpadded) {
+    echo "refused: ", $unpadded->message, "\n";
+}

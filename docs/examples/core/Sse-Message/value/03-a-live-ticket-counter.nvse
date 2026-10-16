@@ -1,0 +1,4 @@
+# Three sales: two tickets, four tickets, one ticket.
+publish: sales 2
+publish: sales 4
+publish: sales 1

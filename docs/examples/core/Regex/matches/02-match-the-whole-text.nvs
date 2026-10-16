@@ -1,0 +1,11 @@
+<?nvs
+// Shows the difference between a match anywhere in the text and a match of the whole text.
+
+string $code = "AB-1234 extra";
+
+// Without `^` and `$`, the pattern can match a part of the text. This prints "true".
+echo Core\Regex::matches($code, '[A-Z]{2}-\d{4}') ? "true" : "false", "\n";
+
+// With `^` and `$`, the whole text must match. The text has " extra" at the end,
+// so this prints "false".
+echo Core\Regex::matches($code, '^[A-Z]{2}-\d{4}$') ? "true" : "false", "\n";

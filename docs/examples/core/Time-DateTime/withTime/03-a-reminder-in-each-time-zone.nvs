@@ -1,0 +1,15 @@
+<?nvs
+// Shows how to send a reminder at 08:00 on the day a task is due, in each user's own time zone.
+
+array<string> $zones = ["Europe/London", "Asia/Tokyo", "America/Los_Angeles"];
+var $eight = Core\Time\TimeOfDay::at(8, 0);
+
+// The deadline is one moment, but the date is not the same everywhere.
+var $deadline = Core\Time::fromIso("2024-09-20T23:30:00Z");
+
+// `withTime` keeps the user's date and sets the time to 08:00.
+// This prints 2024-09-21 08:00 +01:00, 2024-09-21 08:00 +09:00 and 2024-09-20 08:00 -07:00.
+foreach ($zones as string $zone) {
+    var $local = $deadline->in(Core\Time\Zone::of($zone));
+    echo $zone, ": ", $local->withTime($eight)->format("yyyy-MM-dd HH:mm XXX"), "\n";
+}

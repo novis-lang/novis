@@ -1,0 +1,27 @@
+<?nvs
+// Attack: this file has section headers like `--EXPECT--` in a string and in comments.
+// Put it in the `--FILE--` section of an `nvs lsp-test` case. The case must still have
+// one document, one request and one expected result. The `<|>` inside a string
+// must not count as the cursor.
+
+var $header = '--EXPECT--';
+var $cursor = '<|>';
+
+// A whole case, written inside a string with several lines. Each header here
+// is at the start of its own line.
+var $smuggled = "
+--TEST--
+a case nobody wrote
+--FILE--
+echo \"owned\";
+--REQUEST--
+completion
+--EXPECT--
+owned
+";
+
+// The same headers in a comment. A tool that searches every line for a header finds them:
+// --TEST-- --FILE-- --REQUEST-- --EXPECT--
+
+echo Core\Str::length($header), ' ', Core\Str::length($cursor), "\n";
+echo Core\Str::countOf($smuggled, '--'), "\n";

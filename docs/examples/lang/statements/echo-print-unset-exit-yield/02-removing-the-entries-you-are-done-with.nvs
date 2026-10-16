@@ -1,0 +1,22 @@
+<?nvs
+// Shows how `unset` removes entries from an array. Only an array entry can be
+// removed. A variable always has a value in Novis, so `unset($x)` does not
+// compile.
+
+array<int> $stock = ["apple" => 4, "pear" => 0, "plum" => 7, "fig" => 0];
+
+// One call removes several entries. This prints {"apple":4,"plum":7}
+unset($stock["pear"], $stock["fig"]);
+echo Core\Json::encode($stock), "\n";
+
+array<int> $counts = [10, 20, 30];
+
+// Removing an entry in the middle leaves a gap. The entries after it keep the
+// keys they had, so this prints {"0":10,"2":30}
+unset($counts[1]);
+echo Core\Json::encode($counts), "\n";
+
+// Removing a key that is not in the array does nothing, and is not an error.
+// There are still 2 entries.
+unset($counts[99]);
+echo Core\Arr::count($counts), "\n";

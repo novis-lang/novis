@@ -1,0 +1,645 @@
+# The release cycle: test everything, build everything, and only then write anything.
+#
+# Fired by hand from the Actions tab. Nothing here runs on a push, on a schedule or from a fork —
+# a release is a decision a person takes, and this file never takes it on its own.
+#
+# ## The order, and why it is this order
+#
+# The obvious shape is tag → build → release, and it is wrong: a build that fails after the tag is
+# pushed leaves a version commit and a tag in the history for a release that does not exist, and
+# both have to be reverted by hand on `main`. So nothing is written to the repository
+# until every test and every binary is green:
+#
+#     plan → test → build → publish → docker
+#
+# `docker` is last for the same reason read from the other end: it needs a tag that already
+# exists, so an image can never be pushed for a release the repository has no record of. A
+# registry tag is also the one write here that cannot be undone by force-pushing a branch —
+# deleting a published package version is manual and irreversible — so it goes last, after the
+# cheap reversible writes have all succeeded. It compiles nothing: it packages the binaries
+# `build` already produced and attested, so the bytes in the image are the bytes in the archive.
+#
+# The cost is that the version bump happens twice: `build` applies it to its own working copy and
+# throws it away, `publish` applies it for real. That is deliberate. `nvs --version` prints
+# `CARGO_PKG_VERSION` (crates/nvs-cli/src/main.rs), so a binary built before the bump would report
+# the *previous* version for the whole life of the release — which is precisely the bug the
+# obvious order hides. Applying it in both places buys correct binaries and a clean history at
+# once, and `bun nv release` makes it the same code path both times.
+#
+# ## Every decision lives in tools/nv/cmd/release.ts, not here
+#
+# Version arithmetic, the changelog rules, the manifest rewrite and the packaging are all in that
+# command, for the reason `nv verify` holds the verification steps: YAML that computes things
+# can only be tested by pushing it. Run `bun nv release --preview major` on a clone to
+# see exactly what a dispatch would produce, without a runner and without credentials.
+#
+# ## Credentials
+#
+# The only credential in this file is the per-run `GITHUB_TOKEN`, which GitHub mints for this run
+# and revokes when it ends. There is no PAT, no deploy key and no secret of any other kind, and
+# `bun nv release` has no code path that reads one — it is runnable by anyone with a clone.
+#
+# Three habits keep it that way, and each is load-bearing rather than decorative:
+#
+#   * `permissions: {}` at the top, re-granted per job and never wider than the job needs. Only
+#     `publish` may write to the repository; `build` may not, so a compromised build script cannot
+#     push a commit even though it runs arbitrary code from the dependency tree.
+#   * `persist-credentials: false` on every checkout but `publish`'s. Without it the token is
+#     written into `.git/config` and stays there for the whole job — readable by every build
+#     script, proc macro and test this workspace compiles.
+#   * **No `${{ }}` inside any `run:` block.** Values reach a shell through `env:` only. A
+#     `${{ }}` is pasted into the script *before* the shell parses it, so a commit subject
+#     containing backticks or `$(...)` would execute — and the commit log this workflow reads is
+#     written by an unattended agent loop, not curated by hand.
+#
+# Assets are attached to a **draft**. Publishing it is a separate, human click.
+
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: 'Which slot moves (below 1.0, "major" means 0.MINOR)'
+        type: choice
+        required: true
+        default: patch
+        options: [patch, minor, major]
+      version:
+        description: 'Exact version, overriding the arithmetic. Leave empty normally.'
+        type: string
+        required: false
+        default: ''
+      allow_contract:
+        description: 'I understand reaching 0.1.0 declares the version contract'
+        type: boolean
+        required: false
+        default: false
+      dry_run:
+        description: 'Test, build and render the notes — but write nothing and tag nothing'
+        type: boolean
+        required: false
+        default: false
+
+# Re-granted per job. A job with no `permissions:` block of its own gets nothing.
+permissions: {}
+
+# Never two releases at once, and never cancel one half-way: a cancelled `publish` is exactly the
+# torn state — tag pushed, release missing — that the job order above exists to prevent.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
+  RUST_BACKTRACE: 1
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # 1. The version math and a preview of the notes. Writes nothing anywhere.
+  # ---------------------------------------------------------------------------
+  plan:
+    name: plan
+    runs-on: ubuntu-latest
+    # A dispatch can name any ref, and a release built from a topic branch would be a release of
+    # code that never passed review. The tag and the commit both land on `main`, so that is the
+    # only branch a release may be cut from.
+    if: github.ref == 'refs/heads/main'
+    permissions:
+      contents: read
+    outputs:
+      version: ${{ steps.plan.outputs.version }}
+      tag: ${{ steps.plan.outputs.tag }}
+      previous_tag: ${{ steps.plan.outputs.previous_tag }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          # The changelog is derived from the commit log, and a shallow clone has none of it.
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version-file: package.json
+      - name: Install tool dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Compute the next version
+        id: plan
+        env:
+          BUMP: ${{ inputs.bump }}
+          EXACT: ${{ inputs.version }}
+          ALLOW: ${{ inputs.allow_contract }}
+        run: |
+          set -euo pipefail
+          args=(--plan "$BUMP" --github-output)
+          # `--version` goes only when one was typed: `bun nv` is a package script, and `bun run`
+          # drops an empty argument, which would leave `--version` without its value.
+          # An `if`, not `[ ... ] && ...`: under `set -e` the && form makes the whole step exit
+          # non-zero whenever the condition is false, which is the common case here.
+          if [ -n "$EXACT" ]; then
+            args+=(--version "$EXACT")
+          fi
+          if [ "$ALLOW" = "true" ]; then
+            args+=(--allow-contract)
+          fi
+          bun nv release "${args[@]}"
+
+      - name: Render the release notes
+        env:
+          VERSION: ${{ steps.plan.outputs.version }}
+        run: bun nv release --notes "$VERSION" --out release-notes.md
+
+      - name: Show them in the run summary
+        env:
+          VERSION: ${{ steps.plan.outputs.version }}
+        run: |
+          set -euo pipefail
+          {
+            echo "## Planned release \`$VERSION\`"
+            echo
+            cat release-notes.md
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: release-notes-preview
+          path: release-notes.md
+          retention-days: 7
+
+  # ---------------------------------------------------------------------------
+  # 2. The full suite, as the definition every push already runs a slice of. Not a copy of it.
+  # ---------------------------------------------------------------------------
+  test:
+    name: verify
+    needs: plan
+    uses: ./.github/workflows/ci.yml
+    # Every gate in that file forced on. A push runs the lane its own diff needs (`rule:testing/ci-lanes`); a
+    # release runs all of it, out of the same definition, so the two cannot drift apart.
+    with:
+      full: true
+    permissions:
+      contents: read
+
+  # ---------------------------------------------------------------------------
+  # 3. The binaries, at the version about to be released.
+  #
+  # `optional: true` marks a target whose dependency tree is not yet proven to build for it —
+  # `wasmtime` and `corosensei` both carry assembly and neither lists Windows on ARM64 as a
+  # supported platform, and the musl leg has to satisfy `ring` and `zstd-sys`'s C with `musl-gcc`.
+  # Those legs may fail without failing the release; `publish` reports which arrived. Promote one
+  # to required (drop its `optional`) once a run has proved it.
+  # ---------------------------------------------------------------------------
+  build:
+    name: build ${{ matrix.name }}
+    needs: [plan, test]
+    runs-on: ${{ matrix.os }}
+    continue-on-error: ${{ matrix.optional == true }}
+    permissions:
+      contents: read
+      # Both are for the provenance attestation below, and for nothing else. `id-token` mints the
+      # short-lived OIDC token Sigstore signs against; neither can touch the repository.
+      id-token: write
+      attestations: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # ubuntu-22.04 rather than -latest on purpose: the glibc a binary is *linked* against is
+          # a floor on the systems it runs on, and 24.04's 2.39 would exclude every stable distro
+          # older than itself. 22.04 gives 2.35.
+          - name: linux-x86_64
+            os: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            archive: tar.gz
+          - name: linux-aarch64
+            os: ubuntu-22.04-arm
+            target: aarch64-unknown-linux-gnu
+            archive: tar.gz
+          - name: linux-x86_64-musl
+            os: ubuntu-22.04
+            target: x86_64-unknown-linux-musl
+            archive: tar.gz
+            musl: true
+            optional: true
+          - name: windows-x86_64
+            os: windows-latest
+            target: x86_64-pc-windows-msvc
+            archive: zip
+          - name: windows-aarch64
+            os: windows-11-arm
+            target: aarch64-pc-windows-msvc
+            archive: zip
+            optional: true
+          - name: macos-aarch64
+            os: macos-latest
+            target: aarch64-apple-darwin
+            archive: tar.gz
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version-file: package.json
+      - name: Install tool dependencies
+        run: bun install --frozen-lockfile
+
+      # rust-toolchain.toml pins the version, the components and the targets, and a bare
+      # `rustup toolchain install` installs exactly what it names. The release target below
+      # is added on top, because it is a matrix value the file cannot know.
+      - name: Install toolchain
+        run: rustup toolchain install --no-self-update
+
+      - name: Add the release target
+        shell: bash
+        env:
+          TARGET: ${{ matrix.target }}
+        run: rustup target add "$TARGET"
+
+      # `ring` and `zstd-sys` compile C, and the musl target has no C toolchain on the image.
+      - name: musl C toolchain
+        if: matrix.musl
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends musl-tools
+
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          key: release-${{ matrix.name }}
+
+      # Before the manifests move, so the *committed* lock is what gets fetched and the build
+      # below can run `--offline`. A release must not resolve a dependency version nobody
+      # reviewed; dependency moves are a human's pass, per docs/agent/dependency-update.md.
+      - name: Fetch dependencies against the committed lock
+        run: cargo fetch --locked
+
+      # In this working copy only. Nothing is committed here — see the header.
+      - name: Set the version being released
+        shell: bash
+        env:
+          VERSION: ${{ needs.plan.outputs.version }}
+        run: bun nv release --apply "$VERSION" --manifests-only
+
+      - name: Build
+        shell: bash
+        env:
+          TARGET: ${{ matrix.target }}
+          CC_x86_64_unknown_linux_musl: musl-gcc
+        run: cargo build --release --locked --offline -p nvs-cli --target "$TARGET"
+
+      - name: Package
+        shell: bash
+        env:
+          VERSION: ${{ needs.plan.outputs.version }}
+          TARGET: ${{ matrix.target }}
+          NAME: ${{ matrix.name }}
+          ARCHIVE: ${{ matrix.archive }}
+        run: |
+          bun nv release --package \
+            --version "$VERSION" --target "$TARGET" --name "$NAME" \
+            --archive "$ARCHIVE" --out dist
+
+      # Signs a statement that *this* runner, from *this* commit, produced these bytes. Keyless:
+      # the signing identity is the run's OIDC token, so there is no key to store or leak, and
+      # `gh attestation verify` checks it against Sigstore's public log.
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4
+        with:
+          subject-path: dist/nvs-*.${{ matrix.archive }}
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: dist-${{ matrix.name }}
+          path: dist/
+          if-no-files-found: error
+          retention-days: 7
+
+  # ---------------------------------------------------------------------------
+  # 4. The only job that writes anything: bump, changelog, commit, tag, draft.
+  #
+  # Gated on the `release` environment, so the tag and the push wait for a human click after the
+  # binaries are green — the last point at which a release can still be called off for free.
+  # ---------------------------------------------------------------------------
+  publish:
+    name: tag, changelog and draft release
+    needs: [plan, test, build]
+    if: ${{ !inputs.dry_run }}
+    runs-on: ubuntu-latest
+    environment: release
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+          ref: main
+          # The one checkout that keeps the token: this job pushes.
+          persist-credentials: true
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version-file: package.json
+      - name: Install tool dependencies
+        run: bun install --frozen-lockfile
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          pattern: dist-*
+          merge-multiple: true
+          path: dist
+
+      # `build` may lose an optional leg without failing (see its comment), so the release would
+      # otherwise ship quietly incomplete. Required targets are checked by name here instead.
+      - name: Every required archive arrived
+        shell: bash
+        run: |
+          set -euo pipefail
+          required="linux-x86_64 linux-aarch64 windows-x86_64 macos-aarch64"
+          missing=""
+          for target in $required; do
+            ls dist/nvs-*-"$target".* >/dev/null 2>&1 || missing="$missing $target"
+          done
+          if [ -n "$missing" ]; then
+            echo "::error::required build(s) missing:$missing" >&2
+            exit 1
+          fi
+          ls -la dist/
+
+      # The tip may have moved while the matrix built — `main` takes commits from an unattended
+      # loop. Rebasing is not enough: the notes must describe what is
+      # actually being tagged, so they are re-rendered here rather than carried from `plan`.
+      - name: Take the current tip of main
+        run: |
+          set -euo pipefail
+          git fetch origin main --tags
+          git reset --hard origin/main
+
+      - name: Render the notes for what is actually being released
+        env:
+          VERSION: ${{ needs.plan.outputs.version }}
+        run: bun nv release --notes "$VERSION" --out "$RUNNER_TEMP/notes.md"
+
+      - name: Bump the manifests and prepend the changelog
+        env:
+          VERSION: ${{ needs.plan.outputs.version }}
+        run: bun nv release --apply "$VERSION" --notes-file "$RUNNER_TEMP/notes.md"
+
+      - name: Commit and tag
+        env:
+          VERSION: ${{ needs.plan.outputs.version }}
+          TAG: ${{ needs.plan.outputs.tag }}
+        run: |
+          set -euo pipefail
+          git config user.name  'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          # Named files, never `git add -A`: a runner's working tree also holds dist/ and
+          # whatever a build script dropped, and a release commit contains three files.
+          git add Cargo.toml Cargo.lock CHANGELOG.md
+          # Written to a file and passed with -F. The subject follows
+          # docs/agent/conventions.md, and the commit-msg hook rejects trailers — there are none.
+          printf '%s\n' \
+            "chore(release): the workspace is at $VERSION, and the changelog carries its section" \
+            "" \
+            "Cut by .github/workflows/release.yml after the full suite and every release binary" \
+            "were green. The version scheme is" \
+            "rule:packaging/below-1-0-the-breaking-slot-moves-left, and the notes are rendered" \
+            "from the commit log by bun nv release." > "$RUNNER_TEMP/msg"
+          git commit -F "$RUNNER_TEMP/msg"
+          git tag -a "$TAG" -m "Novis $VERSION"
+          # --atomic: the commit and the tag land together or neither does. Without it a push
+          # that half-succeeds leaves a tag pointing at a commit the branch does not have.
+          git push --atomic origin main "refs/tags/$TAG"
+
+      - name: Checksums
+        working-directory: dist
+        run: |
+          set -euo pipefail
+          rm -f ./*.sha256
+          sha256sum nvs-* > SHA256SUMS
+          cat SHA256SUMS
+
+      - name: Draft the release
+        env:
+          # The per-run token, reaching `gh` through the environment and never through the
+          # command line — an argument is visible in the process list to anything on the runner.
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ needs.plan.outputs.version }}
+          TAG: ${{ needs.plan.outputs.tag }}
+        run: |
+          set -euo pipefail
+          # --draft: nothing is announced by this workflow. Someone reads the notes, checks the
+          # binaries and presses publish. --verify-tag refuses to invent a tag if the push above
+          # somehow did not land.
+          gh release create "$TAG" \
+            --draft \
+            --verify-tag \
+            --title "Novis $VERSION" \
+            --notes-file "$RUNNER_TEMP/notes.md" \
+            dist/SHA256SUMS dist/nvs-*
+          echo "### Draft release \`$TAG\` is ready to review" >> "$GITHUB_STEP_SUMMARY"
+          gh release view "$TAG" --json url --jq .url >> "$GITHUB_STEP_SUMMARY"
+
+  # ---------------------------------------------------------------------------
+  # 5. The container images, from the binaries `build` already produced.
+  #
+  # Only the *immutable* tags are pushed here — `X.Y.Z` and `sha-<short>`. `latest` and the
+  # `MAJOR.MINOR` line are moved by release-promote.yml when a human publishes the draft: until
+  # that click nobody can read this version's notes, and a `latest` resolving to a release with
+  # no readable notes is worse than a `latest` one release behind.
+  #
+  # No `environment:` on this job. `publish` above already took the human click, and a second
+  # gate here would ask for approval in the middle of a run that is already committed — the tag
+  # is pushed by then, so there would be nothing left to approve.
+  #
+  # Each variant is built for amd64 first and run through `tests/docker/smoke.sh`, and nothing is
+  # pushed unless that passes. A dry run has no `publish`, so it runs this job up to and including
+  # the smoke test and stops there: it logs in nowhere, pushes nothing and signs nothing.
+  # ---------------------------------------------------------------------------
+  docker:
+    name: container images (${{ matrix.variant }})
+    needs: [plan, build, publish]
+    if: ${{ !cancelled() && needs.build.result == 'success' && (inputs.dry_run || needs.publish.result == 'success') }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # Writes to ghcr.io and to nothing else — narrower than it looks, since the commit and tag
+      # are already pushed by `publish` and this job cannot write to the repository at all.
+      packages: write
+      # The attestation, as for the archives: one `gh attestation verify` verb covers both.
+      id-token: write
+      attestations: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # The default tag: no shell, no package manager, nonroot. `docker/Dockerfile` owns why
+          # `cc` and not `base` or `static`.
+          - variant: distroless
+          # `:X.Y.Z-debian` — the same binary, in an image you can get inside.
+          - variant: debian
+    steps:
+      # At the tag, not at `main`: `main` takes commits from an unattended loop and may be
+      # several past the release by now. The Dockerfile and the tag
+      # arithmetic must both be the ones this version was cut from. A dry run made no tag, so it
+      # checks out the commit it was dispatched at, which is the one `build` compiled.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ inputs.dry_run && github.sha || needs.plan.outputs.tag }}
+          # `--docker-tags` reads `git rev-parse` and the tag list, so the history has to be here.
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version-file: package.json
+      - name: Install tool dependencies
+        run: bun install --frozen-lockfile
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          pattern: dist-linux-*
+          merge-multiple: true
+          path: dist
+
+      # The build context is `docker/`, and this fills `bin/` in it. Unpacking the published
+      # archive rather than rebuilding is the entire point of the job: `gh attestation verify`
+      # on the tarball and on the image are then two statements about the same bytes.
+      #
+      # `linux-x86_64`/`linux-aarch64` are this repository's platform names and `amd64`/`arm64`
+      # are what BuildKit calls the same two things in `TARGETARCH`. The rename happens here,
+      # once, rather than being a second naming scheme the Dockerfile has to know about.
+      - name: Stage the release binaries
+        shell: bash
+        env:
+          VERSION: ${{ needs.plan.outputs.version }}
+        run: |
+          set -euo pipefail
+          mkdir -p docker/bin/notices
+          for pair in "linux-x86_64:amd64" "linux-aarch64:arm64"; do
+            ours="${pair%%:*}"
+            theirs="${pair##*:}"
+            archive="dist/nvs-$VERSION-$ours.tar.gz"
+            test -f "$archive" || { echo "::error::$archive is missing" >&2; exit 1; }
+            mkdir -p "docker/bin/$theirs"
+            tar -xzf "$archive" -C "docker/bin/$theirs" --strip-components=1
+            # The notices every distribution carries
+            # (`rule:packaging/the-third-party-notice-is-generated-never-written-by-hand`). Both archives hold identical
+            # copies, so they are moved aside into one directory and the last writer wins.
+            for notice in LICENSE THIRD-PARTY-LICENSES.txt README.md CHANGELOG.md; do
+              mv "docker/bin/$theirs/$notice" docker/bin/notices/
+            done
+            test -x "docker/bin/$theirs/nvs"
+          done
+          find docker/bin -type f | sort
+
+      # Only the `debian` stage's one `RUN` executes anything, and only for the foreign
+      # architecture. The distroless stage copies and nothing else, so it builds for both at
+      # native speed whether this is here or not.
+      - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4
+        with:
+          platforms: arm64
+
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
+
+      # The amd64 image alone, loaded into this runner's Docker under a local name, so the smoke
+      # test runs the same Dockerfile stage and the same binary the push below publishes. The push
+      # builds it again from the builder's cache.
+      - name: Build the amd64 image for the smoke test
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
+        with:
+          context: docker
+          file: docker/Dockerfile
+          target: ${{ matrix.variant }}
+          platforms: linux/amd64
+          load: true
+          tags: novis-smoke:${{ matrix.variant }}
+          provenance: false
+
+      - name: Smoke test
+        shell: bash
+        env:
+          VARIANT: ${{ matrix.variant }}
+        run: bash tests/docker/smoke.sh "novis-smoke:$VARIANT"
+
+      # The per-run token again, and the only registry authentication in this repository. No PAT:
+      # `GITHUB_TOKEN` can write packages owned by this repository's owner, so there is no
+      # long-lived registry credential to store, rotate or leak.
+      - if: ${{ !inputs.dry_run }}
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Labels only — its `tags` output is deliberately unused. This action's `type=semver`
+      # implements SemVer, and under `rule:packaging/below-1-0-the-breaking-slot-moves-left` that would emit a bare `0` tag that follows
+      # 0.0 → 0.1 across a breaking change. Labels have no such problem, and deriving them from
+      # the repository is what keeps the source URL correct across the move to `novis-lang/novis`.
+      - id: meta
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6
+        with:
+          images: ghcr.io/${{ github.repository }}
+          labels: |
+            org.opencontainers.image.title=Novis
+            org.opencontainers.image.version=${{ needs.plan.outputs.version }}
+            org.opencontainers.image.documentation=${{ github.server_url }}/${{ github.repository }}/blob/${{ needs.plan.outputs.tag }}/docs/docker.md
+
+      - id: tags
+        if: ${{ !inputs.dry_run }}
+        name: The tags this variant claims
+        shell: bash
+        env:
+          IMAGE: ghcr.io/${{ github.repository }}
+          VERSION: ${{ needs.plan.outputs.version }}
+          VARIANT: ${{ matrix.variant }}
+        run: |
+          bun nv release --docker-tags "$VERSION" \
+            --image "$IMAGE" --variant "$VARIANT" --github-output
+
+      - id: build
+        if: ${{ !inputs.dry_run }}
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
+        with:
+          context: docker
+          file: docker/Dockerfile
+          target: ${{ matrix.variant }}
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.tags.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          # BuildKit's own provenance is off and its SBOM is on, deliberately. Two provenance
+          # statements about one digest, made by different mechanisms, are two things to keep
+          # true and one more way to disagree; `attest-build-provenance` below is the one this
+          # project already verifies binaries with. An SBOM competes with nothing.
+          provenance: false
+          sbom: true
+
+      # The image digest, signed the same keyless way the archives are:
+      #     gh attestation verify oci://ghcr.io/novis-lang/novis:0.1.0 --repo novis-lang/novis
+      # `push-to-registry` stores it beside the image as an OCI referrer, so it travels with the
+      # image instead of being something a user has to know to go and look up.
+      - if: ${{ !inputs.dry_run }}
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4
+        with:
+          subject-name: ghcr.io/${{ github.repository }}
+          subject-digest: ${{ steps.build.outputs.digest }}
+          push-to-registry: true
+
+      - name: Summary
+        if: ${{ !inputs.dry_run }}
+        shell: bash
+        env:
+          TAGS: ${{ steps.tags.outputs.tags }}
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          set -euo pipefail
+          {
+            echo "### Pushed \`$DIGEST\`"
+            echo '```'
+            echo "$TAGS"
+            echo '```'
+            echo "\`latest\` moves when the draft is published — see release-promote.yml."
+          } >> "$GITHUB_STEP_SUMMARY"

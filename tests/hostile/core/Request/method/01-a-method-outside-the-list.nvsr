@@ -1,0 +1,8 @@
+--METHOD--
+CONNECT
+--PATH--
+/
+--HEADERS--
+host: example.com
+x-http-method-override: GET
+x-method-override: GET

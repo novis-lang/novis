@@ -1,0 +1,4 @@
+receipt.pdf: kept (application/pdf)
+logo.png: kept (image/png)
+notes.txt: refused (application/octet-stream)
+setup.png: refused (application/zip)

@@ -1,0 +1,6 @@
+--METHOD--
+POST
+--PATH--
+/newsletter
+--HEADERS--
+host: www.example.com

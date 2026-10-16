@@ -1,0 +1,176 @@
+---
+/**
+ * The tool-owned body of a Core class page: what the spec says about the
+ * class, the member table, enums, shape types and constants. Renders from
+ * src/data/core.json, which holds implemented members only. An enum with a
+ * Types page links to it. `apps` are the example app pages that show the
+ * class (src/lib/example-apps.ts), listed under "Example apps".
+ */
+import { findClass, shapeAnchor, typeLink } from '~/lib/core'
+import type { ExampleApp } from '~/lib/example-apps'
+import { shapeLines } from '~/lib/shape'
+
+interface Props {
+  id: string
+  apps: ExampleApp[]
+}
+
+const { id, apps } = Astro.props
+const cls = findClass(id)
+if (!cls) throw new Error(`ClassOverview: unknown class id "${id}" — run \`npm run sync:render\`?`)
+
+const clsExtra = cls as typeof cls & { summaryHtml?: string; surfaceHtml?: string }
+
+/** The enum's own Types page, or `null` when this page's `#enums` section is all there is. */
+const enumPage = (name: string) => {
+  const url = typeLink(name, cls.name)
+  return url && !url.endsWith('#enums') ? url : null
+}
+---
+
+<div class="class-overview">
+  {clsExtra.summaryHtml && <div class="class-summary" set:html={clsExtra.summaryHtml} />}
+  {!clsExtra.summaryHtml && clsExtra.surfaceHtml && <p class="class-summary" set:html={clsExtra.surfaceHtml} />}
+
+  {
+    cls.members.length > 0 && (
+      <>
+        <h2 id="members">Members</h2>
+        <p class="class-member-count">
+          {cls.members.length} member{cls.members.length === 1 ? '' : 's'}.
+        </p>
+        <div class="class-member-table-wrapper">
+          <table class="class-member-table">
+            <thead>
+              <tr>
+                <th scope="col">Member</th>
+                <th scope="col">Signature</th>
+              </tr>
+            </thead>
+            <tbody>
+              {cls.members.map((m) => (
+                <tr>
+                  <td>
+                    <a href={m.url}>
+                      <code>{m.name}</code>
+                    </a>
+                  </td>
+                  <td>
+                    <code class="class-member-sig">{m.signature}</code>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </>
+    )
+  }
+
+  {
+    cls.enums.length > 0 && (
+      <>
+        <h2 id="enums">Enums</h2>
+        <ul class="nv-param-docs">
+          {cls.enums.map((e) => (
+            <li>
+              <span class="nv-param-head">
+                {enumPage(e.name) ? (
+                  <a href={enumPage(e.name)}>
+                    <code class="nv-param-name">{e.raw}</code>
+                  </a>
+                ) : (
+                  <code class="nv-param-name">{e.raw}</code>
+                )}
+              </span>
+              {e.doc?.shortHtml && <span class="nv-param-desc" set:html={e.doc.shortHtml} />}
+              {e.doc?.cases && e.doc.cases.length > 0 && (
+                <ul>
+                  {e.doc.cases.map((c) => (
+                    <li>
+                      <span class="nv-param-head">
+                        <code class="nv-param-name">{c.name}</code>
+                      </span>
+                      {c.descHtml && <span class="nv-param-desc" set:html={c.descHtml} />}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </li>
+          ))}
+        </ul>
+      </>
+    )
+  }
+
+  {
+    cls.types.length > 0 && (
+      <>
+        <h2 id="types">Shape types</h2>
+        {cls.types.map((t) => (
+          <>
+            <h3 id={shapeAnchor(t.name)}>
+              <code>{t.name}</code>
+            </h3>
+            <div class="method-signature shape-type not-content">
+              <div class="method-signature-decl-row">
+                <pre class="method-signature-decl"><code>{shapeLines(t.name, t.type, cls.name).map((html) => <span class="sig-line"><span class="sig-code" set:html={html} /><span class="sig-comment" /></span>)}</code></pre>
+              </div>
+            </div>
+          </>
+        ))}
+      </>
+    )
+  }
+
+  {
+    cls.constants.length > 0 && (
+      <>
+        <h2 id="constants">Constants</h2>
+        <ul class="nv-param-docs">
+          {cls.constants.map((c) => (
+            <li>
+              <span class="nv-param-head">
+                <code class="nv-param-name">
+                  {cls.name}::{c.name}
+                </code>
+              </span>
+              {c.descHtml && <span class="nv-param-desc" set:html={c.descHtml} />}
+            </li>
+          ))}
+        </ul>
+      </>
+    )
+  }
+
+  {
+    apps.length > 0 && (
+      <>
+        <h2 id="example-apps">Example apps</h2>
+        <p>These complete apps use this class. You can download and run each one.</p>
+        <ul>
+          {apps.map((app) => (
+            <li>
+              <a href={app.url}>{app.title}</a>: {app.description}
+            </li>
+          ))}
+        </ul>
+      </>
+    )
+  }
+
+  {
+    cls.unparsed.length > 0 && (
+      <>
+        <h2 id="further-members">Stated in the spec, not yet extracted</h2>
+        <ul>
+          {cls.unparsed.map((u) => (
+            <li>
+              <code>{u.memberCell}</code> — {u.signatureCell}
+            </li>
+          ))}
+        </ul>
+      </>
+    )
+  }
+</div>

@@ -1,0 +1,18 @@
+<?nvs
+// Shows how to read every sheet of a workbook, one after another.
+use Novis\Spreadsheet\Reader;
+use Novis\Spreadsheet\Workbook;
+
+var $book = Workbook::createInMemory();
+$book->sheet('North')->addAll([['Shop', 'Sales'], ['North 1', 120], ['North 2', 80]]);
+$book->sheet('South')->addAll([['Shop', 'Sales'], ['South 1', 200]]);
+var $reader = Reader::open($book->finish()->bytes ?? Core\Bytes::fill(0, 0));
+
+// `rows` takes the position of the sheet, so the loop does not need to know the names.
+foreach ($reader->sheets() as var $info) {
+    int $total = 0;
+    foreach ($reader->rows($info->position as int, { header: true }) as var $row) {
+        $total += $row->values['Sales'] as int;
+    }
+    echo $info->name, ' sold ', $total, "\n";
+}

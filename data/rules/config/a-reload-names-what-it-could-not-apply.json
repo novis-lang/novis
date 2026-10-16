@@ -1,0 +1,15 @@
+{
+  "title": "A reload reports what it applied, names every changed `Boot` key it could not apply, and counts the units it invalidated",
+  "status": "shipped",
+  "seeAlso": [
+    "config/reloadability-is-its-own-field",
+    "config/the-config-is-an-immutable-snapshot",
+    "packaging/a-service-answers-its-manager"
+  ],
+  "guardedBy": [
+    "crates/nvs-config/src/reload.rs",
+    "crates/nvs-cli/src/reload.rs",
+    "crates/nvs-config/tests/snapshot.rs",
+    "crates/nvs-cli/tests/live_config.rs"
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "title": "A job between attempts is `Pending`, and there is no `Failed` state to ask about",
+  "status": "shipped",
+  "seeAlso": [
+    "enums/closed-integer-type",
+    "concurrency/attempts-are-finite-and-a-dead-letter-is-kept"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/queue-state-is-its-own-closed-type.nvst",
+    "tests/conformance/core/queue-status-answers-a-state-and-not-a-number.nvst"
+  ]
+}

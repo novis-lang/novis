@@ -1,0 +1,36 @@
+--TEST--
+A `?T` parameter of a `Core` member takes the mark its row gives `T`, so a `tainted` argument reaches `Core\Session::start` and `Core\Path::withExtension` -- `rule:security/unclassified-parameter-refuses-tainted`
+--GET--
+under=a-request
+--FILE--
+<?nvs
+// covers: Core\Session::start
+// `start(?tainted string $presented = null)` admits a `tainted` identifier: a
+// client that sends it in a header hands the member what `Core\Request::header`
+// returns. A `?T` that dropped the mark would refuse both calls at compile time.
+tainted string $presented = "PmA5tKz1QvR3sYbNqLwXe2";
+uint $reached = 0;
+try {
+    Core\Session::start($presented);
+} catch (RuntimeError $unconfigured) {
+    if (Core\Str::contains($unconfigured->message, "[session] backend")) {
+        $reached = $reached + 1;
+    }
+}
+try {
+    Core\Session::start(Core\Request::header("X-Session"));
+} catch (RuntimeError $unconfigured) {
+    if (Core\Str::contains($unconfigured->message, "[session] backend")) {
+        $reached = $reached + 1;
+    }
+}
+echo "a tainted identifier reached the store question ", $reached, " of 2\n";
+
+// `withExtension`'s `?string $extension` is contagious, so the mark travels to
+// the result and a `tainted string` variable is where it has to go.
+tainted string $extension = "csv";
+tainted string $renamed = Core\Path::withExtension("report.txt", $extension);
+echo "renamed: ", Core\Str::length($renamed), " characters\n";
+--EXPECT--
+a tainted identifier reached the store question 2 of 2
+renamed: 10 characters

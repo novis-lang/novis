@@ -1,0 +1,12 @@
+<?nvs
+// Shows how to collect every tag, such as "#release", from a message.
+
+string $message = "Shipped #release 2.4 to #staging, see #release notes.";
+
+// `matchAll` returns every match. `text()` gives the tag of each one.
+array<string> $tags = [];
+foreach (Core\Regex::matchAll($message, '#\w+') as Core\Regex\Match $m) {
+    $tags[] = $m->text();
+}
+// This prints "#release, #staging, #release".
+echo Core\Str::join($tags, ", "), "\n";

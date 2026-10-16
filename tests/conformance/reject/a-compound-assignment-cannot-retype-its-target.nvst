@@ -1,0 +1,15 @@
+--TEST--
+`$i .= "x"` is the `$i = $i . "x"` it means, so its `string` result is refused by an `int` target — `rule:types/var-inference`
+--FILE--
+<?nvs
+int $i = 3;
+$i .= "x";
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `int`, found `string`
+  --> case.nvs:3:1
+%A
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

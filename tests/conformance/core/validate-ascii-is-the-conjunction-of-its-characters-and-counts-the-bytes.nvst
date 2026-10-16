@@ -1,0 +1,126 @@
+--TEST--
+`Core\Validate::isAscii` over a whole string is the conjunction of its answer over each of that string's code points, and is true exactly where the byte count equals the code-point count — both counted over one sweep, and both independent of where in the subject the offending character sits — docs/spec/01-core-library.md § 12
+
+--FILE--
+<?nvs
+// `crates/nvs-stdlib/src/validate.rs`'s module doc calls `isAscii` "a byte scan
+// with no decoding at all", and `validate-ascii-and-printable-name-their-own-bounds.nvst`
+// pins where that scan's line falls on a *single* code point (`DEL` accepted,
+// `U+0080` refused). What no case asks is the property that makes it a scan
+// rather than a look: over a whole string the answer must be the conjunction of
+// the answers over its parts, at every length and at every position.
+//
+// Two independent statements of the same thing are asserted here by counting,
+// so a member that read only the first character, only the first byte, or
+// stopped at the first multi-byte sequence still answers plausibly on any one
+// line and fails the totals.
+final class Ascii {
+    public static function yn(bool $b): string {
+        return $b ? "y" : "n";
+    }
+
+    // The conjunction, computed one code point at a time. `Core\Str::codePoints`
+    // answers an `array<uint>` and `fromCodePoint` takes one, so a character is
+    // round-tripped through the pair rather than sliced out by offset.
+    public static function everyCharIsAscii(string $s): bool {
+        bool $all = true;
+        foreach (Core\Str::codePoints($s) as uint $c) {
+            if (!Core\Validate::isAscii(Core\Str::fromCodePoint($c))) {
+                $all = false;
+            }
+        }
+        return $all;
+    }
+
+    // ASCII is the one encoding where UTF-8 spends exactly one byte per code
+    // point, so this equality *is* `isAscii`, arrived at without asking it.
+    public static function isOneBytePerChar(string $s): bool {
+        return Core\Bytes::length($s as bytes) == Core\Str::length($s);
+    }
+}
+
+// Sixteen subjects: empty, pure ASCII of three lengths, the two bounds as
+// single characters, and ten mixtures that place a non-ASCII character first,
+// last and in the middle of otherwise-ASCII text. The empty string is the first
+// row for a reason — the module doc records it answering `true` where every
+// `ctype_*` answers `false`, and under this case's reading that is not a
+// special case at all but the conjunction's identity over no characters.
+array<string> $rows = [
+    "",
+    "a",
+    "abc",
+    "0123456789 ~!",
+    "\x7f",
+    "\u{80}",
+    "é",
+    "aé",
+    "éa",
+    "aéb",
+    "aaaaaaaaé",
+    "éaaaaaaaa",
+    "aaaaéaaaa",
+    "日本",
+    "a日b",
+    "aaa\u{80}",
+];
+
+// Every subject answered three ways. The two counts are the assertion: all 16
+// agree with the conjunction, and all 16 agree with the byte/character
+// equality. Either count landing below 16 names a subject the scan did not
+// reach the end of.
+int $conjunction = 0;
+int $byteCount = 0;
+string $answers = "";
+foreach ($rows as string $s) {
+    bool $whole = Core\Validate::isAscii($s);
+    if ($whole == Ascii::everyCharIsAscii($s)) {
+        $conjunction = $conjunction + 1;
+    }
+    if ($whole == Ascii::isOneBytePerChar($s)) {
+        $byteCount = $byteCount + 1;
+    }
+    $answers = $answers . Ascii::yn($whole);
+}
+echo "answers ", $answers, "\n";
+echo "agree ", $conjunction as string, "|", $byteCount as string, "\n";
+
+// Position stated once more on its own, because the sweep above proves the
+// agreement rather than the direction: one `U+0080` anywhere in a run of eight
+// ASCII characters is refused wherever it sits, and the run without it is
+// accepted. A member scanning a fixed prefix passes exactly the last of these.
+echo "position ",
+     Ascii::yn(Core\Validate::isAscii("aaaaaaaa")),
+     Ascii::yn(Core\Validate::isAscii("\u{80}aaaaaaa")),
+     Ascii::yn(Core\Validate::isAscii("aaaa\u{80}aaa")),
+     Ascii::yn(Core\Validate::isAscii("aaaaaaa\u{80}")),
+     "\n";
+
+// The same property from the other end: a subject grown one ASCII character at
+// a time stays ASCII for as long as it is grown, and the moment a non-ASCII
+// character is appended it never becomes ASCII again however much ASCII
+// follows. Two runs of a hundred, counted.
+int $stillAscii = 0;
+string $grown = "";
+int $i = 0;
+for (; $i < 100; $i = $i + 1) {
+    $grown = $grown . "a";
+    if (Core\Validate::isAscii($grown)) {
+        $stillAscii = $stillAscii + 1;
+    }
+}
+
+int $stillRefused = 0;
+string $tainted = "é";
+int $j = 0;
+for (; $j < 100; $j = $j + 1) {
+    $tainted = $tainted . "a";
+    if (!Core\Validate::isAscii($tainted)) {
+        $stillRefused = $stillRefused + 1;
+    }
+}
+echo "runs ", $stillAscii as string, "|", $stillRefused as string, "\n";
+--EXPECT--
+answers yyyyynnnnnnnnnnn
+agree 16|16
+position ynnn
+runs 100|100

@@ -1,0 +1,13 @@
+<?nvs
+// Shows how to print the names of the properties of a class.
+
+class Customer {
+    public string $email = "ada@example.com";
+    public int $orders = 3;
+    private string $password = "secret";
+}
+
+// This prints `email`, `orders` and `password`, in the order the class declares them.
+foreach (Core\Reflect::forObject(new Customer())->properties() as Core\Reflect\PropertyInfo $property) {
+    echo $property->name(), "\n";
+}

@@ -1,0 +1,31 @@
+<?nvs
+// Shows how to find calls to deprecated code while you test a program.
+
+class Cart {
+    #[Core\Deprecated(since: "2.0", replace: 'Cart::total($prices)')]
+    public static function sum(array<int> $prices): int {
+        return Cart::total($prices);
+    }
+
+    public static function total(array<int> $prices): int {
+        int $result = 0;
+        foreach ($prices as int $price) {
+            $result = $result + $price;
+        }
+        return $result;
+    }
+}
+
+// The setting is `ignore` here, so the old method runs. This prints 12.
+echo Cart::sum([5, 7]), "\n";
+
+// With `throw`, each use of deprecated code throws `Core\DeprecatedError`.
+Core\Config::set('errors.deprecated', 'throw');
+try {
+    echo Cart::sum([5, 7]), "\n";
+} catch (Core\DeprecatedError $old) {
+    echo $old->message, "\n";
+}
+
+// `total` is not deprecated, so it still runs. This prints 12.
+echo Cart::total([5, 7]), "\n";

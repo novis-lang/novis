@@ -1,0 +1,50 @@
+<?nvs
+// Attack: a request formats very many times of day, the edges of the day, odd number systems
+// and broken locale tags. Each call should return a list or throw an error.
+// hostile: timeout-ms 20000
+use Novis\Intl\DateFormat;
+
+// 1. An empty list.
+try {
+    echo 'step 1 ran ', Core\Arr::count(DateFormat::times([], 'en')), "\n";
+} catch (Throwable $e) {
+    echo "step 1 stopped\n";
+}
+
+// 2. Every minute of a day, about fourteen times over, in one call.
+try {
+    array<Core\Time\TimeOfDay> $times = [];
+    for (uint $i = 0; $i < 20000; $i++) {
+        $times[] = Core\Time\TimeOfDay::at($i % 24, $i % 60, { second: $i % 60 });
+    }
+    echo 'step 2 ran ', Core\Arr::count(DateFormat::times($times, 'en-US', { seconds: true })), "\n";
+} catch (Throwable $e) {
+    echo "step 2 stopped\n";
+}
+
+// 3. Midnight and the last second of the day, with Arabic digits and a forced 12-hour clock.
+try {
+    array<Core\Time\TimeOfDay> $edges = [Core\Time\TimeOfDay::at(0, 0), Core\Time\TimeOfDay::at(23, 59, { second: 59 })];
+    echo 'step 3 ran ', Core\Arr::count(DateFormat::times($edges, 'ar-u-nu-arab-hc-h12', { seconds: true })), "\n";
+} catch (Throwable $e) {
+    echo "step 3 stopped\n";
+}
+
+// 4. A locale tag of ten thousand characters.
+try {
+    DateFormat::times([Core\Time\TimeOfDay::at(9, 0)], 'en' . Core\Str::repeat('-abcdefgh', 1000));
+    echo "step 4 ran\n";
+} catch (Throwable $e) {
+    echo "step 4 stopped\n";
+}
+
+// 5. A bad locale tag a thousand times. Each call must still return or throw.
+uint $stopped = 0;
+for (int $j = 0; $j < 1000; $j++) {
+    try {
+        DateFormat::times([Core\Time\TimeOfDay::at(9, 0)], '--');
+    } catch (Throwable $e) {
+        $stopped = $stopped + 1;
+    }
+}
+echo 'step 5 stopped ', $stopped, "\n";

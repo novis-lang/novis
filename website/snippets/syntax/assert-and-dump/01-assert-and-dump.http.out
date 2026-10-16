@@ -1,0 +1,9 @@
+flag should be set: Core\Test::assertTrue failed: `$actual` is false
+Point#1 (2) {
+  $x =&gt; int(1)
+  $y =&gt; int(2)
+}
+array(2) [
+  &quot;a&quot; =&gt; bool(true)
+  &quot;b&quot; =&gt; string(8) &quot;tab\there&quot;
+]

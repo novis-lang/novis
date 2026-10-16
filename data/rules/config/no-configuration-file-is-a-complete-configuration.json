@@ -1,0 +1,14 @@
+{
+  "title": "A host with no configuration file runs on the shipped defaults, which are a complete configuration and not an error",
+  "status": "shipped",
+  "seeAlso": [
+    "config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults",
+    "config/ini-set-is-core-config-set",
+    "config/two-modes-and-the-default-is-production"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/config-unconfigured-host-answers-as-an-empty-configuration.nvst",
+    "crates/nvs-config/tests/resolve.rs",
+    "crates/nvs-runtime/tests/configured_limits.rs"
+  ]
+}

@@ -1,0 +1,32 @@
+<?nvs
+// Attack: a program reads very long DN text, and text that ends in the middle of an
+// escape. Each one should give a DN or throw an error, and the program must keep running.
+// hostile: timeout-ms 60000
+
+// 1. A DN with one hundred thousand parts.
+try {
+    var $deep = Core\Ldap\Dn::parse(Core\Str::repeat('OU=a,', 100000) . 'DC=test');
+    echo '1 length: ', Core\Str::length($deep->toString()), "\n";
+} catch (Throwable $error) {
+    echo "1 threw\n";
+}
+
+// 2. One value of one million escaped commas.
+try {
+    var $commas = Core\Ldap\Dn::parse('CN=' . Core\Str::repeat('\\,', 1000000));
+    echo '2 value length: ', Core\Str::length($commas->rdnValue()), "\n";
+} catch (Throwable $error) {
+    echo "2 threw\n";
+}
+
+// 3. Text that ends after a `\`, or in the middle of a hex escape.
+array<string> $broken = ['CN=a\\', 'CN=a\\4', 'CN=\\ff\\fe', 'CN=a,', ',', '=', '+'];
+uint $refused = 0;
+foreach ($broken as string $text) {
+    try {
+        Core\Ldap\Dn::parse($text);
+    } catch (LogicError $refusal) {
+        $refused = $refused + 1;
+    }
+}
+echo '3 refused: ', $refused, "\n";

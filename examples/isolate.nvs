@@ -1,0 +1,42 @@
+<?nvs
+// This program runs three other programs with `spawn script` and prints what each one gives back.
+// Each child runs in the same process, with its own memory and its own variables.
+// The children are in `examples/isolate/`. A path is read from the folder of this file.
+
+// `output: 'inherit'` makes the child write to this program's output directly.
+// `await` waits until the child has ended, so its line is printed before anything below it.
+var $hello = spawn script 'isolate/hello.nvs' with(
+    output: 'inherit',
+);
+var $greeting = await $hello;
+if ($greeting->ok) {
+    echo 'ok=true', "\n";
+} else {
+    echo 'ok=false', "\n";
+}
+
+// `output: 'capture'` — the same child machinery with the other sink. What
+// comes back is the child's bytes, and the parent decides where they go.
+var $capture = spawn script 'isolate/capture.nvs' with(
+    output: 'capture',
+);
+var $captured = await $capture;
+echo 'captured=', $captured->output, "\n";
+
+// Item 22: a child's uncaught throw is a *value* on this side. It does not
+// propagate as a throw — there is no `catch` around this call and none is
+// needed — because a child that fails may not be able to end its parent.
+// The same is true of a limit breach and of a panic inside the child.
+// That is the purpose of the boundary.
+var $bad = spawn script 'isolate/throws.nvs' with(
+    output: 'capture',
+);
+var $failed = await $bad;
+if ($failed->ok) {
+    echo 'ok=true', "\n";
+} else {
+    echo 'ok=false', "\n";
+}
+
+// And the line the three above are all in service of.
+echo 'parent still running', "\n";

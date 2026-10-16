@@ -1,0 +1,7 @@
+<?nvs
+// Shows how to find the people whose name starts with what somebody typed so far.
+
+string $typed = 'An';
+var $filter = Core\Ldap\Filter::startsWith('displayName', $typed);
+// This prints (displayName=An*).
+echo $filter->toString(), "\n";

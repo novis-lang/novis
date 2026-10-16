@@ -1,0 +1,114 @@
+--TEST--
+`Core\Db\Rows::column` answers one value per row in the rows' own order, agrees with itself whether the column is named or counted from zero, carries a NULL column as a present `null`, throws for the first position past the last column and for a name that is none, and answers an empty array for a result with no rows — `rule:core-classes/db-statement-members`
+--FILE--
+<?nvs
+// covers: Core\Db\Rows::column
+// One question asked of every column the statement described: the value read
+// by position is the value read by name. Counted rather than read off a line,
+// so a member that grew its own ordering fails here while every single lookup
+// still prints plausibly. The bound is then named on both sides, since a
+// member that stops one column early answers plausibly against either half
+// alone.
+use Core\Db\Row;
+
+var $db = Core\Db::connect("main");
+$db->execute(
+    "create table seatings (id integer primary key, seats int not null, label text not null,
+      missed int)",
+    []
+);
+$db->execute(
+    "insert into seatings (seats, label, missed) values (?, ?, ?), (?, ?, ?), (?, ?, ?)",
+    [4, "north", null, 2, "east", 5, 6, "south", null]
+);
+
+var $rows = $db->query("select seats, label, missed from seatings order by seats desc", []);
+
+array<Core\Db\Column> $described = $rows->columns();
+int $at = 0;
+uint $values = 0;
+uint $agreed = 0;
+foreach ($described as Core\Db\Column $column) {
+    array<mixed> $placed = $rows->column($at);
+    array<mixed> $named = $rows->column($column->name());
+    int $place = 0;
+    foreach ($placed as mixed $value) {
+        if ($value == $named[$place]) {
+            $agreed = $agreed + 1;
+        }
+        $place = $place + 1;
+    }
+    $values = $values + Core\Arr::count($placed);
+    $at = $at + 1;
+}
+echo "columns: ", Core\Arr::count($described), "\n";
+echo "values: ", $values, "\n";
+echo "position agrees with name: ", $agreed, "\n";
+
+// The order is the rows' own, so every entry agrees with the row at the same
+// place — which is the claim a list of values cannot carry on its own.
+array<mixed> $labels = $rows->column("label");
+array<Row> $all = $rows->all();
+$at = 0;
+uint $ordered = 0;
+foreach ($all as Row $row) {
+    if ($labels[$at] == $row->get("label")) {
+        $ordered = $ordered + 1;
+    }
+    $at = $at + 1;
+}
+echo "in the rows' order: ", $ordered, "\n";
+
+// A column with no value in a row is an entry that is present and holds
+// `null`, so the list is as long as the result whatever the rows carry.
+uint $nulls = 0;
+foreach ($rows->column("missed") as mixed $value) {
+    if ($value == null) {
+        $nulls = $nulls + 1;
+    }
+}
+echo "missed null: ", $nulls, "\n";
+
+// Position 2 is the last column the statement described and 3 is the first it
+// did not. A negative position and an unknown name are the same refusal.
+uint $last = Core\Arr::count($rows->column(2));
+uint $refused = 0;
+try {
+    $rows->column(3);
+} catch (LogicError $outside) {
+    $refused = $refused + 1;
+}
+try {
+    $rows->column(-1);
+} catch (LogicError $outside) {
+    $refused = $refused + 1;
+}
+try {
+    $rows->column("missing");
+} catch (LogicError $outside) {
+    $refused = $refused + 1;
+}
+echo "bound: ", $last, " ", $refused, "\n";
+
+// A result with no rows describes no column to be wrong about, so a name that
+// is none answers the empty array a name that is one answers.
+var $none = $db->query("select seats, label, missed from seatings where seats > ?", [1000]);
+echo "empty: ", Core\Arr::count($none->column("label")), " ",
+    Core\Arr::count($none->column("missing")), "\n";
+--FILE nvs.toml--
+# § 3: a SQLite connection's file path comes from its config block, so
+# `db.connect` covers it.
+[capabilities.db]
+connect = ["main"]
+
+[db.main]
+driver = "sqlite"
+path = ":memory:"
+--EXPECT--
+columns: 3
+values: 9
+position agrees with name: 9
+in the rows' order: 3
+missed null: 2
+bound: 3 3
+empty: 0 0

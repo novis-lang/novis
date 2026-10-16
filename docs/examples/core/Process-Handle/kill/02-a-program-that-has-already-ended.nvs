@@ -1,0 +1,14 @@
+<?nvs
+// Shows that `kill()` does nothing when the program has already ended.
+// requires: unix
+
+var $greeting = Core\Process::spawn("/bin/echo", ["hello"]);
+
+// `wait()` waits until `echo` ends. This prints `hello` and then `0`.
+var $result = $greeting->wait();
+echo $result->stdout() as string;
+echo $result->exitCode(), "\n";
+
+// The program has ended, so `kill()` has nothing to stop. It throws no error.
+$greeting->kill();
+echo "kill() did nothing\n";

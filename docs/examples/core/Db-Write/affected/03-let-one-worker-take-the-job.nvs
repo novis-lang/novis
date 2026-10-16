@@ -1,0 +1,26 @@
+<?nvs
+// Shows the work a program really does here: two workers try to take the same
+// job, and the count tells each of them whether it got it.
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table jobs (id integer primary key, taken boolean not null)', []);
+$db->execute('insert into jobs (taken) values (?)', [false]);
+
+class Worker {
+    // The statement takes the job only while nobody holds it. So the count is 1
+    // for the worker that got it, and 0 for every worker after that.
+    public static function take(Core\Db\Connection $db, int $job): bool
+    {
+        var $write = $db->execute(
+            'update jobs set taken = ? where id = ? and taken = ?',
+            [true, $job, false],
+        );
+        return $write->affected() == 1;
+    }
+}
+
+// This prints `first worker: yes` and `second worker: no`.
+echo 'first worker: ', Worker::take($db, 1) ? 'yes' : 'no', "\n";
+echo 'second worker: ', Worker::take($db, 1) ? 'yes' : 'no', "\n";
+
+$db->close();

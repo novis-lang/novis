@@ -1,0 +1,13 @@
+<?nvs
+// Shows which properties of a class are public.
+
+class Account {
+    public string $email = "ada@example.com";
+    protected int $loginCount = 4;
+    private string $passwordHash = "x9f2";
+}
+
+// This prints `email: yes`, `loginCount: no` and `passwordHash: no`.
+foreach (Core\Reflect::forObject(new Account())->properties() as Core\Reflect\PropertyInfo $property) {
+    echo $property->name(), ": ", $property->isPublic() ? "yes" : "no", "\n";
+}

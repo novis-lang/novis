@@ -1,0 +1,21 @@
+--TEST--
+PHP's `__construct` gets its own diagnostic naming `constructor`, rather than the generic camelCase one — `rule:classes/constructor-is-a-method-named-constructor`
+--FILE--
+<?nvs
+class Old {
+    public int $n = 0;
+
+    public function __construct(int $n) {
+        $this->n = $n;
+    }
+}
+echo "unreachable\n";
+// covers: lang:classes/declaring-a-class
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0114]: Novis's constructor is spelled `constructor`, not `__construct`
+  --> case.nvs:5:21
+%A
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

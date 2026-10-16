@@ -1,0 +1,11 @@
+{
+  "title": "`nvs new` writes an application that runs before it is edited",
+  "status": "designed",
+  "seeAlso": [
+    "programs/first-party-framework",
+    "programs/framework-web-package",
+    "programs/audience"
+  ],
+  "guardedBy": [],
+  "milestone": "M16"
+}

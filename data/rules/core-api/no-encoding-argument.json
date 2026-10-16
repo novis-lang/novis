@@ -1,0 +1,12 @@
+{
+  "title": "A `string` member never takes an encoding argument",
+  "status": "shipped",
+  "seeAlso": [
+    "types/string-is-utf8",
+    "types/bytes"
+  ],
+  "guardedBy": [
+    "crates/nvs-stdlib/src/encoding.rs",
+    "crates/nvs-stdlib/src/str.rs"
+  ]
+}

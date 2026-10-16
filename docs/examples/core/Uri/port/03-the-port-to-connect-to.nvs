@@ -1,0 +1,29 @@
+<?nvs
+// Shows how a program chooses the port it connects to, using the default port of the scheme.
+
+class Target {
+    public static function port(Core\Uri $uri): int {
+        ?int $written = $uri->port();
+        if ($written != null) {
+            return $written as int;
+        }
+        // No port is written, so the default port of the scheme is used.
+        if (Core\Str::lower($uri->scheme() ?? "") == "https") {
+            return 443;
+        }
+        return 80;
+    }
+}
+
+// In a real program, these addresses come from a configuration file.
+array<string> $services = [
+    "https://api.example.com/v1",
+    "http://cache.example.com/",
+    "https://search.example.com:9200/",
+];
+
+// This prints api.example.com:443, cache.example.com:80 and search.example.com:9200.
+foreach ($services as string $service) {
+    var $uri = Core\Uri::parse($service);
+    echo $uri->host(), ":", Target::port($uri), "\n";
+}

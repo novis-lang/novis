@@ -1,0 +1,18 @@
+<?nvs
+// Shows how to measure how long a piece of code takes.
+
+// Read the clock before and after the work.
+var $start = Core\Time::monotonic();
+int $sum = 0;
+int $i = 0;
+while ($i < 100000) {
+    $sum = $sum + $i;
+    $i = $i + 1;
+}
+var $end = Core\Time::monotonic();
+
+// `minus` gives the time between the two readings as a `Duration`.
+// The result changes on every run, so this prints only a check: "under 5 seconds".
+Core\Time\Duration $took = $end->minus($start);
+echo $sum, "\n";
+echo $took->toMilliseconds() < 5000 ? "under 5 seconds" : "slow", "\n";

@@ -1,0 +1,21 @@
+<?nvs
+// Shows how to say how many rows a search found. `count` returns the number of
+// rows the query answered.
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table guests (id integer primary key, name text not null, seats int not null)', []);
+$db->execute('insert into guests (name, seats) values (?, ?), (?, ?), (?, ?)', ['Ada Ahmed', 4, 'Bo Berg', 2, 'Cem Celik', 6]);
+
+var $found = $db->query('select name from guests where seats > ? order by name', [1]);
+
+// This prints `3 guests found`.
+echo $found->count(), " guests found\n";
+
+// Counting does not use the rows up. This prints the three names, and then `3`
+// a second time.
+foreach ($found->all() as Core\Db\Row $guest) {
+    echo $guest->string('name') ?? '', "\n";
+}
+echo $found->count(), "\n";
+
+$db->close();

@@ -1,0 +1,83 @@
+<?nvs
+// Attack: reading attributes back in ways far larger than a real program uses.
+// Novis reads every attribute while it compiles the program, so all of this
+// work happens before the program starts. The program below should compile and
+// run to its last line, and the memory it uses must not grow with each read.
+
+// 1. A class carrying 120 attributes, all of them read back at once. This
+//    tries to find a limit on how many values one retrieval may return.
+#[{n: 1}, {n: 2}, {n: 3}, {n: 4}, {n: 5}, {n: 6}, {n: 7}, {n: 8}, {n: 9}, {n: 10}]
+#[{n: 11}, {n: 12}, {n: 13}, {n: 14}, {n: 15}, {n: 16}, {n: 17}, {n: 18}, {n: 19}, {n: 20}]
+#[{n: 21}, {n: 22}, {n: 23}, {n: 24}, {n: 25}, {n: 26}, {n: 27}, {n: 28}, {n: 29}, {n: 30}]
+#[{n: 31}, {n: 32}, {n: 33}, {n: 34}, {n: 35}, {n: 36}, {n: 37}, {n: 38}, {n: 39}, {n: 40}]
+#[{n: 41}, {n: 42}, {n: 43}, {n: 44}, {n: 45}, {n: 46}, {n: 47}, {n: 48}, {n: 49}, {n: 50}]
+#[{n: 51}, {n: 52}, {n: 53}, {n: 54}, {n: 55}, {n: 56}, {n: 57}, {n: 58}, {n: 59}, {n: 60}]
+#[{n: 61}, {n: 62}, {n: 63}, {n: 64}, {n: 65}, {n: 66}, {n: 67}, {n: 68}, {n: 69}, {n: 70}]
+#[{n: 71}, {n: 72}, {n: 73}, {n: 74}, {n: 75}, {n: 76}, {n: 77}, {n: 78}, {n: 79}, {n: 80}]
+#[{n: 81}, {n: 82}, {n: 83}, {n: 84}, {n: 85}, {n: 86}, {n: 87}, {n: 88}, {n: 89}, {n: 90}]
+#[{n: 91}, {n: 92}, {n: 93}, {n: 94}, {n: 95}, {n: 96}, {n: 97}, {n: 98}, {n: 99}, {n: 100}]
+#[{n: 101}, {n: 102}, {n: 103}, {n: 104}, {n: 105}, {n: 106}, {n: 107}, {n: 108}, {n: 109}, {n: 110}]
+#[{n: 111}, {n: 112}, {n: 113}, {n: 114}, {n: 115}, {n: 116}, {n: 117}, {n: 118}, {n: 119}, {n: 120}]
+class Crowded
+{}
+
+// 2. A shape nested twelve levels deep, matched against a payload nested just
+//    as deep. This tries to run the compiler out of stack while it compares them.
+#[{l1: {l2: {l3: {l4: {l5: {l6: {l7: {l8: {l9: {l10: {l11: {l12: 7}}}}}}}}}}}}]
+class Nested
+{}
+
+// 3. Eight parameters, each carrying an attribute, each read back by name.
+//    This tries to find a limit on selecting one parameter out of many.
+class Many
+{
+    public static function take(
+        #[{p: 1}] int $a,
+        #[{p: 2}] int $b,
+        #[{p: 3}] int $c,
+        #[{p: 4}] int $d,
+        #[{p: 5}] int $e,
+        #[{p: 6}] int $f,
+        #[{p: 7}] int $g,
+        #[{p: 8}] int $h,
+    ): int
+    {
+        return $a + $b + $c + $d + $e + $f + $g + $h;
+    }
+}
+
+// 4. All of it read back 200000 times. This tries to make the program keep a
+//    copy of every value it reads.
+class Attack
+{
+    public static function run(uint $rounds): int
+    {
+        int $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The empty shape `{}` matches every attached value, so this is the
+            // widest result a retrieval can return.
+            array<{}> $all = Core\Attributes::all<{}>(Crowded::constructor(...));
+            $total = $total + (Core\Arr::count($all) as int);
+
+            ?{l1: {l2: {l3: {l4: {l5: {l6: {l7: {l8: {l9: {l10: {l11: {l12: int}}}}}}}}}}}} $deep =
+                Core\Attributes::get<{l1: {l2: {l3: {l4: {l5: {l6: {l7: {l8: {l9: {l10: {l11: {l12: int}}}}}}}}}}}}>(Nested::constructor(...));
+            if ($deep != null) {
+                $total = $total + ($deep->l1->l2->l3->l4->l5->l6->l7->l8->l9->l10->l11->l12 as int);
+            }
+
+            ?{p: int} $first = Core\Attributes::get<{p: int}>(Many::take(...), 'a');
+            ?{p: int} $last = Core\Attributes::get<{p: int}>(Many::take(...), 'h');
+            if ($first != null) {
+                if ($last != null) {
+                    $total = $total + $first->p + $last->p;
+                }
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Attack::run(200000), "\n";
+echo "still standing\n";

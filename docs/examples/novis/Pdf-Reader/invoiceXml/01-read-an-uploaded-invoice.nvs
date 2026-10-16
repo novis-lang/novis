@@ -1,0 +1,29 @@
+<?nvs
+// Shows how to read the Factur-X XML of an uploaded electronic invoice.
+use Novis\Pdf\Document;
+use Novis\Pdf\Reader;
+
+// The uploaded invoice. Here the program renders it first, so the example has a file to read.
+string $xml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
+    . "<rsm:CrossIndustryInvoice xmlns:rsm=\"urn:un:unece:uncefact:data:standard:CrossIndustryInvoice:100\""
+    . " xmlns:ram=\"urn:un:unece:uncefact:data:standard:ReusableAggregateBusinessInformationEntity:100\">"
+    . "<rsm:ExchangedDocument><ram:ID>Shop-7</ram:ID><ram:TypeCode>380</ram:TypeCode></rsm:ExchangedDocument>"
+    . "</rsm:CrossIndustryInvoice>";
+var $upload = Document::fromHtml("<html lang=\"en\"><head><title>Invoice Shop-7</title></head>"
+    . "<body><p>Invoice Shop-7</p></body></html>")
+    ->standard(Document::Standard::PdfA3b)
+    ->created(Core\Time::fromIso("2026-01-01T00:00:00Z"))
+    ->invoiceXml($xml)
+    ->render()->bytes;
+
+// `invoiceXml` returns the XML as a string. It is the same text the sender attached.
+string $received = Reader::open($upload)->invoiceXml() ?? "";
+echo $received == $xml ? "the XML is unchanged" : "the XML changed", "\n";
+
+// `Core\Xml::parse` reads the XML. This prints the name of the root element.
+foreach (Core\Xml::parse($received)->children() as Core\Xml\Node $root) {
+    echo $root->name(), "\n";
+}
+
+// This prints the invoice number, `Shop-7`.
+echo Core\Str::before(Core\Str::after($received, "<ram:ID>") ?? "", "</ram:ID>") ?? "", "\n";

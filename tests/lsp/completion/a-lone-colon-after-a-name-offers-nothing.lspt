@@ -1,0 +1,9 @@
+--TEST--
+`Core\Str:` is half of `Core\Str::`, and nothing may be written between the two colons, so the cursor there is offered nothing where the position's whole list used to be — `rule:ide/completion-is-asked-where-a-spelling-ends`
+--FILE--
+<?nvs
+Core\Str:<|>
+--REQUEST--
+completion
+--EXPECT--
+none

@@ -1,0 +1,44 @@
+<?nvs
+// A comment thread is drawn by walking each reply's own replies. If the stored
+// data says a reply sits below itself, that walk never ends. Novis stops it,
+// and the page can say what went wrong instead of dying.
+
+class Reply {
+    public string $author;
+    public array<Reply> $replies;
+
+    public function constructor(string $author) {
+        $this->author = $author;
+        $this->replies = [];
+    }
+
+    public function add(Reply $reply): void {
+        $this->replies[] = $reply;
+    }
+}
+
+class Thread {
+    public static function count(Reply $reply): uint {
+        uint $total = 1;
+        foreach ($reply->replies as Reply $child) {
+            $total = $total + Thread::count($child);
+        }
+        return $total;
+    }
+}
+
+var $first = new Reply("mina");
+var $second = new Reply("sol");
+$first->add($second);
+// The row that should never have been written: the first reply is listed again
+// underneath its own reply.
+$second->add($first);
+
+try {
+    uint $drawn = Thread::count($first);
+    echo "replies: ", $drawn, "\n";
+} catch (RecursionError $loop) {
+    echo "cannot draw the thread: ", $loop->message, "\n";
+}
+
+echo "the page is still served\n";

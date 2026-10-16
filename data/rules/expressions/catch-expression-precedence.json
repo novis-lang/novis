@@ -1,0 +1,12 @@
+{
+  "title": "`catch` sits between assignment and the ternary, so one arm guards a whole `??` chain",
+  "status": "shipped",
+  "seeAlso": [
+    "expressions/catch-expression",
+    "expressions/catch-arm-is-an-expression",
+    "expressions/pipeline-precedence"
+  ],
+  "guardedBy": [
+    "crates/nvs-syntax/src/parser/tests/expr.rs"
+  ]
+}

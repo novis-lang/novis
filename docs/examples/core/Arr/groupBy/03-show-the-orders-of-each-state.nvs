@@ -1,0 +1,18 @@
+<?nvs
+// Sorts orders into groups by their state, and lists each group. A shop shows
+// this on a page that says how much work is waiting.
+
+array<string> $orders = [
+    'o-101' => 'paid',
+    'o-102' => 'open',
+    'o-103' => 'paid',
+    'o-104' => 'sent',
+];
+array<array<string>> $byState = Core\Arr::groupBy($orders, fn(string $state) => $state);
+
+// Every order keeps its own key inside the group, so the order numbers are still there.
+// This prints `paid: 2 (o-101, o-103)`, then one line for `open` and one for `sent`.
+foreach ($byState as string $state => array<string> $group) {
+    echo $state, ': ', Core\Arr::count($group),
+        ' (', Core\Str::join(Core\Arr::keys($group), ', '), ')', "\n";
+}

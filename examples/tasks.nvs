@@ -1,0 +1,59 @@
+<?nvs
+// This program runs work at the same time with `Core\Task::all` and `Core\Task::map`.
+
+// `Core\Task::all` runs each function at the same time. It returns an object with
+// the same field names, and each field has the return type of its function.
+// So `->rows` is an `array<int>` and `->label` is a `string`, with no cast.
+var $page = Core\Task::all({
+    rows:  fn(): array<int> => [1, 2, 3],
+    label: fn(): string     => 'all',
+});
+echo $page->label, '=', Core\Arr::count($page->rows), "\n";
+
+// `Core\Task::map` runs the function once for each element, at the same time.
+// The result has the keys and order of the input, whichever call ends first.
+// This prints `map=1,4,9,16`.
+var $squares = Core\Task::map([1, 2, 3, 4], fn(int $n): int => $n * $n);
+var $line = '';
+foreach ($squares as int $v) {
+    if ($line != '') {
+        $line = $line . ',';
+    }
+    $line = $line . $v;
+}
+echo 'map=', $line, "\n";
+
+// `deadline` limits the time of the whole call, not of each function.
+// When the time is over, every function is stopped and the call waits for them.
+// Then the call throws a `TimeoutError`.
+try {
+    Core\Task::map([1, 2], fn(int $n): int => {
+        Core\Time::sleep(200ms);
+        return $n;
+    }, { deadline: 20ms });
+    echo 'deadline missed', "\n";
+} catch (TimeoutError $e) {
+    echo 'deadline hit', "\n";
+}
+
+// `limit` is the most functions that run at the same time. The other functions
+// wait for their turn, and no error is thrown.
+// Each function counts itself while it sleeps, so this prints `limit held at 2`.
+// Without the limit, it would print 6.
+class Gauge
+{
+    public static int $live = 0;
+    public static int $peak = 0;
+}
+
+Core\Task::map(Core\Arr::range(1, 6), fn(int $n): int => {
+    Gauge::$live += 1;
+    if (Gauge::$live > Gauge::$peak) {
+        Gauge::$peak = Gauge::$live;
+    }
+    Core\Time::sleep(5ms);
+    Gauge::$live -= 1;
+    return $n;
+}, { limit: 2 });
+
+echo 'limit held at ', Gauge::$peak, "\n";

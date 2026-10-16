@@ -1,0 +1,24 @@
+<?nvs
+// Shows how to find the attributes written on one property.
+
+class Signup {
+    #[{required: true}]
+    #[{maxLength: 254}]
+    public string $email = "";
+
+    #[{maxLength: 40}]
+    public string $nickname = "";
+}
+
+var $info = Core\Reflect::forObject(new Signup());
+
+// Two attributes are written on `email`, so this prints two lines:
+// `required=1` and `maxLength=254`.
+foreach ($info->attributes() as Core\Reflect\AttributeInfo $attribute) {
+    if ($attribute->target() != "email") {
+        continue;
+    }
+    foreach ($attribute->fields() as string $field) {
+        echo $field, "=", $attribute->field($field) as string, "\n";
+    }
+}

@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-cli/src/openapi.rs",
+  "title": "`components.securitySchemes`.",
+  "text": "§ 2's `security` names reach the operation ([`operation`] writes them), but *what* a named scheme is — bearer, an API key, OAuth2 and its flows — is nowhere in the tree: nothing in this compiler or in `nvs.toml` declares one, which is the same absence `nvs_types::routes`' `check_api` records for the half of § 2's scheme rule it cannot ask. So the document names schemes it does not define, and a strict validator says so. Writing a guessed definition would be the emitter stating a fact about deployment that no one wrote, which is the one thing `rule:routing/api-document-is-generated-from-the-route-table` is against; the component object lands here, with no change to [`operation`], on the day a scheme has a home. M10 is where it gets one, because a scheme has to be *declared* where the row can carry it rather than in a deployment the compiler never reads.",
+  "milestone": "M10"
+}

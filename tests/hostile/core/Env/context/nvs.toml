@@ -1,0 +1,3 @@
+# The attack starts a child script from inside a request.
+[capabilities.script]
+spawn = true

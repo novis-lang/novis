@@ -1,0 +1,55 @@
+--TEST--
+an accept with nobody connecting throws a `TimeoutError` at its bound, a bound that is not positive is refused before anything waits, and the same listener still takes the next connection — `rule:core-classes/net-one-api-three-transports` and `rule:core-api/failure-throws`
+--FILE--
+<?nvs
+// covers: Core\Net\Listener::accept
+// Nobody has connected, so the wait runs out. A `TimeoutError` and not an
+// `IOError`: nothing failed, and the caller's question is whether to wait longer.
+var $door = Core\Net::listen("127.0.0.1", 0);
+try {
+    $door->accept(20ms);
+    echo "accepted nobody", "\n";
+} catch (TimeoutError $late) {
+    echo "late: ", $late->message, "\n";
+}
+
+// A bound of zero waits for nothing, so it is refused before the socket is asked.
+try {
+    $door->accept(0ns);
+    echo "accepted within nothing", "\n";
+} catch (TimeoutError $late) {
+    echo "late: ", $late->message, "\n";
+} catch (RuntimeError $wrong) {
+    echo "wrong: ", $wrong->message, "\n";
+}
+
+// The deadline belongs to the one call that set it. A listener that ran out of
+// time twice still takes the connection that is waiting, and the stream it
+// returns is the server's end of the client's connection.
+var $client = Core\Net::connect("127.0.0.1", $door->port(), 5s);
+var $served = $door->accept(5s);
+$client->write("ping" as bytes, 5s);
+echo "heard: ", $served->read(64, 5s) as string, "\n";
+
+// A third accept with nobody left in the backlog runs out of time again: one
+// connect is one accepted connection, never two.
+try {
+    $door->accept(20ms);
+    echo "accepted twice", "\n";
+} catch (TimeoutError $late) {
+    echo "late again", "\n";
+}
+
+$served->close();
+$client->close();
+$door->close();
+--FILE nvs.toml--
+[capabilities.net]
+listen = true
+connect = ["127.0.0.1"]
+internal = ["127.0.0.1"]
+--EXPECT--
+late: Core\Net\Listener::accept ran out of time waiting on the socket
+wrong: Core\Net\Listener::accept: a bound must be a positive length of time
+heard: ping
+late again

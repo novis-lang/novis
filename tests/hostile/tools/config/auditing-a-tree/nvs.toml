@@ -1,0 +1,17 @@
+# This block covers the programs in this directory.
+[[app]]
+root = "."
+
+[app.limits]
+memory = "64M"
+
+# This block covers a different directory. Its settings are not for the programs here.
+[[app]]
+root = "../app-per-application-blocks"
+origin = "https://billing.example.com"
+
+[app.limits]
+memory = "300M"
+
+[app.capabilities.script]
+spawn = true

@@ -1,0 +1,6 @@
+--METHOD--
+GET
+--PATH--
+/download
+--HEADERS--
+x-depth: 4

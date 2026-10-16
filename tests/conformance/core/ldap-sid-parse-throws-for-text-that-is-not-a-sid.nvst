@@ -1,0 +1,33 @@
+--TEST--
+`Ldap\Sid::parse` throws `LogicError` for text without `S-1-`, a part that is not a number or is too big, and no number or more than fifteen after the authority. A SID with one number has no `domain` — `rule:core-classes/ldap-value-types`
+--FILE--
+<?nvs
+array<string> $texts = ["s-1-5-32-544", "S-2-5-32-544", "S-1-5-x", "S-1-5--1", "S-1-5-4294967296", "S-1-5", "S-1-5-1-2-3-4-5-6-7-8-9-10-11-12-13-14-15-16"];
+foreach ($texts as var $text) {
+    try {
+        echo Core\Ldap\Sid::parse($text)->toString(), "\n";
+    } catch (LogicError $wrong) {
+        echo $wrong->message, "\n";
+    }
+}
+
+// Fifteen numbers is the most a SID has.
+echo Core\Ldap\Sid::parse("S-1-5-1-2-3-4-5-6-7-8-9-10-11-12-13-14-15")->rid(), "\n";
+
+// Everyone, S-1-1-0, has one number after the authority, so no domain.
+var $everyone = Core\Ldap\Sid::parse("S-1-1-0");
+echo "rid: ", $everyone->rid(), "\n";
+echo "domain: ", $everyone->domain()?->toString() ?? "null", "\n";
+echo "bytes: ", Core\Encoding::toHex($everyone->bytes()), "\n";
+--EXPECT--
+Core\Ldap\Sid::parse: `s-1-5-32-544` is not a SID, because a SID starts with `S-1-`
+Core\Ldap\Sid::parse: `S-2-5-32-544` is not a SID, because a SID starts with `S-1-`
+Core\Ldap\Sid::parse: `S-1-5-x` is not a SID, because every part of a SID after `S-1-` is a number
+Core\Ldap\Sid::parse: `S-1-5--1` is not a SID, because every part of a SID after `S-1-` is a number
+Core\Ldap\Sid::parse: `S-1-5-4294967296` is not a SID, because every part of a SID after `S-1-` is a number
+Core\Ldap\Sid::parse: `S-1-5` is not a SID, because a SID has 1 to 15 numbers after its authority
+Core\Ldap\Sid::parse: `S-1-5-1-2-3-4-5-6-7-8-9-10-11-12-13-14-15-16` is not a SID, because a SID has 1 to 15 numbers after its authority
+15
+rid: 0
+domain: null
+bytes: 010100000000000100000000

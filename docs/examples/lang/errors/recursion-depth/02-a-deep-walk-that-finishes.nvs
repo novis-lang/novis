@@ -1,0 +1,16 @@
+<?nvs
+// Shows how much room recursion has. This function calls itself a thousand
+// times before it returns, which stays inside the limit, so it finishes and
+// prints its result.
+
+final class Sum {
+    public static function upTo(int $n): int {
+        if ($n == 0) {
+            return 0;
+        }
+        return $n + Sum::upTo($n - 1);
+    }
+}
+
+// This prints 500500.
+echo Sum::upTo(1000), "\n";

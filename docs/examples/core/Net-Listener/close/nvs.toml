@@ -1,0 +1,7 @@
+# The examples open a server on this computer and connect to it.
+# One example uses the fixed port 47123, and the others let the system pick a free port.
+# These lines allow that, and nothing else.
+[capabilities.net]
+listen = ["127.0.0.1:0", "127.0.0.1:47123"]
+connect = ["127.0.0.1"]
+internal = ["127.0.0.1"]

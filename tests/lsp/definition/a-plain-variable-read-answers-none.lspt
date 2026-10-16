@@ -1,0 +1,10 @@
+--TEST--
+a local is not a declaration the symbol table holds, so a read of one answers `none` rather than the line that bound it, `rule:ide/the-index-answers-the-cursor`
+--FILE--
+<?nvs
+var $total = 3;
+echo $to<|>tal;
+--REQUEST--
+definition
+--EXPECT--
+none

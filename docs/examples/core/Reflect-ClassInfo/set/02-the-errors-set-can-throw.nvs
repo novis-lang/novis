@@ -1,0 +1,33 @@
+<?nvs
+// Shows the three errors `set` throws, and that the object does not change after an error.
+
+class Session {
+    public int $visits = 0;
+    private string $token = "abc123";
+}
+
+class Write {
+    public static function try(Session $session, string $name, mixed $value): string {
+        var $info = Core\Reflect::forObject($session);
+        try {
+            $info->set($session, $name, $value);
+            return $name . ": written";
+        } catch (RuntimeError $refused) {
+            // A private property, or a value of the wrong type.
+            return $name . ": RuntimeError";
+        } catch (LogicError $mistake) {
+            // A name that is not a property of the class.
+            return $name . ": LogicError";
+        }
+    }
+}
+
+Session $session = new Session();
+// The first line is written. The other three throw an error.
+echo Write::try($session, "visits", 5), "\n";
+echo Write::try($session, "token", "stolen"), "\n";
+echo Write::try($session, "visits", "many"), "\n";
+echo Write::try($session, "vists", 6), "\n";
+
+// This prints `5`. No failed write changed the object.
+echo $session->visits, "\n";

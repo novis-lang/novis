@@ -1,0 +1,11 @@
+<?nvs
+// Shows the angles `Core\Math::asin` returns for a few sines, in radians and in degrees.
+
+// A sine of 0.5 belongs to an angle of 30 degrees. This prints 0.5235987755983.
+echo Core\Math::asin(0.5), "\n";
+
+// `Core\Math::toDegrees` converts the angle to degrees. This prints 30.
+echo Core\Math::round(Core\Math::toDegrees(Core\Math::asin(0.5))), "\n";
+
+// A negative sine gives a negative angle. This prints -90.
+echo Core\Math::toDegrees(Core\Math::asin(-1.0)), "\n";

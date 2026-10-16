@@ -1,0 +1,19 @@
+<?nvs
+// This program runs two slow calls at the same time with `Core\Task::all`.
+class Loader {
+    // `sleep` waits like any other call. You write no `async` and no `await`.
+    public static function load(string $name): string {
+        Core\Time::sleep(10ms);
+        return $name;
+    }
+}
+
+// Each field is a function with no parameters. Each one runs as its own task.
+// `Core\Task::all` returns when every task is done.
+var $both = Core\Task::all({
+    users:  fn(): string => Loader::load("users"),
+    orders: fn(): string => Loader::load("orders"),
+});
+
+// The result has the same field names. Each field has the return type of its function.
+echo $both->users, " ", $both->orders, "\n";

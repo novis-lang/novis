@@ -1,0 +1,6 @@
+...
+Licensing
+  nvs                 MIT
+  third-party         listed below
+  license texts       run `nvs info --licenses`
+...

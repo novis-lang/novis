@@ -1,0 +1,55 @@
+<?nvs
+// Attack: a script catches one error and throws the same error object again, many times.
+// Each throw records on that one object where it happened.
+// The script should finish, and its memory should not grow with each throw.
+// hostile: timeout-ms 20000
+
+class Ladder
+{
+    public static function up(uint $rungs): void
+    {
+        if ($rungs == 0) {
+            throw new TimeoutError('waited too long');
+        }
+        try {
+            Ladder::up($rungs - 1);
+        } catch (TimeoutError $again) {
+            // This throws the same error object again.
+            // Each throw updates the place recorded in that object.
+            throw $again;
+        }
+    }
+}
+
+uint $round = 0;
+while ($round < 500) {
+    try {
+        Ladder::up(300);
+    } catch (TimeoutError $done) {
+    }
+    $round = $round + 1;
+}
+echo "rethrown\n";
+
+// Throw and catch the same error object 1,000,000 times in one function.
+try {
+    throw new TimeoutError('the first one');
+} catch (TimeoutError $held) {
+    uint $again = 0;
+    while ($again < 1000000) {
+        try {
+            throw $held;
+        } catch (TimeoutError $caught) {
+        }
+        $again = $again + 1;
+    }
+    echo "one error, a million throws\n";
+}
+
+// Throw the same error again at every level of a stack 1,000,000 calls deep.
+// If the stack limit stops it, the `catch` below catches that error.
+try {
+    Ladder::up(1000000);
+} catch (Throwable $whatever) {
+    echo "deep\n";
+}

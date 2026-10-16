@@ -1,0 +1,4 @@
+<?nvs
+// `{..}` is the name of the folder that `..` points to from this file.
+// In `modules/Blog/public` that folder is `Blog`, so the prefix is `Site\Blog`.
+autoload 'Site\{..}' from '../src';

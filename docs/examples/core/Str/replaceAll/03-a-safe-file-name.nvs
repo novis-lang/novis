@@ -1,0 +1,15 @@
+<?nvs
+// Shows how to turn a document title into a file name that works on every system.
+
+string $title = "Größe & Maße: Übersicht 2026";
+
+// Each German letter becomes plain letters, and "&", ":" and spaces become "-".
+// The key " & " is longer than the key " ", so " & " is used where both match.
+array<string> $safe = [
+    "ä" => "ae", "ö" => "oe", "ü" => "ue",
+    "Ä" => "Ae", "Ö" => "Oe", "Ü" => "Ue", "ß" => "ss",
+    " & " => "-", ": " => "-", " " => "-",
+];
+
+// This prints "Groesse-Masse-Uebersicht-2026.pdf".
+echo Core\Str::replaceAll($title, $safe), ".pdf\n";

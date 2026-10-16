@@ -1,0 +1,10 @@
+<?nvs
+// Shows how to read the path of an address.
+
+var $link = Core\Uri::parse("https://example.com/docs/start?page=2#install");
+
+// The path stops before the `?`. This prints /docs/start.
+echo $link->path(), "\n";
+
+// A link without a host has a path too. This prints /account/orders.
+echo Core\Uri::parse("/account/orders?sort=date")->path(), "\n";

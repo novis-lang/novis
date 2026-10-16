@@ -1,0 +1,36 @@
+<?nvs
+// Shows a small UDP server that answers each message and stops when no more messages arrive.
+
+Core\Net\Datagram $server = Core\Net::bindDatagram("127.0.0.1", 0);
+Core\Net\Datagram $first = Core\Net::bindDatagram("127.0.0.1", 0);
+Core\Net\Datagram $second = Core\Net::bindDatagram("127.0.0.1", 0);
+
+$first->send("127.0.0.1", $server->port(), "status" as bytes, 1s);
+$second->send("127.0.0.1", $server->port(), "version" as bytes, 1s);
+
+// The server waits up to 200 milliseconds for each message.
+// When none arrives in that time, `receive` throws a `TimeoutError` and the loop stops.
+uint $answered = 0;
+bool $running = true;
+while ($running) {
+    try {
+        Core\Net\Datagram\Message $request = $server->receive(512, 200ms);
+        // `host()` and `port()` are the address of the sender. The reply goes there.
+        tainted bytes $reply = ("ok: " . ($request->payload() as string)) as bytes;
+        $server->send($request->host(), $request->port(), $reply, 1s);
+        $answered = $answered + 1;
+    } catch (TimeoutError $late) {
+        $running = false;
+    }
+}
+// This prints `answered: 2`.
+echo "answered: ", $answered, "\n";
+
+// Each client gets the reply to its own message.
+// This prints `ok: status` and then `ok: version`.
+echo $first->receive(512, 5s)->payload() as string, "\n";
+echo $second->receive(512, 5s)->payload() as string, "\n";
+
+$first->close();
+$second->close();
+$server->close();

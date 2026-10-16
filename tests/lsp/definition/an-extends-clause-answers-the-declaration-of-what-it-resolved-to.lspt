@@ -1,0 +1,16 @@
+--TEST--
+a cursor on the name an `extends` clause writes jumps to the superclass's own declaration, a clause being a use no recorded expression covers and so one answered off the hierarchy graph instead, `rule:ide/the-index-answers-the-cursor`
+--FILE--
+<?nvs
+class Base
+{
+    public string $name = "";
+}
+
+class Derived extends Ba<|>se
+{
+}
+--REQUEST--
+definition
+--EXPECT--
+case.nvs:2:7

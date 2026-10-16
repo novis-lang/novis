@@ -1,0 +1,34 @@
+--TEST--
+`Core\Log::write` renders each record as one JSON Lines object carrying its level's own lowercase name, whatever the message contains -- `rule:errors/log-write` and `rule:errors/log-level`
+--FILE--
+<?nvs
+// `rule:errors/log-level`'s five cases, loudest first, which is also the order their
+// syslog severities run in. What the record carries is the case's own name
+// lowercased, never the number it is valued by -- the severity is what a
+// `syslog` target needs and a JSON Lines target has no use for.
+Core\Log::write(Core\Log::Level::Critical, "the floor");
+Core\Log::write(Core\Log::Level::Error, "an operation failed");
+Core\Log::write(Core\Log::Level::Warn, "a retry");
+Core\Log::write(Core\Log::Level::Info, "started");
+Core\Log::write(Core\Log::Level::Debug, "detail");
+
+// Each line names where it was written, by
+// `rule:errors/a-record-names-where-it-was-produced`: the file as the program
+// named it and the statement's own one-based line, with no `member` key at all
+// at file scope rather than an empty one.
+
+// `rule:errors/log-write` chose JSON over logfmt for exactly this: whatever a message
+// wanted to be, a record is one line, and the quoting is the encoder's rather
+// than a judgement made at the site that writes it.
+Core\Log::write(Core\Log::Level::Info, "a \"quoted\" word\nand a second line");
+--FILE nvs.toml--
+# Production's default level is `Info`, which drops the `Debug` record above.
+[log]
+level = "Debug"
+--EXPECT--
+{"level":"critical","msg":"the floor","source":{"file":"case.nvs","line":6}}
+{"level":"error","msg":"an operation failed","source":{"file":"case.nvs","line":7}}
+{"level":"warn","msg":"a retry","source":{"file":"case.nvs","line":8}}
+{"level":"info","msg":"started","source":{"file":"case.nvs","line":9}}
+{"level":"debug","msg":"detail","source":{"file":"case.nvs","line":10}}
+{"level":"info","msg":"a \"quoted\" word\nand a second line","source":{"file":"case.nvs","line":20}}

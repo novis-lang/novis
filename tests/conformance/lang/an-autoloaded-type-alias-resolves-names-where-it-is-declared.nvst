@@ -1,0 +1,57 @@
+--TEST--
+A name inside a `type` alias resolves in the namespace and `use` scope of the file that declares the alias, not of the file that uses it — `rule:types/type-alias` and `rule:programs/autoload`
+--FILE--
+<?nvs
+// `Blog\Entry` names `Author` and `Price` with no prefix. In `lib/Entry.nvs`
+// they mean `Blog\Author` and the imported `Shop\Price`. This file is in
+// namespace `Framework`, which declares a `Price` of its own, so reading the
+// alias with this file's scope would name the wrong class.
+namespace Framework;
+
+autoload 'Blog' from './lib';
+autoload 'Shop' from './shop';
+
+class Price {
+    public function constructor(public int $cents) {}
+}
+
+class Main {
+    public static function run(): void {
+        Blog\Entry $entry = {
+            author: new Blog\Author('Ada'),
+            price: new Shop\Price(250),
+            card: {name: 'Ada', next: new Blog\Author('Bo')},
+        };
+        echo $entry->author->name, " ", $entry->price->amount, "\n";
+        Blog\Author::Card $card = $entry->card;
+        echo $card->name, " ", $card->next?->name ?? "none", "\n";
+    }
+}
+Main::run();
+--FILE lib/Entry.nvs--
+<?nvs
+namespace Blog;
+
+use Shop\Price;
+
+type Entry = {author: Author, price: Price, card: Author::Card};
+--FILE lib/Author.nvs--
+<?nvs
+namespace Blog;
+
+class Author {
+    // `self` here is `Blog\Author`, wherever the alias is used.
+    type Card = {name: string, next: ?self};
+
+    public function constructor(public string $name) {}
+}
+--FILE shop/Price.nvs--
+<?nvs
+namespace Shop;
+
+class Price {
+    public function constructor(public int $amount) {}
+}
+--EXPECT--
+Ada 250
+Ada Bo

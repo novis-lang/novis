@@ -1,0 +1,12 @@
+<?nvs
+// Shows how to make a small, blurred preview that a page shows while the full image loads.
+use Novis\Image\Image;
+use Novis\Image\Color;
+use Novis\Image\Format;
+
+Image $photo = Image::create(1200, 800, Color::hex("#336699"));
+
+// Make the image small first, so the blur has few pixels to work on. This prints 32x21.
+bytes $preview = $photo->resize({width: 32})->blur(3.0)->format(Format::Webp, {quality: 40})->encode();
+var $info = Image::info($preview);
+echo $info->width, "x", $info->height, "\n";

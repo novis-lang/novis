@@ -1,0 +1,17 @@
+<?nvs
+// Shows how to remove the query and the fragment of an address, and what happens with a bad path.
+
+var $link = Core\Uri::parse("https://example.com/help?topic=pay#step-2");
+
+// `null` removes a part. This prints https://example.com/help.
+echo $link->with({query: null, fragment: null}), "\n";
+
+// An empty text is not the same as `null`. This address ends with `?`.
+echo $link->with({query: "", fragment: null}), "\n";
+
+// Next to a host, a path must start with `/`. This path does not, so `with` throws an error.
+try {
+    echo $link->with({path: "contact"}), "\n";
+} catch (RuntimeError $e) {
+    echo "not a valid address", "\n";
+}

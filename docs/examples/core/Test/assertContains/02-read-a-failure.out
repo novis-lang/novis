@@ -1,0 +1,2 @@
+Core\Test::assertContains failed: `$actual` holds 3 entries and none is `$expected`, which is "XL"
+order 4 is in the export: Core\Test::assertContains failed: `$actual` holds 3 entries and none is `$expected`, which is 4

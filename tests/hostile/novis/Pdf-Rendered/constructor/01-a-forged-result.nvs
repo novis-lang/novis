@@ -1,0 +1,49 @@
+<?nvs
+// Attack: a request makes render results by hand with false values, and gives their file to the PDF reader.
+// Each attempt should make a result or throw an error, and the server keeps running.
+use Novis\Pdf\Pages;
+use Novis\Pdf\Reader;
+use Novis\Pdf\Rendered;
+
+// 1. A result whose file is not a PDF file and whose page count is the largest number.
+try {
+    var $fake = new Rendered('<script>alert(1)</script>' as bytes, 18446744073709551615, [], [], []);
+    echo 'step 1 ran ', $fake->pageCount, "\n";
+    echo 'step 1 read ', Reader::open($fake->bytes)->pageCount, "\n";
+} catch (Throwable $e) {
+    echo "step 1 stopped\n";
+}
+
+// 2. A result whose file is ten million zero bytes, given to a merge.
+try {
+    var $zeros = new Rendered(Core\Bytes::repeat("\u{0}" as bytes, 10000000), 1, [], [], []);
+    echo 'step 2 ran ', Core\Bytes::length(Pages::merge([Pages::of($zeros->bytes)])), "\n";
+} catch (Throwable $e) {
+    echo "step 2 stopped\n";
+}
+
+// 3. Lists of one hundred thousand entries, with the largest line, column and page numbers.
+try {
+    array<{property: string, value: string, selector: string, line: uint, column: uint}> $dropped = [];
+    array<{page: uint, area: string, text: string}> $overflows = [];
+    for (int $n = 0; $n < 100000; $n++) {
+        $dropped[] = { property: 'color', value: "\u{0}", selector: '*', line: 18446744073709551615, column: 18446744073709551615 };
+        $overflows[] = { page: 18446744073709551615, area: 'footer', text: '</p>' };
+    }
+    var $long = new Rendered('' as bytes, 0, $dropped, [], $overflows);
+    echo 'step 3 ran ', Core\Arr::count($long->dropped), ' ', Core\Arr::count($long->overflows), "\n";
+} catch (Throwable $e) {
+    echo "step 3 stopped\n";
+}
+
+// 4. A missing glyph with a text of one million characters and a list of ten thousand fonts.
+try {
+    array<string> $fonts = [];
+    for (int $font = 0; $font < 10000; $font++) {
+        $fonts[] = "Font {$font}";
+    }
+    var $glyphs = new Rendered('%PDF-' as bytes, 1, [], [{ text: Core\Str::repeat("\u{1F916}", 1000000), fonts: $fonts, page: 0 }], []);
+    echo 'step 4 ran ', Core\Arr::count($glyphs->missingGlyphs[0]->fonts), "\n";
+} catch (Throwable $e) {
+    echo "step 4 stopped\n";
+}

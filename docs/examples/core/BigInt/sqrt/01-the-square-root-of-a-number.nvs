@@ -1,0 +1,16 @@
+<?nvs
+// Shows the square root of a whole number, and what you get when the root is
+// not a whole number itself.
+
+// 9 is 3 times 3, so this prints 3.
+echo Core\BigInt::of(9)->sqrt(), "\n";
+
+// The square root of 8 is between 2 and 3. `sqrt` returns the largest whole
+// number whose square is not larger than 8, so this prints 2.
+echo Core\BigInt::of(8)->sqrt(), "\n";
+
+// The result is never rounded up. 15 is one short of 16, and this prints 3.
+echo Core\BigInt::of(15)->sqrt(), "\n";
+
+// The square root of 0 is 0.
+echo Core\BigInt::of(0)->sqrt(), "\n";

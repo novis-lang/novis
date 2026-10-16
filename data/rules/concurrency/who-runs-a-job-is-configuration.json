@@ -1,0 +1,13 @@
+{
+  "title": "Which process runs a job is configuration, and every spelling drives the identical isolate",
+  "status": "shipped",
+  "seeAlso": [
+    "core-classes/queue-storage-is-a-table",
+    "concurrency/a-job-runs-as-a-root-isolate",
+    "concurrency/one-process-serves-requests-schedules-and-jobs"
+  ],
+  "guardedBy": [
+    "crates/nvs-cli/src/worker.rs",
+    "crates/nvs-cli/tests/live_config.rs"
+  ]
+}

@@ -1,0 +1,18 @@
+<?nvs
+// Shows how to turn a line of a settings file into named fields.
+
+Core\Regex\Pattern $setting = Core\Regex::compile('^(?<key>[a-z_]+)\s*=\s*(?<value>.*?)\s*(?<comment>#.*)?$');
+
+array<string> $lines = ["timeout = 30  # seconds", "name=shop"];
+foreach ($lines as string $line) {
+    var $m = Core\Regex::match($line, $setting);
+    if ($m != null) {
+        // A key that is a number is a group without a name. Only the named groups are printed.
+        foreach ($m->groups() as string $field => ?string $text) {
+            if (!Core\Regex::matches($field, '^\d+$')) {
+                echo $field, "=[", $text ?? "none", "] ";
+            }
+        }
+        echo "\n";
+    }
+}

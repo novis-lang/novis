@@ -1,0 +1,25 @@
+<?nvs
+// Shows what happens when the snapshot is wrong, and how to start from an empty one.
+
+// The value is 7, but the snapshot says 8. The check throws a `Core\Test\Failure`.
+// The message shows the text of the value and the snapshot.
+try {
+    Core\Test::assertMatchesInline(7, "int(8)");
+} catch (Core\Test\Failure $failure) {
+    echo $failure->message, "\n";
+}
+
+// You can start with an empty snapshot. The check fails, and the message shows
+// the text to copy into the test.
+try {
+    Core\Test::assertMatchesInline(["red", "blue"], "");
+} catch (Core\Test\Failure $failure) {
+    echo $failure->message, "\n";
+}
+
+// The option `message` adds your own text at the start of the message.
+try {
+    Core\Test::assertMatchesInline(true, "bool(false)", {message: "the feature flag is off"});
+} catch (Core\Test\Failure $failure) {
+    echo $failure->message, "\n";
+}

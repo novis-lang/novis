@@ -1,0 +1,4 @@
+before: 7
+the script read 0
+the script wrote 42
+after: 7

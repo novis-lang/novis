@@ -1,0 +1,22 @@
+<?nvs
+// `[http] csrf_key` is the key the server uses to check the CSRF token of a request.
+// The server checks tokens only when this key is set. This file sets no key,
+// so no request needs a token yet.
+
+echo 'door key:       ', Core\Config::get('http.csrf_key') ?? '(nothing, so no token is expected yet)', "\n";
+echo 'read from file: ', Core\Config::get('http.csrf_key_file') ?? '(nothing)', "\n";
+
+// The server checks every request against this one key, so a program cannot set it.
+// A program that could set it could make forged requests pass. Both lines print `no`.
+echo 'name one here:  ', Core\Config::set('http.csrf_key', 'a-key-of-my-own') ? 'yes' : 'no', "\n";
+echo 'or name a file: ', Core\Config::set('http.csrf_key_file', '/tmp/csrf.key') ? 'yes' : 'no', "\n";
+
+// Without the key, the server still rejects a browser request whose `Origin` header names
+// another site. A request with no `Origin` header is checked only when the key is set.
+
+// A program can also make its own tokens with its own key. `Core\Csrf::issue` makes a token
+// for one session, and `Core\Csrf::verify` accepts it only for that session.
+secret bytes $mine = Core\Crypto::generateKey();
+string $token = Core\Csrf::issue('sid-ada', $mine);
+echo 'own token:      ', Core\Csrf::verify($token, 'sid-ada', $mine) ? 'accepted' : 'refused', "\n";
+echo 'other session:  ', Core\Csrf::verify($token, 'sid-bob', $mine) ? 'accepted' : 'refused', "\n";

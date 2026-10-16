@@ -1,0 +1,26 @@
+<?nvs
+// Prints a program of n small classes, each one calling the class before it, as a large application has.
+// scaling: kind compile
+// scaling: start 50
+// scaling: max 1600
+// scaling: expect linear
+
+class Bench {
+    public static function run(uint $size): string {
+        array<string> $lines = ["<?nvs", "class Step0 {", "    public static function next(int \$x): int { return \$x + 1; }", "}"];
+        uint $i = 1;
+        while ($i < $size) {
+            $lines[] = "class Step{$i} {";
+            $lines[] = "    public static function next(int \$x): int {";
+            $lines[] = "        int \$y = Step" . ($i - 1) . "::next(\$x);";
+            $lines[] = "        return \$y + 1;";
+            $lines[] = "    }";
+            $lines[] = "}";
+            $i = $i + 1;
+        }
+        $lines[] = "echo Step" . ($size - 1) . "::next(0), \"\\n\";";
+        return Core\Str::join($lines, "\n") . "\n";
+    }
+}
+
+echo Bench::run(50);

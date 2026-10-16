@@ -1,0 +1,778 @@
+// The observed-selection store: `.cache/select.sqlite`, one `bun:sqlite` database in WAL mode.
+//
+// It lives beside `.cache/nv.sqlite`, never inside it: the index deletes its own file whenever its layout
+// changes, and losing the footprints would mean seeding every atom again.
+//
+// | table | holds |
+// |---|---|
+// | `meta` | `schema`, the tree the store last recorded (`base:<platform>`), the `covws` build, each generated file's digest, and the `covers:` and `calls:` keys each overlay path's text named, with the perf ledger's digest of each feature's rows (`markers:<platform>`) |
+// | `atoms` | one row per atom and platform: its kind, its definition's digest, its last verdict and run, its own key list, the changed keys it is owed for, and how long its last judged and recording runs took |
+// | `keys` | every key any footprint holds, numbered, with the digest it had when last recorded |
+// | `footprint` | `(key, atom)`: the reverse index a selection reads, keyed on the key |
+// | `items` | each Rust file's items as `nv-scan --items` read them at the base tree, per platform |
+// | `verdicts` | a slot's digest and verdict, for the memos this store replaces, and each judged verdict a run has not recorded yet (`judged:<platform>:<atom>`) |
+// | `trees` | each tree an atom's last run was taken at, per platform: its commit and overlay, the items of its overlay's Rust files and what the proof scans read of its overlay paths |
+//
+// An atom is `<kind>:<name>`: `case:tests/conformance/a.nvst`, `proof:docs/examples/.../01-x.nvs`,
+// `test:nvs-cli test footprint`, `nv:<check id>`, `nvtest:<file>` for one `bun test` file of the tools,
+// `bench:benches/members/.../x.nvs` for one bench program,
+// `step:<name>` for a step of `bun nv verify`, `check:<check id>` for another plan check, and
+// `heavy:<check id>` for one of the heavy set or a Linux leg. A
+// footprint is per platform, because what an atom does differs between Windows and the Linux leg.
+//
+// The recorded tree is a commit and an overlay: `base:<platform>` names the commit, and
+// `overlay:<platform>` holds, for every path that differed from it when the tree was recorded, the
+// digest of its bytes then, or null for a path that was absent. So a run over uncommitted work records
+// that work, and reverting it is a change.
+//
+// An atom's own key list is kept as a blob of key numbers beside the reverse index, so a new run can
+// replace or widen one atom's footprint by point writes rather than a scan of the whole index.
+//
+// A run counts the moment it is recorded. The selection a run makes names the tree it was taken at
+// (`runAt`), and every run recorded through this store from then on stamps its atom with that tree
+// (`settled`, a row of `trees`, written in the same transaction as the run). The selection then reads a
+// stamped atom against the change since its own tree, not since the base, so a run killed halfway
+// loses only the atoms still running. Moving the base clears every stamp it covers and deletes every
+// tree no atom is stamped at, so `trees` holds at most one row per atom and never grows with the
+// number of runs. A judged verdict is kept the same way, keyed by its atom and the tree it was judged
+// at, until the atom's run is recorded.
+
+import { Database, type Statement } from "bun:sqlite";
+import { mkdirSync, statSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { WILD } from "./keys.ts";
+import type { FileItems } from "../keys/scan.ts";
+import { CACHE } from "../lib/paths.ts";
+
+export const SCHEMA = "1";
+
+/** The store's file. */
+export const STORE = join(CACHE, "select.sqlite");
+
+/** Names another store file for this process and every process it starts: the mutation harness points
+ * it at a copy, so a run over a mutated tree records nothing into the real store. */
+export const STORE_ENV = "NV_SELECT_STORE";
+
+/** The file a store opened without one is: `STORE_ENV`'s, else `STORE`. */
+export function storeFile(): string {
+  return process.env[STORE_ENV] || STORE;
+}
+
+export type AtomKind = "case" | "proof" | "test" | "nv" | "nvtest" | "bench" | "step" | "check" | "heavy";
+export const ATOM_KINDS: AtomKind[] = ["case", "proof", "test", "nv", "nvtest", "bench", "step", "check", "heavy"];
+
+/**
+ * `owed` is an atom a change reached that the run which recorded the change did not run: the base
+ * moved past the change, so the atom stays selected by its verdict until a run of it is green. A red
+ * atom stays `red` when it is owed as well.
+ */
+export type Verdict = "green" | "red" | "owed" | "";
+
+export interface AtomRow {
+  id: string;
+  kind: AtomKind;
+  def: string;
+  verdict: Verdict;
+  /** For an `owed` atom, the changed keys it executes, gathered over every change that owed it: what a
+   * bench is skipped by when they are proven. Null when any change owed it for a reason no key gives. */
+  owedItems: string[] | null;
+  /** Milliseconds since the epoch of the last recorded run, 0 for none. */
+  lastRun: number;
+  /** How many keys its footprint holds, 0 for an atom never recorded. */
+  keys: number;
+}
+
+/** `win32` or `linux` and so on, as `process.platform` names it: the platform a footprint belongs to. */
+export function currentPlatform(): string {
+  return process.platform;
+}
+
+let recordListener: ((id: string, verdict: Verdict) => void) | null = null;
+
+/** Sets the one function told of each run any store of this process records, once it is recorded, or
+ * clears it with null. `nv sweep` ends an atom's progress item through it, whichever runner paid it. */
+export function onRecorded(f: ((id: string, verdict: Verdict) => void) | null): void {
+  recordListener = f;
+}
+
+/** The kind an atom id names. */
+export function kindOfAtom(id: string): AtomKind {
+  return id.slice(0, id.indexOf(":")) as AtomKind;
+}
+
+const DDL = `
+  CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+  CREATE TABLE IF NOT EXISTS atoms (
+    n INTEGER PRIMARY KEY,
+    id TEXT NOT NULL,
+    platform TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    def TEXT NOT NULL DEFAULT '',
+    verdict TEXT NOT NULL DEFAULT '',
+    last_run INTEGER NOT NULL DEFAULT 0,
+    nkeys INTEGER NOT NULL DEFAULT 0,
+    keys BLOB,
+    judged_ms INTEGER NOT NULL DEFAULT 0,
+    recorded_ms INTEGER NOT NULL DEFAULT 0,
+    owed_items TEXT NOT NULL DEFAULT '',
+    settled INTEGER NOT NULL DEFAULT 0,
+    UNIQUE (id, platform)
+  );
+  CREATE TABLE IF NOT EXISTS keys (n INTEGER PRIMARY KEY, key TEXT NOT NULL UNIQUE, digest TEXT NOT NULL DEFAULT '');
+  CREATE TABLE IF NOT EXISTS footprint (key INTEGER NOT NULL, atom INTEGER NOT NULL, PRIMARY KEY (key, atom)) WITHOUT ROWID;
+  CREATE TABLE IF NOT EXISTS items (platform TEXT NOT NULL, file TEXT NOT NULL, raw TEXT NOT NULL, json TEXT NOT NULL, PRIMARY KEY (platform, file));
+  CREATE TABLE IF NOT EXISTS verdicts (slot TEXT PRIMARY KEY, digest TEXT NOT NULL, verdict TEXT NOT NULL DEFAULT '', at INTEGER NOT NULL);
+  CREATE TABLE IF NOT EXISTS trees (n INTEGER PRIMARY KEY, platform TEXT NOT NULL, sig TEXT NOT NULL, tree TEXT NOT NULL, UNIQUE (platform, sig));
+`;
+
+/** A tree an atom's last run was taken at, as `trees` keeps it: the commit and overlay, the items of
+ * every Rust file of the overlay that was on disk then, and what the proof scans read of each overlay
+ * path (`select.ts` `recordOverlayMarkers`). A Rust file of the overlay with no items here is unknown. */
+export interface RunTree {
+  commit: string;
+  overlay: Overlay;
+  items: FileItems[];
+  markers: Record<string, unknown>;
+}
+
+/** The slot a judged verdict not recorded yet is kept in. */
+const judgedSlot = (platform: string, id: string) => `judged:${platform}:${id}`;
+
+/** A footprint as it is recorded: each key with the digest it had, `""` where a key has none. */
+export type Keyed = Map<string, string>;
+
+/** Each path that differed from the base commit when the tree was recorded: its digest, or null. */
+export type Overlay = Record<string, string | null>;
+
+export class SelectStore {
+  readonly db: Database;
+  readonly platform: string;
+  private readonly statements = new Map<string, Statement>();
+  private keyIds = new Map<string, number>();
+  private keyDigests = new Map<string, string>();
+  /** The tree runs recorded through this store are taken at (`runAt`), and the row kept for it, made
+   * once and only when a run is first recorded. */
+  private at: { sig: string; row: () => RunTree; json: string | null } | null = null;
+
+  constructor(
+    readonly file: string = storeFile(),
+    platform: string = currentPlatform(),
+  ) {
+    this.platform = platform;
+    if (file !== ":memory:") mkdirSync(dirname(file), { recursive: true });
+    this.db = new Database(file);
+    // Several processes write the store at once: a sweep and the `bun nv` processes it starts, and
+    // agents verifying side by side. A write waits up to a minute for another's transaction to end.
+    // The wait covers a write lock asked for when there is none yet, which is why `transaction` takes
+    // its lock up front.
+    this.db.exec("PRAGMA busy_timeout = 60000");
+    this.db.exec("PRAGMA journal_mode = WAL");
+    this.db.exec("PRAGMA synchronous = NORMAL");
+    const schema = this.tryMeta("schema");
+    if (schema !== null && schema !== SCHEMA) {
+      // A store of another layout is read by nothing here; dropping it costs a reseed, never a wrong answer.
+      for (const t of ["meta", "atoms", "keys", "footprint", "items", "verdicts", "trees"]) this.db.exec(`DROP TABLE IF EXISTS ${t}`);
+    }
+    this.db.exec(DDL);
+    this.addColumns();
+    this.setMeta("schema", SCHEMA);
+  }
+
+  /** Adds the columns a store made before them lacks. Another process may add one first, and a column
+   * that exists by the time this one adds it is the same column. */
+  private addColumns(): void {
+    const have = new Set((this.db.query("PRAGMA table_info(atoms)").all() as { name: string }[]).map((c) => c.name));
+    for (const [col, type] of [["judged_ms", "INTEGER NOT NULL DEFAULT 0"], ["recorded_ms", "INTEGER NOT NULL DEFAULT 0"], ["owed_items", "TEXT NOT NULL DEFAULT ''"], ["settled", "INTEGER NOT NULL DEFAULT 0"]] as const) {
+      if (have.has(col)) continue;
+      try {
+        this.db.exec(`ALTER TABLE atoms ADD COLUMN ${col} ${type}`);
+      } catch (e) {
+        if (!/duplicate column/i.test((e as Error).message)) throw e;
+      }
+    }
+  }
+
+  /**
+   * The prepared statement for `sql`, prepared once per store and finalized by `close`. `db.query`'s own
+   * cache keeps twenty statements and prepares every one past them uncached, finalized only when the
+   * garbage collector reaches it. A statement left unfinalized keeps the connection open after
+   * `db.close()`, so the file and its `-wal` stay held, and on Windows cannot be deleted, until the
+   * process ends.
+   */
+  private stmt(sql: string): Statement {
+    let st = this.statements.get(sql);
+    if (!st) {
+      st = this.db.prepare(sql);
+      this.statements.set(sql, st);
+    }
+    return st;
+  }
+
+  close(): void {
+    for (const st of this.statements.values()) st.finalize();
+    this.statements.clear();
+    this.db.close();
+  }
+
+  /** Writes a copy of the whole store to `path`, which must not exist. */
+  copyTo(path: string): void {
+    this.stmt("VACUUM INTO ?").run(path);
+  }
+
+  private tryMeta(key: string): string | null {
+    try {
+      const row = this.stmt("SELECT value FROM meta WHERE key = ?").get(key) as { value: string } | null;
+      return row?.value ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  meta(key: string): string | null {
+    return this.tryMeta(key);
+  }
+
+  setMeta(key: string, value: string): void {
+    this.stmt("INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value").run(key, value);
+  }
+
+  /** The commit whose tree this platform's footprints and items were last recorded against. */
+  base(): string | null {
+    return this.meta(`base:${this.platform}`);
+  }
+
+  /** Records the tree: the commit, and every path that differed from it with its digest then. */
+  setBase(commit: string, overlay: Overlay = {}): void {
+    this.transaction(() => {
+      this.setMeta(`base:${this.platform}`, commit);
+      this.setMeta(`overlay:${this.platform}`, JSON.stringify(overlay));
+    });
+  }
+
+  /** The recorded tree's overlay; empty for a store that recorded a commit alone. */
+  overlay(): Overlay {
+    const raw = this.meta(`overlay:${this.platform}`);
+    if (!raw) return {};
+    try {
+      const got = JSON.parse(raw) as unknown;
+      return got && typeof got === "object" && !Array.isArray(got) ? (got as Overlay) : {};
+    } catch {
+      return {};
+    }
+  }
+
+  /** Runs `body` in one write transaction; inside another, as part of that one. `BEGIN IMMEDIATE` takes
+   * the write lock before `body` reads, waiting out the busy timeout for it. A deferred `BEGIN` would
+   * read first, and in WAL mode a read whose snapshot another process's commit made stale cannot become
+   * a write: SQLite fails it at once, without waiting. Every caller writes, so none loses by the lock.
+   * `bun:sqlite`'s own `transaction` keeps statements it never finalizes, so a closed store's file would
+   * stay held, and on Windows could not be deleted, until the process ends. */
+  transaction<T>(body: () => T): T {
+    if (this.db.inTransaction) return body();
+    this.db.exec("BEGIN IMMEDIATE");
+    try {
+      const out = body();
+      this.db.exec("COMMIT");
+      return out;
+    } catch (e) {
+      if (this.db.inTransaction) this.db.exec("ROLLBACK");
+      throw e;
+    }
+  }
+
+  // ---- trees ---------------------------------------------------------------------------------------
+
+  /** Takes every run recorded through this store from here on as run on the tree `sig` names. `row`
+   * gives what `trees` keeps for it, and is called only when the first run is recorded. */
+  runAt(sig: string, row: () => RunTree): void {
+    if (this.at?.sig !== sig) this.at = { sig, row, json: null };
+  }
+
+  /** The signature of the tree runs are taken at, or null when no selection named one. */
+  runSig(): string | null {
+    return this.at?.sig ?? null;
+  }
+
+  /** The row of the tree runs are taken at, made when it is missing; 0 when no selection named one. It
+   * is read again each time, so a row another process deleted is made again. */
+  private stamp(): number {
+    if (!this.at) return 0;
+    const got = this.stmt("SELECT n FROM trees WHERE platform = ? AND sig = ?").get(this.platform, this.at.sig) as { n: number } | null;
+    if (got) return got.n;
+    this.at.json ??= JSON.stringify(this.at.row());
+    return (this.stmt("INSERT INTO trees (platform, sig, tree) VALUES (?, ?, ?) RETURNING n").get(this.platform, this.at.sig, this.at.json) as { n: number }).n;
+  }
+
+  /** The row number of the tree `sig` names, or null when no atom was ever stamped with it. */
+  treeN(sig: string): number | null {
+    const r = this.stmt("SELECT n FROM trees WHERE platform = ? AND sig = ?").get(this.platform, sig) as { n: number } | null;
+    return r?.n ?? null;
+  }
+
+  /** Each atom on this platform stamped with a tree, with the tree's row number. */
+  stamps(): Map<string, number> {
+    const rows = this.stmt("SELECT id, settled FROM atoms WHERE platform = ? AND settled != 0").all(this.platform) as { id: string; settled: number }[];
+    return new Map(rows.map((r) => [r.id, r.settled]));
+  }
+
+  /** Each tree an atom on this platform is stamped with, with its signature and what `trees` keeps for
+   * it; null for a tree whose row is gone or does not read. */
+  stampTrees(): Map<number, { sig: string; tree: RunTree } | null> {
+    const rows = this.stmt("SELECT DISTINCT a.settled AS n, t.sig AS sig, t.tree AS tree FROM atoms a LEFT JOIN trees t ON t.n = a.settled WHERE a.platform = ? AND a.settled != 0").all(this.platform) as { n: number; sig: string | null; tree: string | null }[];
+    const out = new Map<number, { sig: string; tree: RunTree } | null>();
+    for (const r of rows) {
+      let tree: RunTree | null = null;
+      try {
+        tree = r.tree === null ? null : (JSON.parse(r.tree) as RunTree);
+      } catch {
+        tree = null;
+      }
+      out.set(r.n, tree && r.sig !== null ? { sig: r.sig, tree } : null);
+    }
+    return out;
+  }
+
+  /** Clears the stamp of each atom on this platform `drop` names; returns how many it cleared. */
+  unstamp(drop: (id: string, n: number) => boolean): number {
+    let cleared = 0;
+    const q = this.stmt("UPDATE atoms SET settled = 0 WHERE id = ? AND platform = ? AND settled = ?");
+    this.transaction(() => {
+      for (const [id, n] of this.stamps()) if (drop(id, n)) cleared += q.run(id, this.platform, n).changes;
+    });
+    return cleared;
+  }
+
+  /** Deletes every tree of this platform no atom is stamped with, and every judged verdict of this
+   * platform not taken at the tree `keep` names. */
+  dropStale(keep: string): void {
+    this.transaction(() => {
+      this.stmt("DELETE FROM trees WHERE platform = ? AND n NOT IN (SELECT settled FROM atoms WHERE platform = ? AND settled != 0)").run(this.platform, this.platform);
+      for (const [slot, v] of this.verdictsWithPrefix(judgedSlot(this.platform, ""))) if (!v.digest.startsWith(`${keep}|`)) this.deleteVerdict(slot);
+    });
+  }
+
+  /** The key a verdict judged now is kept under: the tree runs are taken at, then `tag`, which names
+   * what else the verdict depends on. Null when no selection named a tree. */
+  judgedKey(tag: string): string | null {
+    return this.at ? `${this.at.sig}|${tag}` : null;
+  }
+
+  /** Keeps a judged verdict of `id` that no run has recorded yet, under `key` (`judgedKey`). Recording
+   * a run of `id` deletes it. */
+  putJudged(id: string, key: string, value: unknown): void {
+    this.putVerdict(judgedSlot(this.platform, id), key, JSON.stringify(value));
+  }
+
+  /** The judged verdict of `id` kept under `key`, or null when none is. */
+  judged<T>(id: string, key: string): T | null {
+    const v = this.verdict(judgedSlot(this.platform, id));
+    if (v === null || v.digest !== key) return null;
+    try {
+      return JSON.parse(v.verdict) as T;
+    } catch {
+      return null;
+    }
+  }
+
+  // ---- keys ----------------------------------------------------------------------------------------
+
+  /** The number of `key`, made when it is new. */
+  keyId(key: string, digest = ""): number {
+    const known = this.keyIds.get(key);
+    if (known !== undefined && (digest === "" || this.keyDigests.get(key) === digest)) return known;
+    const row = this.db
+      .query("INSERT INTO keys (key, digest) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET digest = CASE WHEN excluded.digest = '' THEN keys.digest ELSE excluded.digest END RETURNING n")
+      .get(key, digest) as { n: number };
+    this.keyIds.set(key, row.n);
+    if (digest !== "") this.keyDigests.set(key, digest);
+    return row.n;
+  }
+
+  /** The numbers of the keys that exist of `keys`; a key no footprint ever held has none. */
+  keyIdsOf(keys: Iterable<string>): Map<string, number> {
+    const out = new Map<string, number>();
+    const q = this.stmt("SELECT n FROM keys WHERE key = ?");
+    for (const k of keys) {
+      const row = q.get(k) as { n: number } | null;
+      if (row) out.set(k, row.n);
+    }
+    return out;
+  }
+
+  /** Every key that starts with `prefix`, with its number. */
+  keysWithPrefix(prefix: string): Map<string, number> {
+    const out = new Map<string, number>();
+    const rows = this.stmt("SELECT key, n FROM keys WHERE key >= ? AND key < ?").all(prefix, `${prefix}\u{10FFFF}`) as { key: string; n: number }[];
+    for (const r of rows) out.set(r.key, r.n);
+    return out;
+  }
+
+  keyDigest(key: string): string | null {
+    const row = this.stmt("SELECT digest FROM keys WHERE key = ?").get(key) as { digest: string } | null;
+    return row?.digest ?? null;
+  }
+
+  // ---- atoms ---------------------------------------------------------------------------------------
+
+  private row(r: { id: string; kind: string; def: string; verdict: string; last_run: number; nkeys: number; owed_items: string }): AtomRow {
+    const owedItems = r.verdict === "owed" && r.owed_items !== "" ? (JSON.parse(r.owed_items) as string[]) : null;
+    return { id: r.id, kind: r.kind as AtomKind, def: r.def, verdict: r.verdict as Verdict, owedItems, lastRun: r.last_run, keys: r.nkeys };
+  }
+
+  atom(id: string): AtomRow | null {
+    const r = this.stmt("SELECT id, kind, def, verdict, last_run, nkeys, owed_items FROM atoms WHERE id = ? AND platform = ?").get(id, this.platform) as any;
+    return r ? this.row(r) : null;
+  }
+
+  atoms(kind?: AtomKind): AtomRow[] {
+    const rows = (
+      kind
+        ? this.stmt("SELECT id, kind, def, verdict, last_run, nkeys, owed_items FROM atoms WHERE platform = ? AND kind = ? ORDER BY id").all(this.platform, kind)
+        : this.stmt("SELECT id, kind, def, verdict, last_run, nkeys, owed_items FROM atoms WHERE platform = ? ORDER BY id").all(this.platform)
+    ) as any[];
+    return rows.map((r) => this.row(r));
+  }
+
+  private atomN(id: string): number | null {
+    const r = this.stmt("SELECT n FROM atoms WHERE id = ? AND platform = ?").get(id, this.platform) as { n: number } | null;
+    return r?.n ?? null;
+  }
+
+  /** Makes the atom known, with no footprint, when it is new. */
+  ensureAtom(id: string, def = ""): void {
+    this.stmt("INSERT INTO atoms (id, platform, kind, def) VALUES (?, ?, ?, ?) ON CONFLICT (id, platform) DO NOTHING").run(id, this.platform, kindOfAtom(id), def);
+  }
+
+  /** The keys of an atom's footprint, sorted. */
+  footprint(id: string): string[] {
+    const r = this.stmt("SELECT keys FROM atoms WHERE id = ? AND platform = ?").get(id, this.platform) as { keys: Uint8Array | null } | null;
+    if (!r?.keys) return [];
+    const ids = unpack(r.keys);
+    const q = this.stmt("SELECT key FROM keys WHERE n = ?");
+    return ids.map((n) => (q.get(n) as { key: string }).key).sort();
+  }
+
+  /** For each atom on this platform, of `kind` when given, the keys of its footprint that start with
+   * `prefix`, sorted. An atom holding none is absent. Read from the reverse index, key by key. */
+  keysUnder(prefix: string, kind?: AtomKind): Map<string, string[]> {
+    const out = new Map<string, string[]>();
+    const rows = this.db
+      .query("SELECT k.key AS key, a.id AS id FROM keys k JOIN footprint f ON f.key = k.n JOIN atoms a ON a.n = f.atom WHERE k.key >= ? AND k.key < ? AND a.platform = ?" + (kind ? " AND a.kind = ?" : ""))
+      .all(...([prefix, `${prefix}\u{10FFFF}`, this.platform, ...(kind ? [kind] : [])] as string[])) as { key: string; id: string }[];
+    for (const r of rows) (out.get(r.id) ?? out.set(r.id, []).get(r.id)!).push(r.key);
+    for (const keys of out.values()) keys.sort();
+    return out;
+  }
+
+  /**
+   * Records one run of `id`. A run whose definition differs from the one recorded starts the footprint
+   * afresh; any other run widens it by what this run used, since a footprint is the union of the runs
+   * since the definition last changed. A red run still widens it: a wider footprint only selects more.
+   * `*` stands for a run whose use could not be read, not for a use, so a run whose use was read takes
+   * it out of the footprint and keeps every key the earlier runs recorded. A `bun nv` check's run
+   * whose reads log was read is its whole footprint: the log names every path the run read, listed or
+   * tested, so what an earlier run read and this one did not is dropped. So is a run that records a
+   * configuration file by part (`config:<path>`) where the footprint holds the whole file from a run
+   * before configuration files were recorded that way: the whole file, and every block path its roster
+   * tested, would otherwise stay in the footprint for good.
+   */
+  recordRun(id: string, run: { def: string; verdict: Verdict; keys: Keyed; at?: number }): void {
+    this.transaction(() => {
+      this.ensureAtom(id, run.def);
+      const n = this.atomN(id)!;
+      const was = this.stmt("SELECT def, keys FROM atoms WHERE n = ?").get(n) as { def: string; keys: Uint8Array | null };
+      const old = was.keys ? unpack(was.keys) : [];
+      const fresh = was.def !== run.def || (id.startsWith("nv:") && !run.keys.has(WILD)) || this.byPartNow(run.keys, old);
+      const ids = new Set<number>(fresh ? [] : old);
+      const wild = run.keys.has(WILD) ? null : (this.keyIdsOf([WILD]).get(WILD) ?? null);
+      if (wild !== null) ids.delete(wild);
+      for (const [k, d] of run.keys) ids.add(this.keyId(k, d));
+      const del = this.stmt("DELETE FROM footprint WHERE key = ? AND atom = ?");
+      const ins = this.stmt("INSERT OR IGNORE INTO footprint (key, atom) VALUES (?, ?)");
+      if (fresh) for (const k of old) if (!ids.has(k)) del.run(k, n);
+      if (!fresh && wild !== null && old.includes(wild)) del.run(wild, n);
+      const oldSet = new Set(old);
+      for (const k of ids) if (fresh || !oldSet.has(k)) ins.run(k, n);
+      const sorted = [...ids].sort((a, b) => a - b);
+      this.db
+        .query("UPDATE atoms SET def = ?, verdict = ?, last_run = ?, nkeys = ?, keys = ?, owed_items = '', settled = ? WHERE n = ?")
+        .run(run.def, run.verdict, run.at ?? Date.now(), sorted.length, pack(sorted), this.stamp(), n);
+      this.deleteVerdict(judgedSlot(this.platform, id));
+    });
+    recordListener?.(id, run.verdict);
+  }
+
+  /** Whether `keys` read a configuration file by part that the footprint `old` holds whole, and the run
+   * did not also read it whole. */
+  private byPartNow(keys: Keyed, old: number[]): boolean {
+    const wholes = [...keys.keys()].filter((k) => k.startsWith("config:")).map((k) => `file:${k.slice(7)}`).filter((f) => !keys.has(f));
+    if (wholes.length === 0 || old.length === 0) return false;
+    const held = new Set(old);
+    return [...this.keyIdsOf(wholes).values()].some((k) => held.has(k));
+  }
+
+  /** Notes how long the last judged run and the last recording run of a known atom took, in
+   * milliseconds; an atom judged and recorded in one run gives the same time twice. Only the order work
+   * starts in reads these. */
+  setDurations(id: string, judgedMs: number, recordedMs: number): void {
+    this.stmt("UPDATE atoms SET judged_ms = ?, recorded_ms = ? WHERE id = ? AND platform = ?").run(Math.round(judgedMs), Math.round(recordedMs), id, this.platform);
+  }
+
+  /** Every atom of `kind` with a noted duration, by id; 0 where one of the two was never noted. */
+  durations(kind: AtomKind): Map<string, { judged: number; recorded: number }> {
+    const rows = this.stmt("SELECT id, judged_ms, recorded_ms FROM atoms WHERE platform = ? AND kind = ? AND (judged_ms > 0 OR recorded_ms > 0)").all(this.platform, kind) as { id: string; judged_ms: number; recorded_ms: number }[];
+    return new Map(rows.map((r) => [r.id, { judged: r.judged_ms, recorded: r.recorded_ms }]));
+  }
+
+  /** Sets an atom's verdict without touching its footprint, stamped with the tree runs are taken at. */
+  setVerdict(id: string, verdict: Verdict): void {
+    this.transaction(() => {
+      this.stmt("UPDATE atoms SET verdict = ?, last_run = ?, owed_items = '', settled = ? WHERE id = ? AND platform = ?").run(verdict, Date.now(), this.stamp(), id, this.platform);
+    });
+  }
+
+  /** Marks each known atom of `ids` owed, keeping a red one red; returns how many it marked. An atom
+   * the store does not know has no footprint, and is selected as new without a mark. `itemsOf` names
+   * the changed keys an atom is owed for, or null for none: an atom already owed adds them to the ones
+   * it holds, and one null on either side leaves it with none. */
+  owe(ids: Iterable<string>, itemsOf: (id: string) => string[] | null = () => null): number {
+    let n = 0;
+    const was = this.stmt("SELECT verdict, owed_items FROM atoms WHERE id = ? AND platform = ?");
+    const q = this.stmt("UPDATE atoms SET verdict = 'owed', owed_items = ? WHERE id = ? AND platform = ? AND verdict != 'red'");
+    this.transaction(() => {
+      for (const id of ids) {
+        const r = was.get(id, this.platform) as { verdict: string; owed_items: string } | null;
+        if (r === null) continue;
+        const held = r.verdict !== "owed" ? [] : r.owed_items === "" ? null : (JSON.parse(r.owed_items) as string[]);
+        const items = itemsOf(id);
+        const merged = held === null || items === null ? "" : JSON.stringify([...new Set([...held, ...items])].sort());
+        n += q.run(merged, id, this.platform).changes;
+      }
+    });
+    return n;
+  }
+
+  /** Forgets an atom, its footprint and its divergence mark. */
+  removeAtom(id: string): void {
+    this.transaction(() => {
+      this.clearDiverged(id);
+      const n = this.atomN(id);
+      if (n === null) return;
+      const r = this.stmt("SELECT keys FROM atoms WHERE n = ?").get(n) as { keys: Uint8Array | null };
+      const del = this.stmt("DELETE FROM footprint WHERE key = ? AND atom = ?");
+      for (const k of r.keys ? unpack(r.keys) : []) del.run(k, n);
+      this.stmt("DELETE FROM atoms WHERE n = ?").run(n);
+    });
+  }
+
+  /** Takes `keys` out of every footprint on this platform: items that no longer exist. */
+  prune(keys: Iterable<string>): number {
+    let removed = 0;
+    this.transaction(() => {
+      const ids = this.keyIdsOf(keys);
+      const touched = new Map<number, Set<number>>();
+      for (const kn of ids.values()) {
+        const rows = this.stmt("SELECT f.atom AS atom FROM footprint f JOIN atoms a ON a.n = f.atom WHERE f.key = ? AND a.platform = ?").all(kn, this.platform) as { atom: number }[];
+        for (const r of rows) {
+          (touched.get(r.atom) ?? touched.set(r.atom, new Set()).get(r.atom)!).add(kn);
+          this.stmt("DELETE FROM footprint WHERE key = ? AND atom = ?").run(kn, r.atom);
+          removed++;
+        }
+      }
+      for (const [atom, gone] of touched) {
+        const r = this.stmt("SELECT keys FROM atoms WHERE n = ?").get(atom) as { keys: Uint8Array | null };
+        const left = (r.keys ? unpack(r.keys) : []).filter((k) => !gone.has(k));
+        this.stmt("UPDATE atoms SET keys = ?, nkeys = ? WHERE n = ?").run(pack(left), left.length, atom);
+      }
+    });
+    return removed;
+  }
+
+  /**
+   * The reverse index: for each atom on this platform whose footprint holds one of `keys`, the keys of
+   * `keys` it holds.
+   */
+  atomsUnder(keys: Iterable<string>): Map<string, string[]> {
+    return this.atomsUnderIds(this.keyIdsOf(keys));
+  }
+
+  /** As `atomsUnder`, for keys already numbered. */
+  atomsUnderIds(ids: Map<string, number>): Map<string, string[]> {
+    const out = new Map<string, string[]>();
+    const q = this.stmt("SELECT a.id AS id FROM footprint f JOIN atoms a ON a.n = f.atom WHERE f.key = ? AND a.platform = ?");
+    for (const [key, n] of ids) {
+      for (const r of q.all(n, this.platform) as { id: string }[]) (out.get(r.id) ?? out.set(r.id, []).get(r.id)!).push(key);
+    }
+    return out;
+  }
+
+  // ---- items ---------------------------------------------------------------------------------------
+
+  setItems(files: FileItems[]): void {
+    const q = this.stmt("INSERT INTO items (platform, file, raw, json) VALUES (?, ?, ?, ?) ON CONFLICT (platform, file) DO UPDATE SET raw = excluded.raw, json = excluded.json");
+    this.transaction(() => {
+      for (const f of files) q.run(this.platform, f.file, f.raw, JSON.stringify(f));
+    });
+  }
+
+  /** Replaces this platform's whole scan. */
+  replaceItems(files: FileItems[]): void {
+    this.transaction(() => {
+      this.stmt("DELETE FROM items WHERE platform = ?").run(this.platform);
+      this.setItems(files);
+    });
+  }
+
+  removeItems(files: string[]): void {
+    const q = this.stmt("DELETE FROM items WHERE platform = ? AND file = ?");
+    this.transaction(() => {
+      for (const f of files) q.run(this.platform, f);
+    });
+  }
+
+  items(file: string): FileItems | null {
+    const r = this.stmt("SELECT json FROM items WHERE platform = ? AND file = ?").get(this.platform, file) as { json: string } | null;
+    return r ? (JSON.parse(r.json) as FileItems) : null;
+  }
+
+  allItems(): Map<string, FileItems> {
+    const out = new Map<string, FileItems>();
+    for (const r of this.stmt("SELECT file, json FROM items WHERE platform = ?").all(this.platform) as { file: string; json: string }[]) {
+      out.set(r.file, JSON.parse(r.json) as FileItems);
+    }
+    return out;
+  }
+
+  itemFiles(): string[] {
+    return (this.stmt("SELECT file FROM items WHERE platform = ? ORDER BY file").all(this.platform) as { file: string }[]).map((r) => r.file);
+  }
+
+  // ---- verdicts ------------------------------------------------------------------------------------
+
+  verdict(slot: string): { digest: string; verdict: string; at: number } | null {
+    return (this.stmt("SELECT digest, verdict, at FROM verdicts WHERE slot = ?").get(slot) as any) ?? null;
+  }
+
+  /** Every slot that starts with `prefix`, with what it holds. */
+  verdictsWithPrefix(prefix: string): Map<string, { digest: string; verdict: string }> {
+    const rows = this.stmt("SELECT slot, digest, verdict FROM verdicts WHERE slot >= ? AND slot < ?").all(prefix, `${prefix}\u{10FFFF}`) as { slot: string; digest: string; verdict: string }[];
+    return new Map(rows.map((r) => [r.slot, { digest: r.digest, verdict: r.verdict }]));
+  }
+
+  putVerdict(slot: string, digest: string, verdict: string): void {
+    this.db
+      .query("INSERT INTO verdicts (slot, digest, verdict, at) VALUES (?, ?, ?, ?) ON CONFLICT (slot) DO UPDATE SET digest = excluded.digest, verdict = excluded.verdict, at = excluded.at")
+      .run(slot, digest, verdict, Date.now());
+  }
+
+  // ---- divergences ---------------------------------------------------------------------------------
+
+  /** Marks `id` as an atom whose recording run ended differently from the run it was judged on, with
+   * why. Its footprint may be cut short, so a selection picks it every time until the mark is cleared. */
+  markDiverged(id: string, why: string): void {
+    this.putVerdict(divergedSlot(this.platform, id), "", why);
+  }
+
+  /** Clears `id`'s divergence mark: its recording run ended as its judged run did. */
+  clearDiverged(id: string): void {
+    this.deleteVerdict(divergedSlot(this.platform, id));
+  }
+
+  /** Forgets whatever `slot` holds. */
+  deleteVerdict(slot: string): void {
+    this.stmt("DELETE FROM verdicts WHERE slot = ?").run(slot);
+  }
+
+  /** Every atom marked diverged on this platform, with why. A mark whose id is no longer an atom here
+   * is left out: its program is gone, so nothing can clear it by running. */
+  divergences(): Map<string, string> {
+    const prefix = divergedSlot(this.platform, "");
+    const out = new Map<string, string>();
+    for (const [slot, v] of this.verdictsWithPrefix(prefix)) {
+      const id = slot.slice(prefix.length);
+      if (this.atomN(id) !== null) out.set(id, v.verdict);
+    }
+    return out;
+  }
+
+  // ---- counts --------------------------------------------------------------------------------------
+
+  stats(): { atoms: Record<string, number>; recorded: Record<string, number>; red: number; owed: number; keys: number; entries: number; bytes: number } {
+    const atoms: Record<string, number> = {};
+    const recorded: Record<string, number> = {};
+    for (const r of this.stmt("SELECT kind, COUNT(*) AS c, SUM(nkeys > 0) AS rec FROM atoms WHERE platform = ? GROUP BY kind").all(this.platform) as any[]) {
+      atoms[r.kind] = r.c;
+      recorded[r.kind] = r.rec ?? 0;
+    }
+    const red = (this.stmt("SELECT COUNT(*) AS c FROM atoms WHERE platform = ? AND verdict = 'red'").get(this.platform) as { c: number }).c;
+    const owed = (this.stmt("SELECT COUNT(*) AS c FROM atoms WHERE platform = ? AND verdict = 'owed'").get(this.platform) as { c: number }).c;
+    const keys = (this.stmt("SELECT COUNT(*) AS c FROM keys").get() as { c: number }).c;
+    const entries = (this.stmt("SELECT COALESCE(SUM(nkeys), 0) AS c FROM atoms WHERE platform = ?").get(this.platform) as { c: number }).c;
+    let bytes = 0;
+    if (this.file !== ":memory:") {
+      for (const f of [this.file, `${this.file}-wal`]) {
+        try {
+          bytes += statSync(f).size;
+        } catch {
+          // No WAL file is no bytes.
+        }
+      }
+    }
+    return { atoms, recorded, red, owed, keys, entries, bytes };
+  }
+}
+
+/** The paths each recorded test binary asked `nvs_repo` for, by `<package> <kind> <target>`, from its
+ * footprint's `tree:` keys; a binary the store has not recorded is absent. */
+export function testReads(store: SelectStore): Map<string, string[]> {
+  const out = new Map<string, string[]>();
+  for (const a of store.atoms("test")) if (a.keys > 0) out.set(a.id.slice(5), []);
+  for (const [id, keys] of store.keysUnder("tree:", "test")) out.set(id.slice(5), keys.map((k) => k.slice(5)));
+  return out;
+}
+
+/** The slot an atom's divergence mark is kept in. */
+const divergedSlot = (platform: string, id: string) => `diverged:${platform}:${id}`;
+
+/** The slot a proof group's own paths are kept in: its example and attack directories and its bench
+ * file, which a `proofs: <group>` unit keys on. */
+export const proofReadsSlot = (group: string) => `proof-reads:${group}`;
+
+/** The group name one feature's own paths are kept under, beside the groups': what a `bun nv proofs
+ * --only <feature>...` run records, and a check of that shape is made of. */
+export const featureGroup = (id: string) => `feature:${id}`;
+
+/** Sorted key numbers as a blob: each gap from the one before as an unsigned LEB128 varint. */
+export function pack(sorted: number[]): Uint8Array {
+  const out: number[] = [];
+  let prev = 0;
+  for (const n of sorted) {
+    let gap = n - prev;
+    prev = n;
+    do {
+      let byte = gap & 0x7f;
+      gap = Math.floor(gap / 128);
+      if (gap > 0) byte |= 0x80;
+      out.push(byte);
+    } while (gap > 0);
+  }
+  return Uint8Array.from(out);
+}
+
+export function unpack(blob: Uint8Array): number[] {
+  const out: number[] = [];
+  let prev = 0;
+  let gap = 0;
+  let shift = 1;
+  for (const byte of blob) {
+    gap += (byte & 0x7f) * shift;
+    if (byte & 0x80) shift *= 128;
+    else {
+      prev += gap;
+      out.push(prev);
+      gap = 0;
+      shift = 1;
+    }
+  }
+  return out;
+}

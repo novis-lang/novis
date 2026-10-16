@@ -1,0 +1,38 @@
+<?nvs
+// Attack: a request gives scatter charts x values of text, of formulas, of other files, or none at all.
+// The chart should be written with the ranges as given, or throw an error.
+use Novis\Spreadsheet\Chart;
+use Novis\Spreadsheet\Formula;
+use Novis\Spreadsheet\Workbook;
+
+class Attack
+{
+    // This method adds a scatter chart at E2 and prints whether the file was written, or the class of the error.
+    public static function attempt(int $step, ?{categories?: string, name?: string, color?: string} $options): void
+    {
+        try {
+            var $book = Workbook::createInMemory();
+            var $sheet = $book->sheet('Products');
+            $sheet->add(['price' => 'cheap', 'sold' => 120, 'cost' => Formula::of('=1/0')]);
+            $sheet->add(['price' => '=cmd|"/c calc"!A1', 'sold' => 75, 'cost' => Formula::of('=NOW()')]);
+            $sheet->chart('E2', Chart::scatter()->series('B2:B3', $options));
+            bytes $file = $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
+            echo 'step ', $step, ' wrote ', Core\Bytes::length($file) > 0 ? 'a file' : 'nothing', "\n";
+        } catch (Throwable $e) {
+            echo 'step ', $step, ' stopped ', $e::class, "\n";
+        }
+    }
+}
+
+// 1. X values of text that looks like a formula, of formulas, and no x values.
+Attack::attempt(1, { categories: 'A2:A3' });
+Attack::attempt(1, { categories: 'C2:C3' });
+Attack::attempt(1, null);
+
+// 2. X values of another file and of a link to a web address.
+Attack::attempt(2, { categories: '[prices.xlsx]Products!A2:A3' });
+Attack::attempt(2, { categories: "'https://example.com/[x.xlsx]Products'!A2:A3" });
+
+// 3. X values with a formula, and an empty range.
+Attack::attempt(3, { categories: '=WEBSERVICE("https://example.com")' });
+Attack::attempt(3, { categories: '' });

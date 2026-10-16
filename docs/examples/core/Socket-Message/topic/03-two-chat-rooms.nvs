@@ -1,0 +1,21 @@
+<?nvs
+// Shows a chat connection that is in two rooms and tells the client which room each line is from.
+
+// The `.nvsp` file beside this example plays a client that sends nothing and closes.
+Core\Socket $conn = Core\Socket::current();
+Core\Topic::subscribe("room:lobby");
+Core\Topic::subscribe("room:games");
+
+// In a real application, the other people in each room publish these lines.
+Core\Topic::publish("room:lobby", "good morning");
+Core\Topic::publish("room:games", "who wants to play?");
+
+// `Core\Str::after` removes the `room:` part of the topic name.
+// This prints `sent: [lobby] good morning`, then `sent: [games] who wants to play?`.
+?Core\Socket\Message $message = $conn->receive();
+while ($message != null) {
+    string $topic = $message->topic() ?? "";
+    string $room = Core\Str::after($topic, "room:") ?? $topic;
+    $conn->send("[" . $room . "] " . $message->value() as string);
+    $message = $conn->receive();
+}

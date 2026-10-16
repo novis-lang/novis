@@ -1,0 +1,37 @@
+---
+title: '?? and ??='
+covers: ['lang:expressions/and-the-ternary']
+description: 'Default values with ?? and ??=, counting with ??+=, and the operators ? :, ?: and ?->.'
+---
+import Snippet from '@components/Snippet.astro'
+
+`$a ?? $b` gives `$a` when it is not `null`. Otherwise it gives `$b`.
+
+<Snippet src="syntax/null-coalescing/01-default.nvs" />
+
+- A missing array key works like `null` with `??`. `$stock["pears"] ?? 0` is `0`, and nothing is
+  thrown.
+- `$a ?? $b ?? $c` checks each value in turn, from left to right.
+- `$a ??= $b` sets `$a` only when `$a` is `null` or a missing key.
+
+## Use this when you count or collect values in an array
+
+<Snippet src="syntax/null-coalescing/02-counting.nvs" />
+
+`??+=`, `??-=` and `??.=` work like `+=`, `-=` and `.=`. A missing key starts at `0`, `0.0` or
+`""`. So `$byStatus[$status] ??+= 1` counts each status, even the first time.
+
+## The ternary operators
+
+<Snippet src="syntax/null-coalescing/03-ternary.nvs" />
+
+- `$c ? $a : $b` gives `$a` when the condition `$c` is true, and `$b` otherwise.
+- `$a ?: $b` gives `$a` when it counts as true. An empty string counts as false.
+- `$user?->name` gives `null` when `$user` is `null`. You cannot assign a value through `?->`.
+
+## Do and don't
+
+- Do use `??` for a default value, and `??=` to set a value once.
+- Do use `??+=` to count with an array.
+- Don't put a nested ternary on one line. Use parentheses, or a `match`.
+- Don't write `$n ?? 0 + 10`. `+` runs first. Write `($n ?? 0) + 10`.

@@ -1,0 +1,7 @@
+2024-06-05 14:30
+not valid: 2024-06-05T14:30
+  Core\Time::parse(): expected ` ` at offset 10
+not valid: 2024-6-5 14:30
+  Core\Time::parse(): expected 2 or more digits of month at offset 6
+not valid: 2024-02-30 14:30
+  Core\Time::parse(): parameter 'day' for `2024-02` is invalid, must be in range `1..=29`

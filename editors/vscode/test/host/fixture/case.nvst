@@ -1,0 +1,18 @@
+--TEST--
+The case the host tier opens to prove `rule:ide/case-files-have-their-own-grammar`: the section headers carry their own scope and Novis is highlighted inside `--FILE--`
+--FILE--
+<?nvs
+// A real case rather than a sketch, because the grammar embeds the Novis one inside this section and
+// the capture asserts the scopes it produces here are the same ones `app.nvs` gets at top level.
+secret string $password = 'correct horse battery staple';
+
+string $stored = Core\Password::hash($password);
+if (Core\Password::verify($password, $stored)) {
+    echo 'verified', "\n";
+}
+
+int $total = 2 + 3 + 5;
+echo $total, "\n";
+--EXPECT--
+verified
+10

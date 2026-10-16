@@ -1,0 +1,24 @@
+<?nvs
+// Shows how to read every attribute attached to one declaration.
+// `Core\Attributes::all` returns them in the order they are written.
+
+type Tag = {name: string};
+
+class Article {
+    #[Tag(name: "news")]
+    #[Tag(name: "sport")]
+    #[Tag(name: "local")]
+    public function publish(): int { return 1; }
+
+    public function archive(): int { return 2; }
+}
+
+// This prints `news`, `sport` and `local`, one per line, in that order.
+array<Tag> $tags = Core\Attributes::all<Tag>(Article::publish(...));
+foreach ($tags as Tag $tag) {
+    echo $tag->name, "\n";
+}
+
+// `archive` carries no attribute. The result is an empty list, so this prints 0.
+array<Tag> $none = Core\Attributes::all<Tag>(Article::archive(...));
+echo Core\Arr::count($none), "\n";

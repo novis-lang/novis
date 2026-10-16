@@ -1,0 +1,35 @@
+---
+title: A CSV report
+covers: []
+description: Read a CSV file of sales and print the total for each product.
+---
+
+import Snippet from '@components/Snippet.astro'
+
+This program reads a file of sales. Each line has a product, a quantity and a price. The program
+prints the total amount for each product.
+
+<Snippet src="guides/simple-programs/csv-report/csv-report.nvs" />
+
+The program reads and writes files, so it needs this `nvs.toml` in the same folder:
+
+```toml
+[capabilities.fs]
+read = true
+write = true
+```
+
+Run it with `nvs run csv-report.nvs`.
+
+## How it works
+
+`Core\IO::readText` reads the whole file as a string. `Core\Csv::parse` splits that string into
+rows. With `{header: true}`, each row is an array with the column names as keys.
+
+Every field in a CSV file is a string. `as int` and `as float` convert the quantity and the price
+to numbers. If a field is not a number, the conversion throws an error and the program stops.
+
+`$totals` is an array with the product names as keys. `$totals[$product] ?? 0.0` gives `0.0` the
+first time a product appears.
+
+To read your own file, replace the path and remove the line that writes the sample file.

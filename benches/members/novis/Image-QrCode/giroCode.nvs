@@ -1,0 +1,26 @@
+<?nvs
+// Makes the text of a bank transfer, as a shop does for the GiroCode on each invoice.
+// bench: iterations 256
+// bench: complexity constant
+use Novis\Image\QrCode;
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<string> $texts = ["Invoice 333", "Invoice 666666", "Invoice 999999999"];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            string $payment = QrCode::giroCode({
+                name: "Shop GmbH",
+                iban: "DE89 3704 0044 0532 0130 00",
+                amount: 49.9,
+                text: $texts[($total % 3) as int],
+            });
+            $total = $total + Core\Str::length($payment);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

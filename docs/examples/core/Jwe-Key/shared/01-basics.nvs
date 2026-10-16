@@ -1,0 +1,16 @@
+<?nvs
+// Shows how to make a key from a secret key, and what happens when the length is wrong.
+
+// `Core\Crypto::generateKey` returns 32 random bytes. `shared` makes a key from them.
+Core\Jwe\Key $key = Core\Jwe\Key::shared(Core\Crypto::generateKey());
+
+// This prints `hello`.
+echo Core\Jwe::decrypt(Core\Jwe::encrypt("hello", $key), [$key]), "\n";
+
+// A key of 16 bytes is too short. `shared` throws a `LogicError`.
+// This prints `a key must be 32 bytes`.
+try {
+    Core\Jwe\Key::shared(Core\Bytes::repeat(Core\Encoding::fromHex("00"), 16));
+} catch (LogicError $short) {
+    echo "a key must be 32 bytes", "\n";
+}

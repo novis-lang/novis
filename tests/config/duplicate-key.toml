@@ -1,0 +1,4 @@
+# `rule:config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`'s refusal, as a file: `nvs config check` on this must fail and name the line.
+[limits]
+memory = "128M"
+memory = "256M"

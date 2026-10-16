@@ -1,0 +1,11 @@
+<?nvs
+// Shows what happens to a word that is longer than the width.
+
+string $text = "Your reference is 7F3A9C2E81B4D6F0 for this order.";
+
+// By default, the long word stays whole on a line of its own.
+// Here that line has 16 characters, more than the width of 10.
+echo Core\Str::wrap($text, 10), "\n\n";
+
+// With `cutLongWords: true`, the word is cut into pieces of 10 characters.
+echo Core\Str::wrap($text, 10, {cutLongWords: true}), "\n";

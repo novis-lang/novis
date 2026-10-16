@@ -1,0 +1,12 @@
+<?nvs
+// Shows how to choose a few products for a quick test, with the same choice on every run.
+
+// A shop has many products, and a quick test checks only three of their pages.
+// The seed is fixed, so a failed test checks the same three pages when it runs again.
+array<string> $products = [
+    "mug", "t-shirt", "poster", "notebook", "pen", "sticker", "cap", "bag",
+];
+Core\Random\Seeded $generator = new Core\Random\Seeded(2024);
+foreach ($generator->sample($products, 3) as string $product) {
+    echo "check https://example.com/shop/", $product, "\n";
+}

@@ -1,0 +1,17 @@
+<?nvs
+// Shows how to run a function when the script ends. The functions run after
+// the last line of the script, in the order you added them.
+
+// A function may take no parameter.
+Core\Script::onExit(fn (): void => {
+    echo "first: the script has ended\n";
+});
+
+// A function may also take the report. `status()` returns the exit status,
+// so this prints "second: status 0".
+Core\Script::onExit(fn (Core\Script\ExitReport $report): void => {
+    echo "second: status ", $report->status(), "\n";
+});
+
+// This line prints before both functions.
+echo "the last line of the script\n";

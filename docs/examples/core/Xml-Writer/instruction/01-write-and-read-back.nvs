@@ -1,0 +1,23 @@
+<?nvs
+// Shows how to write processing instructions, and how a parser reads their target and data.
+
+Core\Xml\Writer $writer = Core\Xml::writer();
+$writer->startDocument();
+
+// This instruction is before the root element. Its target is `app` and its data is `version="2"`.
+$writer->instruction("app", 'version="2"');
+$writer->startElement("settings");
+// This instruction is inside the element. Its data is `""`, so only the target is written.
+$writer->instruction("reload", "");
+$writer->endElement();
+
+string $document = $writer->endDocument();
+echo $document, "\n";
+
+// `name` returns the target and `text` returns the data.
+// This prints `app: version="2"` and then `reload: `.
+Core\Xml\Node $top = Core\Xml::parse($document);
+Core\Xml\Node $first = $top->children()[0];
+Core\Xml\Node $second = $top->children()[1]->children()[0];
+echo $first->name(), ": ", $first->text(), "\n";
+echo $second->name(), ": ", $second->text(), "\n";

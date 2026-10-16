@@ -1,0 +1,25 @@
+<?nvs
+// Shows how to build the links to the parent pages of a page, from the path of its file.
+
+class Breadcrumbs {
+    public static function render(string $page): string {
+        string $links = "";
+        string $url = "";
+        // Each folder gets a link to its own address, and the page itself gets none.
+        array<string> $parts = Core\Path::split($page);
+        uint $left = Core\Arr::count($parts);
+        foreach ($parts as string $part) {
+            $url = $url . "/" . $part;
+            $left = $left - 1;
+            if ($left > 0) {
+                $links = $links . "<a href=\"{$url}\">{$part}</a> > ";
+            } else {
+                $links = $links . $part;
+            }
+        }
+        return $links;
+    }
+}
+
+// This prints `<a href="/guide">guide</a> > <a href="/guide/install">install</a> > linux.md`.
+echo Breadcrumbs::render("guide/install/linux.md"), "\n";

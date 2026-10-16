@@ -1,0 +1,13 @@
+<?nvs
+// Shows how to replace a word in a sentence.
+
+string $text = "The cat sat on the mat. The cat slept.";
+
+// Every "cat" is replaced with "dog".
+echo Core\Str::replace($text, "cat", "dog"), "\n";
+
+// `limit: 1` replaces only the first match.
+echo Core\Str::replace($text, "cat", "dog", {limit: 1}), "\n";
+
+// The text has no "bird", so the result is the text unchanged.
+echo Core\Str::replace($text, "bird", "dog"), "\n";

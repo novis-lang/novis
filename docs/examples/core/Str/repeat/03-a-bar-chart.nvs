@@ -1,0 +1,9 @@
+<?nvs
+// Shows how to print a simple bar chart of sales in a terminal.
+
+array<uint> $sales = ["Mon" => 4, "Tue" => 9, "Wed" => 6];
+
+// Each `#` is one sale. This prints a bar of 4, 9 and 6 signs.
+foreach ($sales as string $day => uint $count) {
+    echo $day, " ", Core\Str::repeat("#", $count), " ", $count, "\n";
+}

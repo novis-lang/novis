@@ -1,0 +1,75 @@
+--TEST--
+`foreach` accepts an array, an `Iterable<T>` and an `Iterator<T>`, the three walk the same values in the same order, and only the array form binds a key — `rule:iteration/foreach-subjects`
+--FILE--
+<?nvs
+// covers: lang:iteration/what-foreach-walks
+class Three implements Iterable<int> {
+    public function iterate(): Iterator<int> {
+        yield 7;
+        yield 8;
+        yield 9;
+    }
+}
+
+class Steps {
+    public static function three(): Iterator<int> {
+        yield 7;
+        yield 8;
+        yield 9;
+    }
+}
+
+// One loop body, three subject types: the walk is the same shape for each of them.
+class Walk {
+    public static function ofArray(array<int> $xs): string {
+        string $out = "";
+        foreach ($xs as int $v) {
+            $out = $out . $v . ";";
+        }
+        return $out;
+    }
+
+    public static function ofIterable(Iterable<int> $xs): string {
+        string $out = "";
+        foreach ($xs as int $v) {
+            $out = $out . $v . ";";
+        }
+        return $out;
+    }
+
+    public static function ofIterator(Iterator<int> $xs): string {
+        string $out = "";
+        foreach ($xs as int $v) {
+            $out = $out . $v . ";";
+        }
+        return $out;
+    }
+}
+
+array<int> $literal = [7, 8, 9];
+string $a = Walk::ofArray($literal);
+string $b = Walk::ofIterable(new Three());
+string $c = Walk::ofIterator(Steps::three());
+echo $a, "\n";
+
+// Asserted by agreement rather than line by line: a subject that walks plausibly on its own
+// row still fails here.
+int $agreeing = 0;
+if ($a == $b) {
+    $agreeing = $agreeing + 1;
+}
+if ($b == $c) {
+    $agreeing = $agreeing + 1;
+}
+echo $agreeing, " of 2 agree\n";
+
+// Only the array form binds a key, and an array's key binds as a string.
+string $keys = "";
+foreach ($literal as string $k => int $v) {
+    $keys = $keys . $k . "=" . $v . ";";
+}
+echo $keys, "\n";
+--EXPECT--
+7;8;9;
+2 of 2 agree
+0=7;1=8;2=9;

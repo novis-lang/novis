@@ -1,0 +1,95 @@
+<?nvs
+// Attack: the program builds very large and very deep argument lists, to make a call lose a value.
+// It spreads one million values, nests 20,000 `inout` calls and throws from a method 300,000 times.
+// Every total it prints should be correct, and the program should not crash.
+// hostile: timeout-ms 20000
+
+class Collect
+{
+    public static function howMany(int ...$rest): int
+    {
+        return Core\Arr::count($rest) as int;
+    }
+
+    public static function sum(int $first, int $second = 2, int ...$rest): int
+    {
+        int $total = $first + $second;
+
+        foreach ($rest as int $each) {
+            $total = $total + $each;
+        }
+
+        return $total;
+    }
+
+    public static function deepen(inout int $carried, int $depth): int
+    {
+        if ($depth == 0) {
+            $carried = $carried + 1;
+
+            return $carried;
+        }
+
+        int $inner = $carried;
+        int $reached = Collect::deepen(inout $inner, $depth - 1);
+        $carried = $inner;
+
+        return $reached;
+    }
+
+    public static function halfway(inout int $slot): void
+    {
+        $slot = $slot + 1;
+
+        throw new RuntimeError('halfway');
+    }
+}
+
+// 1. `...$many` spreads a list of one million values into the parameter `...$rest`.
+array<int> $many = Core\Arr::fill(1000000, 1);
+echo Collect::howMany(...$many), "\n";
+echo Collect::sum(1, 2, ...$many), "\n";
+
+// 2. The same method is called with defaults, named arguments and extra arguments, 200,000 times.
+// Each round uses the result of the round before.
+int $rolling = 1;
+int $round = 0;
+
+while ($round < 200000) {
+    $rolling = Collect::sum($rolling % 5) + Collect::sum($rolling % 5, 3)
+        + Collect::sum(first: $rolling % 5, second: 3)
+        + Collect::sum(second: 3, first: $rolling % 5)
+        + Collect::sum($rolling % 5, 3, 4, 5);
+
+    $round = $round + 1;
+}
+
+echo $rolling, "\n";
+
+// 3. 20,000 nested calls, each with an `inout` argument that the call below writes back into.
+// If the call depth limit stops it, the `RecursionError` is caught and step 4 still runs.
+int $carried = 0;
+
+try {
+    echo Collect::deepen(inout $carried, 20000), ' ', $carried, "\n";
+} catch (RecursionError $tooDeep) {
+    echo "the call depth limit held\n";
+}
+
+// 4. `halfway` changes its `inout` argument and then throws an error, 300,000 times.
+// The error stops the method before the new value is copied back to `$abandoned`.
+int $abandoned = 7;
+int $attempt = 0;
+int $caught = 0;
+
+while ($attempt < 300000) {
+    try {
+        Collect::halfway(inout $abandoned);
+    } catch (RuntimeError $stopped) {
+        $caught = $caught + 1;
+    }
+
+    $attempt = $attempt + 1;
+}
+
+echo $caught, ' ', $abandoned, "\n";

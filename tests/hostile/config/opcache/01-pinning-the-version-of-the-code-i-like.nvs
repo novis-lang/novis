@@ -1,0 +1,88 @@
+<?nvs
+// Attack: a program tries to stop the server from noticing that its source files
+// changed. Only the person who runs the server may change these settings, so every
+// attempt below should fail and the settings should stay as they were.
+// hostile: timeout-ms 20000
+
+// 1. The program tries to set `validate` to many values that could mean
+//    "stop checking", including near misses and a very long string.
+array<string> $policies = [
+    'never',
+    'Never',
+    'NEVER',
+    ' never ',
+    "never\u{0000}",
+    "nev\u{0435}r",
+    'false',
+    '0',
+    'no',
+    'off',
+    'none',
+    'mtime',
+    'hash',
+    'sometimes',
+    '',
+    Core\Str::repeat('never', 65536),
+];
+foreach ($policies as string $policy) {
+    Core\Config::set('opcache.validate', $policy);
+    Core\Config::set('app.0.opcache.validate', $policy);
+    Core\Config::restore('opcache.validate');
+}
+
+// 2. The program tries very long and very short times for `revalidate_freq` and `settle`.
+//    A long time stops the checks, and a zero time checks the disk on every request.
+array<string> $intervals = [
+    '0',
+    '0s',
+    '1ns',
+    '-1s',
+    '100000000000000000000s',
+    '9223372036854775807',
+    '1y',
+    'never',
+    'false',
+    'true',
+    '2 s',
+    Core\Str::repeat('9', 100000) . 's',
+];
+foreach ($intervals as string $interval) {
+    Core\Config::set('opcache.revalidate_freq', $interval);
+    Core\Config::set('opcache.settle', $interval);
+    Core\Config::set('opcache.file_cache', $interval);
+    Core\Config::restore('opcache.revalidate_freq');
+    Core\Config::restore('opcache.settle');
+}
+
+// 3. The program writes the settings many times and reads `validate` back each time.
+//    `$changes` counts the reads that differ, and it should stay `0`.
+uint $changes = 0;
+string $standing = Core\Config::get('opcache.validate') ?? '(no value)';
+uint $i = 0;
+while ($i < 200000) {
+    Core\Config::set('opcache.validate', 'never');
+    Core\Config::set('opcache.revalidate_freq', '100000s');
+    Core\Config::set('opcache.settle', '100000s');
+    Core\Config::restore('opcache.validate');
+    Core\Config::restore('opcache.revalidate_freq');
+    Core\Config::restore('opcache.settle');
+    if ((Core\Config::get('opcache.validate') ?? '(no value)') != $standing) {
+        $changes = $changes + 1;
+    }
+    $i = $i + 1;
+}
+
+// 4. The program changes the run mode many times. The mode picks the default of
+//    `settle`, but only when the server starts, so these changes should do nothing.
+uint $j = 0;
+while ($j < 50000) {
+    Core\Config::set('mode.default', 'development');
+    Core\Config::set('mode.default', 'production');
+    Core\Config::restore('mode.default');
+    $j = $j + 1;
+}
+
+echo 'changes: ', $changes, "\n";
+echo 'validate:        ', Core\Config::get('opcache.validate') ?? '(no value)', "\n";
+echo 'revalidate_freq: ', Core\Config::get('opcache.revalidate_freq') ?? '(no value)', "\n";
+echo 'settle:          ', Core\Config::get('opcache.settle') ?? '(no value)', "\n";

@@ -1,0 +1,27 @@
+[package]
+name = "nvs-repo"
+description = "How a test reaches a file outside its own package: one function that returns the path and records that it was asked for, so `bun nv verify` knows what each test binary reads, and the scratch directory under `target/` a test writes into"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+publish = false
+
+[lib]
+# No doc comment in this crate has a runnable example, so `cargo test` does
+# not run rustdoc over it. A crate that gains one deletes this table.
+doctest = false
+
+# A dev-dependency of the crates whose tests walk the repository, and of nothing
+# that ships: it depends on nothing outside `std` but `nvs-footprint`, which
+# depends on nothing at all, so adding it to a crate's tests adds no edge to that
+# crate's build.
+[dependencies]
+# Each path a test asks for is also written to the log `NVS_FOOTPRINT_LOG` names,
+# so one log holds everything a recorded test binary used.
+nvs-footprint.workspace = true
+
+[lints]
+workspace = true

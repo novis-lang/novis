@@ -1,0 +1,17 @@
+<?nvs
+// Shows how a server reads the last search of a user from a cookie, and checks that it is valid text.
+
+// In a web request, these values come from the `Cookie` header. The second one was changed
+// by the visitor, and its bytes are not valid text.
+array<string> $cookies = ["S%C3%A3o+Paulo+hotels", "%FF%FE"];
+
+foreach ($cookies as string $cookie) {
+    // `as ?string` gives `null` when the bytes are not valid text.
+    // The server then shows an empty search box.
+    ?string $search = Core\Uri::decodeFormValue($cookie) as ?string;
+    if ($search == null) {
+        echo "search box: (empty)\n";
+    } else {
+        echo "search box: ", $search, "\n";
+    }
+}

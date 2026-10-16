@@ -1,0 +1,73 @@
+<?nvs
+// Attack: a request tries to store more than `[cache.memory] max_size` allows, and to make
+// `getSecret` wait forever. The cache should stay under its limit, and no call should hang.
+// Two steps write large amounts of data, so this test needs more time than usual.
+// hostile: timeout-ms 40000
+
+var $store = Core\Cache::memory();
+
+// 1. Store 1 GB in 1 MB entries, with keys that differ from the first character.
+string $megabyte = Core\Str::repeat('z', 1048576);
+uint $i = 0;
+while ($i < 1024) {
+    $store->put($i . ':bulk:' . $i, $megabyte);
+    $i = $i + 1;
+}
+
+// 2. Store one entry four times larger than the whole limit, when the store is already full.
+$store->put('oversized', Core\Str::repeat('w', 134217728));
+
+// 3. Store 100,000 small entries. Each key, each value and each entry itself count toward the limit.
+uint $n = 0;
+while ($n < 100000) {
+    $store->put($n . ':small', $n);
+    $n = $n + 1;
+}
+
+// 4. Use `fill` functions that call `getSecret` for their own key, or for each other's key.
+secret bytes $material = Core\Crypto::generateKey();
+array<secret bytes> $ring = [$material];
+
+var $itself = fn (): Core\Cache\SecretEntry => {
+    var $inner = Core\Cache::memory();
+    var $seen = $inner->getSecret('self', $ring) ?? 'none';
+    return Core\Cache\SecretEntry::of('self:' . $seen, 1h);
+};
+$store->getSecret('self', $ring, { fill: $itself });
+
+var $second = fn (): Core\Cache\SecretEntry => {
+    var $inner = Core\Cache::memory();
+    var $seen = $inner->getSecret('first', $ring) ?? 'none';
+    return Core\Cache\SecretEntry::of('second:' . $seen, 1h);
+};
+var $first = fn (): Core\Cache\SecretEntry => {
+    var $inner = Core\Cache::memory();
+    var $seen = $inner->getSecret('second', $ring, { fill: $second }) ?? 'none';
+    return Core\Cache\SecretEntry::of('first:' . $seen, 1h);
+};
+$store->getSecret('first', $ring, { fill: $first });
+
+// 5. Use a `fill` function that throws. The next `getSecret` for that key should not wait.
+var $refuses = fn (): Core\Cache\SecretEntry => {
+    throw new RuntimeError('the token endpoint said no');
+};
+try {
+    $store->getSecret('token', $ring, { fill: $refuses });
+} catch (RuntimeError $refused) {
+    echo "the fill threw and the caller saw it\n";
+}
+var $answers = fn (): Core\Cache\SecretEntry => Core\Cache\SecretEntry::of('t0ken', 1h);
+$store->getSecret('token', $ring, { fill: $answers });
+
+// 6. Change both settings of the block, to larger values and to `0` and `false`.
+array<string> $values = ['1G', '1024G', '0', 'false', '-1', '', '9999h'];
+foreach ($values as string $value) {
+    Core\Config::set('cache.memory.max_size', $value);
+    Core\Config::set('cache.memory.fill_wait', $value);
+    Core\Config::set('cache.memory', $value);
+}
+Core\Config::restore('cache.memory.fill_wait');
+
+// Both settings should still have the values they started with.
+echo 'cap:  ', Core\Config::get('cache.memory.max_size') ?? '(no value)', "\n";
+echo 'wait: ', Core\Config::get('cache.memory.fill_wait') ?? '(no value)', "\n";

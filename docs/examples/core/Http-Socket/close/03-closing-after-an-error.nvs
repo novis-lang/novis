@@ -1,0 +1,42 @@
+<?nvs
+// Shows a program that reads orders from a live feed. It closes the connection
+// in a `finally` block, so the connection is closed even when a step fails.
+
+class OrderFeed {
+    // Prints each order until the feed sends `stop`. An empty order throws an error.
+    public static function follow(string $url): void {
+        Core\Http\Socket $socket = Core\Http\Client::openSocket($url);
+        try {
+            while (true) {
+                ?Core\Socket\Message $message = $socket->receive();
+                if ($message == null) {
+                    return;
+                }
+                tainted string $order = $message->text() ?? ("" as tainted string);
+                if ($order == "stop") {
+                    return;
+                }
+                if ($order == "") {
+                    throw new RuntimeError("the feed sent an empty order");
+                }
+                echo "order: ", $order, "\n";
+            }
+        } finally {
+            // This runs after `return` and after an error.
+            $socket->close();
+            echo "connection closed\n";
+        }
+    }
+}
+
+// Two fixed feeds, so the example runs without a network.
+Core\Test::answerSocket("wss://orders.example.com/good", ["A-17", "B-4", "stop", "C-9"]);
+Core\Test::answerSocket("wss://orders.example.com/broken", ["A-18", ""]);
+
+// The first feed stops normally. The second feed fails, and the connection is still closed.
+OrderFeed::follow("wss://orders.example.com/good");
+try {
+    OrderFeed::follow("wss://orders.example.com/broken");
+} catch (RuntimeError $error) {
+    echo "error: ", $error->message, "\n";
+}

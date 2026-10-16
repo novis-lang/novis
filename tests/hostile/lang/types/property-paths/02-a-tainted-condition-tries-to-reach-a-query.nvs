@@ -1,0 +1,20 @@
+<?nvs
+// Attack: a request sends a whole query condition with valid holes, and the program tries to use
+// it as the text of a database query. The holes are checked, but the text around them is still
+// tainted, so the program should not compile.
+// hostile: expect-refusal
+// covers: lang:types/property-paths
+
+class Order
+{
+    public int $total = 10;
+    public string $status = 'paid';
+}
+
+// 1. The condition comes from the web address, such as `{total} > 0 OR 1 = 1`.
+tainted string $sent = Core\Request::query('where') ?? '{total} > 0';
+?tainted string<propertyPath<Order>> $condition =$sent as ?string<propertyPath<Order>>;
+if ($condition != null) {
+    var $db = Core\Db::connect('main');
+    var $rows = $db->query('SELECT * FROM orders WHERE ' . ($condition as string), []);
+}

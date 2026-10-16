@@ -1,0 +1,40 @@
+<?nvs
+// Shows the errors you get when the certificate and the key do not belong together.
+
+string $chain = <<<'PEM'
+-----BEGIN CERTIFICATE-----
+MIIBTDCB/6ADAgECAhQ17j2Xe6rvGOZqgU0W011sTuW+IzAFBgMrZXAwGzEZMBcG
+A1UEAwwQZWQubm92aXMuZXhhbXBsZTAgFw0yNjA5MTIyMzQzMjJaGA8yMTI2MDgx
+OTIzNDMyMlowGzEZMBcGA1UEAwwQZWQubm92aXMuZXhhbXBsZTAqMAUGAytlcAMh
+ACT/4hW7zbJtISV79UQYEtXJzOQ18C0qB16Tags7Vpcao1MwUTAdBgNVHQ4EFgQU
+5hV1V6iqg9AL4FmXJoVbzAHpg2wwHwYDVR0jBBgwFoAU5hV1V6iqg9AL4FmXJoVb
+zAHpg2wwDwYDVR0TAQH/BAUwAwEB/zAFBgMrZXADQQBSkCaW0oa7UWSQSqLBhxgD
+lRHq1kQ2BhwRhBHgl6n/0GK47grLHlIkdnLjiBygbjeYlE4JdgRVr1rWrpcZZLQF
+-----END CERTIFICATE-----
+PEM;
+
+// A new Ed25519 key is a valid key, but the certificate was made for a different key.
+// So `read` throws a `LogicError`.
+Core\Crypto\KeyPair $otherKey = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::Ed25519);
+try {
+    Core\Http\Identity::read($chain as bytes, $otherKey);
+} catch (LogicError $wrongKey) {
+    echo $wrongKey->message, "\n";
+}
+
+// An X25519 key cannot sign, so it cannot prove who the client is.
+// `read` throws a `LogicError` for this key too.
+Core\Crypto\KeyPair $agreeOnly = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::X25519);
+try {
+    Core\Http\Identity::read($chain as bytes, $agreeOnly);
+} catch (LogicError $cannotSign) {
+    echo "an X25519 key is not allowed", "\n";
+}
+
+// Text without a certificate in it is not a chain. This is the error you see
+// when the wrong file was used.
+try {
+    Core\Http\Identity::read("hello" as bytes, $otherKey);
+} catch (LogicError $notAChain) {
+    echo $notAChain->message, "\n";
+}

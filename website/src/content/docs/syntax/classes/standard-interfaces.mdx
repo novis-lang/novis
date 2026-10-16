@@ -1,0 +1,52 @@
+---
+title: Stringable, Comparable and Parses
+covers: ['Stringable', 'Comparable', 'Parses', 'lang:classes/stringable', 'lang:classes/comparable', 'lang:classes/parses']
+description: The built-in interfaces that let an object be printed, compared with < and >, or created from a string.
+---
+import Snippet from '@components/Snippet.astro'
+
+Novis has a few interfaces that every program can use without `use`. Each one lets your objects
+work with a part of the language.
+
+## Stringable
+
+An object can be printed or joined to a string only when its class implements `Stringable`.
+The interface has one method, `toString(): string`.
+
+<Snippet src="syntax/standard-interfaces/01-stringable.nvs" />
+
+- `echo`, `.`, `"{$m}"` and `as string` all call `toString`.
+- Printing an object whose class does not implement `Stringable` does not compile.
+- `__toString` does not compile. Name the method `toString`.
+
+## Comparable
+
+`<`, `<=`, `>`, `>=` and `<=>` work on two objects only when their class implements `Comparable`.
+The interface has one method, `compareTo(self $other): int`.
+
+<Snippet src="syntax/standard-interfaces/02-comparable.nvs" />
+
+- `compareTo` returns a negative number when `$this` is smaller, `0` when equal and a positive
+  number when larger.
+- `<=>` returns the result of `compareTo`.
+- Comparing two objects with `<` when the class does not implement `Comparable` does not compile.
+- `==` does not use `compareTo`. It is `true` only when both sides are the same object.
+
+## Parses
+
+A class that implements `Parses` can be created from a string. It has one static method:
+`parse(tainted string $s): static`. It returns a new object, or throws an error.
+
+<Snippet src="syntax/standard-interfaces/03-parses.nvs" />
+
+- A route parameter, a query parameter and a command argument can have the type of a `Parses`
+  class. Novis calls `parse` with the text from the request or the command line.
+- A route parameter whose class throws in `parse` gives the response `400`.
+- The text is `tainted`, which means it came from outside the program and is not yet checked.
+
+## Do and don't
+
+- Do implement `Stringable` when an object has one natural way to print it.
+- Do implement `Comparable` when you need to sort objects or compare them with `<`.
+- Do check the text in `parse` and throw `ParseError` when it is wrong.
+- Don't expect `==` to compare the properties of two objects. Compare them yourself, or use `compareTo`.

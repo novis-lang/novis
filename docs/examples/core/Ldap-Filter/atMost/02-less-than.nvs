@@ -1,0 +1,7 @@
+<?nvs
+// Shows how to write "less than", which LDAP does not have.
+
+// Less than 100 is the same as "not at least 100".
+var $filter = Core\Ldap\Filter::not(Core\Ldap\Filter::atLeast('uSNChanged', '100'));
+// This prints (!(uSNChanged>=100)).
+echo $filter->toString(), "\n";

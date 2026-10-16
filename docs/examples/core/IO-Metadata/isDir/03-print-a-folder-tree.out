@@ -1,0 +1,5 @@
+nvs.toml
+src/
+  Order/
+    Invoice.nvs
+  main.nvs

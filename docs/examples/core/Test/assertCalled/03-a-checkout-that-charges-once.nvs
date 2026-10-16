@@ -1,0 +1,30 @@
+<?nvs
+// Shows how to test that a checkout charges the customer exactly once, with the right amount.
+
+interface Payments {
+    public function charge(string $customer, int $cents): bool;
+}
+
+class Checkout {
+    public static function pay(Payments $payments, string $customer, array<int> $prices): bool {
+        int $total = 0;
+        foreach ($prices as int $price) {
+            $total = $total + $price;
+        }
+        return $payments->charge($customer, $total);
+    }
+}
+
+// The test double accepts every charge. No real payment happens.
+Payments $payments = Core\Test::double<Payments>({
+    charge: fn(string $customer, int $cents): bool => true,
+});
+
+echo Checkout::pay($payments, "customer-7", [1200, 350, 450]) ? "paid" : "declined", "\n";
+
+// One call, for the customer, with the sum of the three prices.
+Core\Test::assertCalled($payments, Payments::charge, {
+    times: 1,
+    with: ["customer-7", 2000],
+});
+echo "charged once, 2000 cents\n";

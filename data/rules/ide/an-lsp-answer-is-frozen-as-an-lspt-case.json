@@ -1,0 +1,16 @@
+{
+  "title": "An LSP answer is frozen as a `.lspt` case — a document, a `<|>` cursor, a request and its rendering — run by `nvs lsp-test` printing `N passed, M failed`",
+  "status": "shipped",
+  "seeAlso": [
+    "testing/nvst-is-separate",
+    "ide/a-request-line-is-closed",
+    "ide/the-rendering-has-one-home",
+    "ide/lspt-coverage-is-inferred",
+    "ide/case-files-have-their-own-grammar"
+  ],
+  "guardedBy": [
+    "crates/nvs-lsp/src/case.rs",
+    "crates/nvs-lsp/src/suite.rs",
+    "crates/nvs-lsp/tests/coverage.rs"
+  ]
+}

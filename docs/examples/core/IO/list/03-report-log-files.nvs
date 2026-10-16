@@ -1,0 +1,31 @@
+<?nvs
+// Shows how a program finds the log files in a folder and adds up their size.
+
+class Logs {
+    // Returns the names of the files in `$dir` that end with ".log", in alphabetical order.
+    // Folders and other files are left out.
+    public static function find(string $dir): array<string> {
+        array<string> $found = [];
+        foreach (Core\IO::list($dir) as string $name) {
+            if (Core\Str::endsWith($name, ".log") && Core\IO::isFile(Core\Path::join($dir, $name))) {
+                $found[] = $name;
+            }
+        }
+        return Core\Arr::sort($found);
+    }
+}
+
+string $logs = Core\Path::join(Core\IO::temporaryDir(), "logs");
+Core\IO::makeDir(Core\Path::join($logs, "archive"));
+Core\IO::write(Core\Path::join($logs, "app.log"), "started\nstopped\n");
+Core\IO::write(Core\Path::join($logs, "error.log"), "disk full\n");
+Core\IO::write(Core\Path::join($logs, "notes.txt"), "not a log\n");
+
+// This prints "app.log: 16 bytes" and "error.log: 10 bytes", and then "total: 26 bytes".
+uint $total = 0;
+foreach (Logs::find($logs) as string $name) {
+    uint $size = Core\IO::size(Core\Path::join($logs, $name));
+    echo $name, ": ", $size, " bytes", "\n";
+    $total = $total + $size;
+}
+echo "total: ", $total, " bytes", "\n";

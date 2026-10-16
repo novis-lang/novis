@@ -1,0 +1,31 @@
+<?nvs
+// Attack: a program builds half a million changes in one list, and then some
+// with names made of many options. Each change should be built or throw a `LogicError`.
+
+// 1. Half a million changes.
+array<Core\Ldap\Change> $changes = [];
+uint $i = 0;
+while ($i < 500000) {
+    $changes[] = Core\Ldap\Change::removeAll('extensionAttribute' . (($i % 15) + 1) as string);
+    $i = $i + 1;
+}
+echo '1 ', Core\Arr::count($changes), "\n";
+
+// 2. A name with a hundred thousand options.
+try {
+    var $options = Core\Ldap\Change::removeAll('cn' . Core\Str::repeat(';lang-de', 100000));
+    echo "2 built\n";
+} catch (LogicError $refusal) {
+    echo "2 refused\n";
+}
+
+// 3. Names of only spaces, only digits and only dashes.
+array<string> $names = ['   ', '12345', '---', "\t"];
+foreach ($names as string $name) {
+    try {
+        var $odd = Core\Ldap\Change::removeAll($name);
+        echo "3 built\n";
+    } catch (LogicError $refusal) {
+        echo "3 refused\n";
+    }
+}

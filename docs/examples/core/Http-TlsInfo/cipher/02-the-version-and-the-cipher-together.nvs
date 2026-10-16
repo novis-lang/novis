@@ -1,0 +1,15 @@
+<?nvs
+// Shows that each TLS version has its own cipher names. A TLS 1.2 name also
+// says how the keys are exchanged, such as `ECDHE_RSA`.
+
+// Two TLS connections built for a test. Each one names its version and its cipher.
+array<Core\Http\TlsInfo> $sessions = [
+    Core\Test::tlsSession({version: "TLSv1.3", cipher: "TLS_CHACHA20_POLY1305_SHA256"}),
+    Core\Test::tlsSession({version: "TLSv1.2", cipher: "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256"}),
+];
+
+// This prints `TLSv1.3 TLS_CHACHA20_POLY1305_SHA256`
+// and then `TLSv1.2 TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256`.
+foreach ($sessions as Core\Http\TlsInfo $info) {
+    echo $info->version(), " ", $info->cipher(), "\n";
+}

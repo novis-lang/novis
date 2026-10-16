@@ -1,0 +1,38 @@
+--TEST--
+`Image::open` draws an SVG document at its own size, and an SVG that links to a file or an address throws `RuntimeError`: rule:core-classes/image-format-roster
+--FILE--
+<?nvs
+// covers: Novis\Image\Image::open
+use Novis\Image\Image;
+
+// A 20 by 10 SVG: a red square on the left and a blue square on the right.
+string $svg = '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="10">'
+    . '<rect width="10" height="10" fill="#ff0000"/>'
+    . '<rect x="10" width="10" height="10" fill="#0000ff"/>'
+    . '</svg>';
+var $raw = Image::open($svg as bytes)->raw();
+echo $raw->width, "x", $raw->height, "\n";
+echo Core\Encoding::toHex(Core\Bytes::slice($raw->pixels, 0, 4)), "\n";
+echo Core\Encoding::toHex(Core\Bytes::slice($raw->pixels, 19 * 4, 4)), "\n";
+
+// An image inside the SVG may only be a `data:` URI. A path throws an error.
+string $linked = '<svg xmlns="http://www.w3.org/2000/svg" width="4" height="4">'
+    . '<image href="/etc/passwd" width="4" height="4"/></svg>';
+try {
+    Image::open($linked as bytes)->raw();
+} catch (RuntimeError $error) {
+    echo "RuntimeError: ", $error->message, "\n";
+}
+
+// An SVG has one page, so page 2 throws an error.
+try {
+    Image::open($svg as bytes, {page: 2})->raw();
+} catch (RuntimeError $error) {
+    echo "RuntimeError: ", $error->message, "\n";
+}
+--EXPECT--
+20x10
+ff0000ff
+0000ffff
+RuntimeError: the SVG links to `/etc/passwd`. An SVG can only use images it contains as `data:` URIs
+RuntimeError: the document has 1 page, so there is no page 2

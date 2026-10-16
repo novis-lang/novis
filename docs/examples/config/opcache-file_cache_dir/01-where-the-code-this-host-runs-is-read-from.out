@@ -1,0 +1,6 @@
+artifact cache: cache
+cache in use:   true
+size limit:     256M
+read my code from /tmp:  refused
+turn the cache off:      refused
+the data cache is not it: (no such key — an unknown key is refused when the file is read)

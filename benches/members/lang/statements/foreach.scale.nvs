@@ -1,0 +1,28 @@
+<?nvs
+// Measures a `foreach` loop that adds up an array, at growing array lengths.
+// It shows how the cost of the loop grows when the array grows.
+// bench: start 256
+// bench: max 4096
+
+class Bench {
+    public static function run(uint $size): int {
+        int $n = $size as int;
+        array<int> $row = [];
+        int $i = 0;
+        while ($i < $n) {
+            $row[] = $i * 3;
+            $i = $i + 1;
+        }
+        int $acc = 1;
+        int $r = 0;
+        while ($r < 64) {
+            foreach ($row as int $v) {
+                $acc = ($acc + $v) % 1000003;
+            }
+            $r = $r + 1;
+        }
+        return $acc;
+    }
+}
+
+echo Bench::run(256), "\n";

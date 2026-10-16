@@ -1,0 +1,92 @@
+//! Fixtures shared by `nvs-codegen`'s end-to-end tests.
+//!
+//! Each `tests/*.rs` file is its own binary, so the helpers these tests are
+//! written against live here and are reached through `mod common;`.
+//!
+//! Every test that uses them goes through the *real* pipeline — `nvs-syntax`,
+//! `nvs-hir`, `nvs-types`, `nvs-ir`, `nvs-codegen` — rather than hand-building
+//! IR, because the property worth guarding is that those crates agree. That
+//! is also why the assertions are on output bytes and statuses rather than on
+//! generated instructions: what `nvs run` prints is the observable contract,
+//! and `benches/abi-probe` is where instruction-level costs are held.
+
+#![allow(
+    dead_code,
+    unused_imports,
+    reason = "each test binary compiles all of this module but uses only the \
+              helpers and re-exports its own area needs; which ones those are \
+              differs per file"
+)]
+
+use nvs_diagnostics::{Diagnostics, SourceMap};
+
+/// The runtime surface every area's tests reach for, re-exported so a test
+/// file needs one `use common::*;` rather than an import line per area that
+/// drifts from what that area actually asserts on.
+pub(crate) use nvs_runtime::{
+    Ctx, DebugFlags, EXITED, FATAL, FaultSite, Inbound, OK, STACK_RESERVE, SafepointFlags, THROWN,
+    TraceContext, Value, call,
+};
+
+/// Compiles a whole file, returning the unit or the first thing that refused
+/// it.
+///
+/// Front-end diagnostics are a panic rather than an error: every fixture below
+/// is meant to type-check, so a diagnostic is a broken fixture, not an outcome
+/// under test.
+pub(crate) fn compile(source: &str) -> Result<nvs_codegen::Unit, nvs_codegen::CodegenError> {
+    nvs_codegen::compile(&lower(source))
+}
+
+/// Runs the whole front end over `source` and lowers it — every class method
+/// plus the script frame — without compiling it.
+pub(crate) fn lower(source: &str) -> nvs_ir::Program {
+    let mut map = SourceMap::new();
+    let id = map.add("test.nvs", source);
+    let src = map.file(id);
+
+    let mut diags = Diagnostics::new();
+    let stmts = nvs_syntax::parse_file(src, &mut diags);
+    let module = nvs_hir::resolve_file(&stmts, src, &mut diags);
+    let mut interner = nvs_types::TypeInterner::new();
+    let mut exprs = nvs_types::ExprTypeTable::new();
+    let files = [nvs_types::ProgramFile { src, stmts: &stmts }];
+    let enums = nvs_types::check_program(&files, &module, &mut interner, &mut exprs, &mut diags);
+    assert!(
+        !diags.has_errors(),
+        "the fixture does not type-check: {:?}",
+        diags.iter().map(|d| d.message.clone()).collect::<Vec<_>>()
+    );
+
+    let layouts = nvs_types::build_class_layouts(&files, &module.graph);
+    nvs_ir::lower::lower_file(
+        nvs_ir::lower::ENTRY_SCRIPT_LABEL,
+        &stmts,
+        src,
+        &exprs,
+        &interner,
+        &enums,
+        &layouts,
+    )
+}
+
+/// Compiles and runs `source` against `ctx`, returning the compiled status.
+///
+/// The `unit` dies at this function's brace while `ctx` outlives it, so the
+/// `install_in` call is not a convenience: it is what keeps the unit's class
+/// table alive for an exception the run left on the context. Without it,
+/// reading `ctx.pending()` after this returns is a use-after-free.
+pub(crate) fn run_with(ctx: &mut Ctx, source: &str) -> Result<Value, i32> {
+    let unit = compile(source).expect("the fixture compiles");
+    unit.install_in(ctx);
+    let entry = unit.script().expect("the script frame was compiled");
+    entry.call(ctx)
+}
+
+/// Compiles, runs, and returns whatever the script echoed.
+pub(crate) fn output_of(source: &str) -> String {
+    let mut ctx = Ctx::buffered();
+    run_with(&mut ctx, source).expect("the script ran to completion");
+    String::from_utf8(ctx.take_buffered_output().expect("a buffered context"))
+        .expect("the script echoed UTF-8")
+}

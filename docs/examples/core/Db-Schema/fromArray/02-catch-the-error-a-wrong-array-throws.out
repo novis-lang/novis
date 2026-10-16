@@ -1,0 +1,3 @@
+Core\Db\Schema::fromArray(): table `notes` declares no columns
+Core\Db\Schema::fromArray(): `int65` is not one of the column types the vocabulary contains
+Core\Db\Schema::fromArray(): the array form's `tables` wants a list

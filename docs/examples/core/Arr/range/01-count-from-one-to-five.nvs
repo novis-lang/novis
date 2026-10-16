@@ -1,0 +1,13 @@
+<?nvs
+// Shows how to build a list of the whole numbers between two bounds.
+
+// The numbers 1 to 5. Both bounds are part of the list.
+array<int> $numbers = Core\Arr::range(1, 5);
+
+// This prints 5.
+echo Core\Arr::count($numbers), "\n";
+
+// This prints the numbers 1 to 5, each on its own line.
+foreach ($numbers as int $number) {
+    echo $number, "\n";
+}

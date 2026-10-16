@@ -1,0 +1,2 @@
+Core\Http\Client::request: a `GET` sends no body, and `json` is one — put the value in the URL's query, or send it under a verb that carries a body
+Core\Http\Client::request: a repeated `POST` is a second effect rather than a second question, so retrying one needs `retryIdempotencyKey` in the same bag, sent as `Idempotency-Key` and identical across attempts

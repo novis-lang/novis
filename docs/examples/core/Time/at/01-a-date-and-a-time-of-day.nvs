@@ -1,0 +1,12 @@
+<?nvs
+// Shows how to build a date and time from its parts in a time zone.
+
+var $berlin = Core\Time\Zone::of("Europe/Berlin");
+
+// Only the year, month, day and zone are needed. The time is midnight.
+// This prints 2024-03-05 00:00.
+echo Core\Time::at(2024, 3, 5, $berlin)->format("yyyy-MM-dd HH:mm"), "\n";
+
+// The options `hour`, `minute` and `second` set the time of day.
+// This prints 2024-03-05 09:30:15 +01:00.
+echo Core\Time::at(2024, 3, 5, $berlin, {hour: 9, minute: 30, second: 15})->format("yyyy-MM-dd HH:mm:ss XXX"), "\n";

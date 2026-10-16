@@ -1,0 +1,9 @@
+<?nvs
+// Shows how to indent lines by their depth in a tree of folders.
+
+array<uint> $folders = ["src" => 0, "http" => 1, "routes" => 2, "tests" => 0];
+
+// Each level adds two spaces. At depth 0, `Core\Str::repeat` returns `""`.
+foreach ($folders as string $name => uint $depth) {
+    echo Core\Str::repeat("  ", $depth), $name, "/\n";
+}

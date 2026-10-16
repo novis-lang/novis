@@ -1,0 +1,12 @@
+{
+  "title": "A scalar class constant used as a type folds to the single-value type of its own value",
+  "status": "shipped",
+  "seeAlso": [
+    "types/single-value-types",
+    "types/enum-case-type"
+  ],
+  "guardedBy": [
+    "crates/nvs-types/tests/single_value_types.rs",
+    "crates/nvs-syntax/src/parser/tests/ty.rs"
+  ]
+}

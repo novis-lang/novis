@@ -1,0 +1,14 @@
+--START--
+<?nvs
+class User {
+    public string $name = "Ada";
+    public string $email = "ada@example.com";
+    private string $passwordHash = "x9f2";
+}
+
+User $user = new User();
+property<User> $key = '<|>' as property<User>;
+echo $user->$key, "\n";
+--STEPS--
+type em
+accept email

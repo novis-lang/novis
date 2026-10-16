@@ -1,0 +1,14 @@
+--TEST--
+a cursor inside the string converted with `as class<T>` answers the declaration of the class whose whole name the string is — `rule:types/class-reference`
+--FILE--
+<?nvs
+namespace App;
+
+interface Model { }
+class User implements Model { }
+
+$class = 'App\Us<|>er' as class<Model>;
+--REQUEST--
+definition
+--EXPECT--
+case.nvs:5:7

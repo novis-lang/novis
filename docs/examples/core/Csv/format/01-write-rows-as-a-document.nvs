@@ -1,0 +1,11 @@
+<?nvs
+// Shows how to write rows of text as one CSV document. `Core\Csv::format` puts
+// a comma between the fields and a newline after every record.
+
+array<array<string>> $rows = [
+    ["fig", "2", "3.50"],
+    ["apple", "10", "0.40"],
+];
+
+// This prints `fig,2,3.50` and `apple,10,0.40` on two lines.
+echo Core\Csv::format($rows);

@@ -1,0 +1,15 @@
+<?nvs
+// Shows how to read the name of the route that the request matched.
+
+class Articles {
+    #[Core\Route(path: "/articles/{id}", method: Core\Http\Method::Get, name: "Articles::show")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function show(uint $id): string { return "one article"; }
+}
+
+// The request is `GET /articles/42`. `Core\Request::route()` returns its match.
+?Core\Router\Match $matched = Core\Request::route();
+if ($matched != null) {
+    // `name()` returns the name from the `#[Route]`. This prints `Articles::show`.
+    echo $matched->name() ?? "no name", "\n";
+}

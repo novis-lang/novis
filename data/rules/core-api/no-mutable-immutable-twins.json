@@ -1,0 +1,13 @@
+{
+  "title": "Every `Core` value type is immutable, so no mutable twin exists to choose between",
+  "status": "shipped",
+  "seeAlso": [
+    "core-api/nothing-mutates",
+    "core-api/one-paradigm-per-operation",
+    "classes/two-copy-depths"
+  ],
+  "guardedBy": [
+    "crates/nvs-stdlib/src/time.rs",
+    "crates/nvs-stdlib/src/registry.rs"
+  ]
+}

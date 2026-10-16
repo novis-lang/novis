@@ -1,0 +1,35 @@
+--TEST--
+An enum in an enum body is `E0220`, an enum in a method body stays `E0233`, and an enum in a class body is accepted — `rule:enums/class-scoped-enum`, `rule:classes/a-type-is-declared-at-file-scope`
+--FILE--
+<?nvs
+// `rule:enums/class-scoped-enum`: an enum is declared at file scope or in a
+// class or interface body, and nowhere else.
+final class Accepted {
+    enum Status { Open, Paid }
+}
+
+enum Outer {
+    A,
+    B,
+
+    enum Inner { C }
+}
+
+final class InAMethod {
+    public static function run(): void {
+        enum Local { X }
+    }
+}
+
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0220]: an enum is not declared in an enum body
+   --> case.nvs:12:5
+%A
+error[E0233]: a nested `enum` declaration is not supported
+   --> case.nvs:17:14
+%A
+error: aborting due to 2 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

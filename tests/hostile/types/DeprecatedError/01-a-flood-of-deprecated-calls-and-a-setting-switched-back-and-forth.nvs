@@ -1,0 +1,60 @@
+<?nvs
+// Attack: a program calls deprecated code hundreds of thousands of times, switches
+// `errors.deprecated` on every round, and throws the error up a deep call chain.
+// Every error should be caught and freed, and memory use should not keep growing.
+// hostile: timeout-ms 30000
+
+final class Old
+{
+    #[Core\Deprecated(since: "1.0", replace: 'Old::now($n)')]
+    public static function then(int $n): int
+    {
+        return $n;
+    }
+
+    public static function now(int $n): int
+    {
+        return $n;
+    }
+
+    // 2. Each level calls the deprecated method under a deeper level.
+    public static function down(int $depth): int
+    {
+        if ($depth == 0) {
+            return Old::then(0);
+        }
+        return Old::down($depth - 1) + 1;
+    }
+}
+
+// 1. Every second round sets `throw`, the others set `ignore`.
+uint $thrown = 0;
+int $i = 0;
+while ($i < 300000) {
+    Core\Config::set('errors.deprecated', $i % 2 == 0 ? 'throw' : 'ignore');
+    try {
+        $i = $i + Old::then(1) - 1;
+    } catch (Core\DeprecatedError $old) {
+        $thrown = $thrown + 1;
+    }
+    $i = $i + 1;
+}
+echo $thrown, "\n";
+
+Core\Config::set('errors.deprecated', 'throw');
+try {
+    echo Old::down(1000), "\n";
+} catch (LogicError $deep) {
+    echo "caught at the top\n";
+}
+
+// 3. This chain is deeper than the call stack allows. The `catch` catches the error that stops it.
+try {
+    echo Old::down(200000), "\n";
+} catch (Throwable $gaveUp) {
+    echo "the chain ended\n";
+}
+
+// 4. The setting goes back to the value from `nvs.toml`, and the old method runs again.
+Core\Config::restore('errors.deprecated');
+echo Old::then(7), "\n";

@@ -1,0 +1,15 @@
+<?nvs
+// Shows how to find out which port the operating system picked for a socket.
+
+// Port `0` means "pick any free port".
+Core\Net\Datagram $socket = Core\Net::bindDatagram("127.0.0.1", 0);
+
+// `port()` returns the picked port. The number is different on every run,
+// so this prints `a real port: yes` and not the number.
+uint $port = $socket->port();
+echo "a real port: ", $port >= 1 && $port <= 65535 ? "yes" : "no", "\n";
+
+// The port stays the same while the socket is open. This prints `same: yes`.
+echo "same: ", $socket->port() == $port ? "yes" : "no", "\n";
+
+$socket->close();

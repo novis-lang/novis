@@ -1,0 +1,17 @@
+<?nvs
+// Shows how a program reads the limits it runs under before it starts a job.
+// `Core\Config::get` returns one setting, so a program asks for the two or
+// three names it needs.
+
+// The server usually writes these in the configuration file. This example sets
+// them, so that it prints the same values everywhere.
+Core\Config::set("max_tasks", "8");
+Core\Config::set("memory", "256M");
+
+// A limit can be written with its short name here, or with the full name the
+// configuration file uses, `limits.max_tasks`.
+string $tasks = Core\Config::get("max_tasks") ?? "1";
+string $memory = Core\Config::get("limits.memory") ?? "unknown";
+
+// This prints: 8 jobs at a time, inside 256M.
+echo $tasks, " jobs at a time, inside ", $memory, "\n";

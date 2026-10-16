@@ -1,0 +1,34 @@
+<?nvs
+// This program shows what a `RolledBack` error contains, and which `catch` block
+// catches it. It does not open a database.
+
+use Core\Db\RolledBack;
+
+// `reason` is the text the program gave when it rolled back.
+// `message` is the same text.
+try {
+    throw new RolledBack('the basket no longer adds up');
+} catch (RolledBack $abandoned) {
+    echo 'reason:  ', $abandoned->reason, "\n";
+    echo 'message: ', $abandoned->message, "\n";
+}
+
+// A rollback is not a bug in the code, so `RolledBack` is a `RuntimeError`.
+// This prints `a RuntimeError clause`.
+try {
+    throw new RolledBack('the stock would have gone negative');
+} catch (LogicError $notAMistake) {
+    echo "a LogicError clause\n";
+} catch (RuntimeError $theWorldSaidNo) {
+    echo "a RuntimeError clause\n";
+}
+
+// A `DbError` is not a `RolledBack`, so the first `catch` block does not catch it.
+// This prints `not a RolledBack clause`.
+try {
+    throw new Core\Db\DbError('the server refused the statement');
+} catch (RolledBack $notARollback) {
+    echo "a RolledBack clause\n";
+} catch (RuntimeError $aRefusal) {
+    echo "not a RolledBack clause\n";
+}

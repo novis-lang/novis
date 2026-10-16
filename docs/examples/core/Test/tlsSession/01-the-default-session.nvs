@@ -1,0 +1,18 @@
+<?nvs
+// Shows the TLS session that `Core\Test::tlsSession()` builds when you give it no options.
+
+Core\Http\TlsInfo $session = Core\Test::tlsSession();
+
+// This prints `TLSv1.3 TLS_AES_128_GCM_SHA256`.
+echo $session->version(), " ", $session->cipher(), "\n";
+
+// The certificate was checked. This prints `verified: yes`.
+echo "verified: ", $session->verified() ? "yes" : "no", "\n";
+
+// This prints `CN=example.com` and then `CN=Novis Test CA`.
+echo $session->subject(), "\n";
+echo $session->issuer(), "\n";
+
+// The chain has two certificates: the server's own, and the one that signed it.
+// This prints `2`.
+echo Core\Arr::count($session->peerChain()), "\n";

@@ -1,0 +1,70 @@
+<?nvs
+// Attack: a program builds very many TLS sessions, sessions with very long or broken
+// names, and sessions at the edges of the allowed dates. Bad values should throw
+// an error, and the program should not crash.
+
+use Core\Test;
+
+// Step 1: five thousand sessions are built, and each one is dropped at once.
+uint $count = 0;
+uint $length = 0;
+while ($count < 5000) {
+    $length = $length + Core\Str::length(Test::tlsSession({ subject: 'CN=host' . $count . '.example.com' })->subject());
+    $count = $count + 1;
+}
+echo $length, "\n";
+
+// Step 2: a subject with a value of one hundred thousand characters.
+try {
+    echo Core\Str::length(Test::tlsSession({ subject: 'CN=' . Core\Str::repeat('a', 100000) })->subject()), "\n";
+} catch (Throwable $error) {
+    echo "long subject refused\n";
+}
+
+// Step 3: empty, broken and unusual names. A broken name throws an error.
+// A NUL character or an emoji in a value is allowed.
+array<string> $names = ['', 'CN', 'CN=', '=x', 'CN=a,,O=b', 'CN=a, CN=b', 'cn=lower', "CN=a\u{0}b", "CN=\u{1F600}"];
+foreach ($names as string $name) {
+    try {
+        Test::tlsSession({ subject: $name, issuer: $name });
+        echo "accepted\n";
+    } catch (Throwable $error) {
+        echo "refused\n";
+    }
+}
+
+// Step 4: one second before the first allowed date, the first allowed date, and a
+// date near the end of the year 9999.
+array<string> $dates = ['1949-12-31T23:59:59Z', '1950-01-01T00:00:00Z', '9999-12-30T00:00:00Z'];
+foreach ($dates as string $date) {
+    try {
+        echo Test::tlsSession({ expiry: Core\Time::fromIso($date) })->expiry()->toIso(), "\n";
+    } catch (Throwable $error) {
+        echo 'refused ', $date, "\n";
+    }
+}
+
+// Step 5: an unknown version, an empty cipher, and a TLS 1.3 cipher on TLS 1.2.
+try {
+    Test::tlsSession({ version: Core\Str::repeat('TLSv1.3', 1000) });
+} catch (Throwable $error) {
+    echo "long version refused\n";
+}
+try {
+    Test::tlsSession({ cipher: '' });
+} catch (Throwable $error) {
+    echo "empty cipher refused\n";
+}
+try {
+    Test::tlsSession({ version: 'TLSv1.2', cipher: 'TLS_AES_256_GCM_SHA384' });
+} catch (Throwable $error) {
+    echo "wrong cipher refused\n";
+}
+
+// Step 6: a session is given to a plain `http://` URL, which has no TLS.
+try {
+    Test::answerHttp('http://plain.example.com/', 200, { tls: Test::tlsSession() });
+    echo "accepted a session for http\n";
+} catch (Throwable $error) {
+    echo "session for http refused\n";
+}

@@ -1,0 +1,56 @@
+<?nvs
+// Shows a service that checks the client certificate for each partner when it
+// starts, so a wrong file is reported before the first request.
+
+string $bankChain = <<<'PEM'
+-----BEGIN CERTIFICATE-----
+MIIBTDCB/6ADAgECAhQ17j2Xe6rvGOZqgU0W011sTuW+IzAFBgMrZXAwGzEZMBcG
+A1UEAwwQZWQubm92aXMuZXhhbXBsZTAgFw0yNjA5MTIyMzQzMjJaGA8yMTI2MDgx
+OTIzNDMyMlowGzEZMBcGA1UEAwwQZWQubm92aXMuZXhhbXBsZTAqMAUGAytlcAMh
+ACT/4hW7zbJtISV79UQYEtXJzOQ18C0qB16Tags7Vpcao1MwUTAdBgNVHQ4EFgQU
+5hV1V6iqg9AL4FmXJoVbzAHpg2wwHwYDVR0jBBgwFoAU5hV1V6iqg9AL4FmXJoVb
+zAHpg2wwDwYDVR0TAQH/BAUwAwEB/zAFBgMrZXADQQBSkCaW0oa7UWSQSqLBhxgD
+lRHq1kQ2BhwRhBHgl6n/0GK47grLHlIkdnLjiBygbjeYlE4JdgRVr1rWrpcZZLQF
+-----END CERTIFICATE-----
+PEM;
+string $bankKey = "-----BEGIN PRIVATE KEY-----\nMC4CAQAwBQYDK2VwBCIEIM9sUcYAGspJOAqm3qMBkB//vV3Hnpj7+pgIXp43jW+t\n-----END PRIVATE KEY-----\n";
+
+string $insurerChain = <<<'PEM'
+-----BEGIN CERTIFICATE-----
+MIIBlTCCATugAwIBAgIUOutG9T2sNn5Gk1F/4t/VZaL4xIcwCgYIKoZIzj0EAwIw
+HzEdMBsGA1UEAwwUY2xpZW50Lm5vdmlzLmV4YW1wbGUwIBcNMjYwOTEyMjMzOTM1
+WhgPMjEyNjA4MTkyMzM5MzVaMB8xHTAbBgNVBAMMFGNsaWVudC5ub3Zpcy5leGFt
+cGxlMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEGZ6FIKLkAP9KaHYqOSfnWvD/
+zFMph12te1fB2axeNOcWs8WecxZwltj1G2dwhJcf6vt8c5CGfghFEfOFENRms6NT
+MFEwHQYDVR0OBBYEFGIhmVGjbjICXl8yK/ztiD1oh2tzMB8GA1UdIwQYMBaAFGIh
+mVGjbjICXl8yK/ztiD1oh2tzMA8GA1UdEwEB/wQFMAMBAf8wCgYIKoZIzj0EAwID
+SAAwRQIgR3Jf92T6sR7qKE/BQwSx40DqTSxekum8n3xTfErf9i4CIQChybRuk12t
+FXPwqQ0biQfTzl+cQ+Cc/2cw72NUT8a7Jg==
+-----END CERTIFICATE-----
+PEM;
+
+// The certificate for each partner, and the key file installed beside it.
+array<string> $chains = ["bank" => $bankChain, "insurer" => $insurerChain];
+// A mistake in the setup: the insurer's certificate was installed with the bank's key.
+array<string> $keyFiles = ["bank" => $bankKey, "insurer" => $bankKey];
+
+array<Core\Http\Identity> $identities = [];
+uint $problems = 0;
+foreach ($chains as string $partner => string $chain) {
+    try {
+        secret bytes $keyFile = $keyFiles[$partner] as bytes;
+        Core\Crypto\KeyPair $key = Core\Crypto\KeyPair::read($keyFile, Core\Crypto\KeyKind::Ed25519);
+        // Each identity is kept. Later requests to this partner pass it as the `identity` option.
+        $identities[$partner] = Core\Http\Identity::read($chain as bytes, $key);
+        echo $partner, ": ready", "\n";
+    } catch (LogicError $error) {
+        echo $partner, ": not ready: ", $error->message, "\n";
+        $problems = $problems + 1;
+    }
+}
+
+// The service starts only when every partner is ready. Here one is not, so this prints
+// `1 partner(s) not ready, the service does not start`.
+if ($problems > 0) {
+    echo $problems, " partner(s) not ready, the service does not start", "\n";
+}

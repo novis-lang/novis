@@ -1,0 +1,15 @@
+<?nvs
+// Shows what happens when the file to read does not exist.
+
+string $path = Core\Path::join(Core\IO::temporaryDir(), "cache.txt");
+
+// `read` throws an `IOError` when the file is missing. This prints "no cache yet".
+try {
+    echo Core\IO::read($path);
+} catch (IOError $e) {
+    echo "no cache yet\n";
+}
+
+// After the file is written, the same call returns its content. This prints "cached value".
+Core\IO::write($path, "cached value\n");
+echo Core\IO::read($path);

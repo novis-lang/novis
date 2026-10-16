@@ -1,0 +1,14 @@
+<?nvs
+// Shows a helper that sends an event on a stream it did not open itself.
+
+class Notice {
+    public static function send(string $text): void {
+        // `Core\Sse::current()` returns the event stream this program is writing.
+        Core\Sse::current()->send($text, event: "notice");
+    }
+}
+
+// `Core\Sse::stream()` opens the stream. Every event prints as the client receives it.
+Core\Sse::stream();
+// This prints `event: notice` and then `data: your order has shipped`.
+Notice::send("your order has shipped");

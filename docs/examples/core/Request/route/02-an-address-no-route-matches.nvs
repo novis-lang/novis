@@ -1,0 +1,17 @@
+<?nvs
+// Shows what `Core\Request::route` returns when no route matches the address.
+
+class Users {
+    #[Core\Route(path: "/users/{id}", method: Core\Http\Method::Get, name: "Users::show")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function show(uint $id): string {
+        return "one user";
+    }
+}
+
+// The address is `/about`. No route has that path, so the result is `null`.
+// This prints "no route for /about".
+?Core\Router\Match $matched = Core\Request::route();
+if ($matched == null) {
+    echo "no route for ", Core\Request::path(), "\n";
+}

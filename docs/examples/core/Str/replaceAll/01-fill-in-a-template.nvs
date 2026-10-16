@@ -1,0 +1,13 @@
+<?nvs
+// Shows how to fill in the placeholders of a message template.
+
+string $template = "Hello {name}, your order {order} has shipped.";
+
+// Each key is a placeholder, and its value is the text that replaces it.
+array<string> $values = ["{name}" => "Anna", "{order}" => "#1042"];
+
+// This prints "Hello Anna, your order #1042 has shipped."
+echo Core\Str::replaceAll($template, $values), "\n";
+
+// `{title}` is not a key in the array, so it stays as it is.
+echo Core\Str::replaceAll("Dear {title} {name},", $values), "\n";

@@ -1,0 +1,4 @@
+reason:  the basket no longer adds up
+message: the basket no longer adds up
+a RuntimeError clause
+not a RolledBack clause

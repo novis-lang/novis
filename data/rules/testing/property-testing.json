@@ -1,0 +1,10 @@
+{
+  "title": "`#[Property]` derives its generators from the parameters' declared types",
+  "status": "designed",
+  "seeAlso": [
+    "testing/data-rows",
+    "testing/assertions-are-typed"
+  ],
+  "guardedBy": [],
+  "goal": "test-surface"
+}

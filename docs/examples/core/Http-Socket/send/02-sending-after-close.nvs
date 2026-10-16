@@ -1,0 +1,20 @@
+<?nvs
+// Shows what happens when a program sends a message on a connection that is already closed.
+
+// A fixed server, so the example runs without a network.
+Core\Test::answerSocket("wss://chat.example.com/room", []);
+
+Core\Http\Socket $socket = Core\Http\Client::openSocket("wss://chat.example.com/room");
+$socket->send("goodbye");
+$socket->close();
+
+// After `close()`, nobody receives the message, so `send()` throws a `LogicError`.
+// This prints the error message.
+try {
+    $socket->send("one more thing");
+} catch (LogicError $error) {
+    echo "error: ", $error->message, "\n";
+}
+
+// Only the first message was sent. This prints `1 message sent`.
+echo Core\Arr::count(Core\Test::sentSocket()), " message sent\n";

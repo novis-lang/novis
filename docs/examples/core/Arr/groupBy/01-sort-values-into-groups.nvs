@@ -1,0 +1,13 @@
+<?nvs
+// Sorts the values into groups. Here every word goes into the group named by
+// its first letter.
+
+array<string> $words = ['red', 'rust', 'blue', 'green'];
+array<array<string>> $byLetter = Core\Arr::groupBy($words, fn(string $word)
+    => Core\Str::slice($word, 0, 1));
+
+// This prints `r: 2`, then `b: 1` and `g: 1`. A group appears where its first
+// word appeared in the list.
+foreach ($byLetter as string $letter => array<string> $group) {
+    echo $letter, ': ', Core\Arr::count($group), "\n";
+}

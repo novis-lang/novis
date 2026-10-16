@@ -1,0 +1,8 @@
+# The examples start small servers on socket files and connect to them.
+# These lines allow those socket files, and nothing else.
+[capabilities.net]
+local = ["/tmp/novis-prices.sock", "/tmp/novis-orders.sock", "/tmp/novis-cache.sock"]
+
+# The examples delete their socket files when they are done.
+[capabilities.fs]
+write = ["/tmp/novis-prices.sock", "/tmp/novis-orders.sock"]

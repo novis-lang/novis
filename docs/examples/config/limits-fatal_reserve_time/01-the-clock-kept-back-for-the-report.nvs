@@ -1,0 +1,21 @@
+<?nvs
+// `limits.fatal_reserve_time` keeps some time back for one job. When a request
+// runs out of time, the code that reports the error runs in this time.
+// `limits.fatal_reserve_memory` does the same for memory.
+
+echo 'cpu time to start with:   ', Core\Config::get('limits.cpu_time') ?? '(unset — none was written)', "\n";
+echo 'clock held back:          ', Core\Config::get('limits.fatal_reserve_time') ?? '(unset)', "\n";
+echo 'heap held back beside it: ', Core\Config::get('limits.fatal_reserve_memory') ?? '(unset)', "\n";
+
+// Only the person who runs the server may set either reserve. A program cannot
+// make one bigger or set it to `0`, so every call returns `false`.
+array<string> $net = ['limits.fatal_reserve_time', 'limits.fatal_reserve_memory'];
+foreach ($net as string $half) {
+    echo 'widen ', $half, ': ', Core\Config::set($half, '10s') ? 'accepted' : 'refused', "\n";
+    echo 'drop  ', $half, ': ', Core\Config::set($half, '0') ? 'accepted' : 'refused', "\n";
+}
+
+// A program may set its own `limits.cpu_time`. The time reserve is then taken
+// from the new value.
+echo 'bound my own cpu time:    ', Core\Config::set('limits.cpu_time', '2s') ? 'accepted' : 'refused', "\n";
+echo 'in force now:             ', Core\Config::get('limits.cpu_time') ?? '(unset)', "\n";

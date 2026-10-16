@@ -1,0 +1,72 @@
+--TEST--
+`Core\Db\Row::int` answers every integer column a table declares and refuses every column that merely holds the same number in another type — `rule:core-classes/db-column-types`
+--FILE--
+<?nvs
+// covers: Core\Db\Row::int
+// One question asked of both sides at once: the three integer widths agree in
+// answering, and the four columns holding that same seven agree in refusing. A
+// reader converting whatever it finds answers `7` for all of them and looks
+// right on every row, and the value it answered for the price column would
+// have lost the fraction of a price that has one.
+use Core\Db\Row;
+
+var $db = Core\Db::connect("main");
+$db->execute(
+    "create table counts (tiny smallint not null, mid int not null, wide bigint not null,
+      written text not null, share real not null, price decimal(10,2) not null,
+      picture blob not null, missed int)",
+    []
+);
+$db->execute(
+    "insert into counts (tiny, mid, wide, written, share, price, picture, missed)
+     values (?, ?, ?, ?, ?, ?, ?, ?)",
+    [7, 70, 7000000000, "7", 7.0, 7.00 as decimal, "7" as bytes, null]
+);
+
+array<Row> $one = $db->query(
+    "select tiny, mid, wide, written, share, price, picture, missed from counts",
+    []
+)->all();
+var $row = $one[0];
+
+// The integer widths are three declared types and one reader.
+array<string> $whole = ["tiny", "mid", "wide"];
+foreach ($whole as string $column) {
+    echo "int over ", $column, ": ", $row->int($column) ?? 0, "\n";
+}
+
+// And the columns that hold the same seven in another type. Each has a reader
+// of its own, and none of them is this one.
+array<string> $others = ["written", "share", "price", "picture"];
+foreach ($others as string $column) {
+    try {
+        $row->int($column);
+        echo "int over ", $column, ": answered\n";
+    } catch (LogicError $stopped) {
+        echo "int over ", $column, ": refused\n";
+    }
+}
+
+// A NULL column is an absence and not a refusal — `rule:core-classes/db-column-types`, spec § 18.
+?int $missed = $row->int("missed");
+if ($missed == null) {
+    echo "int over missed: null\n";
+}
+--FILE nvs.toml--
+# § 3: a SQLite connection's file path comes from its config block, so
+# `db.connect` covers it.
+[capabilities.db]
+connect = ["main"]
+
+[db.main]
+driver = "sqlite"
+path = ":memory:"
+--EXPECT--
+int over tiny: 7
+int over mid: 70
+int over wide: 7000000000
+int over written: refused
+int over share: refused
+int over price: refused
+int over picture: refused
+int over missed: null

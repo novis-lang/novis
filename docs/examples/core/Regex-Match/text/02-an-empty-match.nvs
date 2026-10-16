@@ -1,0 +1,12 @@
+<?nvs
+// Shows that a match can have an empty text.
+
+// `\d*` also matches zero digits. "abc" starts with no digits, so the match
+// is at position 0 and its text is empty.
+var $m = Core\Regex::match("abc", '\d*');
+if ($m != null) {
+    echo "text: [", $m->text(), "], length ", Core\Str::length($m->text()), ", at ", $m->offset(), "\n";
+}
+
+// `\d+` needs at least one digit, so it finds "42".
+echo "[", Core\Regex::match("abc42", '\d+')?->text() ?? "none", "]\n";

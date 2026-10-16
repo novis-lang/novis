@@ -1,0 +1,18 @@
+--TEST--
+a method that returns the wrong type is rejected before anything runs
+--FILE--
+<?nvs
+class Wrong {
+    public static function f(): int {
+        return "x";
+    }
+}
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0403]: this method declares `int` but returns `string`
+  --> case.nvs:4:16
+%A
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

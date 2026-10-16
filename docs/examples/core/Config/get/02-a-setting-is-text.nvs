@@ -1,0 +1,14 @@
+<?nvs
+// Shows that every setting is text. `Core\Config::get` returns what the
+// configuration file wrote, so a program that needs a number converts it.
+
+// The server usually writes this in the configuration file. This example sets
+// it, so that it prints the same value everywhere.
+Core\Config::set("max_tasks", "16");
+
+string $written = Core\Config::get("max_tasks") ?? "1";
+
+// This prints 16 and then 17. `as ?int` converts text to a whole number, and
+// the result is `null` for text that is not one.
+echo $written, "\n";
+echo (($written as ?int) ?? 1) + 1, "\n";

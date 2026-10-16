@@ -1,0 +1,17 @@
+--TEST--
+An `[ext.<name>]` block whose keys and types the extension's manifest declares is accepted at boot
+--EXTENSION--
+ledger
+--FILE nvs.toml--
+[ext.ledger]
+currency = "USD"
+--FILE--
+<?nvs
+// covers: directive:ext
+use Shop\Ledger;
+
+// `Shop\Ledger` declares the setting `currency` as a string.
+// The block above sets it, so the program runs.
+echo Ledger::echoInt(7), "\n";
+--EXPECT--
+7

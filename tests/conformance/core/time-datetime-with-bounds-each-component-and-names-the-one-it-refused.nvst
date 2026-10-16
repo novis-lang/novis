@@ -1,0 +1,104 @@
+--TEST--
+Spec § 4: `with` and `withTime` bound every component at its own ends, and a refusal names the component
+--FILE--
+<?nvs
+// Spec § 4. `with` is an options bag of seven independent components, and each
+// carries a *different* bound: the last accepted value and the first refused
+// one are named together here, since a member that stops one entry early
+// prints plausibly against either half alone.
+var $utc = Core\Time\Zone::UTC;
+var $d = Core\Time::at(2023, 3, 15, $utc, {hour: 10, minute: 20, second: 30, nanos: 123456789});
+
+// `month` is 1..=12 — one-based at both ends, so `0` is as refused as `13`.
+echo $d->with({month: 1})->format("yyyy-MM-dd"), "|\n";
+echo $d->with({month: 12})->format("yyyy-MM-dd"), "|\n";
+try { echo $d->with({month: 0})->format("yyyy-MM-dd"), "|\n"; }
+catch (Throwable $month0) { echo $month0->message, "\n"; }
+try { echo $d->with({month: 13})->format("yyyy-MM-dd"), "|\n"; }
+catch (Throwable $month13) { echo $month13->message, "\n"; }
+
+// `day` has a *static* bound of 1..=31 and a second one that depends on the
+// month the same call is building: February 29th is the day this receiver's
+// own year does not have, and the same call one option wider does.
+try { echo $d->with({day: 0})->format("yyyy-MM-dd"), "|\n"; }
+catch (Throwable $day0) { echo $day0->message, "\n"; }
+try { echo $d->with({month: 2, day: 29})->format("yyyy-MM-dd"), "|\n"; }
+catch (Throwable $day29) { echo $day29->message, "\n"; }
+echo $d->with({year: 2024, month: 2, day: 29})->format("yyyy-MM-dd"), "|\n";
+
+// The clock fields are zero-based, so their first refused value is their
+// count rather than their count plus one.
+echo $d->with({hour: 23})->format("HH"), "|\n";
+try { echo $d->with({hour: 24})->format("HH"), "|\n"; }
+catch (Throwable $hour24) { echo $hour24->message, "\n"; }
+echo $d->with({minute: 59})->format("mm"), "|\n";
+try { echo $d->with({minute: 60})->format("mm"), "|\n"; }
+catch (Throwable $minute60) { echo $minute60->message, "\n"; }
+echo $d->with({second: 59})->format("ss"), "|\n";
+try { echo $d->with({second: 60})->format("ss"), "|\n"; }
+catch (Throwable $second60) { echo $second60->message, "\n"; }
+echo $d->with({nanos: 999999999})->format("SSSSSSSSS"), "|\n";
+try { echo $d->with({nanos: 1000000000})->format("SSSSSSSSS"), "|\n"; }
+catch (Throwable $nanos) { echo $nanos->message, "\n"; }
+
+// `year` is the one `int` option, bounded -9999..=9999 by the representation
+// rather than by the calendar.
+echo $d->with({year: 9999})->format("yyyy"), "|\n";
+try { echo $d->with({year: 10000})->format("yyyy"), "|\n"; }
+catch (Throwable $year) { echo $year->message, "\n"; }
+
+// A value too wide for the field's own storage is refused before the calendar
+// ever sees it, and that refusal still names the component.
+try { echo $d->with({hour: 128})->format("HH"), "|\n"; }
+catch (Throwable $wide) { echo $wide->message, "\n"; }
+
+// `withTime` is the half of `with` that cannot be partial: a `TimeOfDay`
+// carries all four clock fields, so `nanos` is replaced as surely as `hour`
+// is — the receiver's 123456789 is gone even where nothing named it.
+echo $d->withTime(Core\Time\TimeOfDay::at(23, 59, {second: 59, nanos: 999999999}))
+    ->format("yyyy-MM-dd HH:mm:ss.SSSSSSSSS"), "|\n";
+echo $d->withTime(Core\Time\TimeOfDay::at(0, 0))
+    ->format("yyyy-MM-dd HH:mm:ss.SSSSSSSSS"), "|\n";
+
+// Its bounds are therefore `TimeOfDay::at`'s, checked one member earlier and
+// naming that member rather than `withTime`.
+try { echo $d->withTime(Core\Time\TimeOfDay::at(24, 0))->format("HH"), "|\n"; }
+catch (Throwable $atHour) { echo $atHour->message, "\n"; }
+try { echo $d->withTime(Core\Time\TimeOfDay::at(23, 60))->format("mm"), "|\n"; }
+catch (Throwable $atMinute) { echo $atMinute->message, "\n"; }
+try { echo $d->withTime(Core\Time\TimeOfDay::at(1, 2, {nanos: 1000000000}))->format("ss"), "|\n"; }
+catch (Throwable $atNanos) { echo $atNanos->message, "\n"; }
+
+// The one civil time a zone does not have is not a bound at all: both
+// spellings land in Berlin's spring-forward gap and both shift forward by it,
+// which is the agreement `nvs_core_time_datetime_with_time`'s doc states.
+var $berlin = Core\Time\Zone::of("Europe/Berlin");
+var $gap = Core\Time::at(2024, 3, 31, $berlin, {hour: 12});
+echo $gap->withTime(Core\Time\TimeOfDay::at(2, 30))->format("yyyy-MM-dd HH:mm XXX"), "|\n";
+echo $gap->with({hour: 2, minute: 30})->format("yyyy-MM-dd HH:mm XXX"), "|\n";
+--EXPECT--
+2023-01-15|
+2023-12-15|
+Core\Time\DateTime::with(): parameter 'month' is not in the required range of 1..=12
+Core\Time\DateTime::with(): parameter 'month' is not in the required range of 1..=12
+Core\Time\DateTime::with(): parameter 'day' is not in the required range of 1..=31
+Core\Time\DateTime::with(): parameter 'day' for `2023-02` is invalid, must be in range `1..=28`
+2024-02-29|
+23|
+Core\Time\DateTime::with(): parameter 'hour' is not in the required range of 0..=23
+59|
+Core\Time\DateTime::with(): parameter 'minute' is not in the required range of 0..=59
+59|
+Core\Time\DateTime::with(): parameter 'second' is not in the required range of 0..=59
+999999999|
+Core\Time\DateTime::with(): parameter 'subsecond nanosecond' is not in the required range of 0..=999999999
+9999|
+Core\Time\DateTime::with(): parameter 'year' is not in the required range of -9999..=9999
+Core\Time\DateTime::with(): `hour` is outside what that field can hold
+2023-03-15 23:59:59.999999999|
+2023-03-15 00:00:00.000000000|
+Core\Time\TimeOfDay::at(): `24:0:0.0` is not a time of day
+Core\Time\TimeOfDay::at(): `23:60:0.0` is not a time of day
+Core\Time\TimeOfDay::at(): `1:2:0.1000000000` is not a time of day
+2024-03-31 03:30 +02:00|
+2024-03-31 03:30 +02:00|

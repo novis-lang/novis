@@ -1,0 +1,18 @@
+--TEST--
+inside an `autoload` prefix literal the list is every namespace a declaration in the workspace is written in or under, each as its whole name, and no `Core` namespace — `rule:programs/autoload`
+--FILE--
+<?nvs
+autoload 'Ap<|>' from 'src';
+--FILE src/Blog/Post.nvs--
+<?nvs
+namespace App\Blog;
+class Post { }
+--FILE src/Shop.nvs--
+<?nvs
+namespace App;
+class Shop { }
+--REQUEST--
+completion
+--EXPECT--
+App     module
+App\Blog module

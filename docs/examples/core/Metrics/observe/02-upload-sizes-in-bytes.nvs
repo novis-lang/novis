@@ -1,0 +1,14 @@
+<?nvs
+// Shows how to record sizes in bytes, from a whole number.
+
+array<uint> $uploads = [2048, 512000, 73];
+uint $total = 0;
+
+foreach ($uploads as uint $bytes) {
+    // `observe` needs a float, so `as float` converts the size first.
+    Core\Metrics::observe("upload_size_bytes", $bytes as float);
+    $total = $total + $bytes;
+}
+
+// This prints 514121.
+echo "bytes uploaded: ", $total, "\n";

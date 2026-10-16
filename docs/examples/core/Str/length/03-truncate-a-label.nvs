@@ -1,0 +1,14 @@
+<?nvs
+// Shortening a label to fit a column, without cutting a character in half.
+// `length` counts characters the way a person sees them, so accented letters
+// and emoji each count as one.
+
+array<string> $labels = ["Order #1042", "Café Größenwahn", "Shipping — expedited"];
+
+foreach ($labels as string $label) {
+    if (Core\Str::length($label) > 12) {
+        echo Core\Str::slice($label, 0, 11), "…\n";
+    } else {
+        echo $label, "\n";
+    }
+}

@@ -1,0 +1,9 @@
+--METHOD--
+POST
+--PATH--
+/contact
+--HEADERS--
+host: example.com
+content-type: application/x-www-form-urlencoded
+--BODY--
+name=Ada&message=Hello

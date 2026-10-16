@@ -1,0 +1,20 @@
+<?nvs
+// Shows how `Core\IO::walk` returns every file and folder in a folder and in all its sub-folders.
+
+string $site = Core\Path::join(Core\IO::temporaryDir(), "site");
+Core\IO::makeDir(Core\Path::join($site, "images", "icons"));
+Core\IO::write(Core\Path::join($site, "index.html"), "<h1>Home</h1>\n");
+Core\IO::write(Core\Path::join($site, "images", "logo.png"), "png");
+Core\IO::write(Core\Path::join($site, "images", "icons", "cart.svg"), "<svg/>");
+
+// Each entry is a path relative to `$site`. Windows writes `\` between folder names.
+// `Core\Str::replace` changes it to `/`, so the output is the same on every system.
+array<string> $paths = [];
+foreach (Core\IO::walk($site) as string $entry) {
+    $paths[] = Core\Str::replace($entry, Core\Path::SEPARATOR, "/");
+}
+
+// This prints five paths in alphabetical order, from "images" to "index.html".
+foreach (Core\Arr::sort($paths) as string $path) {
+    echo $path, "\n";
+}

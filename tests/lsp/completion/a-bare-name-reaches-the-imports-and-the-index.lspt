@@ -1,0 +1,13 @@
+--TEST--
+a bare name reaches the `use` declarations in force and the types the workspace index holds, each spelled the shortest way that resolves at that cursor — `rule:ide/completion-offers-only-what-the-compiler-derived`
+--FILE--
+<?nvs
+namespace App;
+use Core\Str;
+interface Greets {}
+class User {}
+<|>
+--REQUEST--
+completion prefix=Str limit=1
+--EXPECT--
+Str [Core] class

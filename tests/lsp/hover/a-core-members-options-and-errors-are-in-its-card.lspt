@@ -1,0 +1,26 @@
+--TEST--
+a trailing options bag is one parameter on the signature line and one card entry per key beneath it, written without the `$` an argument carries, and the errors the row lists are the last section, `rule:core-api/reference-card`
+--FILE--
+<?nvs
+var $text = Core\Json::enc<|>ode(["id" => 1], pretty: true);
+echo $text;
+--REQUEST--
+hover
+--EXPECT--
+```nvs
+Core\Json::encode(mixed $value, {pretty?: bool, escapeUnicode?: bool} $options): string
+```
+
+Serializes `$value` as JSON text. It can be a scalar, an array, an anonymous object or an instance of a class with `#[Json\Derive]`. The text is on one line unless `pretty` is set.
+
+**Parameters**
+
+- `$value` — The value to encode: `null`, `bool`, `int`, `uint`, `float`, `decimal`, `string`, an array, a `{name: value}` shape, or an instance of a class carrying `#[Json\Derive]`.
+- `pretty` — Writes the output across several lines, with indentation. By default, the output is on one line.
+- `escapeUnicode` — Writes every non-ASCII character as a `\uXXXX` escape. By default, UTF-8 text is written as it is.
+
+**Returns** The JSON text. It is a `tainted string` when `$value` can contain text from outside the program. That is a `tainted` string, or a `mixed` or `object` value, anywhere inside it.
+
+**Throws**
+
+- `LogicError` — `$value` holds something JSON cannot spell: a `NaN` or infinite `float`, a value of a type with no JSON encoding, an instance of a class without `#[Json\Derive]`, or nesting past 1024 levels.

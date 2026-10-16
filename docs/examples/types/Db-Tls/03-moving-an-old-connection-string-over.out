@@ -1,0 +1,4 @@
+sslmode=prefer: may have been sending the password in the clear
+sslmode=require: was encrypted, but would have taken any certificate at all
+sslmode=verify-ca: checked the certificate, but not that it was issued for this host
+sslmode=verify-full: carries over exactly as it is

@@ -1,0 +1,17 @@
+--TEST--
+a cursor on a class's own declaration answers the declaration and every site that allocates it, the name a declaration writes being resolved as directly as the name a use resolved to, `rule:ide/five-features-are-one-reference-index`
+--FILE--
+<?nvs
+class Us<|>er
+{
+    public string $name = "";
+}
+
+var $u = new User();
+var $v = new User();
+--REQUEST--
+references
+--EXPECT--
+case.nvs:2:7
+case.nvs:7:14
+case.nvs:8:14

@@ -1,0 +1,658 @@
+<?nvs
+namespace Novis\Spreadsheet;
+
+use Iterable;
+use Iterator;
+use LogicError;
+
+/// An Excel file (xlsx) or a CSV file that your program writes row by row. A name that ends in `.csv`, or `format: 'csv'`, writes CSV.
+/// Each `create` method sets where the file goes. Add a sheet with `sheet`, add its rows, and call `finish` at the end.
+final class Workbook
+{
+    type Options = ?{zone?: string, format?: string, properties?: {title?: string, subject?: string, author?: string, company?: string, keywords?: string, created?: Core\Time\Instant}};
+    type Column = {header?: string, width?: int|float|string, format?: string, style?: Style, hidden?: bool, formula?: callable(int): Formula};
+    type SheetOptions = ?{columns?: array<Column>, header?: bool, freeze?: bool, autofilter?: bool, headerStyle?: Style|bool, overflow?: string, position?: uint, hidden?: bool|string, tabColor?: string, zoom?: uint, gridlines?: bool, rightToLeft?: bool};
+    type ExportOptions = ?{sheet?: string, zone?: string, format?: string, properties?: {title?: string, subject?: string, author?: string, company?: string, keywords?: string, created?: Core\Time\Instant}, columns?: array<Column>, header?: bool, freeze?: bool, autofilter?: bool, headerStyle?: Style|bool, overflow?: string, position?: uint, hidden?: bool|string, tabColor?: string, zoom?: uint, gridlines?: bool, rightToLeft?: bool};
+    type RowOptions = ?{height?: float, hidden?: bool, level?: uint, style?: Style};
+    type Value = {text: string}|{number: float}|{integer: int}|{decimal: string}|{boolean: bool}|{date: Core\Time\Date}|{time: Core\Time\TimeOfDay}|{duration: Core\Time\Duration}|{day: Core\Time\Date, clock: Core\Time\TimeOfDay}|{formula: string, cachedText: ?string, cachedNumber: ?float};
+    type Entry = {value: ?Value, style: ?uint};
+    type Row = {cells: array<Entry>, style: ?uint, height: ?float, hidden: bool, level: uint, header: bool};
+    type Layout = {name: string, position: ?uint, visibility: Visibility, columns: array<{width: ?float, auto: bool, style: ?uint, format: ?string, hidden: bool}>, freezeRows: uint, freezeColumns: uint, autofilter: ?string, tabColor: ?string, zoom: ?uint, gridlines: bool, rightToLeft: bool, header: {defaultStyle: bool, style: ?uint, freeze: bool, filter: bool}, newSheetOnOverflow: bool};
+
+    private ?Core\Response\Stream $response = null;
+    private ?Core\IO\File $file = null;
+    private bool $closeFile = false;
+    private bool $keep = false;
+    private array<bytes> $kept = [];
+    private bool $open = false;
+    private bool $started = false;
+    private bool $wantHeader = true;
+    private ?array<uint> $positions = null;
+    private array<string> $headers = [];
+    private bool $whole = false;
+    private array<uint> $styles = [];
+    private array<Row> $pending = [];
+    private uint $sheets = 0;
+    private array<string> $names = [];
+    private bool $finished = false;
+    private array<{at: uint, make: callable(int): Formula}> $formulas = [];
+    private bool $overflow = false;
+    // The number the open sheet's next row gets, and the rows a table's totals row takes.
+    private uint $row = 1;
+    private array<uint> $totalsAt = [];
+    // A CSV file is written here as text, and the engine output is not sent. `$csvRows` counts its rows, and `$csvSize` its bytes.
+    private bool $csv = false;
+    private uint $csvRows = 0;
+    private uint $csvSize = 0;
+
+    private function constructor(
+        private readonly Writer $writer,
+        private readonly ?Core\Time\Zone $zone,
+    ) {}
+
+    /// `Workbook::createForDownload` sends the file to the browser as a download named `$name`.
+    /// The response headers are sent at once, and each part of the file is sent when it is ready.
+    public static function createForDownload(string $name, Options $options = null): Workbook
+    {
+        var $book = self::start($name, $name, $options);
+        Core\Response::setHeader("Content-Disposition", self::disposition($name));
+        $book->response = Core\Response::stream($book->csv ? "text/csv; charset=utf-8" : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+        return $book;
+    }
+
+    /// `Workbook::createForFile` writes the file to `$path`. If the file exists, it is replaced.
+    /// The path needs the `fs.write` capability in `nvs.toml`.
+    public static function createForFile(#[Core\Path] string $path, Options $options = null): Workbook
+    {
+        var $book = self::start($path, $path, $options);
+        $book->file = Core\IO::open($path, Core\IO::FileMode::Write);
+        $book->closeFile = true;
+        return $book;
+    }
+
+    /// `Workbook::createForStream` writes the file to `$file`, a file that your program opened for writing.
+    /// `finish` does not close `$file`.
+    public static function createForStream(Core\IO\File $file, Options $options = null): Workbook
+    {
+        var $book = self::start("an open file", null, $options);
+        $book->file = $file;
+        return $book;
+    }
+
+    /// `Workbook::createInMemory` keeps the file in memory. `finish` returns it in `Written::bytes`.
+    public static function createInMemory(Options $options = null): Workbook
+    {
+        var $book = self::start("memory", null, $options);
+        $book->keep = true;
+        return $book;
+    }
+
+    /// `Workbook::fromRows` makes a workbook with one sheet that has every row of `$rows`. Call `download`, `save`, `to` or `bytes` on the result to write it.
+    /// `$options` has the workbook options and the sheet options. `sheet` is the name of the sheet, and the default is `'Sheet1'`.
+    public static function fromRows(array<array<mixed>>|Iterable<array<mixed>>|Iterator<array<mixed>> $rows, ExportOptions $options = null): Export
+    {
+        return new Export(fn (Workbook $book): void => {
+            var $sheet = $book->sheet($options?->sheet ?? "Sheet1", $options);
+            // All rows of an array go to the engine in one call, so the width of each column fits every row.
+            if ($rows is array<array<mixed>>) {
+                $book->whole = true;
+            }
+            $sheet->addAll($rows);
+        }, $options);
+    }
+
+    /// `sheet` starts a new sheet named `$name` and returns it. The sheet before it is finished, and you cannot add rows to it after this.
+    /// When the rows have keys, the first row shows them in bold, with a filter, and stays at the top. `header`, `headerStyle`, `freeze` and `autofilter` change this.
+    public function sheet(string $name, SheetOptions $options = null): Sheet
+    {
+        $this->checkOpen();
+        if ($this->csv && $this->sheets > 0) {
+            string $first = $this->names[0];
+            throw new LogicError("A CSV file has one sheet, so the sheet `{$name}` cannot be added. The file already has the sheet `{$first}`.");
+        }
+        $this->flushSheet();
+        bool $wantHeader = $options?->header ?? true;
+        ?array<uint> $known = null;
+        array<string> $headers = [];
+        array<{width: ?float, auto: bool, style: ?uint, format: ?string, hidden: bool}> $columns = [];
+        array<{at: uint, make: callable(int): Formula}> $formulas = [];
+        ?array<Column> $named = $options?->columns ?? null;
+        if ($named != null && Core\Arr::count($named) > 0) {
+            array<uint> $positions = [];
+            foreach ($named as tainted string $tainted => Column $column) {
+                string $key = self::key($tainted);
+                $positions[$key] = Core\Arr::count($columns);
+                $headers[] = $column->header ?? $key;
+                int|float|string|null $width = $column->width ?? null;
+                ?float $fixed = null;
+                bool $auto = $wantHeader;
+                if ($width is string) {
+                    if ($width != "auto") {
+                        throw new LogicError("The column `{$key}` has the width `'{$width}'`. A width is a number of characters or `'auto'`.");
+                    }
+                    $auto = true;
+                } elseif ($width != null) {
+                    $fixed = $width as float;
+                    $auto = false;
+                }
+                ?callable(int): Formula $formula = $column->formula ?? null;
+                if ($formula != null) {
+                    $formulas[] = {at: Core\Arr::count($columns), make: $formula};
+                }
+                $columns[] = {
+                    width: $fixed,
+                    auto: $auto,
+                    style: $this->styleId($column->style ?? null),
+                    format: $column->format ?? null,
+                    hidden: $column->hidden ?? false,
+                };
+            }
+            $known = $positions;
+        }
+        Style|bool $headerStyle = $options?->headerStyle ?? true;
+        ?uint $headerId = null;
+        if ($headerStyle is Style) {
+            $headerId = $this->styleId($headerStyle);
+        }
+        ?string $overflow = $options?->overflow ?? null;
+        if ($overflow != null && $overflow != "newSheet") {
+            throw new LogicError("The sheet option `overflow` is `'newSheet'`. The sheet `{$name}` has `'{$overflow}'`.");
+        }
+        Visibility $visibility = Visibility::Visible;
+        bool|string|null $hidden = $options?->hidden ?? null;
+        if ($hidden == "very") {
+            $visibility = Visibility::VeryHidden;
+        } elseif ($hidden == true) {
+            $visibility = Visibility::Hidden;
+        } elseif ($hidden is string) {
+            throw new LogicError("The sheet option `hidden` is `true`, `false` or `'very'`. The sheet `{$name}` has `'{$hidden}'`.");
+        }
+        Layout $layout = {
+            name: $name,
+            position: $options?->position ?? null,
+            visibility: $visibility,
+            columns: $columns,
+            freezeRows: 0,
+            freezeColumns: 0,
+            autofilter: null,
+            tabColor: $options?->tabColor ?? null,
+            zoom: $options?->zoom ?? null,
+            gridlines: $options?->gridlines ?? true,
+            rightToLeft: $options?->rightToLeft ?? false,
+            header: {
+                defaultStyle: $headerStyle is bool && $headerStyle,
+                style: $headerId,
+                freeze: $options?->freeze ?? true,
+                filter: $options?->autofilter ?? true,
+            },
+            newSheetOnOverflow: $overflow == "newSheet",
+        };
+        // The engine checks the name and the options here, so a bad one throws in `sheet`.
+        // The sheet before stays open until the engine starts this one.
+        $this->send(Engine::writerSheet($this->writer, $layout, []));
+        $this->open = true;
+        $this->started = false;
+        $this->whole = false;
+        $this->wantHeader = $wantHeader;
+        $this->positions = $known;
+        $this->headers = $headers;
+        $this->formulas = $formulas;
+        $this->overflow = $overflow == "newSheet";
+        $this->row = 1;
+        $this->totalsAt = [];
+        $this->sheets = $this->sheets + 1;
+        $this->names[] = $name;
+        return new Sheet($this->sheets, $this->writer, $this->queue(...), $this->ready(...), $this->send(...), $this->position(...));
+    }
+
+    /// `define` gives the cells at `$reference`, such as `'Orders!$C$2:$C$9'`, the name `$name`. A formula can then use the name.
+    public function define(string $name, string $reference): Workbook
+    {
+        $this->checkOpen();
+        Engine::writerDefine($this->writer, $name, $reference);
+        return $this;
+    }
+
+    /// `finish` writes the end of the file and sends the last part. Call it once, after the last row.
+    /// A workbook that is never finished is not a valid file, and the program logs an error for it.
+    public function finish(): Written
+    {
+        $this->checkOpen();
+        $this->flushSheet();
+        $this->finished = true;
+        var $last = Engine::writerFinish($this->writer);
+        $this->send($last->data);
+        if ($this->closeFile) {
+            $this->file?->close();
+        }
+        array<int> $rows = [];
+        int $size = $last->size as int;
+        if ($this->csv) {
+            foreach ($this->names as string $name) {
+                $rows[$name] = $this->csvRows as int;
+            }
+            $size = $this->csvSize as int;
+        } else {
+            foreach ($last->rows as var $sheet) {
+                $rows[$sheet->name] = $sheet->rows as int;
+            }
+        }
+        ?bytes $whole = null;
+        if ($this->keep) {
+            $whole = Core\Bytes::join($this->kept);
+            $this->kept = [];
+        }
+        return new Written($rows, $size, $whole);
+    }
+
+    private static function start(string $target, ?string $named, Options $options): Workbook
+    {
+        string $format = $options?->format ?? self::formatOf($named);
+        if ($format != "xlsx" && $format != "csv") {
+            throw new LogicError("The format `{$format}` is not supported. Use `xlsx` or `csv`.");
+        }
+        ?Core\Time\Zone $zone = null;
+        ?string $zoneName = $options?->zone ?? null;
+        if ($zoneName != null) {
+            $zone = Core\Time\Zone::of($zoneName);
+        }
+        var $properties = $options?->properties ?? null;
+        ?{day: Core\Time\Date, clock: Core\Time\TimeOfDay} $created = null;
+        ?Core\Time\Instant $at = $properties?->created ?? null;
+        if ($at != null) {
+            var $utc = $at->in(Core\Time\Zone::of("UTC"));
+            $created = {day: $utc->date(), clock: $utc->timeOfDay()};
+        }
+        var $writer = Engine::writerOpen({
+            properties: {
+                title: $properties?->title ?? null,
+                subject: $properties?->subject ?? null,
+                author: $properties?->author ?? null,
+                company: $properties?->company ?? null,
+                keywords: $properties?->keywords ?? null,
+                created: $created,
+            },
+            target: $target,
+        });
+        var $book = new Workbook($writer, $zone);
+        $book->csv = $format == "csv";
+        return $book;
+    }
+
+    private static function formatOf(?string $named): string
+    {
+        if ($named == null) {
+            return "xlsx";
+        }
+        ?string $extension = Core\Path::extension($named);
+        if ($extension != null && Core\Str::lower($extension) == "csv") {
+            return "csv";
+        }
+        return "xlsx";
+    }
+
+    private static function disposition(string $name): string
+    {
+        string $plain = "";
+        foreach (Core\Str::codePoints($name) as uint $code) {
+            if ($code >= 32 && $code < 127 && $code != 34 && $code != 92) {
+                $plain = $plain . Core\Str::fromCodePoint($code);
+            } else {
+                $plain = $plain . "_";
+            }
+        }
+        return "attachment; filename=\"{$plain}\"; filename*=UTF-8''" . Core\Uri::encodeComponent($name);
+    }
+
+    private function checkOpen(): void
+    {
+        if ($this->finished) {
+            throw new LogicError("The workbook is finished. `finish` is the last call on a workbook.");
+        }
+    }
+
+    private function openSheet(uint $sheet, string $what): string
+    {
+        string $name = $this->names[($sheet as int) - 1];
+        if ($this->finished) {
+            throw new LogicError("The sheet `{$name}` is finished, because the workbook is finished. `finish` is the last call on a workbook.");
+        }
+        if ($sheet != $this->sheets) {
+            throw new LogicError("The sheet `{$name}` is finished, so you cannot add {$what} to it. A sheet is finished when the workbook starts the next sheet.");
+        }
+        return $name;
+    }
+
+    private function queue(uint $sheet, array<mixed> $row, RowOptions $options): void
+    {
+        string $name = $this->openSheet($sheet, "rows");
+        if (!$this->started) {
+            $this->begin($row);
+        }
+        int $number = $this->claim() as int;
+        array<mixed> $values = $this->arrange($row, $name);
+        foreach ($this->formulas as var $formula) {
+            callable(int): Formula $make = $formula->make;
+            int $place = $formula->at as int;
+            mixed $empty = null;
+            while (Core\Arr::count($values) <= $place) {
+                $values[] = $empty;
+            }
+            $values[$place] = $make($number);
+        }
+        array<Entry> $cells = [];
+        uint $at = 0;
+        foreach ($values as mixed $value) {
+            if ($value is Cell) {
+                $cells[] = {value: self::cell($value->value, $at, $this->zone), style: $this->styleId($value->style)};
+            } else {
+                $cells[] = {value: self::cell($value, $at, $this->zone), style: null};
+            }
+            $at = $at + 1;
+        }
+        $this->pending[] = {
+            cells: $cells,
+            style: $this->styleId($options?->style ?? null),
+            height: $options?->height ?? null,
+            hidden: $options?->hidden ?? false,
+            level: $options?->level ?? 0,
+            header: false,
+        };
+        // A batch of 1,000 rows goes to the engine in one call.
+        if (!$this->whole && Core\Arr::count($this->pending) >= 1000) {
+            $this->flush();
+        }
+    }
+
+    // Sets the columns from the first row's keys, after the ones the `columns` option names, and adds the header row.
+    private function begin(array<mixed> $row): void
+    {
+        $this->started = true;
+        if (!Core\Arr::isList($row)) {
+            array<uint> $positions = $this->positions ?? [];
+            foreach ($row as tainted string $tainted => mixed $value) {
+                string $key = self::key($tainted);
+                if (!Core\Arr::hasKey($positions, $key)) {
+                    $positions[$key] = Core\Arr::count($positions);
+                    $this->headers[] = $key;
+                }
+            }
+            $this->positions = $positions;
+        }
+        if ($this->positions != null && $this->wantHeader) {
+            array<Entry> $cells = [];
+            foreach ($this->headers as string $text) {
+                $cells[] = {value: {text: $text}, style: null};
+            }
+            $this->pending[] = {cells: $cells, style: null, height: null, hidden: false, level: 0, header: true};
+            $this->claim();
+        }
+    }
+
+    // Gives the next row its number. A table's totals row takes its number first, and a full sheet goes on to the next one.
+    private function claim(): uint
+    {
+        while (Core\Arr::contains($this->totalsAt, $this->row)) {
+            $this->row = $this->row + 1;
+        }
+        if ($this->overflow && $this->row > 1048576) {
+            $this->row = $this->positions != null && $this->wantHeader ? 2 : 1;
+            $this->totalsAt = [];
+        }
+        uint $number = $this->row;
+        $this->row = $this->row + 1;
+        return $number;
+    }
+
+    // Sends the rows that wait, so a part of the open sheet can use them. `$totals` is the row a table's totals row takes.
+    private function ready(uint $sheet, ?uint $totals): void
+    {
+        $this->openSheet($sheet, "parts");
+        $this->flush();
+        if ($totals != null) {
+            $this->totalsAt[] = $totals;
+        }
+    }
+
+    // The column of `$key`: a key of the sheet's columns, or a column letter such as `C`.
+    private function position(uint $sheet, string $key): uint
+    {
+        string $name = $this->openSheet($sheet, "parts");
+        array<uint> $positions = $this->positions ?? [];
+        if (Core\Arr::hasKey($positions, $key)) {
+            return $positions[$key];
+        }
+        uint $at = 0;
+        foreach (Core\Str::codePoints(Core\Str::upper($key)) as uint $code) {
+            if ($code < 65 || $code > 90 || $at > 16384) {
+                throw new LogicError("The sheet `{$name}` has no column `{$key}`. Give a key of its columns or a column letter, such as `C`.");
+            }
+            $at = $at * 26 + ($code - 64);
+        }
+        if ($at == 0) {
+            throw new LogicError("The sheet `{$name}` has no column `{$key}`. Give a key of its columns or a column letter, such as `C`.");
+        }
+        return $at - 1;
+    }
+
+    // Puts the values of a row with keys in the order of the columns. A list is written by position.
+    private function arrange(array<mixed> $row, string $name): array<mixed>
+    {
+        if (Core\Arr::isList($row)) {
+            return $row;
+        }
+        array<uint> $positions = $this->positions ?? [];
+        if (Core\Arr::count($positions) == 0) {
+            return $row;
+        }
+        mixed $empty = null;
+        array<mixed> $values = Core\Arr::fill(Core\Arr::count($positions), $empty);
+        foreach ($row as tainted string $tainted => mixed $value) {
+            string $key = self::key($tainted);
+            if (!Core\Arr::hasKey($positions, $key)) {
+                throw new LogicError("A row of the sheet `{$name}` has the key `{$key}`, and the sheet has no column for it. The columns are the keys of the `columns` option and of the first row.");
+            }
+            $values[$positions[$key] as int] = $value;
+        }
+        return $values;
+    }
+
+    private static function key(tainted string $key): string
+    {
+        return Core\Taint::assertTrusted($key, "a key finds the column of a value, and the engine escapes it as the header text");
+    }
+
+    private function styleId(?Style $style): ?uint
+    {
+        if ($style == null) {
+            return null;
+        }
+        if (!Core\Arr::hasKey($this->styles, $style->key)) {
+            $this->styles[$style->key] = Engine::writerStyle($this->writer, $style->fields);
+        }
+        return $this->styles[$style->key];
+    }
+
+    // Sends the rows the open sheet still has, and its header row when it has no other rows.
+    private function flushSheet(): void
+    {
+        if ($this->open) {
+            if (!$this->started) {
+                $this->begin([]);
+            }
+            $this->flush();
+        }
+    }
+
+    private function flush(): void
+    {
+        if (Core\Arr::count($this->pending) == 0) {
+            return;
+        }
+        array<Row> $rows = $this->pending;
+        $this->pending = [];
+        if ($this->csv) {
+            $this->deliver(self::csvText($rows) as bytes);
+            foreach ($rows as Row $row) {
+                if (!$row->header) {
+                    $this->csvRows = $this->csvRows + 1;
+                }
+            }
+            return;
+        }
+        $this->send(Engine::writerRows($this->writer, $rows));
+    }
+
+    // Sends what the engine wrote. A CSV file sends only its own text, so styles, widths and the other parts are left out.
+    private function send(bytes $chunk): void
+    {
+        if (!$this->csv) {
+            $this->deliver($chunk);
+        }
+    }
+
+    private function deliver(bytes $chunk): void
+    {
+        if (Core\Bytes::length($chunk) == 0) {
+            return;
+        }
+        $this->csvSize = $this->csvSize + Core\Bytes::length($chunk);
+        $this->response?->write($chunk);
+        $this->file?->write($chunk);
+        if ($this->keep) {
+            $this->kept[] = $chunk;
+        }
+    }
+
+    private static function cell(mixed $value, uint $at, ?Core\Time\Zone $zone): ?Value
+    {
+        if ($value == null) {
+            return null;
+        }
+        if ($value is string) {
+            return {text: Core\Taint::assertTrusted($value, "the engine writes a string as an inline text cell and escapes it")};
+        }
+        if ($value is bool) {
+            return {boolean: $value};
+        }
+        if ($value is int) {
+            return {integer: $value};
+        }
+        if ($value is uint) {
+            return {decimal: $value as string};
+        }
+        if ($value is float) {
+            return {number: $value};
+        }
+        if ($value is decimal) {
+            return {decimal: $value as string};
+        }
+        if ($value is Core\Time\Date) {
+            return {date: $value};
+        }
+        if ($value is Core\Time\TimeOfDay) {
+            return {time: $value};
+        }
+        if ($value is Core\Time\Duration) {
+            return {duration: $value};
+        }
+        if ($value is Core\Time\DateTime) {
+            return {day: $value->date(), clock: $value->timeOfDay()};
+        }
+        if ($value is Core\Time\Instant) {
+            if ($zone == null) {
+                string $letter = self::column($at);
+                throw new LogicError("The column `{$letter}` has an `Instant`, and the workbook has no `zone`. Set `zone` in the workbook options, such as `zone: 'Europe/Berlin'`.");
+            }
+            var $local = $value->in($zone);
+            return {day: $local->date(), clock: $local->timeOfDay()};
+        }
+        if ($value is Formula) {
+            string $formula = Core\Taint::assertTrusted($value->text, "a Formula is written as a formula only when the program passes one");
+            string|int|float|null $cached = $value->cached;
+            if ($cached is string) {
+                return {formula: $formula, cachedText: $cached, cachedNumber: null};
+            }
+            if ($cached is int || $cached is float) {
+                return {formula: $formula, cachedText: null, cachedNumber: $cached as float};
+            }
+            return {formula: $formula, cachedText: null, cachedNumber: null};
+        }
+        string $column = self::column($at);
+        throw new LogicError("The column `{$column}` has a value that a cell cannot contain. A cell can contain a `string`, a number, a `bool`, `null`, or a date, a time or a duration from `Core\\Time`.");
+    }
+
+    // The rows as CSV text, one record per row, from `Core\Csv::format`.
+    private static function csvText(array<Row> $rows): string
+    {
+        array<array<string>> $records = [];
+        foreach ($rows as Row $row) {
+            array<string> $fields = [];
+            foreach ($row->cells as Entry $entry) {
+                $fields[] = Core\Taint::assertTrusted(self::csvField($entry->value), "the program passed this value, and a CSV file is text");
+            }
+            $records[] = $fields;
+        }
+        return Core\Csv::format($records);
+    }
+
+    // The text of one value in a CSV file. A string that Excel would read as a formula gets a `'` first, so it stays text.
+    private static function csvField(?Value $value): tainted string
+    {
+        if ($value is tainted {text: string}) {
+            tainted string $text = $value->text;
+            array<string> $starts = ["=", "+", "-", "@", "\t", "\r"];
+            foreach ($starts as string $start) {
+                if (Core\Str::startsWith($text, $start)) {
+                    return "'" . $text;
+                }
+            }
+            return $text;
+        }
+        if ($value is {number: float}) {
+            return $value->number as string;
+        }
+        if ($value is {integer: int}) {
+            return $value->integer as string;
+        }
+        if ($value is tainted {decimal: string}) {
+            return $value->decimal;
+        }
+        if ($value is {boolean: bool}) {
+            return $value->boolean ? "TRUE" : "FALSE";
+        }
+        if ($value is {date: Core\Time\Date}) {
+            return $value->date->format("yyyy-MM-dd");
+        }
+        if ($value is {time: Core\Time\TimeOfDay}) {
+            return $value->time->format("HH:mm:ss");
+        }
+        if ($value is {duration: Core\Time\Duration}) {
+            int $seconds = $value->duration->toSeconds();
+            string $sign = $seconds < 0 ? "-" : "";
+            int $left = $seconds < 0 ? 0 - $seconds : $seconds;
+            string $minutes = Core\Str::padStart((Core\Math::intDiv($left, 60) % 60) as string, 2, "0");
+            string $rest = Core\Str::padStart(($left % 60) as string, 2, "0");
+            return $sign . (Core\Math::intDiv($left, 3600) as string) . ":" . $minutes . ":" . $rest;
+        }
+        if ($value is {day: Core\Time\Date, clock: Core\Time\TimeOfDay}) {
+            return $value->day->format("yyyy-MM-dd") . " " . $value->clock->format("HH:mm:ss");
+        }
+        if ($value is tainted {formula: string, cachedText: ?string, cachedNumber: ?float}) {
+            return "=" . $value->formula;
+        }
+        return "";
+    }
+
+    private static function column(uint $at): string
+    {
+        string $letters = "";
+        int $left = ($at as int) + 1;
+        while ($left > 0) {
+            int $rest = ($left - 1) % 26;
+            $letters = Core\Str::fromCodePoint((65 + $rest) as uint) . $letters;
+            $left = Core\Math::intDiv($left - 1, 26);
+        }
+        return $letters;
+    }
+}

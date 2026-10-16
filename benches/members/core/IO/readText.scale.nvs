@@ -1,0 +1,23 @@
+<?nvs
+// Measures `Core\IO::readText` on one Latin-1 file, at growing file sizes.
+// bench: start 1024
+// bench: max 16384
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        string $file = Core\Path::join(Core\IO::temporaryDir(), 'cities.txt');
+        array<bytes> $parts = [Core\Encoding::encodeText(Core\Str::repeat('é', $size), Core\Charset::Latin1)];
+        Core\IO::writeStream($file, $parts, { overwrite: true });
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            $total = $total + Core\Str::length(Core\IO::readText($file, { charset: Core\Charset::Latin1 }));
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(1024), "\n";

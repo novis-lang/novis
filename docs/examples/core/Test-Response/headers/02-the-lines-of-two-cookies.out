@@ -1,0 +1,2 @@
+sid=abc123; Path=/; Secure; HttpOnly; SameSite=Lax
+lang=en; Path=/; Secure; SameSite=Lax

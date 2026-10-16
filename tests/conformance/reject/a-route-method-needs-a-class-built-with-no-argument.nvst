@@ -1,0 +1,36 @@
+--TEST--
+A `#[Route]` method that is not `static` needs a class `Core\Router::dispatch` can create with no argument
+--FILE--
+<?nvs
+// `Core\Router::dispatch` calls the constructor with no arguments.
+// This constructor needs one, so the route does not compile.
+class Posts {
+    public function constructor(int $page) { }
+
+    #[Core\Route(path: "/posts", method: Core\Http\Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function index(): void { echo "posts"; }
+
+    // A `static` method needs no object, so this route compiles.
+    #[Core\Route(path: "/posts/latest", method: Core\Http\Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public static function latest(): void { echo "latest"; }
+}
+
+// An `abstract` class has no objects at all.
+abstract class Pages {
+    #[Core\Route(path: "/pages", method: Core\Http\Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function index(): void { echo "pages"; }
+}
+
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0855]: `Core\Router::dispatch` cannot create an object to call `Posts::index`
+%A
+error[E0855]: `Core\Router::dispatch` cannot create an object to call `Pages::index`
+%A
+error: aborting due to 2 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

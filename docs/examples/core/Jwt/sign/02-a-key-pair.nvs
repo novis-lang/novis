@@ -1,0 +1,15 @@
+<?nvs
+// Shows how to sign a token with a key pair, so that other services can check it.
+
+// An `Ed25519` key pair has a private half and a public half.
+// The private half signs. You give the public half to the services that check.
+Core\Crypto\KeyPair $pair = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::Ed25519);
+
+// The `kid` option writes a name for the key into the token's header.
+// A service that has several keys uses this name to find the right one.
+string $token = Core\Jwt::sign(["sub" => "42"], 1h, $pair, {kid: "2026-key"});
+
+// The first part of the token is the header. The key chose the algorithm, `EdDSA`.
+// This prints `{"alg":"EdDSA","kid":"2026-key","typ":"JWT"}`.
+string $header = Core\Str::split($token, ".")[0];
+echo Core\Encoding::fromBase64Url($header) as string, "\n";

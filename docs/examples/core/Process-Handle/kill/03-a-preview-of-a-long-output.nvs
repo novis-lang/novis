@@ -1,0 +1,30 @@
+<?nvs
+// Shows a small method that returns the first lines a program prints, then stops the program.
+// requires: unix
+
+class Preview {
+    public static function firstLines(string $path, array<string> $arguments, int $count): array<string> {
+        var $program = Core\Process::spawn($path, $arguments);
+        string $text = "";
+        array<string> $lines = [];
+        ?bytes $part = $program->readStdout();
+        while ($part != null) {
+            $text = $text . ($part as string);
+            $lines = Core\Str::lines($text);
+            // The last line can be incomplete. So the loop stops at one line more than needed.
+            if (Core\Arr::count($lines) as int > $count) {
+                break;
+            }
+            $part = $program->readStdout();
+        }
+        // The rest of the output is not needed. `kill()` stops the program now.
+        $program->kill();
+        $program->wait();
+        return Core\Arr::slice($lines, 0, $count);
+    }
+}
+
+// `seq 1 1000000` prints one million numbers. This prints only 1, 2 and 3.
+foreach (Preview::firstLines("/usr/bin/seq", ["1", "1000000"], 3) as string $line) {
+    echo $line, "\n";
+}

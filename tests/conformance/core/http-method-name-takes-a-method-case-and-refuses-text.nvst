@@ -1,0 +1,15 @@
+--TEST--
+`Core\Http::methodName` takes a `Core\Http\Method` case and nothing else, so text naming a verb does not compile — `rule:enums/closed-integer-type`
+--FILE--
+<?nvs
+// The member turns a case into text and never the reverse: a string is not a
+// case, so the call is refused before the program runs.
+echo Core\Http::methodName("GET"), "\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `Core\Http\Method`, found `string`
+  --> case.nvs:4:28
+%A
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

@@ -1,0 +1,16 @@
+<?nvs
+// Shows the everyday use: a program prints a path that may be longer than the
+// screen. A line that wraps is hard to read, so the start of the path is cut
+// off and three dots take its place.
+
+string $path = "/var/lib/orders/2026/09/customers/europe/germany/berlin/invoice-4821.json";
+uint $room = Core\Cli::width() - Core\Str::length("reading ");
+
+string $shown = $path;
+if (Core\Str::length($path) > $room) {
+    // The end of a path names the file, so that is the part to keep.
+    int $keep = ($room - 3) as int;
+    $shown = "..." . Core\Str::slice($path, (Core\Str::length($path) as int) - $keep, $keep);
+}
+
+echo "reading ", $shown, "\n";

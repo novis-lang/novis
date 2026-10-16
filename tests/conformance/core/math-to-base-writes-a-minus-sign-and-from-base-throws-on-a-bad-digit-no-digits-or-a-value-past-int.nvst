@@ -1,0 +1,85 @@
+--TEST--
+Core\Math::toBase writes a negative number as a `-` and its magnitude, and Core\Math::fromBase reads that back and throws on a digit the base does not have, on no digits and on a value past `int`
+--FILE--
+<?nvs
+// A negative number is written as `-` followed by the digits of its magnitude.
+echo Core\Math::toBase(-255, 16), " ", Core\Math::toBase(-5, 2), " ", Core\Math::toBase(-35, 36), "\n";
+
+// The smallest `int` is written the same way.
+echo Core\Math::toBase(Core\Math::INT_MIN, 16), "\n";
+
+// The sign adds one character. `-1` in base 2 is `-1`, and `-255` in base 16 is `-ff`.
+echo Core\Str::length(Core\Math::toBase(-1, 2)), " ", Core\Str::length(Core\Math::toBase(-255, 16)), "\n";
+
+// `fromBase` reads a leading `-` as the sign.
+echo Core\Math::fromBase("-ff", 16), " ", Core\Math::fromBase("-101", 2), "\n";
+
+// A digit the base does not have throws an error: `y` in base 16, `2` in base 2.
+try {
+    var $trailing = Core\Math::fromBase("beefy", 16);
+    echo "answered\n";
+} catch (Throwable $pastAlphabet) {
+    echo "refused\n";
+}
+try {
+    var $binary = Core\Math::fromBase("102", 2);
+    echo "answered\n";
+} catch (Throwable $notABit) {
+    echo "refused\n";
+}
+
+// A text with no digits throws an error. A sign alone has no digits.
+try {
+    var $nothing = Core\Math::fromBase("", 2);
+    echo "answered\n";
+} catch (Throwable $noDigits) {
+    echo "refused\n";
+}
+try {
+    var $signOnly = Core\Math::fromBase("-", 16);
+    echo "answered\n";
+} catch (Throwable $signAlone) {
+    echo "refused\n";
+}
+
+// A value larger than `INT_MAX` throws an error.
+try {
+    var $unsigned = Core\Math::fromBase("ffffffffffffffff", 16);
+    echo "answered\n";
+} catch (Throwable $pastUnsigned) {
+    echo "refused\n";
+}
+try {
+    var $oneOver = Core\Math::fromBase("9223372036854775808", 10);
+    echo "answered\n";
+} catch (Throwable $pastMax) {
+    echo "refused\n";
+}
+
+// `INT_MAX` and `INT_MIN` are the largest and smallest values it reads.
+echo Core\Math::fromBase("7fffffffffffffff", 16), " ", Core\Math::fromBase("-8000000000000000", 16), "\n";
+
+// Every negative number below comes back unchanged after `toBase` and then `fromBase`.
+array<int> $negatives = [-1, -255, -4095, -1000000, Core\Math::INT_MIN];
+int $held = 0;
+int $rows = 0;
+foreach ($negatives as int $n) {
+    $rows = $rows + 1;
+    if (Core\Math::fromBase(Core\Math::toBase($n, 36), 36) == $n) {
+        $held = $held + 1;
+    }
+}
+echo $held, " ", $rows, "\n";
+--EXPECT--
+-ff -101 -z
+-8000000000000000
+2 3
+-255 -5
+refused
+refused
+refused
+refused
+refused
+refused
+9223372036854775807 -9223372036854775808
+5 5

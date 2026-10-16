@@ -1,0 +1,12 @@
+<?nvs
+// Shows how a program checks what an array will look like in JSON. A list
+// becomes a JSON array, and any other array becomes a JSON object.
+
+array<string> $colours = ["red", "green"];
+array<string> $user = ["name" => "Ada"];
+
+// This prints ["red","green"].
+echo Core\Arr::isList($colours) ? "array: " : "object: ", Core\Json::encode($colours), "\n";
+
+// This prints {"name":"Ada"}.
+echo Core\Arr::isList($user) ? "array: " : "object: ", Core\Json::encode($user), "\n";

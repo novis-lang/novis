@@ -1,0 +1,21 @@
+---
+title: Going to production
+covers: []
+description: Run a Novis application as a service, in Docker or behind a reverse proxy, with limits, logs and a security checklist.
+---
+
+`nvs serve` is the development server and the production server. The same command runs in both
+places. In production it runs as a service, behind a reverse proxy that handles TLS.
+
+- [Run as a service](/guides/production/run-as-a-service/) starts the server at boot on Linux and
+  Windows, and restarts it after a failure.
+- [Docker](/guides/production/docker/) runs the server in a container.
+- [Behind a reverse proxy](/guides/production/reverse-proxy/) adds TLS and passes the real address
+  of the client to your program.
+- [Limits and logs](/guides/production/limits-and-logs/) sets the limits for each request and
+  where the log goes.
+- [Security checklist](/guides/production/security-checklist/) lists what to check before the
+  first request.
+
+Read [Install on a server](/install/server/) first. It shows where the binary, the configuration
+and the logs go.

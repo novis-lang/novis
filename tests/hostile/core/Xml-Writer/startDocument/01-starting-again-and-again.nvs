@@ -1,0 +1,58 @@
+<?nvs
+// Attack: a program starts documents too early, too often and after they are finished, and creates many writers.
+// Each bad call should throw a `LogicError`, and the finished document should contain one declaration.
+// hostile: timeout-ms 20000
+
+class Try
+{
+    // Runs one call and prints `ok`, or the class of the error it throws.
+    public static function call(callable $step): void
+    {
+        try {
+            $step();
+            echo "ok\n";
+        } catch (LogicError $error) {
+            echo "LogicError\n";
+        }
+    }
+}
+
+Core\Xml\Writer $out = Core\Xml::writer({ indent: '  ' });
+
+// 1. Writes before the document is started. Each prints LogicError.
+Try::call(fn(): void => { $out->startElement('root'); });
+Try::call(fn(): void => { $out->content('text'); });
+Try::call(fn(): void => { $out->endDocument(); });
+
+// 2. The document is started, and then 100,000 more starts are tried. This prints 100000.
+$out->startDocument();
+int $failed = 0;
+int $i = 0;
+while ($i < 100000) {
+    try {
+        $out->startDocument();
+    } catch (LogicError $error) {
+        $failed = $failed + 1;
+    }
+    $i = $i + 1;
+}
+echo $failed, "\n";
+
+// 3. The document is finished and parsed again. The failed starts wrote nothing, so this prints 46.
+$out->startElement('root');
+$out->endElement();
+string $document = $out->endDocument();
+Core\Xml::parse($document);
+echo Core\Str::length($document), "\n";
+
+// 4. A start after the document is finished. This prints LogicError.
+Try::call(fn(): void => { $out->startDocument(); });
+
+// 5. 100,000 writers each start a document and never finish it. This prints 100000.
+int $started = 0;
+while ($started < 100000) {
+    Core\Xml\Writer $left = Core\Xml::writer();
+    $left->startDocument();
+    $started = $started + 1;
+}
+echo $started, "\n";

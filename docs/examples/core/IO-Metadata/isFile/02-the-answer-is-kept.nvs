@@ -1,0 +1,16 @@
+<?nvs
+// Shows that `isFile` returns what was at the path when `Core\IO::stat` was called.
+
+string $path = Core\Path::join(Core\IO::temporaryDir(), "cache");
+Core\IO::write($path, "old cache\n");
+var $before = Core\IO::stat($path);
+
+// The file is deleted, and a folder with the same name is made.
+Core\IO::remove($path);
+Core\IO::makeDir($path);
+var $after = Core\IO::stat($path);
+
+// `$before` still says it is a file. This prints "before: true" and "after: false".
+echo "before: ", $before->isFile() ? "true" : "false", "\n";
+echo "after: ", $after->isFile() ? "true" : "false", "\n";
+Core\IO::removeDir($path);

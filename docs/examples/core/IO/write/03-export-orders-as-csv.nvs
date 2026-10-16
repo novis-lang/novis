@@ -1,0 +1,22 @@
+<?nvs
+// Shows how a program exports a list of orders to a CSV file that a spreadsheet can open.
+
+array<string> $customers = ["Anna", "Ben", "Clara"];
+array<uint> $totals = [120, 45, 300];
+
+// The whole file is built as one text first. Each order is one line.
+string $csv = "customer,total\n";
+uint $i = 0;
+while ($i < Core\Arr::count($customers)) {
+    $csv = $csv . $customers[$i as int] . "," . $totals[$i as int] . "\n";
+    $i = $i + 1;
+}
+
+// One call saves the whole file. An export from an earlier run is replaced.
+string $dir = Core\Path::join(Core\IO::temporaryDir(), "exports");
+Core\IO::makeDir($dir);
+string $path = Core\Path::join($dir, "orders.csv");
+Core\IO::write($path, $csv);
+
+// This prints the header line and one line for each order.
+echo Core\IO::read($path);

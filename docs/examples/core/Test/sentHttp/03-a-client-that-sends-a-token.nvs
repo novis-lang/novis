@@ -1,0 +1,30 @@
+<?nvs
+// Shows how to test that an API client sends the right token and the right order.
+
+use Core\Http\Client;
+use Core\Test;
+use Core\Test\SentRequest;
+
+class OrderClient {
+    // Sends one order to the shop service, with the token in a header.
+    public static function place(string $token, string $sku, int $count): int {
+        var $response = Client::post("https://shop.example.com/orders", {
+            headers: ["authorization" => "Bearer " . $token],
+            json: ["sku" => $sku, "count" => $count],
+        });
+        return $response->status();
+    }
+}
+
+Test::answerHttp("https://shop.example.com/orders", 201);
+OrderClient::place("t-123", "mug", 2);
+
+// The test checks the request, not only the reply.
+// `header` finds the header with any mix of upper and lower case letters.
+Test::assertCount(Test::sentHttp(), 1);
+SentRequest $request = Test::sentHttp()[0];
+Test::assertSame($request->header("Authorization"), "Bearer t-123");
+Test::assertSame($request->body() as string, '{"sku":"mug","count":2}');
+
+// This prints `the order was sent with the token`.
+echo "the order was sent with the token\n";

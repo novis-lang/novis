@@ -1,0 +1,73 @@
+--TEST--
+`?->` on a `null` receiver evaluates neither the member nor its arguments, counted over a sweep, and a `!= null` test narrows the receiver so plain `->` compiles inside the branch — `rule:types/narrowing`
+--FILE--
+<?nvs
+// covers: lang:classes/nullable-objects-and
+// The sibling short-circuit case passes a literal argument, which cannot tell an
+// unevaluated argument from an evaluated one. Here every argument is a call that
+// counts itself, so an argument the short-circuit failed to skip is visible in
+// the tally rather than in the line it printed.
+//
+// `rule:types/narrowing`: the null test is branch-local, so `->` compiles inside
+// the branch and the nullable spelling is still required outside it.
+
+final class Tally {
+    public static int $calls = 0;
+
+    public static function next(int $n): int {
+        Tally::$calls = Tally::$calls + 1;
+        return $n;
+    }
+}
+
+class Box {
+    public function constructor(public string $label) {}
+
+    public function grownBy(int $by): string {
+        return $this->label . $by;
+    }
+}
+
+?Box $some = new Box("here");
+?Box $none = null;
+
+// The present arm reaches the member, so its argument is evaluated once.
+?string $answer = $some?->grownBy(Tally::next(1));
+echo $answer ?? "gone", " calls=", Tally::$calls, "\n";
+
+// The `null` arm reaches nothing, so the tally does not move.
+$answer = $none?->grownBy(Tally::next(2));
+echo $answer ?? "gone", " calls=", Tally::$calls, "\n";
+
+// The agreement, counted rather than read off one line: ten short-circuits in a
+// row add nothing at all, and ten present arms add exactly ten.
+int $i = 0;
+for (; $i < 10; $i = $i + 1) {
+    $answer = $none?->grownBy(Tally::next($i));
+}
+echo "after ten short circuits calls=", Tally::$calls, "\n";
+
+$i = 0;
+for (; $i < 10; $i = $i + 1) {
+    $answer = $some?->grownBy(Tally::next($i));
+}
+echo "after ten present arms calls=", Tally::$calls, "\n";
+
+// `rule:types/narrowing`: inside the branch the receiver is no longer nullable,
+// so plain `->` compiles there. The branch on the `null` value is not entered.
+if ($none != null) {
+    echo "unreachable=", $none->label, "\n";
+}
+if ($some != null) {
+    echo "narrowed=", $some->label, "\n";
+}
+
+// Outside the branch it is nullable again, so `?->` is what reaches it.
+echo "outside=", $some?->label ?? "gone", "\n";
+--EXPECT--
+here1 calls=1
+gone calls=1
+after ten short circuits calls=1
+after ten present arms calls=11
+narrowed=here
+outside=here

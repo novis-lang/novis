@@ -1,0 +1,8 @@
+--METHOD--
+GET
+--PATH--
+/products
+--QUERY--
+sort=price
+--HEADERS--
+host: shop.example.com

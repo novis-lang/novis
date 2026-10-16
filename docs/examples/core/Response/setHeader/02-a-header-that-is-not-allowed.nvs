@@ -1,0 +1,21 @@
+<?nvs
+// Shows the two headers that `setHeader` does not allow.
+
+string $report = "";
+
+// A value with a newline would start a second header. `setHeader` throws a `LogicError`.
+try {
+    Core\Response::setHeader("X-Note", "one\nSet-Cookie: admin=1");
+} catch (LogicError $error) {
+    $report = $report . "Not set: a value with a newline.\n";
+}
+
+// `Content-Type` is set by the body method, so `setHeader` throws a `LogicError`.
+try {
+    Core\Response::setHeader("content-type", "text/html");
+} catch (LogicError $error) {
+    $report = $report . "Not set: Content-Type.\n";
+}
+
+// This prints both lines. `text` sets `Content-Type: text/plain; charset=utf-8`.
+Core\Response::text($report);

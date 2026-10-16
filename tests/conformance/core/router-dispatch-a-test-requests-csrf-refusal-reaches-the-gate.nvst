@@ -1,0 +1,42 @@
+--TEST--
+`Core\Test::request` takes the server's CSRF refusal for a program that calls `Core\Router::dispatch`, so a forged form reaches the gate's `refused` with status `403` and the route method does not run — `rule:routing/a-gate-answers-around-every-handler`
+--FILE--
+<?nvs
+class Notes {
+    #[Core\Route(path: "/notes", method: Core\Http\Method::Post, name: "save")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public static function save(): void {
+        echo "save ran\n";
+    }
+}
+
+class Gate implements Core\Router\Gate {
+    public function allows(Core\Router\Match $route): bool {
+        return true;
+    }
+
+    public function refused(Core\Router\Refusal $reason, ?Core\Router\Match $route): void {
+        string $why = $reason == Core\Router\Refusal::Csrf ? "Csrf" : "other";
+        echo "refused ", $why, " for ", $route?->name() ?? "no route", "\n";
+    }
+
+    public function failed(?Core\Router\Match $route, ?Throwable $error): void {
+        echo "failed\n";
+    }
+}
+
+if (Core\Env::context() == Core\Env::Context::Request) {
+    Core\Router::dispatch(new Gate());
+} else {
+    // The `origin` header names another website, so the server refuses the form.
+    array<string> $forged = ["origin" => "https://example.com"];
+    var $refused = Core\Test::request(Core\Http\Method::Post, "/notes", {headers: $forged, body: "title=Milk"});
+    echo $refused->status(), " ", $refused->body();
+
+    // With no `origin` header, the route method runs.
+    var $saved = Core\Test::request(Core\Http\Method::Post, "/notes", {body: "title=Milk"});
+    echo $saved->status(), " ", $saved->body();
+}
+--EXPECT--
+403 refused Csrf for no route
+200 save ran

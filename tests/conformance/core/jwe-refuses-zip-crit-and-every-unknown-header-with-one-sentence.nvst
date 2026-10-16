@@ -1,0 +1,104 @@
+--TEST--
+Core\Jwe::decrypt refuses zip, crit, a fetch, a key the token brought and every unknown protected-header member, each on an authentic token whose tag holds over the very header it is refused for — `rule:security/jwe-compact-subset`, `rule:security/protocol-roster`
+--FILE--
+<?nvs
+// Every token below is one WebCrypto sealed *with* the header it carries, so
+// its tag authenticates that header: an implementation that read the header and
+// then checked the tag would open all of them. The allow-list is the only thing
+// that refuses them, which is what makes this a different question from the
+// forgeries — there, the tag is what refuses, and the header is beside the
+// point.
+//
+// The allowed members are `alg`, `cty`, `enc`, `epk`, `kid`, `p2c`, `p2s` and
+// `typ`; everything else is a refusal, because `zip` is a decompression bomb,
+// `jku` and `x5u` are fetches the token is talking the program into, a `jwk`
+// that is not an `epk` is a key the token brought for itself, `crit` demands an
+// extension be honoured, and an unknown member is one of those or an attack
+// with no third reading.
+bytes $shared = Core\Encoding::fromHex("0e23743411f4f8a11b9b229ce598e431adb7994963d03c87e20dd6781939ef96");
+
+// The control, and the whole of the contrast: `kid` is a member this class
+// never writes and never reads, and it is on the list, so the same construction
+// under the same key opens rather than refuses. That token and these differ in
+// nothing but the name of the extra member.
+tainted string $kidded = Core\Jwe::decrypt(
+    "eyJhbGciOiJkaXIiLCJlbmMiOiJBMjU2R0NNIiwia2lkIjoicmluZy0xIn0..UlLxKY2fbg4350rd.aNWN3DrxPTaQSkXXxvlsJFMUeAA.Pdeg0cj_wNJ6DQp_MQNZmQ",
+    [Core\Jwe\Key::shared($shared)]
+);
+echo $kidded == "grüße, 世界 🔐" ? "an allowed member opens" : "an allowed member is refused", "\n";
+
+array<string> $refused = [
+    // `alg: none`, which has nowhere to go: the algorithm comes from the static
+    // that built the key, and the header's is only ever compared against it.
+    "eyJhbGciOiJub25lIiwiZW5jIjoiQTI1NkdDTSJ9..9lNwSr6eXK7mJMc_.UVVOE5Up6-mBdZ4.b5Xw6SThyYFnQa_r-TzUew",
+    // `crit`, which says an extension must be understood before the token is
+    // used — here `exp`, carried beside it and outside the list too.
+    "eyJhbGciOiJkaXIiLCJjcml0IjpbImV4cCJdLCJlbmMiOiJBMjU2R0NNIiwiZXhwIjoxfQ..9lNwSr6eXK7mJMc_.UVVOE5Up6-mBdZ4.JHD4U6LaoX89BH0-GVQeRw",
+    // `jku` and `x5u`: two spellings of the same fetch.
+    "eyJhbGciOiJkaXIiLCJlbmMiOiJBMjU2R0NNIiwiamt1IjoiaHR0cHM6Ly9rZXlzLmV4YW1wbGUvandrcy5qc29uIn0..9lNwSr6eXK7mJMc_.UVVOE5Up6-mBdZ4.Qswh8hnNeZuNodWU1bliXw",
+    "eyJhbGciOiJkaXIiLCJlbmMiOiJBMjU2R0NNIiwieDV1IjoiaHR0cHM6Ly9rZXlzLmV4YW1wbGUvY2VydC5wZW0ifQ..9lNwSr6eXK7mJMc_.UVVOE5Up6-mBdZ4.lcMCSGkZk92ixTCjUHYm4Q",
+    // A `jwk` that is not an `epk`, which is the confusion `epk` is narrow to
+    // avoid: an agreement key belongs to the sender's half of a key the program
+    // already holds, and any other embedded key is the attacker's.
+    "eyJhbGciOiJkaXIiLCJlbmMiOiJBMjU2R0NNIiwiandrIjp7ImNydiI6IlAtMjU2Iiwia3R5IjoiRUMiLCJ4IjoiSmk0Z29QNjBleERSM0FfMVZtX1ZkbUxaWEpOdWlsd0ZxM00xZ3FHN21wayIsInkiOiJnRkE0NThyRFVKQkRyOHpGVG1lNDFqWDNaZkZPTXJDTHRiNkV5VGpPVTdZIn19..9lNwSr6eXK7mJMc_.UVVOE5Up6-mBdZ4.ig48zFcYk1oaAQKPTx6Sow",
+    // A member nobody has heard of.
+    "eyJhbGciOiJkaXIiLCJlbmMiOiJBMjU2R0NNIiwiZm9vIjoiYmFyIn0..9lNwSr6eXK7mJMc_.UVVOE5Up6-mBdZ4.LTkp-A63n4YfRaHrIChh2g",
+];
+
+int $verdicts = 0;
+array<string> $sentences = [];
+array<string> $tails = [];
+foreach ($refused as string $slot => string $token) {
+    array<string> $parts = Core\Str::split($token, ".");
+    // The nonce and the ciphertext, which are one and the same across this
+    // list: one payload sealed once under one content key, with only the
+    // additional data — the header — differing from line to line. A token that
+    // opened would print here as a second tail.
+    $tails[$parts[2] . "." . $parts[3]] = "";
+    try {
+        tainted string $opened = Core\Jwe::decrypt($token, [Core\Jwe\Key::shared($shared)]);
+        echo "opened ", $slot, "\n";
+    } catch (RuntimeError $verdict) {
+        $verdicts += 1;
+        $sentences[$verdict->message] = "";
+    }
+}
+echo "refused ", $verdicts, " of ", Core\Arr::count($refused), "\n";
+echo "distinct tails ", Core\Arr::count($tails), "\n";
+
+// `zip` is the same refusal with a payload that is not the same bytes: the
+// ciphertext is a deflate stream, which is exactly what makes the member a
+// bomb rather than a convenience, so it cannot share the tail above.
+try {
+    tainted string $inflated = Core\Jwe::decrypt(
+        "eyJhbGciOiJkaXIiLCJlbmMiOiJBMjU2R0NNIiwiemlwIjoiREVGIn0..9lNwSr6eXK7mJMc_.gSERTb52m2GHdklRqg.ZyZ02-4vRejLt14VXgmQnQ",
+        [Core\Jwe\Key::shared($shared)]
+    );
+    echo "inflated", "\n";
+} catch (RuntimeError $verdict) {
+    $verdicts += 1;
+    $sentences[$verdict->message] = "";
+}
+
+// And the sentence a policy refusal says is the sentence an ordinary forgery
+// says. Refusing a header member is a verdict about the token, so it carries no
+// more about which check failed than a flipped tag does — otherwise the
+// allow-list itself would be the oracle.
+try {
+    tainted string $forged = Core\Jwe::decrypt(
+        "eyJhbGciOiJkaXIiLCJlbmMiOiJBMjU2R0NNIn0..yWqDaI4F5_VELg4e.e5bOCA677wv94e09f00PgD5RGi2AUeTOlEL32fiH4gT3ikLU.JsrVCjtIvszJAlP-1o4yNg",
+        [Core\Jwe\Key::shared($shared)]
+    );
+    echo "opened a flipped tag", "\n";
+} catch (RuntimeError $verdict) {
+    $verdicts += 1;
+    $sentences[$verdict->message] = "";
+}
+echo "refused with zip and a forgery ", $verdicts, "\n";
+echo "distinct sentences ", Core\Arr::count($sentences), "\n";
+--EXPECT--
+an allowed member opens
+refused 6 of 6
+distinct tails 1
+refused with zip and a forgery 8
+distinct sentences 1

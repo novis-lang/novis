@@ -1,0 +1,57 @@
+<?nvs
+// A delivery manifest you can walk with a plain `foreach`, as often as you like.
+// The class says `implements Iterable<Parcel>`, so every loop over it knows the
+// value it hands you is a `Parcel`.
+
+class Parcel {
+    public string $label;
+    public uint $grams;
+
+    public function constructor(string $label, uint $grams) {
+        $this->label = $label;
+        $this->grams = $grams;
+    }
+}
+
+class Manifest implements Iterable<Parcel> {
+    private array<Parcel> $parcels;
+
+    public function constructor() {
+        $this->parcels = [];
+    }
+
+    public function add(string $label, uint $grams): void {
+        $this->parcels[] = new Parcel($label, $grams);
+    }
+
+    // The one method the interface asks for. Handing each parcel out with
+    // `yield` is enough, so there is no second class to write.
+    public function iterate(): Iterator<Parcel> {
+        foreach ($this->parcels as Parcel $parcel) {
+            yield $parcel;
+        }
+    }
+}
+
+var $today = new Manifest();
+$today->add("Bakery, 12 Mill Lane", 1200);
+$today->add("Garage, 4 North Road", 8400);
+$today->add("School, 60 Elm Street", 2300);
+
+// First walk: the loading list the driver takes with them.
+foreach ($today as Parcel $parcel) {
+    echo $parcel->label, " (", $parcel->grams, " g)\n";
+}
+
+// Second walk over the same object. Each `foreach` asks the manifest to start
+// again, so there is nothing to reset in between.
+uint $total = 0;
+foreach ($today as Parcel $parcel) {
+    $total = $total + $parcel->grams;
+}
+echo "loaded weight: ", $total, " g\n";
+
+uint $limit = 10000;
+if ($total > $limit) {
+    echo "too heavy for the small van by ", $total - $limit, " g\n";
+}

@@ -1,0 +1,24 @@
+--TEST--
+A loop that only echoes stops at the first write past `[limits] max_output`, with a limit report naming `max_output` — `rule:errors/on-limit`
+--FILE nvs.toml--
+# The run may write 25 bytes.
+[limits]
+max_output = "25"
+--FILE--
+<?nvs
+Core\Fatal::onLimit(fn (array<string> $report): void => {
+    echo "onLimit ", $report['limit'], "\n";
+});
+
+// Each line is 10 bytes. The third line takes the total to 30 bytes, so the
+// loop stops before the fourth.
+for (var $i = 0; $i < 1000; $i++) {
+    echo "line ", $i, "...\n";
+}
+--EXPECT--
+line 0...
+line 1...
+line 2...
+onLimit max_output
+--EXPECT-ERROR--
+FATAL: the request exceeded its output limit — 30 bytes written by the request and everything it spawned, against a ceiling of 25

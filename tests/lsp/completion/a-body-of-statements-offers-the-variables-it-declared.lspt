@@ -1,0 +1,20 @@
+--TEST--
+a cursor in no access is a position, and a body of statements offers every variable it declared — its parameters and the `$this` a method binds included — and only its own, since a file-scope local is unreachable from a function, `rule:ide/the-request-set-is-closed`, `rule:statements/storage-that-outlives-a-call`
+--FILE--
+<?nvs
+var $tax = 5;
+class Cart {
+    public function total(int $rate): int {
+        var $count = 2;
+        var $label = "cart";
+        <|>
+        return $count * $rate;
+    }
+}
+--REQUEST--
+completion prefix=$
+--EXPECT--
+$count  variable  int
+$label  variable  string
+$rate   variable  int
+$this   variable  Cart

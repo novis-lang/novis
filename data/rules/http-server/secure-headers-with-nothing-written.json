@@ -1,0 +1,13 @@
+{
+  "title": "A deployment that wrote no `[http.headers]` already sends `nosniff`, `frame-ancestors 'none'` and a referrer policy on every response",
+  "status": "shipped",
+  "seeAlso": [
+    "http-server/hsts-follows-the-effective-scheme",
+    "http-server/policy-headers-are-runtime-class-and-setheader-wins",
+    "core-classes/html-auto-escape"
+  ],
+  "guardedBy": [
+    "crates/nvs-server/src/secure.rs",
+    "crates/nvs-config/tests/resolve.rs"
+  ]
+}

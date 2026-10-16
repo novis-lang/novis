@@ -1,0 +1,21 @@
+<?nvs
+// Shows the five formats `Core\Compress::compress` can write. Each one is a
+// case of `Core\Compress::Codec`, and each writes a different number of bytes.
+
+bytes $page = Core\Str::repeat("<li>Welcome back, Ada.</li>\n", 40) as bytes;
+
+array<Core\Compress::Codec> $formats = [
+    'gzip' => Core\Compress::Codec::Gzip,
+    'zlib' => Core\Compress::Codec::Zlib,
+    'deflate' => Core\Compress::Codec::Deflate,
+    'brotli' => Core\Compress::Codec::Brotli,
+    'zstd' => Core\Compress::Codec::Zstd,
+];
+
+foreach ($formats as string $name => Core\Compress::Codec $codec) {
+    bytes $frame = Core\Compress::compress($page, $codec);
+    echo $name, ': ', Core\Bytes::length($frame), " bytes\n";
+}
+
+// `gzip`, `zlib` and `deflate` hold the same data under different headers.
+// `gzip` is 18 bytes longer than `deflate`, and `zlib` is 6 bytes longer.

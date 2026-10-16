@@ -1,0 +1,13 @@
+<?nvs
+// Shows two readings of the clock, one after the other.
+
+var $first = Core\Time::now();
+var $second = Core\Time::now();
+
+// `compareTo` returns 0 when both are the same moment and a number above 0
+// when `$second` is later. This prints "not earlier".
+echo $second->compareTo($first) >= 0 ? "not earlier" : "earlier", "\n";
+
+// `since` returns the time between the two as a `Duration`.
+// The two calls are very close, so this prints "under one second".
+echo $second->since($first)->toMilliseconds() < 1000 ? "under one second" : "slow", "\n";

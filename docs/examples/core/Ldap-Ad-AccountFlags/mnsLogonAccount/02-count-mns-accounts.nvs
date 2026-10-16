@@ -1,0 +1,24 @@
+<?nvs
+// Shows how to count the MNS logon accounts of a directory.
+// requires: samba-ad
+
+var $corp = Core\Ldap::connect("corp");
+var $found = $corp->search(
+    Core\Ldap\Filter::equals("objectClass", "user"),
+    {base: "OU=Company,DC=example,DC=test", select: ["userAccountControl"]},
+);
+
+uint $count = 0;
+uint $all = 0;
+foreach ($found as Core\Ldap\Entry $account) {
+    var $flags = $account->accountFlags();
+    if ($flags != null) {
+        $all = $all + 1;
+        if ($flags->mnsLogonAccount()) {
+            $count = $count + 1;
+        }
+    }
+}
+
+// No account in this directory is an MNS logon account. This prints `0 of 5`.
+echo $count, " of ", $all, "\n";

@@ -1,0 +1,15 @@
+<?nvs
+// Shows how to count the different values in a list.
+
+array<string> $tags = ["news", "sport", "news", "music", "sport", "news"];
+
+Core\ObjectSet<string> $distinct = new Core\ObjectSet<string>();
+foreach ($tags as string $tag) {
+    $distinct->add($tag);
+}
+
+// The list has 6 entries. This prints 6.
+echo Core\Arr::count($tags), "\n";
+
+// Equal strings are one value, so the set has 3. This prints 3.
+echo $distinct->count(), "\n";

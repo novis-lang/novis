@@ -1,0 +1,9 @@
+--TEST--
+A call on a receiver nothing declared is a site the type phase recorded nothing for, and a hint is text an editor draws as if it were in the file — so the answer is none rather than a guess at what was meant, `rule:ide/completion-offers-only-what-the-compiler-derived`
+--FILE--
+<?nvs
+$unknown->greet("world", 2);
+--REQUEST--
+inlayHint
+--EXPECT--
+none

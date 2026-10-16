@@ -1,0 +1,14 @@
+<?nvs
+// Shows what `Core\Request::queryArray` returns for a list, a single value and a missing name.
+
+// The address is `/search?tag[]=red&tag[]=new&color=blue`.
+// `queryArray` returns every value of "tag" as a list. This prints "red" and "new".
+foreach (Core\Request::queryArray("tag") as tainted string $tag) {
+    echo $tag, "\n";
+}
+
+// "color" has no brackets. The result is a list with its one value. This prints "colors: 1".
+echo "colors: ", Core\Arr::count(Core\Request::queryArray("color")), "\n";
+
+// "size" is not in the address, so the result is an empty array. This prints "sizes: 0".
+echo "sizes: ", Core\Arr::count(Core\Request::queryArray("size")), "\n";

@@ -1,0 +1,19 @@
+<?nvs
+// Shows how to change to a new key and still accept links signed with the old one.
+
+secret bytes $old = Core\Crypto::generateKey();
+secret bytes $new = Core\Crypto::generateKey();
+Core\Uri $link = Core\Uri::parse("/download?file=a.pdf")->sign({keys: [$old], until: null});
+
+// The new key is first, so it signs new links. The old key is still in the list,
+// so this link is accepted. This prints "accepted".
+$link->verifySignature([$new, $old]);
+echo "accepted", "\n";
+
+// After the old key is removed from the list, the link is not accepted. This prints "not accepted".
+try {
+    $link->verifySignature([$new]);
+    echo "accepted", "\n";
+} catch (RuntimeError $error) {
+    echo "not accepted", "\n";
+}

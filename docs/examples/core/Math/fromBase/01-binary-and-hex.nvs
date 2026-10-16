@@ -1,0 +1,16 @@
+<?nvs
+// Shows how to read numbers written in binary, octal and hexadecimal.
+
+// This prints 5, 493 and 255.
+echo Core\Math::fromBase("101", 2), "\n";
+echo Core\Math::fromBase("755", 8), "\n";
+echo Core\Math::fromBase("ff", 16), "\n";
+
+// Upper case letters are the same digits. This prints 255 again.
+echo Core\Math::fromBase("FF", 16), "\n";
+
+// A leading `-` makes the number negative. This prints -26.
+echo Core\Math::fromBase("-1a", 16), "\n";
+
+// `Core\Math::toBase` writes the number back. This prints 1a.
+echo Core\Math::toBase(26, 16), "\n";

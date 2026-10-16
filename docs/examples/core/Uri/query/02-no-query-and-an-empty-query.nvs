@@ -1,0 +1,18 @@
+<?nvs
+// Shows the difference between an address with no query and an address with an empty query.
+
+// This address has no `?`, so `query()` returns `null`. This prints "no query".
+var $plain = Core\Uri::parse("https://example.com/about");
+echo $plain->query() ?? "no query", "\n";
+
+// This address ends with a `?` and nothing after it. The result is `""`,
+// so this prints "empty query".
+var $bare = Core\Uri::parse("https://example.com/about?");
+?string $query = $bare->query();
+if ($query == "") {
+    echo "empty query\n";
+}
+
+// `toString()` gives the address as it was written, so the `?` stays.
+// This prints https://example.com/about?.
+echo $bare->toString(), "\n";

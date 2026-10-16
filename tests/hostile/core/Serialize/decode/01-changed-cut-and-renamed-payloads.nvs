@@ -1,0 +1,121 @@
+<?nvs
+// Attack: a program decodes bytes that were changed one byte at a time, cut
+// short, or changed to name another class. Each attempt should give a value or
+// a `ParseError`. The runtime must not crash or use more memory than its limit.
+// hostile: timeout-ms 60000
+
+class Customer
+{
+    public string $name;
+    public function constructor(string $name)
+    {
+        $this->name = $name;
+    }
+}
+
+class Order
+{
+    public uint $number;
+    public array<string> $lines;
+    public Customer $customer;
+    public ?Order $previous = null;
+    public function constructor(uint $number, Customer $customer)
+    {
+        $this->number = $number;
+        $this->lines = ['2 x apple', '1 x bread', 'Café'];
+        $this->customer = $customer;
+    }
+}
+
+// Has the same name length as `Order`, and different properties.
+class Owner
+{
+    public int $id = 0;
+}
+
+class Try
+{
+    // Decodes `$payload`, and returns 1 if it gave a value and 0 if it threw a `ParseError`.
+    public static function decode(bytes $payload): uint
+    {
+        try {
+            Core\Serialize::decode($payload);
+            return 1;
+        } catch (ParseError $e) {
+            return 0;
+        }
+    }
+
+    // Returns `$payload` with the byte at `$at` replaced by `$replacement`.
+    public static function change(bytes $payload, int $at, bytes $replacement): bytes
+    {
+        bytes $before = Core\Bytes::slice($payload, 0, $at);
+        bytes $after = Core\Bytes::slice($payload, $at + Core\Bytes::length($replacement) as int);
+        return Core\Bytes::join([$before, $replacement, $after]);
+    }
+}
+
+Customer $anna = new Customer('Anna');
+Order $first = new Order(1001, $anna);
+Order $second = new Order(1002, $anna);
+$second->previous = $first;
+bytes $payload = Core\Serialize::encode($second);
+int $size = Core\Bytes::length($payload) as int;
+
+// Step 1: every shorter part of the payload, from 0 bytes to one byte less than all of it.
+uint $accepted = 0;
+int $at = 0;
+while ($at < $size) {
+    $accepted = $accepted + Try::decode(Core\Bytes::slice($payload, 0, $at));
+    $at = $at + 1;
+}
+echo 'step 1: ', $accepted, ' of ', $size, " accepted\n";
+
+// Step 2: every byte is changed to each of five values.
+array<uint> $values = [0, 1, 127, 128, 255];
+$accepted = 0;
+$at = 0;
+while ($at < $size) {
+    foreach ($values as uint $value) {
+        $accepted = $accepted + Try::decode(Try::change($payload, $at, Core\Bytes::fill(1, $value)));
+    }
+    $at = $at + 1;
+}
+echo 'step 2: ', $accepted, " changed payloads accepted\n";
+
+// Step 3: eight bytes at every position are set to 255. A length or a count
+// read from them is as large as it can be.
+bytes $large = Core\Bytes::fill(8, 255);
+$at = 0;
+while ($at + 8 <= $size) {
+    Try::decode(Try::change($payload, $at, $large));
+    $at = $at + 1;
+}
+echo "step 3: done\n";
+
+// Step 4: the name `Order` is changed to a class that does not exist, and then
+// to `Owner`, which has other properties. Both should throw a `ParseError`.
+?uint $found = Core\Bytes::indexOf($payload, 'Order' as bytes);
+if ($found != null) {
+    int $name = $found as int;
+    echo 'step 4: ', Try::decode(Try::change($payload, $name, 'Ordex' as bytes)), ' ',
+        Try::decode(Try::change($payload, $name, 'Owner' as bytes)), "\n";
+}
+
+// Step 5: the payload with 1 million bytes added at the end.
+echo 'step 5: ', Try::decode(Core\Bytes::join([$payload, Core\Bytes::fill(1000000, 0)])), "\n";
+
+// Step 6: a list of 1,000,000 numbers is decoded 20 times, and each result is freed at once.
+array<int> $numbers = [];
+int $n = 0;
+while ($n < 1000000) {
+    $numbers[] = $n;
+    $n = $n + 1;
+}
+bytes $big = Core\Serialize::encode($numbers);
+$n = 0;
+while ($n < 20) {
+    Try::decode($big);
+    $n = $n + 1;
+}
+echo "step 6: done\n";

@@ -1,0 +1,36 @@
+<?nvs
+// Shows how a framework finds every page and the path of its route in one
+// call. A page writes its path once, in the attribute.
+
+interface Page {
+    public function render(): string;
+}
+
+class Home implements Page {
+    #[Core\Route(path: "/", method: Core\Http\Method::Get, name: "home")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function render(): string {
+        return "Welcome";
+    }
+}
+
+class Contact implements Page {
+    #[Core\Route(path: "/contact", method: Core\Http\Method::Get, name: "contact")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function render(): string {
+        return "Write to us";
+    }
+}
+
+// Every page beside the `path` field of its route. The rows are sorted by class name.
+array<Page> $pages = [];
+foreach (Core\Program::implementingWith<Page, {path: string}>("render") as {instance: Page, attribute: ?{path: string}} $row) {
+    ?{path: string} $route = $row->attribute;
+    if ($route != null) {
+        $pages[$route->path] = $row->instance;
+    }
+}
+
+// This prints `Write to us`, then `Welcome`.
+echo $pages["/contact"]->render(), "\n";
+echo $pages["/"]->render(), "\n";

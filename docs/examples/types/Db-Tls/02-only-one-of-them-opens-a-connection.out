@@ -1,0 +1,4 @@
+Disabled: refused at the call, and the message says which mode it was
+Required: refused at the call, and the message says which mode it was
+VerifyCa: refused at the call, and the message says which mode it was
+VerifyFull: opens the connection

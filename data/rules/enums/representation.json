@@ -1,0 +1,16 @@
+{
+  "title": "An enum value costs nothing beyond the integer it is",
+  "status": "shipped",
+  "seeAlso": [
+    "enums/no-class-machinery",
+    "enums/one-backing-type",
+    "enums/closed-integer-type"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/json-decodes-an-enum-field.nvst",
+    "tests/conformance/enum/an-enum-fills-an-array-and-survives-a-sort.nvst",
+    "tests/conformance/enum/an-enum-flows-through-a-generator.nvst",
+    "tests/conformance/enum/a-case-backed-by-zero-in-a-mixed-is-truthy-and-not-an-int.nvst",
+    "tests/conformance/core/arr-a-callback-enum-parameter-checks-the-enum-tag.nvst"
+  ]
+}

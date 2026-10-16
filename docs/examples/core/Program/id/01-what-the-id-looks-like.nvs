@@ -1,0 +1,11 @@
+<?nvs
+// Shows what `Core\Program::id` returns. The value itself depends on your code,
+// so this example prints only facts that are the same everywhere.
+
+string $id = Core\Program::id();
+
+// The id has 64 characters. This prints `64`.
+echo Core\Str::length($id), "\n";
+
+// Two calls in one run return the same value. This prints `same`.
+echo $id == Core\Program::id() ? "same" : "different", "\n";

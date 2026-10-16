@@ -1,0 +1,29 @@
+<?nvs
+// Shows the kinds of statement a program is made of: a declaration, an
+// assignment, a call written for what it does, and an empty statement.
+
+class Report
+{
+    // Prints one line and returns how many characters it printed.
+    public static function line(string $text): uint
+    {
+        echo $text, "\n";
+        return Core\Str::length($text);
+    }
+}
+
+// A declaration is a statement. It gives `$total` a type and a first value.
+int $total = 0;
+
+// An assignment followed by `;` is a statement.
+$total = $total + 7;
+
+// This call is a statement. The program runs it for what it prints, and the
+// number it returns is thrown away.
+Report::line("counted");
+
+// A `;` on its own is an empty statement. It does nothing.
+;
+
+// This prints 7.
+echo $total, "\n";

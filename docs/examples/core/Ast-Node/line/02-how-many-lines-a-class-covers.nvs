@@ -1,0 +1,31 @@
+<?nvs
+// Shows how to measure a class in lines. The class starts on its own line, and
+// the largest line below it is where its last statement sits. The closing
+// brace is not a part of the program, so it has no line of its own.
+
+string $source = <<<'NVS'
+<?nvs
+class Invoice {
+    public static function total(int $a, int $b): int {
+        return $a + $b;
+    }
+}
+
+class Receipt {
+    public static function line(): string {
+        return "one";
+    }
+}
+NVS;
+
+// This prints lines 2 to 4, then lines 8 to 10.
+foreach (Core\Ast::parse($source)->children() as Core\Ast\Node $class) {
+    int $first = $class->line();
+    int $last = $first;
+    foreach ($class->nodes() as Core\Ast\Node $node) {
+        if ($node->line() > $last) {
+            $last = $node->line();
+        }
+    }
+    echo "lines ", $first, " to ", $last, "\n";
+}

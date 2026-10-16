@@ -1,0 +1,22 @@
+<?nvs
+// Makes a page by hand, as a test does before it calls a header or footer function.
+// bench: iterations 4096
+// bench: complexity constant
+use Novis\Pdf\Page;
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<array<{name: string, value: string}>> $marks = [[{name: "amount", value: "1.50"}], [{name: "amount", value: "2.00"}], []];
+        array<{name: string, value: string}> $strings = [{name: "chapter", value: "Books"}];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            var $page = new Page(1 + $total % 3, 3, null, $strings, $marks);
+            $total = $total + $page->number * 3 + 1;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(4096), "\n";

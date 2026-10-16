@@ -1,0 +1,12 @@
+<?nvs
+// Shows how to use an angle in degrees, and why you round the result.
+
+// `Core\Math::toRadians` converts 60 degrees to radians. This prints 0.5.
+echo Core\Math::cos(Core\Math::toRadians(60.0)), "\n";
+
+// The cosine of 90 degrees is zero, but the result is a tiny number.
+// This prints 6.1232339957368E-17.
+echo Core\Math::cos(Core\Math::toRadians(90.0)), "\n";
+
+// Rounding to 10 digits after the point gives zero. This prints 0.
+echo Core\Math::round(Core\Math::cos(Core\Math::toRadians(90.0)), {precision: 10}), "\n";

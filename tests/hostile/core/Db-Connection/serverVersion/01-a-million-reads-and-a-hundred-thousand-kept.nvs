@@ -1,0 +1,61 @@
+<?nvs
+// Attack: a program reads a connection's version a million times. It keeps a
+// hundred thousand of the answers. It reads a closed connection, and it reads
+// while a walk holds the connection. Nothing may pile up and nothing may crash.
+// hostile: timeout-ms 60000
+
+// 1. A million reads, none of them kept. A member that leaked one text per
+// call would have to hold a million of them.
+var $db = Core\Db::connect('notes');
+uint $letters = 0;
+uint $i = 0;
+while ($i < 1000000) {
+    $letters = $letters + Core\Str::length($db->serverVersion());
+    $i = $i + 1;
+}
+echo '1 letters: ', $letters, "\n";
+
+// 2. A hundred thousand versions held at once, then dropped together. They are
+// all the same short text, so the memory must go back when the list does.
+array<string> $kept = [];
+$i = 0;
+while ($i < 100000) {
+    $kept[] = $db->serverVersion();
+    $i = $i + 1;
+}
+echo '2 kept: ', Core\Arr::count($kept), "\n";
+$kept = [];
+
+// 3. A hundred thousand reads of a closed connection. Every one is an error,
+// and the errors may not fill the memory.
+$db->close();
+uint $refused = 0;
+$i = 0;
+while ($i < 100000) {
+    try {
+        $db->serverVersion();
+    } catch (Throwable $error) {
+        $refused = $refused + 1;
+    }
+    $i = $i + 1;
+}
+echo '3 refused: ', $refused, "\n";
+
+// 4. The version read between two rows, on a connection a walk is holding. The
+// walk must still finish, and the text must not change under it.
+var $walk = Core\Db::connect('notes');
+$walk->execute('create table if not exists many (n integer not null)', []);
+$i = 0;
+while ($i < 500) {
+    $walk->execute('insert into many (n) values (?)', [$i as int]);
+    $i = $i + 1;
+}
+var $first = $walk->serverVersion();
+uint $same = 0;
+foreach ($walk->stream('select n from many order by n', []) as Core\Db\Row $row) {
+    if ($walk->serverVersion() == $first) {
+        $same = $same + 1;
+    }
+}
+echo '4 same between rows: ', $same, "\n";
+$walk->close();

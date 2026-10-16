@@ -1,0 +1,27 @@
+<?nvs
+// Measures `Core\IO::list` on one folder, at growing numbers of files in it.
+// bench: start 16
+// bench: max 256
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        string $folder = Core\Path::join(Core\IO::temporaryDir(), 'uploads');
+        Core\IO::makeDir($folder);
+        uint $n = 0;
+        while ($n < $size) {
+            Core\IO::write(Core\Path::join($folder, Core\Str::format('%d.txt', $n)), 'a');
+            $n = $n + 1;
+        }
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            $total = $total + Core\Arr::count(Core\IO::list($folder));
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(16), "\n";

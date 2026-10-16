@@ -1,0 +1,46 @@
+--TEST--
+One sequence of writes, two writers: the indent changes where a document is broken and never what a member wrote into it — `rule:core-classes/xml-tree-and-stream`
+--FILE--
+<?nvs
+// The same calls into two writers, so the only difference between the two
+// documents below is the one option that differs. Indenting is layout: it
+// breaks lines between elements, and it stops the moment a member writes
+// character data into an element, because whitespace beside text *is* text and
+// inserting it there would change what the document says rather than how it
+// reads.
+class Catalog {
+    public static function into(Core\Xml\Writer $w): string {
+        $w->startDocument();
+        $w->doctype("catalog");
+        $w->comment("two shapes of one document");
+        $w->instruction("render", "compact");
+        $w->startElement("catalog");
+        $w->attribute("id", "7");
+        $w->startElement("item");
+        $w->content("a & b");
+        $w->endElement();
+        $w->startElement("note");
+        $w->cdata("]] not a close");
+        $w->endElement();
+        $w->startElement("empty");
+        $w->endElement();
+        $w->endElement();
+        return $w->endDocument();
+    }
+}
+
+echo Catalog::into(Core\Xml::writer()), "\n";
+echo "---\n";
+echo Catalog::into(Core\Xml::writer({indent: "  "})), "\n";
+--EXPECT--
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE catalog><!--two shapes of one document--><?render compact?><catalog id="7"><item>a &amp; b</item><note><![CDATA[]] not a close]]></note><empty/></catalog>
+---
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE catalog>
+<!--two shapes of one document-->
+<?render compact?>
+<catalog id="7">
+  <item>a &amp; b</item>
+  <note><![CDATA[]] not a close]]></note>
+  <empty/>
+</catalog>

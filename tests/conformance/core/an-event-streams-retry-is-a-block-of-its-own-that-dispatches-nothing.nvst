@@ -1,0 +1,38 @@
+--TEST--
+`Core\Sse->retry` puts the reconnection time on the wire as a block of its own, between events and dispatching none — `rule:concurrency/two-doors-one-isolate`
+--FILE--
+<?nvs
+// What a program says with it is "do not come back for an hour", ahead of a
+// drain it can see coming. An event it had to attach that to would be an event
+// the program did not otherwise want to send, so the wait is its own block: a
+// `retry:` line with no `data:` line under it, which a client parses and
+// dispatches nothing for.
+var $stream = Core\Out::capture(fn (): void => {
+    var $sse = Core\Sse::stream();
+    $sse->send("ready");
+    $sse->retry(Core\Time\Duration::hours(1));
+    $sse->send("draining");
+});
+echo $stream;
+echo "--\n";
+
+// It is neither the first thing on the stream nor the last, and it changes
+// nothing about the events either side of it: the events a client dispatches
+// are the ones that carried a payload, in the order they were written.
+var $alone = Core\Out::capture(fn (): void => {
+    var $sse = Core\Sse::stream();
+    $sse->retry(Core\Time\Duration::seconds(30));
+});
+echo $alone;
+echo "--\n";
+--EXPECT--
+data: ready
+
+retry: 3600000
+
+data: draining
+
+--
+retry: 30000
+
+--

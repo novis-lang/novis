@@ -1,0 +1,16 @@
+<?nvs
+// Shows how `Core\Arr::contains` compares a value with the entries. Text is
+// compared letter for letter. Numbers are compared as numbers.
+
+array<string> $tags = ["sale", "new"];
+
+// "New" starts with a capital letter, so it is not "new". This prints no.
+echo Core\Arr::contains($tags, "New") ? "yes" : "no", "\n";
+
+array<float> $prices = [1.0, 2.5];
+
+// 1 and 1.0 are the same number. This prints yes.
+echo Core\Arr::contains($prices, 1) ? "yes" : "no", "\n";
+
+// 3 is not in the array. This prints no.
+echo Core\Arr::contains($prices, 3) ? "yes" : "no", "\n";

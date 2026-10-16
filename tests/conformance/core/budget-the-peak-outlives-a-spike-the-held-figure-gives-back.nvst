@@ -1,0 +1,54 @@
+--TEST--
+`Core\Budget::memoryPeak` keeps a spike that `memoryHeld` has already given back, which is the whole reason the mark is recorded rather than sampled — `rule:observability/a-memory-peak-is-recorded-not-asked-for`, `rule:observability/memory-is-three-numbers-on-core-budget`
+--FILE--
+<?nvs
+// Every figure here differs on every machine and every run, so what this pins
+// is the *relation* between two readings taken around a release. That is the
+// case the rule exists for: Novis frees on the last reference dying, so a
+// program that has finished with a large value reads small again, and a peak
+// derived from a reading taken afterwards would report a request that never
+// grew.
+uint $spikeSize = 4194304;
+uint $before = Core\Budget::memoryHeld();
+
+string $spike = Core\Str::repeat("x", $spikeSize);
+uint $peak = Core\Budget::memoryPeak();
+if ($peak >= $before + $spikeSize) {
+    echo "peak: the spike is recorded\n";
+} else {
+    echo "peak: the spike was missed\n";
+}
+
+// The release. `$spike` was the only reference, so the bytes are gone by the
+// next statement — which is what makes the two readings below different
+// questions rather than the same one asked twice.
+$spike = "";
+
+if (Core\Budget::memoryHeld() < $peak) {
+    echo "held: fallen back\n";
+} else {
+    echo "held: still holding the spike\n";
+}
+
+if (Core\Budget::memoryPeak() >= $peak) {
+    echo "peak: still recorded\n";
+} else {
+    echo "peak: fell back with the held figure\n";
+}
+
+// And the reading a recorded mark is *for*: the peak against the ceiling, in
+// one expression and with no suffix parser between them. A request still
+// running is by construction inside the ceiling it is measured against, and
+// `0` is the answer for one under no ceiling at all — so the two spellings of
+// "inside it" are one condition, which is exactly what makes the pair usable.
+uint $ceiling = Core\Budget::memoryLimit();
+if ($ceiling == 0 || $peak <= $ceiling) {
+    echo "against the ceiling: the mark is inside it\n";
+} else {
+    echo "against the ceiling: the mark is above a ceiling this request survived\n";
+}
+--EXPECT--
+peak: the spike is recorded
+held: fallen back
+peak: still recorded
+against the ceiling: the mark is inside it

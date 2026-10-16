@@ -1,0 +1,25 @@
+<?nvs
+// Measures decoding a JSON reply into a shape, at growing lengths of the name in the reply.
+// bench: start 1024
+// bench: max 16384
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        string $body = "{\"name\":\"" . Core\Str::repeat('a', $size) . "\",\"id\":3}";
+        // The reply comes from this table, so nothing is sent over a network.
+        Core\Test::answerHttp('https://api.example.com/users/3', 200, { body: $body });
+        Core\Http\Response $reply = Core\Http\Client::get('https://api.example.com/users/3');
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            var $user = $reply->jsonAs<tainted {name: string, id: int}>();
+            $total = $total + ($user->id as uint);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(1024), "\n";

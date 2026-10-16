@@ -1,0 +1,25 @@
+<?nvs
+// `self::` calls the method of the class where the code is written.
+// `static::` calls the method of the class the call was made on.
+class Registry {
+    public static function tag(): string {
+        return "base";
+    }
+
+    public static function make(): static {
+        return new static();
+    }
+
+    public function label(): string {
+        return static::tag() . "/" . self::tag();
+    }
+}
+
+class LeafRegistry extends Registry {
+    public static function tag(): string {
+        return "leaf";
+    }
+}
+
+echo Registry::make()->label(), "\n";
+echo LeafRegistry::make()->label(), "\n";

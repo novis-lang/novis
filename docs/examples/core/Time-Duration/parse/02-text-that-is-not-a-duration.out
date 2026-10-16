@@ -1,0 +1,4 @@
+"45s" is 45s
+"1.5h": Core\Time\Duration::parse(): `.` has no meaning in a duration
+"30min": Core\Time\Duration::parse(): `min` is not a duration unit — the units are `ns`, `us`, `ms`, `s`, `m`, `h`, `d` and `w`
+"": Core\Time\Duration::parse(): a duration is empty

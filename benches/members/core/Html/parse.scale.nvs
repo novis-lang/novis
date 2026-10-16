@@ -1,0 +1,22 @@
+<?nvs
+// Measures `Core\Html::parse` on one piece of HTML, at growing numbers of paragraphs.
+// bench: start 16
+// bench: max 256
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        string $piece = Core\Str::repeat('<p>Hello, <b>world</b></p>', $size);
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            var $tree = Core\Html::parse($piece);
+            $total = $total + Core\Arr::count($tree->children()) as uint;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(16), "\n";

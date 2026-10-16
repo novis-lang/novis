@@ -1,0 +1,12 @@
+{
+  "title": "A wake handle dropped unused wakes its task, unless that task is the one dropping it",
+  "status": "shipped",
+  "seeAlso": [
+    "concurrency/one-permission-per-drive",
+    "concurrency/a-wake-never-moves-a-task",
+    "concurrency/the-parking-contract"
+  ],
+  "guardedBy": [
+    "crates/nvs-host/src/reactor.rs"
+  ]
+}

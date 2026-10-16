@@ -1,0 +1,19 @@
+<?nvs
+// Shows the usual place for a close: after the last statement. The connection
+// goes back to the server, and another request can use it.
+
+var $db = Core\Db::connect('notes');
+
+$db->execute('create table notes (id integer primary key, text text not null)', []);
+$db->execute('insert into notes (id, text) values (?, ?)', [1, 'buy milk']);
+
+// This prints `buy milk`.
+foreach ($db->query('select text from notes order by id', []) as Core\Db\Row $row) {
+    echo $row->string('text') ?? '', "\n";
+}
+
+// The program needs the database no longer.
+$db->close();
+
+// `isOpen` is the one method a closed connection still answers. This prints `closed`.
+echo $db->isOpen() ? 'open' : 'closed', "\n";

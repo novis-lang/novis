@@ -1,0 +1,212 @@
+---
+source: crates/nvs-ir/src/lower/tests.rs
+assertion_line: 2682
+expression: "print_program(&p, map.file(file))"
+---
+fn G::upTo(classdesc, int) -> object {
+  bb0:
+    safepoint
+    v0 = param 0  ; classdesc
+    v1 = new G::upTo$gen() ! bb1  ; object
+    v2 = const.int 0  ; int
+    field.set v1, G::upTo$gen::gen#state, v2
+    field.set v1, G::upTo$gen::gen#unwind, v2
+    v3 = param 1  ; int
+    field.set v1, G::upTo$gen::limit, v3
+    return v1
+  bb1:
+    propagate "G::upTo() at t.nvs:1"
+}
+
+fn G::upTo$gen::advance(object) -> bool {
+  bb0:
+    safepoint
+    v0 = param 0  ; object
+    v1 = field.get v0, G::upTo$gen::gen#state  ; int
+    switch v1 -> 0: bb1 (e2), 1: bb6 (e3), default: bb2 (e4)
+  bb1:
+    v2 = field.get v0, G::upTo$gen::limit  ; int
+    ; stmt s0 @4:5-4:16
+    v3 = const.int 1  ; int
+    ; stmt s1 @5:5-8:6
+    jump bb3
+  bb2:
+    v15 = const.bool false  ; bool
+    release v0
+    return v15
+  bb3:
+    v4 = phi [bb1: v3, bb6: v12]  ; int
+    v5 = phi [bb1: v2, bb6: v10]  ; int
+    v6 = le v4, v5  ; bool
+    branch v6 -> bb4 (e0), bb5 (e1)
+  bb4:
+    ; stmt s2 @5:26-8:6
+    ; stmt s3 @6:7-6:16
+    field.set v0, G::upTo$gen::gen#current, v4
+    field.set v0, G::upTo$gen::i, v4
+    field.set v0, G::upTo$gen::limit, v5
+    v7 = const.int 1  ; int
+    field.set v0, G::upTo$gen::gen#state, v7
+    release v0
+    v8 = const.bool true  ; bool
+    return v8
+  bb5:
+    v13 = const.int -1  ; int
+    field.set v0, G::upTo$gen::gen#state, v13
+    release v0
+    v14 = const.bool false  ; bool
+    return v14
+  bb6:
+    v9 = field.get v0, G::upTo$gen::i  ; int
+    v10 = field.get v0, G::upTo$gen::limit  ; int
+    ; stmt s4 @7:7-7:19
+    v11 = const.int 1  ; int
+    v12 = add v9, v11 ! bb7  ; int
+    safepoint
+    jump bb3
+  bb7:
+    release v0
+    propagate "G::upTo$gen::advance() at t.nvs:7"
+}
+
+fn G::upTo$gen::current(object) -> int {
+  bb0:
+    safepoint
+    v0 = param 0  ; object
+    v1 = field.get v0, G::upTo$gen::gen#state  ; int
+    v2 = const.int 1  ; int
+    v3 = ge v1, v2  ; bool
+    branch v3 -> bb1 (e0), bb2 (e1)
+  bb1:
+    v4 = field.get v0, G::upTo$gen::gen#current  ; int
+    release v0
+    return v4
+  bb2:
+    release v0
+    v5 = const.str "current() outside the iteration protocol: it answers only after advance() returned true"  ; string
+    v6 = const.null  ; null
+    v7 = tag v6  ; tagged
+    v8 = new LogicError via Throwable::constructor(v5, v7) ! bb3  ; object
+    v9 = source t.nvs:3 G::upTo$gen::current  ; classdesc
+    throw v8 at v9 -> bb4
+  bb3:
+    propagate "G::upTo$gen::current() at t.nvs:3"
+  bb4:
+    propagate "G::upTo$gen::current() at t.nvs:3"
+}
+
+fn <script>() -> tagged {
+  bb0:
+    safepoint
+    v0 = const.null  ; null
+    v1 = tag v0  ; tagged
+    return v1
+}
+
+fn Throwable::constructor(object, string, tagged) -> void {
+  bb0:
+    safepoint
+    v0 = param 0  ; object
+    v1 = param 1  ; string
+    retain v1
+    field.set v0, Throwable::message, v1
+    v2 = param 2  ; tagged
+    retain v2
+    field.set v0, Throwable::previous, v2
+    v3 = array.new []  ; array
+    field.set v0, Throwable::backtrace, v3
+    v4 = const.str ""  ; string
+    field.set v0, Throwable::location, v4
+    release v1
+    release v2
+    release v0
+    return
+}
+
+fn ParseError::constructor(object, string, tagged) -> void {
+  bb0:
+    safepoint
+    v0 = param 0  ; object
+    v1 = param 1  ; string
+    retain v1
+    field.set v0, ParseError::message, v1
+    v2 = param 2  ; tagged
+    retain v2
+    field.set v0, ParseError::previous, v2
+    v3 = array.new []  ; array
+    field.set v0, ParseError::backtrace, v3
+    v4 = const.str ""  ; string
+    field.set v0, ParseError::location, v4
+    v5 = array.new []  ; array
+    field.set v0, ParseError::issues, v5
+    release v1
+    release v2
+    release v0
+    return
+}
+
+fn Core\Db\DbError::constructor(object, string, tagged) -> void {
+  bb0:
+    safepoint
+    v0 = param 0  ; object
+    v1 = param 1  ; string
+    retain v1
+    field.set v0, Core\Db\DbError::message, v1
+    v2 = param 2  ; tagged
+    retain v2
+    field.set v0, Core\Db\DbError::previous, v2
+    v3 = array.new []  ; array
+    field.set v0, Core\Db\DbError::backtrace, v3
+    v4 = const.str ""  ; string
+    field.set v0, Core\Db\DbError::location, v4
+    v5 = const.int 10  ; enum:int
+    field.set v0, Core\Db\DbError::kind, v5
+    release v1
+    release v2
+    release v0
+    return
+}
+
+fn Core\Db\RolledBack::constructor(object, string, tagged) -> void {
+  bb0:
+    safepoint
+    v0 = param 0  ; object
+    v1 = param 1  ; string
+    retain v1
+    field.set v0, Core\Db\RolledBack::message, v1
+    v2 = param 2  ; tagged
+    retain v2
+    field.set v0, Core\Db\RolledBack::previous, v2
+    v3 = array.new []  ; array
+    field.set v0, Core\Db\RolledBack::backtrace, v3
+    v4 = const.str ""  ; string
+    field.set v0, Core\Db\RolledBack::location, v4
+    retain v1
+    field.set v0, Core\Db\RolledBack::reason, v1
+    release v1
+    release v2
+    release v0
+    return
+}
+
+fn Core\Ldap\LdapError::constructor(object, string, tagged) -> void {
+  bb0:
+    safepoint
+    v0 = param 0  ; object
+    v1 = param 1  ; string
+    retain v1
+    field.set v0, Core\Ldap\LdapError::message, v1
+    v2 = param 2  ; tagged
+    retain v2
+    field.set v0, Core\Ldap\LdapError::previous, v2
+    v3 = array.new []  ; array
+    field.set v0, Core\Ldap\LdapError::backtrace, v3
+    v4 = const.str ""  ; string
+    field.set v0, Core\Ldap\LdapError::location, v4
+    v5 = const.int 20  ; enum:int
+    field.set v0, Core\Ldap\LdapError::kind, v5
+    release v1
+    release v2
+    release v0
+    return
+}

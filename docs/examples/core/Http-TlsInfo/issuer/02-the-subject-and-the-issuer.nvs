@@ -1,0 +1,13 @@
+<?nvs
+// Shows the difference between the subject and the issuer of one certificate.
+
+// A TLS connection built for a test, so the example runs without a network.
+var $session = Core\Test::tlsSession({
+    subject: "CN=shop.example.com",
+    issuer: "CN=Example Root CA",
+});
+
+// `subject()` is the server the certificate is for. `issuer()` is who signed it.
+// This prints `for: CN=shop.example.com` and `signed by: CN=Example Root CA`.
+echo "for:       ", $session->subject(), "\n";
+echo "signed by: ", $session->issuer(), "\n";

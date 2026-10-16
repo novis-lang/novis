@@ -1,0 +1,22 @@
+<?nvs
+// Calls a function stored in a variable, once per loop round.
+// Filters, sort comparisons and formatting functions are called this way.
+// This bench measures the extra cost of a call through a variable.
+// bench: iterations 256
+// bench: allocations 1
+// bench: complexity constant
+
+class Bench {
+    public static function run(uint $rounds): int {
+        callable $step = fn(int $seen): int => $seen * 3 % 1009 + 1;
+        int $carry = 1;
+        uint $i = 0;
+        while ($i < $rounds) {
+            $carry = $step($carry) as int;        // chained: $carry is last round's
+            $i = $i + 1;
+        }
+        return $carry;
+    }
+}
+
+echo Bench::run(256), "\n";

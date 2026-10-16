@@ -1,0 +1,2 @@
+valid
+not valid: Core\Ast::parse(): line 1, column 15: expected an expression

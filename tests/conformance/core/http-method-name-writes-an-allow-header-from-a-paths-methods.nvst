@@ -1,0 +1,34 @@
+--TEST--
+`Core\Http::methodName` over `Core\Router::methodsFor` writes an `Allow` header in route order, with no `match` over the eight cases — `rule:routing/a-refused-verb-is-not-a-missing-path`
+--FILE--
+<?nvs
+class Blog {
+    #[Core\Route(path: "/posts/{id}", method: Core\Http\Method::Delete, name: "Blog::destroy")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function destroy(uint $id): string { return "gone"; }
+
+    #[Core\Route(path: "/posts/{id}", method: Core\Http\Method::Get, name: "Blog::show")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function show(uint $id): string { return "one post"; }
+
+    #[Core\Route(path: "/posts/{id}", method: Core\Http\Method::Patch, name: "Blog::edit")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function edit(uint $id): string { return "edited"; }
+}
+
+class Allow {
+    public static function header(string $path): string {
+        array<string> $names = [];
+        foreach (Core\Router::methodsFor($path) as Core\Http\Method $method) {
+            $names[] = Core\Http::methodName($method);
+        }
+        return Core\Str::join($names, ", ");
+    }
+}
+
+echo "[", Allow::header("/posts/7"), "]\n";
+// A path no route claims has no methods, so the header is empty.
+echo "[", Allow::header("/pages"), "]\n";
+--EXPECT--
+[DELETE, GET, PATCH]
+[]

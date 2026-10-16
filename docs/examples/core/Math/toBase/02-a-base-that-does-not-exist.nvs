@@ -1,0 +1,13 @@
+<?nvs
+// Shows which bases `Core\Math::toBase` accepts.
+
+// The base must be from 2 to 36. Base 1 and base 37 throw a `RuntimeError`.
+array<uint> $bases = [1, 2, 36, 37];
+foreach ($bases as uint $base) {
+    try {
+        string $digits = Core\Math::toBase(35, $base);
+        echo "base ", $base, ": ", $digits, "\n";
+    } catch (RuntimeError $e) {
+        echo "base ", $base, ": not allowed\n";
+    }
+}

@@ -1,0 +1,22 @@
+<?nvs
+// Opens a small PNG and decodes it, as a program does with every image a user uploads.
+// bench: iterations 256
+// bench: complexity constant
+use Novis\Image\Image;
+use Novis\Image\Color;
+use Novis\Image\Format;
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        bytes $png = Image::create(4, 4, Color::hex("#336699"))->format(Format::Png)->encode();
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            $total = $total + Image::open($png, {maxPixels: 16 + $total % 3})->raw()->width;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

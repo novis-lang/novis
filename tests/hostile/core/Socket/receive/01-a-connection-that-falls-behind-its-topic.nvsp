@@ -1,0 +1,4 @@
+# The client has two messages waiting and then a broken connection.
+text: first
+text: second
+fail: the connection broke

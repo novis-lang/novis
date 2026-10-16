@@ -1,0 +1,26 @@
+<?nvs
+// Measures `Core\Arr::overlayDeep` writing one setting over a configuration tree, at growing tree sizes.
+// bench: start 256
+// bench: max 4096
+
+class Bench
+{
+    public static function run(uint $size): int
+    {
+        array<int> $numbers = Core\Arr::range(1, $size as int);
+        array<string> $names = Core\Arr::map($numbers, fn(int $n): string => "k" . ($n as string));
+        array<array<int>> $blocks = Core\Arr::map($numbers, fn(int $n): array<int> => ["port" => $n, "pool" => 10]);
+        array<array<int>> $shipped = Core\Arr::fromKeysAndValues($names, $blocks);
+        int $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            array<array<int>> $machine = ["k1" => ["port" => 6000 + $total % 9]];
+            array<array<int>> $config = Core\Arr::overlayDeep($shipped, $machine);
+            $total = $total + $config["k1"]["port"] + $config["k2"]["pool"];
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

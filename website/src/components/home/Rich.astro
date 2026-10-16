@@ -1,0 +1,26 @@
+---
+/**
+ * A short text for the front page in which `backticks` mark code, the way a
+ * page's markdown does. Each marked part becomes a quiet inline <code>; the
+ * rest is plain text, escaped by Astro.
+ */
+interface Props {
+  text: string
+}
+
+const parts = Astro.props.text.split(/(`[^`]+`)/).filter(Boolean)
+---
+
+{parts.map((p) => (p.startsWith('`') && p.endsWith('`') ? <code>{p.slice(1, -1)}</code> : p))}
+
+<style>
+  code {
+    padding: 0.05em 0.35em;
+    border: 1px solid var(--nv-hairline);
+    border-radius: var(--nv-radius-sm);
+    background: var(--sl-color-bg-inline-code);
+    font-size: 0.88em;
+    color: var(--sl-color-white);
+    overflow-wrap: anywhere;
+  }
+</style>

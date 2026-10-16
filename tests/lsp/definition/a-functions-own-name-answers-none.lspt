@@ -1,0 +1,12 @@
+--TEST--
+a free function is a declaration the language refuses and the grammar still parses, and its own name answers `none`, `rule:ide/one-grammar-one-tree`
+--FILE--
+<?nvs
+function hel<|>per(): int
+{
+    return 1;
+}
+--REQUEST--
+definition
+--EXPECT--
+none

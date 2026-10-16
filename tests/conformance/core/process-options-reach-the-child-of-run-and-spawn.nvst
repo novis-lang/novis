@@ -1,0 +1,98 @@
+--TEST--
+`Core\Process::run` and `::spawn` take one options bag: the child starts in `cwd`, sees the variables `env` gives it, and is stopped with a `TimeoutError` when `timeout` passes, and a `timeout` that is not positive is refused before anything starts — `rule:core-classes/process-options`
+--FILE--
+<?nvs
+// covers: Core\Process::run
+// covers: Core\Process::spawn
+// covers: Core\Process\Handle::wait
+// Each step runs the platform's own shell, named absolutely, the way the other
+// process cases do. The one that is not this platform's starts nothing: an
+// `IOError` on Windows, a `RuntimeError` for a path with no root on Unix.
+
+int $started = 0;
+bool $inFolder = false;
+string $probe = "<nothing ran>";
+string $spawnedProbe = "<nothing ran>";
+int $runStopped = 0;
+int $spawnStopped = 0;
+
+try {
+    var $unix = Core\Process::run("/bin/sh", ["-c", 'pwd; echo "probe=$NVS_PROBE"'], {cwd: "/", env: ["NVS_PROBE" => "given"]});
+    $started += 1;
+    string $out = $unix->stdout() as string;
+    $inFolder = Core\Str::startsWith($out, "/\n");
+    $probe = $out;
+
+    Core\Process\Handle $child = Core\Process::spawn("/bin/sh", ["-c", 'echo "probe=$NVS_PROBE"'], {env: ["NVS_PROBE" => "spawned"]});
+    $spawnedProbe = $child->wait()->stdout() as string;
+} catch (IOError $notAUnix) {
+}
+
+try {
+    var $windows = Core\Process::run("C:\\Windows\\System32\\cmd.exe", ["/c", "cd& echo probe=%NVS_PROBE%"], {cwd: "C:\\Windows", env: ["NVS_PROBE" => "given"]});
+    $started += 1;
+    string $outOnWindows = $windows->stdout() as string;
+    $inFolder = Core\Str::startsWith($outOnWindows, "C:\\Windows\r\n");
+    $probe = $outOnWindows;
+
+    Core\Process\Handle $childOnWindows = Core\Process::spawn("C:\\Windows\\System32\\cmd.exe", ["/c", "echo probe=%NVS_PROBE%"], {env: ["NVS_PROBE" => "spawned"]});
+    $spawnedProbe = $childOnWindows->wait()->stdout() as string;
+} catch (RuntimeError $notWindows) {
+}
+
+// Each sleeper would run for five seconds. The timeout stops it after 200
+// milliseconds, and the call throws a `TimeoutError`.
+try {
+    Core\Process::run("/bin/sleep", ["5"], {timeout: 200ms});
+} catch (TimeoutError $late) {
+    $runStopped += 1;
+} catch (IOError $notAUnix) {
+}
+try {
+    Core\Process::run("C:\\Windows\\System32\\ping.exe", ["-n", "6", "127.0.0.1"], {timeout: 200ms});
+} catch (TimeoutError $late) {
+    $runStopped += 1;
+} catch (RuntimeError $notWindows) {
+}
+
+// `spawn` returns at once. The timeout counts from the start, so `wait` is
+// still running when it passes, and `wait` throws.
+try {
+    Core\Process::spawn("/bin/sleep", ["5"], {timeout: 200ms})->wait();
+} catch (TimeoutError $late) {
+    $spawnStopped += 1;
+} catch (IOError $notAUnix) {
+}
+try {
+    Core\Process::spawn("C:\\Windows\\System32\\ping.exe", ["-n", "6", "127.0.0.1"], {timeout: 200ms})->wait();
+} catch (TimeoutError $late) {
+    $spawnStopped += 1;
+} catch (RuntimeError $notWindows) {
+}
+
+echo "started=", $started, "\n";
+echo "in cwd=|", $inFolder as string, "|\n";
+echo "run sees env=|", Core\Str::contains($probe, "probe=given") as string, "|\n";
+echo "spawn sees env=|", Core\Str::contains($spawnedProbe, "probe=spawned") as string, "|\n";
+echo "run stopped=", $runStopped, "\n";
+echo "spawn stopped=", $spawnStopped, "\n";
+
+// A timeout of zero is refused before the program starts, on every platform.
+try {
+    Core\Process::run("/bin/sh", ["-c", "true"], {timeout: 0ns});
+} catch (RuntimeError $refused) {
+    echo $refused->message, "\n";
+}
+--FILE nvs.toml--
+# `true` for the reason the other process cases give: what this case asserts is
+# what the options do to a child, and the door's own scoping is pinned elsewhere.
+[capabilities.process]
+exec = true
+--EXPECT--
+started=1
+in cwd=|1|
+run sees env=|1|
+spawn sees env=|1|
+run stopped=1
+spawn stopped=1
+Core\Process::run: a `timeout` must be a positive length of time

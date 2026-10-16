@@ -1,0 +1,14 @@
+<?nvs
+// Shows how to split a list of tags that is written as one string.
+
+// `Core\Str::split` returns the parts between the commas.
+// This prints 3, and then each tag on its own line.
+array<string> $tags = Core\Str::split("news,sport,weather", ",");
+echo Core\Arr::count($tags), "\n";
+foreach ($tags as string $tag) {
+    echo $tag, "\n";
+}
+
+// Two commas next to each other give an empty part.
+// This prints 3, because the second part is "".
+echo Core\Arr::count(Core\Str::split("news,,weather", ",")), "\n";

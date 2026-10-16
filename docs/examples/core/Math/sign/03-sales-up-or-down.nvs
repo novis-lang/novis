@@ -1,0 +1,18 @@
+<?nvs
+// Shows how a sales report says whether each month was better or worse than the month before.
+
+class Report {
+    // Returns "down", "same" or "up". The sign is -1, 0 or 1, so adding 1 picks a word.
+    public static function trend(int $before, int $now): string {
+        array<string> $words = ["down", "same", "up"];
+        return $words[Core\Math::sign($now - $before) + 1];
+    }
+}
+
+// This prints "up", then "same", then "down".
+array<int> $sales = [1200, 1450, 1450, 980];
+int $month = 1;
+while ($month < 4) {
+    echo "Month ", $month + 1, ": ", Report::trend($sales[$month - 1], $sales[$month]), "\n";
+    $month = $month + 1;
+}

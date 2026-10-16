@@ -1,0 +1,13 @@
+What a value actually is, when its declared type no longer says. Nearly everywhere in Novis the type
+is written down and nobody has to ask; a `mixed` is the exception, and asking one what it is holding
+answers with one of ten kinds.
+
+`Core\Reflect::TypeKind` is declared in the class `Core\Reflect`. The method `typeOf` returns it.
+
+The ten are `Null`, `Bool`, `Int`, `Uint`, `Float`, `Decimal`, `Text`, `Bytes`, `Array` and `Object`.
+Every value is in exactly one of them and never in two, so a `match` covering all ten needs no
+fallback arm and no answer can be argued with.
+
+**Good to know:** a whole number that cannot be negative is `Uint` and not `Int`, an exact `Decimal`
+is never a `Float`, and a run of octets is `Bytes` rather than text that happens to hold them. A
+callable is an object, so it has no kind of its own.

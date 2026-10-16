@@ -1,0 +1,38 @@
+<?nvs
+// Shows how to choose one class by a name that the user types.
+
+interface Exporter {
+    public function format(): string;
+    public function export(array<string> $names): string;
+}
+
+class CsvExporter implements Exporter {
+    public function format(): string {
+        return "csv";
+    }
+
+    public function export(array<string> $names): string {
+        return Core\Str::join($names, ",");
+    }
+}
+
+class LinesExporter implements Exporter {
+    public function format(): string {
+        return "lines";
+    }
+
+    public function export(array<string> $names): string {
+        return Core\Str::join($names, " | ");
+    }
+}
+
+// The key of this array is the name of a format, and the value is its exporter.
+array<Exporter> $exporters = [];
+foreach (Core\Program::implementing<Exporter>() as Exporter $exporter) {
+    $exporters[$exporter->format()] = $exporter;
+}
+
+// This prints `Ada,Grace,Linus`.
+echo $exporters["csv"]->export(["Ada", "Grace", "Linus"]), "\n";
+// A format that no class has is not in the array. This prints `false`.
+echo Core\Arr::hasKey($exporters, "pdf") ? "true" : "false", "\n";

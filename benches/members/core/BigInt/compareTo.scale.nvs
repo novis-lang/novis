@@ -1,0 +1,25 @@
+<?nvs
+// Measures `compareTo` on two numbers that differ only in the last bit, at growing numbers of bits.
+// bench: start 4096
+// bench: max 65536
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        var $base = Core\BigInt::of(1)->shl($size);
+        array<Core\BigInt> $amounts = [$base->add(Core\BigInt::of(1)), $base, $base->add(Core\BigInt::of(2))];
+        uint $total = 0;
+        int $pick = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            int $order = $amounts[$pick]->compareTo($amounts[1]);
+            $total = $total + (($order + 1) as uint);
+            $pick = 2 - ($order + 1);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(4096), "\n";

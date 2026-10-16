@@ -1,0 +1,6 @@
+<?nvs
+// The examples in the folder above start this script. It prints one line and
+// returns the number of files it removed.
+
+echo "removed 3 old files\n";
+return 3;

@@ -1,0 +1,30 @@
+--METHOD--
+POST
+--PATH--
+/gallery/upload
+--SCHEME--
+https
+--HEADERS--
+host: example.com
+content-type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW
+--BODY_CRLF--
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="album"
+
+Summer
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="photos[]"; filename="beach.jpg"
+Content-Type: image/jpeg
+
+The first picture. A real upload has the bytes of a photo of the beach here.
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="photos[]"; filename="harbour.jpg"
+Content-Type: image/jpeg
+
+The second picture. A real upload has the bytes of a photo of the harbour here.
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="photos[]"; filename="dinner.jpg"
+Content-Type: image/jpeg
+
+The third picture. A real upload has the bytes of a photo of a dinner here.
+------WebKitFormBoundary7MA4YWxkTrZu0gW--

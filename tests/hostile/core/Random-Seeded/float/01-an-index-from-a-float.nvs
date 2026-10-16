@@ -1,0 +1,56 @@
+<?nvs
+// Attack: generators with extreme seeds turn millions of floats into array positions.
+// If a float were ever 1.0 or more, a position would be past the end of the array.
+// Every step should finish, and the program must not crash.
+
+int $smallest = -9223372036854775807 - 1;
+int $largest = 9223372036854775807;
+array<int> $seeds = [$smallest, -1, 0, 1, $largest];
+
+// 1. Each seed gives four hundred thousand floats. Each one becomes a position in an
+// array of three entries. A float of 1.0 would give position 3, and the lookup would throw.
+array<string> $colors = ['red', 'green', 'blue'];
+uint $picked = 0;
+foreach ($seeds as int $seed) {
+    Core\Random\Seeded $generator = new Core\Random\Seeded($seed);
+    uint $i = 0;
+    while ($i < 400000) {
+        float $scaled = Core\Math::floor($generator->float() * 3.0);
+        $picked = $picked + Core\Str::length($colors[$scaled as int]);
+        $i = $i + 1;
+    }
+}
+echo '1 letters picked: ', $picked > 0 ? 'some' : 'none', "\n";
+
+// 2. A float is multiplied by the largest `float`. The result must stay finite.
+Core\Random\Seeded $wide = new Core\Random\Seeded(0);
+uint $infinite = 0;
+uint $j = 0;
+while ($j < 100000) {
+    float $large = $wide->float() * 1.7976931348623157e308;
+    if ($large > 1.7976931348623157e308 || $large != $large) {
+        $infinite = $infinite + 1;
+    }
+    $j = $j + 1;
+}
+echo '2 results that are not finite: ', $infinite, "\n";
+
+// 3. One million floats are kept in one array, and the smallest and largest are found.
+Core\Random\Seeded $kept = new Core\Random\Seeded($largest);
+array<float> $values = [];
+uint $k = 0;
+while ($k < 1000000) {
+    $values[] = $kept->float();
+    $k = $k + 1;
+}
+float $lowest = 1.0;
+float $highest = 0.0;
+foreach ($values as float $value) {
+    if ($value < $lowest) {
+        $lowest = $value;
+    }
+    if ($value > $highest) {
+        $highest = $value;
+    }
+}
+echo '3 all in range: ', $lowest >= 0.0 && $highest < 1.0 ? 'yes' : 'no', "\n";

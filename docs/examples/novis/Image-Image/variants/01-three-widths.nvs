@@ -1,0 +1,17 @@
+<?nvs
+// Shows how to write three widths of one photo for a responsive web page.
+use Novis\Image\Image;
+use Novis\Image\Color;
+use Novis\Image\Format;
+
+// These JPEG bytes replace a photo that a user uploaded.
+bytes $upload = Image::create(800, 600, Color::hex("#336699"))->format(Format::Jpeg)->encode();
+
+// One call decodes the photo once and writes three files.
+array<bytes> $files = Image::open($upload)->variants([{width: 400}, {width: 200}, {width: 100}]);
+
+// This prints 400x300, 200x150 and 100x75.
+foreach ($files as bytes $file) {
+    var $info = Image::info($file);
+    echo $info->width, "x", $info->height, "\n";
+}

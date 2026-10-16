@@ -1,0 +1,23 @@
+<?nvs
+// Shows how to check whether a class has a property with a given name.
+
+class Entry {
+    public string $title = "";
+}
+
+class Post extends Entry {
+    public string $body = "";
+}
+
+var $found = Core\Reflect::forClass("Post");
+if ($found != null) {
+    Core\Reflect\ClassInfo $info = $found;
+    // `hasProperty` returns `true` or `false`. This prints `yes`, `yes` and `no`.
+    // `title` comes from the parent class `Entry`.
+    array<string> $names = ["body", "title", "author"];
+    foreach ($names as string $name) {
+        echo $name, ": ", $info->hasProperty($name) ? "yes" : "no", "\n";
+    }
+    // Property names are case-sensitive, so this prints `no`.
+    echo "Title: ", $info->hasProperty("Title") ? "yes" : "no", "\n";
+}

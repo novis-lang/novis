@@ -1,0 +1,10 @@
+<?nvs
+// Three diagnostics, chosen for what each one *carries* rather than for what
+// is wrong with it: the class name has a machine-applicable fix, the property
+// has a second one, and `eval` has a help line. Together they are every field
+// `rule:ide/check-json-is-the-diagnostic-record-as-a-document` names.
+class my_class {
+    var $count;
+}
+
+eval("return 1;");

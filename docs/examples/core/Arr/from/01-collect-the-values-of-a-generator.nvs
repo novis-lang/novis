@@ -1,0 +1,27 @@
+<?nvs
+// Shows how to collect the values of a generator into an array. The generator
+// gives one number at a time, and `Core\Arr::from` puts them all in a list.
+
+class Fibonacci {
+    // `yield` gives one number to whoever reads this generator. The method
+    // then waits there until the next number is wanted.
+    public static function first(uint $count): Iterator<int> {
+        int $a = 1;
+        int $b = 1;
+        uint $i = 0;
+        while ($i < $count) {
+            yield $a;
+            int $next = $a + $b;
+            $a = $b;
+            $b = $next;
+            $i = $i + 1;
+        }
+    }
+}
+
+// This prints [1,1,2,3,5,8,13,21].
+array<int> $numbers = Core\Arr::from(Fibonacci::first(8));
+echo Core\Json::encode($numbers), "\n";
+
+// The array is an ordinary one, so every `Core\Arr` method works on it.
+echo Core\Arr::count($numbers), "\n";

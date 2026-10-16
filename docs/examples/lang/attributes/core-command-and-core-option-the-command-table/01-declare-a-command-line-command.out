@@ -1,0 +1,3 @@
+backup: Copy the database to a file
+writing to /var/backups/dump.sql.gz
+exit status 0

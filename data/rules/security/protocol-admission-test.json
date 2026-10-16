@@ -1,0 +1,9 @@
+{
+  "title": "Three conditions and one boundary decide what may join the roster, and a flow never does",
+  "status": "shipped",
+  "seeAlso": [
+    "security/protocol-roster",
+    "security/algorithm-comes-from-the-key"
+  ],
+  "guardedBy": []
+}

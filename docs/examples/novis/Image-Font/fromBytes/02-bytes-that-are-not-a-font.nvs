@@ -1,0 +1,16 @@
+<?nvs
+// Shows how to catch an uploaded file that is not a font.
+use Novis\Image\Color;
+use Novis\Image\Font;
+use Novis\Image\Image;
+
+// A PNG file starts with other bytes than a font file.
+bytes $upload = Image::create(4, 4, Color::hex("#ffffff"))->encode();
+
+// This prints "not a font".
+try {
+    Font $font = Font::fromBytes($upload);
+    echo "a font\n";
+} catch (ParseError $e) {
+    echo "not a font\n";
+}

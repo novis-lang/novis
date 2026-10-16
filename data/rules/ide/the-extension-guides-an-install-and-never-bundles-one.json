@@ -1,0 +1,15 @@
+{
+  "title": "The extension ships no `nvs` binary: a missing one is a guided install the user starts, verified against the release's own `SHA256SUMS`",
+  "status": "shipped",
+  "seeAlso": [
+    "ide/the-extension-runs-where-the-binary-is",
+    "ide/the-extension-refuses-a-binary-it-does-not-understand",
+    "ide/the-extension-builds-no-ui-the-editor-already-has",
+    "ide/contributions-are-frozen-and-only-ever-added"
+  ],
+  "guardedBy": [
+    "editors/vscode/test/install/download.test.ts",
+    "editors/vscode/test/install/unpack.test.ts",
+    "editors/vscode/test/contributions/contributions.test.ts"
+  ]
+}

@@ -1,0 +1,84 @@
+<?nvs
+// Attack: a program writes streams exactly at the size limit and one byte over it. It writes 100000
+// chunks, and it writes to paths that are not files. Each step must work or throw an error, and a
+// stream that fails must leave no file.
+// hostile: timeout-ms 60000
+
+string $dir = Core\Path::join(Core\IO::temporaryDir(), 'attack');
+Core\IO::makeDir($dir);
+
+// 1. A stream of exactly `max` bytes is saved. A stream of `max` + 1 bytes throws an error and
+// leaves no file. The extra byte is in its own chunk at the end.
+array<bytes> $exact = [Core\Str::repeat('x', 999) as bytes, 'y' as bytes];
+array<bytes> $over = [Core\Str::repeat('x', 999) as bytes, 'y' as bytes, 'z' as bytes];
+string $atLimit = Core\Path::join($dir, 'at-limit.bin');
+Core\IO::writeStream($atLimit, $exact, { max: 1000 });
+if (Core\IO::size($atLimit) != 1000) {
+    throw new LogicError('a stream of exactly `max` bytes was not saved whole');
+}
+string $overLimit = Core\Path::join($dir, 'over-limit.bin');
+try {
+    Core\IO::writeStream($overLimit, $over, { max: 1000 });
+    throw new LogicError('a stream over `max` was saved');
+} catch (RuntimeError $refused) {
+}
+if (Core\IO::exists($overLimit)) {
+    throw new LogicError('a stream over `max` left a file');
+}
+echo 'step 1: done', "\n";
+
+// 2. A limit of 0 accepts empty chunks and nothing else.
+array<bytes> $nothing = ['' as bytes, '' as bytes];
+array<bytes> $oneByte = ['x' as bytes];
+string $empty = Core\Path::join($dir, 'empty.bin');
+Core\IO::writeStream($empty, $nothing, { max: 0 });
+if (Core\IO::size($empty) != 0) {
+    throw new LogicError('empty chunks wrote bytes');
+}
+try {
+    Core\IO::writeStream($empty, $oneByte, { max: 0, overwrite: true });
+    throw new LogicError('a byte was accepted under a limit of 0');
+} catch (RuntimeError $refused) {
+}
+echo 'step 2: done', "\n";
+
+// 3. 100000 chunks of one byte each, with some empty chunks between them. The file must have
+// exactly 100000 bytes.
+array<bytes> $many = [];
+uint $i = 0;
+while ($i < 100000) {
+    $many[] = 'x' as bytes;
+    if ($i % 1000 == 0) {
+        $many[] = '' as bytes;
+    }
+    $i = $i + 1;
+}
+string $manyPath = Core\Path::join($dir, 'many.bin');
+Core\IO::writeStream($manyPath, $many);
+if (Core\IO::size($manyPath) != 100000) {
+    throw new LogicError('a chunk was lost');
+}
+echo 'step 3: done', "\n";
+
+// 4. Paths that are not a new file: empty, a folder, a missing folder, a null byte, a long name, and
+// ".." into missing folders. Each call must throw an `IOError` or a `RuntimeError`.
+array<string> $bad = [
+    '',
+    $dir,
+    Core\Path::join($dir, 'missing', 'file.bin'),
+    Core\Path::join($dir, "nul\0byte"),
+    Core\Path::join($dir, Core\Str::repeat('a', 100000)),
+    Core\Path::join($dir, '..', '..', '..', '..', 'missing-outside', 'file.bin'),
+    Core\Path::join($dir, Core\Str::repeat('../', 5000), 'missing-outside', 'file.bin'),
+];
+foreach ($bad as string $badPath) {
+    try {
+        Core\IO::writeStream($badPath, $oneByte, { overwrite: true });
+        throw new LogicError('a path that is not a new file was written');
+    } catch (RuntimeError $refused) {
+    }
+}
+if (!Core\IO::isDir($dir)) {
+    throw new LogicError('the folder was replaced by `writeStream`');
+}
+echo 'step 4: done', "\n";

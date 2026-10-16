@@ -1,0 +1,19 @@
+--TEST--
+no function reaches outside its own frame for state, so `global` is refused — `rule:statements/no-function-static-and-no-global`
+--FILE--
+<?nvs
+class Counter {
+    public static function bump(): int {
+        global $total;
+        return 1;
+    }
+}
+echo Counter::bump(), "\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0204]: `global` is not supported
+  --> case.nvs:4:9
+%A
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

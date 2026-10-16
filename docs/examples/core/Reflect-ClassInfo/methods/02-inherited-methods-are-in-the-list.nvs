@@ -1,0 +1,36 @@
+<?nvs
+// Shows that the list of methods also contains the methods a class inherits from its parent.
+
+class Animal {
+    public function name(): string {
+        return "animal";
+    }
+
+    public function sleep(): string {
+        return "zzz";
+    }
+}
+
+class Dog extends Animal {
+    public function bark(): string {
+        return "woof";
+    }
+}
+
+class Methods {
+    public static function names(string $className): string {
+        var $info = Core\Reflect::forClass($className);
+        if ($info == null) {
+            return "no class " . $className;
+        }
+        string $names = "";
+        foreach ($info->methods() as Core\Reflect\MethodInfo $method) {
+            $names = $names . " " . $method->name();
+        }
+        return $className . ":" . $names;
+    }
+}
+
+// `Animal` has two methods. `Dog` has its own `bark` and the two from `Animal`.
+echo Methods::names("Animal"), "\n";
+echo Methods::names("Dog"), "\n";

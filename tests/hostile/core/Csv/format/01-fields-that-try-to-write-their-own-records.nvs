@@ -1,0 +1,63 @@
+<?nvs
+// Attack: a program writes fields that try to break out of their own record and
+// add extra fields or extra rows to the document. Reading the document back has
+// to give the same fields again. The last steps write documents of many
+// megabytes, which the program must survive.
+// hostile: timeout-ms 30000
+
+// 1. Fields made only of the characters that end a field or a record. Every one
+// of them has to come back as one record of three fields.
+array<array<string>> $breakout = [
+    [',', "\"", "\n"],
+    ['a,b', "c\"d", "e\nf"],
+    ["\"\"\"", ',,,', "\r\n"],
+    ["x\",y", "\n\n", "\"a\nb\""],
+];
+uint $records = 0;
+uint $fields = 0;
+uint $same = 0;
+foreach ($breakout as array<string> $row) {
+    array<array<string>> $one = [$row];
+    string $document = Core\Csv::format($one);
+    var $back = Core\Csv::parse($document);
+    $records = $records + Core\Arr::count($back);
+    $fields = $fields + Core\Arr::count($back[0]);
+    int $at = 0;
+    while ($at < 3) {
+        if ($back[0][$at] == $row[$at]) {
+            $same = $same + 1;
+        }
+        $at = $at + 1;
+    }
+}
+echo '1 records: ', $records, ' of 4, fields: ', $fields, ' of 12, unchanged: ',
+    $same, ' of 12', "\n";
+
+// 2. Separators and quotes that are not a single ASCII character, and a
+// separator that is also the quote. Every one of them has to be refused.
+array<array<string>> $rows = [['a', 'b']];
+array<string> $spellings = ['', ',,', "\u{20AC}", "\n", "\r"];
+uint $refused = 0;
+foreach ($spellings as string $spelling) {
+    try {
+        Core\Csv::format($rows, { separator: $spelling });
+    } catch (Throwable $e) {
+        $refused = $refused + 1;
+    }
+}
+try {
+    Core\Csv::format($rows, { separator: ';', quote: ';' });
+} catch (Throwable $e) {
+    $refused = $refused + 1;
+}
+echo '2 bad dialects refused: ', $refused, ' of 6', "\n";
+
+// 3. A document of fifty thousand records, each holding a comma and a quote.
+array<string> $record = ['a,b', "c\"d", 'e'];
+array<array<string>> $many = Core\Arr::fill(50000, $record);
+echo '3 long document bytes: ', Core\Bytes::length(Core\Csv::format($many) as bytes), "\n";
+
+// 4. One field of four million quote characters. Each of them is written twice,
+// so the document is more than eight megabytes.
+array<array<string>> $huge = [[Core\Str::repeat('"', 4000000)]];
+echo '4 huge document bytes: ', Core\Bytes::length(Core\Csv::format($huge) as bytes), "\n";

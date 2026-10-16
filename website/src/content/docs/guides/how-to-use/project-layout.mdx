@@ -1,0 +1,79 @@
+---
+title: Project layout
+covers: []
+description: Where the entry file, your classes, their tests and nvs.toml go in a Novis project.
+---
+
+A Novis web application is one folder. This is a layout that works well for most projects:
+
+```txt
+shop/
+  nvs.toml               the configuration
+  public/
+    index.nvs            the entry file: every request starts here
+  src/
+    Orders/Order.nvs     the class App\Orders\Order
+    Orders/OrderTest.nvs the tests for App\Orders\Order
+    Orders/Store.nvs     the class App\Orders\Store
+```
+
+## The entry file
+
+`nvs serve public/index.nvs` runs the entry file once for each request. In production mode the
+server sends every request to this one file. The file finds the route and calls your classes.
+
+Run the command from the `shop` folder. Novis reads `nvs.toml` from the folder you run `nvs` in.
+It does not look in the folder of the entry file. When the folder you run `nvs` in has no
+`nvs.toml`, Novis uses the one in its data folder, `.nvsdata` next to the `nvs` program. Read
+[Configuration](/guides/how-to-use/configuration/).
+
+## Classes are found by their namespace
+
+The entry file has one `autoload` line, for example `autoload 'App' from '../src';`. With this
+line, the class `App\Orders\Order` is read from `src/Orders/Order.nvs`. You never write a file
+name to load a class.
+
+Each file under `src/` has exactly one class, interface, enum or type. Its name must match the
+path. A class that cannot be found is a compile error, and the error names the folders Novis
+searched.
+
+## Tests
+
+A test is a method with `#[Test]`. You can write it in the class it tests. You can also write it
+in a class of its own under `src/`, such as `App\Orders\OrderTest` in `src/Orders/OrderTest.nvs`.
+You do not need a separate folder for tests.
+
+`nvs test .` runs every test in the project. Run it from the `shop` folder. Novis reads every
+`.nvs` file in the folder and its subfolders as one program. The entry file is one of them, so
+every test can use your classes. Read [Running tests](/guides/testing/run-tests/) for more.
+
+### A separate folder for tests
+
+You can also keep the tests apart from the code, in a `tests` folder:
+
+```txt
+shop/
+  public/
+    index.nvs
+  src/
+    Orders/Order.nvs
+  tests/
+    bootstrap.nvs        has one line: require '../public/index.nvs';
+    Orders/OrderTest.nvs
+```
+
+The file `bootstrap.nvs` loads the entry file. Your editor needs it to find the classes for the
+files in `tests/`. `nvs test .` still runs every test, and it loads the entry file once. You can
+also run only this folder with `nvs test tests/`.
+
+## Do and don't
+
+- Do keep one entry file for each application, and send every request to it.
+- Do put each class in its own file under `src/`, with a path that matches its namespace.
+- Do run every test with `nvs test .`, whether the tests are under `src/` or in `tests/`.
+- Do run `nvs` from the folder that has `nvs.toml`, or pass `--config`.
+- Don't put files that clients must not read under `public/`.
+- Don't load classes with `require`. Use `autoload`, so the compiler can find every class.
+
+Read more in [Syntax: namespaces](/syntax/programs/namespaces/) and
+[Syntax: require](/syntax/programs/require/).

@@ -1,0 +1,19 @@
+<?nvs
+class Dog {
+    public function speak(): string {
+        return "woof";
+    }
+}
+
+class Describe {
+    public static function of(mixed $value): string {
+        // Each arm tests the value. In each arm, `$value` has the type that arm tested.
+        return match (true) {
+            $value is Dog => $value->speak(),
+            ($value as ?int) != null => "a number",
+            default => "something else",
+        };
+    }
+}
+
+echo Describe::of(new Dog()), ", ", Describe::of(7), ", ", Describe::of([1]), "\n";

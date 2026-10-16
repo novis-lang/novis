@@ -1,0 +1,18 @@
+<?nvs
+// Shows how to read what a program prints while it is still running.
+// requires: unix
+
+// `seq 1 3` prints the numbers 1, 2 and 3, one on each line.
+// `spawn` returns at once. The program is still running.
+var $numbers = Core\Process::spawn("/usr/bin/seq", ["1", "3"]);
+
+// `readStdout()` returns the next part of the output, as `bytes`.
+// It returns `null` when the program has closed its output.
+?bytes $part = $numbers->readStdout();
+while ($part != null) {
+    echo $part as string;
+    $part = $numbers->readStdout();
+}
+
+// `wait()` waits until the program ends. This prints `0`.
+echo $numbers->wait()->exitCode(), "\n";

@@ -1,0 +1,5 @@
+C:\Users\report.txt: absolute
+C:/Users/report.txt: absolute
+C:report.txt: relative
+\\server\share\report.txt: absolute
+\Users\report.txt: absolute

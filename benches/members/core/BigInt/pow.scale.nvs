@@ -1,0 +1,21 @@
+<?nvs
+// Measures `pow` raising one number to a small power, at growing numbers of bits.
+// bench: start 16384
+// bench: max 131072
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        var $base = Core\BigInt::of(1)->shl($size)->sub(Core\BigInt::of(1));
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            $total = $total + (($base->pow(3 + $total % 3))->sign() as uint);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(16384), "\n";

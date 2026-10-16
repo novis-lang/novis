@@ -1,0 +1,20 @@
+<?nvs
+// Shows a region of more than one row. Every call to `set` gives the whole
+// picture again, so all the rows change together.
+
+string $last = Core\Cli::live(fn(Core\Cli\Live $screen): string => {
+    array<string> $stages = ["fetching", "building", "testing"];
+    string $current = "";
+    foreach ($stages as string $stage) {
+        $current = $stage;
+        $screen->set([
+            Core\Cli\Text::plain("build 42"),
+            Core\Cli\Text::plain(Core\Str::format("  %s ...", $stage)),
+        ]);
+    }
+    return $current;
+});
+
+// `Core\Cli::live` returns what the body returned, at the body's own type. This
+// prints "testing".
+echo "the last stage was ", $last, "\n";

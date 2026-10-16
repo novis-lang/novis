@@ -1,0 +1,25 @@
+<?nvs
+// Shows a long invoice whose footer has the total so far on each page.
+use Novis\Pdf\Document;
+use Novis\Pdf\Page;
+
+// `data-mark="amount:2.40"` gives each row the value `2.40` under the name `amount`.
+string $rows = "";
+for (int $n = 1; $n <= 60; $n++) {
+    $rows .= "<tr data-mark=\"amount:2.40\"><td>Coffee {$n}</td><td>2.40 EUR</td></tr>";
+}
+var $html = "<h1>Invoice 1042</h1><table><tbody>{$rows}</tbody></table>";
+
+// `marksUpTo` returns the amounts on this page and on every page before it.
+// The last page shows the total. Every other page shows the amount carried forward.
+var $footer = fn(Page $page): Core\Html\Markup => {
+    decimal $total = 0.0;
+    foreach ($page->marksUpTo("amount") as string $amount) {
+        $total = $total + (($amount as ?decimal) ?? 0.0 as decimal);
+    }
+    string $label = $page->isLast() ? "Total" : "Carried forward";
+    echo "page ", $page->number, ": ", $label, " ", $total, " EUR\n";
+    return html`<p>{$label}: {$total} EUR</p>`;
+};
+
+Document::fromHtml($html)->footer($footer)->render();

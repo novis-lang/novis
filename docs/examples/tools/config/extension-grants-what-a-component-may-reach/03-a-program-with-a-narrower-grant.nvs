@@ -1,0 +1,16 @@
+<?nvs
+// Shows that an extension never reaches more than the program that calls it.
+// `nvs.toml` lets this program read only `data/geo/roads/`, so the extension reads only there.
+
+use Geo\Atlas;
+
+// `main.txt` is in `data/geo/roads/`, so this prints one road.
+echo Atlas::read("main.txt");
+
+// `cities.txt` is in `data/geo/`. The extension may read that folder, but this program may not.
+// So the call throws a `RuntimeError`.
+try {
+    echo Atlas::read("../cities.txt");
+} catch (RuntimeError $denied) {
+    echo $denied->message, "\n";
+}

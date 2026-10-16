@@ -1,0 +1,107 @@
+<?nvs
+// Attack: a request tries to add an `include`, so the server reads its settings
+// from a file the attacker chose. Only the person who runs the server may add an
+// include, so every write below should fail and every read should return `null`.
+// hostile: timeout-ms 30000
+
+// 1. Tries many file paths, including system files, network paths and paths
+//    with hidden null bytes or line breaks.
+array<string> $paths = [
+    'conf.d/attacker.toml',
+    '/tmp/attacker.toml',
+    'nvs.toml',
+    '.',
+    '..',
+    '/',
+    '/etc/passwd',
+    '/dev/urandom',
+    '/dev/zero',
+    'NUL',
+    'CON',
+    '\\\\attacker.test\\share\\conf.toml',
+    '//attacker.test/share/conf.toml',
+    'file:///tmp/attacker.toml',
+    'http://attacker.test/conf.toml',
+    "/tmp/attacker.toml\u{0000}",
+    "/tmp/attacker.toml\u{0000}/etc/novis/real.toml",
+    '/tmp/attacker%00.toml',
+    "/tmp/attacker.toml\r\n[capabilities.fs]\nread = true",
+    "conf.d/a.toml\"]\n[[include]]\npath = \"/tmp/attacker.toml",
+    '',
+    ' ',
+    Core\Str::repeat('../', 20000) . 'tmp/attacker.toml',
+    Core\Str::repeat('a/', 50000) . 'conf.toml',
+    Core\Str::repeat('/', 100000),
+];
+foreach ($paths as string $value) {
+    Core\Config::set('include', $value);
+    Core\Config::set('include.path', $value);
+    Core\Config::set('include.dir', $value);
+    // Each write fails, so each read returns `null`. A path here would be a
+    // file the server reads its settings from.
+    Core\Config::get('include');
+    Core\Config::get('include.path');
+    Core\Config::get('include.dir');
+}
+Core\Config::restore('include');
+Core\Config::restore('include.path');
+Core\Config::restore('include.dir');
+
+// 2. Tries keys that are almost `include`. None of them is a real key, so every
+//    write should fail.
+array<string> $spellings = [
+    'include.',
+    'include..path',
+    'include.0.path',
+    'include[0].path',
+    'includes.path',
+    'include_path',
+    'include-path',
+    'INCLUDE',
+    'Include.Path',
+    'app.include.path',
+    'include.path.path',
+    'include.' . Core\Str::repeat('sub.', 20000) . 'path',
+];
+foreach ($spellings as string $key) {
+    Core\Config::set($key, '/tmp/attacker.toml');
+    Core\Config::get($key);
+    Core\Config::restore($key);
+}
+
+// 3. Tries entries that are not allowed in a file: `path` and `dir` together,
+//    and `optional` with no file named.
+Core\Config::set('include.path', '/tmp/attacker.toml');
+Core\Config::set('include.dir', '/tmp/conf.d');
+Core\Config::get('include.path');
+Core\Config::restore('include.path');
+Core\Config::restore('include.dir');
+Core\Config::set('include.optional', 'true');
+Core\Config::set('include.optional', '1');
+Core\Config::set('include.optional', 'yes');
+Core\Config::get('include.optional');
+Core\Config::restore('include.optional');
+
+// 4. Tries a file that includes itself, then a directory path 64 levels deep.
+Core\Config::set('include.path', 'nvs.toml');
+Core\Config::get('include.path');
+Core\Config::restore('include.path');
+uint $depth = 0;
+string $chain = 'conf.d';
+while ($depth < 64) {
+    $chain = $chain . '/deeper';
+    Core\Config::set('include.dir', $chain);
+    Core\Config::get('include.dir');
+    $depth = $depth + 1;
+}
+Core\Config::restore('include.dir');
+
+// 5. Restores a key that was never set, then writes 100,000 times. A failed write
+//    must not use memory, so the request's memory should not grow.
+Core\Config::restore('include');
+uint $i = 0;
+while ($i < 100000) {
+    Core\Config::set('include', 'conf.d/attacker.toml');
+    $i = $i + 1;
+}
+echo Core\Config::get('include') ?? '(nothing)', "\n";

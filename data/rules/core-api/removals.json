@@ -1,0 +1,11 @@
+{
+  "title": "A PHP built-in is absent for one of four standing reasons",
+  "status": "shipped",
+  "seeAlso": [
+    "core-api/no-ambient-state",
+    "core-api/one-paradigm-per-operation",
+    "types/no-legacy-cast",
+    "types/array-combination"
+  ],
+  "guardedBy": []
+}

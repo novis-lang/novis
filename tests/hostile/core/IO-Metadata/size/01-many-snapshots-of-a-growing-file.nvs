@@ -1,0 +1,53 @@
+<?nvs
+// Attack: a program keeps 20000 results of `stat` while the file grows, and asks each one
+// for its size many times. It also asks about a missing file 1000 times.
+// Each step must return the right size or throw an error, and must not crash.
+// hostile: timeout-ms 60000
+
+string $dir = Core\Path::join(Core\IO::temporaryDir(), 'attack-metadata-size');
+Core\IO::makeDir($dir);
+string $path = Core\Path::join($dir, 'growing.txt');
+Core\IO::write($path, '');
+
+// 1. One byte is added 20000 times, and each result of `stat` is kept in a list.
+// Result number `n` must still return `n` after the file has grown past it.
+array<Core\IO\Metadata> $kept = [];
+uint $i = 0;
+while ($i < 20000) {
+    $kept[] = Core\IO::stat($path);
+    Core\IO::append($path, 'x');
+    $i = $i + 1;
+}
+$i = 0;
+foreach ($kept as Core\IO\Metadata $info) {
+    if ($info->size() != $i || $info->size() != $i) {
+        throw new LogicError('a kept result changed its size');
+    }
+    $i = $i + 1;
+}
+echo 'step 1: done', "\n";
+
+// 2. The list is emptied, so every kept result is freed. A new `stat` must see all 20000 bytes.
+$kept = [];
+if (Core\IO::stat($path)->size() != 20000) {
+    throw new LogicError('a new stat did not see the whole file');
+}
+echo 'step 2: done', "\n";
+
+// 3. A missing file is asked 1000 times. Each `stat` must throw an `IOError`.
+string $missing = Core\Path::join($dir, 'missing.txt');
+uint $thrown = 0;
+$i = 0;
+while ($i < 1000) {
+    try {
+        Core\IO::stat($missing)->size();
+    } catch (IOError $e) {
+        $thrown = $thrown + 1;
+    }
+    $i = $i + 1;
+}
+if ($thrown != 1000) {
+    throw new LogicError('a missing file returned a size');
+}
+echo 'step 3: done', "\n";
+Core\IO::remove($path);

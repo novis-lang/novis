@@ -1,0 +1,33 @@
+<?nvs
+// This measures `if ($value)` on a `mixed` value, whose type is known only at run time.
+// You use it to check if a setting, a list or a line of text is empty.
+// Each round picks its value from the round before, so no round can be skipped.
+// bench: iterations 1024
+// bench: allocations 0
+// bench: complexity constant
+
+class Bench
+{
+    public static function run(uint $rounds): int
+    {
+        array<mixed> $values = ["", "0", "0.0", 0, 1, [], [7], null];
+        int $total = 1;
+        uint $i = 0;
+
+        while ($i < $rounds) {
+            mixed $value = $values[$total % 8];   // chained: $total is last round's
+
+            if ($value) {
+                $total = $total + 3;
+            } else {
+                $total = $total + 1;
+            }
+
+            $i = $i + 1;
+        }
+
+        return $total;
+    }
+}
+
+echo Bench::run(1024), "\n";

@@ -1,0 +1,2 @@
+Core\Net::connect needs the capability `net.connect` for mail.example.com, which is not granted
+help: grant it in nvs.toml under `[capabilities.net]`

@@ -1,0 +1,32 @@
+---
+source: crates/nvs-ir/src/lower/tests.rs
+expression: text
+---
+fn <script>() -> tagged {
+  bb0:
+    safepoint
+    ; stmt s0 @6:14-6:25
+    v0 = const.int 1  ; int
+    ; stmt s1 @7:1-7:44
+    v1 = class.desc Adder  ; classdesc
+    v2 = class.desc Adder  ; classdesc
+    v3 = ref.slot v0  ; ref
+    v4 = call Adder::bump(this: v2, v3) ! bb1  ; int
+    v5 = ref.load v3  ; int
+    v6 = call Adder::sum(this: v1, v4, v5) ! bb2  ; int
+    v7 = helper.int_to_string v6 ! bb3  ; string
+    helper.echo_str v7 ! bb4
+    release v7
+    v8 = const.null  ; null
+    v9 = tag v8  ; tagged
+    return v9
+  bb1:
+    propagate "<script>() at t.nvs:7"
+  bb2:
+    propagate "<script>() at t.nvs:7"
+  bb3:
+    propagate "<script>() at t.nvs:7"
+  bb4:
+    release v7
+    propagate "<script>() at t.nvs:7"
+}

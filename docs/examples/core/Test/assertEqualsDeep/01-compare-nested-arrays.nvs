@@ -1,0 +1,15 @@
+<?nvs
+// Shows how to compare two nested arrays, one level at a time.
+
+array<array<int>> $stock = [
+    "apples" => ["shelf" => 12, "store" => 40],
+    "pears" => ["shelf" => 3, "store" => 0],
+];
+
+// Every key and every value is compared, inside every inner array too.
+// The two arrays are equal, so the check passes.
+Core\Test::assertEqualsDeep($stock, [
+    "apples" => ["shelf" => 12, "store" => 40],
+    "pears" => ["shelf" => 3, "store" => 0],
+]);
+echo "the stock list is correct\n";

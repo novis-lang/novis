@@ -1,0 +1,37 @@
+<?nvs
+// Attack: a request checks the first page of pages with numbers at the edges, and of a large render.
+// Each check should return `true` or `false` or throw an error, and the server keeps running.
+use Novis\Pdf\Document;
+use Novis\Pdf\Page;
+
+// 1. Page 0, which no render makes.
+try {
+    echo 'step 1 ran ', (new Page(0, 5, null, [], []))->isFirst() ? 'first' : 'not first', "\n";
+} catch (Throwable $e) {
+    echo "step 1 stopped\n";
+}
+
+// 2. Page 1 of a document with the largest page count.
+try {
+    echo 'step 2 ran ', (new Page(1, 18446744073709551615, null, [], []))->isFirst() ? 'first' : 'not first', "\n";
+} catch (Throwable $e) {
+    echo "step 2 stopped\n";
+}
+
+// 3. A header function that throws on every page except the first.
+try {
+    var $throwing = fn(Page $page): Core\Html\Markup => $page->isFirst() ? html`<p>Shop</p>` : throw new LogicError('not the first page');
+    var $short = Core\Str::repeat('<p style="break-after: page">Page</p>', 50);
+    echo 'step 3 ran ', Document::fromHtml($short)->header($throwing)->render()->pageCount, "\n";
+} catch (Throwable $e) {
+    echo "step 3 stopped\n";
+}
+
+// 4. A render of two thousand pages that checks the first page in each header.
+try {
+    var $header = fn(Page $page): Core\Html\Markup => $page->isFirst() ? html`<p>Shop</p>` : html``;
+    var $long = Core\Str::repeat('<p style="break-after: page">Page</p>', 2000);
+    echo 'step 4 ran ', Document::fromHtml($long)->header($header)->render()->pageCount, "\n";
+} catch (Throwable $e) {
+    echo "step 4 stopped\n";
+}

@@ -1,0 +1,9 @@
+--TEST--
+an import is a top-level statement, and the name inside it is no node of its own, so the whole import is the first step and the last, `rule:ide/the-index-answers-the-cursor`
+--FILE--
+<?nvs
+us<|>e App\User;
+--REQUEST--
+selectionRange
+--EXPECT--
+2:1-2:14

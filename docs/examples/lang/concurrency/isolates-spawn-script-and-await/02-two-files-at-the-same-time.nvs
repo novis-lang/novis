@@ -1,0 +1,16 @@
+<?nvs
+// Shows two files running at the same time. Start both first, then wait for
+// both. The second file does not wait for the first one to finish.
+
+// Each path starts at the folder of this file.
+var $prices = spawn script "jobs/fetch-prices.nvs" with(output: "capture");
+var $stock = spawn script "jobs/fetch-stock.nvs" with(output: "capture");
+
+// Each `await` takes one handle. Wait for them in any order you like.
+var $gotPrices = await $prices;
+var $gotStock = await $stock;
+
+int $found = ($gotPrices->value as int) + ($gotStock->value as int);
+echo "prices said: ", $gotPrices->output;
+echo "stock said: ", $gotStock->output;
+echo "items to show: ", $found, "\n";

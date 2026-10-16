@@ -1,0 +1,22 @@
+<?nvs
+// Measures `Core\Path::join` on a folder and one file name, at growing file name lengths.
+// It shows how the cost of `join` grows when the file name grows.
+// bench: start 256
+// bench: max 4096
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        string $name = Core\Str::repeat("a", $size) . ".pdf";
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            $total = $total + Core\Str::length(Core\Path::join("/srv/shop/storage", $name));
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

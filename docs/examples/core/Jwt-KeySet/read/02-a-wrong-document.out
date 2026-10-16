@@ -1,0 +1,4 @@
+Core\Jwt\KeySet::read(): $jwks is not a document to read keys from — it is not JSON. A key this roster has no use for is skipped instead, so what is refused here is the document rather than a key in it.
+Core\Jwt\KeySet::read(): $jwks is not a document to read keys from — it carries no `keys` array, which is the one member a JWKS document has (RFC 7517 § 5). A key this roster has no use for is skipped instead, so what is refused here is the document rather than a key in it.
+Core\Jwt\KeySet::read(): $jwks is not a document to read keys from — two of its keys are named `main`, so a token asking for that key names two, and which one signed it is not a question a verifier may answer by trying both. A key this roster has no use for is skipped instead, so what is refused here is the document rather than a key in it.
+read

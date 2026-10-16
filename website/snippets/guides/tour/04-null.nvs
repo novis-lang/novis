@@ -1,0 +1,31 @@
+<?nvs
+// This program looks up a task by its title. The task may not exist.
+class Task {
+    public string $title;
+    public ?string $note = null;
+
+    public function constructor(string $title) {
+        $this->title = $title;
+    }
+}
+
+class Tasks {
+    // `?Task` is a `Task` or `null`. This method returns `null` when no task has the title.
+    public static function find(array<Task> $tasks, string $title): ?Task {
+        foreach ($tasks as Task $task) {
+            if ($task->title == $title) {
+                return $task;
+            }
+        }
+        return null;
+    }
+}
+
+array<Task> $tasks = [new Task("Buy milk"), new Task("Call Ada")];
+$tasks[1]->note = "after 5 pm";
+
+// `?->` reads the property only when the object is not `null`.
+// `??` gives the value on the right when the left side is `null`.
+echo Tasks::find($tasks, "Call Ada")?->note ?? "no note", "\n";
+echo Tasks::find($tasks, "Buy milk")?->note ?? "no note", "\n";
+echo Tasks::find($tasks, "Fly to Mars")?->note ?? "no note", "\n";

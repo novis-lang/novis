@@ -1,0 +1,16 @@
+--TEST--
+a namespace declaration names a scope rather than a body, so the cursor in it is offered the words that open a statement, `rule:ide/the-index-answers-the-cursor`
+--FILE--
+<?nvs
+namespac<|>e App;
+
+class User
+{
+    public string $name = "";
+}
+--REQUEST--
+completion prefix=n
+--EXPECT--
+namespace keyword
+new     keyword
+null    keyword

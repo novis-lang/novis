@@ -1,0 +1,54 @@
+<?nvs
+// Attack: a request sends very long, broken or multi-byte texts as a UUID.
+// Each call should return a UUID or throw an error, and every value should be freed.
+
+class Read
+{
+    public static function text(string $s): string
+    {
+        try {
+            return Core\Uuid::parse($s)->toString();
+        } catch (RuntimeError $e) {
+            return 'error';
+        }
+    }
+}
+
+// 1. A text of 16 million characters. The error message quotes only the start
+// of the text, so it stays short. This prints "short".
+try {
+    Core\Uuid::parse(Core\Str::repeat('a', 16777216));
+} catch (RuntimeError $e) {
+    echo Core\Str::length($e->message) < 300 ? 'short' : 'long', "\n";
+}
+
+// 2. 18 characters of "é" are 36 bytes, the same length as a UUID. This prints "error".
+echo Read::text(Core\Str::repeat('é', 18)), "\n";
+
+// 3. 36 characters of "é" are 72 bytes. This prints "error".
+echo Read::text(Core\Str::repeat('é', 36)), "\n";
+
+// 4. A space where a hyphen should be. This prints "error".
+echo Read::text('f9168c5e ceb2-4faa-b6bf-329bf39fa1e4'), "\n";
+
+// 5. Each of the 36 characters of a valid UUID is replaced by "g", one at a time.
+// None of the 36 texts is a UUID. This prints 0.
+string $valid = 'f9168c5e-ceb2-4faa-b6bf-329bf39fa1e4';
+int $accepted = 0;
+int $at = 0;
+while ($at < 36) {
+    string $broken = Core\Str::slice($valid, 0, $at) . 'g' . Core\Str::slice($valid, $at + 1);
+    if (Read::text($broken) != 'error') {
+        $accepted = $accepted + 1;
+    }
+    $at = $at + 1;
+}
+echo $accepted, "\n";
+
+// 6. One million UUIDs are read in a loop. Each one is freed. This prints 1000000.
+int $read = 0;
+while ($read < 1000000) {
+    var $id = Core\Uuid::parse($valid);
+    $read = $read + 1;
+}
+echo $read, "\n";

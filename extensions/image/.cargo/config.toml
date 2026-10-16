@@ -1,0 +1,5 @@
+# Read by any `cargo` run from this directory, which is where the build script
+# runs it. `simd128` is the wasm SIMD the codecs vectorise to, and wasmtime
+# supports it on every host Novis runs on.
+[target.wasm32-wasip2]
+rustflags = ["-C", "target-feature=+simd128"]

@@ -1,0 +1,85 @@
+<?nvs
+// Attack: a token is bent in every way a trip through a web address could
+// bend it. A program that compares tokens as text sees two different tokens.
+// If both gave the same bytes, one session could be held under two names.
+// Every bent text below should be refused, and every error here is caught.
+// hostile: timeout-ms 30000
+
+// 1. "YWJjZA" and "YWJjZB" differ only in bits the last symbol carries that no
+// byte reads. Only the first should be read.
+echo 'step 1: ', Core\Encoding::toHex(Core\Encoding::fromBase64Url('YWJjZA')), "\n";
+try {
+    string $second = Core\Encoding::toHex(Core\Encoding::fromBase64Url('YWJjZB'));
+    echo 'step 1: a second spelling gave ', $second, "\n";
+} catch (RuntimeError $secondSpelling) {
+    echo 'step 1 stopped: ', $secondSpelling->message, "\n";
+}
+
+// 2. The three characters of the other form. A reader that took them as a
+// courtesy would read one value from two texts.
+array<string> $otherForm = ['aGVsbG8+d29ybGQ/', 'YWJjZA==', 'YWJjZA=', 'YWJjZA+', 'YWJjZA/'];
+uint $refused = 0;
+foreach ($otherForm as string $text) {
+    try {
+        Core\Encoding::fromBase64Url($text);
+    } catch (RuntimeError $standardForm) {
+        $refused = $refused + 1;
+    }
+}
+echo 'step 2: ', $refused, " of 5 standard-form texts refused\n";
+
+// 3. A token still carrying the `%2D` and `%5F` of a web address, and a token
+// whose `+` a form reader turned into a space.
+array<string> $fromTheUrl = ['aGVsbG8%2Dd29ybGQ%5F', 'aGVsbG8 d29ybGQ_', "aGVsbG8-d29ybGQ_\n"];
+uint $stopped = 0;
+foreach ($fromTheUrl as string $carried) {
+    try {
+        Core\Encoding::fromBase64Url($carried);
+    } catch (RuntimeError $stillEncoded) {
+        $stopped = $stopped + 1;
+    }
+}
+echo 'step 3: ', $stopped, " of 3 half-decoded texts refused\n";
+
+// 4. Every printable character in turn as the last symbol of a full group.
+// The alphabet holds 64 of the 94.
+uint $accepted = 0;
+uint $octet = 33;
+while ($octet < 127) {
+    string $symbol = Core\Encoding::decodeText(Core\Bytes::fill(1, $octet), Core\Charset::Ascii);
+    try {
+        Core\Encoding::fromBase64Url('YWJ' . $symbol);
+        $accepted = $accepted + 1;
+    } catch (RuntimeError $outsideTheAlphabet) {
+        $octet = $octet;
+    }
+    $octet = $octet + 1;
+}
+echo 'step 4: ', $accepted, " of 94 printable characters are base64url symbols\n";
+
+// 5. A token of eight million symbols, which is what an attacker sends when
+// the field has no length of its own. Every 4 symbols carry 3 bytes.
+string $long = Core\Str::repeat('YWJjZGVm', 1000000);
+echo 'step 5: ', Core\Bytes::length(Core\Encoding::fromBase64Url($long)), "\n";
+
+// 6. The same long token with one symbol taken off the end. It no longer ends
+// on a whole group, so it should be refused.
+try {
+    Core\Encoding::fromBase64Url(Core\Str::slice($long, 0, 7999999));
+    echo "step 6: the token was read\n";
+} catch (RuntimeError $cutShort) {
+    echo 'step 6 stopped: ', $cutShort->message, "\n";
+}
+
+// 7. One hundred thousand reads in a row, each round choosing its token from
+// the size of the round before.
+array<string> $tokens = ['YWJjZA', 'YWJj', 'YWJjZGVm', 'YQ'];
+uint $total = 0;
+uint $round = 0;
+while ($round < 100000) {
+    $total = $total + Core\Bytes::length(Core\Encoding::fromBase64Url($tokens[($total + $round) % 4]));
+    $round = $round + 1;
+}
+echo 'step 7: ', $round, ' tokens read, ', $total, " bytes in all\n";
+
+echo "the runtime is still standing\n";

@@ -1,0 +1,25 @@
+<?nvs
+// Shows how to check a new comparison against a result saved from an earlier run.
+use Novis\Image\Color;
+use Novis\Image\Diff;
+use Novis\Image\Image;
+
+class Baseline {
+    // A new result fails when more pixels differ than in the saved one.
+    public static function check(Diff $saved, Diff $now): string {
+        if ($now->differingPixels > $saved->differingPixels) {
+            return "worse: " . $now->differingPixels . " pixels differ, saved " . $saved->differingPixels;
+        }
+        return "ok: " . $now->differingPixels . " pixels differ";
+    }
+}
+
+// The earlier run had 64 differing pixels. Only the numbers were saved.
+Diff $saved = new Diff(false, 64, 3, 0.99, null);
+
+// Today one corner square of 16 by 16 pixels is a different colour.
+Image $before = Image::create(32, 32, Color::hex("#2563eb"));
+Image $after = $before->composite(Image::create(16, 16, Color::hex("#2865ee")), { x: 0, y: 0 });
+
+// This prints `worse: 256 pixels differ, saved 64`.
+echo Baseline::check($saved, Image::compare($before, $after)), "\n";

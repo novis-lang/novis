@@ -1,0 +1,11 @@
+<?nvs
+// Shows how `Core\Math::ceil` rounds negative numbers.
+
+// Up means toward zero for a negative number. This prints -4.
+echo Core\Math::ceil(-4.1), "\n";
+
+// A number between -1.0 and 0.0 gives zero with a minus sign. This prints -0.
+echo Core\Math::ceil(-0.5), "\n";
+
+// `Core\Math::floor` rounds the other way. This prints -5.
+echo Core\Math::floor(-4.1), "\n";

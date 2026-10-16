@@ -1,0 +1,16 @@
+<?nvs
+// Shows how many tickets each project has, where the project is the first part
+// of the ticket number.
+
+array<string> $tickets = [
+    "BK-1042" => "open",
+    "BK-0087" => "closed",
+    "DV-5501" => "open",
+];
+
+// The function receives the value and the key of each entry. It uses the key
+// here, and returns the first two characters of it.
+array<uint> $perProject = Core\Arr::countBy($tickets, {
+    by: fn(string $state, string $number): string => Core\Str::slice($number, 0, 2),
+});
+echo Core\Json::encode($perProject), "\n";

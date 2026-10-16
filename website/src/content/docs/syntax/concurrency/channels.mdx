@@ -1,0 +1,28 @@
+---
+title: Channels
+covers: ['lang:concurrency/core-task-channel-t-a-bounded-queue-between-tasks']
+description: How one task sends values to another through a Core\Task\Channel.
+---
+import Snippet from '@components/Snippet.astro'
+
+A channel is a queue between tasks. One task puts values in with `send`. Another task takes them
+out with `foreach`.
+
+<Snippet src="syntax/channels/01-channel.nvs" />
+
+- `new Core\Task\Channel<int>(2)` makes a channel for `int` values with room for 2 values.
+- `send` adds a value. When the channel is full, `send` waits until a value is taken out. The
+  channel never grows.
+- `foreach ($chan as int $v)` takes the values out in order. When the channel is empty, the loop
+  waits for the next value.
+- `close` says that no more values come. The loop still gets the values that are in the channel,
+  and then it ends.
+- Calling `close` a second time does nothing.
+- `send` on a closed channel stops the program. A capacity of `0` also stops it. No `catch` can
+  handle these two errors.
+
+## Do and don't
+
+- Do call `close` when the sending task is done. Without it, the loop waits forever.
+- Do pick a small capacity. A full channel slows the sender down, so the queue stays small.
+- Don't send after `close`. It stops the whole program.

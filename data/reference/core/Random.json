@@ -1,0 +1,22 @@
+{
+  "summary": "cryptographically secure random integers, floats, bytes, tokens and array draws",
+  "keywords": [
+    "rand",
+    "mt_rand",
+    "random_int",
+    "lcg_value",
+    "mt_getrandmax",
+    "random_bytes",
+    "openssl_random_pseudo_bytes",
+    "bin2hex",
+    "array_rand",
+    "shuffle",
+    "str_shuffle",
+    "srand",
+    "mt_srand",
+    "Random\\Randomizer",
+    "CSPRNG",
+    "nonce",
+    "session token"
+  ]
+}

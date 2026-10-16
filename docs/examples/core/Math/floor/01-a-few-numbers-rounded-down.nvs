@@ -1,0 +1,11 @@
+<?nvs
+// Shows a few numbers rounded down with `Core\Math::floor`.
+
+// The fraction is removed, even when it is close to 1. This prints 4.
+echo Core\Math::floor(4.9), "\n";
+
+// A whole number stays the same. This prints 4.
+echo Core\Math::floor(4.0), "\n";
+
+// A number below 1 becomes 0. This prints 0.
+echo Core\Math::floor(0.75), "\n";

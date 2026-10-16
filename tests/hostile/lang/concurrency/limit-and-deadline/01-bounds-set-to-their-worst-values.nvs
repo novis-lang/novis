@@ -1,0 +1,78 @@
+<?nvs
+// Attack: a group is given a limit larger than any machine can run and a deadline
+// that has already passed. A deadline then cuts through two hundred groups inside
+// each other, and twenty thousand tasks are stopped at once. The runtime must stay
+// standing, and no stopped task may run one more line of its own.
+// covers: lang:concurrency/limit-and-deadline
+// hostile: timeout-ms 60000
+
+class Deep
+{
+    public static int $pastTheWait = 0;
+    public static int $caught = 0;
+
+    // Each level starts one more group, and the last one waits far past the deadline.
+    public static function level(int $n): int
+    {
+        if ($n <= 0) {
+            Core\Time::sleep(2000ms);
+            Deep::$pastTheWait += 1;
+            return 0;
+        }
+
+        return Core\Task::all({ down: fn(): int => Deep::level($n - 1) })->down + 1;
+    }
+
+    // A task that is stopped runs no `catch` of its own, so this must never count up.
+    public static function guarded(): int
+    {
+        try {
+            Core\Time::sleep(2000ms);
+        } catch (Throwable $any) {
+            Deep::$caught += 1;
+        }
+
+        return 1;
+    }
+}
+
+// Step 1: a limit of a billion. A limit is a ceiling, so the memory for a billion
+// places must not be taken when three tasks are given.
+var $wide = Core\Task::map([1, 2, 3], fn(int $n): int => $n * 2, { limit: 1000000000 });
+echo 'step 1: a limit of a billion ran ', $wide[2], "\n";
+
+// Step 2: a deadline of zero. The tasks need fifty milliseconds and have none.
+try {
+    Core\Task::map([1, 2, 3], fn(int $n): int => {
+        Core\Time::sleep(50ms);
+        return $n;
+    }, { deadline: 0ms });
+    echo "step 2: a deadline of zero let the tasks run\n";
+} catch (TimeoutError $none) {
+    echo "step 2: a deadline of zero stopped every task\n";
+}
+
+// Step 3: two hundred groups inside each other, cut in the middle by the deadline.
+try {
+    Core\Task::all({ deep: fn(): int => Deep::level(200) }, { deadline: 50ms });
+    echo "step 3: the nested groups finished, which they must not\n";
+} catch (TimeoutError $cut) {
+    echo 'step 3: the deadline cut the tree, lines run past the wait: ', Deep::$pastTheWait, "\n";
+}
+
+// Step 4: twenty thousand tasks, four at a time, all stopped by one deadline. Each
+// one holds a `try`, and a stopped task must not run its `catch`.
+try {
+    Core\Task::map(Core\Arr::range(1, 20000), fn(int $n): int => Deep::guarded(), { limit: 4, deadline: 100ms });
+    echo "step 4: twenty thousand tasks finished, which they must not\n";
+} catch (TimeoutError $many) {
+    echo 'step 4: twenty thousand tasks stopped, catches run: ', Deep::$caught, "\n";
+}
+
+// Step 5: a limit of zero admits no task at all, so the group could never finish.
+try {
+    Core\Task::map([1, 2, 3], fn(int $n): int => $n, { limit: 0 });
+    echo "step 5: a limit of zero ran, which it must not\n";
+} catch (LogicError $zero) {
+    echo "step 5: a limit of zero is refused\n";
+}

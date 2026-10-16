@@ -1,0 +1,15 @@
+<?nvs
+// Shows what happens when the bytes are not complete, for example after a failed download.
+
+bytes $payload = Core\Serialize::encode(["Anna", "Ben", "Clara"]);
+
+// These are only the first 10 bytes of the list.
+bytes $cut = Core\Bytes::slice($payload, 0, 10);
+
+// `decode()` throws a `ParseError`. This prints the error message.
+try {
+    Core\Serialize::decode($cut);
+    echo "The list was read.\n";
+} catch (ParseError $e) {
+    echo $e->message, "\n";
+}

@@ -1,0 +1,22 @@
+<?nvs
+// Shows a job that imports a large export of orders one line at a time, so the
+// whole export is never in memory at once.
+
+uint $imported = 0;
+try {
+    // The export is a `POST` request, and each line of the reply is one order.
+    Core\Http\Stream $export = Core\Http\Client::stream(Core\Http\Method::Post, "https://192.168.4.20/exports/orders", {json: ["since" => "2026-09-01"], idle: 30s, maxDuration: 10m});
+    if ($export->status() == 200) {
+        foreach ($export->lines() as tainted string $line) {
+            // An empty line is not an order.
+            if (Core\Str::length($line) > 0) {
+                $imported = $imported + 1;
+            }
+        }
+    }
+} catch (RuntimeError $error) {
+    echo "The export stopped: ", $error->message, "\n";
+}
+
+// The export server is at a private address, so this prints `imported: 0`.
+echo "imported: ", $imported, "\n";

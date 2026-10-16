@@ -1,0 +1,113 @@
+<?nvs
+// Attack: a floating-point reader is asked for columns of four other types,
+// then for names that belong to no column. Then the widest and the smallest
+// doubles a column holds, and a million reads of one row. Every step has to
+// answer or throw an error, and none may stop the program.
+// hostile: timeout-ms 60000
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table readings (row_id integer primary key, celsius real not null, label text not null, seats int not null, price decimal(10,2) not null, picture blob not null)', []);
+$db->execute(
+    'insert into readings (celsius, label, seats, price, picture) values (?, ?, ?, ?, ?)',
+    [7.0, '7.0', 7, 7.00 as decimal, 'GIF89a' as bytes],
+);
+
+array<Core\Db\Row> $one = $db->query('select celsius, label, seats, price, picture from readings', [])->all();
+var $row = $one[0];
+
+// 1. Four columns of other types, each holding the same 7. None of them is a
+// floating-point column, so all four throw an error.
+uint $refused = 0;
+array<string> $others = ['label', 'seats', 'price', 'picture'];
+foreach ($others as string $column) {
+    try {
+        $row->float($column);
+    } catch (Throwable $error) {
+        $refused = $refused + 1;
+    }
+}
+echo '1 refused: ', $refused, "\n";
+
+// 2. Ten thousand reads of a name that belongs to no column. Every one throws
+// an error, and ten thousand errors may not fill the memory.
+$refused = 0;
+uint $i = 0;
+while ($i < 10000) {
+    try {
+        $row->float('missing');
+    } catch (Throwable $error) {
+        $refused = $refused + 1;
+    }
+    $i = $i + 1;
+}
+echo '2 refused: ', $refused, "\n";
+
+// 3. A column name of ten million characters. No row has such a column, so the
+// read throws and the row still works after it.
+try {
+    $row->float(Core\Str::repeat('a', 10000000));
+    echo "3 the long name found a column\n";
+} catch (Throwable $error) {
+    echo "3 refused\n";
+}
+
+// 4. The widest and the smallest numbers such a column holds, read back and
+// compared with what was stored. Each has to be equal to it.
+$db->execute(
+    'insert into readings (celsius, label, seats, price, picture) values (?, ?, ?, ?, ?)',
+    [1.7976931348623157e308, 'the widest', 0, 0.00 as decimal, '' as bytes],
+);
+$db->execute(
+    'insert into readings (celsius, label, seats, price, picture) values (?, ?, ?, ?, ?)',
+    [-1.7976931348623157e308, 'the lowest', 0, 0.00 as decimal, '' as bytes],
+);
+$db->execute(
+    'insert into readings (celsius, label, seats, price, picture) values (?, ?, ?, ?, ?)',
+    [5.0e-324, 'the smallest above zero', 0, 0.00 as decimal, '' as bytes],
+);
+array<float> $stored = [1.7976931348623157e308, -1.7976931348623157e308, 5.0e-324];
+uint $at = 0;
+foreach ($db->query('select celsius, label from readings where row_id > ? order by row_id', [1]) as Core\Db\Row $wide) {
+    float $back = $wide->float('celsius') ?? 0.0;
+    if ($back == $stored[$at]) {
+        echo '4 ', $wide->string('label') ?? '', ': read back unchanged', "\n";
+    } else {
+        echo '4 ', $wide->string('label') ?? '', ': changed to ', $back, "\n";
+    }
+    $at = $at + 1;
+}
+
+// 5. The widest number, doubled. The result is past what a double holds, so it
+// becomes `INF`. The program has to go on running with it.
+array<Core\Db\Row> $widest = $db->query('select celsius from readings where label = ?', ['the widest'])->all();
+try {
+    float $grown = ($widest[0]->float('celsius') ?? 0.0) * 2.0;
+    echo '5 grown to ', $grown, "\n";
+} catch (Throwable $error) {
+    echo "5 refused\n";
+}
+
+// 6. A million reads of the same number. Nothing may pile up over them.
+float $read = 0.0;
+$i = 0;
+while ($i < 1000000) {
+    $read = $row->float('celsius') ?? 0.0;
+    $i = $i + 1;
+}
+echo '6 read: ', $read, "\n";
+
+// 7. Fifty thousand rows kept at once, and the number of every one of them
+// read. A row a program still holds may not be freed under it.
+array<array<Core\Db\Row>> $kept = [];
+$i = 0;
+while ($i < 50000) {
+    $kept[] = $db->query('select celsius from readings where row_id = ?', [1])->all();
+    $i = $i + 1;
+}
+float $total = 0.0;
+foreach ($kept as array<Core\Db\Row> $rows) {
+    foreach ($rows as Core\Db\Row $held) {
+        $total = $total + ($held->float('celsius') ?? 0.0);
+    }
+}
+echo '7 total: ', $total, "\n";

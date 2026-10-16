@@ -1,0 +1,39 @@
+<?nvs
+// Attack: `Core\Metrics::gauge` gets values that are not normal numbers, names that break the
+// naming rule, and more new names than a server keeps. The program should run to its end.
+
+// 1. NAN, both infinities, the largest float and minus zero, one after the other on one gauge.
+array<float> $levels = [Core\Math::NAN, Core\Math::INFINITY, -Core\Math::INFINITY, 1.7976931348623157e308, -0.0];
+foreach ($levels as float $level) {
+    Core\Metrics::gauge('strange_level', $level);
+}
+echo "strange values set\n";
+
+// 2. Names built while the program runs, so the compiler cannot check them: an empty name,
+// a line break, upper case letters and a name of one million characters.
+array<string> $names = ['', "a\nb 1", 'Upper_Case', Core\Str::repeat('n', 1000000)];
+foreach ($names as string $name) {
+    try {
+        Core\Metrics::gauge($name, 1.0);
+    } catch (LogicError $e) {
+        echo "refused\n";
+    }
+}
+echo "odd names set\n";
+
+// 3. One label with two hundred thousand different values. A server keeps a limited number
+// of series, and each one past it is dropped.
+uint $i = 0;
+while ($i < 200000) {
+    Core\Metrics::gauge('level_per_shop', 1.0, { labels: ['shop' => $i as string] });
+    $i = $i + 1;
+}
+echo "many label values set\n";
+
+// 4. Two hundred thousand new names, after the limit is already reached.
+$i = 0;
+while ($i < 200000) {
+    Core\Metrics::gauge('level_' . ($i as string), $i as float);
+    $i = $i + 1;
+}
+echo "many names set\n";

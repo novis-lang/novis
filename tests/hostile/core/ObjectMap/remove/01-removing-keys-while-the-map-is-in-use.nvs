@@ -1,0 +1,81 @@
+<?nvs
+// Attack: a program removes keys during a loop over the map, removes the map from itself,
+// and adds and removes keys many times. Each `remove` should work, and must not crash or leak.
+// hostile: timeout-ms 20000
+
+final class Node
+{
+    public ?Node $next = null;
+}
+
+Core\ObjectMap<mixed, mixed> $map = new Core\ObjectMap<mixed, mixed>();
+
+// 1. Every key is removed during a `foreach` over the same map.
+array<Node> $keys = [];
+int $i = 0;
+while ($i < 1000) {
+    Node $fresh = new Node();
+    $keys[] = $fresh;
+    $map->set($fresh, $i);
+    $i = $i + 1;
+}
+foreach ($map as mixed $held) {
+    $map->remove($held);
+}
+echo '1: ', $map->count(), "\n";
+
+// 2. The map is a key in itself and its own value, and then it is removed.
+$map->set($map, $map);
+$map->remove($map);
+echo '2: ', $map->count(), "\n";
+
+// 3. 1000 keys are removed in reverse order, then the first 1000 keys again.
+$i = 0;
+while ($i < 1000) {
+    $map->set($keys[$i], $i);
+    $i = $i + 1;
+}
+$i = 999;
+while ($i >= 0) {
+    $map->remove($keys[$i]);
+    $i = $i - 1;
+}
+foreach ($keys as Node $old) {
+    $map->remove($old);
+}
+echo '3: ', $map->count(), "\n";
+
+// 4. One key is added and removed 1 million times, with a new string each time.
+Node $one = new Node();
+$i = 0;
+while ($i < 1000000) {
+    $map->set($one, Core\Str::repeat('v', 100));
+    $map->remove($one);
+    $i = $i + 1;
+}
+echo '4: ', $map->count(), "\n";
+
+// 5. A chain of 100000 objects is a value. `remove` frees the whole chain.
+Node $head = new Node();
+Node $tail = $head;
+int $n = 0;
+while ($n < 100000) {
+    Node $link = new Node();
+    $tail->next = $link;
+    $tail = $link;
+    $n = $n + 1;
+}
+$map->set($one, $head);
+$head = new Node();
+$tail = $head;
+$map->remove($one);
+echo '5: ', $map->count(), "\n";
+
+// 6. Values that are not objects are keys: a number, a string and an array.
+$map->set(7, 'seven');
+$map->set('seven', 7);
+$map->set([7], [7]);
+$map->remove(7);
+$map->remove('seven');
+$map->remove([7]);
+echo '6: ', $map->count(), "\n";

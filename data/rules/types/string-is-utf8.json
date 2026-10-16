@@ -1,0 +1,15 @@
+{
+  "title": "A `string` is valid UTF-8 for its whole lifetime, and its unmarked unit is the grapheme cluster",
+  "status": "shipped",
+  "seeAlso": [
+    "types/bytes",
+    "types/conversion"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/str-length-counts-graphemes.nvst",
+    "tests/conformance/core/str-graphemes-partitions-the-subject-the-other-two-members-measure.nvst",
+    "tests/conformance/core/str-graphemes-and-code-points-count-different-units.nvst",
+    "tests/conformance/lang/an-interpolated-string-keeps-its-grapheme-clusters.nvst",
+    "benches/abi-probe/tests/perf_guards.rs"
+  ]
+}

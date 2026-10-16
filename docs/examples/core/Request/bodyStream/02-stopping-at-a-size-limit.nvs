@@ -1,0 +1,23 @@
+<?nvs
+// Shows how to stop reading a request body as soon as it is larger than you allow.
+
+uint $limit = 64;
+uint $total = 0;
+bool $tooLarge = false;
+
+foreach (Core\Request::bodyStream() as tainted bytes $chunk) {
+    $total = $total + Core\Bytes::length($chunk);
+    // `break` ends the loop. The rest of the body is not read.
+    if ($total > $limit) {
+        $tooLarge = true;
+        break;
+    }
+}
+
+// The body in this request is longer than 64 bytes.
+// So this prints `rejected: the body is larger than 64 bytes`.
+if ($tooLarge) {
+    echo "rejected: the body is larger than ", $limit, " bytes\n";
+} else {
+    echo "accepted ", $total, " bytes\n";
+}

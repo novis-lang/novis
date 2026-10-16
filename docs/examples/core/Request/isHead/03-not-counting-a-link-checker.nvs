@@ -1,0 +1,12 @@
+<?nvs
+// Shows how a page counts its visitors, but not the tools that only check that a link works.
+
+// A link checker often sends a `HEAD` request. It does not read the page.
+uint $visits = 41;
+if (!Core\Request::isHead()) {
+    $visits = $visits + 1;
+}
+
+// The request below uses `HEAD`, so the count stays the same. This prints "visits: 41".
+// A real server sends no body for `HEAD`. The example prints the count so you can see it.
+echo "visits: ", $visits, "\n";

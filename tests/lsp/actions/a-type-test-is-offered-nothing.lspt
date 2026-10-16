@@ -1,0 +1,22 @@
+--TEST--
+a type test carries no diagnostic for an action to answer from, so the cursor on `is` is offered nothing, `rule:ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`
+--FILE--
+<?nvs
+interface Shape
+{
+    public function area(): int;
+}
+
+class Square implements Shape
+{
+    public function area(): int { return 4; }
+}
+
+mixed $s = new Square();
+if ($s i<|>s Shape) {
+    echo $s->area();
+}
+--REQUEST--
+codeAction
+--EXPECT--
+none

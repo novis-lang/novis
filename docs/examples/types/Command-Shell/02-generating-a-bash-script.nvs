@@ -1,0 +1,23 @@
+<?nvs
+// `Core\Command::completions` writes a completion script from the commands and
+// options you declare. The shell then offers exactly the commands and options
+// that the program accepts.
+
+class Tool {
+    #[Core\Command(name: "deploy", about: "Push the current build")]
+    public static function deploy(
+        string $target,
+        #[Core\Option(short: "n", about: "Print what would happen")] bool $dryRun = false,
+    ): uint {
+        return 0;
+    }
+
+    #[Core\Command(name: "version", about: "Print the version and stop")]
+    public static function version(): uint {
+        return 0;
+    }
+}
+
+// The script uses the program's name. For a file run from the command line,
+// that is the file name, so this example's file name appears in the output.
+echo Core\Command::completions(Core\Command::Shell::Bash);

@@ -1,0 +1,19 @@
+<?nvs
+// Shows how a website turns the votes on a post into a score from -1 to 1.
+
+class Post {
+    // Each group of 10 more likes than dislikes moves the score closer to 1.
+    public static function score(float $likes, float $dislikes): float {
+        float $value = Core\Math::tanh(($likes - $dislikes) / 10.0);
+        return Core\Math::round($value, {precision: 2});
+    }
+}
+
+// 12 likes and 2 dislikes. This prints 0.76.
+echo Post::score(12.0, 2.0), "\n";
+
+// More dislikes than likes gives a negative score. This prints -0.2.
+echo Post::score(3.0, 5.0), "\n";
+
+// A very popular post gets 1, and no post can get more. This prints 1.
+echo Post::score(500.0, 20.0), "\n";

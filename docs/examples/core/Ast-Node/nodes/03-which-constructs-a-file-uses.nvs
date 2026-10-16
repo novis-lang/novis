@@ -1,0 +1,23 @@
+<?nvs
+// Shows which constructs a file uses. A tool that moves code from one language
+// to another checks this first, to see whether the file needs anything it
+// cannot handle yet.
+
+string $source = <<<'NVS'
+<?nvs
+class Invoice {
+    public static function total(int $a, int $b): int {
+        return $a + $b;
+    }
+}
+NVS;
+
+array<string> $kinds = [];
+foreach (Core\Ast::parse($source)->nodes() as Core\Ast\Node $node) {
+    $kinds = Core\Arr::append($kinds, $node->kind());
+}
+
+// This prints Binary, ClassDecl, Method, Return and Variable, one per line.
+foreach (Core\Arr::sort(Core\Arr::unique($kinds)) as string $kind) {
+    echo $kind, "\n";
+}

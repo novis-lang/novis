@@ -1,0 +1,10 @@
+<?nvs
+// Shows what `Core\Server::traceId` does in a program that answers no request.
+
+// This program runs on the command line, so there is no request.
+// `traceId` throws a `LogicError`, and this prints "There is no request here.".
+try {
+    echo Core\Server::traceId(), "\n";
+} catch (LogicError $e) {
+    echo "There is no request here.\n";
+}

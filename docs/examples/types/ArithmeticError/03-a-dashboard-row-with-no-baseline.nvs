@@ -1,0 +1,25 @@
+<?nvs
+// This dashboard calculates each row on its own. A product that sold nothing last
+// month makes the division by zero throw an `ArithmeticError`. That row prints
+// `new`, and the other rows still print their growth.
+
+final class Growth {
+    public static function since(int $before, int $now): string {
+        try {
+            float $percent = ($now - $before) * 100 / $before;
+            return ($percent as string) . "%";
+        } catch (ArithmeticError $noBaseline) {
+            return "new";
+        }
+    }
+}
+
+array<string> $products = ["notebook", "pencil case", "eraser"];
+array<int> $lastMonth = [120, 0, 40];
+array<int> $thisMonth = [180, 90, 0];
+
+int $row = 0;
+while ($row < 3) {
+    echo $products[$row], ": ", Growth::since($lastMonth[$row], $thisMonth[$row]), "\n";
+    $row = $row + 1;
+}

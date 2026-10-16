@@ -1,0 +1,14 @@
+<?nvs
+// Shows the MIME type of every image format.
+use Novis\Image\Image;
+use Novis\Image\Format;
+
+array<Format> $formats = [
+    Format::Jpeg, Format::Png, Format::Webp, Format::Gif,
+    Format::Avif, Format::Jxl, Format::Svg, Format::Pdf,
+];
+
+// This prints one MIME type on each line, from image/jpeg to application/pdf.
+foreach ($formats as Format $format) {
+    echo Image::mime($format), "\n";
+}

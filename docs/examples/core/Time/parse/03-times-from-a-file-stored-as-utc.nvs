@@ -1,0 +1,13 @@
+<?nvs
+// Shows how to read times from an exported file and convert them to UTC before you store them.
+
+// The file writes times as "06/05/2024 02:30 PM", in New York time.
+// `hh` is the hour on a 12-hour clock, and `a` reads "AM" or "PM".
+array<string> $rows = ["06/05/2024 02:30 PM", "12/31/2024 11:59 PM", "01/01/2025 09:05 AM"];
+var $newYork = Core\Time\Zone::of("America/New_York");
+
+// `toInstant` gives the moment in time, and `toIso` writes it in UTC.
+foreach ($rows as string $row) {
+    var $local = Core\Time::parse($row, "MM/dd/yyyy hh:mm a", $newYork);
+    echo $row, " -> ", $local->toInstant()->toIso(), "\n";
+}

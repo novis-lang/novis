@@ -1,0 +1,40 @@
+<?nvs
+// Shows a program and its tests in one file, with no test framework to install.
+// `nvs run` runs the program. `nvs test` runs the methods that have `#[Test]`.
+use Core\Test;
+use Core\Test\TestWith;
+
+final class Price {
+    // Adds a tax in percent to a price in cents.
+    public static function withTax(int $cents, int $percent): int {
+        return $cents + Core\Math::intDiv($cents * $percent, 100);
+    }
+}
+
+final class PriceTest {
+    // Each `#[TestWith]` line is one test with its own values. `nvs test` reports three tests.
+    #[TestWith(cents: 1000, percent: 20, want: 1200)]
+    #[TestWith(cents: 999, percent: 10, want: 1098)]
+    #[TestWith(cents: 0, percent: 20, want: 0)]
+    #[Test]
+    public function taxIsAdded(int $cents, int $percent, int $want): void {
+        Test::assertSame(Price::withTax($cents, $percent), $want);
+    }
+
+    // `skip:` needs a reason. `nvs test` does not run this test, and it prints the reason.
+    #[Test(skip: "refunds are not written yet")]
+    public function aRefundGivesTheTaxBack(): void {
+        Test::assertSame(Price::withTax(-1000, 20), -1200);
+    }
+}
+
+// `nvs run` starts here. This prints 1200.
+echo Price::withTax(1000, 20), "\n";
+
+// `Core\Test::assertSame` is a normal method, so `nvs run` can call it too.
+// 1098 is not 1099, so it throws `Core\Test\Failure`. This prints the message of that error.
+try {
+    Test::assertSame(Price::withTax(999, 10), 1099);
+} catch (Core\Test\Failure $failure) {
+    echo $failure->message, "\n";
+}

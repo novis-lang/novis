@@ -1,0 +1,13 @@
+<?nvs
+// Shows a worker that reports how many jobs are still waiting after each job it finishes.
+
+var $jobs = new Core\Heap<int>();
+$jobs->push(3);
+$jobs->push(1);
+$jobs->push(2);
+
+// Each job here is a number, and the lowest number runs first.
+while (!$jobs->isEmpty()) {
+    int $job = $jobs->pop();
+    echo "finished job ", $job, ", ", $jobs->count(), " waiting\n";
+}

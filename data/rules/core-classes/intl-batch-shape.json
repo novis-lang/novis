@@ -1,0 +1,15 @@
+{
+  "title": "Every `Novis\\Intl` member but `Locale::negotiate` takes a list and returns a list, in one locale and one crossing",
+  "status": "shipped",
+  "seeAlso": [
+    "core-classes/intl-roster",
+    "packaging/the-boundary-is-the-cost",
+    "packaging/a-value-crosses-as-its-wit-type"
+  ],
+  "guardedBy": [
+    "crates/nvs-stdlib/tests/ext_world.rs",
+    "crates/nvs-ext/tests/intl.rs",
+    "tests/conformance/novis/intl-collation-sorts-by-locale.nvst",
+    "tests/conformance/novis/intl-each-job-class-answers-for-its-export.nvst"
+  ]
+}

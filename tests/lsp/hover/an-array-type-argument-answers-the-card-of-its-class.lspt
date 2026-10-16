@@ -1,0 +1,16 @@
+--TEST--
+a class written as the argument of `array<…>` answers that class's `///` run, and not the declaration the type is written on, `rule:ide/the-index-answers-the-cursor`
+--FILE--
+<?nvs
+/// One person, as the store holds them.
+class User
+{
+    public string $name = "";
+}
+
+array<Us<|>er> $users = [new User()];
+echo Core\Arr::count($users);
+--REQUEST--
+hover
+--EXPECT--
+One person, as the store holds them.

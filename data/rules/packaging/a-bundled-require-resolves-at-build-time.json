@@ -1,0 +1,11 @@
+{
+  "title": "Inside a closed-world target every `require` resolves at build time, and one that cannot fails the build",
+  "status": "shipped",
+  "seeAlso": [
+    "statements/require-is-the-only-inclusion-construct",
+    "packaging/a-bundle-carries-source-not-artifacts"
+  ],
+  "guardedBy": [
+    "crates/nvs-cli/tests/bundle.rs"
+  ]
+}

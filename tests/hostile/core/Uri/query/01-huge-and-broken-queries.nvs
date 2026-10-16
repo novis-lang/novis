@@ -1,0 +1,57 @@
+<?nvs
+// Attack: a program reads very long queries and queries that break the rules.
+// Each call should return the query or throw an error, and every `Uri` should be freed.
+
+class Query
+{
+    public static function length(string $address): string
+    {
+        try {
+            ?string $query = Core\Uri::parse($address)->query();
+            if ($query == null) {
+                return 'none';
+            }
+            return Core\Str::length($query as string) as string;
+        } catch (Throwable $e) {
+            return 'error';
+        }
+    }
+}
+
+// 1. A query of 1000000 pairs, such as `a=1&a=1&`. This prints 4000000.
+echo Query::length('http://example.com/?' . Core\Str::repeat('a=1&', 1000000)), "\n";
+
+// 2. A query of 500000 `?` signs. The first one starts the query. This prints 499999.
+echo Query::length('http://example.com/' . Core\Str::repeat('?', 500000)), "\n";
+
+// 3. 300000 `%` signs without hex digits. This prints "error".
+echo Query::length('http://example.com/?' . Core\Str::repeat('%', 300000)), "\n";
+
+// 4. A zero byte inside the query. This prints "error".
+echo Query::length("http://example.com/?a=\0"), "\n";
+
+// 5. One space at the end of one million letters. This prints "error".
+echo Query::length('/?' . Core\Str::repeat('q', 1000000) . ' '), "\n";
+
+// 6. A `#` after 400000 letters. The query stops at the `#`. This prints 400000.
+echo Query::length('/?' . Core\Str::repeat('q', 400000) . '#' . Core\Str::repeat('f', 400000)), "\n";
+
+// 7. A `?` with nothing after it, and no `?` at all. This prints 0 and "none".
+echo Query::length('http://example.com/?'), "\n";
+echo Query::length('http://example.com/'), "\n";
+
+// 8. The same query is read 100000 times, and 100000 different addresses are read.
+// Every `Uri` and every query is freed. This prints 200000.
+var $one = Core\Uri::parse('https://example.com/list?page=1&sort=name');
+uint $read = 0;
+uint $i = 0;
+while ($i < 100000) {
+    if ($one->query() == 'page=1&sort=name') {
+        $read = $read + 1;
+    }
+    if (Core\Uri::parse('/p?id=' . $i)->query() == 'id=' . $i) {
+        $read = $read + 1;
+    }
+    $i = $i + 1;
+}
+echo $read, "\n";

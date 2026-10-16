@@ -1,0 +1,8 @@
+<?nvs
+// Shows that a moment before 1970 gives a negative number.
+
+// This is one microsecond before 1 January 1970, so this prints -1.
+echo Core\Time::fromIso("1969-12-31T23:59:59.999999Z")->toEpochMicros(), "\n";
+
+// This prints -86400000000: one day before 1970, in microseconds.
+echo Core\Time::fromIso("1969-12-31T00:00:00Z")->toEpochMicros(), "\n";

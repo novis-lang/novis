@@ -1,0 +1,4 @@
+# Notifications for two users. The request belongs to Ana.
+publish: user:ana Your order has shipped
+publish: user:ben Your invoice is ready
+publish: user:ana You have a new message

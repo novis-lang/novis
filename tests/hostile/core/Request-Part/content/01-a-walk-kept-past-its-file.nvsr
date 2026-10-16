@@ -1,0 +1,26 @@
+--METHOD--
+POST
+--PATH--
+/upload
+--CLIENT_IP--
+198.51.100.23
+--HEADERS--
+host: example.com
+content-type: multipart/form-data; boundary=bnd
+--BODY_CRLF--
+--bnd
+Content-Disposition: form-data; name="first"; filename="first.txt"
+Content-Type: text/plain
+
+line one
+--bndX this line only starts like the boundary
+last line
+--bnd
+Content-Disposition: form-data; name="empty"; filename="empty.txt"
+
+--bnd
+Content-Disposition: form-data; name="last"; filename="last.bin"
+Content-Type: application/octet-stream
+
+0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+--bnd--

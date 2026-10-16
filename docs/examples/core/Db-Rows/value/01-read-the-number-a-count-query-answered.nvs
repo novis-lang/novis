@@ -1,0 +1,22 @@
+<?nvs
+// Shows how to read the number a `select count(*)` answered. `value` gives the
+// first column of the first row.
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table guests (id integer primary key, name text not null, seats int not null)', []);
+$db->execute(
+    'insert into guests (name, seats) values (?, ?), (?, ?), (?, ?)',
+    ['Ada Ahmed', 4, 'Bo Berg', 2, 'Cem Celik', 6]
+);
+
+// The result has one row with one column, so `value` is the whole answer. `as
+// ?int` turns it into a whole number. This prints `3 guests`.
+var $rows = $db->query('select count(*) from guests', []);
+echo $rows->value() as ?int ?? 0, " guests\n";
+
+// Any query that answers one value is read the same way. This prints
+// `12 seats`.
+var $seats = $db->query('select sum(seats) from guests', [])->value();
+echo $seats as ?int ?? 0, " seats\n";
+
+$db->close();

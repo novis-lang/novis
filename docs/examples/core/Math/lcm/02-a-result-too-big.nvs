@@ -1,0 +1,13 @@
+<?nvs
+// Shows what happens when the result is too big for an `int`.
+
+// A number divides itself, so the result is the number. This prints 9223372036854775807.
+echo Core\Math::lcm(Core\Math::INT_MAX, Core\Math::INT_MAX), "\n";
+
+// The result would be two times `Core\Math::INT_MAX`.
+// That does not fit an `int`, so the call throws an `ArithmeticError`.
+try {
+    echo Core\Math::lcm(Core\Math::INT_MAX, 2), "\n";
+} catch (ArithmeticError $error) {
+    echo "The result is too big.\n";
+}

@@ -1,0 +1,46 @@
+<?nvs
+// Shows what an observer is most often used for: a record that knows whether
+// it still matches the database, so a program saves it only after a change.
+
+final class Contact implements PropertyObserver {
+    public string $name;
+    public string $email;
+    public bool $unsaved = false;
+
+    public function constructor(string $name, string $email) {
+        $this->name = $name;
+        $this->email = $email;
+        // The two writes above set the flag. This row comes from the database,
+        // so it starts as saved.
+        $this->unsaved = false;
+    }
+
+    public function onPropertyGet(string $name, mixed $value): void {
+    }
+
+    public function onPropertySet(string $name, mixed $value): void {
+        // Writing a property in this method calls the method again. Test the
+        // name first. Without this test the program never stops.
+        if ($name != "unsaved") {
+            $this->unsaved = true;
+        }
+    }
+
+    public function save(): void {
+        if (!$this->unsaved) {
+            echo "nothing to save\n";
+            return;
+        }
+        echo "saving ", $this->name, "\n";
+        $this->unsaved = false;
+    }
+}
+
+var $contact = new Contact("Ada", "ada@example.com");
+$contact->save();
+
+// One write anywhere in the program is enough. No method has to remember to
+// report it.
+$contact->email = "ada.lovelace@example.com";
+$contact->save();
+$contact->save();

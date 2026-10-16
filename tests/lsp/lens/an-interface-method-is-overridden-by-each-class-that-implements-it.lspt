@@ -1,0 +1,27 @@
+--TEST--
+an interface method counts the methods that implement it, and a method that both extends a class and implements an interface names both methods it overrides, `rule:ide/five-features-are-one-reference-index`
+--FILE--
+<?nvs
+interface Named {
+    public function name(): string;
+}
+class Base {
+    public function name(): string { return "base"; }
+}
+class Item extends Base implements Named {
+    public function name(): string { return "item"; }
+}
+--REQUEST--
+codeLens
+--EXPECT--
+2:11 1 implementation
+2:11 1 reference
+3:21 1 override
+3:21 no references
+5:7 1 reference
+5:7 1 subclass
+6:21 1 override
+6:21 no references
+8:7 no references
+9:21 no references
+9:21 overrides Base::name, Named::name

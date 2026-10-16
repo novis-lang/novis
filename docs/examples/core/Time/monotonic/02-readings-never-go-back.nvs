@@ -1,0 +1,17 @@
+<?nvs
+// Shows that a later reading of `Core\Time::monotonic` is never smaller than an earlier one.
+
+// This loop reads the clock 10000 times and counts every reading that is
+// smaller than the one before it. This prints 0.
+var $last = Core\Time::monotonic();
+int $backwards = 0;
+int $i = 0;
+while ($i < 10000) {
+    var $next = Core\Time::monotonic();
+    if ($next->compareTo($last) < 0) {
+        $backwards = $backwards + 1;
+    }
+    $last = $next;
+    $i = $i + 1;
+}
+echo $backwards, "\n";

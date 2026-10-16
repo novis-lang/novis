@@ -1,0 +1,68 @@
+<?nvs
+// Attack: a program that answers no request reads the mount and the path, many times.
+// A request has a mount and this program has none, so each read should throw an error.
+// The program should run to its last line.
+
+class Files
+{
+    #[Core\Route(path: "/files/{name}", method: Core\Http\Method::Get, name: "Files::show")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function show(string $name): string
+    { return 'one file'; }
+}
+
+// 1. Reads the mount, the prefix, the captures and the path. Each read throws an error.
+uint $thrown = 0;
+try {
+    Core\Request\Mount $mount = Core\Request::mount();
+    echo 'mount: a value', "\n";
+} catch (Throwable $error) {
+    $thrown = $thrown + 1;
+    echo 'mount: ', $error::class, "\n";
+}
+try {
+    string $prefix = Core\Request::mount()->prefix();
+    echo 'prefix: ', $prefix, "\n";
+} catch (Throwable $error) {
+    $thrown = $thrown + 1;
+}
+try {
+    array<tainted string> $captures = Core\Request::mount()->captures();
+    echo 'captures: ', Core\Arr::count($captures), "\n";
+} catch (Throwable $error) {
+    $thrown = $thrown + 1;
+}
+try {
+    tainted string $first = Core\Request::mount()->captures()[0];
+    echo 'first capture: ', $first, "\n";
+} catch (Throwable $error) {
+    $thrown = $thrown + 1;
+}
+try {
+    tainted string $path = Core\Request::path();
+    echo 'path: ', $path, "\n";
+} catch (Throwable $error) {
+    $thrown = $thrown + 1;
+}
+echo 'errors: ', $thrown, "\n";
+
+// 2. Builds a link. The program has no mount, so the link has no prefix.
+//    This prints "link: /files/report".
+echo 'link: ', Core\Router::url('Files::show', ['name' => 'report']), "\n";
+
+// 3. Reads the mount 100000 times and keeps the message of every error.
+//    This step uses a lot of memory.
+array<string> $messages = [];
+uint $i = 0;
+while ($i < 100000) {
+    try {
+        Core\Request::mount()->captures();
+    } catch (Throwable $error) {
+        $messages[] = $error->message;
+    }
+    $i = $i + 1;
+}
+echo 'errors kept: ', Core\Arr::count($messages), "\n";
+
+// 4. Builds the link again. This prints the same link as step 2.
+echo 'link: ', Core\Router::url('Files::show', ['name' => 'report']), "\n";

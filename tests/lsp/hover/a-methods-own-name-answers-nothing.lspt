@@ -1,0 +1,16 @@
+--TEST--
+a method's own declaration answers nothing where a call to it answers the run written above it, because a declaration is not a call the checker resolved, `rule:ide/the-index-answers-the-cursor`
+--FILE--
+<?nvs
+class User
+{
+    /// Greets whoever asked.
+    public function gr<|>eet(): string
+    {
+        return "hi";
+    }
+}
+--REQUEST--
+hover
+--EXPECT--
+none

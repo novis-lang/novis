@@ -1,0 +1,30 @@
+<?nvs
+// Shows a test file for an extension, as you put it in the `tests` folder of the project.
+// `nvs ext test` runs every method that has `#[Test]` and prints one line for each test.
+// `nvs run` runs only the code outside the class.
+use Core\Test;
+use Geo\Atlas;
+
+final class AtlasTest
+{
+    // The extension has no grants in a test, so reading a file throws a `RuntimeError`.
+    #[Test]
+    public function readsNoFileWithoutAGrant(): void
+    {
+        Test::assertThrows(fn() => Atlas::read("cities.txt"), "RuntimeError");
+    }
+
+    // Connecting to a host throws a `RuntimeError` too.
+    #[Test]
+    public function reachesNoHostWithoutAGrant(): void
+    {
+        Test::assertThrows(fn() => Atlas::status("tiles.example.com"), "RuntimeError");
+    }
+}
+
+// This prints `no folder is granted`.
+try {
+    echo Atlas::read("cities.txt");
+} catch (RuntimeError $denied) {
+    echo $denied->message, "\n";
+}

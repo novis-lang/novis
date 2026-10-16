@@ -1,0 +1,13 @@
+<?nvs
+// Shows a check a program makes before it opens a page. The user needs one of
+// the roles the page allows.
+
+array<string> $allowed = ["editor", "admin"];
+array<string> $roles = ["author", "editor"];
+
+// "editor" is in both lists, so this prints "the page opens".
+if (Core\Arr::any($roles, fn(string $role) => Core\Arr::contains($allowed, $role))) {
+    echo "the page opens", "\n";
+} else {
+    echo "the page stays closed", "\n";
+}

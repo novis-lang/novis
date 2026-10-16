@@ -1,0 +1,82 @@
+--TEST--
+Core\Jwe::encrypt and ::decrypt round-trip a payload under each of Jwe\Key's four statics, and the payload comes back tainted where it went in plain — `rule:security/jwe-compact-subset`, `rule:security/verification-does-not-launder`
+--FILE--
+<?nvs
+// The agreement shape over the four key kinds: one question asked of every
+// static, asserting that they *agree* rather than what each answered. A static
+// that grew its own content encryption would still round-trip on its own line
+// and would fail the count at the end.
+string $payload = "id=42; role=admin";
+
+secret bytes $sharedKey = Core\Crypto::generateKey();
+Core\Crypto\KeyPair $pair = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::P256);
+
+// `recipient` is the sending half and `own` is the receiving half of the same
+// agreement, so the two are one round trip rather than two: what `recipient`
+// seals to a public key, `own` opens with the pair that key came out of.
+array<Core\Jwe\Key> $sealers = [
+    Core\Jwe\Key::shared($sharedKey),
+    Core\Jwe\Key::password("correct horse battery staple"),
+    Core\Jwe\Key::recipient($pair->publicKey()),
+    Core\Jwe\Key::own($pair),
+];
+array<Core\Jwe\Key> $openers = [
+    Core\Jwe\Key::shared($sharedKey),
+    Core\Jwe\Key::password("correct horse battery staple"),
+    Core\Jwe\Key::own($pair),
+    Core\Jwe\Key::own($pair),
+];
+
+int $opened = 0;
+array<string> $tokens = [];
+foreach ($sealers as string $slot => Core\Jwe\Key $sealer) {
+    string $token = Core\Jwe::encrypt($payload, $sealer);
+    $tokens[$token] = "";
+    tainted string $back = Core\Jwe::decrypt($token, [$openers[$slot]]);
+    if ($back == $payload) {
+        $opened += 1;
+    }
+}
+echo "opened ", $opened, " of ", Core\Arr::count($sealers), "\n";
+
+// Every token is its own: each draws its own IV, and the two agreement ones
+// draw a fresh ephemeral pair on top of that, so four seals of one payload are
+// four distinct tokens rather than a deterministic encryption.
+echo "distinct tokens ", Core\Arr::count($tokens), "\n";
+
+// Five segments, always, which is what compact serialization is. The key
+// segment is empty under `dir` and `ECDH-ES` — both are direct, with nothing
+// wrapped — and carries the wrapped content key under PBES2 alone.
+string $dirToken = Core\Jwe::encrypt($payload, Core\Jwe\Key::shared($sharedKey));
+array<string> $parts = Core\Str::split($dirToken, ".");
+echo "segments ", Core\Arr::count($parts), "\n";
+echo "key segment ", $parts[1] == "" ? "empty" : "present", "\n";
+
+// The header this class writes for `dir` is canonical — members sorted, no
+// whitespace — so it is one fixed string rather than one of several orderings
+// that would all parse. That is what lets a token be held to the frozen
+// WebCrypto set byte for byte.
+echo $parts[0] == "eyJhbGciOiJkaXIiLCJlbmMiOiJBMjU2R0NNIn0" ? "canonical" : "not canonical", "\n";
+
+// And PBES2's key segment is the wrapped content key: 40 octets, which is the
+// 32-octet key plus RFC 3394's integrity semiblock.
+array<string> $wrapped = Core\Str::split(
+    Core\Jwe::encrypt($payload, Core\Jwe\Key::password("correct horse battery staple")),
+    "."
+);
+echo "wrapped key ", Core\Bytes::length(Core\Encoding::fromBase64Url($wrapped[1])), "\n";
+
+// The payload goes in as a plain `string` and comes back `tainted`: decrypting
+// proves who wrote it, never that it is safe for a sink. The declaration is the
+// assertion — a row answering plain `string` would not compile against it.
+tainted string $tainted = Core\Jwe::decrypt($dirToken, [Core\Jwe\Key::shared($sharedKey)]);
+string $laundered = Core\Regex::quote($tainted);
+echo $laundered == Core\Regex::quote($payload) ? "tainted" : "not the payload", "\n";
+--EXPECT--
+opened 4 of 4
+distinct tokens 4
+segments 5
+key segment empty
+canonical
+wrapped key 40
+tainted

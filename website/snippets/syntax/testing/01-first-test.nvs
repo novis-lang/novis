@@ -1,0 +1,22 @@
+<?nvs
+// This file has three tests: one passes, one is skipped and one fails.
+
+use Core\Test;
+
+final class ArithmeticTest {
+    #[Test]
+    public function additionCommutes(): void {
+        Test::assertSame(2 + 3, 3 + 2);
+    }
+
+    // `skip:` gives the reason. The test does not run.
+    #[Test(skip: "division is not written yet")]
+    public function divisionRounds(): void {
+        Test::assertSame(7 / 2, 4.0);
+    }
+
+    #[Test]
+    public function thisOneFails(): void {
+        Test::assertSame(2 + 2, 5);
+    }
+}

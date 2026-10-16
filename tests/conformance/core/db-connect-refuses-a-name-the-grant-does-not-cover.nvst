@@ -1,0 +1,46 @@
+--TEST--
+Core\Db::connect asks `db.connect` about the block's name before it reads any configuration, so an ungranted name learns nothing about which blocks exist — `rule:core-classes/db-connection-is-named` and `rule:core-classes/db-capabilities`, `rule:security/capability-question-is-grant-and-scope` and `rule:security/denial-is-a-runtime-error`
+--FILE--
+<?nvs
+// `db.connect` grants `main` and nothing else. Both names below are written
+// into `nvs.toml` as blocks -- the grant is what differs, which is the point:
+// a capability that is a list of blocks is only a grant for the blocks on it,
+// and configuring a second one is not granting it.
+try {
+    var $db = Core\Db::connect("replica");
+    echo "opened replica", "\n";
+} catch (RuntimeError $refused) {
+    echo $refused->message, "\n";
+}
+
+// The granted name reaches the *block*, and this block is deliberately
+// unopenable -- it names no `driver`. What that proves is the ordering: the
+// refusal above is about the grant and this one is about the file, so the
+// check that produced the first never got as far as reading the second.
+try {
+    var $granted = Core\Db::connect("main");
+    echo "opened main", "\n";
+} catch (RuntimeError $refused) {
+    echo $refused->message, "\n";
+}
+
+// `rule:security/denial-is-a-runtime-error`: a denial is the world refusing a call, and the program is
+// still running underneath it.
+echo "still running", "\n";
+--FILE nvs.toml--
+# Two blocks, one grant. `replica` exists as far as this file is concerned and
+# is unreachable as far as the program is concerned.
+[capabilities.db]
+connect = ["main"]
+
+[db.main]
+host = "127.0.0.1"
+
+[db.replica]
+driver = "postgres"
+host = "127.0.0.1"
+--EXPECT--
+Core\Db::connect needs the capability `db.connect` for replica, which is not granted
+help: grant it in nvs.toml under `[capabilities.db]`
+Core\Db::connect: [db.main]: the block names no `driver`, so nothing says which database it is
+still running

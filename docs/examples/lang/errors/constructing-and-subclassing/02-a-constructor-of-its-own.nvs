@@ -1,0 +1,35 @@
+<?nvs
+// Shows an error class that writes its own constructor. It adds two properties
+// and passes the message to the class it extends.
+
+class HttpError extends RuntimeError {
+    // `public int $status` and `public string $url` declare the properties and
+    // fill them from the arguments in one step.
+    public function constructor(string $message, public int $status, public string $url) {
+        parent::constructor($message);
+    }
+}
+
+final class Api {
+    public static function get(string $url, int $status): string {
+        if ($status >= 400) {
+            throw new HttpError("the server said no", $status, $url);
+        }
+        return "body of " . $url;
+    }
+}
+
+try {
+    echo Api::get("/health", 200), "\n";
+    echo Api::get("/orders/91", 404), "\n";
+} catch (HttpError $failed) {
+    // This prints `404 /orders/91: the server said no`.
+    echo $failed->status, " ", $failed->url, ": ", $failed->message, "\n";
+}
+
+// `HttpError` extends `RuntimeError`, so a `RuntimeError` arm catches it too.
+try {
+    echo Api::get("/orders/92", 503), "\n";
+} catch (RuntimeError $any) {
+    echo "as a runtime error: ", $any->message, "\n";
+}

@@ -1,0 +1,12 @@
+{
+  "title": "Anything with a lifetime is an object, and `Core` never hands back a handle",
+  "status": "shipped",
+  "seeAlso": [
+    "core-api/one-paradigm-per-operation",
+    "classes/no-destructors",
+    "types/grammar"
+  ],
+  "guardedBy": [
+    "crates/nvs-stdlib/src/registry.rs"
+  ]
+}

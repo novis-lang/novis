@@ -1,0 +1,13 @@
+--TEST--
+a case declaration carries no diagnostic, so nothing is offered on it, `rule:ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`
+--FILE--
+<?nvs
+enum Status: int
+{
+    case Dr<|>aft = 1;
+    case Live = 2;
+}
+--REQUEST--
+codeAction
+--EXPECT--
+none

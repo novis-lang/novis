@@ -1,0 +1,24 @@
+<?nvs
+// Shows how to fill a summary sheet with `set` and an item sheet with `fill`.
+use Novis\Spreadsheet\Reader;
+use Novis\Spreadsheet\Template;
+use Novis\Spreadsheet\Workbook;
+
+var $design = Workbook::createInMemory();
+$design->sheet('Summary')->addAll([['Orders', null], ['Customer', null]]);
+$design->sheet('Orders')->addAll([['Order', 'Total'], ['{{orders.id}}', '{{orders.total}}']]);
+bytes $source = $design->finish()->bytes ?? Core\Bytes::fill(0, 0);
+
+// The address names the sheet, then `!`, then the cell.
+var $template = Template::open($source);
+$template->set('Summary!B1', 2);
+$template->set('Summary!B2', 'Shop');
+bytes $file = $template->fill(['orders' => [['id' => 1042, 'total' => 19.5], ['id' => 1043, 'total' => 5.0]]])->bytes();
+
+var $reader = Reader::open($file);
+array<string> $sheets = ['Summary', 'Orders'];
+foreach ($sheets as string $sheet) {
+    foreach ($reader->rows($sheet) as var $row) {
+        echo $sheet, ' row ', $row->number, ': ', $row->values['A'], ', ', $row->values['B'], "\n";
+    }
+}

@@ -1,0 +1,91 @@
+<?nvs
+// Attack: a program tries to change `limits.fatal_reserve_time`, the CPU time kept
+// for the `Core\Fatal::onLimit` handler. Every attempt should fail. The program
+// then uses up its CPU time, and the handler should still run.
+// hostile: timeout-ms 30000
+// hostile: ends-early 4 FATAL
+
+Core\Fatal::onLimit(fn (): void => {
+    echo "the handler still had a clock to run on\n";
+});
+
+// 1. Tries the reserve's key and keys that are almost the same.
+array<string> $names = [
+    'limits.fatal_reserve_time',
+    'limits.FATAL_RESERVE_TIME',
+    'limits.Fatal_Reserve_Time',
+    'limits.fatal_reserve_time.',
+    '.limits.fatal_reserve_time',
+    'limits..fatal_reserve_time',
+    'limits.fatal.reserve.time',
+    'limits.fatal-reserve-time',
+    'limits.fatalreservetime',
+    'limits.hard.fatal_reserve_time',
+    'limits.fatal_reserve_time.hard',
+    'app.limits.fatal_reserve_time',
+    'app.0.limits.fatal_reserve_time',
+    "limits.fatal_reserve_time\u{0000}",
+    "limits.cpu_time\u{0000}limits.fatal_reserve_time",
+    'limits.cpu_time/../fatal_reserve_time',
+    'limits.' . Core\Str::repeat('sub.', 20000) . 'fatal_reserve_time',
+];
+foreach ($names as string $key) {
+    Core\Config::set($key, '0');
+    Core\Config::set($key, '1h');
+    Core\Config::get($key);
+    Core\Config::restore($key);
+}
+
+// 2. Tries durations in many units, and values that are not durations at all.
+//    Every write should fail.
+array<string> $values = [
+    '0',
+    '0s',
+    '0ms',
+    '-1ms',
+    '1ns',
+    '250',
+    '250ms',
+    '0.25s',
+    '250000us',
+    '1h',
+    '9999d',
+    '18446744073709551615',
+    'false',
+    '',
+    'ms',
+    '250 ms',
+    '250MS',
+    'NaN',
+];
+foreach ($values as string $value) {
+    Core\Config::set('limits.fatal_reserve_time', $value);
+}
+Core\Config::restore('limits.fatal_reserve_time');
+
+// 3. Changes `limits.cpu_time` 1,000 times while it tries to set both reserves.
+//    Every write to a reserve should fail.
+uint $round = 0;
+while ($round < 1000) {
+    Core\Config::set('limits.cpu_time', '1ms');
+    Core\Config::set('limits.fatal_reserve_time', '1h');
+    Core\Config::set('limits.fatal_reserve_memory', '4G');
+    Core\Config::set('limits.cpu_time', '30s');
+    Core\Config::restore('limits.fatal_reserve_time');
+    Core\Config::restore('limits.fatal_reserve_memory');
+    Core\Config::restore('limits.cpu_time');
+    $round = $round + 1;
+}
+
+// 4. Print both reserves, lower the CPU limit to 20ms, and use it all up.
+//    This loop does not end, so the program stops with a fatal error.
+echo "step 4\n";
+echo 'clock held back: ', Core\Config::get('limits.fatal_reserve_time') ?? '(nothing)', "\n";
+echo 'heap held back:  ', Core\Config::get('limits.fatal_reserve_memory') ?? '(nothing)', "\n";
+echo 'my own ceiling:  ', Core\Config::set('limits.cpu_time', '20ms') ? 'lowered' : 'refused', "\n";
+
+int $spin = 0;
+while ($spin >= 0) {
+    $spin = $spin + 1;
+}
+echo 'the loop ran to its end: ', $spin, "\n";

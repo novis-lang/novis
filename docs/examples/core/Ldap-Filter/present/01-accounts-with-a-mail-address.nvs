@@ -1,0 +1,6 @@
+<?nvs
+// Shows how to find every entry that has a mail address.
+
+var $filter = Core\Ldap\Filter::present('mail');
+// This prints (mail=*).
+echo $filter->toString(), "\n";

@@ -1,0 +1,27 @@
+--TEST--
+A `clone` through a `?Box` holding `null` raises PHP's own `clone()` message and is catchable — `rule:classes/clone-is-shallow`, `rule:errors/propagation`
+--FILE--
+<?nvs
+// `null` is the one tag a `?Box` can carry that names no class to instantiate,
+// and the raise is an ordinary catchable throw rather than a fatal.
+class Box {
+    public string $label;
+
+    public function constructor(string $label) {
+        $this->label = $label;
+    }
+}
+
+?Box $empty = null;
+?Box $copy = null;
+
+try {
+    $copy = clone $empty;
+} catch (Throwable $e) {
+    echo "caught: ", $e->message, "\n";
+}
+
+echo "after\n";
+--EXPECT--
+caught: clone(): Argument #1 ($object) must be of type object, null given
+after

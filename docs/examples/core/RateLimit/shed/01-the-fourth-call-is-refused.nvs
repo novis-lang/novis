@@ -1,0 +1,12 @@
+<?nvs
+// Shows a limit of 3 calls per minute for one key. The fourth call is refused.
+
+uint $call = 1;
+while ($call <= 4) {
+    var $decision = Core\RateLimit::shed("report:daily", 3, 1m);
+    // `allowed` is `true` for the first three calls and `false` for the fourth.
+    // `remaining` is how many calls are left, so this prints 2, 1, 0 and 0.
+    echo "call ", $call, ": ", $decision->allowed() ? "allowed" : "refused";
+    echo ", remaining ", $decision->remaining(), "\n";
+    $call = $call + 1;
+}

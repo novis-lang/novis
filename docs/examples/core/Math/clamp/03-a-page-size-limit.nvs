@@ -1,0 +1,18 @@
+<?nvs
+// Shows how a server limits the number of results a visitor asks for on one page.
+
+class PageSize {
+    // Every page shows at least 1 result and at most 100.
+    public static function allowed(int $asked): int {
+        return Core\Math::clamp($asked, 1, 100);
+    }
+}
+
+// A visitor asks for 25 results. That is allowed, so this prints 25.
+echo PageSize::allowed(25), "\n";
+
+// A visitor asks for 5000 results. This prints 100.
+echo PageSize::allowed(5000), "\n";
+
+// A visitor asks for 0 results. This prints 1.
+echo PageSize::allowed(0), "\n";

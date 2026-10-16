@@ -1,0 +1,15 @@
+--TEST--
+a property's own declaration highlights the read of it two lines below, so an unused member is one this request answers nothing for rather than one it cannot be asked about, `rule:ide/five-features-are-one-reference-index`
+--FILE--
+<?nvs
+class User
+{
+    public string $na<|>me = "";
+}
+
+var $u = new User();
+echo $u->name;
+--REQUEST--
+documentHighlight
+--EXPECT--
+case.nvs:8:10

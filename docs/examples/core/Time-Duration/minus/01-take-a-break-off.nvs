@@ -1,0 +1,13 @@
+<?nvs
+// Shows how to subtract one duration from another.
+
+Core\Time\Duration $shift = 8h;
+
+// A shift of 8 hours with a 45 minute break has 7 hours 15 minutes of work. This prints 7h15m.
+echo $shift->minus(45m)->toString(), "\n";
+
+// `$shift` itself does not change. This prints 8h.
+echo $shift->toString(), "\n";
+
+// A longer duration taken from a shorter one gives a negative duration. This prints -30m.
+echo 15m->minus(45m)->toString(), "\n";

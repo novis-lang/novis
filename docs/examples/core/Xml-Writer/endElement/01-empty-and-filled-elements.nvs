@@ -1,0 +1,23 @@
+<?nvs
+// Shows the two ways `endElement` closes an element: `<a/>` when it is empty, and `</a>` when it is not.
+
+Core\Xml\Writer $writer = Core\Xml::writer({indent: "  "});
+$writer->startDocument();
+$writer->startElement("cart");
+
+// Nothing is written inside `empty`, so it is written as `<empty/>`.
+$writer->startElement("empty");
+$writer->endElement();
+
+// `item` has an attribute, but nothing inside it. It is written as `<item sku="A-1"/>`.
+$writer->startElement("item");
+$writer->attribute("sku", "A-1");
+$writer->endElement();
+
+// `note` has text inside, so it is closed with `</note>`.
+$writer->startElement("note");
+$writer->content("Please ring twice.");
+$writer->endElement();
+
+$writer->endElement();
+echo $writer->endDocument(), "\n";

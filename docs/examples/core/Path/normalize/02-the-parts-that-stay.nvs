@@ -1,0 +1,20 @@
+<?nvs
+// Shows what `Core\Path::normalize` does with a `..` that has no folder before it.
+
+class Show {
+    public static function normal(string $path): void {
+        echo Core\Str::replace(Core\Path::normalize($path), Core\Path::SEPARATOR, "/"), "\n";
+    }
+}
+
+// A relative path keeps a `..` at its start. This prints `../../shared/logo.png`.
+Show::normal("../../shared/logo.png");
+
+// Here `..` removes `a`, and the second `..` stays. This prints `..`.
+Show::normal("a/../..");
+
+// A root has no parent, so `..` above it is removed. This prints `/`.
+Show::normal("/srv/../..");
+
+// The empty path means "this folder". This prints `.`.
+Show::normal("");

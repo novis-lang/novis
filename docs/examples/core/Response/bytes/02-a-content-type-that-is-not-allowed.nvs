@@ -1,0 +1,15 @@
+<?nvs
+// Shows what happens when the content type contains a character that is not allowed.
+
+// Every character of a content type must be printable ASCII. `é` is not,
+// so `bytes` throws a `LogicError` and sends nothing.
+string $answer = "";
+try {
+    Core\Response::bytes("Hello" as bytes, "text/plain; name=café");
+    $answer = "sent";
+} catch (LogicError $error) {
+    $answer = $error->message;
+}
+
+// This content type is allowed, so this body is sent. It prints the error message.
+Core\Response::bytes(($answer . "\n") as bytes, "text/plain; charset=utf-8");

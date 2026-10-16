@@ -1,0 +1,15 @@
+<?nvs
+// Shows how to read a text reply one line at a time.
+
+// The reply comes from this table, so nothing is sent over a network.
+Core\Test::answerHttp("https://logs.example.com/today", 200, {
+    body: "09:00 server started\n09:05 first request\n09:07 backup done\n",
+});
+
+Core\Http\Stream $log = Core\Http\Client::stream(Core\Http\Method::Get, "https://logs.example.com/today");
+uint $number = 1;
+// Each line is given without its line ending. This prints three numbered lines.
+foreach ($log->lines() as tainted string $line) {
+    echo $number, ": ", $line, "\n";
+    $number = $number + 1;
+}

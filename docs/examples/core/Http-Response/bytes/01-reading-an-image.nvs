@@ -1,0 +1,18 @@
+<?nvs
+// Shows how to read the body of a reply that is not text, here a small image.
+
+// `Core\Test::answerHttp` gives a fixed reply to this address, so the example runs
+// without a network. The body is the first eight bytes of a PNG image.
+Core\Test::answerHttp("https://cdn.example.com/logo.png", 200, {
+    body: Core\Encoding::fromHex("89504e470d0a1a0a"),
+    headers: ["Content-Type" => "image/png"],
+});
+
+Core\Http\Response $response = Core\Http\Client::get("https://cdn.example.com/logo.png");
+
+// `bytes()` returns the body exactly as it arrived. This prints 8.
+tainted bytes $image = $response->bytes();
+echo Core\Bytes::length($image), "\n";
+
+// This prints the same bytes as hex digits: 89504e470d0a1a0a.
+echo Core\Encoding::toHex($image), "\n";

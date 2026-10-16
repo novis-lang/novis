@@ -1,0 +1,34 @@
+<?nvs
+// `throw` stops the function. `catch` runs the first clause whose class matches.
+class Loader {
+    public static function load(string $key): string {
+        try {
+            if ($key == "bad") {
+                throw new IOError("cannot read " . $key);
+            }
+            return "value of " . $key;
+        } finally {
+            // `finally` runs on every way out: after the `return` and after the `throw`.
+            echo "checked ", $key, "\n";
+        }
+    }
+}
+
+echo Loader::load("host"), "\n";
+
+try {
+    echo Loader::load("bad"), "\n";
+} catch (LogicError $wrong) {
+    // An `IOError` is not a `LogicError`, so this clause does not run.
+    echo "not this one\n";
+} catch (IOError $io) {
+    echo "io: ", $io->message, "\n";
+}
+
+// `throw` is also an expression. Here it runs only when the key is missing.
+array<string> $settings = ["host" => "example.com"];
+try {
+    echo $settings["port"] ?? throw new LogicError("no port set"), "\n";
+} catch (LogicError $e) {
+    echo $e->message, "\n";
+}

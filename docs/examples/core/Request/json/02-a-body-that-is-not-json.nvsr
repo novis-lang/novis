@@ -1,0 +1,9 @@
+--METHOD--
+POST
+--PATH--
+/api/users
+--HEADERS--
+host: example.com
+content-type: application/json
+--BODY--
+{"name":"Ada","age":36

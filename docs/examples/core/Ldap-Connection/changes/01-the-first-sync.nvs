@@ -1,0 +1,20 @@
+<?nvs
+// Shows how to start a sync. The first call returns every person who matches the filter.
+// requires: samba-ad
+
+var $corp = Core\Ldap::connect("corp");
+var $people = Core\Ldap\Filter::all(
+    Core\Ldap\Filter::equals("objectClass", "user"),
+    Core\Ldap\Filter::equals("department", "Sales"),
+);
+
+// Without a `cookie`, the result has every entry that matches the filter.
+var $changes = $corp->changes($people, {select: ["department"]});
+
+// This prints the DNs of Anna Berg and Carla Diaz.
+foreach ($changes as Core\Ldap\Entry $person) {
+    echo $person->dn()->toString(), "\n";
+}
+
+// After the loop, `cookie()` returns the cookie for the next call.
+echo "the cookie is ready: ", Core\Bytes::length($changes->cookie()) > 0 ? "yes" : "no", "\n";

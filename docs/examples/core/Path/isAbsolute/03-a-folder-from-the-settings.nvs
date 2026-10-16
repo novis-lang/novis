@@ -1,0 +1,22 @@
+<?nvs
+// Shows how to turn a folder from a configuration file into a full path.
+
+class Settings {
+    // A relative folder is read from the folder of the application. An absolute one is used as it is.
+    public static function folder(string $app, string $configured): string {
+        if (Core\Path::isAbsolute($configured)) {
+            return $configured;
+        }
+        return Core\Path::join($app, $configured);
+    }
+}
+
+// On Windows, `Core\Path::join` writes `\`. This example replaces it with `/`,
+// so the output is the same on every platform.
+string $app = "/srv/shop";
+
+// This prints `/srv/shop/storage/logs`.
+echo Core\Str::replace(Settings::folder($app, "storage/logs"), Core\Path::SEPARATOR, "/"), "\n";
+
+// This prints `/var/log/shop`.
+echo Core\Str::replace(Settings::folder($app, "/var/log/shop"), Core\Path::SEPARATOR, "/"), "\n";

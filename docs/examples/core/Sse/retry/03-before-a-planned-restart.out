@@ -1,0 +1,8 @@
+event: price
+data: {"symbol":"ACME","price":1842}
+
+retry: 600000
+
+event: closing
+data: back in ten minutes
+

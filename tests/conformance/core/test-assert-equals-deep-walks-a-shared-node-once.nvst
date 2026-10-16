@@ -1,0 +1,68 @@
+--TEST--
+`Core\Test::assertEqualsDeep` walks a pair of objects reached along many paths once, so a graph of shared nodes sixty levels deep compares in linear time and a difference below it is still found -- `rule:testing/assertions-are-typed`
+--FILE--
+<?nvs
+// covers: Core\Test::assertEqualsDeep
+// Each node's two properties hold the same child, so the bottom node is
+// reached along 2^depth paths. A walk that followed each path hung here.
+
+class Node {
+    public ?Node $left = null;
+    public ?Node $right = null;
+    public int $value = 0;
+}
+
+class Graph {
+    public static function shared(int $depth, int $last): Node {
+        Node $top = new Node();
+        $top->value = $last;
+        int $level = 0;
+        while ($level < $depth) {
+            Node $above = new Node();
+            $above->left = $top;
+            $above->right = $top;
+            $top = $above;
+            $level = $level + 1;
+        }
+        return $top;
+    }
+}
+
+Core\Test::assertEqualsDeep(Graph::shared(60, 1), Graph::shared(60, 1));
+echo "sixty shared levels are equal\n";
+
+try {
+    Core\Test::assertEqualsDeep(Graph::shared(60, 1), Graph::shared(60, 2));
+} catch (Core\Test\Failure $failure) {
+    echo "sixty shared levels differ at the bottom\n";
+}
+
+try {
+    Core\Test::assertEqualsDeep(Graph::shared(2, 1), Graph::shared(2, 2));
+} catch (Core\Test\Failure $failure) {
+    echo $failure->message, "\n";
+}
+
+// One side shares its child and the other has two equal copies. A pair that
+// was already found equal is skipped, and the pair beside it is still walked.
+Node $shared = new Node();
+$shared->left = Graph::shared(30, 1);
+$shared->right = $shared->left;
+Node $copies = new Node();
+$copies->left = Graph::shared(30, 1);
+$copies->right = Graph::shared(30, 1);
+Core\Test::assertEqualsDeep($shared, $copies);
+echo "a shared child equals two copies\n";
+
+$copies->right = Graph::shared(30, 5);
+try {
+    Core\Test::assertEqualsDeep($shared, $copies);
+} catch (Core\Test\Failure $failure) {
+    echo "the second copy differs\n";
+}
+--EXPECT--
+sixty shared levels are equal
+sixty shared levels differ at the bottom
+Core\Test::assertEqualsDeep failed: the two differ at `$actual->left->left->value`: `$actual` is 1, `$expected` is 2
+a shared child equals two copies
+the second copy differs

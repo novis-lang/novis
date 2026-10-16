@@ -1,0 +1,14 @@
+<?nvs
+// Shows how a page checks that the person who opens it has one of the roles
+// the page allows.
+
+array<string> $allowed = ["editor", "admin"];
+array<string> $visitors = ["editor", "guest"];
+
+foreach ($visitors as string $role) {
+    if (Core\Arr::contains($allowed, $role)) {
+        echo $role, " may open the page", "\n";
+    } else {
+        echo $role, " may not open the page", "\n";
+    }
+}

@@ -1,0 +1,13 @@
+<?nvs
+// Shows that `toString` keeps two ways to write one address different.
+
+var $a = Core\Uri::parse("HTTPS://Example.com/~anna");
+var $b = Core\Uri::parse("https://example.com/%7Eanna");
+
+// The texts are different, so this prints "different texts".
+string $textA = $a->toString();
+string $textB = $b->toString();
+echo $textA == $textB ? "same text" : "different texts", "\n";
+
+// `compareTo` checks the address. It returns 0 when both are the same address, so this prints 0.
+echo $a->compareTo($b), "\n";

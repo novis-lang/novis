@@ -1,0 +1,15 @@
+<?nvs
+// Shows how to check that a program wrote no warnings.
+// requires: unix
+
+array<string> $scripts = ["echo done", "echo done; echo 'warning: old settings' >&2"];
+
+foreach ($scripts as string $script) {
+    bytes $warnings = Core\Process::run("/bin/sh", ["-c", $script])->stderr();
+    // An empty error output has length `0`.
+    if (Core\Bytes::length($warnings) == 0) {
+        echo "no warnings\n";
+    } else {
+        echo "warnings: ", $warnings as string;
+    }
+}

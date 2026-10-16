@@ -1,0 +1,21 @@
+---
+title: "7. JSON"
+covers: []
+description: Turn objects into JSON text and read JSON text back into objects.
+---
+
+import Snippet from '@components/Snippet.astro'
+
+Programs often save data as JSON or send it to other programs. Add `#[Core\Json\Derive]` to a
+class, and Novis can write and read its objects as JSON:
+
+<Snippet src="guides/tour/07-json.nvs" />
+
+`Core\Json::encode` returns the JSON text of the array. Each property of a `Task` becomes a key.
+
+`Core\Json::decodeAs<Task>` reads the text into a new `Task`. It checks each value against the type
+of its property. If a key is missing or has the wrong type, it throws a `ParseError`.
+
+Read more in [Syntax: JSON](/syntax/attributes/json/).
+
+Next: [step 8, tests](/guides/tour/08-tests/).

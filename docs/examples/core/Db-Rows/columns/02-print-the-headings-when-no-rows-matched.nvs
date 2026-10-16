@@ -1,0 +1,17 @@
+<?nvs
+// Shows that a query describes its columns even when it matched no rows. Your
+// program can print the headings of a table before it knows what is under them.
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table invoices (id integer primary key, number text not null, total real not null)', []);
+
+// Nothing was inserted, so this query matches no rows. This prints `0`.
+var $rows = $db->query('select number, total from invoices', []);
+echo $rows->count(), "\n";
+
+// The columns are described all the same. This prints `number` and `total`.
+foreach ($rows->columns() as Core\Db\Column $column) {
+    echo $column->name(), "\n";
+}
+
+$db->close();

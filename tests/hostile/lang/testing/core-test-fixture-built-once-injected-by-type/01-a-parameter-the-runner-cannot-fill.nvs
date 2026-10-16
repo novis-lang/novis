@@ -1,0 +1,47 @@
+<?nvs
+// Attack: a test and a fixture declare parameters the test runner cannot fill.
+// One takes any number of values, the other writes its value back to the
+// caller. The runner has one value per parameter and no caller, so this program
+// should not compile.
+// hostile: expect-refusal
+
+use Core\Test;
+use Core\Test\Fixture;
+
+final class Schema
+{}
+final class Cache
+{}
+
+final class GreedyTest
+{
+    #[Fixture]
+    public static function schema(): Schema
+    {
+        return new Schema();
+    }
+
+    // The parameter ends in `...`, so it takes any number of values.
+    #[Test]
+    public function itAsksForEveryFixtureAtOnce(Schema ...$schemas): void
+    {
+        Test::assertSame(1, 1);
+    }
+
+    // `inout` writes the value back to the variable it came from. There is no
+    // such variable here.
+    #[Test]
+    public function itWritesItsFixtureBack(inout Schema $schema): void
+    {
+        Test::assertSame(1, 1);
+    }
+
+    // A fixture is filled the same way, so the same two shapes are refused here.
+    #[Fixture]
+    public static function cache(Schema ...$rest): Cache
+    {
+        return new Cache();
+    }
+}
+
+echo 'this line must never run', "\n";

@@ -1,0 +1,29 @@
+<?nvs
+// Shows how to use two floating-point columns of the same row. This prints the
+// stops that are inside the area a map shows.
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table stops (name text not null, lat real not null, lon real not null)', []);
+$db->execute(
+    'insert into stops (name, lat, lon) values (?, ?, ?), (?, ?, ?), (?, ?, ?)',
+    ['main square', 47.0707, 15.4395, 'river bridge', 47.0833, 15.4167, 'south gate', 47.0512, 15.4389]
+);
+
+// The corners of the area. A stop is inside it when both of its numbers are
+// between the two corners.
+float $north = 47.08;
+float $south = 47.06;
+float $west = 15.43;
+float $east = 15.45;
+
+foreach ($db->query('select name, lat, lon from stops order by name', []) as Core\Db\Row $row) {
+    float $lat = $row->float('lat') ?? 0.0;
+    float $lon = $row->float('lon') ?? 0.0;
+    if ($lat <= $north && $lat >= $south && $lon >= $west && $lon <= $east) {
+        echo $row->string('name') ?? '', " is on the map\n";
+    } else {
+        echo $row->string('name') ?? '', " is outside the map\n";
+    }
+}
+
+$db->close();

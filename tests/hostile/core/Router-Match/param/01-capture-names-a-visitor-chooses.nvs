@@ -1,0 +1,40 @@
+<?nvs
+// Attack: a program reads a capture with a name that a visitor chose: empty, very long,
+// with braces or with a zero byte. Each read should return `null` and nothing may crash.
+
+class Users
+{
+    #[Core\Route(path: "/users/{id}/{tab?}", method: Core\Http\Method::Get, name: "Users::show")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function show(uint $id, string $tab = 'profile'): string
+    { return 'one user'; }
+}
+
+?Core\Router\Match $found = Core\Router::match(Core\Http\Method::Get, '/users/7');
+if ($found == null) {
+    echo 'no match', "\n";
+} else {
+    Core\Router\Match $user = $found;
+
+    // 1. Names that no route has. Each result is `null`.
+    array<string> $names = ['', '{id}', 'id?', 'ID', "id\0", Core\Str::repeat('x', 1000000)];
+    uint $missing = 0;
+    foreach ($names as string $name) {
+        if ($user->param($name) == null) {
+            $missing = $missing + 1;
+        }
+    }
+    echo $missing, ' of 6 are null', "\n";
+
+    // 2. The optional capture `{tab?}` is not in the path, so it is `null` too.
+    echo $user->param('tab') == null ? 'tab: null' : 'tab: set', "\n";
+
+    // 3. The capture that exists is read one million times.
+    uint $sum = 0;
+    uint $i = 0;
+    while ($i < 1000000) {
+        $sum = $sum + ($user->param('id') as uint);
+        $i = $i + 1;
+    }
+    echo $sum, "\n";
+}

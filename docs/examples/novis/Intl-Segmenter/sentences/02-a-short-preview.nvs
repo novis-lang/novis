@@ -1,0 +1,10 @@
+<?nvs
+// Shows how to make a short preview of a text from its first sentence.
+use Novis\Intl\Segmenter;
+
+string $post = "The Blog has a new page. It lists every product in the Shop.";
+
+// A sentence keeps the space after it, so `Core\Str::trim` removes that space.
+// This prints The Blog has a new page.
+array<string> $sentences = Segmenter::sentences([$post], "en")[0];
+echo Core\Str::trim($sentences[0]), "\n";

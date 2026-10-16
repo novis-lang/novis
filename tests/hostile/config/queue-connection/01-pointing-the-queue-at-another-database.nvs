@@ -1,0 +1,84 @@
+<?nvs
+// Attack: a request tries to change `queue.connection`, the database that holds
+// the background jobs. With another database, it could read every job. Every
+// write should fail, and the connection should still be the configured one.
+// hostile: timeout-ms 20000
+
+// 1. Tries `main` with other letter case, spaces or a line break, and other
+//    database names. Every write should fail.
+array<string> $names = [
+    'main',
+    'MAIN',
+    'Main',
+    ' main',
+    'main ',
+    "main\u{0000}",
+    "main\n[db.main]\nurl = \"postgres://attacker/jobs\"",
+    "main\r\n",
+    'main.',
+    '.main',
+    'main/../attacker',
+    'attacker',
+    '',
+    '0',
+    'null',
+    'postgres://attacker/jobs',
+    '../../etc/nvs.toml',
+    Core\Str::repeat('main', 100000),
+    Core\Str::repeat('../', 100000) . 'main',
+];
+foreach ($names as string $name) {
+    Core\Config::set('queue.connection', $name);
+    Core\Config::restore('queue.connection');
+}
+
+// 2. Tries keys that are almost `queue.connection`, including the `app.0.` form
+//    for one application. Every write should fail.
+array<string> $keys = [
+    'queue.connection',
+    'QUEUE.CONNECTION',
+    'Queue.Connection',
+    'queue.connection ',
+    ' queue.connection',
+    'queue..connection',
+    'queue.connection.',
+    'app.0.queue.connection',
+    'app.1.queue.connection',
+    'app.-1.queue.connection',
+    'queue.CONNECTION',
+    "queue.connection\u{0000}",
+];
+foreach ($keys as string $key) {
+    Core\Config::set($key, 'attacker');
+    Core\Config::get($key);
+    Core\Config::restore($key);
+}
+
+// 3. Writes and reads the connection 200,000 times. The value should never
+//    change, so this prints `0`.
+uint $changes = 0;
+string $standing = Core\Config::get('queue.connection') ?? '(nothing written)';
+uint $i = 0;
+while ($i < 200000) {
+    Core\Config::set('queue.connection', 'attacker');
+    Core\Config::set('app.0.queue.connection', 'attacker');
+    Core\Config::restore('queue.connection');
+    if ((Core\Config::get('queue.connection') ?? '(nothing written)') != $standing) {
+        $changes = $changes + 1;
+    }
+    $i = $i + 1;
+}
+
+// 4. Builds 20,000 job strings, as a real request would. The settings should
+//    still be the configured values after this work.
+array<string> $payloads = [];
+uint $j = 0;
+while ($j < 20000) {
+    $payloads[] = 'job-' . $j . '-' . Core\Str::repeat('x', $j % 64);
+    $j = $j + 1;
+}
+
+echo 'changes: ', $changes, "\n";
+echo 'payloads built: ', Core\Arr::count($payloads), "\n";
+echo 'connection: ', Core\Config::get('queue.connection') ?? '(nothing written)', "\n";
+echo 'workers:    ', Core\Config::get('queue.workers') ?? '(no value)', "\n";

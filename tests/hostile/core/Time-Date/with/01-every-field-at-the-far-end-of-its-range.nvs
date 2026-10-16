@@ -1,0 +1,35 @@
+<?nvs
+// Attack: `with` gets the largest and smallest values each part can hold, and days that are not in the month.
+// Each bad call should throw a `RuntimeError`, and the loop at the end should finish without a leak.
+
+var $leapDay = Core\Time\Date::at(2024, 2, 29);
+int $refused = 0;
+
+// 1. The largest and the smallest whole number as the year.
+try { $leapDay->with({ year: 9223372036854775807 }); } catch (RuntimeError $yearHigh) { $refused = $refused + 1; }
+try { $leapDay->with({ year: -9223372036854775807 - 1 }); } catch (RuntimeError $yearLow) { $refused = $refused + 1; }
+
+// 2. The largest unsigned whole number as the month and as the day.
+try { $leapDay->with({ month: 18446744073709551615 }); } catch (RuntimeError $monthHigh) { $refused = $refused + 1; }
+try { $leapDay->with({ day: 18446744073709551615 }); } catch (RuntimeError $dayHigh) { $refused = $refused + 1; }
+
+// 3. One step past each end of each part.
+try { $leapDay->with({ year: 10000 }); } catch (RuntimeError $yearPast) { $refused = $refused + 1; }
+try { $leapDay->with({ year: -10000 }); } catch (RuntimeError $yearBefore) { $refused = $refused + 1; }
+try { $leapDay->with({ month: 13 }); } catch (RuntimeError $monthPast) { $refused = $refused + 1; }
+try { $leapDay->with({ month: 0 }); } catch (RuntimeError $monthBefore) { $refused = $refused + 1; }
+try { $leapDay->with({ day: 30 }); } catch (RuntimeError $dayPast) { $refused = $refused + 1; }
+try { $leapDay->with({ day: 0 }); } catch (RuntimeError $dayBefore) { $refused = $refused + 1; }
+
+// 4. 29 February in a year that is not a leap year.
+try { $leapDay->with({ year: 2023 }); } catch (RuntimeError $notLeap) { $refused = $refused + 1; }
+echo $refused, " refused\n";
+
+// 5. Many dates are built in a loop by changing the day. Every one is freed.
+var $date = $leapDay;
+uint $i = 0;
+while ($i < 200000) {
+    $date = $date->with({ day: $i % 28 + 1 });
+    $i = $i + 1;
+}
+echo $date->format('yyyy-MM-dd'), "\n";

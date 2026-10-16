@@ -1,0 +1,14 @@
+--TEST--
+reading a class constant highlights the read at the constant's own name and leaves the declaration above it unhighlighted, `rule:ide/five-features-are-one-reference-index`
+--FILE--
+<?nvs
+class Cart
+{
+    public const int LIMIT = 10;
+}
+
+echo Cart::LI<|>MIT;
+--REQUEST--
+documentHighlight
+--EXPECT--
+case.nvs:7:12

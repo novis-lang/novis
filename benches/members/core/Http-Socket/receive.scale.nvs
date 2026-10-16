@@ -1,0 +1,32 @@
+<?nvs
+// Measures receiving a message from a WebSocket server, at growing message sizes.
+// bench: start 1024
+// bench: max 16384
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        array<string|bytes> $frames = [];
+        uint $n = 0;
+        while ($n < 64) {
+            $frames[] = Core\Str::repeat('a', $size);
+            $n = $n + 1;
+        }
+        // The socket is answered from this table, so nothing is sent over a network.
+        Core\Test::answerSocket('wss://feed.example.com/ticks', $frames);
+        Core\Http\Socket $socket = Core\Http\Client::openSocket('wss://feed.example.com/ticks');
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            ?Core\Socket\Message $message = $socket->receive();
+            if ($message != null) {
+                $total = $total + 1 + ($i % 2);
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(1024), "\n";

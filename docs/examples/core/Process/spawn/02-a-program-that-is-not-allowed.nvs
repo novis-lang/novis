@@ -1,0 +1,11 @@
+<?nvs
+// Shows what happens when a program is not in the folders that `nvs.toml` allows.
+
+// `nvs.toml` allows `/bin` and `/usr/bin`. `/opt/backup/bin/backup` is in neither folder.
+// So `Core\Process::spawn` throws a `RuntimeError`. The program is not started, and there is no handle.
+try {
+    var $backup = Core\Process::spawn("/opt/backup/bin/backup", ["--all"]);
+    echo "The program ended with exit code ", $backup->wait()->exitCode(), ".\n";
+} catch (RuntimeError $notAllowed) {
+    echo "The program was not started.\n";
+}

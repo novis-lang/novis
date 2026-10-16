@@ -1,0 +1,50 @@
+<?nvs
+// Attack: an array of 100000 inner arrays is flattened. Then an array holding
+// one inner array of 100000 entries, and the same work 100 times over. Every
+// step should finish, and the runtime must not crash.
+// hostile: timeout-ms 30000
+
+// 1. 100000 inner arrays of one entry each become 100000 entries.
+array<array<int>> $many = [];
+int $i = 0;
+while ($i < 100000) {
+    $many[] = [$i];
+    $i = $i + 1;
+}
+echo 'step 1: ', Core\Arr::count(Core\Arr::flatten($many)), '|', "\n";
+
+// 2. One inner array of 100000 entries becomes the same 100000 entries.
+array<int> $long = [];
+int $j = 0;
+while ($j < 100000) {
+    $long[] = $j;
+    $j = $j + 1;
+}
+array<array<int>> $one = [$long];
+echo 'step 2: ', Core\Arr::count(Core\Arr::flatten($one)), '|', "\n";
+
+// 3. The same array is flattened 100 times and the results are dropped, so
+//    nothing may be left behind.
+uint $seen = 0;
+int $r = 0;
+while ($r < 100) {
+    $seen = $seen + Core\Arr::count(Core\Arr::flatten($one));
+    $r = $r + 1;
+}
+echo 'step 3: ', $seen, '|', "\n";
+
+// 4. A key of one million characters is thrown away with every other key.
+array<int> $wide = [];
+$wide[Core\Str::repeat('k', 1000000)] = 1;
+array<array<int>> $nested = [$wide];
+echo 'step 4: ', Core\Str::join(Core\Arr::keys(Core\Arr::flatten($nested)), ','), '|', "\n";
+
+// 5. Inner arrays with no entries give an array with no entries.
+array<array<int>> $empties = [[], [], []];
+echo 'step 5: ', Core\Arr::count(Core\Arr::flatten($empties)), '|', "\n";
+
+// 6. An array with no entries at all flattens to one with no entries.
+array<array<int>> $empty = [];
+echo 'step 6: ', Core\Arr::count(Core\Arr::flatten($empty)), '|', "\n";
+
+echo 'the runtime is still standing', "\n";

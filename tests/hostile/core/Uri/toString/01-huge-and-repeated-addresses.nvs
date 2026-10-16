@@ -1,0 +1,41 @@
+<?nvs
+// Attack: a program turns very long addresses into text, and reads its own text again many times.
+// Each text should be the address that was read, and every `Uri` should be freed.
+
+class Text
+{
+    public static function same(string $address): string
+    {
+        try {
+            return Core\Uri::parse($address)->toString() == $address ? 'same' : 'changed';
+        } catch (Throwable $e) {
+            return 'error';
+        }
+    }
+}
+
+// 1. A path of one million characters. This prints "same".
+echo Text::same('https://example.com/' . Core\Str::repeat('a', 1000000)), "\n";
+
+// 2. A query of 200000 escapes, in upper and lower case. They stay as written. This prints "same".
+echo Text::same('https://example.com/?q=' . Core\Str::repeat('%2F%2f', 100000)), "\n";
+
+// 3. Every character that may appear in the user part, the path, the query and the fragment.
+// The user part may not contain `@`. This prints "same".
+string $user = '-._~!$&\'()*+,;=:';
+string $all = $user . '@';
+echo Text::same('https://' . $user . '@example.com/' . $all . '?' . $all . '/?#' . $all . '/?'), "\n";
+
+// 4. The empty address. Its text is empty, so this prints [].
+echo '[', Core\Uri::parse('')->toString(), "]\n";
+
+// 5. The text of an address is read again 100000 times. Each `Uri` in between is freed.
+// This prints "same".
+string $start = 'HTTP://User@Example.COM:8080/a%2fb/../c?x=1#Top';
+var $uri = Core\Uri::parse($start);
+uint $i = 0;
+while ($i < 100000) {
+    $uri = Core\Uri::parse($uri->toString());
+    $i = $i + 1;
+}
+echo $uri->toString() == $start ? 'same' : 'changed', "\n";

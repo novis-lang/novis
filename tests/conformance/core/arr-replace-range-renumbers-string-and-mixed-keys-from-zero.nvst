@@ -1,0 +1,30 @@
+--TEST--
+Core\Arr::replaceRange returns a list from key 0 when the subject has string keys or a mix of string and integer keys, an empty window at the end included
+--FILE--
+<?nvs
+final class Render {
+    public static function of(array<int> $a): string {
+        var $out = "";
+        foreach ($a as string $k => int $v) {
+            $out = $out . $k . "=" . $v . ";";
+        }
+        return $out;
+    }
+}
+
+array<int> $rep = [7, 8];
+
+// Only string keys. The result is a list.
+array<int> $map = ["x" => 1, "y" => 2, "z" => 3, "w" => 4];
+echo Render::of(Core\Arr::replaceRange($map, 1, 2, $rep)), "\n";
+
+// Integer and string keys together. The result is a list.
+array<int> $mixed = ["5" => 1, "x" => 2, "9" => 3, "b" => 4];
+echo Render::of(Core\Arr::replaceRange($mixed, 1, 1, $rep)), "\n";
+
+// An empty window at the end adds the new entries, and the result is a list.
+echo Render::of(Core\Arr::replaceRange($mixed, 4, 0, $rep)), "\n";
+--EXPECT--
+0=1;1=7;2=8;3=4;
+0=1;1=7;2=8;3=3;4=4;
+0=1;1=2;2=3;3=4;4=7;5=8;

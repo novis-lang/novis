@@ -1,0 +1,24 @@
+<?nvs
+// Reads the path of a parsed address, as a server does when it chooses the page for a request.
+// bench: iterations 2048
+// bench: allocations 0
+// bench: complexity constant
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<Core\Uri> $requests = [
+            Core\Uri::parse("https://shop.example.com/products/42?color=red"),
+            Core\Uri::parse("https://shop.example.com/"),
+            Core\Uri::parse("/account/orders?sort=date"),
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            $total = $total + Core\Str::length($requests[($total % 3) as int]->path());
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(2048), "\n";

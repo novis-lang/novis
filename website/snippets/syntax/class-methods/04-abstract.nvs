@@ -1,0 +1,24 @@
+<?nvs
+// An `abstract` method has no body. Every class that extends `Shape` must write `area`.
+abstract class Shape {
+    public abstract function area(): int;
+
+    public function describe(): string {
+        return "area=" . $this->area();
+    }
+}
+
+// `final` means no other class can extend `Square`.
+final class Square extends Shape {
+    public function constructor(public int $side) {}
+
+    public function area(): int {
+        return $this->side * $this->side;
+    }
+}
+
+array<Shape> $all = [new Square(3), new Square(2)];
+foreach ($all as Shape $s) {
+    echo $s->describe(), ";";
+}
+echo "\n";

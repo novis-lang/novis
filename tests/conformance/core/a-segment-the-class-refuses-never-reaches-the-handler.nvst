@@ -1,0 +1,87 @@
+--TEST--
+A segment a `Parses` class refuses throws where the match crosses into the program, over a route the shape already claimed, while a `Core\Uuid` segment the matcher refuses is no match at all — `rule:security/route-capture-is-laundered-by-its-type` and `rule:routing/a-bad-query-value-is-a-400`
+--FILE--
+<?nvs
+// Two captures spelled the same way fail two ways, and this case names both
+// bounds together, because either half read alone looks like the whole rule.
+//
+// What decides which is *who runs at the door*. The matcher narrows on the
+// conversions it reads natively, so a `Core\Uuid` segment it cannot read is not a
+// match, the walk carries on and nothing else claiming the path is a `404`. A
+// capture at any other class built from text matches on shape, because running
+// an implementor's `parse` at the door would put a body that can loop, allocate
+// and throw over every request URL including the ones matching nothing -- so the
+// class's refusal happens one layer up, where the match crosses into the program
+// and a served request is already past everything that rate-limits it. That is a
+// `400` over a route that did match, and the handler's own body never runs.
+class Slug implements Parses
+{
+    public tainted string $text = "";
+
+    public function constructor(tainted string $text)
+    {
+        $this->text = $text;
+    }
+
+    // A slug is the lower-case form of itself. Nothing about that reaches the
+    // matcher: it is this class's business and runs where the class does.
+    public static function parse(tainted string $s): static
+    {
+        if ($s != Core\Str::lower($s)) {
+            throw new ParseError("a slug is written in lower case");
+        }
+        return new static($s);
+    }
+}
+
+class Posts
+{
+    #[Core\Route(path: "/posts/{slug}", method: Core\Http\Method::Get, name: "Posts::show")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function show(Slug $slug): string
+    {
+        return "one post";
+    }
+
+    #[Core\Route(path: "/posts/by-id/{id}", method: Core\Http\Method::Get, name: "Posts::byId")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function byId(Core\Uuid $id): string
+    {
+        return "one post";
+    }
+}
+
+// The row the shape claims, and the value it hands over.
+?Core\Router\Match $good = Core\Router::match(Core\Http\Method::Get, "/posts/hello-world");
+if ($good != null) {
+    echo "a segment the class accepts is the match ", $good->name() ?? "none", "\n";
+}
+
+// The same row, claimed by the same shape, refused by the class where the match
+// reaches the program. The throw is the class's own, crossing unchanged.
+try {
+    ?Core\Router\Match $shouty = Core\Router::match(Core\Http\Method::Get, "/posts/Hello-World");
+    echo "unreachable: nothing refused the segment", "\n";
+} catch (ParseError $refusal) {
+    echo "a segment the class refuses throws, over a route that did match", "\n";
+}
+
+// The lower bound of that: the throw above proves the row *was* claimed, because
+// a path claiming no row never reaches a `parse` at all. A path of the wrong
+// shape is silent.
+?Core\Router\Match $deeper = Core\Router::match(Core\Http\Method::Get, "/posts/hello/world");
+if ($deeper == null) {
+    echo "a path of another shape claims no row and runs no parse", "\n";
+}
+
+// And the other direction, at the class the matcher converts itself: a segment
+// it refuses is not a match, and nothing throws.
+?Core\Router\Match $refused = Core\Router::match(Core\Http\Method::Get, "/posts/by-id/not-a-uuid");
+if ($refused == null) {
+    echo "a Core\\Uuid segment the matcher refuses is no match", "\n";
+}
+--EXPECT--
+a segment the class accepts is the match Posts::show
+a segment the class refuses throws, over a route that did match
+a path of another shape claims no row and runs no parse
+a Core\Uuid segment the matcher refuses is no match

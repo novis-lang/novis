@@ -1,0 +1,27 @@
+<?nvs
+// Measures how fast `toString` writes a short filter as text, as a program does when it logs each search.
+// bench: iterations 100000
+// bench: calls 0
+// bench: complexity constant
+
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        // The length so far chooses the filter, so the loop cannot be left out.
+        array<Core\Ldap\Filter> $filters = [
+            Core\Ldap\Filter::equals('sAMAccountName', 'anna'),
+            Core\Ldap\Filter::all(Core\Ldap\Filter::equals('objectClass', 'user'), Core\Ldap\Filter::present('mail')),
+            Core\Ldap\Filter::not(Core\Ldap\Filter::equals('cn', 'a*(b)')),
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            $total = $total + Core\Str::length($filters[($total % 3) as int]->toString());
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(100000), "\n";

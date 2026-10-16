@@ -1,0 +1,16 @@
+<?nvs
+// Finds the requests in a log that took longer than half a second.
+
+array<array<string>> $log = [
+    ["/home", "2024-03-01T09:00:00.100Z", "2024-03-01T09:00:00.180Z"],
+    ["/search", "2024-03-01T09:00:01.000Z", "2024-03-01T09:00:01.750Z"],
+    ["/cart", "2024-03-01T09:00:02.000Z", "2024-03-01T09:00:02.500Z"],
+];
+
+foreach ($log as array<string> $request) {
+    Core\Time\Duration $took = Core\Time::fromIso($request[2])->since(Core\Time::fromIso($request[1]));
+    // Durations can be compared with `>`. This prints only /search 750ms.
+    if ($took > 500ms) {
+        echo $request[0], " ", $took->toString(), "\n";
+    }
+}

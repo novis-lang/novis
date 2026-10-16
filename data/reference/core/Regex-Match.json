@@ -1,0 +1,11 @@
+{
+  "summary": "one match of a pattern — its text, its groups by number or name, and where it starts",
+  "keywords": [
+    "preg_match $matches",
+    "PREG_OFFSET_CAPTURE",
+    "PREG_UNMATCHED_AS_NULL",
+    "capture group",
+    "named group",
+    "match result"
+  ]
+}

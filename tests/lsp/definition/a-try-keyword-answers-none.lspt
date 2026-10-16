@@ -1,0 +1,13 @@
+--TEST--
+a cursor on the `try` keyword is inside the statement and inside neither its body nor a catch, so it answers `none`, `rule:ide/the-index-answers-the-cursor`
+--FILE--
+<?nvs
+tr<|>y {
+    echo "work";
+} catch (RuntimeError $refused) {
+    echo "refused";
+}
+--REQUEST--
+definition
+--EXPECT--
+none

@@ -1,0 +1,13 @@
+{
+  "summary": "RFC 4180 documents read into rows of `string` fields and written back, with an optional header row and dialect",
+  "keywords": [
+    "str_getcsv",
+    "fgetcsv",
+    "fputcsv",
+    "CSV",
+    "comma-separated",
+    "header row",
+    "delimiter",
+    "dialect"
+  ]
+}

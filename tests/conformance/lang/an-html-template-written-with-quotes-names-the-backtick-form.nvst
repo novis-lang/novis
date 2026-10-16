@@ -1,0 +1,29 @@
+--TEST--
+`html"…"` is `E0319` like any bare name, but its help names the backtick form: a reader who guessed a string delimiter is one character from the html template, and a help about class constants reads as "there is no such template"
+--FILE--
+<?nvs
+// The bare name followed by a quote is only ever this guess, so the help says
+// what an html template is and how it is written, and nothing about constants.
+Core\Html\Markup $m = html"<p>x</p>";
+--EXPECTF-ERROR--
+error[E0319]: `html` is not a constant that exists
+  --> %s:4:23
+  |
+4 | Core\Html\Markup $m = html"<p>x</p>";
+  |                       ^^^^ no global constant has this name
+  = help: an html template is written with backticks, `html`<p>{$name}</p>``: its text is a `Core\Html\Markup` and every `{$…}` hole in it is escaped
+
+error[E0401]: expected `Core\Html\Markup`, found `mixed`
+  --> %s:4:23
+  |
+4 | Core\Html\Markup $m = html"<p>x</p>";
+  |                       ^^^^ this is `mixed`
+
+error[E0101]: expected `;`
+  --> %s:4:27
+  |
+4 | Core\Html\Markup $m = html"<p>x</p>";
+  |                           ^ not found here
+
+error: aborting due to 3 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

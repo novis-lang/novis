@@ -1,0 +1,19 @@
+<?nvs
+// Shows how the links on a page become full addresses, the way a browser follows them.
+
+Core\Uri $page = Core\Uri::parse("https://example.com/blog/2024/post.html?lang=en#comments");
+
+array<string> $links = [
+    "photo.jpg",
+    "/about",
+    "../archive",
+    "?lang=de",
+    "#top",
+    "https://example.org/news",
+];
+
+// Each link is read from the address of the page.
+// The fragment `#comments` of the page is not used.
+foreach ($links as string $link) {
+    echo $link, " -> ", $page->resolve($link)->toString(), "\n";
+}

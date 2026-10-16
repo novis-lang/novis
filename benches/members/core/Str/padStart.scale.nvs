@@ -1,0 +1,20 @@
+<?nvs
+// Measures `Core\Str::padStart` padding one number with zeros, at growing widths.
+// bench: start 256
+// bench: max 4096
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            $total = $total + Core\Str::length(Core\Str::padStart('42', $size + $total % 2, '0'));
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

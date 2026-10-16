@@ -1,0 +1,17 @@
+<?nvs
+// Shows how to add an array of rows to a sheet with one call.
+use Novis\Spreadsheet\Workbook;
+
+array<array<mixed>> $orders = [
+    ['order' => 1042, 'shop' => 'North', 'total' => 19.9],
+    ['order' => 1043, 'shop' => 'South', 'total' => 5.5],
+    ['order' => 1044, 'shop' => 'North', 'total' => 12.0],
+];
+
+var $book = Workbook::createInMemory({ format: 'csv' });
+$book->sheet('Orders')->addAll($orders);
+
+var $written = $book->finish();
+if ($written->bytes != null) {
+    echo $written->bytes as string;
+}

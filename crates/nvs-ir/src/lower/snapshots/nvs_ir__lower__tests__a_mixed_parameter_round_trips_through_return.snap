@@ -1,0 +1,13 @@
+---
+source: crates/nvs-ir/src/lower/mod.rs
+expression: "print_function(&f, map.file(file))"
+---
+fn pick(object, tagged) -> tagged {
+  bb0:
+    safepoint
+    v0 = param 0  ; object
+    v1 = param 1  ; tagged
+    ; stmt s0 @4:5-4:15
+    release v0
+    return v1
+}

@@ -1,0 +1,36 @@
+--TEST--
+`Core\Sse->retry` takes a `Core\Time\Duration` and the wire takes milliseconds, so the unit is said once at the call site and never carried in the number — `rule:concurrency/two-doors-one-isolate`
+--FILE--
+<?nvs
+// A parameter taking a number of milliseconds would put the unit at every call
+// site, where a `Duration` says which unit it is where it is written. What
+// reaches the wire is the same field whichever member built the wait.
+var $units = Core\Out::capture(fn (): void => {
+    var $sse = Core\Sse::stream();
+    $sse->retry(Core\Time\Duration::seconds(3));
+    $sse->retry(Core\Time\Duration::milliseconds(250));
+    $sse->retry(Core\Time\Duration::minutes(2));
+});
+echo $units;
+echo "--\n";
+
+// A wait shorter than the wire can spell arrives as `0` rather than as a
+// refusal: a millisecond is the client's floor, and a program asking for less
+// than the wire can say is asking for the least it can say.
+var $floor = Core\Out::capture(fn (): void => {
+    var $sse = Core\Sse::stream();
+    $sse->retry(Core\Time\Duration::microseconds(10));
+});
+echo $floor;
+echo "--\n";
+--EXPECT--
+retry: 3000
+
+retry: 250
+
+retry: 120000
+
+--
+retry: 0
+
+--

@@ -1,0 +1,13 @@
+{
+  "title": "A node the parser invented says so — `MemberName::Missing` and a spanned `ExprKind::Error` — and an empty span is never the signal",
+  "status": "shipped",
+  "seeAlso": [
+    "ide/one-grammar-one-tree",
+    "ide/the-index-answers-the-cursor",
+    "ide/the-tree-survives-a-syntax-error"
+  ],
+  "guardedBy": [
+    "crates/nvs-syntax/src/parser/tests/expr.rs",
+    "crates/nvs-syntax/tests/prefixes.rs"
+  ]
+}

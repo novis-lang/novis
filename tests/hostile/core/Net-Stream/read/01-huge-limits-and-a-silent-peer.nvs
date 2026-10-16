@@ -1,0 +1,87 @@
+<?nvs
+// Attack: a program reads with a huge `$max`, with `$max` of 0, and from a peer that never sends.
+// Each read should return, throw a `TimeoutError` or throw an `IOError`, and the request should end cleanly.
+// hostile: timeout-ms 30000
+
+Core\Net\Listener $server = Core\Net::listen('127.0.0.1', 0);
+Core\Net\Stream $client = Core\Net::connect('127.0.0.1', $server->port(), 5s);
+Core\Net\Stream $connection = $server->accept(5s);
+
+// 1. Read with the largest `$max` there is, while four bytes are waiting.
+$client->write('four' as bytes, 5s);
+echo '1: ', Core\Bytes::length($connection->read(18446744073709551615, 5s)), "\n";
+
+// 2. Read with a `$max` of 0, with and without data waiting.
+try {
+    echo '2a: ', Core\Bytes::length($connection->read(0, 100ms)), "\n";
+} catch (TimeoutError $late) {
+    echo "2a timeout\n";
+}
+$client->write('more' as bytes, 5s);
+try {
+    echo '2b: ', Core\Bytes::length($connection->read(0, 100ms)), "\n";
+} catch (TimeoutError $late) {
+    echo "2b timeout\n";
+}
+echo '2c: ', Core\Bytes::length($connection->read(64, 5s)), "\n";
+
+// 3. Read from a peer that never sends, with no time to wait and with a short time.
+try {
+    $connection->read(64, 0ms);
+} catch (RuntimeError $e) {
+    echo "3a ok\n";
+}
+try {
+    $connection->read(64, 50ms);
+} catch (TimeoutError $late) {
+    echo "3b ok\n";
+}
+
+// 4. One thousand huge reads in a row that each time out.
+uint $i = 0;
+while ($i < 1000) {
+    try {
+        $connection->read(1000000000, 1ms);
+    } catch (TimeoutError $late) {
+    }
+    $i = $i + 1;
+}
+echo "4 ok\n";
+
+// 5. Read four megabytes with a huge `$max` each time.
+Core\Net\Stream $sender = Core\Net::connect('127.0.0.1', $server->port(), 5s);
+Core\Net\Stream $receiver = $server->accept(5s);
+uint $sent = 0;
+uint $got = 0;
+bytes $block = Core\Str::repeat('r', 65536) as bytes;
+while ($sent < 4194304) {
+    try {
+        $sent = $sent + $sender->write($block, 1s);
+    } catch (TimeoutError $late) {
+    }
+    try {
+        $got = $got + Core\Bytes::length($receiver->read(18446744073709551615, 1s));
+    } catch (TimeoutError $late) {
+    }
+}
+echo "5 ok\n";
+
+// 6. Read after the other side has closed, many times over.
+$sender->close();
+$i = 0;
+while ($i < 1000) {
+    try {
+        $receiver->read(18446744073709551615, 100ms);
+    } catch (TimeoutError $late) {
+    } catch (IOError $io) {
+    }
+    $i = $i + 1;
+}
+echo "6 ok\n";
+
+// 7. A read that waits on a peer that never sends and is never closed. The request ends with it open.
+try {
+    $connection->read(64, 2s);
+} catch (TimeoutError $late) {
+    echo "7 ok\n";
+}

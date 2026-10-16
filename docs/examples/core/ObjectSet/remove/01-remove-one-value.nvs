@@ -1,0 +1,28 @@
+<?nvs
+// Shows how `remove` takes one value out of a set.
+
+final class Task {
+    public string $title;
+
+    public function constructor(string $title) {
+        $this->title = $title;
+    }
+}
+
+Task $shop = new Task("Buy milk");
+Task $call = new Task("Call Bea");
+Task $mail = new Task("Post letter");
+
+Core\ObjectSet<Task> $todo = new Core\ObjectSet<Task>();
+$todo->add($shop);
+$todo->add($call);
+$todo->add($mail);
+
+$todo->remove($call);
+
+// This prints 2.
+echo $todo->count(), "\n";
+// This prints "Buy milk" and then "Post letter".
+foreach ($todo as Task $task) {
+    echo $task->title, "\n";
+}

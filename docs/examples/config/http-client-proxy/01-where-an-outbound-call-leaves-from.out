@@ -1,0 +1,12 @@
+proxy:          (no block, so no proxy at all)
+who resolves:   (nothing — the block has no default for it)
+reached direct: (nothing — with no proxy there is nothing to go around)
+point it at me: no
+let it resolve: no
+HTTPS_PROXY:    (unset here, and it would change nothing either way)
+writable by me: url -> no
+writable by me: resolve -> no
+writable by me: bypass -> no
+writable by me: username -> no
+writable by me: password -> no
+writable by me: password_file -> no

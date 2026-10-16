@@ -1,0 +1,42 @@
+--TEST--
+a malformed attribute is one error, and the parser resumes after the attribute's closing `]` — `rule:attributes/attach-sites-and-forms`
+--FILE--
+<?nvs
+interface Page {
+    type Meta = {title: string};
+    public function render(): string;
+}
+
+class Home implements Page {
+    // No alias name after `::`.
+    #[Page::]
+    public function render(): string { return "home"; }
+}
+
+class About implements Page {
+    // The payload's `)` is missing.
+    #[Page::Meta(title: "About"]
+    public function render(): string { return "about"; }
+}
+
+class Contact implements Page {
+    // A second name after the first one, with no comma between them.
+    #[Page::Meta(title: "Contact") Page::Meta(title: "Again")]
+    public function render(): string { return "contact"; }
+}
+
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0101]: expected the name of a `type` alias after `::`
+  --> case.nvs:9:13
+%A
+error[E0101]: expected `)`
+   --> case.nvs:15:32
+%A
+error[E0101]: expected `]`
+   --> case.nvs:21:36
+%A
+error: aborting due to 3 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

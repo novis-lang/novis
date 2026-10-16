@@ -1,0 +1,11 @@
+--TEST--
+a declaration that covers one line, and a single import, have nothing to hide between their first and last lines, so the answer is empty rather than a range covering nothing, `rule:ide/the-rendering-has-one-home`
+--FILE--
+<?nvs
+use App\User;
+class Tiny { }
+echo "hi";
+--REQUEST--
+foldingRange
+--EXPECT--
+none

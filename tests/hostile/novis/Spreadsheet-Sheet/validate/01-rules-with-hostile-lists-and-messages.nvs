@@ -1,0 +1,43 @@
+<?nvs
+// Attack: a request builds validation rules from user data, with lists that break the file, formulas and very long messages.
+// `validate` should write each value as data, and throw an error for a rule Excel cannot open.
+use Novis\Spreadsheet\Workbook;
+
+class Attack
+{
+    // This method adds the rule to B2:B9 and prints the size of the file, or the class of the error.
+    public static function attempt(int $step, Novis\Spreadsheet\Sheet::Validation $rule): void
+    {
+        try {
+            var $book = Workbook::createInMemory();
+            $book->sheet('Shop')->validate('B2:B9', $rule)->add(['Status']);
+            bytes $file = $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
+            echo 'step ', $step, ' wrote a file of ', Core\Bytes::length($file) > 0 ? 'some' : 'no', " bytes\n";
+        } catch (Throwable $e) {
+            echo 'step ', $step, ' stopped ', $e::class, "\n";
+        }
+    }
+}
+
+// 1. List values with a comma, a quote, markup and a formula.
+Attack::attempt(1, { list: ['open,closed', 'paid'] });
+Attack::attempt(1, { list: ['"', '</formula1><x>'] });
+Attack::attempt(1, { list: ['=cmd|calc!A0'] });
+
+// 2. A list longer than the 255 characters Excel allows, and a list of 10,000 values.
+Attack::attempt(2, { list: [Core\Str::repeat('a', 300)] });
+array<string> $many = [];
+for (int $n = 0; $n < 10000; $n++) {
+    $many[] = "v{$n}";
+}
+Attack::attempt(2, { list: $many });
+
+// 3. Messages with markup and very long text, and limits that are not numbers.
+Attack::attempt(3, { whole: { min: 1 }, input: '<script>alert(1)</script>', error: Core\Str::repeat('e', 10000) });
+Attack::attempt(3, { whole: { min: 'one', max: '"><x>' } });
+Attack::attempt(3, { formula: '=WEBSERVICE("https://example.com")' });
+
+// 4. No kind, every kind, and an empty list.
+Attack::attempt(4, { input: 'nothing' });
+Attack::attempt(4, { list: ['a'], whole: { min: 1 }, decimal: { min: 1 }, date: { min: 1 }, length: { max: 1 }, formula: 'TRUE' });
+Attack::attempt(4, { list: [] });

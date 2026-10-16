@@ -1,0 +1,24 @@
+<?nvs
+// Shows one file that answers every URL under the prefix of its mount.
+// The `nvs.toml` next to this file mounts it at `/shop`.
+
+// The client asked for `/shop/cart`. The server removed the prefix `/shop`.
+// This prints "path: /cart".
+tainted string $path = Core\Request::path();
+echo "path: ", $path, "\n";
+
+// `prefix()` returns the part that the server removed. This prints "prefix: /shop".
+string $prefix = Core\Request::mount()->prefix();
+echo "prefix: ", $prefix, "\n";
+
+// This file runs for every path under `/shop`, so it chooses the page itself.
+// This prints "page: the cart".
+string $page = match ($path) {
+    "/" => "the start page",
+    "/cart" => "the cart",
+    default => "not found",
+};
+echo "page: ", $page, "\n";
+
+// A link to another page needs the prefix again. This prints "link: /shop/checkout".
+echo "link: ", $prefix, "/checkout\n";

@@ -1,0 +1,10 @@
+{
+  "title": "A `type` alias may not name a single bare class",
+  "status": "shipped",
+  "seeAlso": [
+    "types/type-alias"
+  ],
+  "guardedBy": [
+    "crates/nvs-hir/src/resolve.rs"
+  ]
+}

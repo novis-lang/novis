@@ -1,0 +1,13 @@
+{
+  "title": "A method reference, `Name(...)`, is the only spelling that takes a reference to a declared member",
+  "status": "shipped",
+  "seeAlso": [
+    "expressions/pipeline-substitution",
+    "expressions/nullable-conversion-availability"
+  ],
+  "guardedBy": [
+    "tests/conformance/lang/a-method-reference-names-a-method-not-a-class.nvst",
+    "tests/conformance/reject/a-method-reference-forwards-every-argument.nvst",
+    "crates/nvs-types/tests/callable.rs"
+  ]
+}

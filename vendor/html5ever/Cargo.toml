@@ -1,0 +1,29 @@
+# html5ever 0.40.1 as published on crates.io, with the changes
+# `rule:core-classes/html-parsing` needs. Every changed site carries a `// Novis:`
+# comment. The workspace's `[patch.crates-io]` row is what builds this copy in
+# place of the published crate.
+[package]
+edition = "2021"
+rust-version = "1.85"
+name = "html5ever"
+version = "0.40.1"
+authors = ["The html5ever Project Developers"]
+description = "High-performance browser-grade HTML5 parser"
+documentation = "https://docs.rs/html5ever"
+readme = "README.md"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/servo/html5ever"
+publish = false
+
+[features]
+serde = ["markup5ever/serde"]
+trace_tokenizer = []
+
+[lib]
+name = "html5ever"
+path = "src/lib.rs"
+
+[dependencies]
+log = "0.4"
+markup5ever = "0.40"
+memchr = "2.8.0"

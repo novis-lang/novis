@@ -1,0 +1,35 @@
+--TEST--
+A throw no `catch` handles ends the program at status 1 with standard output intact, and the floor writes one record carrying the class, the message and a node per frame, innermost first — `rule:errors/propagation`, `rule:errors/engine-floor`, `rule:errors/record-producers`
+--FILE--
+<?nvs
+// covers: lang:errors/an-uncaught-throw
+// The two halves of this feature that a program can observe from outside it:
+// what standard output keeps, and what the floor writes when the throw
+// reaches the root. `rule:errors/propagation` is the path between them.
+
+class Ledger {
+    public static function post(int $entry): int {
+        throw new RuntimeError("entry " . $entry . " does not balance");
+    }
+}
+
+class Batch {
+    public static function run(): int {
+        return Ledger::post(4);
+    }
+}
+
+// Written before the throw, so it survives the ending: the floor writes to
+// its own sink and takes nothing back.
+echo "posting 4\n";
+
+// Two frames deep, and no arm anywhere catches it. `rule:errors/engine-floor`
+// is the tier that reports it, because no `[log] handler` is configured here.
+echo Batch::run(), "\n";
+
+// Nothing after the throw runs, which is what the absent third line asserts.
+echo "unreachable\n";
+--EXPECT--
+posting 4
+--EXPECTF-ERROR--
+{"level":"error","msg":"entry 4 does not balance","fields":{"class":"RuntimeError"},"nodes":[{"function":"Ledger::post","file":"%s","line":%d},{"function":"Batch::run","file":"%s","line":%d},{"function":"<script>","file":"%s","line":%d}]}

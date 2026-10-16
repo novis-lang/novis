@@ -1,0 +1,80 @@
+<?nvs
+// Attack: a chain of half a million objects is walked with `?->`. The first
+// walk uses a loop. The second calls a method once for every object. That deep
+// walk should stop with an error the program catches, and must not crash.
+// hostile: timeout-ms 30000
+// covers: lang:classes/nullable-objects-and
+
+class Node
+{
+    public ?Node $next = null;
+
+    public function constructor(public int $depth)
+    {}
+
+    public function reach(string $tag): int
+    {
+        return $this->depth + (Core\Str::length($tag) as int);
+    }
+}
+
+class Attack
+{
+    public static function build(int $length): Node
+    {
+        var $head = new Node(0);
+        var $tail = $head;
+        int $i = 1;
+        for (; $i < $length; $i = $i + 1) {
+            var $node = new Node($i);
+            $tail->next = $node;
+            $tail = $node;
+        }
+        return $head;
+    }
+
+    // A loop uses no call stack, however long the chain is.
+    public static function walk(?Node $from): int
+    {
+        ?Node $at = $from;
+        int $seen = 0;
+        while ($at != null) {
+            $seen = $seen + 1;
+            $at = $at?->next;
+        }
+        return $seen;
+    }
+
+    // One call for every object in the chain.
+    public static function descend(?Node $from): int
+    {
+        if ($from == null) {
+            return 0;
+        }
+        return 1 + Attack::descend($from?->next);
+    }
+}
+
+// 1. Half a million `?->` steps in one loop, ending on the `null` the last node holds.
+var $head = Attack::build(500000);
+echo 'walked ', Attack::walk($head), "\n";
+
+// 2. The same walk, one call per object. The error is caught, so the step after
+//    this one still runs.
+try {
+    int $reached = Attack::descend($head);
+    echo 'descended ', $reached, "\n";
+} catch (RecursionError $tooDeep) {
+    echo "the deep walk was stopped\n";
+}
+
+// 3. A missing receiver, called a hundred thousand times with an argument that
+//    would build a text of 100000 characters. `?->` must not build any of them.
+?Node $missing = null;
+?int $answer = null;
+int $k = 0;
+for (; $k < 100000; $k = $k + 1) {
+    $answer = $missing?->reach(Core\Str::repeat('x', 100000));
+}
+
+echo "still running\n";

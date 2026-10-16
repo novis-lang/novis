@@ -1,0 +1,14 @@
+<?nvs
+// Shows how a shop reads the lines of an order form into a list.
+
+// The form sends `line[0][product]=notebook&line[0][quantity]=3` and one more line for a pen.
+// The option `name` reads only the fields inside `line[...]`, and each line becomes one shape.
+var $lines = Core\Request::postAs<array<tainted {product: string, quantity: uint}>>({name: "line"});
+
+// This prints "3 x notebook", "5 x pen" and then "8 items".
+uint $count = 0;
+foreach ($lines as tainted {product: string, quantity: uint} $line) {
+    echo $line->quantity, " x ", $line->product, "\n";
+    $count = $count + $line->quantity;
+}
+echo $count, " items\n";

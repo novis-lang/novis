@@ -1,0 +1,28 @@
+<?nvs
+// Shows the difference between `self` and `static`. `self` is the class the code
+// is written in. `static` is the class the call was made on.
+
+class Document {
+    public static function kind(): string {
+        return "document";
+    }
+
+    // `new static()` creates an object of the class that was called, so a
+    // subclass gets one of its own kind.
+    public static function create(): static {
+        return new static();
+    }
+
+    public function describe(): string {
+        return static::kind() . " (this code is written in " . self::kind() . ")";
+    }
+}
+
+class Invoice extends Document {
+    public static function kind(): string {
+        return "invoice";
+    }
+}
+
+echo Document::create()->describe(), "\n";
+echo Invoice::create()->describe(), "\n";

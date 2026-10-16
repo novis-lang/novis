@@ -1,0 +1,42 @@
+--TEST--
+Serialization follows the door: a tree the WHATWG parser recovered into is read like any other and refused where XML has no spelling for it — `rule:core-classes/html-parsing`, `rule:core-classes/xml-tree-and-stream`
+--FILE--
+<?nvs
+// `Core\Html::parse` never fails, so a tree can hold what XML refuses. The two
+// doors share the node family and not the writing rules, which is what this
+// case pins: the recovered comment is readable through the same members every
+// other node answers, and only writing it back out through the XML door stops.
+Core\Xml\Node $comment = Core\Html::parse("<p>a<!--c--d--></p>");
+array<Core\Xml\Node> $html = $comment->children();
+array<Core\Xml\Node> $body = $html[0]->children();
+array<Core\Xml\Node> $paragraph = $body[1]->children();
+array<Core\Xml\Node> $inside = $paragraph[0]->children();
+echo "read:    \"", $inside[1]->text(), "\"\n";
+
+try {
+    echo $comment->source(), "\n";
+} catch (LogicError $refused) {
+    echo "refused: ", $refused->message, "\n";
+}
+
+// A name is the other half: the HTML tokenizer keeps a quoted attribute name
+// as the name it was written as, and no XML document can carry it.
+Core\Xml\Node $attribute = Core\Html::parse("<p \"q\"=v>x</p>");
+try {
+    echo $attribute->source(), "\n";
+} catch (LogicError $second) {
+    echo "refused: ", $second->message, "\n";
+}
+
+// The two refusals meet: a tree the XML door parsed is always writable,
+// because the parse refused the same construct on the way in.
+try {
+    Core\Xml::parse("<p><!--c--d--></p>");
+} catch (ParseError $stopped) {
+    echo "parse:   ", $stopped->message, "\n";
+}
+--EXPECT--
+read:    "c--d"
+refused: Core\Xml\Node::source(): a comment has no escape grammar, so it cannot hold `--` or end with `-`.
+refused: Core\Xml\Node::source(): `"q"` is not a name a document can write.
+parse:   Core\Xml::parse(): a comment holds `--`, which XML does not allow inside one.

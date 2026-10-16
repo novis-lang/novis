@@ -1,0 +1,19 @@
+---
+source: crates/nvs-ir/src/lower/tests.rs
+expression: "print_function(&f, map.file(file))"
+---
+fn <script>() -> tagged {
+  bb0:
+    safepoint
+    ; stmt s0 @2:1-2:30
+    v0 = const.str "boom"  ; string
+    v1 = const.null  ; null
+    v2 = tag v1  ; tagged
+    v3 = new LogicError via Throwable::constructor(v0, v2) ! bb1  ; object
+    v4 = source t.nvs:2  ; classdesc
+    throw v3 at v4 -> bb2
+  bb1:
+    propagate "<script>() at t.nvs:2"
+  bb2:
+    propagate "<script>() at t.nvs:2"
+}

@@ -1,0 +1,52 @@
+# looper:begin gitattributes v1
+* text=auto eol=lf
+*.ps1 text eol=crlf
+*.cmd text eol=crlf
+*.bat text eol=crlf
+# looper:end gitattributes
+
+# Normalise to LF in the repository and in working copies on every platform.
+#
+# This is not cosmetic. Novis's conformance tests (`.nvst`) compare program output
+# byte-for-byte against an expected block, and the lexer must be exercised
+# against both line endings deliberately rather than by accident of checkout.
+* text=auto eol=lf
+
+# Source and config
+*.rs      text eol=lf
+*.toml    text eol=lf
+*.md      text eol=lf
+*.yml     text eol=lf
+*.yaml    text eol=lf
+*.json    text eol=lf
+*.sh      text eol=lf
+
+# Novis sources and tests
+*.nvs     text eol=lf
+*.nvst    text eol=lf
+*.php     text eol=lf
+*.phpt    text eol=lf
+
+# Fixtures that deliberately contain CRLF, to test the lexer's handling of it.
+# Anything under a `crlf/` directory is preserved exactly as committed.
+**/fixtures/crlf/**  -text
+
+# Windows scripts keep CRLF
+*.bat     text eol=crlf
+*.cmd     text eol=crlf
+*.ps1     text eol=crlf
+
+# Written by `bun nv render` from the records. A conflict in one is resolved by rendering it again.
+website/src/content/docs/docs/rules/*/**  linguist-generated
+website/src/data/rules.json               linguist-generated
+# Written by `bun nv rules --render` from `data/rules/` and the fragments under `docs/rules/<topic>/`.
+docs/rules/*.md                           linguist-generated
+docs/ground-rules.md                      linguist-generated
+
+# Binary
+*.png     binary
+*.jpg     binary
+*.ico     binary
+*.nvso    binary
+*.nvsx    binary
+*.ttf     binary

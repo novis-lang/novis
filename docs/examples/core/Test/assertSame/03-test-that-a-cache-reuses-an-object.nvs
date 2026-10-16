@@ -1,0 +1,30 @@
+<?nvs
+// Shows a test that a cache returns the same object every time.
+
+final class Settings {
+    public function constructor(public string $language) {}
+}
+
+final class Cache {
+    private static ?Settings $settings = null;
+    public static int $loads = 0;
+
+    // Loads the settings once. Every later call returns the same object.
+    public static function settings(): Settings {
+        ?Settings $cached = self::$settings;
+        if ($cached != null) {
+            return $cached;
+        }
+        self::$loads = self::$loads + 1;
+        Settings $loaded = new Settings("en");
+        self::$settings = $loaded;
+        return $loaded;
+    }
+}
+
+// Both calls return one object, so the check passes.
+Core\Test::assertSame(Cache::settings(), Cache::settings());
+
+// The settings were loaded only once.
+Core\Test::assertSame(Cache::$loads, 1);
+echo "loads: ", Cache::$loads, "\n";

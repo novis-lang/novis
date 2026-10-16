@@ -1,0 +1,52 @@
+<?nvs
+// Attack: `Core\Str::indexOf` searches long texts for long needles that almost match, with `from` at both ends of its range.
+// Each call should return a position or `null` quickly, and must not crash or hang.
+// hostile: timeout-ms 20000
+
+class Attack
+{
+    /// 1. Searches 4 MiB of letters for 64 KiB of letters and a `b`, ignoring case.
+    public static function nearMissIgnoringCase(uint $mib): string
+    {
+        var $hay = Core\Str::repeat(Core\Str::repeat('a', 1048576), $mib);
+        var $needle = Core\Str::repeat('A', 65536) . 'B';
+        return (Core\Str::indexOf($hay, $needle, { caseInsensitive: true }) ?? 'none') . '';
+    }
+
+    /// 2. Does the same search with case, where upper and lower case must match.
+    public static function nearMissWithCase(uint $mib): string
+    {
+        var $hay = Core\Str::repeat(Core\Str::repeat('a', 1048576), $mib);
+        var $needle = Core\Str::repeat('a', 65536) . 'b';
+        return (Core\Str::indexOf($hay, $needle) ?? 'none') . '';
+    }
+
+    /// 3. Searches for a needle that is longer than the text.
+    public static function needleLongerThanText(): string
+    {
+        var $needle = Core\Str::repeat('é', 1000000);
+        return (Core\Str::indexOf('é', $needle, { caseInsensitive: true }) ?? 'none') . '';
+    }
+
+    /// 4. Starts the search at the smallest and the largest possible `from`.
+    public static function fromAtBothEnds(): string
+    {
+        var $s = Core\Str::repeat('👍🏽', 1000);
+        var $low = Core\Str::indexOf($s, '👍🏽', { from: -9223372036854775807 - 1 }) ?? 'none';
+        var $high = Core\Str::indexOf($s, '', { from: 9223372036854775807 }) ?? 'none';
+        return $low . ' ' . $high;
+    }
+
+    /// 5. Searches for a needle that starts in the middle of a character: an accent without its letter.
+    public static function halfACharacter(uint $count): string
+    {
+        var $s = Core\Str::repeat("e\u{301}", $count) . 'x';
+        return (Core\Str::indexOf($s, "\u{301}x", { caseInsensitive: true }) ?? 'none') . '';
+    }
+}
+
+echo Attack::nearMissIgnoringCase(4), "\n";
+echo Attack::nearMissWithCase(4), "\n";
+echo Attack::needleLongerThanText(), "\n";
+echo Attack::fromAtBothEnds(), "\n";
+echo Attack::halfACharacter(200000), "\n";

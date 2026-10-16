@@ -1,0 +1,38 @@
+<?nvs
+// A permission check that reads itself from the methods. Each method says
+// which permission it needs, so adding a method means writing one attribute.
+// There is no second list to keep up to date.
+
+type Requires = {permission: string};
+
+class Orders {
+    // This attribute has one field more than `Requires`. Matching is by shape,
+    // so it still matches.
+    #[{permission: "orders.read", audit: true}]
+    public static function show(): string { return "order 1042"; }
+
+    #[Requires(permission: "orders.write")]
+    public static function cancel(): string { return "order 1042 cancelled"; }
+
+    public static function ping(): string { return "ok"; }
+}
+
+class Access {
+    public static function check(string $action, ?Requires $needs, array<string> $granted): string {
+        if ($needs == null) {
+            return $action . ": open to everyone";
+        }
+        if (Core\Arr::contains($granted, $needs->permission)) {
+            return $action . ": allowed";
+        }
+        return $action . ": needs " . $needs->permission;
+    }
+}
+
+array<string> $granted = ["orders.read"];
+
+// This prints one line per action: `show` is allowed, `cancel` needs a
+// permission this user does not have, and `ping` needs none at all.
+echo Access::check("show", Core\Attributes::get<Requires>(Orders::show(...)), $granted), "\n";
+echo Access::check("cancel", Core\Attributes::get<Requires>(Orders::cancel(...)), $granted), "\n";
+echo Access::check("ping", Core\Attributes::get<Requires>(Orders::ping(...)), $granted), "\n";

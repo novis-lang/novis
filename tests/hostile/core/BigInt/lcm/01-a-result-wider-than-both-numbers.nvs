@@ -1,0 +1,41 @@
+<?nvs
+// Attack: `lcm` is asked for results much wider than the numbers it is given.
+// One result doubles in width every round, and zero is given on both sides.
+// The program should run to its last line.
+
+// 1. Two numbers of about ten thousand bits that share no divisor above 1. The
+//    result is as wide as both together, and only the last of fifty is kept.
+var $left = Core\BigInt::of(2)->pow(10000)->sub(Core\BigInt::of(1));
+var $right = Core\BigInt::of(2)->pow(10000)->add(Core\BigInt::of(1));
+var $multiple = $left;
+int $round = 0;
+while ($round < 50) {
+    $multiple = $left->lcm($right);
+    $round = $round + 1;
+}
+echo $multiple->sign(), "\n";
+
+// 2. The result of each round is the input of the next one, ten times over.
+//    Every round is about twice as wide as the one before.
+var $growing = Core\BigInt::of(3)->pow(600);
+int $step = 0;
+while ($step < 10) {
+    $growing = $growing->lcm($growing->add(Core\BigInt::of(1)));
+    $step = $step + 1;
+}
+echo $growing->sign(), "\n";
+
+// 3. Zero on both sides, and zero against the widest number here. Neither is an
+//    error, and both results are 0.
+var $zero = Core\BigInt::of(0);
+echo $zero->lcm($zero)->sign(), "\n";
+echo $growing->lcm($zero)->sign(), "\n";
+
+// 4. Five hundred results are made, and each one is dropped as the next is
+//    taken.
+int $made = 0;
+while ($made < 500) {
+    $multiple = $left->lcm($right);
+    $made = $made + 1;
+}
+echo $multiple->sign(), "\n";

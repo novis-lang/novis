@@ -1,0 +1,22 @@
+<?nvs
+// Shows how to build the `cookie` header for the next request from the cookies a server set.
+
+array<string> $cookies = ["session=abc123; Path=/; HttpOnly", "cart=7; Max-Age=600"];
+Core\Test::answerHttp("https://shop.example.com/login", 200, {
+    body: "",
+    headers: ["set-cookie" => $cookies],
+});
+
+Core\Http\Stream $login = Core\Http\Client::stream(Core\Http\Method::Post, "https://shop.example.com/login");
+tainted string $header = "";
+foreach ($login->headers("set-cookie") as tainted string $line) {
+    // The part before the first ";" is the name and the value. The rest are settings.
+    array<tainted string> $parts = Core\Str::split($line, ";");
+    if ($header != "") {
+        $header = $header . "; ";
+    }
+    $header = $header . $parts[0];
+}
+
+// This prints "session=abc123; cart=7".
+echo $header, "\n";

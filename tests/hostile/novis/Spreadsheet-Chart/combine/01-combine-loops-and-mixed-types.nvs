@@ -1,0 +1,43 @@
+<?nvs
+// Attack: a request combines charts in loops and mixes every type with every other type.
+// Each combination that is not two different types of column, line and area should throw an error.
+use Novis\Spreadsheet\Chart;
+use Novis\Spreadsheet\Workbook;
+
+class Attack
+{
+    // This method adds `$chart` at E2 and prints whether the file was written, or the class of the error.
+    public static function attempt(string $step, Chart $chart): void
+    {
+        try {
+            var $book = Workbook::createInMemory();
+            var $sheet = $book->sheet('Sales');
+            $sheet->addAll([['month' => 'January', 'sales' => 1200, 'costs' => 800], ['month' => 'February', 'sales' => 1450, 'costs' => 900]]);
+            $sheet->chart('E2', $chart);
+            bytes $file = $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
+            echo 'step ', $step, ' wrote ', Core\Bytes::length($file) > 0 ? 'a file' : 'nothing', "\n";
+        } catch (Throwable $e) {
+            echo 'step ', $step, ' stopped ', $e::class, "\n";
+        }
+    }
+}
+
+// 1. Every type combined with every type, 49 charts.
+var $types = [Chart::column(), Chart::bar(), Chart::line(), Chart::area(), Chart::pie(), Chart::doughnut(), Chart::scatter()];
+foreach ($types as var $first) {
+    foreach ($types as var $second) {
+        Attack::attempt('1', $first->series('B2:B3')->combine($second->series('C2:C3')));
+    }
+}
+
+// 2. A chart combined with itself, and a combined chart combined into another chart.
+var $both = Chart::column()->series('B2:B3')->combine(Chart::line()->series('C2:C3'));
+Attack::attempt('2', $both->combine($both));
+Attack::attempt('2', Chart::area()->series('B2:B3')->combine($both));
+
+// 3. A loop that adds a combination 3,000 times to one chart.
+var $long = Chart::line()->series('B2:B3');
+for (int $n = 0; $n < 3000; $n++) {
+    $long = $long->combine(Chart::column()->series('C2:C3'));
+}
+Attack::attempt('3', $long);

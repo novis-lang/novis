@@ -1,0 +1,21 @@
+<?nvs
+// Shows how a program checks, when it starts, that every setting it needs is in the environment.
+
+array<string> $required = ["SHOP_DB_HOST", "SHOP_DB_NAME", "SHOP_MAIL_FROM"];
+
+// `Core\Arr::hasKey` checks whether the array has a key with that name.
+// The names that are not there go into `$missing`.
+var $all = Core\Env::all();
+array<string> $missing = [];
+foreach ($required as string $name) {
+    if (!Core\Arr::hasKey($all, $name)) {
+        $missing[] = $name;
+    }
+}
+
+// None of the three is set on this computer, so this prints all three names.
+if (Core\Arr::count($missing) > 0) {
+    echo "The shop cannot start. Missing: ", Core\Str::join($missing, ", "), "\n";
+} else {
+    echo "All settings are present.\n";
+}

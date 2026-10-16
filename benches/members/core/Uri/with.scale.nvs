@@ -1,0 +1,22 @@
+<?nvs
+// Measures `with` on an address with a long path, at growing path lengths.
+// bench: start 256
+// bench: max 4096
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        Core\Uri $link = Core\Uri::parse("http://10.0.0.7:9000" . Core\Str::repeat('/files', $size) . "?name=report.pdf");
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            var $public = $link->with({scheme: "https", host: "files.example.com", port: null});
+            $total = $total + Core\Str::length($public->toString());
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

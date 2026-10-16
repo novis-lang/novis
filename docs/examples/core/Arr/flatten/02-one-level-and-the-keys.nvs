@@ -1,0 +1,17 @@
+<?nvs
+// Shows how much nesting is removed, and what happens to the keys.
+
+array<array<string>> $byCity = [
+    'berlin' => ['first' => 'Ada', 'second' => 'Bob'],
+    'lisbon' => ['first' => 'Alice'],
+];
+
+// The keys of the inner arrays are gone and the result is numbered from 0, so
+// both "first" entries survive. This prints ["Ada","Bob","Alice"].
+echo Core\Json::encode(Core\Arr::flatten($byCity)), "\n";
+
+array<array<array<string>>> $groups = [[['a'], ['b']], [['c']]];
+
+// Only one level is removed, so the values of the result are still arrays.
+// This prints [["a"],["b"],["c"]].
+echo Core\Json::encode(Core\Arr::flatten($groups)), "\n";

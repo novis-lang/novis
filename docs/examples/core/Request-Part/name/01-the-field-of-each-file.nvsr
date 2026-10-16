@@ -1,0 +1,19 @@
+--METHOD--
+POST
+--PATH--
+/jobs/apply
+--HEADERS--
+host: example.com
+content-type: multipart/form-data; boundary=apply-3e90
+--BODY_CRLF--
+--apply-3e90
+Content-Disposition: form-data; name="cv"; filename="cv.pdf"
+Content-Type: application/pdf
+
+%PDF-1.7 a short CV
+--apply-3e90
+Content-Disposition: form-data; name="letter"; filename="letter.txt"
+Content-Type: text/plain
+
+I would like to work in your shop.
+--apply-3e90--

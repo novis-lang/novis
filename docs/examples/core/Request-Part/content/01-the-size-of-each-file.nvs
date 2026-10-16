@@ -1,0 +1,12 @@
+<?nvs
+// Shows how to read an uploaded file in pieces.
+
+foreach (Core\Request::files() as Core\Request\Part $part) {
+    // `content` gives the file one piece at a time. Each piece is `tainted bytes`.
+    uint $size = 0;
+    foreach ($part->content() as tainted bytes $chunk) {
+        $size = $size + Core\Bytes::length($chunk);
+    }
+    // The first file prints "invoice.pdf: 24 bytes".
+    echo $part->filename(), ': ', $size, " bytes\n";
+}

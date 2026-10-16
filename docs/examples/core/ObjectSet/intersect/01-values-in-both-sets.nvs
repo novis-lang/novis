@@ -1,0 +1,33 @@
+<?nvs
+// Shows how to find the values that two sets have in common.
+
+final class Tag {
+    public string $name;
+
+    public function constructor(string $name) {
+        $this->name = $name;
+    }
+}
+
+Tag $red = new Tag("red");
+Tag $blue = new Tag("blue");
+Tag $green = new Tag("green");
+
+Core\ObjectSet<Tag> $shirt = new Core\ObjectSet<Tag>();
+$shirt->add($red);
+$shirt->add($blue);
+$shirt->add($green);
+
+Core\ObjectSet<Tag> $scarf = new Core\ObjectSet<Tag>();
+$scarf->add($green);
+$scarf->add($red);
+
+// `intersect` returns a new set. The values keep the order they have in `$shirt`.
+Core\ObjectSet<Tag> $shared = $shirt->intersect($scarf);
+// This prints red and green, one on each line.
+foreach ($shared as Tag $tag) {
+    echo $tag->name, "\n";
+}
+
+// `$shirt` and `$scarf` do not change. This prints "3 2".
+echo $shirt->count(), " ", $scarf->count(), "\n";

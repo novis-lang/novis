@@ -1,0 +1,39 @@
+// Where things are. Every path the tools print or store is repo-relative with forward slashes, so a
+// record, an index row and a finding read the same on Windows and on Linux.
+
+import { join, relative, resolve, sep } from "node:path";
+
+/** The repository root: two directories above this library. */
+export const ROOT = resolve(import.meta.dir, "..", "..", "..");
+
+/**
+ * The word the feature proofs were once named by. `nv audit` finds it where it is still said, and
+ * `nv disk clean` deletes the memo file named by it. It is built in halves so that no tool's own text
+ * says it.
+ */
+export const OLD = ["doss", "ier"].join("");
+
+/** The records. Everything under it is JSON that only `store` writes. */
+export const DATA = join(ROOT, "data");
+
+/** Runtime state that is never committed: the index, and the tests' scratch trees. */
+export const CACHE = join(ROOT, ".cache");
+
+/** Directories that are never an input to a key wherever they appear: build output, caches and
+ * machine-local state, every one of them git-ignored. */
+export const NOT_INPUTS = new Set([".git", "target", ".loop", ".agent-tmp", ".cache", "node_modules", "out", ".vscode-test", "__pycache__"]);
+
+/** Where an instrumented binary's coverage counters go when nothing records its run: one merge pool of
+ * a few files that later runs add to, never `default_*.profraw` in a working directory. `main.ts` sets
+ * it as `LLVM_PROFILE_FILE` for every `bun nv` process that has none. */
+export const DISCARD_PROFILE = join(ROOT, ".agent-tmp", "select-rec", "discard", "nvs-%4m.profraw");
+
+/** A repo-relative, forward-slash path for `abs`. */
+export function rel(abs: string, root: string = ROOT): string {
+  return relative(root, abs).split(sep).join("/");
+}
+
+/** The absolute path of a repo-relative `path`, whichever slash it was written with. */
+export function abs(path: string, root: string = ROOT): string {
+  return resolve(root, ...path.split("/"));
+}

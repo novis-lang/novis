@@ -1,0 +1,13 @@
+{
+  "title": "The pixel cap is read off the header before a buffer is allocated, and a call may only lower it",
+  "status": "shipped",
+  "seeAlso": [
+    "core-classes/image-pipeline",
+    "core-classes/pdf-page-is-an-image-source",
+    "core-classes/spreadsheet-bulk-boundary"
+  ],
+  "guardedBy": [
+    "crates/nvs-ext/tests/image_decode.rs",
+    "tests/conformance/novis/image-a-bomb-is-refused-before-it-is-decoded.nvst"
+  ]
+}

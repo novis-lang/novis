@@ -1,0 +1,5 @@
+755 root /opt/novis
+755 root /opt/novis/nvs
+750 deploy /opt/novis/config
+775 novis /opt/novis/cache
+755 novis /opt/novis/logs

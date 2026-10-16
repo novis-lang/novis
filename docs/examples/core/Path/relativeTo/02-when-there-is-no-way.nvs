@@ -1,0 +1,21 @@
+<?nvs
+// Shows when `Core\Path::relativeTo` returns `null`, because no relative path exists.
+
+class Show {
+    public static function way(string $path, string $base): void {
+        string $way = Core\Path::relativeTo($path, $base) ?? "null";
+        echo Core\Str::replace($way, Core\Path::SEPARATOR, "/"), "\n";
+    }
+}
+
+// One path is absolute and the other is relative. This prints `null`.
+Show::way("/srv/shop", "srv/shop");
+
+// The paths are on two different drives. This prints `null`.
+Show::way("C:\\shop\\logo.png", "D:\\shop");
+
+// A drive letter can be upper or lower case. This prints `logo.png`.
+Show::way("C:\\shop\\logo.png", "c:\\shop");
+
+// The name of the folder above `..` is not in the path. This prints `null`.
+Show::way("logo.png", "..");

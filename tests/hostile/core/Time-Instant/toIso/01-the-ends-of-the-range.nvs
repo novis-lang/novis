@@ -1,0 +1,22 @@
+<?nvs
+// Attack: `toIso` writes the first and the last instant there are, and then one million
+// instants in a row. Every step should print text, and nothing should crash or leak.
+
+// 1. The first instant has a negative six-digit year. The last one has nine digits of fraction.
+echo Core\Time::fromIso('-009999-01-02T01:59:59Z')->toIso(), "\n";
+echo Core\Time::fromIso('9999-12-30T22:00:00.999999999Z')->toIso(), "\n";
+
+// 2. The text of the first instant is read back and written again.
+Core\Time\Instant $first = Core\Time::fromIso('-009999-01-02T01:59:59Z');
+echo Core\Time::fromIso($first->toIso())->toIso(), "\n";
+
+// 3. One million texts are made, with fractions of different lengths. Each one is freed again.
+Core\Time\Instant $clock = Core\Time::fromEpoch(0);
+uint $length = 0;
+int $round = 0;
+while ($round < 1000000) {
+    $clock = $clock->plus(Core\Time\Duration::nanoseconds($round * 7919));
+    $length = $length + Core\Str::length($clock->toIso());
+    $round = $round + 1;
+}
+echo $length, "\n";

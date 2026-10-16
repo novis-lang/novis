@@ -1,0 +1,15 @@
+<?nvs
+// Shows where the text of an element is. It is in a text node inside the element.
+
+Core\Xml\Node $document = Core\Xml::parse('<message>Tea &amp; cake at four</message>');
+
+foreach ($document->children() as Core\Xml\Node $message) {
+    // An element has no text of its own. This prints [].
+    echo "[", $message->text(), "]\n";
+
+    // The text node inside it has the text. `&amp;` is already expanded to `&`.
+    // This prints [Tea & cake at four].
+    foreach ($message->children() as Core\Xml\Node $child) {
+        echo "[", $child->text(), "]\n";
+    }
+}

@@ -1,0 +1,29 @@
+<?nvs
+// Shows conditions that are not `bool` values. The value is read as a
+// condition, so an empty array, an empty string and the number 0 are false.
+
+array<string> $names = [];
+if ($names) {
+    echo "there are names\n";
+} else {
+    // This line runs. An empty array counts as false.
+    echo "no names yet\n";
+}
+
+int $unread = 0;
+if ($unread) {
+    echo "you have unread messages\n";
+} else {
+    // This line runs. The number 0 counts as false.
+    echo "your inbox is empty\n";
+}
+
+// The text "0" counts as false as well. Test the length when you mean
+// "this text is not empty".
+string $answer = "0";
+if ($answer) {
+    echo "the answer counts as true\n";
+} elseif (Core\Str::length($answer) > 0) {
+    // This line runs.
+    echo "the answer is not empty, and it still counts as false\n";
+}

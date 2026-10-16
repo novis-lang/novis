@@ -1,0 +1,66 @@
+<?nvs
+// Attack: a power is asked for the largest exponent a whole number can hold.
+// The bases run from the smallest value to the largest. Every attempt should
+// return an answer or throw an error, and none should hang. The runtime should
+// still be standing at the end.
+// hostile: timeout-ms 30000
+
+// 1. The largest exponent that can be written, over a base above 1. The error
+// is caught, so the steps after this one still run.
+try {
+    Core\Decimal::pow(2, 18446744073709551615);
+    echo "step 1: the power was answered\n";
+} catch (ArithmeticError $tooWide) {
+    echo 'step 1 stopped: ', $tooWide->message, "\n";
+}
+
+// 2. The same exponent over a base of 1. The answer is 1, and it arrives
+// without multiplying that many times.
+echo 'step 2: ', Core\Decimal::pow(1, 18446744073709551615), "\n";
+
+// 3. An exponent of 0 over the largest value a `decimal` holds. Anything to
+// the power 0 is 1.
+decimal $wide = 79228162514264337593543950335;
+echo 'step 3: ', Core\Decimal::pow($wide, 0), "\n";
+
+// 4. That value squared. The mantissa of the answer needs more than the 96
+// bits a `decimal` has.
+try {
+    Core\Decimal::pow($wide, 2);
+    echo "step 4: the power was answered\n";
+} catch (ArithmeticError $mantissa) {
+    echo 'step 4 stopped: ', $mantissa->message, "\n";
+}
+
+// 5. The last power of 0.1 that fits, and the first that does not. Each
+// multiplication adds one digit after the point, and there is room for 28.
+echo 'step 5: ', Core\Decimal::pow(0.1, 28), "\n";
+try {
+    Core\Decimal::pow(0.1, 29);
+    echo "step 5b: the power was answered\n";
+} catch (ArithmeticError $oneTooFar) {
+    echo 'step 5b stopped: ', $oneTooFar->message, "\n";
+}
+
+// 6. A negative base. An odd exponent keeps the sign, and an even one drops
+// it.
+echo 'step 6: ', Core\Decimal::pow(-1.5, 3), ' ', Core\Decimal::pow(-1.5, 4), "\n";
+
+// 7. One million powers in a row, each one raising a base the round before it
+// chose.
+array<decimal> $bases = [1.05, 1.10, 1.02, 1.25];
+decimal $threshold = 1.6;
+uint $pick = 0;
+uint $round = 0;
+while ($round < 1000000) {
+    decimal $grown = Core\Decimal::pow($bases[$pick], 8);
+    if ($grown > $threshold) {
+        $pick = ($pick + 1) % 4;
+    } else {
+        $pick = ($pick + 3) % 4;
+    }
+    $round = $round + 1;
+}
+echo 'step 7: ', $round, ' powers taken, last base ', $bases[$pick], "\n";
+
+echo "the runtime is still standing\n";

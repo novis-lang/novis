@@ -1,0 +1,10 @@
+<?nvs
+// `|>` puts the value on the left in the place of `$_` on the right.
+string $input = "  Hello World  ";
+echo $input |> Core\Str::trim($_) |> Core\Str::lower($_), "\n";
+
+// This line does the same without `|>`. You read it from the inside out.
+echo Core\Str::lower(Core\Str::trim($input)), "\n";
+
+// To use an operator on the right side, put it in parentheses.
+echo 5 |> ($_ * 2), "\n";

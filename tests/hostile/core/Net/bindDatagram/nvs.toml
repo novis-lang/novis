@@ -1,0 +1,3 @@
+# The attack opens UDP sockets on this computer.
+[capabilities.net]
+listen = ["127.0.0.1:0"]

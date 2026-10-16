@@ -1,0 +1,25 @@
+<?nvs
+// Measures a call to a method of a class that `autoload` found by its namespace.
+// A program loads most of its classes this way.
+// bench: iterations 2048
+// bench: calls 1
+// bench: allocations 0
+// bench: complexity constant
+
+autoload 'Loaded' from './autoload-find-a-class-by-its-namespace';
+
+use Loaded\Step;
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            $total = Step::next($total);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(2048), "\n";

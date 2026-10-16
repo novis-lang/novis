@@ -1,0 +1,11 @@
+<?nvs
+// Shows what happens when the attribute name has a character it cannot have.
+
+try {
+    // An attribute name cannot contain a space.
+    Core\Ldap\Filter::equals('login name', 'anna');
+} catch (LogicError $error) {
+    echo "Not an attribute name.\n";
+}
+// A number is a correct attribute name too: 2.5.4.3 is the number of `cn`.
+echo Core\Ldap\Filter::equals('2.5.4.3', 'Anna Lee')->toString(), "\n";

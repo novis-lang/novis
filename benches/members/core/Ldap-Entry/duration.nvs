@@ -1,0 +1,31 @@
+<?nvs
+// Measures how fast `duration` reads one length of time, as a program does to say when a password expires.
+// bench: iterations 400000
+// bench: calls 0
+// bench: complexity constant
+// requires: samba-ad
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        var $corp = Core\Ldap::connect("corp");
+        var $found = $corp->read("DC=example,DC=test", {select: ["maxPwdAge", "lockoutDuration"]});
+        if ($found == null) {
+            return 0;
+        }
+        Core\Ldap\Entry $domain = $found;
+        // The count so far chooses the attribute, so the loop cannot be left out.
+        array<string> $names = ["maxPwdAge", "lockoutDuration"];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            ?Core\Time\Duration $length = $domain->duration($names[(($total + $i) % 2) as int]);
+            if ($length != null && $length->toSeconds() > 3600) {
+                $total = $total + 1;
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";

@@ -1,0 +1,11 @@
+<?nvs
+// Shows the angles `Core\Math::atan` returns for a few tangents, in radians and in degrees.
+
+// A tangent of 1.0 belongs to an angle of 45 degrees. This prints 0.78539816339745.
+echo Core\Math::atan(1.0), "\n";
+
+// `Core\Math::toDegrees` converts the angle to degrees. This prints 45.
+echo Core\Math::toDegrees(Core\Math::atan(1.0)), "\n";
+
+// A negative tangent gives a negative angle. This prints -45.
+echo Core\Math::toDegrees(Core\Math::atan(-1.0)), "\n";

@@ -1,0 +1,9 @@
+--METHOD--
+POST
+--PATH--
+/order
+--HEADERS--
+host: shop.example.com
+content-type: application/x-www-form-urlencoded
+--BODY--
+item[]=notebook&item[]=pen&note=gift+wrap

@@ -1,0 +1,6 @@
+RateLimit-Limit: 3
+RateLimit-Remaining: 2
+RateLimit-Limit: 3
+RateLimit-Remaining: 1
+RateLimit-Limit: 3
+RateLimit-Remaining: 0

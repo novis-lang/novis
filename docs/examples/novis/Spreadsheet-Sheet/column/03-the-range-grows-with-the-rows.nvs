@@ -1,0 +1,16 @@
+<?nvs
+// Shows that the range ends at the last row added before the call.
+use Novis\Spreadsheet\Workbook;
+
+var $book = Workbook::createInMemory();
+var $sheet = $book->sheet('Stock');
+$sheet->add(['item' => 'Pen', 'qty' => 120]);
+
+// One row of data is added. This prints `B2:B2`.
+echo $sheet->column('qty'), "\n";
+
+$sheet->add(['item' => 'Ink', 'qty' => 35]);
+$sheet->add(['item' => 'Pad', 'qty' => 60]);
+
+// Three rows of data are added. This prints `B2:B4`.
+echo $sheet->column('qty'), "\n";

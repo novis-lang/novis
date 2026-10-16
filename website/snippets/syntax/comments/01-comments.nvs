@@ -1,0 +1,12 @@
+<?nvs
+// A line comment starts with `//` and ends at the end of the line.
+# A line comment can also start with `#`.
+string $city = "Vienna"; // A comment can follow code on the same line.
+
+// The next comment is a block comment. It can cover several lines.
+/* This is a block comment.
+   It ends at the star and slash. */
+echo "Weather for ", $city, "\n";
+
+// Inside a string, `//` is normal text.
+echo "a // b", "\n";

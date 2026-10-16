@@ -1,0 +1,12 @@
+--TEST--
+A property declared `decimal` takes no default, even the number literal a `decimal` parameter default and class constant accept, because a property default has no `decimal` form
+--FILE--
+<?nvs
+class Basket {
+    public decimal $rate = 0.19;
+}
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0472]: a property default must be a `decimal` constant
+%A

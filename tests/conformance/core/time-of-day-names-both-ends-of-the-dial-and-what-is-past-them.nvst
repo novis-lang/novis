@@ -1,0 +1,216 @@
+--TEST--
+Spec § 4: `Core\Time\TimeOfDay`'s dial has two ends and they are named together — the first and last representable reading, that no reading of any field combination lies outside them, that they are one nanosecond apart in both directions so the far side of each end is the other, that a whole turn from either end is the identity in every unit, that the step wraps where the order does not, and that `at` refuses the reading one past the top
+--FILE--
+<?nvs
+// § 4: a time of day is a position in the 24-hour cycle, so the dial is closed
+// and its two ends touch. The sibling cases use both ends as table rows —
+// `time-of-day-compare-to-is-one-total-order-and-arr-sort-agrees-with-it` and
+// `time-of-day-plus-and-minus-undo-each-other-and-refuse-at-two-boundaries` —
+// but neither asks what is on the far side of them, which is the one question
+// only the ends can answer.
+class Clock {
+    // The reading as one integer of nanoseconds since midnight, read out of
+    // `format`. The independent view: nothing below is checked against
+    // `compareTo` alone.
+    public static function key(Core\Time\TimeOfDay $t): int {
+        return (($t->format("HH") as int) * 3600
+            + ($t->format("mm") as int) * 60
+            + ($t->format("ss") as int)) * 1000000000
+            + ($t->format("SSSSSSSSS") as int);
+    }
+
+    public static function render(Core\Time\TimeOfDay $t): string {
+        return $t->format("HH:mm:ss.SSSSSSSSS");
+    }
+}
+
+// The two ends. Every field at its floor, and every field at its ceiling —
+// there is no third spelling of either, because `at` writes all four fields
+// and `jiff` has already refused every combination that is not a time.
+Core\Time\TimeOfDay $first = Core\Time\TimeOfDay::at(0, 0);
+Core\Time\TimeOfDay $last = Core\Time\TimeOfDay::at(23, 59, {second: 59, nanos: 999999999});
+echo "ends=", Clock::render($first), " ", Clock::render($last), "|\n";
+// Named in absolute terms as well as by rendering: the dial is exactly one day
+// of nanoseconds long, so its last reading is one short of 86,400,000,000,000.
+echo "keys=", Clock::key($first) as string, " ", Clock::key($last) as string, "|\n";
+
+// They are the ends, asserted over a sweep rather than asserted by naming
+// them. Five hours, five minutes, two seconds and two nanosecond readings,
+// each list carrying both of that field's own extremes, is 100 readings — and
+// every one of them lies at or inside the pair, with the tie falling exactly
+// once at each end (the row that *is* that end). A member that ordered by the
+// fields a human reads would still pass the two counts and fail the two ties.
+array<uint> $hours = [0, 1, 12, 22, 23];
+array<uint> $minutes = [0, 1, 30, 58, 59];
+array<uint> $seconds = [0, 59];
+array<uint> $nanoses = [0, 999999999];
+int $rows = 0;
+int $atOrAfterFirst = 0;
+int $atOrBeforeLast = 0;
+int $tiesFirst = 0;
+int $tiesLast = 0;
+int $h = 0;
+for (; $h < 5; $h = $h + 1) {
+    int $m = 0;
+    for (; $m < 5; $m = $m + 1) {
+        int $s = 0;
+        for (; $s < 2; $s = $s + 1) {
+            int $n = 0;
+            for (; $n < 2; $n = $n + 1) {
+                var $reading = Core\Time\TimeOfDay::at(
+                    $hours[$h as string],
+                    $minutes[$m as string],
+                    {second: $seconds[$s as string], nanos: $nanoses[$n as string]},
+                );
+                $rows = $rows + 1;
+                if ($first->compareTo($reading) <= 0) {
+                    $atOrAfterFirst = $atOrAfterFirst + 1;
+                }
+                if ($last->compareTo($reading) >= 0) {
+                    $atOrBeforeLast = $atOrBeforeLast + 1;
+                }
+                if ($first->compareTo($reading) == 0) {
+                    $tiesFirst = $tiesFirst + 1;
+                }
+                if ($last->compareTo($reading) == 0) {
+                    $tiesLast = $tiesLast + 1;
+                }
+            }
+        }
+    }
+}
+echo "rows=", $rows as string, " none-below-first=", $atOrAfterFirst as string,
+    " none-above-last=", $atOrBeforeLast as string,
+    " ties=", $tiesFirst as string, " ", $tiesLast as string, "|\n";
+
+// The far side of each end is the other end: the two are one nanosecond apart,
+// which is what makes them *the* ends rather than two readings that happen to
+// sort outermost.
+echo "over-the-top=", Clock::render($last->plus(1, Core\Unit::Nanosecond)),
+    " under-the-bottom=", Clock::render($first->minus(1, Core\Unit::Nanosecond)), "|\n";
+
+// The six units that move a clock, smallest first, beside the count of each
+// that is one whole turn of the dial — 86,400,000,000,000 nanoseconds down to
+// 24 hours, which is the same day written six ways.
+array<Core\Unit> $units = [
+    Core\Unit::Nanosecond,
+    Core\Unit::Microsecond,
+    Core\Unit::Millisecond,
+    Core\Unit::Second,
+    Core\Unit::Minute,
+    Core\Unit::Hour,
+];
+array<int> $turns = [86400000000000, 86400000000, 86400000, 86400, 1440, 24];
+
+int $unit = 0;
+int $pastTheTop = 0;
+int $beforeTheBottom = 0;
+int $turnsForward = 0;
+int $turnsBack = 0;
+for (; $unit < 6; $unit = $unit + 1) {
+    var $of = $units[$unit as string];
+    var $whole = $turns[$unit as string];
+    // One step of any unit past the top lands one unit less a nanosecond past
+    // the bottom, because the top and the bottom are adjacent. Stated as an
+    // identity between the two ends rather than as a rendering per unit: a
+    // member that wrapped to the wrong side of midnight, or that clamped at
+    // the top instead of wrapping, breaks it for every unit at once.
+    if ($last->plus(1, $of)->compareTo($first->plus(1, $of)->minus(1, Core\Unit::Nanosecond)) == 0) {
+        $pastTheTop = $pastTheTop + 1;
+    }
+    if ($first->minus(1, $of)->compareTo($last->minus(1, $of)->plus(1, Core\Unit::Nanosecond)) == 0) {
+        $beforeTheBottom = $beforeTheBottom + 1;
+    }
+    // A whole turn is the identity, from either end and in either direction —
+    // 12 agreements each way. This is the cycle's *length* asserted six times
+    // over: a unit whose scale is off by any factor turns the dial by
+    // something other than a day and lands somewhere else.
+    if ($first->plus($whole, $of)->compareTo($first) == 0) {
+        $turnsForward = $turnsForward + 1;
+    }
+    if ($last->plus($whole, $of)->compareTo($last) == 0) {
+        $turnsForward = $turnsForward + 1;
+    }
+    if ($first->minus($whole, $of)->compareTo($first) == 0) {
+        $turnsBack = $turnsBack + 1;
+    }
+    if ($last->minus($whole, $of)->compareTo($last) == 0) {
+        $turnsBack = $turnsBack + 1;
+    }
+}
+echo "past-the-top=", $pastTheTop as string,
+    " before-the-bottom=", $beforeTheBottom as string, "|\n";
+echo "whole-turn=", $turnsForward as string, " back=", $turnsBack as string, "|\n";
+
+// The step wraps; the order does not. `compareTo` is a total order on the
+// readings and knows nothing of the cycle, so at the top a step *forward*
+// answers smaller and at the bottom a step *back* answers larger — the one
+// place on the dial where that happens, which is why it is asserted here and
+// nowhere else. Mid-dial the same six steps answer the way a reader expects,
+// counted beside them so the two ends are not just failing to move.
+Core\Time\TimeOfDay $noon = Core\Time\TimeOfDay::at(12, 0);
+int $step = 0;
+int $forwardWentBack = 0;
+int $backWentForward = 0;
+int $noonForward = 0;
+int $noonBack = 0;
+for (; $step < 6; $step = $step + 1) {
+    var $by = $units[$step as string];
+    if ($last->compareTo($last->plus(1, $by)) == 1) {
+        $forwardWentBack = $forwardWentBack + 1;
+    }
+    if ($first->compareTo($first->minus(1, $by)) == -1) {
+        $backWentForward = $backWentForward + 1;
+    }
+    if ($noon->compareTo($noon->plus(1, $by)) == -1) {
+        $noonForward = $noonForward + 1;
+    }
+    if ($noon->compareTo($noon->minus(1, $by)) == 1) {
+        $noonBack = $noonBack + 1;
+    }
+}
+echo "top-step-forward-is-smaller=", $forwardWentBack as string,
+    " bottom-step-back-is-larger=", $backWentForward as string,
+    " noon=", $noonForward as string, " ", $noonBack as string, "|\n";
+
+// `at` on both sides of the top end. The accepted side is the last reading
+// itself; one nanosecond further is a refusal naming the reading it was handed
+// rather than a value silently taken modulo anything.
+//
+// The bottom end has no runtime side to assert: `at`'s parameters are `uint`,
+// so `at(-1, 0)` and a `{nanos: -1}` are `E0401: expected `uint`, found `int``
+// in the checker and never reach the member. That is the refusal, and a case
+// that must fail to compile is a different file — this one records where the
+// boundary is enforced rather than pretending it is here.
+echo "at-accepts=", Clock::render(Core\Time\TimeOfDay::at(23, 59, {second: 59, nanos: 999999999})),
+    " ", Clock::render(Core\Time\TimeOfDay::at(0, 0)), "|\n";
+try {
+    Core\Time\TimeOfDay::at(24, 0);
+} catch (RuntimeError $hour) {
+    echo "at-refuses-hour-24=", $hour->message, "|\n";
+}
+try {
+    Core\Time\TimeOfDay::at(23, 59, {second: 59, nanos: 1000000000});
+} catch (RuntimeError $nanos) {
+    echo "at-refuses-one-nanosecond-past=", $nanos->message, "|\n";
+}
+// `with` reaches the same end by a different road and refuses with a different
+// sentence: its `hour` is a bounded option, checked before the four fields are
+// ever assembled into a reading.
+try {
+    $first->with({hour: 24});
+} catch (RuntimeError $with) {
+    echo "with-refuses-the-same-hour=", $with->message, "|\n";
+}
+--EXPECT--
+ends=00:00:00.000000000 23:59:59.999999999|
+keys=0 86399999999999|
+rows=100 none-below-first=100 none-above-last=100 ties=1 1|
+over-the-top=00:00:00.000000000 under-the-bottom=23:59:59.999999999|
+past-the-top=6 before-the-bottom=6|
+whole-turn=12 back=12|
+top-step-forward-is-smaller=6 bottom-step-back-is-larger=6 noon=6 6|
+at-accepts=23:59:59.999999999 00:00:00.000000000|
+at-refuses-hour-24=Core\Time\TimeOfDay::at(): `24:0:0.0` is not a time of day|
+at-refuses-one-nanosecond-past=Core\Time\TimeOfDay::at(): `23:59:59.1000000000` is not a time of day|
+with-refuses-the-same-hour=Core\Time\TimeOfDay::with(): parameter 'hour' is not in the required range of 0..=23|

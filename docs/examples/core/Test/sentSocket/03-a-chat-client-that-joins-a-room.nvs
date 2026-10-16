@@ -1,0 +1,30 @@
+<?nvs
+// Shows how to test that a chat client sends the right messages when it joins a room.
+
+use Core\Http\Client;
+use Core\Socket\Message;
+use Core\Test;
+
+class ChatClient {
+    // Joins a room, says hello, and closes the connection.
+    public static function greet(string $room, string $name): void {
+        var $socket = Client::openSocket("wss://chat.example.com/" . $room);
+        $socket->send("join " . $room);
+        $socket->send("hello from " . $name);
+        $socket->close();
+    }
+}
+
+Test::answerSocket("wss://chat.example.com/*", []);
+ChatClient::greet("support", "Ada");
+
+// The test collects the text of each message and compares the whole list.
+// `text()` returns a `tainted string`, so the list has that type too.
+array<tainted string> $texts = [];
+foreach (Test::sentSocket() as Message $message) {
+    $texts[] = $message->text() ?? "(binary)";
+}
+Test::assertSame(["join support", "hello from Ada"], $texts);
+
+// This prints `the client joined and said hello`.
+echo "the client joined and said hello\n";

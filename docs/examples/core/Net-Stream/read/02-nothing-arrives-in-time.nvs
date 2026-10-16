@@ -1,0 +1,23 @@
+<?nvs
+// Shows what happens when no data arrives before the time runs out.
+
+Core\Net\Listener $server = Core\Net::listen("127.0.0.1", 0);
+Core\Net\Stream $client = Core\Net::connect("127.0.0.1", $server->port(), 5s);
+Core\Net\Stream $connection = $server->accept(5s);
+
+// The client sends nothing. After 100 milliseconds, `read` throws a `TimeoutError`.
+try {
+    $connection->read(64, 100ms);
+    echo "data arrived\n";
+} catch (TimeoutError $late) {
+    echo "no data yet\n";
+}
+
+// The connection still works after a timeout. You can call `read` again.
+// This time the client has sent a line, so this prints `got: ping`.
+$client->write("ping" as bytes, 5s);
+echo "got: ", $connection->read(64, 5s) as string, "\n";
+
+$connection->close();
+$client->close();
+$server->close();

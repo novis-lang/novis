@@ -1,0 +1,96 @@
+--TEST--
+An `Iterable<T>` is asked for a cursor exactly once per `foreach`, counted on the object itself, and every cursor it hands out is independent of the others — `rule:iteration/two-interfaces` over `rule:iteration/foreach-subjects`
+--FILE--
+<?nvs
+// covers: Iterable
+// `rule:iteration/two-interfaces` gives `Iterable<T>` the single member `iterate()`, and
+// `rule:iteration/foreach-subjects` says a `foreach` over such an object calls it
+// once and drives what came back. The cases already landed compare the *values*
+// a second walk produced (`an-iterable-object-is-drained-twice`,
+// `an-iterable-object-nests-inside-another-foreach`); what is left is counting
+// the calls, because the count is the only thing that separates "asked for a
+// fresh cursor" from "reused the one it already had". `iterate()` here is an
+// ordinary method rather than a generator, so the increment happens when the
+// call happens: a generator body would not run a line until its first advance.
+class Cursor implements Iterator<string> {
+    private array<string> $values;
+    private int $at;
+
+    public function constructor(array<string> $values) {
+        $this->values = $values;
+        $this->at = -1;
+    }
+
+    public function advance(): bool {
+        $this->at = $this->at + 1;
+        return $this->at < Core\Arr::count($this->values) as int;
+    }
+
+    public function current(): string {
+        return $this->values[$this->at];
+    }
+}
+
+class Codes implements Iterable<string> {
+    private array<string> $values;
+    public uint $handedOut;
+
+    public function constructor() {
+        $this->values = ["AB", "CD", "EF"];
+        $this->handedOut = 0;
+    }
+
+    public function iterate(): Iterator<string> {
+        $this->handedOut = $this->handedOut + 1;
+        return new Cursor($this->values);
+    }
+}
+
+var $codes = new Codes();
+
+// Three loops over one object, with the count read after each. The assertion is
+// the table `[1,2,3]`, not the values: an object handing back one cursor for
+// every walk prints the same three codes each round either way.
+array<uint> $handedOutAfter = [];
+string $joined = "";
+uint $round = 0;
+while ($round < 3) {
+    foreach ($codes as string $code) {
+        $joined = $joined . $code;
+    }
+    $joined = $joined . "|";
+    $handedOutAfter[] = $codes->handedOut;
+    $round = $round + 1;
+}
+echo $joined, "\n";
+echo Core\Json::encode($handedOutAfter), "\n";
+
+// Two cursors held at the same time, stepped by hand. They are separate objects,
+// so the second still stands at the first element when the first has passed it —
+// and asking twice cost two calls, taking the count to five.
+var $ahead = $codes->iterate();
+var $behind = $codes->iterate();
+$ahead->advance();
+$ahead->advance();
+$behind->advance();
+echo $ahead->current(), ",", $behind->current(), "|", $codes->handedOut, "\n";
+
+// The agreement `rule:iteration/foreach-subjects` asks for rather than a fourth line read off
+// the output: a `foreach` over the object and a cursor driven by hand must see
+// the same values in the same order, so an `iterate()` the loop drove
+// differently fails here while every line above still reads correctly.
+string $looped = "";
+foreach ($codes as string $code) {
+    $looped = $looped . $code . ";";
+}
+string $byHand = "";
+var $manual = $codes->iterate();
+while ($manual->advance()) {
+    $byHand = $byHand . $manual->current() . ";";
+}
+echo ($looped == $byHand) as string, "|", $byHand, "|", $codes->handedOut, "\n";
+--EXPECT--
+ABCDEF|ABCDEF|ABCDEF|
+[1,2,3]
+CD,AB|5
+1|AB;CD;EF;|7

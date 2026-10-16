@@ -1,0 +1,14 @@
+<?nvs
+// Shows that a heap is empty again after its last value is taken out.
+
+var $heap = new Core\Heap<string>();
+$heap->push("b");
+$heap->push("a");
+
+$heap->pop();
+// One value is left. This prints "not empty".
+echo $heap->isEmpty() ? "empty" : "not empty", "\n";
+
+$heap->pop();
+// No values are left. This prints "empty".
+echo $heap->isEmpty() ? "empty" : "not empty", "\n";

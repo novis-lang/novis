@@ -1,0 +1,19 @@
+<?nvs
+// Shows what `shr` does with a negative number, and with more places than the
+// number is wide.
+
+// Shifting right rounds down, toward negative infinity. -7 halved is -3.5, and
+// rounding down gives -4. This prints -4.
+echo Core\BigInt::of(-7)->shr(1), "\n";
+
+// The same number the other way round: 7 halved is 3.5, and rounding down
+// gives 3. This prints 3.
+echo Core\BigInt::of(7)->shr(1), "\n";
+
+// You may shift by more places than the number is wide. A positive number
+// gives 0. This prints 0.
+echo Core\BigInt::of(255)->shr(1000), "\n";
+
+// A negative number gives -1, because rounding down never reaches 0 from
+// below. This prints -1.
+echo Core\BigInt::of(-255)->shr(1000), "\n";

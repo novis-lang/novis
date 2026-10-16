@@ -1,0 +1,42 @@
+--TEST--
+`Core\Html::sanitize` rebuilds a document from a closed allowlist, so an element, an attribute or a URL scheme it does not hold leaves no tag and no escaped text either — `rule:core-classes/html-sanitize`, `rule:security/launderers-are-sink-named`
+--FILE--
+<?nvs
+// The second launderer on this class, and the one for markup: `escape` takes
+// text that must arrive as text, this takes markup that must arrive as markup.
+// Both name the same sink, which is what `rule:security/launderers-are-sink-named` asks of a
+// launderer — narrow, and named for the one place its answer is safe.
+tainted string $submitted =
+    "<p>Hello <b>there</b>.</p>" .
+    "<script>steal(document.cookie)</script>" .
+    "<p onclick=\"boom()\">Bye <a href=\"javascript:alert(1)\">now</a>" .
+    " and <a href=\"/docs\">here</a>.</p>";
+
+Core\Html\Markup $clean = Core\Html::sanitize($submitted);
+string $source = Core\Html::toSource($clean, "asking what the rebuild kept");
+echo $source, "\n";
+
+// Four different reasons for something to be missing from that line, and each
+// is the allowlist rather than a judgement about the input. `<script>` went
+// with its content, because its character data was never text and putting it
+// back into a document would be writing a program into prose. `onclick` was
+// never written, because the list grants no handler. The `javascript:` address
+// was not written while the relative one was, because the test is on the
+// scheme and the schemes that fetch are the whole of it.
+echo Core\Str::contains($source, "steal") ? "y" : "n",
+     Core\Str::contains($source, "onclick") ? "y" : "n",
+     Core\Str::contains($source, "javascript") ? "y" : "n",
+     Core\Str::contains($source, "/docs") ? "y" : "n",
+     "\n";
+
+// And the half that tells a rebuild from a filter. A filter that escapes what
+// it does not like leaves the source in the page as visible text; a rebuild
+// has nowhere to put it, so an element with no place in the grammar leaves no
+// `&lt;` behind either.
+echo Core\Str::contains($source, "&lt;") ? "y" : "n",
+     Core\Str::contains($source, "&gt;") ? "y" : "n",
+     "\n";
+--EXPECT--
+<p>Hello <b>there</b>.</p><p>Bye <a>now</a> and <a href="/docs">here</a>.</p>
+nnny
+nn

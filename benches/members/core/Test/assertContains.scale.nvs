@@ -1,0 +1,28 @@
+<?nvs
+// Measures `Core\Test::assertContains` finding the last value of a list, at growing list lengths.
+// bench: start 256
+// bench: max 4096
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        array<string> $roles = [];
+        uint $n = 0;
+        while ($n < $size) {
+            $roles[] = 'role-' . $n;
+            $n = $n + 1;
+        }
+        string $last = 'role-' . ($size - 1);
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            Core\Test::assertContains($roles, $last);
+            $total = $total + 1 + ($total % 2);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

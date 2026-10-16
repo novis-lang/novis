@@ -1,0 +1,31 @@
+<?nvs
+// Shows a test helper that starts a server for one client and always closes it, even when no client comes.
+
+class TestServer {
+    // `serveOnce` waits a short time for one client and answers it.
+    // The `finally` block runs in both cases, so the server is always closed.
+    public static function serveOnce(Core\Net\Listener $server): string {
+        try {
+            Core\Net\Stream $connection = $server->accept(200ms);
+            $connection->write("READY\n" as bytes, 5s);
+            $connection->close();
+            return "served one client";
+        } catch (TimeoutError $late) {
+            return "no client came";
+        } finally {
+            $server->close();
+            echo "server closed\n";
+        }
+    }
+}
+
+// A client connects before the server waits, so this prints `server closed`, then `served one client`.
+Core\Net\Listener $busy = Core\Net::listen("127.0.0.1", 0);
+Core\Net\Stream $client = Core\Net::connect("127.0.0.1", $busy->port(), 5s);
+echo TestServer::serveOnce($busy), "\n";
+// The client still reads the reply. This prints `READY`.
+echo Core\Str::trim($client->read(64, 5s) as string), "\n";
+$client->close();
+
+// No client connects here, so this prints `server closed`, then `no client came`.
+echo TestServer::serveOnce(Core\Net::listen("127.0.0.1", 0)), "\n";

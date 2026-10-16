@@ -1,0 +1,81 @@
+<?nvs
+// Attack: a column that is text and not bytes, and names that belong to no
+// column. Then a picture of many megabytes, and a million reads of one row.
+// Every step has to answer or throw an error, and none may stop the program.
+// hostile: timeout-ms 60000
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table uploads (id integer primary key, body blob not null, label text not null)', []);
+$db->execute('insert into uploads (body, label) values (?, ?)', ['GIF89a' as bytes, 'a name']);
+
+array<Core\Db\Row> $one = $db->query('select body, label from uploads', [])->all();
+var $row = $one[0];
+
+// 1. A text column. `bytes` and `string` are separate types, so this reader
+// throws an error instead of handing the text over as octets.
+try {
+    $row->bytes('label');
+    echo "1 the text was read as bytes\n";
+} catch (Throwable $error) {
+    echo "1 refused\n";
+}
+
+// 2. Ten thousand reads of a name that belongs to no column. Every one throws
+// an error, and ten thousand errors may not fill the memory.
+uint $refused = 0;
+uint $i = 0;
+while ($i < 10000) {
+    try {
+        $row->bytes('missing');
+    } catch (Throwable $error) {
+        $refused = $refused + 1;
+    }
+    $i = $i + 1;
+}
+echo '2 refused: ', $refused, "\n";
+
+// 3. A column name of ten million characters. No row has such a column, so the
+// read throws and the row still works after it.
+try {
+    $row->bytes(Core\Str::repeat('a', 10000000));
+    echo "3 the long name found a column\n";
+} catch (Throwable $error) {
+    echo "3 refused\n";
+}
+
+// 4. A picture of eight megabytes, read a thousand times. The octets are not
+// copied for each read, so a thousand reads may not cost eight gigabytes.
+$db->execute('insert into uploads (body, label) values (?, ?)', [Core\Bytes::repeat('0123456789abcdef' as bytes, 524288), 'big']);
+array<Core\Db\Row> $found = $db->query('select body from uploads where label = ?', ['big'])->all();
+uint $octets = 0;
+$i = 0;
+while ($i < 1000) {
+    $octets = Core\Bytes::length($found[0]->bytes('body') ?? '' as bytes);
+    $i = $i + 1;
+}
+echo '4 octets: ', $octets, "\n";
+
+// 5. A million reads of a small picture. Nothing may pile up over them.
+uint $read = 0;
+$i = 0;
+while ($i < 1000000) {
+    $read = $read + Core\Bytes::length($row->bytes('body') ?? '' as bytes);
+    $i = $i + 1;
+}
+echo '5 read: ', $read, "\n";
+
+// 6. Fifty thousand rows kept at once, and the picture of every one of them
+// read. A row a program still holds may not be freed under it.
+array<array<Core\Db\Row>> $kept = [];
+$i = 0;
+while ($i < 50000) {
+    $kept[] = $db->query('select body from uploads where label = ?', ['a name'])->all();
+    $i = $i + 1;
+}
+$read = 0;
+foreach ($kept as array<Core\Db\Row> $rows) {
+    foreach ($rows as Core\Db\Row $held) {
+        $read = $read + Core\Bytes::length($held->bytes('body') ?? '' as bytes);
+    }
+}
+echo '6 read: ', $read, "\n";

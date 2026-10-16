@@ -1,0 +1,15 @@
+{
+  "title": "`nvs code` answers questions about one project by name from the editor's own index, reads every file and writes none",
+  "status": "shipped",
+  "seeAlso": [
+    "ide/five-features-are-one-reference-index",
+    "ide/one-server-two-thin-clients",
+    "ide/check-json-is-the-diagnostic-record-as-a-document",
+    "tooling/an-agent-asks-the-binary",
+    "tooling/meta-json-takes-a-program"
+  ],
+  "guardedBy": [
+    "crates/nvs-cli/tests/code.rs",
+    "crates/nvs-lsp/tests/query.rs"
+  ]
+}

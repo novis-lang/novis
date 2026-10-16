@@ -1,0 +1,12 @@
+{
+  "summary": "a wall-clock reading with no date and no zone, wrapping within the day",
+  "keywords": [
+    "setTime",
+    "date(\"H:i\")",
+    "wall clock",
+    "time of day",
+    "clock reading",
+    "hour",
+    "minute"
+  ]
+}

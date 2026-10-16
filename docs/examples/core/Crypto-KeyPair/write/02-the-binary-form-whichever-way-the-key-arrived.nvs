@@ -1,0 +1,23 @@
+<?nvs
+// Shows that this method always gives the binary form. The pair below was read
+// from a PEM block, which is text.
+
+string $pem = "-----BEGIN PRIVATE KEY-----\n"
+    . "MC4CAQAwBQYDK2VwBCIEIDbnkTx1/12Juk9GUmMg9UfPdTaaVgoWj2q1uxePvqrf\n"
+    . "-----END PRIVATE KEY-----\n";
+Core\Crypto\KeyPair $pair = Core\Crypto\KeyPair::read(
+    $pem as bytes,
+    Core\Crypto\KeyKind::Ed25519
+);
+
+bytes $written = Core\Secret::revealBytes(
+    $pair->write(),
+    "the example prints a key that is written in its own source"
+);
+
+// The PEM block carried these octets as base64 between its two marker lines.
+echo Core\Encoding::toHex($written), "\n";
+
+// The binary form is smaller than the text, and reads back the same way.
+echo Core\Str::length($pem), " characters of text, ",
+    Core\Bytes::length($written), " bytes of key", "\n";

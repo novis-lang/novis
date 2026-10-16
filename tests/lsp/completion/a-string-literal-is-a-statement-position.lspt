@@ -1,0 +1,10 @@
+--TEST--
+a literal is a value and not a body, so the cursor inside one is answered as the position around it — which is what an interpolation slot needs, the variables in scope being exactly what may be written there, `rule:ide/the-request-set-is-closed`
+--FILE--
+<?nvs
+string $name = "world";
+echo "he<|>llo";
+--REQUEST--
+completion prefix=$
+--EXPECT--
+$name   variable  string

@@ -1,0 +1,11 @@
+<?nvs
+// Shows that `Core\Math::asinh` has a result for negative and for very big numbers.
+
+// A negative number gives the same result with a minus sign. This prints -0.88137358701954.
+echo Core\Math::asinh(-1.0), "\n";
+
+// Ten billion becomes about 24. This prints 23.7189981105.
+echo Core\Math::asinh(10000000000.0), "\n";
+
+// The biggest `float` still gives an ordinary number. This prints 710.47586007394.
+echo Core\Math::asinh(Core\Math::FLOAT_MAX), "\n";

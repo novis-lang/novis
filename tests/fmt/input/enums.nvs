@@ -1,0 +1,35 @@
+<?NVS
+enum Rank {
+    Bronze,
+      Silver,
+    Gold,
+}
+
+class Player implements Comparable {
+  public string $playerName;
+        public Rank $rank;
+
+    public function constructor(string $playerName, Rank $rank) {
+$this->playerName = $playerName;
+            $this->rank = $rank;
+    }
+
+    public function compareTo(self $other): int
+    {
+    return ($this->rank as int) - ($other->rank as int);
+    }
+}
+
+var $ana = new Player("ana", Rank::Gold);
+var $bo = new Player("bo", Rank::Silver);
+
+if ($ana > $bo)
+{
+        echo "ana outranks bo\n";
+}
+
+echo "gold=" . (Rank::Gold as int) . "\n";
+
+var $copy = clone $ana;
+      $copy->playerName = "clone";
+echo $ana->playerName . "," . $copy->playerName . "\n";

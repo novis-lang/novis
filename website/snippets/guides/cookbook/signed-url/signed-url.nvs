@@ -1,0 +1,21 @@
+<?nvs
+// This program makes a download link that works for one hour, and checks it.
+
+// A real server reads its keys from its configuration. This program makes a new one.
+array<secret bytes> $keys = [Core\Crypto::generateKey()];
+
+// `sign` adds a `_sig` parameter to the address. `until` is when the link stops working.
+Core\Uri $link = Core\Uri::parse("https://files.example.com/download?file=report.pdf")
+    ->sign({keys: $keys, until: Core\Time::now()->plus(1h)});
+
+// `verifySignature` throws a `RuntimeError` if the link was changed or is too old.
+$link->verifySignature($keys);
+echo "the link works\n";
+
+// Somebody changes the file name. The signature no longer matches.
+try {
+    $link->withQueryParameter("file", "salaries.pdf")->verifySignature($keys);
+    echo "the changed link works\n";
+} catch (RuntimeError $error) {
+    echo "the changed link does not work\n";
+}

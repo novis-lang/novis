@@ -1,0 +1,2 @@
+Core\Http\Client::post: `retryAttempts` counts the first attempt too, so the smallest it can be is 1
+Core\Http\Client::post: `retryBackoff` must be a positive duration, and this one is 0ns

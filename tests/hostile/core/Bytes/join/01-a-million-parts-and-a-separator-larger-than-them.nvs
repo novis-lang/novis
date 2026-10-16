@@ -1,0 +1,41 @@
+<?nvs
+// Attack: a list of a million parts is joined, and a separator much larger
+// than the parts is used. The same list is also joined a thousand times over.
+// Every step must finish, and the program must keep running.
+// hostile: timeout-ms 60000
+
+// 1. One million parts of eight bytes each, with a separator of two bytes.
+//    This prints 9999998.
+array<bytes> $many = [];
+uint $i = 0;
+while ($i < 1000000) {
+    $many[] = 'abcdefgh' as bytes;
+    $i = $i + 1;
+}
+echo Core\Bytes::length(Core\Bytes::join($many, '--' as bytes)), "\n";
+
+// 2. Ten thousand parts joined a thousand times. Every result must be freed
+//    while the loop runs. This prints 80000000.
+array<bytes> $batch = [];
+uint $j = 0;
+while ($j < 10000) {
+    $batch[] = 'abcdefgh' as bytes;
+    $j = $j + 1;
+}
+uint $built = 0;
+uint $round = 0;
+while ($round < 1000) {
+    $built = $built + Core\Bytes::length(Core\Bytes::join($batch));
+    $round = $round + 1;
+}
+echo $built, "\n";
+
+// 3. A separator of a thousand bytes between ten thousand parts of one byte.
+//    The separators are most of the result here. This prints 10009000.
+array<bytes> $single = [];
+uint $k = 0;
+while ($k < 10000) {
+    $single[] = 'x' as bytes;
+    $k = $k + 1;
+}
+echo Core\Bytes::length(Core\Bytes::join($single, Core\Bytes::fill(1000, 46))), "\n";

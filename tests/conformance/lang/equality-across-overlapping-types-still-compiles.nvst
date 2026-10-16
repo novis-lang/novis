@@ -1,0 +1,55 @@
+--TEST--
+Disjointness, not identity of types, is what `==` refuses — every pair that can hold one value still compiles, `rule:expressions/disjoint-comparison-refused` and `rule:expressions/switch-match-equality`
+--FILE--
+<?nvs
+// A literal against its base type, which the table's literal row keeps
+// compiling.
+int $n = 1;
+echo ($n == 1) as string, "|", ($n == 2) as string, "|\n";
+
+// § 2's numeric row: `int`, `uint`, `float` and `decimal` are one domain, so
+// a pairing among them compares mathematically and never by representation.
+float $f = 1.0;
+uint $u = 1;
+decimal $d = 1.00;
+float $half = 1.5;
+echo ($n == $f) as string, "|", ($n == $half) as string, "|\n";
+echo ($u == $f) as string, "|", ($n == $u) as string, "|\n";
+echo ($d == $n) as string, "|", ($d == $f) as string, "|\n";
+echo ($n != $half) as string, "|", ($u != $n) as string, "|\n";
+
+// § 3's "mathematically equal across the whole domain", read at the operands'
+// own values: 2^60 is an `f64` exactly, so it equals the `int` holding the
+// same number even though the two representations agree on almost nothing
+// past 2^53.
+int $big = 1152921504606846976;
+float $same = 1152921504606846976.0;
+echo ($big == $same) as string, "|\n";
+
+// `?T` against `null`, and against `T` — the null test, which narrows.
+class Node {
+}
+?Node $maybe = null;
+echo ($maybe == null) as string, "|\n";
+$maybe = new Node();
+echo ($maybe != null) as string, "|\n";
+
+// § 6: a `match` arm is compared against the subject by this same rule, so an
+// arm whose type overlaps the subject's is an ordinary comparison.
+string $letter = "B";
+string $rank = match ($letter) {
+    "A" => "first",
+    "B" => "second",
+    default => "other",
+};
+echo $rank, "\n";
+--EXPECT--
+1||
+1||
+1|1|
+1|1|
+1||
+1|
+1|
+1|
+second

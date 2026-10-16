@@ -1,0 +1,17 @@
+<?nvs
+// Shows how to report the open connections of each database pool as one gauge with a label.
+
+class Pools {
+    // The label `pool` gives each pool its own value under the same gauge name.
+    public static function report(string $pool, uint $open): void {
+        Core\Metrics::gauge("db_connections_open", $open as float, {labels: ["pool" => $pool]});
+        echo $pool, ": ", $open, " open\n";
+    }
+}
+
+// The pool names are written in the program, so they are allowed as label values.
+Pools::report("primary", 8);
+Pools::report("replica", 3);
+
+// Later the primary pool has fewer connections. The new value replaces 8.
+Pools::report("primary", 5);

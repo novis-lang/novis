@@ -1,0 +1,88 @@
+<?nvs
+// Attack: paths that could come from a request try to reach a private property, loop through one
+// class many times, or are not paths at all. Each bad path should give `null` before `steps` sees
+// it. The last path needs more memory than the limit allows, and the program should stop there.
+// hostile: timeout-ms 20000
+// hostile: ends-early 7 FATAL
+
+class Node
+{
+    public int $value = 0;
+    public ?Node $next = null;
+    private string $secret = '';
+}
+
+class Attack
+{
+    public static function steps(string $text): string
+    {
+        ?propertyPath<Node> $path = $text as ?propertyPath<Node>;
+        if ($path == null) {
+            return 'null';
+        }
+        return Core\Arr::count(Core\Reflect::steps($path)) as string;
+    }
+
+    /// 1. A path that loops through `next` 100000 times. The result has 100001 entries.
+    public static function aLongLoop(): string
+    {
+        return self::steps(Core\Str::repeat('next.', 100000) . 'value');
+    }
+
+    /// 2. A private property.
+    public static function aPrivateProperty(): string
+    {
+        return self::steps('secret');
+    }
+
+    /// 3. A private property at the end of a path.
+    public static function aPrivatePropertyThroughAPath(): string
+    {
+        return self::steps('next.next.secret');
+    }
+
+    /// 4. Texts with empty parts. Each one gives `null`.
+    public static function emptyParts(): string
+    {
+        array<string> $texts = ['', '.', 'next..value', 'next.', '.value', 'value.next'];
+        string $out = '';
+        foreach ($texts as string $text) {
+            $out = $out . self::steps($text) . ' ';
+        }
+        return $out;
+    }
+
+    /// 5. A path of 8 MiB whose last part names nothing.
+    public static function aLongBadPath(): string
+    {
+        return self::steps(Core\Str::repeat('next.', 1677721) . 'missing');
+    }
+
+    /// 6. Calls it 200000 times on a short path and keeps none of the results.
+    public static function manySmallCalls(uint $rounds): uint
+    {
+        propertyPath<Node> $path = 'next.value' as propertyPath<Node>;
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            $total = $total + Core\Arr::count(Core\Reflect::steps($path));
+            $i = $i + 1;
+        }
+        return $total;
+    }
+
+    /// 7. A path of 4 million parts. The entries need far more memory than the limit allows.
+    public static function moreStepsThanTheLimit(): string
+    {
+        echo "step 7\n";
+        return self::steps(Core\Str::repeat('next.', 4000000) . 'value');
+    }
+}
+
+echo Attack::aLongLoop(), "\n";
+echo Attack::aPrivateProperty(), "\n";
+echo Attack::aPrivatePropertyThroughAPath(), "\n";
+echo Attack::emptyParts(), "\n";
+echo Attack::aLongBadPath(), "\n";
+echo Attack::manySmallCalls(200000), "\n";
+echo Attack::moreStepsThanTheLimit(), "\n";

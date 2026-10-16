@@ -1,0 +1,11 @@
+# The manifest of this extension. `nvs ext build` reads it.
+class = "Example\\Greeting"
+interface = "example:greeting/api"
+# The wasm file that `cargo build --release --target wasm32-wasip2` writes.
+module = "target/wasm32-wasip2/release/greeting.wasm"
+
+# One `[[methods]]` table for each function in the `api` interface.
+# The signature is written in Novis.
+[[methods]]
+signature = "hello(string $name): string"
+help = "Returns a greeting for `name`."

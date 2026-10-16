@@ -1,0 +1,63 @@
+--TEST--
+Every escape that writes the `ESC` byte (`\e`, `\x1b`, `\033`, `\u{1b}`) does not compile, in a double-quoted string, an interpolated one, a heredoc and an html template, and the error is at the escape itself — rule:tooling/an-escape-in-source-text-is-a-compile-error
+--FILE--
+<?nvs
+string $name = "Ada";
+// Each of the four escapes writes the `ESC` byte, so each is an error.
+echo "\e[31mred", "\n";
+echo "\x1b[1mbold", "\n";
+echo "\033[4munder", "\n";
+echo "\u{1b}[0m", "\n";
+// The same escapes inside an interpolated string, a heredoc and an html template.
+echo "hello \e[1m$name", "\n";
+echo <<<TEXT
+    hello \x1b[1m{$name}
+    TEXT;
+echo html`<b>\033[1m{$name}</b>`;
+// A string without the `ESC` byte compiles.
+echo "\x1c\\e[31m", "\n";
+--EXPECTF-ERROR--
+error[E0011]: this string contains the `ESC` character. To style terminal output, use `Core\Cli\Text`
+  --> %s:4:7
+  |
+4 | echo "\e[31mred", "\n";
+  |       ^^ writes the `ESC` character
+
+error[E0011]: this string contains the `ESC` character. To style terminal output, use `Core\Cli\Text`
+  --> %s:5:7
+  |
+5 | echo "\x1b[1mbold", "\n";
+  |       ^^^^ writes the `ESC` character
+
+error[E0011]: this string contains the `ESC` character. To style terminal output, use `Core\Cli\Text`
+  --> %s:6:7
+  |
+6 | echo "\033[4munder", "\n";
+  |       ^^^^ writes the `ESC` character
+
+error[E0011]: this string contains the `ESC` character. To style terminal output, use `Core\Cli\Text`
+  --> %s:7:7
+  |
+7 | echo "\u{1b}[0m", "\n";
+  |       ^^^^^^ writes the `ESC` character
+
+error[E0011]: this string contains the `ESC` character. To style terminal output, use `Core\Cli\Text`
+  --> %s:9:13
+  |
+9 | echo "hello \e[1m$name", "\n";
+  |             ^^ writes the `ESC` character
+
+error[E0011]: this string contains the `ESC` character. To style terminal output, use `Core\Cli\Text`
+   --> %s:11:1
+   |
+11 |     hello \x1b[1m{$name}
+   | ^^^^^^^^^^^^^^^^^ writes the `ESC` character
+
+error[E0011]: this string contains the `ESC` character. To style terminal output, use `Core\Cli\Text`
+   --> %s:13:14
+   |
+13 | echo html`<b>\033[1m{$name}</b>`;
+   |              ^^^^ writes the `ESC` character
+
+error: aborting due to 7 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

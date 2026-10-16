@@ -1,0 +1,30 @@
+--TEST--
+A batch of strings is split into words and sentences, every part joined gives the string back, and an empty string has no parts: rule:core-classes/intl-batch-shape rule:core-classes/intl-roster
+--FILE--
+<?nvs
+use Novis\Intl\Segmenter;
+
+// Each string becomes a list of parts. `wordLike` is true for a word or a number.
+var $texts = ["The Shop opens at 9.", "こんにちは世界", ""];
+var $words = Segmenter::words($texts, "ja");
+foreach ($words as array<{text: string, wordLike: bool}> $parts) {
+    var $line = "";
+    var $joined = "";
+    foreach ($parts as {text: string, wordLike: bool} $part) {
+        $line = $line . "[" . $part->text . ($part->wordLike ? "" : "~") . "]";
+        $joined = $joined . $part->text;
+    }
+    echo $line, " = ", $joined, "\n";
+}
+
+// A sentence keeps the space after it.
+var $sentences = Segmenter::sentences(["The Shop is open. Is the Blog? Yes!", ""], "en");
+foreach ($sentences as array<string> $found) {
+    echo Core\Arr::count($found), ": [", Core\Str::join($found, "|"), "]\n";
+}
+--EXPECT--
+[The][ ~][Shop][ ~][opens][ ~][at][ ~][9][.~] = The Shop opens at 9.
+[こんにちは][世界] = こんにちは世界
+ =
+3: [The Shop is open. |Is the Blog? |Yes!]
+0: []

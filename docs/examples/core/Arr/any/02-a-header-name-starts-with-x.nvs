@@ -1,0 +1,19 @@
+<?nvs
+// Shows how to test the key of each entry. The second parameter of your
+// function is the key, always as a string.
+
+array<string> $headers = ["accept" => "text/html", "x-request-id" => "a41f"];
+// The second key starts with "x-", so this prints "a custom header is set".
+if (Core\Arr::any($headers, fn(string $value, string $name) => Core\Str::startsWith($name, "x-"))) {
+    echo "a custom header is set", "\n";
+} else {
+    echo "no custom header is set", "\n";
+}
+
+array<string> $empty = [];
+// An empty array gives false. There is no entry that can match.
+if (Core\Arr::any($empty, fn(string $value, string $name) => Core\Str::startsWith($name, "x-"))) {
+    echo "a custom header is set", "\n";
+} else {
+    echo "an empty list has no match", "\n";
+}

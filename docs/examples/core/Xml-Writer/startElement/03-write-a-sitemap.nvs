@@ -1,0 +1,28 @@
+<?nvs
+// Shows how to write a sitemap, the file that tells a search engine which pages a website has.
+
+array<string> $pages = [
+    "https://example.com/" => "2026-09-01",
+    "https://example.com/shop" => "2026-09-20",
+    "https://example.com/contact" => "2026-03-15",
+];
+
+Core\Xml\Writer $writer = Core\Xml::writer({indent: "  "});
+$writer->startDocument();
+$writer->startElement("urlset");
+$writer->attribute("xmlns", "http://www.sitemaps.org/schemas/sitemap/0.9");
+
+// Each page gets a `url` element with its address and the date it last changed.
+foreach ($pages as string $address => string $changed) {
+    $writer->startElement("url");
+    $writer->startElement("loc");
+    $writer->content($address);
+    $writer->endElement();
+    $writer->startElement("lastmod");
+    $writer->content($changed);
+    $writer->endElement();
+    $writer->endElement();
+}
+
+$writer->endElement();
+echo $writer->endDocument(), "\n";

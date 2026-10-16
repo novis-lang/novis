@@ -1,0 +1,26 @@
+<?nvs
+// Shows how to put a picture beside each product of a list.
+use Novis\Spreadsheet\Reader;
+use Novis\Spreadsheet\Workbook;
+
+// A PNG image of one pixel. A real program reads the picture of each product from its storage.
+bytes $picture = Core\Encoding::fromBase64('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==');
+array<string> $products = ['Widget', 'Gadget', 'Gizmo'];
+
+var $book = Workbook::createInMemory();
+var $sheet = $book->sheet('Products');
+
+// The images are added before the rows, so none of them waits in memory.
+int $row = 2;
+foreach ($products as string $name) {
+    $sheet->image($sheet->cell('C', $row), $picture, { width: 32.0, height: 32.0 });
+    $row = $row + 1;
+}
+foreach ($products as string $product) {
+    $sheet->add(['product' => $product, 'price' => 2.5, 'picture' => '']);
+}
+bytes $file = $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
+
+foreach (Reader::open($file)->images('Products') as var $image) {
+    echo 'a ', $image->format, ' image at ', $image->at, "\n";
+}

@@ -1,0 +1,146 @@
+[package]
+name = "nvs-runtime"
+build = "../../tools/build/tests_without_pdb.rs"
+description = "Novis runtime: the checked-return helper ABI, the tagged value representation, refcounted strings, and the per-request context"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+# ---------------------------------------------------------------------------
+# `sanitizer` takes this crate's own test binary off `alloc::Pooled` and back
+# onto the platform heap, so that ASAN can see a free. It exists for the CI job
+# of the same name and for nothing else — see `counting_alloc`'s module doc for
+# why a recycled block is invisible to a sanitizer, and `lib.rs` § *the
+# allocator itself* for what is given up while it is on.
+#
+# `cfg(sanitize = "address")` would set this automatically and needs no feature
+# at all, but it is nightly-gated (rust#39699) and a hard error on the pinned
+# stable toolchain. Revisit when it stabilizes.
+# ---------------------------------------------------------------------------
+[features]
+sanitizer = []
+
+[dependencies]
+bitflags.workspace = true
+# `capability`'s filesystem doors record what a program read when
+# `NVS_FOOTPRINT_LOG` names a log.
+nvs-footprint.workspace = true
+# `rule:config/the-config-is-an-immutable-snapshot`: a request holds the configuration snapshot it cloned at start,
+# and `Ctx` is where per-request state lives — so the type crosses this edge
+# rather than the field being erased behind a trait object nothing else needs.
+# `nvs-config` depends on `nvs-diagnostics`, `serde` and `toml` and on nothing
+# in this crate, so the edge is one-way.
+nvs-config.workspace = true
+# `rule:errors/log-write`'s tier-4 floor writes the *same* record through the *same*
+# renderer `Core\Log::write` reaches, so that a log pipeline never has to
+# reconcile two shapes depending on which tier produced a line — and a floor
+# with its own JSON writer would be exactly the two-writers-that-agree-today
+# failure `rule:errors/diagnostic-record` exists to prevent. `src/floor.rs` is the caller. The edge is
+# one-way and this crate stays the bottom of the tree: `nvs-render` depends on
+# no `nvs-*` crate at all, which is what the `rule:security/bidi-predicate`
+# check moving down into it bought.
+nvs-render.workspace = true
+# The trace id (`rule:observability/a-trace-id-exists-for-every-request`) is
+# drawn once per request, in `Ctx::new`, so the draw happens in the crate that
+# owns per-request state, not in `nvs-stdlib`, where `Core\Random` already uses
+# this same generator for the reason its module doc gives. No new crate reaches
+# the tree: `nvs-stdlib` depends on both this crate and `rand` already.
+rand.workspace = true
+# `rule:errors/log-write`'s record carries `ts` as RFC 3339, and `Ctx::stamp_envelope`
+# writes it for both of that section's writers. One renderer of that format in
+# the tree, not two: `Core\Time\Instant::toIso` is `jiff::Timestamp`'s own
+# `Display` and this is the same call, so a floor record's timestamp and a
+# program's cannot come to disagree about a leap second or a fractional digit.
+# No new crate reaches the tree -- `nvs-stdlib` and `nvs-config` both name it.
+jiff.workspace = true
+# `rule:security/secret-comparison-is-constant-time`'s `secret == secret` is a constant-time comparison, and this
+# crate cannot call `nvs-stdlib`, where `Core\Hash::equals` already uses the
+# same crate for the same reason — the workspace manifest's own comment beside
+# `subtle` states it: an optimiser is free to turn the obvious loop back into
+# an early exit, and that barrier is the whole point of the dependency.
+subtle.workspace = true
+# `src/csrf.rs`'s construction, which is here rather than in `nvs-stdlib`
+# because `rule:security/csrf-is-on-by-default`'s refusal happens at the server
+# door and `nvs-server` cannot reach that crate. No new crate reaches the tree —
+# `nvs-stdlib` names both of these, and the workspace manifest's comments beside
+# them are where the choice of construction is argued.
+chacha20poly1305.workspace = true
+# The alphabet a token travels in: unpadded URL-safe base64, which a hidden
+# field, a header and a query string all carry unescaped.
+base64.workspace = true
+# `rule:types/string-is-utf8`'s grapheme cluster is `string`'s length unit, and this crate
+# holds the header the count is cached in and the concatenation that corrects
+# it at the seam — so the UAX #29 primitives have to be reachable from here.
+# `graphemes.rs` owns why the kernel lives in the runtime rather than beside
+# the unit choice in `nvs-stdlib`.
+unicode-segmentation.workspace = true
+# `Core\Cli::displayWidth` is UAX #11 columns (`rule:tooling/display-width-measures-what-the-sink-writes`), and a live region clamps a
+# row to the same unit — one table, read by the two callers in
+# `src/terminal.rs`, so a row cut to the width a program measured cannot be
+# cut against a different answer than the one it was given.
+unicode-width.workspace = true
+# `rule:security/route-capture-is-laundered-by-its-type` lets a route capture declare `Core\Uuid`, and `src/routes.rs` is
+# where a segment is accepted or refused — one crate below `nvs-stdlib`, which
+# owns the class and cannot be depended on from here. So the canonical parse
+# lives in `src/uuid.rs` and `Core\Uuid::parse` reads through it: one grammar
+# with one home, which is the rule `routes.rs`' gap 4 keeps for percent-decoding.
+# No new crate reaches the tree — `nvs-stdlib` already depends on this one and
+# on `uuid`.
+uuid.workspace = true
+
+# The terminal profile (`rule:tooling/the-terminal-profile-resolves-once`): how wide the controlling terminal is has no
+# `std` spelling on either platform, and `rule:security/capability-check-at-the-door`
+# forbids `nvs-stdlib` from
+# reaching the operating system itself — so the calls live in `src/terminal.rs`
+# and `Core\Cli` reads what they answered.
+[target.'cfg(unix)'.dependencies]
+libc.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+windows-sys.workspace = true
+
+# A `[limits]` reader answers off the snapshot's own `toml::Table` — the typed
+# tree beside it is a different reader's — so a case that pins one has to build
+# the table the way the boot path does, from the text an operator wrote.
+[dev-dependencies]
+toml.workspace = true
+# How this crate's tests reach files outside the package.
+nvs-repo.workspace = true
+
+# ---------------------------------------------------------------------------
+# This crate cannot inherit the workspace lint policy. It owns the heap
+# representation compiled code manipulates by raw pointer and the helper
+# entry points compiled code calls across an `extern "C"` boundary, neither of
+# which is expressible in safe Rust. `deny` rather than the workspace's
+# `forbid`, so each genuinely necessary block is allowed individually with a
+# stated reason — the policy in docs/implementation-plan.md's "Unsafe policy"
+# section, which names this crate.
+# ---------------------------------------------------------------------------
+
+# @generated by `bun nv lints` -- edit `[workspace.lints]` in the root manifest.
+# This crate is on that command's `UNSAFE_CRATES` roster, so it restates the
+# workspace table with `unsafe_code = "deny"`: cargo will not let a manifest
+# inherit `[workspace.lints]` and override one entry, and `forbid` is not
+# something an individual `#[allow(unsafe_code, reason = ...)]` can relax.
+
+[lints.rust]
+unsafe_code = "deny"
+missing_docs = "warn"
+missing_debug_implementations = "warn"
+unreachable_pub = "warn"
+rust_2018_idioms = { level = "warn", priority = -1 }
+
+[lints.clippy]
+all = { level = "warn", priority = -1 }
+cast_possible_truncation = "warn"
+cast_possible_wrap = "warn"
+cast_sign_loss = "warn"
+checked_conversions = "warn"
+todo = "warn"
+unimplemented = "warn"
+dbg_macro = "warn"
+print_stdout = "warn"
+print_stderr = "warn"

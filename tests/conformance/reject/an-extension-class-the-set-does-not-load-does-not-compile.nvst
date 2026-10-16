@@ -1,0 +1,15 @@
+--TEST--
+An extension class exists for a program only when the configuration loads its extension, so a call to one the set does not load does not compile — `rule:packaging/extension-calls-are-statically-typed`
+--FILE--
+<?nvs
+// The `ledger` extension declares `Shop\Ledger`, but this program's
+// configuration does not load it. The class does not exist here.
+echo Shop\Ledger::echoInt(3), "\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0303]: `Shop\Ledger` is not declared
+  --> case.nvs:4:6
+%A
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

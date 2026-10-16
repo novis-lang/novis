@@ -1,0 +1,46 @@
+<?nvs
+// Attack: a request passes broken options, text that looks like XML, and hundreds of workbooks it never finishes.
+// Each call should make a valid file or throw an error. The server keeps running.
+use Novis\Spreadsheet\Workbook;
+
+class Attack
+{
+    // This method makes a workbook with `$options` and reads it back. It prints the title it read, or the error.
+    public static function attempt(int $step, Workbook::Options $options): void
+    {
+        try {
+            var $book = Workbook::createInMemory($options);
+            $book->sheet('Shop')->add(['order' => 1, 'total' => 2.5]);
+            bytes $file = $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
+            var $title =Novis\Spreadsheet\Reader::open($file)->properties()->title;
+            echo 'step ', $step, ' ran ', Core\Str::length($title ?? ''), " characters of title\n";
+        } catch (Throwable $e) {
+            echo 'step ', $step, ' stopped ', $e::class, "\n";
+        }
+    }
+}
+
+// 1. Formats that do not exist, and a format in capital letters.
+Attack::attempt(1, { format: 'pdf' });
+Attack::attempt(1, { format: '' });
+Attack::attempt(1, { format: 'CSV' });
+
+// 2. Time zones that do not exist, and one that looks like a path.
+Attack::attempt(2, { zone: 'Mars/Base' });
+Attack::attempt(2, { zone: '../../etc/passwd' });
+
+// 3. Document properties with XML, a NUL byte, and a title of one million characters.
+Attack::attempt(3, { properties: { title: '</dc:title><x>', author: "Shop\u{0}Admin", keywords: ']]><!--' } });
+Attack::attempt(3, { properties: { title: Core\Str::repeat('x', 1000000) } });
+
+// 4. A creation time at the first and the last second there is.
+Attack::attempt(4, { properties: { created: Core\Time::fromEpoch(-377705023201) } });
+Attack::attempt(4, { properties: { created: Core\Time::fromEpoch(253402207200) } });
+
+// 5. 300 workbooks that are started and never finished. Each one is logged as an error.
+uint $open = 0;
+while ($open < 300) {
+    Workbook::createInMemory()->sheet('Shop')->add(['order' => $open]);
+    $open = $open + 1;
+}
+echo 'step 5 ran ', $open, "\n";

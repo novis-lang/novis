@@ -1,0 +1,36 @@
+<?nvs
+// Attack: `Core\Math::floor` is given the biggest and smallest numbers, and values that are
+// not ordinary. It is also given the biggest numbers that still have a fraction, and a
+// million calls. Every call should return a number, and the program should run to its end.
+
+// 1. The biggest numbers, positive and negative.
+echo Core\Math::floor(Core\Math::FLOAT_MAX), "\n";
+echo Core\Math::floor(-Core\Math::FLOAT_MAX), "\n";
+
+// 2. The smallest numbers, and zero with a minus sign.
+echo Core\Math::floor(Core\Math::FLOAT_MIN), "\n";
+echo Core\Math::floor(-Core\Math::FLOAT_MIN), "\n";
+echo Core\Math::floor(-0.0), "\n";
+
+// 3. The biggest number with a fraction, and the first numbers past it that have none.
+echo Core\Math::floor(4503599627370495.5), "\n";
+echo Core\Math::floor(-4503599627370495.5), "\n";
+echo Core\Math::floor(9007199254740994.0), "\n";
+
+// 4. A number just below 1, and just below -1.
+echo Core\Math::floor(0.9999999999999999), "\n";
+echo Core\Math::floor(-1.0000000000000002), "\n";
+
+// 5. Values that are not ordinary numbers.
+echo Core\Math::floor(Core\Math::NAN), "\n";
+echo Core\Math::floor(Core\Math::INFINITY), "\n";
+echo Core\Math::floor(-Core\Math::INFINITY), "\n";
+
+// 6. A million calls. Each result feeds the next one, and none is kept.
+float $value = 0.5;
+int $round = 0;
+while ($round < 1000000) {
+    $value = Core\Math::floor($value * 1.5 - 0.25) + 0.5;
+    $round = $round + 1;
+}
+echo Core\Math::isNan($value) ? "NaN\n" : "a number\n";

@@ -1,0 +1,48 @@
+<?nvs
+// Shows the options a real test class uses: a fixed clock, a fixed seed, an
+// allowance of extra attempts with the reason for it, and a skip.
+
+use Core\Test;
+use Core\Time;
+use Core\Random;
+
+class Invite {
+    public static function code(string $draw): string {
+        return "INV-" . $draw;
+    }
+
+    public static function isWellFormed(string $code): bool {
+        return Core\Str::length($code) == 8;
+    }
+}
+
+class InviteTest {
+    // With `at:` this test reads the same time on every run.
+    #[Test(at: "2026-03-01T09:00:00Z")]
+    public function itReadsOneFixedTime(): void {
+        Test::assertSame(Time::now()->toIso(), "2026-03-01T09:00:00Z");
+    }
+
+    // With `seed:` `Core\Random` draws the same numbers on every run.
+    #[Test(seed: 42)]
+    public function itBuildsACodeFromADrawnNumber(): void {
+        int $draw = Random::int(1000, 9999);
+        Test::assertTrue(Invite::isWellFormed(Invite::code($draw as string)));
+    }
+
+    // The payment sandbox fails now and then, so this test gets two more
+    // attempts. `because:` is what a reader of the report has instead of the run.
+    #[Test(retries: 2, because: "the payment sandbox is slow to start")]
+    public function itAcceptsACodeTheSandboxReturns(): void {
+        Test::assertTrue(Invite::isWellFormed("INV-1234"));
+    }
+
+    // This test waits for work that is not done. It is reported as skipped.
+    #[Test(skip: "the refund endpoint is not built yet")]
+    public function itRefundsAnInvite(): void {
+        Test::assertTrue(Invite::isWellFormed("INV-0000"));
+    }
+}
+
+// This prints `INV-1234`.
+echo Invite::code("1234"), "\n";

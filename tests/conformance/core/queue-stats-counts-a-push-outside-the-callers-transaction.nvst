@@ -1,0 +1,76 @@
+--TEST--
+`stats` counts a `push` made while a transaction is open on a connection other than the queue's, and only that one — `rule:concurrency/foreign-connection-enqueue-is-counted`
+--FILE--
+<?nvs
+// covers: Core\Queue\Stats::nonTransactional
+use Core\Db\Transaction;
+use Core\Queue;
+
+// The queue's table, as `nvs queue migrate` creates it for SQLite.
+var $jobs = Core\Db::connect("jobs");
+var $table = <<<'SQL'
+create table nvs_jobs (id integer primary key autoincrement, queue varchar(255) not null,
+    script text not null, args text, state smallint not null, attempts integer not null,
+    max_attempts integer not null, backoff_ms bigint not null, run_at bigint not null,
+    tag varchar(255), dedupe_key varchar(255), dedupe_pending varchar(255),
+    created_at bigint not null, claimed_at bigint, errors text, grants text, limits text,
+    non_transactional smallint, constraint nvs_jobs_dedupe unique (dedupe_pending))
+SQL;
+$jobs->execute($table, []);
+$jobs->execute("create table nvs_dead_jobs (id bigint not null, queue varchar(255) not null, script text not null, args text, attempts integer not null, max_attempts integer not null, backoff_ms bigint not null, run_at bigint not null, tag varchar(255), dedupe_key varchar(255), created_at bigint not null, failed_at bigint not null, errors text not null, primary key (id))", []);
+
+// A push outside any transaction commits on its own, and nothing else
+// was promised, so it is not counted.
+Queue::push("jobs/send-receipt.nvs", {queue: "mail"});
+echo "alone: ", Queue::stats("mail")->nonTransactional(), "\n";
+
+// A push inside a transaction on the queue's own connection commits with
+// that transaction, so it is not counted either.
+$jobs->transaction(fn(Transaction $tx): void => {
+    Queue::push("jobs/send-receipt.nvs", {queue: "mail"});
+});
+echo "same connection: ", Queue::stats("mail")->nonTransactional(), "\n";
+
+// A push inside a transaction on a different connection commits at once,
+// apart from the order it belongs to. That is the one `stats` counts, and
+// a rollback of the order does not take it back.
+var $shop = Core\Db::connect("shop");
+$shop->execute("create table orders (id integer primary key)", []);
+try {
+    $shop->transaction(fn(Transaction $tx): void => {
+        $tx->execute("insert into orders (id) values (?)", [1]);
+        Queue::push("jobs/send-receipt.nvs", {queue: "mail"});
+        $tx->rollBack("payment declined");
+    });
+} catch (Core\Db\RolledBack $e) {
+    echo "rolled back: ", $e->reason, "\n";
+}
+var $stats = Queue::stats("mail");
+echo "other connection: ", $stats->nonTransactional(), "\n";
+echo "pending: ", $stats->pending(), "\n";
+
+// After that transaction has closed, a push is on its own again.
+Queue::push("jobs/send-receipt.nvs", {queue: "mail"});
+echo "after: ", Queue::stats("mail")->nonTransactional(), "\n";
+--FILE nvs.toml--
+[capabilities.db]
+connect = ["jobs", "shop"]
+
+[db.jobs]
+driver = "sqlite"
+path = ":memory:"
+
+[db.shop]
+driver = "sqlite"
+path = ":memory:"
+
+[queue]
+connection = "jobs"
+workers = 0
+--EXPECT--
+alone: 0
+same connection: 0
+rolled back: payment declined
+other connection: 1
+pending: 3
+after: 1

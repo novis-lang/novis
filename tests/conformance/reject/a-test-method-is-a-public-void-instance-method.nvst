@@ -1,0 +1,92 @@
+--TEST--
+a `#[Test]` method that is `static`, that is not `public`, that returns anything but `void` or that has no body is refused where it is declared, and two sharing one name with it — `rule:testing/test-attribute`
+--FILE--
+<?nvs
+// covers: lang:testing/a-test-is-a-method-marked-test
+// `rule:testing/test-attribute`: these are compile errors, not skipped tests. Four of the
+// six are about the declaration rather than the payload — a `#[Test]`
+// that is `static`, that is not `public`, that returns anything but
+// `void`, or that has no body — and they share one code because they are
+// one question: the runner constructs the class and calls the member with
+// no arguments and no result. The fifth, two `#[Test]` methods sharing one
+// name, is the `E0304` an option written twice already draws.
+use Core\Test;
+
+// The accepted half first, so a position that stops being accepted fails
+// here rather than as a missing refusal. The two plain helpers beside it
+// are the other half of that: a `static` and a `private` method with no
+// `#[Test]` on it is nothing this pass has an opinion about.
+class Accepted {
+    #[Test]
+    public function aTestIsAPublicVoidInstanceMethod(): void {}
+
+    public static function aPlainStaticHelper(): int { return 1; }
+
+    private function aPlainPrivateHelper(): string { return "x"; }
+}
+
+class Refused {
+    #[Test]
+    public static function aTestIsNotStatic(): void {}
+
+    #[Test]
+    private function aTestIsPublic(): void {}
+
+    #[Test]
+    protected function protectedIsNotPublicEither(): void {}
+
+    #[Test]
+    public function aTestReturnsVoid(): int { return 1; }
+
+    // One declaration, three refusals: the family is one question asked of
+    // three parts of a signature, so each part answers for itself.
+    #[Test]
+    private static function everyShapeAtOnce(): string { return "x"; }
+
+    // A test is reported by its own name, so two cannot share one.
+    #[Test]
+    public function twiceOver(): void {}
+
+    #[Test]
+    public function twiceOver(): void {}
+}
+
+// An `abstract` test has no body, so the runner has nothing to call.
+abstract class RefusedBodiless {
+    #[Test]
+    abstract public function aTestHasABody(): void;
+}
+
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0733]: the `#[Test]` method `aTestIsNotStatic` is `static`
+   --> case.nvs:27:28
+%A
+error[E0733]: the `#[Test]` method `aTestIsPublic` is not `public`
+   --> case.nvs:30:22
+%A
+error[E0733]: the `#[Test]` method `protectedIsNotPublicEither` is not `public`
+   --> case.nvs:33:24
+%A
+error[E0733]: the `#[Test]` method `aTestReturnsVoid` returns `int`
+   --> case.nvs:36:21
+%A
+error[E0733]: the `#[Test]` method `everyShapeAtOnce` is `static`
+   --> case.nvs:41:29
+%A
+error[E0733]: the `#[Test]` method `everyShapeAtOnce` is not `public`
+   --> case.nvs:41:29
+%A
+error[E0733]: the `#[Test]` method `everyShapeAtOnce` returns `string`
+   --> case.nvs:41:29
+%A
+error[E0304]: `Refused` declares two `#[Test]` methods named `twiceOver`
+   --> case.nvs:48:21
+%A
+error[E0733]: the `#[Test]` method `aTestHasABody` has no body
+   --> case.nvs:54:30
+%A
+error: aborting due to 9 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

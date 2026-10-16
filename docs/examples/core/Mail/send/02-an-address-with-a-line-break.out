@@ -1,0 +1,1 @@
+Core\Mail::send: to is not an address — it holds a byte an address cannot carry (a control byte, an angle bracket or a comma)

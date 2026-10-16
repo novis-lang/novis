@@ -1,0 +1,58 @@
+<?nvs
+// Attack: a request asks for the plural category of very large lists, extreme numbers and broken
+// locale tags. Each call should return a list or throw an error, and the server keeps running.
+// hostile: timeout-ms 20000
+use Novis\Intl\PluralRules;
+
+// 1. An empty list.
+try {
+    echo 'step 1 ran ', Core\Arr::count(PluralRules::cardinal([], 'ru')), "\n";
+} catch (Throwable $e) {
+    echo "step 1 stopped\n";
+}
+
+// 2. Twenty thousand numbers in one call.
+try {
+    array<int|float|decimal> $many = [];
+    for (int $i = 0; $i < 20000; $i++) {
+        $many[] = $i;
+    }
+    echo 'step 2 ran ', Core\Arr::count(PluralRules::cardinal($many, 'ar')), "\n";
+} catch (Throwable $e) {
+    echo "step 2 stopped\n";
+}
+
+// 3. The largest and the smallest numbers.
+try {
+    array<int|float|decimal> $extreme = [1.7976931348623157e308, 5e-324, 9223372036854775807, -9223372036854775807];
+    echo 'step 3 ran ', Core\Arr::count(PluralRules::cardinal($extreme, 'pl')), "\n";
+} catch (Throwable $e) {
+    echo "step 3 stopped\n";
+}
+
+// 4. A decimal with one hundred thousand fraction digits.
+try {
+    decimal $long = ('1.' . Core\Str::repeat('0', 100000)) as decimal;
+    echo 'step 4 ran ', Core\Arr::count(PluralRules::cardinal([$long], 'en')), "\n";
+} catch (Throwable $e) {
+    echo "step 4 stopped\n";
+}
+
+// 5. A number that is not finite.
+try {
+    PluralRules::cardinal([Core\Math::NAN], 'en');
+    echo "step 5 ran\n";
+} catch (Throwable $e) {
+    echo "step 5 stopped\n";
+}
+
+// 6. A bad locale tag a thousand times. Each call must still return or throw.
+uint $stopped = 0;
+for (int $j = 0; $j < 1000; $j++) {
+    try {
+        PluralRules::cardinal([1], 'en_US!');
+    } catch (Throwable $e) {
+        $stopped = $stopped + 1;
+    }
+}
+echo 'step 6 stopped ', $stopped, "\n";

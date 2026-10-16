@@ -1,0 +1,14 @@
+<?nvs
+// Shows how to point at the first character that is not allowed in a line of input.
+
+array<string> $codes = ["AB-1234", "AB-12x4", "Ä-1234"];
+foreach ($codes as string $code) {
+    // The pattern finds the first character that is not a capital letter, a digit or "-".
+    var $bad = Core\Regex::match($code, '[^A-Z0-9-]');
+    if ($bad == null) {
+        echo $code, " is valid\n";
+    } else {
+        // The "^" goes under the character at the position that `offset` returns.
+        echo $code, "\n", Core\Str::repeat(" ", $bad->offset() as uint), "^ not allowed\n";
+    }
+}

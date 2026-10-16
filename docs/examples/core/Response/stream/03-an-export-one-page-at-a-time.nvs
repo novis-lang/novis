@@ -1,0 +1,27 @@
+<?nvs
+// Shows how to export many rows and keep only a few of them in memory.
+
+class Customers {
+    // Returns one page of rows as CSV lines.
+    // A real program reads each page from a database.
+    public static function page(uint $number, uint $size): string {
+        string $rows = "";
+        uint $i = 0;
+        while ($i < $size) {
+            uint $id = $number * $size + $i + 1;
+            $rows = $rows . ($id as string) . ",customer-" . ($id as string) . "\n";
+            $i = $i + 1;
+        }
+        return $rows;
+    }
+}
+
+// The loop sends one page and then reads the next one.
+// Only one page is in memory at a time, however many pages there are.
+Core\Response\Stream $export = Core\Response::stream("text/csv");
+$export->write("id,name\n");
+uint $number = 0;
+while ($number < 3) {
+    $export->write(Customers::page($number, 2));
+    $number = $number + 1;
+}

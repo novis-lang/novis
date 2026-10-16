@@ -1,0 +1,6 @@
+document
+  instruction render: mode="draft"
+  element order
+    comment:  from the shop 
+    element item
+      text: Coffee beans

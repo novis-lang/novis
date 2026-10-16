@@ -1,0 +1,68 @@
+<?nvs
+// Attack: assertions are handed the values that break a comparison. Each step
+// should give an answer or throw an error the program catches. None of them
+// should hang, crash or fill the machine.
+// hostile: timeout-ms 20000
+
+use Core\Test;
+
+class Node
+{
+    public ?Node $next = null;
+    public string $label = 'n';
+}
+
+// 1. Two arrays of 200000 entries are compared entry by entry.
+array<int> $left = [];
+array<int> $right = [];
+uint $i = 0;
+while ($i < 200000) {
+    $left[] = ($i as int);
+    $right[] = ($i as int);
+    $i = $i + 1;
+}
+try {
+    Test::assertEqualsDeep($left, $right);
+    echo 'step 1: two long arrays compared', "\n";
+} catch (Throwable $caught) {
+    echo 'step 1 stopped: ', $caught->message, "\n";
+}
+
+// 2. Two pairs of objects point at each other, so a comparison that walks the
+//    properties never reaches an end on its own.
+var $a = new Node();
+var $b = new Node();
+$a->next = $b;
+$b->next = $a;
+var $c = new Node();
+var $d = new Node();
+$c->next = $d;
+$d->next = $c;
+try {
+    Test::assertEqualsDeep($a, $c);
+    echo 'step 2: a cycle compared', "\n";
+} catch (Throwable $caught) {
+    echo 'step 2 stopped', "\n";
+}
+
+// 3. Two strings of four million characters differ in the last one, so the
+//    failure message has both of them to name.
+string $one = Core\Str::repeat('a', 4000000) . 'x';
+string $two = Core\Str::repeat('a', 4000000) . 'y';
+try {
+    Test::assertSame($one, $two);
+    echo 'step 3: the two long strings are the same', "\n";
+} catch (Core\Test\Failure $failed) {
+    echo 'step 3 reported a failure of ', Core\Str::length($failed->message), ' characters', "\n";
+}
+
+// 4. The function given to `assertThrows` throws the failure type the
+//    assertion itself uses.
+try {
+    Test::assertThrows(fn (): void => { throw new Core\Test\Failure('from inside'); }, ParseError::class);
+    echo 'step 4: the inner failure was accepted', "\n";
+} catch (Throwable $caught) {
+    echo 'step 4 stopped', "\n";
+}
+
+echo 'the runtime is still standing', "\n";

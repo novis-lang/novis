@@ -1,0 +1,3 @@
+# The client sends two bytes, then a text message.
+bytes: ca fe
+text: hello

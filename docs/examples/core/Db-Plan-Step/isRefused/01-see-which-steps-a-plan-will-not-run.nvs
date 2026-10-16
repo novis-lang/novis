@@ -1,0 +1,40 @@
+<?nvs
+// Shows which steps of a plan are reports. `Core\Db\Plan\Step::isRefused`
+// returns `true` for a step the plan will never run for you.
+
+use Core\Db;
+use Core\Db\Plan\Step;
+use Core\Db\Schema;
+
+var $db = Db::connect('notes');
+
+// A table an earlier version of this program left behind.
+$db->execute('create table notes_backup (id integer primary key)', []);
+
+var $schema = Schema::fromArray([
+    'tables' => [
+        [
+            'name' => 'notes',
+            'columns' => [
+                ['name' => 'id', 'type' => 'int64', 'identity' => true],
+                ['name' => 'title', 'type' => 'text(200)'],
+            ],
+            'primary_key' => ['id'],
+        ],
+    ],
+]);
+
+uint $toRun = 0;
+uint $reported = 0;
+foreach ($schema->planAgainst($db)->steps() as Step $step) {
+    if ($step->isRefused()) {
+        $reported = $reported + 1;
+        echo 'reported: ', $step->reason(), "\n";
+    } else {
+        $toRun = $toRun + 1;
+    }
+}
+
+echo $toRun, ' step to run, ', $reported, " step reported\n";
+
+$db->close();

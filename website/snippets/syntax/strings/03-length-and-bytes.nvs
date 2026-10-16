@@ -1,0 +1,11 @@
+<?nvs
+// `Core\Str::length` counts the characters a person sees.
+string $word = "grüße";
+echo Core\Str::length($word), "\n";
+
+// `bytes` is binary data. `as bytes` converts a string to its UTF-8 bytes.
+bytes $data = $word as bytes;
+echo Core\Bytes::length($data), "\n";
+
+// `.` joins two strings.
+echo $word . "!", "\n";

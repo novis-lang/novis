@@ -1,0 +1,2 @@
+Core\Net::listenLocal needs the capability `net.local` for /tmp/other.sock, which is not granted
+help: grant it in nvs.toml under `[capabilities.net]`

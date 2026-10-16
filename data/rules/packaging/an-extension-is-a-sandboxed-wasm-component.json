@@ -1,0 +1,17 @@
+{
+  "title": "A third-party extension is a sandboxed WebAssembly component, never a shared library loaded with `dlopen`",
+  "status": "shipped",
+  "seeAlso": [
+    "core-api/five-placements",
+    "packaging/values-cross-as-handles",
+    "packaging/a-guest-has-no-ambient-authority",
+    "security/no-ffi",
+    "security/closed-doors",
+    "packaging/a-package-is-its-digest"
+  ],
+  "guardedBy": [
+    "benches/abi-probe/tests/wasm_sandbox.rs",
+    "crates/nvs-ext/tests/load.rs",
+    "crates/nvs-ext/tests/call.rs"
+  ]
+}

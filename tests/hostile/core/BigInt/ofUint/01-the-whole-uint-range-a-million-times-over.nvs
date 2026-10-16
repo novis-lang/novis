@@ -1,0 +1,41 @@
+<?nvs
+// Attack: `ofUint` builds a million numbers from the top of the `uint` range,
+// then tens of thousands that are all kept at once. A number that is never
+// freed would use up the memory of the machine. The program should run to its
+// last line.
+
+// 1. One million numbers are built and dropped. The memory the program holds
+//    must not grow with the rounds.
+uint $round = 0;
+int $signs = 0;
+while ($round < 1000000) {
+    $signs = $signs + Core\BigInt::ofUint(18446744073709551615)->sign();
+    $round = $round + 1;
+}
+echo $signs, "\n";
+
+// 2. Fifty thousand numbers are built and all of them are kept at the same
+//    time.
+array<Core\BigInt> $kept = [];
+uint $value = 0;
+while ($value < 50000) {
+    $kept[] = Core\BigInt::ofUint(18446744073709551615 - $value);
+    $value = $value + 1;
+}
+echo Core\Arr::count($kept), ' ', $kept[49999], "\n";
+
+// 3. Both ends of the `uint` range, and the first value above the largest
+//    `int`. A conversion written for signed numbers loses these first.
+echo Core\BigInt::ofUint(0), "\n";
+echo Core\BigInt::ofUint(9223372036854775808), "\n";
+echo Core\BigInt::ofUint(18446744073709551615), "\n";
+
+// 4. The largest `uint` is multiplied until it is a number of thousands of
+//    digits. Each round throws away the number the round before it made.
+var $growing = Core\BigInt::ofUint(18446744073709551615);
+uint $step = 0;
+while ($step < 500) {
+    $growing = $growing->mul(Core\BigInt::ofUint(18446744073709551615));
+    $step = $step + 1;
+}
+echo $growing->sign(), "\n";

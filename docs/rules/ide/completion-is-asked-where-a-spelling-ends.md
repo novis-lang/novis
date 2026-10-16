@@ -1,0 +1,46 @@
+The completion trigger characters are `>`, `:`, `\`, `$`, `?`, `'`, `"`, `/`, `.` and `{`. The first five are
+the last character of `->`, of `::`, of a namespace separator, of a variable's `$` and of a half-written
+`<?`, and a request one of them raised is answered only where the text before the cursor ends in that
+whole spelling. Each of them is also an operator's character, and an editor asks on the keystroke:
+answering `$a >` or `Core\Str:` with whatever the position offers opens a list nobody asked for. `-` is
+not a trigger, because it finishes nothing. A quote and `/` open and extend a literal the compiler reads
+as a path or a name, and a request one of them raised is answered only where the cursor is inside one: a
+`require` or `autoload` path string, an `autoload` prefix, the string converted with `as class<T>` or `as
+property<T>`, or a string argument at a path or class-name parameter. A quote opens one and a `/` starts a
+path's next segment. A quote also opens a string argument at a parameter whose type lists string values
+(`rule:types/single-value-types`) or takes a `property<T>` or a `propertyPath<T>`, alone or beside a
+`string` (`rule:types/property-key`), and one at a parameter a completion file names
+(`rule:ide/completion-files-offer-values-at-named-parameters`). Inside such an argument `.`, `/` and `:`
+start the next segment only where a value that applies at the call is split on that separator, and a
+path's segments are split on `.` (`rule:ide/a-field-path-completes-one-segment-at-a-time`). `{` is
+answered only inside a `string<K>` literal, at a `string<K>` parameter or under `as string<K>`, where it
+opens a hole: `{{` is a literal brace and opens nothing, and inside a hole that holds a path `.` starts the
+next segment. A client offers nothing inside a string unless asked. Everywhere else a quote opens a
+string, `/` divides, `.` concatenates and `{` is text. A request the developer raised by hand, or by
+typing a name, is not held to this.
+
+Three spellings narrow what is offered whoever asked. **After `$`, only variables**: the ones the innermost
+body declared, each replacing the `$` already typed, because a lone `$` is no word to a client and one left
+to choose its own range would write `$$name`. A cursor past the end of every body is in the file's own
+script frame, which is where a developer types in a file with no trailing newline. **After a single `:`
+that follows a bare name, nothing**: `Name:` is half of `Name::` and nothing may be written between the
+colons. **After `<?` in a run of markup, the two open tags and nothing else**
+(`rule:statements/nvs-is-the-only-open-tag`), each replacing the bytes already typed. `<?` is not yet a
+tag, so the lexer still reads it as markup, and it is the one place in markup where the developer is
+writing Novis.
+
+The markup half has a second side, on `nvs/regions`
+(`rule:ide/a-template-region-gets-the-editors-services-and-formatter`): a half-written open tag and the one
+character after it are cut out of the HTML region they sit in, so the client forwards nothing there and the
+HTML service does not answer beside the two tags. The extra character is what keeps a cursor at the end of
+the hole out of the region that follows, since a client reads a region as half-open. `<?xml` and every
+other processing instruction stay markup's own.
+
+**Declined:**
+- **Gating a request on the client's `triggerCharacter`.** The text before the cursor is what says whether
+  a `:` finished `::`, and it reads the same for every client.
+- **Turning on `editor.quickSuggestions` for strings in the extension**, so a path list opens without a
+  trigger. It opens the editor's word list inside every string in the file, not only in path literals.
+- **Deciding `<?` in the client**, as a test on the text before the cursor. It would be a second reading of
+  the lexer's open tags in a package that holds no language logic
+  (`rule:ide/one-server-two-thin-clients`).

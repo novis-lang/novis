@@ -1,0 +1,170 @@
+<?nvs
+// This program writes rows to a database and reads them back, first as rows and then as objects.
+// `query` and `execute` take the SQL text and its values in one call. The SQL text cannot be `tainted`.
+// The values can be `tainted`, because the database receives each one as a value and never as SQL.
+// The connection `main` is set in a `[db.main]` block in `nvs.toml`.
+
+use Core\Db;
+use Core\Db\Row;
+
+// `#[Core\Db\Derive]` makes the class readable from a row. It is written with
+// its full name. `use Core\Db;` imports only the class `Db`, so `Db\Derive`
+// would not name the attribute.
+#[Core\Db\Derive]
+class Person
+{
+    public int $id;
+    // A text column is always `tainted`, so a `T` whose
+    // text-carrying fields are unqualified is a diagnostic at the `queryAs<T>`
+    // call site naming the field. Declaring it here is the answer, not a cast
+    // at the other end.
+    public tainted string $name;
+
+    public function constructor(int $id, tainted string $name)
+    {
+        $this->id = $id;
+        $this->name = $name;
+    }
+}
+
+// § 9's structured half reaches a derived field too, not just `Row`'s typed
+// readers: the five SQL types whose Novis value is a class instance are as
+// declarable on a `#[Core\Db\Derive]` class as an `int` is, and hydration
+// checks the instance the driver built against the class the field named.
+#[Core\Db\Derive]
+class Day
+{
+    public Core\Time\Date $day;
+
+    public function constructor(Core\Time\Date $day)
+    {
+        $this->day = $day;
+    }
+}
+
+// § 2: a connection is named, and the credentials behind the name live in a
+// root-owned `[db.main]` block. There is no DSN to build and nothing here
+// carries a password.
+var $db = Db::connect('main');
+
+// DDL is a statement like any other — one statement per call, because § 10
+// makes a string written in the code with two statements in it a compile-time
+// diagnostic.
+$db->execute('drop table if exists people', []);
+$db->execute('create table people (id integer primary key, name text not null)', []);
+
+// § 1: the batch case is `executeMany`, which is why no `Statement` object has
+// to exist for it. One prepare, three executions.
+$db->executeMany('insert into people (id, name) values (?, ?)', [
+    [1, 'ada'],
+    [2, 'grace'],
+    [3, 'alan'],
+]);
+
+// `Rows` is the buffered result — `stream` is the cursor form — so counting it
+// and then walking it are two questions about one answer rather than two
+// round trips.
+var $rows = $db->query('select id, name from people order by id', []);
+echo 'rows=', $rows->count(), "\n";
+
+foreach ($rows as Row $row) {
+    // `$row->string()` gives the column as a string, or `null` for a NULL column.
+    // It throws an error if the value cannot be converted without a change.
+    // `name` is `not null`, so the branch below never runs here.
+    var $name = $row->string('name');
+    if ($name == null) {
+        echo 'null name', "\n";
+    } else {
+        echo $name, "\n";
+    }
+}
+
+// § 9's structured half: the SQL types whose Novis value is a class instance
+// rather than a scalar, and the four `Row` readers that answer with one. The
+// driver hands over the components it read and `Core\Time`/`Core\Uuid` are
+// built here, because the instance belongs to the standard library and not to
+// the wire.
+foreach ($db->query("select date '2024-03-05' as day, time '13:45:30' as clock, timestamptz '2024-03-05 13:45:30+00' as at, uuid '4f9d5e2c-1a3b-4c7d-8e9f-0a1b2c3d4e5f' as id", []) as Row $shape) {
+    var $day = $shape->date('day');
+    var $clock = $shape->time('clock');
+    var $at = $shape->instant('at');
+    var $id = $shape->uuid('id');
+    // Every reader answers `?T`, because a NULL column is an ordinary absence
+    // (§ 6). None of these four can be null — each column is written directly in the
+    // statement above — so this is the compact spelling of a branch the
+    // program still has to have: `?->` reaches the member only when there is
+    // one, and `??` says what to print when there is not.
+    echo 'day=', $day?->format('yyyy-MM-dd') ?? 'null', "\n";
+    echo 'clock=', $clock?->format('HH:mm:ss') ?? 'null', "\n";
+    echo 'at=', $at?->toIso() ?? 'null', "\n";
+    echo 'id=', $id?->toString() ?? 'null', "\n";
+}
+
+// A write answers with `affected`, `changed` and `lastId` on one value, so
+// `rowCount`, `lastInsertId` and `mysqli_info` are one member. `affected` is
+// the rows the `where` matched; `changed` is the narrower question and is
+// `?uint` because three of the five backends cannot answer it. All three are
+// *readers* and not properties: a `Core` instance has no property a program can
+// reach, which `nvs_stdlib::registry::CoreTy::Instance` owns.
+var $write = $db->execute('update people set name = ? where id = ?', ['ada', 1]);
+echo 'affected=', $write->affected(), "\n";
+
+// The typed read. `queryAs<Person>` hydrates through the derived codec's
+// `fromRow`, and a column the class cannot accept throws naming the column
+// rather than handing back a half-built object.
+var $person = $db->queryAs<Person>('select id, name from people where id = ?', [1])->first();
+if ($person == null) {
+    echo 'typed row missing', "\n";
+} else {
+    if ($person->name == 'ada') {
+        echo 'typed row ok', "\n";
+    } else {
+        echo 'typed row wrong', "\n";
+    }
+}
+
+// The same hydration over § 9's class half: the `DATE` column arrives as the
+// `Core\Time\Date` the field declared, so a structured column is placed rather
+// than refused.
+var $dated = $db->queryAs<Day>("select date '2024-03-05' as day", [])->first();
+echo 'typed day=', $dated?->day?->format('yyyy-MM-dd') ?? 'null', "\n";
+
+// § 8: a refusal is not a message to parse. The server's own code is
+// normalised to one of `Db\DbError::Kind`'s eleven cases and carried on the thrown
+// `Db\DbError` as `$kind`, so a program branches on the condition and reads
+// the same way on all five drivers — `23505` here, `1062` on MySQL, and
+// neither number appears. Row 1 is already in `people` from the `executeMany`
+// above, so writing it a second time is the primary key refusing rather than a
+// failure staged for this line.
+try {
+    $db->execute('insert into people (id, name) values (?, ?)', [1, 'ada']);
+    echo 'kind=none', "\n";
+} catch (Core\Db\DbError $refused) {
+    // The `default` arm is not decoration: § 8's cases are a set and not a
+    // scale, so a program that names one of them still has to say what it does
+    // with the other ten.
+    echo 'kind=', match ($refused->kind) {
+        Core\Db\DbError::Kind::UniqueViolation => 'UniqueViolation',
+        default => 'other',
+    }, "\n";
+    // The raw half of the same refusal, beside the normalised one. `sqlState`
+    // is what this server actually said — `23505` on PostgreSQL — and it is
+    // `?string` rather than `string`, because a refusal the wire produced has
+    // no server code behind it at all. So a program that reads it spells the
+    // absent case, and this line is the fixture doing that rather than
+    // assuming the code is there.
+    echo 'sqlState=', $refused->sqlState ?? 'none', "\n";
+    // And the third of § 8's raw values: the constraint the condition names.
+    // A unique violation has one — the index the second write of row 1 broke —
+    // where a syntax error or a permission does not, so this property is
+    // absent far more often than `sqlState` is and the fallback is the point
+    // of the line rather than a formality.
+    echo 'constraint=', $refused->constraint ?? 'none', "\n";
+    // § 8's fifth and last property, and the only one the program rather than
+    // the server worded: the statement as it was written here, with its `?`
+    // markers and not the `$1` PostgreSQL was actually sent. Bound values are
+    // not on it and never are — `1` and `"ada"` appear nowhere in this line's
+    // output — which is § 8's rule that a `Throwable` message is a `secret`
+    // sink, with the developer-authored half of the statement exempt.
+    echo 'sql=', $refused->sql ?? 'none', "\n";
+}

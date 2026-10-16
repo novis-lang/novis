@@ -1,0 +1,10 @@
+<?nvs
+// Shows a program writing large numbers into a message. A JSON number cannot
+// carry this many digits exactly, so each one is sent as text.
+
+var $account = Core\BigInt::parse("184467440737095516159999");
+var $balance = Core\BigInt::parse("-250000000000000000000");
+
+// `toString` gives the digits as a `string`. That is what goes into the
+// message, so both numbers keep every digit.
+echo '{"account":"', $account->toString(), '","balance":"', $balance->toString(), '"}', "\n";

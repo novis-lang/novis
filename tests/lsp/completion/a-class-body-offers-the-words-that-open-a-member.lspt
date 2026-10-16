@@ -1,0 +1,23 @@
+--TEST--
+a class body takes members, so a cursor between two of them offers the words that may open one and none of the file's own variables — the script frame's span is the whole file and its locals are names no member can reach, `rule:statements/storage-that-outlives-a-call`
+--FILE--
+<?nvs
+var $total = 3;
+class Cart {
+    public int $items;
+    <|>
+}
+echo $total;
+--REQUEST--
+completion
+--EXPECT--
+abstract keyword
+const   keyword
+final   keyword
+function keyword
+lateinit keyword
+private keyword
+protected keyword
+public  keyword
+readonly keyword
+static  keyword

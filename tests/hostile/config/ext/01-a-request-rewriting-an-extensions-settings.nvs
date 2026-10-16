@@ -1,0 +1,49 @@
+<?nvs
+// Attack: a request tries to change the settings block of a loaded extension, and
+// to add blocks and keys of its own. Only the person who runs the server may set
+// these, so every write should fail and the extension should still work.
+// hostile: timeout-ms 30000
+
+use Shop\Ledger;
+
+// 1. Tries the setting, keys that are almost the same, and blocks no extension has.
+array<string> $names = [
+    'ext.ledger.currency',
+    'ext.ledger',
+    'ext',
+    'ext.LEDGER.currency',
+    'ext.ledger.CURRENCY',
+    'ext.ledger.colour',
+    'ext.ledger..currency',
+    'ext..ledger.currency',
+    ' ext.ledger.currency',
+    "ext.ledger.currency\u{0000}",
+    'ext.maps.zoom',
+    'ext.image.max_pixels',
+    'ext.' . Core\Str::repeat('ledger.', 20000) . 'currency',
+];
+array<string> $values = ['EUR', '', 'true', '1', '[]', '{}', Core\Str::repeat('X', 100000)];
+uint $failed = 0;
+foreach ($names as string $key) {
+    foreach ($values as string $value) {
+        if (!Core\Config::set($key, $value)) {
+            $failed = $failed + 1;
+        }
+    }
+    Core\Config::get($key);
+    Core\Config::restore($key);
+}
+
+// 2. The extension still answers after every write.
+uint $round = 0;
+int $sum = 0;
+while ($round < 2000) {
+    if (!Core\Config::set('ext.ledger.currency', 'GBP')) {
+        $failed = $failed + 1;
+    }
+    $sum = $sum + Ledger::echoInt(1);
+    $round = $round + 1;
+}
+echo 'failed: ', $failed, "\n";
+echo $sum, "\n";
+echo Ledger::CURRENCY, "\n";

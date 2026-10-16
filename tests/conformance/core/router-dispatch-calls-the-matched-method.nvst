@@ -1,0 +1,53 @@
+--TEST--
+`Core\Router::dispatch` calls `allows` on the gate, then the method of the matched route with its typed captures, for a `static` method and for an instance method — `rule:routing/a-gate-answers-around-every-handler`
+--FILE--
+<?nvs
+// `Core\Router::dispatch` calls the method of the route that matched the request.
+// The gate decides first if that method may run.
+class Posts {
+    #[Core\Route(path: "/posts", method: Core\Http\Method::Get, name: "Posts::index")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public static function index(): void {
+        echo "index ran\n";
+    }
+
+    // `$id` is an `int`, so the text `42` from the path arrives as the number 42.
+    #[Core\Route(path: "/posts/{id}", method: Core\Http\Method::Get, name: "Posts::show")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function show(int $id): void {
+        echo "show ran, and id + 1 is ", $id + 1, "\n";
+    }
+}
+
+// This gate allows every route. It prints a line each time it runs.
+class OpenGate implements Core\Router\Gate {
+    public function allows(Core\Router\Match $route): bool {
+        echo "allows ", $route->name() ?? "unnamed", "\n";
+        return true;
+    }
+
+    public function refused(Core\Router\Refusal $reason, ?Core\Router\Match $route): void {
+        echo "refused\n";
+    }
+
+    public function failed(?Core\Router\Match $route, ?Throwable $error): void {
+        echo "failed\n";
+    }
+}
+
+if (Core\Env::context() == Core\Env::Context::Request) {
+    Core\Router::dispatch(new OpenGate());
+} else {
+    array<string> $paths = ["/posts", "/posts/42"];
+    foreach ($paths as string $path) {
+        var $answered = Core\Test::request(Core\Http\Method::Get, $path);
+        echo "GET ", $path, " -> ", $answered->status(), "\n", $answered->body();
+    }
+}
+--EXPECT--
+GET /posts -> 200
+allows Posts::index
+index ran
+GET /posts/42 -> 200
+allows Posts::show
+show ran, and id + 1 is 43

@@ -1,0 +1,25 @@
+<?nvs
+// Shows how to take the first few values of a sequence that never ends. A
+// program reserves the next five invoice numbers this way. Without a limit
+// the reading would never finish.
+
+class Invoices {
+    // This generator has no end. It gives one number after another for as
+    // long as somebody keeps reading it.
+    public static function numbers(uint $next): Iterator<string> {
+        uint $n = $next;
+        while (true) {
+            yield "INV-" . $n;
+            $n = $n + 1;
+        }
+    }
+}
+
+// `{limit: 5}` reads five values and then stops the generator.
+// This prints ["INV-1007","INV-1008","INV-1009","INV-1010","INV-1011"].
+array<string> $batch = Core\Arr::from(Invoices::numbers(1007), {limit: 5});
+echo Core\Json::encode($batch), "\n";
+
+// A limit of 0 reads nothing. The generator is never started.
+// This prints [].
+echo Core\Json::encode(Core\Arr::from(Invoices::numbers(1007), {limit: 0})), "\n";

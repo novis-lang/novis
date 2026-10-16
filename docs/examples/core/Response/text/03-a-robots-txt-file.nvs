@@ -1,0 +1,14 @@
+<?nvs
+// Shows how to send the `robots.txt` file that tells search engines which pages to skip.
+
+array<string> $private = ["/admin/", "/basket/", "/account/"];
+
+// The first line says that the rules are for every search engine.
+// Each private path then becomes one `Disallow:` line.
+string $robots = "User-agent: *\n";
+foreach ($private as string $path) {
+    $robots = $robots . "Disallow: " . $path . "\n";
+}
+$robots = $robots . "Sitemap: https://example.com/sitemap.xml\n";
+
+Core\Response::text($robots);

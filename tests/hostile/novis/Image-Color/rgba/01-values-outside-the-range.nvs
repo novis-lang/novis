@@ -1,0 +1,50 @@
+<?nvs
+// Attack: a request makes colours from values that are too large, not a number, or infinite.
+// Each attempt should throw an error or give a colour, and the server keeps running.
+use Novis\Image\Color;
+use Novis\Image\Image;
+
+// 1. The largest whole number as a channel.
+try {
+    Color::rgba(Core\Math::UINT_MAX, 0, 0);
+    echo "step 1 ran\n";
+} catch (Throwable $e1) {
+    echo "step 1 stopped\n";
+}
+
+// 2. An alpha that is not a number, used to fill an image.
+try {
+    Image::create(2, 2, Color::rgba(0, 0, 0, Core\Math::NAN))->raw();
+    echo "step 2 ran\n";
+} catch (Throwable $e2) {
+    echo "step 2 stopped\n";
+}
+
+// 3. An alpha that is infinite.
+try {
+    Color::rgba(0, 0, 0, Core\Math::INFINITY);
+    echo "step 3 ran\n";
+} catch (Throwable $e3) {
+    echo "step 3 stopped\n";
+}
+
+// 4. An alpha that is negative zero, used to tint an image.
+try {
+    Image::create(2, 2, Color::rgba(10, 20, 30))->tint(Color::rgba(255, 0, 0, -0.0))->raw();
+    echo "step 4 ran\n";
+} catch (Throwable $e4) {
+    echo "step 4 stopped\n";
+}
+
+// 5. Many colours made in a row.
+try {
+    uint $sum = 0;
+    uint $i = 0;
+    while ($i < 100000) {
+        $sum = $sum + Color::rgba($i % 256, 0, 0)->r;
+        $i = $i + 1;
+    }
+    echo 'step 5 ran ', $sum, "\n";
+} catch (Throwable $e5) {
+    echo "step 5 stopped\n";
+}

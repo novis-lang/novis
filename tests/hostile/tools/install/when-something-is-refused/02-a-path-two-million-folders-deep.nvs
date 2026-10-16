@@ -1,0 +1,22 @@
+<?nvs
+// Attack: a program may write only in `uploads`. It writes a file that is two million folders
+// deep in `config`. The write should fail at once, and the program should print `denied`.
+
+// `Here::path` returns its argument as a full path. A relative path written in quotes
+// starts at the folder of this file.
+class Here
+{
+    public static function path(#[Core\Path] string $path): string
+    {
+        return $path;
+    }
+}
+string $config = Here::path('config');
+
+// The error is caught, so the last line runs.
+try {
+    Core\IO::write(Core\Path::join($config, Core\Str::repeat('a/', 2000000) . 'nvs.toml'), 'forged');
+    echo "written\n";
+} catch (Throwable $denied) {
+    echo "denied\n";
+}

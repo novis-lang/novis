@@ -1,0 +1,26 @@
+<?nvs
+// Shows an attribute of your own whose name is also a name Novis owns. Only
+// `#[Core\Command]` declares a command. The `#[Command]` below is your own
+// type, so it is metadata you store and read back yourself.
+
+type Command = {name: string, note: string};
+
+class Jobs {
+    // Novis reads this one. The command table now has a command called `import`.
+    #[Core\Command(name: "import", about: "Read rows from a file")]
+    public static function import(): void {}
+}
+
+class Reports {
+    // Your own `Command` type. This method is not a command, so the word
+    // `import` is free to use again here.
+    #[Command(name: "import", note: "runs every night")]
+    public static function daily(): void {}
+}
+
+?Command $mine = Core\Attributes::get<Command>(Reports::daily(...));
+
+// This prints `import runs every night`.
+if ($mine != null) {
+    echo $mine->name, " ", $mine->note, "\n";
+}

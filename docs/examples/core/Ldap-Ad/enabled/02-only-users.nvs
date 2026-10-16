@@ -1,0 +1,9 @@
+<?nvs
+// Shows how to match only the users whose account is not disabled.
+
+// Without the `objectClass` test, groups would match too.
+var $active = Core\Ldap\Filter::all(
+    Core\Ldap\Filter::equals('objectClass', 'user'),
+    Core\Ldap\Ad::enabled(),
+);
+echo $active->toString(), "\n";

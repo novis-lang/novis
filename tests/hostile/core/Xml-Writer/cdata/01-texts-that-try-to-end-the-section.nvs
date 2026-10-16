@@ -1,0 +1,56 @@
+<?nvs
+// Attack: a program writes CDATA texts that try to end the section early and add markup, and writes very many sections.
+// Each bad text should throw a `LogicError`, and the finished document should still be valid XML.
+// hostile: timeout-ms 20000
+
+class Try
+{
+    // Runs one call and prints `ok`, or the class of the error it throws.
+    public static function call(callable $step): void
+    {
+        try {
+            $step();
+            echo "ok\n";
+        } catch (LogicError $error) {
+            echo "LogicError\n";
+        }
+    }
+}
+
+Core\Xml\Writer $out = Core\Xml::writer();
+$out->startDocument();
+
+// 1. A CDATA section before the root element. This prints LogicError.
+Try::call(fn(): void => { $out->cdata('<admin/>'); });
+
+$out->startElement('page');
+
+// 2. Texts that try to end the section and add an element. Each prints LogicError.
+Try::call(fn(): void => { $out->cdata(']]><admin/><![CDATA['); });
+Try::call(fn(): void => { $out->cdata('a]]>'); });
+
+// 3. A text with a control character XML cannot write. This prints LogicError.
+Try::call(fn(): void => { $out->cdata("a\x00b"); });
+
+// 4. `]]>` at the very end of a long text. This prints LogicError after one scan of the text.
+Try::call(fn(): void => { $out->cdata(Core\Str::repeat(']] ', 300000) . ']]>'); });
+
+// 5. Texts that come close to `]]>` but do not contain it. Each prints ok.
+Try::call(fn(): void => { $out->cdata(']]'); });
+Try::call(fn(): void => { $out->cdata(Core\Str::repeat(']', 1000000)); });
+Try::call(fn(): void => { $out->cdata('>'); });
+
+// 6. 100,000 CDATA sections inside one element. This prints ok.
+Try::call(fn(): void => {
+    int $i = 0;
+    while ($i < 100000) {
+        $out->cdata('<p>' . $i . '</p>');
+        $i = $i + 1;
+    }
+});
+
+// 7. The document is finished and parsed again. This prints its length.
+$out->endElement();
+string $document = $out->endDocument();
+Core\Xml::parse($document);
+echo Core\Str::length($document), "\n";

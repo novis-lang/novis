@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-db/src/span.rs",
+  "title": "A query span renders without the `debug.trace` grant, and with the grant an unsampled request renders none.",
+  "text": "`rule:observability/a-query-is-a-trace-event` makes this event and the `slow_query` line inert unless the `debug.trace` grant (`nvs_config::Capability::DebugTrace`, written by `rule:testing/debug-probes`) is held. Outside a test nothing sets `DebugFlags::TRACE` and nothing reads the grant on the way to a render, so a sampled request renders its span without the grant, and an unsampled one renders none with it, because sampling is the other question `nvs_runtime::Ctx::records_spans` asks and the grant reaches neither. The bit is armed from `[debug] mode`, which nothing reads (`data/gaps/nvs-config/debug-mode-is-read-by-nothing.json`). Closing it means the grant gates the render on both paths, read into the request's `Ctx` once the `[debug] mode` key arms the bit.",
+  "goal": "completeness-holes"
+}

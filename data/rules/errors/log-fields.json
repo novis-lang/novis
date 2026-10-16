@@ -1,0 +1,12 @@
+{
+  "title": "A record's fields are named and typed, not a stringly bag",
+  "status": "shipped",
+  "seeAlso": [
+    "errors/log-write",
+    "errors/diagnostic-record"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/log-write-omits-an-empty-fields-object.nvst",
+    "tests/conformance/core/log-write-renders-a-field-json-has-no-value-for.nvst"
+  ]
+}

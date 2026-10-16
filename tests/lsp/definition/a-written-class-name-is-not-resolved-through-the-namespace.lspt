@@ -1,0 +1,14 @@
+--TEST--
+the string converted with `as class<T>` is compared with a class's whole name, and the namespace it is written in is not applied, so a short name answers nothing — `rule:types/class-reference`
+--FILE--
+<?nvs
+namespace App;
+
+interface Model { }
+class User implements Model { }
+
+$class = 'Us<|>er' as class<Model>;
+--REQUEST--
+definition
+--EXPECT--
+none

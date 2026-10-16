@@ -1,0 +1,40 @@
+--TEST--
+`push` refuses a `grants:` naming a capability the enqueuing request does not hold, and it does so before it reaches the database — `rule:concurrency/a-jobs-budget-and-grants-are-recorded-at-enqueue`
+--FILE--
+<?nvs
+// A job's grants are narrowed from the request that enqueued it and never
+// widened, so a name that request cannot ask for itself is not a narrowing of
+// anything: recording it would hand background work authority the request in
+// front of it never had, which is what makes a queue a privilege-escalation
+// seam. Nothing here grants `net.connect`, so nothing here may enqueue work
+// that reaches the network.
+//
+// The block below names a host nothing is listening on, which is the second
+// assertion this case makes: if `push` reached the connection before it judged
+// its own arguments, this would be an `IOError` about a refused socket rather
+// than the refusal about the argument, and it would say something different on
+// a machine that happened to have a server there.
+try {
+    var $id = Core\Queue::push("jobs/send-receipt.nvs", {grants: ["net.connect"]});
+    echo "enqueued", "\n";
+} catch (RuntimeError $refused) {
+    echo $refused->message, "\n";
+}
+
+echo "still running", "\n";
+--FILE nvs.toml--
+# A queue whose connection resolves at boot -- `connection` names a block that
+# exists, which is all `nvs_config::queue` checks -- and whose port has nothing
+# behind it. Reaching it would be the failure this case is written to rule out.
+# No `[capabilities]` table at all, which is the deployment granting nothing.
+[queue]
+connection = "main"
+
+[db.main]
+driver = "postgres"
+host = "127.0.0.1"
+port = 1
+--EXPECT--
+Core\Queue::push: `grants` names `net.connect`, which this request does not hold — a job's grants are narrowed from the request that enqueued it and never widened
+help: grant it in nvs.toml under `[capabilities.net]`, or drop it from `grants`
+still running

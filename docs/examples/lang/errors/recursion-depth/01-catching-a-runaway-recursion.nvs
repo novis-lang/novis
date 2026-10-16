@@ -1,0 +1,19 @@
+<?nvs
+// Shows a function that calls itself with no way out. The runtime stops it at
+// the depth limit with a `RecursionError`, the `catch` handles it, and the
+// program carries on.
+
+final class Down {
+    public static function forever(int $n): int {
+        return Down::forever($n + 1) + 1;
+    }
+}
+
+try {
+    echo Down::forever(0), "\n";
+} catch (RecursionError $tooDeep) {
+    // This prints "stopped: the call stack is too deep".
+    echo "stopped: ", $tooDeep->message, "\n";
+}
+
+echo "the program carries on\n";

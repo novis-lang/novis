@@ -1,0 +1,26 @@
+--TEST--
+an attribute's name is the type it resolved to, so it is coloured as a type — carrying `defaultLibrary` for a compiler attribute and nothing for a userland alias — and its payload is coloured as the expressions it holds, `rule:attributes/attach-sites-and-forms`
+--FILE--
+<?nvs
+type Tagged = {tag: string};
+
+class Blog
+{
+    #[Core\Route(path: "/", method: Core\Http\Method::Get)]
+    #[Tagged(tag: "home")]
+    public static function index(): string
+    {
+        return "hello";
+    }
+}
+--REQUEST--
+semanticTokens types=type,enum,enumMember,property
+--EXPECT--
+2:6+6 type
+6:7+10 type defaultLibrary
+6:18+4 property
+6:29+6 property
+6:37+16 enum defaultLibrary
+6:55+3 enumMember
+7:7+6 type
+7:14+3 property

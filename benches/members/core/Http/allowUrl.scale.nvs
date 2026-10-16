@@ -1,0 +1,22 @@
+<?nvs
+// Measures `allowUrl` on a URL whose path grows longer.
+// bench: start 256
+// bench: max 4096
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        string $url = "https://203.0.113.10/" . Core\Str::repeat("a", $size);
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            Core\Http\Target $target = Core\Http::allowUrl($url);
+            $total = $total + Core\Str::length($url);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

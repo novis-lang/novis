@@ -1,0 +1,26 @@
+<?nvs
+// Shows that `Core\IO::move` throws an `IOError` when it cannot move the file.
+
+string $dir = Core\IO::temporaryDir();
+string $missing = Core\Path::join($dir, "missing.txt");
+string $target = Core\Path::join($dir, "moved.txt");
+
+// There is no file to move, so this prints "nothing to move".
+try {
+    Core\IO::move($missing, $target);
+    echo "moved", "\n";
+} catch (IOError $e) {
+    echo "nothing to move", "\n";
+}
+
+// The folder "no-such-folder" does not exist, so the file cannot go there.
+// The file stays where it was, and this prints "the file is still here".
+string $note = Core\Path::join($dir, "note.txt");
+Core\IO::write($note, "keep me\n");
+try {
+    Core\IO::move($note, Core\Path::join($dir, "no-such-folder", "note.txt"));
+} catch (IOError $e) {
+    if (Core\IO::exists($note)) {
+        echo "the file is still here", "\n";
+    }
+}

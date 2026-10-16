@@ -1,0 +1,19 @@
+<?nvs
+// Shows how to check colour values that a user typed into a form.
+use Novis\Image\Color;
+
+class Form {
+    public static function color(uint $r, uint $g, uint $b): string {
+        try {
+            Color $c = Color::rgba($r, $g, $b);
+            return "ok: {$c->r} {$c->g} {$c->b}";
+        } catch (LogicError $e) {
+            return "not a colour";
+        }
+    }
+}
+
+// The second line has a red value of 300, which is above 255.
+// This prints "ok: 20 120 220" and then "not a colour".
+echo Form::color(20, 120, 220), "\n";
+echo Form::color(300, 120, 220), "\n";

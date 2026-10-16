@@ -1,0 +1,13 @@
+{
+  "title": "A generated decoder reports every failed field at once, before the constructor runs",
+  "status": "shipped",
+  "seeAlso": [
+    "core-classes/derive-field-list",
+    "core-classes/db-error",
+    "errors/throwable-hierarchy"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/json-derive-decodes-and-reports-every-field.nvst",
+    "tests/conformance/core/json-decodes-a-typed-list.nvst"
+  ]
+}

@@ -1,0 +1,62 @@
+<?nvs
+// Attack: a request writes values to `errors.deprecated` that are not allowed, and
+// changes the setting on every call of a deep call chain. Each bad value should
+// fail, and deprecated code should still do what the setting says.
+// hostile: timeout-ms 30000
+
+final class Old
+{
+    #[Core\Deprecated(since: "1.0")]
+    public static function value(int $n): int
+    {
+        return $n;
+    }
+
+    // 2. Each level sets the other value, then calls the deprecated method.
+    public static function down(int $depth): uint
+    {
+        if ($depth == 0) {
+            return 0;
+        }
+        Core\Config::set('errors.deprecated', $depth % 2 == 0 ? 'throw' : 'log');
+        uint $thrown = 0;
+        try {
+            Old::value($depth);
+        } catch (Core\DeprecatedError $old) {
+            $thrown = 1;
+        }
+        return Old::down($depth - 1) + $thrown;
+    }
+}
+
+// 1. Values that are not allowed. Each write should fail. The setting stays `ignore`,
+//    so the deprecated method below still runs.
+array<string> $values = [
+    'THROW',
+    'Throw',
+    'throw ',
+    ' throw',
+    "throw\u{0000}",
+    'throw,log',
+    'warn',
+    'error',
+    'true',
+    'false',
+    '1',
+    '',
+    Core\Str::repeat('throw', 100000),
+];
+uint $failed = 0;
+foreach ($values as string $value) {
+    if (!Core\Config::set('errors.deprecated', $value)) {
+        $failed = $failed + 1;
+    }
+}
+echo 'failed: ', $failed, "\n";
+echo Old::value(1), "\n";
+
+echo 'thrown: ', Old::down(1000), "\n";
+
+// 3. The setting goes back to its value from `nvs.toml`, so the method runs again.
+Core\Config::restore('errors.deprecated');
+echo Old::value(2), "\n";

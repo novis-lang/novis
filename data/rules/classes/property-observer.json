@@ -1,0 +1,13 @@
+{
+  "title": "A class observes every read and write of its own properties by implementing `PropertyObserver`, never by declaring `__get`/`__set`",
+  "status": "shipped",
+  "seeAlso": [
+    "classes/property-observer-pipeline",
+    "classes/no-dynamic-properties",
+    "classes/no-magic-methods",
+    "classes/stringable"
+  ],
+  "guardedBy": [
+    "tests/conformance/class/a-property-observer-sees-every-write-its-class-makes.nvst"
+  ]
+}

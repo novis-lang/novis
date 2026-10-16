@@ -1,0 +1,13 @@
+<?nvs
+// Shows how to read the body of a request in pieces and add up its size.
+
+uint $total = 0;
+
+// `Core\Request::bodyStream` returns the body in pieces, in the order they arrive.
+// Each piece is a `tainted bytes` value. How the body is split has no meaning.
+foreach (Core\Request::bodyStream() as tainted bytes $chunk) {
+    $total = $total + Core\Bytes::length($chunk);
+}
+
+// The body is 48 bytes long, so this prints `received 48 bytes`.
+echo "received ", $total, " bytes\n";

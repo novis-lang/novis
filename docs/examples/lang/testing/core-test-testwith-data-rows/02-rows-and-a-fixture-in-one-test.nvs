@@ -1,0 +1,37 @@
+<?nvs
+// Shows rows and a fixture in one test. A parameter a row names is filled by the
+// row. A parameter no row names is filled by the fixture of that type.
+
+use Core\Test;
+use Core\Test\Fixture;
+use Core\Test\TestWith;
+
+class Vat {
+    public function constructor(public int $percent) {}
+
+    // The tax on an amount in cents. 19 percent of 1000 cents is 190 cents.
+    public function on(int $cents): int {
+        return Core\Math::intDiv($cents * $this->percent, 100);
+    }
+}
+
+class VatTest {
+    // The same rate for every row, built once for the whole class.
+    #[Fixture]
+    public static function vat(): Vat {
+        return new Vat(19);
+    }
+
+    // `$cents` and `$want` come from the row. `$vat` comes from the fixture.
+    #[TestWith(cents: 100, want: 19)]
+    #[TestWith(cents: 1000, want: 190)]
+    #[TestWith(cents: 0, want: 0)]
+    #[Test]
+    public function itTaxesAnAmountInCents(int $cents, int $want, Vat $vat): void {
+        Test::assertSame($vat->on($cents), $want);
+    }
+}
+
+// This prints 190.
+Vat $vat = new Vat(19);
+echo $vat->on(1000), "\n";

@@ -1,0 +1,37 @@
+<?nvs
+// Shows how to notice that a server started to use a different certificate.
+// The program remembers the first certificate and compares every later one to it.
+
+// Fixed replies with TLS connections built for a test, so the example runs
+// without a network. The `v2` address has a new certificate for the same server.
+Core\Test::answerHttp("https://api.example.com/v1/*", 200, {
+    tls: Core\Test::tlsSession({subject: "CN=api.example.com"}),
+});
+Core\Test::answerHttp("https://api.example.com/v2/*", 200, {
+    tls: Core\Test::tlsSession({subject: "CN=api.example.com"}),
+});
+
+array<string> $urls = [
+    "https://api.example.com/v1/orders",
+    "https://api.example.com/v1/stock",
+    "https://api.example.com/v2/orders",
+];
+
+// The first entry of `peerChain()` is the certificate of the server itself.
+// This prints `first`, then `same`, then `changed`.
+?tainted string $remembered = null;
+foreach ($urls as string $url) {
+    ?Core\Http\TlsInfo $info = Core\Http\Client::get($url)->tls();
+    if ($info == null) {
+        continue;
+    }
+    tainted string $leaf = $info->peerChain()[0];
+    if ($remembered == null) {
+        $remembered = $leaf;
+        echo "first: ", $url, "\n";
+    } else if ($leaf == $remembered) {
+        echo "same: ", $url, "\n";
+    } else {
+        echo "changed: ", $url, "\n";
+    }
+}

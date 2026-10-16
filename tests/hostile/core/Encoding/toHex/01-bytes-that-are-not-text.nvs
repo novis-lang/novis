@@ -1,0 +1,51 @@
+<?nvs
+// Attack: every byte is spelled, including the ones that end a text in other
+// languages, and the text is twice the size of the buffer. A buffer nobody
+// bounded should be spelled in full, or stop at the memory limit. It should
+// never come back short, and it should never crash.
+// hostile: timeout-ms 30000
+
+// 1. All 256 byte values in one buffer. Two digits each, so the text is 512
+// characters and not one fewer.
+bytes $every = Core\Encoding::fromHex('');
+uint $value = 0;
+while ($value < 256) {
+    array<bytes> $pair = [$every, Core\Bytes::fill(1, $value)];
+    $every = Core\Bytes::join($pair);
+    $value = $value + 1;
+}
+string $spelled = Core\Encoding::toHex($every);
+echo 'step 1: ', Core\Str::length($spelled), " digits for 256 bytes\n";
+
+// 2. The same text read back. Every byte has to survive the round trip, so
+// the buffer that comes back is the buffer that went out. This prints 0.
+echo 'step 2: ', Core\Bytes::compare($every, Core\Encoding::fromHex($spelled)), "\n";
+
+// 3. A zero byte in the middle. Other languages end a text at a zero byte, so
+// a short answer here means the zero was read as an ending.
+array<bytes> $parts = [Core\Bytes::fill(4, 65), Core\Bytes::fill(1, 0), Core\Bytes::fill(4, 66)];
+bytes $withZero = Core\Bytes::join($parts);
+echo 'step 3: ', Core\Encoding::toHex($withZero), "\n";
+
+// 4. Eight million bytes spelled in one call. The text is sixteen million
+// characters, so this call needs twice the memory the buffer already holds.
+bytes $large = Core\Bytes::repeat(Core\Encoding::fromHex('deadbeef'), 2000000);
+echo 'step 4: ', Core\Str::length(Core\Encoding::toHex($large)), "\n";
+
+// 5. One hundred thousand calls in a row, each round choosing its buffer from
+// the length of the round before. Nothing may be kept between the rounds.
+array<bytes> $buffers = [
+    Core\Encoding::fromHex('ff'),
+    Core\Encoding::fromHex('0011223344'),
+    Core\Encoding::fromHex('deadbeefdeadbeef'),
+    $withZero,
+];
+uint $total = 0;
+uint $round = 0;
+while ($round < 100000) {
+    $total = $total + Core\Str::length(Core\Encoding::toHex($buffers[($total + $round) % 4]));
+    $round = $round + 1;
+}
+echo 'step 5: ', $round, ' buffers spelled, ', $total, " digits in all\n";
+
+echo "the runtime is still standing\n";

@@ -1,0 +1,27 @@
+<?nvs
+// Shows how a program talks to a service on the same computer through a socket file.
+// requires: unix
+
+// This starts a small price service, so the example has something to connect to.
+string $path = "/tmp/novis-prices.sock";
+Core\Net\Listener $service = Core\Net::listenLocal($path);
+
+// `connectLocal` connects to the socket file. It waits up to 5 seconds.
+Core\Net\Stream $client = Core\Net::connectLocal($path, 5s);
+$client->write("PRICE coffee\n" as bytes, 5s);
+
+// The service reads the question and sends the answer.
+Core\Net\Stream $connection = $service->accept(5s);
+tainted string $question = Core\Str::trim($connection->read(64, 5s) as string);
+echo "service got: ", $question, "\n";
+$connection->write("3.50\n" as bytes, 5s);
+
+// This prints `client got: 3.50`.
+echo "client got: ", Core\Str::trim($client->read(64, 5s) as string), "\n";
+
+$connection->close();
+$client->close();
+$service->close();
+
+// The socket file stays on disk after `close`, so the program deletes it.
+Core\IO::remove($path);

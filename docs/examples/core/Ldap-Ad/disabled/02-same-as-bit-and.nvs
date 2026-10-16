@@ -1,0 +1,7 @@
+<?nvs
+// Shows that `disabled` is the same filter as a bit test on `userAccountControl`.
+
+var $disabled = Core\Ldap\Ad::disabled();
+var $bit = Core\Ldap\Ad::bitAnd('userAccountControl', 2);
+// The two texts are equal, so this prints same.
+echo $disabled->toString() == $bit->toString() ? 'same' : 'different', "\n";

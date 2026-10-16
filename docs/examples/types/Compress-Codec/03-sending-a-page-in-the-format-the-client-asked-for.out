@@ -1,0 +1,3 @@
+accepts gzip, deflate, br, zstd -> Content-Encoding: zstd, 81 octets instead of 1120
+accepts gzip, deflate -> Content-Encoding: gzip, 68 octets instead of 1120
+accepts identity -> sent as it is

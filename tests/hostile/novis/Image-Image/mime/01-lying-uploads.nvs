@@ -1,0 +1,43 @@
+<?nvs
+// Attack: uploads pretend to be images, so a program would send a wrong `Content-Type`.
+// Each attempt should throw an error or return a real image type, and the server keeps running.
+use Novis\Image\Color;
+use Novis\Image\Format;
+use Novis\Image\Image;
+
+// 1. An HTML page with a script, uploaded as "photo.png".
+try {
+    bytes $page = '<html><script>alert(1)</script></html>' as bytes;
+    echo 'step 1 ran ', Image::mime(Image::info($page)->format), "\n";
+} catch (Throwable $e) {
+    echo "step 1 stopped\n";
+}
+
+// 2. The eight-byte PNG signature with nothing after it.
+try {
+    bytes $header = Core\Bytes::slice(Image::create(4, 4, Color::hex('#000000'))->format(Format::Png)->encode(), 0, 8);
+    echo 'step 2 ran ', Image::mime(Image::info($header)->format), "\n";
+} catch (Throwable $e) {
+    echo "step 2 stopped\n";
+}
+
+// 3. An SVG file that contains a script.
+try {
+    bytes $svg = "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"4\" height=\"4\"><script>alert(1)</script></svg>" as bytes;
+    echo 'step 3 ran ', Image::mime(Image::info($svg)->format), "\n";
+} catch (Throwable $e) {
+    echo "step 3 stopped\n";
+}
+
+// 4. A million calls in one request.
+try {
+    uint $total = 0;
+    uint $i = 0;
+    while ($i < 1000000) {
+        $total = $total + Core\Str::length(Image::mime($i % 2 == 0 ? Format::Svg : Format::Pdf));
+        $i = $i + 1;
+    }
+    echo 'step 4 ran ', $total, "\n";
+} catch (Throwable $e) {
+    echo "step 4 stopped\n";
+}

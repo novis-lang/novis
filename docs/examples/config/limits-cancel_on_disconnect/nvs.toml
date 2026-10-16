@@ -1,0 +1,3 @@
+# A `GET` or `HEAD` request stops as soon as its client went away.
+[limits]
+cancel_on_disconnect = ["GET", "HEAD"]

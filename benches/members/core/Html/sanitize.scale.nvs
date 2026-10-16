@@ -1,0 +1,21 @@
+<?nvs
+// Measures `Core\Html::sanitize` on one comment, at growing comment lengths.
+// bench: start 16
+// bench: max 256
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        string $comment = Core\Str::repeat('<p>I <b>like</b> it</p><script>alert(1)</script>', $size);
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            $total = $total + Core\Str::length(Core\Html::toSource(Core\Html::sanitize($comment), 'measuring the cleaned comment'));
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(16), "\n";

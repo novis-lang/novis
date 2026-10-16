@@ -1,0 +1,31 @@
+<?nvs
+// When the database rejects a statement, it throws a `DbError`. Its `kind` says
+// which rule the statement broke, and its `sql` is the statement itself.
+// So one `catch` block can log both.
+
+use Core\Db;
+use Core\Db\DbError;
+
+var $db = Db::connect('schema');
+$db->execute('create table notes (id integer primary key, title text not null)', []);
+$db->execute('insert into notes (id, title) values (?, ?)', [1, 'first']);
+
+try {
+    $db->execute('insert into notes (id, title) values (?, ?)', [1, 'again']);
+} catch (DbError $refused) {
+    if ($refused->kind == DbError::Kind::UniqueViolation) {
+        echo 'refused: that key is already taken', "\n";
+    }
+    echo 'the statement it refused: ', $refused->sql, "\n";
+}
+
+try {
+    $db->execute('insert into notes (id, title) values (?, ?)', [2, null]);
+} catch (DbError $refused) {
+    if ($refused->kind == DbError::Kind::NotNullViolation) {
+        echo 'refused: that column may not be left empty', "\n";
+    }
+    echo 'the statement it refused: ', $refused->sql, "\n";
+}
+
+$db->execute('drop table notes', []);

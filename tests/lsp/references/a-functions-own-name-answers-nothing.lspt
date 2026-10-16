@@ -1,0 +1,12 @@
+--TEST--
+a free function is refused by the language and so is no declaration the index holds, which is why its own name answers nothing, `rule:ide/five-features-are-one-reference-index`
+--FILE--
+<?nvs
+function hel<|>per(): int
+{
+    return 1;
+}
+--REQUEST--
+references
+--EXPECT--
+none

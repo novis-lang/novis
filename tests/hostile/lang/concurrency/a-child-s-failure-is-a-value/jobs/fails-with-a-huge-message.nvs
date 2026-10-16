@@ -1,0 +1,6 @@
+<?nvs
+// The attack in the folder above starts this script. It prints a million
+// characters and then fails with a message of four million more.
+
+echo Core\Str::repeat('b', 1048576);
+throw new RuntimeError(Core\Str::repeat('a', 4194304));

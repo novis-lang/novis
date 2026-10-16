@@ -1,0 +1,11 @@
+<?nvs
+// Shows a few angles in radians converted to degrees.
+
+// `PI` radians is half a circle. This prints 180.
+echo Core\Math::toDegrees(Core\Math::PI), "\n";
+
+// `PI / 2` radians is a quarter circle. This prints 90.
+echo Core\Math::toDegrees(Core\Math::PI / 2.0), "\n";
+
+// One radian is a little more than 57 degrees. This prints 57.295779513082.
+echo Core\Math::toDegrees(1.0), "\n";

@@ -1,0 +1,18 @@
+{
+  "summary": "the typed assertion roster a `#[Test]` method calls — what PHPUnit's `assert*` family becomes when testing is part of the language",
+  "keywords": [
+    "PHPUnit",
+    "assert()",
+    "assertion",
+    "unit test",
+    "#[Test]",
+    "#[Core\\Test]",
+    "Core\\Test\\Failure",
+    "nvs test",
+    "expectException",
+    "assertSame",
+    "assertEquals",
+    "ledger",
+    "fixed clock"
+  ]
+}

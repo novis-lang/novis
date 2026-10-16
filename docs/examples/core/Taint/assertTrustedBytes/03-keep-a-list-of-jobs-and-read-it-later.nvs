@@ -1,0 +1,15 @@
+<?nvs
+// Shows a list of jobs that is saved as bytes and read back later in the same program.
+
+// The list has the type `array<mixed>`, so `encode()` returns `tainted bytes`.
+array<mixed> $jobs = [];
+$jobs[] = "send the newsletter";
+$jobs[] = 42;
+tainted bytes $saved = Core\Serialize::encode($jobs);
+
+// The program trusts the bytes in one place. Every later step uses `$ready`.
+bytes $ready = Core\Taint::assertTrustedBytes($saved, "the job list was encoded a few lines above");
+
+// This prints 2.
+array<mixed> $back = Core\Serialize::decode($ready) as array<mixed>;
+echo Core\Arr::count($back), "\n";

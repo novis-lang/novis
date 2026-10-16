@@ -1,0 +1,16 @@
+<?nvs
+// Shows that the result keeps the order of the array, even when a later task finishes first.
+
+// The first file takes the longest time to load, and the last file the shortest.
+array<int> $waits = [30, 20, 10];
+
+// `Core\Task::map` calls the function once for each element, at the same time.
+var $loaded = Core\Task::map($waits, fn (int $ms): string => {
+    Core\Time::sleep(Core\Time\Duration::milliseconds($ms));
+    return "file loaded in " . $ms . "ms";
+});
+
+// The results are in the order of `$waits`. This prints the 30ms line first.
+foreach ($loaded as string $index => string $line) {
+    echo $index, ": ", $line, "\n";
+}

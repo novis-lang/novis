@@ -1,0 +1,9 @@
+<?nvs
+// Shows how to write "greater than", which LDAP does not have.
+
+// Greater than 5 is the same as "not at most 5".
+var $filter = Core\Ldap\Filter::not(Core\Ldap\Filter::atMost('badPwdCount', '5'));
+// This prints (!(badPwdCount<=5)).
+echo $filter->toString(), "\n";
+// And "at least 6" finds the same whole numbers.
+echo Core\Ldap\Filter::atLeast('badPwdCount', '6')->toString(), "\n";

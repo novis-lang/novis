@@ -1,0 +1,65 @@
+`nvs test --coverage-lcov <FILE>`, `--coverage-clover <FILE>` and `--coverage-cobertura <FILE>` write
+which lines and branches a program's `#[Test]` run reached, and a run may write any of them together.
+Every line a statement starts on is listed with the largest count of the statements starting on it;
+every function is compiled, so a line no test reached reads `0`. lcov and Clover also list every
+`nvs_ir::Function` that has a statement, under the IR's name, at the line of its first statement and
+with that statement's count. Every format lists every `Terminator::Branch` at the line its condition
+starts on, with how often its true and its false side ran: lcov as `BRDA` lines with `BRF`/`BRH`, and
+`-` for both sides of a branch that never ran; Clover as a `<line type="cond">` with `truecount` and
+`falsecount` and two `conditionals` per branch; Cobertura as `branch="true"` and a
+`condition-coverage` on the line and a `branch-rate`. A `Terminator::Switch` has no probe and is in no
+report. Cobertura groups the files into one package per directory and gives a `line-rate` and a
+`branch-rate` at every level. A file not on disk is left out, and a file is named relative to the
+directory the run started in, with `/` between parts. The flags are refused beside a `.nvst` tree and
+beside `--list`, and under a machine `--format` stdout is still that format's document alone.
+
+The counts come from `rule:testing/debug-probes`'s statement and edge probes. Codegen adds a
+per-function base to each `StmtId` and each `EdgeId`, so the number a probe passes names one statement
+or one edge in the whole program, and `nvs_ir::Program::stmt_spans` and `edge_spans` are the tables of
+where each is written. Every coverage flag turns both `DebugFlags::COVERAGE` and `DebugFlags::BRANCH`
+on and gives the suite's context one `StmtHits` table with a counter per statement and per edge; every
+context the run makes from it — each test's isolate, a fixture, an in-process request, a request a
+`server: true` test sends — counts into that one table. Novis code cannot read it. A run that does not
+ask makes no table.
+
+The IR keeps its ids per function, so an edit in one function does not renumber every other one, and
+only codegen and the report need a program-wide number. A unit loaded from the compile cache was
+compiled by the same walk, so the runner computes the tables from the lowered program without the
+compile. One table handed down with the flag word reaches every context the same way the flag does,
+including a request a `server: true` test sends, which runs in a context no test owns, and a placed
+isolate, which ends on another core. A connection the server accepts starts from a fresh context, so
+the runner's request program installs the table and the flag on it itself. A context with the flag and
+no table counts nothing. A line takes the largest count of its statements, not their sum, so a `while`
+and the block it opens are not counted twice. A file's own top-level statements do not run under
+`nvs test`, so they read `0`.
+
+One table feeds all three formats, so the files cannot disagree about a count. Cobertura is the
+format GitLab and Azure DevOps read, branches are what a reviewer asks for, and a function record is
+what most coverage dashboards summarise first. A function's count is its first statement's, which
+runs exactly when the function does; a function with no statement has no probe and is not listed,
+the same rule a line follows. Every coverage flag turns both bits on, and no flag counts lines
+without branches. The suite runs one test at a time, so the lines each test reached
+(`rule:testing/report-formats`) are the statements whose count in the shared table grew while it ran.
+The VS Code extension's Coverage run profile runs the same command with `--coverage-lcov` into its
+storage directory and reads that file into the editor's own coverage view, drawing nothing of its own
+(`rule:ide/the-extension-builds-no-ui-the-editor-already-has`).
+
+**Memory:** per run that asks, one `u64` per statement and per edge in the program, and one file and
+line pair per statement for the report. A run that does not ask spends nothing. With coverage on, each
+statement executed costs one relaxed atomic add beside the call the probe already made. Per-test lines
+cost one copy of the statement table per test while a JSON document is being written.
+
+**Declined:**
+- **Program-wide statement numbers in the IR.** An edit in one function would renumber every other
+  one, and nothing outside a coverage run needs a program-wide number.
+- **Copying each isolate's counts back to its parent when it ends.** A request a `server: true` test
+  sends runs in a context no test owns, and a placed isolate ends on another core, so each path would
+  need its own copy step.
+- **A probe of its own at each function's entry.** The first statement's probe already counts it, and
+  a second site would cost every call a load and a branch for a number the table already has.
+- **Branch counts derived from the statement counts**, as a condition's count minus the first
+  statement of each side. A side with no statement of its own, such as an `if` with no `else`, has
+  nothing to subtract, and the result would be a guess.
+- **A table per test.** While the runner runs one test at a time, the shared table's counts before and
+  after a test name exactly its lines. A runner that runs tests in parallel gives each test a table of
+  its own.

@@ -1,0 +1,30 @@
+<?nvs
+// Attack: a program writes many SIDs with the largest numbers as text, and reads
+// each one back. Every text should read back as the same SID.
+// hostile: timeout-ms 60000
+
+// 1. Fifteen numbers, each the largest one, and the largest authority.
+try {
+    string $text = 'S-1-0xffffffffffff' . Core\Str::repeat('-4294967295', 15);
+    var $largest = Core\Ldap\Sid::parse($text);
+    var $again = Core\Ldap\Sid::parse($largest->toString());
+    echo '1 ', $again->bytes() == $largest->bytes() ? 'same' : 'different', "\n";
+} catch (Throwable $error) {
+    echo "1 threw\n";
+}
+
+// 2. Many SIDs, each written and read back.
+uint $same = 0;
+uint $i = 0;
+while ($i < 20000) {
+    try {
+        var $sid = Core\Ldap\Sid::parse('S-1-5-21-' . $i . '-' . ($i * 7) . '-4294967295');
+        if (Core\Ldap\Sid::parse($sid->toString())->bytes() == $sid->bytes()) {
+            $same = $same + 1;
+        }
+    } catch (Throwable $error) {
+        break;
+    }
+    $i = $i + 1;
+}
+echo '2 same: ', $same, "\n";

@@ -1,0 +1,47 @@
+[package]
+name = "nvs-intl"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+publish = false
+description = "The intl component built into every `nvs` binary: `nvs:intl/icu`, compiled for `wasm32-wasip2`"
+
+# `cdylib` is the wasm file the build packs; `rlib` lets the core's tests run on
+# the host, where the WIT glue is not compiled.
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+# ICU4X at one version, with the data `compiled_data` bakes in. `icu_experimental`
+# is pinned with `=` because nothing in it is stable, and only this crate uses it.
+[dependencies]
+icu_collator = "2.3"
+icu_decimal = "2.3"
+# `serde` compiles the rule parser in, for the languages `plurals.rs` carries rules for itself.
+icu_plurals = { version = "2.3", features = ["serde"] }
+icu_datetime = "2.3"
+# The ISO calendar a date crosses in, which `icu_datetime` names but does not re-export.
+icu_calendar = "2.3"
+icu_list = "2.3"
+icu_segmenter = "2.3"
+icu_locale = "2.3"
+icu_experimental = "=0.6.0"
+icu_provider = "2.3"
+# The exact decimal a number crosses as; the version `icu_decimal` 2.3 uses.
+fixed_decimal = "0.7"
+# The deserializer that hands a rule string to `icu_plurals`' parser.
+serde = "1"
+
+[target.'cfg(target_family = "wasm")'.dependencies]
+wit-bindgen = "0.63"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+strip = true
+panic = "abort"
+
+# This crate is not a member of the repository's workspace (its `exclude` names
+# `extensions`), and this table makes it a workspace of its own, so `cargo`
+# never resolves it for the host as part of the tree's ordinary build.
+[workspace]

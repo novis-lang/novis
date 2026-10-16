@@ -1,0 +1,9 @@
+<?nvs
+// Shows how `allowed` tells you whether a call was inside the limit.
+
+// The limit is 1 call per hour, so the first call is inside it
+// and the second is not. This prints `true` and then `false`.
+var $first = Core\RateLimit::shed("newsletter:signup", 1, 1h);
+var $second = Core\RateLimit::shed("newsletter:signup", 1, 1h);
+echo $first->allowed() ? "true" : "false", "\n";
+echo $second->allowed() ? "true" : "false", "\n";

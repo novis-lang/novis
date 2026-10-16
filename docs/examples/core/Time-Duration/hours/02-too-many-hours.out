@@ -1,0 +1,2 @@
+2562047
+Core\Time\Duration::hours(): this duration is longer than `Core\Time\Duration` can hold

@@ -1,0 +1,14 @@
+<?nvs
+// Shows how to work out an average price. A `decimal` holds the value you
+// wrote, so the mean is exact down to the last digit.
+
+array<decimal> $prices = [19.99, 5.01, 0.10];
+
+// One `decimal` in the array makes the result a `decimal`. This prints
+// 8.366666666666666666666666667. The last digit is rounded.
+echo Core\Arr::average($prices), "\n";
+
+// The same three values as `float`. A `float` carries fewer digits, so this
+// prints 8.3666666666667.
+array<float> $inexact = [19.99, 5.01, 0.10];
+echo Core\Arr::average($inexact), "\n";

@@ -1,0 +1,81 @@
+<?nvs
+// Attack: a program tries to change `log.target` and `log.handler`. It may only
+// change `log.format` and `log.level`. Every write to the other keys should fail.
+// hostile: timeout-ms 30000
+
+// 1. Tries the `[log]` keys and keys that are almost the same. This includes
+//    `log` alone and keys with no `log.` prefix.
+array<string> $names = [
+    'log',
+    'log.format',
+    'log.level',
+    'log.target',
+    'log.handler',
+    'format',
+    'level',
+    'target',
+    'handler',
+    'LOG.FORMAT',
+    'Log.Level',
+    'log..format',
+    '.log.format',
+    'log.format.',
+    'log.format.level',
+    'app.log.format',
+    'app.0.log.target',
+    'app.log.handler',
+    "log.format\u{0000}",
+    "log.level\u{0000}log.target",
+    'log.level/../target',
+    'log.' . Core\Str::repeat('sub.', 20000) . 'format',
+];
+foreach ($names as string $key) {
+    Core\Config::set($key, 'text');
+    Core\Config::set($key, 'stderr');
+    Core\Config::get($key);
+    Core\Config::restore($key);
+}
+
+// 2. Tries many values on `log.format` and `log.level`, including empty, wrong
+//    and very long strings. Only valid values should be accepted.
+array<string> $values = [
+    '',
+    ' ',
+    'json',
+    'JSON',
+    'text',
+    'html',
+    'Debug',
+    'debug',
+    'Emergency',
+    'Info Debug',
+    '0',
+    '-1',
+    'true',
+    "json\u{0000}text",
+    "json\ntext",
+    Core\Str::repeat('json', 262144),
+];
+foreach ($values as string $value) {
+    Core\Config::set('log.format', $value);
+    Core\Config::set('log.level', $value);
+}
+Core\Config::restore('log.format');
+Core\Config::restore('log.level');
+
+// 3. Changes the mode and both keys 5,000 times. A mode change sets these keys
+//    too. The request's memory should not grow with the number of writes.
+uint $round = 0;
+while ($round < 5000) {
+    Core\Config::set('mode', 'development');
+    Core\Config::set('log.level', 'Debug');
+    Core\Config::set('log.format', 'text');
+    Core\Config::restore('mode');
+    Core\Config::restore('log.level');
+    Core\Config::restore('log.format');
+    $round = $round + 1;
+}
+
+// 4. Prints `log.target` and `log.handler`. Both should still be the configured values.
+echo 'target:  ', Core\Config::get('log.target') ?? '(nothing written)', "\n";
+echo 'handler: ', Core\Config::get('log.handler') ?? '(nothing written)', "\n";

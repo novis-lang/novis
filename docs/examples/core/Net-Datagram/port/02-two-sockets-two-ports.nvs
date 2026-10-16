@@ -1,0 +1,18 @@
+<?nvs
+// Shows that two sockets open at the same time always get different ports.
+
+Core\Net\Datagram $a = Core\Net::bindDatagram("127.0.0.1", 0);
+Core\Net\Datagram $b = Core\Net::bindDatagram("127.0.0.1", 0);
+
+// Only one open socket can use a port on an address. This prints `different: yes`.
+echo "different: ", $a->port() != $b->port() ? "yes" : "no", "\n";
+
+$a->close();
+$b->close();
+
+// After `close`, the socket has no port. `port()` throws a `RuntimeError`.
+try {
+    $a->port();
+} catch (RuntimeError $e) {
+    echo $e->message, "\n";
+}

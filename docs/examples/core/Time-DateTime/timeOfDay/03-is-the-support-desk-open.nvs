@@ -1,0 +1,26 @@
+<?nvs
+// Shows how to check whether a message arrived during a support desk's opening hours.
+
+// The desk in Vienna is open from 09:00 to 17:30, local time.
+var $desk = Core\Time\Zone::of("Europe/Vienna");
+var $opens = Core\Time\TimeOfDay::at(9, 0);
+var $closes = Core\Time\TimeOfDay::at(17, 30);
+
+// The server saves each message time in UTC.
+array<string> $received = [
+    "2024-11-04T07:45:00Z",
+    "2024-11-04T12:10:00Z",
+    "2024-11-04T16:29:00Z",
+    "2024-11-04T16:31:00Z",
+];
+
+// Vienna is one hour ahead of UTC in November. `compareTo` returns -1, 0 or 1.
+// This prints closed, open, open and closed.
+foreach ($received as string $text) {
+    var $clock = Core\Time::fromIso($text)->in($desk)->timeOfDay();
+    string $state = "closed";
+    if ($clock->compareTo($opens) >= 0 && $clock->compareTo($closes) < 0) {
+        $state = "open";
+    }
+    echo $clock->format("HH:mm"), " ", $state, "\n";
+}

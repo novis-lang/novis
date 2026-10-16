@@ -1,0 +1,10 @@
+<?nvs
+// Shows how to get the moment that is a fixed amount of time after another one.
+
+Core\Time\Instant $start = Core\Time::fromIso("2024-03-01T14:00:00Z");
+
+// This prints 2024-03-01T14:30:00Z.
+echo $start->plus(30m)->toIso(), "\n";
+
+// `plus` returns a new instant. `$start` does not change, so this prints 2024-03-01T14:00:00Z.
+echo $start->toIso(), "\n";

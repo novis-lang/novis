@@ -1,0 +1,11 @@
+<?nvs
+// Shows the least common multiple of a few pairs of numbers.
+
+// 12 is the smallest number that both 4 and 6 divide. This prints 12.
+echo Core\Math::lcm(4, 6), "\n";
+
+// The signs do not change the result, and it is never negative. This prints 12.
+echo Core\Math::lcm(-4, 6), "\n";
+
+// When one number is 0, the result is 0.
+echo Core\Math::lcm(5, 0), "\n";

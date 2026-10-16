@@ -1,0 +1,33 @@
+<?nvs
+// Attack: a program builds `present` filters from names that look like filter
+// text, are very long, or are empty. Each wrong name must throw an error.
+
+// 1. Names that try to carry filter text. Each one must throw an error.
+array<string> $names = ['', '*', 'mail=*', 'mail)(objectClass=*', '(mail', 'mail ', "mail\n", 'mail;'];
+uint $refused = 0;
+foreach ($names as string $name) {
+    try {
+        Core\Ldap\Filter::present($name);
+    } catch (LogicError $notAName) {
+        $refused = $refused + 1;
+    }
+}
+echo '1 refused: ', $refused, ' of ', Core\Arr::count($names), "\n";
+
+// 2. A name of one hundred thousand letters. It may be built or throw an error.
+try {
+    var $long = Core\Ldap\Filter::present(Core\Str::repeat('a', 100000));
+    echo '2 length: ', Core\Str::length($long->toString()), "\n";
+} catch (Throwable $error) {
+    echo "2 threw\n";
+}
+
+// 3. Names a server accepts: a number, and a name with an option.
+array<string> $good = ['2.5.4.3', 'cn;lang-de', 'userCertificate;binary'];
+foreach ($good as string $name) {
+    try {
+        echo '3 ', Core\Ldap\Filter::present($name)->toString(), "\n";
+    } catch (Throwable $error) {
+        echo "3 threw\n";
+    }
+}

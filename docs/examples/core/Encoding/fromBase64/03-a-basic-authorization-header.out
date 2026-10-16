@@ -1,0 +1,4 @@
+ada:hunter2
+ada
+hunter2
+refused: a conversion is exact or it throws: Core\Encoding::decodeText() found at offset 4 a byte sequence that is not `Core\Charset::Utf8`, and nothing is replaced with U+FFFD or dropped

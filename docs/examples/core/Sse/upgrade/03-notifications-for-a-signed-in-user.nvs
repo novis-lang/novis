@@ -1,0 +1,31 @@
+<?nvs
+// Shows a stream of notifications that only the signed-in user receives.
+
+class Notifications {
+    // The stream runs this method. `args:` gives each parameter by its name.
+    public static function run(string $user): void {
+        Core\Sse $sse = Core\Sse::current();
+        // Each user has their own topic, so a user sees only their own notifications.
+        Core\Topic::subscribe("user:" . $user);
+        ?Core\Sse\Message $message = $sse->receive();
+        while ($message != null) {
+            $sse->send($message->value() as string, event: "notification");
+            $message = $sse->receive();
+        }
+    }
+}
+
+// The server knows each session and the user it belongs to.
+array<string> $users = ["c81f02" => "ana", "5be9d4" => "ben"];
+tainted string $session = Core\Request::cookie("session") ?? "";
+string $user = $users[$session] ?? "";
+
+// Only a signed-in user gets a stream. Everybody else gets an error page.
+if ($user == "") {
+    echo "401: sign in first\n";
+} else {
+    Core\Sse::upgrade(Notifications::run(...), args: ["user" => $user]);
+}
+
+// The `.nvse` file publishes two notifications for Ana and one for Ben.
+// This prints only Ana's two, as `notification` events.

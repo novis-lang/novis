@@ -1,0 +1,15 @@
+{
+  "title": "Tier 1 — a resource limit reaches the request that spent it",
+  "status": "shipped",
+  "seeAlso": [
+    "errors/escalation-ladder",
+    "errors/stack-depth",
+    "errors/panics-bypass-user-code"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/fatal-on-limit-registers-a-handler-without-running-it.nvst",
+    "tests/conformance/core/fatal-on-uncaught-throw-and-on-limit-are-two-independent-slots.nvst",
+    "crates/nvs-runtime/tests/configured_limits.rs",
+    "tests/conformance/error/a-loop-that-allocates-nothing-is-stopped-by-the-cpu-ceiling.nvst"
+  ]
+}

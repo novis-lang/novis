@@ -1,0 +1,59 @@
+<?nvs
+// Attack: a request uploads a workbook with very many sheets, or a damaged one, and then asks for sheets that do not exist.
+// `sheets` should list each sheet once, and a sheet that does not exist should throw an error.
+use Novis\Spreadsheet\Reader;
+use Novis\Spreadsheet\Workbook;
+
+class Attack
+{
+    // This method lists the sheets of `$file` and prints how many there are, or the class of the error.
+    public static function attempt(int $step, bytes $file): void
+    {
+        try {
+            uint $count = Core\Arr::count(Reader::open($file)->sheets());
+            echo 'step ', $step, ' listed ', $count, " sheets\n";
+        } catch (Throwable $e) {
+            echo 'step ', $step, ' stopped ', $e::class, "\n";
+        }
+    }
+
+    // This method reads the sheet `$sheet` of `$reader`, or prints the class of the error.
+    public static function read(int $step, Reader $reader, string|int $sheet): void
+    {
+        try {
+            foreach ($reader->rows($sheet) as var $row) {
+            }
+            echo 'step ', $step, " read the sheet\n";
+        } catch (Throwable $e) {
+            echo 'step ', $step, ' stopped ', $e::class, "\n";
+        }
+    }
+}
+
+// 1. A workbook with 500 sheets, some of them hidden.
+var $book = Workbook::createInMemory();
+for (int $n = 0; $n < 500; $n++) {
+    $book->sheet("Shop {$n}", { hidden: $n % 3 == 0 })->add([$n]);
+}
+bytes $many = $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
+Attack::attempt(1, $many);
+
+// 2. Sheet names and positions that do not exist. Each one throws an error, which is caught.
+Reader $reader = Reader::open($many);
+Attack::read(2, $reader, 500);
+Attack::read(2, $reader, -1);
+Attack::read(2, $reader, 9223372036854775807);
+Attack::read(2, $reader, 'Shop 999');
+Attack::read(2, $reader, '../xl/workbook.xml');
+Attack::read(2, $reader, '');
+
+// 3. The first 4,000 bytes of the workbook, and the workbook without its last byte.
+int $size = Core\Bytes::length($many) as int;
+Attack::attempt(3, Core\Bytes::slice($many, 0, 4000));
+Attack::attempt(3, Core\Bytes::slice($many, 0, $size - 1));
+
+// 4. `sheets` called 100 times on one reader.
+for (int $count = 0; $count < 100; $count++) {
+    $reader->sheets();
+}
+Attack::read(4, $reader, 'Shop 499');

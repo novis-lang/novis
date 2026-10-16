@@ -1,0 +1,25 @@
+<?nvs
+// Shows a set before and after `clear`.
+
+final class Item {
+    public string $name;
+
+    public function constructor(string $name) {
+        $this->name = $name;
+    }
+}
+
+Item $pen = new Item("pen");
+Item $cup = new Item("cup");
+
+Core\ObjectSet<Item> $cart = new Core\ObjectSet<Item>();
+$cart->add($pen);
+$cart->add($cup);
+// This prints 2.
+echo $cart->count(), "\n";
+
+$cart->clear();
+// The set is now empty. This prints 0, then "empty", then "no".
+echo $cart->count(), "\n";
+echo $cart->isEmpty() ? "empty" : "not empty", "\n";
+echo $cart->has($pen) ? "yes" : "no", "\n";

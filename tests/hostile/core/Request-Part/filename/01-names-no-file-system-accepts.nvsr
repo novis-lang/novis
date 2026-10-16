@@ -1,0 +1,43 @@
+--METHOD--
+POST
+--PATH--
+/upload
+--CLIENT_IP--
+198.51.100.41
+--HEADERS--
+host: example.com
+content-type: multipart/form-data; boundary=bnd
+--BODY_CRLF--
+--bnd
+Content-Disposition: form-data; name="file"; filename="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.txt"
+
+a file under a name longer than most file systems allow
+--bnd
+Content-Disposition: form-data; name="file"; filename=""
+
+a file under an empty name
+--bnd
+Content-Disposition: form-data; name="file"; filename="."
+
+a file under the name of the folder itself
+--bnd
+Content-Disposition: form-data; name="file"; filename="tab	inside.txt"
+
+a file whose name contains a tab
+--bnd
+Content-Disposition: form-data; name="file"; filename="invoice‮fdp.exe"
+
+a file whose name reverses its own text so that it looks like a PDF
+--bnd
+Content-Disposition: form-data; name="file"; filename*=UTF-8''..%2F..%2Fescape.txt; filename="plain.txt"
+
+a file that sends a second name in the other syntax
+--bnd
+Content-Disposition: form-data; name="file"; filename="a\"b;c\\d.txt"
+
+a file whose quoted name contains a quote, a semicolon and a backslash
+--bnd
+Content-Disposition: form-data; name="file"; filename="first.txt"; filename="second.txt"
+
+a part that gives its file name twice
+--bnd--

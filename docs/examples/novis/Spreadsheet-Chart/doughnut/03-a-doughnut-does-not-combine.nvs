@@ -1,0 +1,16 @@
+<?nvs
+// Shows the error for a doughnut chart combined with a pie chart.
+use Novis\Spreadsheet\Chart;
+use Novis\Spreadsheet\Workbook;
+
+var $book = Workbook::createInMemory();
+var $sheet = $book->sheet('Shops');
+$sheet->addAll([['shop' => 'North', 'sales' => 340, 'costs' => 200], ['shop' => 'South', 'sales' => 210, 'costs' => 150]]);
+
+// Only column, line and area charts combine, so `Sheet::chart` throws a `LogicError`.
+var $chart = Chart::doughnut()->series($sheet->column('sales'))->combine(Chart::pie()->series($sheet->column('costs')));
+try {
+    $sheet->chart('E2', $chart);
+} catch (LogicError $e) {
+    echo $e->message, "\n";
+}

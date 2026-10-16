@@ -1,0 +1,8 @@
+--METHOD--
+GET
+--PATH--
+/
+--QUERY--
+code=99999999999999999999999
+--HEADERS--
+host: example.com

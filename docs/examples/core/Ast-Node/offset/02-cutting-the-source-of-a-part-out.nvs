@@ -1,0 +1,16 @@
+<?nvs
+// Shows how to cut the source of one part out of the text. The bytes between
+// one part's offset and the next part's offset are the first part's own
+// source. A report that quotes the code it is about does this.
+
+string $source = "<?nvs\necho 1;\necho 2;\n";
+array<Core\Ast\Node> $parts = Core\Ast::parse($source)->children();
+bytes $raw = $source as bytes;
+
+int $start = $parts[0]->offset();
+int $end = $parts[1]->offset();
+string $cut = Core\Bytes::slice($raw, $start, $end - $start) as string;
+
+// The cut ends where the next part begins, so it carries the newline between
+// them. `Core\Str::trim` takes that off, and this prints echo 1;
+echo Core\Str::trim($cut), "\n";

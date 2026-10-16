@@ -1,0 +1,13 @@
+<?nvs
+// Shows how to put brackets around each word and keep the spaces and punctuation as they are.
+use Novis\Intl\Segmenter;
+
+string $text = "Open the Shop, then the Blog.";
+
+// The parts joined in order give the text again. Here each word gets brackets.
+// This prints [Open] [the] [Shop], [then] [the] [Blog].
+string $marked = "";
+foreach (Segmenter::words([$text], "en")[0] as {text: string, wordLike: bool} $part) {
+    $marked = $marked . ($part->wordLike ? "[" . $part->text . "]" : $part->text);
+}
+echo $marked, "\n";

@@ -1,0 +1,37 @@
+<?nvs
+// Shows what happens when the code throws no error or the wrong error.
+
+class Age {
+    public static function parse(string $text): int {
+        ?int $age = $text as ?int;
+        if ($age == null) {
+            throw new LogicError("not a number: " . $text);
+        }
+        return $age;
+    }
+}
+
+// "-4" is a number, so the code throws no error and the check throws a `Core\Test\Failure`.
+try {
+    Core\Test::assertThrows(fn (): void => { Age::parse("-4"); }, LogicError::class);
+} catch (Core\Test\Failure $failure) {
+    echo $failure->message, "\n";
+}
+
+// The code throws a `LogicError`, not an `IOError`. The message names the error it threw.
+try {
+    Core\Test::assertThrows(fn (): void => { Age::parse("ten"); }, IOError::class);
+} catch (Core\Test\Failure $failure) {
+    echo $failure->message, "\n";
+}
+
+// The option `message` adds your own text at the start of the message.
+try {
+    Core\Test::assertThrows(
+        fn (): void => { Age::parse("-4"); },
+        LogicError::class,
+        {message: "an age is never negative"},
+    );
+} catch (Core\Test\Failure $failure) {
+    echo $failure->message, "\n";
+}

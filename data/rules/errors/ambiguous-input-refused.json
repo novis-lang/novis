@@ -1,0 +1,11 @@
+{
+  "title": "Ambiguous input is refused whole, never repaired",
+  "status": "shipped",
+  "seeAlso": [
+    "errors/http-message-defects",
+    "errors/cookie-name-bytes",
+    "errors/multipart-part-count",
+    "errors/path-component-refusals"
+  ],
+  "guardedBy": []
+}

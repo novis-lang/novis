@@ -1,0 +1,46 @@
+<?nvs
+// Attack: a request builds overlays that contain themselves many times, and places them far outside the image.
+// Each attempt should throw an error or return an image, and the server keeps running.
+use Novis\Image\Color;
+use Novis\Image\Image;
+
+Image $small = Image::create(8, 8, Color::hex('#ff0000'));
+Image $dot = Image::create(2, 2, Color::hex('#0000ff'));
+
+// 1. An overlay drawn twice inside itself, eight times over: thousands of draws.
+try {
+    Image $layer = $dot;
+    uint $i = 0;
+    while ($i < 8) {
+        $layer = $layer->composite($layer)->composite($layer);
+        $i = $i + 1;
+    }
+    var $out = $small->composite($layer)->raw();
+    echo 'step 1 ran ', $out->width, "\n";
+} catch (Throwable $e) {
+    echo "step 1 stopped\n";
+}
+
+// 2. Positions at the largest and smallest whole numbers.
+try {
+    var $far = $small->composite($dot, { x: 9223372036854775807, y: -9223372036854775807 })->raw();
+    echo 'step 2 ran ', $far->width, "\n";
+} catch (Throwable $e) {
+    echo "step 2 stopped\n";
+}
+
+// 3. An opacity that is not a number.
+try {
+    $small->composite($dot, { opacity: Core\Math::sqrt(-1.0) })->raw();
+    echo "step 3 ran\n";
+} catch (Throwable $e) {
+    echo "step 3 stopped\n";
+}
+
+// 4. An overlay much larger than the image it is drawn on.
+try {
+    var $big = $small->composite(Image::create(4000, 4000, Color::hex('#00ff00')))->raw();
+    echo 'step 4 ran ', $big->width, "\n";
+} catch (Throwable $e) {
+    echo "step 4 stopped\n";
+}

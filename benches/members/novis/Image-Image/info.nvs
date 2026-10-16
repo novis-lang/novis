@@ -1,0 +1,26 @@
+<?nvs
+// Reads the size of a small PNG from its header, as a program does before it accepts an upload.
+// bench: iterations 4096
+// bench: complexity constant
+use Novis\Image\Image;
+use Novis\Image\Color;
+use Novis\Image\Format;
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<bytes> $files = [
+            Image::create(4, 4, Color::hex("#336699"))->format(Format::Png)->encode(),
+            Image::create(5, 4, Color::hex("#336699"))->format(Format::Png)->encode(),
+            Image::create(6, 4, Color::hex("#336699"))->format(Format::Png)->encode(),
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            $total = $total + Image::info($files[$total % 3])->width;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(4096), "\n";

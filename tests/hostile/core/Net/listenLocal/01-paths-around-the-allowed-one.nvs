@@ -1,0 +1,68 @@
+<?nvs
+// Attack: a program tries to create socket files next to the one path it may use.
+// Then it listens at the allowed path many times. Each bad call should throw, and the program should end cleanly.
+
+// 1. A path of one million characters.
+try {
+    Core\Net::listenLocal(Core\Str::repeat('a', 1000000));
+} catch (RuntimeError $e) {
+    echo "1 ok\n";
+}
+
+// 2. An empty path.
+try {
+    Core\Net::listenLocal('');
+} catch (RuntimeError $e) {
+    echo "2 ok\n";
+}
+
+// 3. The allowed path, then `..` steps that lead to another file.
+try {
+    Core\Net::listenLocal('/tmp/novis-hostile-listen.sock/../../etc/cron.d/job');
+} catch (RuntimeError $e) {
+    echo "3 ok\n";
+}
+
+// 4. A path that starts with the allowed path but names another file.
+try {
+    Core\Net::listenLocal('/tmp/novis-hostile-listen.sock.evil');
+} catch (RuntimeError $e) {
+    echo "4 ok\n";
+}
+
+// 5. The allowed path with a zero byte and a way out after it.
+try {
+    Core\Net::listenLocal("/tmp/novis-hostile-listen.sock\0/../../etc/cron.d/job");
+} catch (RuntimeError $e) {
+    echo "5 ok\n";
+}
+
+// 6. A relative path, which the program did not write as the allowed one.
+try {
+    Core\Net::listenLocal('novis-hostile-listen.sock');
+} catch (RuntimeError $e) {
+    echo "6 ok\n";
+}
+
+// 7. The allowed path many times. Only the first call can create the file.
+uint $bound = 0;
+uint $i = 0;
+while ($i < 100) {
+    try {
+        Core\Net\Listener $server = Core\Net::listenLocal('/tmp/novis-hostile-listen.sock');
+        $bound = $bound + 1;
+    } catch (RuntimeError $e) {
+    }
+    $i = $i + 1;
+}
+echo '7 bound ', $bound > 1 ? 'more than once' : 'at most once', "\n";
+
+// The socket file stays on disk, so the program deletes it.
+// On a system without `/tmp`, the path is not allowed, and this throws.
+try {
+    if (Core\IO::exists('/tmp/novis-hostile-listen.sock')) {
+        Core\IO::remove('/tmp/novis-hostile-listen.sock');
+    }
+} catch (RuntimeError $e) {
+    echo "no socket file to delete\n";
+}

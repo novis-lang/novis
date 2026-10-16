@@ -1,0 +1,11 @@
+<?nvs
+// Shows how to keep one fraction digit in a percentage.
+use Novis\Intl\NumberFormat;
+
+array<int|float|decimal> $rates = [0.1234, 0.5];
+
+// By default there are no fraction digits. This prints 12% and 50%.
+echo Core\Str::join(NumberFormat::percent($rates, "en"), " and "), "\n";
+
+// With one digit, this prints 12.3% and 50.0%.
+echo Core\Str::join(NumberFormat::percent($rates, "en", {minFractionDigits: 1, maxFractionDigits: 1}), " and "), "\n";

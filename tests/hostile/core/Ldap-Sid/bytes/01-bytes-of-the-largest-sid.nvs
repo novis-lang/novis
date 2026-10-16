@@ -1,0 +1,17 @@
+<?nvs
+// Attack: a program asks many times for the bytes of the largest SID there is.
+// Each result should have 68 bytes, and memory should not grow without end.
+// hostile: timeout-ms 60000
+
+// 1. The largest SID: fifteen numbers after the authority.
+var $sid = Core\Ldap\Sid::parse('S-1-0xffffffffffff' . Core\Str::repeat('-4294967295', 15));
+echo '1 length: ', Core\Bytes::length($sid->bytes()), "\n";
+
+// 2. The same bytes, a hundred thousand times.
+uint $total = 0;
+uint $i = 0;
+while ($i < 100000) {
+    $total = $total + Core\Bytes::length($sid->bytes());
+    $i = $i + 1;
+}
+echo '2 total: ', $total, "\n";

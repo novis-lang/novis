@@ -1,0 +1,10 @@
+<?nvs
+// Shows how to fill a line with dots, as a table of contents does.
+
+array<string> $chapters = ["Introduction" => "1", "Über uns" => "14", "Index" => "52"];
+
+// The padding is `.`. `Ü` counts as one character, so every line has the
+// same width before its page number.
+foreach ($chapters as string $title => string $page) {
+    echo Core\Str::padEnd($title . " ", 20, "."), " ", $page, "\n";
+}

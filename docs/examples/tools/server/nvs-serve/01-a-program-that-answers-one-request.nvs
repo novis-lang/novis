@@ -1,0 +1,19 @@
+<?nvs
+// Shows a program that `nvs serve` runs one time for each HTTP request.
+
+class Visits {
+    public static uint $count = 0;
+}
+
+// `Core\Request::path()` returns the path that the client sent.
+// The request beside this file has the path `/orders`, so this prints "path: /orders".
+echo 'path: ', Core\Request::path(), "\n";
+
+// `Core\Request::header` returns one header of the request.
+// This prints "host: shop.example.com".
+echo 'host: ', Core\Request::header('host') ?? 'none', "\n";
+
+// Each request starts the program at its first line, with its own memory.
+// `Visits::$count` is 0 at the start of every request, so every request prints "visits: 1".
+Visits::$count = Visits::$count + 1;
+echo 'visits: ', Visits::$count, "\n";

@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-hir/src/qname.rs",
+  "title": "`use Core\\Nope;` compiles with no diagnostic.",
+  "text": "A `use` whose root segment is `Core` is trusted to exist rather than checked against a symbol table (`crates/nvs-hir/src/qname.rs:146-152`), and the doc comment explains it with a crate that now exists. `rule:core-api/reserved-namespace` reserves `Core` for the built-ins, so a name no built-in has is a typo the program should hear about where it wrote it. Closing it means the `use` is checked against `nvs-stdlib`'s registry of classes, with the same diagnostic an unknown class gets, and the doc comment is rewritten.",
+  "goal": "completeness-holes"
+}

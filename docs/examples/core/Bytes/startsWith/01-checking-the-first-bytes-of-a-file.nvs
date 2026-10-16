@@ -1,0 +1,12 @@
+<?nvs
+// Shows how to check what kind of file a value holds. A PNG image always
+// starts with the same eight bytes.
+
+bytes $pngMagic = Core\Encoding::fromHex("89504e470d0a1a0a");
+bytes $image = Core\Encoding::fromHex("89504e470d0a1a0a0000000d49484452");
+
+// The image starts with those eight bytes, so this prints "yes".
+echo Core\Bytes::startsWith($image, $pngMagic) ? "yes" : "no", "\n";
+
+// A GIF image starts with other bytes, so this prints "no".
+echo Core\Bytes::startsWith("GIF89a" as bytes, $pngMagic) ? "yes" : "no", "\n";

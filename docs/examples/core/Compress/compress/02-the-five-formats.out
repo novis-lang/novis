@@ -1,0 +1,5 @@
+gzip: 70 bytes
+zlib: 58 bytes
+deflate: 52 bytes
+brotli: 39 bytes
+zstd: 81 bytes

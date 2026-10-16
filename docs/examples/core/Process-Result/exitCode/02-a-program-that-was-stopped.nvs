@@ -1,0 +1,14 @@
+<?nvs
+// Shows the exit code of a program that was stopped before it could end by itself.
+// requires: unix
+
+// `sleep 60` waits for one minute. `kill()` stops it at once.
+var $program = Core\Process::spawn("/bin/sleep", ["60"]);
+$program->kill();
+
+// A stopped program did not set an exit code. On Linux and macOS, the result is `-1`.
+var $result = $program->wait();
+echo "exit code: ", $result->exitCode(), "\n";
+
+// `exitCode()` returns the same number on every call. This prints `-1` again.
+echo "again: ", $result->exitCode(), "\n";

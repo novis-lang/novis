@@ -1,0 +1,22 @@
+--TEST--
+`rule:types/arithmetic`: `Core\Decimal::pow` answers the exponent's edges — zero, one, a base of zero — and an exponent at `uint`'s ceiling, which it cannot reach by walking
+--FILE--
+<?nvs
+// The two exponents that name no multiplication: zero is `1` at no scale at
+// all, and one is the base itself with the scale it was written at.
+decimal $price = 19.90;
+echo Core\Decimal::pow($price, 0), "|", Core\Decimal::pow($price, 1), "\n";
+
+// A base with nothing to multiply, both ways round.
+decimal $none = 0;
+decimal $one = 1;
+echo Core\Decimal::pow($none, 5), "|", Core\Decimal::pow($none, 0), "\n";
+
+// A base of `1` reaches no bound however far it is raised, so the largest
+// exponent there is has to answer -- which it can only do by squaring rather
+// than by multiplying that many times.
+echo Core\Decimal::pow($one, 18446744073709551615), "\n";
+--EXPECT--
+1|19.90
+0|1
+1

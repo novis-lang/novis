@@ -1,0 +1,38 @@
+<?nvs
+// Shows how to test that an API client sends its token with every request.
+
+use Core\Http\Client;
+use Core\Test;
+use Core\Test\SentRequest;
+
+class InvoiceClient {
+    public function constructor(private string $token) {}
+
+    // Reads one invoice.
+    public function get(uint $id): int {
+        return Client::get("https://billing.example.com/invoices/" . $id, {
+            headers: ["Authorization" => "Bearer " . $this->token],
+        })->status();
+    }
+
+    // Marks one invoice as paid.
+    public function pay(uint $id): int {
+        return Client::post("https://billing.example.com/invoices/" . $id . "/pay", {
+            headers: ["Authorization" => "Bearer " . $this->token],
+        })->status();
+    }
+}
+
+Test::answerHttp("https://billing.example.com/invoices/*", 200);
+InvoiceClient $client = new InvoiceClient("t-555");
+$client->get(10);
+$client->pay(10);
+
+// A request without the token fails on the real service.
+// The test checks the header of every request.
+foreach (Test::sentHttp() as SentRequest $request) {
+    Test::assertSame($request->header("Authorization"), "Bearer t-555");
+}
+
+// This prints `2 requests had the token`.
+echo Core\Arr::count(Test::sentHttp()), " requests had the token\n";

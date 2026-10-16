@@ -1,0 +1,13 @@
+{
+  "title": "Every test runs in its own isolate and shares nothing but compiled code with its siblings",
+  "status": "shipped",
+  "seeAlso": [
+    "testing/test-attribute",
+    "testing/fixtures",
+    "testing/runner-is-strict",
+    "statements/an-isolate-has-its-own-statics"
+  ],
+  "guardedBy": [
+    "crates/nvs-cli/src/runner.rs"
+  ]
+}

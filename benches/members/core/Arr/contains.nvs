@@ -1,0 +1,36 @@
+<?nvs
+// Tests whether a role is one of the roles a page allows, as a page does before
+// it shows anything.
+// bench: iterations 1024
+// bench: allocations 0
+// bench: calls 0
+// bench: complexity linear
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<string> $allowed = ["editor", "admin", "owner"];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Last round's total decides which role this round looks for, so no
+            // round can be reused. Both searches read every entry.
+            if ($total % 2 == 0) {
+                if (Core\Arr::contains($allowed, "owner")) {
+                    $total = $total + 1;
+                } else {
+                    $total = $total + 2;
+                }
+            } else {
+                if (Core\Arr::contains($allowed, "guest")) {
+                    $total = $total + 4;
+                } else {
+                    $total = $total + 3;
+                }
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(1024), "\n";

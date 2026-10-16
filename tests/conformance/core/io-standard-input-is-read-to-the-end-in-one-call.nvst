@@ -1,0 +1,26 @@
+--TEST--
+`Core\IO::stdin` reads to end of input in one call, and a program started with nothing attached sees the empty string rather than a wait — spec § 14
+--FILE--
+<?nvs
+// A case is started with its standard input closed, which is also what a
+// program run by a scheduler or a service manager sees: end of input arrives
+// at once, and the member answers the whole of what arrived, which is nothing.
+// The point is that it answers at all -- a member that waited would hang this
+// suite rather than fail it.
+tainted string $first = Core\IO::stdin();
+echo "length=", Core\Str::length($first), "\n";
+
+// Asking a second time is neither an error nor a second half. `stdin` is a
+// read to end of input, so once input has ended the only thing left to answer
+// is what has arrived since, and nothing has.
+tainted string $second = Core\IO::stdin();
+echo "again=", Core\Str::length($second), "\n";
+if ($first == $second) {
+    echo "same=yes\n";
+} else {
+    echo "same=no\n";
+}
+--EXPECT--
+length=0
+again=0
+same=yes

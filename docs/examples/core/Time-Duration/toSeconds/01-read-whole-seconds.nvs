@@ -1,0 +1,13 @@
+<?nvs
+// Shows how to read the length of a duration as a number of seconds.
+
+Core\Time\Duration $pause = 1m30s;
+// This prints 90.
+echo $pause->toSeconds(), "\n";
+
+// This prints 7200.
+Core\Time\Duration $shift = 2h;
+echo $shift->toSeconds(), "\n";
+
+// A negative duration gives a negative number. This prints -45.
+echo Core\Time\Duration::seconds(-45)->toSeconds(), "\n";

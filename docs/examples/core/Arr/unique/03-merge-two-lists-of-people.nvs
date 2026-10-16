@@ -1,0 +1,20 @@
+<?nvs
+// Shows how to merge two lists of people without repeating anyone. The email
+// address says who a person is.
+
+array<array<string>> $subscribers = [
+    ["email" => "ada@example.com", "name" => "Ada Lovelace"],
+    ["email" => "grace@example.com", "name" => "Grace Hopper"],
+];
+array<array<string>> $customers = [
+    ["email" => "ada@example.com", "name" => "A. Lovelace"],
+    ["email" => "alan@example.com", "name" => "Alan Turing"],
+];
+
+// The first record for each address wins, so Ada keeps the name the
+// subscriber list gave her. Three people are left.
+array<array<string>> $everyone = Core\Arr::unique(
+    Core\Arr::appendAll($subscribers, $customers),
+    {by: fn(array<string> $person): string => $person["email"]}
+);
+echo Core\Json::encode($everyone), "\n";

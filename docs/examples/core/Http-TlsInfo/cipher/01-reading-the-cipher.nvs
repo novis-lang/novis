@@ -1,0 +1,14 @@
+<?nvs
+// Shows how to read the cipher that encrypts the connection a reply came over.
+
+// `Core\Test::tlsSession` builds a TLS connection for a test, so the example runs
+// without a network. `Core\Test::answerHttp` gives a fixed reply that reports it.
+Core\Test::answerHttp("https://api.example.com/health", 200, {tls: Core\Test::tlsSession({})});
+
+?Core\Http\TlsInfo $info = Core\Http\Client::get("https://api.example.com/health")->tls();
+
+// `cipher()` returns the name of the cipher suite, as the IANA list writes it.
+// This prints `TLS_AES_128_GCM_SHA256`.
+if ($info != null) {
+    echo $info->cipher(), "\n";
+}

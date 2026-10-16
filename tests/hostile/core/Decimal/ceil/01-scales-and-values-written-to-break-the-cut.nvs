@@ -1,0 +1,54 @@
+<?nvs
+// Attack: a cut is asked for scales far past what a `decimal` holds, and for
+// values at both ends of the range. Every attempt should return an exact
+// answer or throw an error. The runtime should still be standing at the end.
+// hostile: timeout-ms 30000
+
+// 1. The last scale a `decimal` holds, and the first one it does not. The
+// error is caught, so the steps after this one still run.
+decimal $tiny = 0.0000000000000000000000000001;
+echo 'step 1: ', Core\Decimal::ceil($tiny, 28), "\n";
+try {
+    Core\Decimal::ceil($tiny, 29);
+    echo "step 1b: the cut was made\n";
+} catch (ArithmeticError $tooMany) {
+    echo 'step 1b stopped: ', $tooMany->message, "\n";
+}
+
+// 2. The largest scale a whole number can name, which is far past the 28 the
+// type has.
+try {
+    Core\Decimal::ceil(1.5, 18446744073709551615);
+    echo "step 2: the cut was made\n";
+} catch (ArithmeticError $huge) {
+    echo 'step 2 stopped: ', $huge->message, "\n";
+}
+
+// 3. A value with every digit a `decimal` has before the point, asked to keep
+// digits after it. There is no room, so there is no answer.
+decimal $wide = 79228162514264337593543950335;
+echo 'step 3: ', Core\Decimal::ceil($wide), "\n";
+try {
+    Core\Decimal::ceil($wide, 1);
+    echo "step 3b: the cut was made\n";
+} catch (ArithmeticError $noRoom) {
+    echo 'step 3b stopped: ', $noRoom->message, "\n";
+}
+
+// 4. The same value one below zero, cut the same way. The sign decides which
+// side the cut moves to, so this is the other half of the same boundary.
+decimal $one = 1;
+decimal $low = -$wide;
+echo 'step 4: ', Core\Decimal::ceil($low), ' ', Core\Decimal::ceil($low + $one), "\n";
+
+// 5. Two million cuts in a row, each at a different scale, so no two rounds
+// do the same work.
+decimal $sum = 0;
+uint $round = 0;
+while ($round < 2000000) {
+    $sum = $sum + Core\Decimal::ceil(0.5000000001, ($round % 9) as uint);
+    $round = $round + 1;
+}
+echo 'step 5: ', $round, " cuts made\n";
+
+echo "the runtime is still standing\n";

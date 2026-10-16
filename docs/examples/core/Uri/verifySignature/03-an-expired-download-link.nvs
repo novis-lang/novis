@@ -1,0 +1,28 @@
+<?nvs
+// Shows a download handler that tells an expired link apart from a changed one.
+
+class Download {
+    public static function open(string $request, array<secret bytes> $keys): string {
+        try {
+            Core\Uri::parse($request)->verifySignature($keys);
+        } catch (RuntimeError $error) {
+            // An expired link has its own message. It says "expired".
+            if (Core\Str::contains($error->message, "expired")) {
+                return "410 this link has expired, please ask for a new one";
+            }
+            return "403 this link is not valid";
+        }
+        return "200 sending the file";
+    }
+}
+
+array<secret bytes> $keys = [Core\Crypto::generateKey()];
+string $live = Core\Uri::parse("https://example.com/files?name=report.pdf")
+    ->sign({keys: $keys, until: Core\Time::now()->plus(1h)})->toString();
+string $old = Core\Uri::parse("https://example.com/files?name=report.pdf")
+    ->sign({keys: $keys, until: Core\Time::now()->minus(1h)})->toString();
+
+// This prints the 200, 410 and 403 lines.
+echo Download::open($live, $keys), "\n";
+echo Download::open($old, $keys), "\n";
+echo Download::open(Core\Str::replace($live, "report.pdf", "salaries.pdf"), $keys), "\n";

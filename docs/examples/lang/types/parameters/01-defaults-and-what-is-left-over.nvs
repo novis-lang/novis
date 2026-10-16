@@ -1,0 +1,28 @@
+<?nvs
+// A parameter can have a default value, so a caller can leave it out.
+// The last parameter can collect all the remaining arguments into a list.
+
+class Basket
+{
+    public const int USUAL_PRICE = 5;
+
+    // A default can be a value or a class constant. `$each` uses the constant `USUAL_PRICE`.
+    public static function total(int $items, int $each = Basket::USUAL_PRICE, int ...$surcharges): int
+    {
+        var $sum = $items * $each;
+
+        foreach ($surcharges as var $surcharge) {
+            $sum = $sum + $surcharge;
+        }
+
+        return $sum;
+    }
+}
+
+echo "three at the usual price: ", Basket::total(3), "\n";
+echo "three at four each: ", Basket::total(3, 4), "\n";
+echo "three at four each, plus two surcharges: ", Basket::total(3, 4, 2, 7), "\n";
+
+// `...` passes the values of an array you already have as separate arguments.
+var $surcharges = [2, 7];
+echo "the same two, out of a list: ", Basket::total(3, 4, ...$surcharges), "\n";

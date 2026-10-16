@@ -1,0 +1,24 @@
+<?nvs
+// Writes a short list of counts in the short form for English, as a profile page shows followers.
+// bench: iterations 1000
+// bench: complexity constant
+use Novis\Intl\NumberFormat;
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<array<int|float|decimal>> $lists = [
+            [1234, 999, 1500000, 42, 870000],
+            [3, 12000, 2500000000, 640, 99999],
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            array<string> $written = NumberFormat::compact($lists[$total % 2], "en");
+            $total = $total + Core\Str::length($written[0]) % 3;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(1000), "\n";

@@ -1,0 +1,27 @@
+--TEST--
+an import only a parameter type reads is kept, and one nothing reads is dimmed, `rule:ide/five-features-are-one-reference-index`
+--FILE--
+<?nvs
+require 'lib/shop.nvs';
+
+use Shop\Item;
+use Shop\Order;
+
+class Label {
+    public function title(Item $item): string {
+        return "item";
+    }
+}
+
+var $label = new Label();
+--FILE lib/shop.nvs--
+<?nvs
+namespace Shop;
+
+class Item {}
+
+class Order {}
+--REQUEST--
+diagnostics
+--EXPECT--
+5:5-5:15 hint - `Shop\Order` is imported and nothing in this file uses it

@@ -1,0 +1,11 @@
+<?nvs
+// Shows how the alpha of the tint colour sets how strong the tint is.
+use Novis\Image\Image;
+use Novis\Image\Color;
+
+Image $photo = Image::create(10, 10, Color::hex("#ffffff"));
+
+// A blue tint with an alpha of 0.5 colours the image half as much. This prints 127 127 255.
+var $raw = $photo->tint(Color::rgba(0, 0, 255, 0.5))->raw();
+array<mixed> $pixel = Core\Bytes::unpack(Core\Bytes::slice($raw->pixels, 0, 4), "C4");
+echo $pixel[0], " ", $pixel[1], " ", $pixel[2], "\n";

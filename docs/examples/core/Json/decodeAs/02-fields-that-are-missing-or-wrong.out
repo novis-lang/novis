@@ -1,0 +1,3 @@
+2 problems
+name: required field missing
+cents: expected int, found a string

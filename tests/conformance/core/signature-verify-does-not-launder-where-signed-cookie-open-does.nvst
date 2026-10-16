@@ -1,0 +1,48 @@
+--TEST--
+Core\Signature::verify answers a tainted payload for a token this program signed a line earlier, while Core\SignedCookie::open answers a plain string for a cookie it sealed the same way — `rule:security/verification-does-not-launder`, `rule:security/launderers-are-sink-named`
+--FILE--
+<?nvs
+// The agreement shape, over a rule whose entire content is that two members of
+// the same closed roster answer differently. A signature proves origin and not
+// safety for any sink, so a verified payload comes back `tainted` — and the
+// one named exception is a payload the application itself sealed, which was
+// already plain when it went in. `crates/nvs-stdlib/src/signature.rs` is the
+// home of why the qualifier is what fixes the element type here.
+//
+// Both halves are asserted by the *declarations* below rather than by anything
+// printed: neither can be spelled the other way round and still compile, so
+// this file compiling at all is the assertion.
+secret bytes $key = Core\Crypto::generateKey();
+array<secret bytes> $ring = [$key];
+
+string $sealed = Core\SignedCookie::seal("role=admin", $ring);
+string $plain = Core\SignedCookie::open($sealed, $ring);
+echo $plain, "\n";
+
+// The same key, the same ring, the same HMAC underneath — and a `tainted`
+// payload. The signature is no weaker; what the qualifier tracks is where the
+// plaintext came from, and a token minted by one service and read by another
+// is a value we were handed rather than a value we had.
+array<string> $claims = ["role" => "admin"];
+string $token = Core\Signature::sign($claims, {keys: $ring, until: null});
+array<tainted string> $payload = Core\Signature::verify($token, $ring);
+tainted string $role = $payload["role"];
+
+// So the rule is legible as code rather than as a comment: the pattern sink
+// refuses a tainted argument outright, and which of these two values needs
+// `Core\Regex::quote` in front of it is the whole of the rule. The cookie
+// payload goes straight in.
+Core\Regex\Pattern $direct = Core\Regex::compile($plain);
+echo Core\Regex::matches("role=admin", $direct) ? "y" : "n", "\n";
+
+// The verified claim cannot, even though this same program signed it two lines
+// up — laundering it is a separate, written act.
+string $quoted = Core\Regex::quote($role);
+Core\Regex\Pattern $laundered = Core\Regex::compile($quoted);
+echo Core\Regex::matches("admin", $laundered) ? "y" : "n", "\n";
+echo $quoted, "\n";
+--EXPECT--
+role=admin
+y
+y
+admin

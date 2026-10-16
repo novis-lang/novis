@@ -1,0 +1,20 @@
+<?nvs
+// Shows that a constructor parameter that is also a property has the name of the property.
+
+class Mailer {
+    public function constructor(private string $from, public int $retries) {}
+}
+
+var $info = Core\Reflect::forObject(new Mailer("shop@example.com", 3));
+
+// This prints the parameters of the constructor: `from` and `retries`.
+foreach ($info->methods() as Core\Reflect\MethodInfo $method) {
+    foreach ($method->parameters() as Core\Reflect\ParameterInfo $parameter) {
+        echo "parameter: ", $parameter->name(), "\n";
+    }
+}
+
+// This prints the properties. They have the same two names.
+foreach ($info->properties() as Core\Reflect\PropertyInfo $property) {
+    echo "property: ", $property->name(), "\n";
+}

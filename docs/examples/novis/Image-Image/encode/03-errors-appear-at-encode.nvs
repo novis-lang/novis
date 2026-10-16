@@ -1,0 +1,17 @@
+<?nvs
+// Shows that a step that cannot run throws its error when `encode` runs, not when you add the step.
+use Novis\Image\Image;
+use Novis\Image\Color;
+
+Image $photo = Image::create(100, 100, Color::hex("#336699"));
+
+// The crop box is outside the 100 by 100 image. Adding the step does not throw.
+Image $cropped = $photo->crop({x: 50, y: 50, width: 100, height: 100});
+echo "step added\n";
+
+// `encode` runs the step and throws an error.
+try {
+    $cropped->encode();
+} catch (Throwable $e) {
+    echo $e->message, "\n";
+}

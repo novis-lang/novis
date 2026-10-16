@@ -1,0 +1,17 @@
+<?nvs
+// Shows how to test whether an array holds no entries.
+
+array<string> $basket = [];
+array<string> $wishlist = ["a mug", "a poster"];
+
+// The basket holds no entries. This prints "the basket is empty".
+if (Core\Arr::isEmpty($basket)) {
+    echo "the basket is empty", "\n";
+}
+
+// The wishlist holds two entries. This prints "the wishlist has entries".
+if (Core\Arr::isEmpty($wishlist)) {
+    echo "the wishlist is empty", "\n";
+} else {
+    echo "the wishlist has entries", "\n";
+}

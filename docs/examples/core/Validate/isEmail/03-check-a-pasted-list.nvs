@@ -1,0 +1,22 @@
+<?nvs
+// Shows how to check a list of addresses that a user pasted into a form.
+
+// The user separated the addresses with commas and added some spaces.
+string $pasted = "ada@example.com, grace@example.org,bob@@example.com , linus@localhost";
+
+array<string> $valid = [];
+array<string> $invalid = [];
+
+// `split` makes one text for each address, and `trim` removes the spaces.
+foreach (Core\Str::split($pasted, ",") as string $part) {
+    string $address = Core\Str::trim($part);
+    if (Core\Validate::isEmail($address)) {
+        $valid[] = $address;
+    } else {
+        $invalid[] = $address;
+    }
+}
+
+// This prints the two valid addresses on the first line and the two others on the second.
+echo "send to: ", Core\Str::join($valid, ", "), "\n";
+echo "please check: ", Core\Str::join($invalid, ", "), "\n";

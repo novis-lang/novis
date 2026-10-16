@@ -1,0 +1,23 @@
+<?nvs
+// This measures `as int`, which converts text to a whole number.
+// You use it on text from a form, a query string or a file.
+// Each round converts the text that the round before chose, so no round can be skipped.
+// bench: iterations 1024
+// bench: allocations 0
+// bench: complexity constant
+
+class Bench {
+    public static function run(uint $rounds): int {
+        array<string> $texts = ["17", "204", "9", "1350"];
+        int $total = 1;
+        uint $i = 0;
+        while ($i < $rounds) {
+            int $n = $texts[$total % 4] as int;   // chained: $total is last round's
+            $total = ($total + $n) % 997;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(1024), "\n";

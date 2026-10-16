@@ -1,0 +1,26 @@
+<?nvs
+// Builds the `Allow` header that a `405 Method Not Allowed` response needs.
+
+class Invoices {
+    #[Core\Route(path: "/invoices", method: Core\Http\Method::Get, name: "Invoices::list")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function list(): string { return "all invoices"; }
+
+    #[Core\Route(path: "/invoices", method: Core\Http\Method::Post, name: "Invoices::create")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function create(): string { return "a new invoice"; }
+}
+
+class Allow {
+    // Returns the methods of `$path` as one line of text, separated by commas.
+    public static function header(string $path): string {
+        array<string> $names = [];
+        foreach (Core\Router::methodsFor($path) as Core\Http\Method $method) {
+            $names[] = Core\Http::methodName($method);
+        }
+        return Core\Str::join($names, ", ");
+    }
+}
+
+// This prints `Allow: GET, POST`.
+echo "Allow: ", Allow::header("/invoices"), "\n";

@@ -1,0 +1,12 @@
+{
+  "title": "A name reaches its file while compiling; there is no runtime loader of any kind",
+  "status": "shipped",
+  "seeAlso": [
+    "programs/autoload",
+    "programs/implementing",
+    "programs/one-declaration-per-autoloaded-file"
+  ],
+  "guardedBy": [
+    "tests/conformance/lang/a-class-reached-only-through-autoload-runs.nvst"
+  ]
+}

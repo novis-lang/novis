@@ -1,0 +1,23 @@
+<?nvs
+// Shows the URLs that `Core\Http::allowUrl` refuses, and the error message for each one.
+
+array<string> $urls = [
+    // The scheme is not `http`, `https`, `ws` or `wss`.
+    "ftp://203.0.113.10/prices.csv",
+    // 10.0.0.7 is a private address inside your own network.
+    "http://10.0.0.7/admin",
+    // 169.254.169.254 is the address where many cloud servers keep their passwords.
+    "http://169.254.169.254/latest/meta-data/",
+    // The text before `@` is a user name. The real host is 127.0.0.1, this computer.
+    "http://203.0.113.10@127.0.0.1/",
+];
+
+// Each call throws a `RuntimeError`. This prints four messages.
+foreach ($urls as string $url) {
+    try {
+        Core\Http\Target $target = Core\Http::allowUrl($url);
+        echo "allowed: ", $url, "\n";
+    } catch (RuntimeError $refused) {
+        echo $refused->message, "\n";
+    }
+}

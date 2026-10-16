@@ -1,0 +1,28 @@
+<?nvs
+// Measures how fast `Core\Ldap::open` throws for a host that is not allowed.
+// A program meets this when a customer sets up the address of their own directory.
+// bench: iterations 20000
+// bench: calls 0
+// bench: complexity constant
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        // The count so far chooses the URL, so the loop cannot be left out.
+        // The grant names neither host, so every round throws an error.
+        array<string> $urls = ["ldaps://dc1.example.test", "ldaps://dc2.example.test"];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            try {
+                Core\Ldap::open({url: $urls[($total % 2) as int], user: "CN=Reader,DC=example,DC=test", password: "Example-Pw1"});
+                $total = $total + 2;
+            } catch (RuntimeError $error) {
+                $total = $total + 1;
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(20000), "\n";

@@ -1,0 +1,45 @@
+<?nvs
+// Attack: `gcd` is given the pair of numbers that makes its work longest, two
+// very wide numbers, and a thousand results that are dropped at once. The
+// program should run to its last line.
+
+// 1. Two numbers next to each other in the Fibonacci sequence make `gcd` take
+//    the most steps it can. These two have about a thousand bits each.
+var $previous = Core\BigInt::of(1);
+var $current = Core\BigInt::of(1);
+int $step = 0;
+while ($step < 1500) {
+    var $next = $previous->add($current);
+    $previous = $current;
+    $current = $next;
+    $step = $step + 1;
+}
+echo $previous->gcd($current)->toInt(), "\n";
+
+// 2. Two numbers of about twenty thousand bits, a hundred times over. Only the
+//    last result is kept, so the memory held must not grow.
+var $wide = Core\BigInt::of(2)->pow(20000)->sub(Core\BigInt::of(1));
+var $other = Core\BigInt::of(3)->pow(12000)->add(Core\BigInt::of(2));
+var $divisor = $wide;
+int $round = 0;
+while ($round < 100) {
+    $divisor = $wide->gcd($other);
+    $round = $round + 1;
+}
+echo $divisor->sign(), "\n";
+
+// 3. Zero on both sides, and zero against the widest number here. Neither is an
+//    error: the first result is 0 and the second is the other number.
+var $zero = Core\BigInt::of(0);
+echo $zero->gcd($zero)->sign(), "\n";
+echo $zero->gcd($wide)->compareTo($wide), "\n";
+
+// 4. A thousand results are made, and each one is dropped as the next is taken.
+var $left = Core\BigInt::of(2)->pow(3000);
+var $right = Core\BigInt::of(6)->pow(1500);
+int $made = 0;
+while ($made < 1000) {
+    $divisor = $left->gcd($right);
+    $made = $made + 1;
+}
+echo $divisor->sign(), "\n";

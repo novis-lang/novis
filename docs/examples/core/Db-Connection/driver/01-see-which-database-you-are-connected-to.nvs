@@ -1,0 +1,14 @@
+<?nvs
+// Shows how to ask a connection which database system it speaks to. The answer
+// is a `Core\Db\Driver` case, so the program compares it with `==`.
+
+var $db = Core\Db::connect('notes');
+
+// This prints `SQLite`.
+if ($db->driver() == Core\Db\Driver::Sqlite) {
+    echo "SQLite\n";
+} else {
+    echo "another database\n";
+}
+
+$db->close();

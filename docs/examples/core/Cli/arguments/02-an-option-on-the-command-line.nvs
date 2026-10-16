@@ -1,0 +1,23 @@
+<?nvs
+// Shows how a program reads an option from its command line. Start it with
+// `nvs run 02-an-option-on-the-command-line.nvs --verbose` to see the extra
+// lines.
+
+array<tainted string> $words = Core\Cli::arguments();
+
+// Comparing a word with text of your own is always allowed. This is `true` only
+// when one of the words is exactly `--verbose`.
+bool $verbose = false;
+foreach ($words as tainted string $word) {
+    if ($word == "--verbose") {
+        $verbose = true;
+    }
+}
+
+array<string> $files = ["orders.csv", "customers.csv"];
+foreach ($files as string $file) {
+    echo "copied ", $file, "\n";
+    if ($verbose) {
+        echo "  from var/export/", $file, "\n";
+    }
+}

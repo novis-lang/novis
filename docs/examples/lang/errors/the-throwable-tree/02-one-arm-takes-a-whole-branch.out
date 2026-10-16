@@ -1,0 +1,4 @@
+{"ok":true}
+the feed said no: the feed did not answer in time
+the feed said no: the feed file is missing
+bad input: Core\Json::decode(): expected value at line 1 column 8

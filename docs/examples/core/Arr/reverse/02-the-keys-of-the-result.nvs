@@ -1,0 +1,16 @@
+<?nvs
+// Shows which keys the result carries.
+
+array<int> $stock = ['apples' => 12, 'pears' => 4, 'plums' => 7];
+
+// The keys of the original are gone, and the entries are numbered from 0. This
+// prints [7,4,12].
+echo Core\Json::encode(Core\Arr::reverse($stock)), "\n";
+
+// `preserveKeys` keeps every entry under its own key. This prints
+// {"plums":7,"pears":4,"apples":12}.
+echo Core\Json::encode(Core\Arr::reverse($stock, {preserveKeys: true})), "\n";
+
+// Reversing twice gives you the values in the order you started with. This
+// prints [12,4,7].
+echo Core\Json::encode(Core\Arr::reverse(Core\Arr::reverse($stock))), "\n";

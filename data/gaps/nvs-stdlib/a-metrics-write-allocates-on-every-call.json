@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-stdlib/src/metrics.rs",
+  "title": "A `Core\\Metrics` write allocates on every call, even to a series that already exists.",
+  "text": "`benches/members/core/Metrics/gauge.nvs` counts 8 allocations and about 240 bytes a call with no labels, against a declared `allocations 0`. Three sources are read from the code: `write` renders the call site's `file:line` into a `String` on every call although only a first write or a refusal reads it; `nvs_runtime::metrics::key` builds an owned series key for every lookup; and `Registry::admit` clones the name and the key through `entry` even when both are already present. The same path runs twice per served request through `Registry::request`. Closing it is a borrowed lookup for an existing series and a site rendered only when it is stored, which changes how the registry keys its series and is not a slice.",
+  "milestone": "M12"
+}

@@ -1,0 +1,13 @@
+<?nvs
+// Shows how to make a new nonce for every page, for a Content-Security-Policy header.
+
+// 16 random bytes in Base64 give a text of 24 characters.
+string $nonce = Core\Encoding::toBase64(Core\Random::bytes(16));
+string $policy = "script-src 'nonce-" . $nonce . "'";
+
+// The nonce is different on every run, so this prints only its length: 24.
+echo Core\Str::length($nonce), "\n";
+
+// The same nonce goes into the header and into each script tag on the page.
+string $tag = '<script nonce="' . $nonce . '">start();</script>';
+echo Core\Str::contains($policy, $nonce) && Core\Str::contains($tag, $nonce) ? "match" : "no match", "\n";

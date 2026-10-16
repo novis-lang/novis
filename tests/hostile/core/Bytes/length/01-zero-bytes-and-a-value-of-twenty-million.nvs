@@ -1,0 +1,31 @@
+<?nvs
+// Attack: values full of zero bytes, and a value of twenty million bytes, are
+// measured. The count must be the real number of bytes every time, and the
+// program must keep running.
+// hostile: timeout-ms 30000
+
+// 1. A value with nothing in it, and a value that is one zero byte. This
+//    prints 0 and then 1.
+echo Core\Bytes::length('' as bytes), "\n";
+echo Core\Bytes::length(Core\Bytes::fill(1, 0)), "\n";
+
+// 2. Four thousand zero bytes with two more bytes after them. A count that
+//    stops at the first zero byte would print 0. This prints 4098.
+bytes $padded = Core\Bytes::join([Core\Bytes::fill(4096, 0), 'ab' as bytes]);
+echo Core\Bytes::length($padded), "\n";
+
+// 3. Twenty million bytes in one value. This prints 20000000.
+bytes $big = Core\Bytes::fill(20000000, 97);
+echo Core\Bytes::length($big), "\n";
+
+// 4. One million counts of that value. A copy on every count would be twenty
+//    terabytes of memory. This prints 1000000.
+uint $right = 0;
+uint $i = 0;
+while ($i < 1000000) {
+    if (Core\Bytes::length($big) == 20000000) {
+        $right = $right + 1;
+    }
+    $i = $i + 1;
+}
+echo $right, "\n";

@@ -1,0 +1,9 @@
+<?nvs
+// This is the file check-stock.nvs. It throws an error when it gets a count below 0.
+
+// `Core\Script::args()` returns the value from `args:`. Without `args:`, it returns `null`.
+int $count = (Core\Script::args() ?? 0) as int;
+echo "checking ", $count, "\n";
+if ($count < 0) {
+    throw new RuntimeError("the count is below 0");
+}

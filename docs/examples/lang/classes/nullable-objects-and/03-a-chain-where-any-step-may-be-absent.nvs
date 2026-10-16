@@ -1,0 +1,32 @@
+<?nvs
+// Shows a chain of accesses where any step may be missing. A shipping label
+// needs the country of a customer's address, and a customer may have neither.
+
+class Country {
+    public function constructor(public string $code) {}
+}
+
+class Address {
+    public function constructor(public string $city, public ?Country $country) {}
+}
+
+class Customer {
+    public function constructor(public string $name, public ?Address $address) {}
+
+    public function shippingCountry(): string {
+        // Each `?->` stops the chain at the first missing step. One `??` at the
+        // end covers every one of them.
+        return $this->address?->country?->code ?? "unknown";
+    }
+}
+
+array<Customer> $customers = [
+    new Customer("Ada", new Address("Berlin", new Country("DE"))),
+    new Customer("Grace", new Address("Vienna", null)),
+    new Customer("Alan", null),
+];
+
+// This prints `DE`, then `unknown` twice.
+foreach ($customers as Customer $customer) {
+    echo $customer->name, ": ", $customer->shippingCountry(), "\n";
+}

@@ -1,0 +1,28 @@
+<?nvs
+// Shows a contact form that sends each visitor's message to the support team.
+// An address that is not correct throws a `RuntimeError`. A mail server that
+// does not answer throws an `IOError`.
+
+class Support {
+    // `replyTo` is the visitor's address, so the support team can answer with one click.
+    public static function forward(string $visitor, string $message): string {
+        try {
+            Core\Mail::send(
+                "shop",
+                ["support@example.com"],
+                "Contact form",
+                $message,
+                {replyTo: $visitor},
+            );
+            return "Thank you. We answer within one day.";
+        } catch (IOError $down) {
+            return "Thank you. Your message is saved, and we answer soon.";
+        } catch (RuntimeError $refused) {
+            return "Please check your email address.";
+        }
+    }
+}
+
+// This prints the answer for a correct address, then for an address without `@`.
+echo Support::forward("ben@example.com", "Where is my order 1042?"), "\n";
+echo Support::forward("ben.example.com", "Where is my order 1042?"), "\n";

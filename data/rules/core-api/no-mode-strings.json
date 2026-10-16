@@ -1,0 +1,14 @@
+{
+  "title": "A mode is an enum, never a string or an integer constant, and only four grammars are exempt",
+  "status": "shipped",
+  "seeAlso": [
+    "core-api/units-are-types",
+    "enums/closed-integer-type",
+    "types/single-value-types",
+    "expressions/intrinsic-constant-arguments"
+  ],
+  "guardedBy": [
+    "crates/nvs-stdlib/src/registry.rs",
+    "tests/conformance/core/regex-split-honours-its-options.nvst"
+  ]
+}

@@ -1,0 +1,6 @@
+--METHOD--
+POST
+--PATH--
+/invoices/run
+--HEADERS--
+host: example.com

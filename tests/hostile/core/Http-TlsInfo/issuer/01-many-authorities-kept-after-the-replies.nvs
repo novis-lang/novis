@@ -1,0 +1,66 @@
+<?nvs
+// Attack: a program builds many connections, each signed by a different authority,
+// and keeps the issuers after the replies are deleted. Every issuer must match the
+// connection it came from, and nothing may crash or leak.
+
+// 1. Issuers with characters that need care in a certificate name.
+//    Each one is either read back or throws an error when the connection is built.
+array<string> $odd = [
+    'CN=Café Größe CA',
+    "CN=CA \"quoted\"",
+    'CN=CA+O=Shop',
+    'CN=#CA',
+    'CN= CA ',
+    "CN=CA\\, Inc",
+    'CN=' . Core\Str::repeat('x', 5000),
+];
+uint $answered = 0;
+foreach ($odd as string $name) {
+    try {
+        var $session = Core\Test::tlsSession({ issuer: $name });
+        if (Core\Str::length($session->issuer()) > 0) {
+            $answered = $answered + 1;
+        }
+    } catch (LogicError $e) {
+        echo 'refused: ', Core\Str::length($name), "\n";
+    }
+}
+echo 'step 1: ', $answered, "\n";
+
+// 2. Two hundred servers, each with its own authority. Every reply must report
+//    the authority of its own server.
+uint $i = 0;
+while ($i < 200) {
+    Core\Test::answerHttp('https://s' . $i . '.example.com/*', 200, {
+        tls: Core\Test::tlsSession({ issuer: 'CN=Authority ' . $i }),
+    });
+    $i = $i + 1;
+}
+array<Core\Http\Response> $replies = [];
+$i = 0;
+while ($i < 2000) {
+    $replies[] = Core\Http\Client::get('https://s' . ($i % 200) . '.example.com/items/' . $i);
+    $i = $i + 1;
+}
+array<tainted string> $issuers = [];
+foreach ($replies as Core\Http\Response $reply) {
+    ?Core\Http\TlsInfo $info = $reply->tls();
+    if ($info != null) {
+        $issuers[] = $info->issuer();
+    }
+}
+
+// 3. The replies are deleted. The kept issuers must still match their servers.
+$replies = [];
+uint $wrong = 0;
+$i = 0;
+foreach ($issuers as tainted string $issuer) {
+    if ($issuer != 'CN=Authority ' . ($i % 200)) {
+        $wrong = $wrong + 1;
+    }
+    $i = $i + 1;
+}
+if ($wrong != 0) {
+    throw new LogicError('a reply reported the wrong authority');
+}
+echo 'step 3: ', Core\Arr::count($issuers), "\n";

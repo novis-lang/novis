@@ -1,0 +1,12 @@
+<?nvs
+// Shows how to count the bytes of a value. `Core\Bytes::length` returns the
+// size of the value in bytes.
+
+// There is no way to write bytes directly in a program, so this converts text.
+bytes $data = "Hi!" as bytes;
+
+// The value has 3 bytes, so this prints 3.
+echo Core\Bytes::length($data), "\n";
+
+// A value with nothing in it has 0 bytes.
+echo Core\Bytes::length('' as bytes), "\n";

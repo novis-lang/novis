@@ -1,0 +1,20 @@
+[package]
+name = "nvs-diagnostics"
+description = "Source positions, source maps and diagnostic rendering for Novis"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[dependencies]
+anstyle.workspace = true
+# `SourceMap::load` records each file it reads when `NVS_FOOTPRINT_LOG` names a log.
+nvs-footprint.workspace = true
+
+[dev-dependencies]
+insta.workspace = true
+
+[lints]
+workspace = true

@@ -1,0 +1,14 @@
+<?nvs
+// Shows how to use the groups of a pattern in the replacement text.
+
+string $date = "2026-09-27";
+
+// `$1`, `$2` and `$3` are the texts of the three groups, counted from the left.
+// This prints "27/09/2026".
+echo Core\Regex::replace($date, '(\d{4})-(\d{2})-(\d{2})', '$3/$2/$1'), "\n";
+
+// A named group is written `${name}` in the replacement. This prints "27.09.2026".
+echo Core\Regex::replace($date, '(?<year>\d{4})-(?<month>\d{2})-(?<day>\d{2})', '${day}.${month}.${year}'), "\n";
+
+// `$0` is the whole match. `$$` is one dollar sign. This prints "Total: $19.99 (19.99)".
+echo Core\Regex::replace("Total: 19.99", '\d+\.\d{2}', '$$$0 ($0)'), "\n";

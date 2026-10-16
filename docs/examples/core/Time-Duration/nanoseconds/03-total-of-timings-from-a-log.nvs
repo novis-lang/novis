@@ -1,0 +1,15 @@
+<?nvs
+// Adds up response times that a log records in nanoseconds, and prints the total and the average.
+
+array<int> $timings = [1250000, 830000, 2900000, 410000];
+
+Core\Time\Duration $total = Core\Time\Duration::nanoseconds(0);
+foreach ($timings as int $n) {
+    $total = $total->plus(Core\Time\Duration::nanoseconds($n));
+}
+
+// The four requests took 5390000 nanoseconds together. This prints 5390 microseconds.
+echo $total->toMicroseconds(), "\n";
+
+// The average is the total divided by the number of requests. This prints 1347500.
+echo $total->toNanoseconds() / 4, "\n";

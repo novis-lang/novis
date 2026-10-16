@@ -1,0 +1,22 @@
+<?nvs
+// Shows the namespace of each element in a small document.
+
+string $xml = '<shop xmlns="https://example.com/shop" xmlns:p="https://example.com/price">'
+    . '<item><p:amount>4.50</p:amount></item></shop>';
+
+// `shop` and `item` have no prefix, so they use the `xmlns` URI.
+// `p:amount` uses the URI of the prefix `p`. This prints each name and its namespace.
+foreach (Core\Xml::parse($xml)->children() as Core\Xml\Node $shop) {
+    echo $shop->name(), " ", $shop->namespaceUri() ?? "none", "\n";
+    foreach ($shop->children() as Core\Xml\Node $item) {
+        echo $item->name(), " ", $item->namespaceUri() ?? "none", "\n";
+        foreach ($item->children() as Core\Xml\Node $amount) {
+            echo $amount->name(), " ", $amount->namespaceUri() ?? "none", "\n";
+        }
+    }
+}
+
+// A document without declarations has no namespace, so this prints none.
+foreach (Core\Xml::parse('<note/>')->children() as Core\Xml\Node $note) {
+    echo $note->namespaceUri() ?? "none", "\n";
+}

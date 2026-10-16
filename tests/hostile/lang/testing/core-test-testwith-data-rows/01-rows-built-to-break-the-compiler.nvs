@@ -1,0 +1,72 @@
+<?nvs
+// Attack: rows are built to break the part of the compiler that reads them.
+// They hold the ends of the whole number range, a long text, and twenty-four
+// rows on one method. The program should run to its last line.
+
+use Core\Test;
+use Core\Test\TestWith;
+
+class Rows
+{
+    // 1. The two ends of the range a whole number can hold.
+    #[TestWith(n: 9223372036854775807)]
+    #[TestWith(n: -9223372036854775807)]
+    #[Test]
+    public function itTakesTheEndsOfTheRange(int $n): void
+    {
+        Test::assertTrue($n != 0);
+    }
+
+    // 2. One row holds a long text with characters outside the English
+    //    alphabet, and one row holds no text at all.
+    #[TestWith(text: "abcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijünïcödé 🙂 gr\u{0308}oss")]
+    #[TestWith(text: "")]
+    #[Test]
+    public function itTakesATextOfAnyLength(string $text): void
+    {
+        Test::assertTrue(Core\Str::length($text) >= 0);
+    }
+
+    // 3. Twenty-four rows on one method. The compiler reads every one of them.
+    #[TestWith(i: 1)]
+    #[TestWith(i: 2)]
+    #[TestWith(i: 3)]
+    #[TestWith(i: 4)]
+    #[TestWith(i: 5)]
+    #[TestWith(i: 6)]
+    #[TestWith(i: 7)]
+    #[TestWith(i: 8)]
+    #[TestWith(i: 9)]
+    #[TestWith(i: 10)]
+    #[TestWith(i: 11)]
+    #[TestWith(i: 12)]
+    #[TestWith(i: 13)]
+    #[TestWith(i: 14)]
+    #[TestWith(i: 15)]
+    #[TestWith(i: 16)]
+    #[TestWith(i: 17)]
+    #[TestWith(i: 18)]
+    #[TestWith(i: 19)]
+    #[TestWith(i: 20)]
+    #[TestWith(i: 21)]
+    #[TestWith(i: 22)]
+    #[TestWith(i: 23)]
+    #[TestWith(i: 24)]
+    #[Test]
+    public function itTakesManyRows(int $i): void
+    {
+        Test::assertTrue($i > 0);
+    }
+}
+
+// 4. The ends of the range are added up at run time. An error here is caught,
+//    so the program still reaches its last line.
+try {
+    int $high = 9223372036854775807;
+    int $low = -9223372036854775807;
+    echo 'step 4: ', $high + $low, "\n";
+} catch (Throwable $caught) {
+    echo 'step 4 stopped: ', $caught->message, "\n";
+}
+
+echo 'the program reached its last line', "\n";

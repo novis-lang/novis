@@ -1,0 +1,98 @@
+--TEST--
+every relational operator over two objects reads the *sign* of one `compareTo` and nothing else, and equal content is still not equality — `rule:classes/comparable`, `rule:expressions/object-identity-equality`
+--FILE--
+<?nvs
+// covers: Comparable
+// The sweep counts agreement over every ordered pair rather than reading an
+// answer off a line, so an operator that grew a comparison of its own fails
+// here while still looking right on any single row. `compareTo` answers at the
+// far ends of `int`, so anything reading the number instead of its sign is
+// wrong by a lot rather than by one.
+final class Step implements Comparable {
+    public int $rank;
+
+    public function constructor(int $rank) {
+        $this->rank = $rank;
+    }
+
+    public function compareTo(Step $other): int {
+        if ($this->rank < $other->rank) {
+            return -9223372036854775807;
+        }
+        if ($this->rank > $other->rank) {
+            return 9223372036854775807;
+        }
+        return 0;
+    }
+}
+
+final class Sign {
+    public static function of(int $n): int {
+        if ($n < 0) {
+            return -1;
+        }
+        if ($n > 0) {
+            return 1;
+        }
+        return 0;
+    }
+}
+
+// Two of the four share a rank, so the sweep asks the equal case in both
+// directions as well as the two unequal ones.
+array<Step> $steps = [new Step(1), new Step(2), new Step(2), new Step(7)];
+
+int $pairs = 0;
+int $agreed = 0;
+foreach ($steps as Step $a) {
+    foreach ($steps as Step $b) {
+        $pairs = $pairs + 1;
+        int $sign = Sign::of($a->compareTo($b));
+        if (($a < $b) == ($sign < 0)) {
+            $agreed = $agreed + 1;
+        }
+        if (($a > $b) == ($sign > 0)) {
+            $agreed = $agreed + 1;
+        }
+        if (($a <= $b) == ($sign <= 0)) {
+            $agreed = $agreed + 1;
+        }
+        if (($a >= $b) == ($sign >= 0)) {
+            $agreed = $agreed + 1;
+        }
+        if (Sign::of($a <=> $b) == $sign) {
+            $agreed = $agreed + 1;
+        }
+    }
+}
+echo "agreed ", $agreed, " of ", $pairs * 5, " over ", $pairs, " pairs\n";
+
+// The magnitude the operators ignored, written out, in both directions.
+echo "ends ", $steps[0]->compareTo($steps[3]), " and ", $steps[3]->compareTo($steps[0]), "\n";
+
+// Two steps of the same rank: neither comes first, both `<=` and `>=` hold, and
+// `==` still asks whether they are the same value. Five, not four: the same
+// value compared with itself is the one pair `==` answers yes to.
+var $second = $steps[1];
+var $third = $steps[2];
+int $holds = 0;
+if ($second->compareTo($third) == 0) {
+    $holds = $holds + 1;
+}
+if ($second <= $third) {
+    $holds = $holds + 1;
+}
+if ($second >= $third) {
+    $holds = $holds + 1;
+}
+if (!($second == $third)) {
+    $holds = $holds + 1;
+}
+if ($second == $second) {
+    $holds = $holds + 1;
+}
+echo "equal rank ", $holds, " of 5\n";
+--EXPECT--
+agreed 80 of 80 over 16 pairs
+ends -9223372036854775807 and 9223372036854775807
+equal rank 5 of 5

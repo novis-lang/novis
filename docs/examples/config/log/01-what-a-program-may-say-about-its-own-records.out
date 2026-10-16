@@ -1,0 +1,7 @@
+rendering: json
+level:     Info
+trace this run: accepted
+level now:      Debug
+send them elsewhere: refused
+name my own handler: refused
+level after restore: Info

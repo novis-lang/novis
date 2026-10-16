@@ -1,0 +1,12 @@
+<?nvs
+// Shows how to split Japanese text into words, although it has no spaces between them.
+use Novis\Intl\Segmenter;
+
+array<{text: string, wordLike: bool}> $parts = Segmenter::words(["東京で買い物"], "ja")[0];
+
+// This prints 東京 | で | 買い物.
+array<string> $words = [];
+foreach ($parts as {text: string, wordLike: bool} $part) {
+    $words[] = $part->text;
+}
+echo Core\Str::join($words, " | "), "\n";

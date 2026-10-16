@@ -1,0 +1,53 @@
+<?nvs
+// Attack: a program changes the sender's address and tries to reply to it, and replies after the socket is closed.
+// Every bad reply should throw, and the request should end cleanly.
+
+Core\Net\Datagram $server = Core\Net::bindDatagram('127.0.0.1', 0);
+Core\Net\Datagram $client = Core\Net::bindDatagram('127.0.0.1', 0);
+$client->send('127.0.0.1', $server->port(), 'hi' as bytes, 1s);
+Core\Net\Datagram\Message $message = $server->receive(64, 1s);
+string $host = $message->host();
+
+// 1. The address with a zero byte and more text added after it.
+try {
+    $server->send($host . "\0.example.com", $message->port(), 'x' as bytes, 1s);
+} catch (RuntimeError $e) {
+    echo "1 ok\n";
+}
+
+// 2. The address changed to a broadcast address, and to an address the configuration does not allow.
+try {
+    $server->send('255.255.255.255', $message->port(), 'x' as bytes, 1s);
+} catch (RuntimeError $e) {
+    echo "2a ok\n";
+}
+try {
+    $server->send('127.0.0.2', $message->port(), 'x' as bytes, 1s);
+} catch (RuntimeError $e) {
+    echo "2b ok\n";
+}
+
+// 3. The address repeated ten thousand times into one long host name.
+try {
+    $server->send(Core\Str::repeat($host, 10000), $message->port(), 'x' as bytes, 1s);
+} catch (RuntimeError $e) {
+    echo "3 ok\n";
+}
+
+// 4. The address read one hundred thousand times.
+uint $i = 0;
+uint $length = 0;
+while ($i < 100000) {
+    $length = $length + Core\Str::length($message->host());
+    $i = $i + 1;
+}
+echo "4 ok\n";
+
+// 5. A reply to the right address, after the socket is closed.
+$server->close();
+$client->close();
+try {
+    $server->send($message->host(), $message->port(), 'x' as bytes, 1s);
+} catch (RuntimeError $e) {
+    echo "5 ok\n";
+}

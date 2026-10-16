@@ -1,0 +1,11 @@
+{
+  "title": "`$GLOBALS` and `$_REQUEST` have no replacement of any kind",
+  "status": "shipped",
+  "seeAlso": [
+    "statements/no-host-populated-variables",
+    "statements/storage-that-outlives-a-call"
+  ],
+  "guardedBy": [
+    "tests/conformance/reject/a-superglobal-is-refused-and-names-its-core-class.nvst"
+  ]
+}

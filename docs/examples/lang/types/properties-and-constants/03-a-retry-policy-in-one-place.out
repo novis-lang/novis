@@ -1,0 +1,5 @@
+send-invoice: ready, attempt 1 of 3
+after "timed out": ready, attempt 2
+after "timed out": ready, attempt 3
+after "connection refused": parked, attempt 3
+last error: connection refused, giving up after 250ms per try

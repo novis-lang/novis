@@ -1,0 +1,10 @@
+<?nvs
+// Shows how to leave the computer accounts out of a list of accounts.
+
+// In Active Directory, a computer account is also a `user`.
+var $filter = Core\Ldap\Filter::all(
+    Core\Ldap\Filter::equals('objectClass', 'user'),
+    Core\Ldap\Filter::not(Core\Ldap\Filter::equals('objectClass', 'computer')),
+);
+// This prints (&(objectClass=user)(!(objectClass=computer))).
+echo $filter->toString(), "\n";

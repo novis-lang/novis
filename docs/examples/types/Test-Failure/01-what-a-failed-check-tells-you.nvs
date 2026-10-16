@@ -1,0 +1,24 @@
+<?nvs
+// A check that fails throws a `Core\Test\Failure`. Its message names the check
+// and says why it failed. Your own `message` comes first.
+
+use Core\Test;
+use Core\Test\Failure;
+
+try {
+    Test::assertTrue(false, {message: 'the basket should have been emptied'});
+} catch (Failure $failed) {
+    echo $failed->message, "\n";
+}
+
+// `Failure` extends `Throwable` directly. It is not a `LogicError` or a `RuntimeError`,
+// so only the `Throwable` block catches it.
+try {
+    Test::assertEquals(2, 3);
+} catch (LogicError $notAMistakeInTheCode) {
+    echo "a LogicError clause\n";
+} catch (RuntimeError $notTheWorldSayingNo) {
+    echo "a RuntimeError clause\n";
+} catch (Throwable $theRoot) {
+    echo "only a Throwable clause\n";
+}

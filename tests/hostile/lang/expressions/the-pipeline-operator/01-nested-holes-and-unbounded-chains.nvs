@@ -1,0 +1,104 @@
+<?nvs
+// Attack: a program puts pipelines inside a pipeline, an anonymous function and a `match`.
+// It also writes a chain of forty-eight steps and sends megabytes through a chain.
+// Each `$_` should get the right value, or a limit should stop the program with
+// an error. The compiler should not crash or run forever.
+// hostile: timeout-ms 20000
+
+class Attack
+{
+    public static function twice(int $v): int
+    { return $v * 2; }
+    public static function add(int $a, int $b): int
+    { return $a + $b; }
+
+    /// A pipeline on the right side of a pipeline.
+    /// Each `$_` should be the value of its own pipeline.
+    public static function nestedRightSides(int $a, int $b): int
+    {
+        return $a |> Attack::add($b |> Attack::twice($_), $_);
+    }
+
+    /// An anonymous function on the right side of a pipeline, with its own pipeline inside.
+    /// The `$_` inside the function should be `$x`.
+    public static function holeUnderAFunction(array<int> $xs): int
+    {
+        return $xs
+            |> Core\Arr::map($_, fn(int $x): int => $x |> Attack::twice($_))
+            |> Core\Arr::sum($_) as int;
+    }
+
+    /// A `match` as an argument on the right side of a pipeline.
+    /// One arm of the `match` has its own pipeline.
+    public static function holeUnderAMatch(int $n): int
+    {
+        return $n |> Attack::add(match ($n % 2) {
+            0 => 10 |> Attack::twice($_),
+            default => 3,
+        }, $_);
+    }
+
+    /// A chain of forty-eight steps. Each step adds `1` to the result of the
+    /// step before, so the result is `48`.
+    public static function longChain(int $seed): int
+    {
+        return $seed
+            |> ($_ + 1) |> ($_ + 1) |> ($_ + 1) |> ($_ + 1) |> ($_ + 1) |> ($_ + 1)
+            |> ($_ + 1) |> ($_ + 1) |> ($_ + 1) |> ($_ + 1) |> ($_ + 1) |> ($_ + 1)
+            |> ($_ + 1) |> ($_ + 1) |> ($_ + 1) |> ($_ + 1) |> ($_ + 1) |> ($_ + 1)
+            |> ($_ + 1) |> ($_ + 1) |> ($_ + 1) |> ($_ + 1) |> ($_ + 1) |> ($_ + 1)
+            |> ($_ + 1) |> ($_ + 1) |> ($_ + 1) |> ($_ + 1) |> ($_ + 1) |> ($_ + 1)
+            |> ($_ + 1) |> ($_ + 1) |> ($_ + 1) |> ($_ + 1) |> ($_ + 1) |> ($_ + 1)
+            |> ($_ + 1) |> ($_ + 1) |> ($_ + 1) |> ($_ + 1) |> ($_ + 1) |> ($_ + 1)
+            |> ($_ + 1) |> ($_ + 1) |> ($_ + 1) |> ($_ + 1) |> ($_ + 1) |> ($_ + 1);
+    }
+
+    /// A right side inside seventeen pairs of parentheses.
+    /// `$_` is in the innermost pair, so the result is `2`.
+    public static function deepParentheses(int $seed): int
+    {
+        return $seed |> ((((((((((((((((($_ + 1))))))))))))))))) ;
+    }
+
+    /// Sends megabytes of text through a chain of four steps. Each round adds
+    /// to the total, so the compiler cannot remove the loop.
+    public static function bigStringsThroughAChain(uint $mib, uint $rounds): uint
+    {
+        var $chunk = Core\Str::repeat('a b ', 262144);
+        var $s = Core\Str::repeat($chunk, $mib);
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            $total = $total + ($s
+                |> Core\Str::trim($_)
+                |> Core\Str::upper($_)
+                |> Core\Str::lower($_)
+                |> Core\Str::length($_));
+            $i = $i + 1;
+        }
+        return $total;
+    }
+
+    /// The piped value is an array element. After each pipeline, the loop
+    /// replaces an element of that array with a new string.
+    public static function pipedElementReplaced(uint $rounds): uint
+    {
+        array<string> $held = ['one', 'two', 'three'];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            $total = $total + ($held[$total % 3] |> Core\Str::upper($_) |> Core\Str::length($_));
+            $held[$total % 3] = Core\Str::repeat('x', $total % 7 + 1);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Attack::nestedRightSides(3, 4), "\n";
+echo Attack::holeUnderAFunction([1, 2, 3]), "\n";
+echo Attack::holeUnderAMatch(4), "\n";
+echo Attack::longChain(0), "\n";
+echo Attack::deepParentheses(1), "\n";
+echo Attack::bigStringsThroughAChain(8, 4), "\n";
+echo Attack::pipedElementReplaced(100000), "\n";

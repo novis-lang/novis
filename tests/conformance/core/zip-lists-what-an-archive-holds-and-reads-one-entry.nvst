@@ -1,0 +1,75 @@
+--TEST--
+`Core\Zip` lists an archive's entries and reads one by name, and every way that can fail is a `ParseError` naming what the archive did — `rule:core-api/tier-roster`
+--FILE--
+<?nvs
+// `notes/one.txt` holding `first` and `notes/two.txt` holding `second`, both
+// stored rather than deflated.
+bytes $ordinary = Core\Encoding::fromBase64("UEsDBBQAAAAAAAAAAABX7nGSBQAAAAUAAAANAAAAbm90ZXMvb25lLnR4dGZpcnN0UEsDBBQAAAAAAAAAAABpER+2BgAAAAYAAAANAAAAbm90ZXMvdHdvLnR4dHNlY29uZFBLAQIeAxQAAAAAAAAAAABX7nGSBQAAAAUAAAANAAAAAAAAAAAAAACkgQAAAABub3Rlcy9vbmUudHh0UEsBAh4DFAAAAAAAAAAAAGkRH7YGAAAABgAAAA0AAAAAAAAAAAAAAKSBMAAAAG5vdGVzL3R3by50eHRQSwUGAAAAAAIAAgB2AAAAYQAAAAAA");
+
+// A name comes out of an archive somebody else wrote, so it is `tainted`
+// whatever the archive's own type was — the same reading a claim out of a
+// verified token gets. A literal archive in a test is no safer than a
+// downloaded one, so there is no form of this call that answers a plain
+// `string`.
+foreach (Core\Zip::entries($ordinary) as tainted string $name) {
+    echo "entry: ", $name, "\n";
+}
+
+// A name is compared whole rather than resolved as a path, so an entry is read
+// by exactly the spelling `entries` answered.
+tainted bytes $two = Core\Zip::read($ordinary, "notes/two.txt");
+tainted string $text = $two as string;
+echo "notes/two.txt: ", Core\Bytes::length($two), " octets, holding \"", $text, "\"\n";
+
+// A deflated entry reads the same way. `notes/one.txt` here is 1000 octets of
+// text in 15 octets of deflate, well inside the shipped bound.
+bytes $deflated = Core\Encoding::fromBase64("UEsDBBQAAAAIAAAAAAC4p6JdDwAAAOgDAAANAAAAbm90ZXMvb25lLnR4dEvLLCouSRslRolRYjgTAFBLAQIeAxQAAAAIAAAAAAC4p6JdDwAAAOgDAAANAAAAAAAAAAAAAACkgQAAAABub3Rlcy9vbmUudHh0UEsFBgAAAAABAAEAOwAAADoAAAAAAA==");
+echo "a deflated entry: ", Core\Bytes::length(Core\Zip::read($deflated, "notes/one.txt")), " octets\n";
+
+// Octets that are not an archive are refused as what they are, rather than
+// answering an empty listing a caller would read as "this archive is empty".
+try {
+    Core\Zip::entries("not an archive at all" as bytes);
+    echo "octets that are not an archive listed\n";
+} catch (ParseError $nothing) {
+    echo $nothing->message, "\n";
+}
+
+// A name no entry carries is refused rather than answered as empty octets.
+try {
+    Core\Zip::read($ordinary, "notes/three.txt");
+    echo "a name no entry carries was read\n";
+} catch (ParseError $missing) {
+    echo $missing->message, "\n";
+}
+
+// `notes/one.txt`, written with method 99 — a compression this class does not
+// read. What it does *not* do is hand back the compressed octets.
+bytes $method = Core\Encoding::fromBase64("UEsDBBQAAABjAAAAAABX7nGSBQAAAAUAAAANAAAAbm90ZXMvb25lLnR4dGZpcnN0UEsBAh4DFAAAAGMAAAAAAFfucZIFAAAABQAAAA0AAAAAAAAAAAAAAKSBAAAAAG5vdGVzL29uZS50eHRQSwUGAAAAAAEAAQA7AAAAMAAAAAAA");
+try {
+    Core\Zip::read($method, "notes/one.txt");
+    echo "an unreadable method was read\n";
+} catch (ParseError $unsupported) {
+    echo $unsupported->message, "\n";
+}
+
+// The same archive with its deflate stream overwritten: the entry is listed,
+// because the central directory is intact, and reading it refuses.
+bytes $corrupt = Core\Encoding::fromBase64("UEsDBBQAAAAIAAAAAABX7nGSBwAAAAUAAAANAAAAbm90ZXMvb25lLnR4dP////8uAQBQSwECHgMUAAAACAAAAAAAV+5xkgcAAAAFAAAADQAAAAAAAAAAAAAApIEAAAAAbm90ZXMvb25lLnR4dFBLBQYAAAAAAQABADsAAAAyAAAAAAA=");
+echo "a corrupt entry still lists: ", Core\Arr::count(Core\Zip::entries($corrupt)), "\n";
+try {
+    Core\Zip::read($corrupt, "notes/one.txt");
+    echo "a corrupt stream was read\n";
+} catch (ParseError $broken) {
+    echo $broken->message, "\n";
+}
+--EXPECT--
+entry: notes/one.txt
+entry: notes/two.txt
+notes/two.txt: 6 octets, holding "second"
+a deflated entry: 1000 octets
+Core\Zip: not a well-formed zip archive: it has no end-of-central-directory record.
+Core\Zip::read(): the archive has no entry named "notes/three.txt". `Core\Zip::entries()` is the list, and a name is compared whole rather than resolved as a path.
+Core\Zip will not read an entry: it is compressed by method 99, and this class reads stored and deflate: "notes/one.txt".
+a corrupt entry still lists: 1
+Core\Zip cannot read an entry: its deflate stream is not well formed ("notes/one.txt").

@@ -1,0 +1,14 @@
+{
+  "title": "The terminal profile resolves once per process, and a stream that is not a terminal gets no styling",
+  "status": "shipped",
+  "seeAlso": [
+    "tooling/styling-is-a-value-not-a-grammar",
+    "tooling/display-width-measures-what-the-sink-writes",
+    "tooling/terminal-output-is-a-sink"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/cli-the-terminal-profile-resolves-once-per-process.nvst",
+    "tests/conformance/core/cli-a-stream-that-is-no-terminal-shows-no-colour.nvst",
+    "tests/conformance/core/cli-a-process-with-no-terminal-measures-eighty-by-twenty-four.nvst"
+  ]
+}

@@ -1,0 +1,26 @@
+<?nvs
+// Shows that `name()` returns `null` when the route has no name.
+
+class Feedback {
+    // This route has a name.
+    #[Core\Route(path: "/feedback", method: Core\Http\Method::Get, name: "Feedback::form")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function form(): string { return "the form"; }
+
+    // This route has no `name:`.
+    #[Core\Route(path: "/feedback/send", method: Core\Http\Method::Post)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function send(): string { return "thank you"; }
+}
+
+?Core\Router\Match $form = Core\Router::match(Core\Http\Method::Get, "/feedback");
+if ($form != null) {
+    // This prints `Feedback::form`.
+    echo $form->name() ?? "no name", "\n";
+}
+
+?Core\Router\Match $sent = Core\Router::match(Core\Http\Method::Post, "/feedback/send");
+if ($sent != null) {
+    // The route has no name, so the result is `null`. This prints `no name`.
+    echo $sent->name() ?? "no name", "\n";
+}

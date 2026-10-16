@@ -1,0 +1,16 @@
+<?nvs
+// Shows the everyday use: a program imports a large file in batches and counts
+// the rows, not the batches. `by` says how many units one step finished, so the
+// bar is scaled to the work a person cares about.
+
+uint $rows = Core\Cli::progress(5000, fn(Core\Cli\Progress $bar): uint => {
+    uint $done = 0;
+    while ($done < 5000) {
+        // Each batch reads a thousand rows, so one step counts a thousand.
+        $done = $done + 1000;
+        $bar->advance({by: 1000, label: Core\Str::format("%d of 5000 rows", $done)});
+    }
+    return $done;
+});
+
+echo "imported ", $rows, " rows\n";

@@ -1,0 +1,80 @@
+<?nvs
+// Attack: the constructor of an error class is made to fail in four ways. It
+// throws, it builds itself until the stack gives out, it takes a huge message,
+// and it runs two hundred thousand times. Every step is caught, and the runtime
+// should still be standing at the end.
+// hostile: timeout-ms 30000
+
+class Guarded extends RuntimeError
+{
+    // The throw happens before `parent::constructor`, so the object is left
+    // half built and nothing may ever see it.
+    public function constructor(string $message, public int $code)
+    {
+        if ($code < 0) {
+            throw new LogicError('a code below zero: ' . $code);
+        }
+        parent::constructor($message);
+    }
+}
+
+class Nested extends Throwable
+{
+    public ?Nested $inner = null;
+
+    // Each one builds another, so `new` never returns.
+    public function constructor(string $message, int $depth)
+    {
+        parent::constructor($message);
+        if ($depth > 0) {
+            $this->inner = new Nested($message, $depth - 1);
+        }
+    }
+}
+
+class Loud extends Throwable
+{
+    public function constructor(string $message, public string $detail)
+    {
+        parent::constructor($message);
+    }
+}
+
+// Step 1: the constructor throws. The error leaves the `new`, and it is caught.
+try {
+    var $bad = new Guarded('never built', -1);
+    echo "step 1: the half built object came back\n";
+} catch (LogicError $stopped) {
+    echo 'step 1: caught ', $stopped->message, "\n";
+}
+
+// Step 2: a constructor that builds a hundred thousand of itself. The stack
+// runs out, and that ending is caught here.
+try {
+    var $deep = new Nested('deeper', 100000);
+    echo "step 2: the deep object was built\n";
+} catch (Throwable $gaveUp) {
+    echo "step 2: caught the end of the deep construction\n";
+}
+
+// Step 3: a message and a property of ten million characters each.
+try {
+    string $huge = Core\Str::repeat('x', 10000000);
+    var $loud = new Loud($huge, $huge);
+    throw $loud;
+} catch (Loud $thrown) {
+    echo 'step 3: a message of ', Core\Str::length($thrown->message), " characters\n";
+}
+
+// Step 4: two hundred thousand of them, each one dropped before the next. The
+// last one alone is still reachable.
+int $made = 0;
+int $round = 0;
+while ($round < 200000) {
+    var $each = new Guarded('round ' . $round, $round);
+    $made = $made + $each->code - $round + 1;
+    $round = $round + 1;
+}
+echo 'step 4: built ', $made, "\n";
+
+echo "the runtime is still standing\n";

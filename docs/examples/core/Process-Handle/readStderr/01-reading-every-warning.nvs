@@ -1,0 +1,21 @@
+<?nvs
+// Shows how to read everything a program writes to its error output.
+// requires: unix
+
+// This program writes two warnings to its error output, and nothing else.
+var $program = Core\Process::spawn(
+    "/bin/sh",
+    ["-c", 'echo "warning: the disk is almost full" >&2; echo "warning: the last backup is old" >&2'],
+);
+
+string $warnings = "";
+// `readStderr()` returns the next part of the error output. At the end, it returns `null`.
+?bytes $part = $program->readStderr();
+while ($part != null) {
+    $warnings = $warnings . ($part as string);
+    $part = $program->readStderr();
+}
+$program->wait();
+
+// This prints both warnings, one on each line.
+echo $warnings;

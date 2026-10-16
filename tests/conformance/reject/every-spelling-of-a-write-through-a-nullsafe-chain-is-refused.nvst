@@ -1,0 +1,44 @@
+--TEST--
+A `?->` chain cannot be written through in any of its spellings — a plain assignment, a compound one, an increment and a write to an element under it are all `E0479` — `docs/reference/lang/30-expressions.md` § `??`, `?:`, `?->` and the ternary
+--FILE--
+<?nvs
+// covers: lang:expressions/and-the-ternary
+// `?->` yields `null` when its receiver is `null`, and `null` is not a place
+// to store anything in, so the refusal is about the whole family of writes
+// and not about the one spelling that is easiest to reach. Each line below
+// is a different way to write through the chain, and each has to lose its
+// own error: a spelling that stops being checked would still look right
+// beside the other three.
+//
+// The compound form reports three times. Its target is refused, the value it
+// reads can be `null` and so has no `+`, and the sum then has no type left to
+// store; the later errors are the consequence of the first and are expected
+// here rather than filtered out.
+class P {
+    public int $x = 1;
+    public array<int> $items = [];
+}
+
+?P $p = new P();
+
+$p?->x = 2;
+$p?->x += 1;
+$p?->x++;
+$p?->items["k"] = 3;
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0479]: `?->` cannot be written through
+%A
+error[E0479]: `?->` cannot be written through
+%A
+error[E0716]: `+` has no meaning for `int|null`
+%A
+error[E0401]: expected `int|null`, found `mixed`
+%A
+error[E0479]: `?->` cannot be written through
+%A
+error[E0479]: `?->` cannot be written through
+%A
+error: aborting due to 6 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

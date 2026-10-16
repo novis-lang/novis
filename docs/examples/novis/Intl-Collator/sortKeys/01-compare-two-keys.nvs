@@ -1,0 +1,13 @@
+<?nvs
+// Shows that two sort keys compare in the order of the language.
+use Novis\Intl\Collator;
+
+array<bytes> $keys = Collator::sortKeys(["Öl", "Ofen"], "de");
+
+// In German, "Öl" sorts after "Ofen", so the first key is greater.
+// This prints Ofen comes first.
+if (Core\Bytes::compare($keys[0], $keys[1]) > 0) {
+    echo "Ofen comes first\n";
+} else {
+    echo "Öl comes first\n";
+}

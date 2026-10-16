@@ -1,0 +1,32 @@
+<?nvs
+// Attack: a program turns the disabled flag on and off many times, and sets every other flag around
+// it. `disabled` must only report its own bit, and nothing may crash.
+// hostile: timeout-ms 60000
+// requires: samba-ad
+
+var $corp = Core\Ldap::connect('corp');
+
+try {
+    var $found = $corp->read('CN=Dora Lind,OU=Company,DC=example,DC=test', { select: ['userAccountControl'] })?->accountFlags();
+    if ($found != null) {
+        Core\Ldap\Ad\AccountFlags $flags = $found;
+
+        // 1. The flag turned on and off one hundred thousand times. A wrong answer is counted.
+        uint $wrong = 0;
+        uint $i = 0;
+        while ($i < 100000) {
+            bool $on = $i % 2 == 0;
+            if ($flags->with({ disabled: $on })->disabled() != $on) {
+                $wrong = $wrong + 1;
+            }
+            $i = $i + 1;
+        }
+        echo '1 wrong: ', $wrong, "\n";
+
+        // 2. Every other flag set around a cleared disabled flag. `disabled` must be `false`.
+        var $others = $flags->with({ script: true, disabled: false, homeDirectoryRequired: true, passwordNotRequired: true, partialSecretsAccount: true });
+        echo '2 disabled: ', $others->disabled() ? 'yes' : 'no', ' bits: ', $others->bits(), "\n";
+    }
+} catch (Throwable $error) {
+    echo "threw\n";
+}

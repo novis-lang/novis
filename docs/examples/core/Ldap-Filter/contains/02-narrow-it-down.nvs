@@ -1,0 +1,10 @@
+<?nvs
+// Shows how to search for a word in a description, only among groups.
+
+var $filter = Core\Ldap\Filter::all(
+    Core\Ldap\Filter::equals('objectClass', 'group'),
+    Core\Ldap\Filter::contains('description', 'printer'),
+);
+// The narrow filter comes first, so a person reading the log sees it first.
+// This prints (&(objectClass=group)(description=*printer*)).
+echo $filter->toString(), "\n";

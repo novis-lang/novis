@@ -1,0 +1,13 @@
+<?nvs
+// Shows which strings `Core\Str::isEmpty` counts as empty.
+
+// Only the first string is empty. A space and "0" are characters too,
+// so this prints `empty` once and then `not empty` three times.
+array<string> $values = ["", " ", "0", "hello"];
+foreach ($values as string $value) {
+    if (Core\Str::isEmpty($value)) {
+        echo "[", $value, "] empty\n";
+    } else {
+        echo "[", $value, "] not empty\n";
+    }
+}

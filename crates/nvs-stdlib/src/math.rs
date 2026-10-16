@@ -1,0 +1,3919 @@
+//! `Core\Math` — [docs/spec/01-core-library.md](/docs/spec/01-core-library.md)
+//! § 3, over `int`, `uint` and `float`.
+//!
+//! `**` is exponentiation and `%` is integer modulo, so neither has a member
+//! (`rule:core-api/shape-rules` R17); that section's own note owns why.
+//!
+//! # Two rules cover every member here, so no member restates them
+//!
+//! * **A division by zero throws `ArithmeticError`**, in `intDiv` and in `mod`
+//!   alike, and in the `/` operator over every operand type (`rule:types/arithmetic`) —
+//!   spec § 3's opening paragraph. [`nvs_core_math_fdiv`] is the single
+//!   exception and is there to be one: with the operator throwing on a `float`
+//!   divisor too, it is the only way left to ask for IEEE's infinity, which is
+//!   why PHP has the same function for the same reason. So does an operation
+//!   whose exact answer does
+//!   not fit its result type: `intDiv(int::MIN, -1)`, `abs(int::MIN)`, an
+//!   `lcm` past `int`, a `uint` argument past `int` — `rule:types/arithmetic`'s class for
+//!   an overflow, the same one the operators raise. A refusal that is about
+//!   the *argument* rather than the arithmetic — a base outside 2..=36, an
+//!   empty range for `clamp`, a `NaN` for `sign` — stays a `RuntimeError`.
+//! * **A domain error is IEEE's answer, not a throw.** `sqrt(-1.0)`,
+//!   `log(0.0)`, `asin(2.0)` and the rest produce `NaN` or an infinity, IEEE
+//!   754's own answers, and [`nvs_core_math_is_nan`]/[`nvs_core_math_is_finite`]
+//!   are the members that ask. That is the reason those two members exist at
+//!   all; a library that threw instead would leave them with nothing to answer
+//!   about.
+//!   A *division* is not a domain error, which is what keeps the two rules
+//!   from meeting — and [`nvs_core_math_fdiv`] does not blur them either, being
+//!   a member whose whole name is the IEEE answer rather than a division that
+//!   changed its mind.
+//!
+//! # The four rounding members are `float`'s, and `decimal` has its own
+//!
+//! The spec writes `int|float|decimal` at seven rows. Three of them — `abs`,
+//! `sign` and `format` — take it: [`NUMBER`] is that union, and [`Number`] is
+//! how a member reads one back. The other four are `ceil`, `floor`,
+//! `truncate` and `round`, and they are registered at `float` alone because
+//! widening them would be a change of *result* type rather than one more
+//! decode arm: an exact rounding has to answer a `decimal` to be worth
+//! anything, and a `float` answer would throw away the very scale the cut was
+//! asked for. So `Core\Decimal` carries its own four
+//! (`rule:types/conversion`), answering a `decimal` at the scale named, and
+//! [`round_mode`] is the one reader both classes' `mode` argument goes
+//! through.
+
+use nvs_runtime::{Ctx, Decimal, Fault, NvsStr, Tag, ThrownClass, Value};
+
+use crate::ordering::compare_values;
+use crate::registry::{
+    CaseDoc, ClassDoc, Const, CoreClass, CoreConst, CoreEnum, CoreMethod, CoreOption, CoreTy,
+    EnumDoc, ErrorDoc, MethodDoc, ParamDoc, Qual,
+};
+
+// ============================================================================
+// Registration — this class's rows, its enum, and where its symbols live
+// ============================================================================
+
+/// `Core\Math`'s class card — `rule:core-api/reference-card`.
+const CARD: ClassDoc = ClassDoc {
+    short: "Functions and constants for numbers: rounding, powers, roots, logarithms, angles and \
+            limits. A result that does not fit its type throws an `ArithmeticError`, and a value \
+            outside a function's range, such as `sqrt(-1.0)`, gives `NaN`.",
+};
+
+/// `Core\Math`'s registry rows, in the spec's own order.
+///
+/// Declared beside the implementations rather than in one flat table, for the
+/// reason [`crate::arr::CLASS`] states.
+pub const CLASS: CoreClass = CoreClass {
+    name: r"Core\Math",
+    doc: Some(&CARD),
+    methods: &[
+        CoreMethod {
+            name: "abs",
+            names: &["n"],
+            params: &[CoreTy::Bounded("T", &CoreTy::Union(NUMBER))],
+            defaults: &[],
+            return_ty: CoreTy::Var("T"),
+            symbol: "nvs_core_math_abs",
+            doc: Some(&ABS_DOC),
+        },
+        CoreMethod {
+            name: "sign",
+            names: &["n"],
+            params: &[CoreTy::Union(NUMBER)],
+            defaults: &[],
+            return_ty: CoreTy::Int,
+            symbol: "nvs_core_math_sign",
+            doc: Some(&SIGN_DOC),
+        },
+        CoreMethod {
+            name: "min",
+            names: &["a", "b"],
+            params: &[CoreTy::Var("T"), CoreTy::Var("T")],
+            defaults: &[],
+            return_ty: CoreTy::Var("T"),
+            symbol: "nvs_core_math_min",
+            doc: Some(&MIN_DOC),
+        },
+        CoreMethod {
+            name: "max",
+            names: &["a", "b"],
+            params: &[CoreTy::Var("T"), CoreTy::Var("T")],
+            defaults: &[],
+            return_ty: CoreTy::Var("T"),
+            symbol: "nvs_core_math_max",
+            doc: Some(&MAX_DOC),
+        },
+        CoreMethod {
+            name: "clamp",
+            names: &["n", "low", "high"],
+            params: &[CoreTy::Var("T"), CoreTy::Var("T"), CoreTy::Var("T")],
+            defaults: &[],
+            return_ty: CoreTy::Var("T"),
+            symbol: "nvs_core_math_clamp",
+            doc: Some(&CLAMP_DOC),
+        },
+        CoreMethod {
+            name: "ceil",
+            names: &["n"],
+            params: &[CoreTy::Float],
+            defaults: &[],
+            return_ty: CoreTy::Float,
+            symbol: "nvs_core_math_ceil",
+            doc: Some(&CEIL_DOC),
+        },
+        CoreMethod {
+            name: "floor",
+            names: &["n"],
+            params: &[CoreTy::Float],
+            defaults: &[],
+            return_ty: CoreTy::Float,
+            symbol: "nvs_core_math_floor",
+            doc: Some(&FLOOR_DOC),
+        },
+        CoreMethod {
+            name: "truncate",
+            names: &["n"],
+            params: &[CoreTy::Float],
+            defaults: &[],
+            return_ty: CoreTy::Float,
+            symbol: "nvs_core_math_truncate",
+            doc: Some(&TRUNCATE_DOC),
+        },
+        CoreMethod {
+            name: "round",
+            names: &["n"],
+            params: &[CoreTy::Float, CoreTy::Options(ROUND_OPTIONS)],
+            defaults: &[],
+            return_ty: CoreTy::Float,
+            symbol: "nvs_core_math_round",
+            doc: Some(&ROUND_DOC),
+        },
+        CoreMethod {
+            name: "intDiv",
+            names: &["a", "b"],
+            params: &[CoreTy::Int, CoreTy::Int],
+            defaults: &[],
+            return_ty: CoreTy::Int,
+            symbol: "nvs_core_math_int_div",
+            doc: Some(&INT_DIV_DOC),
+        },
+        CoreMethod {
+            name: "mod",
+            names: &["a", "b"],
+            params: &[CoreTy::Float, CoreTy::Float],
+            defaults: &[],
+            return_ty: CoreTy::Float,
+            symbol: "nvs_core_math_mod",
+            doc: Some(&MOD_DOC),
+        },
+        CoreMethod {
+            name: "fdiv",
+            names: &["a", "b"],
+            params: &[CoreTy::Float, CoreTy::Float],
+            defaults: &[],
+            return_ty: CoreTy::Float,
+            symbol: "nvs_core_math_fdiv",
+            doc: Some(&FDIV_DOC),
+        },
+        CoreMethod {
+            name: "gcd",
+            names: &["a", "b"],
+            params: &[CoreTy::Int, CoreTy::Int],
+            defaults: &[],
+            return_ty: CoreTy::Int,
+            symbol: "nvs_core_math_gcd",
+            doc: Some(&GCD_DOC),
+        },
+        CoreMethod {
+            name: "lcm",
+            names: &["a", "b"],
+            params: &[CoreTy::Int, CoreTy::Int],
+            defaults: &[],
+            return_ty: CoreTy::Int,
+            symbol: "nvs_core_math_lcm",
+            doc: Some(&LCM_DOC),
+        },
+        CoreMethod {
+            name: "sqrt",
+            names: &["n"],
+            params: &[CoreTy::Float],
+            defaults: &[],
+            return_ty: CoreTy::Float,
+            symbol: "nvs_core_math_sqrt",
+            doc: Some(&SQRT_DOC),
+        },
+        CoreMethod {
+            name: "cbrt",
+            names: &["n"],
+            params: &[CoreTy::Float],
+            defaults: &[],
+            return_ty: CoreTy::Float,
+            symbol: "nvs_core_math_cbrt",
+            doc: Some(&CBRT_DOC),
+        },
+        CoreMethod {
+            name: "hypot",
+            names: &["a", "b"],
+            params: &[CoreTy::Float, CoreTy::Float],
+            defaults: &[],
+            return_ty: CoreTy::Float,
+            symbol: "nvs_core_math_hypot",
+            doc: Some(&HYPOT_DOC),
+        },
+        CoreMethod {
+            name: "exp",
+            names: &["n"],
+            params: &[CoreTy::Float],
+            defaults: &[],
+            return_ty: CoreTy::Float,
+            symbol: "nvs_core_math_exp",
+            doc: Some(&EXP_DOC),
+        },
+        CoreMethod {
+            name: "log",
+            names: &["n"],
+            params: &[CoreTy::Float, CoreTy::Options(LOG_OPTIONS)],
+            defaults: &[],
+            return_ty: CoreTy::Float,
+            symbol: "nvs_core_math_log",
+            doc: Some(&LOG_DOC),
+        },
+        CoreMethod {
+            name: "sin",
+            names: &["radians"],
+            params: &[CoreTy::Float],
+            defaults: &[],
+            return_ty: CoreTy::Float,
+            symbol: "nvs_core_math_sin",
+            doc: Some(&SIN_DOC),
+        },
+        CoreMethod {
+            name: "cos",
+            names: &["radians"],
+            params: &[CoreTy::Float],
+            defaults: &[],
+            return_ty: CoreTy::Float,
+            symbol: "nvs_core_math_cos",
+            doc: Some(&COS_DOC),
+        },
+        CoreMethod {
+            name: "tan",
+            names: &["radians"],
+            params: &[CoreTy::Float],
+            defaults: &[],
+            return_ty: CoreTy::Float,
+            symbol: "nvs_core_math_tan",
+            doc: Some(&TAN_DOC),
+        },
+        CoreMethod {
+            name: "asin",
+            names: &["n"],
+            params: &[CoreTy::Float],
+            defaults: &[],
+            return_ty: CoreTy::Float,
+            symbol: "nvs_core_math_asin",
+            doc: Some(&ASIN_DOC),
+        },
+        CoreMethod {
+            name: "acos",
+            names: &["n"],
+            params: &[CoreTy::Float],
+            defaults: &[],
+            return_ty: CoreTy::Float,
+            symbol: "nvs_core_math_acos",
+            doc: Some(&ACOS_DOC),
+        },
+        CoreMethod {
+            name: "atan",
+            names: &["n"],
+            params: &[CoreTy::Float],
+            defaults: &[],
+            return_ty: CoreTy::Float,
+            symbol: "nvs_core_math_atan",
+            doc: Some(&ATAN_DOC),
+        },
+        CoreMethod {
+            name: "atan2",
+            names: &["y", "x"],
+            params: &[CoreTy::Float, CoreTy::Float],
+            defaults: &[],
+            return_ty: CoreTy::Float,
+            symbol: "nvs_core_math_atan2",
+            doc: Some(&ATAN2_DOC),
+        },
+        CoreMethod {
+            name: "sinh",
+            names: &["n"],
+            params: &[CoreTy::Float],
+            defaults: &[],
+            return_ty: CoreTy::Float,
+            symbol: "nvs_core_math_sinh",
+            doc: Some(&SINH_DOC),
+        },
+        CoreMethod {
+            name: "cosh",
+            names: &["n"],
+            params: &[CoreTy::Float],
+            defaults: &[],
+            return_ty: CoreTy::Float,
+            symbol: "nvs_core_math_cosh",
+            doc: Some(&COSH_DOC),
+        },
+        CoreMethod {
+            name: "tanh",
+            names: &["n"],
+            params: &[CoreTy::Float],
+            defaults: &[],
+            return_ty: CoreTy::Float,
+            symbol: "nvs_core_math_tanh",
+            doc: Some(&TANH_DOC),
+        },
+        CoreMethod {
+            name: "asinh",
+            names: &["n"],
+            params: &[CoreTy::Float],
+            defaults: &[],
+            return_ty: CoreTy::Float,
+            symbol: "nvs_core_math_asinh",
+            doc: Some(&ASINH_DOC),
+        },
+        CoreMethod {
+            name: "acosh",
+            names: &["n"],
+            params: &[CoreTy::Float],
+            defaults: &[],
+            return_ty: CoreTy::Float,
+            symbol: "nvs_core_math_acosh",
+            doc: Some(&ACOSH_DOC),
+        },
+        CoreMethod {
+            name: "atanh",
+            names: &["n"],
+            params: &[CoreTy::Float],
+            defaults: &[],
+            return_ty: CoreTy::Float,
+            symbol: "nvs_core_math_atanh",
+            doc: Some(&ATANH_DOC),
+        },
+        CoreMethod {
+            name: "toRadians",
+            names: &["degrees"],
+            params: &[CoreTy::Float],
+            defaults: &[],
+            return_ty: CoreTy::Float,
+            symbol: "nvs_core_math_to_radians",
+            doc: Some(&TO_RADIANS_DOC),
+        },
+        CoreMethod {
+            name: "toDegrees",
+            names: &["radians"],
+            params: &[CoreTy::Float],
+            defaults: &[],
+            return_ty: CoreTy::Float,
+            symbol: "nvs_core_math_to_degrees",
+            doc: Some(&TO_DEGREES_DOC),
+        },
+        CoreMethod {
+            name: "isNan",
+            names: &["n"],
+            params: &[CoreTy::Float],
+            defaults: &[],
+            return_ty: CoreTy::Bool,
+            symbol: "nvs_core_math_is_nan",
+            doc: Some(&IS_NAN_DOC),
+        },
+        CoreMethod {
+            name: "isFinite",
+            names: &["n"],
+            params: &[CoreTy::Float],
+            defaults: &[],
+            return_ty: CoreTy::Bool,
+            symbol: "nvs_core_math_is_finite",
+            doc: Some(&IS_FINITE_DOC),
+        },
+        CoreMethod {
+            name: "toBase",
+            names: &["n", "base"],
+            params: &[CoreTy::Int, CoreTy::Uint],
+            defaults: &[],
+            return_ty: CoreTy::Str,
+            symbol: "nvs_core_math_to_base",
+            doc: Some(&TO_BASE_DOC),
+        },
+        CoreMethod {
+            name: "fromBase",
+            names: &["s", "base"],
+            params: &[CoreTy::Text(Qual::Neutral), CoreTy::Uint],
+            defaults: &[],
+            return_ty: CoreTy::Int,
+            symbol: "nvs_core_math_from_base",
+            doc: Some(&FROM_BASE_DOC),
+        },
+        CoreMethod {
+            name: "format",
+            names: &["n"],
+            params: &[CoreTy::Union(NUMBER), CoreTy::Options(FORMAT_OPTIONS)],
+            defaults: &[],
+            return_ty: CoreTy::Str,
+            symbol: "nvs_core_math_format",
+            doc: Some(&FORMAT_DOC),
+        },
+    ],
+    instance: &[],
+    slots: &[],
+    constants: CONSTANTS,
+};
+
+/// `Core\Math::abs`'s reference card — `rule:core-api/reference-card`.
+const ABS_DOC: MethodDoc = MethodDoc {
+    short: "Returns `$n` without its sign, as the same kind of number. `-3` gives `3` and `-2.5` \
+            gives `2.5`.",
+    params: &[ParamDoc {
+        name: "n",
+        desc: "The number whose sign is removed: an `int`, a `float` or a `decimal`.",
+        shape: &[],
+    }],
+    ret: "`$n` without its sign, with the same type as `$n`. An `int` gives an `int`, a `uint` is \
+          returned unchanged, a `float` gives a `float` and a `decimal` gives a `decimal` with the \
+          same decimal places. `-0.0` becomes `0.0`.",
+    errors: &[ErrorDoc {
+        error: "ArithmeticError",
+        desc: "When `$n` is `INT_MIN`, whose positive value is one past `INT_MAX`.",
+    }],
+};
+
+/// `Core\Math::sign`'s reference card — `rule:core-api/reference-card`.
+const SIGN_DOC: MethodDoc = MethodDoc {
+    short: "Returns `-1` when `$n` is below zero, `1` when it is above zero and `0` when it is \
+            zero.",
+    params: &[ParamDoc {
+        name: "n",
+        desc: "The number to check: an `int`, a `float` or a `decimal`.",
+        shape: &[],
+    }],
+    ret: "`-1`, `0` or `1`, as an `int`. `-0.0` is zero, so the result for it is `0`.",
+    errors: &[
+        ErrorDoc {
+            error: "RuntimeError",
+            desc: "When `$n` is `NaN` (a value that means \"not a number\"). `NaN` is not below, \
+                   above or equal to zero.",
+        },
+        ErrorDoc {
+            error: "ArithmeticError",
+            desc: "When `$n` is a `uint` bigger than `Core\\Math::INT_MAX`.",
+        },
+    ],
+};
+
+/// `Core\Math::min`'s reference card — `rule:core-api/reference-card`.
+const MIN_DOC: MethodDoc = MethodDoc {
+    short: "Returns the smaller of two values. For the smallest value in an array, use \
+            `Core\\Arr::min`.",
+    params: &[
+        ParamDoc {
+            name: "a",
+            desc: "One value: a number, a string, a `bool` or `null`.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "b",
+            desc: "The other value, of the same type as `$a`.",
+            shape: &[],
+        },
+    ],
+    ret: "The smaller value. When the two are equal, the result is `$a`. `NaN` is smaller than \
+          every other `float`.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "When the two values cannot be compared: an object, an array, or two values of \
+               different kinds.",
+    }],
+};
+
+/// `Core\Math::max`'s reference card — `rule:core-api/reference-card`.
+const MAX_DOC: MethodDoc = MethodDoc {
+    short: "Returns the larger of two values. For the largest value in an array, use \
+            `Core\\Arr::max`.",
+    params: &[
+        ParamDoc {
+            name: "a",
+            desc: "One value: a number, a string, a `bool` or `null`.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "b",
+            desc: "The other value, of the same type as `$a`.",
+            shape: &[],
+        },
+    ],
+    ret: "The larger value. When the two are equal, the result is `$a`. `NaN` is smaller than \
+          every other `float`.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "When the two values cannot be compared: an object, an array, or two values of \
+               different kinds.",
+    }],
+};
+
+/// `Core\Math::clamp`'s reference card — `rule:core-api/reference-card`.
+const CLAMP_DOC: MethodDoc = MethodDoc {
+    short: "Keeps `$n` between `$low` and `$high`.",
+    params: &[
+        ParamDoc {
+            name: "n",
+            desc: "The value to keep in the range. It can be a number, a string, a `bool` or \
+                   `null`.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "low",
+            desc: "The smallest value the result can be.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "high",
+            desc: "The largest value the result can be. It must not be below `$low`.",
+            shape: &[],
+        },
+    ],
+    ret: "`$low` when `$n` is below it, `$high` when `$n` is above it, and `$n` itself \
+          otherwise. Both ends are inside the range.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "When `$low` is above `$high`. Also when two of the values cannot be compared: an \
+               object without `compareTo`, an array, or a number and a string.",
+    }],
+};
+
+/// `Core\Math::ceil`'s reference card — `rule:core-api/reference-card`.
+const CEIL_DOC: MethodDoc = MethodDoc {
+    short: "Rounds `$n` up to the next whole number. For a negative `$n`, up means toward zero.",
+    params: &[ParamDoc {
+        name: "n",
+        desc: "The number to round up.",
+        shape: &[],
+    }],
+    ret: "A whole number, as a `float`. A `$n` between `-1.0` and `0.0` gives `-0.0`. `NaN` and \
+          the infinities stay the same.",
+    errors: &[],
+};
+
+/// `Core\Math::floor`'s reference card — `rule:core-api/reference-card`.
+const FLOOR_DOC: MethodDoc = MethodDoc {
+    short: "Rounds `$n` down to the next whole number. For a negative `$n`, down means away from \
+            zero.",
+    params: &[ParamDoc {
+        name: "n",
+        desc: "The number to round down.",
+        shape: &[],
+    }],
+    ret: "A whole number, as a `float`. A `$n` between `-1.0` and `0.0` gives `-1.0`. `NaN` and \
+          the infinities stay the same.",
+    errors: &[],
+};
+
+/// `Core\Math::truncate`'s reference card — `rule:core-api/reference-card`.
+const TRUNCATE_DOC: MethodDoc = MethodDoc {
+    short: "Removes the fractional part of `$n`. The result moves toward zero, so `2.7` gives \
+            `2.0` and `-2.7` gives `-2.0`.",
+    params: &[ParamDoc {
+        name: "n",
+        desc: "The number whose fractional part is removed.",
+        shape: &[],
+    }],
+    ret: "A whole number, as a `float`. A `$n` between `-1.0` and `0.0` gives `-0.0`. `NaN` and \
+          the infinities stay the same.",
+    errors: &[],
+};
+
+/// `Core\Math::round`'s reference card — `rule:core-api/reference-card`.
+const ROUND_DOC: MethodDoc = MethodDoc {
+    short: "Rounds `$n` to a number of decimal places. The `mode` option chooses the result \
+            for a value exactly halfway between two results.",
+    params: &[
+        ParamDoc {
+            name: "n",
+            desc: "The number to round.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "precision",
+            desc: "How many decimal places to keep. The default is `0`, which rounds to a whole \
+                   number. `-2` rounds to hundreds.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "mode",
+            desc: "A `Core\\RoundMode` case. The default is `RoundMode::HalfUp`, which rounds a \
+                   half away from zero.",
+            shape: &[],
+        },
+    ],
+    ret: "The rounded `float`. `NaN` and the infinities are returned unchanged. `$n` is also \
+          returned unchanged when `precision` is above `22` or below `-22`, or when \
+          `$n * 10 ** precision` is `2 ** 53` or more.",
+    errors: &[],
+};
+
+/// `Core\Math::intDiv`'s reference card — `rule:core-api/reference-card`.
+const INT_DIV_DOC: MethodDoc = MethodDoc {
+    short: "Divides `$a` by `$b` and drops the remainder, so the result moves toward zero.",
+    params: &[
+        ParamDoc {
+            name: "a",
+            desc: "The integer to divide.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "b",
+            desc: "The integer to divide by. It may not be zero.",
+            shape: &[],
+        },
+    ],
+    ret: "The whole part of `$a / $b`. `intDiv(7, 2)` is `3`, and `intDiv(-7, 2)` is `-3`. The \
+          `%` operator gives the remainder.",
+    errors: &[ErrorDoc {
+        error: "ArithmeticError",
+        desc: "When `$b` is zero. Also when `$a` is `Core\\Math::INT_MIN` and `$b` is `-1`, \
+               because the result is one more than `Core\\Math::INT_MAX`.",
+    }],
+};
+
+/// `Core\Math::mod`'s reference card — `rule:core-api/reference-card`.
+const MOD_DOC: MethodDoc = MethodDoc {
+    short: "Returns the remainder after dividing `$a` by `$b`, for `float` values. The result has \
+            the sign of `$a`. For whole numbers, use the `%` operator.",
+    params: &[
+        ParamDoc {
+            name: "a",
+            desc: "The number to divide.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "b",
+            desc: "The number to divide by. It may not be zero.",
+            shape: &[],
+        },
+    ],
+    ret: "The remainder. `mod(7.5, 2.0)` is `1.5`, and `mod(-7.5, 2.0)` is `-1.5`. When `$a` is \
+          an infinity, the result is `NaN`. When `$b` is an infinity, the result is `$a`.",
+    errors: &[ErrorDoc {
+        error: "ArithmeticError",
+        desc: "When `$b` is zero.",
+    }],
+};
+
+/// `Core\Math::fdiv`'s reference card — `rule:core-api/reference-card`.
+const FDIV_DOC: MethodDoc = MethodDoc {
+    short: "Divides `$a` by `$b`. When `$b` is zero, it returns `INFINITY`, `-INFINITY` or \
+            `NaN`. The `/` operator throws an error there.",
+    params: &[
+        ParamDoc {
+            name: "a",
+            desc: "The number to divide.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "b",
+            desc: "The number to divide by. It may be zero.",
+            shape: &[],
+        },
+    ],
+    ret: "`$a / $b`. When `$b` is zero, the result is `INFINITY` or `-INFINITY`. Its sign comes \
+          from the signs of both numbers together. When both numbers are zero, the result is \
+          `NaN`.",
+    errors: &[],
+};
+
+/// `Core\Math::gcd`'s reference card — `rule:core-api/reference-card`.
+const GCD_DOC: MethodDoc = MethodDoc {
+    short: "Returns the greatest common divisor of two integers. This is the largest integer \
+            that divides both with no remainder.",
+    params: &[
+        ParamDoc {
+            name: "a",
+            desc: "The first integer. Its sign does not change the result.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "b",
+            desc: "The second integer. Its sign does not change the result.",
+            shape: &[],
+        },
+    ],
+    ret: "The greatest common divisor, which is never negative. When one integer is `0`, the \
+          result is the other one without its sign. When both are `0`, the result is `0`.",
+    errors: &[ErrorDoc {
+        error: "ArithmeticError",
+        desc: "When the result does not fit an `int`. This happens only when one integer is \
+               `Core\\Math::INT_MIN` and the other is `Core\\Math::INT_MIN` or `0`.",
+    }],
+};
+
+/// `Core\Math::lcm`'s reference card — `rule:core-api/reference-card`.
+const LCM_DOC: MethodDoc = MethodDoc {
+    short: "Returns the least common multiple of two integers. This is the smallest positive \
+            integer that both divide with no remainder.",
+    params: &[
+        ParamDoc {
+            name: "a",
+            desc: "The first integer. Its sign does not change the result.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "b",
+            desc: "The second integer. Its sign does not change the result.",
+            shape: &[],
+        },
+    ],
+    ret: "The least common multiple, which is never negative. When one integer is `0`, the \
+          result is `0`.",
+    errors: &[ErrorDoc {
+        error: "ArithmeticError",
+        desc: "When the result is bigger than `Core\\Math::INT_MAX`. This happens quickly for two \
+               big integers that share no divisor.",
+    }],
+};
+
+/// `Core\Math::sqrt`'s reference card — `rule:core-api/reference-card`.
+const SQRT_DOC: MethodDoc = MethodDoc {
+    short: "Returns the square root of `$n`.",
+    params: &[ParamDoc {
+        name: "n",
+        desc: "The number to take the square root of.",
+        shape: &[],
+    }],
+    ret: "A `float` that is zero or more. A negative `$n` gives `NaN`. `-0.0` gives `-0.0`, and \
+          `Core\\Math::INFINITY` gives `Core\\Math::INFINITY`.",
+    errors: &[],
+};
+
+/// `Core\Math::cbrt`'s reference card — `rule:core-api/reference-card`.
+const CBRT_DOC: MethodDoc = MethodDoc {
+    short: "Returns the cube root of `$n`. A negative `$n` works too, so `cbrt(-8.0)` is \
+            `-2.0`.",
+    params: &[ParamDoc {
+        name: "n",
+        desc: "Any number.",
+        shape: &[],
+    }],
+    ret: "The cube root, with the same sign as `$n`: `Core\\Math::cbrt(-8.0)` is `-2.0`. An \
+          infinity gives the same infinity, and `NaN` gives `NaN`.",
+    errors: &[],
+};
+
+/// `Core\Math::hypot`'s reference card — `rule:core-api/reference-card`.
+const HYPOT_DOC: MethodDoc = MethodDoc {
+    short: "Returns the length of the longest side of a right triangle. `$a` and `$b` are the \
+            other two sides. The result is `sqrt($a * $a + $b * $b)`, but it stays correct when \
+            `$a * $a` is too big for a `float`.",
+    params: &[
+        ParamDoc {
+            name: "a",
+            desc: "The length of one side. Its sign does not change the result.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "b",
+            desc: "The length of the other side. Its sign does not change the result.",
+            shape: &[],
+        },
+    ],
+    ret: "The length. It is never negative. When `$a` or `$b` is `INFINITY` or `-INFINITY`, \
+          the result is `INFINITY`, even when the other one is `NaN`.",
+    errors: &[],
+};
+
+/// `Core\Math::exp`'s reference card — `rule:core-api/reference-card`.
+const EXP_DOC: MethodDoc = MethodDoc {
+    short: "Returns `E` raised to the power `$n`. `E` is about `2.718`.",
+    params: &[ParamDoc {
+        name: "n",
+        desc: "The power to raise `E` to.",
+        shape: &[],
+    }],
+    ret: "`E ** $n`, which is never negative. Above about `709.78` the result is `INFINITY`. Far \
+          enough below zero, the result is `0.0`. `NaN` gives `NaN`.",
+    errors: &[],
+};
+
+/// `Core\Math::log`'s reference card — `rule:core-api/reference-card`.
+const LOG_DOC: MethodDoc = MethodDoc {
+    short: "Returns the logarithm of `$n`: the power you raise `base` to to get `$n`. The base \
+            is `E` unless you give one.",
+    params: &[
+        ParamDoc {
+            name: "n",
+            desc: "The number to take the logarithm of.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "base",
+            desc: "The base. It must be greater than zero, and it is `E` when you leave it out. \
+                   For a power of `10.0` or `2.0` in that base, the result is exact.",
+            shape: &[],
+        },
+    ],
+    ret: "The logarithm. When `$n` is `0.0` and `base` is greater than `1.0`, the result is \
+          `-INFINITY`. When `$n` is negative, or `base` is `1.0`, the result is `NaN`.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "When `base` is zero or negative.",
+    }],
+};
+
+/// `Core\Math::sin`'s reference card — `rule:core-api/reference-card`.
+const SIN_DOC: MethodDoc = MethodDoc {
+    short: "Returns the sine of an angle. The angle is in radians.",
+    params: &[ParamDoc {
+        name: "radians",
+        desc: "The angle, in radians. `Core\\Math::toRadians` converts degrees to radians.",
+        shape: &[],
+    }],
+    ret: "A number from `-1.0` to `1.0`. An infinity or `NaN` gives `NaN`.",
+    errors: &[],
+};
+
+/// `Core\Math::cos`'s reference card — `rule:core-api/reference-card`.
+const COS_DOC: MethodDoc = MethodDoc {
+    short: "Returns the cosine of an angle. The angle is in radians.",
+    params: &[ParamDoc {
+        name: "radians",
+        desc: "The angle, in radians. `Core\\Math::toRadians` converts degrees to radians.",
+        shape: &[],
+    }],
+    ret: "A number from `-1.0` to `1.0`. An infinity or `NaN` gives `NaN`.",
+    errors: &[],
+};
+
+/// `Core\Math::tan`'s reference card — `rule:core-api/reference-card`.
+const TAN_DOC: MethodDoc = MethodDoc {
+    short: "Returns the tangent of an angle. The angle is in radians. The tangent is the sine \
+            divided by the cosine.",
+    params: &[ParamDoc {
+        name: "radians",
+        desc: "The angle, in radians. `Core\\Math::toRadians` converts degrees to radians.",
+        shape: &[],
+    }],
+    ret: "Any number. It is very large when the angle is close to 90 degrees. An infinity or \
+          `NaN` gives `NaN`.",
+    errors: &[],
+};
+
+/// `Core\Math::asin`'s reference card — `rule:core-api/reference-card`.
+const ASIN_DOC: MethodDoc = MethodDoc {
+    short: "Returns the angle, in radians, whose sine is `$n`. This is the arc sine.",
+    params: &[ParamDoc {
+        name: "n",
+        desc: "A sine: a number from `-1.0` to `1.0`.",
+        shape: &[],
+    }],
+    ret: "An angle from `-PI / 2` to `PI / 2`, in radians. A `$n` outside `-1.0` to `1.0` gives `NaN`.",
+    errors: &[],
+};
+
+/// `Core\Math::acos`'s reference card — `rule:core-api/reference-card`.
+const ACOS_DOC: MethodDoc = MethodDoc {
+    short: "Returns the angle, in radians, whose cosine is `$n`. This is the arc cosine.",
+    params: &[ParamDoc {
+        name: "n",
+        desc: "A cosine: a number from `-1.0` to `1.0`.",
+        shape: &[],
+    }],
+    ret: "An angle from `0.0` to `PI`, in radians. A `$n` outside `-1.0` to `1.0` gives `NaN`.",
+    errors: &[],
+};
+
+/// `Core\Math::atan`'s reference card — `rule:core-api/reference-card`.
+const ATAN_DOC: MethodDoc = MethodDoc {
+    short: "Returns the angle, in radians, whose tangent is `$n`. This is the arc tangent. For a \
+            point, use `Core\\Math::atan2`, which takes both coordinates.",
+    params: &[ParamDoc {
+        name: "n",
+        desc: "A tangent: any number.",
+        shape: &[],
+    }],
+    ret: "An angle between `-PI / 2` and `PI / 2`, in radians. An infinite `$n` gives exactly \
+          `PI / 2` or `-PI / 2`.",
+    errors: &[],
+};
+
+/// `Core\Math::atan2`'s reference card — `rule:core-api/reference-card`.
+const ATAN2_DOC: MethodDoc = MethodDoc {
+    short: "Returns the angle of the point (`$x`, `$y`), in radians, measured from the positive \
+            x-axis. `$y` comes first.",
+    params: &[
+        ParamDoc {
+            name: "y",
+            desc: "The point's y coordinate.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "x",
+            desc: "The point's x coordinate.",
+            shape: &[],
+        },
+    ],
+    ret: "An angle from `-PI` to `PI`, in radians. A point above the x-axis gives a positive \
+          angle, and a point below it gives a negative one. The point (0, 0) gives `0.0`.",
+    errors: &[],
+};
+
+/// `Core\Math::sinh`'s reference card — `rule:core-api/reference-card`.
+const SINH_DOC: MethodDoc = MethodDoc {
+    short: "Returns the hyperbolic sine of `$n`, which is `(exp($n) - exp(-$n)) / 2`.",
+    params: &[ParamDoc {
+        name: "n",
+        desc: "Any number.",
+        shape: &[],
+    }],
+    ret: "A number with the same sign as `$n`. It is `INFINITY` when `$n` is above about `710`, \
+          and `-INFINITY` when `$n` is below about `-710`. `NaN` gives `NaN`.",
+    errors: &[],
+};
+
+/// `Core\Math::cosh`'s reference card — `rule:core-api/reference-card`.
+const COSH_DOC: MethodDoc = MethodDoc {
+    short: "Returns the hyperbolic cosine of `$n`, which is `(exp($n) + exp(-$n)) / 2`.",
+    params: &[ParamDoc {
+        name: "n",
+        desc: "Any number.",
+        shape: &[],
+    }],
+    ret: "A number of at least `1.0`. It is `INFINITY` when `$n` is above about `710` or below \
+          about `-710`. `NaN` gives `NaN`.",
+    errors: &[],
+};
+
+/// `Core\Math::tanh`'s reference card — `rule:core-api/reference-card`.
+const TANH_DOC: MethodDoc = MethodDoc {
+    short: "Returns the hyperbolic tangent of `$n`. That is `Core\\Math::sinh` divided by \
+            `Core\\Math::cosh`.",
+    params: &[ParamDoc {
+        name: "n",
+        desc: "Any number.",
+        shape: &[],
+    }],
+    ret: "A number from `-1.0` to `1.0`, with the same sign as `$n`. `INFINITY` gives `1.0`, \
+          `-INFINITY` gives `-1.0` and `NaN` gives `NaN`.",
+    errors: &[],
+};
+
+/// `Core\Math::asinh`'s reference card — `rule:core-api/reference-card`.
+const ASINH_DOC: MethodDoc = MethodDoc {
+    short: "Returns the inverse hyperbolic sine of `$n`. It undoes `Core\\Math::sinh`.",
+    params: &[ParamDoc {
+        name: "n",
+        desc: "Any number.",
+        shape: &[],
+    }],
+    ret: "The number whose hyperbolic sine is `$n`. It has the same sign as `$n`. `NaN` gives `NaN`.",
+    errors: &[],
+};
+
+/// `Core\Math::acosh`'s reference card — `rule:core-api/reference-card`.
+const ACOSH_DOC: MethodDoc = MethodDoc {
+    short: "Returns the number whose hyperbolic cosine is `$n`. This is the inverse hyperbolic cosine.",
+    params: &[ParamDoc {
+        name: "n",
+        desc: "A hyperbolic cosine: a number that is `1.0` or more.",
+        shape: &[],
+    }],
+    ret: "A number that is `0.0` or more. A `$n` below `1.0` gives `NaN`.",
+    errors: &[],
+};
+
+/// `Core\Math::atanh`'s reference card — `rule:core-api/reference-card`.
+const ATANH_DOC: MethodDoc = MethodDoc {
+    short: "Returns the number whose hyperbolic tangent is `$n`. This is the inverse hyperbolic \
+            tangent. It undoes `Core\\Math::tanh`.",
+    params: &[ParamDoc {
+        name: "n",
+        desc: "A hyperbolic tangent: a number from `-1.0` to `1.0`.",
+        shape: &[],
+    }],
+    ret: "A number with the same sign as `$n`. `1.0` gives `INF` and `-1.0` gives `-INF`. A `$n` \
+          outside `-1.0` to `1.0` gives `NaN`.",
+    errors: &[],
+};
+
+/// `Core\Math::toRadians`'s reference card — `rule:core-api/reference-card`.
+const TO_RADIANS_DOC: MethodDoc = MethodDoc {
+    short: "Converts an angle from degrees to radians. It computes `($degrees / 180) * PI`.",
+    params: &[ParamDoc {
+        name: "degrees",
+        desc: "The angle, in degrees.",
+        shape: &[],
+    }],
+    ret: "The same angle in radians. `Core\\Math::toRadians(180.0)` is `PI`. An infinity gives an \
+          infinity, and `NaN` gives `NaN`.",
+    errors: &[],
+};
+
+/// `Core\Math::toDegrees`'s reference card — `rule:core-api/reference-card`.
+const TO_DEGREES_DOC: MethodDoc = MethodDoc {
+    short: "Converts an angle from radians to degrees. It computes `($radians / PI) * 180`.",
+    params: &[ParamDoc {
+        name: "radians",
+        desc: "The angle, in radians.",
+        shape: &[],
+    }],
+    ret: "The same angle in degrees. `Core\\Math::toDegrees(Core\\Math::PI)` is `180.0`. A \
+          result too big for a `float` is an infinity, and `NaN` gives `NaN`.",
+    errors: &[],
+};
+
+/// `Core\Math::isNan`'s reference card — `rule:core-api/reference-card`.
+const IS_NAN_DOC: MethodDoc = MethodDoc {
+    short: "Returns `true` when `$n` is `NaN`, a value that means \"not a number\". `NaN` is not \
+            equal to any value, itself included, so `==` cannot find it.",
+    params: &[ParamDoc {
+        name: "n",
+        desc: "The value to test.",
+        shape: &[],
+    }],
+    ret: "`true` when `$n` is `NaN`. `false` for every other `float`, `INFINITY` and \
+          `-INFINITY` included.",
+    errors: &[],
+};
+
+/// `Core\Math::isFinite`'s reference card — `rule:core-api/reference-card`.
+const IS_FINITE_DOC: MethodDoc = MethodDoc {
+    short: "Returns `true` when `$n` is an ordinary number. `INFINITY`, `-INFINITY` and `NaN` \
+            are not ordinary numbers. To test for infinity, write \
+            `!isFinite($n) && !isNan($n)`.",
+    params: &[ParamDoc {
+        name: "n",
+        desc: "The value to test.",
+        shape: &[],
+    }],
+    ret: "`true` for every ordinary `float`, zero included. `false` for `INFINITY`, \
+          `-INFINITY` and `NaN`.",
+    errors: &[],
+};
+
+/// `Core\Math::toBase`'s reference card — `rule:core-api/reference-card`.
+const TO_BASE_DOC: MethodDoc = MethodDoc {
+    short: "Writes the number `$n` in base `$base` and returns the digits as a `string`. \
+            Digits above `9` are the lower case letters `a` to `z`.",
+    params: &[
+        ParamDoc {
+            name: "n",
+            desc: "The number to write. It can be negative.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "base",
+            desc: "The base, from `2` to `36`. Base 2 is binary and base 16 is hexadecimal.",
+            shape: &[],
+        },
+    ],
+    ret: "The digits, with no prefix and no leading zeros. A negative `$n` starts with `-`. \
+          `0` returns `\"0\"`.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "When `$base` is outside `2` to `36`.",
+    }],
+};
+
+/// `Core\Math::fromBase`'s reference card — `rule:core-api/reference-card`.
+const FROM_BASE_DOC: MethodDoc = MethodDoc {
+    short: "Reads a number written in base `$base` and returns it as an `int`. Every character \
+            must be a digit of the base.",
+    params: &[
+        ParamDoc {
+            name: "s",
+            desc: "The digits. A leading `-` is allowed. A prefix such as `0x`, spaces and \
+                   separators are not allowed. Letters can be upper or lower case.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "base",
+            desc: "The base, from `2` to `36`. Digits above `9` are the letters `a` to `z`.",
+            shape: &[],
+        },
+    ],
+    ret: "The number as an `int`. `Core\\Math::toBase` writes it back.",
+    errors: &[
+        ErrorDoc {
+            error: "RuntimeError",
+            desc: "When `$base` is outside `2` to `36`, when `$s` has no digits, or when a \
+                   character of `$s` is not a digit of the base.",
+        },
+        ErrorDoc {
+            error: "ArithmeticError",
+            desc: "When the number is too large for an `int`.",
+        },
+    ],
+};
+
+/// `Core\Math::format`'s reference card — `rule:core-api/reference-card`.
+const FORMAT_DOC: MethodDoc = MethodDoc {
+    short: "Writes a number as text for a person to read, with a fixed number of decimals. The \
+            digits are not grouped unless you give a `groupSeparator`.",
+    params: &[
+        ParamDoc {
+            name: "n",
+            desc: "The number to write: an `int`, a `float` or a `decimal`.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "decimals",
+            desc: "How many digits to write after the decimal separator, from `0` to `100`. The \
+                   default is `0`, which writes no decimal separator.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "decimalSeparator",
+            desc: "The text between the whole part and the decimals. The default is `.`.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "groupSeparator",
+            desc: "The text between each group of three digits, counted from the right. The \
+                   default is empty, so the digits are not grouped.",
+            shape: &[],
+        },
+    ],
+    ret: "The text. The number is rounded to `decimals` places, and a half is rounded away from \
+          zero. A negative number starts with `-`. A number that rounds to zero has no `-`.",
+    errors: &[
+        ErrorDoc {
+            error: "RuntimeError",
+            desc: "When `$n` is `INFINITY`, `-INFINITY` or `NaN`, or when `decimals` is more \
+                   than `100`.",
+        },
+        ErrorDoc {
+            error: "ArithmeticError",
+            desc: "When `$n` is a `uint` larger than `Core\\Math::INT_MAX`.",
+        },
+    ],
+};
+
+/// `Core\Math`'s eleven constants — spec § 3's own list, replacing `M_PI`,
+/// `M_E`, `PHP_INT_MAX`, `PHP_FLOAT_EPSILON` and the rest of PHP's global
+/// constants under `rule:classes/no-free-functions-or-constants`.
+///
+/// **Every one is written as the value, not as an expression.** `TAU` is
+/// spelled out rather than `2.0 * PI` and `EPSILON` rather than an
+/// `f64::EPSILON` reference, because a `Const` is a literal the compiler
+/// inlines at the use site and there is nowhere for a computation to happen;
+/// the two that *are* named through Rust — `i64::MAX` and `u64::MAX` — are
+/// exact integers, where a written digit string could not be checked at all.
+///
+/// `FLOAT_MIN` is the smallest **positive normal** `f64`, which is PHP's
+/// `PHP_FLOAT_MIN` and not `f64::MIN`: the negative extreme is
+/// `0.0 - FLOAT_MAX`, and giving that name to the tiny value is the one
+/// place this roster follows PHP rather than Rust.
+const CONSTANTS: &[CoreConst] = &[
+    CoreConst {
+        name: "PI",
+        ty: CoreTy::Float,
+        value: Const::Float(std::f64::consts::PI),
+        desc: "The ratio of a circle's circumference to its diameter, `3.14159…` as the nearest \
+               `float`.",
+    },
+    CoreConst {
+        name: "TAU",
+        ty: CoreTy::Float,
+        value: Const::Float(std::f64::consts::TAU),
+        desc: "The ratio of a circle's circumference to its radius, `2 * PI` or `6.28318…` as the \
+               nearest `float`. This is a full turn in radians.",
+    },
+    CoreConst {
+        name: "E",
+        ty: CoreTy::Float,
+        value: Const::Float(std::f64::consts::E),
+        desc: "Euler's number, the base of the natural logarithm, `2.71828…` as the nearest \
+               `float`. It is the default base of `log`.",
+    },
+    CoreConst {
+        name: "EPSILON",
+        ty: CoreTy::Float,
+        value: Const::Float(f64::EPSILON),
+        desc: "The smallest `float` that added to `1.0` gives a value other than `1.0`, \
+               `2.220446049250313e-16`. Use it as the tolerance when you compare two floats, \
+               in place of `==`.",
+    },
+    CoreConst {
+        name: "INT_MAX",
+        ty: CoreTy::Int,
+        value: Const::Int(i64::MAX),
+        desc: "The largest `int`, `9223372036854775807`.",
+    },
+    CoreConst {
+        name: "INT_MIN",
+        ty: CoreTy::Int,
+        value: Const::Int(i64::MIN),
+        desc: "The smallest `int`, `-9223372036854775808`. It is the one value `abs` cannot \
+               return as an `int`.",
+    },
+    CoreConst {
+        name: "UINT_MAX",
+        ty: CoreTy::Uint,
+        value: Const::Uint(u64::MAX),
+        desc: "The largest `uint`, `18446744073709551615`.",
+    },
+    CoreConst {
+        name: "FLOAT_MAX",
+        ty: CoreTy::Float,
+        value: Const::Float(f64::MAX),
+        desc: "The largest finite `float`, `1.7976931348623157e308`. The most negative one is \
+               `-FLOAT_MAX`.",
+    },
+    CoreConst {
+        name: "FLOAT_MIN",
+        ty: CoreTy::Float,
+        value: Const::Float(f64::MIN_POSITIVE),
+        desc: "The smallest positive normal `float`, `2.2250738585072014e-308`. The most \
+               negative `float` is `-FLOAT_MAX`.",
+    },
+    CoreConst {
+        name: "NAN",
+        ty: CoreTy::Float,
+        value: Const::Float(f64::NAN),
+        desc: "The `float` that is not a number. It is equal to nothing, itself included, so \
+               `isNan` is the only test for it.",
+    },
+    CoreConst {
+        name: "INFINITY",
+        ty: CoreTy::Float,
+        value: Const::Float(f64::INFINITY),
+        desc: "Positive infinity as a `float`, larger than every finite value. Negative \
+               infinity is `-INFINITY`, and `isFinite` is `false` for both.",
+    },
+];
+
+/// `Core\RoundMode` — spec § 3's six rounding rules, replacing PHP's four
+/// `PHP_ROUND_HALF_*` global constants plus the two whole-direction rules
+/// `ceil`/`floor` only cover for a precision of zero.
+///
+/// Flat under `Core`, where `rule:enums/an-enum-lives-in-the-class-that-uses-it`
+/// places an enum no single class owns; `crates/nvs-stdlib/tests/enum_owners.rs`
+/// holds that placement.
+pub const ROUND_MODE: CoreEnum = CoreEnum {
+    name: r"Core\RoundMode",
+    cases: &[
+        ("HalfUp", 0),
+        ("HalfDown", 1),
+        ("HalfEven", 2),
+        ("HalfOdd", 3),
+        ("Up", 4),
+        ("Down", 5),
+    ],
+    doc: Some(&ROUND_MODE_DOC),
+};
+
+/// [`ROUND_MODE`]'s reference card — `rule:core-api/reference-card`, one line per case, and
+/// the semantics are [`RoundMode`]'s, which `round_with` implements.
+const ROUND_MODE_DOC: EnumDoc = EnumDoc {
+    short: "Chooses how `Core\\Math::round` rounds a value that lies between two results. Four \
+            cases decide what happens to a value exactly halfway, and two always round in one \
+            direction.",
+    cases: &[
+        CaseDoc {
+            name: "HalfUp",
+            desc: "A value exactly halfway rounds away from zero. This is the default of \
+                   `round`.",
+        },
+        CaseDoc {
+            name: "HalfDown",
+            desc: "A value exactly halfway rounds toward zero.",
+        },
+        CaseDoc {
+            name: "HalfEven",
+            desc: "A value exactly halfway rounds to the even neighbour. This is banker's \
+                   rounding, and it does not build up a bias over many values.",
+        },
+        CaseDoc {
+            name: "HalfOdd",
+            desc: "A value exactly halfway rounds to the odd neighbour.",
+        },
+        CaseDoc {
+            name: "Up",
+            desc: "Every value goes away from zero, tie or not — `ceil` for a positive number \
+                   and `floor` for a negative one, at any precision.",
+        },
+        CaseDoc {
+            name: "Down",
+            desc: "Every value goes toward zero, tie or not — truncation, at any precision.",
+        },
+    ],
+};
+
+/// `int|float|decimal` — spec § 3's own union, at the three members here that
+/// take it whole and at `Core\Arr`'s three aggregations, which write the same
+/// row. See this module's own gap note for the four members that do not take
+/// it yet.
+pub(crate) const NUMBER: &[CoreTy] = &[CoreTy::Int, CoreTy::Float, CoreTy::Decimal];
+
+/// `Core\Math::round`'s `{precision?: int, mode?: RoundMode}`.
+///
+/// `precision` is `int` rather than `uint` on purpose: a negative one rounds
+/// to tens, hundreds and up, which is `round($n, -2)` in PHP and the only
+/// spelling for it here.
+const ROUND_OPTIONS: &[CoreOption] = &[
+    CoreOption {
+        name: "precision",
+        ty: CoreTy::Int,
+        default: Const::Int(0),
+    },
+    CoreOption {
+        name: "mode",
+        ty: CoreTy::Enum(r"Core\RoundMode"),
+        default: Const::EnumCase(r"Core\RoundMode", "HalfUp"),
+    },
+];
+
+/// `Core\Math::log`'s `{base?: float}` — the option that folds PHP's `log10`
+/// and `log2` into one member, with the natural logarithm as the default.
+const LOG_OPTIONS: &[CoreOption] = &[CoreOption {
+    name: "base",
+    ty: CoreTy::Float,
+    default: Const::Float(std::f64::consts::E),
+}];
+
+/// `Core\Math::format`'s
+/// `{decimals?: uint, decimalSeparator?: string, groupSeparator?: string}`.
+///
+/// The group separator defaults to **empty**, unlike `number_format`'s `,`:
+/// Novis has no ambient locale (spec § 3), so grouping is a thing the caller
+/// asks for rather than a thing it has to switch off.
+///
+/// **Both separators are [`Qual::Contagious`]**, and the spec's Q column said
+/// *neutral* until this row was classified. It is the one cell in this class
+/// that a member-wide mark could not render: `fromBase` and the rest of
+/// `Core\Math` answer numbers, so nothing an argument holds reaches the answer
+/// and *neutral* is right for the class — but `format` answers a `string` that
+/// contains these two options **verbatim**, which is the first bullet of
+/// [`Qual`]'s rule failing on its own terms. The registry is the home of the
+/// classification (`rule:security/unclassified-parameter-refuses-tainted`) and the spec renders it, so the cell was
+/// corrected rather than the mark.
+const FORMAT_OPTIONS: &[CoreOption] = &[
+    CoreOption {
+        name: "decimals",
+        ty: CoreTy::Uint,
+        default: Const::Uint(0),
+    },
+    CoreOption {
+        name: "decimalSeparator",
+        ty: CoreTy::Text(Qual::Contagious),
+        default: Const::Str("."),
+    },
+    CoreOption {
+        name: "groupSeparator",
+        ty: CoreTy::Text(Qual::Contagious),
+        default: Const::Str(""),
+    },
+];
+
+/// This module's own symbols, for [`crate::symbols`] to ask about — one arm
+/// per member, and no other module answers for any of them.
+pub(crate) fn address(symbol: &str) -> Option<*const u8> {
+    Some(match symbol {
+        "nvs_core_math_abs" => (nvs_core_math_abs as *const ()).cast(),
+        "nvs_core_math_sign" => (nvs_core_math_sign as *const ()).cast(),
+        "nvs_core_math_min" => (nvs_core_math_min as *const ()).cast(),
+        "nvs_core_math_max" => (nvs_core_math_max as *const ()).cast(),
+        "nvs_core_math_clamp" => (nvs_core_math_clamp as *const ()).cast(),
+        "nvs_core_math_ceil" => (nvs_core_math_ceil as *const ()).cast(),
+        "nvs_core_math_floor" => (nvs_core_math_floor as *const ()).cast(),
+        "nvs_core_math_truncate" => (nvs_core_math_truncate as *const ()).cast(),
+        "nvs_core_math_round" => (nvs_core_math_round as *const ()).cast(),
+        "nvs_core_math_int_div" => (nvs_core_math_int_div as *const ()).cast(),
+        "nvs_core_math_mod" => (nvs_core_math_mod as *const ()).cast(),
+        "nvs_core_math_fdiv" => (nvs_core_math_fdiv as *const ()).cast(),
+        "nvs_core_math_gcd" => (nvs_core_math_gcd as *const ()).cast(),
+        "nvs_core_math_lcm" => (nvs_core_math_lcm as *const ()).cast(),
+        "nvs_core_math_sqrt" => (nvs_core_math_sqrt as *const ()).cast(),
+        "nvs_core_math_cbrt" => (nvs_core_math_cbrt as *const ()).cast(),
+        "nvs_core_math_hypot" => (nvs_core_math_hypot as *const ()).cast(),
+        "nvs_core_math_exp" => (nvs_core_math_exp as *const ()).cast(),
+        "nvs_core_math_log" => (nvs_core_math_log as *const ()).cast(),
+        "nvs_core_math_sin" => (nvs_core_math_sin as *const ()).cast(),
+        "nvs_core_math_cos" => (nvs_core_math_cos as *const ()).cast(),
+        "nvs_core_math_tan" => (nvs_core_math_tan as *const ()).cast(),
+        "nvs_core_math_asin" => (nvs_core_math_asin as *const ()).cast(),
+        "nvs_core_math_acos" => (nvs_core_math_acos as *const ()).cast(),
+        "nvs_core_math_atan" => (nvs_core_math_atan as *const ()).cast(),
+        "nvs_core_math_atan2" => (nvs_core_math_atan2 as *const ()).cast(),
+        "nvs_core_math_sinh" => (nvs_core_math_sinh as *const ()).cast(),
+        "nvs_core_math_cosh" => (nvs_core_math_cosh as *const ()).cast(),
+        "nvs_core_math_tanh" => (nvs_core_math_tanh as *const ()).cast(),
+        "nvs_core_math_asinh" => (nvs_core_math_asinh as *const ()).cast(),
+        "nvs_core_math_acosh" => (nvs_core_math_acosh as *const ()).cast(),
+        "nvs_core_math_atanh" => (nvs_core_math_atanh as *const ()).cast(),
+        "nvs_core_math_to_radians" => (nvs_core_math_to_radians as *const ()).cast(),
+        "nvs_core_math_to_degrees" => (nvs_core_math_to_degrees as *const ()).cast(),
+        "nvs_core_math_is_nan" => (nvs_core_math_is_nan as *const ()).cast(),
+        "nvs_core_math_is_finite" => (nvs_core_math_is_finite as *const ()).cast(),
+        "nvs_core_math_to_base" => (nvs_core_math_to_base as *const ()).cast(),
+        "nvs_core_math_from_base" => (nvs_core_math_from_base as *const ()).cast(),
+        "nvs_core_math_format" => (nvs_core_math_format as *const ()).cast(),
+        _ => return None,
+    })
+}
+
+// ============================================================================
+// Argument decoding — a wrong tag here is a compiler bug, so it is `fatal`
+// ============================================================================
+
+/// The `float` at `index`, or the `FATAL` a wrong tag is.
+///
+/// Every one of these decoders reports `Fault::fatal` rather than
+/// `Fault::thrown`, on `crate::arr`'s convention: the checker has already
+/// proved the argument's type, so a mismatched tag is a compiler defect and
+/// not something an Novis program can provoke or catch.
+fn float_at(args: &[Value], index: usize, member: &str) -> Result<f64, Fault> {
+    args[index].as_float().ok_or_else(|| {
+        Fault::fatal(format!(
+            "Core\\Math::{member} expected {:?} at argument {index}, got tag {}",
+            Tag::Float,
+            args[index].tag_byte()
+        ))
+    })
+}
+
+/// The `int` at `index`, or the `FATAL` a wrong tag is.
+fn int_at(args: &[Value], index: usize, member: &str) -> Result<i64, Fault> {
+    args[index].as_int().ok_or_else(|| {
+        Fault::fatal(format!(
+            "Core\\Math::{member} expected {:?} at argument {index}, got tag {}",
+            Tag::Int,
+            args[index].tag_byte()
+        ))
+    })
+}
+
+/// The `uint` at `index`, or the `FATAL` a wrong tag is.
+fn uint_at(args: &[Value], index: usize, member: &str) -> Result<u64, Fault> {
+    args[index].as_uint().ok_or_else(|| {
+        Fault::fatal(format!(
+            "Core\\Math::{member} expected {:?} at argument {index}, got tag {}",
+            Tag::Uint,
+            args[index].tag_byte()
+        ))
+    })
+}
+
+/// The `string` bytes at `index`, or the `FATAL` a wrong tag is.
+fn str_at<'a>(args: &'a [Value], index: usize, member: &str) -> Result<&'a [u8], Fault> {
+    args[index].as_str_bytes().ok_or_else(|| {
+        Fault::fatal(format!(
+            "Core\\Math::{member} expected {:?} at argument {index}, got tag {}",
+            Tag::Str,
+            args[index].tag_byte()
+        ))
+    })
+}
+
+/// One argument of the spec's `int|float` union, decoded.
+///
+/// A `uint` is accepted as well as an `int` even though the declared union
+/// holds neither `rule:types/arithmetic` type twice: a `uint` reaches a union parameter
+/// through the same tagged slot, and refusing it here would be a `FATAL` for
+/// a value the member has an exact answer for.
+#[derive(Clone, Copy)]
+enum Number {
+    /// An `int` or a `uint` small enough to be one.
+    Integer(i64),
+    /// A `float`.
+    Real(f64),
+    /// A `decimal` — `rule:types/decimal`'s scalar, and the one arm that is exact.
+    Exact(Decimal),
+}
+
+fn number_at(args: &[Value], index: usize, member: &str) -> Result<Number, Fault> {
+    if let Some(int) = args[index].as_int() {
+        return Ok(Number::Integer(int));
+    }
+    if let Some(uint) = args[index].as_uint() {
+        return i64::try_from(uint).map(Number::Integer).map_err(|_| {
+            Fault::thrown_as(
+                ThrownClass::Arithmetic,
+                format!(
+                    "Core\\Math::{member} cannot take {uint}: it is past `int`'s largest value"
+                ),
+            )
+        });
+    }
+    if let Some(float) = args[index].as_float() {
+        return Ok(Number::Real(float));
+    }
+    if let Some(exact) = args[index].as_decimal() {
+        return Ok(Number::Exact(exact));
+    }
+    Err(Fault::fatal(format!(
+        "Core\\Math::{member} expected a number at argument {index}, got tag {}",
+        args[index].tag_byte()
+    )))
+}
+
+// ============================================================================
+// The members
+// ============================================================================
+
+/// Defines a one-`float`-in, one-`float`-out member — the shape twenty of
+/// spec § 3's rows share exactly.
+///
+/// Written as a macro rather than twenty copies of the same four lines
+/// because the *only* thing that differs between them is the `f64` method,
+/// and a copy per member is a copy per member to get wrong. The module's own
+/// docs own the rule they all obey: a domain error is IEEE's answer.
+macro_rules! unary_float {
+    ($(#[$meta:meta])* $name:ident, $member:literal, $op:expr) => {
+        nvs_runtime::nvs_helper! {
+            $(#[$meta])*
+            fn $name(_ctx, args: [1]) {
+                let operation: fn(f64) -> f64 = $op;
+                Ok(Value::float(operation(float_at(args, 0, $member)?)))
+            }
+        }
+    };
+}
+
+unary_float! {
+    /// `Core\Math::ceil(float $n): float` — the smallest integral value at or
+    /// above `$n`, replacing PHP's `ceil`.
+    nvs_core_math_ceil, "ceil", f64::ceil
+}
+
+unary_float! {
+    /// `Core\Math::floor(float $n): float` — the largest integral value at or
+    /// below `$n`, replacing PHP's `floor`.
+    nvs_core_math_floor, "floor", f64::floor
+}
+
+unary_float! {
+    /// `Core\Math::truncate(float $n): float` — `$n` with its fractional part
+    /// dropped, replacing PHP's `(int)` truncation. Toward zero, so it is
+    /// `floor` for a positive `$n` and `ceil` for a negative one.
+    nvs_core_math_truncate, "truncate", f64::trunc
+}
+
+unary_float! {
+    /// `Core\Math::sqrt(float $n): float` — the square root, replacing PHP's
+    /// `sqrt`. `NaN` below zero.
+    nvs_core_math_sqrt, "sqrt", f64::sqrt
+}
+
+unary_float! {
+    /// `Core\Math::cbrt(float $n): float` — the cube root, replacing PHP's
+    /// `pow($n, 1/3)`, which is `NaN` for a negative `$n` where this is not.
+    nvs_core_math_cbrt, "cbrt", f64::cbrt
+}
+
+unary_float! {
+    /// `Core\Math::exp(float $n): float` — `e` to the power of `$n`, replacing
+    /// PHP's `exp`.
+    nvs_core_math_exp, "exp", f64::exp
+}
+
+unary_float! {
+    /// `Core\Math::sin(float $radians): float` — replacing PHP's `sin`.
+    nvs_core_math_sin, "sin", f64::sin
+}
+
+unary_float! {
+    /// `Core\Math::cos(float $radians): float` — replacing PHP's `cos`.
+    nvs_core_math_cos, "cos", f64::cos
+}
+
+unary_float! {
+    /// `Core\Math::tan(float $radians): float` — replacing PHP's `tan`.
+    nvs_core_math_tan, "tan", f64::tan
+}
+
+unary_float! {
+    /// `Core\Math::asin(float $n): float` — replacing PHP's `asin`. `NaN`
+    /// outside `[-1, 1]`.
+    nvs_core_math_asin, "asin", f64::asin
+}
+
+unary_float! {
+    /// `Core\Math::acos(float $n): float` — replacing PHP's `acos`. `NaN`
+    /// outside `[-1, 1]`.
+    nvs_core_math_acos, "acos", f64::acos
+}
+
+unary_float! {
+    /// `Core\Math::atan(float $n): float` — replacing PHP's `atan`.
+    nvs_core_math_atan, "atan", f64::atan
+}
+
+unary_float! {
+    /// `Core\Math::sinh(float $n): float` — replacing PHP's `sinh`.
+    nvs_core_math_sinh, "sinh", f64::sinh
+}
+
+unary_float! {
+    /// `Core\Math::cosh(float $n): float` — replacing PHP's `cosh`.
+    nvs_core_math_cosh, "cosh", f64::cosh
+}
+
+unary_float! {
+    /// `Core\Math::tanh(float $n): float` — replacing PHP's `tanh`.
+    nvs_core_math_tanh, "tanh", f64::tanh
+}
+
+unary_float! {
+    /// `Core\Math::asinh(float $n): float` — replacing PHP's `asinh`.
+    nvs_core_math_asinh, "asinh", f64::asinh
+}
+
+unary_float! {
+    /// `Core\Math::acosh(float $n): float` — replacing PHP's `acosh`. `NaN`
+    /// below `1`.
+    nvs_core_math_acosh, "acosh", f64::acosh
+}
+
+unary_float! {
+    /// `Core\Math::atanh(float $n): float` — replacing PHP's `atanh`. An
+    /// infinity at `±1` and `NaN` outside them.
+    ///
+    /// Computed over `|n|` with `n`'s sign put back, the way libm's `atanh`
+    /// is and PHP's therefore answers. `f64::atanh` alone is
+    /// `0.5 * ln_1p(2n / (1 - n))`, which is accurate near `1` and loses
+    /// digits near `-1`: it gives `-18.37` for `-0.9999999999999999`, where
+    /// the answer is `-18.71`.
+    nvs_core_math_atanh, "atanh", |n| n.abs().atanh().copysign(n)
+}
+
+unary_float! {
+    /// `Core\Math::toRadians(float $degrees): float` — replacing PHP's
+    /// `deg2rad`.
+    ///
+    /// Written as `($degrees / 180.0) * PI` rather than as `f64::to_radians`,
+    /// which multiplies by the correctly rounded constant `PI / 180.0`. The
+    /// two part by at most one ulp, and the std form is the more accurate of
+    /// them — over the 3,600 tenths of a degree in a turn it is closer to the
+    /// true value 851 times against 118 — but this form is what makes the
+    /// round trip agree, and the ulp is observable: `==` over `float` is exact
+    /// (`rule:expressions/equality-semantics`), so
+    /// `toDegrees(toRadians(30.0)) == 30.0` answers `true` with this pair and
+    /// `false` with the std one. The round trip is the property kept, and
+    /// nothing here promises an accuracy beyond it.
+    nvs_core_math_to_radians, "toRadians", |degrees| (degrees / 180.0) * std::f64::consts::PI
+}
+
+unary_float! {
+    /// `Core\Math::toDegrees(float $radians): float` — replacing PHP's
+    /// `rad2deg`.
+    ///
+    /// `($radians / PI) * 180.0`, for the reason
+    /// `toRadians` above states in full. This is the half of the pair the
+    /// difference is visible through: `f64::to_degrees` and this form part
+    /// over a whole-degree angle's radians, which is exactly what a round
+    /// trip feeds it.
+    nvs_core_math_to_degrees, "toDegrees", |radians| (radians / std::f64::consts::PI) * 180.0
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Math::abs(T $n): T` with `T` bounded by `int|float|decimal` — the
+    /// magnitude, replacing PHP's `abs`, and the one member here whose result
+    /// type is the argument's own.
+    ///
+    /// The checker types the result as the argument, so each arm answers the
+    /// tag it was given. A `uint` has no sign and is returned unchanged; read
+    /// through [`number_at`] it would come back an `int` under a `uint` type.
+    ///
+    /// `abs(int::MIN)` throws: its magnitude is one past `int`'s largest
+    /// value, and PHP's answer — silently becoming a `float` — is exactly the
+    /// by-itself type change `rule:types/declaration` forbids.
+    fn nvs_core_math_abs(_ctx, args: [1]) {
+        if args[0].as_uint().is_some() {
+            return Ok(args[0]);
+        }
+        Ok(match number_at(args, 0, "abs")? {
+            Number::Integer(n) => Value::int(n.checked_abs().ok_or_else(|| {
+                Fault::thrown_as(
+                    ThrownClass::Arithmetic,
+                    "Core\\Math::abs has no `int` answer for `int`'s smallest value: its \
+                     magnitude is one past the largest",
+                )
+            })?),
+            Number::Real(n) => Value::float(n.abs()),
+            // Total, unlike the `int` arm: the mantissa is unsigned, so there
+            // is no magnitude that does not fit.
+            Number::Exact(n) => Value::decimal(n.abs()),
+        })
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Math::sign(int|float $n): int` — `-1`, `0` or `1`, replacing
+    /// PHP's `$n <=> 0`.
+    ///
+    /// `-0.0` is `0`, since it *is* zero. `NaN` throws rather than answering:
+    /// it is on neither side of zero, and every other answer this member could
+    /// give would be a value the caller would go on to branch on.
+    fn nvs_core_math_sign(_ctx, args: [1]) {
+        let sign = match number_at(args, 0, "sign")? {
+            Number::Integer(n) => n.signum(),
+            Number::Real(n) if n.is_nan() => {
+                return Err(Fault::thrown(
+                    "Core\\Math::sign has no answer for `NaN`: it is on neither side of zero"
+                        .to_owned(),
+                ));
+            }
+            // Zero is never negative for a `decimal` (`nvs_runtime::decimal`),
+            // so this needs no `-0.0` case the way the `float` arm below does.
+            Number::Exact(n) if n.is_zero() => 0,
+            Number::Exact(n) if n.is_negative() => -1,
+            Number::Exact(_) => 1,
+            Number::Real(0.0) => 0,
+            Number::Real(n) => {
+                if n.is_sign_negative() {
+                    -1
+                } else {
+                    1
+                }
+            }
+        };
+        Ok(Value::int(sign))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Math::min(T $a, T $b): T` — the smaller of two values, replacing
+    /// PHP's `min` with scalar arguments.
+    ///
+    /// The ordering is `crate::ordering::compare_values`, the same one
+    /// `Core\Arr::min` walks an array with, so `Math::min($a, $b)` and
+    /// `Arr::min([$a, $b])` cannot answer differently. A tie answers `$a`.
+    ///
+    /// PHP's two-argument `min` answers `$b` on a tie and its `max` answers
+    /// `$a`, so `min(1000000000000000000, 1.0e18)` hands back the `float`
+    /// there and the `int` here. Both members answering the same end is worth
+    /// more than matching that, since the alternative is `min` and `max`
+    /// disagreeing with each other about which of two equal values is meant;
+    /// `math-min-and-max-diverge-from-php-over-a-tie-a-numeral-string-or-an-unordered-pair`
+    /// pins it.
+    ///
+    /// PHP's variadic `min(1, 2, 3)` has no member: the two-argument form
+    /// nests, and the array form is `Core\Arr::min`.
+    fn nvs_core_math_min(ctx, args: [2]) {
+        pick(ctx, args, std::cmp::Ordering::Less, "Core\\Math::min")
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Math::max(T $a, T $b): T` — the larger of two values, replacing
+    /// PHP's `max` with scalar arguments. [`nvs_core_math_min`] owns the
+    /// ordering and the tie rule.
+    fn nvs_core_math_max(ctx, args: [2]) {
+        pick(ctx, args, std::cmp::Ordering::Greater, "Core\\Math::max")
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Math::clamp(T $n, T $low, T $high): T` — `$n` brought inside
+    /// `[$low, $high]`, replacing the `min(max(…))` idiom.
+    ///
+    /// A `$low` above `$high` throws rather than silently answering one of
+    /// them: the interval is empty, so there is no value to clamp *into*, and
+    /// both of PHP's idiomatic spellings answer a different one.
+    fn nvs_core_math_clamp(ctx, args: [3]) {
+        const MEMBER: &str = "Core\\Math::clamp";
+        if compare_values(ctx, &args[1], &args[2], MEMBER)? == std::cmp::Ordering::Greater {
+            return Err(Fault::thrown(
+                "Core\\Math::clamp was given a `low` above its `high`, which is an empty range"
+                    .to_owned(),
+            ));
+        }
+        let chosen = if compare_values(ctx, &args[0], &args[1], MEMBER)? == std::cmp::Ordering::Less
+        {
+            args[1]
+        } else if compare_values(ctx, &args[0], &args[2], MEMBER)? == std::cmp::Ordering::Greater {
+            args[2]
+        } else {
+            args[0]
+        };
+        Ok(owned(chosen))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Math::round(float $n, {precision?: int, mode?: RoundMode}): float`
+    /// — replacing PHP's `round` and its four `PHP_ROUND_*` constants.
+    ///
+    /// [`round_to`] owns what each mode means and what a precision does.
+    fn nvs_core_math_round(_ctx, args: [3]) {
+        let value = float_at(args, 0, "round")?;
+        let precision = int_at(args, 1, "round")?;
+        let mode = round_mode(args, 2, "Core\\Math::round")?;
+        Ok(Value::float(round_to(value, precision, mode)))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Math::intDiv(int $a, int $b): int` — the quotient, truncated
+    /// toward zero, replacing PHP's `intdiv`.
+    ///
+    /// A zero divisor throws, per spec § 3, and so does `int::MIN / -1`, whose
+    /// exact answer is one past `int`'s largest value.
+    fn nvs_core_math_int_div(_ctx, args: [2]) {
+        let a = int_at(args, 0, "intDiv")?;
+        let b = int_at(args, 1, "intDiv")?;
+        a.checked_div(b)
+            .map(Value::int)
+            .ok_or_else(|| divide_by_zero_or_overflow("intDiv", b))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Math::mod(float $a, float $b): float` — the remainder of `$a / $b`
+    /// with the sign of `$a`, replacing PHP's `fmod`; integer modulo is the
+    /// `%` operator, which is why this member is the `float` case only.
+    ///
+    /// A zero divisor throws rather than answering `NaN` the way `fmod` does:
+    /// it is a division by zero, which spec § 3 makes a throw, and not one of
+    /// the domain errors this module's docs keep at IEEE's answer.
+    fn nvs_core_math_mod(_ctx, args: [2]) {
+        let a = float_at(args, 0, "mod")?;
+        let b = float_at(args, 1, "mod")?;
+        if b == 0.0 {
+            return Err(Fault::thrown_as(
+                ThrownClass::Arithmetic,
+                "Core\\Math::mod was given a zero divisor",
+            ));
+        }
+        Ok(Value::float(a % b))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Math::fdiv(float $a, float $b): float` — the IEEE quotient,
+    /// replacing PHP's `fdiv`, and the one division in this module that
+    /// answers a zero divisor rather than throwing on it.
+    ///
+    /// It exists because `rule:types/arithmetic` refuses the zero divisor for `/` before
+    /// the operand types are consulted, so an infinity is otherwise
+    /// unreachable through a division — which is the same reason PHP grew this
+    /// function once `/` began throwing. That is a member *named* for the
+    /// answer rather than this module's domain-error rule reaching a division:
+    /// every other division here still throws, and a reader who writes `/`
+    /// still gets the throw.
+    fn nvs_core_math_fdiv(_ctx, args: [2]) {
+        let a = float_at(args, 0, "fdiv")?;
+        let b = float_at(args, 1, "fdiv")?;
+        Ok(Value::float(a / b))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Math::gcd(int $a, int $b): int` — the greatest common divisor,
+    /// never negative, replacing `gmp_gcd`.
+    ///
+    /// `gcd(0, 0)` is `0`, the conventional answer: every integer divides
+    /// zero, so the set of common divisors is unbounded and zero is the
+    /// identity that keeps `gcd(gcd($a, $b), $c)` associative.
+    ///
+    /// The walk is over `i128` so that `int::MIN`, whose magnitude does not
+    /// fit an `i64`, needs no special case; the result always does, because a
+    /// divisor of `int::MIN` is at most its magnitude and the only one that
+    /// large is `int::MIN` itself paired with zero — which is why the
+    /// conversion back throws instead of asserting.
+    fn nvs_core_math_gcd(_ctx, args: [2]) {
+        let a = i128::from(int_at(args, 0, "gcd")?);
+        let b = i128::from(int_at(args, 1, "gcd")?);
+        i64::try_from(gcd(a.abs(), b.abs()))
+            .map(Value::int)
+            .map_err(|_| does_not_fit("gcd"))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Math::lcm(int $a, int $b): int` — the least common multiple,
+    /// never negative, replacing `gmp_lcm`.
+    ///
+    /// `lcm($a, 0)` is `0`. A result past `int`'s largest value throws, which
+    /// is the common case for two large coprime arguments.
+    fn nvs_core_math_lcm(_ctx, args: [2]) {
+        let a = i128::from(int_at(args, 0, "lcm")?).abs();
+        let b = i128::from(int_at(args, 1, "lcm")?).abs();
+        if a == 0 || b == 0 {
+            return Ok(Value::int(0));
+        }
+        i64::try_from(a / gcd(a, b) * b)
+            .map(Value::int)
+            .map_err(|_| does_not_fit("lcm"))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Math::hypot(float $a, float $b): float` — the hypotenuse without
+    /// the intermediate overflow `sqrt($a ** 2 + $b ** 2)` has, replacing
+    /// PHP's `hypot`.
+    fn nvs_core_math_hypot(_ctx, args: [2]) {
+        let a = float_at(args, 0, "hypot")?;
+        let b = float_at(args, 1, "hypot")?;
+        Ok(Value::float(a.hypot(b)))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Math::atan2(float $y, float $x): float` — the angle of `($x, $y)`
+    /// from the positive x-axis, replacing PHP's `atan2`. `$y` first, as in
+    /// PHP and in C.
+    fn nvs_core_math_atan2(_ctx, args: [2]) {
+        let y = float_at(args, 0, "atan2")?;
+        let x = float_at(args, 1, "atan2")?;
+        Ok(Value::float(y.atan2(x)))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Math::log(float $n, {base?: float}): float` — the logarithm,
+    /// replacing PHP's `log`, `log10` and `log2`.
+    ///
+    /// Base `10` and base `2` take `f64`'s own dedicated routines rather than
+    /// `ln($n) / ln($base)`, which is a ratio of two inexact values and
+    /// answers `2.9999999999999996` for `log(1000.0, {base: 10.0})`. Every
+    /// other base is that ratio, because there is nothing more exact to use.
+    ///
+    /// A base that is not greater than zero has no logarithm at all, and the
+    /// ratio would answer one anyway — `ln($n) / ln(0.0)` is a signed zero and
+    /// `ln($n) / ln(-2.0)` a `NaN` — so it is refused rather than repaired,
+    /// the way spec § 3 refuses a zero divisor. Base `1.0` is `NaN`: the ratio
+    /// divides by zero there and would answer an infinity whose sign is the
+    /// argument's. Both rules are PHP's, which raises a `ValueError` for the
+    /// first and answers `NAN` to the second; only the class of the refusal
+    /// differs. The *argument's* domain is left at IEEE's answer, matching
+    /// PHP's `log` exactly: zero is `-INF` in a base above one and `INF` in a
+    /// base below it, and a negative is `NaN`.
+    fn nvs_core_math_log(_ctx, args: [2]) {
+        let n = float_at(args, 0, "log")?;
+        let base = float_at(args, 1, "log")?;
+        let result = if base == std::f64::consts::E {
+            n.ln()
+        } else if base == 10.0 {
+            n.log10()
+        } else if base == 2.0 {
+            n.log2()
+        } else if base <= 0.0 {
+            return Err(Fault::thrown(
+                "Core\\Math::log was given a base that is not greater than zero".to_owned(),
+            ));
+        } else if base == 1.0 {
+            f64::NAN
+        } else {
+            n.log(base)
+        };
+        Ok(Value::float(result))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Math::isNan(float $n): bool` — whether `$n` is the one value
+    /// that is not equal to itself, replacing PHP's `is_nan`.
+    fn nvs_core_math_is_nan(_ctx, args: [1]) {
+        Ok(Value::bool(float_at(args, 0, "isNan")?.is_nan()))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Math::isFinite(float $n): bool` — whether `$n` is neither an
+    /// infinity nor `NaN`, replacing PHP's `is_finite` and, negated together
+    /// with [`nvs_core_math_is_nan`], its `is_infinite`.
+    fn nvs_core_math_is_finite(_ctx, args: [1]) {
+        Ok(Value::bool(float_at(args, 0, "isFinite")?.is_finite()))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Math::toBase(int $n, uint $base): string` — `$n` written in
+    /// `$base`, replacing PHP's `decbin`, `dechex`, `decoct` and the
+    /// to-half of `base_convert`.
+    ///
+    /// Digits above nine are **lowercase**, as `dechex` writes them. A
+    /// negative `$n` is written with a leading `-`, which `base_convert` has
+    /// no answer for at all; the magnitude is taken through `i128` so
+    /// `int::MIN` needs no special case.
+    fn nvs_core_math_to_base(_ctx, args: [2]) {
+        let n = int_at(args, 0, "toBase")?;
+        let base = radix(uint_at(args, 1, "toBase")?, "toBase")?;
+        let mut digits = Vec::new();
+        let mut magnitude = i128::from(n).abs();
+        if magnitude == 0 {
+            digits.push(b'0');
+        }
+        while magnitude > 0 {
+            let digit = usize::try_from(magnitude % i128::from(base))
+                .expect("a remainder of a base at most 36 is a small index");
+            digits.push(DIGITS[digit]);
+            magnitude /= i128::from(base);
+        }
+        if n < 0 {
+            digits.push(b'-');
+        }
+        digits.reverse();
+        Ok(Value::str(NvsStr::new(&digits)))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Math::fromBase(string $s, uint $base): int` — the integer `$s`
+    /// spells in `$base`, replacing PHP's `bindec`, `hexdec`, `octdec` and the
+    /// from-half of `base_convert`.
+    ///
+    /// Case-insensitive above nine, and the exact inverse of
+    /// [`nvs_core_math_to_base`], leading `-` included. Every one of PHP's
+    /// four **silently ignores** a digit the base has no room for — `hexdec`
+    /// reads `"beefy"` as `48879` — which is precisely the quiet wrong answer
+    /// `rule:core-api/shape-rules` R4 makes a throw here, along with an empty string and a result
+    /// past `int`.
+    fn nvs_core_math_from_base(_ctx, args: [2]) {
+        let text = str_at(args, 0, "fromBase")?;
+        let base = radix(uint_at(args, 1, "fromBase")?, "fromBase")?;
+        let (negative, digits) = match text.split_first() {
+            Some((b'-', rest)) => (true, rest),
+            _ => (false, text),
+        };
+        if digits.is_empty() {
+            return Err(Fault::thrown(
+                "Core\\Math::fromBase was given no digits to read".to_owned(),
+            ));
+        }
+        let mut magnitude: i128 = 0;
+        for byte in digits {
+            let digit = DIGITS
+                .iter()
+                .position(|candidate| *candidate == byte.to_ascii_lowercase())
+                .filter(|digit| u64::try_from(*digit).expect("a digit index is small") < base)
+                .ok_or_else(|| {
+                    Fault::thrown(format!(
+                        "Core\\Math::fromBase found {} in a base-{base} number, which has no \
+                         digit for it",
+                        readable(*byte)
+                    ))
+                })?;
+            magnitude = magnitude * i128::from(base) + i128::try_from(digit).expect("a small index");
+            if magnitude > i128::from(u64::MAX) {
+                return Err(does_not_fit("fromBase"));
+            }
+        }
+        let signed = if negative { -magnitude } else { magnitude };
+        i64::try_from(signed)
+            .map(Value::int)
+            .map_err(|_| does_not_fit("fromBase"))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Math::format(int|float $n, {decimals?: uint, decimalSeparator?:
+    /// string, groupSeparator?: string}): string` — `$n` written for a reader,
+    /// replacing PHP's `number_format`.
+    ///
+    /// Rounding is **half away from zero**, as `number_format`'s is; a caller
+    /// who wants another rule rounds first, which is what makes
+    /// [`nvs_core_math_round`]'s `mode` reach this member without a second
+    /// option here. A non-finite `$n` throws — there is no digit string for an
+    /// infinity, and PHP's `"inf"` is not a number a reader can act on.
+    ///
+    /// The decimal count is capped at [`MAX_DECIMALS`], which is past every
+    /// digit an `f64` distinguishes; the cap is what keeps the result's size
+    /// a function of the *value* rather than of an argument.
+    fn nvs_core_math_format(_ctx, args: [4]) {
+        let number = number_at(args, 0, "format")?;
+        let decimals = uint_at(args, 1, "format")?;
+        let decimal_separator = str_at(args, 2, "format")?;
+        let group_separator = str_at(args, 3, "format")?;
+        if decimals > MAX_DECIMALS {
+            return Err(Fault::thrown(format!(
+                "Core\\Math::format was asked for {decimals} decimals, past its cap of \
+                 {MAX_DECIMALS}"
+            )));
+        }
+        let decimals = usize::try_from(decimals).expect("a value at or under the cap is small");
+        let (sign, integer, fraction) = digits_of(number, decimals)?;
+        // A value that rounds to zero, `-0.0` included, is written without a
+        // sign, as `number_format` writes it: `-0.4` is `"0"`.
+        let is_zero = integer.bytes().chain(fraction.bytes()).all(|b| b == b'0');
+        let mut out = Vec::new();
+        if sign && !is_zero {
+            out.push(b'-');
+        }
+        group_into(&integer, group_separator, &mut out);
+        if !fraction.is_empty() {
+            out.extend_from_slice(decimal_separator);
+            out.extend_from_slice(fraction.as_bytes());
+        }
+        Ok(Value::str(NvsStr::new(&out)))
+    }
+}
+
+// ============================================================================
+// The shared parts
+// ============================================================================
+
+/// The most decimals [`nvs_core_math_format`] will write.
+///
+/// An `f64` distinguishes at most seventeen significant digits, and the
+/// smallest subnormal has 1074 places, so nothing past this is information the
+/// value holds — it is zeroes, sized by an argument rather than by the number.
+const MAX_DECIMALS: u64 = 100;
+
+/// The digit alphabet [`nvs_core_math_to_base`] writes and
+/// [`nvs_core_math_from_base`] reads, lowest first, so a digit's value is its
+/// own index.
+const DIGITS: &[u8; 36] = b"0123456789abcdefghijklmnopqrstuvwxyz";
+
+/// `$base` as a radix this module can write in, or the throw an unusable one
+/// is.
+///
+/// Two is the smallest positional base and thirty-six is as far as the digits
+/// and the Latin letters reach — the same range `base_convert` accepts, which
+/// answers `0` outside it where this throws.
+fn radix(base: u64, member: &str) -> Result<u64, Fault> {
+    if (2..=36).contains(&base) {
+        Ok(base)
+    } else {
+        Err(Fault::thrown(format!(
+            "Core\\Math::{member} has no digits for base {base}: a base runs from 2 to 36"
+        )))
+    }
+}
+
+/// One offending byte as an error message can name it: the character itself
+/// where that is printable ASCII, and the byte's own value where it is not — a
+/// digit outside the base is far more often a typo than a stray byte, and `y`
+/// says which one where `121` does not.
+fn readable(byte: u8) -> String {
+    if byte.is_ascii_graphic() {
+        format!("`{}`", char::from(byte))
+    } else {
+        format!("byte {byte}")
+    }
+}
+
+/// The throw an exact answer that does not fit `int` is — the shape `rule:types/arithmetic` makes an overflow, `ArithmeticError`, rather than PHP's silent widening
+/// to `float`.
+fn does_not_fit(member: &str) -> Fault {
+    Fault::thrown_as(
+        ThrownClass::Arithmetic,
+        format!("Core\\Math::{member}'s answer does not fit an `int`"),
+    )
+}
+
+/// The throw [`nvs_core_math_int_div`]'s two failures share, naming which one
+/// it was — the divisor is the only thing that tells them apart.
+fn divide_by_zero_or_overflow(member: &str, divisor: i64) -> Fault {
+    if divisor == 0 {
+        Fault::thrown_as(
+            ThrownClass::Arithmetic,
+            format!("Core\\Math::{member} was given a zero divisor"),
+        )
+    } else {
+        does_not_fit(member)
+    }
+}
+
+/// Euclid's algorithm over two non-negative `i128`s.
+fn gcd(mut a: i128, mut b: i128) -> i128 {
+    while b != 0 {
+        let remainder = a % b;
+        a = b;
+        b = remainder;
+    }
+    a
+}
+
+/// The argument that compares `wanted` against the other, as a fresh
+/// reference — [`nvs_core_math_min`] and [`nvs_core_math_max`] in one
+/// comparison. The **first** argument wins a tie.
+fn pick(
+    ctx: &mut Ctx,
+    args: &[Value],
+    wanted: std::cmp::Ordering,
+    member: &str,
+) -> Result<Value, Fault> {
+    let chosen = if compare_values(ctx, &args[1], &args[0], member)? == wanted {
+        args[1]
+    } else {
+        args[0]
+    };
+    Ok(owned(chosen))
+}
+
+/// One borrowed argument handed back as this member's result, with a
+/// reference of its own.
+///
+/// A `Core` member borrows its arguments and returns one fresh reference
+/// (see [`crate`]'s own docs), so a member that answers *with* one of its
+/// arguments — `min`, `max`, `clamp` — is the one shape that has to retain.
+fn owned(value: Value) -> Value {
+    #[expect(
+        unsafe_code,
+        reason = "the argument is owned by the caller's frame, which outlives \
+                  this call, so the value handed back needs a reference of its \
+                  own"
+    )]
+    unsafe {
+        value.retain();
+    }
+    value
+}
+
+/// Spec § 3's six rounding rules, decoded from the `mode` option's integer.
+///
+/// `pub(crate)` because `Core\RoundMode` is a `Core` enum rather than this
+/// class's own — [`ROUND_MODE`]'s own doc says why it is flat — and
+/// [`crate::decimal`]'s `divRound` is the second member to take one.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum RoundMode {
+    /// A tie goes away from zero — PHP's `PHP_ROUND_HALF_UP`, and `round`'s
+    /// default there and here.
+    HalfUp,
+    /// A tie goes toward zero — `PHP_ROUND_HALF_DOWN`.
+    HalfDown,
+    /// A tie goes to the even neighbour — `PHP_ROUND_HALF_EVEN`, "banker's
+    /// rounding," the rule that does not accumulate a bias over many values.
+    HalfEven,
+    /// A tie goes to the odd neighbour — `PHP_ROUND_HALF_ODD`.
+    HalfOdd,
+    /// **Every** value goes away from zero, tie or not — `ceil` for a positive
+    /// number and `floor` for a negative one, at any precision.
+    Up,
+    /// Every value goes toward zero — truncation, at any precision.
+    Down,
+}
+
+/// The `mode` option at `index`, or the `FATAL` a value that is no case is.
+///
+/// `member` is the caller's own spelling, because the two members that take a
+/// `Core\RoundMode` are in two classes and a `FATAL` names the one that got
+/// the value.
+pub(crate) fn round_mode(args: &[Value], index: usize, member: &str) -> Result<RoundMode, Fault> {
+    match args[index].as_int() {
+        Some(0) => Ok(RoundMode::HalfUp),
+        Some(1) => Ok(RoundMode::HalfDown),
+        Some(2) => Ok(RoundMode::HalfEven),
+        Some(3) => Ok(RoundMode::HalfOdd),
+        Some(4) => Ok(RoundMode::Up),
+        Some(5) => Ok(RoundMode::Down),
+        // Unreachable from source: every parameter that reaches here is
+        // declared `CoreTy::Enum(r"Core\RoundMode")`, so anything else is
+        // `E0401: expected `Core\RoundMode`, found `int`` at the argument,
+        // and the enum has exactly the six cases matched above — the arms are
+        // its whole roster, not a prefix of it, so a case cannot arrive here
+        // either.
+        _ => Err(Fault::fatal(format!(
+            "{member} expected a `Core\\RoundMode` case for `mode`, got tag {} value {}",
+            args[index].tag_byte(),
+            args[index].bits()
+        ))),
+    }
+}
+
+/// `$n` rounded to `precision` decimal places under `mode`.
+///
+/// A positive precision keeps that many places, zero rounds to an integer, and
+/// a negative one rounds to tens, hundreds and up — PHP's `round($n, -2)`.
+///
+/// The scale-round-unscale walk is the same one every language's `round` does,
+/// and it inherits the same limitation: `10 ** $precision` is exact only up to
+/// twenty-two, and a scaled value past 2^53 has no fractional part left to
+/// decide, so both cases answer `$n` unchanged rather than a value the
+/// scaling invented.
+#[expect(
+    clippy::cast_possible_truncation,
+    reason = "the exponent is bounded to ±22 immediately above the cast"
+)]
+fn round_to(value: f64, precision: i64, mode: RoundMode) -> f64 {
+    /// Past this the scale itself is inexact, so scaling would decide the
+    /// answer rather than the value would.
+    const MAX_EXACT_EXPONENT: i64 = 22;
+
+    if !value.is_finite() || !(-MAX_EXACT_EXPONENT..=MAX_EXACT_EXPONENT).contains(&precision) {
+        return value;
+    }
+    let scale = 10f64.powi(precision as i32);
+    let scaled = value * scale;
+    if scaled.abs() >= (1u64 << 53) as f64 {
+        return value;
+    }
+    apply(scaled, mode) / scale
+}
+
+/// One `mode` applied to an already-scaled value, so [`round_to`] holds the
+/// scaling and this holds the six rules.
+fn apply(scaled: f64, mode: RoundMode) -> f64 {
+    let is_tie = (scaled.fract().abs() - 0.5).abs() < f64::EPSILON;
+    match mode {
+        RoundMode::Up => {
+            if scaled < 0.0 {
+                scaled.floor()
+            } else {
+                scaled.ceil()
+            }
+        }
+        RoundMode::Down => scaled.trunc(),
+        // `f64::round` is already half-away-from-zero.
+        RoundMode::HalfUp => scaled.round(),
+        RoundMode::HalfDown if is_tie => scaled.trunc(),
+        RoundMode::HalfDown => scaled.round(),
+        RoundMode::HalfEven => scaled.round_ties_even(),
+        RoundMode::HalfOdd if is_tie => {
+            // Whichever of the two neighbours is odd. `rem_euclid` rather than
+            // `%` so a negative lower neighbour answers about its parity and
+            // not about its sign.
+            let lower = scaled.floor();
+            if lower.rem_euclid(2.0) == 1.0 {
+                lower
+            } else {
+                scaled.ceil()
+            }
+        }
+        RoundMode::HalfOdd => scaled.round(),
+    }
+}
+
+/// `$n` as [`nvs_core_math_format`]'s three pieces: whether it is negative,
+/// its integer digits, and its `decimals` fractional digits (empty for none).
+///
+/// The rounding happens *here*, before the digits are written, so the value
+/// `{:.*}` formats is already at the wanted precision — Rust's own formatter
+/// breaks a tie to even, and `number_format` breaks it away from zero.
+fn digits_of(number: Number, decimals: usize) -> Result<(bool, String, String), Fault> {
+    let written = match number {
+        Number::Integer(n) => {
+            let mut text = n.unsigned_abs().to_string();
+            if decimals > 0 {
+                text.push('.');
+                text.extend(std::iter::repeat_n('0', decimals));
+            }
+            return Ok((n < 0, split_at_point(&text).0, split_at_point(&text).1));
+        }
+        Number::Real(n) => {
+            if !n.is_finite() {
+                return Err(Fault::thrown(
+                    "Core\\Math::format has no digits for an infinity or a `NaN`".to_owned(),
+                ));
+            }
+            let rounded = round_to(
+                n,
+                i64::try_from(decimals).expect("at or under the cap"),
+                RoundMode::HalfUp,
+            );
+            format!("{rounded:.decimals$}")
+        }
+        // Rounded over the digits themselves rather than over the value: a
+        // `decimal` is exact, so rounding it through any numeric intermediate
+        // would be the one place this member lost the precision `rule:types/decimal`
+        // exists to keep. It also lifts the `f64` path's ceiling — `decimals`
+        // may be anything up to `MAX_DECIMALS`, where a `decimal`'s own scale
+        // stops at 28.
+        Number::Exact(n) => return Ok(decimal_digits(n, decimals)),
+    };
+    let negative = written.starts_with('-');
+    let magnitude = written.strip_prefix('-').unwrap_or(&written);
+    let (integer, fraction) = split_at_point(magnitude);
+    Ok((negative, integer, fraction))
+}
+
+/// One `decimal`'s digits, rounded **half up** at `decimals` places — the
+/// exact counterpart of the `f64` arm's `round_to` plus `{:.n}`, and the same
+/// rounding mode, so the two arms of [`digits_of`] agree on a value both can
+/// hold.
+///
+/// Rounding is done on the digit string, which is what keeps it exact and
+/// total: no intermediate can overflow 96 bits, and a `decimals` past
+/// `decimal`'s own scale of 28 simply pads.
+fn decimal_digits(value: Decimal, decimals: usize) -> (bool, String, String) {
+    let text = value.abs().to_string();
+    let (integer, fraction) = split_at_point(&text);
+    if fraction.len() <= decimals {
+        let mut fraction = fraction;
+        fraction.extend(std::iter::repeat_n('0', decimals - fraction.len()));
+        return (value.is_negative(), integer, fraction);
+    }
+    let mut digits = format!("{integer}{}", &fraction[..decimals]).into_bytes();
+    if fraction.as_bytes()[decimals] >= b'5' {
+        carry_one(&mut digits);
+    }
+    let kept = String::from_utf8(digits).expect("every byte written above is an ASCII digit");
+    let split = kept.len() - decimals;
+    (
+        value.is_negative(),
+        kept[..split].to_owned(),
+        kept[split..].to_owned(),
+    )
+}
+
+/// Adds one to a big-endian run of ASCII digits in place, growing it by a
+/// leading `1` where every digit carried (`999` becomes `1000`).
+fn carry_one(digits: &mut Vec<u8>) {
+    for digit in digits.iter_mut().rev() {
+        if *digit == b'9' {
+            *digit = b'0';
+        } else {
+            *digit += 1;
+            return;
+        }
+    }
+    digits.insert(0, b'1');
+}
+
+/// A written magnitude split at its decimal point, with an empty fraction for
+/// one that has none.
+fn split_at_point(text: &str) -> (String, String) {
+    match text.split_once('.') {
+        Some((integer, fraction)) => (integer.to_owned(), fraction.to_owned()),
+        None => (text.to_owned(), String::new()),
+    }
+}
+
+/// `digits` written into `out` with `separator` between each group of three,
+/// counted from the right — an empty separator writes the digits unchanged.
+fn group_into(digits: &str, separator: &[u8], out: &mut Vec<u8>) {
+    let bytes = digits.as_bytes();
+    for (index, byte) in bytes.iter().enumerate() {
+        let remaining = bytes.len() - index;
+        if index > 0 && remaining.is_multiple_of(3) {
+            out.extend_from_slice(separator);
+        }
+        out.push(*byte);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use nvs_runtime::{Ctx, call};
+
+    /// A member end to end through the `rule:errors/propagation` boundary compiled code will
+    /// reach it at, as `crate::arr`'s own tests do.
+    fn float_result(function: nvs_runtime::NvsFn, args: &[Value]) -> f64 {
+        let mut ctx = Ctx::buffered();
+        call(function, &mut ctx, args)
+            .expect("the call succeeds")
+            .as_float()
+            .expect("a float result")
+    }
+
+    /// A member over two `int`s, returning its `int` result or the message of
+    /// the error it threw.
+    fn int_pair(function: nvs_runtime::NvsFn, a: i64, b: i64) -> Result<i64, String> {
+        let mut ctx = Ctx::buffered();
+        match call(function, &mut ctx, &[Value::int(a), Value::int(b)]) {
+            Ok(result) => Ok(result.as_int().expect("an int result")),
+            Err(_) => Err(ctx
+                .take_pending()
+                .expect("the error is pending")
+                .into_owned()),
+        }
+    }
+
+    /// A member over one `float`, returning its `bool` result.
+    fn bool_result(function: nvs_runtime::NvsFn, n: f64) -> bool {
+        let mut ctx = Ctx::buffered();
+        call(function, &mut ctx, &[Value::float(n)])
+            .expect("the call succeeds")
+            .as_bool()
+            .expect("a bool result")
+    }
+
+    fn text_result(function: nvs_runtime::NvsFn, args: &[Value]) -> String {
+        let mut ctx = Ctx::buffered();
+        let value = call(function, &mut ctx, args).expect("the call succeeds");
+        let text = String::from_utf8(value.as_str_bytes().expect("a string result").to_vec())
+            .expect("`rule:types/bytes` makes a string UTF-8");
+        #[expect(
+            unsafe_code,
+            reason = "the result carries the one reference this test owns"
+        )]
+        unsafe {
+            value.release();
+        }
+        text
+    }
+
+    /// Spec § 3's six modes, on the one value that tells all of them apart.
+    #[test]
+    fn every_round_mode_breaks_the_tie_its_own_way() {
+        let cases = [
+            (0, 3.0, -3.0), // HalfUp
+            (1, 2.0, -2.0), // HalfDown
+            (2, 2.0, -2.0), // HalfEven
+            (3, 3.0, -3.0), // HalfOdd
+            (4, 3.0, -3.0), // Up
+            (5, 2.0, -2.0), // Down
+        ];
+        for (mode, positive, negative) in cases {
+            let options = [Value::int(0), Value::int(mode)];
+            assert_eq!(
+                float_result(
+                    nvs_core_math_round,
+                    &[Value::float(2.5), options[0], options[1]]
+                ),
+                positive,
+                "mode {mode} over 2.5"
+            );
+            assert_eq!(
+                float_result(
+                    nvs_core_math_round,
+                    &[Value::float(-2.5), options[0], options[1]]
+                ),
+                negative,
+                "mode {mode} over -2.5"
+            );
+        }
+    }
+
+    /// A precision moves the tie, in both directions.
+    #[test]
+    fn a_precision_rounds_at_that_place() {
+        let half_up = [Value::int(2), Value::int(0)];
+        assert_eq!(
+            float_result(
+                nvs_core_math_round,
+                &[Value::float(1.005), half_up[0], half_up[1]]
+            ),
+            1.0
+        );
+        let tens = [Value::int(-2), Value::int(0)];
+        assert_eq!(
+            float_result(
+                nvs_core_math_round,
+                &[Value::float(1250.0), tens[0], tens[1]]
+            ),
+            1300.0
+        );
+    }
+
+    /// `round` breaks an exact tie by its mode at any precision, keeps a
+    /// negative zero, rounds a decimal that only looks like a tie by its stored
+    /// value, and returns `$n` unchanged where there is nothing left to round.
+    // covers: Core\Math::round
+    #[test]
+    fn round_breaks_a_tie_by_mode_at_a_precision_and_leaves_what_it_cannot_round() {
+        let round = |n: f64, precision: i64, mode: i64| {
+            float_result(
+                nvs_core_math_round,
+                &[Value::float(n), Value::int(precision), Value::int(mode)],
+            )
+        };
+        let half_up = 0;
+        let half_even = 2;
+        assert_eq!(round(2.5, 0, half_up), 3.0);
+        assert_eq!(round(-2.5, 0, half_up), -3.0);
+        assert_eq!(round(2.4999, 0, half_up), 2.0);
+        assert_eq!(round(-0.4, 0, half_up).to_bits(), (-0.0f64).to_bits());
+        assert_eq!(round(0.125, 2, half_up), 0.13);
+        assert_eq!(round(0.125, 2, half_even), 0.12);
+        assert_eq!(round(1.23456, 2, half_up), 1.23);
+        assert_eq!(round(1249.0, -2, half_up), 1200.0);
+        assert_eq!(
+            round(-1.005, 2, half_up),
+            -1.0,
+            "-1.005 is stored above the tie"
+        );
+
+        assert!(round(f64::NAN, 2, half_up).is_nan());
+        assert_eq!(round(f64::INFINITY, 2, half_up), f64::INFINITY);
+        assert_eq!(round(f64::NEG_INFINITY, -2, half_up), f64::NEG_INFINITY);
+        assert_eq!(round(1.23456, 22, half_up), 1.23456);
+        assert_eq!(round(1.23456, 23, half_up), 1.23456);
+        assert_eq!(round(1.5, -23, half_up), 1.5);
+        assert_eq!(round(1.5, i64::MIN, half_up), 1.5);
+        assert_eq!(round(1e300, 2, half_up), 1e300);
+        assert_eq!(round(f64::MAX, 0, half_up), f64::MAX);
+    }
+
+    /// The grouping walk, at every length a three-digit group can end on.
+    #[test]
+    fn a_group_separator_lands_every_three_digits_from_the_right() {
+        let comma = Value::str(NvsStr::new(b","));
+        let point = Value::str(NvsStr::new(b"."));
+        for (value, want) in [
+            (1.0, "1"),
+            (12.0, "12"),
+            (123.0, "123"),
+            (1234.0, "1,234"),
+            (1_234_567.0, "1,234,567"),
+        ] {
+            assert_eq!(
+                text_result(
+                    nvs_core_math_format,
+                    &[Value::float(value), Value::uint(0), point, comma]
+                ),
+                want
+            );
+        }
+        #[expect(
+            unsafe_code,
+            reason = "each literal carries the one reference this test owns"
+        )]
+        unsafe {
+            comma.release();
+            point.release();
+        }
+    }
+
+    /// The two base members are inverses, including across the sign.
+    #[test]
+    fn a_base_written_reads_back() {
+        for value in [0i64, 7, -7, 48879, i64::MAX, i64::MIN] {
+            for base in [2u64, 8, 16, 36] {
+                let written = text_result(
+                    nvs_core_math_to_base,
+                    &[Value::int(value), Value::uint(base)],
+                );
+                let text = Value::str(NvsStr::new(written.as_bytes()));
+                let mut ctx = Ctx::buffered();
+                let read = call(
+                    nvs_core_math_from_base,
+                    &mut ctx,
+                    &[text, Value::uint(base)],
+                )
+                .expect("the call succeeds");
+                #[expect(
+                    unsafe_code,
+                    reason = "the literal carries the one reference this test owns"
+                )]
+                unsafe {
+                    text.release();
+                }
+                assert_eq!(read.as_int(), Some(value), "{value} in base {base}");
+            }
+        }
+    }
+
+    /// `abs` answers in the argument's own type on every arm, and throws
+    /// `ArithmeticError` exactly where that type has no answer.
+    // covers: Core\Math::abs
+    #[test]
+    fn abs_keeps_the_arguments_type_and_throws_only_where_it_has_no_answer() {
+        let mut ctx = Ctx::buffered();
+        let int = call(nvs_core_math_abs, &mut ctx, &[Value::int(-42)]).expect("an int answer");
+        assert_eq!(int.as_int(), Some(42));
+        let largest = call(nvs_core_math_abs, &mut ctx, &[Value::int(-i64::MAX)])
+            .expect("the negated largest int has an answer");
+        assert_eq!(largest.as_int(), Some(i64::MAX));
+        let widest = call(nvs_core_math_abs, &mut ctx, &[Value::uint(u64::MAX)])
+            .expect("a uint has no sign, so every one has an answer");
+        assert_eq!(widest.as_uint(), Some(u64::MAX));
+
+        let zero = float_result(nvs_core_math_abs, &[Value::float(-0.0)]);
+        assert!(zero == 0.0 && zero.is_sign_positive(), "-0.0 becomes 0.0");
+        assert_eq!(
+            float_result(nvs_core_math_abs, &[Value::float(f64::NEG_INFINITY)]),
+            f64::INFINITY
+        );
+        assert!(float_result(nvs_core_math_abs, &[Value::float(f64::NAN)]).is_nan());
+
+        let price = Decimal::parse("-19.90").expect("a decimal literal");
+        let exact = call(nvs_core_math_abs, &mut ctx, &[Value::decimal(price)])
+            .expect("a decimal answer")
+            .as_decimal()
+            .expect("a decimal result");
+        assert_eq!(exact.to_string(), "19.90", "the scale is kept");
+
+        let mut ctx = Ctx::buffered();
+        assert!(call(nvs_core_math_abs, &mut ctx, &[Value::int(i64::MIN)]).is_err());
+        let message = ctx.take_pending().expect("the refusal is pending");
+        assert!(message.contains("Core\\Math::abs"), "{message}");
+    }
+
+    /// `acos` answers on the closed range `[-1, 1]`, ends included, and `NaN`
+    /// one step past either end — never a throw.
+    // covers: Core\Math::acos
+    #[test]
+    fn acos_answers_on_its_closed_range_and_nan_one_step_outside_it() {
+        let acos = |n: f64| float_result(nvs_core_math_acos, &[Value::float(n)]);
+        assert_eq!(acos(1.0), 0.0);
+        assert_eq!(acos(-1.0), std::f64::consts::PI);
+        assert_eq!(acos(0.0), std::f64::consts::FRAC_PI_2);
+        assert_eq!(acos(-0.0), std::f64::consts::FRAC_PI_2);
+        for outside in [
+            1.0f64.next_up(),
+            (-1.0f64).next_down(),
+            f64::INFINITY,
+            f64::NEG_INFINITY,
+            f64::NAN,
+        ] {
+            assert!(acos(outside).is_nan(), "{outside} has no angle");
+        }
+    }
+
+    /// `acosh` answers from `1` up, `0` at `1` itself, a finite value at
+    /// `f64::MAX` where `x + sqrt(x² - 1)` would overflow, and `NaN` one step
+    /// below `1` — never a throw.
+    // covers: Core\Math::acosh
+    #[test]
+    fn acosh_answers_from_one_up_stays_finite_at_the_largest_float_and_nan_below_one() {
+        let acosh = |n: f64| float_result(nvs_core_math_acosh, &[Value::float(n)]);
+        assert_eq!(acosh(1.0), 0.0);
+        assert!((acosh(3.0f64.cosh()) - 3.0).abs() < 1e-12, "undoes cosh");
+        let largest = acosh(f64::MAX);
+        assert!(
+            largest.is_finite() && (largest - 710.475_860_073_943_9).abs() < 1e-9,
+            "{largest}"
+        );
+        assert_eq!(acosh(f64::INFINITY), f64::INFINITY);
+        for below in [
+            1.0f64.next_down(),
+            0.0,
+            -0.0,
+            -1.0,
+            f64::NEG_INFINITY,
+            f64::NAN,
+        ] {
+            assert!(
+                acosh(below).is_nan(),
+                "{below} has no inverse hyperbolic cosine"
+            );
+        }
+    }
+
+    /// `asin` answers on the closed range `[-1, 1]`, ends included, keeps the
+    /// sign of a zero, and answers `NaN` one step past either end — never a throw.
+    // covers: Core\Math::asin
+    #[test]
+    fn asin_answers_on_its_closed_range_keeps_a_zeros_sign_and_nan_one_step_outside_it() {
+        let asin = |n: f64| float_result(nvs_core_math_asin, &[Value::float(n)]);
+        assert_eq!(asin(1.0), std::f64::consts::FRAC_PI_2);
+        assert_eq!(asin(-1.0), -std::f64::consts::FRAC_PI_2);
+        assert_eq!(asin(0.0).to_bits(), 0.0f64.to_bits());
+        assert_eq!(asin(-0.0).to_bits(), (-0.0f64).to_bits());
+        for outside in [
+            1.0f64.next_up(),
+            (-1.0f64).next_down(),
+            f64::INFINITY,
+            f64::NEG_INFINITY,
+            f64::NAN,
+        ] {
+            assert!(asin(outside).is_nan(), "{outside} has no angle");
+        }
+    }
+
+    /// `asinh` answers for every float: a zero keeps its sign, `-n` answers
+    /// exactly `-asinh(n)`, `±f64::MAX` stays finite where `x + sqrt(x² + 1)`
+    /// would overflow, the smallest floats answer themselves, and an infinity
+    /// answers an infinity — never a throw.
+    // covers: Core\Math::asinh
+    #[test]
+    fn asinh_answers_every_float_keeps_its_sign_and_stays_finite_at_the_largest() {
+        let asinh = |n: f64| float_result(nvs_core_math_asinh, &[Value::float(n)]);
+        assert_eq!(asinh(0.0).to_bits(), 0.0f64.to_bits());
+        assert_eq!(asinh(-0.0).to_bits(), (-0.0f64).to_bits());
+        assert!((asinh(2.0f64.sinh()) - 2.0).abs() < 1e-12, "undoes sinh");
+        for n in [0.5, 3.0, 1e10, f64::MAX] {
+            assert_eq!(asinh(-n), -asinh(n), "odd at {n}");
+        }
+        let largest = asinh(f64::MAX);
+        assert!(
+            largest.is_finite() && (largest - 710.475_860_073_943_9).abs() < 1e-9,
+            "{largest}"
+        );
+        assert_eq!(asinh(f64::MIN_POSITIVE), f64::MIN_POSITIVE);
+        assert_eq!(asinh(f64::from_bits(1)), f64::from_bits(1));
+        assert_eq!(asinh(f64::INFINITY), f64::INFINITY);
+        assert_eq!(asinh(f64::NEG_INFINITY), f64::NEG_INFINITY);
+        assert!(asinh(f64::NAN).is_nan());
+    }
+
+    /// `atan` answers for every float: `±PI / 2` exactly at either infinity and
+    /// at `±f64::MAX`, whose distance from the end is far below one step of a
+    /// float, a zero with its sign kept, and `-n` exactly `-atan(n)` — never a
+    /// throw.
+    // covers: Core\Math::atan
+    #[test]
+    fn atan_answers_every_float_reaches_its_ends_only_at_infinity_and_keeps_its_sign() {
+        use std::f64::consts::{FRAC_PI_2, FRAC_PI_4};
+        let atan = |n: f64| float_result(nvs_core_math_atan, &[Value::float(n)]);
+        assert_eq!(atan(1.0), FRAC_PI_4);
+        assert_eq!(atan(f64::INFINITY), FRAC_PI_2);
+        assert_eq!(atan(f64::NEG_INFINITY), -FRAC_PI_2);
+        assert_eq!(atan(f64::MAX), FRAC_PI_2);
+        assert_eq!(atan(0.0).to_bits(), 0.0f64.to_bits());
+        assert_eq!(atan(-0.0).to_bits(), (-0.0f64).to_bits());
+        assert_eq!(atan(f64::MIN_POSITIVE), f64::MIN_POSITIVE);
+        for n in [0.5, 3.0, 1e10, f64::MAX] {
+            assert_eq!(atan(-n), -atan(n), "odd at {n}");
+        }
+        assert!(atan(f64::NAN).is_nan());
+    }
+
+    /// `atan2` takes `$y` first and answers the quadrant both signs choose,
+    /// `±PI` on the negative x-axis by the sign of a zero `$y`, `0` at the
+    /// origin, and a finite angle for coordinates at the ends of the range —
+    /// never a throw.
+    // covers: Core\Math::atan2
+    #[test]
+    fn atan2_takes_y_first_answers_every_quadrant_and_zero_at_the_origin() {
+        use std::f64::consts::{FRAC_PI_2, FRAC_PI_4, PI};
+        let atan2 =
+            |y: f64, x: f64| float_result(nvs_core_math_atan2, &[Value::float(y), Value::float(x)]);
+        assert_eq!(atan2(1.0, 0.0), FRAC_PI_2, "y first");
+        assert_eq!(atan2(1.0, 1.0), FRAC_PI_4);
+        assert!((atan2(1.0, -1.0) - 3.0 * FRAC_PI_4).abs() < 1e-15);
+        assert!((atan2(-1.0, -1.0) + 3.0 * FRAC_PI_4).abs() < 1e-15);
+        assert_eq!(atan2(-1.0, 1.0), -FRAC_PI_4);
+        assert_eq!(atan2(0.0, -1.0), PI);
+        assert_eq!(atan2(-0.0, -1.0), -PI);
+        assert_eq!(atan2(0.0, 0.0), 0.0);
+        assert_eq!(atan2(f64::MAX, f64::MIN_POSITIVE), FRAC_PI_2);
+        assert_eq!(atan2(f64::MIN_POSITIVE, f64::MAX), 0.0);
+        assert_eq!(atan2(f64::INFINITY, f64::INFINITY), FRAC_PI_4);
+        assert!(atan2(f64::NAN, 1.0).is_nan() && atan2(1.0, f64::NAN).is_nan());
+    }
+
+    /// `atanh` answers `±INFINITY` at `±1`, `NaN` outside them, a zero with
+    /// its sign kept, and `-n` exactly `-atanh(n)` right up to the float next
+    /// to `-1` — where `f64::atanh` alone loses digits — never a throw.
+    // covers: Core\Math::atanh
+    #[test]
+    fn atanh_answers_infinity_at_the_ends_nan_outside_them_and_keeps_its_sign() {
+        let atanh = |n: f64| float_result(nvs_core_math_atanh, &[Value::float(n)]);
+        assert!((atanh(0.5) - 0.549_306_144_334_054_9).abs() < 1e-15);
+        assert!((atanh(2.0f64.tanh()) - 2.0).abs() < 1e-12, "undoes tanh");
+        assert_eq!(atanh(1.0), f64::INFINITY);
+        assert_eq!(atanh(-1.0), f64::NEG_INFINITY);
+        let edge = 1.0f64.next_down();
+        assert!(
+            (atanh(edge) - 18.714_973_875_118_524).abs() < 1e-12,
+            "{}",
+            atanh(edge)
+        );
+        for n in [0.5, 0.999, edge, f64::MIN_POSITIVE] {
+            assert_eq!(atanh(-n), -atanh(n), "odd at {n}");
+        }
+        assert_eq!(atanh(0.0).to_bits(), 0.0f64.to_bits());
+        assert_eq!(atanh(-0.0).to_bits(), (-0.0f64).to_bits());
+        assert_eq!(atanh(f64::MIN_POSITIVE), f64::MIN_POSITIVE);
+        for outside in [
+            1.0f64.next_up(),
+            -1.5,
+            f64::MAX,
+            f64::INFINITY,
+            f64::NEG_INFINITY,
+            f64::NAN,
+        ] {
+            assert!(atanh(outside).is_nan(), "{outside} has no inverse");
+        }
+    }
+
+    /// `cbrt` answers a real root for a negative `$n` where `pow(n, 1/3)`
+    /// answers `NaN`, exact roots of exact cubes, a finite root at both ends
+    /// of the range and below the smallest normal float, a zero and an
+    /// infinity with their sign kept — never a throw.
+    // covers: Core\Math::cbrt
+    #[test]
+    fn cbrt_answers_every_float_keeps_its_sign_and_is_exact_on_exact_cubes() {
+        let cbrt = |n: f64| float_result(nvs_core_math_cbrt, &[Value::float(n)]);
+        assert_eq!(cbrt(27.0), 3.0);
+        assert_eq!(cbrt(-8.0), -2.0);
+        assert!((-8.0f64).powf(1.0 / 3.0).is_nan(), "the idiom it replaces");
+        assert!((cbrt(2.0).powi(3) - 2.0).abs() < 1e-15);
+        for n in [
+            0.001,
+            2.0,
+            1e300,
+            f64::MAX,
+            f64::MIN_POSITIVE,
+            f64::from_bits(1),
+        ] {
+            let root = cbrt(n);
+            assert!(root.is_finite() && root > 0.0, "{n} -> {root}");
+            assert_eq!(cbrt(-n), -root, "odd at {n}");
+        }
+        assert_eq!(cbrt(0.0).to_bits(), 0.0f64.to_bits());
+        assert_eq!(cbrt(-0.0).to_bits(), (-0.0f64).to_bits());
+        assert_eq!(cbrt(f64::INFINITY), f64::INFINITY);
+        assert_eq!(cbrt(f64::NEG_INFINITY), f64::NEG_INFINITY);
+        assert!(cbrt(f64::NAN).is_nan());
+    }
+
+    /// `ceil` rounds toward positive infinity: toward zero for a negative
+    /// `$n`, `-0.0` for a `$n` in `(-1, 0)`, whole values and every float at
+    /// or past `2^52` unchanged, and `NaN` and the infinities through as
+    /// they are — never a throw.
+    // covers: Core\Math::ceil
+    #[test]
+    fn ceil_rounds_toward_positive_infinity_and_keeps_a_negative_zero() {
+        let ceil = |n: f64| float_result(nvs_core_math_ceil, &[Value::float(n)]);
+        assert_eq!(ceil(4.1), 5.0);
+        assert_eq!(ceil(4.0), 4.0);
+        assert_eq!(ceil(-4.1), -4.0);
+        assert_eq!(ceil(-0.5).to_bits(), (-0.0f64).to_bits());
+        assert_eq!(ceil(-f64::MIN_POSITIVE).to_bits(), (-0.0f64).to_bits());
+        assert_eq!(ceil(f64::MIN_POSITIVE), 1.0);
+        assert_eq!(ceil(4_503_599_627_370_495.5), 4_503_599_627_370_496.0);
+        assert_eq!(ceil(-4_503_599_627_370_495.5), -4_503_599_627_370_495.0);
+        assert_eq!(ceil(f64::MAX), f64::MAX);
+        assert_eq!(ceil(f64::INFINITY), f64::INFINITY);
+        assert_eq!(ceil(f64::NEG_INFINITY), f64::NEG_INFINITY);
+        assert!(ceil(f64::NAN).is_nan());
+    }
+
+    /// `clamp` holds a closed range, orders its floats totally — a `NaN` below
+    /// every number, `-0.0` below `0.0` — and throws, naming itself, for an
+    /// empty range and for a pair with no natural order.
+    // covers: Core\Math::clamp
+    #[test]
+    fn clamp_holds_a_closed_range_orders_floats_totally_and_throws_for_an_empty_one() {
+        let clamp = |n: i64, low: i64, high: i64| {
+            let mut ctx = Ctx::buffered();
+            call(
+                nvs_core_math_clamp,
+                &mut ctx,
+                &[Value::int(n), Value::int(low), Value::int(high)],
+            )
+            .expect("a non-empty range has an answer")
+            .as_int()
+            .expect("an int answer")
+        };
+        assert_eq!(clamp(5, 0, 10), 5);
+        assert_eq!(clamp(-1, 0, 10), 0);
+        assert_eq!(clamp(11, 0, 10), 10);
+        assert_eq!(clamp(0, 0, 10), 0, "the low end is inside");
+        assert_eq!(clamp(10, 0, 10), 10, "the high end is inside");
+        assert_eq!(clamp(i64::MIN, 7, 7), 7, "a one-point range");
+        assert_eq!(clamp(i64::MAX, i64::MIN, i64::MAX), i64::MAX);
+
+        let clamp_float = |n: f64, low: f64, high: f64| {
+            float_result(
+                nvs_core_math_clamp,
+                &[Value::float(n), Value::float(low), Value::float(high)],
+            )
+        };
+        assert_eq!(clamp_float(f64::NAN, 0.0, 1.0), 0.0, "NaN is below 0.0");
+        assert_eq!(clamp_float(0.5, f64::NAN, 1.0), 0.5, "NaN is a valid low");
+        assert_eq!(clamp_float(-0.0, 0.0, 1.0).to_bits(), 0.0f64.to_bits());
+        assert_eq!(clamp_float(f64::INFINITY, 0.0, 1.0), 1.0);
+
+        for refused in [
+            [Value::int(7), Value::int(8), Value::int(7)],
+            [Value::int(1), Value::int(0), Value::bool(true)],
+            [Value::float(0.5), Value::null(), Value::float(1.0)],
+        ] {
+            let mut ctx = Ctx::buffered();
+            assert!(call(nvs_core_math_clamp, &mut ctx, &refused).is_err());
+            let message = ctx.take_pending().expect("the refusal is pending");
+            assert!(message.contains("Core\\Math::clamp"), "{message}");
+        }
+    }
+
+    /// `cos` is `1` at zero and `-1` at `PI`, the same for `-n` and `n`, stays
+    /// in `[-1, 1]` for the largest finite float, and answers `NaN` — never a
+    /// throw — for an infinity and for `NaN`.
+    // covers: Core\Math::cos
+    #[test]
+    fn cos_stays_in_its_range_is_even_and_answers_nan_for_an_infinity() {
+        use std::f64::consts::PI;
+        let cos = |n: f64| float_result(nvs_core_math_cos, &[Value::float(n)]);
+        assert_eq!(cos(0.0), 1.0);
+        assert_eq!(cos(-0.0), 1.0);
+        assert_eq!(cos(PI), -1.0);
+        assert!((cos(PI / 3.0) - 0.5).abs() < 1e-15);
+        assert_eq!(cos(-2.5).to_bits(), cos(2.5).to_bits(), "even");
+        assert!(
+            (cos(1e22) - 0.523_214_785_395_138_9).abs() < 1e-15,
+            "a large angle"
+        );
+        for far in [f64::MAX, -f64::MAX] {
+            assert!((-1.0..=1.0).contains(&cos(far)), "{far}");
+        }
+        assert_eq!(cos(f64::MIN_POSITIVE), 1.0);
+        for none in [f64::INFINITY, f64::NEG_INFINITY, f64::NAN] {
+            assert!(cos(none).is_nan(), "{none}");
+        }
+    }
+
+    /// `cosh` is `1` at zero and never below it, the same for `-n` and `n`,
+    /// finite at `710` and `INFINITY` one step past it, and `NaN` only for
+    /// `NaN` — never a throw.
+    // covers: Core\Math::cosh
+    #[test]
+    fn cosh_is_at_least_one_is_even_and_overflows_to_infinity_past_710() {
+        let cosh = |n: f64| float_result(nvs_core_math_cosh, &[Value::float(n)]);
+        assert_eq!(cosh(0.0), 1.0);
+        assert_eq!(cosh(-0.0), 1.0);
+        assert!((cosh(1.0) - 1.543_080_634_815_243_7).abs() < 1e-15);
+        assert_eq!(cosh(-3.5).to_bits(), cosh(3.5).to_bits(), "even");
+        assert_eq!(cosh(f64::MIN_POSITIVE), 1.0);
+        assert!(cosh(710.0).is_finite());
+        assert_eq!(cosh(711.0), f64::INFINITY);
+        assert_eq!(cosh(-711.0), f64::INFINITY);
+        assert_eq!(cosh(f64::MAX), f64::INFINITY);
+        assert_eq!(cosh(f64::NEG_INFINITY), f64::INFINITY);
+        assert!(cosh(f64::NAN).is_nan());
+    }
+
+    /// `exp` is `1` at zero and `E` at one, turns a sum into a product, is
+    /// finite at `709.78` and `INFINITY` just past it, reaches `0.0` only below
+    /// the smallest subnormal float, and is never negative — never a throw.
+    // covers: Core\Math::exp
+    #[test]
+    fn exp_is_never_negative_overflows_past_709_78_and_underflows_to_zero() {
+        let exp = |n: f64| float_result(nvs_core_math_exp, &[Value::float(n)]);
+        assert_eq!(exp(0.0), 1.0);
+        assert_eq!(exp(-0.0), 1.0);
+        assert_eq!(exp(1.0), std::f64::consts::E);
+        assert!(
+            (exp(0.3) * exp(0.4) - exp(0.7)).abs() < 1e-15,
+            "a sum becomes a product"
+        );
+        assert!(exp(709.78).is_finite());
+        assert_eq!(exp(709.79), f64::INFINITY);
+        assert_eq!(exp(f64::MAX), f64::INFINITY);
+        assert!(exp(-745.0) > 0.0, "a subnormal result is still above zero");
+        assert_eq!(exp(-746.0), 0.0);
+        assert_eq!(exp(-f64::MAX), 0.0);
+        assert_eq!(exp(f64::NEG_INFINITY), 0.0);
+        assert_eq!(exp(f64::INFINITY), f64::INFINITY);
+        assert!(exp(f64::NAN).is_nan());
+        for n in [-700.0, -1.0, -f64::MIN_POSITIVE, 0.5, 700.0] {
+            assert!(exp(n) > 0.0, "{n}");
+        }
+    }
+
+    /// `fdiv` answers a zero divisor where `/` throws: an infinity signed by
+    /// both operands, zero's sign included, and `NaN` for `0 / 0` and for two
+    /// infinities; it overflows and underflows the way `/` does elsewhere —
+    /// never a throw.
+    // covers: Core\Math::fdiv
+    #[test]
+    fn fdiv_answers_a_zero_divisor_with_a_signed_infinity_and_never_throws() {
+        let fdiv =
+            |a: f64, b: f64| float_result(nvs_core_math_fdiv, &[Value::float(a), Value::float(b)]);
+        assert_eq!(fdiv(10.0, 4.0), 2.5);
+        assert_eq!(fdiv(1.0, 0.0), f64::INFINITY);
+        assert_eq!(fdiv(-1.0, 0.0), f64::NEG_INFINITY);
+        assert_eq!(fdiv(1.0, -0.0), f64::NEG_INFINITY);
+        assert_eq!(fdiv(-1.0, -0.0), f64::INFINITY);
+        assert_eq!(fdiv(f64::INFINITY, 0.0), f64::INFINITY);
+        assert!(fdiv(0.0, 0.0).is_nan());
+        assert!(fdiv(-0.0, 0.0).is_nan());
+        assert!(fdiv(f64::INFINITY, f64::NEG_INFINITY).is_nan());
+        assert!(fdiv(f64::NAN, 0.0).is_nan());
+        assert!(fdiv(1.0, f64::NAN).is_nan());
+        assert_eq!(fdiv(f64::MAX, f64::MIN_POSITIVE), f64::INFINITY);
+        assert_eq!(fdiv(f64::MIN_POSITIVE, f64::MAX), 0.0);
+        assert_eq!(
+            fdiv(-0.0, 1.0).to_bits(),
+            (-0.0f64).to_bits(),
+            "a zero keeps its sign"
+        );
+        assert_eq!(fdiv(1.0, f64::INFINITY), 0.0);
+    }
+
+    /// `floor` rounds toward negative infinity on both sides of zero, keeps a
+    /// whole number and a zero's sign, returns `-1` for the smallest negative
+    /// float, leaves every float past `2^52` alone because none has a fraction,
+    /// and passes `NaN` and the infinities through — never a throw.
+    // covers: Core\Math::floor
+    #[test]
+    fn floor_rounds_toward_negative_infinity_and_keeps_every_whole_number() {
+        let floor = |n: f64| float_result(nvs_core_math_floor, &[Value::float(n)]);
+        assert_eq!(floor(4.9), 4.0);
+        assert_eq!(floor(4.0), 4.0);
+        assert_eq!(floor(-4.1), -5.0);
+        assert_eq!(floor(-0.5), -1.0);
+        assert_eq!(floor(-f64::MIN_POSITIVE), -1.0);
+        assert_eq!(floor(f64::MIN_POSITIVE).to_bits(), 0.0f64.to_bits());
+        assert_eq!(
+            floor(-0.0).to_bits(),
+            (-0.0f64).to_bits(),
+            "a zero keeps its sign"
+        );
+        assert_eq!(floor(0.999_999_999_999_999_9), 0.0);
+        assert_eq!(floor(4_503_599_627_370_495.5), 4_503_599_627_370_495.0);
+        for whole in [9_007_199_254_740_994.0, f64::MAX, -f64::MAX] {
+            assert_eq!(floor(whole), whole, "{whole} has no fraction");
+        }
+        assert_eq!(floor(f64::INFINITY), f64::INFINITY);
+        assert_eq!(floor(f64::NEG_INFINITY), f64::NEG_INFINITY);
+        assert!(floor(f64::NAN).is_nan());
+    }
+
+    /// `gcd` ignores both signs, returns the other argument's magnitude for
+    /// one zero and `0` for two, returns `1` for the largest neighbouring
+    /// Fibonacci numbers, and throws only where the result is `2^63`.
+    // covers: Core\Math::gcd
+    #[test]
+    fn gcd_ignores_both_signs_and_throws_only_where_the_result_is_two_to_the_63() {
+        let gcd = |a: i64, b: i64| int_pair(nvs_core_math_gcd, a, b);
+        for (a, b) in [(12, 18), (-12, 18), (12, -18), (-12, -18), (18, 12)] {
+            assert_eq!(gcd(a, b), Ok(6), "gcd({a}, {b})");
+        }
+        assert_eq!(gcd(0, 5), Ok(5));
+        assert_eq!(gcd(-5, 0), Ok(5));
+        assert_eq!(gcd(0, 0), Ok(0));
+        assert_eq!(gcd(17, 5), Ok(1));
+        assert_eq!(gcd(i64::MAX, i64::MAX), Ok(i64::MAX));
+        assert_eq!(gcd(i64::MAX, i64::MIN), Ok(1));
+        assert_eq!(gcd(i64::MIN, 2), Ok(2));
+        assert_eq!(gcd(i64::MIN, i64::MIN / 2), Ok(1 << 62));
+        assert_eq!(
+            gcd(7_540_113_804_746_346_429, 4_660_046_610_375_530_309),
+            Ok(1)
+        );
+        for (a, b) in [(i64::MIN, 0), (0, i64::MIN), (i64::MIN, i64::MIN)] {
+            let message = gcd(a, b).expect_err("2^63 does not fit an int");
+            assert!(message.contains("Core\\Math::gcd"), "{message}");
+        }
+    }
+
+    /// `hypot` ignores both signs, stays finite where the naive
+    /// `sqrt(a * a + b * b)` overflows or underflows to zero, and returns
+    /// `INFINITY` for an infinite side even beside `NaN`.
+    // covers: Core\Math::hypot
+    #[test]
+    fn hypot_ignores_both_signs_survives_the_naive_overflow_and_prefers_infinity_to_nan() {
+        let hypot =
+            |a: f64, b: f64| float_result(nvs_core_math_hypot, &[Value::float(a), Value::float(b)]);
+        for (a, b) in [
+            (3.0, 4.0),
+            (-3.0, 4.0),
+            (3.0, -4.0),
+            (-3.0, -4.0),
+            (4.0, 3.0),
+        ] {
+            assert_eq!(hypot(a, b), 5.0, "hypot({a}, {b})");
+        }
+        assert_eq!(hypot(0.0, 0.0), 0.0);
+        assert_eq!(hypot(-0.0, 7.0), 7.0);
+        let big = 1e200_f64;
+        assert!((big * big).is_infinite(), "the naive form overflows");
+        assert!((hypot(big, big) - big * std::f64::consts::SQRT_2).abs() < 1e186);
+        let small = 1e-200_f64;
+        assert_eq!(small * small, 0.0, "the naive form underflows");
+        assert!(hypot(small, small) > 0.0);
+        assert_eq!(hypot(f64::MAX, 0.0), f64::MAX);
+        assert_eq!(hypot(f64::MAX, f64::MAX), f64::INFINITY);
+        assert_eq!(hypot(f64::NEG_INFINITY, 1.0), f64::INFINITY);
+        assert_eq!(hypot(f64::INFINITY, f64::NAN), f64::INFINITY);
+        assert_eq!(hypot(f64::NAN, f64::NEG_INFINITY), f64::INFINITY);
+        assert!(hypot(f64::NAN, 1.0).is_nan());
+    }
+
+    /// `intDiv` truncates toward zero for every sign pair, reaches both ends
+    /// of `int`, and throws for a zero divisor and for `INT_MIN / -1`, with a
+    /// message saying which of the two it was.
+    // covers: Core\Math::intDiv
+    #[test]
+    fn int_div_truncates_toward_zero_and_throws_for_a_zero_divisor_and_int_min_by_minus_one() {
+        let int_div = |a: i64, b: i64| int_pair(nvs_core_math_int_div, a, b);
+        assert_eq!(int_div(7, 2), Ok(3));
+        assert_eq!(int_div(-7, 2), Ok(-3));
+        assert_eq!(int_div(7, -2), Ok(-3));
+        assert_eq!(int_div(-7, -2), Ok(3));
+        assert_eq!(int_div(9, 10), Ok(0));
+        assert_eq!(int_div(i64::MAX, -1), Ok(-i64::MAX));
+        assert_eq!(int_div(i64::MIN, 1), Ok(i64::MIN));
+        assert_eq!(int_div(i64::MIN, -2), Ok(1 << 62));
+        assert_eq!(int_div(i64::MIN, i64::MAX), Ok(-1));
+        assert_eq!(int_div(i64::MAX, i64::MIN), Ok(0));
+        for a in [1, 0, i64::MIN, i64::MAX] {
+            let message = int_div(a, 0).expect_err("a zero divisor throws");
+            assert!(message.contains("zero divisor"), "{message}");
+        }
+        let message = int_div(i64::MIN, -1).expect_err("2^63 does not fit an int");
+        assert!(message.contains("does not fit"), "{message}");
+    }
+
+    /// `mod` keeps the sign of `$a` whatever the sign of `$b`, answers `NaN`
+    /// for an infinite `$a` or a `NaN` on either side, answers `$a` for an
+    /// infinite `$b`, and throws for a zero divisor of either sign.
+    // covers: Core\Math::mod
+    #[test]
+    fn mod_keeps_the_sign_of_a_and_throws_for_a_zero_divisor_of_either_sign() {
+        let modulo =
+            |a: f64, b: f64| float_result(nvs_core_math_mod, &[Value::float(a), Value::float(b)]);
+        assert_eq!(modulo(7.5, 2.0), 1.5);
+        assert_eq!(modulo(-7.5, 2.0), -1.5);
+        assert_eq!(modulo(7.5, -2.0), 1.5);
+        assert_eq!(modulo(-7.5, -2.0), -1.5);
+        assert_eq!(modulo(0.1, 1.0), 0.1);
+        assert_eq!(modulo(5.0, 2.5).to_bits(), 0.0f64.to_bits());
+        assert_eq!(modulo(-5.0, 2.5).to_bits(), (-0.0f64).to_bits());
+        assert_eq!(modulo(3.0, f64::INFINITY), 3.0);
+        assert_eq!(modulo(-3.0, f64::NEG_INFINITY), -3.0);
+        let far = modulo(f64::MAX, 7.0);
+        assert!((0.0..7.0).contains(&far), "{far}");
+        for (a, b) in [
+            (f64::INFINITY, 2.0),
+            (f64::NEG_INFINITY, 2.0),
+            (f64::NAN, 2.0),
+            (2.0, f64::NAN),
+        ] {
+            assert!(modulo(a, b).is_nan(), "{a} mod {b}");
+        }
+
+        for a in [1.0, 0.0, f64::INFINITY, f64::NAN] {
+            for zero in [0.0, -0.0] {
+                let mut ctx = Ctx::buffered();
+                assert!(
+                    call(
+                        nvs_core_math_mod,
+                        &mut ctx,
+                        &[Value::float(a), Value::float(zero)]
+                    )
+                    .is_err()
+                );
+                let message = ctx.take_pending().expect("the error is pending");
+                assert!(
+                    message.contains("Core\\Math::mod was given a zero divisor"),
+                    "{message}"
+                );
+            }
+        }
+    }
+
+    /// `isFinite` is `true` for both zeros, both far ends of `float` and the
+    /// smallest subnormal, and `false` for both infinities and `NaN`; with
+    /// `isNan` it tells all three kinds of `float` apart.
+    // covers: Core\Math::isFinite
+    #[test]
+    fn is_finite_is_true_up_to_the_far_ends_and_false_for_both_infinities_and_nan() {
+        let is_finite = |n: f64| bool_result(nvs_core_math_is_finite, n);
+        for n in [
+            0.0,
+            -0.0,
+            1.5,
+            f64::MAX,
+            -f64::MAX,
+            f64::MIN_POSITIVE,
+            f64::from_bits(1),
+        ] {
+            assert!(is_finite(n), "{n}");
+        }
+        for n in [f64::INFINITY, f64::NEG_INFINITY, f64::NAN, -f64::NAN] {
+            assert!(!is_finite(n), "{n}");
+        }
+        let is_infinite = |n: f64| !is_finite(n) && !bool_result(nvs_core_math_is_nan, n);
+        assert!(is_infinite(f64::INFINITY) && is_infinite(f64::NEG_INFINITY));
+        assert!(!is_infinite(f64::NAN) && !is_infinite(f64::MAX));
+    }
+
+    /// `isNan` is `true` for every `NaN`, whatever its sign or payload, and
+    /// `false` for both infinities, both zeros and both far ends of `float`.
+    // covers: Core\Math::isNan
+    #[test]
+    fn is_nan_is_true_for_every_nan_and_false_for_both_infinities() {
+        let is_nan = |n: f64| bool_result(nvs_core_math_is_nan, n);
+        let quiet = f64::NAN;
+        let payload = f64::from_bits(f64::NAN.to_bits() | 1);
+        let overflow = f64::MAX * 2.0;
+        for n in [
+            quiet,
+            -quiet,
+            payload,
+            overflow - overflow,
+            0.0 * f64::INFINITY,
+        ] {
+            assert!(is_nan(n), "{n}");
+        }
+        for n in [
+            0.0,
+            -0.0,
+            f64::MAX,
+            -f64::MAX,
+            f64::from_bits(1),
+            f64::INFINITY,
+            f64::NEG_INFINITY,
+        ] {
+            assert!(!is_nan(n), "{n}");
+        }
+    }
+
+    /// `lcm` ignores both signs, returns `0` when either argument is `0`,
+    /// fits on both sides of the bound `2^62` sets, and throws for every
+    /// result past `INT_MAX`, `2^63` included.
+    // covers: Core\Math::lcm
+    #[test]
+    fn lcm_ignores_both_signs_returns_zero_for_a_zero_and_throws_past_int_max() {
+        let lcm = |a: i64, b: i64| int_pair(nvs_core_math_lcm, a, b);
+        for (a, b) in [(4, 6), (-4, 6), (4, -6), (-4, -6), (6, 4)] {
+            assert_eq!(lcm(a, b), Ok(12), "lcm({a}, {b})");
+        }
+        assert_eq!(lcm(0, 5), Ok(0));
+        assert_eq!(lcm(5, 0), Ok(0));
+        assert_eq!(lcm(0, 0), Ok(0));
+        assert_eq!(lcm(i64::MIN, 0), Ok(0));
+        assert_eq!(lcm(7, 49), Ok(49));
+        assert_eq!(lcm(i64::MAX, 1), Ok(i64::MAX));
+        assert_eq!(lcm(i64::MAX, i64::MAX), Ok(i64::MAX));
+        assert_eq!(lcm(1 << 62, 2), Ok(1 << 62));
+        for (a, b) in [
+            (1 << 62, 3),
+            (i64::MAX, 2),
+            (i64::MIN, 1),
+            (i64::MIN, i64::MIN),
+            (i64::MAX, i64::MIN),
+            (7_540_113_804_746_346_429, 4_660_046_610_375_530_309),
+        ] {
+            let message = lcm(a, b).expect_err("the result is past INT_MAX");
+            assert!(message.contains("Core\\Math::lcm"), "{message}");
+        }
+    }
+
+    /// `log` is exact for a power of ten or two in those bases, where the
+    /// ratio of two logarithms is not; zero is `-INFINITY` and a negative is
+    /// `NaN` in every base; base `1.0` is `NaN`; and a base that is not
+    /// greater than zero throws.
+    // covers: Core\Math::log
+    #[test]
+    fn log_is_exact_in_base_ten_and_two_is_nan_for_base_one_and_throws_for_a_base_not_above_zero() {
+        let log = |n: f64, base: f64| {
+            let mut ctx = Ctx::buffered();
+            match call(
+                nvs_core_math_log,
+                &mut ctx,
+                &[Value::float(n), Value::float(base)],
+            ) {
+                Ok(result) => Ok(result.as_float().expect("a float result")),
+                Err(_) => Err(ctx
+                    .take_pending()
+                    .expect("the error is pending")
+                    .into_owned()),
+            }
+        };
+        let e = std::f64::consts::E;
+        assert_eq!(log(e, e), Ok(1.0));
+        assert_eq!(log(1.0, e), Ok(0.0));
+        assert_eq!(
+            1000.0_f64.ln() / 10.0_f64.ln(),
+            2.999_999_999_999_999_6,
+            "the ratio is inexact"
+        );
+        for power in 0..=22 {
+            let n = 10.0_f64.powi(power);
+            assert_eq!(log(n, 10.0), Ok(f64::from(power)), "log({n}, 10)");
+        }
+        for power in -1022..=1023 {
+            let n = 2.0_f64.powi(power);
+            assert_eq!(log(n, 2.0), Ok(f64::from(power)), "log({n}, 2)");
+        }
+        assert!((log(81.0, 3.0).expect("base 3") - 4.0).abs() < 1e-12);
+        assert!((log(0.25, 0.5).expect("base 0.5") - 2.0).abs() < 1e-12);
+        for base in [e, 10.0, 2.0, 3.0, 0.5] {
+            assert!(log(-1.0, base).expect("no throw").is_nan(), "base {base}");
+        }
+        for base in [e, 10.0, 2.0, 3.0] {
+            assert_eq!(log(0.0, base), Ok(f64::NEG_INFINITY), "zero in base {base}");
+        }
+        assert_eq!(
+            log(0.0, 0.5),
+            Ok(f64::INFINITY),
+            "a base under one turns the sign"
+        );
+        assert_eq!(log(f64::INFINITY, 10.0), Ok(f64::INFINITY));
+        assert!(log(5.0, 1.0).expect("base 1 does not throw").is_nan());
+        assert!(
+            log(5.0, f64::NAN)
+                .expect("a NaN base does not throw")
+                .is_nan()
+        );
+        for base in [0.0, -0.0, -2.0, f64::NEG_INFINITY] {
+            let message = log(5.0, base).expect_err("the base is not above zero");
+            assert!(message.contains("Core\\Math::log"), "{message}");
+        }
+    }
+
+    /// `max` returns the larger value in either order and `$a` on a tie, orders
+    /// `float`s totally so `NaN` is never the result beside a number, and
+    /// throws for a pair with no natural order.
+    // covers: Core\Math::max
+    #[test]
+    fn max_returns_a_on_a_tie_orders_floats_totally_and_throws_for_an_unordered_pair() {
+        let max = |a: Value, b: Value| {
+            let mut ctx = Ctx::buffered();
+            call(nvs_core_math_max, &mut ctx, &[a, b]).expect("an ordered pair has an answer")
+        };
+        for (a, b) in [(3, 7), (7, 3), (-7, -3), (i64::MIN, i64::MAX)] {
+            assert_eq!(max(Value::int(a), Value::int(b)).as_int(), Some(a.max(b)));
+        }
+        assert_eq!(
+            max(Value::int(1), Value::float(1.0)).as_int(),
+            Some(1),
+            "a tie is $a"
+        );
+        assert_eq!(max(Value::float(1.0), Value::int(1)).as_float(), Some(1.0));
+        assert_eq!(max(Value::int(1), Value::float(1.5)).as_float(), Some(1.5));
+
+        let max_float = |a: f64, b: f64| max(Value::float(a), Value::float(b)).as_float();
+        assert_eq!(max_float(f64::NAN, 0.0), Some(0.0), "NaN is below 0.0");
+        assert_eq!(max_float(0.0, f64::NAN), Some(0.0));
+        assert_eq!(
+            max_float(-0.0, 0.0).map(f64::to_bits),
+            Some(0.0f64.to_bits())
+        );
+        assert_eq!(
+            max_float(0.0, -0.0).map(f64::to_bits),
+            Some(0.0f64.to_bits())
+        );
+        assert_eq!(max_float(f64::MAX, f64::INFINITY), Some(f64::INFINITY));
+        assert_eq!(max_float(f64::NEG_INFINITY, -f64::MAX), Some(-f64::MAX));
+
+        for refused in [
+            [Value::int(1), Value::bool(true)],
+            [Value::float(0.5), Value::null()],
+        ] {
+            let mut ctx = Ctx::buffered();
+            assert!(call(nvs_core_math_max, &mut ctx, &refused).is_err());
+            let message = ctx.take_pending().expect("the refusal is pending");
+            assert!(message.contains("Core\\Math::max"), "{message}");
+        }
+    }
+
+    /// `min` answers `$a` when the two compare equal, even across `int` and
+    /// `float`, puts `NaN` below every float and `-0.0` below `0.0`, and throws
+    /// naming itself for a pair with no order.
+    // covers: Core\Math::min
+    #[test]
+    fn min_returns_a_on_a_tie_orders_floats_totally_and_throws_for_an_unordered_pair() {
+        let min = |a: Value, b: Value| {
+            let mut ctx = Ctx::buffered();
+            call(nvs_core_math_min, &mut ctx, &[a, b]).expect("an ordered pair has an answer")
+        };
+        for (a, b) in [(3, 7), (7, 3), (-7, -3), (i64::MIN, i64::MAX)] {
+            assert_eq!(min(Value::int(a), Value::int(b)).as_int(), Some(a.min(b)));
+        }
+        assert_eq!(
+            min(Value::int(1), Value::float(1.0)).as_int(),
+            Some(1),
+            "a tie is $a"
+        );
+        assert_eq!(min(Value::float(1.0), Value::int(1)).as_float(), Some(1.0));
+        assert_eq!(min(Value::int(2), Value::float(1.5)).as_float(), Some(1.5));
+
+        let min_float = |a: f64, b: f64| min(Value::float(a), Value::float(b)).as_float();
+        assert!(
+            min_float(f64::NAN, 0.0).is_some_and(f64::is_nan),
+            "NaN is below 0.0"
+        );
+        assert!(min_float(0.0, f64::NAN).is_some_and(f64::is_nan));
+        assert!(min_float(f64::NAN, f64::NEG_INFINITY).is_some_and(f64::is_nan));
+        assert_eq!(
+            min_float(-0.0, 0.0).map(f64::to_bits),
+            Some((-0.0f64).to_bits())
+        );
+        assert_eq!(
+            min_float(0.0, -0.0).map(f64::to_bits),
+            Some((-0.0f64).to_bits())
+        );
+        assert_eq!(
+            min_float(-f64::MAX, f64::NEG_INFINITY),
+            Some(f64::NEG_INFINITY)
+        );
+        assert_eq!(min_float(f64::INFINITY, f64::MAX), Some(f64::MAX));
+
+        for refused in [
+            [Value::int(1), Value::bool(true)],
+            [Value::float(0.5), Value::null()],
+        ] {
+            let mut ctx = Ctx::buffered();
+            assert!(call(nvs_core_math_min, &mut ctx, &refused).is_err());
+            let message = ctx.take_pending().expect("the refusal is pending");
+            assert!(message.contains("Core\\Math::min"), "{message}");
+        }
+    }
+
+    /// `sign` answers `-1`, `0` or `1` on every numeric arm, both ends of
+    /// `int` and the smallest floats included, calls both zeros `0`, and
+    /// throws naming itself for `NaN` and for a `uint` past `INT_MAX`.
+    // covers: Core\Math::sign
+    #[test]
+    fn sign_answers_every_side_of_zero_and_throws_for_nan_and_a_uint_past_int_max() {
+        let sign = |n: Value| {
+            let mut ctx = Ctx::buffered();
+            call(nvs_core_math_sign, &mut ctx, &[n])
+                .expect("a number with a side has an answer")
+                .as_int()
+        };
+        for (n, want) in [(-42, -1), (0, 0), (7, 1), (i64::MIN, -1), (i64::MAX, 1)] {
+            assert_eq!(sign(Value::int(n)), Some(want), "sign({n})");
+        }
+        assert_eq!(sign(Value::uint(i64::MAX.unsigned_abs())), Some(1));
+        for (n, want) in [
+            (-0.0, 0),
+            (0.0, 0),
+            (-f64::from_bits(1), -1),
+            (f64::from_bits(1), 1),
+            (f64::NEG_INFINITY, -1),
+            (f64::INFINITY, 1),
+        ] {
+            assert_eq!(sign(Value::float(n)), Some(want), "sign({n:e})");
+        }
+        for (text, want) in [("-19.90", -1), ("0.00", 0), ("0.01", 1)] {
+            let exact = Decimal::parse(text).expect("a decimal literal");
+            assert_eq!(sign(Value::decimal(exact)), Some(want), "sign({text})");
+        }
+
+        for refused in [Value::float(f64::NAN), Value::uint(u64::MAX)] {
+            let mut ctx = Ctx::buffered();
+            assert!(call(nvs_core_math_sign, &mut ctx, &[refused]).is_err());
+            let message = ctx.take_pending().expect("the refusal is pending");
+            assert!(message.contains("Core\\Math::sign"), "{message}");
+        }
+    }
+
+    /// `truncate` moves toward zero for both signs, keeps a zero's sign and
+    /// gives `-0.0` for a `$n` in `(-1, 0)`, leaves every float at or past
+    /// `2^52` alone because none has a fraction, and passes `NaN` and the
+    /// infinities through — never a throw.
+    // covers: Core\Math::truncate
+    #[test]
+    fn truncate_moves_toward_zero_and_keeps_a_negative_zero() {
+        let truncate = |n: f64| float_result(nvs_core_math_truncate, &[Value::float(n)]);
+        for (n, want) in [(2.7, 2.0), (-2.7, -2.0), (2.0, 2.0), (0.999_999, 0.0)] {
+            assert_eq!(truncate(n), want, "truncate({n})");
+        }
+        for tiny in [-0.5, -f64::from_bits(1), -0.0] {
+            let zero = truncate(tiny);
+            assert!(zero == 0.0 && zero.is_sign_negative(), "truncate({tiny:e})");
+        }
+        let past_fractions = 2f64.powi(52) + 1.0;
+        assert_eq!(truncate(past_fractions), past_fractions);
+        assert_eq!(truncate(f64::MAX), f64::MAX);
+        assert_eq!(truncate(-f64::MAX), -f64::MAX);
+        assert_eq!(truncate(f64::NEG_INFINITY), f64::NEG_INFINITY);
+        assert!(truncate(f64::NAN).is_nan());
+    }
+
+    /// `sqrt` is exact on perfect squares, `NaN` for every negative number
+    /// down to `-INFINITY`, keeps the sign of a zero, stays finite at
+    /// `f64::MAX` and above zero at the smallest subnormal — never a throw.
+    // covers: Core\Math::sqrt
+    #[test]
+    fn sqrt_is_exact_on_squares_nan_below_zero_and_keeps_a_zeros_sign() {
+        let sqrt = |n: f64| float_result(nvs_core_math_sqrt, &[Value::float(n)]);
+        for (n, want) in [
+            (0.0, 0.0),
+            (1.0, 1.0),
+            (4.0, 2.0),
+            (0.25, 0.5),
+            (1e300, 1e150),
+        ] {
+            assert_eq!(sqrt(n), want, "sqrt({n})");
+        }
+        let negative_zero = sqrt(-0.0);
+        assert!(negative_zero == 0.0 && negative_zero.is_sign_negative());
+        for below in [-1.0, -f64::from_bits(1), f64::NEG_INFINITY, f64::NAN] {
+            assert!(sqrt(below).is_nan(), "sqrt({below:e})");
+        }
+        assert!(sqrt(f64::MAX).is_finite());
+        assert!(sqrt(f64::from_bits(1)) > 0.0);
+        assert_eq!(sqrt(f64::INFINITY), f64::INFINITY);
+    }
+
+    /// `sin` is `0` at zero and `1` at `PI / 2`, keeps a zero's sign, is odd,
+    /// reduces a huge angle exactly, stays in `[-1, 1]` at the largest finite
+    /// float, and answers `NaN` — never a throw — for an infinity and `NaN`.
+    // covers: Core\Math::sin
+    #[test]
+    fn sin_stays_in_its_range_is_odd_and_answers_nan_for_an_infinity() {
+        use std::f64::consts::PI;
+        let sin = |n: f64| float_result(nvs_core_math_sin, &[Value::float(n)]);
+        assert_eq!(sin(0.0), 0.0);
+        let negative_zero = sin(-0.0);
+        assert!(negative_zero == 0.0 && negative_zero.is_sign_negative());
+        assert_eq!(sin(PI / 2.0), 1.0);
+        assert!((sin(PI / 6.0) - 0.5).abs() < 1e-15);
+        assert_eq!(sin(-2.5).to_bits(), (-sin(2.5)).to_bits(), "odd");
+        assert!(
+            (sin(1e22) + 0.852_200_849_767_188_8).abs() < 1e-15,
+            "a large angle"
+        );
+        for far in [f64::MAX, -f64::MAX] {
+            assert!((-1.0..=1.0).contains(&sin(far)), "{far}");
+        }
+        assert_eq!(sin(f64::MIN_POSITIVE), f64::MIN_POSITIVE);
+        for none in [f64::INFINITY, f64::NEG_INFINITY, f64::NAN] {
+            assert!(sin(none).is_nan(), "{none}");
+        }
+    }
+
+    /// `sinh` is `0` at zero and keeps a zero's sign, is odd, is finite at
+    /// `710` and an infinity of `$n`'s sign one step past it, and is `NaN`
+    /// only for `NaN` — never a throw.
+    // covers: Core\Math::sinh
+    #[test]
+    fn sinh_is_odd_and_overflows_to_a_signed_infinity_past_710() {
+        let sinh = |n: f64| float_result(nvs_core_math_sinh, &[Value::float(n)]);
+        assert_eq!(sinh(0.0), 0.0);
+        let negative_zero = sinh(-0.0);
+        assert!(negative_zero == 0.0 && negative_zero.is_sign_negative());
+        assert!((sinh(1.0) - 1.175_201_193_643_801_4).abs() < 1e-15);
+        assert_eq!(sinh(-3.5).to_bits(), (-sinh(3.5)).to_bits(), "odd");
+        assert_eq!(sinh(f64::MIN_POSITIVE), f64::MIN_POSITIVE);
+        assert!(sinh(710.0).is_finite());
+        assert_eq!(sinh(711.0), f64::INFINITY);
+        assert_eq!(sinh(-711.0), f64::NEG_INFINITY);
+        assert_eq!(sinh(f64::MAX), f64::INFINITY);
+        assert_eq!(sinh(f64::NEG_INFINITY), f64::NEG_INFINITY);
+        assert!(sinh(f64::NAN).is_nan());
+    }
+
+    /// `tan` is `0` at zero and keeps a zero's sign, is `1` at `PI / 4`, is
+    /// odd, is a large finite number at the float nearest `PI / 2`, stays
+    /// finite at the largest float, and answers `NaN` — never a throw — for
+    /// an infinity and `NaN`.
+    // covers: Core\Math::tan
+    #[test]
+    fn tan_is_odd_finite_at_the_float_nearest_a_quarter_circle_and_nan_for_an_infinity() {
+        use std::f64::consts::PI;
+        let tan = |n: f64| float_result(nvs_core_math_tan, &[Value::float(n)]);
+        assert_eq!(tan(0.0), 0.0);
+        let negative_zero = tan(-0.0);
+        assert!(negative_zero == 0.0 && negative_zero.is_sign_negative());
+        assert!((tan(PI / 4.0) - 1.0).abs() < 1e-15);
+        assert_eq!(tan(-1.25).to_bits(), (-tan(1.25)).to_bits(), "odd");
+        let quarter = tan(PI / 2.0);
+        assert!(quarter.is_finite() && quarter > 1e16, "{quarter}");
+        assert!(tan(-PI / 2.0) < -1e16);
+        for far in [f64::MAX, -f64::MAX, 1e22] {
+            assert!(tan(far).is_finite(), "{far}");
+        }
+        assert_eq!(tan(f64::MIN_POSITIVE), f64::MIN_POSITIVE);
+        for none in [f64::INFINITY, f64::NEG_INFINITY, f64::NAN] {
+            assert!(tan(none).is_nan(), "{none}");
+        }
+    }
+
+    /// `tanh` is `0` at zero and keeps a zero's sign, is odd, never leaves
+    /// `[-1, 1]`, is exactly `±1` from `20` and at either infinity, and is
+    /// `NaN` only for `NaN` — never a throw.
+    // covers: Core\Math::tanh
+    #[test]
+    fn tanh_is_odd_stays_in_its_range_and_reaches_one_from_20() {
+        let tanh = |n: f64| float_result(nvs_core_math_tanh, &[Value::float(n)]);
+        assert_eq!(tanh(0.0), 0.0);
+        let negative_zero = tanh(-0.0);
+        assert!(negative_zero == 0.0 && negative_zero.is_sign_negative());
+        assert!((tanh(0.5) - 0.462_117_157_260_009_7).abs() < 1e-15);
+        assert_eq!(tanh(-2.5).to_bits(), (-tanh(2.5)).to_bits(), "odd");
+        assert!(tanh(3.0) < 1.0);
+        for n in [-50.0, -3.0, -0.5, 0.5, 3.0, 50.0, f64::MAX, -f64::MAX] {
+            assert!((-1.0..=1.0).contains(&tanh(n)), "{n}");
+        }
+        assert_eq!(tanh(20.0), 1.0);
+        assert_eq!(tanh(-20.0), -1.0);
+        assert_eq!(tanh(f64::INFINITY), 1.0);
+        assert_eq!(tanh(f64::NEG_INFINITY), -1.0);
+        assert_eq!(tanh(f64::MIN_POSITIVE), f64::MIN_POSITIVE);
+        assert!(tanh(f64::NAN).is_nan());
+    }
+
+    /// `toRadians` maps `180` to `PI` and `90` to `PI / 2` exactly, keeps a
+    /// zero's sign, stays finite at the largest float, underflows the
+    /// smallest subnormal to `0`, and passes an infinity and `NaN` through.
+    // covers: Core\Math::toRadians
+    #[test]
+    fn to_radians_is_exact_on_half_and_quarter_turns_and_passes_an_infinity_through() {
+        use std::f64::consts::PI;
+        let to_radians = |n: f64| float_result(nvs_core_math_to_radians, &[Value::float(n)]);
+        assert_eq!(to_radians(180.0), PI);
+        assert_eq!(to_radians(90.0), PI / 2.0);
+        assert_eq!(to_radians(-180.0), -PI);
+        let negative_zero = to_radians(-0.0);
+        assert!(negative_zero == 0.0 && negative_zero.is_sign_negative());
+        assert!(to_radians(f64::MAX).is_finite());
+        assert_eq!(to_radians(f64::from_bits(1)), 0.0);
+        assert_eq!(to_radians(f64::INFINITY), f64::INFINITY);
+        assert_eq!(to_radians(f64::NEG_INFINITY), f64::NEG_INFINITY);
+        assert!(to_radians(f64::NAN).is_nan());
+    }
+
+    /// `toDegrees` maps `PI` to `180` exactly, undoes `toRadians` on the
+    /// angles a program writes, overflows to a signed infinity at the largest
+    /// float, underflows the smallest subnormal to `0`, and passes `NaN`
+    /// through — PHP's `($radians / PI) * 180`, so the round trip agrees
+    /// with PHP's.
+    // covers: Core\Math::toDegrees
+    #[test]
+    fn to_degrees_undoes_to_radians_and_overflows_to_a_signed_infinity() {
+        use std::f64::consts::PI;
+        let to_degrees = |n: f64| float_result(nvs_core_math_to_degrees, &[Value::float(n)]);
+        let to_radians = |n: f64| float_result(nvs_core_math_to_radians, &[Value::float(n)]);
+        assert_eq!(to_degrees(PI), 180.0);
+        assert_eq!(to_degrees(PI / 2.0), 90.0);
+        for degrees in [30.0, 45.0, 60.0, 90.0, 180.0, 360.0, -30.0] {
+            assert_eq!(to_degrees(to_radians(degrees)), degrees, "{degrees}");
+        }
+        let negative_zero = to_degrees(-0.0);
+        assert!(negative_zero == 0.0 && negative_zero.is_sign_negative());
+        assert_eq!(to_degrees(f64::MAX), f64::INFINITY);
+        assert_eq!(to_degrees(-f64::MAX), f64::NEG_INFINITY);
+        assert!(to_degrees(f64::MAX / 60.0).is_finite());
+        assert_eq!(to_degrees(f64::from_bits(1)), 0.0);
+        assert!(to_degrees(f64::NAN).is_nan());
+    }
+
+    /// `toBase` writes lowercase digits with no prefix or padding, a leading
+    /// `-` for a negative `$n`, both ends of `int` in the smallest and the
+    /// largest base, and throws for a base outside `2` to `36`, where
+    /// `base_convert` answers `0`.
+    // covers: Core\Math::toBase
+    #[test]
+    fn to_base_writes_lowercase_digits_a_sign_and_both_ends_of_int_and_throws_outside_its_bases() {
+        let to_base = |n: i64, base: u64| {
+            let mut ctx = Ctx::buffered();
+            match call(
+                nvs_core_math_to_base,
+                &mut ctx,
+                &[Value::int(n), Value::uint(base)],
+            ) {
+                Ok(value) => {
+                    let text =
+                        String::from_utf8(value.as_str_bytes().expect("a string result").to_vec())
+                            .expect("the digits are ASCII");
+                    #[expect(
+                        unsafe_code,
+                        reason = "the result carries the one reference this test owns"
+                    )]
+                    unsafe {
+                        value.release();
+                    }
+                    Ok(text)
+                }
+                Err(_) => Err(ctx
+                    .take_pending()
+                    .expect("the error is pending")
+                    .into_owned()),
+            }
+        };
+        let written = |digits: &str| Ok::<String, String>(digits.to_owned());
+        assert_eq!(to_base(10, 2), written("1010"));
+        assert_eq!(to_base(10, 8), written("12"));
+        assert_eq!(to_base(255, 16), written("ff"));
+        assert_eq!(to_base(-255, 16), written("-ff"));
+        assert_eq!(to_base(35, 36), written("z"));
+        assert_eq!(to_base(36, 36), written("10"));
+        assert_eq!(to_base(0, 2), written("0"));
+        assert_eq!(to_base(0, 36), written("0"));
+        assert_eq!(to_base(i64::MAX, 2), Ok("1".repeat(63)));
+        assert_eq!(to_base(i64::MIN, 2), Ok(format!("-1{}", "0".repeat(63))));
+        assert_eq!(to_base(i64::MAX, 16), written("7fffffffffffffff"));
+        assert_eq!(to_base(i64::MIN, 16), written("-8000000000000000"));
+        assert_eq!(to_base(i64::MAX, 36), written("1y2p0ij32e8e7"));
+        assert_eq!(to_base(i64::MIN, 36), written("-1y2p0ij32e8e8"));
+
+        for base in [0, 1, 37, u64::MAX] {
+            let message = to_base(1, base).expect_err("no such base");
+            assert!(
+                message.contains("a base runs from 2 to 36"),
+                "{base}: {message}"
+            );
+        }
+    }
+
+    /// `fromBase` reads either letter case, reaches both ends of `int` and no
+    /// further, and throws for a digit outside the base, an empty or bare-sign
+    /// string and a base outside `2` to `36` — the characters PHP's `hexdec`
+    /// skips without a word.
+    // covers: Core\Math::fromBase
+    #[test]
+    fn from_base_reads_both_ends_of_int_and_throws_for_every_character_php_skips() {
+        let from_base = |text: &str, base: u64| {
+            let mut ctx = Ctx::buffered();
+            let arg = Value::str(NvsStr::new(text.as_bytes()));
+            let result = call(nvs_core_math_from_base, &mut ctx, &[arg, Value::uint(base)]);
+            #[expect(
+                unsafe_code,
+                reason = "the argument carries the one reference this test owns"
+            )]
+            unsafe {
+                arg.release();
+            }
+            match result {
+                Ok(value) => Ok(value.as_int().expect("an int result")),
+                Err(_) => Err(ctx
+                    .take_pending()
+                    .expect("the error is pending")
+                    .into_owned()),
+            }
+        };
+        assert_eq!(from_base("ff", 16), Ok(255));
+        assert_eq!(from_base("FF", 16), Ok(255));
+        assert_eq!(from_base("-1a", 16), Ok(-26));
+        assert_eq!(from_base("0", 2), Ok(0));
+        assert_eq!(from_base("-0", 2), Ok(0));
+        assert_eq!(from_base("zz", 36), Ok(36 * 36 - 1));
+        assert_eq!(from_base("7fffffffffffffff", 16), Ok(i64::MAX));
+        assert_eq!(from_base("-8000000000000000", 16), Ok(i64::MIN));
+        assert_eq!(from_base(&"0".repeat(10_000), 2), Ok(0));
+
+        for too_large in ["8000000000000000", "-8000000000000001", "ffffffffffffffff0"] {
+            let message = from_base(too_large, 16).expect_err("past `int`");
+            assert!(message.contains("does not fit"), "{too_large}: {message}");
+        }
+        let message = from_base(&"z".repeat(10_000), 36).expect_err("far past `int`");
+        assert!(message.contains("does not fit"), "{message}");
+
+        for unread in ["beefy", "0xff", " 1", "1 ", "+1", "--1", "1-", "é"] {
+            let message = from_base(unread, 16).expect_err("not a base-16 number");
+            assert!(
+                message.contains("has no digit for it"),
+                "{unread}: {message}"
+            );
+        }
+        for empty in ["", "-"] {
+            let message = from_base(empty, 10).expect_err("no digits");
+            assert!(message.contains("no digits"), "{empty:?}: {message}");
+        }
+        for base in [0, 1, 37, u64::MAX] {
+            let message = from_base("1", base).expect_err("no such base");
+            assert!(
+                message.contains("a base runs from 2 to 36"),
+                "{base}: {message}"
+            );
+        }
+    }
+
+    /// `format` rounds half away from zero, groups from the right, copies both
+    /// separators verbatim, writes no sign on a value that rounds to zero, and
+    /// throws for a value with no digits and for a decimal count past the cap.
+    // covers: Core\Math::format
+    #[test]
+    fn format_rounds_away_from_zero_groups_from_the_right_and_signs_no_zero() {
+        let format = |n: Value, decimals: u64, point: &str, group: &str| {
+            let args = [
+                n,
+                Value::uint(decimals),
+                Value::str(NvsStr::new(point.as_bytes())),
+                Value::str(NvsStr::new(group.as_bytes())),
+            ];
+            let mut ctx = Ctx::buffered();
+            let result = match call(nvs_core_math_format, &mut ctx, &args) {
+                Ok(value) => {
+                    let written =
+                        String::from_utf8(value.as_str_bytes().expect("a string result").to_vec())
+                            .expect("`rule:types/bytes` makes a string UTF-8");
+                    #[expect(
+                        unsafe_code,
+                        reason = "the result carries the one reference this test owns"
+                    )]
+                    unsafe {
+                        value.release();
+                    }
+                    Ok(written)
+                }
+                Err(_) => Err(ctx
+                    .take_pending()
+                    .expect("the error is pending")
+                    .into_owned()),
+            };
+            #[expect(
+                unsafe_code,
+                reason = "the two separators carry the one reference this test owns"
+            )]
+            unsafe {
+                args[2].release();
+                args[3].release();
+            }
+            result
+        };
+        let plain = |n: f64, decimals: u64| format(Value::float(n), decimals, ".", "");
+        let ok = |s: &str| Ok(s.to_owned());
+
+        assert_eq!(plain(2.5, 0), ok("3"));
+        assert_eq!(plain(-2.5, 0), ok("-3"));
+        assert_eq!(plain(0.125, 2), ok("0.13"));
+        assert_eq!(plain(-0.125, 2), ok("-0.13"));
+        assert_eq!(plain(1.23456, 3), ok("1.235"));
+        assert_eq!(
+            format(Value::float(1_234_567.891), 2, ",", "."),
+            ok("1.234.567,89")
+        );
+        assert_eq!(
+            format(Value::int(i64::MIN), 0, ".", ","),
+            ok("-9,223,372,036,854,775,808")
+        );
+        assert_eq!(format(Value::int(-42), 1, "::", ""), ok("-42::0"));
+        assert_eq!(format(Value::int(999), 0, ".", ","), ok("999"));
+        assert_eq!(format(Value::int(1000), 0, ".", ","), ok("1,000"));
+
+        for (n, decimals, written) in [
+            (-0.4, 0, "0"),
+            (-0.0, 0, "0"),
+            (-0.0, 2, "0.00"),
+            (-0.004, 2, "0.00"),
+        ] {
+            assert_eq!(plain(n, decimals), ok(written), "{n} at {decimals}");
+        }
+        assert_eq!(
+            plain(-0.5, 0),
+            ok("-1"),
+            "a tie rounds away from zero, so it keeps its sign"
+        );
+        assert_eq!(plain(-0.004, 3), ok("-0.004"));
+
+        assert_eq!(plain(1.5, MAX_DECIMALS).map(|s| s.len()), Ok(102));
+        let message = plain(1.5, MAX_DECIMALS + 1).expect_err("past the cap");
+        assert!(message.contains("past its cap"), "{message}");
+        for no_digits in [f64::INFINITY, f64::NEG_INFINITY, f64::NAN] {
+            let message = plain(no_digits, 0).expect_err("no digits");
+            assert!(message.contains("no digits"), "{no_digits}: {message}");
+        }
+        let message = format(Value::uint(u64::MAX), 0, ".", "").expect_err("past `int`");
+        assert!(message.contains("past `int`'s largest value"), "{message}");
+    }
+}

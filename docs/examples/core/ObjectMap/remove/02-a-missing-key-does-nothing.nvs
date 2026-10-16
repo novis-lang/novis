@@ -1,0 +1,29 @@
+<?nvs
+// Shows that removing a key that is not in the map does nothing.
+
+final class Room {
+    public string $name;
+
+    public function constructor(string $name) {
+        $this->name = $name;
+    }
+}
+
+Room $kitchen = new Room("kitchen");
+Core\ObjectMap<Room, int> $lights = new Core\ObjectMap<Room, int>();
+$lights->set($kitchen, 3);
+
+// This object has the same name, but it is a different object.
+// It is not a key in the map, so `remove` does nothing.
+$lights->remove(new Room("kitchen"));
+
+// This prints 1 and 3.
+echo $lights->count(), "\n";
+echo $lights->get($kitchen) ?? 0, "\n";
+
+// You can remove the same key twice. The second call does nothing.
+$lights->remove($kitchen);
+$lights->remove($kitchen);
+
+// This prints 0.
+echo $lights->count(), "\n";

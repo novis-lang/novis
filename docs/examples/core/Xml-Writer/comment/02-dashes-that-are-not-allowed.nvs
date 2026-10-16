@@ -1,0 +1,26 @@
+<?nvs
+// Shows which comment texts throw an error, and how to write the same note another way.
+
+Core\Xml\Writer $writer = Core\Xml::writer();
+$writer->startDocument();
+$writer->startElement("log");
+
+// Two dashes in a row are not allowed in a comment. This prints the error message.
+try {
+    $writer->comment("step 1 -- step 2");
+} catch (LogicError $error) {
+    echo $error->message, "\n";
+}
+
+// A comment cannot end with a dash either. This throws the same error.
+try {
+    $writer->comment("to do: -");
+} catch (LogicError $error) {
+    echo $error->message, "\n";
+}
+
+// One dash between other characters is allowed.
+$writer->comment("step 1 - step 2");
+
+$writer->endElement();
+echo $writer->endDocument(), "\n";

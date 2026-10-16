@@ -1,0 +1,14 @@
+<?nvs
+// Shows how to test whether one `bytes` value occurs inside another.
+
+bytes $body = "name=ada&role=admin" as bytes;
+
+// "role=" occurs in the body, so this prints "true".
+echo Core\Bytes::contains($body, "role=" as bytes) ? "true" : "false", "\n";
+
+// "token=" does not occur, so this prints "false".
+echo Core\Bytes::contains($body, "token=" as bytes) ? "true" : "false", "\n";
+
+// The bytes must occur one after the other. "adaadmin" does not, so this
+// prints "false".
+echo Core\Bytes::contains($body, "adaadmin" as bytes) ? "true" : "false", "\n";

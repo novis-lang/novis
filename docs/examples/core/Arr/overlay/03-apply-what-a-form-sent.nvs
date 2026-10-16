@@ -1,0 +1,18 @@
+<?nvs
+// Shows how to apply the fields a form sent to a row read from a database.
+// Only the fields that were sent change.
+
+array<string> $stored = [
+    "name" => "Ada Lovelace",
+    "email" => "ada@example.com",
+    "city" => "London",
+];
+
+// The form sent two of the three fields.
+array<string> $submitted = ["email" => "ada@analytical.example", "city" => "Paris"];
+
+// The name is kept, the other two take the new values.
+array<string> $updated = Core\Arr::overlay($stored, $submitted);
+foreach ($updated as string $field => string $value) {
+    echo $field, ": ", $value, "\n";
+}

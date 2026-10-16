@@ -1,0 +1,6 @@
+<?nvs
+echo "Hello, World!";
+?>
+<p>markup between two regions</p>
+<?nvs
+echo 1 + 2, "\n";

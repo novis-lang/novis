@@ -1,0 +1,43 @@
+--TEST--
+`Reader::open` takes `tainted bytes`, so an upload reads, and every value it reads is `tainted`: a cell, a header key, a sheet name and a formula's text each go only where a `tainted` value may, and a plain `string` binding refuses each one: rule:core-classes/spreadsheet-has-no-io
+--FILE--
+<?nvs
+use Novis\Spreadsheet\Formula;
+use Novis\Spreadsheet\Reader;
+use Novis\Spreadsheet\Row;
+
+final class Upload
+{
+public static function read(tainted bytes $upload): void
+{
+    Reader $reader = Reader::open($upload);
+    foreach ($reader->sheets() as var $info) {
+        tainted string $held = $info->name;
+        string $name = $info->name;
+    }
+    foreach ($reader->rows(0, {header: true, formulas: true}) as Row $row) {
+        foreach ($row->values as tainted string $key => mixed $value) {
+            if ($value is tainted string) {
+                string $cell = $value;
+            }
+            if ($value is Formula) {
+                string $text = $value->text;
+            }
+        }
+    }
+}
+}
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `string`, found `tainted string`
+   --> case.nvs:13:24
+%A
+error[E0401]: expected `string`, found `tainted string`
+   --> case.nvs:18:32
+%A
+error[E0401]: expected `string`, found `tainted string`
+   --> case.nvs:21:32
+%A
+error: aborting due to 3 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

@@ -1,0 +1,16 @@
+<?nvs
+// Shows how far a counter moved between two readings. A network interface
+// counts every byte it has sent since the machine started. That number grows
+// past what an `int` holds, so it arrives as text.
+
+array<string> $readings = ["18446744073712000000", "18446744073800000000"];
+
+var $previous = Core\BigInt::parse("18446744073709551615");
+var $current = $previous;
+foreach ($readings as string $reading) {
+    $current = Core\BigInt::parse($reading);
+    // The bytes sent since the reading before is the new number minus the old
+    // one. This prints 2448385 and then 88000000.
+    echo $current->sub($previous), "\n";
+    $previous = $current;
+}

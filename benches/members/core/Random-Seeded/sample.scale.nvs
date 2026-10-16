@@ -1,0 +1,24 @@
+<?nvs
+// Measures `sample` on a seeded generator choosing half of a list, at growing list sizes.
+// It shows how the cost of `sample` grows when the list grows.
+// bench: start 256
+// bench: max 4096
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        Core\Random\Seeded $generator = new Core\Random\Seeded(42);
+        array<int> $items = Core\Arr::range(1, $size as int);
+        uint $half = ($size / 2) as uint;
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            $total = $total + Core\Arr::count($generator->sample($items, $half));
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

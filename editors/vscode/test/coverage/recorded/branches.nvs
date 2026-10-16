@@ -1,0 +1,25 @@
+<?nvs
+// The program `branches.lcov` is the coverage of: `nvs test --coverage-lcov`
+// wrote it for this file. One function has a branch the test takes on one side
+// only, and one function no test calls.
+use Core\Test;
+
+final class Sign {
+    public static function of(int $value): string {
+        if ($value < 0) {
+            return "negative";
+        }
+        return "not negative";
+    }
+
+    public static function unused(): int {
+        return 1;
+    }
+}
+
+final class SignTest {
+    #[Test]
+    public function aPositiveNumberIsNotNegative(): void {
+        Test::assertSame("not negative", Sign::of(3));
+    }
+}

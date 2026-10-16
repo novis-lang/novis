@@ -1,0 +1,7 @@
+event: order
+data: order 1042 was paid
+
+event: order
+data: order 1042 has shipped
+
+stream closed

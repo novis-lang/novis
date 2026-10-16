@@ -1,0 +1,229 @@
+<?nvs
+// Attack: API descriptions far larger than anything a real program writes.
+// Novis reads every `#[Core\Api]` while it compiles the program and checks
+// each value against the code beside it. The program below should compile and
+// run to its last line.
+
+class Missing extends RuntimeError
+{}
+
+// 1. One operation carrying 128 tags. This tries to find a limit on how many
+//    values a single `tags:` list may hold.
+class Crowded
+{
+    #[Core\Route(path: "/crowded", method: Core\Http\Method::Get, name: "Crowded::show")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    #[Core\Api(tags: [
+        "t001", "t002", "t003", "t004", "t005", "t006", "t007", "t008", "t009", "t010",
+        "t011", "t012", "t013", "t014", "t015", "t016", "t017", "t018", "t019", "t020",
+        "t021", "t022", "t023", "t024", "t025", "t026", "t027", "t028", "t029", "t030",
+        "t031", "t032", "t033", "t034", "t035", "t036", "t037", "t038", "t039", "t040",
+        "t041", "t042", "t043", "t044", "t045", "t046", "t047", "t048", "t049", "t050",
+        "t051", "t052", "t053", "t054", "t055", "t056", "t057", "t058", "t059", "t060",
+        "t061", "t062", "t063", "t064", "t065", "t066", "t067", "t068", "t069", "t070",
+        "t071", "t072", "t073", "t074", "t075", "t076", "t077", "t078", "t079", "t080",
+        "t081", "t082", "t083", "t084", "t085", "t086", "t087", "t088", "t089", "t090",
+        "t091", "t092", "t093", "t094", "t095", "t096", "t097", "t098", "t099", "t100",
+        "t101", "t102", "t103", "t104", "t105", "t106", "t107", "t108", "t109", "t110",
+        "t111", "t112", "t113", "t114", "t115", "t116", "t117", "t118", "t119", "t120",
+        "t121", "t122", "t123", "t124", "t125", "t126", "t127", "t128",
+    ])]
+    public function show(): uint
+    { return 1; }
+}
+
+// 2. One operation naming 64 error responses. Every entry is checked against
+//    the classes the program declares, so this tries to make that check slow.
+class Failing
+{
+    #[Core\Route(path: "/failing", method: Core\Http\Method::Get, name: "Failing::show")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    #[Core\Api(errors: [
+        {status: 400, type: Missing::class}, {status: 401, type: Missing::class},
+        {status: 402, type: Missing::class}, {status: 403, type: Missing::class},
+        {status: 404, type: Missing::class}, {status: 405, type: Missing::class},
+        {status: 406, type: Missing::class}, {status: 407, type: Missing::class},
+        {status: 408, type: Missing::class}, {status: 409, type: Missing::class},
+        {status: 410, type: Missing::class}, {status: 411, type: Missing::class},
+        {status: 412, type: Missing::class}, {status: 413, type: Missing::class},
+        {status: 414, type: Missing::class}, {status: 415, type: Missing::class},
+        {status: 416, type: Missing::class}, {status: 417, type: Missing::class},
+        {status: 418, type: Missing::class}, {status: 419, type: Missing::class},
+        {status: 420, type: Missing::class}, {status: 421, type: Missing::class},
+        {status: 422, type: Missing::class}, {status: 423, type: Missing::class},
+        {status: 424, type: Missing::class}, {status: 425, type: Missing::class},
+        {status: 426, type: Missing::class}, {status: 427, type: Missing::class},
+        {status: 428, type: Missing::class}, {status: 429, type: Missing::class},
+        {status: 430, type: Missing::class}, {status: 431, type: Missing::class},
+        {status: 432, type: Missing::class}, {status: 433, type: Missing::class},
+        {status: 434, type: Missing::class}, {status: 435, type: Missing::class},
+        {status: 436, type: Missing::class}, {status: 437, type: Missing::class},
+        {status: 438, type: Missing::class}, {status: 439, type: Missing::class},
+        {status: 440, type: Missing::class}, {status: 441, type: Missing::class},
+        {status: 442, type: Missing::class}, {status: 443, type: Missing::class},
+        {status: 444, type: Missing::class}, {status: 445, type: Missing::class},
+        {status: 446, type: Missing::class}, {status: 447, type: Missing::class},
+        {status: 448, type: Missing::class}, {status: 449, type: Missing::class},
+        {status: 450, type: Missing::class}, {status: 451, type: Missing::class},
+        {status: 452, type: Missing::class}, {status: 453, type: Missing::class},
+        {status: 454, type: Missing::class}, {status: 455, type: Missing::class},
+        {status: 456, type: Missing::class}, {status: 457, type: Missing::class},
+        {status: 458, type: Missing::class}, {status: 459, type: Missing::class},
+        {status: 460, type: Missing::class}, {status: 461, type: Missing::class},
+        {status: 462, type: Missing::class}, {status: 463, type: Missing::class},
+    ])]
+    public function show(): uint
+    { return 2; }
+}
+
+// 3. One example payload with a value long enough to be worth copying. Every
+//    key is checked against a property of the return type.
+class Wide
+{
+    public string $text = '';
+    public uint $a = 0;
+    public uint $b = 0;
+    public uint $c = 0;
+    public uint $d = 0;
+    public uint $e = 0;
+    public uint $f = 0;
+    public uint $g = 0;
+}
+
+class Bulky
+{
+    #[Core\Route(path: "/bulky", method: Core\Http\Method::Get, name: "Bulky::show")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    #[Core\Api(example: {
+        text: "00000000001111111111222222222233333333334444444444555555555566666666667777777777888888888899999999990000000000111111111122222222223333333333444444444455555555556666666666777777777788888888889999999999",
+        a: 1, b: 2, c: 3, d: 4, e: 5, f: 6, g: 7,
+    })]
+    public function show(): Wide
+    { return new Wide(); }
+}
+
+// 4. Sixteen more annotated operations, so the table the compiler builds holds
+//    many rows rather than one large one.
+class Many
+{
+    #[Core\Route(path: "/many/01", method: Core\Http\Method::Get, name: "Many::r01")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    #[Core\Api(tags: ["many"], security: ["bearer"])]
+    public function r01(): uint
+    { return 1; }
+
+    #[Core\Route(path: "/many/02", method: Core\Http\Method::Get, name: "Many::r02")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    #[Core\Api(tags: ["many"], security: ["bearer"])]
+    public function r02(): uint
+    { return 2; }
+
+    #[Core\Route(path: "/many/03", method: Core\Http\Method::Get, name: "Many::r03")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    #[Core\Api(tags: ["many"], security: ["bearer"])]
+    public function r03(): uint
+    { return 3; }
+
+    #[Core\Route(path: "/many/04", method: Core\Http\Method::Get, name: "Many::r04")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    #[Core\Api(tags: ["many"], security: ["bearer"])]
+    public function r04(): uint
+    { return 4; }
+
+    #[Core\Route(path: "/many/05", method: Core\Http\Method::Get, name: "Many::r05")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    #[Core\Api(tags: ["many"], security: ["bearer"])]
+    public function r05(): uint
+    { return 5; }
+
+    #[Core\Route(path: "/many/06", method: Core\Http\Method::Get, name: "Many::r06")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    #[Core\Api(tags: ["many"], security: ["bearer"])]
+    public function r06(): uint
+    { return 6; }
+
+    #[Core\Route(path: "/many/07", method: Core\Http\Method::Get, name: "Many::r07")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    #[Core\Api(tags: ["many"], security: ["bearer"])]
+    public function r07(): uint
+    { return 7; }
+
+    #[Core\Route(path: "/many/08", method: Core\Http\Method::Get, name: "Many::r08")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    #[Core\Api(tags: ["many"], security: ["bearer"])]
+    public function r08(): uint
+    { return 8; }
+
+    #[Core\Route(path: "/many/09", method: Core\Http\Method::Get, name: "Many::r09")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    #[Core\Api(tags: ["many"], security: ["bearer"])]
+    public function r09(): uint
+    { return 9; }
+
+    #[Core\Route(path: "/many/10", method: Core\Http\Method::Get, name: "Many::r10")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    #[Core\Api(tags: ["many"], security: ["bearer"])]
+    public function r10(): uint
+    { return 10; }
+
+    #[Core\Route(path: "/many/11", method: Core\Http\Method::Get, name: "Many::r11")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    #[Core\Api(tags: ["many"], security: ["bearer"])]
+    public function r11(): uint
+    { return 11; }
+
+    #[Core\Route(path: "/many/12", method: Core\Http\Method::Get, name: "Many::r12")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    #[Core\Api(tags: ["many"], security: ["bearer"])]
+    public function r12(): uint
+    { return 12; }
+
+    #[Core\Route(path: "/many/13", method: Core\Http\Method::Get, name: "Many::r13")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    #[Core\Api(tags: ["many"], security: ["bearer"])]
+    public function r13(): uint
+    { return 13; }
+
+    #[Core\Route(path: "/many/14", method: Core\Http\Method::Get, name: "Many::r14")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    #[Core\Api(tags: ["many"], security: ["bearer"])]
+    public function r14(): uint
+    { return 14; }
+
+    #[Core\Route(path: "/many/15", method: Core\Http\Method::Get, name: "Many::r15")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    #[Core\Api(tags: ["many"], security: ["bearer"])]
+    public function r15(): uint
+    { return 15; }
+
+    #[Core\Route(path: "/many/16", method: Core\Http\Method::Get, name: "Many::r16")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    #[Core\Api(tags: ["many"], security: ["bearer"])]
+    public function r16(): uint
+    { return 16; }
+}
+
+// 5. Calling the annotated handlers 200000 times. The running program must
+//    not keep a copy of any description.
+class Attack
+{
+    public static function run(uint $rounds): uint
+    {
+        Crowded $crowded = new Crowded();
+        Failing $failing = new Failing();
+        Bulky $bulky = new Bulky();
+        Many $many = new Many();
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            $total = $total + $crowded->show() + $failing->show();
+            $total = $total + Core\Str::length($bulky->show()->text);
+            $total = $total + $many->r01() + $many->r16() + $total % 2;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Attack::run(200000), "\n";
+echo "still standing\n";

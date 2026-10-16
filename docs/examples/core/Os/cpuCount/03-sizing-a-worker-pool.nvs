@@ -1,0 +1,14 @@
+<?nvs
+// Shows how a program chooses how many workers to start for a batch of files.
+
+array<string> $files = ["orders.csv", "customers.csv", "invoices.csv"];
+
+// One worker per core is a good start. More workers than files do nothing,
+// so the pool is never larger than the number of files.
+uint $workers = Core\Os::cpuCount();
+if ($workers > Core\Arr::count($files)) {
+    $workers = Core\Arr::count($files);
+}
+
+// The pool has between 1 and 3 workers, on any machine. This prints `yes`.
+echo $workers >= 1 && $workers <= 3 ? "yes" : "no", "\n";

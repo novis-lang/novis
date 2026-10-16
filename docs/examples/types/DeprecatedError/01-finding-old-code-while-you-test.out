@@ -1,0 +1,3 @@
+12
+`Cart::sum()` is deprecated since 2.0. Use `Cart::total($prices)` instead.
+12

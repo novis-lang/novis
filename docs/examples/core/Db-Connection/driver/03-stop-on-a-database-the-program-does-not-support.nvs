@@ -1,0 +1,20 @@
+<?nvs
+// Shows a maintenance program that only knows SQLite. It asks the connection
+// which database it is before it does anything, and says so on any other one.
+
+class Maintenance {
+    public static function run(Core\Db\Connection $db): string {
+        if ($db->driver() != Core\Db\Driver::Sqlite) {
+            return 'This program needs SQLite.';
+        }
+        $db->execute('vacuum', []);
+        return 'The database was cleaned up.';
+    }
+}
+
+var $db = Core\Db::connect('notes');
+
+// This prints `The database was cleaned up.`
+echo Maintenance::run($db), "\n";
+
+$db->close();

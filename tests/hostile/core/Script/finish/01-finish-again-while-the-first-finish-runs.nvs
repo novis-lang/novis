@@ -1,0 +1,38 @@
+<?nvs
+// Attack: a script calls `Core\Script::finish()` 3000 calls deep, and a `finally`
+// block on the way out calls it again. Every `finally` block should run, and the
+// runtime must not crash.
+
+final class Depth
+{
+    public static int $closed = 0;
+
+    public static function down(int $level): void
+    {
+        try {
+            if ($level == 3000) {
+                Core\Script::finish();
+            }
+            Depth::down($level + 1);
+        } finally {
+            Depth::$closed = Depth::$closed + 1;
+            // A second `finish()` while the first one is still on its way out.
+            if ($level == 1500) {
+                Core\Script::finish();
+            }
+        }
+    }
+}
+
+// 1. 1000 exit functions each call `finish()`. Each call stops only its own function.
+int $i = 0;
+while ($i < 1000) {
+    Core\Script::onExit(fn (): void => Core\Script::finish());
+    $i = $i + 1;
+}
+Core\Script::onExit(fn (): void => {
+    echo 'closed: ', Depth::$closed, "\n";
+});
+
+// 2. The script finishes 3000 calls deep, and finishes again on the way out.
+Depth::down(0);

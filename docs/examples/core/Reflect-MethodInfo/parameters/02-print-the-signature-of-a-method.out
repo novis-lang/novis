@@ -1,0 +1,1 @@
+find(string $text, ?int $limit, array<string> $tags)

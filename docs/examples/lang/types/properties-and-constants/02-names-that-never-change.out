@@ -1,0 +1,3 @@
+queue outbound, up to 3 attempts, backing off by 1.5
+first has 3 attempts left, second has 2
+deliveries made: 2

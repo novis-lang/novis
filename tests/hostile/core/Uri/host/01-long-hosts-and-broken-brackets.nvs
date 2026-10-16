@@ -1,0 +1,44 @@
+<?nvs
+// Attack: a program reads the host of addresses with very long hosts, many dots and broken IPv6
+// brackets. Each read should return the host as written, or `parse` should throw an error.
+
+class Host
+{
+    public static function length(string $address): string
+    {
+        try {
+            return Core\Str::length(Core\Uri::parse($address)->host() ?? '') as string;
+        } catch (Throwable $e) {
+            return 'error';
+        }
+    }
+}
+
+// 1. A host of one million letters. This prints 1000000.
+echo Host::length('http://' . Core\Str::repeat('a', 1000000) . '/'), "\n";
+
+// 2. A host of 500000 parts, such as `a.a.a`. This prints 999999.
+echo Host::length('http://' . Core\Str::repeat('a.', 499999) . 'a/'), "\n";
+
+// 3. A host of 300000 escapes. The escapes stay as written. This prints 900000.
+echo Host::length('http://' . Core\Str::repeat('%41', 300000) . '/'), "\n";
+
+// 4. 100000 opening brackets. This is not a host, so this prints "error".
+echo Host::length('http://' . Core\Str::repeat('[', 100000) . '/'), "\n";
+
+// 5. An IPv6 address with 100000 parts. This is not a valid address, so this prints "error".
+echo Host::length('http://[' . Core\Str::repeat('1:', 100000) . '1]/'), "\n";
+
+// 6. A user name of one million characters before the host. This prints 11.
+echo Host::length('http://' . Core\Str::repeat('u', 1000000) . '@example.com/'), "\n";
+
+// 7. 100000 different addresses, and every host is freed. This prints 100000.
+uint $read = 0;
+uint $i = 0;
+while ($i < 100000) {
+    if (Core\Uri::parse('https://h' . $i . '.example.com:8080/')->host() != null) {
+        $read = $read + 1;
+    }
+    $i = $i + 1;
+}
+echo $read, "\n";

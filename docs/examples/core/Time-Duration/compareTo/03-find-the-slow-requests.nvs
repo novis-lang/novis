@@ -1,0 +1,14 @@
+<?nvs
+// Checks how long each request took against a time limit, and reports the slow ones.
+
+Core\Time\Duration $limit = 250ms;
+array<int> $timings = ["/home" => 120, "/search" => 250, "/report" => 1400, "/login" => 90];
+
+foreach ($timings as string $path => int $ms) {
+    Core\Time\Duration $took = Core\Time\Duration::milliseconds($ms);
+    // `compareTo` returns 1 when the request took longer than the limit.
+    if ($took->compareTo($limit) == 1) {
+        echo "slow: ", $path, " took ", $took->toString(), "\n";
+    }
+}
+// This prints one line, for "/report". "/search" took exactly 250 ms, which is not slower than the limit.

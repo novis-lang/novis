@@ -1,0 +1,27 @@
+<?nvs
+// Attack: a program asks for setting names that no configuration file could
+// hold. The names are very long, have many empty parts, or carry control
+// characters. Every one of them should return `null`. The program must not
+// crash.
+
+// 1. A name one million characters long.
+string $huge = Core\Str::repeat('a', 1000000);
+echo 'long name: ', Core\Config::get($huge) ?? 'null', "\n";
+
+// 2. A name that is a hundred thousand dots, so it has a hundred thousand empty
+// parts.
+string $dots = Core\Str::repeat('.', 100000);
+echo 'only dots: ', Core\Config::get($dots) ?? 'null', "\n";
+
+// 3. A real group name with a hundred thousand dots after it.
+echo 'limits and dots: ', Core\Config::get('limits' . $dots) ?? 'null', "\n";
+
+// 4. A name with a zero byte and other control characters in it.
+echo 'control bytes: ', Core\Config::get("limits.\u{0}memory\u{7}") ?? 'null', "\n";
+
+// 5. A limit name with one letter too many. The name that is one letter shorter
+// is a real limit, so this asks for the edge of the short names.
+echo 'one letter over: ', Core\Config::get('memoryy') ?? 'null', "\n";
+
+// 6. A group name, which is not one value.
+echo 'a whole group: ', Core\Config::get('limits') ?? 'null', "\n";

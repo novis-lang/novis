@@ -1,0 +1,10 @@
+<?nvs
+// Shows how to send a file that is saved on disk as the whole response.
+
+// A real server already has this file. The example writes it first, so that it has a file to send.
+string $path = Core\Path::join(Core\IO::temporaryDir(), "about.html");
+Core\IO::write($path, "<h1>About us</h1>\n<p>We sell tea since 1998.</p>\n");
+
+// `sendFile` sends the file exactly as it is, and reads it in small pieces.
+// The content type is `text/html`, because the file name ends in `.html`.
+Core\Response::sendFile($path);

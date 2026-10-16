@@ -1,0 +1,17 @@
+<?nvs
+// Shows how to draw a short label on a coloured badge and save it as a PNG file.
+use Novis\Image\Color;
+use Novis\Image\Image;
+use Novis\Image\Format;
+
+require 'fonts/box-font.nvs';
+
+// Without `x` and `y`, the text is in the center of the image.
+bytes $png = Image::create(40, 20, Color::hex("#2e7d32"))
+    ->text("Sale", BoxFont::load(), {size: 10.0, color: Color::hex("#ffffff")})
+    ->format(Format::Png)
+    ->encode();
+
+// This prints 40 and 20.
+var $info = Image::info($png);
+echo $info->width, "\n", $info->height, "\n";

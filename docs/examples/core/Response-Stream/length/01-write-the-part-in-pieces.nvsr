@@ -1,0 +1,6 @@
+--METHOD--
+GET
+--PATH--
+/numbers
+--HEADERS--
+host: example.com

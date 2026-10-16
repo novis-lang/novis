@@ -1,0 +1,21 @@
+<?nvs
+// Attack: a program builds the `disabled` filter many times and joins them all.
+// The program should finish, and memory should not grow without end.
+// hostile: timeout-ms 60000
+
+// 1. A hundred thousand filters, each made and dropped.
+uint $length = 0;
+uint $i = 0;
+while ($i < 100000) {
+    $length = $length + Core\Str::length(Core\Ldap\Ad::disabled()->toString());
+    $i = $i + 1;
+}
+echo '1 length: ', $length, "\n";
+
+// 2. `disabled` and `enabled` in one `all`. No account can match both.
+try {
+    var $none = Core\Ldap\Filter::all(Core\Ldap\Ad::disabled(), Core\Ldap\Ad::enabled());
+    echo '2 ', $none->toString(), "\n";
+} catch (Throwable $error) {
+    echo "2 threw\n";
+}

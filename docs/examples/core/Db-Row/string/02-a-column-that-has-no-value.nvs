@@ -1,0 +1,22 @@
+<?nvs
+// Shows what you get when the column has no value in this row.
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table people (name text not null, nickname text)', []);
+$db->execute(
+    'insert into people (name, nickname) values (?, ?), (?, ?)',
+    ['Amina', 'Mina', 'Bruno', null]
+);
+
+// `string` returns a `tainted string`, or `null` when the column has no value in
+// this row. Test the result for `null` before you use it.
+foreach ($db->query('select name, nickname from people order by name', []) as Core\Db\Row $row) {
+    ?tainted string $nickname = $row->string('nickname');
+    if ($nickname == null) {
+        echo $row->string('name') ?? '', ' has no nickname', "\n";
+    } else {
+        echo $row->string('name') ?? '', ' is called ', $nickname, "\n";
+    }
+}
+
+$db->close();

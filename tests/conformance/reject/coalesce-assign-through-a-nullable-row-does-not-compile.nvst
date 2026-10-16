@@ -1,0 +1,17 @@
+--TEST--
+`??=` reads its target guarded but writes it as the plain `=` does, so a nullable row under the target is refused where it is written, exactly as `$g["0"]["1"] = 5` is — `rule:expressions/defaulting-assignment`, `rule:types/arrays`
+--FILE--
+<?nvs
+array<?array<int>> $g = [];
+$g["0"]["1"] ??= 5;
+echo "unreached\n";
+--EXPECTF-ERROR--
+error[E0482]: `null|array<int>` cannot be subscripted
+  --> %s:3:1
+  |
+3 | $g["0"]["1"] ??= 5;
+  | ^^^^^^^ this is `null|array<int>`
+  = help: a nullable array has no elements until it is known not to be `null` — put the subscript inside an `if ($x != null) { … }`, which narrows the binding to its `array<T>` for the whole branch. Only a *binding* narrows, so a nullable array that came straight out of a call has to be bound to one first
+
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

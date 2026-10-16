@@ -1,0 +1,12 @@
+<?nvs
+// Shows what `Core\Request::post` returns for a field written with square brackets.
+
+// The form sends `item[]=pen&item[]=book&note=gift+wrap`.
+// "note" has no brackets, so this prints "note: gift wrap".
+echo "note: ", Core\Request::post("note") ?? "none", "\n";
+
+// "item" was sent with brackets, so `post` returns `null` for it. This prints "item: none".
+echo "item: ", Core\Request::post("item") ?? "none", "\n";
+
+// `Core\Request::postArray` returns the values of "item". This prints "items: 2".
+echo "items: ", Core\Arr::count(Core\Request::postArray("item")), "\n";

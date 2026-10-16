@@ -1,0 +1,14 @@
+<?nvs
+// Shows how to read the data of a binary message.
+
+// The `.nvsp` file beside this example plays the client.
+// It sends one binary message of five bytes and then closes the connection.
+Core\Socket $conn = Core\Socket::current();
+
+// `bytes()` returns the data exactly as the client sent it.
+// This prints `5 bytes`.
+?Core\Socket\Message $message = $conn->receive();
+if ($message != null) {
+    tainted bytes $data = $message->bytes() ?? "" as bytes;
+    echo Core\Bytes::length($data), " bytes\n";
+}

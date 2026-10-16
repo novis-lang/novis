@@ -1,0 +1,6 @@
+--METHOD--
+POST
+--PATH--
+/settings/theme
+--HEADERS--
+host: example.com

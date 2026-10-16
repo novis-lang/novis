@@ -1,0 +1,92 @@
+[package]
+name = "nvs-lsp"
+build = "../../tools/build/tests_without_pdb.rs"
+description = "The `nvs lsp` language server: LSP 3.17 over stdio, synchronous, on the resilient tree"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[lib]
+# No doc comment in this crate has a runnable example, so `cargo test` does
+# not run rustdoc over it. A crate that gains one deletes this table.
+doctest = false
+
+[dependencies]
+# The wire. The workspace manifest owns why this crate and not a framing layer
+# of our own.
+lsp-server.workspace = true
+# The vocabulary. Same, and the two are versioned together because a
+# `lsp-server` example is written against a `lsp-types` shape.
+lsp-types.workspace = true
+# The front end an open document is analysed with. One document is its own
+# entry point (`rule:ide/an-open-document-is-its-own-entry-point`) and its
+# `require` graph is resolved exactly the way `nvs check` resolves it, so these
+# are the same four crates `nvs-cli`'s `front_end` names and in the same order:
+# the source map an unsaved buffer is overlaid on, the parser, the walk, and
+# the type check. The last one is what makes `E03xx` and `E04xx` reachable at
+# all, which is the band `rule:ide/diagnostics-are-phase-gated` gates — a
+# server that stopped at the walk would publish a fraction of what `nvs check`
+# reports and call it agreement. It also links `nvs-stdlib` and the runtime
+# beneath it into the server, which `tests/stdout_policy.rs` names.
+nvs-diagnostics.workspace = true
+# The manifests of the document's extension set, read with `read_manifests` and
+# never instantiated (`crate::document`). Already linked through `nvs-types`;
+# named here because this crate reads it directly.
+nvs-ext.workspace = true
+# The default `nvs.toml` the binary ships, which is the table `nvs/directives`
+# completes from (`crate::directives`). Already linked through `nvs-types`;
+# named here because this crate reads it directly.
+nvs-config.workspace = true
+# The formatter's list layout, for *Put on separate lines* and *Join onto one
+# line* (`crate::split_join`): the edit is the layout `nvs fmt` writes, so the
+# rules stay in one crate (`rule:ide/one-server-two-thin-clients`).
+nvs-fmt.workspace = true
+nvs-hir.workspace = true
+nvs-syntax.workspace = true
+nvs-types.workspace = true
+# A completion list, a namespace card and the stubs list every `Core` class,
+# which is recorded when `NVS_FOOTPRINT_LOG` names a log.
+nvs-footprint.workspace = true
+# The `Core` registry, for the one answer that has no Novis declaration behind
+# it: a `Core` member documents itself in its registry row
+# (`rule:core-api/reference-card`), so `hover` reads the row rather than looking
+# for a `///` run that is not written anywhere. Already linked through
+# `nvs-types`; named here because this crate reads it directly.
+nvs-stdlib.workspace = true
+# The section lexer, and nothing else: `.lspt` and `.nvst` are two suites that
+# share one parser for the `--NAME--` shape (`rule:ide/an-lsp-answer-is-frozen-as-an-lspt-case`).
+# This crate is std-only and writes nothing to standard output, so the
+# dependency tree `tests/stdout_policy.rs` walks stays clean.
+nvs-test.workspace = true
+# The map `nvs_hir::resolve_ref` takes its imports in. `completion` resolves the
+# class name written before a `::` through that one shared lookup rather than
+# through a second reading of the same rule, and its signature names this type.
+rustc-hash.workspace = true
+# `initialize`'s params and result cross the wire as `serde_json::Value` —
+# `lsp_server::Connection` takes and returns one — so this crate names the
+# type it converts through rather than reaching for a second JSON library.
+serde_json.workspace = true
+# The completion files' format (`crate::completion_files`), parsed with
+# `deny_unknown_fields` at every level so an unknown field is a finding that
+# names it. `serde_json` already links it; this names the derive.
+serde.workspace = true
+
+[dev-dependencies]
+# How this crate's tests reach files outside the package.
+nvs-repo.workspace = true
+# `tests/extensions.rs` writes a `.nvsx` the document's `nvs.toml` pins: a
+# component from WAT text with the packer's two sections added to it.
+nvs-ext = { workspace = true, features = ["pack"] }
+wat.workspace = true
+
+# The workspace table verbatim, and `print_stdout` is the reason this block is
+# spelled out rather than inherited-and-forgotten: `rule:ide/stdout-belongs-to-the-protocol` gives this
+# process's stdout to the protocol, so the allowance `nvs-cli` takes for being a
+# terminal program must never be copied here. `tests/stdout_policy.rs` checks
+# the same claim over every crate the server links, because a lint only covers
+# the crate it is written in.
+[lints]
+workspace = true

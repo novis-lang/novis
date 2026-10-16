@@ -1,0 +1,19 @@
+<?nvs
+// Shows how to make an image exactly as big as its text, with a margin around it.
+use Novis\Image\Color;
+use Novis\Image\Image;
+
+require 'fonts/box-font.nvs';
+
+var $font = BoxFont::load();
+// This prints 24 and 10.
+var $size = Image::measureText("Shop", $font, {size: 10.0});
+echo $size->width, "\n", $size->height, "\n";
+
+// The image is 4 pixels bigger on each side. The text starts at 4, 4.
+bytes $png = Image::create($size->width + 8, $size->height + 8, Color::hex("#ffffff"))
+    ->text("Shop", $font, {size: 10.0, color: Color::hex("#000000"), x: 4, y: 4})
+    ->encode();
+var $info = Image::info($png);
+// This prints 32 and 18.
+echo $info->width, "\n", $info->height, "\n";

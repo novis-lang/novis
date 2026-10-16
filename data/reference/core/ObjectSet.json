@@ -1,0 +1,14 @@
+{
+  "summary": "a set of objects held by identity — the typed replacement for `SplObjectStorage` used as a set",
+  "keywords": [
+    "SplObjectStorage",
+    "spl_object_id",
+    "identity",
+    "set",
+    "membership",
+    "union",
+    "intersect",
+    "diff",
+    "deduplicate objects"
+  ]
+}

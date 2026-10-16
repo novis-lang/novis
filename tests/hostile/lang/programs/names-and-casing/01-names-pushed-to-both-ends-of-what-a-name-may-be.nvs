@@ -1,0 +1,83 @@
+<?nvs
+// Attack: a program uses names at the limits of what a name may be. Some are
+// hundreds of characters long, and some differ only in the case of a letter.
+// Others are one letter, or one letter and digits. All of them are allowed,
+// so the program should compile and run to the end.
+// hostile: timeout-ms 20000
+
+namespace ANamespaceSegmentThatIsItselfFarLongerThanAnybodyWouldEverTypeByHandAndKeepsGoingForQuiteSomeTimeAfterThatAsWell\AndASecondSegmentJustAsLongAgainSoThatTheWholeNameIsLongerStill;
+
+// A class name hundreds of characters long, with a method and a constant
+// whose names are just as long.
+class TheLongestClassNameThisProgramCanThinkOfWhichKeepsGoingAndGoingAndGoingPastEveryPointWhereAReasonablePersonWouldHaveStoppedAndThenGoesOnFurtherStillBecauseNothingInTheLanguageSaysItHasToStopHereOrAnywhereElseForThatMatterAndSoItCarriesOnRightToTheVeryEndOfThisLine
+{
+    public const int A_CONSTANT_NAME_MADE_OF_A_GREAT_MANY_SHORT_WORDS_EACH_OF_THEM_SEPARATED_FROM_THE_NEXT_ONE_BY_AN_UNDERSCORE_AND_ALL_OF_THEM_IN_CAPITALS_FROM_THE_FIRST_LETTER_TO_THE_LAST_ONE = 3;
+
+    public static function aMethodNameThatIsEveryBitAsLongAsTheClassItSitsInsideOfAndCarriesOnWellPastThePointWhereAnEditorWouldHaveWrappedItOntoASecondLineAndThenAThirdOneAfterThat(int $aParameterNameOfTheSameUnreasonableLengthWhichAlsoRefusesToStopAnywhereNearWhereItShould): int
+    {
+        int $aLocalVariableNameOfTheSameLengthAgainSoThatEveryKindOfNameInThisFileIsAsLongAsEveryOtherKind = $aParameterNameOfTheSameUnreasonableLengthWhichAlsoRefusesToStopAnywhereNearWhereItShould;
+        return $aLocalVariableNameOfTheSameLengthAgainSoThatEveryKindOfNameInThisFileIsAsLongAsEveryOtherKind + 1;
+    }
+}
+
+// Three classes whose names differ only in the case of some letters.
+// They are three different classes, and each returns its own number.
+class HTTPClient
+{
+    public static function ask(): int
+    {
+        return 1;
+    }
+}
+
+class HttpClient
+{
+    public static function ask(): int
+    {
+        return 2;
+    }
+}
+
+class HtTpClIeNt
+{
+    public static function ask(): int
+    {
+        return 3;
+    }
+}
+
+// A class with a one-letter name.
+class A
+{
+    public static function b(): int
+    {
+        return 4;
+    }
+}
+
+// A name that is one letter and then nothing but digits.
+class B1234567890123456789012345678901234567890
+{
+    public static function c9876543210(): int
+    {
+        return 5;
+    }
+}
+
+// Four variables that differ only in the case of a letter, all in one scope.
+int $userId = 10;
+int $userID = 20;
+int $userid = 30;
+int $usERid = 40;
+
+// A variable whose name is a single letter, and one that is a letter and digits.
+int $z = 50;
+int $q1234567890123456789012345678901234567890 = 60;
+
+int $total = 0;
+$total = $total + TheLongestClassNameThisProgramCanThinkOfWhichKeepsGoingAndGoingAndGoingPastEveryPointWhereAReasonablePersonWouldHaveStoppedAndThenGoesOnFurtherStillBecauseNothingInTheLanguageSaysItHasToStopHereOrAnywhereElseForThatMatterAndSoItCarriesOnRightToTheVeryEndOfThisLine::aMethodNameThatIsEveryBitAsLongAsTheClassItSitsInsideOfAndCarriesOnWellPastThePointWhereAnEditorWouldHaveWrappedItOntoASecondLineAndThenAThirdOneAfterThat(TheLongestClassNameThisProgramCanThinkOfWhichKeepsGoingAndGoingAndGoingPastEveryPointWhereAReasonablePersonWouldHaveStoppedAndThenGoesOnFurtherStillBecauseNothingInTheLanguageSaysItHasToStopHereOrAnywhereElseForThatMatterAndSoItCarriesOnRightToTheVeryEndOfThisLine::A_CONSTANT_NAME_MADE_OF_A_GREAT_MANY_SHORT_WORDS_EACH_OF_THEM_SEPARATED_FROM_THE_NEXT_ONE_BY_AN_UNDERSCORE_AND_ALL_OF_THEM_IN_CAPITALS_FROM_THE_FIRST_LETTER_TO_THE_LAST_ONE);
+$total = $total + HTTPClient::ask() + HttpClient::ask() + HtTpClIeNt::ask();
+$total = $total + A::b() + B1234567890123456789012345678901234567890::c9876543210();
+$total = $total + $userId + $userID + $userid + $usERid + $z + $q1234567890123456789012345678901234567890;
+
+echo $total, "\n";

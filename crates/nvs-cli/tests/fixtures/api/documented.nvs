@@ -1,0 +1,58 @@
+<?nvs
+// The generated document's doc-comment row: the summary and the description come from the
+// declaration's own doc comment and from nowhere else. Five methods, so the
+// document has to answer five different ways with one rule.
+
+class Notes
+{
+    /// Lists every note the caller may
+    /// read.
+    ///
+    /// The first sentence above is deliberately wrapped across two source
+    /// lines: a generated document has no margin to wrap it back to, so what
+    /// reaches `summary` is one line however the comment was written.
+    ///
+    /// A second paragraph, to pin that the description keeps its breaks.
+    #[Core\Route(path: "/notes", method: Core\Http\Method::Get, name: "Notes::index")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function index(): string
+    {
+        return "every note";
+    }
+
+    /// One sentence and no more.
+    #[Core\Route(path: "/notes/{id}", method: Core\Http\Method::Get, name: "Notes::show")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function show(uint $id): string
+    {
+        return "note " . $id;
+    }
+
+    // A line comment is not a doc comment -- this text describes the fixture
+    // and must not reach the document. Exactly three slashes open a doc
+    // comment and two open a note to the next reader.
+    #[Core\Route(path: "/notes", method: Core\Http\Method::Post, name: "Notes::create")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function create(): string
+    {
+        return "created";
+    }
+
+    /* Not a doc comment either: one star opens an ordinary block comment. */
+    #[Core\Route(path: "/notes/{id}", method: Core\Http\Method::Delete, name: "Notes::destroy")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function destroy(uint $id): string
+    {
+        return "gone " . $id;
+    }
+
+    /** The PHPDoc shape is an ordinary block comment too, and documents nothing. */
+    #[Core\Route(path: "/notes/{id}", method: Core\Http\Method::Put, name: "Notes::restore")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function restore(uint $id): string
+    {
+        return "back " . $id;
+    }
+}
+
+echo "GET /notes -> Notes::index", "\n";

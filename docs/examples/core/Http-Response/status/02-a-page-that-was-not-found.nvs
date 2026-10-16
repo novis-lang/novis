@@ -1,0 +1,14 @@
+<?nvs
+// Shows that an error status such as 404 is returned like any other status.
+
+// The server replies with 404, which means "not found".
+Core\Test::answerHttp("https://api.example.com/users/9", 404, {body: "no such user"});
+
+// `Core\Http\Client::get` does not throw an error for a 404.
+// The program reads the status and decides what to do.
+Core\Http\Response $response = Core\Http\Client::get("https://api.example.com/users/9");
+
+// This prints `404: no such user`.
+if ($response->status() == 404) {
+    echo $response->status(), ": ", $response->text(), "\n";
+}

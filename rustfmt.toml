@@ -1,0 +1,6 @@
+# Deliberately close to rustfmt defaults: the value of a formatter is that
+# nobody argues about it. Only two deviations, both for compiler code that is
+# dense in `use` statements and long match arms.
+edition = "2024"
+max_width = 100
+use_field_init_shorthand = true

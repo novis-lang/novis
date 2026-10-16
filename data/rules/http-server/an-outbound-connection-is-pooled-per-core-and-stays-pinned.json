@@ -1,0 +1,16 @@
+{
+  "title": "An outbound connection is pooled per core under a key carrying everything the check approved, and returns to the pool only after a reply read to the end under known framing",
+  "status": "shipped",
+  "seeAlso": [
+    "http-server/allow-url-pins-the-address",
+    "http-server/redirects-are-off-and-every-hop-is-re-pinned",
+    "security/db-pool-reset-is-a-boundary",
+    "security/tls-trust-is-relaxed-only-under-a-host-grant",
+    "config/three-changeability-classes"
+  ],
+  "guardedBy": [
+    "crates/nvs-stdlib/src/http/pool.rs",
+    "crates/nvs-stdlib/src/http/transport.rs",
+    "crates/nvs-config/tests/tree.rs"
+  ]
+}

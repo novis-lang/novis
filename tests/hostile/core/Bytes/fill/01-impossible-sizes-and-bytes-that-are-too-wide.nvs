@@ -1,0 +1,41 @@
+<?nvs
+// Attack: buffers of impossible sizes are asked for, and bytes that do not fit
+// in one byte. Every one of these must throw an error, and the program must
+// keep running.
+// hostile: timeout-ms 30000
+
+// 1. The largest length there is. This throws, so it prints a message.
+try {
+    echo Core\Bytes::length(Core\Bytes::fill(18446744073709551615, 65)), "\n";
+} catch (Throwable $error) {
+    echo $error->message, "\n";
+}
+
+// 2. Bytes outside the range of one byte. Both throw, so this prints two
+//    messages.
+array<uint> $wide = [256, 4294967295];
+foreach ($wide as uint $byte) {
+    try {
+        echo Core\Bytes::length(Core\Bytes::fill(8, $byte)), "\n";
+    } catch (Throwable $error) {
+        echo $error->message, "\n";
+    }
+}
+
+// 3. An impossible length together with a byte that is too wide. This throws
+//    as well.
+try {
+    echo Core\Bytes::length(Core\Bytes::fill(18446744073709551615, 999999)), "\n";
+} catch (Throwable $error) {
+    echo $error->message, "\n";
+}
+
+// 4. Two hundred thousand buffers of ten thousand bytes. Each one must be
+//    freed while the loop runs. This prints 2000000000.
+uint $built = 0;
+uint $i = 0;
+while ($i < 200000) {
+    $built = $built + Core\Bytes::length(Core\Bytes::fill(10000, 97));
+    $i = $i + 1;
+}
+echo $built, "\n";

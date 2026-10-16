@@ -1,0 +1,6 @@
+- **`INSTA_FORCE_UPDATE=1` rewrites every `nvs-ir` snapshot, not the ones your change moved — use
+  `INSTA_UPDATE=always` alone.** The extra variable rewrites snapshots that *pass* as well, and
+  stale `source:` headers come back as a one-line diff on each that buries the ones that matter.
+  `INSTA_UPDATE=always bun nv verify -p nvs-ir` touches only what differs; if it already
+  happened, `git checkout --` the rest before the wrap, so the snapshots you did not move stay out
+  of your commits. See `crates/nvs-ir/Cargo.toml`. `until: gone crates/nvs-ir/Cargo.toml:insta.workspace`

@@ -1,0 +1,26 @@
+<?nvs
+// Shows the two times `value` gives `null`: the query matched no rows, and the
+// first column of the first row has no value. `Core\Db\Rows::count` is what
+// tells the two apart.
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table guests (id integer primary key, name text not null, seats int)', []);
+$db->execute('insert into guests (name, seats) values (?, ?)', ['Ada Ahmed', null]);
+
+// No guest has id 99, so the query matched no rows at all. This prints
+// `no value, rows: 0`.
+var $missing = $db->query('select seats from guests where id = ?', [99]);
+if ($missing->value() == null) {
+    echo 'no value, rows: ', $missing->count(), "\n";
+}
+
+// Guest 1 is there, and its `seats` column has no value. `value` gives `null`
+// here as well. This prints `no value, rows: 1`.
+var $present = $db->query('select seats from guests where id = ?', [1]);
+if ($present->value() == null) {
+    echo 'no value, rows: ', $present->count(), "\n";
+}
+
+// The count is what your program asks when it has to know which of the two it
+// is looking at.
+$db->close();

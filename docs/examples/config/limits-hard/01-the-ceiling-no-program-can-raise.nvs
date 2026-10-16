@@ -1,0 +1,29 @@
+<?nvs
+// `[limits.hard]` sets the ceilings a program cannot go past. It uses the same
+// keys as `[limits]`. `[limits]` sets where a request starts, and a program may
+// change those values up to the ceiling.
+
+echo 'starts at:   ', Core\Config::get('limits.memory') ?? '(unset)', "\n";
+echo 'never above: ', Core\Config::get('limits.hard.memory') ?? '(unset)', "\n";
+
+// A program may set any value up to the ceiling, and the ceiling itself.
+// `512M` returns `true`. `513M` returns `false`.
+echo 'ask 512M:    ', Core\Config::set('limits.memory', '512M') ? 'accepted' : 'refused', "\n";
+echo 'ask 513M:    ', Core\Config::set('limits.memory', '513M') ? 'accepted' : 'refused', "\n";
+echo 'in force:    ', Core\Config::get('limits.memory'), "\n";
+
+// A value over the ceiling does not throw an error. The previous value, `512M`,
+// stays in force. `Core\Config::restore` then sets it back to `256M`.
+Core\Config::restore('limits.memory');
+
+// A program cannot change the ceiling. Each of these keys returns `false`,
+// including the ones that only look like the ceiling's key.
+array<string> $spellings = ['limits.hard.memory', 'limits.hard', 'app.limits.hard.memory', 'limits.hard.hard.memory'];
+foreach ($spellings as string $key) {
+    echo 'raise ', $key, ': ', Core\Config::set($key, '4G') ? 'accepted' : 'refused', "\n";
+}
+
+// No `cpu_time` is set, so `nvs run` has no CPU time limit and no ceiling. `9h` is
+// allowed. A request on a server starts with `30s`, and that is also its ceiling.
+echo 'cpu ceiling: ', Core\Config::get('limits.hard.cpu_time') ?? '(not set)', "\n";
+echo 'ask 9h cpu:  ', Core\Config::set('limits.cpu_time', '9h') ? 'accepted' : 'refused', "\n";

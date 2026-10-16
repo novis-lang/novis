@@ -1,0 +1,10 @@
+usage: deploy <target> [--dryRun] [--retries]
+
+Push the current build
+
+arguments:
+  <target>  string
+
+options:
+  -n, --dryRun  bool      Print what would happen
+  --retries     uint = 3  How many times to try

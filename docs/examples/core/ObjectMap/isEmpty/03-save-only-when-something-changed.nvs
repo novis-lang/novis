@@ -1,0 +1,51 @@
+<?nvs
+// Shows how to save changed records at the end of a request, only when something changed.
+
+final class Product {
+    public string $name;
+    public int $price;
+
+    public function constructor(string $name, int $price) {
+        $this->name = $name;
+        $this->price = $price;
+    }
+}
+
+final class Changes {
+    // The map stores the old price of each product that changed.
+    public Core\ObjectMap<Product, int> $old;
+
+    public function constructor() {
+        $this->old = new Core\ObjectMap<Product, int>();
+    }
+
+    public function setPrice(Product $product, int $price): void {
+        if (!$this->old->has($product)) {
+            $this->old->set($product, $product->price);
+        }
+        $product->price = $price;
+    }
+
+    public function save(): void {
+        // `isEmpty` is `true` when no product changed, so there is nothing to write.
+        if ($this->old->isEmpty()) {
+            echo "nothing to save\n";
+            return;
+        }
+        foreach ($this->old as Product $product) {
+            echo "save ", $product->name, ": ", $this->old->get($product) ?? 0, " -> ", $product->price, "\n";
+        }
+        $this->old->clear();
+    }
+}
+
+Product $lamp = new Product("lamp", 4500);
+Changes $changes = new Changes();
+
+// No price changed yet. This prints "nothing to save".
+$changes->save();
+
+// This prints "save lamp: 4500 -> 3900".
+$changes->setPrice($lamp, 4200);
+$changes->setPrice($lamp, 3900);
+$changes->save();

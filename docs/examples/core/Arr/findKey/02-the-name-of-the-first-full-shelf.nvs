@@ -1,0 +1,13 @@
+<?nvs
+// Shows a search over an array that uses names as keys. The result is the
+// name of the entry, not the value stored under it.
+
+array<int> $shelves = [
+    "fiction" => 12,
+    "cooking" => 40,
+    "travel" => 8,
+];
+
+// "cooking" is the first shelf holding more than 20 books. This prints cooking.
+?string $full = Core\Arr::findKey($shelves, fn(int $books) => $books > 20);
+echo $full ?? "none", "\n";

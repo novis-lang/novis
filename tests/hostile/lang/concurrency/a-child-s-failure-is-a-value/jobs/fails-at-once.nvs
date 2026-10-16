@@ -1,0 +1,5 @@
+<?nvs
+// The attack in the folder above starts this script. It prints nothing and
+// fails on its first line.
+
+throw new RuntimeError('stopped before doing any work');

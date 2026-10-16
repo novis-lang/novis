@@ -1,0 +1,10 @@
+--TEST--
+a local written in the casing the rule asks for carries no violation, so a read of it is offered nothing, `rule:core-api/identifier-casing`
+--FILE--
+<?nvs
+var $total = 3;
+echo $to<|>tal;
+--REQUEST--
+codeAction
+--EXPECT--
+none

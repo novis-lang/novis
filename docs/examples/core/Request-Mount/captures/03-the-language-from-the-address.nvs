@@ -1,0 +1,13 @@
+<?nvs
+// Shows how a program picks the language of a page from its address.
+
+// The server serves one folder for each language, through the pattern `/{1}`.
+// The client asked for `/de/welcome`, so `captures()[0]` is "de".
+tainted string $language = Core\Request::mount()->captures()[0];
+
+// The program knows these languages. A language it does not know gets English.
+array<string> $greetings = ["en" => "Welcome", "de" => "Willkommen", "fr" => "Bienvenue"];
+string $greeting = $greetings[$language] ?? $greetings["en"];
+
+// This prints "Willkommen".
+echo $greeting, "\n";

@@ -1,0 +1,11 @@
+<?nvs
+// Shows a few cube roots that `Core\Math::cbrt` returns.
+
+// 3 × 3 × 3 is 27. This prints 3.
+echo Core\Math::cbrt(27.0), "\n";
+
+// 10 × 10 × 10 is 1000. This prints 10.
+echo Core\Math::cbrt(1000.0), "\n";
+
+// Most cube roots are not whole numbers. This prints 1.2599210498949.
+echo Core\Math::cbrt(2.0), "\n";

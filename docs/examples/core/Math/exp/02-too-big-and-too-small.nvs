@@ -1,0 +1,15 @@
+<?nvs
+// Shows what `Core\Math::exp` returns when the result is too big or too small for a `float`.
+
+// This result still fits in a `float`. It prints 1.7928227943945E+308.
+echo Core\Math::exp(709.78), "\n";
+
+// A little higher, the result is too big. This prints INF.
+echo Core\Math::exp(710.0), "\n";
+
+// Far below zero, the result is too small to store. This prints 0.
+echo Core\Math::exp(-800.0), "\n";
+
+// `Core\Math::isFinite` tests whether the result fits. This prints "too big".
+float $growth = Core\Math::exp(1000.0);
+echo Core\Math::isFinite($growth) ? "fits\n" : "too big\n";

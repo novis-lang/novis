@@ -1,0 +1,70 @@
+--TEST--
+A `Core\Heap` orders `Core`-owned instances by their own `compareTo` with no comparator given, and a comparator still wins over it — `rule:classes/comparable`, docs/spec/01-core-library.md § 9
+--FILE--
+<?nvs
+// `Comparable` is one interface, and a `Core` class the spec gives a
+// `compareTo` implements it exactly as a program's own class does. A heap is
+// where that has to hold with no class in hand: it was given a type once and
+// then reaches the member by name on every sift, so either the engine finds
+// the ordering the checker already let `$a < $b` compile against, or the heap
+// throws for a pair it has no natural order for.
+array<string> $texts = [
+    "2024-07-15T12:00:00Z",
+    "1970-01-01T00:00:00Z",
+    "2024-01-15T12:00:00Z",
+    "1901-01-01T00:00:00Z",
+    "2038-01-19T03:14:08Z",
+];
+
+var $instants = new Core\Heap<Core\Time\Instant>();
+foreach ($texts as string $text) {
+    var $point = Core\Time::fromIso($text);
+    $instants->push($point);
+}
+// Smallest first, which is what § 9's `peek` means and what an `Instant`'s own
+// `compareTo` says about two points on one line.
+while (!$instants->isEmpty()) {
+    var $earliest = $instants->pop();
+    echo $earliest->toIso(), " ";
+}
+echo "|\n";
+
+// The comparator given at construction is the more specific of the two and
+// still wins, exactly as it does over the natural order of a scalar.
+var $latest = new Core\Heap<Core\Time\Instant>(
+    fn(Core\Time\Instant $a, Core\Time\Instant $b): int => $b->compareTo($a)
+);
+foreach ($texts as string $text) {
+    var $reading = Core\Time::fromIso($text);
+    $latest->push($reading);
+}
+while (!$latest->isEmpty()) {
+    var $newest = $latest->pop();
+    echo $newest->toIso(), " ";
+}
+echo "|\n";
+
+// A second `Core` class through the same route, asserted by counting rather
+// than read off a line: this is the protocol every class declaring the member
+// answers, not one class's own arrangement.
+array<int> $seconds = [30, 5, 90, 1, 45];
+var $durations = new Core\Heap<Core\Time\Duration>();
+foreach ($seconds as int $n) {
+    var $span = Core\Time\Duration::seconds($n);
+    $durations->push($span);
+}
+var $smallest = $durations->peek();
+int $drained = 0;
+int $notBelow = 0;
+while (!$durations->isEmpty()) {
+    var $drainedSpan = $durations->pop();
+    $drained = $drained + 1;
+    if ($smallest->compareTo($drainedSpan) <= 0) {
+        $notBelow = $notBelow + 1;
+    }
+}
+echo $notBelow, " of ", $drained, " are at or past the one peek answered\n";
+--EXPECT--
+1901-01-01T00:00:00Z 1970-01-01T00:00:00Z 2024-01-15T12:00:00Z 2024-07-15T12:00:00Z 2038-01-19T03:14:08Z |
+2038-01-19T03:14:08Z 2024-07-15T12:00:00Z 2024-01-15T12:00:00Z 1970-01-01T00:00:00Z 1901-01-01T00:00:00Z |
+5 of 5 are at or past the one peek answered

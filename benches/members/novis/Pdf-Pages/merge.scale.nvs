@@ -1,0 +1,23 @@
+<?nvs
+// Merges a growing number of copies of one page, as a shop does when it prints one form for each order.
+// bench: start 32
+// bench: max 4096
+use Novis\Pdf\Document;
+use Novis\Pdf\Pages;
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        bytes $form = Document::fromHtml("<h1>Return form</h1><p>Shop, 1 Example Street</p>")->render()->bytes;
+        array<uint> $pages = [];
+        uint $i = 0;
+        while ($i < $size) {
+            $pages[] = 1;
+            $i = $i + 1;
+        }
+        return Core\Bytes::length(Pages::merge([Pages::of($form, $pages)]));
+    }
+}
+
+echo Bench::run(32), "\n";

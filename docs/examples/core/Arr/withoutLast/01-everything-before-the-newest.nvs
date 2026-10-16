@@ -1,0 +1,15 @@
+<?nvs
+// Shows how to remove the newest value from a list.
+
+array<string> $history = ["home", "products", "cart"];
+
+// `Core\Arr::withoutLast` returns a new array with the first two pages.
+array<string> $back = Core\Arr::withoutLast($history);
+
+// This prints "home" and "products".
+foreach ($back as string $page) {
+    echo $page, "\n";
+}
+
+// Your own array is not changed, so this prints 3.
+echo Core\Arr::count($history), "\n";

@@ -1,0 +1,47 @@
+<?nvs
+// Attack: a program lists the methods of paths that a visitor chose: very long,
+// badly encoded, or with a huge number of slashes. Each call should return an
+// array, and the program must not crash.
+
+class Files
+{
+    #[Core\Route(path: "/files/{name}", method: Core\Http\Method::Get, name: "Files::show")]
+    #[Core\Route(path: "/files/{name}", method: Core\Http\Method::Delete, name: "Files::show")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function show(string $name): string
+    { return 'one file'; }
+
+    #[Core\Route(path: "/docs/{rest...}", method: Core\Http\Method::Get, name: "Files::docs")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function docs(string $rest): string
+    { return 'a page'; }
+
+    #[Core\Route(path: "/orders/{id}", method: Core\Http\Method::Get, name: "Files::order")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function order(uint $id): string
+    { return 'one order'; }
+}
+
+// 1. A path segment of one million characters.
+string $long = '/files/' . Core\Str::repeat('a', 1000000);
+echo 'long: ', Core\Arr::count(Core\Router::methodsFor($long)), "\n";
+
+// 2. Escapes that are not valid UTF-8, and a path that is only slashes.
+echo 'bad escape: ', Core\Arr::count(Core\Router::methodsFor('/files/%ff%fe%C3')), "\n";
+echo 'slashes: ', Core\Arr::count(Core\Router::methodsFor(Core\Str::repeat('/', 100000))), "\n";
+
+// 3. One hundred thousand slashes after a route that takes the rest of the path.
+string $deep = '/docs' . Core\Str::repeat('/a', 100000);
+echo 'deep: ', Core\Arr::count(Core\Router::methodsFor($deep)), "\n";
+
+// 4. A number far too large for a `uint`.
+echo 'big: ', Core\Arr::count(Core\Router::methodsFor('/orders/99999999999999999999999')), "\n";
+
+// 5. Many calls in a loop, to check that no memory is lost.
+uint $total = 0;
+uint $i = 0;
+while ($i < 100000) {
+    $total = $total + Core\Arr::count(Core\Router::methodsFor('/files/report-' . ($i as string)));
+    $i = $i + 1;
+}
+echo $total, ' methods', "\n";

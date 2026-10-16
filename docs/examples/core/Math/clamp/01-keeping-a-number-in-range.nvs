@@ -1,0 +1,14 @@
+<?nvs
+// Shows how `Core\Math::clamp` keeps a number between 0 and 10.
+
+// A number above the range becomes the highest value. This prints 10.
+echo Core\Math::clamp(15, 0, 10), "\n";
+
+// A number below the range becomes the lowest value. This prints 0.
+echo Core\Math::clamp(-3, 0, 10), "\n";
+
+// A number inside the range stays the same. This prints 7.
+echo Core\Math::clamp(7, 0, 10), "\n";
+
+// The ends are inside the range too. This prints 10.
+echo Core\Math::clamp(10, 0, 10), "\n";

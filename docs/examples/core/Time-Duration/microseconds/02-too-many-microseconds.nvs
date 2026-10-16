@@ -1,0 +1,12 @@
+<?nvs
+// Shows what happens when the number of microseconds is too large for a duration.
+
+// 9223372036854775 is the largest number that fits. This prints it again.
+echo Core\Time\Duration::microseconds(9223372036854775)->toMicroseconds(), "\n";
+
+// One more microsecond does not fit, so `microseconds` throws a `RuntimeError`.
+try {
+    Core\Time\Duration::microseconds(9223372036854776);
+} catch (RuntimeError $e) {
+    echo $e->message, "\n";
+}

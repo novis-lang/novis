@@ -1,0 +1,19 @@
+<?nvs
+// Shows how to change the extension of a file name with `Core\Path::withExtension`.
+
+// On Windows, `withExtension` writes `\`. This example replaces it with `/`,
+// so the output is the same on every platform.
+class Show {
+    public static function renamed(string $path, string $extension): string {
+        return Core\Str::replace(Core\Path::withExtension($path, $extension), Core\Path::SEPARATOR, "/");
+    }
+}
+
+// This prints `/srv/shop/exports/orders.xlsx`.
+echo Show::renamed("/srv/shop/exports/orders.csv", "xlsx"), "\n";
+
+// A name with no extension gets one. This prints `notes.txt`.
+echo Show::renamed("notes", "txt"), "\n";
+
+// Only the last extension is replaced. This prints `photo.small.jpg`.
+echo Show::renamed("photo.small.JPG", "jpg"), "\n";

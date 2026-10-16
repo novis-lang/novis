@@ -1,0 +1,15 @@
+<?nvs
+// Shows how to read the id of each event that a server sends.
+
+// The server writes the id on an `id` line.
+Core\Test::answerHttp("https://bank.example.com/payments/live", 200, {
+    body: "id: 501\ndata: 20.00 EUR received\n\nid: 502\ndata: 7.50 EUR received\n\n",
+    headers: ["content-type" => "text/event-stream"],
+});
+
+// `id()` returns the text of the `id` line.
+// This prints "501: 20.00 EUR received" and then "502: 7.50 EUR received".
+Core\Http\Stream $payments = Core\Http\Client::stream(Core\Http\Method::Get, "https://bank.example.com/payments/live");
+foreach ($payments->events() as Core\Http\Event $event) {
+    echo $event->id() ?? "no id", ": ", $event->data(), "\n";
+}

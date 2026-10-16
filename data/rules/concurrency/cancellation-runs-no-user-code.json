@@ -1,0 +1,15 @@
+{
+  "title": "A cancelled task runs no `catch`, no cleanup and no handler, and cancellation is not a `Throwable`",
+  "status": "shipped",
+  "seeAlso": [
+    "errors/throwable-hierarchy",
+    "errors/escalation-ladder",
+    "security/isolate-teardown-is-a-drain-then-a-sweep",
+    "http-server/a-request-outlives-a-client-that-goes-away"
+  ],
+  "guardedBy": [
+    "tests/conformance/task/a-cancelled-task-runs-no-user-code.nvst",
+    "tests/conformance/core/a-cancelled-task-dies-where-it-sleeps.nvst",
+    "crates/nvs-stdlib/tests/deadline_poll.rs"
+  ]
+}

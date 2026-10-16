@@ -1,0 +1,30 @@
+<?nvs
+// Shows a program that downloads a list of orders from a shop and adds up their totals.
+
+#[Core\Json\Derive]
+class Order {
+    public int $id;
+    public int $cents;
+
+    public function constructor(int $id, int $cents) {
+        $this->id = $id;
+        $this->cents = $cents;
+    }
+}
+
+// A fixed reply, so the example runs without a network. The body is a JSON array.
+Core\Test::answerHttp("https://shop.example.com/api/orders", 200, {
+    body: "[{\"id\":1,\"cents\":1250},{\"id\":2,\"cents\":899},{\"id\":3,\"cents\":4000}]",
+});
+
+Core\Http\Response $response = Core\Http\Client::get("https://shop.example.com/api/orders");
+
+// `array<Order>` reads a JSON array, and each element becomes one `Order`.
+array<Order> $orders = $response->jsonAs<array<Order>>();
+
+int $sum = 0;
+foreach ($orders as Order $order) {
+    $sum = $sum + $order->cents;
+}
+// This prints `3 orders, 6149 cents`.
+echo Core\Arr::count($orders), " orders, ", $sum, " cents\n";

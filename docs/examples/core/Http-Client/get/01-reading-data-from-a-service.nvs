@@ -1,0 +1,12 @@
+<?nvs
+// Shows how to read data from another server with a `GET` request, and what
+// happens when the address is inside your own network.
+
+// `Core\Http\Client::get` sends a `GET` request and returns a `Core\Http\Response`.
+// 10.0.0.12 is a private address, so the call throws a `RuntimeError` before it sends anything.
+try {
+    Core\Http\Response $response = Core\Http\Client::get("http://10.0.0.12/stock/4711", {headers: ["Accept" => "application/json"]});
+    echo $response->status(), " ", $response->text(), "\n";
+} catch (RuntimeError $refused) {
+    echo $refused->message, "\n";
+}

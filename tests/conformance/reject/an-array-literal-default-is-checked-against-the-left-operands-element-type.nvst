@@ -1,0 +1,35 @@
+--TEST--
+An array literal written as the default of `??` or `?:` is checked against the left operand's element type, and a wrong arm under a `return` is one error — `rule:types/arrays`
+--FILE--
+<?nvs
+final class Names
+{
+    // `[1]` is placed at `array<string>`, so the `1` is the mistake.
+    public static function first(?array<string> $names): int
+    {
+        return Core\Arr::count($names ?? [1]) as int;
+    }
+
+    // The same for the else arm of `?:`.
+    public static function orDefault(array<string> $names): int
+    {
+        return Core\Arr::count($names ?: [2]) as int;
+    }
+
+    // An arm of the wrong type is reported once, for the whole value returned.
+    public static function pick(bool $c, array<float> $a): array<float>
+    {
+        return $c ? $a : 'none';
+    }
+}
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `string`, found `int`
+%A
+error[E0401]: expected `string`, found `int`
+%A
+error[E0403]: %s
+%A
+error: aborting due to 3 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

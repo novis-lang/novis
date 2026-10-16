@@ -1,0 +1,21 @@
+<?nvs
+// Shows how to write a link from one page of a website to another.
+// The links still work when the whole website moves to another folder.
+
+class Links {
+    public static function to(string $from, string $to): string {
+        // A link starts in the folder of the page it is on.
+        string $way = Core\Path::relativeTo($to, Core\Path::dirname($from)) ?? $to;
+        string $href = Core\Str::replace($way, Core\Path::SEPARATOR, "/");
+        return "<a href=\"{$href}\">" . Core\Path::basename($to, {withoutExtension: true}) . "</a>";
+    }
+}
+
+// This prints `<a href="install.html">install</a>`.
+echo Links::to("guide/start.html", "guide/install.html"), "\n";
+
+// This prints `<a href="../api/path.html">path</a>`.
+echo Links::to("guide/start.html", "api/path.html"), "\n";
+
+// This prints `<a href="../../index.html">index</a>`.
+echo Links::to("guide/linux/setup.html", "index.html"), "\n";

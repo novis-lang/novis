@@ -1,0 +1,8 @@
+{
+  "title": "There is no write-only `out` mode",
+  "status": "shipped",
+  "seeAlso": [
+    "statements/inout-is-the-by-reference-spelling"
+  ],
+  "guardedBy": []
+}

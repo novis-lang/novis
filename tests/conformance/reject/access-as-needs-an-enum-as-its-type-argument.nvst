@@ -1,0 +1,28 @@
+--TEST--
+`Core\Router\Match::accessAs<E>` answers a case of `E`, so a class whose constant a route's `allow:` names is refused as its type argument, and so is a scalar — `rule:security/access-is-checked-for-presence-not-meaning`
+--FILE--
+<?nvs
+// covers: Core\Router\Match::accessAs
+namespace App;
+
+class Policy
+{
+    public const string STAFF = "staff";
+}
+
+?Core\Router\Match $match = Core\Router::match(Core\Http\Method::Get, "/");
+if ($match != null) {
+    echo $match->accessAs<Policy>() == null ? "none" : "some", "\n";
+    echo $match->accessAs<int>() == null ? "none" : "some", "\n";
+}
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0841]: `Core\Router\Match::accessAs` returns a case of an enum, and `App\Policy` is not an enum
+   --> case.nvs:12:27
+%A
+error[E0841]: `Core\Router\Match::accessAs` returns a case of an enum, and `int` is not an enum
+   --> case.nvs:13:27
+%A
+error: aborting due to 2 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

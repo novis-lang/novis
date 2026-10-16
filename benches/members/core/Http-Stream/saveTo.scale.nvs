@@ -1,0 +1,27 @@
+<?nvs
+// Measures saving the body of a streamed reply to a file, at growing body sizes.
+// bench: start 1024
+// bench: max 16384
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        // The reply comes from this table, so nothing is sent over a network.
+        Core\Test::answerHttp("https://files.example.com/a.csv", 200, {body: Core\Str::repeat("a", $size)});
+        string $dir = Core\IO::temporaryDir();
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            // A file is never replaced, so each round writes a new one.
+            string $path = Core\Path::join($dir, Core\Str::format("%d.csv", $i));
+            Core\Http\Stream $download = Core\Http\Client::stream(Core\Http\Method::Get, "https://files.example.com/a.csv");
+            $download->saveTo($path, $size);
+            $total = $total + Core\IO::size($path);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(1024), "\n";

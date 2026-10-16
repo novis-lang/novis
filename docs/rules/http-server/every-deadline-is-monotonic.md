@@ -1,0 +1,3 @@
+Every timeout, deadline and backoff in the engine is computed on a monotonic clock, never on wall time. A wall-clock deadline is disabled by a clock step, and a step is not an exotic event — it is what happens the first time an instance synchronises time after a long boot.
+
+This is a substitution rather than an addition, and it is stated only because the failure it prevents is silent: a deadline on the wrong clock does not fire late, it does not fire at all. The watchdog of `rule:http-server/a-wedged-core-is-detected-by-its-deadline` reads the same monotonic instants, so a stepped clock cannot make a healthy core look wedged or a wedged one look healthy.

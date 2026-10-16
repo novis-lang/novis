@@ -1,0 +1,3 @@
+my mistake: there is no script at that path
+my mistake: `spawn script`'s `output:` is `'capture'` or `'inherit'`, got `'capturr'`
+the script failed: row 3 has no price

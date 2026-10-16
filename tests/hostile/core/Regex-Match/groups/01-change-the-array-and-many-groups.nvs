@@ -1,0 +1,36 @@
+<?nvs
+// Attack: a program changes the array that `groups` returns, and reads the groups of a
+// pattern with hundreds of groups. The match must not change, and nothing may crash.
+
+var $first = Core\Regex::match('id=42', '(?<key>\w+)=(?<value>\d+)(;)?');
+if ($first != null) {
+    Core\Regex\Match $m = $first;
+
+    // 1. Change, add and remove entries in the returned array.
+    // The next call returns the original groups, so this prints "42 6".
+    array<?string> $copy = $m->groups();
+    $copy['value'] = 'changed';
+    $copy['extra'] = 'added';
+    unset($copy['key']);
+    echo $m->groups()['value'] ?? 'null', ' ', Core\Arr::count($m->groups()), "\n";
+
+    // 2. 200000 calls, and each array is kept only until the next round.
+    // This prints 1200000.
+    uint $entries = 0;
+    int $i = 0;
+    while ($i < 200000) {
+        $entries = $entries + Core\Arr::count($m->groups());
+        $i = $i + 1;
+    }
+    echo $entries, "\n";
+}
+
+// 3. A pattern with 300 groups, where every second group does not match.
+// This prints 301: group 0 and one entry for each group.
+var $wide = Core\Regex::match(Core\Str::repeat('a', 150), Core\Str::repeat('(a)(b)?', 150));
+echo Core\Arr::count($wide?->groups() ?? []), "\n";
+
+// 4. A text of one million characters in one group.
+// This prints 1000000.
+var $long = Core\Regex::match(Core\Str::repeat('é', 1000000), '(é+)');
+echo Core\Str::length($long?->groups()[1] ?? ''), "\n";

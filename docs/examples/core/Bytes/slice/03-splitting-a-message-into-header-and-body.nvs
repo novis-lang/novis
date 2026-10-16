@@ -1,0 +1,23 @@
+<?nvs
+// Shows how a program reads a message that begins with a header of a fixed
+// size. Here the first 8 bytes are the header and the rest is the text.
+
+final class Message {
+    // Returns the 8 bytes at the front of the message.
+    public static function header(bytes $frame): bytes {
+        return Core\Bytes::slice($frame, 0, 8);
+    }
+
+    // Returns everything after those 8 bytes.
+    public static function body(bytes $frame): bytes {
+        return Core\Bytes::slice($frame, 8);
+    }
+}
+
+bytes $frame = "MSG:0042Hello there" as bytes;
+
+// This prints "MSG:0042".
+echo Message::header($frame) as string, "\n";
+
+// This prints "Hello there".
+echo Message::body($frame) as string, "\n";

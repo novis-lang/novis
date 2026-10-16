@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-stdlib/src/arr.rs",
+  "title": "A key argument is copied onto the heap before it is looked up.",
+  "text": "[`key_bytes`] answers a `Vec<u8>`, so `hasKey`, `get`, `set` and every other member reading a key allocates one buffer per call even when the argument is already a [`NvsStr`] whose bytes could be borrowed for the length of the lookup. `benches/members/core/Arr/hasKey.nvs` counts one allocation per operation, and the member neither walks nor calls back. The fix is a borrowing return type, which every caller's ownership has to be read against, and each of their ledger rows re-measured.",
+  "milestone": "M12"
+}

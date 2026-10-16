@@ -1,0 +1,14 @@
+<?nvs
+// Shows how to tell commands from plain messages in a chat.
+
+array<string> $messages = ["/help", "hello everyone", "/join music", "see you at 5/6"];
+
+foreach ($messages as string $message) {
+    // A message is a command only when its first character is `/`.
+    // This prints `command` for the first and third messages.
+    if (Core\Str::startsWith($message, "/")) {
+        echo "command: ", $message, "\n";
+    } else {
+        echo "message: ", $message, "\n";
+    }
+}

@@ -1,0 +1,14 @@
+<?nvs
+// Shows how fast the hyperbolic cosine grows.
+
+// This prints 11013.232920103.
+echo Core\Math::cosh(10.0), "\n";
+
+// At 710 the result is still a number. This prints 1.1169973830809E+308.
+echo Core\Math::cosh(710.0), "\n";
+
+// At 711 the result is too big for a `float`. This prints INF.
+echo Core\Math::cosh(711.0), "\n";
+
+// The result is equal to `Core\Math::INFINITY`. This prints yes.
+echo Core\Math::cosh(-711.0) == Core\Math::INFINITY ? "yes" : "no", "\n";

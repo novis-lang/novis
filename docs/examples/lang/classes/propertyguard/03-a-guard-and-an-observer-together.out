@@ -1,0 +1,8 @@
+new:
+  guard Ada@Example.com
+  set hook
+  observer ada@example.com
+a bad write:
+  guard nobody
+  error: an email needs an @
+ada@example.com

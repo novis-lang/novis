@@ -1,0 +1,18 @@
+<?nvs
+// Shows a loop with two counters. The first and the third part of the header
+// are lists separated by commas, so both counters start and move together.
+
+array<string> $names = ["Ada", "Grace", "Alan", "Edsger"];
+
+uint $front = 0;
+uint $back = 0;
+
+for ($front = 0, $back = Core\Arr::count($names) - 1; $front < $back; $front++, $back--) {
+    string $keep = $names[$front];
+    $names[$front] = $names[$back];
+    $names[$back] = $keep;
+}
+
+// The counters meet in the middle, and every pair has changed places. This
+// prints ["Edsger","Alan","Grace","Ada"].
+echo Core\Json::encode($names), "\n";

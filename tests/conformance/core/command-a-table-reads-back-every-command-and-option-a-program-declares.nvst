@@ -1,0 +1,117 @@
+--TEST--
+every `#[Command]` and every `#[Option]` a program declares is on the compiled table and reads back by the shape it satisfies — `rule:tooling/commands-are-compiled`, `rule:programs/implementing`
+--FILE--
+<?nvs
+// covers: lang:attributes/core-command-and-core-option-the-command-table
+//
+// Nothing dispatches to the command table in this build, so what a program can
+// ask of it is what it declared: `Core\Attributes::get` off the method, and off
+// a named parameter of that method. The whole table is asked one question here
+// rather than one command being read on one line, because a table that answered
+// plausibly for `greet` alone still fails the sweep.
+//
+// Three counters and a permutation guard, the same shape
+// `a-route-table-answers-a-url-for-every-route-it-holds.nvst` gives the route
+// table: every command answers, every answer is distinct, and each `about:`
+// belongs to the command that declared it rather than to its neighbour.
+
+interface Command {
+    public function usage(): string;
+}
+
+class Greet implements Command {
+    #[Core\Command(name: "greet", about: "Say hello")]
+    public static function greet(
+        tainted string $name,
+        #[Core\Option(short: "l", about: "Shout it")] bool $loud,
+    ): void {
+        echo $name, $loud ? "!" : "", "\n";
+    }
+
+    public function usage(): string { return "greet <name> [--loud]"; }
+}
+
+class Migrate implements Command {
+    #[Core\Command(name: "migrate", about: "Apply pending migrations")]
+    public static function migrate(
+        #[Core\Option(about: "Print what would happen")] bool $pretend,
+        #[Core\Option(short: "s", long: "steps", about: "How many to apply")] uint $count,
+    ): uint {
+        if ($pretend) { return 0; }
+        return $count;
+    }
+
+    public function usage(): string { return "migrate [--pretend] [--steps N]"; }
+}
+
+// A command whose class implements nothing, so the table is not read as a list
+// the interface built: `rule:tooling/commands-are-compiled` collects a command
+// because the method carries the attribute, not because the class was enrolled.
+class Purge {
+    #[Core\Command(name: "purge", about: "Delete the expired rows")]
+    public static function purge(
+        #[Core\Option(short: "f", about: "Do not ask first")] bool $force,
+    ): void {
+        if ($force) { echo "purged", "\n"; }
+    }
+}
+
+type Named = {name: string, about: string};
+type Described = {about: string};
+
+array<Named> $commands = [];
+$commands[] = Core\Attributes::get<Named>(Greet::greet(...)) ?? throw new RuntimeError("no greet");
+$commands[] = Core\Attributes::get<Named>(Migrate::migrate(...)) ?? throw new RuntimeError("no migrate");
+$commands[] = Core\Attributes::get<Named>(Purge::purge(...)) ?? throw new RuntimeError("no purge");
+
+// Every name is distinct, which is what a table collapsing two rows onto one
+// would print. `rule:tooling/commands-are-compiled` requires it of the program
+// and this asserts it of what the program reads back.
+int $distinct = 0;
+foreach ($commands as Named $one) {
+    int $same = 0;
+    foreach ($commands as Named $other) {
+        if ($one->name == $other->name) { $same = $same + 1; }
+    }
+    if ($same == 1) { $distinct = $distinct + 1; }
+}
+echo "commands=", Core\Arr::count($commands), "\n";
+echo "distinct=", $distinct, "\n";
+
+foreach ($commands as Named $one) {
+    echo $one->name, ": ", $one->about, "\n";
+}
+
+// An option is read off the parameter's own name, and the four here belong to
+// three different commands. A read that answered the command's own payload
+// instead would print `Say hello` on every line.
+array<string> $options = [
+    Core\Attributes::get<Described>(Greet::greet(...), "loud")?->about ?? "-",
+    Core\Attributes::get<Described>(Migrate::migrate(...), "pretend")?->about ?? "-",
+    Core\Attributes::get<Described>(Migrate::migrate(...), "count")?->about ?? "-",
+    Core\Attributes::get<Described>(Purge::purge(...), "force")?->about ?? "-",
+];
+foreach ($options as string $about) {
+    echo "option: ", $about, "\n";
+}
+
+// A positional parameter carries no `#[Option]`, so nothing is there to read.
+?Described $positional = Core\Attributes::get<Described>(Greet::greet(...), "name");
+echo "positional=", $positional == null ? "none" : "something", "\n";
+
+foreach (Core\Program::implementing<Command>() as Command $command) {
+    echo $command->usage(), "\n";
+}
+--EXPECT--
+commands=3
+distinct=3
+greet: Say hello
+migrate: Apply pending migrations
+purge: Delete the expired rows
+option: Shout it
+option: Print what would happen
+option: How many to apply
+option: Do not ask first
+positional=none
+greet <name> [--loud]
+migrate [--pretend] [--steps N]

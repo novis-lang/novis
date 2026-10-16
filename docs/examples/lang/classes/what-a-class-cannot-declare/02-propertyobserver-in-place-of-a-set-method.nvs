@@ -1,0 +1,38 @@
+<?nvs
+// Shows `PropertyObserver` where PHP would write `__set`. One method sees every
+// write to every property the class declares. A program can keep a trail of what
+// changed without writing a setter for each property.
+
+final class Profile implements PropertyObserver {
+    public string $displayName;
+    public string $email;
+    public string $changed = "";
+
+    public function constructor(string $displayName, string $email) {
+        $this->displayName = $displayName;
+        $this->email = $email;
+        // The two writes above are already in the trail. This row comes from
+        // the database, so the trail starts empty.
+        $this->changed = "";
+    }
+
+    public function onPropertyGet(string $name, mixed $value): void {
+    }
+
+    public function onPropertySet(string $name, mixed $value): void {
+        // Writing a property in this method calls the method again. Test the
+        // name first, or the program never stops.
+        if ($name != "changed") {
+            $this->changed = $this->changed . $name . " ";
+        }
+    }
+}
+
+var $profile = new Profile("ada", "ada@example.com");
+
+$profile->displayName = "Ada Lovelace";
+$profile->email = "ada.lovelace@example.com";
+
+// This prints "displayName email", the two properties that changed, in the
+// order they were written.
+echo $profile->changed, "\n";

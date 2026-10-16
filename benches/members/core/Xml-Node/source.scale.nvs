@@ -1,0 +1,23 @@
+<?nvs
+// Measures `source` on one element with many lines, at growing numbers of lines.
+// bench: start 32
+// bench: max 512
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        Core\Xml\Node $document = Core\Xml::parse(
+            '<order id="7">' . Core\Str::repeat('<line qty="2">Mug &amp; saucer</line>', $size) . '</order>'
+        );
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            $total = $total + Core\Str::length($document->source());
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(32), "\n";

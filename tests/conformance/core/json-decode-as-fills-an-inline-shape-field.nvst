@@ -1,0 +1,42 @@
+--TEST--
+`Core\Json::decodeAs` fills an inline shape reached as a field, pinning `rule:core-classes/derive-field-list` and `rule:types/shape-type`
+--FILE--
+<?nvs
+// `rule:core-classes/derive-field-list` makes an inline shape a codec-reachable
+// field type. It is the one wire type a decode needs two resolved pointers for:
+// the class a literal of those same field names builds, and the contract
+// holding the per-field wire types that class's label cannot carry.
+#[Core\Json\Derive]
+class Order {
+    public string $id;
+    public {total: decimal, note?: string} $meta;
+    public function constructor(string $id, {total: decimal, note?: string} $meta)
+    {
+        $this->id = $id;
+        $this->meta = $meta;
+    }
+}
+
+Order $order = Core\Json::decodeAs<Order>("{\"id\":\"a-1\",\"meta\":{\"total\":\"19.99\",\"note\":\"gift\"}}");
+echo $order->id, "\n";
+// `rule:types/decimal` crosses as text and is read back from the digits
+// themselves, through a nested contract exactly as through a top-level one.
+echo $order->meta->total, "\n";
+echo $order->meta->note, "\n";
+
+// `rule:types/shape-type`'s `?` is the optional column and is independent of
+// `null`: the key may be absent, and the slot it would have filled stays unset.
+Order $bare = Core\Json::decodeAs<Order>("{\"id\":\"a-2\",\"meta\":{\"total\":\"1.00\"}}");
+echo $bare->meta->total, "\n";
+echo Core\Json::encode($bare), "\n";
+
+// The encoder walks the value, so the nested object comes back in the shape
+// class's own slot order — the sorted field names that class is keyed on.
+echo Core\Json::encode($order), "\n";
+--EXPECT--
+a-1
+19.99
+gift
+1.00
+{"id":"a-2","meta":{"total":"1.00"}}
+{"id":"a-1","meta":{"note":"gift","total":"19.99"}}

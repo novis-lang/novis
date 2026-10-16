@@ -1,0 +1,24 @@
+<?nvs
+// Shows how a program checks its log folder when it starts, and stops with a clear message if it cannot write there.
+
+class Startup {
+    public static function check(string $logDir): string {
+        if (!Core\IO::isDir($logDir)) {
+            return "the log folder is missing";
+        }
+        if (!Core\IO::isWritable($logDir)) {
+            return "the log folder is not writable";
+        }
+        return "ok";
+    }
+}
+
+string $logs = Core\Path::join(Core\IO::temporaryDir(), "logs");
+
+// The folder does not exist yet. This prints "the log folder is missing".
+echo Startup::check($logs), "\n";
+
+// After `makeDir` creates it, the check passes. This prints "ok".
+Core\IO::makeDir($logs);
+echo Startup::check($logs), "\n";
+Core\IO::append(Core\Path::join($logs, "app.log"), "started\n");

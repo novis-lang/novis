@@ -1,0 +1,70 @@
+<?nvs
+// Attack: a program has comments full of markers that look like code. Some
+// almost close a block comment, and some look like the end of the program.
+// One statement has a comment between each of its parts. The program should
+// still compile and run.
+// hostile: timeout-ms 20000
+
+// This comment has markers that mean something elsewhere: ?> <?nvs <?= */ /* " ' \ $name ; } --EXPECT--
+// None of them ends this comment. Only the end of the line does.
+
+//////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////// A long run of slashes makes one ordinary comment.
+
+# A `#` comment with the same markers: ?> <?nvs */ /* "' \ $name ; } #[
+# It also ends only at the end of the line.
+
+echo 'one', "\n";
+
+/* A block comment with openers that open nothing: /* /* /* /* /* /* /* /* /*
+   This line of stars has no closing slash: ****************
+   This line has none either: *_*_*_*_*_*_*_*_*_*_*_*_*_*_*_*_*_*_*_*_*_*_*_*_*_*_*_*
+   The comment ends only here. */
+
+/*/ This comment starts with a slash after the star. That slash does not close it.
+    The comment is still open here. */
+
+/************************************************************************/
+
+/**/
+
+echo 'two', "\n";
+
+// A comment between each part of one statement.
+echo/* a */ 'three'/* b */,/* c */ "\n"/* d */;
+
+// A comment inside an array, and one inside a function call.
+array<int> $counts = [/* first */ 1, /* second */ 2, /* third */ 3];
+echo Core\Arr::count(/* the whole list */ $counts), "\n";
+
+/// A doc comment with its own markers: */ and /* and ?> and a single star *.
+/// None of them ends the doc comment.
+class Attack
+{
+    /// A method with more comments than code.
+    public static function run(int $rounds): int
+    {
+        int $seen = 0; // the running total
+        int $i = 0;    /* the loop counter */
+        while ($i < $rounds) {
+            // Every line of this loop has a comment. Each value is used by the
+            // next round, so the compiler cannot remove any of it.
+            $seen = $seen + ($i % 3); /* adds to the total */
+            $i = $i + 1;              # next round
+        }
+        return $seen;
+    }
+}
+
+echo Attack::run(200000), "\n";
+
+// One comment on a single very long line. It should end at the newline and nowhere else. It keeps going. It keeps going. It keeps going. It keeps going. It keeps going. It keeps going. It keeps going. It keeps going. It keeps going. It keeps going. It keeps going. It keeps going. It keeps going. It keeps going. It keeps going. It keeps going. It keeps going. It keeps going. It keeps going. It keeps going. It keeps going. It keeps going. It keeps going. It keeps going. It keeps going. It keeps going. It keeps going. It keeps going. It keeps going. It keeps going. It keeps going. It keeps going. It keeps going. It keeps going. It keeps going. It keeps going. It keeps going. It keeps going. It keeps going. It keeps going. It keeps going. It keeps going. It keeps going. It ends here.
+
+echo 'four', "\n";
+
+// A comment with text that is not ASCII: Grüße, καλημέρα, こんにちは,
+// 🇦🇹 and an accented letter: é. It ends at the newline.
+echo 'five', "\n";
+
+// This comment is the last thing in the file.
+// The file ends without a newline after it.

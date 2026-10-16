@@ -1,0 +1,22 @@
+<?nvs
+// Shows what a piece of Novis source is made of. `Core\Ast::parse` returns one
+// node for the whole file, and `children` gives the parts directly inside it.
+
+string $source = <<<'NVS'
+<?nvs
+class Cart {
+    public int $total;
+}
+
+int $count = 2;
+echo "items: ", $count, "\n";
+NVS;
+
+Core\Ast\Node $file = Core\Ast::parse($source);
+// The whole file is one node. This prints `File`.
+echo $file->kind(), "\n";
+
+// Each part of the file, with the line it starts on.
+foreach ($file->children() as Core\Ast\Node $part) {
+    echo $part->kind(), " on line ", $part->line(), "\n";
+}

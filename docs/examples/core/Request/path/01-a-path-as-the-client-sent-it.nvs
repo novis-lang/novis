@@ -1,0 +1,7 @@
+<?nvs
+// Shows how to read the path of a request.
+
+// The client asked for a file with a space in its name.
+// This prints "/docs/price%20list.pdf". The space is still written as `%20`.
+tainted string $path = Core\Request::path();
+echo $path, "\n";

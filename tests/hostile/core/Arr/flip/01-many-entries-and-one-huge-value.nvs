@@ -1,0 +1,49 @@
+<?nvs
+// Attack: very long arrays are flipped, including one where every entry holds
+// the same value, and one value is a million characters long. Every step should
+// finish, and the runtime must not crash.
+// hostile: timeout-ms 30000
+
+// 1. 100000 different values become 100000 keys.
+array<string> $long = [];
+int $i = 0;
+while ($i < 100000) {
+    $long[] = 'value ' . $i;
+    $i = $i + 1;
+}
+echo 'step 1: ', Core\Arr::count(Core\Arr::flip($long)), '|', "\n";
+
+// 2. 100000 entries that all hold the same value collapse to one entry.
+array<string> $same = [];
+int $s = 0;
+while ($s < 100000) {
+    $same[] = 'one';
+    $s = $s + 1;
+}
+echo 'step 2: ', Core\Arr::count(Core\Arr::flip($same)), '|', "\n";
+
+// 3. The same array is flipped 100 times and the results are dropped, so
+//    nothing may be left behind.
+uint $seen = 0;
+int $r = 0;
+while ($r < 100) {
+    $seen = $seen + Core\Arr::count(Core\Arr::flip($long));
+    $r = $r + 1;
+}
+echo 'step 3: ', $seen, '|', "\n";
+
+// 4. A value of one million characters becomes a key of one million
+//    characters.
+array<string> $wide = ['only' => ''];
+$wide['only'] = Core\Str::repeat('v', 1000000);
+echo 'step 4: ', Core\Str::length(Core\Arr::first(Core\Arr::keys(Core\Arr::flip($wide))) ?? ''), '|', "\n";
+
+// 5. The largest whole number there is becomes a key.
+array<int> $far = ['end' => 9223372036854775807];
+echo 'step 5: ', Core\Str::join(Core\Arr::keys(Core\Arr::flip($far)), ','), '|', "\n";
+
+// 6. An array with no entries flips to one with no entries.
+array<string> $empty = [];
+echo 'step 6: ', Core\Arr::count(Core\Arr::flip($empty)), '|', "\n";
+
+echo 'the runtime is still standing', "\n";

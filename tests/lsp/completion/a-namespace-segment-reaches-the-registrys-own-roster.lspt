@@ -1,0 +1,11 @@
+--TEST--
+a namespace segment reaches `nvs_stdlib::registry`, which is the roster a `Core` member list is already read off, and a class a namespace deeper is offered whole beside the one whose name that namespace is — `rule:ide/completion-offers-only-what-the-compiler-derived`
+--FILE--
+<?nvs
+Core\<|>
+--REQUEST--
+completion prefix=Regex
+--EXPECT--
+Regex   class     Core\Regex
+Regex\Match class     Core\Regex\Match
+Regex\Pattern class     Core\Regex\Pattern

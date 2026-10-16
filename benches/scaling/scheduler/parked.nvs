@@ -1,0 +1,42 @@
+<?nvs
+// Sleeps n times in one task while n other tasks wait on channels of their own, as a server does with many idle connections and a timer.
+// scaling: start 16
+// scaling: max 128
+// scaling: expect linear
+
+class Bench {
+    public static function run(uint $size): uint {
+        array<Core\Task\Channel<uint>> $idle = [];
+        uint $i = 0;
+        while ($i < $size) {
+            $idle[] = new Core\Task\Channel<uint>(1);
+            $i = $i + 1;
+        }
+        var $done = Core\Task::all({
+            idle: fn(): uint => {
+                var $counts = Core\Task::map($idle, fn (Core\Task\Channel<uint> $one): uint => {
+                    uint $seen = 0;
+                    foreach ($one as uint $value) {
+                        $seen = $seen + $value;
+                    }
+                    return $seen;
+                });
+                return 0;
+            },
+            sleep: fn(): uint => {
+                uint $n = 0;
+                while ($n < $size) {
+                    Core\Time::sleep(1ns);
+                    $n = $n + 1;
+                }
+                foreach ($idle as Core\Task\Channel<uint> $one) {
+                    $one->close();
+                }
+                return $n;
+            },
+        });
+        return $done->sleep;
+    }
+}
+
+echo Bench::run(16), "\n";

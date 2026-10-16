@@ -1,0 +1,82 @@
+<?nvs
+// Attack: a class is given 40 attributes that are all one field short of the shape
+// the program asks for. Every one has to be compared in full before the answer can
+// be `null`. One extra field must not be mistaken for a match. The program should
+// run to its last line and stay inside its memory limit.
+
+// 1. 40 near misses. Each payload has `a`, `b` and `c`. The reads below ask for a
+//    fourth field `d`, so no payload matches and the answer is `null`.
+#[{a: 1, b: "b1", c: 1}, {a: 2, b: "b2", c: 2}, {a: 3, b: "b3", c: 3}, {a: 4, b: "b4", c: 4}]
+#[{a: 5, b: "b5", c: 5}, {a: 6, b: "b6", c: 6}, {a: 7, b: "b7", c: 7}, {a: 8, b: "b8", c: 8}]
+#[{a: 9, b: "b9", c: 9}, {a: 10, b: "b10", c: 10}, {a: 11, b: "b11", c: 11}, {a: 12, b: "b12", c: 12}]
+#[{a: 13, b: "b13", c: 13}, {a: 14, b: "b14", c: 14}, {a: 15, b: "b15", c: 15}, {a: 16, b: "b16", c: 16}]
+#[{a: 17, b: "b17", c: 17}, {a: 18, b: "b18", c: 18}, {a: 19, b: "b19", c: 19}, {a: 20, b: "b20", c: 20}]
+#[{a: 21, b: "b21", c: 21}, {a: 22, b: "b22", c: 22}, {a: 23, b: "b23", c: 23}, {a: 24, b: "b24", c: 24}]
+#[{a: 25, b: "b25", c: 25}, {a: 26, b: "b26", c: 26}, {a: 27, b: "b27", c: 27}, {a: 28, b: "b28", c: 28}]
+#[{a: 29, b: "b29", c: 29}, {a: 30, b: "b30", c: 30}, {a: 31, b: "b31", c: 31}, {a: 32, b: "b32", c: 32}]
+#[{a: 33, b: "b33", c: 33}, {a: 34, b: "b34", c: 34}, {a: 35, b: "b35", c: 35}, {a: 36, b: "b36", c: 36}]
+#[{a: 37, b: "b37", c: 37}, {a: 38, b: "b38", c: 38}, {a: 39, b: "b39", c: 39}, {a: 40, b: "b40", c: 40}]
+class AllMisses
+{}
+
+// 2. The same 40 near misses with one real match at the end. Exactly one answer
+//    comes back, and two would stop the program from compiling at all.
+#[{a: 1, b: "b1", c: 1}, {a: 2, b: "b2", c: 2}, {a: 3, b: "b3", c: 3}, {a: 4, b: "b4", c: 4}]
+#[{a: 5, b: "b5", c: 5}, {a: 6, b: "b6", c: 6}, {a: 7, b: "b7", c: 7}, {a: 8, b: "b8", c: 8}]
+#[{a: 9, b: "b9", c: 9}, {a: 10, b: "b10", c: 10}, {a: 11, b: "b11", c: 11}, {a: 12, b: "b12", c: 12}]
+#[{a: 13, b: "b13", c: 13}, {a: 14, b: "b14", c: 14}, {a: 15, b: "b15", c: 15}, {a: 16, b: "b16", c: 16}]
+#[{a: 17, b: "b17", c: 17}, {a: 18, b: "b18", c: 18}, {a: 19, b: "b19", c: 19}, {a: 20, b: "b20", c: 20}]
+#[{a: 21, b: "b21", c: 21}, {a: 22, b: "b22", c: 22}, {a: 23, b: "b23", c: 23}, {a: 24, b: "b24", c: 24}]
+#[{a: 25, b: "b25", c: 25}, {a: 26, b: "b26", c: 26}, {a: 27, b: "b27", c: 27}, {a: 28, b: "b28", c: 28}]
+#[{a: 29, b: "b29", c: 29}, {a: 30, b: "b30", c: 30}, {a: 31, b: "b31", c: 31}, {a: 32, b: "b32", c: 32}]
+#[{a: 33, b: "b33", c: 33}, {a: 34, b: "b34", c: 34}, {a: 35, b: "b35", c: 35}, {a: 36, b: "b36", c: 36}]
+#[{a: 37, b: "b37", c: 37}, {a: 38, b: "b38", c: 38}, {a: 39, b: "b39", c: 39}, {a: 40, b: "b40", c: 40}]
+#[{a: 99, b: "b99", c: 99, d: true}]
+class OneHit
+{}
+
+// 3. A shape nested twelve levels deep, against a payload nested just as deep
+//    that differs in the innermost field. Deep nesting can exhaust the stack.
+#[{l1: {l2: {l3: {l4: {l5: {l6: {l7: {l8: {l9: {l10: {l11: {l12: 7}}}}}}}}}}}}]
+class Nested
+{}
+
+class Attack
+{
+    public static function run(uint $rounds): int
+    {
+        int $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // 4. 40 payloads compared in full, and the answer is `null`.
+            ?{a: int, b: string, c: int, d: bool} $missed =
+                Core\Attributes::get<{a: int, b: string, c: int, d: bool}>(AllMisses::constructor(...));
+            if ($missed == null) {
+                $total = $total + 1;
+            }
+
+            // 5. The same comparison over a roster whose last entry matches.
+            ?{a: int, b: string, c: int, d: bool} $hit =
+                Core\Attributes::get<{a: int, b: string, c: int, d: bool}>(OneHit::constructor(...));
+            if ($hit != null) {
+                $total = $total + $hit->a;
+            }
+
+            // 6. The deep descent, which ends in no match because the innermost
+            //    field is an `int` and this asks for a `string`.
+            ?{l1: {l2: {l3: {l4: {l5: {l6: {l7: {l8: {l9: {l10: {l11: {l12: string}}}}}}}}}}}} $deep =
+                Core\Attributes::get<{l1: {l2: {l3: {l4: {l5: {l6: {l7: {l8: {l9: {l10: {l11: {l12: string}}}}}}}}}}}}>(Nested::constructor(...));
+            if ($deep == null) {
+                $total = $total + 1;
+            }
+
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+// 7. Every read above, run 200000 times. A program that kept a copy of each
+//    answer would grow until it reached its memory limit.
+echo Attack::run(200000), "\n";
+echo "still standing\n";

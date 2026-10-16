@@ -1,0 +1,9 @@
+--TEST--
+a namespace declaration is a top-level statement with nothing above it, so expand-selection has exactly one step to take, `rule:ide/the-index-answers-the-cursor`
+--FILE--
+<?nvs
+namespac<|>e App;
+--REQUEST--
+selectionRange
+--EXPECT--
+2:1-2:15

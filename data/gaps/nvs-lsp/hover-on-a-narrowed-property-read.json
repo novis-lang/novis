@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-lsp/src/hover.rs",
+  "title": "Hover on a narrowed `readonly` property read shows the declared type, not the narrowed one.",
+  "text": "Hover reads `ExprInfo::Property`'s `ty`, and the narrowed type is in its `narrowed` field (`rule:types/narrowing`). Inside `if ($x->p != null) { … }` hover on `$x->p` still shows `null|T`, although the checker treats the read as `T`.",
+  "milestone": "M10"
+}

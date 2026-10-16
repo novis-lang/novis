@@ -1,0 +1,10 @@
+<?nvs
+// Shows what happens when a command-line script tries to subscribe.
+
+// This script is not a WebSocket connection or an event stream, so it cannot
+// subscribe. `subscribe` throws a `LogicError`, and this prints its message.
+try {
+    Core\Topic::subscribe("room:lobby");
+} catch (LogicError $error) {
+    echo $error->message, "\n";
+}

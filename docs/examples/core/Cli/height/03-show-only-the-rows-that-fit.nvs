@@ -1,0 +1,18 @@
+<?nvs
+// Shows the everyday use: a report has more rows than the screen, so the
+// program prints one page and says how many rows are left.
+
+uint $orders = 100;
+
+// One row for the heading and one for the last line, so the rest is the page.
+uint $page = Core\Cli::height() - 2;
+
+echo "orders\n";
+
+uint $row = 0;
+while ($row < $page && $row < $orders) {
+    echo "  order #", 1000 + $row, "\n";
+    $row = $row + 1;
+}
+
+echo $orders - $row, " more, run with --all to see them\n";

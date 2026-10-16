@@ -1,0 +1,15 @@
+<?nvs
+// Shows how to compile a pattern that matches letters in upper and lower case.
+
+// `caseInsensitive: true` makes "yes", "Yes" and "YES" all match.
+Core\Regex\Pattern $answer = Core\Regex::compile('^(yes|y)$', {caseInsensitive: true});
+
+array<string> $replies = ["yes", "Yes", "YES", "y", "no", "yes please"];
+// This prints "agrees" for the first four replies only.
+foreach ($replies as string $reply) {
+    if (Core\Regex::matches($reply, $answer)) {
+        echo $reply, ": agrees\n";
+    } else {
+        echo $reply, ": does not agree\n";
+    }
+}

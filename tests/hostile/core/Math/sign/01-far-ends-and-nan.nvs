@@ -1,0 +1,45 @@
+<?nvs
+// Attack: `Core\Math::sign` is given the far ends of each type of number, `NaN`, a `uint` that
+// is too big and a million calls. Each bad call should throw an error that the program catches,
+// and the program should run to its end.
+
+// 1. The biggest and smallest whole numbers, and the numbers next to zero.
+echo Core\Math::sign(Core\Math::INT_MIN), Core\Math::sign(Core\Math::INT_MIN + 1), "\n";
+echo Core\Math::sign(Core\Math::INT_MAX), Core\Math::sign(-1), Core\Math::sign(1), "\n";
+
+// 2. The far ends of `float`, the smallest `float` above zero, both zeros and both infinities.
+echo Core\Math::sign(Core\Math::FLOAT_MAX), Core\Math::sign(-Core\Math::FLOAT_MAX), "\n";
+echo Core\Math::sign(5e-324), Core\Math::sign(-5e-324), "\n";
+echo Core\Math::sign(0.0), Core\Math::sign(-0.0), "\n";
+echo Core\Math::sign(Core\Math::INFINITY), Core\Math::sign(-Core\Math::INFINITY), "\n";
+
+// 3. A `decimal` with many digits after the point.
+decimal $tiny = -0.000000000000000000000000001;
+echo Core\Math::sign($tiny), "\n";
+
+// 4. The biggest `uint`. It is bigger than every `int`, so the call throws an error.
+uint $huge = 18446744073709551615;
+try {
+    echo Core\Math::sign($huge), "\n";
+} catch (ArithmeticError $tooBig) {
+    echo "too big\n";
+}
+
+// 5. `NaN`, made in three different ways. Each call throws an error.
+array<float> $nans = [Core\Math::NAN, Core\Math::sqrt(-1.0), Core\Math::INFINITY - Core\Math::INFINITY];
+foreach ($nans as float $nan) {
+    try {
+        echo Core\Math::sign($nan), "\n";
+    } catch (RuntimeError $noSign) {
+        echo "no sign\n";
+    }
+}
+
+// 6. A million calls. Each result feeds the next one.
+int $total = 0;
+int $round = 0;
+while ($round < 1000000) {
+    $total = $total + Core\Math::sign(($total % 7) - 3) + 1;
+    $round = $round + 1;
+}
+echo $total, "\n";

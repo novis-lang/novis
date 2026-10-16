@@ -1,0 +1,12 @@
+<?nvs
+// Shows the smallest document a writer can write: the declaration and one empty element.
+
+Core\Xml\Writer $writer = Core\Xml::writer();
+
+// `startDocument` writes the declaration `<?xml version="1.0" encoding="UTF-8"?>`.
+$writer->startDocument();
+$writer->startElement("ping");
+$writer->endElement();
+
+// This prints the declaration, followed by `<ping/>`.
+echo $writer->endDocument(), "\n";

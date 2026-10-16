@@ -1,0 +1,83 @@
+--TEST--
+`Core\Uri::decodeComponent` at its two edges: a `%` that does not begin a well-formed escape decodes to itself, and a well-formed escape for an octet no `string` can hold is answered as the `bytes` it is and refused only by the `as string` a caller wanting text writes — a lone byte, a truncated sequence, a surrogate and an overlong form alike — spec § 12, `rule:types/conversion`
+--FILE--
+<?nvs
+// The neighbouring cases show this member against its encoder, over every
+// ASCII byte and against `decodeFormValue`. What none of them asks is where it
+// stops: `decode` reads a `%` as an escape only when two hex digits follow it,
+// and it answers *octets*, which a `string` then has to be able to hold. Both
+// edges are named here with the value on each side of them.
+//
+// The second edge moved one member along when the decoders came to answer
+// `bytes` (spec § 12): the octets themselves always have an answer, and it is
+// the `as string` every row below writes that refuses the ones no `string` can
+// hold — `rule:types/conversion`'s checked conversion, in exactly the place the member's
+// own throw used to land. What is pinned here is the *bound*, and the bound is
+// where it always was.
+//
+// The first edge is textual and PHP agrees with us on it: an escape needs both
+// digits, so a trailing `%`, a one-digit tail and a non-hex pair are each left
+// exactly as written rather than repaired or refused. `%41` on the other side
+// of that line is the same three characters read as `A`.
+array<string> $textual = ["a%", "a%4", "a%zzb", "%41", "%2541"];
+foreach ($textual as string $row) {
+    echo "[", $row, "] -> [", (Core\Uri::decodeComponent($row) as string), "]\n";
+}
+
+// The second edge is the one `rule:types/bytes` draws, and it is a real divergence from
+// PHP: a PHP string is a byte string, so `rawurldecode("a%FFb")` there answers
+// three bytes that are not text; a Novis `string` is UTF-8, so there is no
+// value for this member to answer and it throws instead. Every family of
+// invalid sequence is refused, not only the obviously-out-of-range byte —
+// counted over the table, because a member validating the first octet alone
+// still accepts a truncated sequence and a surrogate.
+array<string> $octets = [
+    "a%FFb",
+    "%C3",
+    "%ED%A0%80",
+    "%C0%80",
+    "%F5%80%80%80",
+];
+int $tried = 0;
+int $refused = 0;
+foreach ($octets as string $bad) {
+    $tried = $tried + 1;
+    try {
+        // The call is bound before the `echo`, because `echo` writes its
+        // earlier operands before a later one throws.
+        var $read = (Core\Uri::decodeComponent($bad) as string);
+        echo "accepted [", $read, "]\n";
+    } catch (Throwable $notText) {
+        $refused = $refused + 1;
+    }
+}
+echo "tried ", $tried, " refused ", $refused, "\n";
+
+// One of them with its message, since the refusal names which byte of the
+// *decoded* octets is the problem rather than which character of the input.
+// It is `bytes as string`'s message now, not this member's: the decoder has
+// nothing left to refuse.
+try {
+    echo (Core\Uri::decodeComponent("a%FFb") as string), "\n";
+} catch (Throwable $lone) {
+    echo $lone->message, "\n";
+}
+
+// And the value on the accepting side of that edge, which is what makes it a
+// bound rather than a blanket rule: a well-formed multi-byte sequence decodes
+// to the one character it spells, and `%00` — the byte a C string could not
+// hold — is an ordinary character here, so the refusal above is about UTF-8
+// and nothing else. The NUL is measured rather than echoed, a raw NUL in the
+// expected output being a byte no diff can show.
+echo (Core\Uri::decodeComponent("%C3%A9") as string), " ", (Core\Uri::decodeComponent("%E2%82%AC") as string), " ", (Core\Uri::decodeComponent("%F0%9F%92%A9") as string), "\n";
+echo Core\Str::length((Core\Uri::decodeComponent("%00") as string)), " ", Core\Str::length((Core\Uri::decodeComponent("") as string)), "\n";
+--EXPECT--
+[a%] -> [a%]
+[a%4] -> [a%4]
+[a%zzb] -> [a%zzb]
+[%41] -> [A]
+[%2541] -> [%41]
+tried 5 refused 5
+cannot convert `bytes` to `string`: not well-formed UTF-8 at byte 1
+é € 💩
+1 0

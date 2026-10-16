@@ -1,0 +1,31 @@
+<?nvs
+// Shows the work a program really does here: a nightly clean-up deletes old
+// rows from two tables and reports how many rows it removed in total.
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table sessions (id integer primary key, seen int not null)', []);
+$db->execute('create table logs (id integer primary key, day int not null)', []);
+$db->execute('insert into sessions (seen) values (?), (?), (?)', [1, 2, 9]);
+$db->execute('insert into logs (day) values (?), (?)', [1, 9]);
+
+class Cleanup {
+    // The count is a `?uint`, so it is tested for `null` before it is added. A
+    // server that reports no count adds nothing, and the total still comes out.
+    public static function remove(Core\Db\Connection $db, string $sql, int $before): uint
+    {
+        var $write = $db->execute($sql, [$before]);
+        ?uint $count = $write->changed();
+        if ($count == null) {
+            return 0;
+        }
+        return $count;
+    }
+}
+
+uint $sessions = Cleanup::remove($db, 'delete from sessions where seen < ?', 5);
+uint $logs = Cleanup::remove($db, 'delete from logs where day < ?', 5);
+
+// Two old sessions and one old log line went. This prints `removed 3 rows`.
+echo 'removed ', $sessions + $logs, " rows\n";
+
+$db->close();

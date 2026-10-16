@@ -1,0 +1,3 @@
+# The server runs behind one proxy. The proxy connects from 10.0.0.5.
+[server]
+trusted_proxies = ["10.0.0.5"]

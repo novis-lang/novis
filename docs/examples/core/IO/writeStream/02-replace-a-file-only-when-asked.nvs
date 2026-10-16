@@ -1,0 +1,17 @@
+<?nvs
+// Shows that `Core\IO::writeStream` replaces an existing file only with the `overwrite` option.
+
+string $path = Core\Path::join(Core\IO::temporaryDir(), "avatar.png");
+Core\IO::write($path, "old picture");
+array<bytes> $chunks = ["new picture" as bytes];
+
+// The file already exists, so this throws an `IOError` and prints "already there".
+try {
+    Core\IO::writeStream($path, $chunks);
+} catch (IOError $e) {
+    echo "already there", "\n";
+}
+
+// With `overwrite: true` the file is replaced. This prints "new picture".
+Core\IO::writeStream($path, $chunks, {overwrite: true});
+echo Core\IO::read($path), "\n";

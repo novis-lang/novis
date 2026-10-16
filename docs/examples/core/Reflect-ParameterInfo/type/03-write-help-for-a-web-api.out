@@ -1,0 +1,4 @@
+GET /search
+  query (string, required)
+  page (?int, optional)
+  sort (?string, optional)

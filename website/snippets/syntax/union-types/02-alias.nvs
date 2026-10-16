@@ -1,0 +1,12 @@
+<?nvs
+// `type` gives a long type a short name.
+type Id = int|string;
+type Size = "small"|"medium"|"large";
+
+class Order {
+    public static function label(Id $id, Size $size): string {
+        return "#" . ($id as string) . " " . $size;
+    }
+}
+
+echo Order::label(7, "large"), "\n";

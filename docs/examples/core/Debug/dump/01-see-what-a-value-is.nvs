@@ -1,0 +1,18 @@
+<?nvs
+// Shows `Core\Debug::dump`. It writes what a value is to standard error, so
+// the program's own output does not change. Run this program to see the dump
+// in your terminal.
+
+// The settings a small program reads when it starts. They come from a
+// configuration file, so every value is text.
+array<string> $settings = [
+    "host" => "example.com",
+    "port" => "8080",
+    "retries" => "3",
+];
+
+// `dump` writes the whole array to standard error. It names the type of every
+// value, so you can see that the port here is text and not a number.
+Core\Debug::dump($settings);
+
+echo "connecting to ", $settings["host"], "\n";

@@ -1,0 +1,17 @@
+<?nvs
+// Shows what `Core\Arr::count` counts when an array holds other arrays. It
+// counts the entries at the top level, so every team below counts as one entry.
+
+array<array<string>> $teams = [
+    'red' => ['Mara', 'Ida'],
+    'blue' => ['Tom', 'Nia', 'Sam'],
+];
+
+// This prints 2, because there are two teams.
+echo Core\Arr::count($teams), "\n";
+
+// Counting the people in a team is a second call, one team at a time.
+// This prints `red: 2` and `blue: 3`.
+foreach ($teams as string $name => array<string> $members) {
+    echo $name, ': ', Core\Arr::count($members), "\n";
+}

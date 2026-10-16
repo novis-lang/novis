@@ -1,0 +1,70 @@
+--TEST--
+A retrieved attribute payload whose array holds cases of one enum matches a requested `array<ThatEnum>`, on both backings, and an array holding a case of another enum does not — `rule:attributes/retrieval-folds-while-checking` and `rule:enums/representation`
+--FILE--
+<?nvs
+// The match is decided while compiling, from the payload as written, where
+// each case still names its enum. A payload with a case of another enum is
+// not an `array<Mode>`, so that retrieval gives `null`.
+enum Mode: int {
+    Off = 0,
+    On = 1,
+}
+
+enum Weight: uint {
+    Light = 0,
+    Heavy = 2,
+}
+
+#[{modes: [Mode::Off, Mode::On], weights: [Weight::Light, Weight::Heavy], grid: [[Mode::On], []]}]
+class Job {
+}
+
+#[{modes: [Mode::Off, Weight::Light]}]
+class Mixed {
+}
+
+#[{modes: [Weight::Heavy]}]
+class Other {
+}
+
+?{modes: array<Mode>, weights: array<Weight>, grid: array<array<Mode>>} $job =
+    Core\Attributes::get<{modes: array<Mode>, weights: array<Weight>, grid: array<array<Mode>>}>(
+        Job::constructor(...)
+    );
+echo "job: ", $job == null ? "null" : "matched", "\n";
+if ($job != null) {
+    foreach ($job->modes as Mode $mode) {
+        mixed $seen = $mode;
+        echo "  mode ", $mode == Mode::On ? "On" : "Off", " is Mode=", ($seen is Mode) ? "yes" : "no",
+            " truthy=", $seen ? "yes" : "no", "\n";
+    }
+    foreach ($job->weights as Weight $weight) {
+        mixed $held = $weight;
+        echo "  weight ", $weight == Weight::Heavy ? "Heavy" : "Light", " is Weight=", ($held is Weight) ? "yes" : "no",
+            " truthy=", $held ? "yes" : "no", "\n";
+    }
+    echo "  grid rows=", Core\Arr::count($job->grid), " first=", $job->grid[0][0] == Mode::On ? "On" : "other", "\n";
+}
+
+// The same payload still matches the wider `array<mixed>`.
+?{modes: array<mixed>} $wide = Core\Attributes::get<{modes: array<mixed>}>(Job::constructor(...));
+echo "wide: ", $wide == null ? "null" : "matched", "\n";
+
+// A case of another enum keeps the array from being an `array<Mode>`.
+?{modes: array<Mode>} $mixed = Core\Attributes::get<{modes: array<Mode>}>(Mixed::constructor(...));
+echo "mixed: ", $mixed == null ? "null" : "matched", "\n";
+?{modes: array<Mode>} $other = Core\Attributes::get<{modes: array<Mode>}>(Other::constructor(...));
+echo "other: ", $other == null ? "null" : "matched", "\n";
+?{modes: array<Weight>} $weights = Core\Attributes::get<{modes: array<Weight>}>(Other::constructor(...));
+echo "other as Weight: ", $weights == null ? "null" : "matched", "\n";
+--EXPECT--
+job: matched
+  mode Off is Mode=yes truthy=yes
+  mode On is Mode=yes truthy=yes
+  weight Light is Weight=yes truthy=yes
+  weight Heavy is Weight=yes truthy=yes
+  grid rows=2 first=On
+wide: matched
+mixed: null
+other: null
+other as Weight: matched

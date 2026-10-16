@@ -1,0 +1,32 @@
+--TEST--
+`Core\Json::decodeAs<T>` fills an absent key with `null` for a `?T $x = null` field, accepts a written `null` for it, and encodes it as `null` — `rule:core-api/required-optional-and-nullable`'s fourth row
+--FILE--
+<?nvs
+#[Core\Json\Derive]
+class Profile {
+    public function constructor(
+        public string $name,
+        public ?int $age = null,
+        public ?string $city = null,
+    ) {}
+}
+
+// The keys are absent, so both fields are `null`.
+var $absent = Core\Json::decodeAs<Profile>("{\"name\":\"a\"}");
+echo "age=", $absent->age == null ? "null" : "set", " city=", $absent->city == null ? "null" : "set", "\n";
+
+// A written `null` is accepted too, and a written value wins over the default.
+var $written = Core\Json::decodeAs<Profile>("{\"name\":\"b\",\"age\":null,\"city\":\"Rome\"}");
+echo "age=", $written->age == null ? "null" : "set", " city=", $written->city, "\n";
+
+// Encoding writes every field, including a `null` one.
+echo Core\Json::encode($absent), "\n";
+
+// A `null` property default still starts the slot at `null` for a plain `new`.
+var $made = new Profile("c");
+echo "made=", $made->age == null ? "null" : "set", "\n";
+--EXPECT--
+age=null city=null
+age=null city=Rome
+{"name":"a","age":null,"city":null}
+made=null

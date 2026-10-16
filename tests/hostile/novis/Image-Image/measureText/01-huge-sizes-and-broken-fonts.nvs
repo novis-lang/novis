@@ -1,0 +1,62 @@
+<?nvs
+// Attack: a request measures text with sizes, widths and fonts that make no sense.
+// Each attempt should return a size or throw an error, and the server keeps running.
+use Novis\Image\Font;
+use Novis\Image\Image;
+
+bytes $boxFont = Core\Encoding::fromHex(
+    '000100000007004000020030636d6170001001230000007c00000034676c7966'
+        . '03be0582000000b00000002268656164616b43a1000000d40000003668686561'
+        . '054801c60000010c00000024686d747807080032000001300000000c6c6f6361'
+        . '000000110000013c000000086d61787000035000000001440000000600000001'
+        . '0003000a0000000c000d00000000002800000000000000020000002000000020'
+        . '00000001000000210000007e00000002000100320000022602bc000300000101'
+        . '01010032000001f40000000002bc0000fd440000000100000001000000000000'
+        . '5f0f3cf5000003e80000000000000000000000000000000000320000022602bc'
+        . '000000080002000000000000000100000320ff38000002580000003202260001'
+        . '0000000000000000000000000000000302580000025800000258003200000000'
+        . '000000110000500000030000',
+);
+Font $font = Font::fromBytes($boxFont);
+
+// 1. An empty text.
+try {
+    echo 'step 1 ran ', Image::measureText('', $font, { size: 10.0 })->width, "\n";
+} catch (Throwable $e) {
+    echo "step 1 stopped\n";
+}
+
+// 2. A font size of one billion pixels.
+try {
+    echo 'step 2 ran ', Image::measureText('Shop', $font, { size: 1000000000.0 })->width, "\n";
+} catch (Throwable $e) {
+    echo "step 2 stopped\n";
+}
+
+// 3. A negative font size, and a size that is not a number.
+try {
+    echo 'step 3 ran ', Image::measureText('Shop', $font, { size: -10.0 })->width, "\n";
+} catch (Throwable $e) {
+    echo "step 3 stopped\n";
+}
+try {
+    echo 'step 3 ran ', Image::measureText('Shop', $font, { size: 0.0 / 0.0 })->width, "\n";
+} catch (Throwable $e) {
+    echo "step 3 stopped\n";
+}
+
+// 4. A text of 100000 one-letter words in a box 1 pixel wide, so every word is a line.
+try {
+    string $words = Core\Str::repeat('a ', 100000);
+    echo 'step 4 ran ', Image::measureText($words, $font, { size: 10.0, maxWidth: 1 })->height, "\n";
+} catch (Throwable $e) {
+    echo "step 4 stopped\n";
+}
+
+// 5. A font with a correct first four bytes and nothing else that is correct.
+try {
+    Font $broken = Font::fromBytes(Core\Bytes::slice($boxFont, 0, 40));
+    echo 'step 5 ran ', Image::measureText('Shop', $broken, { size: 10.0 })->width, "\n";
+} catch (Throwable $e) {
+    echo "step 5 stopped\n";
+}

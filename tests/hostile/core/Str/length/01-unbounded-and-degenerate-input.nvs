@@ -1,0 +1,49 @@
+<?nvs
+// Attack: `Core\Str::length` counts a 64 MiB string and one letter with 200000 accent marks.
+// Then it counts emoji 100000 times. Each count should return a number or stop at a
+// limit with an error. The program should not crash or run forever.
+// hostile: timeout-ms 20000
+
+class Attack
+{
+    /// Builds a string of `$mib` mebibytes and counts it. `length` reads every
+    /// character, so the string must fit in memory and the count must finish.
+    public static function big(uint $mib): uint
+    {
+        var $chunk = Core\Str::repeat('a', 1048576);
+        var $s = Core\Str::repeat($chunk, $mib);
+        return Core\Str::length($s);
+    }
+
+    /// The letter `a` followed by `$marks` accent marks. This is one grapheme
+    /// with thousands of code points, so the result is `1`.
+    public static function oneHugeCluster(uint $marks): uint
+    {
+        var $s = 'a' . Core\Str::repeat("\u{301}", $marks);
+        return Core\Str::length($s);
+    }
+
+    /// Counts emoji and an accented word 100000 times, so a memory leak grows with
+    /// each round. The total so far picks the next string.
+    public static function repeatedlyOnHardInput(uint $rounds): uint
+    {
+        array<string> $hard = [
+            "\u{1f1e6}\u{1f1f9}",
+            "\u{1f468}\u{200d}\u{1f469}\u{200d}\u{1f467}",
+            "\u{1f469}\u{1f3fd}\u{200d}\u{1f680}",
+            "cafe\u{301}",
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            $total = $total + Core\Str::length($hard[$total % 4]);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Attack::big(64), "\n";
+echo Attack::oneHugeCluster(200000), "\n";
+echo Attack::repeatedlyOnHardInput(100000), "\n";
+echo Core\Str::length(''), "\n";

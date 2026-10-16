@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-cli/src/main.rs",
+  "title": "No test runs `nvs run --dump-asm` end to end.",
+  "text": "`nvs run --dump-asm` prints the machine code a program compiles to. No test runs the binary with the flag and checks that it prints a listing for each compiled function and still runs the program. Closing it means one end-to-end test in `crates/nvs-cli/tests/`.",
+  "goal": "completeness-holes"
+}

@@ -1,0 +1,37 @@
+<?nvs
+// Shows how an event dispatcher calls a handler method only on the listeners that have one.
+
+class AuditLog {
+    public function onOrderPlaced(string $order): string {
+        return "audit: order " . $order . " was placed";
+    }
+
+    public function onOrderCancelled(string $order): string {
+        return "audit: order " . $order . " was cancelled";
+    }
+}
+
+class Mailer {
+    public function onOrderPlaced(string $order): string {
+        return "mail: thank you for order " . $order;
+    }
+}
+
+class Dispatcher {
+    public static function dispatch(array<mixed> $listeners, string $event, string $order): void {
+        // The event name `OrderPlaced` becomes the method name `onOrderPlaced`.
+        string $method = "on" . $event;
+        foreach ($listeners as mixed $listener) {
+            var $info = Core\Reflect::forObject($listener);
+            // A listener without the method is skipped.
+            if ($info->hasMethod($method)) {
+                echo $info->call($listener, $method, [$order]) as string, "\n";
+            }
+        }
+    }
+}
+
+array<mixed> $listeners = [new AuditLog(), new Mailer()];
+// Both listeners handle `OrderPlaced`. Only `AuditLog` handles `OrderCancelled`.
+Dispatcher::dispatch($listeners, "OrderPlaced", "A-17");
+Dispatcher::dispatch($listeners, "OrderCancelled", "A-18");

@@ -1,0 +1,124 @@
+// The reference table of the number-format renderer: a format code, a value and the text Excel
+// displays for it. `tests/format.rs` renders every row and compares the text.
+//
+// Each line is `code|value|text|`. The last `|` ends the text, so a trailing space shows.
+// A value is a number, `t:` and a text, or `b:true` or `b:false`. Every row is in the 1900 date
+// system and the `en` locale. The cases follow the shapes of SheetJS SSF's tests (Apache-2.0).
+//
+// General
+General|0|0|
+General|1|1|
+General|-1|-1|
+General|0.1|0.1|
+General|-0.5|-0.5|
+General|1234.5678|1234.5678|
+General|0.333333333333333|0.333333333|
+General|0.30000000000000004|0.3|
+General|123456.789012|123456.789|
+General|12345678901|12345678901|
+General|123456789012|1.23457E+11|
+General|0.0001|0.0001|
+General|0.0000000001234|1.234E-10|
+General|100000000000000000000|1E+20|
+General|t:Shop|Shop|
+// Digit placeholders and rounding
+0|1234.5|1235|
+0|2.5|3|
+0|-2.5|-3|
+0.00|2.675|2.68|
+0.00|0.005|0.01|
+0.00|-1.5|-1.50|
+#.##|0.5|.5|
+#.##|12|12.|
+0.0#|1.5|1.5|
+0.0#|1.234|1.23|
+0.???|1.5|1.5  |
+??0.0|1.5|  1.5|
+000|7|007|
+00000|1234|01234|
+000-00-0000|123456789|123-45-6789|
+// Thousands, scaling and percent
+#,##0|1234567|1,234,567|
+#,##0|999|999|
+#,##0|0|0|
+#,##0.00|1234567.891|1,234,567.89|
+#,##0.00|-1234.5|-1,234.50|
+#,##0,|1234567|1,235|
+#,##0,,|1234567890|1,235|
+0.0,," M"|1234567|1.2 M|
+0%|0.25|25%|
+0.00%|0.12345|12.35%|
+// Scientific
+0.00E+00|12345|1.23E+04|
+0.00E+00|0.00012345|1.23E-04|
+0.00E+00|0|0.00E+00|
+0.0E+0|12345|1.2E+4|
+##0.0E+0|12345|12.3E+3|
+##0.0E+0|1234567|1.2E+6|
+// Literals
+"$"#,##0.00|1234.5|$1,234.50|
+"$"#,##0.00|-1234.5|-$1,234.50|
+\$0|5|$5|
+0 "kg"|5|5 kg|
+#,##0_);(#,##0)|1234|1,234 |
+#,##0_);(#,##0)|-1234|(1,234)|
+// Sections, conditions and colours
+0;(0)|-5|(5)|
+0;-0;"zero"|0|zero|
+0;-0;;@|0||
+0.00;[Red]-0.00|-3.14159|-3.14|
+[Red]0.00|1.5|1.50|
+[Blue]0;[Red]-0|-7|-7|
+[>100]"big";"small"|150|big|
+[>100]"big";"small"|50|small|
+[<0]"neg";[>0]"pos";"zero"|-1|neg|
+[<0]"neg";[>0]"pos";"zero"|1|pos|
+[<0]"neg";[>0]"pos";"zero"|0|zero|
+// Text
+@|t:abc|abc|
+"Name: "@|t:Shop|Name: Shop|
+0;-0;0;"<"@">"|t:x|<x>|
+0.00|t:abc|abc|
+0|b:true|TRUE|
+0.00|b:false|FALSE|
+// Fractions
+# ?/?|1.25|1 1/4|
+# ?/?|0.5| 1/2|
+# ?/?|2|2    |
+# ?/?|-1.25|-1 1/4|
+# ??/??|3.14159|3  1/7 |
+?/?|0.75|3/4|
+?/?|1.5|3/2|
+# ?/8|1.3|1 2/8|
+# ??/100|0.25| 25/100|
+// Dates
+yyyy-mm-dd|45306|2024-01-15|
+m/d/yyyy|45306|1/15/2024|
+d-mmm-yy|45306|15-Jan-24|
+d-mmm|45306|15-Jan|
+mmm-yy|45306|Jan-24|
+dddd, mmmm d, yyyy|45306|Monday, January 15, 2024|
+ddd|45306|Mon|
+mmmmm|45306|J|
+yy|45306|24|
+mmm d|45306|Jan 15|
+yyyy-mm-dd hh:mm|45306.75|2024-01-15 18:00|
+m/d/yyyy h:mm|45306.5|1/15/2024 12:00|
+[$-409]d-mmm-yy|45306|15-Jan-24|
+// Times
+h:mm AM/PM|0.5|12:00 PM|
+h:mm AM/PM|0.75|6:00 PM|
+h:mm AM/PM|0|12:00 AM|
+h:mm:ss AM/PM|0.5625|1:30:00 PM|
+h:mm A/P|0.75|6:00 P|
+h:mm|0.5625|13:30|
+h:mm:ss|0.5625|13:30:00|
+hh:mm:ss|0.99999999|00:00:00|
+mm:ss|0.5625|30:00|
+hh:mm:ss.000|0.50000142361111|12:00:00.123|
+mmss.0|0.0000173611111111|0001.5|
+// Elapsed time
+[h]:mm:ss|1.5|36:00:00|
+[h]:mm|2.75|66:00|
+[mm]:ss|0.0423611111111111|61:00|
+[ss]|0.001|86|

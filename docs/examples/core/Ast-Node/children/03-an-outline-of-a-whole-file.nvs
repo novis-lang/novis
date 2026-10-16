@@ -1,0 +1,24 @@
+<?nvs
+// Shows how to print an outline of a file, the way an editor shows one in a
+// side panel. Each level calls `children` to step down one step, so the
+// printing follows the shape of the code.
+
+class Outline {
+    public static function show(Core\Ast\Node $node, string $indent): void {
+        echo $indent, $node->kind(), " on line ", $node->line(), "\n";
+        foreach ($node->children() as Core\Ast\Node $child) {
+            Outline::show($child, $indent . "  ");
+        }
+    }
+}
+
+string $source = <<<'NVS'
+<?nvs
+class Greeter {
+    public static function hello(): void {
+        echo "hi\n";
+    }
+}
+NVS;
+
+Outline::show(Core\Ast::parse($source), "");

@@ -1,0 +1,25 @@
+<?nvs
+// Shows how to read the value that is stored for a key with `get`.
+
+final class Room {
+    public string $name;
+
+    public function constructor(string $name) {
+        $this->name = $name;
+    }
+}
+
+Room $kitchen = new Room("Kitchen");
+Room $hall = new Room("Hall");
+
+Core\ObjectMap<Room, int> $temperature = new Core\ObjectMap<Room, int>();
+$temperature->set($kitchen, 21);
+$temperature->set($hall, 18);
+
+// `get` returns the value for the key. This prints 21 and 18.
+echo $kitchen->name, ": ", $temperature->get($kitchen) ?? 0, "\n";
+echo $hall->name, ": ", $temperature->get($hall) ?? 0, "\n";
+
+// After a new `set`, `get` returns the new value. This prints 23.
+$temperature->set($kitchen, 23);
+echo $kitchen->name, ": ", $temperature->get($kitchen) ?? 0, "\n";

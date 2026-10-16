@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-stdlib/src/arr.rs",
+  "title": "A member that builds an array grows its storage as it appends, with the entry count already in hand.",
+  "text": "[`NvsArray`] offers `new` and no way to reserve, so [`nvs_core_arr_keys`] over a three-entry subject counts four allocations for three keys that are clones of the stored ones, and the members that build a larger result — `filter` at 16, `mapKeys` at 25, `groupBy` at 41 — carry the same growth inside their own figures. The fix is a capacity constructor on the runtime's array, which every building member is then read against one at a time.",
+  "milestone": "M12"
+}

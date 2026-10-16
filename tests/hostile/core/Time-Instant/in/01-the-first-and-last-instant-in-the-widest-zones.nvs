@@ -1,0 +1,42 @@
+<?nvs
+// Attack: the first and the last instant are shown in the zones furthest from UTC. The dates
+// are the very first and very last days there are. Nothing should crash or leak.
+
+Core\Time\Instant $first = Core\Time::fromIso('-009999-01-02T01:59:59Z');
+Core\Time\Instant $last = Core\Time::fromIso('9999-12-30T22:00:00.999999999Z');
+Core\Time\Zone $east = Core\Time\Zone::fixed(Core\Time\Duration::seconds(93599));
+Core\Time\Zone $west = Core\Time\Zone::fixed(Core\Time\Duration::seconds(-93599));
+
+// 1. The last instant is shown in the zone furthest east.
+try {
+    echo $last->in($east)->format('yyyy-MM-dd HH:mm:ss XXX'), "\n";
+} catch (RuntimeError $e) {
+    echo $e->message, "\n";
+}
+
+// 2. The first instant is shown in the zone furthest west.
+try {
+    echo $first->in($west)->format('yyyy-MM-dd HH:mm:ss XXX'), "\n";
+} catch (RuntimeError $e) {
+    echo $e->message, "\n";
+}
+
+// 3. The first and the last instant are shown in a real zone that is 14 hours ahead of UTC.
+Core\Time\Zone $kiritimati = Core\Time\Zone::of('Pacific/Kiritimati');
+try {
+    echo $last->in($kiritimati)->dayOfYear(), ' ', $first->in($kiritimati)->dayOfYear(), "\n";
+} catch (RuntimeError $e) {
+    echo $e->message, "\n";
+}
+
+// 4. One million `DateTime` values are made in four zones. Each one is freed again.
+array<Core\Time\Zone> $zones = [$east, $west, $kiritimati, Core\Time\Zone::of('Europe/Berlin')];
+Core\Time\Instant $clock = Core\Time::fromEpoch(0);
+uint $days = 0;
+int $round = 0;
+while ($round < 1000000) {
+    $days = $days + $clock->in($zones[$round % 4])->dayOfYear();
+    $clock = $clock->plus(Core\Time\Duration::seconds(3637));
+    $round = $round + 1;
+}
+echo $days, "\n";

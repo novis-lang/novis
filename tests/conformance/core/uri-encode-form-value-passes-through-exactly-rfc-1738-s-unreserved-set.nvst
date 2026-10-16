@@ -1,0 +1,106 @@
+--TEST--
+`Core\Uri::encodeFormValue` passes through exactly 65 of the 128 ASCII bytes — RFC 3986 § 2.3's unreserved set less the `~` the form encoding predates — and every one of the other 63 is a `+` or a `%` and two upper-case hex digits, counted rather than shown, with the alphabet's four edges named on both sides — spec § 12, RFC 3986 § 2.3
+--FILE--
+<?nvs
+// The byte-sweep case next door asserts that the two encoders *disagree* on
+// exactly two bytes, and the pairing case that each decoder undoes its own
+// encoder. Neither says which bytes are left alone, only that both members
+// leave the same ones alone bar two — so an implementation whose unreserved set
+// was wrong in the same way on both sides would pass both and fail here.
+//
+// The set matters because it is what makes the answer safe to interpolate into
+// an `application/x-www-form-urlencoded` payload: a byte that survives
+// unescaped is a byte the reader on the other side will not treat as a
+// delimiter.
+//
+// Checked against PHP 8.5's `urlencode` while this was written: it leaves the
+// same 65 bytes and spells every escape the same way.
+
+final class Esc {
+    // The escape this member is required to write for one byte: a `%` and two
+    // upper-case hex digits, always both of them. Comparing against this rather
+    // than against a pattern asserts the case of the digits, their number and
+    // their value in one equality.
+    public static function of(int $b): string {
+        array<string> $d = ["0", "1", "2", "3", "4", "5", "6", "7",
+                            "8", "9", "A", "B", "C", "D", "E", "F"];
+        return "%" . $d[Core\Math::intDiv($b, 16) as string] . $d[($b % 16) as string];
+    }
+}
+
+int $passedThrough = 0;
+int $becamePlus = 0;
+int $escapedExactly = 0;
+int $componentPassedThrough = 0;
+string $survivors = "";
+string $onlyComponentKeeps = "";
+int $b = 0;
+for (; $b <= 127; $b = $b + 1) {
+    string $c = Core\Str::fromCodePoint($b as uint);
+    string $form = Core\Uri::encodeFormValue($c);
+    string $component = Core\Uri::encodeComponent($c);
+
+    if ($form == $c) {
+        $passedThrough = $passedThrough + 1;
+        $survivors = $survivors . $c;
+    } else {
+        if ($form == "+") {
+            $becamePlus = $becamePlus + 1;
+        }
+        if ($form == Esc::of($b)) {
+            $escapedExactly = $escapedExactly + 1;
+        }
+    }
+
+    if ($component == $c) {
+        $componentPassedThrough = $componentPassedThrough + 1;
+        if ($form != $c) {
+            $onlyComponentKeeps = $onlyComponentKeeps . $c;
+        }
+    }
+}
+echo "bytes 128, passed through ", $passedThrough, ", became `+` ", $becamePlus,
+     ", escaped as `%` and two upper-case hex digits ", $escapedExactly, "\n";
+echo "[", $survivors, "]\n";
+
+// The other encoder's set is the same one plus `~`, which is the whole of RFC
+// 3986 § 2.3 — so the count difference is 1 and the byte behind it is named,
+// rather than the two counts being left to be compared by eye.
+echo "encodeComponent passes through ", $componentPassedThrough, ", the difference being [",
+     $onlyComponentKeeps, "] which encodeFormValue writes as ",
+     Core\Uri::encodeFormValue("~"), "\n";
+
+// The set's edges, from both sides. Each pair is two adjacent code points where
+// one is in the set and its neighbour is not, so a set built one byte wide or
+// one byte narrow is caught here rather than only in the count above.
+array<string> $edges = ["/", "0", "9", ":", "@", "A", "Z", "[", "^", "_", "`", "a", "z", "{"];
+string $rendered = "";
+foreach ($edges as string $edge) {
+    $rendered = $rendered . "[" . $edge . "->" . Core\Uri::encodeFormValue($edge) . "]";
+}
+echo $rendered, "\n";
+
+// And the three punctuation bytes the set does keep, beside the ones closest to
+// them that it does not: `-`, `.` and `_` survive, while `+`, `,`, `*` and `~`
+// — each of which some other encoder in the wild leaves alone — do not.
+echo "[", Core\Uri::encodeFormValue("-._"), "] [", Core\Uri::encodeFormValue("+,*~"), "]\n";
+
+// The delimiters an `application/x-www-form-urlencoded` reader would act on,
+// counted: none of them survives, which is the property the set exists for.
+// A space is in the list and is the one whose escape is not a `%` at all.
+array<string> $delimiters = [" ", "&", "=", ";", "?", "#", "%", "/", ":", "@", "$", ",", "\n"];
+int $neutralized = 0;
+foreach ($delimiters as string $delimiter) {
+    if (Core\Uri::encodeFormValue($delimiter) != $delimiter) {
+        $neutralized = $neutralized + 1;
+    }
+}
+echo "delimiters ", Core\Arr::count($delimiters) as int, ", none survives: ",
+     $neutralized, "\n";
+--EXPECT--
+bytes 128, passed through 65, became `+` 1, escaped as `%` and two upper-case hex digits 62
+[-.0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz]
+encodeComponent passes through 66, the difference being [~] which encodeFormValue writes as %7E
+[/->%2F][0->0][9->9][:->%3A][@->%40][A->A][Z->Z][[->%5B][^->%5E][_->_][`->%60][a->a][z->z][{->%7B]
+[-._] [%2B%2C%2A%7E]
+delimiters 13, none survives: 13

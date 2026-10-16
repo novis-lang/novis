@@ -1,0 +1,86 @@
+<?nvs
+// Attack: a program deletes a very deep folder tree, folders that are not empty and paths that are
+// not folders. It also tries to leave its folder with "..". Each step must work or throw an error.
+// hostile: timeout-ms 60000
+
+string $dir = Core\Path::join(Core\IO::temporaryDir(), 'attack');
+Core\IO::makeDir($dir);
+
+// 1. A tree of 150 nested folders is made. The path is longer than many systems allow, so
+// `makeDir` may throw an `IOError`. The folders are then deleted from the deepest one up.
+array<string> $levels = [];
+string $path = $dir;
+uint $depth = 0;
+while ($depth < 150) {
+    $path = Core\Path::join($path, 'dir');
+    $levels[] = $path;
+    $depth = $depth + 1;
+}
+try {
+    Core\IO::makeDir($path);
+} catch (IOError $tooLong) {
+}
+foreach (Core\Arr::reverse($levels) as string $level) {
+    try {
+        Core\IO::removeDir($level);
+    } catch (IOError $notThere) {
+    }
+}
+if (Core\IO::exists($levels[0])) {
+    throw new LogicError('a folder of the tree was not deleted');
+}
+echo 'step 1: done', "\n";
+
+// 2. A folder with a file in it is deleted. The call must throw an `IOError`, and the file and the
+// folder must still be there.
+string $full = Core\Path::join($dir, 'full');
+string $inside = Core\Path::join($full, 'keep.txt');
+Core\IO::makeDir($full);
+Core\IO::write($inside, 'keep');
+try {
+    Core\IO::removeDir($full);
+    throw new LogicError('a folder that is not empty was deleted');
+} catch (IOError $notEmpty) {
+}
+if (Core\IO::read($inside) != 'keep') {
+    throw new LogicError('a file in a folder that is not empty was changed');
+}
+echo 'step 2: done', "\n";
+
+// 3. Paths that are not an empty folder: empty, a file, a missing folder, a null byte, "." and a
+// very long name. Each call must throw an `IOError` or a `RuntimeError`.
+array<string> $bad = [
+    '',
+    $inside,
+    Core\Path::join($dir, 'missing'),
+    Core\Path::join($dir, "nul\0byte"),
+    Core\Path::join($full, '.'),
+    Core\Path::join($dir, Core\Str::repeat('a', 100000)),
+];
+foreach ($bad as string $badPath) {
+    try {
+        Core\IO::removeDir($badPath);
+        throw new LogicError('a path that is not an empty folder was deleted');
+    } catch (RuntimeError $refused) {
+    }
+}
+echo 'step 3: done', "\n";
+
+// 4. Paths that use ".." to leave the folder. They point at a folder that does not exist, or at
+// the parent folder, which is not empty. Each call must throw an error.
+array<string> $escapes = [
+    Core\Path::join($dir, '..'),
+    Core\Path::join($dir, '..', 'missing-outside'),
+    Core\Path::join($dir, '..', '..', '..', '..', 'missing-outside'),
+    $dir . '/../../missing-outside',
+    $dir . '\\..\\..\\missing-outside',
+    Core\Path::join($dir, Core\Str::repeat('../', 5000), 'missing-outside'),
+];
+foreach ($escapes as string $escape) {
+    try {
+        Core\IO::removeDir($escape);
+        throw new LogicError('a folder outside was deleted');
+    } catch (RuntimeError $refused) {
+    }
+}
+echo 'step 4: done', "\n";

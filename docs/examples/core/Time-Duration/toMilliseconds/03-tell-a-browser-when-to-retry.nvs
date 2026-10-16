@@ -1,0 +1,14 @@
+<?nvs
+// Writes a JSON reply that tells a browser script how long to wait before it tries again.
+
+// Each failed attempt doubles the wait. After three failed attempts, the wait is 16 seconds.
+Core\Time\Duration $wait = 2s;
+int $failed = 3;
+int $i = 0;
+while ($i < $failed) {
+    $wait = $wait->multipliedBy(2);
+    $i = $i + 1;
+}
+
+// A browser timer counts in milliseconds. This prints {"retryAfterMs":16000}.
+echo "{\"retryAfterMs\":", $wait->toMilliseconds(), "}\n";

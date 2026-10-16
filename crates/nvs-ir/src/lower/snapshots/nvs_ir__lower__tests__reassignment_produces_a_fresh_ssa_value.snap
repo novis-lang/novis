@@ -1,0 +1,20 @@
+---
+source: crates/nvs-ir/src/lower/mod.rs
+expression: "print_function(&f, map.file(file))"
+---
+fn bump(object, int) -> int {
+  bb0:
+    safepoint
+    v0 = param 0  ; object
+    v1 = param 1  ; int
+    ; stmt s0 @4:5-4:19
+    ; stmt s1 @5:5-5:21
+    v2 = const.int 1  ; int
+    v3 = add v1, v2 ! bb1  ; int
+    ; stmt s2 @6:5-6:17
+    release v0
+    return v3
+  bb1:
+    release v0
+    propagate "bump() at t.nvs:5"
+}

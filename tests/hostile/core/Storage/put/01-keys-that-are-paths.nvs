@@ -1,0 +1,52 @@
+<?nvs
+// Attack: a program tries to write files outside the disk's folder, with keys that are paths.
+// Every such key should throw an error. Many files and one large file should not crash the runtime.
+// hostile: timeout-ms 60000
+
+final class Attack
+{
+    public static function tryKey(string $key): uint
+    {
+        try {
+            Core\Storage::put('files', $key, 'x' as bytes);
+            return 0;
+        } catch (RuntimeError $e) {
+            return 1;
+        }
+    }
+}
+
+// 1. Keys that climb out of the folder, point into another folder, or are too long.
+array<string> $keys = [
+    '../escape.txt',
+    "..\\escape.txt",
+    '/tmp/escape.txt',
+    "C:\\escape.txt",
+    'sub/escape.txt',
+    '..',
+    '.hidden',
+    '',
+    Core\Str::repeat('a', 256),
+];
+uint $refused = 0;
+foreach ($keys as string $key) {
+    $refused = $refused + Attack::tryKey($key);
+}
+echo $refused, ' of ', Core\Arr::count($keys), " keys throw an error\n";
+
+// 2. One thousand small files are written, listed and deleted.
+uint $i = 0;
+while ($i < 1000) {
+    Core\Storage::put('files', "load-{$i}.bin", 'x' as bytes);
+    $i = $i + 1;
+}
+array<string> $written = Core\Storage::list('files', { prefix: 'load-' });
+echo Core\Arr::count($written), " files written\n";
+foreach ($written as string $key) {
+    Core\Storage::delete('files', $key);
+}
+
+// 3. One file of 16 MiB is written in one call, and then deleted.
+Core\Storage::put('files', 'large.bin', Core\Str::repeat('x', 16777216) as bytes);
+Core\Storage::delete('files', 'large.bin');
+echo "large file written and deleted\n";

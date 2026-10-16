@@ -1,0 +1,18 @@
+<?nvs
+// A script can start another script, which can start another. `limits.max_script_depth`
+// is how deep this chain may go. A script past that depth does not start.
+
+echo 'nesting allowed:     ', Core\Config::get('limits.max_script_depth') ?? '(no value)', "\n";
+
+// `limits.memory` is in the same block. A program may change it for itself.
+echo 'ask for less memory: ', Core\Config::set('limits.memory', '64M') ? 'accepted' : 'refused', "\n";
+
+// A program cannot change the depth. A higher value, a lower value and `false`
+// (no limit) all return `false`.
+array<string> $asks = ['1024', '8', 'false'];
+foreach ($asks as string $ask) {
+    echo 'set the depth to ', $ask, ': ', Core\Config::set('limits.max_script_depth', $ask) ? 'accepted' : 'refused', "\n";
+}
+
+// The depth is still the configured value, `64`.
+echo 'still in force:      ', Core\Config::get('limits.max_script_depth') ?? '(unset)', "\n";

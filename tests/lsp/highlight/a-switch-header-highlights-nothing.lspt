@@ -1,0 +1,16 @@
+--TEST--
+a cursor on the `switch` keyword is on a statement rather than a name, so the answer is empty and not a refusal, `rule:ide/five-features-are-one-reference-index`
+--FILE--
+<?nvs
+int $code = 1;
+switc<|>h ($code) {
+    case 1:
+        echo "one";
+        break;
+    default:
+        break;
+}
+--REQUEST--
+documentHighlight
+--EXPECT--
+none

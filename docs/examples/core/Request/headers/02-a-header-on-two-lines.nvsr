@@ -1,0 +1,8 @@
+--METHOD--
+GET
+--PATH--
+/
+--HEADERS--
+host: example.com
+Accept: text/html
+Accept: application/json

@@ -1,0 +1,16 @@
+<?nvs
+// One `namespace` declaration at the top of the file puts everything the file
+// declares under that prefix. Inside the file you still write the short name.
+
+namespace App;
+
+class Greeter {
+    public static function greet(string $name): string {
+        return "Hello, " . $name . "!";
+    }
+}
+
+// The short name is looked for in the file's own namespace, so this is
+// `App\Greeter`. Writing the name out in full means exactly the same class.
+echo Greeter::greet("Ada"), "\n";
+echo App\Greeter::greet("Bo"), "\n";

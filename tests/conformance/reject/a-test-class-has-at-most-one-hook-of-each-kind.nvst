@@ -1,0 +1,74 @@
+--TEST--
+a test class has at most one `#[BeforeClass]`, one `#[AfterClass]` and one `#[AfterEachTest]`, and a second hook of one kind is refused naming both methods, `rule:testing/hook-inheritance`
+--FILE--
+<?nvs
+use Core\Test;
+use Core\Test\AfterClass;
+use Core\Test\AfterEachTest;
+use Core\Test\BeforeClass;
+
+// One hook of each kind compiles.
+final class OneOfEachTest {
+    #[BeforeClass]
+    public static function createDatabase(): void {
+    }
+
+    #[AfterClass]
+    public static function dropDatabase(): void {
+    }
+
+    #[AfterEachTest]
+    public function removeFiles(): void {
+    }
+
+    #[Test]
+    public function itRuns(): void {
+        Test::assertSame(1, 1);
+    }
+}
+
+final class TwoOfEachTest {
+    #[BeforeClass]
+    public static function createDatabase(): void {
+    }
+
+    // Refused: the steps of a setup go in one method, in the order they run.
+    #[BeforeClass]
+    public static function seedRows(): void {
+    }
+
+    #[AfterClass]
+    public static function dropDatabase(): void {
+    }
+
+    // Refused: a second `#[AfterClass]`.
+    #[AfterClass]
+    public static function removeFolder(): void {
+    }
+
+    #[AfterEachTest]
+    public function removeFiles(): void {
+    }
+
+    // Refused: a second `#[AfterEachTest]`.
+    #[AfterEachTest]
+    public function removeRows(): void {
+    }
+
+    #[Test]
+    public function itRuns(): void {
+        Test::assertSame(1, 1);
+    }
+}
+--EXPECTF-ERROR--
+error[E0304]: `TwoOfEachTest` has two `#[BeforeClass]` methods, `createDatabase` and `seedRows`
+   --> case.nvs:34:28
+%A
+error[E0304]: `TwoOfEachTest` has two `#[AfterClass]` methods, `dropDatabase` and `removeFolder`
+   --> case.nvs:43:28
+%A
+error[E0304]: `TwoOfEachTest` has two `#[AfterEachTest]` methods, `removeFiles` and `removeRows`
+   --> case.nvs:52:21
+%A
+error: aborting due to 3 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

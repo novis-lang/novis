@@ -1,0 +1,15 @@
+<?nvs
+// Shows how to read the name of each event that a server sends.
+
+// The server writes the name on an `event` line, before the data.
+Core\Test::answerHttp("https://shop.example.com/orders/live", 200, {
+    body: "event: order.created\ndata: 1042\n\nevent: order.paid\ndata: 1042\n\n",
+    headers: ["content-type" => "text/event-stream"],
+});
+
+// `name()` returns the text of the `event` line.
+// This prints "order.created 1042" and then "order.paid 1042".
+Core\Http\Stream $orders = Core\Http\Client::stream(Core\Http\Method::Get, "https://shop.example.com/orders/live");
+foreach ($orders->events() as Core\Http\Event $event) {
+    echo $event->name() ?? "message", " ", $event->data(), "\n";
+}

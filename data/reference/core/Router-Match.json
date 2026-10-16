@@ -1,0 +1,17 @@
+{
+  "summary": "the route a request matched — its declared `name`, the captures its path filled, its verb and its access decision, decided once at the door",
+  "keywords": [
+    "route match",
+    "matched route",
+    "route parameters",
+    "path captures",
+    "Core\\Request::route",
+    "named route",
+    "tainted capture",
+    "access decision",
+    "#[Core\\Access]",
+    "allow",
+    "authorization",
+    "dispatch"
+  ]
+}

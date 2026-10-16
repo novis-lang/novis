@@ -1,0 +1,8 @@
+error[E0401]: expected `string`, found `tainted string`
+  --> sql-error.nvs:6:25
+  |
+6 | var $users = $db->query("select id from users where name = '" . $name . "'", []);
+  |                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ this is `tainted string`
+
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

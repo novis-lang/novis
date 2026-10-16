@@ -1,0 +1,14 @@
+<?nvs
+// Shows how to read the settings in force for this request. `Core\Config::all`
+// returns all of them as one array, with the dotted names as keys.
+
+// A job that takes longer than a web request gives itself more time and memory.
+Core\Config::set("wall_time", "45s");
+Core\Config::set("memory", "384M");
+
+array<string> $settings = Core\Config::all();
+
+// This prints 45s and then 384M. `set` takes the short name `memory`, and the
+// array uses the full name `limits.memory`.
+echo $settings["limits.wall_time"], "\n";
+echo $settings["limits.memory"], "\n";

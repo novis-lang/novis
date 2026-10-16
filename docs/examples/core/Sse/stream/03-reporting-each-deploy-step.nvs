@@ -1,0 +1,14 @@
+<?nvs
+// Shows a deployment that reports each step to the browser as soon as the step is done.
+
+array<string> $steps = ["pull the new code", "install packages", "run the migrations", "restart the workers"];
+Core\Sse $sse = Core\Sse::stream();
+uint $done = 0;
+foreach ($steps as string $step) {
+    // A real deployment would run the step here.
+    $done = $done + 1;
+    // The browser shows each `step` event as soon as it arrives.
+    $sse->send($done . ". " . $step, event: "step");
+}
+// The last event tells the page that the deployment is finished.
+$sse->send(["steps" => $done, "status" => "finished"], event: "done");

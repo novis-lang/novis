@@ -1,0 +1,28 @@
+<?nvs
+// Shows how to read the access rule of the route that matched.
+namespace App;
+
+enum Role { Admin }
+
+class Site {
+    #[Core\Route(path: "/", method: Core\Http\Method::Get, name: "Site::home")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function home(): string { return "home"; }
+
+    #[Core\Route(path: "/admin", method: Core\Http\Method::Get, name: "Site::admin")]
+    #[Core\Access(allow: Role::Admin)]
+    public function admin(): string { return "admin"; }
+}
+
+// `access()` returns the full name of the constant in `#[Access(allow: …)]`.
+// This prints `Core\Audience::Public`.
+?Core\Router\Match $home = Core\Router::match(Core\Http\Method::Get, "/");
+if ($home != null) {
+    echo $home->access() ?? "denied", "\n";
+}
+
+// The name includes the namespace. This prints `App\Role::Admin`.
+?Core\Router\Match $admin = Core\Router::match(Core\Http\Method::Get, "/admin");
+if ($admin != null) {
+    echo $admin->access() ?? "denied", "\n";
+}

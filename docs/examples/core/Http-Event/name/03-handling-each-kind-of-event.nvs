@@ -1,0 +1,23 @@
+<?nvs
+// Shows how to handle each kind of event in its own way,
+// as a program does when it follows the status of a build.
+
+// The server sends three kinds of events. It also sends `ping` events,
+// which only show that the connection is still open.
+Core\Test::answerHttp("https://ci.example.com/builds/88/events", 200, {
+    body: "event: step\ndata: compile\n\nevent: ping\ndata: -\n\nevent: step\ndata: test\n\nevent: finished\ndata: success\n\n",
+    headers: ["content-type" => "text/event-stream"],
+});
+
+Core\Http\Stream $build = Core\Http\Client::stream(Core\Http\Method::Get, "https://ci.example.com/builds/88/events");
+int $steps = 0;
+foreach ($build->events() as Core\Http\Event $event) {
+    ?tainted string $kind = $event->name();
+    if ($kind == "step") {
+        $steps = $steps + 1;
+        echo "running: ", $event->data(), "\n";
+    } elseif ($kind == "finished") {
+        echo "result: ", $event->data(), " after ", $steps, " steps\n";
+    }
+    // Every other kind, like `ping`, is skipped.
+}

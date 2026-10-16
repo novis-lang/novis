@@ -1,0 +1,11 @@
+<?nvs
+// Shows how to cut a wide banner out of the middle of a photo.
+use Novis\Image\Image;
+use Novis\Image\Color;
+
+// A blank 1200 by 800 image replaces a photo that a user uploaded.
+Image $photo = Image::create(1200, 800, Color::hex("#336699"));
+
+// The box starts 200 pixels from the top and is 400 pixels high. This prints 1200x400.
+var $banner = $photo->crop({x: 0, y: 200, width: 1200, height: 400})->raw();
+echo $banner->width, "x", $banner->height, "\n";

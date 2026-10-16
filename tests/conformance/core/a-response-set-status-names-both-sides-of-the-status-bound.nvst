@@ -1,0 +1,45 @@
+--TEST--
+`Core\Response::setStatus` names the last status it accepts and the first it refuses, and refuses a code that a narrowing cast would have folded back into range -- spec § 15
+--FILE--
+<?nvs
+// A bound asserted on both sides: a member that stopped one code early would
+// print plausibly against either half alone. 100 is RFC 9110 § 15's first
+// class and 599 its last, so these four codes are the whole of what a status
+// may be.
+array<uint> $spellable = [100, 101, 204, 599];
+uint $set = 0;
+foreach ($spellable as uint $code) {
+    try {
+        Core\Response::setStatus($code);
+        $set = $set + 1;
+    } catch (LogicError $refused) {
+    }
+}
+echo "set ", $set, " of 4\n";
+
+// Refused: below the first class, above the last, four digits, and one with a
+// trap in it. 65636 is 100 once narrowed to sixteen bits, so a member that
+// narrowed with a cast rather than a checked conversion would accept it and
+// answer `Continue` to a program that asked for nothing of the kind.
+array<uint> $unspellable = [0, 99, 600, 999, 65636];
+uint $refusedCount = 0;
+foreach ($unspellable as uint $code) {
+    try {
+        Core\Response::setStatus($code);
+    } catch (LogicError $why) {
+        $refusedCount = $refusedCount + 1;
+    }
+}
+echo "refused ", $refusedCount, " of 5\n";
+
+// The sentence it refuses with names the code it was given rather than only
+// that something was wrong, and the trap value is the one worth reading back.
+try {
+    Core\Response::setStatus(65636);
+} catch (LogicError $tooWide) {
+    echo $tooWide->message, "\n";
+}
+--EXPECT--
+set 4 of 4
+refused 5 of 5
+Core\Response::setStatus(): `65636` is not an HTTP status — a status is three digits naming one of five classes, so it is between 100 and 599

@@ -1,0 +1,40 @@
+<?nvs
+// Attack: `Core\Str::trimEnd` gets a very long list of emoji, and strings of emoji joined
+// into one character. Each trim should return a string, and must not crash or hang.
+// hostile: timeout-ms 20000
+
+class Attack
+{
+    /// 1. Uses a 4 MiB list whose only match is its last emoji, on 1 million of that emoji.
+    public static function longListWithTheMatchAtTheEnd(uint $count): uint
+    {
+        var $characters = Core\Str::repeat("\u{1f600}", $count) . "\u{1f4bb}";
+        var $subject = 'start' . Core\Str::repeat("\u{1f4bb}", $count);
+        return Core\Str::length(Core\Str::trimEnd($subject, { characters: $characters }));
+    }
+
+    /// 2. Removes only the joining character from emoji that end with a laptop.
+    public static function joinerThatIsNotAtTheEnd(uint $count): uint
+    {
+        var $subject = Core\Str::repeat("\u{1f469}\u{200d}\u{1f4bb}", $count);
+        return Core\Str::length(Core\Str::trimEnd($subject, { characters: "\u{200d}" }));
+    }
+
+    /// 3. Removes the laptop from the end, so a joining character is left at the end.
+    public static function laptopRemovedFromTheEnd(uint $rounds): uint
+    {
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            $total = $total + Core\Str::length(
+                Core\Str::trimEnd("a\u{1f469}\u{200d}\u{1f4bb}", { characters: "\u{1f4bb}" }),
+            );
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Attack::longListWithTheMatchAtTheEnd(1000000), "\n";
+echo Attack::joinerThatIsNotAtTheEnd(1000000), "\n";
+echo Attack::laptopRemovedFromTheEnd(100000), "\n";

@@ -1,0 +1,13 @@
+{
+  "summary": "reads the attributes attached to a class, a method, a property or a parameter — each one an anonymous object, read by the shape it satisfies, at compile time",
+  "keywords": [
+    "ReflectionAttribute",
+    "getAttributes",
+    "newInstance",
+    "attribute",
+    "metadata",
+    "annotation",
+    "#[...]",
+    "anonymous object"
+  ]
+}

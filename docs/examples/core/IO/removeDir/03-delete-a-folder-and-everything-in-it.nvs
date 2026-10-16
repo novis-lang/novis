@@ -1,0 +1,30 @@
+<?nvs
+// Shows how a program deletes a folder with all its files and folders, one entry at a time.
+
+class Folder {
+    // Deletes every file in the folder, and every folder in it the same way.
+    // Then the folder is empty, and `removeDir` deletes it.
+    public static function deleteAll(string $folder): void {
+        foreach (Core\IO::list($folder) as string $name) {
+            string $path = Core\Path::join($folder, $name);
+            if (Core\IO::isDir($path)) {
+                Folder::deleteAll($path);
+            } else {
+                Core\IO::remove($path);
+            }
+        }
+        Core\IO::removeDir($folder);
+    }
+}
+
+string $build = Core\Path::join(Core\IO::temporaryDir(), "build");
+Core\IO::makeDir(Core\Path::join($build, "css"));
+Core\IO::makeDir(Core\Path::join($build, "js", "vendor"));
+Core\IO::write(Core\Path::join($build, "index.html"), "<p>Hello</p>");
+Core\IO::write(Core\Path::join($build, "css", "site.css"), "p { color: red; }");
+Core\IO::write(Core\Path::join($build, "js", "vendor", "lib.js"), "// library");
+
+Folder::deleteAll($build);
+
+// The whole build folder is deleted, so this prints "build folder: false".
+echo "build folder: ", Core\IO::exists($build) ? "true" : "false", "\n";

@@ -1,0 +1,35 @@
+<?nvs
+// Shows how to add context to an error you caught. `{previous: $cause}` keeps
+// the first error, so a report can name both what failed and why.
+
+class ProfileError extends RuntimeError
+{
+    public string $user;
+
+    public function constructor(string $message, string $user, Throwable $cause)
+    {
+        parent::constructor($message, {previous: $cause});
+        $this->user = $user;
+    }
+}
+
+class Profile
+{
+    public static function load(string $user): string
+    {
+        try {
+            throw new IOError("no file for " . $user);
+        } catch (IOError $io) {
+            throw new ProfileError("could not load the profile", $user, $io);
+        }
+    }
+}
+
+try {
+    echo Profile::load("ada"), "\n";
+} catch (ProfileError $p) {
+    // This prints: could not load the profile (ada)
+    echo $p->message, " (", $p->user, ")\n";
+    // This prints: caused by: no file for ada
+    echo "caused by: ", $p->previous?->message ?? "nothing", "\n";
+}

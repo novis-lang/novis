@@ -1,0 +1,22 @@
+<?nvs
+// Shows a message that tells a user how many exports they have left today.
+
+class Export {
+    public static function message(string $user): string {
+        // Each user may export 3 files per day.
+        var $decision = Core\RateLimit::shed("export:" . $user, 3, 24h);
+        if (!$decision->allowed()) {
+            return "You have no exports left today.";
+        }
+        if ($decision->remaining() == 0) {
+            return "Your file is ready. This was your last export today.";
+        }
+        return "Your file is ready. Exports left today: " . $decision->remaining();
+    }
+}
+
+uint $i = 0;
+while ($i < 4) {
+    echo Export::message("maria"), "\n";
+    $i = $i + 1;
+}

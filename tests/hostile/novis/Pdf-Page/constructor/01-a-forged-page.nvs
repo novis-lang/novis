@@ -1,0 +1,40 @@
+<?nvs
+// Attack: a request makes pages by hand with extreme numbers and very large lists.
+// Each attempt should make a page or throw an error, and the server keeps running.
+use Novis\Pdf\Page;
+
+// 1. Page 0 of 0 pages.
+try {
+    var $empty = new Page(0, 0, null, [], []);
+    echo 'step 1 ran ', $empty->isFirst() ? 'first' : 'not first', ' ', $empty->isLast() ? 'last' : 'not last', "\n";
+} catch (Throwable $e) {
+    echo "step 1 stopped\n";
+}
+
+// 2. The largest page number, on a page count of 1.
+try {
+    var $past = new Page(18446744073709551615, 1, '', [], []);
+    echo 'step 2 ran ', Core\Arr::count($past->marksUpTo('amount')), "\n";
+} catch (Throwable $e) {
+    echo "step 2 stopped\n";
+}
+
+// 3. A name of more than one million characters, with markup and NUL characters.
+try {
+    var $named = new Page(1, 1, Core\Str::repeat("<script>\u{0}", 125000), [], []);
+    echo 'step 3 ran ', Core\Str::length($named->name ?? ''), "\n";
+} catch (Throwable $e) {
+    echo "step 3 stopped\n";
+}
+
+// 4. Marks for one hundred thousand pages, each with one mark.
+try {
+    array<array<{name: string, value: string}>> $marks = [];
+    for (int $n = 0; $n < 100000; $n++) {
+        $marks[] = [{ name: 'amount', value: '1.00' }];
+    }
+    var $long = new Page(100000, 100000, null, [], $marks);
+    echo 'step 4 ran ', Core\Arr::count($long->marksUpTo('amount')), "\n";
+} catch (Throwable $e) {
+    echo "step 4 stopped\n";
+}

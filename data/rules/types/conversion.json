@@ -1,0 +1,23 @@
+{
+  "title": "`expr as T` is the only conversion, and it produces a `T` or throws",
+  "status": "shipped",
+  "seeAlso": [
+    "types/no-legacy-cast",
+    "types/implicit-widening",
+    "types/arithmetic",
+    "types/unions-and-mixed"
+  ],
+  "guardedBy": [
+    "tests/conformance/lang/conversions-that-succeed.nvst",
+    "tests/conformance/lang/the-conversion-table-is-closed.nvst",
+    "tests/conformance/lang/the-nullable-conversion-table-is-closed-at-both-ends.nvst",
+    "tests/conformance/lang/a-lossy-conversion-throws.nvst",
+    "tests/conformance/lang/every-remaining-conversion-row-runs-or-throws.nvst",
+    "tests/conformance/lang/a-string-that-is-not-a-number-refuses-to-convert.nvst",
+    "tests/conformance/lang/an-as-conversion-to-a-shape-tests-its-fields-and-throws-where-is-answers-false.nvst",
+    "tests/conformance/lang/an-array-literal-at-a-float-element-type-stores-floats-and-as-converts-an-int-array.nvst",
+    "tests/conformance/reject/a-nullable-or-union-operand-with-no-array-member-does-not-convert-to-an-array.nvst",
+    "tests/conformance/reject/an-as-conversion-to-a-shape-no-value-of-the-operand-could-satisfy-does-not-compile.nvst",
+    "crates/nvs-types/tests/classes.rs"
+  ]
+}

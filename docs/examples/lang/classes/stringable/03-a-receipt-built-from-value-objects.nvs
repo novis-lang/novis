@@ -1,0 +1,37 @@
+<?nvs
+// Shows the everyday use: small classes that know their own text form, printed
+// together as a receipt. Each line holds a `Money`, and the receipt holds lines.
+
+final class Money implements Stringable {
+    public function constructor(private int $cents) {}
+
+    public function plus(Money $other): Money {
+        return new Money($this->cents + $other->cents);
+    }
+
+    public function toString(): string {
+        return ($this->cents / 100) . " EUR";
+    }
+}
+
+final class Line implements Stringable {
+    public function constructor(public string $item, public Money $price) {}
+
+    // The price inside the string becomes text the same way this line does.
+    public function toString(): string {
+        return $this->item . ": {$this->price}";
+    }
+}
+
+array<Line> $lines = [
+    new Line("coffee", new Money(350)),
+    new Line("bread", new Money(220)),
+];
+
+var $total = new Money(0);
+foreach ($lines as Line $line) {
+    echo $line, "\n";
+    $total = $total->plus($line->price);
+}
+
+echo "total: {$total}\n";

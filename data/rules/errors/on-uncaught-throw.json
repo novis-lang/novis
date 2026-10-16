@@ -1,0 +1,13 @@
+{
+  "title": "Tier 2 — an uncaught throw reaches the request root as itself",
+  "status": "shipped",
+  "seeAlso": [
+    "errors/escalation-ladder",
+    "errors/handler-script"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/fatal-on-uncaught-throw-fires-once-and-a-handler-that-throws-is-abandoned.nvst",
+    "tests/conformance/core/fatal-on-uncaught-throw-hands-the-handler-the-object-the-program-threw.nvst",
+    "tests/conformance/error/an-uncaught-throw-prints-a-backtrace.nvst"
+  ]
+}

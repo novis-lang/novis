@@ -1,0 +1,22 @@
+--TEST--
+`Stringable` is the only route from an object to a string, and an interpolation of one that lacks it is refused — `rule:classes/stringable`
+--FILE--
+<?nvs
+// covers: lang:classes/stringable
+class Point {
+    public int $x;
+
+    public function constructor(int $x) {
+        $this->x = $x;
+    }
+}
+var $p = new Point(1);
+echo "point $p\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0412]: `Point` cannot be converted to `string` here; it does not implement `Stringable`
+   --> case.nvs:11:13
+%A
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

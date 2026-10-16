@@ -1,0 +1,4 @@
+refused: that key is already taken
+the statement it refused: insert into notes (id, title) values (?, ?)
+refused: that column may not be left empty
+the statement it refused: insert into notes (id, title) values (?, ?)

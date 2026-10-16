@@ -1,0 +1,22 @@
+<?nvs
+// Sorts a list of n prices, as a shop does before it shows the cheapest products first.
+// scaling: start 1000
+// scaling: max 64000
+// scaling: expect nlogn
+
+class Bench {
+    public static function run(uint $size): uint {
+        array<uint> $prices = [];
+        uint $seed = 7;
+        uint $i = 0;
+        while ($i < $size) {
+            $seed = ($seed * 1103515245 + 12345) % 2147483648;
+            $prices[] = $seed % 100000;
+            $i = $i + 1;
+        }
+        array<uint> $ordered = Core\Arr::sort($prices);
+        return $ordered[0];
+    }
+}
+
+echo Bench::run(1000), "\n";

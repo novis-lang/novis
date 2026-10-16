@@ -1,0 +1,11 @@
+{
+  "title": "A waker decides nothing; it is permission to make one more poll happen",
+  "status": "shipped",
+  "seeAlso": [
+    "concurrency/one-future-per-connection",
+    "concurrency/one-permission-per-drive"
+  ],
+  "guardedBy": [
+    "crates/nvs-host/src/block_on.rs"
+  ]
+}

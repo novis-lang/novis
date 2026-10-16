@@ -1,0 +1,18 @@
+<?nvs
+// Lists every header of a request, as a page that logs what a client sent does.
+// scaling: kind serve
+// scaling: size headers
+// scaling: start 12
+// scaling: max 96
+// scaling: expect linear
+
+uint $seen = 0;
+uint $round = 0;
+// This reads the list 200 times, so reading the headers takes longer than the rest of the request.
+while ($round < 200) {
+    foreach (Core\Request::headers() as tainted string $name => array<tainted string> $values) {
+        $seen = $seen + 1;
+    }
+    $round = $round + 1;
+}
+echo $seen > 0 ? "ok" : "none", "\n";

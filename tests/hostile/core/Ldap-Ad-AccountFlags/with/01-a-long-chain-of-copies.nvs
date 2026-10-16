@@ -1,0 +1,36 @@
+<?nvs
+// Attack: a program builds a chain of a million copies with `with`, and keeps a list of many of
+// them. The program must finish or stop at its memory limit, and nothing may crash.
+// hostile: timeout-ms 60000
+// requires: samba-ad
+
+var $corp = Core\Ldap::connect('corp');
+
+try {
+    var $found = $corp->read('CN=Anna Berg,OU=Company,DC=example,DC=test', { select: ['userAccountControl'] })?->accountFlags();
+    if ($found != null) {
+        Core\Ldap\Ad\AccountFlags $flags = $found;
+        // 1. Each copy is made from the copy before it, one million times.
+        Core\Ldap\Ad\AccountFlags $changed = $flags;
+        uint $i = 0;
+        while ($i < 1000000) {
+            $changed = $changed->with({ disabled: $i % 2 == 0, passwordNeverExpires: $i % 2 == 1 });
+            $i = $i + 1;
+        }
+        echo '1 bits: ', $changed->bits(), "\n";
+
+        // 2. Two hundred thousand copies kept in a list at the same time.
+        array<Core\Ldap\Ad\AccountFlags> $kept = [];
+        uint $round = 0;
+        while ($round < 200000) {
+            $kept[] = $flags->with({ script: $round % 5 == 0 });
+            $round = $round + 1;
+        }
+        echo '2 kept: ', Core\Arr::count($kept), ' original: ', $flags->bits(), "\n";
+
+        // 3. An empty set of options. The copy has the same flags.
+        echo '3 same: ', $flags->with({})->bits() == $flags->bits() ? 'yes' : 'no', "\n";
+    }
+} catch (Throwable $error) {
+    echo "threw\n";
+}

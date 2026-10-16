@@ -1,0 +1,7 @@
+<?nvs
+// This program uses three `Core` classes. Each method takes its subject first.
+array<string> $colors = Core\Str::split("red,green,blue", ",");
+array<string> $sorted = Core\Arr::sort($colors);
+
+// `Core\Response::json` sends the value as JSON.
+Core\Response::json({ count: Core\Arr::count($colors), sorted: $sorted });

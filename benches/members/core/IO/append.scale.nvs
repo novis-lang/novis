@@ -1,0 +1,21 @@
+<?nvs
+// Measures `Core\IO::append` on one line, at growing line lengths.
+// bench: start 1024
+// bench: max 16384
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        string $log = Core\Path::join(Core\IO::temporaryDir(), 'bench.log');
+        string $line = Core\Str::repeat('a', $size);
+        uint $i = 0;
+        while ($i < 64) {
+            Core\IO::append($log, $line);
+            $i = $i + 1;
+        }
+        return Core\IO::size($log);
+    }
+}
+
+echo Bench::run(1024), "\n";

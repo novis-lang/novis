@@ -1,0 +1,22 @@
+<?nvs
+// Shows that a child class lists the properties of its parent class first.
+
+class Entry {
+    public string $title = "";
+    protected int $views = 0;
+}
+
+class Post extends Entry {
+    public string $body = "";
+}
+
+var $found = Core\Reflect::forClass("Post");
+if ($found != null) {
+    Core\Reflect\ClassInfo $post = $found;
+    // `Core\Arr::count` gives the number of properties. This prints `3`.
+    echo Core\Arr::count($post->properties()), "\n";
+    // This prints `title`, `views` and then `body`.
+    foreach ($post->properties() as Core\Reflect\PropertyInfo $property) {
+        echo $property->name(), "\n";
+    }
+}

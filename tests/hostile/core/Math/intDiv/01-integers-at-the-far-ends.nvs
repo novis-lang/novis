@@ -1,0 +1,43 @@
+<?nvs
+// Attack: `Core\Math::intDiv` divides the biggest and smallest integers by each other, by 1
+// and by -1, and divides by zero. It is also called a million times. Only the calls whose
+// result does not exist or does not fit an `int` should throw an error.
+
+// 1. The biggest and smallest integers divided by 1, -1 and 2.
+echo Core\Math::intDiv(Core\Math::INT_MAX, 1), "\n";
+echo Core\Math::intDiv(Core\Math::INT_MAX, -1), "\n";
+echo Core\Math::intDiv(Core\Math::INT_MIN, 1), "\n";
+echo Core\Math::intDiv(Core\Math::INT_MIN, 2), "\n";
+echo Core\Math::intDiv(Core\Math::INT_MIN, -2), "\n";
+
+// 2. The biggest and smallest integers divided by each other.
+echo Core\Math::intDiv(Core\Math::INT_MAX, Core\Math::INT_MIN), "\n";
+echo Core\Math::intDiv(Core\Math::INT_MIN, Core\Math::INT_MAX), "\n";
+echo Core\Math::intDiv(Core\Math::INT_MIN, Core\Math::INT_MIN), "\n";
+
+// 3. Divisions whose result does not exist or does not fit an `int`. Each one throws an error.
+class Attempt
+{
+    public static function intDiv(int $a, int $b): void
+    {
+        try {
+            echo Core\Math::intDiv($a, $b), "\n";
+        } catch (ArithmeticError $failed) {
+            echo "ArithmeticError\n";
+        }
+    }
+}
+Attempt::intDiv(Core\Math::INT_MIN, -1);
+Attempt::intDiv(1, 0);
+Attempt::intDiv(0, 0);
+Attempt::intDiv(Core\Math::INT_MIN, 0);
+Attempt::intDiv(Core\Math::INT_MAX, 0);
+
+// 4. A million calls. Each result feeds the next one, and none is kept.
+int $value = 1;
+int $round = 0;
+while ($round < 1000000) {
+    $value = Core\Math::intDiv($value * 7 + $round, 3) % 1000 - 500;
+    $round = $round + 1;
+}
+echo $value, "\n";

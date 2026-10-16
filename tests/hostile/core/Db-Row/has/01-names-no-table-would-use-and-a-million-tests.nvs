@@ -1,0 +1,88 @@
+<?nvs
+// Attack: a column test is given names no table would use. An empty one, one
+// of ten million characters, and names holding line breaks and quotes. Then
+// ten thousand names asked once each, a million tests of one row, and fifty
+// thousand rows kept at once. This method never throws, so every step answers.
+// hostile: timeout-ms 60000
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table stock (row_id integer primary key, on_hand int not null)', []);
+$db->execute('insert into stock (on_hand) values (?)', [40]);
+
+array<Core\Db\Row> $one = $db->query('select row_id, on_hand from stock', [])->all();
+var $row = $one[0];
+
+// 1. Names that belong to no column, including the real name with a space
+// after it. Every answer is `false`.
+uint $found = 0;
+array<string> $strange = ['', ' ', 'on_hand ', ' on_hand', 'ON_HAND', '*', '1=1', 'on_hand;drop'];
+foreach ($strange as string $name) {
+    if ($row->has($name)) {
+        $found = $found + 1;
+    }
+}
+echo '1 found: ', $found, "\n";
+
+// 2. Names holding a line break, a tab and quotes. These are characters a
+// request can carry, and none of them is a column of this row.
+$found = 0;
+array<string> $broken = ["on\nhand", "on\thand", "on'hand", "on\"hand", "on\\hand"];
+foreach ($broken as string $name) {
+    if ($row->has($name)) {
+        $found = $found + 1;
+    }
+}
+echo '2 found: ', $found, "\n";
+
+// 3. A name of ten million characters. No row has such a column, and building
+// the name may not be what stops the program.
+if ($row->has(Core\Str::repeat('a', 10000000))) {
+    echo "3 the long name found a column\n";
+} else {
+    echo "3 not found\n";
+}
+
+// 4. Ten thousand names, each asked about once. Nothing may be kept for a name
+// that was asked about and is never used again.
+$found = 0;
+uint $i = 0;
+while ($i < 10000) {
+    if ($row->has('column_' . $i)) {
+        $found = $found + 1;
+    }
+    $i = $i + 1;
+}
+echo '4 found: ', $found, "\n";
+
+// 5. A million tests of the same two names, one of which is a column of this
+// row. Nothing may pile up over them.
+uint $yes = 0;
+$i = 0;
+while ($i < 1000000) {
+    if ($row->has('on_hand')) {
+        $yes = $yes + 1;
+    }
+    if ($row->has('price')) {
+        $yes = $yes + 1;
+    }
+    $i = $i + 1;
+}
+echo '5 yes: ', $yes, "\n";
+
+// 6. Fifty thousand rows kept at once, and every one of them asked. A row a
+// program still holds may not be freed under it.
+array<array<Core\Db\Row>> $kept = [];
+$i = 0;
+while ($i < 50000) {
+    $kept[] = $db->query('select on_hand from stock where row_id = ?', [1])->all();
+    $i = $i + 1;
+}
+uint $total = 0;
+foreach ($kept as array<Core\Db\Row> $rows) {
+    foreach ($rows as Core\Db\Row $held) {
+        if ($held->has('on_hand')) {
+            $total = $total + 1;
+        }
+    }
+}
+echo '6 total: ', $total, "\n";

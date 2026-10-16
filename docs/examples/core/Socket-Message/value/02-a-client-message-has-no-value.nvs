@@ -1,0 +1,20 @@
+<?nvs
+// Shows that `value()` returns `null` for a message from the client.
+
+// The `.nvsp` file beside this example plays a client that sends one text message.
+Core\Socket $conn = Core\Socket::current();
+Core\Topic::subscribe("alerts");
+Core\Topic::publish("alerts", "disk almost full");
+
+// The published value arrives first, then the client's message.
+// This prints `from the topic: disk almost full`, then `from the client: hello`.
+?Core\Socket\Message $message = $conn->receive();
+while ($message != null) {
+    mixed $value = $message->value();
+    if ($value == null) {
+        echo "from the client: ", $message->text() ?? "", "\n";
+    } else {
+        echo "from the topic: ", $value as string, "\n";
+    }
+    $message = $conn->receive();
+}

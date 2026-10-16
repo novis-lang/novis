@@ -1,0 +1,86 @@
+<?nvs
+// Attack: a request sends a message with a signature it made up. It changes one
+// byte, cuts the signature short, sends a signature of another key, and sends
+// one that is a megabyte long. Every one of them should throw an error the
+// program can catch, and the program should reach its last line.
+
+Core\Crypto\KeyPair $pair = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::Ed25519);
+Core\Crypto\PublicKey $key = $pair->publicKey();
+bytes $message = 'transfer 100 to account 7' as bytes;
+bytes $signature = Core\Crypto::sign($message, $pair);
+
+// 1. One byte of the signature changed, at every position in it. A real
+// signature is 64 bytes, so this is 64 attempts.
+int $passed = 0;
+foreach (Core\Arr::range(0, 63) as int $at) {
+    uint $byte = Core\Bytes::at($signature, $at);
+    bytes $changed = Core\Bytes::join(
+        [
+            Core\Bytes::slice($signature, 0, $at),
+            Core\Bytes::fill(1, ($byte + 1) % 256),
+            Core\Bytes::slice($signature, $at + 1, 63 - $at),
+        ],
+        '' as bytes,
+    );
+    try {
+        Core\Crypto::verify($message, $changed, $key);
+        $passed += 1;
+    } catch (Throwable $e) {
+    }
+}
+echo '1 ', $passed, ' changed signatures passed', "\n";
+
+// 2. The signature cut short, at every length under 64.
+int $short = 0;
+foreach (Core\Arr::range(0, 63) as int $length) {
+    try {
+        Core\Crypto::verify($message, Core\Bytes::slice($signature, 0, $length), $key);
+        $short += 1;
+    } catch (Throwable $e) {
+    }
+}
+echo '2 ', $short, ' short signatures passed', "\n";
+
+// 3. A signature a megabyte long, to see whether a length is checked before the
+// bytes are read.
+try {
+    Core\Crypto::verify($message, Core\Bytes::fill(1000000, 7), $key);
+    echo '3 a megabyte of filler passed', "\n";
+} catch (Throwable $e) {
+    echo '3 refused', "\n";
+}
+
+// 4. A real signature over this message, made by a key of another kind. The
+// bytes are a signature, so only the key is wrong.
+try {
+    Core\Crypto\KeyPair $stranger = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::P256);
+    Core\Crypto::verify($message, Core\Crypto::sign($message, $stranger), $key);
+    echo '4 another key passed', "\n";
+} catch (Throwable $e) {
+    echo '4 refused', "\n";
+}
+
+// 5. A key that agrees and verifies nothing.
+try {
+    Core\Crypto::verify(
+        $message,
+        $signature,
+        Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::X25519)->publicKey(),
+    );
+    echo '5 an X25519 key verified a signature', "\n";
+} catch (Throwable $e) {
+    echo '5 refused', "\n";
+}
+
+// 6. Fifty thousand checks of a forged signature, which is what a request does
+// when it wants the server to spend its time on curve arithmetic.
+int $tried = 0;
+bytes $madeUp = Core\Bytes::fill(64, 200);
+foreach (Core\Arr::range(1, 50000) as int $round) {
+    try {
+        Core\Crypto::verify($message, $madeUp, $key);
+    } catch (Throwable $e) {
+        $tried += 1;
+    }
+}
+echo '6 refused ', $tried, ' checks', "\n";

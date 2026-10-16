@@ -1,0 +1,16 @@
+{
+  "summary": "a priority queue that answers its smallest element first — `SplPriorityQueue`, `SplMinHeap` and `SplMaxHeap` in one class",
+  "keywords": [
+    "SplPriorityQueue",
+    "SplMinHeap",
+    "SplMaxHeap",
+    "SplHeap",
+    "priority queue",
+    "min-heap",
+    "max-heap",
+    "comparator",
+    "Comparable",
+    "compareTo",
+    "scheduling"
+  ]
+}

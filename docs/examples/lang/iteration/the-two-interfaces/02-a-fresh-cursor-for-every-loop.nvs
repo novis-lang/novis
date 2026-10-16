@@ -1,0 +1,37 @@
+<?nvs
+// Shows the `Iterable<T>` interface. Its one method `iterate()` returns a cursor, and
+// `foreach` calls it once per loop. Every loop therefore starts at the beginning.
+
+class Countdown implements Iterable<int> {
+    public function constructor(private int $from) {}
+
+    // A method with `yield` returns an `Iterator<int>`, which is what this must give.
+    public function iterate(): Iterator<int> {
+        int $i = $this->from;
+        while ($i > 0) {
+            yield $i;
+            $i = $i - 1;
+        }
+    }
+}
+
+var $three = new Countdown(3);
+
+// The same object is walked twice, and the second loop starts at 3 again.
+foreach ($three as int $n) {
+    echo $n;
+}
+echo "\n";
+foreach ($three as int $n) {
+    echo $n;
+}
+echo "\n";
+
+// One loop inside another over the same object. Each loop has its own cursor, so this
+// prints all nine pairs.
+foreach ($three as int $outer) {
+    foreach ($three as int $inner) {
+        echo $outer, $inner, " ";
+    }
+}
+echo "\n";

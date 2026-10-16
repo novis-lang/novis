@@ -1,0 +1,21 @@
+<?nvs
+// Shows how to find the broken lines in a log where each line is one JSON object.
+
+// The third line was cut off when the program that wrote it stopped.
+string $log = "{\"level\":\"info\",\"msg\":\"started\"}\n"
+    . "{\"level\":\"warn\",\"msg\":\"disk almost full\"}\n"
+    . "{\"level\":\"error\",\"ms\n"
+    . "{\"level\":\"info\",\"msg\":\"stopped\"}";
+
+// `Core\Str::split` gives one string for each line.
+// This prints the number of each broken line, then the count: line 3, and 1 of 4.
+uint $number = 0;
+uint $broken = 0;
+foreach (Core\Str::split($log, "\n") as string $line) {
+    $number = $number + 1;
+    if (!Core\Json::isValid($line)) {
+        echo "line ", $number, " is not valid JSON\n";
+        $broken = $broken + 1;
+    }
+}
+echo $broken, " of ", $number, " lines are broken\n";

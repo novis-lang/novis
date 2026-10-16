@@ -1,0 +1,13 @@
+{
+  "title": "`|>` substitutes one hole at parse time, and has no run-time representation",
+  "status": "shipped",
+  "seeAlso": [
+    "expressions/pipeline-hole-once",
+    "expressions/pipeline-precedence",
+    "expressions/method-reference"
+  ],
+  "guardedBy": [
+    "tests/conformance/lang/a-pipeline-and-its-nesting-answer-the-same.nvst",
+    "crates/nvs-syntax/src/parser/tests/expr.rs"
+  ]
+}

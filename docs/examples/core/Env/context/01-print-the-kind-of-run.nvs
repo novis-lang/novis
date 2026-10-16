@@ -1,0 +1,7 @@
+<?nvs
+// Shows how to check the kind of run the program is in.
+
+bool $onCommandLine = Core\Env::context() == Core\Env::Context::Command;
+
+// You run this file from the command line, so this prints `command line: yes`.
+echo "command line: ", $onCommandLine ? "yes" : "no", "\n";

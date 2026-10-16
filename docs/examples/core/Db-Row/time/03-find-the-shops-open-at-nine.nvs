@@ -1,0 +1,28 @@
+<?nvs
+// Shows how to find the rows whose hour has come. The reading compared with is
+// written out here, so this program prints the same lines every time.
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table shops (name text not null, opens time not null, closes time not null)', []);
+$db->execute(
+    'insert into shops (name, opens, closes) values (?, ?, ?), (?, ?, ?), (?, ?, ?)',
+    ['the bakery', '06:30:00', '13:00:00', 'the tea shop', '09:00:00', '18:00:00', 'the bookshop', '10:00:00', '19:00:00']
+);
+
+var $nine = Core\Time\TimeOfDay::at(9, 0);
+
+// `compareTo` returns a number above zero when the reading is after the other
+// reading. This prints `the bakery` and `the tea shop`, and not the bookshop.
+foreach ($db->query('select name, opens, closes from shops order by opens', []) as Core\Db\Row $row) {
+    ?Core\Time\TimeOfDay $opens = $row->time('opens');
+    ?Core\Time\TimeOfDay $closes = $row->time('closes');
+    if ($opens != null) {
+        if ($closes != null) {
+            if ($opens->compareTo($nine) <= 0 && $closes->compareTo($nine) > 0) {
+                echo $row->string('name') ?? '', "\n";
+            }
+        }
+    }
+}
+
+$db->close();

@@ -1,0 +1,36 @@
+<?nvs
+// Attack: many times at the first and the last nanosecond of the day are sorted with `compareTo`.
+// The sort should finish in order, and nothing should crash or leak.
+
+Core\Time\TimeOfDay $first = Core\Time\TimeOfDay::at(0, 0);
+Core\Time\TimeOfDay $last = Core\Time\TimeOfDay::at(23, 59, { second: 59, nanos: 999999999 });
+
+// 1. The two ends of the day and their neighbours are compared, in both orders.
+echo $first->compareTo($last), ' ', $last->compareTo($first), ' ', $last->compareTo($last), "\n";
+echo $last->compareTo($last->minus(1, Core\Unit::Nanosecond)), "\n";
+
+// 2. A list of 20,000 times that jump between the two ends is sorted.
+array<Core\Time\TimeOfDay> $times = [];
+int $i = 0;
+while ($i < 20000) {
+    if ($i % 2 == 0) {
+        $times[] = $last->minus($i, Core\Unit::Nanosecond);
+    } else {
+        $times[] = $first->plus($i, Core\Unit::Nanosecond);
+    }
+    $i = $i + 1;
+}
+array<Core\Time\TimeOfDay> $sorted = Core\Arr::sort($times, {
+    comparator: fn (Core\Time\TimeOfDay $p, Core\Time\TimeOfDay $q): int => $p->compareTo($q),
+});
+
+// 3. Every neighbour in the sorted list is checked. This counts the pairs out of order.
+int $wrong = 0;
+Core\Time\TimeOfDay $previous = $first;
+foreach ($sorted as Core\Time\TimeOfDay $t) {
+    if ($previous->compareTo($t) > 0) {
+        $wrong = $wrong + 1;
+    }
+    $previous = $t;
+}
+echo $wrong, "\n";

@@ -1,0 +1,12 @@
+<?nvs
+// Shows how to sort a list of customer names for a report, without caring about upper and lower case.
+
+array<string> $customers = ["bob", "Alice", "carol", "Dave", "alice"];
+
+// `{caseInsensitive: true}` makes "Alice" and "alice" equal, and "bob" comes before "Dave".
+// This prints the names in alphabetical order, one per line.
+array<string> $sorted = Core\Arr::sort($customers,
+    {comparator: fn(string $a, string $b): int => Core\Str::compare($a, $b, {caseInsensitive: true})});
+foreach ($sorted as string $name) {
+    echo $name, "\n";
+}

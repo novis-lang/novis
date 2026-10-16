@@ -1,0 +1,90 @@
+--TEST--
+Core\Jwt::signObject signs a shape and a class carrying `#[Core\Json\Derive]` as the JSON object `Core\Json::encode` writes, with `iat` and `exp` appended after it in that order — `rule:security/protocol-roster`, `rule:security/jwt-expiry-is-mandatory`
+--FILE--
+<?nvs
+// Agreement, over the two things `object` accepts. One question — "what did
+// the payload segment say?" — is asked of a shape and of a deriving class, and
+// the answer has to be the encoder's own document in the encoder's own field
+// order with the member's two claims after it. A member that re-serialized a
+// parsed copy would still print plausible claims here while writing them in
+// some collation of its own, so the assertion is the payload's *prefix* rather
+// than the claims read back out of it.
+#[Core\Json\Derive]
+final class Grant {
+    public string $sub;
+    public string $scope;
+
+    public function constructor(string $sub, string $scope) {
+        $this->sub = $sub;
+        $this->scope = $scope;
+    }
+}
+
+Core\Crypto\KeyPair $pair = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::Ed25519);
+
+array<string> $tokens = [
+    Core\Jwt::signObject(
+        Core\Arr::shapeAs<{sub: string, scope: string}>(["sub" => "ada", "scope" => "read"]),
+        15m,
+        $pair
+    ),
+    Core\Jwt::signObject(new Grant("ada", "read"), 15m, $pair),
+];
+
+// A shape's class is keyed on its field names alone and that label is sorted,
+// so `scope` comes before `sub`; a deriving class writes its codec's fields in
+// the order they were declared. Neither is this member's choice, which is the
+// point of writing the claims as the one encoder writes them.
+array<string> $prefixes = [
+    "{\"scope\":\"read\",\"sub\":\"ada\",\"iat\":",
+    "{\"sub\":\"ada\",\"scope\":\"read\",\"iat\":",
+];
+
+foreach ($tokens as string $at => string $token) {
+    array<string> $parts = Core\Str::split($token, ".");
+    string $payload = Core\Encoding::decodeText(
+        Core\Encoding::fromBase64Url($parts[1]),
+        Core\Charset::Utf8
+    );
+    var $claims = Core\Json::decodeAs<{sub: string, scope: string, iat: int, exp: int}>($payload);
+    if (Core\Str::startsWith($payload, $prefixes[$at])) {
+        echo $claims->sub, " may ", $claims->scope, " for ", $claims->exp - $claims->iat, "s";
+        echo ", in the encoder's own order", "\n";
+    } else {
+        echo "the payload is not the encoder's document: ", $payload, "\n";
+    }
+}
+
+// The boundary on the other side: an object that wrote no member of its own.
+// An optional field the shape never carried is absent from the document, so
+// there is nothing for the registered pair to follow — and a member splicing
+// them onto the text unconditionally writes `{,"iat":…` here.
+string $bare = Core\Jwt::signObject(
+    Core\Arr::shapeAs<{scope?: string}>(["other" => "ignored"]),
+    15m,
+    $pair
+);
+array<string> $empty = Core\Str::split($bare, ".");
+string $written = Core\Encoding::decodeText(
+    Core\Encoding::fromBase64Url($empty[1]),
+    Core\Charset::Utf8
+);
+var $registered = Core\Json::decodeAs<{iat: int, exp: int}>($written);
+if (Core\Str::startsWith($written, "{\"iat\":")) {
+    echo "an empty claims object signs the two registered claims alone, ";
+    echo $registered->exp - $registered->iat, "s apart", "\n";
+} else {
+    echo "an empty claims object wrote ", $written, "\n";
+}
+
+// And the header is the pair's, exactly as `sign`'s is: `alg` comes from the
+// key and there is no argument that could have said otherwise.
+echo Core\Encoding::decodeText(
+    Core\Encoding::fromBase64Url(Core\Str::split($tokens[0], ".")[0]),
+    Core\Charset::Utf8
+), "\n";
+--EXPECT--
+ada may read for 900s, in the encoder's own order
+ada may read for 900s, in the encoder's own order
+an empty claims object signs the two registered claims alone, 900s apart
+{"alg":"EdDSA","typ":"JWT"}

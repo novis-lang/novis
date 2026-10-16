@@ -1,0 +1,13 @@
+<?nvs
+// Shows how to count the files of a field that accepts more than one file.
+
+// An `<input type="file" name="photos[]" multiple>` sends every file with the name "photos[]".
+uint $photos = 0;
+foreach (Core\Request::files() as Core\Request\Part $part) {
+    if ($part->name() == 'photos[]') {
+        $photos = $photos + 1;
+    }
+}
+
+// This prints "3 photos".
+echo $photos, " photos\n";

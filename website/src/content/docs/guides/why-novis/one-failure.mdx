@@ -1,0 +1,27 @@
+---
+title: One failure stops one program
+covers: []
+description: Each request and each child program runs on its own, so an error in one does not stop the others.
+---
+
+import Snippet from '@components/Snippet.astro'
+
+`nvs serve` runs each request on its own. A request that crashes, runs out of memory or loops
+forever stops only that request. The server and every other request keep running.
+
+You can see the same thing in one program. This program starts a child program that fails:
+
+<Snippet src="guides/why-novis/one-failure.nvs" />
+
+This is the child program, `one-failure-child.nvs`:
+
+<Snippet src="guides/why-novis/one-failure-child.nvs" />
+
+The child calls itself until the call stack is too deep, and it stops with a `RecursionError`. The
+parent gets the error as part of the result, and it keeps running.
+
+A child also has its own copy of every static property. One request cannot change a value that
+another request reads.
+
+Read more in [Syntax: isolates](/syntax/concurrency/isolates/) and
+[Syntax: limits](/syntax/errors/limits/).

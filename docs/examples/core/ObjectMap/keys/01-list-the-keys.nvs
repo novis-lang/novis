@@ -1,0 +1,24 @@
+<?nvs
+// Shows how to get all the keys of a map as a list.
+
+final class City {
+    public string $name;
+
+    public function constructor(string $name) {
+        $this->name = $name;
+    }
+}
+
+Core\ObjectMap<City, int> $people = new Core\ObjectMap<City, int>();
+$people->set(new City("Lyon"), 522000);
+$people->set(new City("Graz"), 298000);
+$people->set(new City("Turku"), 201000);
+
+// `keys` returns the three cities in the order they were added.
+array<City> $cities = $people->keys();
+
+// This prints 3, then "Lyon", "Graz" and "Turku".
+echo Core\Arr::count($cities), "\n";
+foreach ($cities as City $city) {
+    echo $city->name, "\n";
+}

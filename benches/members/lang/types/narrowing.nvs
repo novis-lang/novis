@@ -1,0 +1,30 @@
+<?nvs
+// Checks whether a `?int` argument is `null`, then uses the value.
+// Most real functions start with a check like this.
+// Each round uses the last round's result. The loop allocates no memory.
+// bench: iterations 256
+// bench: allocations 0
+// bench: complexity constant
+
+class Bench {
+    public static function step(?int $carried, int $fallback): int {
+        if ($carried == null) {
+            return $fallback;
+        }
+
+        return $carried + 1;
+    }
+
+    public static function run(uint $rounds): int {
+        int $total = 1;
+        uint $i = 0;
+        while ($i < $rounds) {
+            ?int $maybe = ($total % 7 == 0) ? null : $total;   // chained: $total is last round's
+            $total = (Bench::step($maybe, 3) * 7) % 1021;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

@@ -1,0 +1,25 @@
+---
+source: crates/nvs-ir/src/lower/tests.rs
+expression: "print_function(&f, map.file(file))"
+---
+fn <script>() -> tagged {
+  bb0:
+    safepoint
+    ; stmt s0 @5:1-5:20
+    v0 = const.str "held"  ; string
+    ; stmt s1 @6:1-6:9
+    v1 = class.desc T  ; classdesc
+    v2 = call T::go(this: v1) ! bb1  ; void
+    ; stmt s2 @7:1-7:9
+    helper.echo_str v0 ! bb2
+    release v0
+    v3 = const.null  ; null
+    v4 = tag v3  ; tagged
+    return v4
+  bb1:
+    release v0
+    propagate "<script>() at t.nvs:6"
+  bb2:
+    release v0
+    propagate "<script>() at t.nvs:7"
+}

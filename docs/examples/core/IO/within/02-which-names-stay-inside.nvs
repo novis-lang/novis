@@ -1,0 +1,26 @@
+<?nvs
+// Shows which file names `Core\IO::within` allows, and which ones it refuses.
+
+string $folder = Core\IO::temporaryDir();
+Core\IO::makeDir(Core\Path::join($folder, "photos"));
+
+// A name may use `..` if the result is still inside the folder. A file that does not exist yet is allowed.
+// A name that ends outside the folder is refused. An absolute path to another place is refused too.
+array<string> $names = [
+    "photos/cat.jpg",
+    "photos/../notes.txt",
+    "new-file.txt",
+    "../other-folder/file.txt",
+    "photos/../../file.txt",
+    "/etc/passwd",
+];
+
+// This prints "allowed" for the first three names and "refused" for the last three.
+foreach ($names as string $name) {
+    try {
+        Core\IO::within($folder, $name);
+        echo "allowed: ", $name, "\n";
+    } catch (RuntimeError $error) {
+        echo "refused: ", $name, "\n";
+    }
+}

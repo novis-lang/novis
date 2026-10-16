@@ -1,0 +1,17 @@
+--TEST--
+a case of an enum a class declares is read through the class, and a cursor on the case jumps to the case inside the class body, `rule:enums/class-scoped-enum`
+--FILE--
+<?nvs
+class Order {
+    enum Status {
+        Draft,
+        Paid,
+    }
+}
+
+$s = Order::Status::Pa<|>id;
+echo $s;
+--REQUEST--
+definition
+--EXPECT--
+case.nvs:5:9

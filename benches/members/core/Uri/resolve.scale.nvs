@@ -1,0 +1,23 @@
+<?nvs
+// Measures `resolve` on a short link with a long path, at growing path lengths.
+// bench: start 256
+// bench: max 4096
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        Core\Uri $page = Core\Uri::parse("https://shop.example.com/catalog/shoes/index.html?page=2");
+        string $link = Core\Str::repeat('bags/', $size) . "red.html";
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            Core\Uri $target = $page->resolve($link);
+            $total = $total + Core\Str::length($target->toString());
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

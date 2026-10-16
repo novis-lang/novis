@@ -1,0 +1,23 @@
+<?nvs
+// This program makes each task an object with a title and a done flag.
+class Task {
+    public string $title;
+    public bool $done = false;
+
+    // `constructor` runs when you write `new Task(...)`.
+    public function constructor(string $title) {
+        $this->title = $title;
+    }
+
+    public function line(): string {
+        return ($this->done ? "[x] " : "[ ] ") . $this->title;
+    }
+}
+
+array<Task> $tasks = [new Task("Buy milk"), new Task("Call Ada")];
+// `->` reads or changes a property of an object.
+$tasks[0]->done = true;
+
+foreach ($tasks as Task $task) {
+    echo $task->line(), "\n";
+}

@@ -1,0 +1,23 @@
+--TEST--
+`Core\Cli\Text::text` reads back the text the constructor already neutralized, so a rewritten carrier cannot re-inject what was substituted — `rule:tooling/terminal-output-is-a-sink`
+--FILE--
+<?nvs
+// § 1's substitution happens in the constructor, so what `text` answers is the
+// visible glyph and not the control byte it replaced. Reading a carrier
+// therefore cannot hand a program back an escape sequence to re-emit.
+var $raw = "title" . Core\Str::fromCodePoint(27) . "]0;owned";
+var $carrier = Core\Cli\Text::plain($raw);
+echo $carrier->text(), "\n";
+
+// And the answer goes back through a constructor unchanged: the second pass has
+// nothing left to substitute, which is what makes reading safe on this sink
+// where an HTML one would escape the same bytes twice.
+var $again = Core\Cli\Text::plain($carrier->text());
+echo $again->text(), "\n";
+
+// The carrier still writes raw, so what a reader sees is what the read answered.
+echo $again, "\n";
+--EXPECT--
+title␛]0;owned
+title␛]0;owned
+title␛]0;owned

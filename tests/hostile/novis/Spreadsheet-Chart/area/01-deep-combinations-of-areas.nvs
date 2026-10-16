@@ -1,0 +1,42 @@
+<?nvs
+// Attack: a request combines area charts again and again to grow one chart without limit.
+// Building the chart should finish, and placing it should throw an error.
+use Novis\Spreadsheet\Chart;
+use Novis\Spreadsheet\Workbook;
+
+class Attack
+{
+    // This method adds `$chart` at E2 and prints whether the file was written, or the class of the error.
+    public static function attempt(int $step, Chart $chart): void
+    {
+        try {
+            var $book = Workbook::createInMemory();
+            var $sheet = $book->sheet('Orders');
+            $sheet->addAll([['quarter' => 'Q1', 'orders' => 310], ['quarter' => 'Q2', 'orders' => 290]]);
+            $sheet->chart('E2', $chart);
+            bytes $file = $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
+            echo 'step ', $step, ' wrote ', Core\Bytes::length($file) > 0 ? 'a file' : 'nothing', "\n";
+        } catch (Throwable $e) {
+            echo 'step ', $step, ' stopped ', $e::class, "\n";
+        }
+    }
+}
+
+// 1. An area chart combined with itself, then the result combined with itself, ten times.
+var $grown = Chart::area()->series('B2:B3');
+for (int $n = 0; $n < 10; $n++) {
+    $grown = $grown->combine($grown);
+}
+echo 'step 1 has ', Core\Arr::count($grown->combined), " combined types\n";
+Attack::attempt(1, $grown);
+
+// 2. A column chart combined with 1,000 area charts.
+var $wide = Chart::column()->series('B2:B3');
+for (int $m = 0; $m < 1000; $m++) {
+    $wide = $wide->combine(Chart::area()->series('B2:B3'));
+}
+Attack::attempt(2, $wide);
+
+// 3. An area combined with a line that has no series, and an area with no series.
+Attack::attempt(3, Chart::area()->series('B2:B3')->combine(Chart::line()));
+Attack::attempt(3, Chart::area()->combine(Chart::line()->series('B2:B3')));

@@ -1,0 +1,14 @@
+--TEST--
+a `<T>` written at a call site is refused on every member that infers its variables from its arguments — `rule:types/declaration`
+--FILE--
+<?nvs
+array<string> $a = ["one"];
+echo Core\Arr::count<string>($a), "\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0441]: `Core\Arr::count` takes no type arguments
+  --> case.nvs:3:22
+%A
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

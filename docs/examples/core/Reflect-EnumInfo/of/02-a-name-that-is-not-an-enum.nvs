@@ -1,0 +1,21 @@
+<?nvs
+// Shows that `of` returns `null` for a name that is not the name of an enum.
+
+enum Color: int {
+    Red = 1,
+    Green = 2,
+}
+
+class Invoice {
+    public int $number = 0;
+}
+
+// `Invoice` is a class, and `Colour` is spelled wrong. Only `Color` is an enum.
+array<string> $names = [Color::class, Invoice::class, "Colour"];
+foreach ($names as string $name) {
+    if (Core\Reflect\EnumInfo::of($name) == null) {
+        echo $name, ": not an enum\n";
+    } else {
+        echo $name, ": enum\n";
+    }
+}

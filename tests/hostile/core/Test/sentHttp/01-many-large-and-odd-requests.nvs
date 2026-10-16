@@ -1,0 +1,59 @@
+<?nvs
+// Attack: a program sends very many requests, one very large request, and reads the
+// list of sent requests many times. The program should not crash.
+
+use Core\Http\Client;
+use Core\Test;
+use Core\Test\SentRequest;
+
+Test::answerHttp('https://api.example.com/*', 200);
+
+// Step 1: the list is read before anything was sent. It is empty.
+echo Core\Arr::count(Test::sentHttp()), "\n";
+
+// Step 2: the program sends one hundred thousand small requests.
+uint $count = 0;
+while ($count < 100000) {
+    Client::get('https://api.example.com/items/' . $count);
+    $count = $count + 1;
+}
+echo Core\Arr::count(Test::sentHttp()), "\n";
+
+// Step 3: one request has a body of sixteen megabytes and two hundred headers.
+array<string> $headers = [];
+uint $index = 0;
+while ($index < 200) {
+    $headers['x-extra-' . $index] = Core\Str::repeat('h', 1000);
+    $index = $index + 1;
+}
+Client::post('https://api.example.com/upload', {
+    headers: $headers,
+    body: Core\Str::repeat('x', 16777216),
+    contentType: 'text/plain',
+});
+echo Core\Arr::count(Test::sentHttp()), "\n";
+
+// Step 4: the last request is read with header names that do not exist, are empty or are very long.
+SentRequest $last = Test::sentHttp()[100000];
+echo $last->header('x-extra-199') == null ? "missing\n" : "found\n";
+echo $last->header('') ?? "no empty name\n";
+echo $last->header(Core\Str::repeat('X', 100000)) ?? "no long name\n";
+echo Core\Bytes::length($last->body()), "\n";
+
+// Step 5: the whole list is read ten times. Each read builds a new list.
+uint $reads = 0;
+uint $total = 0;
+while ($reads < 10) {
+    $total = $total + Core\Arr::count(Test::sentHttp());
+    $reads = $reads + 1;
+}
+echo $total, "\n";
+
+// Step 6: a request to a URL the fake service does not answer.
+try {
+    Client::get('https://other.example.com/');
+    echo "sent to an unknown URL\n";
+} catch (Throwable $error) {
+    echo "refused an unknown URL\n";
+}
+echo Core\Arr::count(Test::sentHttp()), "\n";

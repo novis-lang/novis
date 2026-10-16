@@ -1,0 +1,11 @@
+<?nvs
+// Shows a login page that is only shown when the connection is encrypted.
+
+// A password sent over plain `http` can be read by anybody on the network.
+// This request came over `http`, so the program shows a message instead of the form.
+if (Core\Request::scheme() == "https") {
+    echo "<form method=\"post\">password: <input type=\"password\"></form>\n";
+} else {
+    // This prints the message below.
+    echo "Please open https://shop.example.com/login instead.\n";
+}

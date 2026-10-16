@@ -1,0 +1,13 @@
+<?nvs
+// Shows how to get the opposite of a duration: the same length, pointing the other way.
+
+Core\Time\Duration $shift = 1h30m;
+
+// `negated` returns a new duration. This prints -1h30m.
+echo $shift->negated()->toString(), "\n";
+
+// `$shift` itself does not change. This prints 1h30m.
+echo $shift->toString(), "\n";
+
+// Negating twice gives the first length again. This prints 5400.
+echo $shift->negated()->negated()->toSeconds(), "\n";

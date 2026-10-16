@@ -1,0 +1,22 @@
+--TEST--
+a class written as a method's return type is a written name, so a cursor on it opens the class's declaration rather than answering nothing for a cursor the index places inside the method, `rule:ide/the-index-answers-the-cursor`
+--FILE--
+<?nvs
+class Markup
+{
+    public string $html = "";
+}
+
+class Page
+{
+    public static function document(string $title, Markup $body): Mar<|>kup
+    {
+        return $body;
+    }
+}
+
+echo Page::document("t", new Markup())->html;
+--REQUEST--
+definition
+--EXPECT--
+case.nvs:2:7

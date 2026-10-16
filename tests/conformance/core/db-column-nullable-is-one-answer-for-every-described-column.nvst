@@ -1,0 +1,40 @@
+--TEST--
+`Core\Db\Column::nullable` answers `true` for every column a statement described, whatever that column was declared — a stepped statement carries no `not null` flag, so a primary key, a `not null` column and a column the query works out are one answer, and it is `bool` rather than `?bool` — `rule:core-classes/db-column-types`, spec § 18
+--FILE--
+<?nvs
+// covers: Core\Db\Column::nullable
+// Run against a real engine, as its siblings are: what a description carries is
+// the server's to say, so a claim about it that never prepared a statement
+// would be a claim about this tree's own guess.
+var $db = Core\Db::connect("main");
+$db->execute("create table notes (id integer primary key, text text not null, note text)", []);
+$db->execute("insert into notes (id, text, note) values (?, ?, ?)", [1, "buy milk", "today"]);
+
+// Four columns a reader keying off the declaration would have to tell apart: a
+// primary key, a `not null` column, a column declared nothing at all, and one
+// the statement works out. A stepped statement describes none of that, so the
+// four agree — and the annotation is `bool`, which is the decision this member
+// is written around: an absence would be a third answer to branch on.
+foreach ($db->query("select id, text, note, length(text) as size from notes", [])->columns()
+    as Core\Db\Column $column) {
+    bool $may = $column->nullable();
+    echo $column->name(), " ", $may ? "null" : "not null", "\n";
+}
+
+// And the description belongs to the statement rather than to a row, so a
+// `select` that matched nothing answers the same as one that matched.
+var $none = $db->query("select note from notes where id < 0", []);
+echo "empty ", $none->count(), " ", $none->columns()[0]->nullable() ? "null" : "not null", "\n";
+--FILE nvs.toml--
+[capabilities.db]
+connect = ["main"]
+
+[db.main]
+driver = "sqlite"
+path = ":memory:"
+--EXPECT--
+id null
+text null
+note null
+size null
+empty 0 null

@@ -1,0 +1,15 @@
+<?nvs
+// Shows an extension that reads files. `nvs.toml` lets it read the folder `data/geo/`.
+
+use Geo\Atlas;
+
+// `cities.txt` is in `data/geo/`, so this prints three cities.
+echo Atlas::read("cities.txt");
+
+// `notes.txt` is in `data/private/`. This program may read that folder, but the extension may not.
+// So the call throws a `RuntimeError`, and this prints `not permitted`.
+try {
+    echo Atlas::read("../private/notes.txt");
+} catch (RuntimeError $denied) {
+    echo $denied->message, "\n";
+}

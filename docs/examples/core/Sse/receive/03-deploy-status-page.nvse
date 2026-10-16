@@ -1,0 +1,4 @@
+# The deploy job's steps, in the order it publishes them.
+publish: deploy:42 building
+publish: deploy:42 testing
+publish: deploy:42 done

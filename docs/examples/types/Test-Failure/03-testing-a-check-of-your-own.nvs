@@ -1,0 +1,37 @@
+<?nvs
+// This program tests a check function that you wrote yourself.
+// `Test::expectFailure` runs a function and passes only if a check in it failed.
+// It then removes that failure from the test's result.
+
+use Core\Test;
+use Core\Test\Failure;
+
+final class Money {
+    // This is the check under test. An amount in cents must not be
+    // below zero.
+    public static function assertValidCents(int $amount): void {
+        Test::assertTrue($amount >= 0, {message: 'an amount cannot be negative'});
+    }
+}
+
+// A valid amount passes, and the test records no failure.
+Money::assertValidCents(1250);
+echo "1250 is accepted\n";
+
+// An invalid amount must fail the check. `expectFailure` tests this,
+// and the test itself still passes.
+Test::expectFailure(fn (): void => {
+    Money::assertValidCents(-1);
+});
+echo "-1 is refused\n";
+
+// If no check in the function fails, `expectFailure` throws a `Failure`.
+// So a check that stops working makes this test fail.
+try {
+    Test::expectFailure(fn (): void => {
+        Money::assertValidCents(0);
+    });
+    echo "nothing was refused\n";
+} catch (Failure $nothingFailed) {
+    echo "0 is accepted, so there was nothing to refuse\n";
+}

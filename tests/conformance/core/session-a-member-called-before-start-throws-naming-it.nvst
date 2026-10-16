@@ -1,0 +1,103 @@
+--TEST--
+Every `Core\Session` member but `start` throws while the request has started no session, and the refusal names the member that opens one -- `rule:core-api/session-roster` and `rule:http-server/a-session-is-loaded-once-and-written-whole`
+--FILE--
+<?nvs
+// `rule:core-api/session-roster`: "a member called before `start` throws naming it". That is the
+// whole of what `rule:core-classes/session-is-started-explicitly` was buying — "this request uses sessions" is a
+// line in the source — and it is worth nothing if the first `get` can silently
+// start one. So none of the members below opens a session: all of them refuse,
+// the sealed pair `rule:http-server/a-session-holds-a-secret-only-sealed` adds
+// included — a member that reached for its key ring before it asked whether
+// there was a record would report the ring instead of the rule.
+uint $refused = 0;
+uint $named = 0;
+
+secret bytes $key = Core\Crypto::generateKey();
+array<secret bytes> $ring = [$key];
+secret string $token = "sk-live";
+
+try {
+    Core\Session::get("cart");
+} catch (RuntimeError $noRecordToRead) {
+    $refused = $refused + 1;
+    if (Core\Str::contains($noRecordToRead->message, "::start()")) {
+        $named = $named + 1;
+    }
+}
+
+try {
+    Core\Session::set("cart", 1);
+} catch (RuntimeError $noRecordToWrite) {
+    $refused = $refused + 1;
+    if (Core\Str::contains($noRecordToWrite->message, "::start()")) {
+        $named = $named + 1;
+    }
+}
+
+try {
+    Core\Session::remove("cart");
+} catch (RuntimeError $noRecordToChange) {
+    $refused = $refused + 1;
+    if (Core\Str::contains($noRecordToChange->message, "::start()")) {
+        $named = $named + 1;
+    }
+}
+
+try {
+    Core\Session::clear();
+} catch (RuntimeError $noRecordToEmpty) {
+    $refused = $refused + 1;
+    if (Core\Str::contains($noRecordToEmpty->message, "::start()")) {
+        $named = $named + 1;
+    }
+}
+
+// The two that reach the store are refused *before* they reach it, which is
+// what makes this a language rule rather than a store answer: there is no
+// `[session]` block in this tree at all, so a member that got as far as opening
+// a connection would refuse for the other reason and name the wrong thing.
+try {
+    Core\Session::regenerate();
+} catch (RuntimeError $noSessionToMove) {
+    $refused = $refused + 1;
+    if (Core\Str::contains($noSessionToMove->message, "::start()")) {
+        $named = $named + 1;
+    }
+}
+
+try {
+    Core\Session::destroy();
+} catch (RuntimeError $noSessionToForget) {
+    $refused = $refused + 1;
+    if (Core\Str::contains($noSessionToForget->message, "::start()")) {
+        $named = $named + 1;
+    }
+}
+
+try {
+    Core\Session::setSecret("refresh", $token, $ring);
+} catch (RuntimeError $noRecordToSealInto) {
+    $refused = $refused + 1;
+    if (Core\Str::contains($noRecordToSealInto->message, "::start()")) {
+        $named = $named + 1;
+    }
+}
+
+try {
+    Core\Session::getSecret("refresh", $ring);
+} catch (RuntimeError $noRecordToOpen) {
+    $refused = $refused + 1;
+    if (Core\Str::contains($noRecordToOpen->message, "::start()")) {
+        $named = $named + 1;
+    }
+}
+
+echo "refused ", $refused, " of 8\n";
+
+// Naming the member is the half that makes the refusal actionable. A program
+// told only "no session" has to go and find which member opens one, and § 1's
+// rule is specifically that the throw says so.
+echo "and each names the member that opens one ", $named, " of 8\n";
+--EXPECT--
+refused 8 of 8
+and each names the member that opens one 8 of 8

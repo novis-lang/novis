@@ -1,0 +1,15 @@
+<?nvs
+// Shows how to insert a text and how to delete a part of a string.
+
+string $date = "20260928";
+
+// A length of 0 replaces nothing, so the text is inserted at the offset.
+// This prints "2026-09-28".
+string $withDashes = Core\Str::replaceRange(Core\Str::replaceRange($date, 6, 0, "-"), 4, 0, "-");
+echo $withDashes, "\n";
+
+// An empty replacement deletes the part. This prints "2026-09".
+echo Core\Str::replaceRange($withDashes, 7, null, ""), "\n";
+
+// Positions count characters, not bytes. "é" is one character, so this prints "Café".
+echo Core\Str::replaceRange("Cafe", 3, 1, "é"), "\n";

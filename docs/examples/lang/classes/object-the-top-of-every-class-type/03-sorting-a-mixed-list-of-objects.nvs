@@ -1,0 +1,41 @@
+<?nvs
+// Shows a list holding objects of several unrelated classes. A program does this
+// when it receives events from different sources and handles each kind its own way.
+
+class Payment {
+    public function constructor(public int $cents) {}
+}
+
+class Refund {
+    public function constructor(public int $cents) {}
+}
+
+class Note {
+    public function constructor(public string $text) {}
+}
+
+class Ledger {
+    public static function balance(array<object> $events): int {
+        int $total = 0;
+        foreach ($events as object $event) {
+            if ($event is Payment) {
+                $total = $total + $event->cents;
+            }
+            if ($event is Refund) {
+                $total = $total - $event->cents;
+            }
+            // A `Note` changes no amount, so it is left out of the total.
+        }
+        return $total;
+    }
+}
+
+array<object> $events = [
+    new Payment(1200),
+    new Note("customer called"),
+    new Refund(200),
+    new Payment(50),
+];
+
+// This prints `1050`.
+echo Ledger::balance($events), "\n";

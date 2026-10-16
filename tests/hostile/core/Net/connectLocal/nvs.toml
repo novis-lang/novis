@@ -1,0 +1,3 @@
+# The attack may connect to this one socket file, and to nothing else.
+[capabilities.net]
+local = ["/tmp/novis-hostile-connect.sock"]

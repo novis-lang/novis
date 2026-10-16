@@ -1,0 +1,15 @@
+<?nvs
+// Shows how to read every `key=value` pair from a log line into an array.
+
+string $line = "status=200 method=GET path=/orders time_ms=35";
+
+// Each match has two named groups: `key` and `value`.
+// `group("key")` reads the text of one group by its name.
+Core\Regex\Pattern $pair = Core\Regex::compile('(?<key>\w+)=(?<value>\S+)');
+array<string> $fields = [];
+foreach (Core\Regex::matchAll($line, $pair) as Core\Regex\Match $one) {
+    $fields[$one->group("key") ?? ""] = $one->group("value") ?? "";
+}
+
+// This prints "GET /orders took 35 ms".
+echo $fields["method"], " ", $fields["path"], " took ", $fields["time_ms"], " ms\n";

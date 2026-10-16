@@ -1,0 +1,16 @@
+<?nvs
+// Shows the three results of `compareTo` for a shorter, an equal and a longer duration.
+
+Core\Time\Duration $break = 15m;
+
+// This prints -1, because 10 minutes is shorter than 15 minutes.
+echo 10m->compareTo($break), "\n";
+
+// This prints 0. A quarter of an hour is the same length as 15 minutes.
+echo Core\Time\Duration::seconds(900)->compareTo($break), "\n";
+
+// This prints 1, because half an hour is longer.
+echo 30m->compareTo($break), "\n";
+
+// A negative duration is shorter than zero. This prints -1.
+echo 5m->negated()->compareTo(Core\Time\Duration::seconds(0)), "\n";

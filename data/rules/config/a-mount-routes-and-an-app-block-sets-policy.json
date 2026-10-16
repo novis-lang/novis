@@ -1,0 +1,12 @@
+{
+  "title": "A `[[server.mount]]` routes and carries no `mode`; an `[[app]]` block sets policy",
+  "status": "shipped",
+  "seeAlso": [
+    "config/an-application-is-its-entry-file-path",
+    "config/origin-is-a-block-key-and-there-is-no-app-table",
+    "routing/a-request-reads-its-mount"
+  ],
+  "guardedBy": [
+    "crates/nvs-config/tests/tree.rs"
+  ]
+}

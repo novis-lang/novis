@@ -1,0 +1,16 @@
+--TEST--
+An argument written as a variable already says what it is, and one written `name:` writes the word itself, so both are skipped and only the bare literal beside them is annotated, `rule:ide/every-feature-is-staged-behind-its-dependency`
+--FILE--
+<?nvs
+class Greeter {
+    public function greet(string $name, string $tone): string { return $name; }
+}
+var $g = new Greeter();
+string $who = "world";
+$g->greet($who, "warm");
+$g->greet(name: "world", tone: "warm");
+--REQUEST--
+inlayHint
+--EXPECT--
+5:7 type : Greeter
+7:17 parameter tone:

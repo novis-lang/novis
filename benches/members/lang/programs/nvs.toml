@@ -1,0 +1,3 @@
+# The benches check files in this folder.
+[capabilities.fs]
+read = ["."]

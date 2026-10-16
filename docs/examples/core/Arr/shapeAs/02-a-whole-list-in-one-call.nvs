@@ -1,0 +1,19 @@
+<?nvs
+// Shows how to read a whole list in one call. `array<T>` reads every entry of
+// the array as the type `T`, and the result keeps the order of the input.
+
+type Line = {sku: string, qty: int};
+
+array<Line> $lines = Core\Arr::shapeAs<array<Line>>([
+    ["sku" => "A-1", "qty" => "2"],
+    ["sku" => "B-7", "qty" => "5"],
+]);
+
+// Each `qty` is a whole number, so this loop can add them up. It prints one
+// line per entry, and then `total 7`.
+int $total = 0;
+foreach ($lines as (Line) $line) {
+    echo $line->sku, ": ", $line->qty, "\n";
+    $total = $total + $line->qty;
+}
+echo "total ", $total, "\n";

@@ -1,0 +1,93 @@
+--TEST--
+`rollBack` gives up on a transaction by throwing `Core\Db\RolledBack` rather than by setting a flag, so the reason reaches both the error's `reason` property and its message, catching it inside the work saves nothing, and the class is reachable from every name above it — `rule:core-classes/db-transactions`, `rule:core-classes/db-error` and `rule:errors/throwable-hierarchy`
+--FILE--
+<?nvs
+// covers: Core\Db\Transaction::rollBack
+use Core\Db;
+use Core\Db\RolledBack;
+use Core\Db\Transaction;
+
+var $db = Db::connect("main");
+$db->execute("create table t (id integer primary key, name text not null)", []);
+$db->execute("insert into t (name) values (?)", ["ada"]);
+
+// § 7: the reason is written once and arrives twice — as the property a
+// handler reads and as the message a log prints. Both are asserted, because a
+// member filling only one of them reads correctly wherever the other is not
+// used.
+try {
+    $db->transaction(fn (Transaction $tx): void => {
+        $tx->execute("insert into t (name) values (?)", ["grace"]);
+        $tx->rollBack("the second name was already taken");
+        echo "the line after the give-up ran\n";
+    });
+    echo "the transaction ended\n";
+} catch (RolledBack $gaveUp) {
+    echo "reason ", $gaveUp->reason, "\n";
+    echo "message ", $gaveUp->message, "\n";
+}
+echo "kept ", $db->query("select id from t", [])->count(), "\n";
+
+// The difference from a flag a later layer has to check: the failure is caught
+// inside the work, the work then returns as if it had succeeded, and the
+// transaction is given up anyway. A `setRollbackOnly` that nobody read would
+// commit here.
+try {
+    $db->transaction(fn (Transaction $tx): void => {
+        $tx->execute("insert into t (name) values (?)", ["katherine"]);
+        try {
+            $tx->rollBack("caught inside the work");
+        } catch (RolledBack $inside) {
+            echo "caught inside\n";
+        }
+    });
+    echo "the work returned and the transaction ended\n";
+} catch (Throwable $outside) {
+    echo "the transaction was given up anyway\n";
+}
+echo "kept ", $db->query("select id from t", [])->count(), "\n";
+
+// `rule:errors/throwable-hierarchy`: the class sits under `RuntimeError`, so every name above it
+// catches the same throw. Asked of all three rather than of `RolledBack`
+// alone, because a class reparented out of the tree still passes the line that
+// names it exactly.
+array<string> $caught = [];
+try {
+    $db->transaction(fn (Transaction $tx): void => {
+        $tx->rollBack("under RolledBack");
+    });
+} catch (RolledBack $named) {
+    $caught[] = "RolledBack";
+}
+try {
+    $db->transaction(fn (Transaction $tx): void => {
+        $tx->rollBack("under RuntimeError");
+    });
+} catch (RuntimeError $runtime) {
+    $caught[] = "RuntimeError";
+}
+try {
+    $db->transaction(fn (Transaction $tx): void => {
+        $tx->rollBack("under Throwable");
+    });
+} catch (Throwable $any) {
+    $caught[] = "Throwable";
+}
+echo "caught by ", Core\Str::join($caught, " "), "\n";
+--FILE nvs.toml--
+# § 3: a SQLite connection's file path comes from its config block, and
+# `:memory:` gives this case a database nothing else has written to.
+[capabilities.db]
+connect = ["main"]
+
+[db.main]
+driver = "sqlite"
+path = ":memory:"
+--EXPECT--
+reason the second name was already taken
+message the second name was already taken
+kept 1
+caught inside
+the transaction was given up anyway
+kept 1
+caught by RolledBack RuntimeError Throwable

@@ -1,0 +1,8 @@
+--METHOD--
+GET
+--PATH--
+/login
+--SCHEME--
+http
+--HEADERS--
+host: shop.example.com

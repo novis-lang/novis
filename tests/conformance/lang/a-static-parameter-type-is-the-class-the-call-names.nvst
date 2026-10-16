@@ -1,0 +1,38 @@
+--TEST--
+A `static` in a parameter type is the class the call names, at a static call and at an instance call, and inside the body a `property<static>` is the property's name as a `string` — `rule:statements/static-is-a-member-modifier`
+--FILE--
+<?nvs
+// `static` in a parameter type is the class that the call names.
+// `Category::sortBy` takes the names of `Category`'s properties.
+class Model {
+    public string $id = "m1";
+
+    public static function sortBy(property<static> $field): string {
+        // Inside the method, `$field` is the property name as a `string`.
+        return "sorted by " . $field;
+    }
+
+    public function countLike(array<static> $others): int {
+        return Core\Arr::count($others) as int;
+    }
+}
+
+class Category extends Model {
+    public int $rank = 3;
+}
+
+// `rank` is a property of `Category`, so this call compiles.
+echo Category::sortBy("rank" as property<Category>), "\n";
+
+// A property of `Model` is also a property of `Category`.
+echo Category::sortBy("id" as property<Model>), "\n";
+
+// At an instance call, `static` is the class of the object.
+// `countLike` takes an `array<Category>` here.
+Category $a = new Category();
+array<Category> $others = [new Category(), new Category()];
+echo $a->countLike($others) as string, "\n";
+--EXPECT--
+sorted by rank
+sorted by id
+2

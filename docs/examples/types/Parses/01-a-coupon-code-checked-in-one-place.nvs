@@ -1,0 +1,49 @@
+<?nvs
+// A class that can be built from a piece of text says so with `Parses`.
+// Here a coupon code is checked once, in the class, and every later line
+// holds a `CouponCode` rather than text somebody may have typed wrong.
+
+class CouponCode implements Parses {
+    public tainted string $text = "";
+
+    public function constructor(tainted string $text) {
+        $this->text = $text;
+    }
+
+    // The one member the contract asks for. It answers the class, or throws
+    // with a message saying what was wrong with the text.
+    public static function parse(tainted string $s): static {
+        if (Core\Str::length($s) != 8) {
+            throw new ParseError("a coupon code is eight characters long");
+        }
+        if ($s != Core\Str::upper($s)) {
+            throw new ParseError("a coupon code is written in capitals");
+        }
+        return new static($s);
+    }
+}
+
+// Text the class accepts gives you the class.
+echo "accepted ", CouponCode::parse("SUMMER24")->text, "\n";
+
+// Text it refuses throws, and the message is the one the class wrote.
+try {
+    echo CouponCode::parse("summer24")->text, "\n";
+} catch (ParseError $refusal) {
+    echo "refused: ", $refusal->message, "\n";
+}
+
+// A list of codes pasted into a form by hand. Each row is offered to the class,
+// the ones it refuses are reported and dropped, and the rest are kept.
+array<string> $pasted = ["SUMMER24", "AUTUMN7", "spring01", "WINTER10"];
+uint $kept = 0;
+foreach ($pasted as string $row) {
+    try {
+        var $code = CouponCode::parse($row);
+        echo "keeping ", $code->text, "\n";
+        $kept = $kept + 1;
+    } catch (ParseError $refusal) {
+        echo "dropping a row: ", $refusal->message, "\n";
+    }
+}
+echo $kept, " codes are usable\n";

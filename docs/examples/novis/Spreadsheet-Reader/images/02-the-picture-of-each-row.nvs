@@ -1,0 +1,21 @@
+<?nvs
+// Shows how to find the product photo of each row, by the cell of each picture.
+use Novis\Spreadsheet\Reader;
+use Novis\Spreadsheet\Workbook;
+
+bytes $png = Core\Encoding::fromBase64('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==');
+var $book = Workbook::createInMemory();
+$book->sheet('Products')->image('B3', $png)->addAll([['Item', 'Photo'], ['Widget'], ['Gadget']]);
+var $reader = Reader::open($book->finish()->bytes ?? Core\Bytes::fill(0, 0));
+
+// This map has the bytes of each picture by its cell, such as `B3`.
+array<tainted bytes> $photos = [];
+foreach ($reader->images(0) as var $image) {
+    $photos[$image->at] = $image->image;
+}
+
+// The photo of a row is in column B of that row.
+foreach ($reader->rows(0, { header: true }) as var $row) {
+    tainted bytes $photo = $photos["B{$row->number}"] ?? Core\Bytes::fill(0, 0);
+    echo $row->values['Item'], ': ', Core\Bytes::length($photo) > 0 ? 'has a photo' : 'no photo', "\n";
+}

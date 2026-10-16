@@ -1,0 +1,17 @@
+{
+  "title": "A request is matched once, before any application code runs, and `Core\\Request::route()` is that match",
+  "status": "shipped",
+  "seeAlso": [
+    "routing/the-servers-match-dispatches-nothing",
+    "security/csrf-is-on-by-default",
+    "security/access-is-checked-for-presence-not-meaning",
+    "testing/in-process-request",
+    "routing/matching-is-not-dispatching",
+    "routing/table-is-opt-in"
+  ],
+  "guardedBy": [
+    "crates/nvs-server/src/route.rs",
+    "tests/conformance/core/an-in-process-request-carries-the-compiled-route-tables-own-match.nvst",
+    "tests/conformance/core/a-matched-route-is-nullable-and-a-program-says-what-it-does-without-one.nvst"
+  ]
+}

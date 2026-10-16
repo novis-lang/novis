@@ -1,0 +1,11 @@
+<?nvs
+// Shows how to get what is left over from a division of large numbers.
+
+var $total = Core\BigInt::parse("1000000000000000000000000");
+
+// 1000000000000000000000000 divided by 7000000000000 leaves something over.
+// `mod` returns that part, so this prints 1000000000000.
+echo $total->mod(Core\BigInt::parse("7000000000000")), "\n";
+
+// This division is exact, so nothing is left over. It prints 0.
+echo $total->mod(Core\BigInt::parse("1000000000000000")), "\n";

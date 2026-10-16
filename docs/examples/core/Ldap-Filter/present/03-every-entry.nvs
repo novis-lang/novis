@@ -1,0 +1,7 @@
+<?nvs
+// Shows the filter that matches every entry in a directory.
+
+// Every entry has an `objectClass`, so this filter matches all of them.
+var $filter = Core\Ldap\Filter::present('objectClass');
+// This prints (objectClass=*).
+echo $filter->toString(), "\n";

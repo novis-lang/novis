@@ -1,0 +1,67 @@
+<?nvs
+// The outbound half, as a program: one request that is allowed to happen,
+// two that are refused before a socket is opened, and one that runs out of
+// time.
+//
+// An outbound URL is a sink. `Core\Http\Client::get` does not accept a
+// `tainted` string. That is a compile error, so it is not one of the lines
+// below. `Core\Http::allowUrl` is the only way to use such a URL. It resolves
+// the host once, checks the address against the capability's policy, and
+// returns a URL pinned to that address. A second lookup cannot give a
+// different address. The operator sets that policy, not the calling code.
+//
+// The last line runs out of time. A call cannot wait forever. `deadline` is
+// the whole time limit, for every attempt and every redirect hop. A deadline
+// this short always ends the call.
+//
+// The origin the first two lines talk to is the harness's, not this file's:
+// `bun nv origin`, which the driver holds up around the acceptance sweep and
+// which you start by hand to run this file — `bun nv origin &`. The
+// address is named here rather than discovered, and the reason the origin is
+// the harness's is recorded in `tools/nv/accept/origin.ts`.
+
+
+string $origin = 'http://127.0.0.1:8099';
+
+// Allowed: laundered, pinned, and then fetched.
+Core\Http\Target $url = Core\Http::allowUrl($origin . '/ok');
+var $response = Core\Http\Client::get($url);
+// `status` is a member and not a property: a `Core` instance has no property a
+// program can reach, so this is `->status()` and `crate::http`'s module doc is
+// where that decision is written down.
+echo 'status=', $response->status() as string, "\n";
+echo 'body=', Core\Str::trim($response->text()), "\n";
+
+// Refused at the door: a URL that arrived from outside the process. The
+// value is `tainted`, and `allowUrl` is where that is decided rather than
+// asserted — a host the operator never named does not become trusted by
+// having been read from the environment.
+?tainted string $configured = Core\Env::get('NVS_EXAMPLE_ORIGIN');
+try {
+    Core\Http\Target $laundered = Core\Http::allowUrl($configured ?? 'http://elsewhere.invalid/');
+    var $unreachable = Core\Http\Client::get($laundered);
+    echo 'accepted: tainted url', "\n";
+} catch (RuntimeError $refused) {
+    echo 'refused: tainted url', "\n";
+}
+
+// Refused on the address rather than on the name: the cloud metadata
+// endpoint is the canonical SSRF target, and it is a link-local address no
+// grant reaches. Pinning is what makes this checkable at all — a policy
+// applied to the hostname would be re-resolved out from under itself.
+try {
+    Core\Http\Target $metadata = Core\Http::allowUrl('http://169.254.169.254/latest/meta-data/');
+    var $leak = Core\Http\Client::get($metadata);
+    echo 'accepted: denied range', "\n";
+} catch (RuntimeError $refused) {
+    echo 'refused: denied range', "\n";
+}
+
+// Finite by construction. The budget covers the whole call, so the only
+// question a caller has is how long, never whether.
+try {
+    var $slow = Core\Http\Client::get($url, { deadline: 1ms });
+    echo 'no deadline', "\n";
+} catch (RuntimeError $expired) {
+    echo 'deadline hit', "\n";
+}

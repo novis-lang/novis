@@ -1,0 +1,53 @@
+--TEST--
+A hook may stand alone on the write side: a `set` with no `get` runs for the constructor's write, an outside write and a subclass's, while every read goes to the backing slot — `rule:classes/property-hooks`
+--FILE--
+<?nvs
+// The other side of the bound `a-get-only-hook-is-not-written` pins. A `get`
+// alone makes a property nobody outside the class writes; a `set` alone leaves
+// the read untouched, so what the hook stored is exactly what comes back.
+class Volume {
+    public int $level {
+        set (int $v) {
+            // `$this->level` inside the hook is the backing slot, so this is
+            // the store and not the hook calling itself.
+            if ($v > 10) {
+                $this->level = 10;
+            } else {
+                $this->level = $v;
+            }
+        }
+    }
+
+    public function constructor(int $start) {
+        $this->level = $start;
+    }
+}
+
+class Muted extends Volume {
+    public function quieten(): void {
+        // A subclass inherits the hook, so its own write runs it too.
+        $this->level = 99;
+    }
+}
+
+// The constructor's write goes through the hook.
+var $v = new Volume(30);
+echo $v->level, "\n";
+
+// A write from outside the class, below the ceiling and above it.
+$v->level = 4;
+echo $v->level, "\n";
+$v->level = 99;
+echo $v->level, "\n";
+
+// The read has no `get` behind it, so it answers the slot -- here and in an
+// interpolation alike.
+var $m = new Muted(2);
+$m->quieten();
+echo $m->level, " in a string: $m->level\n";
+// covers: lang:classes/property-hooks
+--EXPECT--
+10
+4
+10
+10 in a string: 10

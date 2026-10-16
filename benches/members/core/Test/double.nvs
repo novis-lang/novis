@@ -1,0 +1,25 @@
+<?nvs
+// Builds a test double from anonymous functions and calls it once, as a test does before it runs the code.
+// bench: iterations 256
+// bench: complexity constant
+
+interface Clock {
+    public function hour(): int;
+}
+
+class Bench {
+    public static function run(uint $rounds): int {
+        int $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            Clock $clock = Core\Test::double<Clock>({
+                hour: fn(): int => 9,
+            });
+            $total = $total + $clock->hour() + ($total % 3);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

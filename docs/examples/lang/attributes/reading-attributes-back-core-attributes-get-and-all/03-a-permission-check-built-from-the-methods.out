@@ -1,0 +1,3 @@
+show: allowed
+cancel: needs orders.write
+ping: open to everyone

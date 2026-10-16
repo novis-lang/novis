@@ -1,0 +1,22 @@
+--TEST--
+a class written as a parameter's type is a written name like the one after `is`, so a cursor on it opens the class's declaration even though the index sees only the method around it, `rule:ide/the-index-answers-the-cursor`
+--FILE--
+<?nvs
+class Markup
+{
+    public string $html = "";
+}
+
+class Page
+{
+    public static function document(string $title, Mar<|>kup $body): Markup
+    {
+        return $body;
+    }
+}
+
+echo Page::document("t", new Markup())->html;
+--REQUEST--
+definition
+--EXPECT--
+case.nvs:2:7

@@ -1,0 +1,51 @@
+--TEST--
+`Core\Str::parts` splits a `string<K>` into text and holes that take turns, starting and ending with text, with each doubled brace already one brace in the text and each hole a `K` — `rule:core-classes/str-parts-and-reflect-steps`
+--FILE--
+<?nvs
+// `Core\Str::parts` splits a string with holes. Text is at an even index,
+// and a hole is at an odd index.
+class Customer {
+    public string $name = "Ada";
+}
+
+class Order {
+    public int $total = 40;
+    public ?Customer $customer = null;
+}
+
+class Report {
+    public static function show(string<propertyPath<Order>> $condition): void {
+        var $parts = Core\Str::parts($condition);
+        echo Core\Arr::count($parts), " parts\n";
+        foreach ($parts as var $at => var $part) {
+            echo $at, ": [", $part as string, "]\n";
+        }
+    }
+}
+
+Report::show("{total} > 10 AND {customer.name} = '{{x}}'");
+// Two holes next to each other have empty text between them.
+Report::show("{total}{customer.name}");
+// Text with no hole is one part.
+Report::show("no holes");
+
+// A hole has the type of the holes, so it converts back with no error.
+var $parts = Core\Str::parts("{customer.name}" as string<propertyPath<Order>>);
+propertyPath<Order> $path = $parts[1] as propertyPath<Order>;
+echo $path as string, "\n";
+--EXPECT--
+5 parts
+0: []
+1: [total]
+2: [ > 10 AND ]
+3: [customer.name]
+4: [ = '{x}']
+5 parts
+0: []
+1: [total]
+2: []
+3: [customer.name]
+4: []
+1 parts
+0: [no holes]
+customer.name

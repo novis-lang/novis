@@ -1,0 +1,19 @@
+<?nvs
+// Shows how to round up and still keep some digits after the point. The second
+// argument says how many digits the answer keeps.
+
+decimal $fee = 12.3456;
+
+// With no second argument the answer is a whole number. This prints 13.
+echo Core\Decimal::ceil($fee), "\n";
+
+// Two digits after the point, so the answer is the next whole cent up.
+// This prints 12.35.
+echo Core\Decimal::ceil($fee, 2), "\n";
+
+// Three digits. This prints 12.346.
+echo Core\Decimal::ceil($fee, 3), "\n";
+
+// The answer always carries the number of digits you asked for, even when
+// nothing had to move. This prints 12.3456 and 12.34560.
+echo Core\Decimal::ceil($fee, 4), " ", Core\Decimal::ceil($fee, 5), "\n";

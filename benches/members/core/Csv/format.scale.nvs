@@ -1,0 +1,26 @@
+<?nvs
+// Measures `Core\Csv::format` on one table, at growing numbers of rows.
+// bench: start 128
+// bench: max 2048
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        array<array<string>> $table = [];
+        uint $row = 0;
+        while ($row < $size) {
+            $table[] = ["Beans, dried", "500 g", "4.10"];
+            $row = $row + 1;
+        }
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            $total = $total + Core\Bytes::length(Core\Csv::format($table) as bytes);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(128), "\n";

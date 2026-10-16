@@ -1,0 +1,23 @@
+<?nvs
+// `Dog` extends `Animal`. It replaces `describe` and calls the parent version with `parent::`.
+class Animal {
+    public function constructor(protected string $name) {}
+
+    public function describe(): string {
+        return $this->name . " makes a sound";
+    }
+}
+
+class Dog extends Animal {
+    // The parent has a constructor, so this constructor must call it.
+    public function constructor(string $name, private int $tricks) {
+        parent::constructor($name);
+    }
+
+    public function describe(): string {
+        return parent::describe() . ", knows " . $this->tricks . " tricks";
+    }
+}
+
+Animal $a = new Dog("Rex", 3);
+echo $a->describe(), "\n";

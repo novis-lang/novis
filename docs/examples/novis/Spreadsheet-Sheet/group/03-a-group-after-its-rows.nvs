@@ -1,0 +1,18 @@
+<?nvs
+// Shows the error for a group of rows that are already added.
+use Novis\Spreadsheet\Workbook;
+
+var $book = Workbook::createInMemory();
+var $sheet = $book->sheet('Orders');
+$sheet->addAll([['order' => 1042], ['order' => 1043], ['order' => 1044]]);
+
+// Rows 2 and 3 are already in the file, so `group` throws a `LogicError`.
+try {
+    $sheet->group('2:3');
+} catch (LogicError $e) {
+    echo $e->message, "\n";
+}
+
+// The `level` option of `add` puts a new row in a group.
+$sheet->add(['order' => 1045], { level: 1 });
+echo "row 5 is in a group\n";

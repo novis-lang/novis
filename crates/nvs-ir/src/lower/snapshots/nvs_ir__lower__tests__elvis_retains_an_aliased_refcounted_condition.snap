@@ -1,0 +1,31 @@
+---
+source: crates/nvs-ir/src/lower/tests.rs
+expression: "print_function(&f, map.file(file))"
+---
+fn m(object, string, string) -> string {
+  bb0:
+    safepoint
+    v0 = param 0  ; object
+    v1 = param 1  ; string
+    v2 = param 2  ; string
+    ; stmt s0 @4:5-4:21
+    v3 = helper.str_truthy v1 ! bb1  ; bool
+    branch v3 -> bb2 (e0), bb3 (e1)
+  bb1:
+    release v2
+    release v1
+    release v0
+    propagate "m() at t.nvs:4"
+  bb2:
+    retain v1
+    jump bb4
+  bb3:
+    retain v2
+    jump bb4
+  bb4:
+    v4 = phi [bb2: v1, bb3: v2]  ; string
+    release v2
+    release v1
+    release v0
+    return v4
+}

@@ -1,0 +1,31 @@
+<?nvs
+// Shows how to find the users who are online and are also allowed to receive an alert.
+
+final class User {
+    public string $name;
+
+    public function constructor(string $name) {
+        $this->name = $name;
+    }
+}
+
+User $ana = new User("Ana");
+User $li = new User("Li");
+User $sam = new User("Sam");
+User $kim = new User("Kim");
+
+Core\ObjectSet<User> $admins = new Core\ObjectSet<User>();
+$admins->add($ana);
+$admins->add($sam);
+$admins->add($kim);
+
+Core\ObjectSet<User> $online = new Core\ObjectSet<User>();
+$online->add($li);
+$online->add($kim);
+$online->add($ana);
+
+// Only admins receive the alert, and only if they are online now.
+// This prints "Alert Ana" and "Alert Kim". Sam is offline and Li is not an admin.
+foreach ($admins->intersect($online) as User $user) {
+    echo "Alert ", $user->name, "\n";
+}

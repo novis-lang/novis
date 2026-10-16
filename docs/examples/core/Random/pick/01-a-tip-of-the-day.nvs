@@ -1,0 +1,15 @@
+<?nvs
+// Shows how to choose one tip at random from a list.
+
+array<string> $tips = ["Save often.", "Use short names.", "Write a test first."];
+
+// `Core\Random::pick` returns one of the values, or `null` for an empty array.
+?string $tip = Core\Random::pick($tips);
+
+// The tip changes on every run, so this prints only what is always true: `yes`.
+if ($tip != null) {
+    echo Core\Arr::contains($tips, $tip) ? "yes" : "no", "\n";
+}
+
+// The array itself does not change. This prints 3.
+echo Core\Arr::count($tips), "\n";

@@ -1,0 +1,24 @@
+<?nvs
+// Shows how a report finds the average of several correlations.
+// A correlation is a number from -1.0 to 1.0 that says how closely two things move together.
+
+class Correlation {
+    // Correlations are not averaged directly. `atanh` converts each one to a number
+    // that can be averaged. `tanh` converts the average back to a correlation.
+    public static function average(array<float> $values): float {
+        float $sum = 0.0;
+        int $count = 0;
+        foreach ($values as float $value) {
+            $sum = $sum + Core\Math::atanh($value);
+            $count = $count + 1;
+        }
+        return Core\Math::round(Core\Math::tanh($sum / $count), {precision: 2});
+    }
+}
+
+// Three stores measured how closely rain and umbrella sales move together.
+// This prints 0.82.
+echo Correlation::average([0.7, 0.8, 0.9]), "\n";
+
+// A plain average of the same three numbers is 0.8. This prints 0.8.
+echo Core\Math::round((0.7 + 0.8 + 0.9) / 3.0, {precision: 2}), "\n";

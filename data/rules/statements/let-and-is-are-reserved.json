@@ -1,0 +1,17 @@
+{
+  "title": "`let` and `is` cannot name anything; `var` declares, `as` converts, and `is` is the type test",
+  "status": "shipped",
+  "seeAlso": [
+    "types/var-inference",
+    "types/narrowing",
+    "types/type-test",
+    "expressions/nullable-conversion",
+    "classes/reserved-spellings-are-lower-case",
+    "security/no-eval",
+    "types/one-type-test"
+  ],
+  "guardedBy": [
+    "crates/nvs-syntax/src/parser/tests/expr.rs",
+    "crates/nvs-syntax/src/parser/tests/decl.rs"
+  ]
+}

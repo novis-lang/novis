@@ -1,0 +1,10 @@
+<?nvs
+// This program reads its memory limit and raises it for one large report.
+echo "start: ", Core\Config::get("memory"), "\n";
+
+// `Core\Config::set` returns `true` when the new value is below the ceiling.
+echo "128M: ", Core\Config::set("memory", "128M") ? "ok" : "not allowed", "\n";
+
+// 1G is above the ceiling of 256M, so the result is `false`.
+echo "1G: ", Core\Config::set("memory", "1G") ? "ok" : "not allowed", "\n";
+echo "now: ", Core\Config::get("memory"), "\n";

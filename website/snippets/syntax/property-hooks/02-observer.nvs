@@ -1,0 +1,18 @@
+<?nvs
+// A class that implements `PropertyObserver` is told about every read and write of its properties.
+class Account implements PropertyObserver {
+    public int $balance = 0;
+
+    public function onPropertyGet(string $name, mixed $value): void {
+        echo "get ", $name, "\n";
+    }
+
+    public function onPropertySet(string $name, mixed $value): void {
+        echo "set ", $name, "=", $value, "\n";
+    }
+}
+
+var $a = new Account();
+$a->balance = 7;
+int $seen = $a->balance;
+echo $seen, "\n";

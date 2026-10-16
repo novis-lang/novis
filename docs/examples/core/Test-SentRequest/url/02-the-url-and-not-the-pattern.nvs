@@ -1,0 +1,17 @@
+<?nvs
+// Shows that `url()` returns the URL the program used, and not the pattern of the fake service.
+
+use Core\Http\Client;
+use Core\Test;
+use Core\Test\SentRequest;
+
+// The `*` at the end answers every URL that starts with this text.
+Test::answerHttp("https://api.example.com/users/*", 200);
+
+Client::get("https://api.example.com/users/7");
+Client::get("https://api.example.com/users/8/orders");
+
+// This prints the two URLs the program used, one on each line.
+foreach (Test::sentHttp() as SentRequest $request) {
+    echo $request->url(), "\n";
+}

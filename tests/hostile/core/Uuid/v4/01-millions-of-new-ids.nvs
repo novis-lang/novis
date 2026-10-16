@@ -1,0 +1,43 @@
+<?nvs
+// Attack: a program creates millions of UUIDs and keeps many of them. Every UUID should
+// have the right version, no two should be the same, and every one should be freed.
+
+// 1. One million UUIDs are created and freed at once. Each third group starts with 4,
+// and each fourth group starts with 8, 9, a or b. This prints 1000000 twice.
+int $version = 0;
+int $variant = 0;
+int $i = 0;
+while ($i < 1000000) {
+    string $text = Core\Uuid::v4()->toString();
+    if (Core\Str::slice($text, 14, 1) == '4') {
+        $version = $version + 1;
+    }
+    if (Core\Regex::matches(Core\Str::slice($text, 19, 1), '^[89ab]$')) {
+        $variant = $variant + 1;
+    }
+    $i = $i + 1;
+}
+echo $version, "\n", $variant, "\n";
+
+// 2. 200000 UUIDs are kept as keys of one array. A repeated UUID would not add a key.
+// This prints 200000.
+array<Core\Uuid> $kept = [];
+$i = 0;
+while ($i < 200000) {
+    var $id = Core\Uuid::v4();
+    $kept[$id->toString()] = $id;
+    $i = $i + 1;
+}
+echo Core\Arr::count($kept), "\n";
+
+// 3. The same UUID object is copied into a list one million times, and the list is freed.
+// This prints 1000000.
+var $one = Core\Uuid::v4();
+array<Core\Uuid> $copies = [];
+$i = 0;
+while ($i < 1000000) {
+    $copies[] = $one;
+    $i = $i + 1;
+}
+echo Core\Arr::count($copies), "\n";
+$copies = [];

@@ -1,0 +1,8 @@
+--METHOD--
+GET
+--PATH--
+/orders
+--MOUNT--
+/
+--HEADERS--
+host: example.com

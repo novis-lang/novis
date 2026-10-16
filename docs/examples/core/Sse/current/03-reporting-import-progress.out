@@ -1,0 +1,11 @@
+event: progress
+data: {"done":1,"total":3}
+
+event: progress
+data: {"done":2,"total":3}
+
+event: progress
+data: {"done":3,"total":3}
+
+data: imported 3 customers
+

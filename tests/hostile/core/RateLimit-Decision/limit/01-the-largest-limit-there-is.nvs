@@ -1,0 +1,39 @@
+<?nvs
+// Attack: a caller passes the largest limit the limiter accepts, and a limit one
+// larger. `limit` should return the first one exactly, and the second should throw an error.
+
+class Attempt
+{
+    public static function run(string $key, uint $limit, Core\Time\Duration $per): string
+    {
+        try {
+            return 'limit ' . Core\RateLimit::shed($key, $limit, $per)->limit();
+        } catch (RuntimeError $error) {
+            return 'error';
+        }
+    }
+}
+
+// 1. One unit per microsecond is the finest rate the limiter counts.
+echo Attempt::run('fine', 1000000, 1s), "\n";
+
+// 2. One unit more per second is too fine, so this throws an error.
+echo Attempt::run('fine', 1000001, 1s), "\n";
+
+// 3. The largest `uint` over 100000 hours. Each unit is still too short, so this throws an error.
+echo Attempt::run('huge', 18446744073709551615, 100000h), "\n";
+
+// 4. The finest rate over a long period. The limit is 360 billion units.
+echo Attempt::run('long', 360000000000, 100h), "\n";
+
+// 5. 20000 keys, each with its own large limit. Every `limit` is read back and checked.
+uint $wrong = 0;
+uint $i = 0;
+while ($i < 20000) {
+    uint $asked = 1000000 - $i;
+    if (Core\RateLimit::shed('key:' . $i, $asked, 1s)->limit() != $asked) {
+        $wrong = $wrong + 1;
+    }
+    $i = $i + 1;
+}
+echo $wrong, "\n";

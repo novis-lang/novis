@@ -1,0 +1,27 @@
+<?nvs
+// Measures `Core\Reflect::steps` reading one path, at growing numbers of parts.
+// bench: start 256
+// bench: max 4096
+
+class Node
+{
+    public int $value = 0;
+    public ?Node $next = null;
+}
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        propertyPath<Node> $path = (Core\Str::repeat('next.', $size) . 'value') as propertyPath<Node>;
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            $total = $total + Core\Arr::count(Core\Reflect::steps($path));
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

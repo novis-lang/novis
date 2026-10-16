@@ -1,0 +1,11 @@
+--METHOD--
+POST
+--PATH--
+/contact
+--SCHEME--
+https
+--HEADERS--
+host: example.com
+content-type: application/x-www-form-urlencoded
+--BODY--
+name=Ada&message=Hello

@@ -1,0 +1,45 @@
+<?nvs
+// Attack: a request asks for a palette with extreme counts, and of broken or transparent images.
+// Each attempt should return colours or throw an error, and the server keeps running.
+use Novis\Image\Color;
+use Novis\Image\Image;
+
+bytes $photo = Image::create(64, 64, Color::hex('#336699'))->encode();
+
+// 1. A count of 0.
+try {
+    echo 'step 1 ran ', Core\Arr::count(Image::palette($photo, 0)), "\n";
+} catch (Throwable $e) {
+    echo "step 1 stopped\n";
+}
+
+// 2. The largest count a number can have.
+try {
+    echo 'step 2 ran ', Core\Arr::count(Image::palette($photo, 18446744073709551615)), "\n";
+} catch (Throwable $e) {
+    echo "step 2 stopped\n";
+}
+
+// 3. An image where every pixel is transparent.
+try {
+    bytes $clear = Image::create(64, 64, Color::rgba(0, 0, 0, 0.0))->encode();
+    echo 'step 3 ran ', Core\Arr::count(Image::palette($clear, 5)), "\n";
+} catch (Throwable $e) {
+    echo "step 3 stopped\n";
+}
+
+// 4. A real PNG file cut off after its first 40 bytes.
+try {
+    echo 'step 4 ran ', Core\Arr::count(Image::palette(Core\Bytes::slice($photo, 0, 40), 5)), "\n";
+} catch (Throwable $e) {
+    echo "step 4 stopped\n";
+}
+
+// 5. 256 colours from an image that has only four colours.
+try {
+    bytes $pixels = Core\Bytes::repeat(Core\Encoding::fromHex('102030ff405060ff708090ffa0b0c0ff'), 1024);
+    bytes $noise = Image::fromRaw({ width: 64, height: 64, pixels: $pixels })->encode();
+    echo 'step 5 ran ', Core\Arr::count(Image::palette($noise, 256)), "\n";
+} catch (Throwable $e) {
+    echo "step 5 stopped\n";
+}

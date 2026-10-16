@@ -1,0 +1,31 @@
+--TEST--
+a qualifier travels with a property the way it travels with a local, so `$this->token` off a `secret string` declaration carries `secret` at the access, and `self::$shared` does the same for the static spelling — the declarations themselves carry nothing, the word being written on those lines already, `rule:security/secret-qualifier`, `rule:security/tainted-qualifier`, `rule:ide/semantic-tokens-carry-the-qualifiers`
+--FILE--
+<?nvs
+class Handler {
+    public secret string $token;
+    public tainted string $body;
+    public string $name;
+    public static secret string $shared;
+    public function reveal(): secret string {
+        var $seen = $this->body;
+        var $also = self::$shared;
+        return $this->token;
+    }
+}
+--REQUEST--
+semanticTokens
+--EXPECT--
+2:7+7 class
+3:26+6 property
+4:27+5 property
+5:19+5 property
+6:33+7 property
+7:21+6 method
+8:13+5 variable tainted
+8:21+5 variable
+8:28+4 property tainted
+9:13+5 variable secret
+9:27+7 property secret
+10:16+5 variable
+10:23+5 property secret

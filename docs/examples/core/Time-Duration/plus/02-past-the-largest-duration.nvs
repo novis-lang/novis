@@ -1,0 +1,14 @@
+<?nvs
+// Shows what happens when a sum is too long for a duration.
+
+Core\Time\Duration $largest = Core\Time\Duration::nanoseconds(9223372036854775807);
+
+// Adding a negative duration makes the result shorter. This prints 9223372036854775806.
+echo $largest->plus(Core\Time\Duration::nanoseconds(-1))->toNanoseconds(), "\n";
+
+// Nothing is larger than the largest duration. Adding one more nanosecond throws a `RuntimeError`.
+try {
+    $largest->plus(Core\Time\Duration::nanoseconds(1));
+} catch (RuntimeError $e) {
+    echo $e->message, "\n";
+}

@@ -1,0 +1,11 @@
+<?nvs
+// Shows how to keep a log entry on one line when a message contains line breaks.
+
+string $message = "Payment failed.\r\nCard declined.\nPlease try again.";
+
+// Windows ends a line with `\r\n`, and other systems with `\n`.
+// The first call replaces each `\r\n`. The second replaces each `\n` that is left.
+string $line = Core\Str::replace($message, "\r\n", " ");
+$line = Core\Str::replace($line, "\n", " ");
+
+echo "[error] ", $line, "\n";

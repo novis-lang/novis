@@ -1,0 +1,22 @@
+<?nvs
+// Finds the main colours of a small encoded image, as a program does when it themes a page.
+// bench: iterations 256
+// bench: complexity constant
+use Novis\Image\Image;
+use Novis\Image\Color;
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        bytes $photo = Image::create(16, 16, Color::hex("#336699"))->encode();
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            array<Color> $colours = Image::palette($photo, 1 + $total % 5);
+            $total = $total + Core\Arr::count($colours);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

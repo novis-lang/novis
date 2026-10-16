@@ -1,0 +1,52 @@
+<?nvs
+// Attack: publishers send very large values, deeply nested values and objects, and the
+// stream changes what it received. Each step should work or throw an error, and nothing should crash.
+
+class Cart
+{
+    public array<int> $items = [];
+}
+
+Core\Sse $sse = Core\Sse::current();
+Core\Topic::subscribe('big');
+
+// 1. A text of ten million characters.
+Core\Topic::publish('big', Core\Str::repeat('v', 10000000));
+
+// 2. An array nested ten thousand levels deep.
+mixed $deep = 1;
+int $n = 0;
+while ($n < 10000) {
+    $deep = [$deep];
+    $n = $n + 1;
+}
+try {
+    Core\Topic::publish('big', $deep);
+} catch (Throwable $e) {
+    echo 'step 2: refused', "\n";
+}
+
+// 3. An object. The stream receives a copy, so a change to the copy does not change the original.
+Cart $cart = new Cart();
+$cart->items[] = 7;
+Core\Topic::publish('big', $cart);
+
+// 4. Every value is read. The object is changed after it arrives, and the value of
+// every message is read one thousand times.
+int $reads = 0;
+?Core\Sse\Message $message = $sse->receive();
+while ($message != null) {
+    mixed $value = $message->value();
+    if ($value is Cart) {
+        $value->items[] = 8;
+        echo 'step 4: original has ', Core\Arr::count($cart->items), ' item', "\n";
+    }
+    $n = 0;
+    while ($n < 1000) {
+        mixed $again = $message?->value();
+        $reads = $reads + 1;
+        $n = $n + 1;
+    }
+    $message = $sse->receive();
+}
+echo 'step 4: ', $reads, ' reads', "\n";

@@ -1,0 +1,57 @@
+<?nvs
+// Attack: a program seals huge values with good and broken keys.
+// Each broken key should throw a `LogicError`. Nothing may crash or leak.
+// hostile: timeout-ms 30000
+
+secret bytes $key = Core\Crypto::generateKey();
+array<secret bytes> $keys = [$key];
+
+// 1. An empty list of keys. There is no key to seal with.
+array<secret bytes> $none = [];
+try {
+    Core\SignedCookie::seal('user=42', $none);
+    echo "sealed with no key\n";
+} catch (LogicError $e) {
+    echo "no key: LogicError\n";
+}
+
+// 2. A key that is 7 bytes long. A key must be 32 bytes long.
+array<secret bytes> $short = ['raw-key' as bytes];
+try {
+    Core\SignedCookie::seal('user=42', $short);
+    echo "sealed with a short key\n";
+} catch (LogicError $e) {
+    echo "short key: LogicError\n";
+}
+
+// 3. A key that is 33 bytes long, one byte too many.
+array<secret bytes> $long = [Core\Random::bytes(33)];
+try {
+    Core\SignedCookie::seal('user=42', $long);
+    echo "sealed with a long key\n";
+} catch (LogicError $e) {
+    echo "long key: LogicError\n";
+}
+
+// 4. A value of 5 million characters is sealed and opened again.
+string $big = Core\Str::repeat('x', 5000000);
+string $bigCookie = Core\SignedCookie::seal($big, $keys);
+echo 'big value: ', Core\Str::length(Core\SignedCookie::open($bigCookie, $keys)), "\n";
+
+// 5. A list of 10000 keys. Only the first key is used to seal.
+array<secret bytes> $many = [];
+int $i = 0;
+while ($i < 10000) {
+    $many[] = Core\Crypto::generateKey();
+    $i = $i + 1;
+}
+string $manyCookie = Core\SignedCookie::seal('user=42', $many);
+echo 'many keys: ', Core\SignedCookie::open($manyCookie, [$many[0]]), "\n";
+
+// 6. The program seals 100000 times and keeps none of the cookies. All memory must be freed.
+int $j = 0;
+while ($j < 100000) {
+    Core\SignedCookie::seal('n=' . $j, $keys);
+    $j = $j + 1;
+}
+echo "after 100000 cookies\n";

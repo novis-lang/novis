@@ -1,0 +1,69 @@
+package shop:ledger;
+
+/// The fixture extension `Shop\Ledger`. Each `echo-*` export returns its
+/// argument unchanged, one per row of the Novis-to-WIT table the loader reads.
+interface api {
+    use nvs:ext/types@1.0.0.{error, value, instant, uri};
+
+    record item {
+        name: string,
+        note: option<string>,
+    }
+
+    record circle {
+        radius: f64,
+    }
+
+    record rect {
+        width: f64,
+        height: f64,
+    }
+
+    variant area {
+        circle(circle),
+        rect(rect),
+    }
+
+    enum unit {
+        gram,
+        kilogram,
+        metric-ton,
+    }
+
+    /// A delivery route. Its representation is the stop it was opened at.
+    resource route;
+
+    echo-bool: func(flag: bool) -> result<bool, error>;
+    echo-int: func(number: s64) -> result<s64, error>;
+    echo-uint: func(count: u64) -> result<u64, error>;
+    echo-float: func(amount: f64) -> result<f64, error>;
+    echo-string: func(text: string) -> result<string, error>;
+    echo-bytes: func(data: list<u8>) -> result<list<u8>, error>;
+    echo-list: func(numbers: list<s64>) -> result<list<s64>, error>;
+    echo-map: func(totals: list<tuple<string, s64>>) -> result<list<tuple<string, s64>>, error>;
+    echo-item: func(row: item) -> result<item, error>;
+    echo-optional: func(maybe: option<s64>) -> result<option<s64>, error>;
+    echo-area: func(shape: area) -> result<area, error>;
+    echo-instant: func(at: instant) -> result<instant, error>;
+    echo-uri: func(address: uri) -> result<uri, error>;
+    echo-unit: func(unit: unit) -> result<unit, error>;
+
+    /// Opens a route at `stop`, which the request keeps until it ends.
+    open-route: func(stop: s64) -> result<route, error>;
+    /// The stop `route` was opened at.
+    route-stop: func(route: borrow<route>) -> result<s64, error>;
+
+    /// The `kind` discriminant of a `mixed` argument, read through the
+    /// world's accessor import.
+    kind-of: func(anything: borrow<value>) -> result<s64, error>;
+
+    /// A sink: its parameter is declared one in the manifest.
+    write-line: func(line: string) -> result<_, error>;
+    /// A source: its return is declared one in the manifest.
+    fetch: func() -> result<string, error>;
+    /// Returns the `error` case `kind` names (0 `invalid`, 1 `parse`,
+    /// 2 `runtime`) carrying `message`.
+    fail: func(kind: s64, message: string) -> result<_, error>;
+    /// Traps.
+    crash: func() -> result<_, error>;
+}

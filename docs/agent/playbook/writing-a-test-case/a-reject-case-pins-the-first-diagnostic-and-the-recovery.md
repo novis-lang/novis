@@ -1,0 +1,7 @@
+- **A `reject` case pins the *first* diagnostic, and the recovery type behind it writes a second
+  one.** `check_read` answers `mixed` after reporting, so a `static` method declared `: int` whose
+  body reads `$this->size` also reports `E0403 declares int but returns mixed`, and `%A` does not
+  cover the trailing `aborting due to 2 errors`. Declare the surrounding position `mixed`
+  (`this-is-not-read-in-a-static-method.nvst`) or pin both errors deliberately; `bun nv try
+  <case>.nvst` prints the exact block to freeze, reading the `.nvst` in place.
+  `until: gone crates/nvs-types/src/expr/assign.rs:check_read`

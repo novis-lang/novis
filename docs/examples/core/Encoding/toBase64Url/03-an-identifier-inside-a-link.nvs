@@ -1,0 +1,18 @@
+<?nvs
+// Shows the everyday use: bytes become part of a link, where `+`, `/` and `=`
+// would each be read as something else.
+
+// Sixteen bytes that name one download. A real program takes these from
+// `Core\Random::bytes` so that nobody can guess the next one.
+bytes $id = Core\Encoding::fromHex("3f9d2b7e5c1a48d0ff00e6a19b4c7d82");
+
+// Sixteen bytes become 22 characters, and every one of them is safe here.
+// This prints the link and then 22.
+string $slug = Core\Encoding::toBase64Url($id);
+echo "https://example.com/files/", $slug, "\n";
+echo Core\Str::length($slug), "\n";
+
+// The program that answers the request reads the same sixteen bytes back and
+// looks the download up by them. This prints 16 0.
+bytes $received = Core\Encoding::fromBase64Url($slug);
+echo Core\Bytes::length($received), " ", Core\Bytes::compare($received, $id), "\n";

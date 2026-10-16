@@ -1,0 +1,12 @@
+{
+  "title": "The third-party notice is committed, and a check fails when the lockfile moved without it",
+  "status": "shipped",
+  "seeAlso": [
+    "testing/lane-table",
+    "testing/ci-lanes"
+  ],
+  "guardedBy": [
+    "tools/nv/cmd/gen-attribution.ts",
+    ".github/workflows/ci.yml"
+  ]
+}

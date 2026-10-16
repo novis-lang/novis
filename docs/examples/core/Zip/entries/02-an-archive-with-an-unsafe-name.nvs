@@ -1,0 +1,29 @@
+<?nvs
+// Shows what happens when an archive contains an unsafe name.
+
+// This archive contains `notes.txt` and `../../config.php`. The second name
+// points two folders above the folder you unpack into.
+bytes $archive = Core\Encoding::fromBase64("UEsDBBQAAAAAAAAAIVyGphA2BQAAAAUAAAAJAAAAbm90ZXMudHh0aGVsbG9QSwMEFAAAAAAAAAAhXFm9+eMNAAAADQAAABAAAAAuLi8uLi9jb25maWcucGhwPD9waHAgZXZpbCgpO1BLAQIUABQAAAAAAAAAIVyGphA2BQAAAAUAAAAJAAAAAAAAAAAAAACkgQAAAABub3Rlcy50eHRQSwECFAAUAAAAAAAAACFcWb354w0AAAANAAAAEAAAAAAAAAAAAAAApIEsAAAALi4vLi4vY29uZmlnLnBocFBLBQYAAAAAAgACAHUAAABnAAAAAAA=");
+
+// `entries` checks every name first. One unsafe name throws a `ParseError`,
+// so you get no list at all, not even `notes.txt`. This prints "not listed".
+try {
+    Core\Zip::entries($archive);
+    echo "listed\n";
+} catch (ParseError $error) {
+    echo "not listed\n";
+}
+
+// The error message names the unsafe entry. This prints `true`.
+try {
+    Core\Zip::entries($archive);
+} catch (ParseError $error) {
+    echo Core\Str::contains($error->message, "../../config.php") ? "true" : "false", "\n";
+}
+
+// Bytes that are not a zip archive throw a `ParseError` too.
+try {
+    Core\Zip::entries("just some text" as bytes);
+} catch (ParseError $error) {
+    echo "not an archive\n";
+}

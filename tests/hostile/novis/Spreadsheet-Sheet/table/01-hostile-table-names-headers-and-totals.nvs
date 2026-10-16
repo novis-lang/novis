@@ -1,0 +1,54 @@
+<?nvs
+// Attack: a request makes tables with hostile names, headers and total formulas, tables that overlap, and very many tables.
+// `table` should write each name and header as data, and throw an error for a table Excel cannot open.
+use Novis\Spreadsheet\Formula;
+use Novis\Spreadsheet\Reader;
+use Novis\Spreadsheet\Workbook;
+
+class Attack
+{
+    // This method adds a table, then writes `$header` and two rows in it, and prints the tables read back, or the class of the error.
+    public static function attempt(int $step, array<mixed> $header, Novis\Spreadsheet\Sheet::TableOptions $options): void
+    {
+        try {
+            var $book = Workbook::createInMemory();
+            var $sheet = $book->sheet('Shop');
+            $sheet->table('A1:B3', $options);
+            $sheet->addAll([$header, [1, 2], [3, 4]]);
+            bytes $file = $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
+            echo 'step ', $step, ' read ', Core\Arr::count(Reader::open($file)->tables('Shop')), " table\n";
+        } catch (Throwable $e) {
+            echo 'step ', $step, ' stopped ', $e::class, "\n";
+        }
+    }
+}
+
+// 1. Names with markup, spaces, a cell address and 1,000 characters.
+Attack::attempt(1, ['qty', 'price'], { name: '<x>"Orders"</x>' });
+Attack::attempt(1, ['qty', 'price'], { name: 'My Orders' });
+Attack::attempt(1, ['qty', 'price'], { name: 'A1' });
+Attack::attempt(1, ['qty', 'price'], { name: Core\Str::repeat('n', 1000) });
+
+// 2. Headers that repeat, an empty header, and headers with markup and brackets.
+Attack::attempt(2, ['qty', 'qty'], null);
+Attack::attempt(2, ['', 'price'], null);
+Attack::attempt(2, ['<script>', '[qty]#All'], null);
+
+// 3. A total of a header the table does not have, and a total formula from user text.
+Attack::attempt(3, ['qty', 'price'], { totals: ['secret' => 'sum'] });
+Attack::attempt(3, ['qty', 'price'], { totals: ['qty' => Formula::of('=WEBSERVICE("https://example.com")')] });
+Attack::attempt(3, ['qty', 'price'], { style: '"/><x>' });
+
+// 4. Two tables that overlap, and 500 tables on one sheet.
+var $book = Workbook::createInMemory();
+var $sheet = $book->sheet('Shop');
+for (int $n = 1; $n <= 500; $n++) {
+    $sheet->addAll([["qty{$n}", "price{$n}"], [1, 2]]);
+    $sheet->table("A{$n}0:B{$n}1");
+}
+echo "step 4 added 500 tables\n";
+try {
+    $sheet->table('A10:B12');
+} catch (LogicError $e) {
+    echo "step 4 stopped LogicError\n";
+}

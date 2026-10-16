@@ -1,0 +1,15 @@
+<?nvs
+// Shows how to let a person choose the status of an order from a list.
+use Novis\Spreadsheet\Workbook;
+
+var $book = Workbook::createInMemory();
+var $sheet = $book->sheet('Orders');
+$sheet->addAll([['order' => 1042, 'status' => 'open'], ['order' => 1043, 'status' => 'paid']]);
+
+// Excel shows a list with these three values in each cell from B2 to B100.
+$sheet->validate('B2:B100', { list: ['open', 'paid', 'sent'] });
+bytes $file = $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
+
+// `Core\Zip::read` returns the XML of the sheet. This line checks that the list is in it.
+var $xml = Core\Zip::read($file, 'xl/worksheets/sheet1.xml') as string;
+echo Core\Str::contains($xml, '<formula1>"open,paid,sent"</formula1>') ? 'the list is in the file' : 'no list', "\n";

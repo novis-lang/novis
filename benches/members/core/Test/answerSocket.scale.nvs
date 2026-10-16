@@ -1,0 +1,27 @@
+<?nvs
+// Measures `Core\Test::answerSocket` scripting one WebSocket peer, at growing numbers of frames.
+// bench: start 256
+// bench: max 4096
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        array<string> $frames = [];
+        uint $n = 0;
+        while ($n < $size) {
+            $frames[] = 'tick';
+            $n = $n + 1;
+        }
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            Core\Test::answerSocket('wss://chat.example.com/room', $frames);
+            $total = $total + 1 + ($total % 5);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

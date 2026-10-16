@@ -1,0 +1,33 @@
+<?nvs
+// Attack: a program turns the flag off and on many times next to the flags around its bit.
+// `normalAccount` must only report its own bit, and nothing may crash.
+// hostile: timeout-ms 60000
+// requires: samba-ad
+
+var $corp = Core\Ldap::connect('corp');
+
+try {
+    var $found = $corp->read('CN=Anna Berg,OU=Company,DC=example,DC=test', { select: ['userAccountControl'] })?->accountFlags();
+    if ($found != null) {
+        Core\Ldap\Ad\AccountFlags $flags = $found;
+
+        // 1. The flag turned off and on one hundred thousand times, with the bits beside it set the other way.
+        uint $wrong = 0;
+        uint $i = 0;
+        while ($i < 100000) {
+            bool $on = $i % 2 == 0;
+            var $changed = $flags->with({ normalAccount: $on, temporaryDuplicateAccount: !$on, interdomainTrustAccount: !$on });
+            if ($changed->normalAccount() != $on) {
+                $wrong = $wrong + 1;
+            }
+            $i = $i + 1;
+        }
+        echo '1 wrong: ', $wrong, "\n";
+
+        // 2. The flag cleared and every other flag set. `normalAccount` must be `false`.
+        var $others = $flags->with({ normalAccount: false, script: true, temporaryDuplicateAccount: true, interdomainTrustAccount: true, partialSecretsAccount: true });
+        echo '2 normal: ', $others->normalAccount() ? 'yes' : 'no', ' bits: ', $others->bits(), "\n";
+    }
+} catch (Throwable $error) {
+    echo "threw\n";
+}

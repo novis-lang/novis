@@ -1,0 +1,17 @@
+--TEST--
+Core\Str::upperFirst/lowerFirst map the first character only, Unicode-aware — `rule:types/bytes`
+--FILE--
+<?nvs
+echo Core\Str::upperFirst("nvs rocks"), "\n";
+echo Core\Str::lowerFirst("NVS"), "\n";
+echo Core\Str::upperFirst("élan"), "\n";
+echo Core\Str::lowerFirst("Élan"), "\n";
+echo "[", Core\Str::upperFirst(""), "]\n";
+echo Core\Str::upperFirst("Already"), "\n";
+--EXPECT--
+Nvs rocks
+nVS
+Élan
+élan
+[]
+Already

@@ -1,0 +1,32 @@
+<?nvs
+// Shows the everyday use: one task produces work and another does it. The
+// channel holds three prices, so the reader never runs far ahead of the till
+// however long the list of orders gets.
+
+class Till
+{
+    public static int $total = 0;
+}
+
+var $orders = new Core\Task\Channel<int>(3);
+
+Core\Task::all({
+    read: fn(): int => {
+        array<int> $prices = [1299, 450, 2000, 99, 1750];
+        foreach ($prices as int $price) {
+            $orders->send($price);
+        }
+        // Closing ends the worker's loop once the queued prices are gone.
+        $orders->close();
+        return 0;
+    },
+    sum: fn(): int => {
+        foreach ($orders as int $price) {
+            Till::$total += $price;
+        }
+        return Till::$total;
+    },
+});
+
+// This prints 5598.
+echo "total: ", Till::$total, "\n";

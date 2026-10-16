@@ -1,0 +1,18 @@
+<?nvs
+// Shows a program writing an amount into a ledger that counts in very small
+// units. A token ledger stores 1 token as 10 to the power 18.
+
+class Ledger {
+    // Returns $whole tokens as the smallest unit the ledger counts in.
+    public static function smallestUnits(int $whole, uint $decimals): Core\BigInt {
+        return Core\BigInt::of($whole)->mul(Core\BigInt::of(10)->pow($decimals));
+    }
+}
+
+// 2500 tokens with 18 decimals is a number of 22 digits, which no `int` holds.
+// This prints 2500000000000000000000.
+echo Ledger::smallestUnits(2500, 18), "\n";
+
+// A ledger with 6 decimals stores the same amount as a smaller number. This
+// prints 2500000000.
+echo Ledger::smallestUnits(2500, 6), "\n";

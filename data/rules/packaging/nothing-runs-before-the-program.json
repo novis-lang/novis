@@ -1,0 +1,12 @@
+{
+  "title": "Nothing in a package runs before your program does",
+  "status": "designed",
+  "seeAlso": [
+    "packaging/a-package-is-its-digest",
+    "security/no-eval",
+    "security/closed-doors",
+    "security/package-authority-is-granted-one-line-at-a-time"
+  ],
+  "guardedBy": [],
+  "milestone": "M15"
+}

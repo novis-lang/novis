@@ -1,0 +1,20 @@
+<?nvs
+// Shows how to find the record that the path names, as a page for one invoice does.
+
+class Invoices {
+    #[Core\Route(path: "/invoices/{number}", method: Core\Http\Method::Get, name: "Invoices::show")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function show(uint $number): string { return "one invoice"; }
+}
+
+// A small list of invoices. A real program reads them from a database.
+array<string> $invoices = [1001 => "Web hosting, 12.00 EUR", 1002 => "Domain renewal, 9.50 EUR"];
+
+// The request is `GET /invoices/1002`.
+?Core\Router\Match $matched = Core\Request::route();
+if ($matched != null) {
+    // `{number}` is a `uint` in `show`, so the capture is already a number.
+    uint $number = $matched->param("number") as uint;
+    // This prints `Invoice 1002: Domain renewal, 9.50 EUR`.
+    echo "Invoice ", $number, ": ", $invoices[$number] ?? "not found", "\n";
+}

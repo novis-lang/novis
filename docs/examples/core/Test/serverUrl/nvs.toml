@@ -1,0 +1,5 @@
+# The tests send HTTP requests to a test server on this computer.
+# These lines allow that, and nothing else.
+[capabilities.net]
+connect = ["127.0.0.1"]
+internal = ["127.0.0.1"]

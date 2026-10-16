@@ -1,0 +1,88 @@
+<?nvs
+// Attack: the program uses the return types `static`, `self`, `void` and `never` until something breaks.
+// It creates and frees one million objects of a subclass five levels deep.
+// It returns one object one million times and throws from the bottom of a very deep stack.
+// Every step should finish or throw an error that is caught, and the program should not crash.
+// hostile: timeout-ms 60000
+
+class Node
+{
+    public function constructor(public int $n)
+    {}
+
+    public static function make(int $n): static
+    {
+        return new static($n);
+    }
+
+    public function add(int $k): self
+    {
+        $this->n = $this->n + $k;
+        return $this;
+    }
+
+    public static function nothing(int $v): void
+    {}
+
+    public static function stop(string $why): never
+    {
+        throw new RuntimeError($why);
+    }
+
+    // `dive` calls itself until `$left` is 0. Then it calls `stop`, which throws,
+    // so the error starts at the bottom of the stack.
+    public static function dive(int $left): int
+    {
+        if ($left <= 0) {
+            Node::stop('bottom');
+        }
+        return Node::dive($left - 1) + 1;
+    }
+}
+
+class A extends Node
+{}
+class B extends A
+{}
+class C extends B
+{}
+class D extends C
+{}
+final class E extends D
+{}
+
+// 1. `E::make` returns `static`, so each call creates an `E`.
+// One million objects are created, and each is freed in the next round.
+int $sum = 0;
+uint $i = 0;
+while ($i < 1000000) {
+    E $made = E::make($sum % 5);
+    $sum = $sum + $made->n + 1;
+    $i = $i + 1;
+}
+echo "made a million\n";
+
+// 2. `add` returns the same object one million times.
+// A call to the `void` method `nothing` runs between each one.
+E $one = E::make(0);
+uint $j = 0;
+while ($j < 1000000) {
+    $one->add(1);
+    Node::nothing($one->n);
+    $j = $j + 1;
+}
+echo $one->n, " after a million\n";
+
+// 3. Every other round needs 1,000,000 nested calls, more than the stack allows.
+// Each round throws an error, which is caught. The program must not crash.
+uint $round = 0;
+uint $caught = 0;
+while ($round < 50) {
+    try {
+        Node::dive($round % 2 == 0 ? 1000000 : 500);
+    } catch (Throwable $e) {
+        $caught = $caught + 1;
+    }
+    $round = $round + 1;
+}
+echo $caught, " deep dives unwound\n";

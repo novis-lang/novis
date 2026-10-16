@@ -1,0 +1,50 @@
+--TEST--
+a granted root reads while a path outside it is refused, including one that reaches outside through `..` — `rule:security/capability-question-is-grant-and-scope`, `rule:config/an-app-block-may-widen-bounded-by-the-global-ceiling`
+--FILE--
+<?nvs
+// `Here::path` returns its argument resolved from this file's folder, so the
+// paths below are absolute and the `..` built with `Core\Path::join` reaches
+// the door as written.
+class Here {
+    public static function path(#[Core\Path] string $path): string {
+        return $path;
+    }
+}
+string $dir = Here::path('.');
+
+// Inside the granted root: this is the whole of what the grant bought.
+echo Core\IO::read('./data/note.txt');
+
+// Outside it, and the file exists — so a refusal here is the capability's and
+// not the filesystem's. `nvs_runtime::capability::open_read`'s own doc owns
+// the ordering that makes that true: the check runs before the open, so a
+// path outside the grant is refused whether or not it exists and the two
+// messages cannot be used to probe a directory.
+try {
+    echo Core\IO::read('./secret.txt');
+} catch (RuntimeError $error) {
+    echo $error->message, "\n";
+}
+
+// The same file reached through a `..` segment out of the granted root. A
+// literal has its `..` removed while compiling, so this path is joined at run
+// time and keeps it. A comparison done on the path as written would accept
+// it, which is why the grant is canonicalised before it is compared.
+try {
+    echo Core\IO::read(Core\Path::join($dir, 'data/../secret.txt'));
+} catch (RuntimeError $error) {
+    echo $error->message, "\n";
+}
+--FILE nvs.toml--
+[capabilities.fs]
+read = ["./data"]
+--FILE data/note.txt--
+note
+--FILE secret.txt--
+secret
+--EXPECTF--
+note
+Core\IO::read needs the capability `fs.read` for %s%esecret.txt, which is not granted
+help: grant it in nvs.toml under `[capabilities.fs]`
+Core\IO::read needs the capability `fs.read` for %s%edata%e..%esecret.txt, which is not granted
+help: grant it in nvs.toml under `[capabilities.fs]`

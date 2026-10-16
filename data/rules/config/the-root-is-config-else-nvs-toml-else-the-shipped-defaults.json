@@ -1,0 +1,16 @@
+{
+  "title": "The root of the tree is every `--config` in order, else `./nvs.toml`, else the data folder's `nvs.toml`, else the shipped defaults",
+  "status": "shipped",
+  "seeAlso": [
+    "config/no-configuration-file-is-a-complete-configuration",
+    "config/the-resolved-root-is-announced-and-stored",
+    "config/nvs-toml-is-not-a-project-manifest",
+    "config/include-takes-a-path-or-a-dir"
+  ],
+  "guardedBy": [
+    "crates/nvs-config/tests/resolve.rs",
+    "crates/nvs-cli/tests/check_grants.rs",
+    "crates/nvs-cli/tests/run_command.rs",
+    "crates/nvs-cli/tests/init.rs"
+  ]
+}

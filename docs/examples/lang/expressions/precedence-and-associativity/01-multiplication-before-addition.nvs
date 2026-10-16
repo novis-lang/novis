@@ -1,0 +1,20 @@
+<?nvs
+// Shows the order Novis uses when you write several operators in one
+// expression: multiplication before addition, and the comparison after both.
+
+int $price = 20;
+int $quantity = 3;
+int $shipping = 5;
+
+// `*` runs before `+`, so this is `20 * 3 + 5`. It prints 65.
+echo $price * $quantity + $shipping, "\n";
+
+// Parentheses change the order, and cost nothing when the program runs.
+// This prints 160.
+echo $price * ($quantity + $shipping), "\n";
+
+// The arithmetic and the comparison run before `&&`, and `&&` runs before
+// `||`. This prints `free shipping`.
+bool $isMember = false;
+bool $hasCoupon = true;
+echo $isMember || $hasCoupon && $price * $quantity > 50 ? "free shipping" : "pay shipping", "\n";

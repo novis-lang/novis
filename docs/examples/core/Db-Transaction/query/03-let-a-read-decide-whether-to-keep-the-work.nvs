@@ -1,0 +1,34 @@
+<?nvs
+// Shows an order that is only kept when the stock is there: the transaction
+// writes first, reads what it wrote, and gives up when the read says no.
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table stock (item text primary key, left int not null)', []);
+$db->execute('insert into stock (item, left) values (?, ?)', ['lamp', 2]);
+
+var $order = fn (string $item, int $count): string => {
+    try {
+        $db->transaction(fn (Core\Db\Transaction $tx): void => {
+            $tx->execute('update stock set left = left - ? where item = ?', [$count, $item]);
+
+            // The update is part of this transaction, so this read sees the new
+            // number. A negative number means the order was too large.
+            int $left = $tx->query('select left from stock where item = ?', [$item])->first()?->int('left') ?? 0;
+            if ($left < 0) {
+                $tx->rollBack('not enough in stock');
+            }
+        });
+    } catch (Core\Db\RolledBack $gone) {
+        return 'no: ' . $gone->reason;
+    }
+    return 'yes';
+};
+
+// This prints `yes`, then `no: not enough in stock`.
+echo $order('lamp', 2), "\n";
+echo $order('lamp', 1), "\n";
+
+// The second order changed nothing, so this prints `left: 0`.
+echo 'left: ', $db->query('select left from stock where item = ?', ['lamp'])->first()?->int('left') ?? 0, "\n";
+
+$db->close();

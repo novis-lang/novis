@@ -1,0 +1,23 @@
+<?nvs
+// Writes a small image as a JPEG file, as a program does when it converts an upload for the web.
+// bench: iterations 256
+// bench: complexity constant
+use Novis\Image\Image;
+use Novis\Image\Color;
+use Novis\Image\Format;
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        Image $photo = Image::create(4, 4, Color::hex("#336699"));
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            uint $quality = 70 + $total % 3;
+            $total = $total + 1 + Core\Bytes::length($photo->format(Format::Jpeg, {quality: $quality})->encode()) % 7;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

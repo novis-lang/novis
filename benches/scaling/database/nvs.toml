@@ -1,0 +1,8 @@
+# The `notes` database is kept in memory. It is deleted when the program ends.
+[db.notes]
+driver = "sqlite"
+path = ":memory:"
+
+# The program may open the `notes` database.
+[capabilities.db]
+connect = ["notes"]

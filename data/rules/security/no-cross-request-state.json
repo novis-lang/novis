@@ -1,0 +1,12 @@
+{
+  "title": "Nothing a request does is observable by another request except through an explicit, capability-gated store",
+  "status": "shipped",
+  "seeAlso": [
+    "security/closed-doors",
+    "security/isolate-shares-nothing",
+    "statements/storage-that-outlives-a-call"
+  ],
+  "guardedBy": [
+    "tests/conformance/isolate/a-child-shares-nothing-with-its-parent.nvst"
+  ]
+}

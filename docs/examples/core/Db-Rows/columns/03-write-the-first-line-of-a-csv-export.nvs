@@ -1,0 +1,19 @@
+<?nvs
+// Shows how to write the heading line of a CSV export. The headings come from
+// the query, so a column added to the query is added to the file as well.
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table invoices (id integer primary key, number text not null, total real not null)', []);
+$db->execute('insert into invoices (number, total) values (?, ?), (?, ?)', ['2026-001', 19.5, '2026-002', 8.0]);
+
+var $rows = $db->query('select number, total from invoices order by id', []);
+
+array<string> $headings = [];
+foreach ($rows->columns() as Core\Db\Column $column) {
+    $headings[] = $column->name();
+}
+
+// This prints `number,total`.
+echo Core\Str::join($headings, ','), "\n";
+
+$db->close();

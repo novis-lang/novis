@@ -1,0 +1,6 @@
+LogicError: The template has no sheet `Prices`, which `Prices!A1` names.
+Text: "Shop"
+Number: 19.5
+Boolean: true
+Formula: the formula B2*2
+Text with =: "=B2*2"

@@ -1,0 +1,11 @@
+{
+  "title": "A git dependency pins an exact commit, and only the root application may declare one",
+  "status": "designed",
+  "seeAlso": [
+    "packaging/a-package-is-its-digest",
+    "packaging/the-lockfile-holds-every-digest",
+    "packaging/publishing-never-overwrites"
+  ],
+  "guardedBy": [],
+  "milestone": "M15"
+}

@@ -1,0 +1,20 @@
+<?nvs
+// Shows how to share jobs between the cores of a machine by giving them out in turn.
+
+uint $jobs = 10;
+uint $cores = Core\Os::cpuCount();
+
+// Job 0 goes to core 0, job 1 to core 1, and so on. After the last core, the
+// next job goes to core 0 again. `%` gives the rest of a division.
+uint $onFirstCore = 0;
+uint $job = 0;
+while ($job < $jobs) {
+    if ($job % $cores == 0) {
+        $onFirstCore = $onFirstCore + 1;
+    }
+    $job = $job + 1;
+}
+
+// With one core, core 0 gets all 10 jobs. With more cores, it gets fewer, but
+// never 0. This prints `yes`.
+echo $onFirstCore >= 1 && $onFirstCore <= 10 ? "yes" : "no", "\n";

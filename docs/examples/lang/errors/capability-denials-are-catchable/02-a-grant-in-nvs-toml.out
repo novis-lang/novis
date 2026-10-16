@@ -1,0 +1,2 @@
+The shop closes at 18:00.
+Core\IO::write needs the capability `fs.write`

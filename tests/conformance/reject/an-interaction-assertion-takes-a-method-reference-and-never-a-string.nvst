@@ -1,0 +1,25 @@
+--TEST--
+An interaction assertion names its method by reference, so a string holding the method's name does not compile — `rule:testing/interaction-after-the-fact`
+--FILE--
+<?nvs
+// `rule:testing/interaction-after-the-fact`: the method is a reference so a
+// rename updates or breaks the test. A string is checked by nothing.
+interface Mailer {
+    public function send(string $to): bool;
+}
+
+Mailer $mailer = Core\Test::double<Mailer>({
+    send: fn(string $to): bool => true,
+});
+$mailer->send("ada@example.test");
+Core\Test::assertCalled($mailer, "send");
+--EXPECTF-ERROR--
+error[E0830]: `Core\Test::assertCalled` names a method here, and this is not a method reference
+   --> case.nvs:12:34
+   |
+12 | Core\Test::assertCalled($mailer, "send");
+   |                                  ^^^^^^ write `Interface::method`
+   = help: `rule:testing/interaction-after-the-fact`: the method is named as a reference so that renaming it updates or breaks the test — a `string` holding the name is checked by nothing, and a typo in one reports as a call that never happened
+
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

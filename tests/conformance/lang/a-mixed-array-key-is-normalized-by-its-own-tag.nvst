@@ -1,0 +1,69 @@
+--TEST--
+An array key that arrives as a `mixed` is normalized from its own tag — a `string` as itself, an `int` or a `uint` as its decimal — and every other tag throws where a declared type would have been refused at the site (`rule:types/unions-and-mixed`, `rule:types/arrays`)
+--FILE--
+<?nvs
+// covers: lang:types/mixed
+
+class Key {
+    // `rule:types/unions-and-mixed`: `mixed` is the one position nothing is
+    // checked at, so a key slot defers to the value's own tag exactly as an
+    // operand or a subscript base does. `rule:types/arrays` is what the tag is
+    // read against, and the kinds it refuses throw here rather than at the
+    // site, because the site could not see them.
+    public static function read(array<string> $t, mixed $k): string {
+        try {
+            return $t[$k];
+        } catch (Throwable $e) {
+            return $e->message;
+        }
+    }
+}
+
+array<string> $t = ["8" => "eight", "k" => "v"];
+
+// The three kinds `rule:types/arrays` accepts: a `string` is the key already,
+// and an `int` or a `uint` normalizes to its own decimal — the same key
+// `$t[8]` reaches where the subscript's type is visible.
+mixed $text = "k";
+mixed $whole = 8;
+mixed $unsigned = 8 as uint;
+echo Key::read($t, $text), "\n";
+echo Key::read($t, $whole), "\n";
+echo Key::read($t, $unsigned), "\n";
+echo $t[8], "\n";
+
+// And the kinds it refuses, which `E0434` names at the site wherever the
+// declared type shows them.
+mixed $fraction = 1.5;
+mixed $flag = true;
+mixed $nothing = null;
+mixed $table = ["x"];
+echo Key::read($t, $fraction), "\n";
+echo Key::read($t, $flag), "\n";
+echo Key::read($t, $nothing), "\n";
+echo Key::read($t, $table), "\n";
+
+// Every key site takes that one normalization: a write, an `unset`, an array
+// literal's explicit key, and a subscript whose base is itself a `mixed`.
+array<string> $w = ["kept" => "yes"];
+$w[$text] = "written";
+echo Core\Arr::count($w), "\n";
+unset($w[$text]);
+echo Core\Arr::count($w), "\n";
+array<string> $lit = [$text => "in a literal", $whole => "and a number"];
+echo $lit["k"], " / ", $lit["8"], "\n";
+mixed $base = $t;
+echo $base[$text], " ", $base[$whole], "\n";
+--EXPECT--
+v
+eight
+eight
+eight
+`float` is not an array key — array keys are `int`, `uint`, or `string`
+`bool` is not an array key — array keys are `int`, `uint`, or `string`
+`null` is not an array key — array keys are `int`, `uint`, or `string`
+`array<T>` is not an array key — array keys are `int`, `uint`, or `string`
+2
+1
+in a literal / and a number
+v eight

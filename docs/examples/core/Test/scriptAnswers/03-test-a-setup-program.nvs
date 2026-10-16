@@ -1,0 +1,24 @@
+<?nvs
+// Shows a test of a setup program that asks three questions and writes a configuration line.
+
+final class Setup {
+    // Asks for a project name, a database and whether to add example data.
+    // The name comes from outside the program, so the result is a `tainted string`.
+    public static function run(): tainted string {
+        tainted string $name = Core\Cli::ask("Project name?");
+        array<string> $databases = ["sqlite", "postgres", "mysql"];
+        string $database = Core\Cli::select("Database?", $databases);
+        bool $examples = Core\Cli::confirm("Add example data?", {default: false});
+        return $name . " " . $database . " examples=" . ($examples ? "yes" : "no");
+    }
+}
+
+// The test gives the three answers a person would type.
+Core\Test::scriptAnswers(["shop", "2", "y"]);
+Core\Test::assertSame(Setup::run(), "shop postgres examples=yes");
+
+// An empty answer to `confirm` means its `default`, which is "no".
+Core\Test::scriptAnswers(["blog", "1", ""]);
+Core\Test::assertSame(Setup::run(), "blog sqlite examples=no");
+
+echo "the setup program works\n";

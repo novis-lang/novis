@@ -1,0 +1,4 @@
+# The client sends an empty text, a text with emoji and a long text, then closes the connection.
+text:
+text: 👋🏽 hello 世界 ﷽ é
+text: a long line that repeats itself, a long line that repeats itself, a long line that repeats itself, a long line that repeats itself, a long line that repeats itself, a long line that repeats itself, a long line that repeats itself, a long line that repeats itself

@@ -1,0 +1,24 @@
+<?nvs
+// Measures reading a file line by line with `Core\IO::lines`, at growing numbers of lines.
+// bench: start 64
+// bench: max 1024
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        string $file = Core\Path::join(Core\IO::temporaryDir(), 'names.txt');
+        Core\IO::write($file, Core\Str::repeat("Ada\n", $size));
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            foreach (Core\IO::lines($file) as string $line) {
+                $total = $total + 1;
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(64), "\n";

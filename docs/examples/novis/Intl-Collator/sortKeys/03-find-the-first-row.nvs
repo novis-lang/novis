@@ -1,0 +1,17 @@
+<?nvs
+// Shows how to find the row that sorts first by using its key.
+use Novis\Intl\Collator;
+
+array<string> $products = ["Zucker", "Äpfel", "Mehl", "Butter"];
+array<bytes> $keys = Collator::sortKeys($products, "de");
+
+// This loop keeps the position of the smallest key.
+int $first = 0;
+for (int $i = 1; $i < 4; $i++) {
+    if (Core\Bytes::compare($keys[$i], $keys[$first]) < 0) {
+        $first = $i;
+    }
+}
+
+// This prints Äpfel.
+echo $products[$first], "\n";

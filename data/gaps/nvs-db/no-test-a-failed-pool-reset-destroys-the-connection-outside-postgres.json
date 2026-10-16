@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-db/src/mysql.rs",
+  "title": "Only PostgreSQL has a test that a failed pool reset destroys the connection; MySQL, SQL Server and SQLite have none.",
+  "text": "`rule:security/db-pool-reset-is-a-boundary` says a connection whose reset fails is closed, never returned to the pool. `a_failed_reset_destroys_the_connection_rather_than_returning_it` proves it for PostgreSQL (`crates/nvs-db/src/pg.rs:6081`). `MySqlConn::reset` (`crates/nvs-db/src/mysql.rs:2003`), the SQL Server reset under `crates/nvs-db/src/tds/` and `SqliteConn::reset` (`crates/nvs-db/src/sqlite.rs:1327`) have no such test. Closing it means the same test for each of the three.",
+  "goal": "completeness-holes"
+}

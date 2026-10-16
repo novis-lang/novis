@@ -1,0 +1,13 @@
+# The test binaries whose key is the whole tree, one per line, each with why.
+#
+# A wide binary runs on every change, which is safe and slow. This file is the list of the ones
+# that are wide for a reason somebody looked at, and `bun nv verify`'s `test` step fails on any
+# other (`tools/nv/keys/escape.ts`). So a new test that joins `..` onto
+# `CARGO_MANIFEST_DIR` or starts a process fails the run that wrote it, with the line, instead of
+# quietly costing every later run its narrow key: reach the file through `nvs_repo::path`, and a
+# process through `nvs_repo::spawn`. Product code may start a process and read its working
+# directory without making its binary wide, because the test that drives it names every path it
+# hands over, and that test is judged.
+# A line naming a binary that is narrow now fails too, so this list only ever shrinks by hand.
+#
+# `<binary>  --  <why it cannot be narrow>`. The binary is named as `bun nv verify` names it: `<package> <kind> <target>`.

@@ -1,0 +1,49 @@
+--TEST--
+Core\Http\Identity::read takes a key of any kind a handshake can be signed with and refuses one that only agrees, so the kind of the pair is what a client identity is signed with — `rule:security/algorithm-comes-from-the-key`
+--FILE--
+<?nvs
+// A client identity is a signature the server asks for during the handshake, so
+// the pair's kind has to be one that signs. `Core\Crypto\KeyKind` has a case
+// that does not — `X25519` agrees and nothing else — and a read that took it
+// would build an identity that fails the moment a server asks for one, which is
+// the failure this member exists to move to the deployment.
+secret bytes $p256 = "-----BEGIN PRIVATE KEY-----\nMIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgm69K6vDp0AOQ7cAr\nuhQbem2DVM3ATNIAwRI64xaJ/SGhRANCAAQZnoUgouQA/0podio5J+da8P/MUymH\nXa17V8HZrF405xazxZ5zFnCW2PUbZ3CElx/q+3xzkIZ+CEUR84UQ1Gaz\n-----END PRIVATE KEY-----\n" as bytes;
+string $p256Chain = "-----BEGIN CERTIFICATE-----\nMIIBlTCCATugAwIBAgIUOutG9T2sNn5Gk1F/4t/VZaL4xIcwCgYIKoZIzj0EAwIw\nHzEdMBsGA1UEAwwUY2xpZW50Lm5vdmlzLmV4YW1wbGUwIBcNMjYwOTEyMjMzOTM1\nWhgPMjEyNjA4MTkyMzM5MzVaMB8xHTAbBgNVBAMMFGNsaWVudC5ub3Zpcy5leGFt\ncGxlMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEGZ6FIKLkAP9KaHYqOSfnWvD/\nzFMph12te1fB2axeNOcWs8WecxZwltj1G2dwhJcf6vt8c5CGfghFEfOFENRms6NT\nMFEwHQYDVR0OBBYEFGIhmVGjbjICXl8yK/ztiD1oh2tzMB8GA1UdIwQYMBaAFGIh\nmVGjbjICXl8yK/ztiD1oh2tzMA8GA1UdEwEB/wQFMAMBAf8wCgYIKoZIzj0EAwID\nSAAwRQIgR3Jf92T6sR7qKE/BQwSx40DqTSxekum8n3xTfErf9i4CIQChybRuk12t\nFXPwqQ0biQfTzl+cQ+Cc/2cw72NUT8a7Jg==\n-----END CERTIFICATE-----\n";
+
+// The other signing kind on the roster, so the member is not P-256's alone: an
+// Ed25519 leaf over an Ed25519 pair is an identity on the same terms.
+secret bytes $ed25519 = "-----BEGIN PRIVATE KEY-----\nMC4CAQAwBQYDK2VwBCIEIM9sUcYAGspJOAqm3qMBkB//vV3Hnpj7+pgIXp43jW+t\n-----END PRIVATE KEY-----\n" as bytes;
+string $ed25519Chain = "-----BEGIN CERTIFICATE-----\nMIIBTDCB/6ADAgECAhQ17j2Xe6rvGOZqgU0W011sTuW+IzAFBgMrZXAwGzEZMBcG\nA1UEAwwQZWQubm92aXMuZXhhbXBsZTAgFw0yNjA5MTIyMzQzMjJaGA8yMTI2MDgx\nOTIzNDMyMlowGzEZMBcGA1UEAwwQZWQubm92aXMuZXhhbXBsZTAqMAUGAytlcAMh\nACT/4hW7zbJtISV79UQYEtXJzOQ18C0qB16Tags7Vpcao1MwUTAdBgNVHQ4EFgQU\n5hV1V6iqg9AL4FmXJoVbzAHpg2wwHwYDVR0jBBgwFoAU5hV1V6iqg9AL4FmXJoVb\nzAHpg2wwDwYDVR0TAQH/BAUwAwEB/zAFBgMrZXADQQBSkCaW0oa7UWSQSqLBhxgD\nlRHq1kQ2BhwRhBHgl6n/0GK47grLHlIkdnLjiBygbjeYlE4JdgRVr1rWrpcZZLQF\n-----END CERTIFICATE-----\n";
+
+Core\Http\Identity::read($p256Chain as bytes, Core\Crypto\KeyPair::read($p256, Core\Crypto\KeyKind::P256));
+echo "a P256 leaf over its P256 pair is an identity\n";
+
+Core\Http\Identity::read($ed25519Chain as bytes, Core\Crypto\KeyPair::read($ed25519, Core\Crypto\KeyKind::Ed25519));
+echo "an Ed25519 leaf over its Ed25519 pair is an identity\n";
+
+// The kind that agrees and never signs. A drawn pair is enough here: the read
+// stops at the kind, so the certificate it is handed beside it never comes into
+// it — which is also why this refusal is not the mismatch one.
+Core\Crypto\KeyPair $agrees = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::X25519);
+try {
+    Core\Http\Identity::read($p256Chain as bytes, $agrees);
+    echo "a key that only agrees was accepted as an identity\n";
+} catch (LogicError $refused) {
+    echo "a key that only agrees is refused\n";
+}
+
+// And a drawn signing pair is refused too, for the other reason: it is a fine
+// key and simply not the leaf's. Both refusals are `LogicError`s, because both
+// files are the program's own and there is nobody a verdict could be about.
+Core\Crypto\KeyPair $drawn = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::Ed25519);
+try {
+    Core\Http\Identity::read($p256Chain as bytes, $drawn);
+    echo "a freshly drawn pair was accepted as the leaf's\n";
+} catch (LogicError $refused) {
+    echo "a freshly drawn signing pair is still not this leaf's\n";
+}
+--EXPECT--
+a P256 leaf over its P256 pair is an identity
+an Ed25519 leaf over its Ed25519 pair is an identity
+a key that only agrees is refused
+a freshly drawn signing pair is still not this leaf's

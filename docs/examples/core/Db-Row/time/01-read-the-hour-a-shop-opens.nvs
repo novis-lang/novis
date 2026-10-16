@@ -1,0 +1,17 @@
+<?nvs
+// Shows how to read a clock reading out of a row.
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table shops (name text not null, opens time not null)', []);
+$db->execute('insert into shops (name, opens) values (?, ?), (?, ?)', ['the bakery', '06:30:00', 'the tea shop', '09:00:00']);
+
+// `time` reads the named column as a `Core\Time\TimeOfDay`, and `format` writes
+// that reading out. This prints `the bakery: 06:30` and `the tea shop: 09:00`.
+foreach ($db->query('select name, opens from shops order by opens', []) as Core\Db\Row $row) {
+    ?Core\Time\TimeOfDay $opens = $row->time('opens');
+    if ($opens != null) {
+        echo $row->string('name') ?? '', ': ', $opens->format('HH:mm'), "\n";
+    }
+}
+
+$db->close();

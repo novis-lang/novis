@@ -1,0 +1,27 @@
+<?nvs
+// Shows how to install themes that users upload as zip archives, each in its own folder.
+
+class Themes {
+    // Writes the files of one upload into a new folder and returns a short report.
+    // Each theme may have at most 1 MiB of files.
+    public static function install(bytes $upload): string {
+        string $folder = Core\IO::temporaryDir();
+        try {
+            uint $files = Core\Zip::extract($upload, $folder, 1048576);
+            return 'installed ' . $files . ' files';
+        } catch (ParseError $error) {
+            // An unsafe or broken archive throws before any file is written.
+            // So the new folder is still empty.
+            return 'rejected, the folder has ' . Core\Arr::count(Core\IO::list($folder)) . ' files';
+        }
+    }
+}
+
+// A good theme: `theme/layout.html` and `theme/theme.json`.
+bytes $good = Core\Encoding::fromBase64("UEsDBBQAAAAAAAAAIVoAAAAAAAAAAAAAAAAGAAAAdGhlbWUvUEsDBBQAAAAIAAAAIVrDe0MsGgAAABsAAAARAAAAdGhlbWUvbGF5b3V0Lmh0bWyzyU3MzLOrrlZIzs8rSc0rUaittdEHi3EBAFBLAwQUAAAACAAAACFaH5ZKNhUAAAATAAAAEAAAAHRoZW1lL3RoZW1lLmpzb26rVspLzE1VslJQciwtKc3NU6rlAgBQSwECFAAUAAAAAAAAACFaAAAAAAAAAAAAAAAABgAAAAAAAAAAAAAA7UEAAAAAdGhlbWUvUEsBAhQAFAAAAAgAAAAhWsN7QywaAAAAGwAAABEAAAAAAAAAAAAAAKSBJAAAAHRoZW1lL2xheW91dC5odG1sUEsBAhQAFAAAAAgAAAAhWh+WSjYVAAAAEwAAABAAAAAAAAAAAAAAAKSBbQAAAHRoZW1lL3RoZW1lLmpzb25QSwUGAAAAAAMAAwCxAAAAsAAAAAAA");
+// A bad theme: it also has the file `../config.php`, which is outside the folder.
+bytes $bad = Core\Encoding::fromBase64("UEsDBBQAAAAIAAAAIVrDe0MsGgAAABsAAAARAAAAdGhlbWUvbGF5b3V0Lmh0bWyzyU3MzLOrrlZIzs8rSc0rUaittdEHi3EBAFBLAwQUAAAACAAAACFaWCayOxQAAAASAAAADQAAAC4uL2NvbmZpZy5waHCzsS/IKFDQ11coSi3ISUxOTeECAFBLAQIUABQAAAAIAAAAIVrDe0MsGgAAABsAAAARAAAAAAAAAAAAAACkgQAAAAB0aGVtZS9sYXlvdXQuaHRtbFBLAQIUABQAAAAIAAAAIVpYJrI7FAAAABIAAAANAAAAAAAAAAAAAACkgUkAAAAuLi9jb25maWcucGhwUEsFBgAAAAACAAIAegAAAIgAAAAAAA==");
+
+// This prints "installed 2 files" and then "rejected, the folder has 0 files".
+echo Themes::install($good), "\n";
+echo Themes::install($bad), "\n";

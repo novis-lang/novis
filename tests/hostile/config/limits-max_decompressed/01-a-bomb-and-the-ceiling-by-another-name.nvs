@@ -1,0 +1,106 @@
+<?nvs
+// Attack: a request tries to remove `limits.max_decompressed`, the most bytes one
+// decompression may produce. It then unpacks a small input into 80 MB.
+// Every write should fail, and the decompression should throw a `ParseError`.
+// hostile: timeout-ms 60000
+
+// 1. Tries the limit's key and keys that are almost the same.
+array<string> $names = [
+    'limits.max_decompressed',
+    'limits.MAX_DECOMPRESSED',
+    'limits.Max_Decompressed',
+    'limits.max_decompressed.',
+    '.limits.max_decompressed',
+    'limits..max_decompressed',
+    'limits.max.decompressed',
+    'limits.max-decompressed',
+    'limits.maxdecompressed',
+    'limits.hard.max_decompressed',
+    'limits.max_decompressed.hard',
+    'app.limits.max_decompressed',
+    'app.0.limits.max_decompressed',
+    "limits.max_decompressed\u{0000}",
+    "limits.memory\u{0000}limits.max_decompressed",
+    'limits.memory/../max_decompressed',
+    Core\Str::repeat('limits.', 20000) . 'max_decompressed',
+];
+foreach ($names as string $key) {
+    Core\Config::set($key, '4G');
+    Core\Config::set($key, '18446744073709551615');
+    Core\Config::set($key, 'false');
+    Core\Config::get($key);
+    Core\Config::restore($key);
+}
+
+// 2. Tries many values on the real key, including `false` and `0`. Every write
+//    should fail.
+array<string> $values = [
+    'false',
+    'true',
+    '0',
+    '-1',
+    '18446744073709551615',
+    '18446744073709551616',
+    '1024G',
+    '64M',
+    '64MiB',
+    '67108864',
+    '67108865',
+    '',
+    'M',
+    'NaN',
+    'inf',
+];
+foreach ($values as string $value) {
+    Core\Config::set('limits.max_decompressed', $value);
+}
+Core\Config::restore('limits.max_decompressed');
+
+// 3. Passes limits from `0` to the largest `uint`. A call always gets the smaller
+//    of its own limit and the configured one.
+bytes $small = Core\Compress::compress(Core\Str::repeat('A', 16384) as bytes, Core\Compress::Codec::Gzip);
+array<uint> $asks = [0, 1, 16383, 16384, 16385, 67108864, 67108865, 4294967296, 18446744073709551615];
+foreach ($asks as uint $ask) {
+    try {
+        Core\Compress::decompress($small, Core\Compress::Codec::Gzip, $ask);
+    } catch (ParseError $refused) {
+    }
+}
+
+// 4. Sends the same input to a stream one byte at a time. The limit counts the
+//    whole stream, so `finish` should throw a `ParseError`.
+Core\Compress\Decompressor $stream = Core\Compress::decompressor(Core\Compress::Codec::Gzip, 1024);
+int $at = 0;
+int $len = Core\Bytes::length($small) as int;
+while ($at < $len) {
+    $stream->add(Core\Bytes::slice($small, $at, 1));
+    $at = $at + 1;
+}
+try {
+    $stream->finish();
+} catch (ParseError $chunked) {
+    echo "one octet at a time: refused\n";
+}
+
+// 5. Compresses 80 MB of the letter `A` to about 80 KB. Only the `64M` limit
+//    can stop this, so the decompression should throw a `ParseError`.
+bytes $bomb = Core\Compress::compress(Core\Str::repeat('A', 83886080) as bytes, Core\Compress::Codec::Gzip);
+echo 'on the wire: ', Core\Bytes::length($bomb), " octets\n";
+try {
+    uint $unpacked = Core\Bytes::length(Core\Compress::decompress($bomb, Core\Compress::Codec::Gzip));
+    echo 'unpacked to: ', $unpacked, " octets\n";
+} catch (ParseError $refused) {
+    echo "the bomb was refused\n";
+}
+
+// 6. Sends the same input 8 more times. Each call should throw, and no memory
+//    from a failed call should stay in use.
+uint $again = 0;
+while ($again < 8) {
+    try {
+        Core\Compress::decompress($bomb, Core\Compress::Codec::Gzip);
+    } catch (ParseError $refused) {
+    }
+    $again = $again + 1;
+}
+echo "still standing\n";

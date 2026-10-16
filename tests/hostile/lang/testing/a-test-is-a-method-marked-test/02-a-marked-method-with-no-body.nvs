@@ -1,0 +1,15 @@
+<?nvs
+// Attack: a method marked `#[Test]` is `abstract`, so it has no body and the
+// test runner has nothing to call. The program should not compile.
+// hostile: expect-refusal
+
+use Core\Test;
+
+abstract class Unwritten
+{
+    // The method is `abstract`. A test with no body is not a test.
+    #[Test]
+    abstract public function aTestNobodyWrote(): void;
+}
+
+echo 'this line must never run', "\n";

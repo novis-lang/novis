@@ -1,0 +1,26 @@
+<?nvs
+// Shows a small check program. It reads rows one at a time with `yield`,
+// writes a line for each good row, and ends with `exit` at the first bad one.
+
+class Rows
+{
+    // Each `yield` sends one row to the loop below.
+    public static function all(): Iterator<string>
+    {
+        yield "ada,42";
+        yield "grace,17";
+        yield "broken row";
+        yield "alan,9";
+    }
+}
+
+foreach (Rows::all() as string $row) {
+    if (Core\Str::contains($row, ",") == false) {
+        // `exit` with a text writes it and ends the program with status 0.
+        // The rows after this one are never read.
+        exit("stopped at a bad row: " . $row . "\n");
+    }
+    echo "ok: ", $row, "\n";
+}
+
+echo "every row is good\n";

@@ -1,0 +1,13 @@
+<?nvs
+// Shows how `{last: true}` cuts at the last separator, to read a file's extension.
+
+array<string> $files = ["report.pdf", "archive.tar.gz", "README"];
+
+foreach ($files as string $file) {
+    // Without the option, "archive.tar.gz" gives `tar.gz`.
+    ?string $first = Core\Str::after($file, ".");
+    // With `{last: true}`, it gives `gz`.
+    ?string $last = Core\Str::after($file, ".", {last: true});
+    // "README" has no dot, so both results are `null`.
+    echo $file, ": ", $first ?? "(none)", " / ", $last ?? "(none)", "\n";
+}

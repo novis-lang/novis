@@ -1,0 +1,26 @@
+<?nvs
+// Shows a chart with columns of the sales and a line of the costs.
+use Novis\Spreadsheet\Chart;
+use Novis\Spreadsheet\Workbook;
+
+var $book = Workbook::createInMemory();
+var $sheet = $book->sheet('Sales');
+$sheet->addAll([
+    ['month' => 'January', 'sales' => 1200, 'costs' => 800],
+    ['month' => 'February', 'sales' => 1450, 'costs' => 900],
+    ['month' => 'March', 'sales' => 1380, 'costs' => 950],
+]);
+
+// `combine` draws the line on the same axes as the columns.
+string $months = $sheet->column('month');
+var $costs = Chart::line()->series($sheet->column('costs'), { categories: $months, name: 'Costs' });
+var $chart = Chart::column({ title: 'Sales and costs', legend: 'bottom' })
+    ->series($sheet->column('sales'), { categories: $months, name: 'Sales' })
+    ->combine($costs);
+$sheet->chart('E2', $chart);
+bytes $file = $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
+
+// `Core\Zip::read` returns the XML of the chart. These lines check what it contains.
+var $xml = Core\Zip::read($file, 'xl/charts/chart1.xml') as string;
+echo Core\Str::contains($xml, '<c:barChart>') ? 'columns' : 'no columns', "\n";
+echo Core\Str::contains($xml, '<c:lineChart>') ? 'and a line' : 'and no line', "\n";

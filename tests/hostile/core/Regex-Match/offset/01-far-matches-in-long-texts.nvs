@@ -1,0 +1,26 @@
+<?nvs
+// Attack: a program reads the positions of matches far into very long texts, where every
+// character before the match has many bytes. Each position should be correct, and nothing may crash.
+// hostile: timeout-ms 30000
+
+// 1. A match after one million emoji. Each emoji has 4 bytes, so a position in bytes
+// would be 4000000. This prints 1000000.
+var $far = Core\Regex::match(Core\Str::repeat('🎉', 1000000) . 'x', 'x');
+echo $far?->offset() ?? -1, "\n";
+
+// 2. A match after 500000 characters that each have a letter and an accent mark.
+// Each one counts as one character, so this prints 500000.
+var $marks = Core\Regex::match(Core\Str::repeat("e\u{301}", 500000) . '!', '!');
+echo $marks?->offset() ?? -1, "\n";
+
+// 3. An empty match at the very end of the text. This prints 3.
+echo Core\Regex::match('abc', '$')?->offset() ?? -1, "\n";
+
+// 4. 100000 matches in one text of accented letters, and the sum of their positions.
+// This prints 9999900000.
+array<Core\Regex\Match> $all = Core\Regex::matchAll(Core\Str::repeat('é', 100000), 'é');
+int $sum = 0;
+foreach ($all as Core\Regex\Match $m) {
+    $sum = $sum + $m->offset() * 2;
+}
+echo $sum, "\n";

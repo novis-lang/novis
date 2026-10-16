@@ -1,0 +1,19 @@
+<?nvs
+// Shows what happens when a row does not have the key. That row is skipped, so
+// this collects only the addresses that people really gave.
+
+array<array<string>> $people = [
+    ['name' => 'Ada', 'email' => 'ada@example.com'],
+    ['name' => 'Bo'],
+    ['name' => 'Cy', 'email' => 'cy@example.com'],
+];
+
+array<string> $addresses = Core\Arr::column($people, 'email');
+
+// This prints 2. Bo gave no address, so the result has no entry for Bo.
+echo Core\Arr::count($addresses), "\n";
+
+// This prints the two addresses, one per line.
+foreach ($addresses as string $address) {
+    echo $address, "\n";
+}

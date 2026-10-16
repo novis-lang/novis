@@ -1,0 +1,18 @@
+<?nvs
+// Shows how to list the constants of a class, with what each one allows.
+
+class Upload {
+    public const int MAX_MB = 20;
+    private const string BUCKET = "uploads";
+    public const array<string> TYPES = ["png", "jpg"];
+}
+
+var $info = Core\Reflect::forObject(new Upload());
+
+// `isPublic` is `false` for the private constant `BUCKET`.
+// `hasValue` is `false` for `TYPES`. An array constant has no value to return.
+foreach ($info->constants() as Core\Reflect\ConstantInfo $constant) {
+    echo $constant->name(), ": ",
+         $constant->isPublic() ? "public" : "private", ", ",
+         $constant->hasValue() ? "has a value" : "no value", "\n";
+}

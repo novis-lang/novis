@@ -1,0 +1,58 @@
+--TEST--
+`put`'s trailing `{ttl?: Duration}` is a lifetime the entry does not outlive: an omitted `ttl` keeps § 1's contract, a lifetime still ahead reads back, one already over leaves nothing under the key, and the shared tier takes the same option — `rule:core-api/shape-rules`, `rule:concurrency/cross-request-state-is-explicit`
+--FILE--
+<?nvs
+// `rule:core-api/shape-rules` R2's trailing options shape, and R12's unit as a
+// type: the lifetime is a `Core\Time\Duration` literal, so no call site has to
+// remember which scale this member chose.
+var $cache = Core\Cache::memory();
+
+// An omitted `ttl` is the contract every entry already had — present until the
+// tier's cap forgets it. The option is optional here where
+// `rule:core-api/a-lifetime-is-written` makes a signature's lifetime a required
+// key, because nothing a cache holds leaves the process.
+$cache->put("no-lifetime", "kept");
+
+// A lifetime still ahead of every read below.
+$cache->put("ahead", "kept", {ttl: 1h});
+
+// Counted rather than read off a line: a store that answered plausibly for the
+// omitted lifetime and wrongly for the written one would still print a row of
+// its own.
+array<string> $inside = ["no-lifetime", "ahead"];
+int $present = 0;
+tainted string $back = "";
+foreach ($inside as string $key) {
+    $back = ($cache->get($key) ?? "") as string;
+    if ($back == "kept") {
+        $present = $present + 1;
+    }
+}
+echo "inside its lifetime: ", $present, " of ", Core\Arr::count($inside), "\n";
+
+// The other side of the same bound. A lifetime that has already run out is not
+// a write at all: `put` still cannot fail — § 1 gives this store no failure
+// mode to reach for — and the key is left with nothing under it.
+$cache->put("over", "gone", {ttl: 0s});
+echo "past it: ", $cache->get("over") == null ? "null" : "something", "\n";
+
+// And an entry that was really there goes with it, because a `put` replaced it
+// — the same exit an arrival too large for the tier takes.
+$cache->put("replaced", "was here");
+$cache->put("replaced", "and now not", {ttl: 0s});
+echo "a lifetime already over replaces nothing: ", $cache->get("replaced") == null ? "null" : "kept", "\n";
+
+// The shared tier takes the same option to a store that keeps its own clock, so
+// the lifetime never crosses as an instant. A deployment that configured none
+// is told so by name rather than handed this process's store under it.
+try {
+    Core\Cache::shared();
+    echo "shared handed back a store\n";
+} catch (RuntimeError $error) {
+    echo "the shared tier keeps its own clock, and this deployment has no store\n";
+}
+--EXPECT--
+inside its lifetime: 2 of 2
+past it: null
+a lifetime already over replaces nothing: null
+the shared tier keeps its own clock, and this deployment has no store

@@ -1,0 +1,12 @@
+{
+  "title": "A trace event carries one of five kinds — `call`, `gc`, `spawn`, `query`, `http` — and a `call` keeps its probe shape",
+  "status": "shipped",
+  "seeAlso": [
+    "testing/debug-probes",
+    "security/secret-qualifier",
+    "observability/a-query-is-a-trace-event"
+  ],
+  "guardedBy": [
+    "crates/nvs-runtime/src/ctx/trace.rs"
+  ]
+}

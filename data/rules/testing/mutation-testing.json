@@ -1,0 +1,11 @@
+{
+  "title": "A mutation run asks whether any test would have noticed the code being wrong",
+  "status": "designed",
+  "seeAlso": [
+    "testing/debug-probes",
+    "testing/isolate-per-test",
+    "testing/feature-proofs"
+  ],
+  "guardedBy": [],
+  "goal": "mutation-testing"
+}

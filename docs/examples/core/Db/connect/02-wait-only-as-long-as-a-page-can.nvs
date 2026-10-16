@@ -1,0 +1,22 @@
+<?nvs
+// Shows how long a program waits for a free connection. A deployment keeps a
+// limited number of connections for each name. When they are all in use,
+// `Core\Db::connect` waits, and `timeout` says how long.
+
+// 200 milliseconds is a bound that fits a web page. The visitor gets the page or
+// an error. Nobody waits a minute for either.
+Core\Time\Duration $wait = Core\Time\Duration::milliseconds(200);
+
+var $db = Core\Db::connect('notes', { timeout: $wait });
+
+$db->execute('create table visits (path text not null)', []);
+$db->execute('insert into visits (path) values (?)', ['/prices']);
+
+// This prints `1 visit so far`.
+foreach ($db->query('select count(*) as n from visits', []) as Core\Db\Row $row) {
+    echo $row->int('n') ?? 0, " visit so far\n";
+}
+
+// A call that waits longer than this throws an `IOError`. With no `timeout` the
+// call waits as long as `[db.notes.pool] acquire` in `nvs.toml` allows.
+$db->close();

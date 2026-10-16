@@ -1,0 +1,8 @@
+--METHOD--
+GET
+--PATH--
+/search
+--QUERY--
+q=red+shoes&page=2&sort=price&utm_source=newsletter&utm_campaign=autumn
+--HEADERS--
+host: shop.example.com

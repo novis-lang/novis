@@ -1,0 +1,34 @@
+--TEST--
+only another array converts to an `array<T>`, so a nullable or union operand with no array member is refused where it is written, under `as T` and `as ?T` alike — `rule:types/conversion`, `rule:expressions/nullable-conversion-availability`
+--FILE--
+<?nvs
+?string $maybe = null;
+array<string> $a = $maybe as array<string>;
+?tainted string $field = Core\Request::query("ids");
+array<tainted string> $b = $field as array<string>;
+string|int $either = 1;
+array<string> $c = $either as array<string>;
+?array<string> $d = $maybe as ?array<string>;
+
+// A union with an array member, or `mixed`, has a row and is checked when it runs.
+?array<int> $list = [1, 2];
+array<int> $e = $list as array<int>;
+mixed $m = [1];
+array<int> $f = $m as array<int>;
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0708]: `string|null` cannot be converted to `array<string>`
+  --> case.nvs:3:20
+%A
+error[E0708]: `null|tainted string` cannot be converted to `array<string>`
+  --> case.nvs:5:28
+%A
+error[E0708]: `string|int` cannot be converted to `array<string>`
+  --> case.nvs:7:20
+%A
+error[E0708]: `string|null` cannot be converted to `array<string>`
+  --> case.nvs:8:21
+%A
+error: aborting due to 4 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

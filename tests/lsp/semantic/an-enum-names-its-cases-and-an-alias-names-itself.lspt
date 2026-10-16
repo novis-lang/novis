@@ -1,0 +1,16 @@
+--TEST--
+an enum, its cases and a `type` alias are three kinds a regex cannot tell apart from any other identifier, which is why the parse answers them, `rule:ide/semantic-tokens-carry-the-qualifiers`, `rule:types/declaration`
+--FILE--
+<?nvs
+type Id = uint;
+enum Status: int {
+    case Draft = 1;
+    case Live = 2;
+}
+--REQUEST--
+semanticTokens
+--EXPECT--
+2:6+2 type
+3:6+6 enum
+4:10+5 enumMember
+5:10+4 enumMember

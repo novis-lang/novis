@@ -1,0 +1,58 @@
+--TEST--
+`rule:types/duration`: `1h30m`, `Duration::parse("1h30m")` and `toString()` are one grammar with one meaning
+--FILE--
+<?nvs
+// § 2: the suffix *is* the type, so nothing places a duration written like `1h30m` the way
+// `rule:types/decimal` places a fractional one -- `var` infers `Core\Time\Duration` and
+// fixes it forever.
+var $written = 1h30m;
+var $parsed = Core\Time\Duration::parse("1h30m");
+echo $written->toSeconds() as string, "|", $parsed->toSeconds() as string, "|\n";
+echo $written->compareTo($parsed) as string, "|\n";
+
+// § 5: `Stringable` emits the same grammar, so a value round-trips.
+echo $written->toString(), "|\n";
+echo Core\Time\Duration::parse($written->toString())->toSeconds() as string, "|\n";
+
+// § 1's units, each on its own, and the descent rule spelling them together.
+echo (1ns)->toNanoseconds() as string, "|\n";
+echo (1us)->toNanoseconds() as string, "|\n";
+echo (500ms)->toMilliseconds() as string, "|\n";
+echo (30s)->toSeconds() as string, "|\n";
+echo (2m)->toSeconds() as string, "|\n";
+echo (1h)->toSeconds() as string, "|\n";
+echo (1d)->toSeconds() as string, "|\n";
+echo (1w)->toSeconds() as string, "|\n";
+echo (1w2d3h4m5s6ms7us8ns)->toString(), "|\n";
+
+// § 1: `d` is exactly 24 h and `w` exactly 168 h, so these are the same value
+// -- a calendar day is `Unit::Day` on a `DateTime` and never a `Duration`.
+echo (7d)->compareTo(1w) as string, "|\n";
+
+// § 4: `1h + 30m` does not compile, and `1h30m` is what replaces it.
+echo (1h30m)->compareTo((1h)->plus(30m)) as string, "|\n";
+
+// A written duration is a value like any other: it can be passed, returned and stored.
+class Timeout {
+    public static function double(Core\Time\Duration $d): Core\Time\Duration {
+        return $d->multipliedBy(2);
+    }
+}
+echo Timeout::double(45s)->toString(), "|\n";
+--EXPECT--
+5400|5400|
+0|
+1h30m|
+5400|
+1|
+1000|
+500|
+30|
+120|
+3600|
+86400|
+604800|
+1w2d3h4m5s6ms7us8ns|
+0|
+0|
+1m30s|

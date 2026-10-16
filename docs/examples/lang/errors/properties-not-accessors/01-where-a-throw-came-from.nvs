@@ -1,0 +1,24 @@
+<?nvs
+// Shows the two properties that say where an error came from. `location` is the
+// file and the line of the `throw`. `backtrace` has one line per function the
+// throw came out of, the innermost one first.
+
+final class Prices {
+    public static function of(string $item): int {
+        throw new RuntimeError("no price for " . $item);
+    }
+
+    public static function totalOf(string $item): int {
+        return Prices::of($item) * 2;
+    }
+}
+
+try {
+    echo Prices::totalOf("blue mug"), "\n";
+} catch (RuntimeError $failed) {
+    echo $failed->message, "\n";
+    echo "thrown at ", $failed->location, "\n";
+    foreach ($failed->backtrace as string $frame) {
+        echo "  ", $frame, "\n";
+    }
+}

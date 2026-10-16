@@ -1,0 +1,14 @@
+{
+  "title": "A mode also selects three startup defaults, chosen when a configuration is published, never re-derived by a mode flip, and never flippable from code",
+  "status": "shipped",
+  "seeAlso": [
+    "config/a-mode-is-five-defaults",
+    "config/opcache-revalidation-is-system-class",
+    "config/a-program-may-read-and-flip-its-mode"
+  ],
+  "guardedBy": [
+    "crates/nvs-config/tests/snapshot.rs",
+    "crates/nvs-server/src/mount.rs",
+    "crates/nvs-cli/src/serve/mounts.rs"
+  ]
+}

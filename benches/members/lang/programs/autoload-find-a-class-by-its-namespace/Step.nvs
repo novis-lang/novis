@@ -1,0 +1,11 @@
+<?nvs
+// The class the bench beside this one reaches by name. It is here, under this
+// folder, only because the autoload rule says a `Loaded\` class is here.
+
+namespace Loaded;
+
+class Step {
+    public static function next(uint $seen): uint {
+        return $seen + 1;
+    }
+}

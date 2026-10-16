@@ -1,0 +1,19 @@
+<?nvs
+// Shows how to check whether a login token has expired, from the Unix timestamps written inside it.
+
+// A token often contains the time it was issued (`iat`) and the time it expires (`exp`).
+int $iat = 1715688000;
+int $exp = 1715691600;
+var $issued = Core\Time::fromEpoch($iat);
+var $expires = Core\Time::fromEpoch($exp);
+
+// `since` gives the time between two instants. This prints 3600, because the token is valid for one hour.
+echo $expires->since($issued)->toSeconds(), "\n";
+
+// In a real program `$now` is `Core\Time::now()`. Fixed times make the output the same on every run.
+array<int> $checkedAt = [1715689800, 1715695200];
+foreach ($checkedAt as int $seconds) {
+    var $now = Core\Time::fromEpoch($seconds);
+    // `compareTo` returns a number above 0 when `$now` is later than `$expires`.
+    echo $now->toIso(), ": ", $now->compareTo($expires) > 0 ? "expired" : "valid", "\n";
+}

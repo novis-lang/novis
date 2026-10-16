@@ -1,0 +1,9 @@
+<?nvs
+// Shows how to find the user accounts whose login name starts with `svc-`.
+
+var $filter = Core\Ldap\Filter::all(
+    Core\Ldap\Filter::equals('objectClass', 'user'),
+    Core\Ldap\Filter::startsWith('sAMAccountName', 'svc-'),
+);
+// This prints (&(objectClass=user)(sAMAccountName=svc-*)).
+echo $filter->toString(), "\n";

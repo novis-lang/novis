@@ -1,0 +1,13 @@
+<?nvs
+// Shows how to make a key from text in base64url, the way a key is often saved in a configuration file.
+
+// In real code, this text comes from the configuration. Never write a real key in the source code.
+string $saved = "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc";
+
+// `Core\Encoding::fromBase64Url` returns the 32 bytes of the key.
+Core\Jwe\Key $key = Core\Jwe\Key::shared(Core\Encoding::fromBase64Url($saved));
+
+// A key made again from the same text opens the token. This prints `the same key`.
+string $token = Core\Jwe::encrypt("the same key", $key);
+Core\Jwe\Key $again = Core\Jwe\Key::shared(Core\Encoding::fromBase64Url($saved));
+echo Core\Jwe::decrypt($token, [$again]), "\n";

@@ -1,0 +1,30 @@
+<?nvs
+// `[limits]` sets the limits each request starts with. They cover memory, CPU
+// time, wall time and the size of the response. A program can read its own limits.
+
+echo 'memory to start with: ', Core\Config::get('limits.memory') ?? '(unset)', "\n";
+echo 'the ceiling above it: ', Core\Config::get('limits.hard.memory') ?? '(unset)', "\n";
+
+// A program may lower its own limit. The new limit applies to the rest of
+// the request, and the request stops if it uses more.
+echo 'ask for less:         ', Core\Config::set('limits.memory', '64M') ? 'accepted' : 'refused', "\n";
+echo 'in force now:         ', Core\Config::get('limits.memory'), "\n";
+
+// A program may also raise it, up to the ceiling in `[limits.hard]`. A value over
+// the ceiling returns `false`, and the previous value stays in force.
+echo 'ask for 400M:         ', Core\Config::set('limits.memory', '400M') ? 'accepted' : 'refused', "\n";
+echo 'ask for 1G:           ', Core\Config::set('limits.memory', '1G') ? 'accepted' : 'refused', "\n";
+echo 'in force now:         ', Core\Config::get('limits.memory'), "\n";
+
+// No program can change the ceiling itself, so this call returns `false`.
+echo 'raise the ceiling:    ', Core\Config::set('limits.hard.memory', '1G') ? 'accepted' : 'refused', "\n";
+
+// `limits.cpu_time` is not set here, so it is `null`. Under `nvs run` there is
+// then no CPU time limit. A program can still set one for itself.
+echo 'cpu time to start:    ', Core\Config::get('limits.cpu_time') ?? '(not set)', "\n";
+echo 'bound my own cpu:     ', Core\Config::set('limits.cpu_time', '2s') ? 'accepted' : 'refused', "\n";
+
+// `Core\Config::restore` sets the key back to the value in the configuration
+// file. Here that is `256M`.
+Core\Config::restore('limits.memory');
+echo 'back to the file:     ', Core\Config::get('limits.memory'), "\n";

@@ -1,0 +1,24 @@
+<?nvs
+// Compares two 8-byte image hashes, as a program does when it checks an upload against saved photos.
+// bench: iterations 20000
+// bench: complexity constant
+use Novis\Image\Image;
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<bytes> $hashes = [
+            Core\Encoding::fromHex("8f3c00ff12a45e71"),
+            Core\Encoding::fromHex("8f3d00fe12a45e70"),
+            Core\Encoding::fromHex("70c3ff00ed5ba18e"),
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            $total = $total + Image::hashDistance($hashes[$total % 3], $hashes[($total + 1) % 3]);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(20000), "\n";

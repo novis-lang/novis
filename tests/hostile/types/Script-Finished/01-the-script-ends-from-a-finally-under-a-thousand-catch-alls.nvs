@@ -1,0 +1,60 @@
+<?nvs
+// Attack: a script calls `Core\Script::finish()` from a `finally` block while an error is being thrown.
+// The call is 800 levels deep, and every level has a `catch (Throwable ...)` and a `finally`.
+// No `catch` block should run. The script should stop with no output after "warmed".
+// hostile: timeout-ms 20000
+
+class Load
+{
+    public array<string> $rows;
+
+    public function constructor()
+    {
+        $this->rows = ['order', 'customer', 'shipping address'];
+    }
+}
+
+class Deep
+{
+    public static function down(uint $left): void
+    {
+        var $held = new Load();
+        try {
+            if ($left == 0) {
+                try {
+                    throw new RuntimeError('something went wrong at the bottom');
+                } finally {
+                    // The script stops while the error above is still being thrown.
+                    Core\Script::finish();
+                }
+            }
+            Deep::down($left - 1);
+        } catch (Throwable $anything) {
+            // Every level has a `catch` block for all errors. The stop is not an error,
+            // so this line should never print.
+            echo 'a handler took the ending at level ', $left, "\n";
+        } finally {
+            // Each `finally` creates and frees an object while the script stops.
+            var $more = new Load();
+            $held = $more;
+        }
+    }
+}
+
+// Throw and catch 5,000 errors first, so the error handling code has run many times.
+uint $round = 0;
+while ($round < 5000) {
+    try {
+        throw new RuntimeError('a round that is caught');
+    } catch (RuntimeError $caught) {
+    } finally {
+        var $spare = new Load();
+    }
+    $round = $round + 1;
+}
+
+echo "warmed\n";
+
+Deep::down(800);
+
+echo "the ending was swallowed somewhere\n";

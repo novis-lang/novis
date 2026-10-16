@@ -1,0 +1,31 @@
+<?nvs
+// The program the Test Explorer's two recordings are of: `list.json` is what
+// `nvs test --list --format json` printed for it, and `report.json` what
+// `nvs test --format json` printed. Two classes, so the tree the client builds
+// has something to group by, and three verdicts, so a run has a pass, a
+// failure with a message, and a skip that never ran.
+use Core\Test;
+
+final class GreetingTest {
+    #[Test]
+    public function aGreetingIsItsOwnName(): void {
+        Test::assertSame("hello", "hello");
+    }
+
+    #[Test]
+    public function aWrongGreetingSaysWhatItGot(): void {
+        Test::assertSame("hello", "goodbye");
+    }
+}
+
+final class CountingTest {
+    #[Test(skip: "nothing counts yet")]
+    public function aSkippedCaseCarriesItsReason(): void {
+        Test::assertSame(1, 2);
+    }
+
+    #[Test]
+    public function aCountIsWhatWasCounted(): void {
+        Test::assertSame(2, 2);
+    }
+}

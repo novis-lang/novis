@@ -1,0 +1,14 @@
+{
+  "title": "Every cookie `Core\\Response::addCookie` writes is `Secure; HttpOnly; SameSite=Lax; Path=/` unless the call site says otherwise",
+  "status": "shipped",
+  "seeAlso": [
+    "http-server/a-wildcard-origin-with-credentials-is-refused",
+    "errors/cookie-name-bytes",
+    "enums/closed-integer-type",
+    "core-api/shape-rules"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/a-response-add-cookie-takes-every-unwritten-option-from-the-configured-block.nvst",
+    "crates/nvs-config/tests/resolve.rs"
+  ]
+}

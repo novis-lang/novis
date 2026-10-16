@@ -1,0 +1,41 @@
+--TEST--
+`Core\Test::request` runs a request through the compiled route table in this process, so the program answering it reads the match the door took — `rule:testing/in-process-request`, `rule:routing/matched-once-before-the-handler`
+--FILE--
+<?nvs
+// § 18's first mechanism: no socket and no port, and the table it matches
+// against is the one this file's own `#[Route]` declarations compiled to. What
+// is asserted is that the *match* crossed -- the child reads
+// `Core\Request::route()` and finds the row named below, which is the whole of
+// "dispatches through the compiled route table". Nothing here dispatches: what
+// a match means is the program's (`rule:routing/the-servers-match-dispatches-nothing`), and the program is the
+// `if` branch below.
+//
+// **The branch is the request.** The program answering an in-process request
+// is this same program -- its script frame is what a served request runs --
+// and `Core\Env::context()` is `Request` in that run
+// (`rule:core-classes/env-context`), so one file holds both sides.
+class Api {
+    #[Core\Route(path: "/users/1", method: Core\Http\Method::Get, name: "Api::show")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function show(): string { return "shown"; }
+}
+
+if (Core\Env::context() == Core\Env::Context::Request) {
+    // The child. `route()` is the match the caller took before this isolate
+    // existed, which is `rule:routing/matched-once-before-the-handler`'s "once, before any application code
+    // runs" holding for a synthetic request exactly as it does for an arrived
+    // one.
+    var $matched = Core\Request::route();
+    if ($matched == null) {
+        echo "the table claimed nothing";
+    } else {
+        echo $matched->name() ?? "unnamed";
+    }
+} else {
+    var $answered = Core\Test::request(Core\Http\Method::Get, "/users/1");
+    echo "status ", $answered->status(), "\n";
+    echo "body ", $answered->body(), "\n";
+}
+--EXPECT--
+status 200
+body Api::show

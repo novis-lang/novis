@@ -1,0 +1,17 @@
+<?nvs
+// Shows how to send a text message to a server over a WebSocket connection.
+
+// A fixed server, so the example runs without a network. It sends nothing back.
+Core\Test::answerSocket("wss://chat.example.com/room", []);
+
+Core\Http\Socket $socket = Core\Http\Client::openSocket("wss://chat.example.com/room");
+
+// Each call to `send()` sends one message.
+$socket->send("hello");
+$socket->send("is anybody here?");
+$socket->close();
+
+// `Core\Test::sentSocket()` returns what the program sent. This prints the two messages.
+foreach (Core\Test::sentSocket() as Core\Socket\Message $sent) {
+    echo "sent: ", $sent->text() ?? "", "\n";
+}

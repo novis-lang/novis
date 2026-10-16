@@ -1,0 +1,15 @@
+--TEST--
+A `[limits]` value above the `[limits.hard]` ceiling written beside it stops the boot with E0601 — `rule:config/ceilings-are-their-own-directives`
+--FILE nvs.toml--
+[limits]
+memory = "1G"
+
+[limits.hard]
+memory = "512M"
+--FILE--
+<?nvs
+// A request may start with at most its ceiling, so the configuration is refused.
+echo "unreachable\n";
+--EXPECTF-ERROR--
+error[E0601]: `[limits] memory` is `1G`, which is above its ceiling of `512M`
+%A

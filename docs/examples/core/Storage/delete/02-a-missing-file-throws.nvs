@@ -1,0 +1,9 @@
+<?nvs
+// Shows that deleting a file that does not exist throws an `IOError`.
+
+try {
+    Core\Storage::delete("files", "never-saved.txt");
+} catch (IOError $e) {
+    // This prints `nothing to delete`.
+    echo "nothing to delete\n";
+}

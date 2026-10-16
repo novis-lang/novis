@@ -1,0 +1,51 @@
+--TEST--
+An attribute's name may be `Owner::Name`, a shape-typed `type` alias declared in an interface or a class, resolved exactly as the type `Owner::Name` is, and its payload is retrieved by shape like any other — `rule:attributes/attach-sites-and-forms` and `rule:types/class-scoped-alias`
+--FILE--
+<?nvs
+// `Page::Meta` is a `type` alias declared inside the interface `Page`.
+// An attribute names it the same way a type does.
+autoload 'Blog' from './lib';
+
+interface Page {
+    type Meta = {title: string};
+    public function render(): string;
+}
+
+class Home implements Page {
+    #[Page::Meta(title: "Home")]
+    public function render(): string { return "home"; }
+}
+
+class News implements Page {
+    // `Blog\Section` is declared in `lib/Section.nvs`. Only this attribute
+    // names it, so the attribute is what loads that file.
+    #[Blog\Section::Info(heading: "Latest")]
+    #[Page::Meta(title: "News", draft: true)]
+    public function render(): string { return "news"; }
+}
+
+foreach (Core\Program::implementingWith<Page, Page::Meta>("render") as {instance: Page, attribute: ?Page::Meta} $row) {
+    echo $row->instance->render(), " ", $row->attribute?->title ?? "none", "\n";
+}
+// Retrieval checks the shape, not the name: an inline shape finds the same payloads.
+foreach (Core\Program::implementingWith<Page, {title: string}>("render") as {instance: Page, attribute: ?{title: string}} $titled) {
+    echo $titled->instance->render(), " ", $titled->attribute?->title ?? "none", "\n";
+}
+foreach (Core\Program::implementingWith<Page, {heading: string}>("render") as {instance: Page, attribute: ?{heading: string}} $section) {
+    echo $section->instance->render(), " ", $section->attribute?->heading ?? "none", "\n";
+}
+--FILE lib/Section.nvs--
+<?nvs
+namespace Blog;
+
+final class Section
+{
+    type Info = {heading: string};
+}
+--EXPECT--
+home Home
+news News
+home Home
+news News
+home none
+news Latest

@@ -1,0 +1,11 @@
+# Every program on this server gets these limits.
+[limits]
+memory = "256M"
+wall_time = "30s"
+
+# Every program in this directory gets a longer time limit.
+[[app]]
+root = "."
+
+[app.limits]
+wall_time = "120s"

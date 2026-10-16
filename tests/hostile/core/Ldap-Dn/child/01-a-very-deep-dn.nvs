@@ -1,0 +1,39 @@
+<?nvs
+// Attack: a program calls `child` in a loop to make a very deep DN, with names from a
+// request. The program should finish, or stop at its memory limit, and must not crash.
+// hostile: timeout-ms 120000
+
+// 1. Two thousand levels, each with a name full of special characters.
+tainted string $name = 'a,b+c=d';
+var $dn = Core\Ldap\Dn::of('DC', 'test');
+uint $levels = 1;
+try {
+    while ($levels < 2000) {
+        $dn = $dn->child('OU', $name);
+        $levels = $levels + 1;
+    }
+    echo '1 levels: ', $levels, "\n";
+} catch (Throwable $error) {
+    echo "1 threw\n";
+}
+
+// 2. The deepest DN is still within the top.
+try {
+    echo '2 within: ', $dn->isWithin(Core\Ldap\Dn::of('DC', 'test')) ? 'yes' : 'no', "\n";
+} catch (Throwable $error) {
+    echo "2 threw\n";
+}
+
+// 3. A child with an empty name or a bad attribute. Each one should throw an error.
+uint $refused = 0;
+try {
+    $dn->child('OU', '');
+} catch (LogicError $refusal) {
+    $refused = $refused + 1;
+}
+try {
+    $dn->child('O U', 'x');
+} catch (LogicError $refusal) {
+    $refused = $refused + 1;
+}
+echo '3 refused: ', $refused, " of 2\n";

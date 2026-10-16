@@ -1,0 +1,10 @@
+<?nvs
+// Shows how to change one part of a time and keep the others.
+
+Core\Time\TimeOfDay $alarm = Core\Time\TimeOfDay::at(7, 15);
+
+// Only the hour changes. This prints 08:15.
+echo $alarm->with({hour: 8})->format("HH:mm"), "\n";
+
+// `with` returns a new time. `$alarm` does not change, so this prints 07:15.
+echo $alarm->format("HH:mm"), "\n";

@@ -1,0 +1,44 @@
+--TEST--
+An enum case `Core\Serialize` encodes decodes as a case of its backing, so `is` still names its enum, a case backed by `0` stays truthy, and `==` still reads its backing integer — `rule:enums/representation` and `rule:classes/graph-copy`
+--FILE--
+<?nvs
+enum Mode: int {
+    A = 0,
+    B = 1,
+}
+enum Weight: uint {
+    Light = 0,
+    Heavy = 2,
+}
+
+array<Mode> $modes = [Mode::A, Mode::B];
+var $back = Core\Serialize::decode(Core\Serialize::encode($modes)) as array<mixed>;
+foreach ($back as mixed $m) {
+    echo "is Mode=", $m is Mode ? "true" : "false";
+    echo " is int=", $m is int ? "true" : "false";
+    echo " truthy=", $m ? "true" : "false", "\n";
+}
+
+array<Weight> $weights = [Weight::Light, Weight::Heavy];
+var $heavy = Core\Serialize::decode(Core\Serialize::encode($weights)) as array<mixed>;
+foreach ($heavy as mixed $w) {
+    echo "is Weight=", $w is Weight ? "true" : "false";
+    echo " is uint=", $w is uint ? "true" : "false";
+    echo " truthy=", $w ? "true" : "false", "\n";
+}
+
+// A decoded case is equal to an integer of its backing value.
+mixed $one = Core\Arr::last($back);
+echo "== 1: ", $one == 1 ? "true" : "false", "\n";
+
+// A plain integer still decodes as an integer.
+var $ints = Core\Serialize::decode(Core\Serialize::encode([0, 1])) as array<mixed>;
+mixed $zero = Core\Arr::first($ints);
+echo "int is Mode=", $zero is Mode ? "true" : "false", " is int=", $zero is int ? "true" : "false", "\n";
+--EXPECT--
+is Mode=true is int=false truthy=true
+is Mode=true is int=false truthy=true
+is Weight=true is uint=false truthy=true
+is Weight=true is uint=false truthy=true
+== 1: true
+int is Mode=false is int=true

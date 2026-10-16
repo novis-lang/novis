@@ -1,0 +1,15 @@
+{
+  "title": "`[log] access` is a mode default — on in development, off in production — and a `5xx` is logged whatever it says",
+  "status": "shipped",
+  "seeAlso": [
+    "observability/a-trace-id-exists-for-every-request",
+    "http-server/health-path-is-off-and-checks-nothing",
+    "config/a-mode-is-five-defaults",
+    "errors/log-fields",
+    "errors/renderings",
+    "observability/the-runtime-exports-what-it-already-measures"
+  ],
+  "guardedBy": [
+    "crates/nvs-server/src/trace.rs"
+  ]
+}

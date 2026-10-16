@@ -1,0 +1,8 @@
+<?nvs
+// Shows that the value is returned without its escapes.
+
+var $person = Core\Ldap\Dn::of('DC', 'test')->child('CN', 'Lee, Ann');
+// The text has an escaped comma. This prints CN=Lee\, Ann,DC=test.
+echo $person->toString(), "\n";
+// The value does not. This prints Lee, Ann.
+echo $person->rdnValue(), "\n";

@@ -1,0 +1,14 @@
+<?nvs
+// Shows how an API sends a list as JSON Lines, which is one JSON object on each line.
+
+array<string> $names = ["Green tea", "Coffee", "Cocoa"];
+
+// The client can read each line as soon as it arrives.
+// It does not need to wait for the whole list.
+Core\Response\Stream $lines = Core\Response::stream("application/x-ndjson");
+uint $id = 0;
+foreach ($names as string $name) {
+    $id = $id + 1;
+    // `Core\Json::encode` writes the object on one line.
+    $lines->write(Core\Json::encode({ id: $id, name: $name }) . "\n");
+}

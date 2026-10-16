@@ -1,0 +1,19 @@
+<?nvs
+// Whole numbers have two types. An `int` can be negative. A `uint` cannot be negative,
+// and it can count twice as high. If a result is too big for its type,
+// the program throws an `ArithmeticError`. The number does not wrap around to a small value.
+
+int $balance = -250;
+uint $stock = 18446744073709551615;
+
+echo $balance + 100, "\n";
+echo $stock, "\n";
+
+try {
+    echo $stock + 1, "\n";
+} catch (ArithmeticError $e) {
+    echo "out of room: ", $e->message, "\n";
+}
+
+bool $owing = $balance < 0;
+echo $owing ? "owing" : "clear", "\n";

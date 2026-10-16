@@ -1,0 +1,9 @@
+{
+  "title": "One function decides what a name means, and there is no second place that does",
+  "status": "shipped",
+  "seeAlso": [
+    "statements/a-qualified-name-is-absolute",
+    "statements/no-fallback-to-the-root-namespace"
+  ],
+  "guardedBy": []
+}

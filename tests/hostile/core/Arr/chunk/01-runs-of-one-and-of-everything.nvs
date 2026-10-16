@@ -1,0 +1,47 @@
+<?nvs
+// Attack: a large array is split into one run per entry, and then into a run
+// wider than the array. A size of 0 is thrown out. Every step should finish or
+// throw an error, and the runtime must not crash.
+// hostile: timeout-ms 60000
+
+// 1. 100000 entries become 100000 runs of one entry each.
+array<int> $long = [];
+int $i = 0;
+while ($i < 100000) {
+    $long[] = $i;
+    $i = $i + 1;
+}
+echo 'step 1: ', Core\Arr::count(Core\Arr::chunk($long, 1)), '|', "\n";
+
+// 2. A run wider than the array holds everything.
+echo 'step 2: ', Core\Arr::count(Core\Arr::chunk($long, 9223372036854775807)), '|', "\n";
+
+// 3. 200 splits of that same array are taken and dropped, so nothing may be
+//    left behind.
+uint $seen = 0;
+int $r = 0;
+while ($r < 200) {
+    $seen = $seen + Core\Arr::count(Core\Arr::chunk($long, 25000));
+    $r = $r + 1;
+}
+echo 'step 3: ', $seen, '|', "\n";
+
+// 4. A run keeping a key of one million characters.
+array<int> $wide = [];
+$wide[Core\Str::repeat('k', 1000000)] = 1;
+array<array<int>> $kept = Core\Arr::chunk($wide, 1, { preserveKeys: true });
+echo 'step 4: ', Core\Arr::count($kept), '|', "\n";
+
+// 5. An array with no entries gives no runs.
+array<int> $empty = [];
+echo 'step 5: ', Core\Arr::count(Core\Arr::chunk($empty, 3)), '|', "\n";
+
+// 6. A size of 0 throws, and the program carries on.
+try {
+    array<array<int>> $none = Core\Arr::chunk($long, 0);
+    echo 'step 6: ', Core\Arr::count($none), '|', "\n";
+} catch (RuntimeError $error) {
+    echo 'step 6: the size was refused', '|', "\n";
+}
+
+echo 'the runtime is still standing', "\n";

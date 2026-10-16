@@ -1,0 +1,132 @@
+<?nvs
+// Attack: the program checks millions of times if a `mixed` value counts as true or false.
+// It uses `if`, `while`, `for`, `?:`, `&&` and `!`, with very large text and arrays.
+// It also creates a new array inside a condition 300,000 times. Each one must be freed.
+// hostile: timeout-ms 20000
+
+class Ask
+{
+    public static function everywhere(mixed $value): int
+    {
+        int $hits = 0;
+
+        if ($value) {
+            $hits = $hits + 1;
+        }
+
+        while ($value) {
+            $hits = $hits + 1;
+            break;
+        }
+
+        for (int $guard = 0; $value; $guard = $guard + 1) {
+            $hits = $hits + 1;
+            break;
+        }
+
+        $hits = $hits + ($value ? 1 : 0);
+
+        if ($value && true) {
+            $hits = $hits + 1;
+        }
+
+        if (!$value) {
+            $hits = $hits + 0;
+        } else {
+            $hits = $hits + 1;
+        }
+
+        return $hits;
+    }
+
+    public static function deep(mixed $value): bool
+    {
+        return !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!$value;
+    }
+}
+
+// 1. Check every kind of value in six kinds of condition. The list includes
+// hard cases like `'0'`, `-0.0` and `NAN`.
+array<mixed> $values = [
+    false,
+    true,
+    0,
+    -1,
+    0.0,
+    -0.0,
+    Core\Math::NAN,
+    '',
+    '0',
+    '0.0',
+    ' ',
+    [],
+    [0],
+    null,
+    new Ask(),
+];
+
+int $total = 0;
+int $round = 0;
+
+while ($round < 60000) {
+    foreach ($values as mixed $value) {
+        $total = $total + Ask::everywhere($value);
+    }
+
+    $round = $round + 1;
+}
+
+echo $total, "\n";
+
+// 2. Check a text of four million characters and an array of one million values.
+// The check needs only their size, so it should be as fast as for a short value.
+string $huge = Core\Str::repeat('0', 4000000);
+array<int> $long = Core\Arr::fill(1000000, 0);
+
+int $sized = 0;
+int $pass = 0;
+
+while ($pass < 200000) {
+    if ($huge) {
+        $sized = $sized + 1;
+    }
+
+    if ($long) {
+        $sized = $sized + 1;
+    }
+
+    $pass = $pass + 1;
+}
+
+echo $sized, "\n";
+
+// 3. The condition creates a new array each time. No variable keeps it,
+// so it must be freed after the check.
+int $fresh = 0;
+int $churn = 0;
+
+while ($churn < 300000) {
+    if (Core\Str::split(Core\Str::repeat('a,', 8), ',')) {
+        $fresh = $fresh + 1;
+    }
+
+    $churn = $churn + 1;
+}
+
+echo $fresh, "\n";
+
+// 4. `Ask::deep` applies `!` 32 times to every value, 200,000 times over.
+int $flipped = 0;
+int $turn = 0;
+
+while ($turn < 200000) {
+    foreach ($values as mixed $value) {
+        if (Ask::deep($value)) {
+            $flipped = $flipped + 1;
+        }
+    }
+
+    $turn = $turn + 1;
+}
+
+echo $flipped, "\n";

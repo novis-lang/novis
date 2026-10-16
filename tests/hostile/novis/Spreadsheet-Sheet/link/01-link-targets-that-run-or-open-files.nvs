@@ -1,0 +1,50 @@
+<?nvs
+// Attack: a request links a cell to a script, a local file, a network share or a very long address.
+// `link` should throw an error for each target that is not a web address, an email address or a cell.
+use Novis\Spreadsheet\Reader;
+use Novis\Spreadsheet\Workbook;
+
+class Attack
+{
+    // This method links A1 to `$target` and prints the length of the target read back, or the class of the error.
+    public static function attempt(int $step, string $target, string $text): void
+    {
+        try {
+            var $book = Workbook::createInMemory();
+            $book->sheet('Shop')->link('A1', $target, { text: $text, tooltip: $text })->add(['Open']);
+            bytes $file = $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
+            foreach (Reader::open($file)->links('Shop') as var $link) {
+                echo 'step ', $step, ' read a target of ', Core\Str::length($link->target), " characters\n";
+            }
+        } catch (Throwable $e) {
+            echo 'step ', $step, ' stopped ', $e::class, "\n";
+        }
+    }
+}
+
+// 1. A script, a local file, a network share, a data address and a file on a server.
+Attack::attempt(1, 'javascript:alert(1)', 'Open');
+Attack::attempt(1, 'JaVaScRiPt:alert(1)', 'Open');
+Attack::attempt(1, 'file:///etc/passwd', 'Open');
+Attack::attempt(1, '\\\\example.com\\share\\run.exe', 'Open');
+Attack::attempt(1, 'data:text/html,<script>alert(1)</script>', 'Open');
+Attack::attempt(1, 'ftp://example.com/run.exe', 'Open');
+
+// 2. Allowed targets with markup, quotes and a line break in the target and in the text.
+Attack::attempt(2, 'https://example.com/"><script>alert(1)</script>', '<b>Open</b>');
+Attack::attempt(2, "https://example.com/a\r\nSet-Cookie: x=1", "Open\r\nnow");
+Attack::attempt(2, 'mailto:shop@example.com?subject=<x>', '=HYPERLINK("x")');
+
+// 3. An address of 100,000 characters, and a cell of a sheet name with quotes.
+Attack::attempt(3, 'https://example.com/' . Core\Str::repeat('a', 100000), 'Open');
+Attack::attempt(3, "'Blog''s ''sheet'!A1", 'Open');
+
+// 4. A link on a cell outside the sheet.
+Attack::attempt(4, 'https://example.com', 'Open');
+try {
+    var $book = Workbook::createInMemory();
+    $book->sheet('Shop')->link('XFE1', 'https://example.com');
+    echo "step 4 added a link outside the sheet\n";
+} catch (LogicError $e) {
+    echo "step 4 stopped LogicError\n";
+}

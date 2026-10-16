@@ -1,0 +1,4 @@
+  -p, --port  The port to listen on
+  -q, --quiet  Print nothing
+listening on 8080
+exit status 0

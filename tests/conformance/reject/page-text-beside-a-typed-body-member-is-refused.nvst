@@ -1,0 +1,53 @@
+--TEST--
+A `#[Route]` handler's text outside `<?nvs … ?>` writes the response body as `echo` does, so it beside a `Core\Response` body member is two writers in either order, while page text and `echo` together are one -- `rule:security/response-body-is-one-typed-member`, `rule:core-classes/html-auto-escape`
+--FILE--
+<?nvs
+// covers: lang:programs/code-mode-and-html-mode
+// Page text in a request is written raw by the HTML sink, the same sink `echo`
+// writes to, so a JSON body with page text after it would be a JSON endpoint
+// with an HTML tail.
+class Pages
+{
+    #[Core\Route(path: "/report", method: Core\Http\Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function report(): void
+    {
+        Core\Response::json(1);
+?>
+<p>footer</p>
+<?nvs
+    }
+
+    // The other order is the same mistake.
+    #[Core\Route(path: "/receipt", method: Core\Http\Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function receipt(): void
+    {
+?>
+<h1>Receipt</h1>
+<?nvs
+        Core\Response::text("receipt");
+    }
+
+    // The accepted half: page text, a short echo tag and `echo` all write one
+    // HTML body, so together they are one writer.
+    #[Core\Route(path: "/page", method: Core\Http\Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function page(): void
+    {
+        string $title = "Page";
+?>
+<h1><?= $title ?></h1>
+<?nvs
+        echo "<p>one writer</p>";
+    }
+}
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0801]: a response has one body, and this handler writes it with both `Core\Response::json` and the HTML outside `<?nvs ?>`
+%A
+error[E0801]: a response has one body, and this handler writes it with both the HTML outside `<?nvs ?>` and `Core\Response::text`
+%A
+error: aborting due to 2 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

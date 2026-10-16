@@ -1,0 +1,10 @@
+--TEST--
+the right of `is` is a type, so a name that resolves to nothing is the ordinary undeclared-class report and it lands on the name itself, `rule:ide/diagnostics-are-phase-gated`, `rule:types/type-test`
+--FILE--
+<?nvs
+mixed $s = 1;
+var $answered = $s is Undeclared;
+--REQUEST--
+diagnostics
+--EXPECT--
+3:23-3:33 error E0303 `Undeclared` is not declared

@@ -1,0 +1,17 @@
+<?nvs
+// Shows how to change some fields of a date and time and keep the others.
+
+var $meeting = Core\Time::at(2024, 6, 14, Core\Time\Zone::of("Europe/Berlin"), {hour: 16, minute: 45});
+
+// `with` returns a new value. Each option you give replaces one field.
+// This prints 2024-06-01 16:45.
+echo $meeting->with({day: 1})->format("yyyy-MM-dd HH:mm"), "\n";
+
+// This prints 2024-06-14 09:00.
+echo $meeting->with({hour: 9, minute: 0})->format("yyyy-MM-dd HH:mm"), "\n";
+
+// This prints 2025-02-28 16:45.
+echo $meeting->with({year: 2025, month: 2, day: 28})->format("yyyy-MM-dd HH:mm"), "\n";
+
+// `$meeting` itself does not change. This prints 2024-06-14 16:45.
+echo $meeting->format("yyyy-MM-dd HH:mm"), "\n";

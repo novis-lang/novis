@@ -1,0 +1,11 @@
+<?nvs
+// Shows how a gamma below 1.0 makes the middle tones darker, for a photo that looks washed out.
+use Novis\Image\Image;
+use Novis\Image\Color;
+
+Image $pale = Image::create(10, 10, Color::rgba(128, 128, 128));
+
+// The middle gray 128 becomes the dark gray 64. This prints 64 64 64.
+var $raw = $pale->gamma(0.5)->raw();
+array<mixed> $pixel = Core\Bytes::unpack(Core\Bytes::slice($raw->pixels, 0, 4), "C4");
+echo $pixel[0], " ", $pixel[1], " ", $pixel[2], "\n";

@@ -1,0 +1,28 @@
+<?nvs
+// Shows how to skip a job that already ran, when the same job is in a queue more than once.
+
+final class Job {
+    public string $name;
+
+    public function constructor(string $name) {
+        $this->name = $name;
+    }
+}
+
+Job $invoice = new Job("send invoice");
+Job $report = new Job("build report");
+Job $backup = new Job("nightly backup");
+
+// The same job object is in the queue more than once.
+array<Job> $queue = [$invoice, $report, $invoice, $backup, $report];
+
+Core\ObjectSet<Job> $done = new Core\ObjectSet<Job>();
+// This prints "run" for three jobs and "skip" for the two repeats.
+foreach ($queue as Job $job) {
+    if ($done->has($job)) {
+        echo "skip ", $job->name, "\n";
+        continue;
+    }
+    echo "run ", $job->name, "\n";
+    $done->add($job);
+}

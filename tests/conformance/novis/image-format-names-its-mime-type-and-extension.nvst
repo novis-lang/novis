@@ -1,0 +1,23 @@
+--TEST--
+`Novis\Image\Image::mime` and `::extension` name the MIME type and the file extension of every `Format` case — rule:core-classes/image-pipeline
+--FILE--
+<?nvs
+use Novis\Image\Image;
+use Novis\Image\Format;
+
+array<Format> $formats = [
+    Format::Jpeg, Format::Png, Format::Webp, Format::Gif,
+    Format::Avif, Format::Jxl, Format::Svg, Format::Pdf,
+];
+foreach ($formats as Format $format) {
+    echo Image::extension($format), " ", Image::mime($format), "\n";
+}
+--EXPECT--
+jpg image/jpeg
+png image/png
+webp image/webp
+gif image/gif
+avif image/avif
+jxl image/jxl
+svg image/svg+xml
+pdf application/pdf

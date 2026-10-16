@@ -1,0 +1,5 @@
+616263
+61626364
+refused: Core\Encoding::fromBase64(): "aGVsbG8-d29ybGQ_" is not base64 — the byte 0x2d at offset 7 is not a base64 character, and whitespace, a newline and a misplaced `=` are each that byte rather than something skipped
+abcdefghijklmnopqrstuvwxyz
+refused: Core\Encoding::fromBase64(): "YWJ" is not base64 — its `=` padding is missing or malformed, and the standard form is written with it

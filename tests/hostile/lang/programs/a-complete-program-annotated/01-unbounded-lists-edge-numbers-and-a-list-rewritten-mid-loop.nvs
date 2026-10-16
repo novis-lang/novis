@@ -1,0 +1,126 @@
+<?nvs
+// Attack: a program gets input that nobody would type: a very long list, numbers
+// at the edge of `int`, strings that are not numbers and deeply nested lists.
+// Each step should give a correct result or throw an error. The program should
+// not crash, hang or print a wrong total.
+// hostile: timeout-ms 20000
+
+class Attack
+{
+    /// Builds a very long list of number strings, sorts it,
+    /// and adds up the numbers.
+    public static function unboundedList(int $n): int
+    {
+        array<string> $amounts = [];
+        int $i = 0;
+        while ($i < $n) {
+            $amounts[] = (($i % 977) as string);
+            $i = $i + 1;
+        }
+        array<string> $ordered = Core\Arr::sort($amounts, { order: Core\Arr::Order::Asc });
+        int $total = 0;
+        foreach ($ordered as string $each) {
+            $total = $total + ($each as int);
+        }
+        return $total;
+    }
+
+    /// Converts strings at the edge of the `int` range and strings that are not
+    /// whole numbers. Each one should convert exactly or throw an error.
+    public static function textAtTheEdges(): int
+    {
+        array<string> $inputs = [
+            '9223372036854775807',
+            '9223372036854775808',
+            '-9223372036854775808',
+            '-9223372036854775809',
+            '',
+            ' 7',
+            '7 ',
+            '+7',
+            '007',
+            '0x10',
+            '1e3',
+            '7.0',
+            "\u{0667}",
+            'seven',
+            '-',
+            '--7',
+            '1_000',
+            "\u{0000}7",
+        ];
+        int $refused = 0;
+        foreach ($inputs as string $text) {
+            try {
+                int $n = ($text as int);
+                $refused = $refused + ($n % 2);
+            } catch (Throwable $e) {
+                $refused = $refused + 1;
+            }
+        }
+        return $refused;
+    }
+
+    /// Adds `1` to the largest `int` value, so the total is too large for an `int`.
+    public static function totalOverflows(int $rounds): int
+    {
+        int $total = ('9223372036854775807' as int);
+        int $i = 0;
+        while ($i < $rounds) {
+            $total = $total + ('1' as int);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+
+    /// Builds a list nested `$depth` levels deep and encodes it as JSON.
+    public static function deeplyNested(int $depth): int
+    {
+        array<mixed> $deep = [];
+        int $i = 0;
+        while ($i < $depth) {
+            $deep = [$deep];
+            $i = $i + 1;
+        }
+        return (Core\Str::length(Core\Json::encode($deep)) as int);
+    }
+
+    /// The loop replaces `$amounts` on every turn. The `foreach` keeps reading
+    /// the old list, and `$amounts` is the new one.
+    public static function rewrittenWhileWalked(int $rounds): int
+    {
+        array<string> $amounts = ['3', '11', '7'];
+        int $total = 0;
+        int $i = 0;
+        while ($i < $rounds) {
+            foreach ($amounts as string $each) {
+                $total = $total + ($each as int);
+                $amounts = [(($total % 97) as string), '11', '7'];
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Attack::unboundedList(400000), "\n";
+echo Attack::textAtTheEdges(), "\n";
+
+try {
+    echo Attack::totalOverflows(4), "\n";
+} catch (Throwable $e) {
+    echo 'stopped: ', $e->message, "\n";
+}
+
+// `Core\Json::encode` has a maximum depth. The first three depths are close to
+// that limit, and `5000` is far past it.
+array<int> $depths = [1021, 1022, 1023, 5000];
+foreach ($depths as int $depth) {
+    try {
+        echo $depth, ' -> ', Attack::deeplyNested($depth), "\n";
+    } catch (Throwable $e) {
+        echo $depth, ' -> stopped: ', $e->message, "\n";
+    }
+}
+
+echo Attack::rewrittenWhileWalked(20000), "\n";

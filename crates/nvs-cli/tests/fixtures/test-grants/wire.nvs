@@ -1,0 +1,21 @@
+<?nvs
+// A `#[Test(server: true)]` reaching its own listener over the wire, which needs
+// the `net.connect` and `net.internal` pair for `127.0.0.1` from the tree's
+// configuration. `granted.toml` gives it and `denied.toml` does not, so the one
+// test passes under the first and fails under the second.
+class WireTest {
+    #[Core\Test(server: true)]
+    public function itReachesItsOwnListener(): void {
+        string $base = Core\Test::serverUrl() ?? "";
+        var $answered = Core\Http\Client::get($base . "/ping");
+        Core\Test::assertEquals($answered->status(), 200);
+        Core\Test::assertSame($answered->text(), "pong");
+    }
+}
+
+try {
+    var $path = Core\Request::path();
+    echo $path == "/ping" ? "pong" : "unknown";
+} catch (LogicError $notARequest) {
+    // The suite's own load. Nothing to answer, so nothing is written.
+}

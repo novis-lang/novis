@@ -1,0 +1,41 @@
+<?nvs
+// Shows how to build one list of people to send a message to, so that nobody gets it twice.
+
+final class Person {
+    public string $email;
+
+    public function constructor(string $email) {
+        $this->email = $email;
+    }
+}
+
+final class Ticket {
+    public Core\ObjectSet<Person> $watchers;
+    public Core\ObjectSet<Person> $team;
+
+    public function constructor() {
+        $this->watchers = new Core\ObjectSet<Person>();
+        $this->team = new Core\ObjectSet<Person>();
+    }
+
+    // Everybody who watches the ticket or works in the team.
+    public function recipients(): Core\ObjectSet<Person> {
+        return $this->watchers->union($this->team);
+    }
+}
+
+Person $ana = new Person("ana@example.com");
+Person $li = new Person("li@example.com");
+Person $sam = new Person("sam@example.com");
+
+Ticket $ticket = new Ticket();
+$ticket->watchers->add($ana);
+$ticket->watchers->add($li);
+$ticket->team->add($li);
+$ticket->team->add($sam);
+
+// Li watches the ticket and is also in the team. Li gets one message.
+// This prints three lines: Ana, Li and Sam.
+foreach ($ticket->recipients() as Person $person) {
+    echo "Send to ", $person->email, "\n";
+}

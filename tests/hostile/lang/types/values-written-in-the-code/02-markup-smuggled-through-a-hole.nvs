@@ -1,0 +1,46 @@
+<?nvs
+// Attack: put tags and script into a page through every kind of hole an
+// `html` template has. Every value below must reach the page as escaped text,
+// and only the `Core\Html\Markup` that the program itself wrote may stay a tag.
+// hostile: timeout-ms 20000
+
+class View
+{
+    public const string TITLE = '<script>alert(1)</script>';
+
+    public static function name(tainted string $raw): tainted string
+    {
+        return $raw;
+    }
+
+    public static function safe(): Core\Html\Markup
+    {
+        return html`<b>ok</b>`;
+    }
+}
+
+tainted string $raw = "\" onmouseover=\"alert(1)\" data-x=\"";
+string $built = '<img src=x onerror=alert(1)>';
+
+// 1. A tainted value in a `{$}` hole and in a `<?= ?>` hole.
+echo html`<p>{$raw}</p><p><?= $raw ?></p>`, "\n";
+// 2. A constant holding a script tag, through the `<?= ?>` hole.
+echo html`<h1><?= View::TITLE ?></h1>`, "\n";
+// 3. A method that returns its tainted argument unchanged.
+echo html`<p><?= View::name($raw) ?></p>`, "\n";
+// 4. A computed string, and the same string after a cast to `string`.
+echo html`<p><?= $built ?><?= $built as string ?></p>`, "\n";
+// 5. A `?>` inside the hole's own string must not close the hole early.
+echo html`<p><?= '?><script>alert(1)</script>' ?></p>`, "\n";
+// 6. The one thing allowed to stay a tag: markup the program wrote itself.
+echo html`<p><?= View::safe() ?></p>`, "\n";
+
+// Many rounds, so a leak or unbounded growth in the hole path would show.
+uint $round = 0;
+uint $total = 0;
+while ($round < 20000) {
+    Core\Html\Markup $m = html`<li><?= View::TITLE ?> {$raw} <?= View::safe() ?></li>`;
+    $total = $total + Core\Str::length(Core\Html::toSource($m, 'measuring the attack'));
+    $round = $round + 1;
+}
+echo $total, "\n";

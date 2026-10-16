@@ -1,0 +1,48 @@
+An enum capture matches on its case's **written** backing value, and on the **case name** when the
+value was counted rather than written, in a path segment and in a `#[Query]` value alike.
+
+Every Novis enum is backed by one integer type and nothing else (`rule:enums/one-backing-type`), so
+there is no backed-versus-pure split to inherit; what decides the spelling is whether the integer was
+written in the enum body:
+
+- Every admitted case's value written — the segment is that integer, parsed as the enum's backing
+  type.
+- Any admitted case's value counted on from the one before it (`rule:enums/declaration`) — the whole
+  subset is spelled by case name, compared byte for byte and case-sensitively, as a fixed segment
+  is (`rule:classes/names-resolve-case-sensitively`).
+
+The choice is per subset and never per case, because a subset mixing the two would put an integer and
+a name in the same position, and a case may legally be named `7`.
+
+A counted value is not an identifier: `enum Status { Active, Banned }` gives `Active` the value `0`
+only because it is written first, so inserting a case ahead of it would repoint `/0` at a different
+case and silently change what every link already in the world means. A written value is one its
+author stated and intends to keep, which is why it is the one that reaches the URL.
+
+Two cases may carry the same value (`rule:enums/declaration`), and a subset admitting two of them
+under the written-value spelling is a **compile error** naming both cases and the value, rather than
+a silent first-wins (`rule:errors/ambiguous-input-refused`). Under the case-name spelling an alias is
+fine, because the names are still distinct.
+
+A segment naming no admitted case is not a match and falls through to a `404`
+(`rule:security/route-capture-is-laundered-by-its-type`), exactly as a failed `int` conversion does.
+One spelling serves every position: it is what the match converts, what `Core\Router::url` writes
+into a link and refuses outside the set (`rule:routing/link-name-and-params-are-checked`), and what
+the generated document lists in `enum: [...]`, so a route, its links and its document cannot
+disagree.
+
+The spelling is decided once while compiling (`nvs_types::routes`' `enum_capture`) and every position
+reads that one answer: the match converts on it, the link is refused against it and renders through
+the spelling rows the prepared template carries, and the document lists it. The one position still
+short of it is a `#[Query]` value's **arrival**, and not for a reason of this rule's: no query value
+of any declared type is bound to its parameter yet, which is
+`rule:routing/a-bad-query-value-is-a-400`'s own unshipped half.
+
+**Declined:**
+- **The case name always.** It makes a written backing value decorative: an author who wrote
+  `Active = 1` to pin a public number gets `Active` in the URL anyway, and an identifier from the
+  source reaches the URL surface whether or not its author meant it to be public.
+- **The backing value always.** Every counted value is then a public identifier that an insertion
+  moves.
+- **An attribute naming the spelling per enum.** A third place the same fact could be written and
+  disagree with the other two, the objection `rule:routing/path-grammar` makes to `{id:uint}`.

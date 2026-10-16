@@ -1,0 +1,26 @@
+<?nvs
+// Shows how to add the rows of a generator, one row at a time.
+use Novis\Spreadsheet\Workbook;
+
+class Visits
+{
+    // This generator gives one row for each day. A real program reads the rows from a database.
+    public static function perDay(): Iterator<array<mixed>>
+    {
+        int $day = 1;
+        while ($day <= 4) {
+            yield ['day' => $day, 'visits' => 100 + $day * 7];
+            $day = $day + 1;
+        }
+    }
+}
+
+var $book = Workbook::createInMemory({ format: 'csv' });
+$book->sheet('Visits')->addAll(Visits::perDay());
+
+// `rows` counts the rows of data of each sheet. The header row is not counted.
+var $written = $book->finish();
+echo $written->rows['Visits'], " rows\n";
+if ($written->bytes != null) {
+    echo $written->bytes as string;
+}

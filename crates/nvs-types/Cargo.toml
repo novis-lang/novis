@@ -1,0 +1,44 @@
+[package]
+name = "nvs-types"
+build = "../../tools/build/tests_without_pdb.rs"
+description = "Novis type checker: interned declared types, local definite assignment, the arithmetic result-type table"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[lib]
+# No doc comment in this crate has a runnable example, so `cargo test` does
+# not run rustdoc over it. A crate that gains one deletes this table.
+doctest = false
+
+[dependencies]
+nvs-diagnostics.workspace = true
+nvs-syntax.workspace = true
+nvs-hir.workspace = true
+nvs-stdlib.workspace = true
+# A lookup of a `Core` class's seeded signatures or enum cases is recorded when
+# `NVS_FOOTPRINT_LOG` names a log.
+nvs-footprint.workspace = true
+rustc-hash.workspace = true
+# The capability enum and the grant walk live in `nvs-config`, and
+# `rule:core-classes/db-compile-time-query-checking` has `nvs check` ask one of its questions: `Env::grants` carries
+# the compiling machine's `[capabilities]` block, and `intrinsics.rs` reads a
+# literal `Core\Db::open` host against it through the same
+# `Capabilities::allows_host` the runtime door uses.
+nvs-config.workspace = true
+# The manifest model of the loaded extension set, which `ext_lib` seeds into the
+# signature table. The workspace entry turns the crate's default features off, so
+# this links no wasmtime: the checker reads manifests and never instantiates.
+nvs-ext.workspace = true
+# A manifest constant's value is JSON (`ext_lib`'s `const_value`).
+serde_json.workspace = true
+
+[dev-dependencies]
+# How this crate's tests reach files outside the package.
+nvs-repo.workspace = true
+
+[lints]
+workspace = true

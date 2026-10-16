@@ -1,0 +1,11 @@
+<?nvs
+// Shows how to build the placeholders of a database query. A query needs one
+// `?` for every value you send with it.
+
+array<string> $ids = ['7', '9', '12'];
+
+// One question mark per id, joined into one text.
+string $marks = Core\Str::join(Core\Arr::fill(Core\Arr::count($ids), '?'), ', ');
+
+// This prints SELECT name FROM users WHERE id IN (?, ?, ?).
+echo 'SELECT name FROM users WHERE id IN (', $marks, ')', "\n";

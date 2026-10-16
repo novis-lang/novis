@@ -1,0 +1,34 @@
+<?nvs
+// This program lists every page class together with the path of its route.
+
+interface Page {
+    public function render(): string;
+}
+
+class Index implements Page {
+    #[Core\Route(path: "/", method: Core\Http\Method::Get, name: "index")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function render(): string {
+        return "home";
+    }
+}
+
+class Contact implements Page {
+    #[Core\Route(path: "/contact", method: Core\Http\Method::Get, name: "contact")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function render(): string {
+        return "contact us";
+    }
+}
+
+class Draft implements Page {
+    public function render(): string {
+        return "not routed";
+    }
+}
+
+// Each row has an object and the attribute with a `path` field on its method `render`.
+// `Draft` has no such attribute, so its `attribute` is `null`.
+foreach (Core\Program::implementingWith<Page, {path: string}>("render") as {instance: Page, attribute: ?{path: string}} $row) {
+    echo $row->attribute?->path ?? "(no route)", " -> ", $row->instance->render(), "\n";
+}

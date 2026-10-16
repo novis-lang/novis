@@ -1,0 +1,20 @@
+<?nvs
+// Shows the error for a chart that combines a pie chart with a line.
+use Novis\Spreadsheet\Chart;
+use Novis\Spreadsheet\Workbook;
+
+var $book = Workbook::createInMemory();
+var $sheet = $book->sheet('Sales');
+$sheet->addAll([['month' => 'January', 'sales' => 1200, 'costs' => 800], ['month' => 'February', 'sales' => 1450, 'costs' => 900]]);
+
+// A combined chart uses two of column, line and area, so `chart` throws a `LogicError`.
+var $chart = Chart::pie()->series($sheet->column('sales'))->combine(Chart::line()->series($sheet->column('costs')));
+try {
+    $sheet->chart('E2', $chart);
+} catch (LogicError $e) {
+    echo $e->message, "\n";
+}
+
+// A column chart with a line is allowed.
+$sheet->chart('E2', Chart::column()->series($sheet->column('sales'))->combine(Chart::line()->series($sheet->column('costs'))));
+echo "the column chart with a line is added\n";

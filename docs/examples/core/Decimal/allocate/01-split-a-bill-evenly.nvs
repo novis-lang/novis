@@ -1,0 +1,18 @@
+<?nvs
+// Shows how to split a bill evenly between three people. The parts add back to
+// the bill exactly, so the three payments always cover it.
+
+decimal $bill = 20.05;
+
+// One ratio per person. They are all the same, so the three parts are as close
+// to equal as whole cents allow.
+array<decimal> $evenly = [1, 1, 1];
+
+decimal $paid = 0.00;
+foreach (Core\Decimal::allocate($bill, $evenly) as decimal $part) {
+    echo $part, "\n";
+    $paid = $paid + $part;
+}
+
+// This prints 20.05. The cent that does not divide went to the first person.
+echo "total: ", $paid, "\n";

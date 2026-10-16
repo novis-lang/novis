@@ -1,0 +1,38 @@
+<?nvs
+// Attack: a client sends file names that no file system should accept, and then a part
+// that gives its file name twice. Each save under such a name should throw an error or
+// stay inside the folder, and the name given twice should throw a `ParseError`.
+
+string $folder = Core\IO::temporaryDir();
+array<Core\Request\Part> $parts = [];
+
+// 1. Saves each file inside the folder, under the name the client sent.
+//    The last part gives `filename` twice, so the loop throws a `ParseError` there.
+try {
+    foreach (Core\Request::files() as Core\Request\Part $part) {
+        tainted string $claimed = $part->filename();
+        echo Core\Str::length($claimed), ' characters, extension "', Core\Path::extension($claimed), "\"\n";
+        try {
+            $part->saveTo(Core\IO::within($folder, $claimed));
+            echo "  saved inside the folder\n";
+        } catch (RuntimeError $error) {
+            echo "  save: an error\n";
+        }
+        $parts[] = $part;
+    }
+} catch (ParseError $twice) {
+    echo "a file name given twice: ParseError\n";
+}
+
+// 2. Reads the first file name after the loop ended. The name is still there.
+echo 'first name after the loop: ', Core\Str::length($parts[0]->filename()), " characters\n";
+
+// 3. Repeats the long name until it is longer than any file system allows, and saves under it.
+//    This throws an error.
+tainted string $huge = Core\Str::repeat($parts[0]->filename(), 200);
+try {
+    Core\IO::write(Core\IO::within($folder, $huge), 'x');
+    echo 'saved under a name of ', Core\Str::length($huge), " characters\n";
+} catch (RuntimeError $error) {
+    echo 'a name of ', Core\Str::length($huge), " characters: an error\n";
+}

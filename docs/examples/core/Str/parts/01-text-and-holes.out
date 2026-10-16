@@ -1,0 +1,5 @@
+text: []
+hole: [total]
+text: [ > 100 AND ]
+hole: [status]
+text: [ = 'paid']

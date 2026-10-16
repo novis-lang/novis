@@ -1,0 +1,4 @@
+start: 64M
+128M: ok
+1G: not allowed
+now: 128M

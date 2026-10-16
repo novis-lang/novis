@@ -1,0 +1,3 @@
+Invoice 1042
+Customer: Blog Ltd
+Total: 240.00 EUR

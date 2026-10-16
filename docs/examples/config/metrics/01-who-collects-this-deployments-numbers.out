@@ -1,0 +1,9 @@
+exporter:   false
+scrape at:  (nothing written)
+push to:    (nothing written)
+series cap: 10000
+switch it off:        refused
+push somewhere else:  refused
+raise the series cap: refused
+traces go to:         false
+stop tracing me:      refused

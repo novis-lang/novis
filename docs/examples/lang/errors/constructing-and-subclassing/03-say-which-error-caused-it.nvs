@@ -1,0 +1,31 @@
+<?nvs
+// Shows how one error names the error that caused it. A settings loader catches
+// the error from the JSON reader and throws its own, with the first one kept as
+// the cause. The person reading the log then sees both.
+
+class ConfigError extends RuntimeError {
+    public function constructor(string $message, public string $file, ?Throwable $cause) {
+        // `{previous: $cause}` is the options bag of the inherited constructor.
+        parent::constructor($message, {previous: $cause});
+    }
+}
+
+final class Settings {
+    public static function read(string $file, string $text): mixed {
+        try {
+            return Core\Json::decode($text);
+        } catch (ParseError $bad) {
+            throw new ConfigError("cannot start without " . $file, $file, $bad);
+        }
+    }
+}
+
+try {
+    echo Core\Json::encode(Settings::read("app.json", "{\"port\": 8080}")), "\n";
+    echo Core\Json::encode(Settings::read("cache.json", "{\"port\": }")), "\n";
+} catch (ConfigError $stop) {
+    echo $stop->message, "\n";
+    echo "the file is ", $stop->file, "\n";
+    // `previous` is the error that was caught inside `read`.
+    echo "caused by: ", $stop->previous?->message ?? "nothing", "\n";
+}

@@ -1,0 +1,27 @@
+--TEST--
+A class or an interface in a class body is one `E0233` where it is written, while an enum there is accepted — `rule:enums/class-scoped-enum`, `rule:classes/a-type-is-declared-at-file-scope`
+--FILE--
+<?nvs
+// `rule:enums/class-scoped-enum`: an enum is a closed list of integers. A
+// class or an interface has members, layout and dispatch of its own, so it is
+// declared at file scope.
+final class Order {
+    enum Status { Open, Paid }
+
+    final class Line {}
+
+    interface Priced {}
+}
+
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0233]: a class or an interface is not declared in a class body
+  --> case.nvs:8:5
+%A
+error[E0233]: a class or an interface is not declared in a class body
+   --> case.nvs:10:5
+%A
+error: aborting due to 2 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

@@ -1,0 +1,8 @@
+<?nvs
+// Shows how to put a value with spaces into the query string of a link.
+
+string $city = "New York";
+
+// `Core\Uri::encodeFormValue` writes each space as `+`.
+// This prints /weather?city=New+York.
+echo "/weather?city=", Core\Uri::encodeFormValue($city), "\n";

@@ -1,0 +1,55 @@
+<?nvs
+// Attack: values written to make the search as slow and as strange as it can
+// be are looked for in large arrays. Every step should finish or throw an
+// error, and the runtime must not crash.
+// hostile: timeout-ms 60000
+
+// 1. A list of 400000 entries, searched for a value that is not in it, so
+//    every entry is looked at.
+array<int> $long = [];
+int $i = 0;
+while ($i < 400000) {
+    $long[] = $i;
+    $i = $i + 1;
+}
+echo 'step 1: ', Core\Arr::contains($long, -1) ? 'yes' : 'no', '|', "\n";
+
+// 2. The largest whole number there is, as the value to look for.
+echo 'step 2: ', Core\Arr::contains($long, 9223372036854775807) ? 'yes' : 'no', '|', "\n";
+
+// 3. A text of one million characters, looked for in a list of short texts.
+array<string> $words = ['a', 'b', 'c'];
+echo 'step 3: ', Core\Arr::contains($words, Core\Str::repeat('w', 1000000)) ? 'yes' : 'no', '|', "\n";
+
+// 4. A text that contains a zero byte in the middle.
+array<string> $odd = ["a\0b"];
+echo 'step 4: ', Core\Arr::contains($odd, "a\0b") ? 'yes' : 'no', '|', "\n";
+
+// 5. An array nested 100000 levels deep, searched for inside another array.
+array<mixed> $deep = [];
+int $d = 0;
+while ($d < 100000) {
+    $deep = [$deep];
+    $d = $d + 1;
+}
+array<mixed> $nest = [$deep];
+echo 'step 5: ', Core\Arr::contains($nest, $deep) ? 'yes' : 'no', '|', "\n";
+
+// 6. 5000 searches that each look at all 2000 entries.
+array<int> $mid = [];
+int $k = 0;
+while ($k < 2000) {
+    $mid[] = $k;
+    $k = $k + 1;
+}
+int $misses = 0;
+int $r = 0;
+while ($r < 5000) {
+    if (!Core\Arr::contains($mid, 0 - $r - 1)) {
+        $misses = $misses + 1;
+    }
+    $r = $r + 1;
+}
+echo 'step 6: ', $misses, '|', "\n";
+
+echo 'the runtime is still standing', "\n";

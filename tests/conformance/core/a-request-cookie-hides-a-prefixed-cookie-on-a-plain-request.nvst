@@ -1,0 +1,19 @@
+--TEST--
+a request cookie hides a `__Host-` or `__Secure-` cookie on a request whose scheme is `http` `rule:errors/cookie-name-bytes`
+--SCHEME--
+http
+--COOKIE--
+__Host-session=h1; __Secure-lang=de; theme=dark
+--FILE--
+<?nvs
+// Both prefixes require `Secure`, and a browser sends a `Secure` cookie only
+// over a secure connection. This request is `http`, so each prefixed name
+// gives `null`.
+echo Core\Request::cookie("__Host-session") ?? "null", "\n";
+echo Core\Request::cookie("__Secure-lang") ?? "null", "\n";
+// A name with no prefix is read on any scheme.
+echo Core\Request::cookie("theme") ?? "null", "\n";
+--EXPECT--
+null
+null
+dark

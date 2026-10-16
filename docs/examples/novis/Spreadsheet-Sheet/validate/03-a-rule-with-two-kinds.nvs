@@ -1,0 +1,20 @@
+<?nvs
+// Shows the error for a rule with two kinds, and for a number rule without limits.
+use Novis\Spreadsheet\Workbook;
+
+var $book = Workbook::createInMemory();
+var $sheet = $book->sheet('Orders');
+
+// A rule has exactly one of `list`, `whole`, `decimal`, `date`, `length` or `formula`.
+try {
+    $sheet->validate('B2:B9', { list: ['open', 'paid'], whole: { min: 1 } });
+} catch (LogicError $e) {
+    echo $e->message, "\n";
+}
+
+// `decimal` needs `min`, `max` or both.
+try {
+    $sheet->validate('C2:C9', { decimal: {} });
+} catch (LogicError $e) {
+    echo $e->message, "\n";
+}

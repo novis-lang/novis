@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 2,
+  "listed": [
+    {"class": "CountingTest", "method": "aSkippedCaseCarriesItsReason", "file": "editors/vscode/test/surfaces/recorded/suite.nvs", "line": 23, "column": 21},
+    {"class": "CountingTest", "method": "aCountIsWhatWasCounted", "file": "editors/vscode/test/surfaces/recorded/suite.nvs", "line": 28, "column": 21},
+    {"class": "GreetingTest", "method": "aGreetingIsItsOwnName", "file": "editors/vscode/test/surfaces/recorded/suite.nvs", "line": 11, "column": 21},
+    {"class": "GreetingTest", "method": "aWrongGreetingSaysWhatItGot", "file": "editors/vscode/test/surfaces/recorded/suite.nvs", "line": 16, "column": 21}
+  ]
+}

@@ -1,0 +1,25 @@
+<?nvs
+// Shows a generator whose loop has no end. The body runs one step per value, so a
+// sequence without an end is safe to write and safe to walk.
+
+class Backoff {
+    // Every wait is twice the one before it: 1, 2, 4, 8, and so on.
+    public static function delays(int $first): Iterator<int> {
+        int $wait = $first;
+        while (true) {
+            yield $wait;
+            $wait = $wait * 2;
+        }
+    }
+}
+
+int $attempt = 0;
+foreach (Backoff::delays(1) as int $seconds) {
+    $attempt = $attempt + 1;
+    echo "attempt {$attempt} waits {$seconds}s\n";
+    // `break` leaves the generator where it stopped. The body runs no further,
+    // so the loop above ends after four values.
+    if ($attempt == 4) {
+        break;
+    }
+}

@@ -1,0 +1,13 @@
+{
+  "title": "`Core\\Serialize::decode` accepts only bytes this build's `encode` produced, and refuses everything else outright",
+  "status": "shipped",
+  "seeAlso": [
+    "classes/graph-copy",
+    "classes/two-copy-depths",
+    "classes/definite-property-initialization"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/serialize-refuses-a-callable-and-foreign-bytes-by-name.nvst",
+    "tests/conformance/reject/serialize-decode-refuses-a-tainted-operand.nvst"
+  ]
+}

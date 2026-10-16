@@ -1,0 +1,66 @@
+<?nvs
+// Attack: a program reads every constant that is not public, from outside the
+// class and from an unrelated class, many times. Every read should throw an
+// error, and `isPublic` should keep the same answer.
+
+class Vault
+{
+    public const int OPEN = 1;
+    protected const string SHARED = 'shared';
+    private const string HIDDEN = 'hidden';
+    private const secret string TOKEN = 's3cr3t';
+}
+
+class Thief
+{
+    public static function steal(Core\Reflect\ClassInfo $info, string $name): uint
+    {
+        try {
+            $info->constant($name);
+            return 1;
+        } catch (RuntimeError $closed) {
+            return 0;
+        }
+    }
+}
+
+var $info = Core\Reflect::forObject(new Vault());
+array<Core\Reflect\ConstantInfo> $list = $info->constants();
+
+// 1. Read each constant from outside the class. This prints `1 3`, because only `OPEN` is read.
+uint $read = 0;
+uint $refused = 0;
+foreach ($list as Core\Reflect\ConstantInfo $constant) {
+    try {
+        $info->constant($constant->name());
+        $read = $read + 1;
+    } catch (RuntimeError $closed) {
+        $refused = $refused + 1;
+    }
+}
+echo $read, ' ', $refused, "\n";
+
+// 2. Read each constant that is not public from an unrelated class, 50000 times.
+// Every read throws, so this prints 0.
+uint $stolen = 0;
+uint $i = 0;
+while ($i < 50000) {
+    Core\Reflect\ConstantInfo $one = $list[($i % 4) as int];
+    if (!$one->isPublic()) {
+        $stolen = $stolen + Thief::steal($info, $one->name());
+    }
+    $i = $i + 1;
+}
+echo $stolen, "\n";
+
+// 3. Keep the items after the description is freed, and ask `isPublic` 500000 times.
+array<Core\Reflect\ConstantInfo> $kept = Core\Reflect::forObject(new Vault())->constants();
+uint $public = 0;
+$i = 0;
+while ($i < 500000) {
+    if ($kept[($i % 4) as int]->isPublic()) {
+        $public = $public + 1;
+    }
+    $i = $i + 1;
+}
+echo $public, "\n";

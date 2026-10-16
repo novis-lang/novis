@@ -1,0 +1,13 @@
+<?nvs
+// `*` runs before `+`.
+echo 1 + 2 * 3, "\n";
+
+// `**` runs before the minus sign, and from right to left.
+echo -2 ** 2, " ", 2 ** 3 ** 2, "\n";
+
+// `.` runs after `+`. So this line adds 1 and 2 first.
+echo "sum: " . 1 + 2, "\n";
+
+// `??` runs after `+`. The parentheses make `??` run first.
+?int $bonus = null;
+echo ($bonus ?? 0) + 10, "\n";

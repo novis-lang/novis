@@ -1,0 +1,18 @@
+---
+source: crates/nvs-ir/src/lower.rs
+expression: "print_function(&f, map.file(file))"
+---
+fn m(object) -> void {
+  bb0:
+    safepoint
+    v0 = param 0  ; object
+    ; stmt s0 @4:5-4:18
+    v1 = class.of v0  ; classdesc
+    v2 = call T::make(this: v1) ! bb1  ; string
+    release v2
+    release v0
+    return
+  bb1:
+    release v0
+    propagate "m() at t.nvs:4"
+}

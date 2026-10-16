@@ -1,0 +1,40 @@
+<?nvs
+// Shows the change a deployment makes most often: a new column on a table that
+// already holds rows. A column that may be null is a safe step, so `applySafe`
+// runs it and every row is kept.
+
+use Core\Db;
+use Core\Db\Schema;
+
+var $db = Db::connect('notes');
+
+// The table and the rows an earlier release left here.
+$db->execute('create table notes (id integer not null primary key autoincrement, title varchar(200) not null)', []);
+$db->execute("insert into notes (title) values ('first note')", []);
+$db->execute("insert into notes (title) values ('second note')", []);
+
+// The new column is `written_at`, and it may be null.
+var $schema = Schema::fromArray([
+    'tables' => [
+        [
+            'name' => 'notes',
+            'columns' => [
+                ['name' => 'id', 'type' => 'int64', 'identity' => true],
+                ['name' => 'title', 'type' => 'text(200)'],
+                ['name' => 'written_at', 'type' => 'instant', 'null' => true],
+            ],
+            'primary_key' => ['id'],
+        ],
+    ],
+]);
+
+$schema->applySafe($db);
+
+// Both rows are still there. This prints `rows: 2`.
+echo 'rows: ', $db->query('select id from notes', [])->count(), "\n";
+
+// The rows that were written before the column existed have no time in it.
+// This prints `without a time: 2`.
+echo 'without a time: ', $db->query('select id from notes where written_at is null', [])->count(), "\n";
+
+$db->close();

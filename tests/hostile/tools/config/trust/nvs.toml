@@ -1,0 +1,14 @@
+# The program may read and write files in `data`, and nothing else.
+# The settings in `conf.d` are included, and the highest memory limit is 128M.
+[limits]
+memory = "64M"
+
+[limits.hard]
+memory = "128M"
+
+[capabilities.fs]
+read = ["data"]
+write = ["data"]
+
+[[include]]
+dir = "conf.d"

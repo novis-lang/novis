@@ -1,0 +1,5 @@
+steps: 1
+CREATE TABLE "notes" (
+    "id" INTEGER PRIMARY KEY AUTOINCREMENT,
+    "title" VARCHAR(200) NOT NULL
+);

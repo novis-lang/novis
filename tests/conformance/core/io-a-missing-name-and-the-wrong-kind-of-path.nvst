@@ -1,0 +1,72 @@
+--TEST--
+the boundaries of Core\IO's metadata and removal members, both sides of each: `exists` answers for a name `size` throws on, `remove` refuses a directory, and `removeDir` refuses that same directory until the entry in it is gone — spec § 14
+--FILE--
+<?nvs
+// Everything here runs with the grant in place, so the operating system is what
+// answers and the case is about where each member stops. Each pair is one bound
+// named on both sides -- the last thing accepted beside the first thing
+// refused -- because a member that stops one step early prints plausibly
+// against either half on its own.
+
+// Absence: an answer for one member, a failure for the other. `size` has no
+// number for a name that is not there, and inventing a zero would be a file of
+// zero bytes as far as the caller could tell.
+if (Core\IO::exists("missing.txt")) {
+    echo "missing.txt: exists\n";
+} else {
+    echo "missing.txt: absent\n";
+}
+
+try {
+    int $size = Core\IO::size("missing.txt") as int;
+    echo "missing.txt: measured\n";
+} catch (IOError $absent) {
+    echo "missing.txt: no size\n";
+}
+
+// Kind: `exists` says yes to a directory, and the two removal members do not
+// agree about it. `remove` is unlink and refuses one.
+if (Core\IO::exists("sub")) {
+    echo "sub: exists\n";
+} else {
+    echo "sub: absent\n";
+}
+
+try {
+    Core\IO::remove("sub");
+    echo "remove sub: unlinked\n";
+} catch (IOError $wrong) {
+    echo "remove sub: not a file\n";
+}
+
+// And `removeDir` is rmdir, which refuses a directory that still holds
+// something -- the door's own decision, since the alternative is one grant
+// check deleting a whole tree.
+try {
+    Core\IO::removeDir("sub");
+    echo "removeDir sub: removed\n";
+} catch (IOError $full) {
+    echo "removeDir sub: not empty\n";
+}
+
+// The other side of that bound: the same call, after the one entry is gone.
+Core\IO::remove("sub/keep.txt");
+Core\IO::removeDir("sub");
+if (Core\IO::exists("sub")) {
+    echo "sub: exists\n";
+} else {
+    echo "sub: absent\n";
+}
+--FILE sub/keep.txt--
+keep
+--FILE nvs.toml--
+[capabilities.fs]
+read = ["."]
+write = ["."]
+--EXPECT--
+missing.txt: absent
+missing.txt: no size
+sub: exists
+remove sub: not a file
+removeDir sub: not empty
+sub: absent

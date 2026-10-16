@@ -1,0 +1,6 @@
+# The server of a small shop. Every key in `[server]` is optional.
+[server]
+listen            = ["127.0.0.1:8080"]
+health_path       = "/up"
+max_in_flight     = 500
+keepalive_timeout = "60s"

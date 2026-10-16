@@ -1,0 +1,31 @@
+<?nvs
+// Shows how a program checks that a path is a folder before it writes files into it.
+
+class Output {
+    // The folder may be missing. Then the method makes it.
+    // If a file has the name, the method throws a `LogicError`.
+    public static function prepare(string $dir): void {
+        if (!Core\IO::exists($dir)) {
+            Core\IO::makeDir($dir);
+        } elseif (!Core\IO::stat($dir)->isDir()) {
+            throw new LogicError($dir . " is a file, not a folder");
+        }
+    }
+}
+
+string $reports = Core\Path::join(Core\IO::temporaryDir(), "reports");
+string $exports = Core\Path::join(Core\IO::temporaryDir(), "exports");
+Core\IO::write($exports, "a file with the name of the folder\n");
+
+// "reports" is missing, so it is made. This prints "reports is ready".
+Output::prepare($reports);
+echo "reports is ready", "\n";
+
+// "exports" is a file. This prints "exports is a file, so nothing was written".
+try {
+    Output::prepare($exports);
+    echo "exports is ready", "\n";
+} catch (LogicError $e) {
+    echo "exports is a file, so nothing was written", "\n";
+}
+Core\IO::remove($exports);

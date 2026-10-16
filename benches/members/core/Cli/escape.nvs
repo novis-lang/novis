@@ -1,0 +1,25 @@
+<?nvs
+// Measures making a short label safe to print, as a program does with every
+// piece of text a person typed.
+// bench: iterations 256
+// bench: calls 0
+// bench: allocations 1
+// bench: complexity linear
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<string> $labels = ["order", "order" . Core\Str::fromCodePoint(27) . "[31m", "Café"];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The label of each round is picked by the round before it, so no
+            // round can be left out.
+            int $pick = ($total % 3) as int;
+            $total = $total + Core\Str::length(Core\Cli::escape($labels[$pick]));
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

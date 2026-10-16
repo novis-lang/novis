@@ -1,0 +1,121 @@
+//! `rule:config/a-mode-is-five-defaults`, `rule:config/a-program-may-read-and-flip-its-mode` and `rule:http-server/the-mode-ceiling-defaults-to-the-startup-mode`: the two modes, the five defaults a mode selects, and the ceiling that bounds a
+//! runtime flip.
+//!
+//! **`rule:config/a-mode-is-five-defaults`'s table is closed, and this is it.** A mode is a shorthand for the default of five
+//! directives that are each settable on their own, so what a mode *is* can be printed as five rows
+//! rather than described as a behaviour. That property only holds while the table has one home, and
+//! this module is it: a second copy anywhere is a mode that changes something the first copy does not
+//! list. `rule:config/a-startup-default-is-never-flipped`'s startup rows are deliberately **not**
+//! here — they are chosen when a configuration is published, never re-derived and never flippable,
+//! and mixing the two tables is exactly the confusion that rule is kept separate to prevent.
+//!
+//! **A value is spelled the way [`Request::get`](crate::Request::get) answers one**, because
+//! `rule:config/ini-set-is-core-config-set`'s API is string-in/string-out and a flip whose answer could be told apart from the
+//! same value written in `nvs.toml` would be a second spelling of every directive it touches. That
+//! is the *text* of the value and not its TOML rendering — a string with no quotes around it, a bool
+//! as `true`/`false`. `[log] level` is `Log::Level`'s own case name, `Info` or `Debug`
+//! (`rule:errors/log-level`).
+//!
+//! **The ceiling is a comparison over a two-value order** (`rule:http-server/the-mode-ceiling-defaults-to-the-startup-mode`): `production` is the restrictive end
+//! and `development` the permissive one, and a flip is allowed exactly where what is asked for is no
+//! more permissive than the ceiling. An unset `[mode] ceiling` is the mode the host started in, which
+//! is what makes a production host — one that wrote no configuration at all — refuse every flip
+//! without an operator having to know this feature exists.
+//!
+//! **An unwritten row is the mode's value.** [`crate::defaults`] names each row of the table as a
+//! default computed by the mode in force, so `Request::get` of `[log] format` on a tree that writes
+//! `mode = "development"` and nothing else is `"text"`. A flip also writes the rows into the
+//! request's overlay, so flipping back leaves what the flip set.
+//!
+
+/// The dotted key a mode is written and flipped at — `rule:config/a-program-may-read-and-flip-its-mode`'s own spelling, and the only one.
+pub const KEY: &str = "mode.default";
+
+/// The ceiling order's restrictive end, and the mode a host with no configuration starts in.
+pub const PRODUCTION: &str = "production";
+
+/// The ceiling order's permissive end.
+pub const DEVELOPMENT: &str = "development";
+
+/// One row of the mode table: a directive whose default the mode selects, and the value it takes in
+/// each of the two modes.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Derived {
+    /// The dotted key, as `nvs.toml` writes it and as `Core\Config` reads it.
+    pub key: &'static str,
+    /// The value in `production`.
+    pub production: &'static str,
+    /// The value in `development`.
+    pub development: &'static str,
+}
+
+impl Derived {
+    /// This row's value in `mode`, and `None` for a mode that is not one of the two.
+    #[must_use]
+    pub fn value(&self, mode: &str) -> Option<&'static str> {
+        match mode {
+            PRODUCTION => Some(self.production),
+            DEVELOPMENT => Some(self.development),
+            _ => None,
+        }
+    }
+}
+
+/// `rule:config/a-mode-is-five-defaults`'s table, complete: the five directives a mode selects the
+/// default of, and nothing else.
+///
+/// A row's value belongs to the mode, and its *meaning* belongs to the rule that spells the
+/// directive, so no row restates what its directive does.
+pub const DERIVED: &[Derived] = &[
+    Derived {
+        key: "debug.inline",
+        production: "false",
+        development: "true",
+    },
+    Derived {
+        key: "log.format",
+        production: "json",
+        development: "text",
+    },
+    Derived {
+        key: "log.level",
+        production: "Info",
+        development: "Debug",
+    },
+    Derived {
+        key: "log.access",
+        production: "false",
+        development: "true",
+    },
+    Derived {
+        key: "http.errors.detail",
+        production: "generic",
+        development: "full",
+    },
+];
+
+/// How permissive `mode` is — the ceiling's order, as the only comparison this module makes.
+///
+/// `None` for anything that is not one of the two modes, which is what refuses a flip to a name
+/// nobody defined rather than deriving a table of nulls for it.
+#[must_use]
+pub fn rank(mode: &str) -> Option<u8> {
+    match mode {
+        PRODUCTION => Some(0),
+        DEVELOPMENT => Some(1),
+        _ => None,
+    }
+}
+
+/// `rule:http-server/the-mode-ceiling-defaults-to-the-startup-mode`: whether `asked` is a mode within `ceiling`, both named.
+///
+/// An unknown mode is outside every ceiling, on either side of the comparison: a ceiling nobody can
+/// rank is one nothing may be checked against, and answering `true` there would make a typo in a
+/// root-owned file into a permission.
+#[must_use]
+pub fn within(asked: &str, ceiling: &str) -> bool {
+    match (rank(asked), rank(ceiling)) {
+        (Some(asked), Some(ceiling)) => asked <= ceiling,
+        _ => false,
+    }
+}

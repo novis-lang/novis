@@ -1,0 +1,18 @@
+<?nvs
+// Shows the options that limit how long a `DELETE` request may take and how
+// often it is tried.
+
+// `deadline` is the most time the whole request may take. It must be longer than zero.
+try {
+    var $quick = Core\Http\Client::delete("https://203.0.113.10/sessions/77", {deadline: 0s});
+} catch (RuntimeError $tooShort) {
+    echo $tooShort->message, "\n";
+}
+
+// `retryAttempts` is how many times the request is sent, and the first time counts.
+// So 0 is not allowed, and 1 means the request is sent once.
+try {
+    var $never = Core\Http\Client::delete("https://203.0.113.10/sessions/77", {retryAttempts: 0});
+} catch (RuntimeError $noAttempts) {
+    echo $noAttempts->message, "\n";
+}

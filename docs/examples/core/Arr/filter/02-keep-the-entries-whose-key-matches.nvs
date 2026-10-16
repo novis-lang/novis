@@ -1,0 +1,18 @@
+<?nvs
+// Keeps entries by their key. The function may declare a second parameter, and
+// `Core\Arr::filter` then gives it the key as well as the value.
+
+array<string> $headers = [
+    'host' => 'shop.example',
+    'x-trace' => 'a91',
+    'accept' => 'text/html',
+];
+array<string> $forwarded = Core\Arr::filter(
+    $headers,
+    fn(string $value, string $key) => Core\Str::startsWith($key, 'x-'),
+);
+
+// This prints `x-trace: a91`, the one header whose name starts with `x-`.
+foreach ($forwarded as string $name => string $value) {
+    echo $name, ': ', $value, "\n";
+}

@@ -1,0 +1,10 @@
+--TEST--
+a refused legacy cast leaves an error node where an expression would be, and a cursor inside one resolves to no name to look up, `rule:types/no-legacy-cast`, `rule:ide/five-features-are-one-reference-index`
+--FILE--
+<?nvs
+int $n = 3;
+int $m = (i<|>nt)$n;
+--REQUEST--
+documentHighlight
+--EXPECT--
+none

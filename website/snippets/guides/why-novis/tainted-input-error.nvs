@@ -1,0 +1,5 @@
+<?nvs
+// This program uses a tainted string as a plain `string`, so it does not compile.
+tainted string $comment = "<b>great</b>";
+string $plain = $comment;
+echo $plain, "\n";

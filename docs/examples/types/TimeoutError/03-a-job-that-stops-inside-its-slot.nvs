@@ -1,0 +1,35 @@
+<?nvs
+// A job that runs on a schedule has a slot, and running past it is worse than
+// finishing later. Stopping with a TimeoutError leaves the work in a state the
+// next run can pick up.
+
+class Slot {
+    public int $left;
+    public function constructor(int $milliseconds) {
+        $this->left = $milliseconds;
+    }
+    public function take(int $cost): void {
+        if ($cost > $this->left) {
+            throw new TimeoutError("the slot is spent");
+        }
+        $this->left = $this->left - $cost;
+    }
+}
+
+array<int> $invoices = [40, 35, 50, 30, 45];
+var $slot = new Slot(120);
+uint $done = 0;
+
+try {
+    foreach ($invoices as int $cost) {
+        $slot->take($cost);
+        $done = $done + 1;
+        echo "sent invoice ", $done, "\n";
+    }
+    echo "the whole batch went out\n";
+} catch (TimeoutError $spent) {
+    // Not a failure of the batch: the work that was done is done, and the run
+    // says where to start again.
+    echo $spent->message, ", ", $done, " of ", Core\Arr::count($invoices), " sent\n";
+    echo "the next run starts at invoice ", $done + 1, "\n";
+}

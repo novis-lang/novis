@@ -1,0 +1,18 @@
+<?nvs
+// Shows how to find one defined name, such as the cell of an input field in a form.
+use Novis\Spreadsheet\Reader;
+use Novis\Spreadsheet\Workbook;
+
+var $book = Workbook::createInMemory();
+$book->sheet('Form')->addAll([['Customer', 'Shop'], ['Order date', '2024-05-01']]);
+$book->define('CustomerName', 'Form!$B$1');
+var $reader = Reader::open($book->finish()->bytes ?? Core\Bytes::fill(0, 0));
+
+// This map has each reference by its name.
+array<tainted string> $names = [];
+foreach ($reader->names() as var $name) {
+    $names[$name->name] = $name->reference;
+}
+
+echo 'CustomerName is at ', $names['CustomerName'] ?? 'no cell', "\n";
+echo 'OrderDate is at ', $names['OrderDate'] ?? 'no cell', "\n";

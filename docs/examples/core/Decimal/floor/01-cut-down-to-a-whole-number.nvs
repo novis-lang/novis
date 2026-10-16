@@ -1,0 +1,16 @@
+<?nvs
+// Shows how to cut a number down. `Core\Decimal::floor` always moves towards
+// the smaller number.
+
+decimal $weight = 7.95;
+
+// With one argument the answer is a whole number. This prints 7.
+echo Core\Decimal::floor($weight), "\n";
+
+// The second argument is how many digits to keep after the point. This
+// prints 7.9.
+echo Core\Decimal::floor($weight, 1), "\n";
+
+// The answer always has the number of digits you asked for, so this
+// prints 7.9500.
+echo Core\Decimal::floor($weight, 4), "\n";

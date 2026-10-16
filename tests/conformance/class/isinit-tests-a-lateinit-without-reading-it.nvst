@@ -1,0 +1,62 @@
+--TEST--
+`isinit` tests whether a `lateinit` property has a value without reading it: it never throws, never reaches `onPropertyGet`, and a written `null` counts as a value — `rule:classes/isinit-reads-nothing`
+--FILE--
+<?nvs
+// covers: lang:classes/lateinit
+class Author {
+    public string $name = "Ada";
+}
+
+final class Post implements PropertyObserver {
+    public lateinit int $views;
+    public lateinit ?Author $author;
+    public lateinit array<string> $tags;
+
+    public function onPropertyGet(string $name, mixed $value): void {
+        echo "  get ", $name, "\n";
+    }
+
+    public function onPropertySet(string $name, mixed $value): void {
+        echo "  set ", $name, "\n";
+    }
+
+    public function ready(): bool {
+        return isinit($this->views) && isinit($this->author);
+    }
+}
+
+final class Check {
+    public static function show(Post $p): void {
+        echo "views=", isinit($p->views) ? "y" : "n";
+        echo " author=", isinit($p->author) ? "y" : "n";
+        echo " tags=", isinit($p->tags) ? "y" : "n";
+        echo " ready=", $p->ready() ? "y" : "n", "\n";
+    }
+
+    public static function make(): Post {
+        echo "make\n";
+        return new Post();
+    }
+}
+
+Post $p = new Post();
+Check::show($p);
+
+$p->views = 0;
+$p->author = null;
+Check::show($p);
+
+$p->tags = ["news"];
+Check::show($p);
+
+// A receiver that is a temporary is evaluated once, and its property is not read.
+echo isinit(Check::make()->views) ? "y" : "n", "\n";
+--EXPECT--
+views=n author=n tags=n ready=n
+  set views
+  set author
+views=y author=y tags=n ready=y
+  set tags
+views=y author=y tags=y ready=y
+make
+n

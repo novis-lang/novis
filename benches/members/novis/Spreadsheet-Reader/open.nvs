@@ -1,0 +1,24 @@
+<?nvs
+// Opens an uploaded xlsx price list from its bytes, as a shop does before it reads the rows.
+// bench: iterations 32
+// bench: complexity constant
+use Novis\Spreadsheet\Reader;
+use Novis\Spreadsheet\Workbook;
+
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        bytes $file = Workbook::fromRows([['item' => 'Widget', 'price' => 2.5], ['item' => 'Gadget', 'price' => 4.0]])->bytes();
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            Reader::open($file);
+            $total = $total + 1;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(32), "\n";

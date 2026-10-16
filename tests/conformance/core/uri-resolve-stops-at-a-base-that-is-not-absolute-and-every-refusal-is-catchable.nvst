@@ -1,0 +1,97 @@
+--TEST--
+`$uri->resolve` answers exactly the bases RFC 3986 § 5.2.1 calls absolute and § 5.2.3 gives a path to merge into, and every refusal on either side is one catchable message rather than a plausible answer — spec § 12
+--FILE--
+<?nvs
+// RFC 3986 § 5.4's abnormal table is already run row by row, and every row of it
+// is a base that resolves. This case is the other half: where resolution
+// *stops*. § 5.2.1 makes the receiver the base and requires it to be absolute,
+// and § 5.2.3 merges a relative reference into the base's path — so a base with
+// no scheme, and a base with no path to merge into, are two different refusals
+// and neither has an answer the member is allowed to guess at.
+//
+// The corpus is swept and the verdicts are *counted*, so a member that answered
+// one refused base plausibly — `//host/path` read as if it were `http://host` —
+// fails here while every accepted row it prints still looks right.
+
+final class Verdict {
+    // `= text` where the member answered, `! message` where it threw. Both
+    // refusals are `Fault::thrown` and so an ordinary `Throwable`, which is
+    // what lets this case print thirteen verdicts instead of ending at the
+    // first one.
+    public static function of(string $base, string $reference): string {
+        try {
+            return "= " . Core\Uri::parse($base)->resolve($reference)->toString();
+        } catch (Throwable $refused) {
+            return "! " . $refused->message;
+        }
+    }
+}
+
+// Pinned once, byte for byte, and then compared against rather than retyped:
+// the point below is that every refusal in the sweep is *one of these two*.
+string $relative = Verdict::of("/relative/base", "g");
+string $opaque = Verdict::of("mailto:a@b", "g");
+echo $relative, "\n", $opaque, "\n";
+
+array<string> $bases = [
+    // Absolute, with an authority — § 5.4's own base is the first of them.
+    "http://a/b/c/d",
+    "http://a",
+    "file:///x",
+    // Absolute with no authority, but a path-absolute one § 5.2.3 can merge into.
+    "http:/rooted",
+    // A scheme and a rootless path: opaque, so § 5.2.3 has nowhere to merge.
+    "mailto:a@b",
+    "http:g",
+    "urn:isbn:1",
+    // No scheme at all: § 4.1's relative references, in all five of their shapes.
+    "/relative/base",
+    "//host/path",
+    "g",
+    "?q=1",
+    "#frag",
+    "",
+];
+
+int $answered = 0;
+int $asRelative = 0;
+int $asOpaque = 0;
+int $other = 0;
+foreach ($bases as string $base) {
+    string $verdict = Verdict::of($base, "g");
+    if ($verdict == $relative) {
+        $asRelative = $asRelative + 1;
+    } else if ($verdict == $opaque) {
+        $asOpaque = $asOpaque + 1;
+    } else if (Core\Str::startsWith($verdict, "= ")) {
+        $answered = $answered + 1;
+    } else {
+        $other = $other + 1;
+    }
+}
+echo "answered ", $answered, ", relative ", $asRelative, ", opaque ", $asOpaque,
+     ", unaccounted ", $other, " of ", Core\Arr::count($bases) as int, "\n";
+
+// The bound, named on both sides: each pair differs by the one thing § 5.2.1
+// and § 5.2.3 actually ask about, and lands on opposite sides of the refusal.
+// A member stopping one entry early prints plausibly against either half alone.
+echo Verdict::of("http:/rooted", "g"), " / ", Verdict::of("http:g", "g"), "\n";
+echo Verdict::of("http://a", "g"), " / ", Verdict::of("//a", "g"), "\n";
+echo Verdict::of("file:///x", "g"), " / ", Verdict::of("file:x", "g"), "\n";
+
+// The reference is bounded too, by the same reader `parse` uses, and its
+// refusal is a third message naming `resolve` — never `parse`, and never a
+// `Uri` built out of text the grammar did not admit. The empty reference is the
+// last one accepted: § 5.3 recomposes the base with its fragment already
+// dropped by § 5.1.
+echo Verdict::of("http://a/b?q#f", ""), "\n";
+echo Verdict::of("http://a/b", "http://[bad"), "\n";
+--EXPECT--
+! Core\Uri::resolve(): the receiver is a relative reference, and RFC 3986 § 5.2.1 resolves against an absolute URI. Give this `Uri` a scheme first, or resolve against one that has one
+! Core\Uri::resolve(): the base has no authority and a rootless path, so it is opaque and there is no path for a relative reference to be merged into
+answered 4, relative 6, opaque 3, unaccounted 0 of 13
+= http:/g / ! Core\Uri::resolve(): the base has no authority and a rootless path, so it is opaque and there is no path for a relative reference to be merged into
+= http://a/g / ! Core\Uri::resolve(): the receiver is a relative reference, and RFC 3986 § 5.2.1 resolves against an absolute URI. Give this `Uri` a scheme first, or resolve against one that has one
+= file:///g / ! Core\Uri::resolve(): the base has no authority and a rootless path, so it is opaque and there is no path for a relative reference to be merged into
+= http://a/b?q
+! Core\Uri::resolve(): this text is not a URI reference (RFC 3986 § 4.1) — a bracketed host that is not an IPv6 address at byte 8. The text itself is not quoted back, since a URI's userinfo component is where credentials are written

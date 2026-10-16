@@ -1,0 +1,21 @@
+--TEST--
+`--POST_RAW--` hands the program its octets unchanged, and the two facts about them are written for it `rule:testing/nvst-is-separate`
+--POST_RAW--
+{"name":"ada","roles":["author","editor"]}
+--HEADERS--
+Content-Type: application/json
+--FILE--
+<?nvs
+// Verbatim: nothing about the body is interpreted, which is what makes
+// `--POST_RAW--` the section a document that is not urlencoded pairs is
+// written in.
+echo Core\Request::body();
+// The case wrote its own content type and the runner left it alone; the
+// length is the one field it fills in, because that is a fact about the
+// octets rather than a choice the case makes.
+echo Core\Request::header("content-type") as string, "\n";
+echo Core\Request::header("content-length") as string, "\n";
+--EXPECT--
+{"name":"ada","roles":["author","editor"]}
+application/json
+43

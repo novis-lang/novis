@@ -1,0 +1,15 @@
+{
+  "title": "A duplicate key is an error, and so is an unknown one — per file",
+  "status": "shipped",
+  "seeAlso": [
+    "config/later-wins-and-every-override-is-recorded",
+    "config/the-file-is-nvs-toml-and-it-is-toml",
+    "config/the-config-is-an-immutable-snapshot"
+  ],
+  "guardedBy": [
+    "crates/nvs-config/tests/parse.rs",
+    "crates/nvs-config/tests/tree.rs",
+    "crates/nvs-config/tests/resolve.rs",
+    "tests/config/duplicate-key.toml"
+  ]
+}

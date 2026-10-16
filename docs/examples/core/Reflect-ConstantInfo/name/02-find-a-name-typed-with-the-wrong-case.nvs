@@ -1,0 +1,24 @@
+<?nvs
+// Shows that constant names are case-sensitive, and how to find the right name for a typing mistake.
+
+class Page {
+    public const int PER_PAGE = 20;
+    public const int MAX_PAGES = 100;
+}
+
+var $info = Core\Reflect::forObject(new Page());
+string $typed = "per_page";
+
+// `per_page` and `PER_PAGE` are two different names, so the first loop finds nothing.
+foreach ($info->constants() as Core\Reflect\ConstantInfo $constant) {
+    if ($constant->name() == $typed) {
+        echo "exact match: ", $typed, "\n";
+    }
+}
+
+// `Core\Str::lower` makes both names lower case. This prints "did you mean PER_PAGE?".
+foreach ($info->constants() as Core\Reflect\ConstantInfo $constant) {
+    if (Core\Str::lower($constant->name()) == Core\Str::lower($typed)) {
+        echo "did you mean ", $constant->name(), "?\n";
+    }
+}

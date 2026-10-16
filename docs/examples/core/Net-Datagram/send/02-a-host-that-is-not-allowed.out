@@ -1,0 +1,2 @@
+Core\Net\Datagram::send needs the capability `net.connect` for 10.0.0.5, which is not granted
+help: grant it in nvs.toml under `[capabilities.net]`

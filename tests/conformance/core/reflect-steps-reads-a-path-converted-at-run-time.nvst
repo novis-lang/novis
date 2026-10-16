@@ -1,0 +1,42 @@
+--TEST--
+`Core\Reflect::steps` reads a path converted from text at run time the same way as a written one, and a call through a callable value throws a `LogicError`, because it knows no class to start at — `rule:core-classes/str-parts-and-reflect-steps`
+--FILE--
+<?nvs
+// A path built while the program runs needs `as propertyPath<Order>`.
+// `Core\Reflect::steps` then reads it like a written path.
+class Customer {
+    public string $email = "";
+    private string $password = "";
+}
+
+class Order {
+    public ?Customer $customer = null;
+}
+
+var $text = Core\Str::join(["customer", "email"], ".");
+var $path = $text as propertyPath<Order>;
+foreach (Core\Reflect::steps($path) as var $step) {
+    echo $step->name(), ": ", $step->type() ?? "no type", "\n";
+}
+
+// A private property is not part of any path, so the conversion fails first.
+try {
+    var $hidden = Core\Str::join(["customer", "password"], ".") as propertyPath<Order>;
+    echo Core\Arr::count(Core\Reflect::steps($hidden)), "\n";
+} catch (RuntimeError $failed) {
+    echo "conversion failed\n";
+}
+
+// A callable value does not know which class the path starts at.
+callable $steps = Core\Reflect::steps(...);
+try {
+    $steps($path);
+    echo "not reached\n";
+} catch (LogicError $e) {
+    echo $e->message, "\n";
+}
+--EXPECT--
+customer: ?Customer
+email: string
+conversion failed
+Core\Reflect::steps was called through a callable value, so the class the path starts at is not known

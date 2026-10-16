@@ -1,0 +1,16 @@
+<?nvs
+// Shows how to find the real type of a file from its bytes and not from its name.
+use Novis\Image\Image;
+use Novis\Image\Color;
+use Novis\Image\Format;
+
+// The file is a WebP image, even if the user named it "photo.png".
+bytes $upload = Image::create(32, 32, Color::hex("#336699"))->format(Format::Webp)->encode();
+
+// This prints image/webp and webp.
+var $info = Image::info($upload);
+echo Image::mime($info->format), "\n";
+echo Image::extension($info->format), "\n";
+
+// Every pixel of this image is opaque, so the file has no alpha. This prints false.
+echo $info->hasAlpha ? "true" : "false", "\n";

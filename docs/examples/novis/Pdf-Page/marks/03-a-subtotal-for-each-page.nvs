@@ -1,0 +1,22 @@
+<?nvs
+// Shows an invoice footer with the subtotal of the rows on its page.
+use Novis\Pdf\Document;
+use Novis\Pdf\Page;
+
+string $rows = "";
+for (int $n = 1; $n <= 40; $n++) {
+    $rows .= "<tr data-mark=\"amount:2.25\"><td>Coffee {$n}</td><td>2.25 EUR</td></tr>";
+}
+var $html = "<h1>Invoice 1042</h1><table><tbody>{$rows}</tbody></table>";
+
+// The values are strings, so `as ?decimal` converts each one to an exact number.
+var $footer = fn(Page $page): Core\Html\Markup => {
+    decimal $subtotal = 0.0;
+    foreach ($page->marks("amount") as string $amount) {
+        $subtotal = $subtotal + (($amount as ?decimal) ?? 0.0 as decimal);
+    }
+    echo "page ", $page->number, ": subtotal ", $subtotal, " EUR\n";
+    return html`<p>Subtotal of this page: {$subtotal} EUR</p>`;
+};
+
+Document::fromHtml($html)->footer($footer)->render();

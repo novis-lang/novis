@@ -1,0 +1,15 @@
+{
+  "title": "A member's optional knobs are one trailing anonymous object, never a flag or a bitmask",
+  "status": "shipped",
+  "seeAlso": [
+    "core-api/parameters-are-callable-by-name",
+    "core-api/shape-parameter",
+    "core-api/omission-is-not-a-written-null",
+    "types/object-top"
+  ],
+  "guardedBy": [
+    "crates/nvs-types/tests/core_members.rs",
+    "crates/nvs-codegen/tests/core_str.rs",
+    "tests/conformance/core/command-run-fills-an-unwritten-option-from-its-declared-default.nvst"
+  ]
+}

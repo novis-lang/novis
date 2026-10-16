@@ -1,0 +1,26 @@
+<?nvs
+// Attack: a connection subscribes to a busy topic and does not read it.
+// The connection should be closed, and `receive()` should return `null` from then on.
+Core\Socket $conn = Core\Socket::current();
+Core\Topic::subscribe('prices');
+
+// 1. Publish ten thousand values that nobody reads.
+uint $i = 0;
+while ($i < 10000) {
+    Core\Topic::publish('prices', ['tick' => $i, 'note' => Core\Str::repeat('x', 100)]);
+    $i = $i + 1;
+}
+
+// 2. Read once. The connection is closed, so this returns `null`.
+echo $conn->receive() == null ? "closed\n" : "still open\n";
+
+// 3. Read twenty more times after the close. The client still had messages waiting.
+uint $answered = 0;
+$i = 0;
+while ($i < 20) {
+    if ($conn->receive() != null) {
+        $answered = $answered + 1;
+    }
+    $i = $i + 1;
+}
+echo $answered, " messages after the close\n";

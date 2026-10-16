@@ -1,0 +1,44 @@
+<?nvs
+// Shows how to give a whole result set to another part of your program.
+use Core\Db\Derive;
+
+// `#[Derive]` writes the code that fills this class from a row. Each property
+// takes the column of the same name.
+#[Derive]
+class Order {
+    public uint $id;
+    public int $cents;
+
+    public function constructor(uint $id, int $cents)
+    {
+        $this->id = $id;
+        $this->cents = $cents;
+    }
+}
+
+class Invoice {
+    // The parameter type says what this method needs: an array of `Order`. The
+    // statement stays in the method that reads it, and this one only counts.
+    public static function total(array<Order> $orders): int
+    {
+        int $cents = 0;
+        foreach ($orders as Order $order) {
+            $cents = $cents + $order->cents;
+        }
+        return $cents;
+    }
+}
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table orders (id integer primary key, cents int not null)', []);
+$db->execute('insert into orders (cents) values (?), (?), (?)', [1200, 4500, 800]);
+
+// `queryAs<Order>` names the class, so `all` returns an `array<Order>`. The
+// array goes to the method above, which never sees the database.
+array<Order> $orders = $db->queryAs<Order>('select id, cents from orders order by id', [])->all();
+
+// This prints `orders: 3` and `total: 6500`.
+echo 'orders: ', Core\Arr::count($orders), "\n";
+echo 'total: ', Invoice::total($orders), "\n";
+
+$db->close();

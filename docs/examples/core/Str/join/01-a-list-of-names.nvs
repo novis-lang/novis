@@ -1,0 +1,13 @@
+<?nvs
+// Shows how to join a list of names into one line of text.
+
+array<string> $names = ["Anna", "Ben", "Carla"];
+
+// `Core\Str::join` puts ", " between each two names.
+// This prints `Anna, Ben, Carla`.
+echo Core\Str::join($names, ", "), "\n";
+
+// A list with one name has no neighbours, so no separator is added.
+// This prints `Anna`.
+array<string> $one = ["Anna"];
+echo Core\Str::join($one, ", "), "\n";

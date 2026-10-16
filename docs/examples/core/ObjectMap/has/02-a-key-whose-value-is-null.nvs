@@ -1,0 +1,29 @@
+<?nvs
+// Shows that `has` returns `true` for a key whose value is `null`.
+
+final class Upload {
+    public string $file;
+
+    public function constructor(string $file) {
+        $this->file = $file;
+    }
+}
+
+Upload $photo = new Upload("photo.jpg");
+Upload $report = new Upload("report.pdf");
+
+// The value is the error message. `null` means the upload had no error.
+Core\ObjectMap<Upload, ?string> $errors = new Core\ObjectMap<Upload, ?string>();
+$errors->set($photo, null);
+
+// `get` returns `null` for both uploads. This prints "-" twice.
+echo $errors->get($photo) ?? "-", "\n";
+echo $errors->get($report) ?? "-", "\n";
+
+// `has` shows that only the photo was checked. This prints `true`, then `false`.
+echo $errors->has($photo) ? "true" : "false", "\n";
+echo $errors->has($report) ? "true" : "false", "\n";
+
+// After `remove`, the key is gone. This prints `false`.
+$errors->remove($photo);
+echo $errors->has($photo) ? "true" : "false", "\n";

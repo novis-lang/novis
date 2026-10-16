@@ -1,0 +1,12 @@
+{
+  "title": "Nothing requires a doc comment by default; `nvs check --strict-docs` reports a public member without one, and no autofix can satisfy it",
+  "status": "shipped",
+  "seeAlso": [
+    "tooling/doc-comment-tags-are-see-and-example",
+    "tooling/doc-comment-attaches-to-the-next-declaration",
+    "packaging/a-package-is-its-digest"
+  ],
+  "guardedBy": [
+    "crates/nvs-cli/tests/strict_docs.rs"
+  ]
+}

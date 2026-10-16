@@ -1,0 +1,97 @@
+--TEST--
+`as <Class>` tests the class whatever the operand's static type is: `mixed`, `object` and a base class each throw converting to a class the object is not, and each still converts to the class it is — `rule:types/conversion`
+--FILE--
+<?nvs
+// covers: lang:classes/object-the-top-of-every-class-type
+// `rule:types/conversion`: `as` "produces a value of the target type or it
+// throws". The three sources reach the operator as two representations — `mixed`
+// is tagged, `object` and a named class are not — and this case asks the same
+// question of all three, because a test written for one representation leaves
+// the other handing the operand through under a declaration it does not satisfy.
+// A property read off such a handle then loads the target class's field offset
+// out of another class's storage, so this is priority 1's question and not the
+// annotation's.
+
+class Tag {
+    public function constructor(public string $text) {}
+}
+
+class Other {
+    public function constructor(public int $n) {}
+}
+
+class Shape {
+    public int $sides = 0;
+}
+
+class Circle extends Shape {}
+
+class Square extends Shape {
+    public int $corners = 4;
+}
+
+class Make {
+    public static function taggedTag(): mixed {
+        return new Tag("x");
+    }
+
+    public static function erasedTag(): object {
+        return new Tag("x");
+    }
+
+    public static function aShape(): Shape {
+        return new Circle();
+    }
+}
+
+// Every source refuses the class its object is not. The third is the narrowing
+// that cannot hold: a `Circle` reached through `Shape` is not a `Square`.
+int $refused = 0;
+try {
+    mixed $tagged = Make::taggedTag();
+    Other $first = $tagged as Other;
+} catch (Throwable $no) {
+    $refused = $refused + 1;
+}
+try {
+    object $erased = Make::erasedTag();
+    Other $second = $erased as Other;
+} catch (Throwable $no) {
+    $refused = $refused + 1;
+}
+try {
+    Shape $shape = Make::aShape();
+    Square $third = $shape as Square;
+} catch (Throwable $no) {
+    $refused = $refused + 1;
+}
+echo "refused=", $refused, " of 3\n";
+
+// Every source still converts to the class its object is, so the test above is
+// a test and not a refusal of the whole row.
+int $converted = 0;
+mixed $rightTagged = Make::taggedTag();
+Tag $one = $rightTagged as Tag;
+if ($one->text == "x") {
+    $converted = $converted + 1;
+}
+
+object $rightErased = Make::erasedTag();
+Tag $two = $rightErased as Tag;
+if ($two->text == "x") {
+    $converted = $converted + 1;
+}
+
+Shape $rightShape = Make::aShape();
+Circle $three = $rightShape as Circle;
+if ($three->sides == 0) {
+    $converted = $converted + 1;
+}
+echo "converted=", $converted, " of 3\n";
+
+// The conversion answers the object it was given rather than a copy of it.
+echo "same=", ($rightErased == $two) as string, ($rightShape == $three) as string, "\n";
+--EXPECT--
+refused=3 of 3
+converted=3 of 3
+same=11

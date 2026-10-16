@@ -1,0 +1,33 @@
+<?nvs
+namespace Novis\Image;
+
+use ParseError;
+
+/// A TrueType or OpenType font file that `Image::text` and `Image::measureText` draw with.
+/// Your program reads the file itself. There are no system fonts.
+final class Font
+{
+    private function constructor(
+        public readonly bytes $data,
+    ) {}
+
+    /// `Font::fromBytes` makes a `Font` from the bytes of a `.ttf` or `.otf` file.
+    /// Bytes that do not start like a font file throw a `ParseError`.
+    /// A font file with broken tables throws a `ParseError` when the image is drawn.
+    public static function fromBytes(bytes $data): Font
+    {
+        uint $length = Core\Bytes::length($data);
+        if ($length < 12) {
+            throw new ParseError("a font file is at least 12 bytes long, and this one is {$length}");
+        }
+        uint $tag = 0;
+        for (int $at = 0; $at < 4; $at++) {
+            $tag = ($tag << 8) | Core\Bytes::at($data, $at);
+        }
+        // The first four bytes of a TrueType font, an OpenType font, an Apple TrueType font and a font collection.
+        if ($tag != 0x00010000 && $tag != 0x4F54544F && $tag != 0x74727565 && $tag != 0x74746366) {
+            throw new ParseError("these {$length} bytes do not start like a TrueType or OpenType font file");
+        }
+        return new Font($data);
+    }
+}

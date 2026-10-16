@@ -1,0 +1,57 @@
+--TEST--
+Core\IO::move ends with the content at the destination and nothing at the source, across a directory as well as in place, and it replaces a destination that was already taken — spec § 14
+--FILE--
+<?nvs
+// A rename is two claims and a member that only made the first one looks
+// correct at the destination: the content arrives, *and* the old name stops
+// existing. Every case below asserts both.
+Core\IO::makeDir("archive");
+
+Core\IO::write("report.txt", "the report");
+Core\IO::move("report.txt", "archive/report.txt");
+echo "across a directory: '", Core\IO::read("archive/report.txt"), "'";
+if (Core\IO::exists("report.txt")) {
+    echo ", and the old name is still there\n";
+} else {
+    echo ", and the old name is gone\n";
+}
+
+// In place, which is the other half of what one member covers: moving a file
+// and renaming it are the same operation and PHP spells them with the same
+// function for that reason.
+Core\IO::move("archive/report.txt", "archive/report-2026.txt");
+echo "renamed in place: '", Core\IO::read("archive/report-2026.txt"), "'";
+if (Core\IO::exists("archive/report.txt")) {
+    echo ", and the old name is still there\n";
+} else {
+    echo ", and the old name is gone\n";
+}
+
+// Onto a name that is taken. The destination is replaced -- there is no
+// `overwrite` here for the same reason `copy` has none -- and the source still
+// goes away, which is what separates this from a refusal that happened to
+// leave the right bytes at the destination.
+Core\IO::write("archive/report-2026.txt", "last year's");
+Core\IO::write("fresh.txt", "this year's");
+Core\IO::move("fresh.txt", "archive/report-2026.txt");
+echo "onto a taken name: '", Core\IO::read("archive/report-2026.txt"), "'";
+if (Core\IO::exists("fresh.txt")) {
+    echo ", and the source is still there\n";
+} else {
+    echo ", and the source is gone\n";
+}
+
+// The directory holds one file after all of that: three moves that each left a
+// name behind would leave more.
+array<string> $entries = Core\IO::list("archive");
+echo "entries under archive: ", Core\Arr::count($entries) as string,
+     " (", Core\Str::join($entries, ", "), ")\n";
+--FILE nvs.toml--
+[capabilities.fs]
+read = ["."]
+write = ["."]
+--EXPECT--
+across a directory: 'the report', and the old name is gone
+renamed in place: 'the report', and the old name is gone
+onto a taken name: 'this year's', and the source is gone
+entries under archive: 1 (report-2026.txt)

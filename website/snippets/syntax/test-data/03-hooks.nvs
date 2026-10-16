@@ -1,0 +1,44 @@
+<?nvs
+use Core\IO;
+use Core\Path;
+use Core\Test;
+use Core\Test\AfterClass;
+use Core\Test\AfterEachTest;
+use Core\Test\Outcome;
+use Core\Test\Summary;
+
+class Invoice {
+    public static function line(string $item, int $cents): string {
+        return $item . ": " . $cents . " cents\n";
+    }
+}
+
+class InvoiceTest {
+    public string $file;
+
+    // The constructor runs before each test.
+    public function constructor() {
+        $this->file = Path::fromCwd("invoice-test.txt");
+    }
+
+    #[Test]
+    public function itWritesTheLine(): void {
+        IO::write($this->file, Invoice::line("tea", 350));
+        Test::assertSame(IO::readText($this->file), "tea: 350 cents\n");
+    }
+
+    // This runs after each test, also when the test fails.
+    #[AfterEachTest]
+    public function removeTheFile(Outcome $outcome): void {
+        IO::remove($this->file);
+    }
+
+    // This runs once, after the last test of the class.
+    #[AfterClass]
+    public static function report(Summary $summary): void {
+        echo $summary->passed(), " passed\n";
+    }
+}
+
+// This prints `tea: 350 cents`.
+echo Invoice::line("tea", 350);

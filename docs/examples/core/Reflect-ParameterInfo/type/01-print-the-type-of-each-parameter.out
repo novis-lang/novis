@@ -1,0 +1,3 @@
+sku: string
+quantity: uint
+price: float

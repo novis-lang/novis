@@ -1,0 +1,21 @@
+<?nvs
+// Shows how to build the rows of an HTML table from a list of orders.
+
+array<string> $customers = ["Ada & Co", "Grace <Ltd>", "Hopper's"];
+array<int> $totals = [120, 45, 300];
+
+// Each row is built with `+`, and `+` only adds `Markup` to `Markup`.
+// So the name and the total are escaped first.
+array<Core\Html\Markup> $rows = [];
+int $i = 0;
+while ($i < 3) {
+    $rows[] = ("<tr><td>" as Core\Html\Markup)
+        + Core\Html::escape($customers[$i])
+        + ("</td><td>" as Core\Html\Markup)
+        + Core\Html::escape(Core\Str::format('%d', $totals[$i]))
+        + ("</td></tr>" as Core\Html\Markup);
+    $i = $i + 1;
+}
+
+// One call puts all rows together, with a line break between each two.
+echo ("<table>\n" as Core\Html\Markup) + Core\Html::join($rows, "\n" as Core\Html\Markup) + ("\n</table>" as Core\Html\Markup), "\n";

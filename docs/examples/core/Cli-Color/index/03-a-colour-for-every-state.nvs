@@ -1,0 +1,29 @@
+<?nvs
+// Shows the everyday use: a build report that gives every state its own
+// colour. The palette has room for more states than the sixteen colours with
+// names.
+
+class Report {
+    // Each state picks one palette entry: 40 is a green, 214 an amber, 196 a
+    // red, and 244 a grey for every other state.
+    public static function line(string $state, string $text): void {
+        uint $entry = 244;
+        if ($state == "ok") {
+            $entry = 40;
+        }
+        if ($state == "slow") {
+            $entry = 214;
+        }
+        if ($state == "failed") {
+            $entry = 196;
+        }
+
+        Core\Cli\Style $style = Core\Cli\Style::of({color: Core\Cli\Color::index($entry)});
+        echo Core\Cli\Text::styled($text, $style), "\n";
+    }
+}
+
+Report::line("ok", "build     2.1s");
+Report::line("slow", "tests    41.7s");
+Report::line("failed", "deploy   failed");
+Report::line("skipped", "publish  skipped");

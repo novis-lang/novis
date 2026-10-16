@@ -1,0 +1,92 @@
+<?nvs
+// Attack: a program is handed key files it did not write, and is then asked to
+// read one key very many times. Every bad file should throw an error the
+// program can catch, and the program should reach its last line.
+// hostile: timeout-ms 20000
+
+string $ed25519 = '302e020100300506032b65700422042036e7913c75ff5d89ba4f46526320f547cf75369a560a168f6ab5bb178fbeaadf';
+
+// 1. Two hundred thousand filler bytes read as a key, to see whether a length
+// is checked before the bytes are.
+try {
+    Core\Crypto\KeyPair::read(Core\Bytes::fill(200000, 3), Core\Crypto\KeyKind::Ed25519);
+    echo '1 read a key out of filler bytes', "\n";
+} catch (Throwable $e) {
+    echo '1 refused', "\n";
+}
+
+// 2. The public half handed where the private key goes. It is a real key file,
+// and not one that can sign.
+try {
+    Core\Crypto\KeyPair::read(
+        Core\Encoding::fromHex('302a300506032b6570032100fcce9008a33565248561295a7ce1cccb040b6129bba8ff24744953bbc01261ac'),
+        Core\Crypto\KeyKind::Ed25519,
+    );
+    echo '2 read a public key as a private one', "\n";
+} catch (Throwable $e) {
+    echo '2 refused', "\n";
+}
+
+// 3. A real private key read as every other kind of the roster. Only the kind
+// is wrong here, so a reader that trusts the file would accept all of them.
+array<Core\Crypto\KeyKind> $wrong = [
+    Core\Crypto\KeyKind::X25519,
+    Core\Crypto\KeyKind::P256,
+    Core\Crypto\KeyKind::RsaPkcs1,
+    Core\Crypto\KeyKind::RsaPss,
+];
+foreach ($wrong as Core\Crypto\KeyKind $kind) {
+    try {
+        Core\Crypto\KeyPair::read(Core\Encoding::fromHex($ed25519), $kind);
+        echo '3 read an Ed25519 key as another kind', "\n";
+    } catch (Throwable $e) {
+        echo '3 refused', "\n";
+    }
+}
+
+// 4. A PEM block whose body is not base64 at all.
+try {
+    Core\Crypto\KeyPair::read(
+        "-----BEGIN PRIVATE KEY-----\n@@@@ not base64 @@@@\n-----END PRIVATE KEY-----\n" as bytes,
+        Core\Crypto\KeyKind::Ed25519,
+    );
+    echo '4 read a key out of a broken PEM block', "\n";
+} catch (Throwable $e) {
+    echo '4 refused', "\n";
+}
+
+// 5. A PEM block with five million characters between its two lines. A request
+// sends this when it wants the server to read a key file forever.
+try {
+    Core\Crypto\KeyPair::read(
+        ("-----BEGIN PRIVATE KEY-----\n" . Core\Str::repeat('A', 5000000) . "\n-----END PRIVATE KEY-----\n") as bytes,
+        Core\Crypto\KeyKind::Ed25519,
+    );
+    echo '5 read a key out of a huge PEM block', "\n";
+} catch (Throwable $e) {
+    echo '5 refused', "\n";
+}
+
+// 6. The key file with one byte cut off the end, which is what a half-copied
+// file looks like.
+try {
+    bytes $whole = Core\Encoding::fromHex($ed25519);
+    Core\Crypto\KeyPair::read(
+        Core\Bytes::slice($whole, 0, (Core\Bytes::length($whole) - 1) as int),
+        Core\Crypto\KeyKind::Ed25519,
+    );
+    echo '6 read a key out of a cut-off file', "\n";
+} catch (Throwable $e) {
+    echo '6 refused', "\n";
+}
+
+// 7. Twenty thousand pairs read from one good file and kept. A request does
+// this when it wants the server to run out of memory.
+array<Core\Crypto\KeyPair> $kept = [];
+int $held = 0;
+bytes $good = Core\Encoding::fromHex($ed25519);
+foreach (Core\Arr::range(1, 20000) as int $round) {
+    $kept[] = Core\Crypto\KeyPair::read($good, Core\Crypto\KeyKind::Ed25519);
+    $held += 1;
+}
+echo '7 kept ', $held, ' pairs', "\n";

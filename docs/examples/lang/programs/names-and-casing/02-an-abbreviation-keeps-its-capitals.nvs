@@ -1,0 +1,22 @@
+<?nvs
+// Only the first letter of a name is checked. Everything after it is yours,
+// so an abbreviation can keep the capitals people write it with.
+
+class HTTPClient {
+    public static function parseXMLPayload(string $body): uint {
+        return Core\Str::length($body);
+    }
+}
+
+class HttpHeader {
+    public static function forName(string $name): string {
+        return Core\Str::upper($name);
+    }
+}
+
+// Both spellings of the same abbreviation are accepted, in a class name and
+// in the middle of a variable name alike.
+uint $payloadID = HTTPClient::parseXMLPayload("<order id='7'/>");
+
+echo $payloadID, "\n";
+echo HttpHeader::forName("content-type"), "\n";

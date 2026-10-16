@@ -1,0 +1,14 @@
+{
+  "title": "`[debug] store` is off by default and can only subtract, so no run mode or log level ever turns debug records on",
+  "status": "designed",
+  "seeAlso": [
+    "testing/debug-mode-directive",
+    "testing/debug-surface",
+    "errors/debug-dump",
+    "errors/log-level",
+    "testing/the-debug-stream-reaches-the-service-through-the-disk",
+    "testing/a-recorded-request-keeps-its-input-with-credentials-replaced"
+  ],
+  "guardedBy": [],
+  "goal": "debug-service"
+}

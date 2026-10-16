@@ -1,0 +1,7 @@
+<?php
+$legacy = 2;
+?>
+<?NVS
+$total = 1;
+?>
+<p><?phpx not a tag</p>

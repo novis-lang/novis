@@ -1,0 +1,12 @@
+{
+  "title": "A path is a filesystem path: no member dispatches on a scheme prefix, and nothing may register one",
+  "status": "shipped",
+  "seeAlso": [
+    "security/closed-doors",
+    "security/sink-predicate",
+    "security/path-scope-canonicalise-then-prefix"
+  ],
+  "guardedBy": [
+    "crates/nvs-stdlib/tests/capability.rs"
+  ]
+}

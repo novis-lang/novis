@@ -1,0 +1,3 @@
+customer: ?Customer
+address: ?Address
+city: string

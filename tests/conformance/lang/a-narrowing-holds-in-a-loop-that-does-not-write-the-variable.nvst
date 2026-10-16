@@ -1,0 +1,40 @@
+--TEST--
+A test made before a loop still narrows a variable inside the loop when the loop never writes that variable — `rule:types/narrowing`
+--FILE--
+<?nvs
+// covers: lang:types/narrowing
+// The guard clause tests `$key` and `$step`. No loop below assigns either
+// one, so both are not `null` in every loop condition and body.
+final class Profile {
+    public string $city = "London";
+    public string $country = "UK";
+}
+
+final class Fill {
+    public static function run(?property<Profile> $key, ?int $step, array<string> $rows): string {
+        Profile $profile = new Profile();
+        if ($key == null || $step == null) {
+            return "nothing to do";
+        }
+        int $total = 0;
+        foreach ($rows as string $row) {
+            $profile->$key = $row;
+            $total = $total + $step;
+        }
+        while ($total > $step) {
+            $total = $total - $step;
+        }
+        do {
+            $total = $total + $step;
+        } while ($total < 10);
+        return $profile->city . " " . $profile->country . " " . $profile->$key;
+    }
+}
+
+echo Fill::run("city" as property<Profile>, 4, ["Paris", "Rome", "Oslo"]), "\n";
+echo Fill::run("country" as property<Profile>, 3, ["France"]), "\n";
+echo Fill::run(null, 4, ["Paris"]), "\n";
+--EXPECT--
+Oslo UK Oslo
+London France France
+nothing to do

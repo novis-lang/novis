@@ -1,0 +1,18 @@
+<?nvs
+// Shows what happens when a program asks a seeded generator for a token of zero bytes.
+
+Core\Random\Seeded $generator = new Core\Random\Seeded(42);
+
+// The size here comes from a setting that was left empty.
+uint $size = 0;
+
+// `$generator->token(0)` throws an error.
+try {
+    echo $generator->token($size), "\n";
+} catch (Throwable $e) {
+    echo "Error: ", $e->message, "\n";
+}
+
+// The error used no part of the sequence. This prints the same token as a new generator.
+Core\Random\Seeded $fresh = new Core\Random\Seeded(42);
+echo $generator->token(4) == $fresh->token(4) ? "same" : "different", "\n";

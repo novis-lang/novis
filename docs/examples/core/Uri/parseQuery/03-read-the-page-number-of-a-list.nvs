@@ -1,0 +1,24 @@
+<?nvs
+// Shows how a server reads the page number of a list from the query of a link.
+
+class Listing {
+    public static function page(string $query): int {
+        array<mixed> $params = Core\Uri::parseQuery($query);
+        if (!Core\Arr::hasKey($params, "page")) {
+            return 1;
+        }
+        // `as ?int` gives `null` when the text is not a whole number, so page 1 is used.
+        int $page = (($params["page"] as string) as ?int) ?? 1;
+        if ($page < 1) {
+            return 1;
+        }
+        return $page;
+    }
+}
+
+// In a real program, the query comes from the link the visitor opened.
+// This prints 4, 1, 1 and 1.
+array<string> $queries = ["page=4&sort=new", "sort=new", "page=abc", "page=-3"];
+foreach ($queries as string $query) {
+    echo Listing::page($query), "\n";
+}

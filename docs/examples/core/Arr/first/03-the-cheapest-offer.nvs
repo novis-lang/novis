@@ -1,0 +1,13 @@
+<?nvs
+// Picks the cheapest offer to show on a page. `Core\Arr::sort` puts the
+// smallest price first, so the first entry is the one to show.
+
+array<int> $prices = [1290, 899, 1450];
+array<int> $sorted = Core\Arr::sort($prices);
+
+?int $cheapest = Core\Arr::first($sorted);
+if ($cheapest == null) {
+    echo "no offers today\n";
+} else {
+    echo 'cheapest: ', $cheapest, " cents\n";
+}

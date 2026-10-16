@@ -1,0 +1,15 @@
+<?nvs
+// Shows that the result has the length you asked for, and that zero bytes is an error.
+
+Core\Random\Seeded $generator = new Core\Random\Seeded(42);
+
+// This prints 1 and 100.
+echo Core\Bytes::length($generator->bytes(1)), "\n";
+echo Core\Bytes::length($generator->bytes(100)), "\n";
+
+// Asking for zero bytes throws an error.
+try {
+    $generator->bytes(0);
+} catch (Throwable $e) {
+    echo "Error: ", $e->message, "\n";
+}

@@ -1,0 +1,21 @@
+--TEST--
+a written-out name that is not a public property is a compile error under `as ?property<T>` as well, since the name is decided where it is written — `rule:types/property-key`
+--FILE--
+<?nvs
+class Profile {
+    public string $city = "Vienna";
+    private string $secret = "shut";
+}
+
+// The checked form never throws for a written-out name, so the nullable
+// form has no throw to replace with `null`: the name is checked here.
+?property<Profile> $peek = "secret" as ?property<Profile>;
+echo $peek == null ? "null" : "key", "\n";
+// covers: lang:types/property-keys
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0405]: `Profile` has no public property `$secret`
+%A
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

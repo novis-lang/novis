@@ -1,0 +1,27 @@
+--TEST--
+a series name written in the code as a string literal follows one grammar, and it is `[a-z][a-z0-9_]*` — `rule:observability/metrics-three-members`
+--FILE--
+<?nvs
+// The grammar belongs to the series rather than to the verb that wrote it, so
+// all three are asked here and each is refused for a different clause: a
+// capital, a separator the grammar has no place for, and a leading `_`. A name
+// a request computes is not read at all -- `nvs_types::intrinsics`' module doc
+// owns why that asymmetry is the right one for a metric write.
+Core\Metrics::increment("HttpRequests");
+Core\Metrics::observe("http.request.seconds", 0.5);
+Core\Metrics::gauge("_queue_depth", 3.0);
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0769]: this text is not valid for this function: a series name starts with `a`-`z`, and `HttpRequests` starts with `H`
+  --> case.nvs:7:25
+%A
+error[E0769]: this text is not valid for this function: a series name is `[a-z][a-z0-9_]*`, and `http.request.seconds` carries `.`
+  --> case.nvs:8:23
+%A
+error[E0769]: this text is not valid for this function: a series name starts with `a`-`z`, and `_queue_depth` starts with `_`
+  --> case.nvs:9:21
+%A
+error: aborting due to 3 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

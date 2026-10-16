@@ -1,0 +1,36 @@
+<?nvs
+// Attack: `Core\Path::join` is given very long parts, very many parts, and parts
+// that start with a root. Each call should return a path, and the program must not crash.
+// hostile: timeout-ms 60000
+
+// 1. One part is 8 MiB long.
+echo Core\Str::length(Core\Path::join('/srv', Core\Str::repeat('x', 8388608))), "\n";
+
+// 2. One part is 8 MiB of separators, so it adds nothing.
+echo Core\Path::join('base', Core\Str::repeat("/\\", 4194304)), "\n";
+
+// 3. One part has one million folders.
+echo Core\Str::length(Core\Path::join('/srv', Core\Str::repeat('d/', 1048576))), "\n";
+
+// 4. A path grows by one part at a time, 5000 times.
+string $deep = '/srv';
+int $i = 0;
+while ($i < 5000) {
+    $deep = Core\Path::join($deep, 'd');
+    $i = $i + 1;
+}
+echo Core\Str::length($deep), "\n";
+
+// 5. Every part starts with a root, and none of them replaces the first path.
+echo Core\Str::replace(Core\Path::join('/srv/shop', '/etc', 'C:\\Windows', '\\\\server\\share\\f', '//x'), Core\Path::SEPARATOR, '/'), "\n";
+
+// 6. Two million `..` parts stay in the result.
+echo Core\Str::length(Core\Path::join('/srv', Core\Str::repeat('../', 2097152))), "\n";
+
+// 7. The parts are empty, and the first path is empty too.
+echo '[', Core\Path::join('', '', '', ''), ']', "\n";
+
+// 8. The parts have emoji, a null byte and characters from other scripts.
+echo Core\Str::replace(Core\Path::join('données', "報告\u{0}", '😀.txt'), Core\Path::SEPARATOR, '/'), "\n";
+
+echo 'the runtime is still standing', "\n";

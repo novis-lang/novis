@@ -1,0 +1,32 @@
+--TEST--
+`Core\Router\Match::method` answers the verb the route *declares*, so a `Head` asked of a `Get` route answers `Get` and a dispatcher's arm for that route is the one that runs — `rule:routing/matching-is-not-dispatching`
+--FILE--
+<?nvs
+// `Head` matches a route declared `Get`, which is RFC 9110's own reading of the
+// verb. The match is that route's, so its verb is the declared one and not the
+// one that was asked: a program that wants to know whether to send a body reads
+// the request, and a program that wants to know which route matched reads this.
+class Pages
+{
+    #[Core\Route(path: "/pages", method: Core\Http\Method::Get, name: "Pages::index")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function index(): string { return "index"; }
+}
+
+?Core\Router\Match $head = Core\Router::match(Core\Http\Method::Head, "/pages");
+if ($head == null) {
+    echo "head: no match", "\n";
+} else {
+    echo "head matched: ", $head->name() ?? "unnamed", "\n";
+    echo "declared get: ", $head->method() == Core\Http\Method::Get ? "yes" : "no", "\n";
+    echo "answers head: ", $head->method() == Core\Http\Method::Head ? "yes" : "no", "\n";
+}
+
+// A verb the path does not declare matches nothing, so there is no verb to read.
+?Core\Router\Match $put = Core\Router::match(Core\Http\Method::Put, "/pages");
+echo "put: ", $put?->method() == null ? "no match" : "matched", "\n";
+--EXPECT--
+head matched: Pages::index
+declared get: yes
+answers head: no
+put: no match

@@ -1,0 +1,51 @@
+--TEST--
+A property whose default is an enum case holds the case itself, so `Core\Reflect` and a `Core\Serialize` round trip read it back as a case, and a case backed by `0` is truthy, on both backings — `rule:enums/representation` and `rule:enums/truthiness`
+--FILE--
+<?nvs
+// The default is written into each new object outside compiled code, so it has
+// to carry the enum tag a written case carries. A default read back as a bare
+// `int` fails every check below.
+enum Mode: int {
+    Off = 0,
+    On = 1,
+}
+
+enum Weight: uint {
+    Light = 0,
+    Heavy = 2,
+}
+
+class Lamp {
+    public Mode $mode = Mode::Off;
+    public Weight $weight = Weight::Light;
+}
+
+class Check {
+    public static function show(string $label, mixed $value): void
+    {
+        echo $label, ": is Mode=", $value is Mode ? "yes" : "no",
+            " is Weight=", $value is Weight ? "yes" : "no",
+            " is int=", $value is int ? "yes" : "no",
+            " truthy=", $value ? "yes" : "no", "\n";
+    }
+}
+
+Lamp $lamp = new Lamp();
+var $info = Core\Reflect::forObject($lamp);
+Check::show("mode", $info->get($lamp, "mode"));
+Check::show("weight", $info->get($lamp, "weight"));
+
+var $back = Core\Serialize::decode(Core\Serialize::encode([$lamp])) as array<mixed>;
+mixed $copy = Core\Arr::first($back);
+Check::show("copied mode", Core\Reflect::forObject($copy)->get($copy, "mode"));
+Check::show("copied weight", Core\Reflect::forObject($copy)->get($copy, "weight"));
+
+// A case still equals an integer of its backing value.
+mixed $mode = $info->get($lamp, "mode");
+echo "== 0: ", $mode == 0 ? "yes" : "no", "\n";
+--EXPECT--
+mode: is Mode=yes is Weight=no is int=no truthy=yes
+weight: is Mode=no is Weight=yes is int=no truthy=yes
+copied mode: is Mode=yes is Weight=no is int=no truthy=yes
+copied weight: is Mode=no is Weight=yes is int=no truthy=yes
+== 0: yes

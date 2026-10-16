@@ -1,0 +1,23 @@
+<?nvs
+// Shows how a shop sends an order to a warehouse service, and only the two of them can read it.
+
+class Shop {
+    // The shop encrypts the order before it sends it.
+    public static function send(string $order, Core\Jwe\Key $key): string {
+        return Core\Jwe::encrypt($order, $key);
+    }
+}
+
+class Warehouse {
+    // The warehouse decrypts the order with its own copy of the same key.
+    public static function receive(string $message, Core\Jwe\Key $key): tainted string {
+        return Core\Jwe::decrypt($message, [$key]);
+    }
+}
+
+// Both services read the same secret key from their configuration.
+secret bytes $secret = Core\Crypto::generateKey();
+string $message = Shop::send("order 1042: 3 x blue mug", Core\Jwe\Key::shared($secret));
+
+// This prints `order 1042: 3 x blue mug`.
+echo Warehouse::receive($message, Core\Jwe\Key::shared($secret)), "\n";

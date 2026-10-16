@@ -1,0 +1,24 @@
+--TEST--
+the path a `use` line imports names the class it resolved to, so the class's reference list includes it beside the allocation and the declaration, `rule:ide/five-features-are-one-reference-index`
+--FILE--
+<?nvs
+require 'lib/user.nvs';
+
+use App\User;
+
+var $u = new Us<|>er();
+echo $u->name;
+--FILE lib/user.nvs--
+<?nvs
+namespace App;
+
+class User
+{
+    public string $name = "";
+}
+--REQUEST--
+references
+--EXPECT--
+case.nvs:4:5
+case.nvs:6:14
+lib/user.nvs:4:7

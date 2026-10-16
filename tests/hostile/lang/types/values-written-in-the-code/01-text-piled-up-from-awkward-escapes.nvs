@@ -1,0 +1,26 @@
+<?nvs
+// Attack: the program builds text from characters that often break string code.
+// It doubles the text eighteen times and keeps every copy in memory.
+// Every length it prints should be correct.
+// hostile: timeout-ms 20000
+
+// `\0` is a zero byte, which ends a string in C. `\u{10FFFF}` is the last Unicode
+// code point. `\xC3\xA9` writes the letter é as two separate bytes.
+string $seed = "\0\u{10FFFF}\xC3\xA9\\\t";
+
+array<string> $kept = [];
+string $blob = $seed;
+uint $round = 0;
+
+while ($round < 18) {
+    $blob = "$blob|$blob{$seed}";
+    $kept[] = $blob;
+    $round = $round + 1;
+}
+
+// A heredoc that inserts the same text one more time.
+string $again = <<<TEXT
+    $blob
+    TEXT;
+
+echo Core\Str::length($kept[0]), ' ', Core\Str::length($blob), ' ', Core\Str::length($again), "\n";

@@ -1,0 +1,24 @@
+<?nvs
+// Shows a write that is not kept. A row written inside a transaction is saved
+// only when the work finishes. Here the work gives up, so the row is removed.
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table orders (id integer primary key, item text not null)', []);
+
+try {
+    $db->transaction(fn (Core\Db\Transaction $tx): void => {
+        var $written = $tx->execute('insert into orders (item) values (?)', ['a red bicycle']);
+        // The write reports one row. This prints `1 row written`.
+        echo $written->affected(), " row written\n";
+        // The item turned out to be sold out, so this order must not be kept.
+        $tx->rollBack('the item is sold out');
+    });
+} catch (Core\Db\RolledBack $abandoned) {
+    // This prints `gave up: the item is sold out`.
+    echo 'gave up: ', $abandoned->reason, "\n";
+}
+
+// The row the write reported is gone. This prints `0 orders`.
+echo $db->query('select id from orders', [])->count(), " orders\n";
+
+$db->close();

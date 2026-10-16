@@ -1,0 +1,16 @@
+--TEST--
+`list(...)` is refused, with `[...]` named as the only destructuring spelling — `rule:expressions/bracket-destructuring`
+--FILE--
+<?nvs
+array<int> $pair = [1, 2];
+list($a, $b) = $pair;
+echo $a, "\n";
+// covers: lang:statements/statement-forms-that-do-not-parse
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0230]: `list(...)` is not supported
+  --> case.nvs:3:1
+%A
+error: aborting due to 4 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

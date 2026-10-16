@@ -1,0 +1,16 @@
+<?nvs
+// Shows what happens when a division does not come out even. The error you
+// catch is `ArithmeticError`, and its message says what could not be answered.
+
+decimal $bill = 84.00;
+array<decimal> $people = [4, 9, 0];
+
+foreach ($people as decimal $count) {
+    try {
+        decimal $share = Core\Decimal::divExact($bill, $count);
+        echo "each of ", $count, " pays ", $share, "\n";
+    } catch (ArithmeticError $notExact) {
+        // 84 divided by 9 repeats forever, and nothing can be divided by zero.
+        echo $notExact->message, "\n";
+    }
+}

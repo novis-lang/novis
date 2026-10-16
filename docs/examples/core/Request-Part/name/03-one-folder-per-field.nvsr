@@ -1,0 +1,26 @@
+--METHOD--
+POST
+--PATH--
+/support/ticket
+--SCHEME--
+https
+--HEADERS--
+host: example.com
+content-type: multipart/form-data; boundary=ticket-40c2
+--BODY_CRLF--
+--ticket-40c2
+Content-Disposition: form-data; name="screenshot"; filename="error.png"
+Content-Type: image/png
+
+PNG bytes of an error message
+--ticket-40c2
+Content-Disposition: form-data; name="log"; filename="app.log"
+Content-Type: text/plain
+
+12:01 the order page did not load
+--ticket-40c2
+Content-Disposition: form-data; name="../config"; filename="x.txt"
+Content-Type: text/plain
+
+a field the form never had
+--ticket-40c2--

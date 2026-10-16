@@ -1,0 +1,18 @@
+--TEST--
+a payload value is an expression the checker records and the server walks the attribute lists to reach it, so an enum case inside `#[...]` answers the case it names exactly as one in a body does, `rule:attributes/payload-is-a-compile-time-constant`
+--FILE--
+<?nvs
+enum Status: int {
+    case Draft = 1;
+    case Live = 2;
+}
+
+#[{state: Status::Li<|>ve}]
+class Post
+{
+    public string $title = "";
+}
+--REQUEST--
+definition
+--EXPECT--
+case.nvs:4:10

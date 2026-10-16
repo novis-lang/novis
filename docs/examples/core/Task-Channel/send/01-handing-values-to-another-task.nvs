@@ -1,0 +1,26 @@
+<?nvs
+// Shows two tasks working at the same time. One of them puts numbers into the
+// channel, the other takes them out and prints them.
+
+// The channel holds two values at a time.
+var $chan = new Core\Task\Channel<int>(2);
+
+Core\Task::all({
+    // `send` puts one value in. The channel is closed after the last one, so
+    // the loop below knows that nothing more is coming.
+    produce: fn(): int => {
+        foreach (Core\Arr::range(1, 4) as int $i) {
+            $chan->send($i * 10);
+        }
+        $chan->close();
+        return 0;
+    },
+    // A `foreach` over the channel takes the values out in the order they were
+    // sent. This prints 10, 20, 30 and 40.
+    consume: fn(): int => {
+        foreach ($chan as int $value) {
+            echo $value, "\n";
+        }
+        return 0;
+    },
+});

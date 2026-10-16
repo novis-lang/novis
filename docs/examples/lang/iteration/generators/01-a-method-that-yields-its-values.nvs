@@ -1,0 +1,25 @@
+<?nvs
+// Shows how to write a generator: a method whose body contains `yield`. It gives
+// out one value at a time, and the body runs only as far as the loop asks.
+
+class Countdown {
+    // A generator declares `Iterator<T>` as its return type. Each `yield` gives one `T`.
+    public static function from(int $start): Iterator<int> {
+        echo "the body starts\n";
+        int $n = $start;
+        while ($n > 0) {
+            yield $n;
+            $n = $n - 1;
+        }
+        echo "the body ends\n";
+    }
+}
+
+// Calling the method runs none of the body. It returns a cursor, and prints nothing.
+Iterator<int> $numbers = Countdown::from(3);
+echo "the cursor exists\n";
+
+// The loop is what runs the body. This prints 3, 2 and 1.
+foreach ($numbers as int $n) {
+    echo $n, "\n";
+}

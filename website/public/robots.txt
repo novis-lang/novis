@@ -1,0 +1,8 @@
+# Novis website. Everything is public. The legal notice and the privacy policy
+# carry a noindex meta tag, which a crawler has to be allowed to read.
+User-agent: *
+Allow: /
+
+# Machine-readable inventories:
+Sitemap: https://novis-lang.org/sitemap-index.xml
+# Agent/LLM index: https://novis-lang.org/llms.txt

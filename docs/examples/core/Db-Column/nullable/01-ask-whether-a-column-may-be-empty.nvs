@@ -1,0 +1,21 @@
+<?nvs
+// Shows how to read the description of a query: the label of each column, and
+// whether that column may be empty.
+
+var $db = Core\Db::connect('notes');
+
+$db->execute('create table notes (id integer primary key, title text not null, note text)', []);
+
+var $rows = $db->query('select id, title, note from notes', []);
+
+// This prints `id may be empty`, `title may be empty` and `note may be empty`.
+// A query result carries no `not null` information, so every answer is `true`.
+foreach ($rows->columns() as Core\Db\Column $column) {
+    if ($column->nullable()) {
+        echo $column->name(), ' may be empty', "\n";
+    } else {
+        echo $column->name(), ' always has a value', "\n";
+    }
+}
+
+$db->close();

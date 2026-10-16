@@ -1,0 +1,21 @@
+<?nvs
+// Shows that `Core\Path::isAbsolute` reads Windows paths the same way on every platform.
+
+class Show {
+    public static function check(string $path): void {
+        echo $path, ": ", Core\Path::isAbsolute($path) ? "absolute" : "relative", "\n";
+    }
+}
+
+// A drive followed by a separator is a root. Both print `absolute`.
+Show::check("C:\\Users\\report.txt");
+Show::check("C:/Users/report.txt");
+
+// No separator follows the drive, so this path is relative. This prints `relative`.
+Show::check("C:report.txt");
+
+// A network share is a root. This prints `absolute`.
+Show::check("\\\\server\\share\\report.txt");
+
+// A path that starts with `\` is absolute too. This prints `absolute`.
+Show::check("\\Users\\report.txt");

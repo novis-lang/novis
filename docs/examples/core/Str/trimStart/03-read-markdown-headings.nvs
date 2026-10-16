@@ -1,0 +1,16 @@
+<?nvs
+// Shows how to read the headings of a Markdown document, and how deep each one is.
+
+string $document = "# Shop\nWelcome!\n## Opening hours\nMonday to Friday\n### Holidays\n";
+
+foreach (Core\Str::split($document, "\n") as string $line) {
+    if (!Core\Str::startsWith($line, "#")) {
+        continue;
+    }
+    // The `#` signs are removed first, then the space after them.
+    string $title = Core\Str::trimStart(Core\Str::trimStart($line, {characters: "#"}));
+    // The number of removed characters is the depth of the heading.
+    uint $depth = Core\Str::length($line) - Core\Str::length($title) - 1;
+    // This prints `1 Shop`, `2 Opening hours` and `3 Holidays`.
+    echo $depth, " ", $title, "\n";
+}

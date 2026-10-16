@@ -1,0 +1,11 @@
+--TEST--
+an import brings a name into scope rather than using it, so a cursor in one answers nothing where a cursor on the `new` below it would answer the declaration, `rule:ide/five-features-are-one-reference-index`
+--FILE--
+<?nvs
+us<|>e App\User;
+
+var $u = new User();
+--REQUEST--
+references
+--EXPECT--
+none

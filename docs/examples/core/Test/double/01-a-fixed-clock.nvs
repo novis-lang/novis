@@ -1,0 +1,20 @@
+<?nvs
+// Shows how to replace a clock with a test double, so that the time is always the same.
+
+interface Clock {
+    public function hour(): int;
+}
+
+class Greeting {
+    public static function forNow(Clock $clock): string {
+        return $clock->hour() < 12 ? "Good morning" : "Good afternoon";
+    }
+}
+
+// This double is a `Clock`. Its `hour` method always returns 9.
+Clock $morning = Core\Test::double<Clock>({
+    hour: fn(): int => 9,
+});
+
+// This prints `Good morning`.
+echo Greeting::forNow($morning), "\n";

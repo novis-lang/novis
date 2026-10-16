@@ -1,0 +1,51 @@
+--TEST--
+`Stringable::toString` is an ordinary interface method, callable by name like any other — there is no `__toString` — `rule:classes/stringable`
+--FILE--
+<?nvs
+// covers: lang:classes/stringable
+class Money implements Stringable {
+    public int $cents;
+
+    public function constructor(int $cents) {
+        $this->cents = $cents;
+    }
+
+    public function toString(): string {
+        return "$" . (($this->cents) as string);
+    }
+}
+
+class Label implements Stringable {
+    public string $text;
+
+    public function constructor(string $text) {
+        $this->text = $text;
+    }
+
+    public function toString(): string {
+        return "[" . $this->text . "]";
+    }
+}
+
+class Render {
+    public static function money(Money $m): string {
+        return $m->toString();
+    }
+
+    public static function label(Label $l): string {
+        return $l->toString();
+    }
+}
+
+var $m = new Money(250);
+var $l = new Label("total");
+
+echo $m->toString(), "\n";
+echo Render::money($m), " ", Render::label($l), "\n";
+echo Render::label($l) . $m->toString(), "\n";
+echo ($m is Money) as string, "|", ($m is Label) as string, "|\n";
+--EXPECT--
+$250
+$250 [total]
+[total]$250
+1||

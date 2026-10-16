@@ -1,0 +1,22 @@
+<?nvs
+// Shows what happens when no arm fits and there is no `default`. The `match`
+// throws an error, which you can catch. Add a `default` arm to avoid it.
+
+enum Mode { Read, Write, Exec }
+
+Mode $mode = Mode::Exec;
+
+try {
+    string $name = match ($mode) {
+        Mode::Read => "read",
+        Mode::Write => "write",
+    };
+    echo $name, "\n";
+} catch (Throwable $error) {
+    // This prints the message: no `match` arm matched the subject.
+    echo $error->message, "\n";
+}
+
+// The same `match` with a `default` arm returns a value for every case. This
+// prints `other`.
+echo match ($mode) { Mode::Read => "read", default => "other" }, "\n";

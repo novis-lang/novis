@@ -1,0 +1,52 @@
+--TEST--
+A `foreach` binding written `var` takes the subject's element type, the key's is `string`, and `inout var` writes back — `rule:types/var-inference`, `rule:iteration/foreach-subjects`
+--FILE--
+<?nvs
+// covers: lang:statements/foreach, lang:iteration/what-foreach-walks
+class Box {
+    public string $label = '';
+}
+
+class Shop {
+    public static function boxes(): array<Box> {
+        Box $a = new Box();
+        $a->label = 'a';
+        Box $b = new Box();
+        $b->label = 'b';
+        return [$a, $b];
+    }
+
+    public static function stock(): array<int> {
+        return ['apples' => 3, 'pears' => 5];
+    }
+}
+
+// The value binding is a `Box`, so `->label` is checked while compiling.
+foreach (Shop::boxes() as var $box) {
+    echo $box->label, "\n";
+}
+
+// The key is a `string` and the value an `int`.
+foreach (Shop::stock() as var $name => var $qty) {
+    echo $name, '=', $qty + 1, "\n";
+}
+
+// `inout var` binds at the element type and writes each element back.
+array<int> $counts = [1, 2, 3];
+foreach ($counts as inout var $c) {
+    $c = $c * 10;
+}
+echo Core\Arr::sum($counts), "\n";
+
+// A call around a literal gives the literal its target.
+foreach (Core\Arr::reverse([1, 2]) as var $n) {
+    echo $n;
+}
+echo "\n";
+--EXPECT--
+a
+b
+apples=4
+pears=6
+60
+21

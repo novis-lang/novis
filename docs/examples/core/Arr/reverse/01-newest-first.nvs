@@ -1,0 +1,11 @@
+<?nvs
+// Shows the entries of a list in the opposite order.
+
+array<string> $steps = ['packed', 'shipped', 'delivered'];
+
+// `Core\Arr::reverse` returns a new array with the entries in the opposite
+// order. This prints ["delivered","shipped","packed"].
+echo Core\Json::encode(Core\Arr::reverse($steps)), "\n";
+
+// The original array is not changed. This prints ["packed","shipped","delivered"].
+echo Core\Json::encode($steps), "\n";

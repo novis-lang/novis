@@ -1,0 +1,62 @@
+<?nvs
+// Attack: generators get the smallest and largest seeds, and draw at the far ends of
+// `int` and with bounds in the wrong order. Each draw should stay inside its range or
+// throw an error, and the program must not crash.
+
+int $smallest = -9223372036854775807 - 1;
+int $largest = 9223372036854775807;
+array<int> $seeds = [$smallest, -1, 0, 1, $largest];
+
+// 1. Every seed draws over the whole range of `int`, many times.
+uint $drawn = 0;
+foreach ($seeds as int $seed) {
+    Core\Random\Seeded $whole = new Core\Random\Seeded($seed);
+    uint $i = 0;
+    while ($i < 20000) {
+        $whole->int($smallest, $largest);
+        $drawn = $drawn + 1;
+        $i = $i + 1;
+    }
+}
+echo '1 draws: ', $drawn, "\n";
+
+// 2. Ranges of two values at both ends. Each result should be one of the two.
+uint $outside = 0;
+foreach ($seeds as int $seed) {
+    Core\Random\Seeded $edges = new Core\Random\Seeded($seed);
+    uint $j = 0;
+    while ($j < 20000) {
+        int $low = $edges->int($smallest, $smallest + 1);
+        int $high = $edges->int($largest - 1, $largest);
+        if ($low > $smallest + 1 || $high < $largest - 1) {
+            $outside = $outside + 1;
+        }
+        $j = $j + 1;
+    }
+}
+echo '2 results outside their range: ', $outside, "\n";
+
+// 3. One hundred thousand generators are made and dropped, each with its own seed.
+uint $made = 0;
+int $next = $smallest;
+while ($made < 100000) {
+    Core\Random\Seeded $short = new Core\Random\Seeded($next);
+    $short->int(0, 1);
+    $next = $next + 92233720368547;
+    $made = $made + 1;
+}
+echo '3 generators: ', $made, "\n";
+
+// 4. Bounds in the wrong order, from one apart to the whole range. Each throws an
+// error, and each error is caught here.
+Core\Random\Seeded $wrong = new Core\Random\Seeded(5);
+uint $errors = 0;
+array<int> $upper = [$largest - 1, 0, $smallest];
+foreach ($upper as int $top) {
+    try {
+        $wrong->int($largest, $top);
+    } catch (Throwable $e) {
+        $errors = $errors + 1;
+    }
+}
+echo '4 errors: ', $errors, "\n";

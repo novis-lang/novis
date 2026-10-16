@@ -1,0 +1,22 @@
+<?nvs
+// Measures `Core\Bytes::slice` copying one part of a frame, at growing part lengths.
+// bench: start 256
+// bench: max 4096
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        bytes $frame = Core\Bytes::fill($size * 2, 97);
+        int $length = $size as int;
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            $total = $total + Core\Bytes::length(Core\Bytes::slice($frame, ($total % 3) as int, $length));
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

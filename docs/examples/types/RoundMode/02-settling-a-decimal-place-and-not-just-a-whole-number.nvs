@@ -1,0 +1,19 @@
+<?nvs
+// A rule settles whichever place you are rounding to, not only the whole
+// number. 0.125 is an exact tie at two decimals: it sits halfway between 0.12
+// and 0.13, so the rule decides which one you get.
+
+echo "half up   ", Core\Math::round(1.125, {precision: 2, mode: Core\RoundMode::HalfUp}), "\n";
+echo "half even ", Core\Math::round(1.125, {precision: 2, mode: Core\RoundMode::HalfEven}), "\n";
+
+// The two rules that are not about ties move the value at that place whatever
+// it is. `Up` is away from zero, so on a negative number it goes further down.
+echo "\n";
+echo "up   on  1.121 ", Core\Math::round(1.121, {precision: 2, mode: Core\RoundMode::Up}), "\n";
+echo "up   on -1.121 ", Core\Math::round(-1.121, {precision: 2, mode: Core\RoundMode::Up}), "\n";
+echo "down on  1.129 ", Core\Math::round(1.129, {precision: 2, mode: Core\RoundMode::Down}), "\n";
+
+// A precision below zero rounds to the left of the point, which is how a
+// figure is reported to the nearest hundred.
+echo "\n";
+echo "to the nearest hundred ", Core\Math::round(1250.0, {precision: -2}), "\n";

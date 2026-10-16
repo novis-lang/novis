@@ -1,0 +1,28 @@
+<?nvs
+// You add scheduled work with a `[[schedule]]` entry in `nvs.toml`:
+//
+//     [[schedule]]
+//     name     = "nightly-report"
+//     cron     = "0 3 * * *"
+//     script   = "jobs/report.nvs"
+//     scope    = "fleet"            # once on one server, not once on each server
+//     timezone = "Europe/Vienna"
+//     overlap  = "skip"             # skip a run if the last one is still running
+//
+// The server runs that script at those times. It is kept apart from everything
+// else, the same way a request is.
+
+// A program cannot add a schedule at runtime. There is no class for it, and
+// this call returns `false`.
+echo 'schedule myself: ', Core\Config::set('schedule', '* * * * *') ? 'yes' : 'no', "\n";
+
+// A program cannot read the list either, so the result is `null`. A scheduled
+// script only sees that it was started.
+echo 'read the list:   ', Core\Config::get('schedule') ?? "(nothing — the schedule is not a program's to see)", "\n";
+
+// A wrong `scope` value stops the server when it starts. An entry that never
+// runs would look like one whose time has not come yet.
+echo 'scope:           ', Core\Config::get('schedule.scope') ?? '(nothing written here)', "\n";
+
+// The scheduled script is a normal program. To run it by hand, for example to
+// test it, use `nvs run jobs/report.nvs`.

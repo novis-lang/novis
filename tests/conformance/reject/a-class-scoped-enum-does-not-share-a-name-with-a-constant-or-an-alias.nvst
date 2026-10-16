@@ -1,0 +1,47 @@
+--TEST--
+An enum in a class body sharing a name with a class constant, a `type` alias or another enum of the same body is `E0304` at the later of the two declarations — `rule:enums/class-scoped-enum`, `rule:statements/nothing-gets-a-second-name`
+--FILE--
+<?nvs
+// `rule:enums/class-scoped-enum`: an owner's enum, constant and alias are
+// all written `Owner::Name`, so one body gives one name one meaning.
+
+// The accepted half first: one name in two bodies is fine.
+final class Accepted {
+    enum Status { Open, Paid }
+}
+
+final class AlsoAccepted {
+    enum Status { Open, Paid }
+}
+
+// A constant is written in capitals, so the enum here is `ID` too.
+final class AConstantFirst {
+    public const int ID = 1;
+    enum ID { Open, Paid }
+}
+
+final class AnEnumFirst {
+    enum Status { Open, Paid }
+    type Status = array<uint>;
+}
+
+final class TwoEnums {
+    enum Status { Open, Paid }
+    enum Status { Draft }
+}
+
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0304]: `AConstantFirst::ID` is already declared as a class constant
+   --> case.nvs:16:22
+%A
+error[E0304]: `AnEnumFirst::Status` is already declared as an enum
+   --> case.nvs:21:10
+%A
+error[E0304]: `TwoEnums::Status` is already declared as an enum
+   --> case.nvs:26:10
+%A
+error: aborting due to 3 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

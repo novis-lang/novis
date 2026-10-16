@@ -1,0 +1,19 @@
+<?nvs
+// Shows how to put a link to an order in an email. An email needs the full URL.
+
+class Orders {
+    #[Core\Route(path: "/orders/{id}", method: Core\Http\Method::Get, name: "Orders::show")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function show(uint $id, #[Core\Query] string $from = ""): string { return "one order"; }
+}
+
+uint $order = 1042;
+string $customer = "Ana";
+
+// `from` is not a capture of the path, so it goes after the `?`.
+// The link is `https://www.example.com/orders/1042?from=email`.
+string $link = Core\Router::urlAbsolute("Orders::show", ["id" => $order, "from" => "email"]);
+
+echo "Hello ", $customer, ",\n\n";
+echo "Your order ", $order, " is on its way.\n";
+echo "You can follow it here: ", $link, "\n";

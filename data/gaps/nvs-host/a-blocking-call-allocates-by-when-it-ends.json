@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-host/src/blocking.rs",
+  "title": "A call run on the blocking pool allocates a different amount depending on when its job ends.",
+  "text": "`blocking::run` hands a job to a pool thread and parks the task until the answer lands. Whether the answer lands before the task parks, and whether the pool has an idle thread, depend on the scheduler, and the allocations of the call depend on both. A bench of a member that waits on a child process, such as `Core\\Process\\Handle::writeStdin` writing to a child that reads more slowly than the bench writes, therefore counts a different number of allocations per operation from one run to the next, and its ramp is judged `grows`, `flat` or `unclear` on the same commit. That bench carries this gap's marker. Closing it is a park and wake path whose allocations do not depend on that order, such as a slot and a wake allocated once per task rather than once per call, and then removing the marker.",
+  "milestone": "M10"
+}

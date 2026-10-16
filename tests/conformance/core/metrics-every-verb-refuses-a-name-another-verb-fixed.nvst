@@ -1,0 +1,58 @@
+--TEST--
+each of the three metrics verbs fixes a name to its own kind and each of the other two is then refused, asserted by counting so that one verb growing its own answer still fails `rule:observability/metrics-three-members`
+--FILE--
+<?nvs
+// Agreement rather than three separate refusals: the claim is that the three
+// verbs share one rule, so a verb that grew a rule of its own would still print
+// plausibly on its own line and only the count can tell. Three names, one fixed
+// by each verb, and the four calls that disagree with them.
+Core\Metrics::increment("cache_lookups_total");
+Core\Metrics::observe("cache_lookup_seconds", 0.01);
+Core\Metrics::gauge("cache_entries", 12.0);
+
+uint $refused = 0;
+try {
+    Core\Metrics::observe("cache_lookups_total", 1.0);
+} catch (LogicError $a) {
+    $refused = $refused + 1;
+}
+try {
+    Core\Metrics::gauge("cache_lookups_total", 1.0);
+} catch (LogicError $b) {
+    $refused = $refused + 1;
+}
+try {
+    Core\Metrics::increment("cache_lookup_seconds");
+} catch (LogicError $c) {
+    $refused = $refused + 1;
+}
+try {
+    Core\Metrics::gauge("cache_lookup_seconds", 1.0);
+} catch (LogicError $d) {
+    $refused = $refused + 1;
+}
+try {
+    Core\Metrics::increment("cache_entries");
+} catch (LogicError $e) {
+    $refused = $refused + 1;
+}
+try {
+    Core\Metrics::observe("cache_entries", 1.0);
+} catch (LogicError $f) {
+    $refused = $refused + 1;
+}
+echo "verbs refused on a name another verb fixed: ", $refused, " of 6\n";
+
+// The other half of the same sweep: each verb on the name it fixed itself is
+// accepted, so the six above are about the kind and not about the second write.
+uint $accepted = 0;
+Core\Metrics::increment("cache_lookups_total", {by: 3});
+$accepted = $accepted + 1;
+Core\Metrics::observe("cache_lookup_seconds", 0.02);
+$accepted = $accepted + 1;
+Core\Metrics::gauge("cache_entries", 11.0);
+$accepted = $accepted + 1;
+echo "verbs accepted on their own name: ", $accepted, " of 3\n";
+--EXPECT--
+verbs refused on a name another verb fixed: 6 of 6
+verbs accepted on their own name: 3 of 3

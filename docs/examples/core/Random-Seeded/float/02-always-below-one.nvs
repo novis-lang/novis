@@ -1,0 +1,23 @@
+<?nvs
+// Shows that every result is at least 0 and less than 1.
+
+Core\Random\Seeded $generator = new Core\Random\Seeded(7);
+uint $outside = 0;
+float $highest = 0.0;
+uint $i = 0;
+while ($i < 100000) {
+    float $value = $generator->float();
+    if ($value < 0.0 || $value >= 1.0) {
+        $outside = $outside + 1;
+    }
+    if ($value > $highest) {
+        $highest = $value;
+    }
+    $i = $i + 1;
+}
+
+// No result is outside the range. This prints 0.
+echo $outside, "\n";
+
+// The highest result is close to 1, but below it. This prints "yes".
+echo $highest > 0.99 && $highest < 1.0 ? "yes" : "no", "\n";

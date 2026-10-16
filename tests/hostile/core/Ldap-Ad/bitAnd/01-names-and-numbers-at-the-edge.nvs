@@ -1,0 +1,24 @@
+<?nvs
+// Attack: a program builds bit filters with names that try to add a test, and
+// with the largest and smallest numbers. Each bad name should throw a `LogicError`.
+
+// 1. Names with filter characters, spaces and a very long name.
+array<string> $names = ['cn=*)(uid=*', 'cn)(', ' cn', 'cn ', "cn\x00", Core\Str::repeat('a', 1000000)];
+foreach ($names as string $name) {
+    try {
+        var $filter = Core\Ldap\Ad::bitAnd($name, 2);
+        echo '1 length: ', Core\Str::length($filter->toString()), "\n";
+    } catch (LogicError $refusal) {
+        echo "1 refused\n";
+    }
+}
+
+// 2. The smallest, the largest and a negative number.
+array<int> $numbers = [0, -1, 9223372036854775807, -9223372036854775807 - 1];
+foreach ($numbers as int $bits) {
+    try {
+        echo '2 ', Core\Ldap\Ad::bitAnd('userAccountControl', $bits)->toString(), "\n";
+    } catch (Throwable $error) {
+        echo "2 threw\n";
+    }
+}

@@ -1,0 +1,22 @@
+<?nvs
+// Shows how a program copies the files of a folder into a backup folder and skips the folders in it.
+
+string $root = Core\Path::join(Core\IO::temporaryDir(), "site");
+string $source = Core\Path::join($root, "public");
+string $backup = Core\Path::join($root, "backup");
+Core\IO::makeDir(Core\Path::join($source, "images"));
+Core\IO::makeDir($backup);
+Core\IO::write(Core\Path::join($source, "index.html"), "<h1>Home</h1>\n");
+Core\IO::write(Core\Path::join($source, "style.css"), "h1 { color: navy; }\n");
+
+// `Core\IO::copy` copies one file. "images" is a folder, so the loop skips it.
+// This prints "skipped images", "copied index.html" and "copied style.css".
+foreach (Core\Arr::sort(Core\IO::list($source)) as string $name) {
+    string $from = Core\Path::join($source, $name);
+    if (Core\IO::stat($from)->isFile()) {
+        Core\IO::copy($from, Core\Path::join($backup, $name));
+        echo "copied ", $name, "\n";
+    } else {
+        echo "skipped ", $name, "\n";
+    }
+}

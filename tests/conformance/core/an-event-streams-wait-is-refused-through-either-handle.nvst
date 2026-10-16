@@ -1,0 +1,23 @@
+--TEST--
+`Core\Sse->receive` asks about the door and never about the handle, so the one `stream()` answered and the one `current()` answers are refused in the same words — `rule:concurrency/two-doors-one-isolate`
+--FILE--
+<?nvs
+// The handle carries nothing: what decides whether there is a wait to be had is
+// the context this program is, not which member built the object it was called
+// on. A program that could reach a waiting stream by asking for the handle a
+// second way would have two answers to one question.
+var $opened = Core\Sse::stream();
+try {
+    $opened->receive();
+} catch (LogicError $refused) {
+    echo $refused->message, "\n";
+}
+
+try {
+    Core\Sse::current()->receive();
+} catch (LogicError $refused) {
+    echo $refused->message, "\n";
+}
+--EXPECT--
+`Core\Sse::receive` needs a connection and this program is a streaming response: a request answering with its own events ends when they do, so a publisher has nothing to reach it on — only a script `Core\Sse::upgrade` opened can wait
+`Core\Sse::receive` needs a connection and this program is a streaming response: a request answering with its own events ends when they do, so a publisher has nothing to reach it on — only a script `Core\Sse::upgrade` opened can wait

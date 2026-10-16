@@ -1,0 +1,28 @@
+<?nvs
+// Shows a batch that is removed again. One run of the batch fails, so the
+// transaction gives up. The rows the runs before it wrote are removed too.
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table people (id integer primary key, name text not null unique)', []);
+$db->execute('insert into people (name) values (?)', ['Ada']);
+
+// The second set carries a name the table already has.
+array<array<mixed>> $rows = [
+    ['Bo'],
+    ['Ada'],
+    ['Chen'],
+];
+
+try {
+    $db->transaction(fn (Core\Db\Transaction $tx): uint =>
+        $tx->executeMany('insert into people (name) values (?)', $rows));
+} catch (Core\Db\DbError $refused) {
+    // This prints `the batch stopped`.
+    echo "the batch stopped\n";
+}
+
+// `Bo` was written before the second run failed, and is gone again. Only the
+// row from before the transaction is left, so this prints `1 person`.
+echo $db->query('select id from people', [])->count(), " person\n";
+
+$db->close();

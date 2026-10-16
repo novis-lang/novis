@@ -1,0 +1,62 @@
+<?nvs
+class Registry
+{
+    public static int $hits = 0;
+
+    public static function bump(int $by): int
+    {
+        Registry::$hits = Registry::$hits + $by;
+
+        return Registry::$hits;
+    }
+}
+
+class Point
+{
+    public int $x;
+    public int $y;
+
+    public function constructor(int $x, int $y)
+    {
+        $this->x = $x;
+        $this->y = $y;
+    }
+}
+
+class Any
+{
+    public static function pass(mixed $value): mixed
+    {
+        return $value;
+    }
+}
+
+Registry::$hits = 0;
+echo 'hits=' . Registry::bump(2) . ',' . Registry::bump(3) . "\n";
+
+array<array<int>> $grid = [[1, 2], [3, 4]];
+$grid[0][1] = 9;
+echo 'grid=' . $grid[0][1] . $grid[1][0] . "\n";
+
+mixed $sum = Any::pass(4);
+echo 'mixedSum=' . ($sum + 1) . "\n";
+
+mixed $box = Any::pass([1, 2, 3]);
+echo 'elem=' . $box[1] . "\n";
+
+?bool $unset = null;
+echo 'flag=' . ($unset ? 'yes' : 'no') . "\n";
+
+object $any = new Point(3, 4);
+echo 'top=' . ($any is Point ? 'point' : 'other') . "\n";
+
+// `as` converts a `bool` to a `string`, but not to a number.
+// To get a number from a `bool`, use a ternary.
+bool $yes = true;
+echo 'asInt=' . ($yes ? 1 : 0) . ' asString=' . ($yes as string) . "\n";
+
+// `as array<U>` checks that every element is a `U`. Every value is a `mixed`,
+// so this works. `as array<string>` would throw, because `1` is an `int`.
+array<int> $ints = [1, 2, 3];
+array<mixed> $loose = $ints as array<mixed>;
+echo 'converted=' . $loose[2] . "\n";

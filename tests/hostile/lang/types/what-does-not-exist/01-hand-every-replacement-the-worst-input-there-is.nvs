@@ -1,0 +1,61 @@
+<?nvs
+// Attack: every replacement for a PHP cast or string function is handed the
+// worst input there is. A million digits, a position past the end, two
+// enormous pieces of text, and a number too big to be whole. Each one should
+// answer or refuse, and the program should still be running.
+// hostile: timeout-ms 20000
+
+class Worst
+{
+    // Doubles the text until it is at least this long.
+    public static function grow(string $seed, uint $wanted): string
+    {
+        string $out = $seed;
+        while (Core\Str::length($out) < $wanted) {
+            $out = $out . $out;
+        }
+        return $out;
+    }
+
+    // A number with a million digits is far past what a whole number holds.
+    public static function convert(string $digits): string
+    {
+        ?int $whole = $digits as ?int;
+        ?float $real = $digits as ?float;
+        return ($whole == null ? 'no whole' : 'whole') . ' ' . ($real == null ? 'no float' : 'float');
+    }
+
+    // A position past the end of the text, asked for in both spellings.
+    public static function positions(string $text): string
+    {
+        string $tail = '';
+        try {
+            $tail = Core\Str::at($text, 4000000000);
+        } catch (Throwable $e) {
+            $tail = 'refused';
+        }
+        string $slice = Core\Str::slice($text, 4000000000);
+        return $tail . ' ' . (Core\Str::length($slice) as string);
+    }
+
+    // Two pieces of text of the same enormous size, put in order.
+    public static function order(string $left, string $right): string
+    {
+        return Core\Str::compare($left, $right) == 0 ? 'same' : 'different';
+    }
+
+    // A number with a fraction so large no whole number reaches it.
+    public static function huge(): string
+    {
+        float $far = 1.0e308;
+        ?int $whole = $far as ?int;
+        return $whole == null ? 'refused' : 'accepted';
+    }
+}
+
+string $big = Worst::grow('9', 1000000);
+echo Worst::convert($big), "\n";
+echo Worst::positions(Worst::grow('ab', 1000000)), "\n";
+echo Worst::order($big, $big), "\n";
+echo Worst::order($big, Worst::grow('8', 1000000)), "\n";
+echo Worst::huge(), "\n";

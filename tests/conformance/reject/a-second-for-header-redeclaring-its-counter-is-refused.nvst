@@ -1,0 +1,20 @@
+--TEST--
+two `for` headers declaring the same counter is `rule:types/declaration`'s re-declaration diagnostic, not a new rule — `rule:iteration/for-counter-scope`
+--FILE--
+<?nvs
+// `rule:iteration/for-counter-scope` buys no new scoping: the counter is function-scoped, so a
+// second header declaring the same name is the answer `rule:types/declaration` already
+// gives for any re-declared name, naming the first declaration.
+for (int $i = 0; $i < 2; $i = $i + 1) {
+    echo $i;
+}
+for (int $i = 0; $i < 2; $i = $i + 1) {
+    echo $i;
+}
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0406]: `$i` is already declared
+%A
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

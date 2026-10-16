@@ -1,0 +1,14 @@
+<?nvs
+// Shows what `Core\Request::cookie` returns for a cookie the request does not have.
+
+// The request has no cookie named "cart", so the result is `null`.
+?tainted string $cart = Core\Request::cookie("cart");
+echo $cart == null ? "no cart\n" : "cart found\n";
+
+// The request has a cookie named "lang", but not one named "Lang".
+// Upper and lower case are different, so this result is `null` too.
+?tainted string $language = Core\Request::cookie("Lang");
+echo $language == null ? "no Lang\n" : "Lang found\n";
+
+// The exact name returns the value. This prints "lang: de".
+echo "lang: ", Core\Request::cookie("lang") ?? "none", "\n";

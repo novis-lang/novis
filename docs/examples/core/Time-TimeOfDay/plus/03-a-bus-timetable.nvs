@@ -1,0 +1,12 @@
+<?nvs
+// Prints the departures of a night bus that leaves every 20 minutes.
+
+Core\Time\TimeOfDay $departure = Core\Time\TimeOfDay::at(23, 20);
+
+// This prints 23:20, 23:40, 00:00 and 00:20.
+int $i = 0;
+while ($i < 4) {
+    echo $departure->format("HH:mm"), "\n";
+    $departure = $departure->plus(20, Core\Unit::Minute);
+    $i = $i + 1;
+}

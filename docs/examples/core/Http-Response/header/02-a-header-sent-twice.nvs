@@ -1,0 +1,21 @@
+<?nvs
+// Shows what `header()` returns when a server sends the same header on two lines.
+
+// This fixed reply has two `Cache-Control` lines and two `Set-Cookie` lines.
+array<string> $caching = ["no-store", "private"];
+array<string> $cookies = ["cart=42", "theme=dark"];
+Core\Test::answerHttp("https://shop.example.com/cart", 200, {
+    headers: ["Cache-Control" => $caching, "Set-Cookie" => $cookies],
+});
+Core\Http\Response $response = Core\Http\Client::get("https://shop.example.com/cart");
+
+// `header()` joins the two lines with a comma. This prints `no-store, private`.
+echo $response->header("Cache-Control"), "\n";
+
+// Two cookies joined with a comma cannot be read correctly. So `header()` throws
+// a `LogicError` for `Set-Cookie`. Use `headers()` to read cookies.
+try {
+    echo $response->header("Set-Cookie"), "\n";
+} catch (LogicError $error) {
+    echo "header() failed: ", $error->message, "\n";
+}

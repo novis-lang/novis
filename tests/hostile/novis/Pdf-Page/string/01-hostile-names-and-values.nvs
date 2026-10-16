@@ -1,0 +1,41 @@
+<?nvs
+// Attack: a request reads `string-set` values with hostile names, and saves huge or hostile values.
+// Each attempt should return a value, throw an error or stop at a limit. The server keeps running.
+// hostile: ends-early 4 FATAL
+use Novis\Pdf\Document;
+use Novis\Pdf\Page;
+
+// 1. A name of one million characters, an empty name and a name with a NUL character.
+try {
+    var $page = new Page(1, 1, null, [{ name: 'chapter', value: 'Books' }], []);
+    echo 'step 1 ran ', $page->string(Core\Str::repeat('a', 1000000)) ?? 'null', ' ', $page->string('') ?? 'null', ' ', $page->string("chapter\u{0}") ?? 'null', "\n";
+} catch (Throwable $e) {
+    echo "step 1 stopped\n";
+}
+
+// 2. Names that change length when they change case.
+try {
+    var $folded = new Page(1, 1, null, [{ name: 'straße', value: 'one' }, { name: 'i̇stanbul', value: 'two' }], []);
+    echo 'step 2 ran ', $folded->string('STRASSE') ?? 'null', ' ', $folded->string('İSTANBUL') ?? 'null', "\n";
+} catch (Throwable $e) {
+    echo "step 2 stopped\n";
+}
+
+// 3. One hundred thousand saved values on one page.
+try {
+    array<{name: string, value: string}> $strings = [];
+    for (int $n = 0; $n < 100000; $n++) {
+        $strings[] = { name: "name{$n}", value: 'x' };
+    }
+    echo 'step 3 ran ', (new Page(1, 1, null, $strings, []))->string('missing') ?? 'null', "\n";
+} catch (Throwable $e) {
+    echo "step 3 stopped\n";
+}
+
+// 4. A chapter title of 20000 bold words with no space between them, put into the header.
+// The render stops at the memory limit of the PDF engine. That ends the program, so this step is last.
+echo "step 4\n";
+string $title = Core\Str::repeat('<b>&amp;</b>', 20000);
+var $html = "<style>h2 { string-set: chapter content() }</style><h2>{$title}</h2>";
+var $header = fn(Page $page): Core\Html\Markup => html`<p>{$page->string('chapter') ?? ''}</p>`;
+echo 'step 4 ran ', Document::fromHtml($html)->header($header)->render()->pageCount, "\n";

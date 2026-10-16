@@ -1,0 +1,22 @@
+<?nvs
+// Starts a pie chart with the value on each slice, as a report of the sales of each shop does.
+// bench: iterations 32
+// bench: complexity constant
+use Novis\Spreadsheet\Chart;
+
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            var $chart = Chart::pie({ title: 'Sales by shop', labels: true });
+            $total = $total + Core\Str::length($chart->title ?? '');
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(32), "\n";

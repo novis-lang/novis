@@ -1,0 +1,29 @@
+--TEST--
+The name left of a `::` in type position is read through the alias table first, so an alias standing for an enum names that enum's case — `rule:types/type-alias` and `rule:types/enum-case-type`
+--FILE--
+<?nvs
+enum Mode { Read, Write }
+
+// `rule:types/alias-is-never-a-bare-class` refuses the *fully bare* atom and
+// nothing else, so an alias reaches a single name through a wrapping
+// construct. That is the one expansion a `::` can be read through: the alias
+// stands in for the name before the member is looked up.
+type M = (Mode);
+
+class Gate {
+    public static function only(M::Read $m): string {
+        return "read";
+    }
+
+    // The same narrowed type written without the alias. One type, two
+    // spellings, because an alias is its expansion everywhere.
+    public static function direct(Mode::Read $m): string {
+        return "read";
+    }
+}
+
+echo Gate::only(Mode::Read), "\n";
+echo Gate::direct(Mode::Read), "\n";
+--EXPECT--
+read
+read

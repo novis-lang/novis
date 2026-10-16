@@ -1,0 +1,12 @@
+<?nvs
+// Shows how to replace a part of a string when you know where it starts and how long it is.
+
+string $greeting = "Good morning, Anna!";
+
+// The part starts at character 5 and has 7 characters: "morning".
+// This prints "Good evening, Anna!".
+echo Core\Str::replaceRange($greeting, 5, 7, "evening"), "\n";
+
+// A negative offset counts from the end. The part "Anna!" starts 5 characters before the end.
+// `null` as the length means the part runs to the end. This prints "Good morning, Ben!".
+echo Core\Str::replaceRange($greeting, -5, null, "Ben!"), "\n";

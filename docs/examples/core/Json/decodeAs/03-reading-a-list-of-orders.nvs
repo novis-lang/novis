@@ -1,0 +1,34 @@
+<?nvs
+// Shows a program that reads a list of orders from a JSON API and adds up the unpaid ones.
+
+#[Core\Json\Derive]
+class Order {
+    public int $number;
+    public int $cents;
+    public bool $paid;
+
+    public function constructor(int $number, int $cents, bool $paid) {
+        $this->number = $number;
+        $this->cents = $cents;
+        $this->paid = $paid;
+    }
+}
+
+// A shop system sends this text. It is a JSON array with one object for each order.
+string $body = "[{\"number\":1041,\"cents\":2500,\"paid\":true},"
+    . "{\"number\":1042,\"cents\":1200,\"paid\":false},"
+    . "{\"number\":1043,\"cents\":900,\"paid\":false}]";
+
+// `array<Order>` reads the JSON array. The result has one `Order` for each element.
+var $orders = Core\Json::decodeAs<array<Order>>($body);
+
+int $open = 0;
+foreach ($orders as Order $order) {
+    if (!$order->paid) {
+        echo "order ", $order->number, " is not paid\n";
+        $open = $open + $order->cents;
+    }
+}
+
+// This prints `unpaid: 2100 cents`.
+echo "unpaid: ", $open, " cents\n";

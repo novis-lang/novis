@@ -1,0 +1,16 @@
+<?nvs
+// Replaces one item of a basket with the two items a shop sends instead. The
+// substitutes stand where the missing item was, so the basket keeps its order.
+
+array<string> $basket = ['tea', 'milk', 'bread'];
+int $missing = 1;
+array<string> $instead = ['oat drink', 'soy drink'];
+
+// This prints `tea, oat drink, soy drink, bread`.
+array<string> $updated = Core\Arr::replaceRange($basket, $missing, 1, $instead);
+echo Core\Str::join($updated, ', '), "\n";
+
+// The shop has no bread either, and nothing replaces it. This prints
+// `tea, oat drink, soy drink`.
+array<string> $sent = Core\Arr::replaceRange($updated, 3, 1);
+echo Core\Str::join($sent, ', '), "\n";

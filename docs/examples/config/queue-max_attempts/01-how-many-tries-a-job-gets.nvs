@@ -1,0 +1,18 @@
+<?nvs
+// `[queue] max_attempts` is how many times a failing job is tried.
+// The job is then moved to the dead-letter table, where a person can look at it.
+
+// This file does not set `max_attempts`, so this prints the default, `5`.
+echo 'attempts a job gets: ', Core\Config::get('queue.max_attempts') ?? '(no value)', "\n";
+echo 'queued in:           ', Core\Config::get('queue.connection') ?? '(nothing written)', "\n";
+
+// After the last attempt, the job is not deleted. It stays in the dead-letter
+// table until somebody reads it.
+
+// A program cannot raise this number, so the call returns `false`. Too many
+// retries slow down every other job in the same queue.
+echo 'try mine a thousand times: ', Core\Config::set('queue.max_attempts', '1000') ? 'accepted' : 'refused', "\n";
+
+// A program cannot lower it either, so this call also returns `false`.
+// A job that is not retried may never be done.
+echo 'or give mine one try:      ', Core\Config::set('queue.max_attempts', '1') ? 'accepted' : 'refused', "\n";

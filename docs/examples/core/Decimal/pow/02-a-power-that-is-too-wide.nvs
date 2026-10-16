@@ -1,0 +1,16 @@
+<?nvs
+// Shows the point where a power stops fitting. A `decimal` holds 28 digits
+// after the point, and every multiplication of 1.05 adds two more.
+
+array<uint> $years = [10, 14, 15];
+
+foreach ($years as uint $count) {
+    try {
+        decimal $grown = Core\Decimal::pow(1.05, $count);
+        echo $count, ": ", $grown, "\n";
+    } catch (ArithmeticError $tooWide) {
+        // 15 multiplications need 30 digits after the point, so this one
+        // prints the error instead of a number.
+        echo $count, ": ", $tooWide->message, "\n";
+    }
+}

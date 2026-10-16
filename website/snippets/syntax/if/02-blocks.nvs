@@ -1,0 +1,17 @@
+<?nvs
+// A block does not start a new scope. `$inner` still exists after the block.
+{
+    int $inner = 40;
+}
+echo $inner + 2, "\n";
+
+// You can declare a variable without a value.
+// Read it only after every branch has set it.
+int $late;
+bool $flag = true;
+if ($flag) {
+    $late = 1;
+} else {
+    $late = 2;
+}
+echo $late, "\n";

@@ -1,0 +1,53 @@
+<?nvs
+// Attack: a program reads a list of values as one value, and reads binary values
+// many times. A list must throw an error, and nothing may crash.
+// hostile: timeout-ms 60000
+// requires: samba-ad
+
+var $corp = Core\Ldap::connect('corp');
+var $found = $corp->read('CN=Employees,OU=Company,DC=example,DC=test', { select: ['member', 'objectGUID', 'objectSid', 'cn'] });
+
+if ($found != null) {
+    Core\Ldap\Entry $group = $found;
+
+    // 1. `member` has five values. Read as one value, it throws an error every time.
+    uint $threw = 0;
+    uint $i = 0;
+    while ($i < 10000) {
+        try {
+            $group->bytes('member');
+        } catch (LogicError $refusal) {
+            $threw = $threw + 1;
+        }
+        $i = $i + 1;
+    }
+    echo '1 threw: ', $threw, "\n";
+
+    // 2. Binary and text values, read two hundred thousand times.
+    // Nothing may be left behind.
+    array<string> $names = ['objectGUID', 'objectSid', 'cn'];
+    uint $total = 0;
+    $i = 0;
+    while ($i < 200000) {
+        ?tainted bytes $value = $group->bytes($names[($i % 3) as int]);
+        if ($value != null) {
+            $total = $total + Core\Bytes::length($value);
+        }
+        $i = $i + 1;
+    }
+    echo '2 bytes read: ', $total > 0 ? 'some' : 'none', "\n";
+
+    // 3. Names a user typed. A name the entry does not have returns `null`.
+    array<string> $typed = ['', 'objectGUID;binary', 'member;range=0-*', Core\Str::repeat('o', 100000)];
+    uint $empty = 0;
+    foreach ($typed as string $typedName) {
+        try {
+            if ($group->bytes($typedName) == null) {
+                $empty = $empty + 1;
+            }
+        } catch (Throwable $error) {
+            echo "3 threw\n";
+        }
+    }
+    echo '3 null: ', $empty, "\n";
+}

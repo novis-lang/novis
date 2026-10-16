@@ -1,0 +1,16 @@
+<?nvs
+// Shows the two length limits of a domain name.
+
+// One part may have up to 63 characters. This prints yes, then no.
+string $part = Core\Str::repeat("a", 63);
+echo Core\Validate::isDomain($part . ".test") ? "yes" : "no", "\n";
+echo Core\Validate::isDomain($part . "a.test") ? "yes" : "no", "\n";
+
+// The whole name may have up to 253 characters.
+// Three parts of 63 characters, one part of 61 and three dots make 253.
+string $name = $part . "." . $part . "." . $part . "." . Core\Str::repeat("b", 61);
+string $longer = $name . "b";
+
+// This prints 253 yes, then 254 no.
+echo Core\Str::length($name), " ", Core\Validate::isDomain($name) ? "yes" : "no", "\n";
+echo Core\Str::length($longer), " ", Core\Validate::isDomain($longer) ? "yes" : "no", "\n";

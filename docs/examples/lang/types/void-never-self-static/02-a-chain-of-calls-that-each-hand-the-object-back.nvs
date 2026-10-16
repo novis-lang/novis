@@ -1,0 +1,35 @@
+<?nvs
+// A method returning `self` hands its own object back, so calls can be
+// written one after another on the same line. `self` names the class the
+// method was written in, which is what makes the next call in the chain
+// resolve against that class.
+
+final class Query {
+    public string $table = "";
+    public array<string> $wheres = [];
+    public uint $limit = 0;
+
+    public function from(string $table): self {
+        $this->table = $table;
+        return $this;
+    }
+
+    public function where(string $clause): self {
+        $this->wheres[] = $clause;
+        return $this;
+    }
+
+    public function take(uint $rows): self {
+        $this->limit = $rows;
+        return $this;
+    }
+
+    public function text(): string {
+        return "select from " . $this->table
+            . " where " . Core\Str::join($this->wheres, " and ")
+            . " limit " . $this->limit;
+    }
+}
+
+Query $q = new Query();
+echo $q->from("orders")->where("paid")->where("shipped")->take(25)->text(), "\n";

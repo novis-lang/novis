@@ -1,0 +1,54 @@
+--TEST--
+an attribute's name is placed by its prefix like any other name reference — `rule:programs/autoload` and `rule:programs/one-declaration-per-autoloaded-file`
+--FILE--
+<?nvs
+// `App\Audit` is written in exactly one place in this program: the `#[...]`
+// group on `App\Handler`. It reaches no annotation, no `extends`, no
+// `implements` and no expression, so the prefix lookup can only find
+// `src/Audit.nvs` if the name harvest reads an attribute.
+//
+// That the file is *loaded* is what § 2's one-declaration rule then reports
+// on: `src/Audit.nvs` carries a second top-level class, and the E0317 below
+// can be reached from nowhere else. A class nothing loads is not checked.
+require './src/Bootstrap.nvs';
+echo App\Handler::run(), "\n";
+--FILE src/Bootstrap.nvs--
+<?nvs
+autoload 'App' from './';
+--FILE src/Handler.nvs--
+<?nvs
+namespace App;
+
+// Harvested from an autoloaded file, not the entry point, so this also pins
+// that the map keeps being consulted as the worklist drains.
+#[Audit]
+class Handler
+{
+    public static function run(): string
+    {
+        return "handler";
+    }
+}
+--FILE src/Audit.nvs--
+<?nvs
+namespace App;
+
+// A shape-typed `type` alias, which is what `rule:attributes/attach-sites-and-forms` makes an
+// attribute's name: the harvest is the same prefix lookup either way, and
+// what it looks a name up *for* is not `rule:programs/no-runtime-autoload`'s question.
+type Audit = {};
+
+class Smuggled
+{
+    public static function of(): string
+    {
+        return "smuggled";
+    }
+}
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0317]: an autoloaded file declares exactly one thing, named `App\Audit`
+%A
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

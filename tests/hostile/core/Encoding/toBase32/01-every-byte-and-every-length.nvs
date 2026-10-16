@@ -1,0 +1,68 @@
+<?nvs
+// Attack: base32 makes every buffer longer by more than half, and a caller who
+// controls the bytes controls the size of the text. Nothing here should come
+// back short, lose a group, or crash. Every step runs.
+// hostile: timeout-ms 30000
+
+// 1. All 256 byte values in one buffer. That is 2048 bits, and five bits make
+// one character, so the text is 410 characters.
+bytes $every = Core\Encoding::fromHex('');
+uint $value = 0;
+while ($value < 256) {
+    array<bytes> $pair = [$every, Core\Bytes::fill(1, $value)];
+    $every = Core\Bytes::join($pair);
+    $value = $value + 1;
+}
+string $spelled = Core\Encoding::toBase32($every);
+echo 'step 1: ', Core\Str::length($spelled), " characters for 256 bytes\n";
+
+// 2. The same text read back. Every byte has to survive the round trip, so
+// the buffer that comes back is the buffer that went out. This prints 0.
+echo 'step 2: ', Core\Bytes::compare($every, Core\Encoding::fromBase32($spelled)), "\n";
+
+// 3. Every buffer length from 0 to 64. No reader accepts 1, 3 or 6 characters
+// after the last whole group. Each buffer must also come back unchanged.
+uint $length = 0;
+uint $wrong = 0;
+while ($length <= 64) {
+    bytes $buffer = Core\Bytes::fill($length, 255);
+    string $text = Core\Encoding::toBase32($buffer);
+    uint $rest = Core\Str::length($text) % 8;
+    if ($rest == 1 || $rest == 3 || $rest == 6) {
+        $wrong = $wrong + 1;
+    }
+    if (Core\Bytes::compare(Core\Encoding::fromBase32($text), $buffer) != 0) {
+        $wrong = $wrong + 1;
+    }
+    $length = $length + 1;
+}
+echo 'step 3: ', $wrong, " of 65 lengths went wrong\n";
+
+// 4. A zero byte in the middle. Other languages end a text at a zero byte, so
+// a short result here means the zero was read as an ending.
+array<bytes> $parts = [Core\Bytes::fill(2, 65), Core\Bytes::fill(1, 0), Core\Bytes::fill(2, 66)];
+bytes $withZero = Core\Bytes::join($parts);
+echo 'step 4: ', Core\Encoding::toBase32($withZero), "\n";
+
+// 5. Ten million bytes written in one call. The text is sixteen million
+// characters, and it needs its own memory beside the buffer.
+bytes $large = Core\Bytes::repeat(Core\Encoding::fromHex('deadbeef'), 2500000);
+echo 'step 5: ', Core\Str::length(Core\Encoding::toBase32($large)), "\n";
+
+// 6. One hundred thousand calls in a row, each round choosing its buffer from
+// the length of the round before. Nothing may be kept between the rounds.
+array<bytes> $buffers = [
+    Core\Encoding::fromHex('ff'),
+    Core\Encoding::fromHex('0011223344'),
+    Core\Encoding::fromHex('deadbeefdeadbeef'),
+    $withZero,
+];
+uint $total = 0;
+uint $round = 0;
+while ($round < 100000) {
+    $total = $total + Core\Str::length(Core\Encoding::toBase32($buffers[($total + $round) % 4]));
+    $round = $round + 1;
+}
+echo 'step 6: ', $round, ' buffers written, ', $total, " characters in all\n";
+
+echo "the runtime is still standing\n";

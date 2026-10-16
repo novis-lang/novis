@@ -1,0 +1,7 @@
+# The attack starts `/bin/sh` on Linux and macOS, and `cmd.exe` on Windows.
+# A program may print at most 1 MiB, so a program that never stops printing is stopped quickly.
+[capabilities.process]
+exec = true
+
+[limits]
+max_output = "1M"

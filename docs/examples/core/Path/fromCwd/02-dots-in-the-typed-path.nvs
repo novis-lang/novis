@@ -1,0 +1,10 @@
+<?nvs
+// Shows that `fromCwd` removes `.` and `..` from the path it returns.
+
+string $start = Core\Path::fromCwd(".");
+string $path = Core\Path::fromCwd("reports/../logs/./today.txt");
+
+// `relativeTo` gives the part of `$path` after the start folder.
+// `split` gives its parts, so this prints `logs, today.txt`.
+array<string> $parts = Core\Path::split(Core\Path::relativeTo($path, $start) ?? "");
+echo Core\Str::join($parts, ", "), "\n";

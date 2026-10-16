@@ -1,0 +1,16 @@
+{
+  "title": "A Unix socket is admitted in `[cache.shared] url` and `[db.<name>] host`, and refused from any program-supplied endpoint",
+  "status": "shipped",
+  "seeAlso": [
+    "config/cache-shared-is-the-grant-over-the-configured-store",
+    "config/unix-scheme-in-a-url-and-a-bare-path-in-a-host",
+    "config/net-local-is-named-and-not-on-the-roster",
+    "security/net-address-policy",
+    "security/outbound-url-is-a-sink"
+  ],
+  "guardedBy": [
+    "crates/nvs-stdlib/src/cache.rs",
+    "crates/nvs-stdlib/src/net.rs",
+    "crates/nvs-config/tests/capability.rs"
+  ]
+}

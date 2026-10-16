@@ -1,0 +1,4 @@
+# Programs may read files in the `data` directory beside this file.
+# Nothing else is granted, so writing a file and reading any other file both fail.
+[capabilities.fs]
+read = ["data"]

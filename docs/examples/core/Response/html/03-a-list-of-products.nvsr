@@ -1,0 +1,6 @@
+--METHOD--
+GET
+--PATH--
+/products
+--HEADERS--
+host: example.com

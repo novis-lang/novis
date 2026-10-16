@@ -1,0 +1,5 @@
+A `[server] listen` entry beginning with a path separator names a Unix-domain socket; because no `host:port` can begin that way the overload is unambiguous, and `socket_mode` applies to those entries only. A Unix socket is the transport a proxy should prefer, and it is what makes FastCGI unnecessary: HTTP over a Unix socket already serves every deployment a FastCGI transport was reserved for, with no bespoke record parser and no `SCRIPT_FILENAME` handed in from outside.
+
+**Unix sockets are Unix-only.** No Windows proxy connects to a named pipe upstream, so a Windows host listens on TCP loopback. A `curl` over the socket is byte-identical to the same request over TCP.
+
+A Unix-socket listener is implicitly trusted for the forwarded headers (`rule:http-server/trusted-proxies-is-empty-and-empty-reads-nothing`), because the operating system enforces who may connect to it. The operator warning that belongs beside that: a `0660` socket is trusted by *group membership*, so adding a tenant to that group on a multi-tenant host grants them the ability to forge those headers.

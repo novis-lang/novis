@@ -1,0 +1,14 @@
+<?nvs
+// Shows how to create a duration from a number of minutes that the program computes.
+
+int $lessons = 2;
+Core\Time\Duration $course = Core\Time\Duration::minutes($lessons * 45);
+
+// 90 minutes is 1 hour and 30 minutes. This prints 1h30m.
+echo $course->toString(), "\n";
+
+// A minute is 60 seconds, so this prints 5400.
+echo $course->toSeconds(), "\n";
+
+// A negative number gives a negative duration. This prints -15m.
+echo Core\Time\Duration::minutes(-15)->toString(), "\n";

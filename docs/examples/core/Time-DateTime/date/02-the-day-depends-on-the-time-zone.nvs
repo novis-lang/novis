@@ -1,0 +1,12 @@
+<?nvs
+// Shows that one moment can be a different day in another time zone.
+
+// A call starts at 20:00 on 31 December 2024 in New York.
+var $call = Core\Time::at(2024, 12, 31, Core\Time\Zone::of("America/New_York"), {hour: 20});
+
+// `date` reads the day in the time zone of the value. This prints 2024-12-31.
+echo $call->date()->format("yyyy-MM-dd"), "\n";
+
+// At that moment it is 10:00 on the next day in Tokyo. This prints 2025-01-01.
+var $tokyo = $call->toInstant()->in(Core\Time\Zone::of("Asia/Tokyo"));
+echo $tokyo->date()->format("yyyy-MM-dd"), "\n";

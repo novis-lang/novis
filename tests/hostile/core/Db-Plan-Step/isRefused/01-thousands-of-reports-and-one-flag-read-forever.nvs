@@ -1,0 +1,80 @@
+<?nvs
+// Attack: a plan of thousands of steps is asked which of them are reports. One
+// flag is read ten million times. A reported statement is run twice. The
+// program should finish, or stop at its memory limit with an error, and must
+// not crash.
+// hostile: timeout-ms 120000
+
+use Core\Db;
+use Core\Db\Plan\Step;
+use Core\Db\Schema;
+
+var $db = Db::connect('notes');
+
+// 1. Two hundred tables the schema below does not name, so the plan holds two
+// hundred reports.
+uint $left = 0;
+while ($left < 200) {
+    $db->execute('create table junk_' . ($left as string) . ' (id integer primary key)', []);
+    $left = $left + 1;
+}
+
+// A schema of three thousand tables against that database, which is three
+// thousand changes beside the reports.
+array<mixed> $tables = [];
+uint $t = 0;
+while ($t < 3000) {
+    $tables[] = [
+        'name' => 'table_' . ($t as string),
+        'columns' => [['name' => 'id', 'type' => 'int64', 'identity' => true]],
+        'primary_key' => ['id'],
+    ];
+    $t = $t + 1;
+}
+
+var $schema = Schema::fromArray(['tables' => $tables]);
+var $steps = $schema->planAgainst($db)->steps();
+echo '1 steps: ', Core\Arr::count($steps), "\n";
+
+// 2. Every step asked once. A report is a step like any other, so the walk has
+// to read all of them.
+uint $reported = 0;
+var $report = $steps[0];
+foreach ($steps as Step $step) {
+    if ($step->isRefused()) {
+        $reported = $reported + 1;
+        $report = $step;
+    }
+}
+echo '2 reported: ', $reported, "\n";
+
+// 3. One flag read ten million times.
+uint $count = 0;
+uint $i = 0;
+while ($i < 10000000) {
+    if ($report->isRefused()) {
+        $count = $count + 1;
+    }
+    $i = $i + 1;
+}
+echo '3 read: ', $count, "\n";
+
+// 4. A reported statement run twice. The table is gone after the first run, so
+// the database refuses the second and the program catches that.
+try {
+    $db->execute($report->sql(), []);
+    $db->execute($report->sql(), []);
+    echo "4 ran twice\n";
+} catch (Throwable $refused) {
+    echo "4 refused the second run\n";
+}
+
+// 5. The flag after the table it names is gone. The step is a copy, so it still
+// answers the same way.
+echo '5 still reported: ', $report->isRefused(), "\n";
+
+// 6. The connection after all of that. An ordinary statement still works.
+$db->execute('create table still_here (id integer primary key)', []);
+echo '6 still usable: ', $db->query('select id from still_here', [])->count(), "\n";
+
+$db->close();

@@ -1,0 +1,103 @@
+[package]
+name = "nvs-server"
+description = "The built-in HTTP server: a socket to a root isolate and back"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+
+[lib]
+# No doc comment in this crate has a runnable example, so `cargo test` does
+# not run rustdoc over it. A crate that gains one deletes this table.
+doctest = false
+
+[dependencies]
+# The h1 framing, and the one dependency in this tree `rule:packaging/a-c-dependency-answers-two-questions`'s first
+# question answers "yes" to. The workspace `Cargo.toml`'s comment above it is
+# where that is argued, including why `default-features = false` is what keeps
+# `tokio` out of the graph rather than a tidiness choice.
+hyper.workspace = true
+# The parking stream this crate adapts, and the `block_on` that drives the
+# future over it. `src/io.rs` is the whole of the seam;
+# `rule:concurrency/one-future-per-connection` is its specification.
+nvs-host.workspace = true
+# `rule:http-server/four-idle-waits-all-finite`'s four waits, resolved: `nvs_config::server::Waits` is the clock a connection is
+# bounded by, and this crate takes it rather than four `Duration`s so that the ADR's numbers have
+# one home and the boot refusal of an unbounded one lives beside the block it reads. Not a new
+# crate in the graph — `nvs-host` and `nvs-runtime` both already rest on it.
+nvs-config.workspace = true
+# `statics` and `mount` record each file they stat, read or test when
+# `NVS_FOOTPRINT_LOG` names a log.
+nvs-footprint.workspace = true
+# A connection is a task, and a task carries a `Ctx` — `src/serve.rs` spawns one
+# child per connection through `nvs_host::spawn_child`, which is where
+# `rule:concurrency/a-child-belongs-to-the-calling-task`'s tree comes from. Not a second runtime dependency: `nvs-host` already
+# rests on this one, and what is used here is the three names that spell a task.
+nvs-runtime.workspace = true
+# The workspace's clock, and `src/schedule.rs` reaches it for the same reason
+# `nvs_config::schedule` does: an entry's next fire is a `Zoned` in the
+# entry's own zone, and the ticker asks `Cron::next_after` for one rather than
+# counting minutes itself. Not a new crate in the graph — `nvs-config` already
+# rests on it, and what is named here is the two types that spell an instant.
+jiff.workspace = true
+# The WebSocket framing of `rule:concurrency/a-connection-is-a-root-isolate`, over the stream `hyper` hands back at the upgrade.
+# `src/socket.rs` is the whole of the seam; the workspace `Cargo.toml`'s comment
+# above this crate's name is where the choice is argued, including why a
+# synchronous codec is the one that fits a parking stream.
+tungstenite.workspace = true
+# One draw per open event stream: `src/bounds.rs` spreads the reconnection hint
+# a stream is opened with, so a drained fleet does not come back in lockstep.
+# Not a new crate in the graph and no question reopened under
+# `rule:packaging/a-c-dependency-answers-two-questions` — `nvs-runtime`,
+# `nvs-stdlib` and `nvs-cli` all already draw from it.
+rand.workspace = true
+# `rule:http-server/the-access-log-is-a-mode-default`'s access line is a diagnostic record, and
+# `src/trace.rs` builds one: a `nvs_render::Record` at a `nvs_render::Level`, with its fields as
+# nodes. Not a new crate in the graph: `nvs-runtime`, `nvs-host` and `nvs-config` all already
+# rest on it.
+nvs-render.workspace = true
+
+# `rule:observability/the-exporter-is-a-feature-and-core-metrics-is-not`'s split,
+# declared in the crate the encoder lives in. `exporter` gates `src/prometheus.rs`
+# and nothing else: `src/metrics.rs` is compiled into every build, so a
+# `Core\Metrics` call reaches the same registry whichever build ran it, and what a
+# build without this feature loses is the reader rather than the accumulator.
+#
+# On by default, which is what makes the server distribution the ordinary build and
+# `--no-default-features` the deliberate one. The feature enables no dependency,
+# because the exposition format is written here against its specification
+# (`rule:observability/an-exporter-brings-no-second-scheduler-and-no-second-client`) and the transport is the `hyper` this
+# crate already rests on; what it saves a CLI binary is the encoder itself.
+[features]
+default = ["exporter"]
+exporter = []
+
+[dev-dependencies]
+# Test-only, and it stays that way: the cases in `src/bounds.rs`, `src/mount.rs`,
+# `src/schedule.rs` and `src/serve.rs` write the configuration a case runs under as TOML text.
+# Nothing in this crate's own code names a TOML value; the configuration reaches it as
+# `nvs_config::snapshot::Snapshot` and never as a document.
+toml.workspace = true
+# Test-only, and for one case: `src/bounds.rs` asserts the diagnostic a removed connection bound is
+# refused with. Nothing in this crate's own code names a diagnostic. Not a new crate in the graph:
+# `nvs-config`, `nvs-runtime` and `nvs-host` all already rest on it.
+nvs-diagnostics.workspace = true
+# Test-only: `src/slotted/`'s case recomputes the script hashes the policy names from the two
+# files, so a script edited without its hash fails a test. Not new crates in the graph:
+# `nvs-host` already rests on both.
+sha2.workspace = true
+base64.workspace = true
+# Test-only: the control and Unix-listener cases bind their sockets under `target/` through
+# `nvs_repo::socket`.
+nvs-repo.workspace = true
+
+# This crate inherits the workspace lint policy unchanged, `unsafe_code =
+# "forbid"` included. That is a decision and not an omission: the obvious way to
+# fill `hyper`'s `ReadBufCursor` is to hand the socket its uninitialised bytes
+# through an `unsafe` cast, and `src/io.rs`'s own docs say what taking the copy
+# instead spends and why the ordering in AGENTS.md puts it that way round.
+[lints]
+workspace = true

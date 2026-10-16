@@ -1,0 +1,15 @@
+--TEST--
+`$$name` defeats name resolution and type inference, so it is refused with an `array` keyed by name named as the replacement — `rule:types/declaration`
+--FILE--
+<?nvs
+string $name = "value";
+string $value = "x";
+echo $$name, "\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0202]: variable variables (`$$name` / `${expr}`) are not supported
+  --> case.nvs:4:6
+%A
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

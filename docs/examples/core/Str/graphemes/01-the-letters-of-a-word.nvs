@@ -1,0 +1,12 @@
+<?nvs
+// Shows how to divide a word into its letters.
+
+// `Core\Str::graphemes` returns one string for each letter. "é" is one letter.
+array<string> $letters = Core\Str::graphemes("Café");
+
+// This prints `C-a-f-é` and then `4`.
+echo Core\Str::join($letters, "-"), "\n";
+echo Core\Arr::count($letters), "\n";
+
+// An empty string has no letters, so this prints `0`.
+echo Core\Arr::count(Core\Str::graphemes("")), "\n";

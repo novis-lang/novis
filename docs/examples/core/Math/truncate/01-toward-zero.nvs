@@ -1,0 +1,13 @@
+<?nvs
+// Shows how `Core\Math::truncate` removes the fractional part of positive and negative numbers.
+
+// This prints 2, then -2. Both results move toward zero.
+echo Core\Math::truncate(2.7), "\n";
+echo Core\Math::truncate(-2.7), "\n";
+
+// `Core\Math::floor` always moves down. For -2.7 it prints -3.
+echo Core\Math::floor(-2.7), "\n";
+
+// The result is a `float`. `as int` converts it to a whole number. This prints 19.
+int $whole = Core\Math::truncate(19.99) as int;
+echo $whole, "\n";

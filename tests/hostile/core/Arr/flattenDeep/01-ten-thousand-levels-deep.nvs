@@ -1,0 +1,50 @@
+<?nvs
+// Attack: an array nested ten thousand levels deep is flattened, then an array
+// stored inside itself, then a long array a hundred times over. Every step
+// should finish, and the runtime must not crash.
+// hostile: timeout-ms 30000
+
+// 1. 10000 levels of nesting hold one value at the bottom.
+array<mixed> $deep = ['bottom'];
+int $d = 0;
+while ($d < 10000) {
+    $deep = [$deep];
+    $d = $d + 1;
+}
+echo 'step 1: ', Core\Arr::count(Core\Arr::flattenDeep($deep)), '|', "\n";
+
+// 2. An array stored inside itself stores a copy, so the walk ends.
+array<mixed> $self = ['x'];
+$self[] = $self;
+echo 'step 2: ', Core\Arr::count(Core\Arr::flattenDeep($self)), '|', "\n";
+
+// 3. 100000 values at one level come back as 100000 values.
+array<mixed> $long = [];
+int $i = 0;
+while ($i < 100000) {
+    $long[] = $i;
+    $i = $i + 1;
+}
+echo 'step 3: ', Core\Arr::count(Core\Arr::flattenDeep($long)), '|', "\n";
+
+// 4. The same array is flattened 100 times and the results are dropped, so
+//    nothing may be left behind.
+uint $seen = 0;
+int $r = 0;
+while ($r < 100) {
+    $seen = $seen + Core\Arr::count(Core\Arr::flattenDeep($long));
+    $r = $r + 1;
+}
+echo 'step 4: ', $seen, '|', "\n";
+
+// 5. A key of one million characters is thrown away with every other key.
+array<mixed> $wide = [];
+$wide[Core\Str::repeat('k', 1000000)] = 1;
+array<mixed> $nested = [$wide];
+echo 'step 5: ', Core\Str::join(Core\Arr::keys(Core\Arr::flattenDeep($nested)), ','), '|', "\n";
+
+// 6. An array with no entries flattens to one with no entries.
+array<mixed> $empty = [];
+echo 'step 6: ', Core\Arr::count(Core\Arr::flattenDeep($empty)), '|', "\n";
+
+echo 'the runtime is still standing', "\n";

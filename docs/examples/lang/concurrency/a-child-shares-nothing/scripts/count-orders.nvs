@@ -1,0 +1,11 @@
+<?nvs
+// The examples in the folder above start this script. It prints the number it
+// reads, then writes a new number in its place.
+
+final class Orders {
+    public static int $counted = 0;
+}
+
+echo "the script read ", Orders::$counted, "\n";
+Orders::$counted = 42;
+echo "the script wrote ", Orders::$counted, "\n";

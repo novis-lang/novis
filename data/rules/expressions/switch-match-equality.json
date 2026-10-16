@@ -1,0 +1,14 @@
+{
+  "title": "A `switch` label and a `match` arm compare by the equality rule and by nothing else",
+  "status": "shipped",
+  "seeAlso": [
+    "expressions/one-equality-operator",
+    "expressions/disjoint-comparison-refused",
+    "expressions/equality-semantics"
+  ],
+  "guardedBy": [
+    "tests/conformance/lang/a-switch-compares-in-order-and-falls-through.nvst",
+    "tests/conformance/lang/equality-across-overlapping-types-still-compiles.nvst",
+    "tests/conformance/lang/a-switch-continue-moves-to-the-next-loop-iteration.nvst"
+  ]
+}

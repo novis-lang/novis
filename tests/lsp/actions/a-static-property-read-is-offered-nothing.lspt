@@ -1,0 +1,17 @@
+--TEST--
+a static property read that resolved carries no diagnostic, so nothing is offered on it, `rule:ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`
+--FILE--
+<?nvs
+class Counter
+{
+    public static int $count = 0;
+
+    public function total(): int
+    {
+        return self::$co<|>unt;
+    }
+}
+--REQUEST--
+codeAction
+--EXPECT--
+none

@@ -1,0 +1,39 @@
+--TEST--
+A write to the variable at the start of a narrowed `readonly` path makes the property nullable again, and `->` on it is an error — `rule:types/narrowing`
+--FILE--
+<?nvs
+// After `$holder` gets a new object, the test no longer says anything about
+// `$holder->node`, so the second `->` does not compile.
+final class Node
+{
+    public function label(): string
+    {
+        return "node";
+    }
+}
+
+final class Holder
+{
+    public function constructor(public readonly ?Node $node) {}
+}
+
+final class Probe
+{
+    public static function show(Holder $holder): string
+    {
+        if ($holder->node != null) {
+            echo $holder->node->label(), "\n";
+            $holder = new Holder(null);
+            return $holder->node->label();
+        }
+        return "empty";
+    }
+}
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0459]: `null|Node` may be `null`, so `->` cannot reach a member of it
+   --> case.nvs:24:20
+%A
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

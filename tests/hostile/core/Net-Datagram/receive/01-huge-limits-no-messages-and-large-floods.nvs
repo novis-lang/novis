@@ -1,0 +1,77 @@
+<?nvs
+// Attack: a program calls `receive` with extreme limits, waits for messages that never come, and floods it.
+// Each bad call should throw or return a short message, and the request should end cleanly.
+
+Core\Net\Datagram $socket = Core\Net::bindDatagram('127.0.0.1', 0);
+Core\Net\Datagram $sender = Core\Net::bindDatagram('127.0.0.1', 0);
+uint $port = $socket->port();
+
+// 1. `$max` is the largest number a `uint` can be.
+$sender->send('127.0.0.1', $port, 'one' as bytes, 1s);
+try {
+    echo '1 ', $socket->receive(18446744073709551615, 1s)->payload() as string, "\n";
+} catch (RuntimeError $e) {
+    echo "1 ok\n";
+}
+
+// 2. `$max` is 0, so nothing of the message can be kept.
+$sender->send('127.0.0.1', $port, 'two' as bytes, 1s);
+try {
+    echo '2 [', $socket->receive(0, 1s)->payload() as string, "]\n";
+} catch (RuntimeError $e) {
+    echo "2 ok\n";
+}
+
+// 3. A wait of no time at all, then one hundred very short waits in a row.
+try {
+    $socket->receive(64, 0s);
+} catch (TimeoutError $late) {
+    echo "3a ok\n";
+} catch (RuntimeError $e) {
+    echo "3a ok\n";
+}
+uint $i = 0;
+while ($i < 100) {
+    try {
+        $socket->receive(64, 1ms);
+    } catch (TimeoutError $late) {
+    }
+    $i = $i + 1;
+}
+echo "3b ok\n";
+
+// 4. Two hundred messages of 60000 bytes, and every one is kept in an array.
+array<Core\Net\Datagram\Message> $kept = [];
+$i = 0;
+while ($i < 200) {
+    try {
+        $sender->send('127.0.0.1', $port, Core\Str::repeat('z', 60000) as bytes, 1s);
+        $kept[] = $socket->receive(65536, 1s);
+    } catch (TimeoutError $late) {
+    } catch (IOError $io) {
+    }
+    $i = $i + 1;
+}
+echo "4 ok\n";
+
+// 5. Two thousand messages of 1024 bytes, and each receive keeps only 1 byte.
+$i = 0;
+while ($i < 2000) {
+    try {
+        $sender->send('127.0.0.1', $port, Core\Str::repeat('y', 1024) as bytes, 1s);
+        $socket->receive(1, 1s);
+    } catch (TimeoutError $late) {
+    } catch (IOError $io) {
+    }
+    $i = $i + 1;
+}
+echo "5 ok\n";
+
+// 6. A receive after the socket is closed.
+$socket->close();
+$sender->close();
+try {
+    $socket->receive(64, 1s);
+} catch (RuntimeError $e) {
+    echo "6 ok\n";
+}

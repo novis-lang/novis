@@ -1,0 +1,14 @@
+<?nvs
+// Shows the two edges of the test. An empty value ends every value, and bytes
+// longer than the value can never end it.
+
+bytes $name = "report.pdf" as bytes;
+
+// This prints "true".
+echo Core\Bytes::endsWith($name, "" as bytes) ? "true" : "false", "\n";
+
+// The value is 10 bytes long, so 11 bytes cannot end it. This prints "false".
+echo Core\Bytes::endsWith($name, "xreport.pdf" as bytes) ? "true" : "false", "\n";
+
+// The whole value ends itself, so this prints "true".
+echo Core\Bytes::endsWith($name, $name) ? "true" : "false", "\n";

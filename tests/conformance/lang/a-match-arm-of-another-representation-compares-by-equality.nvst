@@ -1,0 +1,58 @@
+--TEST--
+A `match` arm at a representation other than the subject's compares by the one equality — `rule:expressions/switch-match-equality`, `rule:expressions/one-equality-operator`, `rule:expressions/mixed-equality`
+--FILE--
+<?nvs
+// `rule:expressions/disjoint-comparison-refused` puts `int`, `uint` and
+// `float` in one numeric domain, so an arm may be written at a representation
+// the subject does not share. It is still the one comparison `$n == $u`
+// makes, and it is exact across the whole domain rather than rounded into
+// either side's type.
+int $n = 2;
+uint $two = 2;
+uint $three = 3;
+echo "int subject: ", match ($n) {
+    $three => "three",
+    $two => "two",
+    default => "neither",
+}, "\n";
+
+float $f = 3.0;
+echo "float subject: ", match ($f) {
+    $two => "two",
+    $three => "three",
+    default => "neither",
+}, "\n";
+
+// `rule:expressions/mixed-equality`'s row: a `mixed` subject names no
+// representation of its own, so the tags decide it at run time — and an arm
+// beside one is still written at its own, a digit run staying a digit run.
+mixed $m = "2";
+echo "mixed subject: ", match ($m) {
+    2 => "the int",
+    "2" => "the string",
+    default => "neither",
+}, "\n";
+
+// A `?int` erases to the same tagged representation, and `null` is an arm
+// like any other: the equality answers it, not a separate test.
+?int $maybe = null;
+echo "nullable subject: ", match ($maybe) {
+    7 => "seven",
+    null => "null",
+    default => "something else",
+}, "\n";
+
+// One arm listing two labels of two representations, and a fresh refcounted
+// one beside a tagged subject: each is compared in turn and released once the
+// comparison has read it.
+mixed $word = "novis";
+echo "two labels: ", match ($word) {
+    1, "no" . "vis" => "hit",
+    default => "miss",
+}, "\n";
+--EXPECT--
+int subject: two
+float subject: three
+mixed subject: the string
+nullable subject: null
+two labels: hit

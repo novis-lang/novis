@@ -1,0 +1,20 @@
+--TEST--
+a compound assignment through an `inout $x` parameter updates the caller's own binding
+--FILE--
+<?nvs
+class Bump {
+    public static function twice(inout int $n, inout string $s): void {
+        $n += 2;
+        $s .= "!";
+    }
+}
+
+int $count = 5;
+var $label = "go";
+Bump::twice(inout $count, inout $label);
+Bump::twice(inout $count, inout $label);
+echo $count, "\n";
+echo $label, "\n";
+--EXPECT--
+9
+go!!

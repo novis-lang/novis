@@ -1,0 +1,59 @@
+<?nvs
+// Attack: a program reads the payload of very large and empty messages many times, and keeps them after the socket is closed.
+// Every read should return the same bytes, and the request should end cleanly.
+
+Core\Net\Datagram $server = Core\Net::bindDatagram('127.0.0.1', 0);
+Core\Net\Datagram $client = Core\Net::bindDatagram('127.0.0.1', 0);
+uint $port = $server->port();
+
+// 1. A message of 60000 bytes, and its payload read ten thousand times.
+try {
+    $client->send('127.0.0.1', $port, Core\Str::repeat('p', 60000) as bytes, 1s);
+    Core\Net\Datagram\Message $big = $server->receive(65536, 1s);
+    uint $i = 0;
+    while ($i < 10000) {
+        $big->payload();
+        $i = $i + 1;
+    }
+    echo "1 ok\n";
+} catch (IOError $io) {
+    echo "1 ok\n";
+} catch (TimeoutError $late) {
+    echo "1 ok\n";
+}
+
+// 2. An empty message, and its payload changed into text and back.
+$client->send('127.0.0.1', $port, '' as bytes, 1s);
+Core\Net\Datagram\Message $empty = $server->receive(65536, 1s);
+echo '2 [', ($empty->payload() as string) as bytes as string, "]\n";
+
+// 3. A payload with every byte value from 0 to 255 in it.
+string $all = '';
+uint $b = 0;
+while ($b < 256) {
+    $all = $all . Core\Str::fromCodePoint($b);
+    $b = $b + 1;
+}
+$client->send('127.0.0.1', $port, $all as bytes, 1s);
+Core\Net\Datagram\Message $binary = $server->receive(65536, 1s);
+echo "3 ok\n";
+
+// 4. Five hundred messages kept in an array, then read after both sockets are closed.
+array<Core\Net\Datagram\Message> $kept = [];
+uint $j = 0;
+while ($j < 500) {
+    try {
+        $client->send('127.0.0.1', $port, Core\Str::repeat('k', 2000) as bytes, 1s);
+        $kept[] = $server->receive(65536, 1s);
+    } catch (TimeoutError $late) {
+    } catch (IOError $io) {
+    }
+    $j = $j + 1;
+}
+$client->close();
+$server->close();
+foreach ($kept as Core\Net\Datagram\Message $message) {
+    $message->payload();
+}
+$binary->payload();
+echo "4 ok\n";

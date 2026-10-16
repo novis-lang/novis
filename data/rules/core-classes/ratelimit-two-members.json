@@ -1,0 +1,14 @@
+{
+  "title": "`consume` and `shed` are two jobs with two verbs, and neither is a tier of the other",
+  "status": "shipped",
+  "seeAlso": [
+    "core-classes/ratelimit-gcra",
+    "core-classes/ratelimit-unreachable-store-throws",
+    "core-classes/topic"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/ratelimit-shed-is-per-process-and-reaches-no-store.nvst",
+    "tests/conformance/core/ratelimit-shed-keys-its-own-memory.nvst",
+    "tests/conformance/core/ratelimit-weighs-a-call-with-one-trailing-shape.nvst"
+  ]
+}

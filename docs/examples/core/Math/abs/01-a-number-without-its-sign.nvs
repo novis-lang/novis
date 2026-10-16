@@ -1,0 +1,15 @@
+<?nvs
+// Shows what `Core\Math::abs` returns for an `int`, a `float` and a `decimal`.
+
+// A negative number becomes positive. This prints 42.
+echo Core\Math::abs(-42), "\n";
+
+// A positive number stays the same. This prints 42.
+echo Core\Math::abs(42), "\n";
+
+// A `float` gives a `float`. This prints 2.5.
+echo Core\Math::abs(-2.5), "\n";
+
+// A `decimal` gives a `decimal` and keeps its decimal places. This prints 19.90.
+decimal $refund = -19.90;
+echo Core\Math::abs($refund), "\n";

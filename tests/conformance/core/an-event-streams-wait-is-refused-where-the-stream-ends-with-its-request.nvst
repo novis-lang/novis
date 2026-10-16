@@ -1,0 +1,22 @@
+--TEST--
+`Core\Sse->receive` is refused in a streaming response rather than answered `null`, because a stream that ends with its request has nothing a publisher could reach — `rule:concurrency/two-doors-one-isolate` and `rule:concurrency/a-connection-is-a-loop`
+--FILE--
+<?nvs
+// The wait belongs to the door that outlives its request: a subscription is an
+// entry in a table its own `receive()` drains, and a request answering with its
+// own events ends before anything could be published to it. So door two holds
+// this handle and cannot wait on it.
+//
+// `null` would have been the silently wrong answer. A stream's script is
+// written `while (var $msg = $sse->receive())`, so a `null` here ends the loop
+// at once and reads as a stream that was over -- which is why the refusal names
+// the member and says which door does wait.
+try {
+    var $sse = Core\Sse::stream();
+    $sse->receive();
+    echo "waited\n";
+} catch (LogicError $refused) {
+    echo $refused->message, "\n";
+}
+--EXPECT--
+`Core\Sse::receive` needs a connection and this program is a streaming response: a request answering with its own events ends when they do, so a publisher has nothing to reach it on — only a script `Core\Sse::upgrade` opened can wait

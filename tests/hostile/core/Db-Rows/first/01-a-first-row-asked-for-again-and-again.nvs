@@ -1,0 +1,77 @@
+<?nvs
+// Attack: the first row of a result is read a million times. The first row of a
+// result of two hundred thousand rows is read. A hundred thousand rows are held
+// at the same time, and an empty result is asked a hundred thousand times.
+// Every step has to finish, and none may stop the program.
+// hostile: timeout-ms 20000
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table seatings (id integer primary key, seats int not null, label text not null)', []);
+$db->execute('insert into seatings (seats, label) values (?, ?), (?, ?), (?, ?)', [4, 'north', 2, 'east', 6, 'south']);
+
+// 1. A million reads of the first row of a three-row result. Each read builds a
+// row object, so a million of them are built and freed here.
+var $three = $db->query('select seats, label from seatings order by id', []);
+uint $read = 0;
+uint $i = 0;
+while ($i < 1000000) {
+    var $row = $three->first();
+    if ($row != null) {
+        $read = $read + 1;
+    }
+    $i = $i + 1;
+}
+echo '1 read: ', $read, "\n";
+
+// 2. An empty result asked a hundred thousand times. It has to answer `null`
+// every time rather than throw.
+var $none = $db->query('select seats, label from seatings where seats < ?', [0]);
+uint $absent = 0;
+$i = 0;
+while ($i < 100000) {
+    if ($none->first() == null) {
+        $absent = $absent + 1;
+    }
+    $i = $i + 1;
+}
+echo '2 absent: ', $absent, "\n";
+
+// 3. Two hundred thousand rows, and only the first one asked for. Reading one
+// row may not cost the whole result.
+$db->execute('insert into seatings (seats, label) with recursive counter(x) as (select 1 union all select x + 1 from counter where x < 200000) select x, \'row\' from counter', []);
+var $many = $db->query('select seats, label from seatings order by id', []);
+var $head = $many->first();
+if ($head != null) {
+    echo '3 head: ', $head->string('label') ?? '', "\n";
+} else {
+    echo "3 head: none\n";
+}
+
+// 4. A hundred thousand first rows held at the same time, each one its own
+// object, and all of them freed together.
+array<mixed> $held = [];
+$i = 0;
+while ($i < 100000) {
+    $held[] = $three->first();
+    $i = $i + 1;
+}
+echo '4 held: ', Core\Arr::count($held), "\n";
+$held = [];
+
+// 5. A row carrying sixteen megabytes, read as the first row a hundred thousand
+// times. The memory the program holds may not grow with the reads.
+$db->execute('create table pictures (id integer primary key, picture blob not null)', []);
+$db->execute('insert into pictures (picture) values (?)', [Core\Str::repeat('x', 16000000) as bytes]);
+var $heavy = $db->query('select picture from pictures', []);
+uint $seen = 0;
+$i = 0;
+while ($i < 100000) {
+    var $picture = $heavy->first();
+    if ($picture != null) {
+        $seen = Core\Bytes::length($picture->bytes('picture') ?? ('' as bytes));
+    }
+    $i = $i + 1;
+}
+echo '5 seen: ', $seen, "\n";
+
+$db->close();

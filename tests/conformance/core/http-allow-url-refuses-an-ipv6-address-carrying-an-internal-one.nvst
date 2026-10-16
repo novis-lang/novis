@@ -1,0 +1,32 @@
+--TEST--
+An IPv6 address that carries an internal IPv4 address in its low 32 bits — IPv4-compatible or behind the NAT64 well-known prefix — is refused as the address it carries, and one carrying a public address is approved — `rule:security/net-address-policy`
+--FILE--
+<?nvs
+// The depth claim is *a bound asserted on both sides*: the same two prefixes
+// carrying an internal address and a public one, on neighbouring lines, so a
+// table that refused the whole prefix or none of it fails one half. Nothing
+// here connects: `allowUrl` judges a literal address without a resolver.
+array<string> $urls = [
+    "http://[::127.0.0.1]/",
+    "http://[64:ff9b::7f00:1]/",
+    "http://[64:ff9b::169.254.169.254]/latest/meta-data/",
+    "http://[::203.0.113.10]/",
+    "http://[64:ff9b::203.0.113.10]/",
+];
+foreach ($urls as string $url) {
+    try {
+        Core\Http\Target $pinned = Core\Http::allowUrl($url);
+        echo "approved ", $url, "\n";
+    } catch (RuntimeError $refused) {
+        echo $refused->message, "\n";
+    }
+}
+--FILE nvs.toml--
+[capabilities.net]
+connect = true
+--EXPECT--
+Core\Http::allowUrl refuses ::7f00:1: it is loopback (127.0.0.0/8), which `net.internal` does not except
+Core\Http::allowUrl refuses 64:ff9b::7f00:1: it is loopback (127.0.0.0/8), which `net.internal` does not except
+Core\Http::allowUrl refuses 64:ff9b::a9fe:a9fe: it is link-local (169.254.0.0/16), which `net.internal` does not except
+approved http://[::203.0.113.10]/
+approved http://[64:ff9b::203.0.113.10]/

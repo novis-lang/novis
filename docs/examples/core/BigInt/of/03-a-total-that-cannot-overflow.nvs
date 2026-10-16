@@ -1,0 +1,24 @@
+<?nvs
+// Shows a running total a program can trust. Each amount fits an `int`, and
+// the total of them does not.
+
+class Totals {
+    // Returns the sum of $amounts, which may be larger than any `int`.
+    public static function sum(array<int> $amounts): Core\BigInt {
+        var $total = Core\BigInt::of(0);
+        foreach ($amounts as int $amount) {
+            $total = $total->add(Core\BigInt::of($amount));
+        }
+        return $total;
+    }
+}
+
+array<int> $amounts = [
+    9000000000000000000,
+    9000000000000000000,
+    500000000000000000,
+];
+
+// Adding these three as `int` would throw an error at the second one. As a
+// `Core\BigInt` the total is exact, and this prints 18500000000000000000.
+echo Totals::sum($amounts), "\n";

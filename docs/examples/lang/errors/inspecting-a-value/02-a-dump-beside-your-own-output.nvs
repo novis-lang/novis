@@ -1,0 +1,19 @@
+<?nvs
+// Shows `Core\Debug::dump`. It writes to standard error, so it appears in your
+// terminal while the program's own output stays unchanged. The lines below are
+// the output; the two renderings arrive on standard error.
+
+final class Basket {
+    public function constructor(public int $items, public int $cents) {
+    }
+}
+
+var $basket = new Basket(3, 4599);
+
+Core\Debug::dump($basket);
+
+// One call takes several values and renders each of them.
+Core\Debug::dump($basket->items, $basket->cents, "still here");
+
+echo "total: ", $basket->cents, " cents\n";
+echo "items: ", $basket->items, "\n";

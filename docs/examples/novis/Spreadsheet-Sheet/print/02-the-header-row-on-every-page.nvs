@@ -1,0 +1,20 @@
+<?nvs
+// Shows how to print the header row at the top of every page of a long list.
+use Novis\Spreadsheet\Workbook;
+
+var $book = Workbook::createInMemory();
+var $sheet = $book->sheet('Orders');
+int $order = 1000;
+while ($order < 1200) {
+    $sheet->add(['order' => $order, 'total' => 9.5]);
+    $order = $order + 1;
+}
+
+// Row 1 is printed on every page. Only the cells A1 to B201 are printed.
+$sheet->print({ repeatRows: '1:1', area: 'A1:B201', header: 'Orders' });
+bytes $file = $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
+
+// `Core\Zip::read` returns the XML of the workbook. These lines check the two settings.
+var $xml = Core\Zip::read($file, 'xl/workbook.xml') as string;
+echo Core\Str::contains($xml, "'Orders'!\$1:\$1") ? 'row 1 repeats' : 'no row repeats', "\n";
+echo Core\Str::contains($xml, "'Orders'!\$A\$1:\$B\$201") ? 'A1:B201 is printed' : 'the whole sheet is printed', "\n";

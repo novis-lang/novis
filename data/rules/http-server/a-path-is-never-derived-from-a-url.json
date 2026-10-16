@@ -1,0 +1,13 @@
+{
+  "title": "A filesystem path is never derived from a URL at request time",
+  "status": "shipped",
+  "seeAlso": [
+    "http-server/a-mount-table-expands-at-boot",
+    "security/a-path-is-not-a-url",
+    "errors/path-component-refusals"
+  ],
+  "guardedBy": [
+    "crates/nvs-server/src/mount.rs",
+    "crates/nvs-config/src/mount.rs"
+  ]
+}

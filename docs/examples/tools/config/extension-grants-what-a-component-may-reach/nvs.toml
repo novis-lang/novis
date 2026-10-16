@@ -1,0 +1,23 @@
+# The extension `Geo\Atlas` is the file `atlas.nvsx`, and `sha256` is the hash of that file.
+# `grants` lists what the extension may reach. It may read and write the folder `data/geo/`,
+# and connect to two hosts.
+[[extension]]
+path = "atlas.nvsx"
+sha256 = "e05d5aefc48218c936ce53aa42030872f4e16f4687284a00df8bc6be9a2af72a"
+grants = { read = ["data/geo/"], write = ["data/geo/"], connect = ["tiles.example.com", "maps.example.com"] }
+
+# The programs in this folder may read the folder `data/`, write the folder `data/geo/`,
+# and connect to `maps.example.com`.
+[capabilities.fs]
+read = ["data/"]
+write = ["data/geo/"]
+
+[capabilities.net]
+connect = ["maps.example.com"]
+
+# The third program may read only the folder `data/geo/roads/`.
+[[app]]
+entry = "03-a-program-with-a-narrower-grant.nvs"
+
+[app.capabilities.fs]
+read = ["data/geo/roads/"]

@@ -1,0 +1,13 @@
+<?nvs
+// Shows how to write a shop's opening hours in the reader's language.
+use Novis\Intl\DateFormat;
+
+array<Core\Time\TimeOfDay> $hours = [Core\Time\TimeOfDay::at(9, 0), Core\Time\TimeOfDay::at(18, 30)];
+
+// One call writes both times. This prints 9:00 AM – 6:30 PM.
+array<string> $english = DateFormat::times($hours, "en-US");
+echo $english[0], " – ", $english[1], "\n";
+
+// This prints 09:00 – 18:30.
+array<string> $french = DateFormat::times($hours, "fr");
+echo $french[0], " – ", $french[1], "\n";

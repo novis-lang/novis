@@ -1,0 +1,24 @@
+<?nvs
+// Shows how to describe the tables a program needs. `fromArray` reads the
+// description and returns the schema as a value.
+
+use Core\Db\Schema;
+
+var $schema = Schema::fromArray([
+    'tables' => [
+        [
+            'name' => 'notes',
+            'columns' => [
+                // `identity` means the database gives each row its own number.
+                ['name' => 'id', 'type' => 'int64', 'identity' => true],
+                // `null` means the column is allowed to have no value.
+                ['name' => 'title', 'type' => 'text(200)', 'null' => true],
+            ],
+            'primary_key' => ['id'],
+        ],
+    ],
+]);
+
+// The schema is held in one normalized form. `Core\Db\Schema::toArray` gives it
+// back with `null`, `identity`, `unique` and `indexes` filled in.
+echo Core\Json::encode($schema->toArray()), "\n";

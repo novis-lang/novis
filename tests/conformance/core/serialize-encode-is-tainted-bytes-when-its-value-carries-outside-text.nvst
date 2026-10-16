@@ -1,0 +1,40 @@
+--TEST--
+`Core\Serialize::encode` answers `tainted bytes` over a value that may carry outside text and plain `bytes` over one that provably does not, and `Core\Taint::assertTrustedBytes` is the one written way back to `decode` — `rule:security/taint-propagation`, `rule:security/assert-trusted`, `rule:classes/serialize-is-a-closed-format`
+--FILE--
+<?nvs
+class Note {
+    public mixed $body;
+    public function constructor(mixed $body) {
+        $this->body = $body;
+    }
+}
+
+class Count {
+    public int $n = 0;
+    public function constructor(int $n) {
+        $this->n = $n;
+    }
+}
+
+// A field declared `mixed` may hold outside text, so the bytes are tainted,
+// and they go back to `decode` only through the written oath.
+tainted bytes $noteBytes = Core\Serialize::encode(new Note("hello"));
+bytes $trusted = Core\Taint::assertTrustedBytes($noteBytes, "this program encoded the note");
+Note $note = Core\Serialize::decode($trusted) as Note;
+echo $note->body, "\n";
+
+// The oath is the identity: the bytes are the same octets.
+echo Core\Bytes::length($trusted) == Core\Bytes::length($noteBytes) ? "same\n" : "changed\n";
+
+// Every field clean, and a literal of the program's own values: plain `bytes`,
+// which decode with nothing written in front of them.
+bytes $countBytes = Core\Serialize::encode(new Count(7));
+Count $count = Core\Serialize::decode($countBytes) as Count;
+echo $count->n, "\n";
+bytes $listBytes = Core\Serialize::encode([1, 2, 3]);
+echo Core\Arr::count(Core\Serialize::decode($listBytes) as array<int>), "\n";
+--EXPECT--
+hello
+same
+7
+3

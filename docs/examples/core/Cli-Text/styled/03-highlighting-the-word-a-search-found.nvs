@@ -1,0 +1,24 @@
+<?nvs
+// Shows the everyday use: a search tool colours the word it found inside each
+// line it prints. This example does not run in a terminal, so the styling is
+// dropped and only the text prints.
+
+var $hit = Core\Cli\Style::of({color: Core\Cli\Color::YELLOW, bold: true});
+string $word = "error";
+array<string> $lines = [
+    "09:15 error connecting to the database",
+    "09:15 retrying in five seconds",
+    "09:16 connected",
+];
+
+foreach ($lines as string $line) {
+    if (Core\Str::contains($line, $word)) {
+        // The line is cut in three pieces: what comes before the word, the
+        // word itself with the style on it, and what comes after.
+        echo Core\Cli\Text::plain(Core\Str::before($line, $word) ?? "")
+            + Core\Cli\Text::styled($word, $hit)
+            + Core\Cli\Text::plain(Core\Str::after($line, $word) ?? ""), "\n";
+    } else {
+        echo Core\Cli\Text::plain($line), "\n";
+    }
+}

@@ -1,0 +1,8 @@
+--METHOD--
+GET
+--PATH--
+/search
+--QUERY--
+deep[a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a][a]=x&same=1&same=2&same=3&=nameless&[=open&]=close&%00=zero&list[]=a&list[]=b&list[]=c&list[]=d&list[]=e&list[]=f&list[]=g&list[]=h&list[x]=i&list[]=j
+--HEADERS--
+host: shop.example.com

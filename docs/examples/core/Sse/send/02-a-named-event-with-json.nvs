@@ -1,0 +1,10 @@
+<?nvs
+// Shows how to send an array as JSON, with an event name the browser listens for.
+
+Core\Sse $sse = Core\Sse::stream();
+// An array is not a string, so `send()` converts it to JSON.
+// The `event:` line gives the name. In the browser, `addEventListener("chat", ...)` receives it.
+$sse->send(["user" => "anna", "text" => "Hello!"], event: "chat");
+
+// Without a name, the browser's `onmessage` handler receives the event.
+$sse->send(42);

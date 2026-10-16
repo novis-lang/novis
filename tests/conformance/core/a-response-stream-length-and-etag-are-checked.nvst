@@ -1,0 +1,36 @@
+--TEST--
+`Core\Response::stream` throws for a negative length and for an etag a header cannot carry, and `offset()` and `length()` throw on a stream without a length -- `rule:http-server/static-serving-is-one-policy`
+--FILE--
+<?nvs
+try {
+    Core\Response::stream("text/plain", -1);
+} catch (LogicError $negative) {
+    echo $negative->message, "\n";
+}
+try {
+    Core\Response::stream("text/plain", 1, "v\"1");
+} catch (LogicError $quoted) {
+    echo $quoted->message, "\n";
+}
+
+var $chunked = Core\Response::stream("text/plain");
+try {
+    $chunked->offset();
+} catch (LogicError $noOffset) {
+    echo $noOffset->message, "\n";
+}
+try {
+    $chunked->length();
+} catch (LogicError $noLength) {
+    echo $noLength->message, "\n";
+}
+
+// A length of 0 is a body with no bytes, and a valid one.
+var $empty = Core\Response::stream("text/plain", 0, "v1");
+echo $empty->offset(), " ", $empty->length(), "\n";
+--EXPECT--
+Core\Response::stream(): the length -1 is negative. It must be 0 or more.
+Core\Response::stream(): the etag `v"1` cannot be sent in an `ETag` header. It must be printable ASCII and must not contain `"`.
+Core\Response\Stream::offset(): the stream was started without a `$length`.
+Core\Response\Stream::length(): the stream was started without a `$length`.
+0 0

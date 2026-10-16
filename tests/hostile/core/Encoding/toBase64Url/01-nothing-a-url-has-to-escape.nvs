@@ -1,0 +1,77 @@
+<?nvs
+// Attack: this form promises text that a web address carries untouched. So a
+// `+`, a `/` or an `=` anywhere in its output is the whole failure. Every byte
+// value and every buffer length is swept for one. Nothing should come back
+// short or crash.
+// hostile: timeout-ms 30000
+
+// 1. All 256 byte values in one buffer, then every length from 0 to 64. No
+// answer may hold a character a URL reads as something else.
+bytes $every = Core\Encoding::fromHex('');
+uint $value = 0;
+while ($value < 256) {
+    array<bytes> $pair = [$every, Core\Bytes::fill(1, $value)];
+    $every = Core\Bytes::join($pair);
+    $value = $value + 1;
+}
+array<string> $unsafe = ['+', '/', '='];
+uint $found = 0;
+foreach ($unsafe as string $symbol) {
+    if (Core\Str::contains(Core\Encoding::toBase64Url($every), $symbol)) {
+        $found = $found + 1;
+    }
+    uint $length = 0;
+    while ($length <= 64) {
+        if (Core\Str::contains(Core\Encoding::toBase64Url(Core\Bytes::fill($length, 255)), $symbol)) {
+            $found = $found + 1;
+        }
+        $length = $length + 1;
+    }
+}
+echo 'step 1: ', $found, " unsafe characters in 198 answers\n";
+
+// 2. The same text read back. Every byte has to survive the round trip, so
+// the buffer that comes back is the buffer that went out. This prints 0.
+string $spelled = Core\Encoding::toBase64Url($every);
+echo 'step 2: ', Core\Bytes::compare($every, Core\Encoding::fromBase64Url($spelled)), "\n";
+
+// 3. Without padding, one length is impossible: a group of four characters
+// carries three bytes, and no number of bytes leaves a single character over.
+uint $impossible = 0;
+uint $size = 0;
+while ($size <= 64) {
+    if (Core\Str::length(Core\Encoding::toBase64Url(Core\Bytes::fill($size, 7))) % 4 == 1) {
+        $impossible = $impossible + 1;
+    }
+    $size = $size + 1;
+}
+echo 'step 3: ', $impossible, " of 65 lengths were one character over a group\n";
+
+// 4. A zero byte in the middle. Other languages end a text at a zero byte, so
+// a short answer here means the zero was read as an ending.
+array<bytes> $parts = [Core\Bytes::fill(2, 65), Core\Bytes::fill(1, 0), Core\Bytes::fill(2, 66)];
+bytes $withZero = Core\Bytes::join($parts);
+echo 'step 4: ', Core\Encoding::toBase64Url($withZero), "\n";
+
+// 5. Nine million bytes written in one call. The text is twelve million
+// characters, and it needs its own memory beside the buffer.
+bytes $large = Core\Bytes::repeat(Core\Encoding::fromHex('deadbeef'), 2250000);
+echo 'step 5: ', Core\Str::length(Core\Encoding::toBase64Url($large)), "\n";
+
+// 6. One hundred thousand calls in a row, each round choosing its buffer from
+// the length of the round before. Nothing may be kept between the rounds.
+array<bytes> $buffers = [
+    Core\Encoding::fromHex('ff'),
+    Core\Encoding::fromHex('0011223344'),
+    Core\Encoding::fromHex('deadbeefdeadbeef'),
+    $withZero,
+];
+uint $total = 0;
+uint $round = 0;
+while ($round < 100000) {
+    $total = $total + Core\Str::length(Core\Encoding::toBase64Url($buffers[($total + $round) % 4]));
+    $round = $round + 1;
+}
+echo 'step 6: ', $round, ' buffers written, ', $total, " characters in all\n";
+
+echo "the runtime is still standing\n";

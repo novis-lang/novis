@@ -1,0 +1,16 @@
+<?nvs
+// Shows a connection that joins a chat room and receives a message posted there.
+
+// The `.nvsp` file beside this example plays a client that sends nothing and then closes.
+Core\Socket $conn = Core\Socket::current();
+Core\Topic::subscribe("room:lobby");
+
+// Somebody posts to the room. In a real application, this is another connection.
+Core\Topic::publish("room:lobby", "welcome to the lobby");
+
+// This prints `room:lobby: welcome to the lobby`.
+?Core\Socket\Message $message = $conn->receive();
+while ($message != null) {
+    echo $message->topic(), ": ", $message->value() as string, "\n";
+    $message = $conn->receive();
+}

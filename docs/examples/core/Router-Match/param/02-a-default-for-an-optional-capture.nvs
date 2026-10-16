@@ -1,0 +1,19 @@
+<?nvs
+// Shows how to give an optional capture a default value.
+
+class Search {
+    #[Core\Route(path: "/search/{page?}", method: Core\Http\Method::Get, name: "Search::results")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function results(uint $page = 1): string { return "the results"; }
+}
+
+array<string> $paths = ["/search", "/search/4"];
+foreach ($paths as string $path) {
+    ?Core\Router\Match $found = Core\Router::match(Core\Http\Method::Get, $path);
+    if ($found != null) {
+        // `{page?}` is optional. When the path has no page, `param("page")` is `null`,
+        // and `??` gives 1. This prints page 1 for `/search` and page 4 for `/search/4`.
+        uint $page = ($found->param("page") ?? 1) as uint;
+        echo $path, " -> page ", $page, "\n";
+    }
+}

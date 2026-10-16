@@ -1,0 +1,26 @@
+<?nvs
+// Shows how far a number may be shifted. One call may produce a number of at
+// most 1048576 bits.
+
+// 1 shifted by 1048575 places is exactly 1048576 bits wide, which is allowed.
+// That number has 315653 digits in base 10.
+var $widest = Core\BigInt::of(1)->shl(1048575);
+echo Core\Str::length($widest->toString()), "\n";
+
+// One place more is too wide. `shl` throws an `ArithmeticError`, and the large
+// number is never built. This prints "too wide".
+try {
+    echo Core\BigInt::of(1)->shl(1048576), "\n";
+} catch (ArithmeticError $tooWide) {
+    echo "too wide\n";
+}
+
+// The number you start with counts toward the width. This one is 100 bits
+// wide, so 1048476 places are allowed and 1048477 are not.
+var $wide = Core\BigInt::of(1)->shl(99);
+echo $wide->shl(1048476)->sign(), "\n";
+try {
+    echo $wide->shl(1048477), "\n";
+} catch (ArithmeticError $alsoTooWide) {
+    echo "too wide\n";
+}

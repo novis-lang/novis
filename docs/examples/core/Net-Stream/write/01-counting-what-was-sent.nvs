@@ -1,0 +1,19 @@
+<?nvs
+// Shows that `write` sends bytes to the other side and returns how many it sent.
+
+Core\Net\Listener $server = Core\Net::listen("127.0.0.1", 0);
+Core\Net\Stream $client = Core\Net::connect("127.0.0.1", $server->port(), 5s);
+Core\Net\Stream $connection = $server->accept(5s);
+
+// The client sends 5 bytes. This prints `sent: 5`.
+echo "sent: ", $client->write("hello" as bytes, 5s), "\n";
+
+// The server reads them. This prints `got: hello`.
+echo "got: ", $connection->read(64, 5s) as string, "\n";
+
+// An empty `bytes` value sends nothing. This prints `sent: 0`.
+echo "sent: ", $client->write("" as bytes, 5s), "\n";
+
+$connection->close();
+$client->close();
+$server->close();

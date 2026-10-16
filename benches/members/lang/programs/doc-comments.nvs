@@ -1,0 +1,31 @@
+<?nvs
+// Measures a class with a doc comment on the class, its constant and its method,
+// as in a shared library. Doc comments are read only when the program is compiled.
+// This loop should run as fast as the same loop without them.
+// bench: iterations 4000000
+// bench: allocations 0
+// bench: complexity constant
+
+/// Adds a run of numbers into one running total.
+/// @see Meter::run
+final class Meter {
+    /// Each round adds a remainder of a division by this number.
+    /// @see Meter::run
+    public const int WRAP = 7;
+
+    /// Runs `$rounds` rounds and returns the running total.
+    /// @see Meter::WRAP
+    public static function run(int $rounds): int {
+        // Inside a function body, use an ordinary `//` comment.
+        // A doc comment documents a declaration, such as a class or a method.
+        int $total = 0;
+        int $i = 0;
+        while ($i < $rounds) {
+            $total = $total + (($i + $total) % Meter::WRAP);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Meter::run(4000000), "\n";

@@ -1,0 +1,22 @@
+<?nvs
+enum Rank {
+    Bronze,
+    Gold,
+}
+
+class Player {
+    public string $playerName;
+    public Rank $rank;
+
+    public function constructor(string $playerName, Rank $rank) {
+        $this->playerName = $playerName;
+        $this->rank = $rank;
+    }
+
+    public function label(): string {
+        return $this->playerName . ($this->rank as int);
+    }
+}
+
+var $ana = new Player("ana", Rank::Gold);
+echo $ana->label(), "\n";

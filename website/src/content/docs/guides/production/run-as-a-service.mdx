@@ -1,0 +1,118 @@
+---
+title: Run as a service
+covers: []
+description: Install nvs serve as a service on Linux or Windows, so it starts at boot and restarts after a failure.
+---
+
+`nvs service` installs a server as a service of the operating system. The service starts at every
+boot, and it starts again after a failure. On Linux the service manager is systemd. On Windows it
+is the Service Control Manager.
+
+## Install the service
+
+Give the service a name. Everything after `--` is the command that the service runs:
+
+```sh
+nvs service install shop -- serve /srv/shop/public/index.nvs
+```
+
+Run this as root on Linux. On Windows, run it in a terminal that you started as administrator.
+
+The installer checks the command before it changes anything:
+
+- Every path must be a full path, also the folder after `--data`. A service does not start in the
+  folder of your terminal.
+- The command must be `serve` or `run`.
+- The command must not contain a password. Other users of the machine can read a command line.
+
+## The configuration file
+
+`--config` is optional. Without it, the service reads `nvs.toml` in its data folder. The data
+folder is `.nvsdata` next to the `nvs` program, or the folder that `--data` names after `--`. The
+installer creates the folder and the file when they do not exist. In the new file, every setting
+is present and commented out. A file that already exists is not changed.
+
+If the installer cannot create or use the data folder, it stops with the error `E0653` and installs
+nothing. This happens only when the service reads its `nvs.toml` from the data folder.
+
+To use another configuration file, name it with a full path:
+
+```sh
+nvs service install shop -- serve /srv/shop/public/index.nvs --config /srv/shop/nvs.toml
+```
+
+## What the service account can change
+
+With `--account`, the service runs as that account. The account can read the data folder and
+every configuration file. It can write only to these folders in the data folder:
+
+- `cache`, the compiled programs
+- `tmp`, the folders that `Core\IO::temporaryDir` creates
+- `lsp`, files for the editor
+- `logs`, the log files
+
+It can also write to a log, cache or temporary folder that your configuration names. The service
+cannot change its own configuration.
+
+On Linux, the account must exist before you install the service. You can create one with
+`useradd --system --no-create-home shop`. The installer gives the data folder and its `nvs.toml` to
+`root`, and the group of the account can read them. The folders that the service writes to belong to
+the account, and only the account can open them. If your `--config` file is in another folder, the
+installer does not change it. It prints a warning when the account cannot read that file.
+`nvs service uninstall` makes all of these folders private to `root` again.
+
+## The log
+
+A service has no terminal. When `nvs.toml` does not set `[log] target`, the service writes its log
+to `logs/nvs.log` in the data folder.
+
+When the file reaches 10 MB, Novis renames it to `nvs.log.1` and starts a new file. It keeps 5
+old files and deletes older ones. So the log never uses more than 60 MB. Two settings change this:
+
+```toml
+[log]
+max_size = "50M"   # the size at which the file is renamed
+keep = 10          # how many old files are kept
+```
+
+`[log] target` writes the log to another file instead. The same two settings apply to it.
+
+Some errors happen before the server has read its configuration, for example a compile error.
+These go to the standard error stream. On Linux, systemd keeps it in the journal. On Windows, it
+goes to the Event Log. The log also goes there when the data folder cannot be used.
+
+## See what it installs
+
+`nvs service unit` prints what `install` would write, and changes nothing. On Linux it prints a
+systemd unit. On Windows it prints a `New-Service` command. You can read it, or install it with
+your own tools.
+
+## Start, stop and check
+
+```sh
+nvs service start shop
+nvs service status shop
+nvs service stop shop
+```
+
+A stop finishes the requests that are running, and then the server exits. `status` prints the state
+of the service and the number of requests that are running. `nvs service run shop` runs the same
+command in your terminal, so you can read the error when the service does not start.
+
+## Useful options
+
+| Option | What it sets |
+|---|---|
+| `--account <account>` | the account that runs the service |
+| `--start automatic`, `delayed` or `manual` | when the service starts after a boot |
+| `--depends-on <service>` | a service that must start first, such as a database |
+| `--dry-run` | prints every step and changes nothing |
+
+## Do and don't
+
+- Do run the service as an account of its own, with `--account`.
+- Do read `logs/nvs.log` in the data folder when something goes wrong.
+- Do try `nvs service run` when the service does not start.
+- Don't put a password on the command line. Use `password_file` in `nvs.toml`.
+
+Read every option in [Reference: nvs service](/reference/cli/nvs-service/).

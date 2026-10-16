@@ -1,0 +1,21 @@
+<?nvs
+// `if` runs the first block whose condition is true.
+int $n = 2;
+if ($n == 1) {
+    echo "one\n";
+} elseif ($n == 2) {
+    echo "two\n";
+} else {
+    echo "other\n";
+}
+
+// A body with one statement does not need braces.
+if ($n > 1) echo "big\n"; else echo "small\n";
+
+// The condition does not have to be a `bool`. An empty string counts as false.
+string $s = "";
+if ($s) {
+    echo "full\n";
+} else {
+    echo "empty\n";
+}

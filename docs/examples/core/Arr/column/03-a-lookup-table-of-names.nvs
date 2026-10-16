@@ -1,0 +1,20 @@
+<?nvs
+// Shows how to build a lookup table from rows. A page does this when it has the
+// rows of one query and has to find a row by its id.
+
+array<array<string>> $rows = [
+    ['id' => '7', 'name' => 'Ada'],
+    ['id' => '9', 'name' => 'Bo'],
+    ['id' => '12', 'name' => 'Cy'],
+];
+
+// `indexBy` names the key whose value becomes the key of the result. Here that
+// is ['7' => 'Ada', '9' => 'Bo', '12' => 'Cy'].
+array<string> $nameById = Core\Arr::column($rows, 'name', {indexBy: 'id'});
+
+array<string> $shown = ['12', '7', '9'];
+
+// This prints Cy, Ada and Bo, one name per line.
+foreach ($shown as string $id) {
+    echo $nameById[$id], "\n";
+}

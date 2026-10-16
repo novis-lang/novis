@@ -1,0 +1,11 @@
+--TEST--
+a variable read is the smallest node a cursor can be in here, and one keypress past it is the statement that reads it, `rule:ide/the-index-answers-the-cursor`
+--FILE--
+<?nvs
+int $total = 1;
+echo $to<|>tal;
+--REQUEST--
+selectionRange
+--EXPECT--
+3:6-3:12
+3:1-3:13

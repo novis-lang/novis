@@ -1,0 +1,6 @@
+<?nvs
+// Shows how to write a DN that you built as text.
+
+var $user = Core\Ldap\Dn::parse('OU=Staff,DC=example,DC=test')->child('CN', 'Ann');
+// This prints new user: CN=Ann,OU=Staff,DC=example,DC=test.
+echo 'new user: ', $user->toString(), "\n";

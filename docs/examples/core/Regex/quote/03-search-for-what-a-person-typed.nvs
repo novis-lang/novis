@@ -1,0 +1,14 @@
+<?nvs
+// Shows how to search a list of product names for the text that a person typed.
+
+array<string> $products = ["C++ (2nd Ed.)", "C Primer", "Learning C++ in a week"];
+string $typed = "c++";
+
+// `quote` makes the typed text match exactly, and `caseInsensitive` ignores upper
+// and lower case. This prints the two names that contain "C++".
+Core\Regex\Pattern $search = Core\Regex::compile(Core\Regex::quote($typed), {caseInsensitive: true});
+foreach ($products as string $name) {
+    if (Core\Regex::matches($name, $search)) {
+        echo $name, "\n";
+    }
+}

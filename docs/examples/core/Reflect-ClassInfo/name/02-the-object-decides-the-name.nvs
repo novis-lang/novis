@@ -1,0 +1,34 @@
+<?nvs
+// Shows that the name is the class of the object, not the type of the variable.
+
+class Shape {
+    public function sides(): int {
+        return 0;
+    }
+}
+
+class Triangle extends Shape {
+    public function sides(): int {
+        return 3;
+    }
+}
+
+class Square extends Shape {
+    public function sides(): int {
+        return 4;
+    }
+}
+
+array<Shape> $shapes = [new Triangle(), new Square()];
+foreach ($shapes as Shape $shape) {
+    // The variable has the type `Shape`. This prints `Triangle`, then `Square`.
+    var $info = Core\Reflect::forObject($shape);
+    echo $info->name(), " has ", $shape->sides(), " sides\n";
+}
+
+// `forClass` describes a class by its name. This prints `Shape`.
+var $found = Core\Reflect::forClass("Shape");
+if ($found != null) {
+    Core\Reflect\ClassInfo $parent = $found;
+    echo $parent->name(), "\n";
+}

@@ -1,0 +1,12 @@
+{
+  "title": "Every range is `(offset, ?length)`, and a negative counts from the end",
+  "status": "shipped",
+  "seeAlso": [
+    "core-api/shape-rules",
+    "types/preserve-keys"
+  ],
+  "guardedBy": [
+    "crates/nvs-stdlib/src/arr.rs",
+    "crates/nvs-stdlib/src/str.rs"
+  ]
+}

@@ -1,0 +1,19 @@
+<?nvs
+// Shows how a shop finds the size of a cube-shaped box that holds a given volume.
+
+class Box {
+    // Returns the length of each side, in centimetres, with one decimal place.
+    // One litre is 1000 cubic centimetres.
+    public static function side(float $litres): float {
+        return Core\Math::round(Core\Math::cbrt($litres * 1000.0), {precision: 1});
+    }
+}
+
+// A box for 64 litres. This prints 40.
+echo Box::side(64.0), "\n";
+
+// A box for 50 litres. This prints 36.8.
+echo Box::side(50.0), "\n";
+
+// A box for twice as much is only about a quarter bigger on each side. This prints 46.4.
+echo Box::side(100.0), "\n";

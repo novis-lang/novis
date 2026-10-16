@@ -1,0 +1,67 @@
+<?nvs
+// `stream` is the one method that does not buffer,
+// over the PostgreSQL `tests/db/compose.yaml` brings up. `Core\Db\Connection::stream`
+// is `docs/spec/01-core-library.md` § 18's `Iterable<Db\Row>` row: the rows stay
+// on the connection as a portal the server is still holding open, so walking ten
+// thousand of them costs one row's memory rather than ten thousand.
+//
+// The connection it opens is named in root-owned config (§ 2), so `nvs.toml` owes
+// this file both an `[[app]]` block granting `db.connect = ["main"]` and the
+// `[db.main]` block behind the name; § 13's pool is what hands the connection back
+// afterwards.
+
+use Core\Db;
+use Core\Db\Row;
+
+var $db = Db::connect('main');
+
+// Ten thousand rows the server generates, walked to the end. `stream` never
+// answers a `Rows`, so there is no `count()` to read and the tally below is the
+// walk's own evidence that it reached the last row.
+var $stream = $db->stream('select generate_series(1, 10000) as n', []);
+
+var $seen = 0;
+var $peak = 0;
+var $busy = 'allowed';
+
+foreach ($stream as Row $row) {
+    // What line 2 counts is what *this program* holds, and it says so rather
+    // than overstating it: no `Core` member answers "how many rows is the
+    // connection holding", so the fixture measures the half it can reach.
+    // `$held` is declared inside the body, so it is the rows alive on this turn
+    // of the loop and nothing more — a fixture that accumulated the walk would
+    // declare it above the `foreach` and append, and would print 10000 here
+    // while printing the same row count above.
+    array<Row> $held = [$row];
+    var $alive = Core\Arr::count($held) as int;
+    if ($alive > $peak) {
+        $peak = $alive;
+    }
+
+    var $n = $row->int('n');
+    if ($n != null) {
+        $seen = $seen + 1;
+    }
+
+    // The connection's half of the promise, and the reason line 3 rather than
+    // line 2 is the evidence that nothing was buffered: a driver that had read
+    // the result set into memory would have finished its statement, and this
+    // `query` would have been answered instead of refused. It is asked on the
+    // first row, with 9,999 still on the server, so the refusal is the portal
+    // being open rather than a race at either end of the walk.
+    //
+    // § 4 makes the busy connection the program's mistake and not the network's,
+    // so this is a `LogicError` and never an `IOError` — and the walk survives
+    // it, which is the next 9,999 rows below.
+    if ($seen == 1) {
+        try {
+            $db->query('select 1 as one', []);
+        } catch (LogicError $refused) {
+            $busy = 'LogicError';
+        }
+    }
+}
+
+echo 'streamed ', $seen, ' rows', "\n";
+echo 'rows held at once: ', $peak, "\n";
+echo 'a second statement on a streaming connection: ', $busy, "\n";

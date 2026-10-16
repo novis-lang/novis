@@ -1,0 +1,28 @@
+<?nvs
+// Shows a client that supports two versions of a message format
+// and writes each message in the version the server chose.
+
+class Chat {
+    // Returns one chat message in the format that `$protocol` names.
+    public static function message(?string $protocol, string $text): string {
+        if ($protocol == "chat.v2") {
+            return Core\Json::encode({type: "say", text: $text});
+        }
+        // Version 1, and servers that chose no name, use plain text.
+        return "SAY " . $text;
+    }
+}
+
+// Two fixed servers, so the example runs without a network.
+Core\Test::answerSocket("wss://new.example.com/chat", [], {protocol: "chat.v2"});
+Core\Test::answerSocket("wss://old.example.com/chat", [], {protocol: "chat.v1"});
+
+// This prints one line per server: the chosen name, then the message in that format.
+array<string> $servers = ["wss://new.example.com/chat", "wss://old.example.com/chat"];
+foreach ($servers as string $url) {
+    Core\Http\Socket $socket = Core\Http\Client::openSocket($url, {protocols: ["chat.v1", "chat.v2"]});
+    string $line = Chat::message($socket->protocol(), "hello");
+    $socket->send($line);
+    echo $socket->protocol() ?? "none", ": ", $line, "\n";
+    $socket->close();
+}

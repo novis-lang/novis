@@ -1,0 +1,19 @@
+<?nvs
+// Shows what `name()` returns for an event that has no `event` line.
+
+// Only the first event has a name. A name belongs to one event only.
+Core\Test::answerHttp("https://chat.example.com/room/7", 200, {
+    body: "event: joined\ndata: Anna\n\ndata: Hello everyone\n\n",
+    headers: ["content-type" => "text/event-stream"],
+});
+
+// For the second event, `name()` returns `null`.
+// This prints "joined: Anna" and then "no name: Hello everyone".
+Core\Http\Stream $room = Core\Http\Client::stream(Core\Http\Method::Get, "https://chat.example.com/room/7");
+foreach ($room->events() as Core\Http\Event $event) {
+    if ($event->name() == null) {
+        echo "no name: ", $event->data(), "\n";
+    } else {
+        echo $event->name(), ": ", $event->data(), "\n";
+    }
+}

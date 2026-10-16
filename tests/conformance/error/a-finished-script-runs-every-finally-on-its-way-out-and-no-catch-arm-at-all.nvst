@@ -1,0 +1,65 @@
+--TEST--
+The value `Core\Script::finish()` raises leaves through every `finally` between the call and the top of the program and through no `catch` arm at all, where an ordinary error out of the same frames is taken by one — `rule:errors/propagation`, `rule:errors/throwable-hierarchy`
+--FILE--
+<?nvs
+// covers: Core\Script\Finished
+// One question asked of both values that travel the throw path out of the same
+// three frames: which blocks run. Counting the arms that took something is what
+// makes the answer an assertion rather than a plausible-looking line — an
+// ending that had come to descend from `Throwable` would be caught by the arm
+// below and still print a cleanup line for every level.
+uint $taken = 0;
+
+class Depth {
+    public static function reach(uint $left, string $ending): void {
+        try {
+            if ($left == 0) {
+                if ($ending == "throw") {
+                    throw new RuntimeError("an ordinary error");
+                }
+                Core\Script::finish();
+                echo "the call to finish returned\n";
+                return;
+            }
+            Depth::reach($left - 1, $ending);
+        } finally {
+            echo "cleanup at level ", $left, "\n";
+        }
+    }
+}
+
+// An ordinary error out of three frames: every `finally` runs on the way out,
+// and the arm at the top takes it.
+try {
+    Depth::reach(3, "throw");
+} catch (Throwable $ordinary) {
+    $taken = $taken + 1;
+    echo "an arm took ", $ordinary->message, "\n";
+}
+
+// The ending out of the same three frames. Every `finally` runs again, so the
+// script leaves the way a throw does; the arm takes nothing, so what it leaves
+// with is not an error. The count is printed from a `finally`, which is the
+// only kind of block still running once the script has ended.
+try {
+    Depth::reach(3, "finish");
+    echo "back at the top\n";
+} catch (Throwable $anything) {
+    $taken = $taken + 1;
+    echo "an arm took the ending\n";
+} finally {
+    echo "arms that took something: ", $taken, "\n";
+}
+
+echo "the end of the script\n";
+--EXPECT--
+cleanup at level 0
+cleanup at level 1
+cleanup at level 2
+cleanup at level 3
+an arm took an ordinary error
+cleanup at level 0
+cleanup at level 1
+cleanup at level 2
+cleanup at level 3
+arms that took something: 1

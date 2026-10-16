@@ -1,0 +1,19 @@
+<?nvs
+// Shows how to check the ID in a request path before the program looks up the order.
+
+class Orders {
+    // Returns the answer for a path such as /orders/<id>.
+    public static function show(string $path): string {
+        ?Core\Uuid $id = Core\Uuid::tryParse(Core\Str::slice($path, 8));
+        if ($id == null) {
+            return "404 no such order";
+        }
+        return "200 order " . $id->toString();
+    }
+}
+
+// This prints 200 order f9168c5e-ceb2-4faa-b6bf-329bf39fa1e4.
+echo Orders::show("/orders/f9168c5e-ceb2-4faa-b6bf-329bf39fa1e4"), "\n";
+
+// The path has no UUID, so no lookup happens. This prints 404 no such order.
+echo Orders::show("/orders/1042"), "\n";

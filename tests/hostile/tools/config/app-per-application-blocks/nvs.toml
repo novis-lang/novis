@@ -1,0 +1,20 @@
+# The server allows every program up to 512M.
+[limits.hard]
+memory = "512M"
+
+# This block covers every program in this directory.
+[[app]]
+root = "."
+
+[app.limits]
+memory = "32M"
+
+# This block covers the attack only. It lowers the ceiling to 64M.
+[[app]]
+entry = "01-using-more-memory-than-the-block-allows.nvs"
+
+[app.limits]
+memory = "48M"
+
+[app.limits.hard]
+memory = "64M"

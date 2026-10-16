@@ -1,0 +1,12 @@
+--TEST--
+a property's own declaration is a value position with no local in scope and no word of its own, so it offers nothing where the class body around it offers the member words, `rule:ide/the-index-answers-the-cursor`
+--FILE--
+<?nvs
+class User
+{
+    public string $na<|>me = "";
+}
+--REQUEST--
+completion
+--EXPECT--
+none

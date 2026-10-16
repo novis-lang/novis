@@ -1,0 +1,64 @@
+<?nvs
+// Attack: a program registers answers with bad statuses, a body that is too deep
+// to encode, and many thousands of rows. Every bad answer should throw an error.
+// The program should not crash.
+
+use Core\Test;
+
+// Step 1: statuses just outside 100 to 999, and the largest `uint`.
+array<uint> $statuses = [0, 99, 1000, 18446744073709551615];
+foreach ($statuses as uint $status) {
+    try {
+        Test::answerHttp('https://api.example.com/', $status);
+        echo 'accepted ', $status, "\n";
+    } catch (LogicError $error) {
+        echo 'refused ', $status, "\n";
+    }
+}
+
+// Step 2: an answer that gives both `json` and `body`.
+try {
+    Test::answerHttp('https://api.example.com/', 200, { json: 1, body: '1' });
+} catch (LogicError $error) {
+    echo "refused json and body\n";
+}
+
+// Step 3: a TLS session on a plain `http` URL, written in capital letters.
+try {
+    Test::answerHttp('HTTP://api.example.com/', 200, { tls: Test::tlsSession() });
+} catch (LogicError $error) {
+    echo "refused tls on http\n";
+}
+
+// Step 4: a `json` value nested one hundred thousand levels deep.
+mixed $deep = 0;
+uint $level = 0;
+while ($level < 100000) {
+    $deep = [$deep];
+    $level = $level + 1;
+}
+try {
+    Test::answerHttp('https://api.example.com/deep', 200, { json: $deep });
+    echo "accepted deep\n";
+} catch (Throwable $tooDeep) {
+    echo "refused deep\n";
+}
+
+// Step 5: fifty thousand prefix answers, then one call that each of them matches.
+uint $row = 0;
+string $url = 'https://api.example.com/';
+while ($row < 50000) {
+    Test::answerHttp($url . '*', 200 + ($row % 700), { body: 'row' });
+    $row = $row + 1;
+}
+echo Core\Http\Client::get($url . 'last')->status(), "\n";
+
+// Step 6: one header with one hundred thousand lines.
+array<string> $lines = [];
+uint $line = 0;
+while ($line < 100000) {
+    $lines[] = 'value';
+    $line = $line + 1;
+}
+Test::answerHttp('https://api.example.com/lines', 200, { headers: ['x-many' => $lines] });
+echo Core\Arr::count(Core\Http\Client::get('https://api.example.com/lines')->headers('x-many')), "\n";

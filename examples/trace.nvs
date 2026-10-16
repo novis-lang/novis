@@ -1,0 +1,23 @@
+<?nvs
+class Deep
+{
+    public static function inner(): void
+    {
+        throw new LogicError('traced');
+    }
+
+    public static function outer(): void
+    {
+        Deep::inner();
+    }
+}
+
+try {
+    Deep::outer();
+} catch (Throwable $e) {
+    int $depth = 0;
+    foreach ($e->backtrace as string $frame) {
+        echo '#' . $depth . ' ' . $frame . "\n";
+        $depth = $depth + 1;
+    }
+}

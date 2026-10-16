@@ -1,0 +1,11 @@
+<?nvs
+// The bench in the folder above starts this script. It adds three to its own
+// class static and returns the number it now holds.
+
+final class Counter {
+    public static int $seen = 0;
+}
+
+Counter::$seen = Counter::$seen + 3;
+echo "counted ", Counter::$seen, "\n";
+return Counter::$seen;

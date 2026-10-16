@@ -1,0 +1,20 @@
+<?nvs
+// Shows why a program moves a number to `Core\BigInt`. An `int` stops at its
+// largest value, and a `Core\BigInt` keeps going.
+
+int $largest = 9223372036854775807;
+
+// Doubling the largest `int` throws an error, because the result does not fit
+// an `int`. This prints "too large for an int".
+try {
+    echo $largest * 2, "\n";
+} catch (ArithmeticError $overflow) {
+    echo "too large for an int\n";
+}
+
+// The same number as a `Core\BigInt` doubles with no limit. This prints
+// 18446744073709551614.
+echo Core\BigInt::of($largest)->mul(Core\BigInt::of(2)), "\n";
+
+// It keeps going. This prints a number of 38 digits.
+echo Core\BigInt::of($largest)->mul(Core\BigInt::of($largest)), "\n";

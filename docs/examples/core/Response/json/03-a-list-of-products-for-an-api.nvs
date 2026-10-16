@@ -1,0 +1,25 @@
+<?nvs
+// Shows how an API sends a list of products as JSON.
+
+// `#[Core\Json\Derive]` lets JSON write an object of this class.
+// Each property becomes one key, in the order the properties are declared.
+#[Core\Json\Derive]
+class Product {
+    public int $id;
+    public string $name;
+    public float $price;
+
+    public function constructor(int $id, string $name, float $price) {
+        $this->id = $id;
+        $this->name = $name;
+        $this->price = $price;
+    }
+}
+
+array<Product> $products = [
+    new Product(1, "Green tea", 4.5),
+    new Product(2, "Coffee \"Dark\"", 7.25),
+];
+
+// The list becomes a JSON array. The quotes in the second name are escaped.
+Core\Response::json({ count: 2, products: $products });

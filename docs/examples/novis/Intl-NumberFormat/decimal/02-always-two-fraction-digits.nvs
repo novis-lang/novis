@@ -1,0 +1,8 @@
+<?nvs
+// Shows how to write every number with exactly two fraction digits and no group separators.
+use Novis\Intl\NumberFormat;
+
+array<int|float|decimal> $weights = [1250, 3.5, 0.125];
+
+// The minimum and the maximum are both 2. This prints 1250.00, 3.50, 0.13.
+echo Core\Str::join(NumberFormat::decimal($weights, "en", {minFractionDigits: 2, maxFractionDigits: 2, grouping: false}), ", "), "\n";

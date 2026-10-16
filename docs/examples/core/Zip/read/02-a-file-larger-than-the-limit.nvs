@@ -1,0 +1,34 @@
+<?nvs
+// Shows what happens when a file in an archive is larger than you allow.
+
+// This archive contains one file, `log.txt`. It takes 148 bytes in the
+// archive and 60000 bytes after decompression.
+bytes $archive = Core\Encoding::fromBase64("UEsDBBQAAAAIAAAAIVwRHoollAAAAGDqAAAHAAAAbG9nLnR4dO3HNwEAIBAEsB0ViOME8BT9yGBJtlTmydp9pW5GK1VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVXV331QSwECFAAUAAAACAAAACFcER6KJZQAAABg6gAABwAAAAAAAAAAAAAApIEAAAAAbG9nLnR4dFBLBQYAAAAAAQABADUAAAC5AAAAAAA=");
+
+// The third argument is the most bytes the file may have after decompression.
+// 60000 bytes are more than 1000, so this throws a `ParseError`.
+try {
+    Core\Zip::read($archive, "log.txt", 1000);
+    echo "read\n";
+} catch (ParseError $error) {
+    echo "too large\n";
+}
+
+// The fourth argument is the most bytes of output for each byte in the archive.
+// 148 bytes at 100 each allow 14800 bytes, so this throws too.
+try {
+    Core\Zip::read($archive, "log.txt", 1000000, 100);
+    echo "read\n";
+} catch (ParseError $error) {
+    echo "compressed too much\n";
+}
+
+// With the default limits the file is read. This prints 60000.
+echo Core\Bytes::length(Core\Zip::read($archive, "log.txt")), "\n";
+
+// A name that is not in the archive throws a `ParseError` too.
+try {
+    Core\Zip::read($archive, "missing.txt");
+} catch (ParseError $error) {
+    echo "no such file\n";
+}

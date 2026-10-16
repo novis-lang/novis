@@ -1,0 +1,15 @@
+<?nvs
+// Shows what `Core\Math::acosh` returns for a number below 1.0, and how to keep a
+// calculated number in range.
+
+// No number has a hyperbolic cosine of 0.5, so the result is `NaN`. This prints NAN.
+echo Core\Math::acosh(0.5), "\n";
+
+// `Core\Math::isNan` tests for that result. This prints "no result".
+echo Core\Math::isNan(Core\Math::acosh(0.5)) ? "no result" : "a result", "\n";
+
+// A calculation can end a tiny bit below 1.0 because of rounding.
+float $ratio = 0.9999999999999999;
+
+// `Core\Math::max` moves it back to 1.0 first. This prints 0.
+echo Core\Math::acosh(Core\Math::max($ratio, 1.0)), "\n";

@@ -1,0 +1,21 @@
+<?nvs
+// Shows the error `render` throws when the text does not fit in a QR code.
+use Novis\Image\QrCode;
+
+// A QR code holds at most a few thousand characters.
+// This text has 5000, so `render` throws a `LogicError`.
+string $text = Core\Str::repeat("a", 5000);
+try {
+    QrCode::render($text);
+    echo "made a code\n";
+} catch (LogicError $e) {
+    echo "too long: LogicError\n";
+}
+
+// A `size` smaller than the code also throws a `LogicError`.
+try {
+    QrCode::render("https://example.com", { size: 10 });
+    echo "made a code\n";
+} catch (LogicError $e) {
+    echo "too small: LogicError\n";
+}

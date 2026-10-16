@@ -1,0 +1,9 @@
+--METHOD--
+GET
+--PATH--
+/welcome
+--MOUNT--
+/de
+de
+--HEADERS--
+host: shop.example.com

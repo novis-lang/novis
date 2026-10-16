@@ -1,0 +1,12 @@
+{
+  "title": "The five `opcache.file_cache*` directives are `System`-class, because where compiled code is read from is a code-injection primitive",
+  "status": "shipped",
+  "seeAlso": [
+    "config/every-schedule-key-is-system",
+    "config/three-changeability-classes",
+    "config/opcache-revalidation-is-system-class"
+  ],
+  "guardedBy": [
+    "crates/nvs-config/tests/directives.rs"
+  ]
+}

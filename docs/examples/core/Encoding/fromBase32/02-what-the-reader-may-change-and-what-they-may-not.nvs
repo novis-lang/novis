@@ -1,0 +1,27 @@
+<?nvs
+// Shows what a person may change about base32 text without changing the bytes,
+// and what they may not.
+
+// Lower case gives the same bytes as upper case. Both lines print 666f6f.
+echo Core\Encoding::toHex(Core\Encoding::fromBase32("MZXW6")), "\n";
+echo Core\Encoding::toHex(Core\Encoding::fromBase32("mzxw6")), "\n";
+
+// Padding may be written in full or left off. Both lines print 666f6f too.
+echo Core\Encoding::toHex(Core\Encoding::fromBase32("MZXW6===")), "\n";
+echo Core\Encoding::toHex(Core\Encoding::fromBase32("MZXW6")), "\n";
+
+// A space between groups is not allowed. Take the spaces out first with
+// `Core\Str::replace`.
+try {
+    Core\Encoding::fromBase32("MZXW YTB");
+} catch (RuntimeError $spaced) {
+    echo "refused: ", $spaced->message, "\n";
+}
+
+// The digits 0, 1 and 8 are not in the base32 alphabet. A reader who typed a
+// zero for the letter O gets an error.
+try {
+    Core\Encoding::fromBase32("MZXW0YTB");
+} catch (RuntimeError $mistyped) {
+    echo "refused: ", $mistyped->message, "\n";
+}

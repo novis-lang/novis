@@ -1,0 +1,11 @@
+{
+  "title": "The reactor reports readiness on every platform, Windows included, so a stream is written once",
+  "status": "shipped",
+  "seeAlso": [
+    "concurrency/the-parking-contract",
+    "concurrency/try-the-syscall-then-park"
+  ],
+  "guardedBy": [
+    "crates/nvs-host/src/reactor.rs"
+  ]
+}

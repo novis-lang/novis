@@ -1,0 +1,19 @@
+<?nvs
+// Shows what `Core\Time\Date::at` does with a date that is not in the calendar.
+
+// 2024 is a leap year, so 29 February exists. This prints 2024-02-29.
+echo Core\Time\Date::at(2024, 2, 29)->format("yyyy-MM-dd"), "\n";
+
+// 2023 is not a leap year, so `at` throws a `RuntimeError`.
+try {
+    Core\Time\Date::at(2023, 2, 29);
+} catch (RuntimeError $error) {
+    echo "Not a date: ", $error->message, "\n";
+}
+
+// A month number must be from 1 to 12. Month 13 throws a `RuntimeError` too.
+try {
+    Core\Time\Date::at(2024, 13, 1);
+} catch (RuntimeError $error) {
+    echo "Not a date: ", $error->message, "\n";
+}

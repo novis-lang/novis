@@ -1,0 +1,190 @@
+[package]
+name = "nvs-cli"
+description = "The nvs command-line binary: ast/check (M1-M2), run (M3), test (M4), serve (M7), info"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+# `build.rs` writes it into `nvs.exe`'s version information.
+homepage.workspace = true
+
+[[bin]]
+name = "nvs"
+path = "src/main.rs"
+
+# `rule:observability/the-exporter-is-a-feature-and-core-metrics-is-not`'s feature,
+# from the binary's end: the encoder is `nvs-server`'s module and this manifest is
+# what decides whether the `nvs` binary carries it. On by default, so the shipped
+# binary is the server one and `--no-default-features` is the command-line-only
+# build; the workspace manifest's comment above `nvs-server` is why the forwarding
+# is spelled here rather than left to that crate's own defaults. `serve.rs`'s
+# `exporter_not_built` is
+# what a build without it answers a tree that configured an exporter, so the two
+# halves of the feature are a compiled-out module and one boot refusal.
+#
+# `cargo check -p nvs-cli --no-default-features --bins` is what proves the second
+# build still compiles. Nothing gates it, and it is the one cargo command in this
+# tree for which `-p` is the point rather than the trap AGENTS.md rule 5 names.
+[features]
+default = ["exporter"]
+exporter = ["nvs-server/exporter"]
+
+[dependencies]
+# `rule:config/include-takes-a-path-or-a-dir`'s tree and `rule:config/the-config-is-an-immutable-snapshot`: `nvs run` is the first caller
+# that resolves a real `nvs.toml`, and `LocalFiles` in `config.rs` owns which of
+# the two `Files` readers it is.
+nvs-config.workspace = true
+nvs-diagnostics.workspace = true
+# `nvs meta`'s whole-registry document and `LocalFiles` record what they read
+# when `NVS_FOOTPRINT_LOG` names a log.
+nvs-footprint.workspace = true
+nvs-syntax.workspace = true
+nvs-hir.workspace = true
+# The map type `nvs_hir::resolve_ref` takes its `use` imports in, which
+# `meta.rs` fills to name a user class's parent and interfaces fully qualified.
+rustc-hash.workspace = true
+nvs-types.workspace = true
+nvs-ir.workspace = true
+nvs-codegen.workspace = true
+nvs-runtime.workspace = true
+# The record a reload writes to `Core\Log`. `reload.rs` builds it and
+# `nvs_runtime::LogWriter` routes it, so this binary names the record model and
+# never the directives behind the sink.
+nvs-render.workspace = true
+# `nvs run` executes its program inside a task rather than on the main thread's
+# stack, because `rule:concurrency/a-child-belongs-to-the-calling-task` makes
+# every child a child *of the calling task* and there has to be one. `main.rs`'s § *What `run` executes* owns the rest.
+nvs-host.workspace = true
+# `nvs serve` is the accept loop with a socket and a handler bound to it, and
+# this binary is the only crate that can supply the second: turning a path into
+# an isolate's program is `script.rs`'s compiler, which lives here because the
+# front end does. `serve.rs`'s module doc owns the rest of that direction.
+nvs-server.workspace = true
+# `rule:packaging/extension-loading-is-root-controlled`'s load, at boot and at
+# every reload (`src/extensions.rs`): the loader and the engine it compiles into.
+# `nvs ext build` (`src/ext.rs`) packs a `.nvsx` with the packer and checks it
+# with that loader.
+nvs-ext = { workspace = true, features = ["engine", "pack"] }
+wasmtime.workspace = true
+# The clock `nvs serve` hands the schedule ticker. `nvs_server::tick_on_this_core`
+# takes one rather than reading the wall clock itself, so the instant a fire is
+# judged against arrives from the caller — and here the caller is the process,
+# whose clock is the system's.
+jiff.workspace = true
+nvs-test.workspace = true
+# `nvs queue migrate` opens the `[db.<name>]` it proved and converges
+# `rule:core-classes/queue-storage-is-a-table`'s two tables on it. This is the only path in this binary that talks to a server
+# outside a request, and `queue.rs`'s module doc owns why that needs a driver
+# here rather than a task borrowed from `run`.
+nvs-db.workspace = true
+# `nvs meta --json` prints the `Core` registry, which is `nvs-stdlib`'s data
+# read directly — `rule:tooling/meta-json` makes this binary the owner of that contract.
+nvs-stdlib.workspace = true
+# `nvs lsp` is that crate's stdio server, and `nvs code` is its one-shot
+# workspace read through `nvs_lsp::query`. This binary owns the subcommands, the
+# rendering and the exit codes, and every decision about what a name resolves to
+# is `nvs-lsp`'s (`rule:ide/one-server-two-thin-clients`). The direction matters
+# — `rule:ide/stdout-belongs-to-the-protocol` gives stdout to the protocol, so
+# nothing this crate prints may reach it while the server is running, and
+# `nvs-lsp`'s own `tests/stdout_policy.rs` is what keeps that true as its
+# dependencies grow.
+nvs-lsp.workspace = true
+# `nvs fmt` is that crate's one `format` call per file, and the I/O modes around
+# it. Every layout rule lives there and none of them here, so this binary owns
+# which files are read and where the text goes and nothing else; `fmt.rs`'s
+# module doc owns the rest.
+nvs-fmt.workspace = true
+clap.workspace = true
+# The artifact header's checksum, over the payload this binary is about to
+# publish. The key beside it is `nvs-config`'s, so this is the only place the
+# cache hashes anything itself.
+blake3.workspace = true
+# The read path maps the artifact rather than reading it, so BLAKE3 runs over
+# the page cache's own copy and no page is ever executable before it has.
+memmap2.workspace = true
+# The writer's `.tmp-<random>` name. A temp file is in the shard directory a reader
+# lists, so its name has to be unique across processes that never talk.
+rand.workspace = true
+# The OpenAPI document, built and written as JSON rather than as text — the
+# workspace manifest owns why this crate and not another.
+serde_json.workspace = true
+# `nvs agent init` merges its hook into an agent's settings file and keeps every
+# key in the order the file had it, which `serde_json::Map` does not: `agent.rs`'s
+# `Doc` implements the two traits by hand.
+serde.workspace = true
+# `rule:config/check-and-dump-audit-the-tree-offline`'s `nvs config dump` walks the merged table `nvs_config::Resolved`
+# hands back and serializes it, so this crate names the type it is made of. The
+# format decision itself is `rule:config/the-file-is-nvs-toml-and-it-is-toml`'s
+# and belongs to `nvs-config`.
+toml.workspace = true
+# The cache's loader reads the payload as the relocatable object it is: sections to
+# place, symbols to resolve and relocations to apply. `read` only — nothing in
+# this crate writes an object, that is `nvs-codegen`'s side.
+object.workspace = true
+
+[dev-dependencies]
+# How this crate's tests reach files outside the package.
+nvs-repo.workspace = true
+# `tests/live_config.rs`'s loopback TLS peer, which a reloaded `[http.client.tls]`
+# is judged against: `rcgen` issues its certificate and `rustls` serves it. Both
+# are already in this binary through `nvs-host`.
+rustls.workspace = true
+rcgen.workspace = true
+# `tests/live_config.rs`'s test extensions: component text compiled by `wat`,
+# with its two custom sections added by the packer.
+nvs-ext = { workspace = true, features = ["engine", "pack"] }
+wat.workspace = true
+
+# What tells a long-running `nvs serve` that it has been asked to stop, which
+# `src/stop.rs` turns into `rule:concurrency/a-drain-closes-a-connection-cleanly`'s
+# one drain. There is no `std` spelling of a signal disposition, and both
+# answers to `rule:packaging/a-c-dependency-answers-two-questions` are the module's: what reaches these calls is a signal
+# number this file names and nothing a request chose, and the effect is one
+# relaxed store on a bit the process already has.
+[target.'cfg(unix)'.dependencies]
+libc.workspace = true
+
+# That same stop as a console control handler (`src/stop.rs`), and
+# `rule:packaging/a-service-is-one-stored-argv`'s registration (`src/service.rs`),
+# which is the SCM's own state, a subkey under the event-log key and a file ACL —
+# none of the three has a `std` spelling. `rule:packaging/a-c-dependency-answers-two-questions`'s first question is "no"
+# for both modules: what reaches these calls is a console event the platform
+# raised, or a name and a path the installer's § 2 already refused on, never a
+# value a request chose.
+[target.'cfg(windows)'.dependencies]
+windows-sys.workspace = true
+
+# `unsafe_code` is `deny` rather than the workspace's `forbid` because the
+# artifact cache both verifies an artifact where the page cache already put it and calls
+# what it relocated: `Mmap::map` and the entry frame's fn-pointer transmute have
+# no safe spelling. Those two live in `cache.rs`, and the platform calls the
+# dependencies above are taken for live in `stop.rs` and `service.rs`; each
+# carries its own `#[expect]` with the reason it is sound. Everything else here
+# is the workspace table verbatim.
+
+# @generated by `bun nv lints` -- edit `[workspace.lints]` in the root manifest.
+# This crate is on that command's `UNSAFE_CRATES` roster, so it restates the
+# workspace table with `unsafe_code = "deny"`: cargo will not let a manifest
+# inherit `[workspace.lints]` and override one entry, and `forbid` is not
+# something an individual `#[allow(unsafe_code, reason = ...)]` can relax.
+
+[lints.rust]
+unsafe_code = "deny"
+missing_docs = "warn"
+missing_debug_implementations = "warn"
+unreachable_pub = "warn"
+rust_2018_idioms = { level = "warn", priority = -1 }
+
+[lints.clippy]
+all = { level = "warn", priority = -1 }
+cast_possible_truncation = "warn"
+cast_possible_wrap = "warn"
+cast_sign_loss = "warn"
+checked_conversions = "warn"
+todo = "warn"
+unimplemented = "warn"
+dbg_macro = "warn"
+print_stdout = "warn"
+print_stderr = "warn"

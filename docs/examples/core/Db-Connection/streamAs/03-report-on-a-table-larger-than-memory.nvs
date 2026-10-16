@@ -1,0 +1,39 @@
+<?nvs
+// Shows the work a program really does with a typed walk: a report over a
+// table that does not fit in memory, written one object at a time.
+use Core\Db\Derive;
+
+#[Derive]
+class Reading {
+    public int $celsius;
+    public tainted string $station;
+
+    public function constructor(int $celsius, tainted string $station)
+    {
+        $this->celsius = $celsius;
+        $this->station = $station;
+    }
+}
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table readings (id integer primary key, station text not null, celsius int not null)', []);
+$db->execute('insert into readings (station, celsius) values (?, ?), (?, ?), (?, ?), (?, ?)', ['north', 12, 'south', 31, 'north', 28, 'south', 35]);
+
+// One object is in memory at a time, so these counts cost the same for four
+// readings and for four million.
+int $warm = 0;
+int $highest = 0;
+foreach ($db->streamAs<Reading>('select station, celsius from readings order by id', []) as Reading $reading) {
+    if ($reading->celsius >= 30) {
+        $warm = $warm + 1;
+    }
+    if ($reading->celsius > $highest) {
+        $highest = $reading->celsius;
+    }
+}
+
+// This prints 2 and 35.
+echo 'readings over 30: ', $warm, "\n";
+echo 'highest: ', $highest, "\n";
+
+$db->close();

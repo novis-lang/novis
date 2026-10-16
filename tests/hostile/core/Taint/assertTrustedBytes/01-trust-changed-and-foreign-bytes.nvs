@@ -1,0 +1,50 @@
+<?nvs
+// Attack: a program trusts large bytes many times, and then trusts bytes that were
+// changed or never encoded. Memory should stay small, and `decode` should still throw
+// a `ParseError` for every change.
+
+// Tainted bytes of 16 million characters.
+tainted bytes $big = Core\Str::repeat('v', 16000000) as tainted bytes;
+
+// Step 1: trust the bytes 100,000 times and keep 10,000 results. If each result
+// were a copy, this would need 160 gigabytes.
+array<bytes> $kept = [];
+uint $i = 0;
+while ($i < 100000) {
+    bytes $plain = Core\Taint::assertTrustedBytes($big, 'the loop checks every value');
+    if ($i < 10000) {
+        $kept[] = $plain;
+    }
+    $i = $i + 1;
+}
+echo 'step 1: ', Core\Arr::count($kept), ' ', Core\Bytes::length($kept[9999]), "\n";
+$kept = [];
+
+// Step 2: trusted bytes that are cut short. `decode` throws a `ParseError`.
+array<mixed> $jobs = ['first', 2];
+bytes $whole = Core\Taint::assertTrustedBytes(Core\Serialize::encode($jobs), 'encoded above');
+bytes $cut = Core\Bytes::slice($whole, 0, 5);
+try {
+    Core\Serialize::decode($cut);
+    echo "step 2: read\n";
+} catch (ParseError $e) {
+    echo "step 2: ParseError\n";
+}
+
+// Step 3: trusted bytes that were never encoded. `decode` throws a `ParseError`.
+bytes $foreign = Core\Taint::assertTrustedBytes($big, 'the attacker claims this is a saved value');
+try {
+    Core\Serialize::decode($foreign);
+    echo "step 3: read\n";
+} catch (ParseError $e) {
+    echo "step 3: ParseError\n";
+}
+
+// Step 4: the bytes with one more byte at the end. `decode` throws a `ParseError`.
+bytes $longer = Core\Bytes::join([$whole, 'x' as bytes], '' as bytes);
+try {
+    Core\Serialize::decode($longer);
+    echo "step 4: read\n";
+} catch (ParseError $e) {
+    echo "step 4: ParseError\n";
+}

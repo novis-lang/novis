@@ -1,0 +1,15 @@
+<?nvs
+// Shows that two generators with the same seed return the same tokens.
+
+Core\Random\Seeded $first = new Core\Random\Seeded(42);
+Core\Random\Seeded $second = new Core\Random\Seeded(42);
+
+// 8 bytes give a token of 16 characters. Both lines are the same.
+echo $first->token(8), "\n";
+echo $second->token(8), "\n";
+
+// The next call returns the next token, so this line is different.
+echo $first->token(8), "\n";
+
+// Without an argument, `token` draws 32 bytes. This prints 64.
+echo Core\Str::length($first->token()), "\n";

@@ -1,0 +1,29 @@
+<?nvs
+// Single quotes keep the text exactly as you typed it. Double quotes fill in
+// the values of your variables and turn an escape such as `\n` into the
+// character it stands for.
+
+class Guest {
+    public string $name = "Ada";
+
+    public function shouting(): string {
+        return Core\Str::upper($this->name);
+    }
+}
+
+string $who = "Ada";
+
+echo 'Dear $who,', "\n";
+echo "Dear $who,", "\n";
+
+// Braces let you put a whole expression in the text. Anything that starts
+// with a variable works: a key of an array, a property, or a method call.
+array<string> $city = ["home" => "Vienna"];
+Guest $guest = new Guest();
+
+echo "You are in $city[home] today.\n";
+echo "Room for {$guest->name}, who signs as {$guest->shouting()}.\n";
+
+// A brace with no variable after it is just a brace, and a backslash the
+// language does not know keeps its backslash.
+echo "{plain} and \q\n";

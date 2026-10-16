@@ -1,0 +1,59 @@
+<?nvs
+// Attack: a program checks for keys that are huge, deeply nested, removed, or never stored.
+// Every check should return `true` or `false`, and the program must not crash or leak.
+
+final class Node
+{
+    public ?Node $next = null;
+}
+
+Core\ObjectMap<mixed, ?int> $map = new Core\ObjectMap<mixed, ?int>();
+
+// 1. A key that is a string of 10 million characters. An equal string is found.
+$map->set(Core\Str::repeat('y', 10000000), null);
+echo '1: ', $map->has(Core\Str::repeat('y', 10000000)) ? 'y' : 'n', "\n";
+
+// 2. A check for an array nested 10000 levels deep that was never stored.
+mixed $deep = [];
+int $i = 0;
+while ($i < 10000) {
+    $deep = [$deep];
+    $i = $i + 1;
+}
+echo '2: ', $map->has($deep) ? 'y' : 'n', "\n";
+
+// 3. 200000 objects are added and removed again. Each one is checked before and after.
+int $wrong = 0;
+int $k = 0;
+while ($k < 200000) {
+    Node $node = new Node();
+    $map->set($node, null);
+    if (!$map->has($node)) {
+        $wrong = $wrong + 1;
+    }
+    $map->remove($node);
+    if ($map->has($node)) {
+        $wrong = $wrong + 1;
+    }
+    $k = $k + 1;
+}
+echo '3: ', $wrong, ' ', $map->count(), "\n";
+
+// 4. A key that is the start of a chain of 100000 objects. The check must not walk the chain.
+Node $head = new Node();
+Node $tail = $head;
+int $n = 0;
+while ($n < 100000) {
+    Node $link = new Node();
+    $tail->next = $link;
+    $tail = $link;
+    $n = $n + 1;
+}
+$map->set($head, 4);
+echo '4: ', $map->has($head) ? 'y' : 'n', ' ', $map->has($tail) ? 'y' : 'n', "\n";
+
+// 5. The map checks for itself, before and after it is a key.
+echo '5: ', $map->has($map) ? 'y' : 'n';
+$map->set($map, 5);
+echo $map->has($map) ? 'y' : 'n', "\n";
+$map->clear();

@@ -1,0 +1,11 @@
+<?nvs
+// Shows how to find how long a job ran, from the start and end times a web service returned.
+
+// Web services often send times as ISO 8601 text. These two use different offsets.
+string $started = "2024-06-01T09:30:00.250+02:00";
+string $finished = "2024-06-01T07:42:10Z";
+
+// `since` gives the time between two instants. The job ran for 12 minutes and 9.75 seconds.
+// `toSeconds` counts only the whole seconds, so this prints 729.
+var $ran = Core\Time::fromIso($finished)->since(Core\Time::fromIso($started));
+echo $ran->toSeconds(), "\n";

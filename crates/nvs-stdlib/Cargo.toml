@@ -1,0 +1,213 @@
+[package]
+name = "nvs-stdlib"
+description = "Novis Tier 0 standard library: the `Core` namespace's native Rust members and the signature registry the compiler resolves them through"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[lib]
+# No doc comment in this crate has a runnable example, so `cargo test` does
+# not run rustdoc over it. A crate that gains one deletes this table.
+doctest = false
+
+[dependencies]
+nvs-runtime.workspace = true
+# The registry's lookups record each class a program resolves when
+# `NVS_FOOTPRINT_LOG` names a log.
+nvs-footprint.workspace = true
+# `rule:core-classes/html-parsing`: `Core\Html::parse` is the WHATWG algorithm,
+# and the engine is Servo's. The workspace row is where the audit under
+# `rule:packaging/a-c-dependency-answers-two-questions` is written; what belongs
+# here is why the crate is reached at all, which is that `crate::html` drives
+# the tree builder through a `TreeSink` of its own into `crate::xml`'s `Parsed`
+# nodes rather than through the sample DOM `markup5ever_rcdom` carries.
+html5ever.workspace = true
+# `rule:security/capability-declaration-is-one-table`: `Cap` is the one place a
+# capability's `nvs.toml` name maps to the field that grants it, so the registry's
+# capability table names that enum rather than a string this crate would have to
+# compare against the configuration's own.
+nvs-config.workspace = true
+# `rule:errors/diagnostic-record`: the record model and its renderings live in one crate that both
+# the runtime and the front end can depend on. `Core\Debug::dump` is its first
+# producer -- `crate::debug` builds a record and hands it to the plaintext
+# rendering, rather than formatting a value here.
+nvs-render.workspace = true
+# `rule:types/duration`: the duration grammar has exactly one implementation, and it is
+# `nvs_syntax::duration` -- the lexer reads a duration written in the source with it, this
+# crate reads a run-time string with it, and `nvs.toml` will read a directive
+# with it. That module's own docs own why the shared code sits in the syntax
+# crate; `Core\Ast`, which runs the compiler's own parser, owes this same edge regardless.
+nvs-syntax.workspace = true
+# `rule:core-api/tier-roster` puts `Core\Http\Client` over "the runtime's own reactor rather
+# than a second event loop", and the parking stream that reaches it is
+# `nvs_host::net`. This edge is that sentence and the wait in `rule:core-classes/process-run`:
+# a `Core` member either parks on readiness (`nvs_host::net`, an outbound
+# socket) or hands the core to the blocking pool (`nvs_host::blocking::run`,
+# waiting for a child), and a copy of either here would be a second
+# implementation of `rule:concurrency/try-the-syscall-then-park`.
+# `rule:http-server/a-core-is-never-blocked-on-a-syscall` says there is
+# no third option, so this stays a two-entry list. `nvs-host` depends on
+# `nvs-runtime` and on nothing this crate exports, so the graph stays a tree.
+nvs-host.workspace = true
+# `rule:http-server/an-outbound-socket-is-opened-like-an-outbound-call`: the
+# opening handshake of `Core\Http\Client::openSocket` is an outbound call, and what runs over the connection it leaves behind is
+# `tungstenite`'s client half — the same crate the server's half already speaks,
+# over the same parking stream and with no adapter. Masking, fragmentation,
+# UTF-8 validation and the close handshake are that crate's; a second
+# implementation of any of them here would be a second thing to get wrong, which
+# is the workspace row's own argument read in the other direction.
+tungstenite.workspace = true
+# `rule:core-classes/db-crate-boundary`: `Core\Db`'s registry rows, reference cards and helper bodies
+# belong here with every other class's, and the five drivers' wire code belongs
+# in one crate an audit can open on its own. So the edge runs this way and only
+# this way -- `nvs-db` naming `nvs-stdlib` would close a cycle, and its own
+# manifest says so beside its dependency list. What crosses the edge is values
+# and faults, both of which are `nvs-runtime`'s and neither of which either
+# crate defines.
+nvs-db.workspace = true
+# `Core\Ldap` copies that edge: the registry rows and helper
+# bodies are here, and the LDAP wire is `nvs-ldap`'s, which names no crate of
+# this one's.
+nvs-ldap.workspace = true
+# `rule:types/decimal`'s naming: `Core\BigInt` is `num-bigint`, and `num-integer`
+# is the trait its `gcd` and `lcm` are members of. The root manifest's row is
+# where the dependency is argued; what belongs here is that `crate::bigint` is
+# its only caller, and that the class stores a sign and magnitude bytes rather
+# than the crate's own type, so nothing outside that module names either.
+num-bigint.workspace = true
+num-integer.workspace = true
+unicode-segmentation.workspace = true
+caseless.workspace = true
+unicode-normalization.workspace = true
+regex.workspace = true
+regex-automata.workspace = true
+fancy-regex.workspace = true
+jiff.workspace = true
+rand.workspace = true
+uuid.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+sha1.workspace = true
+sha3.workspace = true
+md-5.workspace = true
+hmac.workspace = true
+crc32fast.workspace = true
+crc32c.workspace = true
+blake3.workspace = true
+subtle.workspace = true
+argon2.workspace = true
+bcrypt.workspace = true
+chacha20poly1305.workspace = true
+aes-gcm.workspace = true
+aes-kw.workspace = true
+p256.workspace = true
+x25519-dalek.workspace = true
+hkdf.workspace = true
+pbkdf2.workspace = true
+# `Core\Jwt` and `Core\Crypto`'s signature pair reach BoringSSL
+# through `ring` for RSASSA-PKCS1-v1_5, RSASSA-PSS, ECDSA over P-256 and
+# Ed25519. The root manifest's row is where the audit under
+# `rule:packaging/a-c-dependency-answers-two-questions` is written; what belongs
+# here is why this crate reaches it at all, which is that no pure-Rust crate in
+# this graph verifies RSA, and one provider for all four keeps a token's
+# algorithm a property of its key rather than of which crate answered.
+ring.workspace = true
+base64.workspace = true
+data-encoding.workspace = true
+encoding_rs.workspace = true
+csv-core.workspace = true
+fluent-uri.workspace = true
+# `Core\Compress`'s five codec cases, three crates. The root manifest's
+# compression block owns why each is the pure-Rust one; `crate::compress` owns
+# which case reaches which.
+flate2.workspace = true
+brotli.workspace = true
+ruzstd.workspace = true
+# `crate::sort`: the natural-order rows of `Core\Arr::sort` and `sortByKey` are
+# a key sort, and this is the sort. The root manifest's row is where the
+# dependency is argued; what belongs here is that its only caller is that one
+# module, behind one row check, and that the merge sort beside it stays the
+# path for everything that can throw.
+brainsort.workspace = true
+
+# `tests/conformance_coverage.rs` reads the `.nvst` suite's `--FILE--`
+# sections, and the format's parser already exists. `nvs-test` depends on
+# nothing at all, so this borrows a section splitter rather than a toolchain.
+[dev-dependencies]
+nvs-test.workspace = true
+# `tests/enum_owners.rs` checks its table of error-class properties against
+# `nvs_hir::errors::OWN_PROPERTIES`. `nvs-hir` depends on nothing in this
+# crate, so the edge adds no cycle.
+nvs-hir.workspace = true
+# How this crate's tests reach files outside the package.
+nvs-repo.workspace = true
+# `ast.rs`'s seed replay asks the compiler's own parser for its verdict, and
+# `nvs_syntax::parse_file` takes a `SourceMap` and a `Diagnostics` to answer
+# with. The point of that case is that the verdict comes from the compiler's
+# door rather than from `nvs_syntax::walk::of_source`, which is the one
+# `Core\Ast::parse` itself calls, so the two crates are both reached by hand.
+nvs-diagnostics.workspace = true
+# `process.rs`'s capability cases build their granting snapshot out of the TOML
+# an operator would have written, rather than out of the typed tree -- the same
+# reading `nvs_runtime::capability`'s own cases state, and the only thing in
+# this crate that needs a parser for it.
+toml.workspace = true
+# `http/transport.rs`'s client-identity cases need a certificate and the key
+# that goes with it, and no shipped path issues one. The same row `nvs-host`
+# already carries for its own handshake cases, so this adds no crate to any
+# binary: a chain a test signs is the only way to assert that a chain and a key
+# that are not each other's are refused.
+rcgen.workspace = true
+# The other end of `http/transport.rs`'s end-to-end `https` cases: an origin
+# that terminates TLS, which no shipped path in this crate is — the runtime is
+# a client here and `nvs-server` is where an inbound handshake lives. On the
+# provider `nvs-host` already carries, so the two ends of the case share one
+# crypto implementation.
+rustls.workspace = true
+# `tests/ext_world.rs` parses the extension world under `wit/` and checks its
+# records against this crate's own `Core` roster, which is why the case lives
+# here. The root manifest's row says what the crate pulls.
+wit-parser.workspace = true
+# The same case holds the extension host's list of the `Core` classes that
+# cross, and each one's fields, to those records, so the list has one home.
+nvs-ext.workspace = true
+
+# ---------------------------------------------------------------------------
+# This crate cannot inherit the workspace lint policy, for exactly
+# nvs-runtime's reason and no wider one: every `Core` member is a
+# `rule:errors/helper-abi` helper entry point, so it is an `extern "C"` function decoding raw pointers,
+# which the workspace's `forbid` would make unwritable. `deny` instead, so each
+# genuinely necessary block is allowed individually with a stated reason — the
+# policy in docs/implementation-plan.md's "Unsafe policy" section, which names
+# this crate. Nothing else here is unsafe: a member's body is ordinary safe
+# Rust over `nvs-runtime`'s own safe handles.
+# ---------------------------------------------------------------------------
+
+# @generated by `bun nv lints` -- edit `[workspace.lints]` in the root manifest.
+# This crate is on that command's `UNSAFE_CRATES` roster, so it restates the
+# workspace table with `unsafe_code = "deny"`: cargo will not let a manifest
+# inherit `[workspace.lints]` and override one entry, and `forbid` is not
+# something an individual `#[allow(unsafe_code, reason = ...)]` can relax.
+
+[lints.rust]
+unsafe_code = "deny"
+missing_docs = "warn"
+missing_debug_implementations = "warn"
+unreachable_pub = "warn"
+rust_2018_idioms = { level = "warn", priority = -1 }
+
+[lints.clippy]
+all = { level = "warn", priority = -1 }
+cast_possible_truncation = "warn"
+cast_possible_wrap = "warn"
+cast_sign_loss = "warn"
+checked_conversions = "warn"
+todo = "warn"
+unimplemented = "warn"
+dbg_macro = "warn"
+print_stdout = "warn"
+print_stderr = "warn"

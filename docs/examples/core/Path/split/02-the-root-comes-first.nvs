@@ -1,0 +1,22 @@
+<?nvs
+// Shows that the root of a path is the first part that `Core\Path::split` returns.
+
+// On Windows, the root is written with `\`. This example replaces it with `/`,
+// so the output is the same on every platform.
+class Show {
+    public static function parts(string $path): void {
+        foreach (Core\Path::split($path) as string $part) {
+            echo "[", Core\Str::replace($part, Core\Path::SEPARATOR, "/"), "] ";
+        }
+        echo "\n";
+    }
+}
+
+// This prints `[/] [srv] [shop]`.
+Show::parts("/srv/shop/");
+
+// A drive is a root too. This prints `[C:/] [Users] [report.txt]`.
+Show::parts("C:\\Users\\report.txt");
+
+// The empty path has no parts, so this prints an empty line.
+Show::parts("");

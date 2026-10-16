@@ -1,0 +1,11 @@
+{
+  "title": "A list is a TOML array, a repeated record is an array of tables, and a dotted key is table nesting",
+  "status": "shipped",
+  "seeAlso": [
+    "config/a-value-array-replaces-and-a-table-appends",
+    "config/include-takes-a-path-or-a-dir"
+  ],
+  "guardedBy": [
+    "crates/nvs-config/tests/tree.rs"
+  ]
+}

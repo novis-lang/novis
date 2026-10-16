@@ -1,0 +1,31 @@
+<?nvs
+// Attack: `Core\Math::atanh` is given numbers at the ends of its range and far outside it.
+// It is also given numbers that are not ordinary, and a million calls in a loop. Every call
+// should return a number, infinity or `NaN`, and the program should run to its last line.
+
+// 1. The numbers just inside the ends of the range.
+echo Core\Math::atanh(0.9999999999999999), "\n";
+echo Core\Math::atanh(-0.9999999999999999), "\n";
+
+// 2. The biggest numbers, far outside the range.
+echo Core\Math::atanh(Core\Math::FLOAT_MAX), "\n";
+echo Core\Math::atanh(-Core\Math::FLOAT_MAX), "\n";
+
+// 3. The smallest numbers, and zero with a minus sign.
+echo Core\Math::atanh(Core\Math::FLOAT_MIN), "\n";
+echo Core\Math::atanh(-Core\Math::FLOAT_MIN), "\n";
+echo Core\Math::atanh(-0.0), "\n";
+
+// 4. Values that are not ordinary numbers.
+echo Core\Math::atanh(Core\Math::NAN), "\n";
+echo Core\Math::atanh(Core\Math::INFINITY), "\n";
+echo Core\Math::atanh(-Core\Math::INFINITY), "\n";
+
+// 5. A million calls. Each result feeds the next one, and none is kept.
+float $value = 0.5;
+int $round = 0;
+while ($round < 1000000) {
+    $value = Core\Math::tanh(Core\Math::atanh($value) * 1.5);
+    $round = $round + 1;
+}
+echo Core\Math::isNan($value) ? "NaN\n" : "a number\n";

@@ -1,0 +1,51 @@
+--TEST--
+`#[Db\Derive]` and `#[Db\Field]` are compiler-recognized names like their JSON twins, matched after resolution rather than declared as shapes — `rule:core-classes/derive-attribute` and `rule:core-classes/derive-field-list`
+--FILE--
+<?nvs
+// `rule:core-classes/derive-attribute`: a compiler-recognized attribute is matched *nominally*, so the `use`d
+// short form below and the qualified spelling further down are one attribute
+// reached two ways. Neither is a declared `type` alias — that is `rule:core-classes/derive-attribute`'s one
+// carve-out from `rule:attributes/attach-sites-and-forms`, and it is what makes this file compile at all.
+use Core\Db\Derive;
+use Core\Db\Field;
+
+#[Derive]
+class Account {
+    #[Field(name: "email_address")]
+    public tainted string $email;
+    public uint $id;
+
+    public function constructor(tainted string $email, uint $id)
+    {
+        $this->email = $email;
+        $this->id = $id;
+    }
+}
+
+// `rule:core-classes/derive-attribute`'s own reason for two `Field` attributes rather than one shared spelling:
+// a JSON key and a column name are independently chosen. The same property
+// carries both overrides here, and the two contracts do not collide — the JSON
+// one is what `encode` writes.
+#[Core\Json\Derive]
+#[Core\Db\Derive]
+class Row {
+    #[Core\Json\Field(name: "user_id")]
+    #[Core\Db\Field(name: "id")]
+    public uint $key;
+
+    public function constructor(uint $key)
+    {
+        $this->key = $key;
+    }
+}
+
+// The attribute changes nothing about the class as a class: a decode is an
+// ordinary `new` (`rule:core-classes/derive-field-list`), so an object built by hand is the same object.
+Account $a = new Account("nobody@example.com", 7);
+echo "email ", $a->email, "\n";
+echo "id ", $a->id, "\n";
+echo "json ", Core\Json::encode(new Row(9)), "\n";
+--EXPECT--
+email nobody@example.com
+id 7
+json {"user_id":9}

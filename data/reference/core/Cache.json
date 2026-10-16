@@ -1,0 +1,20 @@
+{
+  "summary": "two caches with two promises — `memory` is one store in the memory of the `nvs serve` (or `nvs run`) process, and an entry may be missing at any time; `shared` is an external store such as Redis that every process and machine reads",
+  "keywords": [
+    "apcu_store",
+    "apcu_fetch",
+    "apcu_delete",
+    "apcu_exists",
+    "shmop",
+    "sysvshm",
+    "cache",
+    "memoize",
+    "per-process",
+    "redis",
+    "ttl",
+    "coherence",
+    "hit",
+    "miss",
+    "cross-request state"
+  ]
+}

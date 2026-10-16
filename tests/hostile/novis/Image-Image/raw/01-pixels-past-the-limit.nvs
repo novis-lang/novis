@@ -1,0 +1,54 @@
+<?nvs
+// Attack: a request asks for the pixels of images that are too large, empty or broken.
+// Each attempt should throw an error or return pixels, and the server keeps running.
+use Novis\Image\Color;
+use Novis\Image\Format;
+use Novis\Image\Image;
+
+Image $small = Image::create(16, 16, Color::hex('#ff0000'));
+
+// 1. A resize to just over the pixel limit.
+try {
+    $small->resize({ width: 5000, height: 5034, upscale: true })->raw();
+    echo "step 1 ran\n";
+} catch (Throwable $e) {
+    echo "step 1 stopped\n";
+}
+
+// 2. A crop to an empty box.
+try {
+    $small->crop({ x: 0, y: 0, width: 0, height: 16 })->raw();
+    echo "step 2 ran\n";
+} catch (Throwable $e) {
+    echo "step 2 stopped\n";
+}
+
+// 3. The pixels of a PNG file that is cut off after 40 bytes.
+try {
+    bytes $png = $small->format(Format::Png)->encode();
+    Image::open(Core\Bytes::slice($png, 0, 40))->raw();
+    echo "step 3 ran\n";
+} catch (Throwable $e) {
+    echo "step 3 stopped\n";
+}
+
+// 4. Pixels read and written back many times in a row.
+try {
+    Image $image = $small;
+    uint $i = 0;
+    while ($i < 200) {
+        $image = Image::fromRaw($image->raw());
+        $i = $i + 1;
+    }
+    echo 'step 4 ran ', $image->raw()->width, "\n";
+} catch (Throwable $e) {
+    echo "step 4 stopped\n";
+}
+
+// 5. A slice of the pixels that starts past the end.
+try {
+    bytes $pixels = $small->raw()->pixels;
+    echo 'step 5 ran ', Core\Bytes::length(Core\Bytes::slice($pixels, 100000, 4)), "\n";
+} catch (Throwable $e) {
+    echo "step 5 stopped\n";
+}

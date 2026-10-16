@@ -1,0 +1,24 @@
+<?nvs
+// One small class using every kind of name there is, each spelled the way
+// its kind is spelled.
+
+class OrderLine {
+    public const int MAX_QUANTITY = 10;
+
+    public int $quantity = 0;
+
+    public function constructor(int $quantity) {
+        $this->quantity = $quantity;
+    }
+
+    public function isTooLarge(): bool {
+        return $this->quantity > OrderLine::MAX_QUANTITY;
+    }
+}
+
+OrderLine $line = new OrderLine(12);
+
+echo "quantity: ", $line->quantity, "\n";
+if ($line->isTooLarge()) {
+    echo "over the limit of ", OrderLine::MAX_QUANTITY, "\n";
+}

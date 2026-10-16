@@ -1,0 +1,41 @@
+<?nvs
+namespace App\Billing;
+
+final class Invoice implements Iterable {
+    public const Currency DEFAULT = Currency::Eur;
+    public const int SCALE = 2;
+
+    private secret Token $token;
+    public ?Customer $buyer;
+    public array<Line> $lines;
+
+    public function charge(Money $amount, Card ...$cards): Receipt {
+        Ledger $book = $this->ledger();
+        foreach ($this->lines as Line $line) {
+            $book->add($line);
+        }
+        return $book->close($amount);
+    }
+
+    public function rate(): decimal|Rounding {
+        return $this->scale;
+    }
+
+    public function shape(): {net: Money, tax: decimal} {
+        return {sum: $this->net, cut: 0};
+    }
+
+    public function rows(): Iterator<Row> {
+        yield $this->lines;
+    }
+
+    public function map(array<Line> $rows, callable(Line): Money $fn): array<Money> {
+        return $fn($rows);
+    }
+}
+
+type Totals = {gross: Money, fee: decimal};
+
+$fold = fn(Line $line): Money => $line->amount;
+$picked = $ready ? first($rows) : rest($rows);
+?>

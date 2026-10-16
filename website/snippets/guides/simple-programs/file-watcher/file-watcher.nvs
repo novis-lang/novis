@@ -1,0 +1,40 @@
+<?nvs
+// This program checks a file again and again, and prints a line each time the file changes.
+class Watcher {
+    public string $path;
+    public Core\Time\Instant $last;
+
+    public function constructor(string $path) {
+        $this->path = $path;
+        // `Core\IO::modifiedAt` returns the time of the last change to the file.
+        $this->last = Core\IO::modifiedAt($path);
+    }
+
+    // Returns `true` when the file changed since the last call.
+    public function changed(): bool {
+        Core\Time\Instant $now = Core\IO::modifiedAt($this->path);
+        if ($now->compareTo($this->last) == 0) {
+            return false;
+        }
+        $this->last = $now;
+        return true;
+    }
+}
+
+string $path = Core\Path::join(Core\IO::temporaryDir(), "notes.txt");
+Core\IO::write($path, "first version\n");
+Watcher $watcher = new Watcher($path);
+
+// A real watcher loops forever. This one checks five times, 50 milliseconds apart.
+// The program changes the file itself after the second check, so that you see a change.
+for (int $check = 1; $check <= 5; $check++) {
+    Core\Time::sleep(Core\Time\Duration::milliseconds(50));
+    if ($check == 3) {
+        Core\IO::write($path, "second version\n");
+    }
+    if ($watcher->changed()) {
+        echo "check ", $check, ": changed, the file now says: ", Core\Str::trim(Core\IO::readText($path)), "\n";
+    } else {
+        echo "check ", $check, ": no change\n";
+    }
+}

@@ -1,0 +1,22 @@
+<?nvs
+// Shows how to find the web page of a news feed. An Atom feed has several `link`
+// elements, and the one with `rel="alternate"` points to the web page.
+
+string $feed = '<feed xmlns="http://www.w3.org/2005/Atom">
+  <title>Shop news</title>
+  <link rel="self" href="https://example.com/news.xml"/>
+  <link rel="alternate" type="text/html" href="https://example.com/news"/>
+</feed>';
+
+Core\Xml\Node $document = Core\Xml::parse($feed);
+
+foreach ($document->children() as Core\Xml\Node $root) {
+    foreach ($root->children() as Core\Xml\Node $child) {
+        // The line breaks between the elements are text nodes. They have no attributes.
+        array<tainted string> $attributes = $child->attributes();
+        if ($child->name() == "link" && ($attributes["rel"] ?? "") == "alternate") {
+            // This prints https://example.com/news.
+            echo "web page: ", $attributes["href"], "\n";
+        }
+    }
+}

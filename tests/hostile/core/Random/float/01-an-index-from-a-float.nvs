@@ -1,0 +1,48 @@
+<?nvs
+// Attack: a program turns millions of random floats into array positions. If a
+// draw were ever 1.0 or more, a position would be past the end of the array. Every
+// step should finish, and the program must not crash.
+
+// 1. Two million draws become a position in an array of three entries. A draw of
+// 1.0 would give position 3, which does not exist, and the lookup would throw.
+array<string> $colors = ['red', 'green', 'blue'];
+uint $picked = 0;
+uint $i = 0;
+while ($i < 2000000) {
+    float $scaled = Core\Math::floor(Core\Random::float() * 3.0);
+    string $color = $colors[$scaled as int];
+    $picked = $picked + Core\Str::length($color);
+    $i = $i + 1;
+}
+echo '1 letters picked: ', $picked > 0 ? 'some' : 'none', "\n";
+
+// 2. A draw is multiplied by the largest `float`. The result must stay finite.
+uint $infinite = 0;
+uint $j = 0;
+while ($j < 100000) {
+    float $large = Core\Random::float() * 1.7976931348623157e308;
+    if ($large > 1.7976931348623157e308 || $large != $large) {
+        $infinite = $infinite + 1;
+    }
+    $j = $j + 1;
+}
+echo '2 results that are not finite: ', $infinite, "\n";
+
+// 3. One million draws are kept in one array, and the smallest and largest are found.
+array<float> $kept = [];
+uint $k = 0;
+while ($k < 1000000) {
+    $kept[] = Core\Random::float();
+    $k = $k + 1;
+}
+float $lowest = 1.0;
+float $highest = 0.0;
+foreach ($kept as float $value) {
+    if ($value < $lowest) {
+        $lowest = $value;
+    }
+    if ($value > $highest) {
+        $highest = $value;
+    }
+}
+echo '3 all in range: ', $lowest >= 0.0 && $highest < 1.0 ? 'yes' : 'no', "\n";

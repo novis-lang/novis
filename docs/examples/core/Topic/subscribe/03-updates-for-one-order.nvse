@@ -1,0 +1,4 @@
+# Two updates for order 1042, and one for another order.
+publish: order:1042 packed
+publish: order:977 shipped
+publish: order:1042 shipped

@@ -1,0 +1,20 @@
+--TEST--
+a string argument at a parameter typed `property<T>|string` is offered the public properties of `T`, because the parameter takes any string and the names are the ones a key over `T` may hold — `rule:types/property-key`
+--FILE--
+<?nvs
+class User {
+    public string $email = "a@example.com";
+    public int $age = 3;
+}
+class Grid {
+    public static function sortBy(property<User>|string $column): string {
+        return $column as string;
+    }
+}
+
+echo Grid::sortBy("<|>");
+--REQUEST--
+completion
+--EXPECT--
+age     property  int
+email   property  string

@@ -1,0 +1,31 @@
+<?nvs
+// Attack: a program builds changes with values of every type, nested lists and
+// a value of ten million bytes. Each change should be built or throw a `LogicError`.
+
+// 1. A float, a map, a nested list and an empty text.
+array<mixed> $values = [1.5, ['a' => 'b'], [['deep']], '', -9223372036854775807];
+foreach ($values as mixed $value) {
+    try {
+        var $odd = Core\Ldap\Change::replace('description', $value);
+        echo "1 built\n";
+    } catch (LogicError $refusal) {
+        echo "1 refused\n";
+    }
+}
+
+// 2. One value of ten million bytes.
+try {
+    var $big = Core\Ldap\Change::replace('description', Core\Str::repeat('x', 10000000));
+    echo "2 built\n";
+} catch (LogicError $refusal) {
+    echo "2 refused\n";
+}
+
+// 3. The same value replaced a hundred thousand times.
+var $last = Core\Ldap\Change::replace('description', 'first');
+uint $i = 0;
+while ($i < 100000) {
+    $last = Core\Ldap\Change::replace('description', $i);
+    $i = $i + 1;
+}
+echo "3 done\n";

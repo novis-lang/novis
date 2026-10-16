@@ -1,0 +1,19 @@
+<?nvs
+// Shows what `minus` does at the end of a month and when the clocks change.
+
+// One month before 31 March is the last day of February, because February has no 31st.
+// This prints 2024-02-29.
+var $march = Core\Time::at(2024, 3, 31, Core\Time\Zone::of("Europe/Berlin"));
+echo $march->minus(1, Core\Unit::Month)->format("yyyy-MM-dd"), "\n";
+
+// Berlin moves its clocks back one hour on 27 October 2024, so that day has 25 hours.
+// One day before 27 October at 12:00 is 26 October at 12:00. This prints 2024-10-26 12:00 +02:00.
+var $sunday = Core\Time::at(2024, 10, 27, Core\Time\Zone::of("Europe/Berlin"), {hour: 12});
+echo $sunday->minus(1, Core\Unit::Day)->format("yyyy-MM-dd HH:mm XXX"), "\n";
+
+// 24 hours earlier is 13:00, because one hour of that night happened twice.
+// This prints 2024-10-26 13:00 +02:00.
+echo $sunday->minus(24, Core\Unit::Hour)->format("yyyy-MM-dd HH:mm XXX"), "\n";
+
+// A negative count moves forward. This prints 2024-10-28 12:00 +01:00.
+echo $sunday->minus(-1, Core\Unit::Day)->format("yyyy-MM-dd HH:mm XXX"), "\n";

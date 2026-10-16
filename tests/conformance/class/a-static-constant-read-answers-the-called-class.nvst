@@ -1,0 +1,54 @@
+--TEST--
+`static::NAME` answers the class the call was made on, through `extends`, an interface default and a `static` method, while `self::NAME` stays the declaring class's, `rule:statements/static-is-a-member-modifier`
+--FILE--
+<?nvs
+interface View {
+    public const string PATH = "interface";
+
+    // `static::` sees the implementor's override; `self::` sees this one.
+    public function viaStatic(): string {
+        return static::PATH;
+    }
+
+    public function viaSelf(): string {
+        return self::PATH;
+    }
+}
+
+class Index implements View {
+    public const string PATH = "/";
+}
+
+class Plain implements View {}
+
+abstract class Base {
+    public const string PATH = "base";
+    public const int LIMIT = 1;
+
+    public function label(): string {
+        return static::PATH;
+    }
+
+    public static function limit(): int {
+        return static::LIMIT;
+    }
+}
+
+class Child extends Base {
+    public const string PATH = "/child";
+    public const int LIMIT = 9;
+}
+
+class Leaf extends Child {}
+
+echo (new Index())->viaStatic(), " ", (new Index())->viaSelf(), "\n";
+echo (new Plain())->viaStatic(), "\n";
+echo (new Child())->label(), " ", Child::limit(), "\n";
+echo (new Leaf())->label(), " ", Leaf::limit(), "\n";
+// covers: lang:classes/interfaces
+// covers: lang:classes/methods-self-static-and-parent
+--EXPECT--
+/ interface
+interface
+/child 9
+/child 9

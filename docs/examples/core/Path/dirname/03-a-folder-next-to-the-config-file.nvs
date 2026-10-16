@@ -1,0 +1,15 @@
+<?nvs
+// Shows how to find the log folder of an application from the path of its configuration file.
+
+class App {
+    // The configuration file is at `<app>/config/app.toml`.
+    // Two levels up is the application folder, and the logs are in `storage/logs` inside it.
+    public static function logFolder(string $configFile): string {
+        string $app = Core\Path::dirname($configFile, {levels: 2});
+        return Core\Path::join($app, "storage", "logs");
+    }
+}
+
+// On Windows, the result uses `\`. This line replaces it with `/`,
+// so the output is the same on every platform. This prints `/srv/shop/storage/logs`.
+echo Core\Str::replace(App::logFolder("/srv/shop/config/app.toml"), Core\Path::SEPARATOR, "/"), "\n";

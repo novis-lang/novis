@@ -1,0 +1,9 @@
+<?nvs
+// Attack: a program parses source that somebody sent it, written on one very
+// long line. The line holds 200,000 short statements. The program should
+// finish inside its time limit, and a long line should not cost much more than
+// the same code spread over many lines.
+
+string $oneLine = '<?nvs ' . Core\Str::repeat('echo 1;', 200000);
+Core\Ast::parse($oneLine);
+echo "parsed the long line\n";

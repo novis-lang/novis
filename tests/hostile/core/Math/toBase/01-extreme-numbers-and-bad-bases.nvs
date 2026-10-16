@@ -1,0 +1,42 @@
+<?nvs
+// Attack: `Core\Math::toBase` is given the largest and smallest `int`, bad bases and a
+// million calls. Each bad base should throw an error that the program catches, and the
+// program should run to its end.
+
+// 1. The largest and smallest `int` in the smallest and the largest base.
+echo Core\Math::toBase(9223372036854775807, 2), "\n";
+echo Core\Math::toBase(-9223372036854775807 - 1, 2), "\n";
+echo Core\Math::toBase(-9223372036854775807 - 1, 36), "\n";
+
+// 2. Bases just outside the range, and the largest `uint`.
+array<uint> $bases = [0, 1, 37, 18446744073709551615];
+foreach ($bases as uint $base) {
+    try {
+        string $digits = Core\Math::toBase(-1, $base);
+        echo $digits, "\n";
+    } catch (RuntimeError $e) {
+        echo "no such base\n";
+    }
+}
+
+// 3. Every allowed base, and each result read back with `Core\Math::fromBase`.
+uint $radix = 2;
+int $wrong = 0;
+while ($radix <= 36) {
+    int $n = -9223372036854775807 - 1;
+    if (Core\Math::fromBase(Core\Math::toBase($n, $radix), $radix) != $n) {
+        $wrong = $wrong + 1;
+    }
+    $radix = $radix + 1;
+}
+// This prints 0.
+echo $wrong, "\n";
+
+// 4. A million calls in base 2. Each result feeds the next one, and `% 1000` keeps it small.
+int $total = 0;
+int $round = 0;
+while ($round < 1000000) {
+    $total = ((Core\Str::length(Core\Math::toBase($total - $round, 2)) as int) + $total) % 1000;
+    $round = $round + 1;
+}
+echo $total, "\n";

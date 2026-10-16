@@ -1,0 +1,13 @@
+{
+  "title": "The debugger UI is only as deep as the capabilities `nvs dap` reports, so the adapter's capability list is the debugger's scope",
+  "status": "designed",
+  "seeAlso": [
+    "errors/escalation-ladder",
+    "security/isolate-shares-nothing",
+    "ide/every-feature-is-staged-behind-its-dependency",
+    "testing/a-debugged-program-is-compiled-with-a-debug-switch",
+    "testing/a-stop-pauses-the-whole-task-tree"
+  ],
+  "guardedBy": [],
+  "goal": "debugger-adapter"
+}

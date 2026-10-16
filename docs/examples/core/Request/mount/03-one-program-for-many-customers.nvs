@@ -1,0 +1,21 @@
+<?nvs
+// Shows how one program serves many customers, each under a prefix of its own.
+
+// The server has one folder for each customer, such as `Acme` and `Globex`.
+// The prefix `/{1:lower}` serves each folder at its own prefix, such as `/acme`.
+
+// `captures()` returns the folder name that matched. Here it is "Acme".
+Core\Request\Mount $mount = Core\Request::mount();
+tainted string $customer = $mount->captures()[0];
+
+// The program knows each customer and the database it uses.
+array<string> $databases = ["Acme" => "shop_acme", "Globex" => "shop_globex"];
+
+// `??` gives "" for a name the program does not know.
+// This prints "customer Acme uses shop_acme".
+string $database = $databases[$customer] ?? "";
+if ($database != "") {
+    echo "customer ", $customer, " uses ", $database, "\n";
+} else {
+    echo "404: unknown customer\n";
+}

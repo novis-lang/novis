@@ -1,0 +1,17 @@
+<?nvs
+// This program runs adder.nvs as a separate program, and reads its result.
+
+// `spawn script` starts the other file at once and returns a handle.
+var $job = spawn script "adder.nvs" with(output: "capture");
+echo "parent goes on\n";
+
+// `await` waits for the child to end and returns its result.
+var $done = await $job;
+echo "ok=", $done->ok ? "true" : "false", "\n";
+
+// `value` is what the child returned. Convert it with `as`.
+var $answer = $done->value as array<int>;
+echo "sum=", $answer["sum"], " count=", $answer["count"], "\n";
+
+// `output` is what the child printed.
+echo "child printed: ", $done->output;

@@ -1,0 +1,12 @@
+<?nvs
+// Shows how to save a record on another server with a `PUT` request, and what
+// happens when the address is inside your own network.
+
+// `json` is the body of the request, and it is sent as JSON.
+// 10.0.0.7 is a private address, so the call throws a `RuntimeError` before it sends anything.
+try {
+    Core\Http\Response $response = Core\Http\Client::put("http://10.0.0.7/customers/1042", {json: ["name" => "Kim Lee", "city" => "Graz"]});
+    echo "status: ", $response->status(), "\n";
+} catch (RuntimeError $refused) {
+    echo $refused->message, "\n";
+}

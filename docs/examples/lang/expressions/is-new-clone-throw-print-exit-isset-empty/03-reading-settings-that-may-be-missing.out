@@ -1,0 +1,5 @@
+connecting to db.internal
+port 5432
+user ada
+no label
+not started: host is required

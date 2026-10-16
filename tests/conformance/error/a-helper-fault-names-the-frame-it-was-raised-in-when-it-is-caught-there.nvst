@@ -1,0 +1,44 @@
+--TEST--
+A helper's fault is raised with no site of its own, so the frame it happened in is recorded where nothing else would record one: the catchable edge of the landing site — `rule:errors/throw-is-not-slower`
+--FILE--
+<?nvs
+// Every other label in a backtrace is pushed by a frame the exception *leaves*,
+// and a `throw` renders its own from the site it was compiled with. A helper
+// raising its own fault does neither, and a `catch` in the frame that called
+// the helper unwinds out of nothing — so without a seed on that one edge the
+// exception reaches the handler naming nowhere.
+class Relay {
+    // The clause here matches nothing, so the same object is handed onward.
+    public static function narrow(string $text): mixed {
+        try {
+            return Core\Json::decode($text);
+        } catch (IOError $io) {
+            return 0;
+        }
+    }
+}
+
+try {
+    var $bad = Core\Json::decode("{");
+} catch (Throwable $e) {
+    echo "in-frame=", $e->location, "\n";
+    foreach ($e->backtrace as string $frame) {
+        echo "  ", $frame, "\n";
+    }
+}
+
+// The seeded frame is provisional, exactly as a `throw`'s own is: the label the
+// frame pushes on its way out replaces it rather than naming the frame twice.
+try {
+    var $onward = Relay::narrow("{");
+} catch (Throwable $e) {
+    echo "onward=", $e->location, "\n";
+    foreach ($e->backtrace as string $frame) {
+        echo "  ", $frame, "\n";
+    }
+}
+--EXPECT--
+in-frame=case.nvs:19
+  <script>() at case.nvs:19
+onward=case.nvs:11
+  Relay::narrow() at case.nvs:13

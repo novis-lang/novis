@@ -1,0 +1,26 @@
+<?nvs
+// Shows how to read one column of a query as a plain list.
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table guests (id integer primary key, name text not null, seats int not null)', []);
+$db->execute('insert into guests (name, seats) values (?, ?), (?, ?), (?, ?)', ['Ada Ahmed', 4, 'Bo Berg', 2, 'Cem Celik', 6]);
+
+var $rows = $db->query('select name, seats from guests order by id', []);
+
+// `column` returns the value this column holds in every row. The entries come
+// in the order the query asked for.
+array<mixed> $names = $rows->column('name');
+
+// This prints the three names, one per line.
+foreach ($names as mixed $name) {
+    echo $name as ?string ?? '', "\n";
+}
+
+// You can ask the same result set for another column. This prints `12`.
+int $seats = 0;
+foreach ($rows->column('seats') as mixed $one) {
+    $seats = $seats + ($one as ?int ?? 0);
+}
+echo $seats, "\n";
+
+$db->close();

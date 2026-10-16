@@ -1,0 +1,16 @@
+<?nvs
+// Shows that an enum declared with no type has `int` values.
+
+// This enum has no `: int` or `: uint` after its name.
+enum Weekday {
+    Monday = 1,
+    Tuesday,
+    Wednesday,
+}
+
+?Core\Reflect\EnumInfo $found = Core\Reflect\EnumInfo::of(Weekday::class);
+if ($found != null) {
+    Core\Reflect\EnumInfo $info = $found;
+    // An enum with no type is an `int` enum, so this prints `false`.
+    echo $info->isUnsigned() ? "true" : "false", "\n";
+}

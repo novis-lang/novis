@@ -1,0 +1,17 @@
+package example:greeting;
+
+/// The functions a Novis program can call. Each one returns a `result`: the
+/// value, or an `error` that the program gets as an exception.
+interface api {
+    use nvs:ext/types@1.0.0.{error};
+
+    /// Returns a greeting for `name`. An empty name returns an error.
+    hello: func(name: string) -> result<string, error>;
+}
+
+/// What this project builds: the `nvs:ext` world, plus the functions above.
+/// The files under `deps/` define that world. Do not change them.
+world greeting {
+    include nvs:ext/extension@1.0.0;
+    export api;
+}

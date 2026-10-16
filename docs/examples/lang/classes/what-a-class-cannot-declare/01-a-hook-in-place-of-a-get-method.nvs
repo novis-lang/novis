@@ -1,0 +1,25 @@
+<?nvs
+// Shows a property hook where PHP would write `__get`. The hook runs when the
+// property is read, so the class works the value out instead of storing it.
+
+class Person {
+    public function constructor(public string $first, public string $last) {}
+
+    // `get => expr;` runs on every read of `$fullName`.
+    public string $fullName {
+        get => $this->first . " " . $this->last;
+    }
+}
+
+var $ada = new Person("Ada", "Byron");
+
+// This prints "Ada Byron".
+echo $ada->fullName, "\n";
+
+// The value follows the properties it is worked out from. This prints
+// "Ada Lovelace".
+$ada->last = "Lovelace";
+echo $ada->fullName, "\n";
+
+// A hook belongs to one property, with a name and a type the compiler checks.
+// Your editor completes `$ada->fullName` as it does any other property.

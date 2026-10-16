@@ -1,0 +1,10 @@
+<?nvs
+// Shows how to make the DN of a new user from a name a person typed.
+
+var $staff = Core\Ldap\Dn::parse('OU=Staff,DC=example,DC=test');
+// This text came from a form, so it is `tainted`.
+tainted string $name = 'Ann+uid=7';
+var $user = $staff->child('CN', $name);
+// The `+` and the `=` are escaped, so the name is still one value.
+// This prints CN=Ann\+uid\=7,OU=Staff,DC=example,DC=test.
+echo $user->toString(), "\n";

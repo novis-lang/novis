@@ -1,0 +1,14 @@
+--METHOD--
+POST
+--PATH--
+/videos
+--HEADERS--
+host: example.com
+content-type: multipart/form-data; boundary=video-61bc
+--BODY_CRLF--
+--video-61bc
+Content-Disposition: form-data; name="video"; filename="holiday.mp4"
+Content-Type: video/mp4
+
+This text stands for a video that is far too large for the limit.
+--video-61bc--

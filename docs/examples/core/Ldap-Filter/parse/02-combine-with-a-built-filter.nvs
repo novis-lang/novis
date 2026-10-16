@@ -1,0 +1,9 @@
+<?nvs
+// Shows how to combine a filter read from text with a value from a user.
+
+var $staff = Core\Ldap\Filter::parse('(&(objectClass=user)(department=Sales))');
+// Think of this text as a name that somebody typed into a form.
+string $typed = 'Lee';
+var $filter = Core\Ldap\Filter::all($staff, Core\Ldap\Filter::startsWith('sn', $typed));
+// This prints (&(&(objectClass=user)(department=Sales))(sn=Lee*)).
+echo $filter->toString(), "\n";

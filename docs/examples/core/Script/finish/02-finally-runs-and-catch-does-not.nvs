@@ -1,0 +1,21 @@
+<?nvs
+// Shows that `Core\Script::finish()` runs every `finally` block on its way out.
+// A `catch` block does not catch it, even a `catch` for `Throwable`.
+
+try {
+    try {
+        echo "writing the report\n";
+        Core\Script::finish();
+    } catch (Throwable $error) {
+        // This line does not print. Finishing is not an error.
+        echo "caught: ", $error->message, "\n";
+    } finally {
+        // This prints "closing the report file".
+        echo "closing the report file\n";
+    }
+} finally {
+    // This prints too, after the inner `finally` block.
+    echo "closing the connection\n";
+}
+
+echo "this line does not print\n";

@@ -1,0 +1,28 @@
+<?nvs
+// Shows how to collect the values of a generator into a plain array.
+
+class Fibonacci {
+    public static function first(int $many): Iterator<int> {
+        int $a = 1;
+        int $b = 1;
+        int $n = 0;
+        while ($n < $many) {
+            yield $a;
+            int $next = $a + $b;
+            $a = $b;
+            $b = $next;
+            $n = $n + 1;
+        }
+    }
+}
+
+// `Core\Arr::from` walks the generator to its end and keeps every value.
+array<int> $numbers = Core\Arr::from(Fibonacci::first(7));
+
+// The keys start at 0. This prints 7, then 13.
+echo Core\Arr::count($numbers), "\n";
+echo $numbers[6], "\n";
+
+// The values are in an array now, so you can read them as often as you like.
+// This prints 33.
+echo Core\Arr::sum($numbers), "\n";

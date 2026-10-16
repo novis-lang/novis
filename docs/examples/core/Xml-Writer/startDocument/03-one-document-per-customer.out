@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<invoice customer="Ada">
+  <total>120</total>
+</invoice>
+
+<?xml version="1.0" encoding="UTF-8"?>
+<invoice customer="Linus">
+  <total>75</total>
+</invoice>

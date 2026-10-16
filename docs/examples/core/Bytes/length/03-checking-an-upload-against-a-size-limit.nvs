@@ -1,0 +1,20 @@
+<?nvs
+// Shows how a program checks the size of an uploaded file. A size limit counts
+// bytes, so this is the check that reads `Core\Bytes::length`.
+
+final class Upload {
+    // Returns true when the file is small enough to store.
+    public static function fits(bytes $file, uint $limit): bool {
+        return Core\Bytes::length($file) <= $limit;
+    }
+}
+
+// Two files of 2048 and 1048576 bytes, both filled with the letter "A".
+bytes $small = Core\Bytes::fill(2048, 65);
+bytes $large = Core\Bytes::fill(1048576, 65);
+
+// The limit is 65536 bytes. The small file is under it, so this prints "yes".
+echo Upload::fits($small, 65536) ? "yes" : "no", "\n";
+
+// The large file is over the limit, so this prints "no".
+echo Upload::fits($large, 65536) ? "yes" : "no", "\n";

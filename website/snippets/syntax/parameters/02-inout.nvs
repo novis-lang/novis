@@ -1,0 +1,20 @@
+<?nvs
+class Counter {
+    // `inout` means a change to `$n` also changes the caller's variable.
+    public static function bump(inout int $n): void {
+        $n = $n + 1;
+    }
+}
+
+int $count = 5;
+// The call writes `inout` too, so you can see which variable may change.
+Counter::bump(inout $count);
+Counter::bump(inout n: $count);
+echo $count, "\n";
+
+// A `foreach` variable can also be `inout`. This changes the array itself.
+array<int> $xs = [1, 2];
+foreach ($xs as inout int $v) {
+    $v = $v * 10;
+}
+echo Core\Json::encode($xs), "\n";

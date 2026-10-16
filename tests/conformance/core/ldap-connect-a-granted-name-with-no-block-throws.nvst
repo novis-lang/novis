@@ -1,0 +1,21 @@
+--TEST--
+Core\Ldap::connect with a granted name that no `[ldap.<name>]` block sets up throws `RuntimeError` naming the block, and the grant alone opens nothing — `rule:security/capability-question-is-grant-and-scope`
+--FILE--
+<?nvs
+// `ldap.connect` grants `corp`, but `nvs.toml` has no `[ldap.corp]` block.
+try {
+    var $corp = Core\Ldap::connect("corp");
+    echo "opened corp", "\n";
+} catch (Core\Ldap\LdapError $failed) {
+    echo "not reached: ", $failed->message, "\n";
+} catch (RuntimeError $missing) {
+    echo $missing->message, "\n";
+}
+--FILE nvs.toml--
+[capabilities.ldap]
+connect = ["corp"]
+
+[ldap.staff]
+url = "ldaps://127.0.0.1:1"
+--EXPECT--
+Core\Ldap::connect: nothing sets `[ldap.corp]` up, so the name resolves to no block

@@ -1,0 +1,36 @@
+<?nvs
+// Attack: a program undoes settings it never changed, with names no
+// configuration file could hold, a hundred thousand times over. Nothing
+// should happen each time, the number of settings must not move, and the
+// program must not crash.
+
+uint $before = Core\Arr::count(Core\Config::all());
+
+// 1. A name one million characters long, and a name of a hundred thousand
+// dots.
+Core\Config::restore(Core\Str::repeat('a', 1000000));
+Core\Config::restore(Core\Str::repeat('.', 100000));
+
+// 2. A name with a zero byte in it, an empty name, and the name of a whole
+// group of settings.
+Core\Config::restore("limits.\u{0}memory");
+Core\Config::restore('');
+Core\Config::restore('limits');
+
+// 3. The same name a hundred thousand times, with nothing to undo. This must
+// not hold memory and must not get slower.
+uint $i = 0;
+while ($i < 100000) {
+    Core\Config::restore('max_tasks');
+    $i = $i + 1;
+}
+
+// 4. A change and its undo, a hundred thousand times over.
+$i = 0;
+while ($i < 100000) {
+    Core\Config::set('max_tasks', '8');
+    Core\Config::restore('max_tasks');
+    $i = $i + 1;
+}
+
+echo 'settings gained: ', Core\Arr::count(Core\Config::all()) - $before, "\n";

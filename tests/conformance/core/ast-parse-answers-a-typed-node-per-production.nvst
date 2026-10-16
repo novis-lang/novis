@@ -1,0 +1,41 @@
+--TEST--
+a parsed node is an instance of its own production's class, so the tree is typed per production rather than by a kind string alone — `rule:core-classes/ast-is-inert`, `rule:security/reflection-needs-no-capability`
+--FILE--
+<?nvs
+// `rule:core-classes/ast-is-inert` asks for one type per production, and the
+// class is where it is carried: `kind()` is the production's short name and the
+// node's class is the production itself. Asserting them together is the point --
+// a node that answered a plausible `kind()` from the wrong class fails here
+// while looking right on either line alone.
+var $tree = Core\Ast::parse("<?nvs echo 1 + 2;");
+echo Core\Reflect::forObject($tree)->name(), "\n";
+foreach ($tree->nodes() as Core\Ast\Node $node) {
+    echo $node->kind(), " -> ", Core\Reflect::forObject($node)->name(), "\n";
+}
+
+// The same production is the same class every time it appears, and two parses
+// of the same text agree -- the roster is the grammar's own table rather than
+// something minted per tree.
+var $again = Core\Ast::parse("<?nvs echo 1 + 2;");
+bool $agreed = Core\Reflect::forObject($again)->name()
+    == Core\Reflect::forObject($tree)->name();
+echo "same class across two parses: ", $agreed ? "yes" : "no", "\n";
+
+// Neither half took a capability: parsing reads a string this program already
+// holds and describing a value reads the class it already is
+// (`rule:security/reflection-needs-no-capability`).
+echo "declarations are their own productions\n";
+var $decl = Core\Ast::parse("<?nvs class C { public function m(): void {} }");
+foreach ($decl->nodes() as Core\Ast\Node $node) {
+    echo "  ", Core\Reflect::forObject($node)->name(), "\n";
+}
+--EXPECT--
+Core\Ast\File
+Echo -> Core\Ast\Echo
+Binary -> Core\Ast\Binary
+Int -> Core\Ast\Int
+Int -> Core\Ast\Int
+same class across two parses: yes
+declarations are their own productions
+  Core\Ast\ClassDecl
+  Core\Ast\Method

@@ -1,0 +1,27 @@
+<?nvs
+// Shows a program that sends its access token only after a verified TLS connection.
+
+class Api {
+    // Returns `true` when the reply came over TLS and the server's certificate
+    // was checked. Returns `false` in every other case.
+    public static function isVerified(Core\Http\Response $response): bool {
+        ?Core\Http\TlsInfo $info = $response->tls();
+        if ($info == null) {
+            return false;
+        }
+        return $info->verified();
+    }
+}
+
+// A fixed reply, so the example runs without a network.
+Core\Test::answerHttp("https://api.example.com/ping", 200, {});
+
+Core\Http\Response $ping = Core\Http\Client::get("https://api.example.com/ping");
+
+// A fixed reply does not use a connection, so `tls()` returns `null`.
+// This prints `Not sending the token.`
+if (Api::isVerified($ping)) {
+    echo "Sending the token.\n";
+} else {
+    echo "Not sending the token.\n";
+}

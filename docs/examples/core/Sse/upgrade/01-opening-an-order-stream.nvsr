@@ -1,0 +1,7 @@
+--METHOD--
+GET
+--PATH--
+/live/orders
+--HEADERS--
+host: example.com
+accept: text/event-stream

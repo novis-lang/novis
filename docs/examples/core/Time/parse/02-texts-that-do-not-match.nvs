@@ -1,0 +1,15 @@
+<?nvs
+// Shows what happens when a text does not match the pattern.
+
+// Only the first text matches. The others throw a `ParseError`. The message says what is
+// wrong: a `T` instead of a space, a one-digit month, or a day that does not exist.
+var $utc = Core\Time\Zone::of("UTC");
+array<string> $inputs = ["2024-06-05 14:30", "2024-06-05T14:30", "2024-6-5 14:30", "2024-02-30 14:30"];
+foreach ($inputs as string $text) {
+    try {
+        echo Core\Time::parse($text, "yyyy-MM-dd HH:mm", $utc)->format("yyyy-MM-dd HH:mm"), "\n";
+    } catch (ParseError $error) {
+        echo "not valid: ", $text, "\n";
+        echo "  ", $error->message, "\n";
+    }
+}

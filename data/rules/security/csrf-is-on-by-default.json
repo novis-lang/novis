@@ -1,0 +1,15 @@
+{
+  "title": "The server refuses an unsafe verb without a valid CSRF token, and the opt-out is written on the route itself",
+  "status": "shipped",
+  "seeAlso": [
+    "security/access-is-checked-for-presence-not-meaning",
+    "security/protocol-roster",
+    "attributes/access-payload",
+    "routing/a-gate-answers-around-every-handler"
+  ],
+  "guardedBy": [
+    "crates/nvs-server/src/route.rs",
+    "tests/conformance/core/csrf-binds-a-token-to-one-session-and-verify-is-the-only-comparison.nvst",
+    "tests/conformance/core/http-method-is-eight-verbs-whose-unsafe-four-are-the-tail.nvst"
+  ]
+}

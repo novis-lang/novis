@@ -1,0 +1,29 @@
+<?nvs
+// Shows `throw` in a `match` arm. Every status the program knows has an arm of
+// its own. An unknown status reaches the `default` arm, and that arm throws.
+
+final class Orders {
+    public static function nextStep(string $status): string {
+        return match ($status) {
+            "paid" => "pack the order",
+            "packed" => "print the label",
+            "shipped" => "nothing left to do",
+            // A `match` arm may be a `throw`. The method then returns nothing
+            // for this subject, and the caller gets the error.
+            default => throw new LogicError("unknown order status: " . $status),
+        };
+    }
+}
+
+array<string> $statuses = ["paid", "packed", "returned"];
+
+// The first two lines print a step. The third prints the error message,
+// because "returned" has no arm.
+foreach ($statuses as string $status) {
+    try {
+        string $step = Orders::nextStep($status);
+        echo $status, ": ", $step, "\n";
+    } catch (LogicError $unknown) {
+        echo $status, ": ", $unknown->message, "\n";
+    }
+}

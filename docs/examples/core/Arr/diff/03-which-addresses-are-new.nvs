@@ -1,0 +1,13 @@
+<?nvs
+// Shows how to find the addresses that are new to a mailing list, while
+// treating "Ada@Example.com" and "ada@example.com" as one address.
+
+array<string> $uploaded = ["Ada@Example.com", "grace@example.com", "Alan@example.com"];
+array<string> $subscribed = ["ada@example.com", "alan@example.com"];
+
+// `by` changes what is compared, not what you get back. The addresses are
+// compared in lower case, and only "grace@example.com" is new.
+array<string> $new = Core\Arr::diff($uploaded, $subscribed, {
+    by: fn(string $address): string => Core\Str::lower($address),
+});
+echo Core\Json::encode($new), "\n";

@@ -1,0 +1,20 @@
+<?nvs
+// The program `nvs meta --json <entry>` reads for an enum a class body owns:
+// the enum is emitted inside its owner's entry, named with the owner, and the
+// file-scope `enums` roster stays empty.
+namespace Shop;
+
+/// An order a customer placed.
+final class Order {
+    /// Where an order is in its life.
+    enum Status: uint {
+        /// Placed and not paid yet.
+        Open,
+        Paid = 5,
+    }
+
+    public Status $status = Status::Open;
+}
+
+var $order = new Order();
+echo $order->status as uint, "\n";

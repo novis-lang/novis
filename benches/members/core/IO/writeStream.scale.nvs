@@ -1,0 +1,28 @@
+<?nvs
+// Measures `Core\IO::writeStream` on one file, at growing numbers of chunks.
+// bench: start 16
+// bench: max 256
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        array<bytes> $chunks = [];
+        uint $n = 0;
+        while ($n < $size) {
+            $chunks[] = 'part, ' as bytes;
+            $n = $n + 1;
+        }
+        string $path = Core\Path::join(Core\IO::temporaryDir(), 'upload.bin');
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            Core\IO::writeStream($path, $chunks, { overwrite: true });
+            $total = $total + Core\IO::size($path);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(16), "\n";

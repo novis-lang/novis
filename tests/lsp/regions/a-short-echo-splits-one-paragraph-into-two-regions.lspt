@@ -1,0 +1,12 @@
+--TEST--
+a `<?= … ?>` hole splits the markup around it into two regions rather than one range spanning it — the bytes in the hole are Novis, and an HTML service asked about them would be answering about a variable
+--FILE--
+<?nvs
+var $name = "world";
+?>
+<p>hi <?= $name ?>!</p>
+--REQUEST--
+regions
+--EXPECT--
+4:1-4:7 html
+4:19-5:1 html

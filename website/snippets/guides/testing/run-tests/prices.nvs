@@ -1,0 +1,31 @@
+<?nvs
+// This program has a class and three tests for it. `nvs test prices.nvs` runs the tests.
+use Core\Test;
+
+class Price {
+    // `withTax` adds 20 percent to a price in cents.
+    public static function withTax(int $cents): int {
+        return $cents + Core\Math::intDiv($cents, 5);
+    }
+}
+
+final class PriceTest {
+    #[Test]
+    public function addsTwentyPercent(): void {
+        Test::assertSame(Price::withTax(1000), 1200);
+    }
+
+    #[Test]
+    public function zeroStaysZero(): void {
+        Test::assertSame(Price::withTax(0), 0);
+    }
+
+    // `skip` turns a test off and prints the reason.
+    #[Test(skip: "rounding is not decided yet")]
+    public function roundsHalfCents(): void {
+        Test::assertSame(Price::withTax(3), 4);
+    }
+}
+
+// `nvs run prices.nvs` runs this line and not the tests.
+echo Price::withTax(1000), "\n";

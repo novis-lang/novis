@@ -1,0 +1,33 @@
+--TEST--
+`Core\Command::run` fills an omitted enum option from the case its declaration defaults to, by the same case name a command line would have typed — `rule:tooling/commands-are-compiled`, `rule:enums/no-class-machinery`
+--FILE--
+<?nvs
+// A parameter default is folded at signature collection, and an enum case
+// folds to its backing integer (`nvs_types::defaults`). A command row carries
+// the default as *text* the matcher converts, so what it has to carry for an
+// enum is the case's **name**: `nvs_types::commands::ArgConv::Enum` decided a
+// command line spells a case by name, and a number no command line would be
+// allowed to write is no use as the value one omitted.
+//
+// Both halves are here, because either alone prints plausibly: the omitted
+// option takes `Warn`, and a written one still takes the word.
+enum Level: uint {
+    Warn = 10,
+    Error = 20,
+}
+
+class Logs {
+    #[Core\Command(name: "emit", about: "Write one line at a level")]
+    public static function emit(#[Core\Option] Level $level = Level::Warn): uint {
+        echo "level: ", $level as uint, "\n";
+        return 0;
+    }
+}
+
+uint $status = Core\Command::run();
+echo "status: ", $status, "\n";
+--ARGS--
+emit
+--EXPECT--
+level: 10
+status: 0

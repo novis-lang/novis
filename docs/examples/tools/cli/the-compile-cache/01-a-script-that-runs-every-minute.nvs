@@ -1,0 +1,13 @@
+<?nvs
+// Shows a small job that a scheduler starts every minute, like a `cron` job.
+// The first `nvs run` compiles this file and saves the result in the compile cache.
+// Each later run loads that result, so the job starts without compiling again.
+
+array<string> $queue = ["welcome mail", "invoice 1042", "password reset"];
+uint $sent = 0;
+foreach ($queue as string $job) {
+    echo "sent: ", $job, "\n";
+    $sent = $sent + 1;
+}
+// This prints `3 jobs done`. The output is the same whether the program was compiled or loaded.
+echo $sent, " jobs done\n";

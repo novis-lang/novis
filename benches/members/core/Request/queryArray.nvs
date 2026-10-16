@@ -1,0 +1,22 @@
+<?nvs
+// Reads every value of one bracketed query parameter, as a list page does for its tags or filters.
+// bench: iterations 2048
+// bench: complexity constant
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        // The query string is in the file `queryArray.nvsr` beside this one.
+        array<string> $names = ["tag", "filter", "page"];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            array<tainted string> $values = Core\Request::queryArray($names[($i % 3) as int]);
+            $total = $total + Core\Arr::count($values);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(2048), "\n";

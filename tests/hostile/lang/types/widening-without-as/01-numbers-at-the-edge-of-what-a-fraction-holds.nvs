@@ -1,0 +1,40 @@
+<?nvs
+// Attack: the program passes very large and very small `int` values to a `float` parameter, many times.
+// If a `float` cannot store a value exactly, the call throws an `ArithmeticError`.
+// The program catches each error and continues.
+// hostile: timeout-ms 20000
+
+class Sink
+{
+    public static function take(float $x): float
+    {
+        return $x + 1.0;
+    }
+}
+
+array<int> $edges = [
+    9007199254740992,
+    9007199254740993,
+    9223372036854775807,
+    -9223372036854775807,
+    0,
+    -1,
+];
+
+int $refused = 0;
+int $taken = 0;
+uint $round = 0;
+
+while ($round < 20000) {
+    foreach ($edges as int $edge) {
+        try {
+            float $x = Sink::take($edge + ($round as int));
+            $taken = $taken + 1;
+        } catch (ArithmeticError $e) {
+            $refused = $refused + 1;
+        }
+    }
+    $round = $round + 1;
+}
+
+echo $refused, ' ', $taken, "\n";

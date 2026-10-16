@@ -1,0 +1,3 @@
+`Mailer::mail()` is deprecated since 3.0. Use `Mailer::send($to)` instead.
+sent to ana@example.com
+sent to ben@example.com

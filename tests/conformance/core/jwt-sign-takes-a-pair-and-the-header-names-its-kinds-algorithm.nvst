@@ -1,0 +1,69 @@
+--TEST--
+Core\Jwt::sign takes a Core\Crypto\KeyPair beside a shared secret and the header's `alg` is the one algorithm that key has — HS256, ES256 and EdDSA, read back off the headers themselves — while an X25519 pair signs nothing and Core\Jwt::verify, which is HS256 alone, reads none of the asymmetric tokens — `rule:security/algorithm-comes-from-the-key`, `rule:security/protocol-roster`
+--FILE--
+<?nvs
+// Agreement over the keys that sign. One question — "what did the header say
+// `alg` was?" — is asked of every kind of key this member takes, so a member
+// that picked its algorithm from anywhere but the key fails here while still
+// looking right on any single line. There is no `alg` argument to get wrong,
+// which is the point: the key in slot 3 is the whole of the choice.
+//
+// The two RSA kinds are not in this sweep because there is no way to reach one
+// from source without a PKCS#8 file, and the same table's RSA rows are pinned
+// beside the function that answers them, in `jwt.rs`'s own
+// `each_kind_carries_one_algorithm_and_x25519_carries_none`.
+secret bytes $shared = Core\Crypto::generateKey();
+Core\Crypto\KeyPair $p256 = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::P256);
+Core\Crypto\KeyPair $ed25519 = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::Ed25519);
+
+array<string> $tokens = [
+    Core\Jwt::sign(["sub" => "ada"], 15m, $shared),
+    Core\Jwt::sign(["sub" => "ada"], 15m, $p256),
+    Core\Jwt::sign(["sub" => "ada"], 15m, $ed25519),
+];
+
+foreach ($tokens as string $token) {
+    array<string> $parts = Core\Str::split($token, ".");
+    echo Core\Encoding::decodeText(
+        Core\Encoding::fromBase64Url($parts[0]),
+        Core\Charset::Utf8
+    ), "\n";
+}
+
+// The one kind of pair that is not a signing key at all. It is a bug rather
+// than a verdict, because the program handed over a key for `Core\Crypto::agree`
+// and nothing about a token is wrong.
+try {
+    Core\Jwt::sign(
+        ["sub" => "ada"],
+        15m,
+        Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::X25519)
+    );
+    echo "an X25519 pair signed a token", "\n";
+} catch (LogicError $signsNothing) {
+    echo $signsNothing->message, "\n";
+}
+
+// And the read half did not widen with the write half. `Core\Jwt::verify` takes
+// a shared secret and compares `alg` against HS256, so an asymmetric token is a
+// token it refuses like any other — the same one sentence, not a new failure.
+array<string> $asymmetric = [$tokens[1], $tokens[2]];
+int $refused = 0;
+foreach ($asymmetric as string $token) {
+    try {
+        Core\Jwt::verify($token, $shared);
+    } catch (RuntimeError $notThisKeys) {
+        $refused = $refused + 1;
+    }
+}
+echo "asymmetric tokens a shared-key verifier reads ", 2 - $refused, " of 2", "\n";
+
+array<tainted string> $claims = Core\Jwt::verify($tokens[0], $shared);
+echo "and the shared-key token still round-trips, sub ", $claims["sub"], "\n";
+--EXPECT--
+{"alg":"HS256","typ":"JWT"}
+{"alg":"ES256","typ":"JWT"}
+{"alg":"EdDSA","typ":"JWT"}
+Core\Jwt::sign(): an `X25519` pair signs nothing — it is a key for Core\Crypto::agree alone. A `P256` pair signs ES256, an `Ed25519` pair EdDSA, and the two RSA kinds RS256 and PS256.
+asymmetric tokens a shared-key verifier reads 0 of 2
+and the shared-key token still round-trips, sub ada

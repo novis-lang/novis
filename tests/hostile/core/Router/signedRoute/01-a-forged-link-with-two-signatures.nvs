@@ -1,0 +1,69 @@
+<?nvs
+// Attack: a request brings a forged link. It has two `_sig` values, a second `name`, and bytes
+// that are not UTF-8. Every check should throw an error, and the program must not crash.
+
+class Files
+{
+    #[Core\Route(path: "/files/{name}", method: Core\Http\Method::Get, name: "Files::show")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function show(string $name, #[Core\Query] string $q = ''): string
+    { return 'one file'; }
+}
+
+bytes $raw = 'example-key-for-signed-links-001' as bytes;
+secret bytes $key = $raw as secret bytes;
+array<secret bytes> $keys = [$key];
+
+// 1. No keys at all. This throws a `LogicError`.
+array<secret bytes> $none = [];
+try {
+    Core\Router::signedRoute($none);
+    echo 'no keys: accepted', "\n";
+} catch (LogicError $e) {
+    echo 'no keys: error', "\n";
+}
+
+// 2. A first key that is 31 bytes long. This throws a `LogicError`.
+bytes $shortRaw = '0123456789012345678901234567890' as bytes;
+array<secret bytes> $shortKeys = [$shortRaw as secret bytes];
+try {
+    Core\Router::signedRoute($shortKeys);
+    echo 'short key: accepted', "\n";
+} catch (LogicError $tooShort) {
+    echo 'short key: error', "\n";
+}
+
+// 3. The right key. The request has two `_sig` values, so this throws a `RuntimeError`.
+try {
+    Core\Router::signedRoute($keys);
+    echo 'right key: accepted', "\n";
+} catch (RuntimeError $forged) {
+    echo 'right key: error', "\n";
+}
+
+// 4. A list of ten thousand keys. Each key is tried, and the check still throws.
+array<secret bytes> $many = [];
+uint $k = 0;
+while ($k < 10000) {
+    $many[] = $key;
+    $k = $k + 1;
+}
+try {
+    Core\Router::signedRoute($many);
+    echo 'many keys: accepted', "\n";
+} catch (RuntimeError $stillForged) {
+    echo 'many keys: error', "\n";
+}
+
+// 5. The same check many times, to test that no memory is lost.
+uint $refused = 0;
+uint $i = 0;
+while ($i < 20000) {
+    try {
+        Core\Router::signedRoute($keys);
+    } catch (RuntimeError $again) {
+        $refused = $refused + 1;
+    }
+    $i = $i + 1;
+}
+echo $refused, ' errors', "\n";

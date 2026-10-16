@@ -1,0 +1,22 @@
+<?nvs
+// Shows a pie chart with the value on each slice and no legend.
+use Novis\Spreadsheet\Chart;
+use Novis\Spreadsheet\Workbook;
+
+var $book = Workbook::createInMemory();
+var $sheet = $book->sheet('Survey');
+$sheet->addAll([
+    ['answer' => 'Yes', 'votes' => 64],
+    ['answer' => 'No', 'votes' => 21],
+    ['answer' => 'Not sure', 'votes' => 15],
+]);
+
+// `labels: true` shows each value on its slice. `legend: 'hidden'` removes the legend.
+var $chart = Chart::pie({ legend: 'hidden', labels: true })
+    ->series($sheet->column('votes'), { categories: $sheet->column('answer') });
+$sheet->chart('D2', $chart);
+bytes $file = $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
+
+var $xml = Core\Zip::read($file, 'xl/charts/chart1.xml') as string;
+echo Core\Str::contains($xml, '<c:showVal val="1"/>') ? 'each slice shows its value' : 'no values', "\n";
+echo Core\Str::contains($xml, '<c:legend>') ? 'a legend' : 'no legend', "\n";

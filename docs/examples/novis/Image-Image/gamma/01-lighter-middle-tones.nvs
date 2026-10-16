@@ -1,0 +1,11 @@
+<?nvs
+// Shows how a gamma above 1.0 makes the middle tones lighter.
+use Novis\Image\Image;
+use Novis\Image\Color;
+
+Image $shadow = Image::create(10, 10, Color::rgba(64, 64, 64));
+
+// The dark gray 64 becomes the middle gray 128. This prints 128 128 128.
+var $raw = $shadow->gamma(2.0)->raw();
+array<mixed> $pixel = Core\Bytes::unpack(Core\Bytes::slice($raw->pixels, 0, 4), "C4");
+echo $pixel[0], " ", $pixel[1], " ", $pixel[2], "\n";

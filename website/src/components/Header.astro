@@ -1,0 +1,312 @@
+---
+/**
+ * Header override: the default Starlight header (the mark, search, social
+ * icons, theme switch) plus the site navigation: the four areas from AREAS in
+ * config/site.mjs, each with its subtitle on a second, smaller line, then
+ * Install as the bar's one primary button, then Sponsoring.
+ *
+ * The mark comes from Starlight's `logo` option (see astro.config.ts) through
+ * `<SiteTitle />`, replaces the wordmark and links to the home page. Its size
+ * is set below, because the default suits a wide logo and not a square one.
+ *
+ * Every item in the bar is centered on the bar's midline. As the window
+ * narrows, the parts that are also in the footer go first: the subtitles
+ * below 90rem, the social icons below 68rem, Sponsoring below 58rem. Below
+ * 50rem the whole navigation moves into the mobile menu, and the bar keeps two
+ * links beside the mark: the first area and Install. Below 22rem only Install
+ * stays.
+ */
+import config from 'virtual:starlight/user-config'
+
+import { AREAS, INSTALL } from '@config/site.mjs'
+import { withBase } from '~/lib/base'
+
+import LanguageSelect from 'virtual:starlight/components/LanguageSelect'
+import Search from 'virtual:starlight/components/Search'
+import SiteTitle from 'virtual:starlight/components/SiteTitle'
+import SocialIcons from 'virtual:starlight/components/SocialIcons'
+import ThemeSelect from 'virtual:starlight/components/ThemeSelect'
+
+const shouldRenderSearch =
+  config.pagefind || config.components.Search !== '@astrojs/starlight/components/Search.astro'
+
+const areas = AREAS.map((area) => ({ ...area, href: withBase(area.href) }))
+const install = { ...INSTALL, href: withBase(INSTALL.href) }
+const sponsoring = { label: 'Sponsoring', href: withBase('/sponsoring/') }
+
+const { pathname } = Astro.url
+const current = (href: string) => (pathname.startsWith(href) ? 'page' : undefined)
+---
+
+<div class="header">
+  <div class="start-group">
+    <div class="title-wrapper sl-flex">
+      <SiteTitle />
+    </div>
+    <nav class="site-nav sl-hidden md:sl-flex print:hidden" aria-label="Site">
+      {
+        areas.map((area) => (
+          <a href={area.href} aria-current={current(area.href)} class="area">
+            <span class="area-label">{area.label}</span>
+            <span class="area-subtitle">{area.subtitle}</span>
+          </a>
+        ))
+      }
+      <a href={install.href} aria-current={current(install.href)} class="install">
+        {install.label}
+      </a>
+      <a href={sponsoring.href} aria-current={current(sponsoring.href)} class="sponsoring">
+        {sponsoring.label}
+      </a>
+    </nav>
+    <nav class="phone-nav print:hidden" aria-label="Quick links">
+      <a href={areas[0].href} aria-current={current(areas[0].href)}>{areas[0].label}</a>
+      <a href={install.href} aria-current={current(install.href)} class="install">
+        {install.label}
+      </a>
+    </nav>
+  </div>
+  <div class="sl-flex print:hidden search-wrapper">
+    {shouldRenderSearch && <Search />}
+  </div>
+  <div class="sl-hidden md:sl-flex print:hidden right-group">
+    <div class="sl-flex social-icons">
+      <SocialIcons />
+    </div>
+    <ThemeSelect />
+    <LanguageSelect />
+  </div>
+</div>
+
+<style>
+  .header {
+    display: flex;
+    gap: var(--nv-space-4);
+    justify-content: space-between;
+    align-items: center;
+    height: 100%;
+  }
+
+  .start-group {
+    --mark-size: 2rem;
+    display: flex;
+    align-items: center;
+    gap: var(--nv-space-5);
+    min-width: 0;
+  }
+  @media (max-width: 50rem) {
+    .start-group {
+      --mark-size: 1.75rem;
+      gap: var(--nv-space-3);
+    }
+  }
+
+  .title-wrapper {
+    overflow: clip;
+    padding: 0.25rem;
+    margin: -0.25rem;
+    min-width: 0;
+  }
+
+  /* Starlight sizes a logo to the nav height less its padding, which suits a
+     wide wordmark. Ours is a square mark that all but fills its square image,
+     so the box clears the nav's text height by the padding alone and the disc
+     itself lands on that height. */
+  .title-wrapper :global(.site-title img) {
+    box-sizing: border-box;
+    height: var(--mark-size);
+    width: var(--mark-size);
+    padding: 0.125rem;
+    border-radius: 0.5rem;
+    transition: transform var(--nv-slow) var(--nv-ease);
+  }
+  .title-wrapper :global(.site-title:hover img) {
+    transform: rotate(-8deg) scale(1.05);
+  }
+  /* In the dark theme the mark stands on a white rounded tile, as it does on
+     the home-screen icon; the padding above is what keeps the disc's edge off
+     the tile's, and it stays in the light theme so the mark is the same size
+     in both. The light theme is the opted-in one, so "dark" is its absence. */
+  :global(:root:not([data-theme='light'])) .title-wrapper :global(.site-title img) {
+    background: white;
+  }
+
+  .site-nav {
+    gap: var(--nv-space-1);
+    align-items: center;
+  }
+  .site-nav a {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    min-height: 2.5rem;
+    padding: 0.25rem 0.7rem;
+    border-radius: var(--nv-radius);
+    color: var(--sl-color-gray-2);
+    font-size: var(--sl-text-sm);
+    font-weight: 650;
+    line-height: 1.2;
+    text-decoration: none;
+    white-space: nowrap;
+    transition:
+      color var(--nv-fast) var(--nv-ease),
+      background-color var(--nv-fast) var(--nv-ease);
+  }
+  .site-nav a:hover {
+    color: var(--sl-color-white);
+    background-color: var(--nv-hover);
+  }
+  .site-nav a:not(.install):active {
+    background-color: var(--nv-wash);
+  }
+  /* The current area: violet text and a short bar under it. */
+  .site-nav a:not(.install)::after {
+    content: '';
+    position: absolute;
+    inset-inline: 0.7rem;
+    bottom: 0;
+    height: 2px;
+    border-radius: 2px;
+    background: var(--sl-color-accent);
+    transform: scaleX(0);
+    transition: transform var(--nv-slow) var(--nv-ease);
+  }
+  .site-nav a[aria-current='page']:not(.install) {
+    color: var(--sl-color-text-accent);
+  }
+  .site-nav a[aria-current='page']:not(.install)::after {
+    transform: scaleX(1);
+  }
+  .site-nav .area-subtitle {
+    display: none;
+    margin-top: 0.1rem;
+    font-size: var(--sl-text-2xs);
+    font-weight: 500;
+    color: var(--sl-color-gray-3);
+  }
+  @media (min-width: 90rem) {
+    .site-nav .area-subtitle {
+      display: block;
+    }
+    .site-nav a {
+      min-height: 2.75rem;
+    }
+  }
+
+  /* Install: the one primary button in the bar. */
+  .site-nav a.install {
+    min-height: 2.25rem;
+    margin-inline: var(--nv-space-2);
+    padding: 0 1rem;
+    border: 1px solid color-mix(in oklab, var(--nv-crimson-fill) 80%, black);
+    border-radius: var(--nv-radius-pill);
+    background-color: var(--nv-crimson-fill);
+    background-image: linear-gradient(180deg, color-mix(in oklab, white 14%, transparent), transparent 70%);
+    color: white;
+    box-shadow:
+      inset 0 1px 0 color-mix(in oklab, white 22%, transparent),
+      0 4px 14px -6px color-mix(in oklab, var(--nv-crimson) 70%, transparent);
+    transition:
+      transform var(--nv-fast) var(--nv-ease),
+      box-shadow var(--nv-slow) var(--nv-ease);
+  }
+  .site-nav a.install:hover {
+    color: white;
+    transform: translateY(-1px);
+    box-shadow:
+      inset 0 1px 0 color-mix(in oklab, white 22%, transparent),
+      0 8px 20px -6px color-mix(in oklab, var(--nv-crimson) 80%, transparent);
+  }
+  .site-nav a.install:active {
+    transform: translateY(0);
+    background-image: none;
+  }
+
+  /* The two links in the bar on a phone: the first area as plain text, and
+     Install as a small crimson pill. */
+  .phone-nav {
+    display: flex;
+    align-items: center;
+    gap: var(--nv-space-1);
+  }
+  .phone-nav a {
+    display: inline-flex;
+    align-items: center;
+    min-height: 2.25rem;
+    padding-inline: 0.65rem;
+    border-radius: var(--nv-radius-pill);
+    color: var(--sl-color-gray-2);
+    font-size: var(--sl-text-sm);
+    font-weight: 650;
+    text-decoration: none;
+    white-space: nowrap;
+  }
+  .phone-nav a:not(.install):hover,
+  .phone-nav a:not(.install):active {
+    color: var(--sl-color-white);
+    background-color: var(--nv-hover);
+  }
+  .phone-nav a[aria-current='page']:not(.install) {
+    color: var(--sl-color-text-accent);
+  }
+  .phone-nav a.install {
+    min-height: 2rem;
+    padding-inline: 0.85rem;
+    border: 1px solid color-mix(in oklab, var(--nv-crimson-fill) 80%, black);
+    background-color: var(--nv-crimson-fill);
+    background-image: linear-gradient(180deg, color-mix(in oklab, white 14%, transparent), transparent 70%);
+    color: white;
+    box-shadow: inset 0 1px 0 color-mix(in oklab, white 22%, transparent);
+  }
+  .phone-nav a.install:active {
+    background-image: none;
+  }
+  @media (max-width: 22rem) {
+    .phone-nav a:not(.install) {
+      display: none;
+    }
+  }
+  @media (min-width: 50rem) {
+    .phone-nav {
+      display: none;
+    }
+  }
+
+  .search-wrapper {
+    flex: 1 1 auto;
+    justify-content: flex-end;
+    min-width: 0;
+  }
+
+  .right-group {
+    gap: var(--nv-space-3);
+    align-items: center;
+  }
+  .social-icons {
+    gap: var(--nv-space-1);
+    align-items: center;
+  }
+  .social-icons::after {
+    content: '';
+    height: 1.5rem;
+    margin-inline-start: var(--nv-space-2);
+    border-inline-end: 1px solid var(--nv-hairline-strong);
+  }
+
+  @media (max-width: 68rem) {
+    .social-icons {
+      display: none;
+    }
+  }
+  @media (max-width: 58rem) {
+    .site-nav a.sponsoring {
+      display: none;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .title-wrapper :global(.site-title:hover img) {
+      transform: none;
+    }
+  }
+</style>

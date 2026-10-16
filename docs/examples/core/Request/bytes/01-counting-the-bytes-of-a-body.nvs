@@ -1,0 +1,12 @@
+<?nvs
+// Shows how to read the body of a request as bytes and count them.
+
+// `Core\Request::bytes` returns every byte the client sent, unchanged.
+tainted bytes $raw = Core\Request::bytes();
+
+// `Core\Bytes::length` counts bytes. "è", "û" and "é" take two bytes each in UTF-8,
+// so this prints 28.
+echo "bytes: ", Core\Bytes::length($raw), "\n";
+
+// `Core\Str::length` counts characters in the same body. This prints 25.
+echo "characters: ", Core\Str::length(Core\Request::body()), "\n";

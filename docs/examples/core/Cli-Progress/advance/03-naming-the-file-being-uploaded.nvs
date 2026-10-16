@@ -1,0 +1,24 @@
+<?nvs
+// Shows the everyday use: a tool uploads several files and names the one it is
+// working on beside the bar. The bar is scaled to the number of files, and each
+// file that is sent moves it one step.
+
+uint $sent = Core\Cli::progress(3, fn(Core\Cli\Progress $bar): uint => {
+    array<string> $files = ["photos.zip", "notes.txt", "backup.db"];
+    uint $done = 0;
+
+    foreach ($files as string $file) {
+        // Your program sends the file here. The caption says which one it is,
+        // and it stays beside the bar until the next call changes it.
+        $bar->advance({label: Core\Str::format("sending %s", $file)});
+        $done = $done + 1;
+    }
+
+    // A step of `0` counts no more work. It only changes the caption, so the
+    // full bar ends by saying the upload is over.
+    $bar->advance({by: 0, label: "all files sent"});
+    return $done;
+});
+
+// This prints 3.
+echo "sent ", $sent, " files\n";

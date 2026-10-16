@@ -1,0 +1,12 @@
+{
+  "title": "`nvs.toml` is a deployment file, never a project manifest, and it is never found by walking up",
+  "status": "shipped",
+  "seeAlso": [
+    "config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults",
+    "config/ownership-is-the-trust-boundary",
+    "programs/no-runtime-autoload"
+  ],
+  "guardedBy": [
+    "crates/nvs-config/tests/resolve.rs"
+  ]
+}

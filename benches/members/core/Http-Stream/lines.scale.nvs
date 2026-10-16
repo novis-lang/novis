@@ -1,0 +1,25 @@
+<?nvs
+// Measures reading a streamed reply one line at a time, at growing numbers of lines.
+// bench: start 64
+// bench: max 1024
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        // The reply comes from this table, so nothing is sent over a network.
+        Core\Test::answerHttp('https://logs.example.com/a', 200, { body: Core\Str::repeat("09:00 request\n", $size) });
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            Core\Http\Stream $log = Core\Http\Client::stream(Core\Http\Method::Get, 'https://logs.example.com/a');
+            foreach ($log->lines() as tainted string $line) {
+                $total = $total + Core\Str::length($line);
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(64), "\n";

@@ -1,0 +1,28 @@
+<?nvs
+// Shows a program that checks a list of links and reports every link that is broken.
+
+class LinkCheck {
+    // Returns a short report for one link. A status of 400 or more means an error.
+    public static function report(string $url): string {
+        int $status = Core\Http\Client::head($url)->status();
+        if ($status >= 400) {
+            return "broken (" . $status . "): " . $url;
+        }
+        return "ok (" . $status . "): " . $url;
+    }
+}
+
+// Three fixed replies, so the example runs without a network.
+Core\Test::answerHttp("https://shop.example.com/", 200, {});
+Core\Test::answerHttp("https://shop.example.com/old-offer", 410, {});
+Core\Test::answerHttp("https://shop.example.com/cart", 503, {});
+
+// This prints one line per link: the first is ok, the other two are broken.
+array<string> $links = [
+    "https://shop.example.com/",
+    "https://shop.example.com/old-offer",
+    "https://shop.example.com/cart",
+];
+foreach ($links as string $link) {
+    echo LinkCheck::report($link), "\n";
+}

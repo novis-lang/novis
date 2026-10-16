@@ -1,0 +1,64 @@
+<?nvs
+// Shows a help screen that builds itself from the command classes. Adding a
+// command means writing one class. There is no second list to keep up to date.
+// `Core\Program::implementing` finds every class that implements the interface,
+// sorted by name.
+
+interface Tool {
+    public function command(): string;
+}
+
+type Command = {name: string, about: string};
+
+class Migrate implements Tool {
+    #[Core\Command(name: "migrate", about: "Apply pending migrations")]
+    public static function migrate(
+        #[Core\Option(short: "n", about: "Print what would happen")] bool $pretend,
+    ): uint {
+        if ($pretend) { return 0; }
+        return 1;
+    }
+
+    public function command(): string { return "migrate"; }
+}
+
+class Purge implements Tool {
+    #[Core\Command(name: "purge", about: "Delete the expired rows")]
+    public static function purge(
+        #[Core\Option(short: "f", about: "Do not ask first")] bool $force,
+    ): uint {
+        if ($force) { return 0; }
+        return 1;
+    }
+
+    public function command(): string { return "purge"; }
+}
+
+class Seed implements Tool {
+    #[Core\Command(name: "seed", about: "Fill the database with test data")]
+    public static function seed(
+        #[Core\Option(short: "r", about: "How many rows")] uint $rows,
+    ): uint {
+        if ($rows > 0) { return 0; }
+        return 1;
+    }
+
+    public function command(): string { return "seed"; }
+}
+
+echo "Usage: app <command> [options]", "\n";
+echo "\n";
+echo "Commands:", "\n";
+
+foreach (Core\Program::implementing<Tool>() as Tool $tool) {
+    string $name = $tool->command();
+    // Each class says which command it describes, and the description comes
+    // from the attribute rather than from a second string.
+    ?Command $command = null;
+    if ($name == "migrate") { $command = Core\Attributes::get<Command>(Migrate::migrate(...)); }
+    if ($name == "purge") { $command = Core\Attributes::get<Command>(Purge::purge(...)); }
+    if ($name == "seed") { $command = Core\Attributes::get<Command>(Seed::seed(...)); }
+    if ($command != null) {
+        echo "  ", Core\Str::padEnd($command->name, 10), $command->about, "\n";
+    }
+}

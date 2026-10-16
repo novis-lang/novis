@@ -1,0 +1,6 @@
+# The examples open a server on this computer and connect to it.
+# These lines allow that, and nothing else.
+[capabilities.net]
+listen = ["127.0.0.1:0"]
+connect = ["127.0.0.1"]
+internal = ["127.0.0.1"]

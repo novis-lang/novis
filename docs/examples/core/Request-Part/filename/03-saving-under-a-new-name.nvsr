@@ -1,0 +1,21 @@
+--METHOD--
+POST
+--PATH--
+/documents/upload
+--SCHEME--
+https
+--HEADERS--
+host: example.com
+content-type: multipart/form-data; boundary=----WebKitFormBoundary2kV8sLq0PnXa
+--BODY_CRLF--
+------WebKitFormBoundary2kV8sLq0PnXa
+Content-Disposition: form-data; name="document"; filename="contract.pdf"
+Content-Type: application/pdf
+
+%PDF-1.7 a signed contract
+------WebKitFormBoundary2kV8sLq0PnXa
+Content-Disposition: form-data; name="document"; filename="../../index.nvs"
+Content-Type: text/plain
+
+echo 'this file tries to replace the home page';
+------WebKitFormBoundary2kV8sLq0PnXa--

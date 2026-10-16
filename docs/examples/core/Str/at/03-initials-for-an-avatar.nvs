@@ -1,0 +1,18 @@
+<?nvs
+// Shows how to build a person's initials, as a website does for the round
+// picture next to a user's name.
+
+array<string> $users = ["Ada Lovelace", "émile  zola", "Grace"];
+
+foreach ($users as string $user) {
+    string $initials = "";
+    foreach (Core\Str::split($user, " ") as string $word) {
+        // Two spaces in a row give an empty word. It has no first character.
+        if (Core\Str::isEmpty($word)) {
+            continue;
+        }
+        $initials = $initials . Core\Str::upper(Core\Str::at($word, 0));
+    }
+    // This prints `AL`, then `ÉZ`, then `G`.
+    echo $user, ": ", $initials, "\n";
+}

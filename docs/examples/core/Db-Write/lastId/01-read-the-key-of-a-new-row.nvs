@@ -1,0 +1,14 @@
+<?nvs
+// Shows how to read the key the database gave to a row you just inserted.
+// `Core\Db\Connection::execute` returns a `Core\Db\Write`, and `lastId` is the
+// key on it.
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table notes (id integer primary key, text text not null)', []);
+
+var $write = $db->execute('insert into notes (text) values (?)', ['buy milk']);
+
+// The table was empty, so the new note is note 1. This prints `note 1`.
+echo 'note ', $write->lastId() ?? 0, "\n";
+
+$db->close();

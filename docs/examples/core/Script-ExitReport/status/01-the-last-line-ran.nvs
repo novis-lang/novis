@@ -1,0 +1,9 @@
+<?nvs
+// Shows the exit status after the last line of the script runs.
+
+Core\Script::onExit(fn (Core\Script\ExitReport $report): void => {
+    // This prints "status 0".
+    echo "status ", $report->status(), "\n";
+});
+
+echo "the report is ready\n";

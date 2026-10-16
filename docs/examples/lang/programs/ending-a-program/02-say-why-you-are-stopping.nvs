@@ -1,0 +1,14 @@
+<?nvs
+// `exit` can be handed a line of text. The text is written out first, and
+// then the program ends as a success. It is the short way to stop and tell
+// whoever reads the output why you stopped.
+
+string $importFolder = '';
+
+echo "Customer import\n";
+
+if ($importFolder == '') {
+    exit("No import folder was set, so there is nothing to read.\n");
+}
+
+echo 'Reading from ', $importFolder, "\n";

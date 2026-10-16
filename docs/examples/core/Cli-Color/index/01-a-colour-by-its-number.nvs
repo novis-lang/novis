@@ -1,0 +1,13 @@
+<?nvs
+// Shows how to pick a colour from the terminal's 256-entry palette by its
+// number. This output goes to a file, and a file shows no colour, so only the
+// words are printed here.
+
+// Entry 208 is an orange. `Core\Cli\Style::of` makes a style out of it.
+Core\Cli\Color $orange = Core\Cli\Color::index(208);
+Core\Cli\Style $warning = Core\Cli\Style::of({color: $orange});
+echo Core\Cli\Text::styled("disk is 91% full", $warning), "\n";
+
+// A style can also colour the background. Entry 17 is a dark blue.
+Core\Cli\Style $banner = Core\Cli\Style::of({background: Core\Cli\Color::index(17)});
+echo Core\Cli\Text::styled(" release 1.0 ", $banner), "\n";

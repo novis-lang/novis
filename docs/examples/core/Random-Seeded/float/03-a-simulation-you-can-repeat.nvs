@@ -1,0 +1,26 @@
+<?nvs
+// Shows how to simulate a server where one request in ten fails, with a result you can repeat.
+
+// A request fails when its float is below 0.1. The seed is fixed, so the
+// simulation counts the same failures every time it runs.
+Core\Random\Seeded $generator = new Core\Random\Seeded(2024);
+uint $failed = 0;
+uint $longestRun = 0;
+uint $run = 0;
+uint $request = 0;
+while ($request < 10000) {
+    if ($generator->float() < 0.1) {
+        $failed = $failed + 1;
+        $run = $run + 1;
+        if ($run > $longestRun) {
+            $longestRun = $run;
+        }
+    } else {
+        $run = 0;
+    }
+    $request = $request + 1;
+}
+
+// About 1000 of the 10000 requests fail.
+echo "failed: ", $failed, " of 10000\n";
+echo "most failures in a row: ", $longestRun, "\n";

@@ -1,0 +1,36 @@
+<?nvs
+// Attack: `add` is given numbers about a million bits wide, hundreds of times
+// over. It is then asked for a sum wider than any single call may build on its
+// own. A sum that is never freed would use up the memory of the machine. The
+// program should run to its last line.
+
+// 1. Two numbers of about a million bits are added 200 times. Only the last sum
+//    is kept, so the memory the program holds must not grow with the rounds.
+var $left = Core\BigInt::of(1)->shl(1000000);
+var $right = Core\BigInt::of(3)->shl(999999);
+var $sum = $left;
+int $round = 0;
+while ($round < 200) {
+    $sum = $left->add($right);
+    $round = $round + 1;
+}
+echo $sum->sign(), "\n";
+
+// 2. Two numbers at the widest size a single call may produce. `shl` may not
+//    build a number wider than that, and `add` may. This prints 1.
+var $widest = Core\BigInt::of(1)->shl(1048575);
+echo $widest->add($widest)->sign(), "\n";
+
+// 3. A number and the same number with the other sign cancel exactly, however
+//    wide they are. This prints 0.
+echo $widest->add($widest->neg())->sign(), "\n";
+
+// 4. The sign changes every round, so no round gets an answer it has already
+//    seen. The number before each sum is thrown away.
+var $running = Core\BigInt::parse('-170141183460469231731687303715884105728');
+int $step = 0;
+while ($step < 100000) {
+    $running = $running->add(Core\BigInt::of(1))->neg();
+    $step = $step + 1;
+}
+echo $running->sign(), "\n";

@@ -1,0 +1,24 @@
+<?nvs
+// Measures `Core\Bytes::join` on one list of buffers, at growing list lengths.
+// bench: start 256
+// bench: max 4096
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        array<bytes> $parts = Core\Arr::map(Core\Arr::range(1, $size as int), fn(int $n): bytes => "id=" as bytes);
+        bytes $short = "&" as bytes;
+        bytes $long = "&&" as bytes;
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            bytes $separator = ($total % 2) == 0 ? $short : $long;
+            $total = $total + Core\Bytes::length(Core\Bytes::join($parts, $separator));
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

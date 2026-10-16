@@ -1,0 +1,4 @@
+set to []: refused
+set to ["POST"]: refused
+set to ["GET", "HEAD", "POST"]: refused
+lower the memory: accepted

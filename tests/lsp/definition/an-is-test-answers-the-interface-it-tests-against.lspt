@@ -1,0 +1,22 @@
+--TEST--
+`is` names a type and nothing allocates, so the cursor on it answers the interface's declaration, `rule:ide/the-index-answers-the-cursor`
+--FILE--
+<?nvs
+interface Shape
+{
+    public function area(): int;
+}
+
+class Square implements Shape
+{
+    public function area(): int { return 4; }
+}
+
+mixed $s = new Square();
+if ($s is Sha<|>pe) {
+    echo $s->area();
+}
+--REQUEST--
+definition
+--EXPECT--
+case.nvs:2:11

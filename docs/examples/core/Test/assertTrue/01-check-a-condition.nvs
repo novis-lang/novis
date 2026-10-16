@@ -1,0 +1,13 @@
+<?nvs
+// Shows how to check that a condition is `true`.
+
+array<int> $scores = [72, 85, 91];
+
+// Every score is 50 or more, so each comparison is `true` and each check passes.
+foreach ($scores as int $score) {
+    Core\Test::assertTrue($score >= 50);
+}
+
+// `Core\Arr::count` returns 3, so this comparison is `true` too.
+Core\Test::assertTrue(Core\Arr::count($scores) == 3);
+echo "every check passed\n";

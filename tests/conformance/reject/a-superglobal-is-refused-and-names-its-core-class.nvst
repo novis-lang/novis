@@ -1,0 +1,18 @@
+--TEST--
+no variable is ever populated by the host, so `$_GET` is refused and the diagnostic names its `Core` accessor — `rule:statements/no-host-populated-variables`
+--FILE--
+<?nvs
+class Reader {
+    public static function name(): string {
+        return $_GET["name"];
+    }
+}
+echo Reader::name(), "\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0211]: `$_GET` is not supported
+  --> case.nvs:4:16
+%A
+error: aborting due to 2 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

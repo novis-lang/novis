@@ -1,0 +1,4 @@
+Commands:
+  deploy    Copies the current version to the servers.
+  migrate   Updates the database tables.
+  status    Shows what is running.

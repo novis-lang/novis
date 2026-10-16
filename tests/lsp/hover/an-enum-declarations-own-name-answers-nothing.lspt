@@ -1,0 +1,14 @@
+--TEST--
+an enum's own name answers nothing on the same terms a class's does: the run above it is what a read of one of its cases hovers to, `rule:ide/the-index-answers-the-cursor`
+--FILE--
+<?nvs
+/// Where a request got to.
+enum Sta<|>tus: int
+{
+    case Draft = 1;
+    case Live = 2;
+}
+--REQUEST--
+hover
+--EXPECT--
+none

@@ -1,0 +1,19 @@
+<?nvs
+// Shows how to print every case of an enum by name.
+
+enum Priority: int {
+    High = 30,
+    Low = 10,
+    Normal = 20,
+}
+
+// `Core\Reflect\EnumInfo::of` returns `null` for a name that is not an enum.
+// `Priority` is an enum, so this check passes.
+?Core\Reflect\EnumInfo $found = Core\Reflect\EnumInfo::of(Priority::class);
+if ($found != null) {
+    Core\Reflect\EnumInfo $info = $found;
+    // The cases are sorted by value, so this prints Low, Normal and High.
+    foreach ($info->cases() as string $case) {
+        echo $case, "\n";
+    }
+}

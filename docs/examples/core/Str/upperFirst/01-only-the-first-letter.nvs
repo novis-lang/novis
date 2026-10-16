@@ -1,0 +1,11 @@
+<?nvs
+// Shows that `Core\Str::upperFirst` changes the first letter and keeps the rest.
+
+// This prints `Hello world`. The `w` stays in lower case.
+echo Core\Str::upperFirst("hello world"), "\n";
+
+// A first character that is not a letter does not change. This prints `42 apples`.
+echo Core\Str::upperFirst("42 apples"), "\n";
+
+// An empty text gives an empty text. This prints an empty line.
+echo Core\Str::upperFirst(""), "\n";

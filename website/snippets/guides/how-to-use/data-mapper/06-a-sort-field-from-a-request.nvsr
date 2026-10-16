@@ -1,0 +1,8 @@
+--METHOD--
+GET
+--PATH--
+/orders
+--QUERY--
+sort=customer.name&other=customer.passwordHash
+--HEADERS--
+host: shop.example.com

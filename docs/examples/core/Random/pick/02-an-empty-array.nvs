@@ -1,0 +1,9 @@
+<?nvs
+// Shows what `Core\Random::pick` returns when the array is empty.
+
+// No names were entered, so the list is empty.
+array<string> $names = [];
+
+// There is nothing to choose, so the result is `null`. This prints `nobody`.
+?string $winner = Core\Random::pick($names);
+echo $winner ?? "nobody", "\n";

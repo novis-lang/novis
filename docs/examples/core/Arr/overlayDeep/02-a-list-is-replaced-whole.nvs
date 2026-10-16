@@ -1,0 +1,16 @@
+<?nvs
+// Shows what is not combined. Two lists under the same key are not joined.
+// The list on the right replaces the one on the left.
+
+array<array<string>> $base = [
+    "hosts" => ["a.example.com", "b.example.com"],
+    "db" => ["host" => "localhost", "port" => "5432"],
+];
+array<array<string>> $layer = [
+    "hosts" => ["c.example.com"],
+    "db" => ["host" => "db.example.com"],
+];
+
+// `hosts` holds a list, so it is replaced. `db` holds keys, so it is
+// combined and keeps the port.
+echo Core\Json::encode(Core\Arr::overlayDeep($base, $layer)), "\n";

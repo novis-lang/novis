@@ -1,0 +1,21 @@
+<?nvs
+// Shows a change to an API that `nvs api diff` reports as safe for existing clients.
+// The first version of `index` had no `$status` parameter. `nvs api diff` compares
+// the old and the new API document, and prints this line:
+//     additive: paths./orders.get.query.status — optional parameter added
+
+class Orders
+{
+    // `$status` has a default value, so a client can still leave it out. Without the
+    // default value, the change is `breaking`, and the command exits with `1`.
+    #[Core\Route(path: "/orders", method: Core\Http\Method::Get, name: "Orders::index")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function index(#[Core\Query] string $status = "open"): string
+    {
+        return "orders that are " . $status;
+    }
+}
+
+// Running the program calls the method directly. This prints `orders that are open`.
+Orders $orders = new Orders();
+echo $orders->index(), "\n";

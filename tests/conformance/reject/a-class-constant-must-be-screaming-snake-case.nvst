@@ -1,0 +1,16 @@
+--TEST--
+a class constant is the one SCREAMING_SNAKE_CASE category, and a camelCase one is refused — `rule:core-api/casing-checks-the-leading-character`
+--FILE--
+<?nvs
+class Limits {
+    public const int maxRows = 10;
+}
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0113]: class constants must be SCREAMING_SNAKE_CASE, e.g. `MAX_ROWS`
+  --> case.nvs:3:22
+%A
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

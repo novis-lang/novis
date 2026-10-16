@@ -1,0 +1,12 @@
+<?nvs
+// Shows how to decode a user part that contains escapes.
+
+Core\Uri $mail = Core\Uri::parse("imap://ann%40example.com@mail.example.com/");
+
+// `userInfo` returns the escapes as they were written. This prints ann%40example.com.
+string $written = $mail->userInfo() as string;
+echo $written, "\n";
+
+// `Core\Uri::decodeComponent` turns `%40` back into `@`. The result is `bytes`.
+// This prints ann@example.com.
+echo Core\Uri::decodeComponent($written) as string, "\n";

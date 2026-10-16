@@ -1,0 +1,1 @@
+SELECT orders.* FROM orders JOIN customer WHERE orders.total = ? AND customer.email = ?

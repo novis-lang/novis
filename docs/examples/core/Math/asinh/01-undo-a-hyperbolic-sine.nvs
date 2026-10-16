@@ -1,0 +1,12 @@
+<?nvs
+// Shows a few results of `Core\Math::asinh`, and how it undoes `Core\Math::sinh`.
+
+// The result for 0.0 is 0.0. This prints 0.
+echo Core\Math::asinh(0.0), "\n";
+
+// This prints 0.88137358701954.
+echo Core\Math::asinh(1.0), "\n";
+
+// `Core\Math::sinh` turns 2.0 into 3.626860407847. `Core\Math::asinh` turns it back.
+// This prints 2.
+echo Core\Math::asinh(Core\Math::sinh(2.0)), "\n";

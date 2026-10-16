@@ -1,0 +1,10 @@
+--TEST--
+`<?` in a run of markup is not yet a tag, so the lexer still reads it as markup, and the cursor after it is offered the tags that open code and no markup, word or type — `rule:ide/completion-is-asked-where-a-spelling-ends`
+--FILE--
+<h1>hi</h1>
+<?<|>
+--REQUEST--
+completion
+--EXPECT--
+<?=     keyword   prints one expression
+<?nvs   keyword   starts a block of Novis code

@@ -1,0 +1,15 @@
+{
+  "title": "An unannotated `fn` parameter takes its type from the position the anonymous function is written in",
+  "status": "shipped",
+  "seeAlso": [
+    "types/callable-signature",
+    "types/anonymous-function",
+    "types/erased-member-access"
+  ],
+  "guardedBy": [
+    "tests/conformance/lang/an-unannotated-anonymous-function-parameter-takes-its-type-from-the-position.nvst",
+    "crates/nvs-syntax/src/parser/tests/expr.rs",
+    "crates/nvs-types/tests/callable.rs",
+    "crates/nvs-types/tests/core_members.rs"
+  ]
+}

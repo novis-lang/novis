@@ -1,0 +1,3 @@
+balance: 120
+resetPassword: the method exists, but it is private
+resetPasword: there is no such method

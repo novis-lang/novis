@@ -1,0 +1,9 @@
+{
+  "title": "There is no null-skipping pipeline step",
+  "status": "shipped",
+  "seeAlso": [
+    "expressions/pipeline-substitution",
+    "expressions/pipeline-hole-once"
+  ],
+  "guardedBy": []
+}

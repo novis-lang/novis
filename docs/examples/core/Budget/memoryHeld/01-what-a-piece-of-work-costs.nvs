@@ -1,0 +1,20 @@
+<?nvs
+// Shows how to measure the memory one piece of work uses. The program reads
+// the figure before and after building a list. The difference between the two
+// readings is what the list costs.
+
+uint $before = Core\Budget::memoryHeld();
+
+array<string> $names = [];
+int $i = 0;
+while ($i < 10000) {
+    $names[] = "customer number " . $i;
+    $i = $i + 1;
+}
+
+uint $after = Core\Budget::memoryHeld();
+uint $used = $after - $before;
+
+// The exact number of bytes changes between runs, so this program reports a
+// size instead. This prints "the list uses more than 100 KB".
+echo $used > 100 * 1024 ? "the list uses more than 100 KB\n" : "the list uses less than 100 KB\n";

@@ -1,0 +1,69 @@
+<?nvs
+// Attack: a program writes huge values, values of the wrong type, and private properties by name.
+// Every wrong write should throw an error, and the runtime must not crash or leak.
+
+class Node
+{
+    public string $label = '';
+    public uint $count = 0;
+    public ?Node $next = null;
+    private string $secret = 'hidden';
+}
+
+class Other
+{
+    public string $label = '';
+}
+
+Node $node = new Node();
+var $info = Core\Reflect::forObject($node);
+
+// 1. A text of twenty million characters is written, and then replaced.
+$info->set($node, 'label', Core\Str::repeat('a', 20000000));
+echo Core\Str::length($node->label), "\n";
+$info->set($node, 'label', 'short');
+echo $node->label, "\n";
+
+// 2. Values of the wrong type: a negative number into `uint`, text into `uint`,
+// `null` into `string`, and an object of another class into `?Node`.
+array<mixed> $wrong = [-1, '12', null, new Other()];
+array<string> $targets = ['count', 'count', 'label', 'next'];
+uint $at = 0;
+while ($at < 4) {
+    try {
+        $info->set($node, $targets[$at], $wrong[$at]);
+        echo "written\n";
+    } catch (RuntimeError $refused) {
+        echo "refused\n";
+    } catch (LogicError $mistake) {
+        echo "mistake\n";
+    }
+    $at = $at + 1;
+}
+
+// 3. The private property is written one hundred thousand times from outside the class.
+uint $refusals = 0;
+uint $i = 0;
+while ($i < 100000) {
+    try {
+        $info->set($node, 'secret', 'stolen' . $i);
+    } catch (RuntimeError $refused) {
+        $refusals = $refusals + 1;
+    }
+    $i = $i + 1;
+}
+echo $refusals, "\n";
+
+// 4. An object of another class is written through this description.
+try {
+    $info->set(new Other(), 'label', 'borrowed');
+    echo "written\n";
+} catch (LogicError $mistake) {
+    echo "wrong class\n";
+}
+
+// 5. The object is written into its own property, so it points to itself.
+$info->set($node, 'next', $node);
+echo $node->next != null ? 'circular' : 'not circular', "\n";
+$info->set($node, 'next', null);
+echo $node->label, ' ', $node->count, "\n";

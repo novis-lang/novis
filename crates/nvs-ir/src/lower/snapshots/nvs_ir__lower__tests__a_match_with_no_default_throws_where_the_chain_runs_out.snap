@@ -1,0 +1,34 @@
+---
+source: crates/nvs-ir/src/lower/tests.rs
+expression: "print_function(&f, map.file(file))"
+---
+fn name(object, int) -> string {
+  bb0:
+    safepoint
+    v0 = param 0  ; object
+    v1 = param 1  ; int
+    ; stmt s0 @4:5-6:7
+    v2 = const.int 1  ; int
+    v3 = eq v1, v2  ; bool
+    branch v3 -> bb1 (e0), bb3 (e1)
+  bb1:
+    v9 = const.str "one"  ; string
+    jump bb2
+  bb2:
+    v10 = phi [bb1: v9]  ; string
+    release v0
+    return v10
+  bb3:
+    v4 = const.str "no `match` arm matched the subject"  ; string
+    v5 = const.null  ; null
+    v6 = tag v5  ; tagged
+    v7 = new LogicError via Throwable::constructor(v4, v6) ! bb4  ; object
+    v8 = source t.nvs:4 name  ; classdesc
+    throw v7 at v8 -> bb5
+  bb4:
+    release v0
+    propagate "name() at t.nvs:4"
+  bb5:
+    release v0
+    propagate "name() at t.nvs:4"
+}

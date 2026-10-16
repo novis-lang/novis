@@ -1,0 +1,88 @@
+--TEST--
+`Core\Db\Rows::columns` answers one `Core\Db\Column` per column in the statement's own order, describes a query that matched no rows exactly as it describes one that matched, describes the statement rather than the class `queryAs` hydrates into, and answers the same description on every call — `rule:core-classes/db-column-types`
+--FILE--
+<?nvs
+// covers: Core\Db\Rows::columns
+// One question asked of every result over the same select list: the column
+// names, in order, as one line. A description read off the rows rather than off
+// the statement differs between a result that matched rows and one that did
+// not, and a member that grew its own order differs from the select. Counted
+// rather than read off one line, so a single plausible answer is not enough.
+use Core\Db\Derive;
+
+#[Derive]
+class Seating {
+    public uint $seats;
+    public tainted string $label;
+
+    public function constructor(uint $seats, tainted string $label)
+    {
+        $this->seats = $seats;
+        $this->label = $label;
+    }
+}
+
+class Names {
+    public static function of(array<Core\Db\Column> $described): string
+    {
+        array<string> $names = [];
+        foreach ($described as Core\Db\Column $column) {
+            $names[] = $column->name();
+        }
+        return Core\Str::join($names, ",");
+    }
+}
+
+var $db = Core\Db::connect("main");
+$db->execute("create table seatings (id integer primary key, seats int not null, label text not null)", []);
+$db->execute("insert into seatings (seats, label) values (?, ?), (?, ?)", [4, "north", 2, "east"]);
+
+// Three results over one select list: one that matched every row, one that
+// matched none, and one the same statement hydrated into a class.
+var $matched = $db->query("select seats, label from seatings order by id", []);
+var $none = $db->query("select seats, label from seatings where seats < ? order by id", [0]);
+var $hydrated = $db->queryAs<Seating>("select seats, label from seatings order by id", []);
+
+string $first = Names::of($matched->columns());
+echo "names: ", $first, "\n";
+echo "rows: ", $matched->count(), " and ", $none->count(), "\n";
+
+// The fourth answer is the first result asked a second time, so a member that
+// spent its description on the first call fails here.
+array<string> $answers = [
+    $first,
+    Names::of($none->columns()),
+    Names::of($hydrated->columns()),
+    Names::of($matched->columns()),
+];
+uint $agreed = 0;
+foreach ($answers as string $answer) {
+    if ($answer == $first) {
+        $agreed = $agreed + 1;
+    }
+}
+echo "agree: ", $agreed, " of ", Core\Arr::count($answers), "\n";
+
+// The bound on both sides: the first column the select named is described, the
+// second one is too, and there is no third. A member that stops one column
+// early prints plausibly against either half alone.
+array<Core\Db\Column> $described = $matched->columns();
+echo "columns: ", Core\Arr::count($described), "\n";
+echo "first: ", $described[0]->name(), " last: ", $described[1]->name(), "\n";
+
+$db->close();
+--FILE nvs.toml--
+# § 3: a SQLite connection's file path comes from its config block, so
+# `db.connect` covers it.
+[capabilities.db]
+connect = ["main"]
+
+[db.main]
+driver = "sqlite"
+path = ":memory:"
+--EXPECT--
+names: seats,label
+rows: 2 and 0
+agree: 4 of 4
+columns: 2
+first: seats last: label

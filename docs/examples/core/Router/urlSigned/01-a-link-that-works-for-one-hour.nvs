@@ -1,0 +1,25 @@
+<?nvs
+// Shows how to build a signed link that works for one hour.
+
+class Reports {
+    #[Core\Route(path: "/reports/{year}", method: Core\Http\Method::Get, name: "Reports::download")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function download(uint $year): string { return "the report"; }
+}
+
+// A real program reads its key from its configuration. This one makes a new key.
+secret bytes $key = Core\Crypto::generateKey();
+array<secret bytes> $keys = [$key];
+
+// `until` is the time when the link stops working.
+Core\Time\Instant $until = Core\Time::now()->plus(1h);
+
+string $plain = Core\Router::url("Reports::download", ["year" => 2024]);
+string $signed = Core\Router::urlSigned("Reports::download", ["year" => 2024], {keys: $keys, until: $until});
+
+// This prints `/reports/2024`.
+echo $plain, "\n";
+
+// The signed link is the same link with `?_sig=` and the signature at the end.
+// This prints `yes`.
+echo Core\Str::startsWith($signed, $plain . "?_sig=") ? "yes" : "no", "\n";

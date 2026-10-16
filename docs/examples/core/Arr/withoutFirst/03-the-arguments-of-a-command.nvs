@@ -1,0 +1,17 @@
+<?nvs
+// Shows how to read a command somebody typed. The first word is the name of
+// the command, and the words after it are its arguments.
+
+string $line = "copy report.pdf backup/";
+array<string> $words = Core\Str::split($line, " ");
+
+// This prints "copy".
+echo $words[0], "\n";
+
+array<string> $arguments = Core\Arr::withoutFirst($words);
+
+// This prints "report.pdf backup/".
+echo Core\Str::join($arguments, " "), "\n";
+
+// This prints 2.
+echo Core\Arr::count($arguments), "\n";

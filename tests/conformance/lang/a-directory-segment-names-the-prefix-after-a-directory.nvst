@@ -1,0 +1,63 @@
+--TEST--
+a `{..}` prefix segment is the name of the directory its steps reach from the declaring file — `rule:programs/autoload`
+--FILE--
+<?nvs
+// covers: lang:programs/autoload-find-a-class-by-its-namespace
+// Two modules require the same bootstrap text, byte for byte, from their own
+// `public/` directories. `{..}` is read relative to each declaring file, so
+// one maps `App\Blog` and the other `App\Shop`. `{.}` reads the declaring
+// file's own directory, which is how `Admin/boot.nvs` maps `App\Admin`. The
+// entry requires all three, so the program holds all three prefixes.
+require './Blog/public/boot.nvs';
+require './Shop/public/boot.nvs';
+require './Admin/boot.nvs';
+
+echo App\Blog\Home::name(), "\n";
+echo App\Shop\Home::name(), "\n";
+echo App\Admin\Home::name(), "\n";
+--FILE Blog/public/boot.nvs--
+<?nvs
+autoload 'App\{..}' from '../src';
+--FILE Shop/public/boot.nvs--
+<?nvs
+autoload 'App\{..}' from '../src';
+--FILE Admin/boot.nvs--
+<?nvs
+autoload 'App\{.}' from './src';
+--FILE Blog/src/Home.nvs--
+<?nvs
+namespace App\Blog;
+
+class Home
+{
+    public static function name(): string
+    {
+        return "blog";
+    }
+}
+--FILE Shop/src/Home.nvs--
+<?nvs
+namespace App\Shop;
+
+class Home
+{
+    public static function name(): string
+    {
+        return "shop";
+    }
+}
+--FILE Admin/src/Home.nvs--
+<?nvs
+namespace App\Admin;
+
+class Home
+{
+    public static function name(): string
+    {
+        return "admin";
+    }
+}
+--EXPECT--
+blog
+shop
+admin

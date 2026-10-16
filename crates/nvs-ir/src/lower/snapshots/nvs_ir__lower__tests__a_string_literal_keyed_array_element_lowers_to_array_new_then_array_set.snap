@@ -1,0 +1,17 @@
+---
+source: crates/nvs-ir/src/lower.rs
+expression: "print_function(&f, map.file(file))"
+---
+fn m(object) -> void {
+  bb0:
+    safepoint
+    v0 = param 0  ; object
+    ; stmt s0 @4:5-4:27
+    v1 = array.new []  ; array
+    v2 = const.str "k"  ; string
+    v3 = const.int 1  ; int
+    v4 = array.set v1, v2, v3  ; array
+    release v4
+    release v0
+    return
+}

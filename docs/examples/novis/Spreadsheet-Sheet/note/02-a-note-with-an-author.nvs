@@ -1,0 +1,16 @@
+<?nvs
+// Shows how to add a note with the name of its author.
+use Novis\Spreadsheet\Reader;
+use Novis\Spreadsheet\Workbook;
+
+var $book = Workbook::createInMemory();
+var $sheet = $book->sheet('Orders');
+
+// A note can be added before the row of its cell.
+$sheet->note('C2', 'The customer asked for a refund.', { author: 'Support' });
+$sheet->add(['order' => 1042, 'customer' => 'Ann', 'total' => 19.9]);
+bytes $file = $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
+
+foreach (Reader::open($file)->notes('Orders') as var $note) {
+    echo $note->noted, ' by ', $note->author ?? 'nobody', ': ', $note->note, "\n";
+}

@@ -1,0 +1,49 @@
+# Novis: nginx with TLS in front of `nvs serve`, with its defaults.
+#
+# One file per peer, as `benches/proxied/` has, so two stacks are never up at once by accident.
+# nginx and `oha` come from `compose.common.yaml`. `bun nv bench-compare` sets every variable below.
+
+name: nvs-compare-nvs
+
+services:
+  app:
+    # The proxied leg's image: the same Dockerfile, the same tag, built from this checkout.
+    build:
+      context: ../..
+      dockerfile: benches/proxied/Dockerfile
+      target: source
+      args:
+        NVS_BUILD_COMMIT: ${NVS_BUILD_COMMIT:-}
+    image: nvs-bench-serve:local
+
+    # `nvs serve` starts one worker per CPU of this quota, because the count it reads follows the
+    # container's CPU limit. The quota is the bound, as it is for every peer.
+    cpus: ${BACKEND_CPUS:?the driver sets BACKEND_CPUS}
+
+    # The `loop` and `memory` rows' cap, so a program that allocates without end stops here and not at the
+    # host's memory. The swap limit is the same number, so the container gets no swap beyond it. Every
+    # other run sets `0`, which is no cap.
+    mem_limit: ${BACKEND_MEMORY:?the driver sets BACKEND_MEMORY}
+    memswap_limit: ${BACKEND_MEMORY:?the driver sets BACKEND_MEMORY}
+
+    volumes:
+      - ./${TREE:?the driver sets TREE}/${CASE:?the driver sets CASE}:/app:ro
+
+    command: ["serve", "/app/main.nvs", "--listen", "0.0.0.0:8080"]
+
+    # A TCP connect: not every case has a route at `/`.
+    healthcheck:
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/8080"]
+      interval: 1s
+      timeout: 3s
+      retries: 60
+      start_period: 2s
+
+  nginx:
+    extends: { file: compose.common.yaml, service: nginx }
+    depends_on:
+      app:
+        condition: service_healthy
+
+  oha:
+    extends: { file: compose.common.yaml, service: oha }

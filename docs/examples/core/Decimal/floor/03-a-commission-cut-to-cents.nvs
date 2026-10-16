@@ -1,0 +1,11 @@
+<?nvs
+// Shows how to work out a commission and cut it down to cents. Cutting down
+// keeps the payout at or under the rate the shop agreed to.
+
+array<decimal> $sales = ["ada" => 1290.45, "kim" => 876.10, "juno" => 42.99];
+decimal $rate = 0.075;
+
+foreach ($sales as string $seller => decimal $sold) {
+    decimal $commission = Core\Decimal::floor($sold * $rate, 2);
+    echo $seller, ": ", $commission, "\n";
+}

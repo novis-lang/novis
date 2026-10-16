@@ -1,0 +1,46 @@
+<?nvs
+// Attack: a request sends query strings with very deep brackets, very many pairs and names
+// that are not valid text. Each call should return an array or throw an error.
+
+class Query
+{
+    public static function count(string $query): string
+    {
+        try {
+            return Core\Arr::count(Core\Uri::parseQuery($query)) as string;
+        } catch (Throwable $e) {
+            return 'error';
+        }
+    }
+}
+
+// 1. One name with 100000 levels of brackets, such as `a[x][x]=1`. This prints 1.
+echo Query::count('a' . Core\Str::repeat('[x]', 100000) . '=1'), "\n";
+
+// 2. One name with 100000 empty brackets, such as `a[][]=1`. This prints 1.
+echo Query::count('a' . Core\Str::repeat('[]', 100000) . '=1'), "\n";
+
+// 3. 200000 different names. This prints 200000.
+string $many = '';
+uint $i = 0;
+while ($i < 200000) {
+    $many = $many . 'n' . $i . '=v&';
+    $i = $i + 1;
+}
+echo Query::count($many), "\n";
+
+// 4. 300000 values added to one list with `a[]`. This prints 1.
+echo Query::count(Core\Str::repeat('a[]=1&', 300000)), "\n";
+
+// 5. One million `&` signs and nothing else. This prints 0.
+echo Query::count(Core\Str::repeat('&', 1000000)), "\n";
+
+// 6. The largest whole number as a key, then one more value added after it.
+// No key is left for that value, so it is dropped. This prints 1.
+echo Query::count('a[9223372036854775807]=x&a[]=y'), "\n";
+
+// 7. A name whose escapes are not valid text. This prints "error".
+echo Query::count('%FF%FE=1'), "\n";
+
+// 8. A value of one million escapes. This prints 1.
+echo Query::count('v=' . Core\Str::repeat('%00', 1000000)), "\n";

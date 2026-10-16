@@ -1,0 +1,10 @@
+<?nvs
+// Shows how to give a worker a name that no other worker has. A job queue uses
+// this name to record which worker took a job.
+
+// Two workers on one machine have different process numbers. Two machines have
+// different names. So the name and the number together are never the same twice.
+string $worker = Core\Os::hostname() . "-" . Core\Os::pid();
+
+// The name ends with this program's process number. This prints `yes`.
+echo Core\Str::endsWith($worker, "-" . Core\Os::pid()) ? "yes" : "no", "\n";

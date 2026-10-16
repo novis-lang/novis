@@ -1,0 +1,17 @@
+<?nvs
+// Shows which texts `Core\Json::isValid` accepts as JSON.
+
+// JSON needs double quotes around keys and strings, and allows no comma after the last item.
+array<string> $texts = [
+    "{\"name\": \"Ada\"}",
+    "[1, 2, 3]",
+    "true",
+    "{name: \"Ada\"}",
+    "[1, 2, 3,]",
+    "'hello'",
+];
+
+// This prints `yes` for the first three texts and `no` for the last three.
+foreach ($texts as string $text) {
+    echo $text, " -> ", Core\Json::isValid($text) ? "yes" : "no", "\n";
+}

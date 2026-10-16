@@ -1,0 +1,109 @@
+<?nvs
+// Attack: the program declares many type aliases that refer to other aliases.
+// It uses a chain of 30 aliases, an array nested six levels deep and a union of five types.
+// It creates an object shape one million times and frees an array nested 100,000 levels deep.
+// Every step should finish, and the program should not crash.
+// hostile: timeout-ms 60000
+
+type C00 = int;
+type C01 = ?C00;
+type C02 = ?C01;
+type C03 = ?C02;
+type C04 = ?C03;
+type C05 = ?C04;
+type C06 = ?C05;
+type C07 = ?C06;
+type C08 = ?C07;
+type C09 = ?C08;
+type C10 = ?C09;
+type C11 = ?C10;
+type C12 = ?C11;
+type C13 = ?C12;
+type C14 = ?C13;
+type C15 = ?C14;
+type C16 = ?C15;
+type C17 = ?C16;
+type C18 = ?C17;
+type C19 = ?C18;
+type C20 = ?C19;
+type C21 = ?C20;
+type C22 = ?C21;
+type C23 = ?C22;
+type C24 = ?C23;
+type C25 = ?C24;
+type C26 = ?C25;
+type C27 = ?C26;
+type C28 = ?C27;
+type C29 = ?C28;
+
+type N1 = array<int>;
+type N2 = array<N1>;
+type N3 = array<N2>;
+type N4 = array<N3>;
+type N5 = array<N4>;
+type N6 = array<N5>;
+
+type Anything = int|string|float|bool|null;
+type Wide = {a: int, b: string, c: float, d: bool, e: int, f: string, g: float, h: bool};
+type Nest = array<mixed>;
+
+class Poke
+{
+    public static function deep(C29 $n): C00
+    {
+        return ($n ?? 0) + 1;
+    }
+
+    public static function wide(Wide $w): int
+    {
+        return $w->a + $w->e;
+    }
+}
+
+// 1. Call a method typed with the chain of 30 aliases, one million times.
+// Each round uses the result of the round before.
+C29 $carried = 0;
+uint $i = 0;
+while ($i < 1000000) {
+    $carried = Poke::deep($carried) % 1000;
+    $i = $i + 1;
+}
+echo $carried ?? -1, " after a million turns through thirty names\n";
+
+// 2. Read the innermost value of an array nested six levels deep.
+N6 $box = [[[[[[1, 2]]]]]];
+echo $box[0][0][0][0][0][1], " at the bottom of six\n";
+
+// 3. A variable of the union type `Anything` gets a value of a different type each round.
+array<Anything> $rotation = [1, 'two', 3.5, true, null];
+uint $numbers = 0;
+uint $j = 0;
+while ($j < 1000000) {
+    Anything $one = $rotation[($j % 5) as int];
+    if ($one is int) {
+        $numbers = $numbers + 1;
+    }
+    $j = $j + 1;
+}
+echo $numbers, " of a million were whole numbers\n";
+
+// 4. Create and free a value of the object shape `Wide` one million times.
+int $sum = 0;
+uint $k = 0;
+while ($k < 1000000) {
+    Wide $w = { a: ($sum % 3), b: 'x', c: 0.5, d: true, e: 1, f: 'y', g: 1.5, h: false };
+    $sum = $sum + Poke::wide($w);
+    $k = $k + 1;
+}
+echo $sum, " after a million field lists\n";
+
+// 5. Build an array nested 100,000 levels deep, then free it at once.
+// Freeing it one level at a time with recursion could crash the program.
+Nest $tower = [];
+uint $depth = 0;
+while ($depth < 100000) {
+    $tower = ['under' => $tower];
+    $depth = $depth + 1;
+}
+$tower = [];
+echo "towered and released\n";

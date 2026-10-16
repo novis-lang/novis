@@ -1,0 +1,78 @@
+--TEST--
+A part is refused where the program wrote it for a path no grant covers or no file answers, and where a name it carries would end a segment's own header early — `rule:http-server/an-outbound-request-carries-one-body` and `rule:security/capability-check-at-the-door`
+--FILE--
+<?nvs
+// The claim is *a bound asserted on both sides*: for each of the three things a
+// part can be wrong about, the value just outside the bound and the one just
+// inside it, named together. A part that refused only the first would still
+// look right on its own line.
+Core\Test::answerHttp("https://api.example.com/*", 200, {body: "ok"});
+Core\IO::write("inside.txt", "granted\n");
+
+// The door, asked where the path is written rather than where the request is
+// made: a part built from a path the grant does not cover never reaches a
+// socket, and the program learns that at the line it wrote.
+try {
+    var $outside = Core\Http\Part::file("../outside.txt");
+    echo "../outside.txt: built\n";
+} catch (IOError $reached) {
+    echo "../outside.txt: the os answered first\n";
+} catch (RuntimeError $refused) {
+    echo "../outside.txt: refused at the door\n";
+}
+// Inside the grant and absent is the other half of the same question: the door
+// opens and the operating system has nothing to describe.
+try {
+    var $missing = Core\Http\Part::file("missing.txt");
+    echo "missing.txt: built\n";
+} catch (IOError $nothing) {
+    echo "missing.txt: nothing there\n";
+}
+var $inside = Core\Http\Part::file("inside.txt");
+echo "inside.txt: built\n";
+
+// A quote in a name would close the `name="…"` a segment is identified by, so
+// it is refused rather than escaped — there is no escaping that makes one safe
+// (`rule:security/sink-predicate`), and the refusal names the text.
+try {
+    var $quoted = Core\Http\Client::post("https://api.example.com/quoted", {multipart: [
+        "note" => Core\Http\Part::bytes("x", "a\"; name=\"other"),
+    ]});
+    echo "a quoted filename: sent\n";
+} catch (RuntimeError $refused) {
+    echo "a quoted filename: refused\n";
+}
+var $plain = Core\Http\Client::post("https://api.example.com/plain", {multipart: [
+    "note" => Core\Http\Part::bytes("x", "plain.txt"),
+]});
+echo "a plain filename: sent\n";
+
+// The boundary is drawn per call and not derived from what is being sent: the
+// same map twice is the same length under two different boundaries, which is
+// what stops a field whose content a user chose from writing a second segment.
+var $once = Core\Http\Client::post("https://api.example.com/twice", {multipart: ["f" => "v"]});
+var $twice = Core\Http\Client::post("https://api.example.com/twice", {multipart: ["f" => "v"]});
+var $sent = Core\Test::sentHttp();
+array<uint> $lengths = [];
+array<string> $boundaries = [];
+foreach ($sent as Core\Test\SentRequest $call) {
+    if ($call->url() == "https://api.example.com/twice") {
+        $lengths[] = Core\Bytes::length($call->body());
+        $boundaries[] = Core\Str::after($call->header("content-type") ?? "", "boundary=") ?? "";
+    }
+}
+echo "equal lengths: ", ($lengths[0] == $lengths[1]) ? "yes" : "no", "\n";
+echo "equal boundaries: ", ($boundaries[0] == $boundaries[1]) ? "yes" : "no", "\n";
+--FILE nvs.toml--
+# One directory wide, which is what makes the first pair of lines differ.
+[capabilities.fs]
+read = ["."]
+write = ["."]
+--EXPECT--
+../outside.txt: refused at the door
+missing.txt: nothing there
+inside.txt: built
+a quoted filename: refused
+a plain filename: sent
+equal lengths: yes
+equal boundaries: no

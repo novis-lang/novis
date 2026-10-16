@@ -1,0 +1,26 @@
+<?nvs
+// Shows a recursive walk over a table somebody else filled in. Two entries that
+// point at each other make the walk endless, and the depth limit turns that
+// into an error you can report.
+
+final class Links {
+    public static function follow(array<string> $targets, string $from): string {
+        string $next = $targets[$from] ?? "";
+        if ($next == "") {
+            return $from;
+        }
+        return Links::follow($targets, $next);
+    }
+}
+
+array<string> $plain = ["/old" => "/new", "/new" => "/home"];
+array<string> $loop = ["/a" => "/b", "/b" => "/a"];
+
+// This prints /home.
+echo Links::follow($plain, "/old"), "\n";
+
+try {
+    echo Links::follow($loop, "/a"), "\n";
+} catch (RecursionError $endless) {
+    echo "the redirect chain does not end\n";
+}

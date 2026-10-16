@@ -1,0 +1,20 @@
+--TEST--
+a cursor inside an `autoload` prefix answers the namespace it maps and every root a name in it is looked for in, in probe order, a missing root included and said to be missing — `rule:programs/autoload`
+--FILE--
+<?nvs
+autoload 'Ap<|>p' from 'src', 'gone';
+--FILE src/User.nvs--
+<?nvs
+namespace App;
+class User { }
+--REQUEST--
+hover
+--EXPECT--
+```nvs
+namespace App
+```
+
+A name in this namespace is looked for in these directories, in this order:
+
+- `src`
+- `gone` (does not exist)

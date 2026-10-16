@@ -1,0 +1,26 @@
+--METHOD--
+POST
+--PATH--
+/upload
+--CLIENT_IP--
+198.51.100.23
+--HEADERS--
+host: example.com
+content-type: multipart/form-data; boundary=bnd
+--BODY_CRLF--
+--bnd
+Content-Disposition: form-data; name="file"; filename="a.txt"
+Content-Type: text/plain
+
+first file, a little longer than one byte
+--bnd
+Content-Disposition: form-data; name="file"; filename="b.txt"
+Content-Type: text/plain
+
+second file
+--bnd
+Content-Disposition: form-data; name="file"; filename="empty.txt"
+Content-Type: text/plain
+
+
+--bnd--

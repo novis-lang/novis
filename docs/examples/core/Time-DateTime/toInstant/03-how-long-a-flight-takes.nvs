@@ -1,0 +1,11 @@
+<?nvs
+// Shows how to work out how long a flight takes when it lands in another time zone.
+
+// A timetable shows local times: departure in Vienna, arrival in New York.
+var $departs = Core\Time::at(2024, 6, 10, Core\Time\Zone::of("Europe/Vienna"), {hour: 10, minute: 15});
+var $lands = Core\Time::at(2024, 6, 10, Core\Time\Zone::of("America/New_York"), {hour: 13, minute: 5});
+
+// `toInstant` gives the exact moment of each local time. `since` returns the time between them.
+// This prints 530, the length of the flight in minutes.
+var $flight = $lands->toInstant()->since($departs->toInstant());
+echo $flight->toSeconds() / 60, "\n";

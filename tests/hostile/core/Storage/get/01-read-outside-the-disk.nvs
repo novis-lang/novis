@@ -1,0 +1,50 @@
+<?nvs
+// Attack: a program tries to read the `nvs.toml` next to the disk, and reads one large file many times.
+// Keys that are paths should throw an error, and memory should not grow with each read.
+// hostile: timeout-ms 60000
+
+final class Attack
+{
+    public static function tryKey(string $disk, string $key): uint
+    {
+        try {
+            Core\Storage::get($disk, $key);
+            return 0;
+        } catch (RuntimeError $e) {
+            return 1;
+        }
+    }
+}
+
+// 1. Keys that point at the configuration file, or at a file of the system.
+array<string> $keys = ['../nvs.toml', "..\\nvs.toml", 'disk/../nvs.toml', '/etc/passwd', "C:\\Windows\\win.ini"];
+uint $refused = 0;
+foreach ($keys as string $key) {
+    $refused = $refused + Attack::tryKey('files', $key);
+}
+echo $refused, ' of ', Core\Arr::count($keys), " keys throw an error\n";
+
+// 2. A disk name that `nvs.toml` does not set up.
+echo Attack::tryKey('secrets', 'passwords.txt'), " unknown disk throws an error\n";
+
+// 3. Ten thousand keys that no file has. Each result is `null`.
+uint $missing = 0;
+uint $i = 0;
+while ($i < 10000) {
+    if (Core\Storage::get('files', "missing-{$i}.txt") == null) {
+        $missing = $missing + 1;
+    }
+    $i = $i + 1;
+}
+echo $missing, " missing files are null\n";
+
+// 4. A file of 16 MiB is read twenty times. Each copy is freed before the next read.
+Core\Storage::put('files', 'large.bin', Core\Str::repeat('x', 16777216) as bytes);
+uint $read = 0;
+$i = 0;
+while ($i < 20) {
+    $read = $read + Core\Bytes::length(Core\Storage::get('files', 'large.bin') ?? '' as bytes);
+    $i = $i + 1;
+}
+Core\Storage::delete('files', 'large.bin');
+echo $read, " bytes read\n";

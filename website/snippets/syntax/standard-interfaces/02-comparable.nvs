@@ -1,0 +1,18 @@
+<?nvs
+// A class that implements `Comparable` can be used with `<`, `>`, `<=`, `>=` and `<=>`.
+// `compareTo` returns a negative number, zero or a positive number.
+class Version implements Comparable {
+    public function constructor(public int $n) {}
+
+    public function compareTo(self $other): int {
+        return $this->n <=> $other->n;
+    }
+}
+
+var $a = new Version(2);
+var $b = new Version(5);
+var $c = new Version(2);
+echo ($a < $b) ? "less" : "not less", " ", $a <=> $c, "\n";
+
+// `==` checks if two variables are the same object. `$a` and `$c` are two objects.
+echo ($a == $c) ? "same" : "different", "\n";

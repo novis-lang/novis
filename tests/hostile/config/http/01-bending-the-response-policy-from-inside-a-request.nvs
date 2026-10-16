@@ -1,0 +1,108 @@
+<?nvs
+// Attack: a request may change most of `[http]` for its own response. This test sets header values
+// with a second header inside, unsafe combinations of settings, and the keys a request may not change.
+// Each unsafe value and each change to the CSRF key or the shared client settings should fail.
+// Some values are large, so this test needs more time than usual.
+// hostile: timeout-ms 20000
+
+// 1. Set the CSRF key and the CSRF key file. The server checks every request against this key.
+array<string> $secrets = ['http.csrf_key', 'http.csrf_key_file'];
+array<string> $values = [
+    'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+    '',
+    '0',
+    'false',
+    '/proc/self/environ',
+    '../../../../etc/shadow',
+    "key\u{0000}/run/secrets/real",
+    Core\Str::repeat('k', 100000),
+];
+foreach ($secrets as string $key) {
+    foreach ($values as string $value) {
+        Core\Config::set($key, $value);
+        Core\Config::get($key);
+    }
+    Core\Config::restore($key);
+}
+
+// 2. Change the outbound client settings that all requests share: the pool, TLS and the proxy.
+array<string> $shared = [
+    'http.client.pool_idle',
+    'http.client.pool_idle_timeout',
+    'http.client.tls',
+    'http.client.tls.ca_file',
+    'http.client.tls.insecure_skip_verify',
+    'http.client.proxy',
+    'http.client.proxy.url',
+];
+foreach ($shared as string $key) {
+    Core\Config::set($key, 'http://attacker.test:8080');
+    Core\Config::set($key, 'true');
+    Core\Config::set($key, '18446744073709551615');
+    Core\Config::get($key);
+    Core\Config::restore($key);
+}
+
+// 3. Set header values that contain a second header after a line break or a null byte.
+array<string> $injections = [
+    "no-referrer\r\nSet-Cookie: session=stolen",
+    "no-referrer\nSet-Cookie: session=stolen",
+    "no-referrer\rSet-Cookie: session=stolen",
+    "no-referrer\u{0000}Set-Cookie: session=stolen",
+    "no-referrer\u{2028}Set-Cookie: session=stolen",
+    "default-src 'self'\r\n\r\n<script>alert(1)</script>",
+];
+foreach ($injections as string $value) {
+    Core\Config::set('http.headers.referrer_policy', $value);
+    Core\Config::set('http.headers.content_security_policy', $value);
+    Core\Config::get('http.headers.referrer_policy');
+}
+Core\Config::restore('http.headers.referrer_policy');
+Core\Config::restore('http.headers.content_security_policy');
+
+// 4. Set unsafe values, such as any origin with credentials. The server does not start with these in its file.
+Core\Config::set('http.cookies.same_site', 'None');
+Core\Config::set('http.cookies.secure', 'false');
+Core\Config::set('http.cors.origins', '*');
+Core\Config::set('http.cors.credentials', 'true');
+Core\Config::set('http.cors.max_age', '99999999999999999999h');
+Core\Config::set('http.headers.hsts', '0');
+Core\Config::set('http.headers.hsts', '-1');
+Core\Config::set('http.headers.content_type_options', 'false');
+Core\Config::set('http.errors.detail', 'full');
+Core\Config::set('http.errors.detail', 'everything');
+
+// 5. Set keys that are almost the real keys, and a key with 10,000 parts.
+array<string> $nearby = [
+    'http.',
+    '.http',
+    'http..csrf_key',
+    'httpcsrf_key',
+    'HTTP.CSRF_KEY',
+    'Http.Client.Tls',
+    'csrf_key',
+    'http.csrf_key.file',
+    'http.client.tls.ca_file.real',
+    'app.http.csrf_key',
+    'http.client.' . Core\Str::repeat('sub.', 10000) . 'tls',
+];
+foreach ($nearby as string $key) {
+    Core\Config::set($key, 'anything');
+    Core\Config::get($key);
+    Core\Config::restore($key);
+}
+
+// 6. Set one key 50,000 times with no restore. Only the last value should use memory.
+uint $i = 0;
+while ($i < 50000) {
+    Core\Config::set('http.errors.detail', $i % 2 == 0 ? 'full' : 'generic');
+    $i = $i + 1;
+}
+Core\Config::restore('http.errors.detail');
+Core\Config::restore('http.cookies.same_site');
+Core\Config::restore('http.cookies.secure');
+Core\Config::restore('http.cors.origins');
+Core\Config::restore('http.cors.credentials');
+
+echo 'csrf key:     ', Core\Config::get('http.csrf_key') ?? '(nothing)', "\n";
+echo 'error detail: ', Core\Config::get('http.errors.detail') ?? '(nothing)', "\n";

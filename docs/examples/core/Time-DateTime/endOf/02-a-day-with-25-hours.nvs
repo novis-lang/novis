@@ -1,0 +1,15 @@
+<?nvs
+// Shows `startOf` and `endOf` on a day when the clocks change.
+
+// On 27 October 2024, Berlin moves its clocks from 03:00 back to 02:00, so that day has 25 hours.
+var $sunday = Core\Time::at(2024, 10, 27, Core\Time\Zone::of("Europe/Berlin"), {hour: 12});
+var $start = $sunday->startOf(Core\Unit::Day);
+var $end = $sunday->endOf(Core\Unit::Day);
+
+// The day starts in summer time and ends in winter time.
+// This prints 00:00 +02:00 and 23:59 +01:00.
+echo $start->format("HH:mm XXX"), " and ", $end->format("HH:mm XXX"), "\n";
+
+// `difference` counts whole hours. The end is one nanosecond before the next day starts.
+// This prints 24.
+echo $start->difference($end, Core\Unit::Hour), "\n";

@@ -1,0 +1,27 @@
+<?nvs
+// Shows that `keys` and `values` list their entries in the same order.
+
+final class Team {
+    public string $name;
+
+    public function constructor(string $name) {
+        $this->name = $name;
+    }
+}
+
+Core\ObjectMap<Team, ?int> $scores = new Core\ObjectMap<Team, ?int>();
+$scores->set(new Team("red"), 3);
+// The blue team has no score yet, so its value is `null`.
+$scores->set(new Team("blue"), null);
+$scores->set(new Team("green"), 5);
+
+array<Team> $teams = $scores->keys();
+array<?int> $points = $scores->values();
+
+// The value at each position belongs to the team at the same position.
+// This prints "red 3", "blue -" and "green 5".
+int $i = 0;
+while ($i < Core\Arr::count($teams)) {
+    echo $teams[$i]->name, " ", $points[$i] ?? "-", "\n";
+    $i = $i + 1;
+}

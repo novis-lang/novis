@@ -1,0 +1,37 @@
+<?nvs
+// A product list with paging, as a web page needs it. Every link comes from
+// the route table, so a path you change in one place changes everywhere.
+
+enum Role { Customer, Staff }
+
+class Products {
+    #[Core\Route(path: "/products", method: Core\Http\Method::Get, name: "products")]
+    #[Core\Access(allow: Role::Customer)]
+    public function list(#[Core\Query] uint $page = 1, #[Core\Query] string $sort = "name"): string {
+        return "products";
+    }
+
+    #[Core\Route(path: "/products/{sku}", method: Core\Http\Method::Get, name: "product")]
+    #[Core\Access(allow: Role::Customer)]
+    public function show(string $sku): string {
+        return $sku;
+    }
+
+    // `allow:` takes any constant, and `Role::Staff` is this program's own.
+    // Novis records the decision and does not read what it means.
+    #[Core\Route(path: "/products/{sku}", method: Core\Http\Method::Delete, name: "product.delete")]
+    #[Core\Access(allow: Role::Staff)]
+    public function delete(string $sku): string {
+        return $sku;
+    }
+}
+
+uint $page = 2;
+
+// The link to the next page of the list, sorted by price.
+echo Core\Router::url("products", ["page" => $page + 1, "sort" => "price"]), "\n";
+
+// The link to one product, and the link that deletes it. Both paths are the
+// same, because the two routes differ in their HTTP method.
+echo Core\Router::url("product", ["sku" => "cup-01"]), "\n";
+echo Core\Router::url("product.delete", ["sku" => "cup-01"]), "\n";

@@ -1,0 +1,18 @@
+<?nvs
+// Shows how to sort a list of addresses.
+
+array<string> $links = [
+    "https://example.com/b",
+    "http://example.com/z",
+    "https://example.com/a",
+    "http://example.com/a?page=2",
+];
+
+// The comparator parses both texts and returns what `compareTo` returns.
+// The scheme is compared first, so every `http` address comes before every `https` address.
+var $sorted = Core\Arr::sort($links, {comparator: fn (string $x, string $y): int => Core\Uri::parse($x)->compareTo(Core\Uri::parse($y))});
+
+// This prints the four addresses, one per line, in sorted order.
+foreach ($sorted as string $link) {
+    echo $link, "\n";
+}

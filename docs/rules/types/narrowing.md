@@ -1,0 +1,47 @@
+Narrowing is flow-sensitive and **branch-local**, and there are four spellings of it: `is`, a
+`== null` test, a comparison against a value of a single-value type, and `match (true)`. A `switch (true)`
+narrows per arm the same way. A write inside a narrowed block widens the binding again, because the
+narrowing described the value that was there, not the slot. A narrowing made before a loop holds
+inside it unless the loop writes the binding somewhere — its body, its condition or a `for` step —
+and then it holds nowhere in that loop, a read written before the write included, because the next
+pass reaches that read after the write.
+
+A ternary's two arms and the right operand of `&&` and `||` are branches too. The condition narrows
+`$c ? $a : $b` exactly as it narrows `if ($c)` and its `else`, `&&` narrows its right operand as the
+`if` block of its left, and `||` as the `else` block. Nothing it proves holds after the expression.
+The edge where `A && B` holds proves both operands, so the block of `if ($a != null && $b != null)`
+sees both narrowed, and the edge where `A || B` fails proves both negations, which is what narrows the
+code after a guard clause `if ($a == null || $b == null) { return; }`. The other edge of each proves
+only that one operand decided, and narrows nothing.
+
+`is` is the general one — it tests a value against any type a value can inhabit, and it is the only
+type test there is (`rule:types/type-test`). Its value arm narrows too: `$x is $cls`, where `$cls` is
+a `class<T>`, narrows the subject to **`T`** on the true edge, which is sound because a `class<T>`
+holds `T` or an implementor of it (`rule:types/class-reference-sites`). Every spelling narrows on
+**one edge alone**, the one where the fact it tests holds: `$x != null`, `$x is T` and `$x == 1` on
+their true edge, `$x == null` and `$x != 1` on their false edge, and a `!` in front swaps the two.
+Subtracting a union member on the other edge is deliberately not done by any of the four: it is a
+separable improvement, and one that has to be taken for all of them at once or not at all.
+
+Nothing else narrows. In particular an equality against an enum case does not — `$m == Mode::Read`
+leaves `$m` at its declared type in the branch it guards, and `$m as Mode::Read|Mode::Write` is how a
+case-subset type is reached (`rule:types/enum-case-type`). Adding equality-driven narrowing would
+have to be stated again for `!=`, `&&`, `||` and negation, where `as` says the same thing in one
+place.
+
+The subject of every spelling is a **binding**, named, or a **path of `readonly` properties** from
+one — `$this->node`, `$app->config->parent` — where every property on the path is `readonly`. A
+`readonly` property is written once, during construction (`rule:classes/readonly-is-written-once`), so a test of it still holds at the next
+read. A write to the path's root binding widens the path again, exactly as it widens the binding.
+The narrowed read of a property keeps a run-time null check, which a narrowed binding does not: a
+write the checker could not see throws a `LogicError` naming the property, and never reads `null` as
+an object. A mutable property, an element or any other place is never the thing narrowed:
+`$e->previous != null` proves nothing about the next read of a mutable `$e->previous`, because a
+call in between may have written it, so a nullable one is reached through `?->` or bound to a
+local and tested there, and `E0459`'s help on one shows both. Narrowing a `readonly` path spares a
+program the copy into a local it would otherwise write before every test, at one compare and branch
+per narrowed property read.
+
+Narrowing never changes a binding's declared type (`rule:types/declaration`); it changes what the
+checker knows about it on one path. A value that has to *stay* narrowed is a second binding at the
+type you want, or a checked `as` (`rule:types/conversion`).

@@ -1,0 +1,4 @@
+usage: reports <name>
+  daily
+  weekly
+  monthly

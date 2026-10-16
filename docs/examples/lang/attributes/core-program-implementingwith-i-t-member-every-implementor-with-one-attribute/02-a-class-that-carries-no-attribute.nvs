@@ -1,0 +1,24 @@
+<?nvs
+// Shows the two things that are not a method attribute: an empty member name,
+// which reads the attributes on the class itself, and a class carrying none.
+
+type Owner = {team: string};
+
+interface Job {
+    public function run(): string;
+}
+
+#[Owner(team: "billing")]
+class Invoices implements Job {
+    public function run(): string { return "invoices"; }
+}
+
+class Cleanup implements Job {
+    public function run(): string { return "cleanup"; }
+}
+
+// `Cleanup` has no `#[Owner]`, so its attribute is `null` and `??` supplies
+// the text instead. This prints `cleanup: nobody` and then `invoices: billing`.
+foreach (Core\Program::implementingWith<Job, Owner>("") as {instance: Job, attribute: ?Owner} $row) {
+    echo $row->instance->run(), ": ", $row->attribute?->team ?? "nobody", "\n";
+}

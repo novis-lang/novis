@@ -1,0 +1,40 @@
+<?nvs
+// Attack: a program uses the width for arithmetic that could go wrong. It
+// builds a line far wider than any screen, and asks for the width far more
+// often than a program would. Every answer must be the same, and the program
+// must run to the end.
+// hostile: timeout-ms 60000
+
+// 1. The width must never be 0. A program subtracts a margin from it without
+//    checking, and 0 would turn that subtraction into a huge number.
+uint $columns = Core\Cli::width();
+if ($columns == 0) {
+    echo "step 1 zero\n";
+} else {
+    echo "step 1 not zero\n";
+}
+
+// 2. A margin wider than the screen. A `uint` cannot go below zero, so this
+//    throws an error.
+try {
+    uint $left = $columns - 1000000;
+    echo 'step 2 left ', $left, "\n";
+} catch (Throwable $refused) {
+    echo "step 2 refused\n";
+}
+
+// 3. A line a hundred thousand screens wide, built and then measured.
+string $long = Core\Str::repeat('-', $columns * 100000);
+echo 'step 3 length ', Core\Str::length($long), "\n";
+
+// 4. Three hundred thousand questions. The width is read when the program
+//    starts, so nothing above may have changed it.
+uint $disagreements = 0;
+uint $i = 0;
+while ($i < 300000) {
+    if (Core\Cli::width() != $columns) {
+        $disagreements = $disagreements + 1;
+    }
+    $i = $i + 1;
+}
+echo 'step 4 disagreements ', $disagreements, "\n";

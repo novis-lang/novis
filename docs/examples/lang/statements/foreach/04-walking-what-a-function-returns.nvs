@@ -1,0 +1,18 @@
+<?nvs
+// Shows `var` over the result of a function call. The loop variable gets its type
+// from the function, so the type is not written anywhere in this file.
+
+var $order = "2 x coffee\n1 x filter\n\n3 x mug\n";
+var $count = 0;
+
+// `Core\Str::lines` returns an array of strings, so `$line` is a `string`.
+foreach (Core\Str::lines($order) as var $line) {
+    if (Core\Str::isEmpty($line)) {
+        continue;
+    }
+    $count++;
+    echo $count, ". ", $line, "\n";
+}
+
+// The empty line is skipped, so this prints 3.
+echo $count, "\n";

@@ -1,0 +1,23 @@
+<?nvs
+// Shows one loop that handles the messages of two topics in different ways.
+
+// The `.nvsp` file beside this example plays a client that sends nothing and closes.
+Core\Socket $conn = Core\Socket::current();
+Core\Topic::subscribe("prices");
+Core\Topic::subscribe("alerts");
+
+// In a real application, other scripts publish these values.
+Core\Topic::publish("prices", 42);
+Core\Topic::publish("alerts", "the market closes in ten minutes");
+
+// The name of the topic decides how the value is read.
+// This prints `price: 42`, then `alert: the market closes in ten minutes`.
+?Core\Socket\Message $message = $conn->receive();
+while ($message != null) {
+    if ($message->topic() == "prices") {
+        echo "price: ", $message->value() as int, "\n";
+    } elseif ($message->topic() == "alerts") {
+        echo "alert: ", $message->value() as string, "\n";
+    }
+    $message = $conn->receive();
+}

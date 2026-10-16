@@ -1,0 +1,13 @@
+{
+  "title": "The repository's tools are one Bun + TypeScript program, `bun nv`, and `smol-toml` is its only runtime dependency",
+  "status": "shipped",
+  "seeAlso": [
+    "tooling/a-repository-fact-is-one-json-record",
+    "tooling/a-rendered-file-is-committed-and-never-edited"
+  ],
+  "guardedBy": [
+    "tools/nv/cmd/audit.ts",
+    "package.json",
+    "tools/nv/test/scan-tiers.test.ts"
+  ]
+}

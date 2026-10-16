@@ -1,0 +1,23 @@
+<?nvs
+// Measures `Core\IO::write` on one text, at growing text lengths.
+// bench: start 1024
+// bench: max 16384
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        string $path = Core\Path::join(Core\IO::temporaryDir(), 'bench-status.txt');
+        string $text = Core\Str::repeat('a', $size);
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            Core\IO::write($path, $text);
+            $total = $total + Core\Str::length($text);
+            $i = $i + 1;
+        }
+        return Core\IO::size($path) + $total;
+    }
+}
+
+echo Bench::run(1024), "\n";

@@ -1,0 +1,25 @@
+<?nvs
+// Measures `Core\Arr::sortByKey` on one table whose keys are in no order, at growing table sizes.
+// bench: start 256
+// bench: max 4096
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        array<int> $numbers = Core\Arr::range(1, $size as int);
+        array<string> $names = Core\Arr::map($numbers, fn(int $n): string => "k" . ((($n * 7919) % 10007) as string));
+        array<uint> $points = Core\Arr::map($numbers, fn(int $n): uint => $n as uint);
+        array<uint> $scores = Core\Arr::fromKeysAndValues($names, $points);
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            array<uint> $ordered = Core\Arr::sortByKey($scores);
+            $total = $total + $ordered[$names[($total % 3) as int]];
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

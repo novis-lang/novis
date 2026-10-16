@@ -1,0 +1,17 @@
+---
+source: crates/nvs-ir/src/lower.rs
+expression: "print_function(&f, map.file(file))"
+---
+fn m(object) -> void {
+  bb0:
+    safepoint
+    v0 = param 0  ; object
+    ; stmt s0 @7:5-7:15
+    v1 = new Foo via Foo::constructor() ! bb1  ; object
+    release v1
+    release v0
+    return
+  bb1:
+    release v0
+    propagate "m() at t.nvs:7"
+}

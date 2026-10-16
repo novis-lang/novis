@@ -1,0 +1,21 @@
+<?nvs
+// Shows how to use a default colour when the text is not a colour.
+use Novis\Image\Color;
+
+class Theme {
+    public static function color(string $text): Color {
+        try {
+            return Color::hex($text);
+        } catch (LogicError $e) {
+            return Color::hex("#000000");
+        }
+    }
+}
+
+// "#12345" has five digits, and "#gg0000" has letters that are not hex.
+// Both give the default black. This prints 0 128 0, then 0 0 0 twice.
+array<string> $texts = ["#008000", "#12345", "#gg0000"];
+foreach ($texts as string $text) {
+    Color $c = Theme::color($text);
+    echo $c->r, " ", $c->g, " ", $c->b, "\n";
+}

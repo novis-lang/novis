@@ -1,0 +1,8 @@
+<?nvs
+// Shows the difference between no fragment and an empty fragment.
+
+// The address has no `#`. The result is `null`, so this prints none.
+echo Core\Uri::parse("https://example.com/guide")->fragment() ?? "none", "\n";
+
+// Nothing is written after the `#`. The result is "", so this prints "".
+echo "\"", Core\Uri::parse("https://example.com/guide#")->fragment() ?? "none", "\"\n";

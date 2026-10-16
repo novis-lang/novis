@@ -1,0 +1,65 @@
+<?nvs
+// This program uses the two caches, `Core\Cache::memory()` and `Core\Cache::shared()`, and a rate limit.
+// The memory cache may lose any entry at any time. The shared cache does not.
+// `put` copies the value into the cache, and `get` returns a copy.
+// `Core\RateLimit::consume` takes the limit as arguments and needs no configuration.
+
+var $memory = Core\Cache::memory();
+
+// Nothing in this process has written this key yet, so the result is `null`.
+var $before = $memory->get('greeting');
+if ($before == null) {
+    echo 'memory miss', "\n";
+} else {
+    echo 'memory hit before any write', "\n";
+}
+
+// Right after a `put`, the memory cache returns the value. This prints `memory hit`.
+$memory->put('greeting', 'hello');
+var $after = $memory->get('greeting');
+if ($after == null) {
+    echo 'memory miss after a write', "\n";
+} else {
+    echo 'memory hit', "\n";
+}
+
+// The shared cache is a store on the network. Every server process reads the same values.
+var $shared = Core\Cache::shared();
+$shared->put('greeting', 'hello');
+var $seen = $shared->get('greeting');
+if ($seen == null) {
+    echo 'shared miss', "\n";
+} else {
+    echo 'shared hit', "\n";
+}
+
+// The shared cache keeps its data after the program exits. A random key makes
+// sure an earlier run has not used up this limit.
+var $account = 'account:' . Core\Random::token(6);
+
+// One request per two seconds, for this key. The first is inside the limit.
+var $first = Core\RateLimit::consume($account, 1, 2s);
+if ($first->allowed()) {
+    echo 'allowed=true', "\n";
+} else {
+    echo 'allowed=false', "\n";
+}
+
+// The second is not, and the decision carries the wait rather than leaving
+// the caller to invent one.
+var $second = Core\RateLimit::consume($account, 1, 2s);
+if ($second->allowed()) {
+    echo 'allowed=true unexpectedly', "\n";
+} else {
+    // The wait is rounded up to whole seconds. A client that waits less
+    // than the full time is refused again.
+    var $wait = $second->retryAfter();
+    var $seconds = 0;
+    if ($wait != null) {
+        $seconds = $wait->toSeconds();
+        if ($wait->toMilliseconds() % 1000 != 0) {
+            $seconds = $seconds + 1;
+        }
+    }
+    echo 'allowed=false retryAfter=', $seconds, "\n";
+}

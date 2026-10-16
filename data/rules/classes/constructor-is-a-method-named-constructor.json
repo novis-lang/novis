@@ -1,0 +1,13 @@
+{
+  "title": "A constructor is an ordinary method named `constructor`, and `__construct` does not compile",
+  "status": "shipped",
+  "seeAlso": [
+    "classes/no-leading-underscore-identifiers",
+    "classes/definite-property-initialization",
+    "classes/no-magic-methods"
+  ],
+  "guardedBy": [
+    "tests/conformance/reject/the-constructor-is-not-spelled-underscore-construct.nvst",
+    "tests/conformance/class/constructor-and-instance-method.nvst"
+  ]
+}

@@ -1,0 +1,13 @@
+--TEST--
+a cursor between two members is inside the declaration and inside no member, so one keypress selects the whole class and there is nowhere further to go, `rule:ide/the-index-answers-the-cursor`
+--FILE--
+<?nvs
+class User
+{
+    <|>
+    public string $name = "";
+}
+--REQUEST--
+selectionRange
+--EXPECT--
+2:1-6:2

@@ -1,0 +1,38 @@
+<?nvs
+// Attack: a program keeps many parameter names after each description is freed,
+// and changes copies of them. Every kept name should stay readable and unchanged.
+
+class Mailer
+{
+    public function send(string $recipientAddressForTheMessage, string $subject): bool
+    {
+        return true;
+    }
+}
+
+// 1. Keep 100000 names, each from a new description that is freed at once.
+array<string> $kept = [];
+uint $i = 0;
+while ($i < 100000) {
+    array<Core\Reflect\MethodInfo> $methods = Core\Reflect::forObject(new Mailer())->methods();
+    array<Core\Reflect\ParameterInfo> $parameters = $methods[0]->parameters();
+    $kept[] = $parameters[($i % 2) as int]->name();
+    $i = $i + 1;
+}
+uint $bytes = 0;
+foreach ($kept as string $one) {
+    $bytes = $bytes + Core\Str::length($one);
+}
+// Half the names have 29 characters and half have 7. This prints 1800000.
+echo $bytes, "\n";
+
+// 2. Add text to a copy of a name 200000 times. The parameter still has its own name.
+array<Core\Reflect\MethodInfo> $again = Core\Reflect::forObject(new Mailer())->methods();
+Core\Reflect\ParameterInfo $subject = $again[0]->parameters()[1];
+string $grown = $subject->name();
+$i = 0;
+while ($i < 200000) {
+    $grown = $grown . '$';
+    $i = $i + 1;
+}
+echo Core\Str::length($grown), ' ', $subject->name(), "\n";

@@ -1,0 +1,43 @@
+<?nvs
+// Attack: a program reads the clock very many times and does arithmetic with the readings at the far end of what a `Duration` can be.
+// Each result that does not fit should throw a `RuntimeError`, and nothing should crash or leak.
+
+// 1. One million readings, each one a new `Duration` that is freed at once.
+var $first = Core\Time::monotonic();
+int $backwards = 0;
+var $last = $first;
+uint $i = 0;
+while ($i < 1000000) {
+    var $next = Core\Time::monotonic();
+    if ($next->compareTo($last) < 0) {
+        $backwards = $backwards + 1;
+    }
+    $last = $next;
+    $i = $i + 1;
+}
+echo 'went back ', $backwards, " times\n";
+
+// 2. A reading plus the longest `Duration` does not fit.
+Core\Time\Duration $longest = Core\Time\Duration::nanoseconds(9223372036854775807);
+try {
+    echo Core\Time::monotonic()->plus($longest)->toSeconds(), "\n";
+} catch (RuntimeError $e) {
+    echo 'plus: ', $e->message, "\n";
+}
+
+// 3. A reading minus the most negative `Duration` does not fit either.
+try {
+    echo Core\Time::monotonic()->minus($longest->negated()->minus(1ns))->toSeconds(), "\n";
+} catch (RuntimeError $e) {
+    echo 'minus: ', $e->message, "\n";
+}
+
+// 4. A reading multiplied by a very large number.
+try {
+    echo Core\Time::monotonic()->plus(1s)->multipliedBy(9223372036854775807)->toSeconds(), "\n";
+} catch (RuntimeError $e) {
+    echo 'multipliedBy: ', $e->message, "\n";
+}
+
+// 5. A reading turned into a negative number and into text.
+echo Core\Str::length(Core\Time::monotonic()->negated()->toString()) > 0 ? 'negated' : 'empty', "\n";

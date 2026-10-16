@@ -1,0 +1,5 @@
+/account: allowed
+https://Example.COM/orders: allowed
+https://evil.example.net/: blocked
+//evil.example.net/: blocked
+javascript:alert(1): blocked

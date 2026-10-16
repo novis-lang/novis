@@ -1,0 +1,1 @@
+search: (&(objectClass=user)(sAMAccountName=anna))

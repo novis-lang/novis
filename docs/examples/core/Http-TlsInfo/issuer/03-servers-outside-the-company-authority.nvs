@@ -1,0 +1,32 @@
+<?nvs
+// Shows an audit of internal servers. Each one must have a certificate signed
+// by the company's own certificate authority.
+
+// Fixed replies with TLS connections built for a test, so the example runs
+// without a network. The `stock` server has a certificate from another authority.
+Core\Test::answerHttp("https://billing.example.com/health", 200, {
+    tls: Core\Test::tlsSession({issuer: "CN=Example Internal CA, O=Example"}),
+});
+Core\Test::answerHttp("https://stock.example.com/health", 200, {
+    tls: Core\Test::tlsSession({issuer: "CN=Public CA, O=Public Trust"}),
+});
+Core\Test::answerHttp("https://users.example.com/health", 200, {
+    tls: Core\Test::tlsSession({issuer: "CN=Example Internal CA, O=Example"}),
+});
+
+string $company = "CN=Example Internal CA, O=Example";
+array<string> $hosts = ["billing.example.com", "stock.example.com", "users.example.com"];
+
+// The loop compares each issuer with the company's authority.
+// This prints `stock.example.com: CN=Public CA, O=Public Trust` and then `outside: 1`.
+uint $outside = 0;
+foreach ($hosts as string $host) {
+    ?Core\Http\TlsInfo $info = Core\Http\Client::get("https://" . $host . "/health")->tls();
+    if ($info != null) {
+        if ($info->issuer() != $company) {
+            echo $host, ": ", $info->issuer(), "\n";
+            $outside = $outside + 1;
+        }
+    }
+}
+echo "outside: ", $outside, "\n";

@@ -1,0 +1,5 @@
+00:1a:2b:3c:4d:5e: yes
+00:1a-2b:3c:4d:5e: no
+00:1a:2b:3c:4d: no
+001a2b3c4d5e: no
+00:1g:2b:3c:4d:5e: no

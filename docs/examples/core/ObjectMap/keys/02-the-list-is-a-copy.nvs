@@ -1,0 +1,30 @@
+<?nvs
+// Shows that the list from `keys` does not change when the map changes later.
+
+final class Seat {
+    public string $label;
+
+    public function constructor(string $label) {
+        $this->label = $label;
+    }
+}
+
+Seat $a1 = new Seat("A1");
+Seat $a2 = new Seat("A2");
+
+Core\ObjectMap<Seat, string> $booked = new Core\ObjectMap<Seat, string>();
+$booked->set($a1, "Mia");
+$booked->set($a2, "Tom");
+
+array<Seat> $before = $booked->keys();
+
+// Tom cancels, so the map now has one entry.
+$booked->remove($a2);
+
+// The list was made before the change. This prints 2 and 1.
+echo Core\Arr::count($before), "\n";
+echo Core\Arr::count($booked->keys()), "\n";
+
+// An empty map gives an empty list. This prints 0.
+$booked->clear();
+echo Core\Arr::count($booked->keys()), "\n";

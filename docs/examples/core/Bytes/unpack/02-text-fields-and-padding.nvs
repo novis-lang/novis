@@ -1,0 +1,21 @@
+<?nvs
+// Shows how to read text fields back. Each of the three text codes does
+// something different with the padding around the text.
+
+bytes $record = Core\Bytes::pack("a6A6Z6", "Hi", "Hi", "Hi");
+array<mixed> $fields = Core\Bytes::unpack($record, "a6A6Z6");
+
+// `a` gives the whole field. The four zero bytes are still in it, so this
+// prints "486900000000".
+echo Core\Encoding::toHex($fields[0] as bytes), "\n";
+
+// `A` takes the spaces off the end of the field. This prints "4869".
+echo Core\Encoding::toHex($fields[1] as bytes), "\n";
+
+// `Z` stops at the first zero byte. This prints "4869".
+echo Core\Encoding::toHex($fields[2] as bytes), "\n";
+
+// `x` steps over bytes and makes no field, so the number is the only entry in
+// this list. This prints 1 and 7.
+array<mixed> $skipped = Core\Bytes::unpack(Core\Encoding::fromHex("00000007"), "x3C");
+echo Core\Arr::count($skipped), " ", ($skipped[0] as uint) as string, "\n";

@@ -1,0 +1,13 @@
+{
+  "title": "A stored bcrypt cost above 17 is refused before any work is done",
+  "status": "shipped",
+  "seeAlso": [
+    "security/bcrypt-read-roster",
+    "security/an-unreadable-stored-hash-throws",
+    "errors/escalation-ladder"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/password-verify-refuses-a-password-and-throws-for-a-stored-value.nvst",
+    "crates/nvs-stdlib/src/password.rs"
+  ]
+}

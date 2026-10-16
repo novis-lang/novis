@@ -1,0 +1,16 @@
+<?nvs
+// Shows how to divide two numbers and get an exact answer. A bill is split
+// between four people, and each share is a whole number of cents.
+
+decimal $bill = 84.00;
+decimal $people = 4;
+
+// This prints 21.
+echo Core\Decimal::divExact($bill, $people), "\n";
+
+// The answer keeps only the digits it needs. 10 divided by 4 is 2.5, so this
+// prints 2.5 and not 2.50.
+echo Core\Decimal::divExact(10.00, 4.00), "\n";
+
+// A negative number divides the same way. This prints -21.
+echo Core\Decimal::divExact(-$bill, $people), "\n";

@@ -1,0 +1,12 @@
+{
+  "title": "A file reached by autoload declares exactly one thing, under the name the map finds it by",
+  "status": "shipped",
+  "seeAlso": [
+    "programs/autoload",
+    "programs/no-runtime-autoload"
+  ],
+  "guardedBy": [
+    "tests/conformance/lang/an-autoloaded-file-declares-exactly-one-thing.nvst",
+    "tests/conformance/lang/an-autoloaded-file-declaring-another-namespace-does-not-compile.nvst"
+  ]
+}

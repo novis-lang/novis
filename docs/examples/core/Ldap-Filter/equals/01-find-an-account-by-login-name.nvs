@@ -1,0 +1,6 @@
+<?nvs
+// Shows how to build a filter that finds one account by its login name.
+
+var $filter = Core\Ldap\Filter::equals('sAMAccountName', 'anna');
+// `toString` shows the filter as text. This prints (sAMAccountName=anna).
+echo $filter->toString(), "\n";

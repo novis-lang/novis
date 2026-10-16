@@ -1,0 +1,9 @@
+<?nvs
+// A child isolate of `examples/isolate.nvs`, run with `output: 'inherit'` —
+// so this line lands on the parent's stdout, in the parent's order, rather
+// than in a buffer the parent reads back.
+echo 'child said hello', "\n";
+
+// A child gives a value back with a top-level `return`.
+// The parent reads it as `value` on the result, and `ok` is `true`.
+return ['greeted' => true];

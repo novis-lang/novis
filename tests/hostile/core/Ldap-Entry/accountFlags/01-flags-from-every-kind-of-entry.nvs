@@ -1,0 +1,55 @@
+<?nvs
+// Attack: a program reads account flags from entries that are not accounts, and changes them
+// many times. Each call must return flags, return `null` or throw an error, and nothing may crash.
+// hostile: timeout-ms 60000
+// requires: samba-ad
+
+var $corp = Core\Ldap::connect('corp');
+array<string> $dns = [
+    'DC=example,DC=test',
+    'OU=Company,DC=example,DC=test',
+    'CN=Employees,OU=Company,DC=example,DC=test',
+    'CN=Dora Lind,OU=Company,DC=example,DC=test',
+    'CN=Carla Diaz,OU=Company,DC=example,DC=test',
+];
+
+// 1. Every kind of entry, with and without `userAccountControl` selected, read many times.
+uint $none = 0;
+uint $threw = 0;
+foreach ($dns as string $dn) {
+    try {
+        var $plain = $corp->read($dn, { select: ['cn'] });
+        var $selected = $corp->read($dn, { select: ['userAccountControl'] });
+        uint $i = 0;
+        while ($i < 5000) {
+            if ($plain?->accountFlags() == null) {
+                $none = $none + 1;
+            }
+            if ($selected?->accountFlags() == null) {
+                $none = $none + 1;
+            }
+            $i = $i + 1;
+        }
+    } catch (Throwable $error) {
+        $threw = $threw + 1;
+    }
+}
+echo '1 null: ', $none, ' threw: ', $threw, "\n";
+
+// 2. Every flag set and cleared again on one account, one hundred thousand times.
+try {
+    var $found = $corp->read('CN=Dora Lind,OU=Company,DC=example,DC=test', { select: ['userAccountControl'] });
+    var $flags = $found?->accountFlags();
+    if ($flags != null) {
+        Core\Ldap\Ad\AccountFlags $changed = $flags;
+        uint $round = 0;
+        while ($round < 100000) {
+            bool $on = $round % 2 == 0;
+            $changed = $changed->with({ script: $on, disabled: $on, passwordNotRequired: $on, partialSecretsAccount: $on, trustedToAuthForDelegation: $on });
+            $round = $round + 1;
+        }
+        echo '2 bits: ', $changed->bits(), ' locked out: ', $changed->lockedOut() ? 'yes' : 'no', "\n";
+    }
+} catch (Throwable $error) {
+    echo "2 threw\n";
+}

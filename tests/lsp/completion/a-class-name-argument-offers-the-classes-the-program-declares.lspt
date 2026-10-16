@@ -1,0 +1,16 @@
+--TEST--
+inside a string literal at a `Core` member's class-name parameter the list is every class the program declares, each as its whole name, because the member resolves no `use` — `rule:types/class-reference`
+--FILE--
+<?nvs
+namespace App;
+
+interface Model { }
+class User implements Model { }
+class Cart { }
+
+$info = \Core\Reflect::forClass('App<|>');
+--REQUEST--
+completion
+--EXPECT--
+App\Cart class
+App\User class

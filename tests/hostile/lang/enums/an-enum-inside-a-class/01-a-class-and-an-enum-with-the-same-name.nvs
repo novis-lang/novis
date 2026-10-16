@@ -1,0 +1,56 @@
+<?nvs
+// Attack: a program declares a class `Status` and an enum `Order::Status`, and
+// gives a value of one where the other is needed. Every attempt should fail to compile.
+// hostile: expect-refusal
+
+namespace Shop;
+
+// `Status` is a class in namespace `Shop`. It is not the enum `Order::Status`.
+final class Status
+{
+    public int $code = 0;
+}
+
+final class Order
+{
+    enum Status { Open, Paid }
+
+    // Inside `Order`, `Status` is the enum.
+    public Status $status = Status::Open;
+
+    // 1. Inside `Order`, stores an object of the class `Status` in the enum property.
+    public function swap(): void
+    {
+        $this->status = new Status();
+    }
+}
+
+class Desk
+{
+    public static function file(Status $s): int
+    {
+        return $s->code;
+    }
+
+    public static function settle(Order::Status $s): int
+    {
+        return $s as int;
+    }
+}
+
+// 2. Gives a case of the enum where the class `Status` is needed.
+echo Desk::file(Order::Status::Paid), "\n";
+
+// 3. Gives an object of the class where the enum is needed.
+echo Desk::settle(new Status()), "\n";
+
+// 4. Writes the enum with a backslash, the way a class in a namespace is written.
+echo Order\Status::Paid as int, "\n";
+
+// 5. Reads a case through the class `Status`, which has no cases.
+echo Status::Paid as int, "\n";
+
+// 6. Converts a number to the class `Status`.
+Status $made = 1 as Status;
+
+echo "this line must never run\n";

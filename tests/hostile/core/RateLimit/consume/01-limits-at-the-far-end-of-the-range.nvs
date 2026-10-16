@@ -1,0 +1,44 @@
+<?nvs
+// Attack: a caller passes limits and costs at the far ends of their range, and a
+// huge key, many times over. Each call should throw an error, and nothing should crash.
+
+class Attempt
+{
+    public static function run(string $key, uint $limit, Core\Time\Duration $per, uint $burst, uint $cost): string
+    {
+        try {
+            var $decision = Core\RateLimit::consume($key, $limit, $per, { burst: $burst, cost: $cost });
+            return $decision->allowed() ? 'allowed' : 'refused';
+        } catch (RuntimeError $error) {
+            return 'error';
+        }
+    }
+}
+
+uint $most = 18446744073709551615;
+
+// 1. The largest limit per second. Each unit would be shorter than a microsecond.
+echo Attempt::run('account:1', $most, 1s, 1, 1), "\n";
+
+// 2. The largest burst. The wait it allows is too long to count exactly.
+echo Attempt::run('account:1', 1, 1h, $most, 1), "\n";
+
+// 3. A period of zero seconds.
+echo Attempt::run('account:1', 5, 0s, 5, 1), "\n";
+
+// 4. The largest cost a call can have.
+echo Attempt::run('account:1', 5, 1m, 5, $most), "\n";
+
+// 5. A key of 16 million characters.
+echo Attempt::run(Core\Str::repeat('k', 16777216), 5, 1m, 5, 1), "\n";
+
+// 6. The same bad calls 20000 times, each with its own key.
+uint $errors = 0;
+uint $i = 0;
+while ($i < 20000) {
+    if (Attempt::run('account:' . $i, $most, 1s, 1, $most) == 'error') {
+        $errors = $errors + 1;
+    }
+    $i = $i + 1;
+}
+echo $errors, "\n";

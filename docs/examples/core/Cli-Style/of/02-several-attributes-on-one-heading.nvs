@@ -1,0 +1,20 @@
+<?nvs
+// Shows a style with more than one part: a colour, a background colour and two
+// attributes in one call. This example does not run in a terminal, so the
+// styling is dropped and only the text is printed.
+
+var $heading = Core\Cli\Style::of({
+    color: Core\Cli\Color::WHITE,
+    background: Core\Cli\Color::BLUE,
+    bold: true,
+    underline: true,
+});
+
+// An attribute you leave out is off, so this heading is not italic and not
+// dimmed.
+echo Core\Cli\Text::styled(" Report for March ", $heading), "\n";
+
+// `Core\Cli\Color::rgb` reaches the colours that have no name. Terminals with
+// fewer colours get the nearest one they have.
+var $note = Core\Cli\Style::of({color: Core\Cli\Color::rgb(120, 120, 120), italic: true});
+echo Core\Cli\Text::styled("all numbers are in euro", $note), "\n";

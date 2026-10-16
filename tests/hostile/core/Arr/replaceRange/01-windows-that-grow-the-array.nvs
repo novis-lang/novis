@@ -1,0 +1,43 @@
+<?nvs
+// Attack: huge windows are replaced by huge replacements. One array is used as
+// its own replacement. The positions are pushed to the far ends of `int`. Every
+// step should finish or throw an error, and the runtime must not crash.
+// hostile: timeout-ms 60000
+
+// 1. A window of 100000 entries is replaced by one value.
+array<int> $long = [];
+int $i = 0;
+while ($i < 100000) {
+    $long[] = $i;
+    $i = $i + 1;
+}
+echo 'step 1: ', Core\Arr::count(Core\Arr::replaceRange($long, 0, 100000, [1])), '|', "\n";
+
+// 2. One entry is replaced by all 100000 entries of that same array.
+echo 'step 2: ', Core\Arr::count(Core\Arr::replaceRange($long, 0, 1, $long)), '|', "\n";
+
+// 3. The array is used as its own replacement and removes nothing.
+echo 'step 3: ', Core\Arr::count(Core\Arr::replaceRange($long, 0, 0, $long)), '|', "\n";
+
+// 4. The offset and the length are both the largest `int`.
+array<int> $far = Core\Arr::replaceRange($long, 9223372036854775807, 9223372036854775807, [1]);
+echo 'step 4: ', Core\Arr::count($far), '|', "\n";
+
+// 5. Both of them are the smallest `int` that can be written.
+array<int> $back = Core\Arr::replaceRange($long, -9223372036854775807, -9223372036854775807, [1]);
+echo 'step 5: ', Core\Arr::count($back), '|', "\n";
+
+// 6. 2000 values are added one at a time, so the array is copied every round.
+array<int> $growing = [];
+int $r = 0;
+while ($r < 2000) {
+    $growing = Core\Arr::replaceRange($growing, $r, 0, [$r]);
+    $r = $r + 1;
+}
+echo 'step 6: ', Core\Arr::count($growing), '|', "\n";
+
+// 7. A window over an array with no entries.
+array<int> $empty = [];
+echo 'step 7: ', Core\Arr::count(Core\Arr::replaceRange($empty, -5, 10, [1])), '|', "\n";
+
+echo 'the runtime is still standing', "\n";

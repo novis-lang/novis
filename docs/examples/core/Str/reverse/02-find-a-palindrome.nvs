@@ -1,0 +1,12 @@
+<?nvs
+// Shows how to test if a word reads the same from both ends. Such a word is a palindrome.
+
+array<string> $words = ["level", "Anna", "rotor", "novis"];
+
+foreach ($words as string $word) {
+    // `Core\Str::lower` changes "Anna" to "anna", so upper-case letters do not matter.
+    string $plain = Core\Str::lower($word);
+    bool $same = $plain == Core\Str::reverse($plain);
+    // This prints "yes" for the first three words and "no" for "novis".
+    echo $word, ": ", $same ? "yes" : "no", "\n";
+}

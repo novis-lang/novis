@@ -1,0 +1,14 @@
+<?nvs
+// Shows that `tint` does not change black, and that an alpha of 0 changes nothing.
+use Novis\Image\Image;
+use Novis\Image\Color;
+
+// This prints 0 0 0, because black times any colour is black.
+var $black = Image::create(4, 4, Color::hex("#000000"))->tint(Color::hex("#ff0000"))->raw();
+array<mixed> $pixel = Core\Bytes::unpack(Core\Bytes::slice($black->pixels, 0, 4), "C4");
+echo $pixel[0], " ", $pixel[1], " ", $pixel[2], "\n";
+
+// This prints 200 200 200, because the tint has an alpha of 0.
+var $gray = Image::create(4, 4, Color::rgba(200, 200, 200))->tint(Color::rgba(255, 0, 0, 0.0))->raw();
+$pixel = Core\Bytes::unpack(Core\Bytes::slice($gray->pixels, 0, 4), "C4");
+echo $pixel[0], " ", $pixel[1], " ", $pixel[2], "\n";

@@ -1,0 +1,14 @@
+<?nvs
+// Shows how to put a white background behind a transparent image.
+use Novis\Image\Color;
+use Novis\Image\Image;
+
+// A new image of 4 by 4 pixels. Alpha is 0.0, so every pixel is transparent.
+Image $logo = Image::create(4, 4, Color::rgba(0, 0, 0, 0.0));
+
+// `flatten` puts the white colour behind the transparent pixels.
+var $pixels = $logo->flatten(Color::rgba(255, 255, 255))->raw()->pixels;
+array<mixed> $first = Core\Bytes::unpack(Core\Bytes::slice($pixels, 0, 4), "C4");
+
+// This prints 255 255 255 255.
+echo $first[0], " ", $first[1], " ", $first[2], " ", $first[3], "\n";

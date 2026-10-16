@@ -1,0 +1,14 @@
+<?nvs
+// Shows a connection that sends each sensor reading to the client as a small binary message.
+
+// The `.nvsp` file beside this example plays a client that sends nothing and closes.
+Core\Socket $conn = Core\Socket::current();
+
+// `Core\Bytes::pack` writes the sensor number in two bytes and the temperature in four bytes.
+// The first line is `sent bytes: 00 01 00 00 00 15`: sensor 1 and a temperature of 21.
+array<int> $temperatures = [21, 22, 19];
+uint $sensor = 1;
+foreach ($temperatures as int $temperature) {
+    $conn->sendBytes(Core\Bytes::pack("nN", $sensor, $temperature));
+    $sensor = $sensor + 1;
+}

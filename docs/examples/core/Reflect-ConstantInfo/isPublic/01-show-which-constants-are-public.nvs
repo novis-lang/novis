@@ -1,0 +1,16 @@
+<?nvs
+// Shows how to check which constants of a class are public.
+
+class Mailer {
+    public const string FROM = "shop@example.com";
+    protected const int RETRIES = 3;
+    private const string PASSWORD = "letmein";
+}
+
+var $info = Core\Reflect::forObject(new Mailer());
+
+// `isPublic` is `true` only for `FROM`.
+// The protected and the private constant are in the list, but `isPublic` is `false` for them.
+foreach ($info->constants() as Core\Reflect\ConstantInfo $constant) {
+    echo $constant->name(), ": ", $constant->isPublic() ? "public" : "not public", "\n";
+}

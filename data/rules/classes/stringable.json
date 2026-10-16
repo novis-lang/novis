@@ -1,0 +1,18 @@
+{
+  "title": "An object becomes a string only through `Stringable::toString`, and everywhere else is a diagnostic",
+  "status": "shipped",
+  "seeAlso": [
+    "classes/no-magic-methods",
+    "classes/comparable",
+    "types/conversion",
+    "types/erased-member-access"
+  ],
+  "guardedBy": [
+    "tests/conformance/class/a-stringable-class-renders-through-tostring.nvst",
+    "tests/conformance/class/a-stringable-object-stringifies-at-every-implicit-site.nvst",
+    "tests/conformance/reject/an-object-without-stringable-cannot-be-interpolated.nvst",
+    "tests/conformance/lang/an-erased-object-renders-through-its-runtime-class.nvst",
+    "tests/conformance/lang/a-core-class-with-no-tostring-is-refused-where-it-is-rendered.nvst",
+    "crates/nvs-types/tests/comparable_and_stringable.rs"
+  ]
+}

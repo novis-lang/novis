@@ -1,0 +1,15 @@
+<?nvs
+// Shows how a profile page accepts a picture only when its type is one of a few image types.
+
+// The program chooses the file extension from this list. It never uses the client's file name.
+array<string> $extensions = ['image/png' => 'png', 'image/jpeg' => 'jpg', 'image/webp' => 'webp'];
+
+foreach (Core\Request::files() as Core\Request\Part $part) {
+    // Types are not case-sensitive, so the program compares them in lower case.
+    string $extension = $extensions[Core\Str::lower($part->contentType())] ?? '';
+    if ($extension == '') {
+        echo 'refused a file of type ', $part->contentType(), "\n";
+        continue;
+    }
+    echo 'accepted, stored as picture.', $extension, "\n";
+}

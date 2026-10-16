@@ -1,0 +1,16 @@
+<?nvs
+// A failed assertion throws `Core\Test\Failure`. A `catch (RuntimeError ...)` does not catch it.
+try {
+    Core\Test::assertTrue(false, {message: "flag should be set"});
+} catch (Core\Test\Failure $f) {
+    echo $f->message, "\n";
+}
+
+class Point {
+    public function constructor(public int $x, public int $y) {
+    }
+}
+
+// `Core\Debug::render` returns a readable view of any value, as a string.
+echo Core\Debug::render(new Point(1, 2)), "\n";
+echo Core\Debug::render(["a" => true, "b" => "tab\there"]), "\n";

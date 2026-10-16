@@ -1,0 +1,15 @@
+<?nvs
+// Shows a check a shop makes at the checkout. The customer typed several
+// coupon codes, and the shop uses the first one it still accepts.
+
+array<string> $typed = ["WINTER", "SUMMER24", "FREESHIP"];
+array<string> $accepted = ["SUMMER24", "FREESHIP"];
+
+?string $coupon = Core\Arr::find($typed, fn(string $code) => Core\Arr::contains($accepted, $code));
+
+// "SUMMER24" is the first accepted code. This prints "the coupon SUMMER24 is used".
+if ($coupon == null) {
+    echo "no coupon is used", "\n";
+} else {
+    echo "the coupon ", $coupon, " is used", "\n";
+}

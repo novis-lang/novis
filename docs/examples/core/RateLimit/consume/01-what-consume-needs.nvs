@@ -1,0 +1,20 @@
+<?nvs
+// Shows what `Core\RateLimit::consume` needs before a program can use it. This
+// server has no shared store, so the call below throws an error. The message
+// names the setting that is missing.
+
+// The person who runs the server writes both of these blocks in `nvs.toml`.
+// A program cannot set them for itself.
+//
+//     [capabilities.cache]
+//     shared = true
+//
+//     [cache.shared]
+//     url = "redis://cache.internal:6379"
+
+try {
+    var $decision = Core\RateLimit::consume("account:8412", 100, 1m);
+    echo "allowed: ", $decision->allowed() ? "yes" : "no", "\n";
+} catch (RuntimeError $error) {
+    echo $error->message, "\n";
+}

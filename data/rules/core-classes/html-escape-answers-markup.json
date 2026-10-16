@@ -1,0 +1,14 @@
+{
+  "title": "`Core\\Html::escape` answers a `Markup`, so the eager-escape habit stops compiling",
+  "status": "shipped",
+  "seeAlso": [
+    "core-classes/html-auto-escape",
+    "core-classes/html-to-source",
+    "core-classes/html-sanitize"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/html-escape-launders-a-tainted-value-and-writes-all-five-characters.nvst",
+    "tests/conformance/core/html-escape-changes-nothing-else-and-escapes-what-already-reads-as-a-reference.nvst",
+    "tests/conformance/core/html-escape-neutralizes-an-unterminated-bidi-control-and-passes-a-balanced-one.nvst"
+  ]
+}

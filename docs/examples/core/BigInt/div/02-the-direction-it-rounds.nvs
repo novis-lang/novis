@@ -1,0 +1,20 @@
+<?nvs
+// Shows which way `div` cuts a division that is not exact, and what a divisor
+// of zero does.
+
+var $seven = Core\BigInt::of(7);
+var $two = Core\BigInt::of(2);
+
+// 7 divided by 2 is 3.5. The fraction is dropped, so this prints 3.
+echo $seven->div($two), "\n";
+
+// -7 divided by 2 is -3.5. The cut is toward zero, so this prints -3.
+echo $seven->neg()->div($two), "\n";
+
+// A divisor of zero is not allowed. `div` throws an `ArithmeticError`, and the
+// message names the method that refused.
+try {
+    $seven->div(Core\BigInt::of(0));
+} catch (ArithmeticError $error) {
+    echo $error->message, "\n";
+}

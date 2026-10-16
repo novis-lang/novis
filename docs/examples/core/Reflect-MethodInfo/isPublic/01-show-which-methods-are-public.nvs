@@ -1,0 +1,21 @@
+<?nvs
+// Shows which methods of a class are public.
+
+class Account {
+    public function balance(): int {
+        return 120;
+    }
+
+    protected function fee(): int {
+        return 2;
+    }
+
+    private function audit(): string {
+        return "checked";
+    }
+}
+
+// This prints `audit: no`, `balance: yes` and `fee: no`.
+foreach (Core\Reflect::forObject(new Account())->methods() as Core\Reflect\MethodInfo $method) {
+    echo $method->name(), ": ", $method->isPublic() ? "yes" : "no", "\n";
+}

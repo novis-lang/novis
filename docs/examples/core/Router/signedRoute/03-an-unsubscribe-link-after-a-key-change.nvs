@@ -1,0 +1,24 @@
+<?nvs
+// Shows how a newsletter accepts an unsubscribe link that was signed with its old key.
+
+class Newsletter {
+    #[Core\Route(path: "/unsubscribe/{reader}", method: Core\Http\Method::Get, name: "Newsletter::unsubscribe")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function unsubscribe(uint $reader): string { return "you are unsubscribed"; }
+}
+
+// The newsletter changed its key last month. The new key comes first.
+// The old key stays in the list, so the links in old emails still work.
+bytes $current = "example-key-for-signed-links-002" as bytes;
+bytes $older = "example-key-for-signed-links-000" as bytes;
+array<secret bytes> $keys = [$current as secret bytes, $older as secret bytes];
+
+// The link in the request was signed with the old key.
+// This prints `Reader 17 is unsubscribed.`
+try {
+    Core\Router\Match $matched = Core\Router::signedRoute($keys);
+    uint $reader = $matched->param("reader") as uint;
+    echo "Reader ", $reader, " is unsubscribed.\n";
+} catch (RuntimeError $e) {
+    echo "This link is not valid. Please use the link in your latest email.\n";
+}

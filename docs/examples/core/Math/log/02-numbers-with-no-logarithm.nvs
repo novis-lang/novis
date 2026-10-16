@@ -1,0 +1,20 @@
+<?nvs
+// Shows the result for zero and for a negative number, and what happens when the base is zero.
+
+// The logarithm of zero is `-INFINITY`. This prints -INF.
+echo Core\Math::log(0.0), "\n";
+
+// A negative number has no logarithm. This prints NAN.
+echo Core\Math::log(-5.0), "\n";
+
+// `Core\Math::isNan` tests for that result. This prints "no logarithm".
+if (Core\Math::isNan(Core\Math::log(-5.0))) {
+    echo "no logarithm\n";
+}
+
+// A base of zero or below throws a `RuntimeError`.
+try {
+    echo Core\Math::log(8.0, {base: 0.0}), "\n";
+} catch (RuntimeError $error) {
+    echo "The base must be greater than zero.\n";
+}

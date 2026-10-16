@@ -1,0 +1,11 @@
+{
+  "title": "A `require` path is compared against the on-disk entry exactly, on every OS",
+  "status": "shipped",
+  "seeAlso": [
+    "programs/autoload"
+  ],
+  "guardedBy": [
+    "crates/nvs-hir/src/requires.rs",
+    "tests/conformance/lang/an-autoload-probe-compares-the-on-disk-spelling-exactly.nvst"
+  ]
+}

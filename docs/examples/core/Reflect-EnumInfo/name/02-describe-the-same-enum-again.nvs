@@ -1,0 +1,20 @@
+<?nvs
+// Shows that the name from `name()` can be passed to `of` to describe the same enum again.
+
+enum Channel: int {
+    Email = 1,
+    Sms = 2,
+}
+
+?Core\Reflect\EnumInfo $first = Core\Reflect\EnumInfo::of(Channel::class);
+if ($first != null) {
+    Core\Reflect\EnumInfo $info = $first;
+    // Only the name is stored, as a string. Later, `of` gives a new description from it.
+    string $saved = $info->name();
+    ?Core\Reflect\EnumInfo $second = Core\Reflect\EnumInfo::of($saved);
+    if ($second != null) {
+        Core\Reflect\EnumInfo $again = $second;
+        // This prints `Channel: Email, Sms`.
+        echo $again->name(), ": ", Core\Str::join($again->cases(), ", "), "\n";
+    }
+}

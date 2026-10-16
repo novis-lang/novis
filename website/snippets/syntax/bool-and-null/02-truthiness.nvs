@@ -1,0 +1,13 @@
+<?nvs
+// A condition also accepts values that are not `bool`.
+// `0`, `""`, `"0"`, an empty array and `null` count as false.
+array<int> $empty = [];
+?int $none = null;
+echo 0 ? "true" : "false", " ", "" ? "true" : "false", " ", $empty ? "true" : "false", " ", $none ? "true" : "false", "\n";
+
+// Every other value counts as true.
+echo -1 ? "true" : "false", " ", "0.0" ? "true" : "false", "\n";
+
+// `as bool` gives the same result as a condition.
+bool $flag = "abc" as bool;
+echo $flag ? "true" : "false", "\n";

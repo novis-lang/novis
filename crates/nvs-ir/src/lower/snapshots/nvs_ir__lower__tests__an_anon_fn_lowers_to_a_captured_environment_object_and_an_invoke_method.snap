@@ -1,0 +1,163 @@
+---
+source: crates/nvs-ir/src/lower/tests.rs
+assertion_line: 2726
+expression: "print_program(&p, map.file(file))"
+---
+fn <script>() -> tagged {
+  bb0:
+    safepoint
+    ; stmt s0 @2:1-2:19
+    v0 = const.str "t"  ; string
+    ; stmt s1 @3:1-3:15
+    v1 = const.int 1  ; int
+    ; stmt s2 @4:1-4:37
+    v2 = new Script$fn0() ! bb1  ; object
+    v3 = const.int 1  ; int
+    field.set v2, Script$fn0::fn#arity, v3
+    v4 = const.int 2  ; int
+    field.set v2, Script$fn0::fn#params, v4
+    retain v0
+    field.set v2, Script$fn0::tag, v0
+    ; stmt s3 @5:1-5:12
+    v5 = helper.int_to_string v1 ! bb2  ; string
+    helper.echo_str v5 ! bb3
+    release v5
+    release v2
+    release v0
+    v6 = const.null  ; null
+    v7 = tag v6  ; tagged
+    return v7
+  bb1:
+    release v0
+    propagate "<script>() at t.nvs:4"
+  bb2:
+    release v2
+    release v0
+    propagate "<script>() at t.nvs:5"
+  bb3:
+    release v5
+    release v2
+    release v0
+    propagate "<script>() at t.nvs:5"
+}
+
+fn Script$fn0::invoke(object, int) -> string {
+  bb0:
+    safepoint
+    v0 = param 0  ; object
+    v1 = field.get v0, Script$fn0::tag  ; string
+    retain v1
+    v2 = param 1  ; int
+    retain v1
+    release v0
+    release v1
+    return v1
+}
+
+fn Throwable::constructor(object, string, tagged) -> void {
+  bb0:
+    safepoint
+    v0 = param 0  ; object
+    v1 = param 1  ; string
+    retain v1
+    field.set v0, Throwable::message, v1
+    v2 = param 2  ; tagged
+    retain v2
+    field.set v0, Throwable::previous, v2
+    v3 = array.new []  ; array
+    field.set v0, Throwable::backtrace, v3
+    v4 = const.str ""  ; string
+    field.set v0, Throwable::location, v4
+    release v1
+    release v2
+    release v0
+    return
+}
+
+fn ParseError::constructor(object, string, tagged) -> void {
+  bb0:
+    safepoint
+    v0 = param 0  ; object
+    v1 = param 1  ; string
+    retain v1
+    field.set v0, ParseError::message, v1
+    v2 = param 2  ; tagged
+    retain v2
+    field.set v0, ParseError::previous, v2
+    v3 = array.new []  ; array
+    field.set v0, ParseError::backtrace, v3
+    v4 = const.str ""  ; string
+    field.set v0, ParseError::location, v4
+    v5 = array.new []  ; array
+    field.set v0, ParseError::issues, v5
+    release v1
+    release v2
+    release v0
+    return
+}
+
+fn Core\Db\DbError::constructor(object, string, tagged) -> void {
+  bb0:
+    safepoint
+    v0 = param 0  ; object
+    v1 = param 1  ; string
+    retain v1
+    field.set v0, Core\Db\DbError::message, v1
+    v2 = param 2  ; tagged
+    retain v2
+    field.set v0, Core\Db\DbError::previous, v2
+    v3 = array.new []  ; array
+    field.set v0, Core\Db\DbError::backtrace, v3
+    v4 = const.str ""  ; string
+    field.set v0, Core\Db\DbError::location, v4
+    v5 = const.int 10  ; enum:int
+    field.set v0, Core\Db\DbError::kind, v5
+    release v1
+    release v2
+    release v0
+    return
+}
+
+fn Core\Db\RolledBack::constructor(object, string, tagged) -> void {
+  bb0:
+    safepoint
+    v0 = param 0  ; object
+    v1 = param 1  ; string
+    retain v1
+    field.set v0, Core\Db\RolledBack::message, v1
+    v2 = param 2  ; tagged
+    retain v2
+    field.set v0, Core\Db\RolledBack::previous, v2
+    v3 = array.new []  ; array
+    field.set v0, Core\Db\RolledBack::backtrace, v3
+    v4 = const.str ""  ; string
+    field.set v0, Core\Db\RolledBack::location, v4
+    retain v1
+    field.set v0, Core\Db\RolledBack::reason, v1
+    release v1
+    release v2
+    release v0
+    return
+}
+
+fn Core\Ldap\LdapError::constructor(object, string, tagged) -> void {
+  bb0:
+    safepoint
+    v0 = param 0  ; object
+    v1 = param 1  ; string
+    retain v1
+    field.set v0, Core\Ldap\LdapError::message, v1
+    v2 = param 2  ; tagged
+    retain v2
+    field.set v0, Core\Ldap\LdapError::previous, v2
+    v3 = array.new []  ; array
+    field.set v0, Core\Ldap\LdapError::backtrace, v3
+    v4 = const.str ""  ; string
+    field.set v0, Core\Ldap\LdapError::location, v4
+    v5 = const.int 20  ; enum:int
+    field.set v0, Core\Ldap\LdapError::kind, v5
+    release v1
+    release v2
+    release v0
+    return
+}

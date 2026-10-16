@@ -1,0 +1,6 @@
+listening on:   (a list: loopback on port 8000)
+header wait:    10s
+believed proxy: (nothing written — no forwarding header is believed)
+listen somewhere else:  refused
+believe my proxy:       refused
+wait all day for me:    refused

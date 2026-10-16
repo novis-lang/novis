@@ -1,0 +1,8 @@
+<?nvs
+// Shows how to write follower counts in a short form, as a profile page does.
+use Novis\Intl\NumberFormat;
+
+array<int|float|decimal> $followers = [999, 1234, 1500000];
+
+// A number under one thousand stays as it is. This prints 999 | 1.2K | 1.5M.
+echo Core\Str::join(NumberFormat::compact($followers, "en"), " | "), "\n";

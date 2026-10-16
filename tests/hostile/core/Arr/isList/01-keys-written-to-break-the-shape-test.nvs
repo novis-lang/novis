@@ -1,0 +1,58 @@
+<?nvs
+// Attack: arrays whose keys are large, oddly written or wrong only at the very
+// end are tested. Every step should finish or throw an error, and the runtime
+// must not crash.
+// hostile: timeout-ms 60000
+
+// 1. A list of 400000 entries, so every key is read.
+array<int> $long = [];
+int $i = 0;
+while ($i < 400000) {
+    $long[] = $i;
+    $i = $i + 1;
+}
+echo 'step 1: ', Core\Arr::isList($long) ? 'yes' : 'no', '|', "\n";
+
+// 2. The same 400000 keys with one name added at the end, so the test reads
+//    every key before it can say no.
+$long['last'] = -1;
+echo 'step 2: ', Core\Arr::isList($long) ? 'yes' : 'no', '|', "\n";
+
+// 3. A key written with a leading zero. "00" is not how 0 is written.
+array<int> $padded = [];
+$padded['00'] = 1;
+echo 'step 3: ', Core\Arr::isList($padded) ? 'yes' : 'no', '|', "\n";
+
+// 4. The largest whole number there is, as the only key.
+array<int> $far = [];
+$far[9223372036854775807] = 1;
+echo 'step 4: ', Core\Arr::isList($far) ? 'yes' : 'no', '|', "\n";
+
+// 5. A key of one million characters.
+array<int> $wide = [];
+$wide[Core\Str::repeat('9', 1000000)] = 1;
+echo 'step 5: ', Core\Arr::isList($wide) ? 'yes' : 'no', '|', "\n";
+
+// 6. A key that contains a zero byte in the middle.
+array<int> $odd = [];
+$odd["0\0"] = 1;
+echo 'step 6: ', Core\Arr::isList($odd) ? 'yes' : 'no', '|', "\n";
+
+// 7. The same 2000 keys tested 5000 times.
+array<int> $mid = [];
+int $k = 0;
+while ($k < 2000) {
+    $mid[] = $k;
+    $k = $k + 1;
+}
+int $lists = 0;
+int $r = 0;
+while ($r < 5000) {
+    if (Core\Arr::isList($mid)) {
+        $lists = $lists + 1;
+    }
+    $r = $r + 1;
+}
+echo 'step 7: ', $lists, '|', "\n";
+
+echo 'the runtime is still standing', "\n";

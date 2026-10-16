@@ -1,0 +1,9 @@
+--METHOD--
+GET
+--PATH--
+/account
+--SCHEME--
+https
+--HEADERS--
+host: example.com
+cookie: _ga=GA1.2.1234567890.1726000000; theme=dark; lang=de; __Host-session=k9f2c1d7a0b3e5f6; consent=analytics%2Cads

@@ -1,0 +1,92 @@
+--TEST--
+A ternary's two arms and the right operand of `&&` and `||` are branches, so the condition narrows them the way it narrows `if` and `else` — `rule:types/narrowing`
+--FILE--
+<?nvs
+// covers: lang:types/narrowing
+// Each method is called once with a value and once with `null`, so both arms run.
+type Pad = {top: float};
+
+final class Box
+{
+    public float $top = 1.5;
+}
+
+final class Probe
+{
+    public static function eqNull(?Box $box): float
+    {
+        return $box == null ? 0.0 : $box->top;
+    }
+
+    public static function notNull(?Box $box): float
+    {
+        return $box != null ? $box->top : 0.0;
+    }
+
+    public static function isBox(?Box $box): float
+    {
+        return $box is Box ? $box->top : 0.0;
+    }
+
+    public static function shape(?Pad $pad): float
+    {
+        return $pad == null ? 0.0 : $pad->top;
+    }
+
+    public static function shapeIs(?Pad $pad): float
+    {
+        return $pad is Pad ? $pad->top : -1.0;
+    }
+
+    public static function both(?Box $box): bool
+    {
+        return $box != null && $box->top > 0.5;
+    }
+
+    public static function either(?Box $box): bool
+    {
+        return $box == null || $box->top > 0.5;
+    }
+
+    public static function nested(?Box $a, ?Box $b): float
+    {
+        return $a == null ? ($b == null ? 0.0 : $b->top) : $a->top;
+    }
+
+    public static function scalar(mixed $v): int
+    {
+        return $v is int ? $v + 1 : 0;
+    }
+
+    public static function argument(?Box $box): float
+    {
+        return self::same($box == null ? 0.0 : $box->top);
+    }
+
+    public static function same(float $f): float
+    {
+        return $f;
+    }
+}
+
+echo Probe::eqNull(new Box()), ' ', Probe::eqNull(null), "\n";
+echo Probe::notNull(new Box()), ' ', Probe::notNull(null), "\n";
+echo Probe::isBox(new Box()), ' ', Probe::isBox(null), "\n";
+echo Probe::shape({top: 2.5}), ' ', Probe::shape(null), "\n";
+echo Probe::shapeIs({top: 2.5}), ' ', Probe::shapeIs(null), "\n";
+echo Probe::both(new Box()) ? 'y' : 'n', Probe::both(null) ? 'y' : 'n', "\n";
+echo Probe::either(new Box()) ? 'y' : 'n', Probe::either(null) ? 'y' : 'n', "\n";
+echo Probe::nested(null, new Box()), ' ', Probe::nested(null, null), ' ', Probe::nested(new Box(), null), "\n";
+echo Probe::scalar(41), ' ', Probe::scalar("x"), "\n";
+echo Probe::argument(new Box()), ' ', Probe::argument(null), "\n";
+--EXPECT--
+1.5 0
+1.5 0
+1.5 0
+2.5 0
+2.5 -1
+yn
+yy
+1.5 0 1.5
+42 0
+1.5 0

@@ -1,0 +1,92 @@
+<?nvs
+// Attack: a test fails a check 100,000 times, then fails one with a message of several megabytes.
+// Then 20,000 levels each catch a failure and throw a new one. The test records every failure,
+// so memory could grow without a limit. The script should finish without a crash.
+// hostile: timeout-ms 60000
+
+use Core\Test;
+use Core\Test\Failure;
+
+final class Pile
+{
+    // Fail one check per round and catch it. The catch does not clear the test's record,
+    // so the record grows by one failure each round.
+    public static function churn(int $rounds): uint
+    {
+        uint $read = 0;
+        int $i = 0;
+        while ($i < $rounds) {
+            try {
+                Test::assertTrue(false, { message: 'round after round' });
+            } catch (Failure $failed) {
+                // This reads the message, so every failure must have a real message.
+                if (Core\Str::length($failed->message) > 0) {
+                    $read = $read + 1;
+                }
+            }
+            $i = $i + 1;
+        }
+        return $read;
+    }
+
+    // Fail one check with a message of several megabytes. The check adds its own text
+    // after this message, and the long text should not be copied again at every step.
+    public static function huge(int $doublings): uint
+    {
+        string $note = "and here is more about what went wrong\n";
+        int $i = 0;
+        while ($i < $doublings) {
+            $note = $note . $note;
+            $i = $i + 1;
+        }
+        try {
+            Test::assertTrue(false, { message: $note });
+            return 0;
+        } catch (Failure $failed) {
+            return Core\Str::length($failed->message);
+        }
+    }
+
+    // Each level catches the failure from the level below and throws a new one with the same message.
+    // Every level keeps its own failure until the chain ends.
+    public static function rethrow(int $depth): bool
+    {
+        if ($depth == 0) {
+            Test::assertTrue(false, { message: 'the bottom of the chain' });
+            return true;
+        }
+        try {
+            return Pile::rethrow($depth - 1);
+        } catch (Failure $rising) {
+            throw new Failure($rising->message);
+        }
+    }
+
+    // Each `expectFailure` call records a failure and then removes it from the test's record.
+    // Adding and removing must stay correct over 100,000 rounds.
+    public static function discharge(int $rounds): uint
+    {
+        uint $done = 0;
+        int $i = 0;
+        while ($i < $rounds) {
+            Test::expectFailure(fn (): void => {
+                Test::assertTrue(false, { message: 'expected to fail' });
+            });
+            $done = $done + 1;
+            $i = $i + 1;
+        }
+        return $done;
+    }
+}
+
+echo Pile::churn(100000), "\n";
+echo Pile::huge(17), "\n";
+echo Pile::discharge(100000), "\n";
+
+try {
+    echo Pile::rethrow(20000) ? "reached the bottom\n" : "declined\n";
+} catch (Failure $gaveUp) {
+    echo "the chain ended in a failure\n";
+} catch (Throwable $cameApart) {
+    echo 'the chain came apart: ', $cameApart->message, "\n";
+}

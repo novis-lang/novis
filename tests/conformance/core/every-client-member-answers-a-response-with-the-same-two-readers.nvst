@@ -1,0 +1,76 @@
+--TEST--
+Every `Core\Http\Client` member answers a `Core\Http\Response`, and the same two readers are written against all five of them — `rule:http-server/no-spelling-for-an-unbounded-wait` and `rule:http-server/retry-is-opt-in-jittered-and-closed`, `rule:http-server/redirects-are-off-and-every-hop-is-re-pinned`
+--FILE--
+<?nvs
+// The depth claim is *invariance over a sweep*, counted rather than read off
+// five lines: one shape — `Core\Http\Response $r`, then `$r->status()` and
+// `$r->text()` — is written against every member, and the count of refusals is
+// what says all five agreed. A member that answered something else, or that
+// grew its own reader, takes this off five while every line still reads
+// plausibly on its own.
+//
+// Nothing here reaches a socket, and the option bag is why: `https` passes
+// every question the door asks, and a header carrying a control byte is then
+// refused where the request text is composed, before anything is connected —
+// `every-client-member-judges-a-request-before-it-leaves-the-process.nvst`
+// pins that refusal and where it sits. So all five calls fail identically and
+// none of them connects, on a machine with no network as much as on one with.
+// (Until the trust anchors were compiled in, the transport's missing anchor
+// was what refused; after that the calls really connected, and the address
+// answered nothing for five seconds each.) The readers below the call are
+// therefore compiled and not run, which is the half of them a case can assert
+// while that is true.
+Core\Http\Target $pinned = Core\Http::allowUrl("https://93.184.216.34/ok");
+var $refused = 0;
+
+try {
+    Core\Http\Response $a = Core\Http\Client::get($pinned, {headers: ["X-Trace" => "one\r\ntwo"]});
+    // `status` is a call: a `Core` instance has no property a program can
+    // reach, and `a-response-reader-is-a-member-and-never-a-property.nvst`
+    // pins the diagnostic the other spelling gets.
+    echo "status=", $a->status() as string, " body=", $a->text(), "\n";
+} catch (RuntimeError $one) {
+    $refused = $refused + 1;
+}
+
+try {
+    Core\Http\Response $b = Core\Http\Client::post($pinned, {retryIdempotencyKey: "k", headers: ["X-Trace" => "one\r\ntwo"]});
+    echo "status=", $b->status() as string, " body=", $b->text(), "\n";
+} catch (RuntimeError $two) {
+    $refused = $refused + 1;
+}
+
+try {
+    Core\Http\Response $c = Core\Http\Client::put($pinned, {retryIdempotencyKey: "k", headers: ["X-Trace" => "one\r\ntwo"]});
+    echo "status=", $c->status() as string, " body=", $c->text(), "\n";
+} catch (RuntimeError $three) {
+    $refused = $refused + 1;
+}
+
+try {
+    Core\Http\Response $d = Core\Http\Client::delete($pinned, {headers: ["X-Trace" => "one\r\ntwo"]});
+    echo "status=", $d->status() as string, " body=", $d->text(), "\n";
+} catch (RuntimeError $four) {
+    $refused = $refused + 1;
+}
+
+// A `head` reply has no body at all, and it still answers the same class: the
+// readers are the reply's shape rather than a description of what came back,
+// so there is no fifth member and no second class for the empty case.
+try {
+    Core\Http\Response $e = Core\Http\Client::head($pinned, {headers: ["X-Trace" => "one\r\ntwo"]});
+    echo "status=", $e->status() as string, " body=", $e->text(), "\n";
+} catch (RuntimeError $five) {
+    $refused = $refused + 1;
+}
+
+echo "refused=", $refused as string, "\n";
+--FILE nvs.toml--
+# A literal address is the one host a case can approve without a resolver, for
+# the reason `an-approved-url-is-pinned-to-one-address.nvst` gives.
+[capabilities.net]
+connect = [
+  "93.184.216.34",
+]
+--EXPECT--
+refused=5

@@ -1,0 +1,12 @@
+<?nvs
+// Shows how to remove repeated values while treating "Sport" and "sport" as
+// the same value. The `by` option says what to compare by.
+
+array<string> $tags = ["News", "sport", "news", "SPORT"];
+
+// The entries are compared in lower case, so only "News" and "sport" are left.
+// You get the entries as they were written, not the lower case form.
+array<string> $once = Core\Arr::unique($tags, {
+    by: fn(string $tag): string => Core\Str::lower($tag),
+});
+echo Core\Json::encode($once), "\n";

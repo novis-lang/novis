@@ -1,0 +1,12 @@
+<?nvs
+// Shows what `prefix()` returns when a pattern chose the mount.
+
+// The server has one folder for each customer, and the pattern `/{1:lower}`
+// serves the folder `Acme` at `/acme`. The client asked for `/acme/orders`.
+Core\Request\Mount $mount = Core\Request::mount();
+
+// `prefix()` returns the whole prefix, in lower case. This prints "prefix: /acme".
+echo "prefix: ", $mount->prefix(), "\n";
+
+// `captures()` returns the folder name. This prints "customer: Acme".
+echo "customer: ", $mount->captures()[0], "\n";

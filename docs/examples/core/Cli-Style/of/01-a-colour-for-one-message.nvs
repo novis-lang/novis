@@ -1,0 +1,13 @@
+<?nvs
+// Shows the simplest style: one colour. This example does not run in a
+// terminal, so the colour is dropped and only the text is printed.
+
+// `Core\Cli\Color::RED` is one of the sixteen colours every terminal has.
+var $red = Core\Cli\Style::of({color: Core\Cli\Color::RED});
+
+// `Core\Cli\Text::styled` puts the style on the text. In a terminal this line
+// is red.
+echo Core\Cli\Text::styled("the file was not found", $red), "\n";
+
+// The style is a value, so the same one works for the next message.
+echo Core\Cli\Text::styled("the folder was not found either", $red), "\n";
