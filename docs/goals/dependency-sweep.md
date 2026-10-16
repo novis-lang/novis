@@ -40,7 +40,7 @@ stages:
     context: [package.json, tools/nv-scan/Cargo.toml, tools/nv/keys/scan.ts]
   - id: 8
     title: the editor extension and the website
-    status: open
+    status: done
     context: [editors/vscode/package.json, editors/vscode/tsconfig.json, editors/vscode/src/extension.ts, website/package.json, website/src/components/PageFrame.astro]
   - id: 9
     title: "CI actions, runners, images and machine tools"
@@ -283,11 +283,11 @@ see changes.
 
 **Does:** the VS Code extension and the website are on their latest dependencies, build, lint and pass their suites.
 
-- [ ] vscode-languageclient 10. The tsconfig moves to `node16` resolution, the output channel is created with `{ log: true }`, and the client code is checked for 10.x's middleware changes. `editors/vscode/src/extension.ts:122`, `editors/vscode/tsconfig.json:1`
-- [ ] TypeScript 6.0.x, with `"types": ["node", "mocha"]`. eslint 10 with `@eslint/js` 10. `editors/vscode/package.json:1`
-- [ ] mocha 12, which is ESM-only, plus vsce 4, test-electron 3 and the VS Code build the host tests download. `editors/vscode/test/host/index.ts:18`, `editors/vscode/scripts/host.mjs:31`
-- [ ] Starlight 0.42: the mobile menu has no `aria-expanded`, so `PageFrame` styles it from the new markup. `website/src/components/PageFrame.astro:94`
-- [ ] astro latest, and `engines.node` raised to `>=22.12.0`, which Astro needs. `website/package.json:1`
+- [x] vscode-languageclient 10. The tsconfig moves to `node16` resolution, the output channel is created with `{ log: true }`, and the client code is checked for 10.x's middleware changes. `editors/vscode/src/extension.ts:122`, `editors/vscode/tsconfig.json:1`
+- [x] TypeScript 6.0.x, with `"types": ["node", "mocha"]`. eslint 10 with `@eslint/js` 10. `editors/vscode/package.json:1`
+- [x] mocha 12, which is ESM-only, plus vsce 4, test-electron 3 and the VS Code build the host tests download. `editors/vscode/test/host/index.ts:18`, `editors/vscode/scripts/host.mjs:31`
+- [x] Starlight 0.42: the mobile menu has no `aria-expanded`, so `PageFrame` styles it from the new markup. `website/src/components/PageFrame.astro:94`
+- [x] astro latest, and `engines.node` raised to what Astro needs. `website/package.json:1`
 
 ### 9. CI actions, runners, images and machine tools
 
@@ -310,7 +310,24 @@ see changes.
 
 ### State
 
-Stages 1 to 7 are done. Stage 8 is next.
+Stages 1 to 8 are done. Stage 9 is next.
+- The extension is on vscode-languageclient 10.1, TypeScript 6.0.3, eslint 10, mocha 12, vsce 4
+  and test-electron 3. The host suite passes 15 of 15 on VS Code 1.142.0
+  (`editors/vscode/scripts/host.mjs:31`). The host runner loads Mocha with `import()`, because
+  mocha 12 is ESM-only (`editors/vscode/test/host/index.ts:23`).
+- Two editor pins are behind, with reasons, but `package.json` has no place for a `HOLD` line yet:
+  TypeScript stays on `~6.0.3` because typescript-eslint 8.71 allows `<6.1.0`, and `@types/node`
+  stays on 20 because `engines.vscode` `^1.97` runs Node 20. Stage 10 decides how a
+  `package.json` hold is written.
+- The website is on Starlight 0.42.6 and Astro 7.4.0. Astro 7.4 needs Node `>=22.22.0`, which
+  `engines.node` now says. The mobile menu is a popover (`website/src/components/PageFrame.astro:28`).
+  The built markup is right, but nobody has looked at the menu in a narrow browser window yet.
+- The website build was red because `Core\Reflect::steps` takes a `propertyPath<T>`. `property`
+  and `propertyPath` now link to the concept page (`website/src/lib/core.ts:175`).
+- The floor's `tests/hostile/core/Zip/extract/01-many-files-a-taken-name-and-a-deep-folder.nvs`
+  passes, but takes 22 s alone in a debug build against its 30 s timeout. It fails under the
+  sweep's load. The cost is step 6c: each folder level walks from the root again, so an entry costs
+  O(depth²) (`crates/nvs-stdlib/src/zip.rs:894`). The fix is a linear walk, not a longer timeout.
 - The root lock's holds are unchanged: `wit-parser`, `wasmparser` and `wit-component` wait for
   wasmtime (`Cargo.toml:372`), and so do `brotli-decompressor` (`Cargo.toml:948`) and
   `fallible-iterator` (`Cargo.toml:1010`). `fuzz/Cargo.lock` keeps `brotli-decompressor` 6.0 under
@@ -321,28 +338,26 @@ Stages 1 to 7 are done. Stage 8 is next.
 - The built-in hashes are made at build time (`crates/nvs-ext/build.rs:183`), so none is committed.
   The image guest figures were taken again, and every ratio is within ten percent of the last record.
 - nv-scan is on syn 3.0.9 and sha2 0.11.1, so every build key moved once.
-- Bun 1.4.3 and TypeScript 7.0.2 are the latest releases. `@types/bun` 1.4.3 widened
-  `Subprocess.signalCode`, and `Owned` follows it (`tools/nv/lib/proctree.ts:241`).
+- Bun 1.4.3 and TypeScript 7.0.2 are the latest releases for the repository tools.
 - The nightly run 38869457440 tested `cb7021a24`, an old commit, so its ten red jobs say nothing
   about this tree.
-- The gate on this tip is green. Its first two runs were red on load flakes alone:
-  `spreadsheet_read` and `live_edit`, which passed when rerun alone.
-- This machine's build links against MSVC 14.50.35717 from Visual Studio 18, according to the
-  link paths in `.agent-tmp/verify-clippy.log`.
+- This machine's build links against MSVC 14.50.35717 from Visual Studio 18.
 
 ### Next
 
-**Stage 8: the editor extension and the website.** Files: `editors/vscode/`, then `website/`.
+**Stage 9: CI actions, runners, images and machine tools.** Files: `.github/workflows/ci.yml`,
+`docker/Dockerfile`, `benches/compare/go/Dockerfile`.
 
-- [ ] vscode-languageclient 10, the tsconfig on `node16` resolution, and the output channel with `{ log: true }`. `editors/vscode/src/extension.ts:122`, `editors/vscode/tsconfig.json:1`
-- [ ] TypeScript 6.0.x with `"types": ["node", "mocha"]`, and eslint 10 with `@eslint/js` 10. `editors/vscode/package.json:1`
-- [ ] mocha 12, which is ESM-only, plus vsce 4 and test-electron 3. `editors/vscode/test/host/index.ts:18`, `editors/vscode/scripts/host.mjs:31`
-- [ ] Starlight 0.42 and astro latest, with `engines.node` at `>=22.12.0`. `website/src/components/PageFrame.astro:94`, `website/package.json:1`
+- [ ] Action SHAs move for `setup-node`, `upload-artifact`, `download-artifact`, `setup-qemu`, `setup-buildx`, `build-push` and dtolnay's nightly branch, each `# vX` comment rewritten. `.github/workflows/ci.yml:650`, `.github/workflows/ci.yml:677`, `.github/workflows/ci.yml:1039`
+- [ ] `cc-debian13:nonroot` and `debian:trixie-slim`. `docker/Dockerfile:20`
+- [ ] alpine 3.24.x for the Go bench. `benches/compare/go/Dockerfile:26`
+- [ ] `cargo-geiger` pinned to a version. `.github/workflows/ci.yml:1000`
 
 ### Backlog
 
 - The user pushes `main`, so the nightly tests the current tree (`.github/workflows/ci.yml:7`), and decides on `looper sync`: `looper lint` says `AGENTS.md`'s managed text and `.claude/settings.json` drifted.
-- Proof debt: the stale perf records and the `Core\Test\Outcome`/`Summary` proofs (`bun nv proofs --owed`).
+- Proof debt: the stale perf records and the `Core\Test\Outcome`/`Summary` proofs (`bun nv proofs --owed`). The Zip extract attack needs a linear folder walk (`crates/nvs-stdlib/src/zip.rs:894`, `rule:security/writes-open-beneath-a-handle`).
+- The website's mobile menu needs one look in a narrow browser window (`website/src/styles/custom.css:907`).
 - Load flakes: `ldap` deadlines, the `live_edit` 30 s wait (`crates/nvs-cli/tests/live_edit.rs:1010`), `spreadsheet_read` and `parallel_tests_overlap_on_more_than_one_core` (`crates/nvs-cli/src/runner.rs:4100`). Linux only: `crates/nvs-cli/tests/run_command.rs:688`, and the scaling margin (`crates/nvs-cli/src/serve.rs:3957`).
 - wasmtime 50.0.0 final and cranelift 0.137, held at `Cargo.toml:346`: move the epoch callback's fuel refresh out, because `StoreHookState` has no `set_hostcall_fuel` (`crates/nvs-ext/src/call.rs:1075`), and drop the `new_own` workaround and its playbook bullet (`crates/nvs-ext/src/handle.rs:176`).
 - hyper 1.12's `max_header_size` is a question for the user (`crates/nvs-server/src/serve.rs`).
