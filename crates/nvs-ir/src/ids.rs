@@ -3,11 +3,9 @@
 //! `rule:testing/debug-probes`
 //! needs every lowered statement and every conditional CFG edge to carry an id
 //! a coverage/branch probe can address, so the ids are reserved here rather
-//! than by the code that consumes them: introducing them once M3's codegen
-//! builds probe sites on top of the IR would mean re-numbering (and
-//! re-validating) every already-lowered program, exactly the "cheap now,
-//! expensive later" case `docs/implementation-plan.md`'s M2 paragraph calls
-//! out by name.
+//! than by the code that consumes them: codegen builds probe sites on top of
+//! ids the IR already carries, so adding a probe never re-numbers (or
+//! re-validates) a lowered program.
 //!
 //! # Stability
 //!

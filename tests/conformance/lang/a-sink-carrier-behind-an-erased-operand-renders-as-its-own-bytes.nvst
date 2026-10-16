@@ -15,9 +15,8 @@ A sink carrier reached through an operand whose static type names no class rende
 // defers which class is behind the handle to the concrete instance, so the
 // rendering is decided at run time and cannot be refused where it is written.
 //
-// `Core\Html\Markup` is the other carrier and is not reachable from source
-// yet — `Core\Html` arrives at M7 — so `Core\Cli\Text` is the whole of what
-// this can ask today.
+// `Core\Html\Markup` is the other carrier; this case asks with
+// `Core\Cli\Text`.
 class Carried {
     // Every rendering spelling there is, over one `mixed`, counted against the
     // same carrier read through its own declared type.

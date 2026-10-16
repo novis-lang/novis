@@ -32,9 +32,8 @@ class Counted implements Iterator<int> {
     }
 }
 
-// A cursor is spent once drained, so each question gets its own. A callable
-// cannot be called through the variable holding it (`nvs-ir` gap 1), so this is
-// a static method called directly.
+// A cursor is spent once drained, so each question gets its own. This is a
+// static method called directly.
 class Drive {
     public static function at(uint $limit): string {
         var $c = new Counted();

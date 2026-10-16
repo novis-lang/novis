@@ -1,5 +1,5 @@
 --TEST--
-A loop that allocates nothing, writes nothing and calls nothing is still stopped by `[limits] cpu_time`, as the `FATAL` the tier-1 handler is told names `cpu_time` — `rule:errors/on-limit`, M6's *Verify*
+A loop that allocates nothing, writes nothing and calls nothing is still stopped by `[limits] cpu_time`, as the `FATAL` the tier-1 handler is told names `cpu_time` — `rule:errors/on-limit`
 --FILE--
 <?nvs
 // The cheapest attack there is: no allocation, no output, no member call, so

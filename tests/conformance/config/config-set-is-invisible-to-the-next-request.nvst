@@ -1,5 +1,5 @@
 --TEST--
-a `Core\Config::set` is in force only for the request that made it, and the next request on the same core reads the configuration file's value again — `rule:config/the-config-is-an-immutable-snapshot`, M6's *Verify*
+a `Core\Config::set` is in force only for the request that made it, and the next request on the same core reads the configuration file's value again — `rule:config/the-config-is-an-immutable-snapshot`
 --FILE nvs.toml--
 # The root file, `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults` step 2's `./nvs.toml`. `[limits]` is the value
 # every request here starts at, `[limits.hard]` is what makes the setter's `set`

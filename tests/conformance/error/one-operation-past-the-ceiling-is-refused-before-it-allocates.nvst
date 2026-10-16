@@ -1,5 +1,5 @@
 --TEST--
-An operation asking for more than the request's whole budget is refused in front of the allocation rather than after it, so the peak `Core\Budget` reports never held the ask — `rule:errors/on-limit`, `rule:observability/a-memory-peak-is-recorded-not-asked-for`, M6's *Verify*
+An operation asking for more than the request's whole budget is refused in front of the allocation rather than after it, so the peak `Core\Budget` reports never held the ask — `rule:errors/on-limit`, `rule:observability/a-memory-peak-is-recorded-not-asked-for`
 --FILE--
 <?nvs
 // Noticing at the next poll is noticing after the bytes are held. One ask of

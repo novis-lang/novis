@@ -1,5 +1,5 @@
 --TEST--
-`Core\Config::set` raises a limit as far as the operator's `[limits.hard]` ceiling and refuses above it as `false` with the previous value intact, throwing neither time — `rule:config/three-changeability-classes`, M6's *Verify*
+`Core\Config::set` raises a limit as far as the operator's `[limits.hard]` ceiling and refuses above it as `false` with the previous value intact, throwing neither time — `rule:config/three-changeability-classes`
 --FILE--
 <?nvs
 // `rule:config/three-changeability-classes`: `[limits]` states the value a request starts at and `[limits.hard]`

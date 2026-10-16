@@ -765,9 +765,8 @@ pub enum InstKind {
     /// `new Target(...)`: allocates an instance of `class` and, if it
     /// declares one, invokes its resolved `constructor` with `args` —
     /// bundled into one instruction rather than a separate allocation plus
-    /// `InstKind::Call`, since no codegen exists yet to make that split
-    /// observable (M3's backend work, once real object layout exists) and
-    /// splitting it now would be a distinction with nothing to attach it to.
+    /// `InstKind::Call`, since nothing between lowering and codegen reads the
+    /// two halves apart.
     New {
         /// The constructed class, rendered the same way `Call::target` is —
         /// the key into [`crate::ir::Program::classes`].
@@ -920,8 +919,8 @@ pub enum InstKind {
     /// dispatched through the same runtime method table
     /// [`InstKind::CallVirtual`] uses.
     ///
-    /// This is the instruction M4's acceptance names: `new static()` reached
-    /// through two levels of inheritance allocates the *called* class.
+    /// This is how `new static()` reached through two levels of inheritance
+    /// allocates the *called* class.
     NewDynamic {
         /// The class to allocate — a [`Ty::ClassDesc`].
         desc: ValueId,
@@ -1650,7 +1649,7 @@ pub enum InstKind {
         repr: Ty,
     },
     /// Invokes one of a small, closed, engine-owned set of runtime
-    /// conversions — one of the milestone's named ingredients. `helper` is a
+    /// conversions. `helper` is a
     /// fixed [`Helper`] tag, never a resolved
     /// class/method name: unlike [`InstKind::Call`]'s `target`, nothing here
     /// comes from `nvs_types::expr_table::ExprTypeTable` or a class
@@ -1658,12 +1657,9 @@ pub enum InstKind {
     /// no reason to share `Call`'s shape (see `crate::lower`'s module docs'
     /// design-choices section for why a dedicated instruction was chosen
     /// over reusing `Call` with a synthetic target label, and an enum tag
-    /// over a string name). Like [`InstKind::Call`]/[`InstKind::New`], this
-    /// does not yet model `rule:errors/propagation`'s checked-return convention — no status,
-    /// no error edge — since nothing in this crate models a call that can
-    /// fail at all yet (no `try`/`throw` lowered); that is expected to land
-    /// once such calls do, for every call-shaped instruction at once rather
-    /// than only for this one.
+    /// over a string name). A helper that can fail carries
+    /// `rule:errors/propagation`'s error edge the way a call does: it is
+    /// emitted through `crate::lower::Lowering::emit_fallible`.
     HelperCall {
         /// Which conversion.
         helper: Helper,
@@ -2526,8 +2522,7 @@ pub enum Helper {
     /// with `result: None` and every other variant's "the result is a fresh
     /// `Ty::Str` nothing else owns" release policy does not apply to it.
     /// `rule:core-classes/html-auto-escape`'s auto-escaping sink is the *HTTP response* write, not
-    /// this one — whether `echo` under `nvs serve` becomes that sink is an
-    /// M7 decision this deliberately does not pre-empt.
+    /// this one.
     EchoStr,
     /// [`Self::EchoStr`]'s sink over an operand that has **not** been converted
     /// to [`crate::ty::Ty::Str`] first — `echo`'s row for a

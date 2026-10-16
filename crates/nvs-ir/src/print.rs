@@ -1,7 +1,4 @@
-//! A readable text form of the IR, used by [`crate::lower`]'s snapshot tests
-//! today and intended for a future `nvs ir --dump`-style CLI flag once one
-//! exists (M3, alongside `nvs run --dump-asm` — see
-//! `docs/implementation-plan.md`'s M3 paragraph).
+//! A readable text form of the IR, used by [`crate::lower`]'s snapshot tests.
 //!
 //! Not a serialization format anything round-trips through — there is no
 //! parser for this text, on purpose, the same way `--dump-asm` output isn't

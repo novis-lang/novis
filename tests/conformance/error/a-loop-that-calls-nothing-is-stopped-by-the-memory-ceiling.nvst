@@ -1,5 +1,5 @@
 --TEST--
-A loop that grows a string through a primitive and calls nothing is stopped by `[limits] memory` inside the loop rather than at the first member call after it, so nothing the program would have printed prints — `rule:errors/on-limit`, M6's *Verify*
+A loop that grows a string through a primitive and calls nothing is stopped by `[limits] memory` inside the loop rather than at the first member call after it, so nothing the program would have printed prints — `rule:errors/on-limit`
 --FILE--
 <?nvs
 // `$a .= $a;` reaches no member, so nothing between two doublings asks whether

@@ -4,9 +4,8 @@ A construct the front end accepts and nothing below it could act on is refused a
 <?nvs
 // `rule:statements/a-require-expression-is-mixed`'s value form runs now: the site calls the target file's own
 // script frame and keeps what its file-scope `return` handed back, typed
-// `mixed` because it cannot be known statically. `nvs-ir`'s known gap 22 is
-// closed and `E0704` is retired with it — no diagnostic below names this
-// line, which is what this case still asserts about it.
+// `mixed` because it cannot be known statically. No diagnostic below names
+// this line, which is what this case asserts about it.
 mixed $c = require "cfg.nvs";
 echo $c as string;
 

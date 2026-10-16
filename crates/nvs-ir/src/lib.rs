@@ -97,7 +97,7 @@
 //!   crate, so an enum buys exhaustiveness a string name would lose.
 //! - **Nothing may assume the CFG is reducible.** A generator's `advance()`
 //!   dispatches straight into a block inside a loop body, giving that loop a
-//!   second entry. Cranelift accepts one, so M3's backend does not care — this
+//!   second entry. Cranelift accepts one, so the backend does not care — this
 //!   is a constraint on any later pass added here.
 //! - **Ids are stable, not global.** See [`ids`]'s own module docs.
 //! - **An array key is a `string`, and an `int` subscript does not spell
@@ -135,7 +135,7 @@
 //!   *write-through* descent — one runtime entry point that takes the whole
 //!   key chain, walks it holding the parent's borrow rather than a reference,
 //!   and separates only where the count genuinely says it must — which is a
-//!   `nvs-runtime` ABI question (M9 freezes that surface) and not a lowering
+//!   `nvs-runtime` ABI question and not a lowering
 //!   one. Nothing depends on the copy happening, so it can be taken away
 //!   without changing an observable.
 //! - **A shape's wire contract is a constant of the call site, never of its

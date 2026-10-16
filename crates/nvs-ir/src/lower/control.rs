@@ -2013,13 +2013,10 @@ impl<'a> Lowering<'a> {
     /// A permissive syntactic over-approximation of "which existing locals
     /// might `stmt` reassign" — recurses into `{}`/`if`/`while` since a
     /// reassignment nested inside any of those still needs a loop-header
-    /// phi. Anything else is ignored here; if it turns out to be an
-    /// unsupported shape, [`Self::lower_stmt`] panics on it when actually
-    /// lowering the body, same as always. A `LocalDecl` that *shadows* an
-    /// outer local of the same name inside a nested block is not
-    /// distinguished from a reassignment of the outer binding — the flat,
-    /// unscoped `Env` this crate uses has no notion of nested lexical
-    /// scopes yet; see the crate docs' known gaps.
+    /// phi. Anything else is ignored here. A `LocalDecl` inside a nested
+    /// block counts as a reassignment of the enclosing binding: the `Env` is
+    /// one flat, function-wide map and Novis has no shadowing, so the two are
+    /// the same binding (the crate docs' design choice 9).
     ///
     /// `out` collects each name once, in first-occurrence source order —
     /// deliberately not a `HashSet`'s own iteration order, which depends on

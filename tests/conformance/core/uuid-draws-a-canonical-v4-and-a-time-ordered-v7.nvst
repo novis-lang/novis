@@ -3,9 +3,7 @@ Core\Uuid::v4 and v7 each build a `Uuid` whose canonical rendering carries its o
 --FILE--
 <?nvs
 // A drawn UUID cannot be asserted, so every line here pins an invariant of the
-// rendering rather than the draw itself. `$uuid->toString()` is written out
-// because a `Core`-owned class records no `Stringable` target yet, so `echo
-// $uuid` does not compile (`nvs-ir` gap 12).
+// rendering rather than the draw itself, through `$uuid->toString()`.
 var $v4 = Core\Uuid::v4()->toString();
 var $v7 = Core\Uuid::v7()->toString();
 

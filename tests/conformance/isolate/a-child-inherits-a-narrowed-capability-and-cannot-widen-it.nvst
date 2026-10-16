@@ -68,7 +68,7 @@ try {
 }
 --FILE--
 <?nvs
-// M6's *Verify*: a child cannot widen a capability its parent narrowed. The
+// A child cannot widen a capability its parent narrowed. The
 // parent's own reading first, so that what the child prints is a comparison
 // against a known grant: `./data` reads, `./secret.txt` does not.
 echo "parent read ", Core\IO::read('./data/note.txt');

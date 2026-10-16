@@ -118,18 +118,15 @@ pub enum Ty {
     /// [`crate::ir::Program::classes`] instead, which
     /// [`crate::ir::InstKind::FieldGet`]'s `class`/`field` labels index into.
     Object,
-    /// A reference-counted, heap-allocated `string` — `rule:types/string-is-utf8` has not
-    /// settled that type's default length/indexing
-    /// granularity, but nothing lowered so far needs indexing at all: only a
-    /// literal's *bytes*, which are granularity-independent. [`crate::lower`]
+    /// A reference-counted, heap-allocated `string` (`rule:types/string-is-utf8`).
+    /// The IR never needs its length/indexing granularity: a literal lowers
+    /// to its *bytes*, which are granularity-independent. [`crate::lower`]
     /// cooks a literal directly to [`crate::ir::InstKind::ConstStr`] and
     /// inserts [`crate::ir::InstKind::Retain`]/[`crate::ir::InstKind::Release`]
     /// around a local's declare/reassign/scope-exit lifecycle, a call
     /// argument/parameter, a returned value, and a compile-time-known
     /// property read — see [`crate::lower`]'s own docs for the exact policy
-    /// (keyed on [`crate::lower::is_aliasing_read`]) and its known gaps
-    /// (string concatenation and `tainted`/`secret`-qualified string
-    /// variants are still unsupported).
+    /// (keyed on [`crate::lower::is_aliasing_read`]).
     Str,
     /// A reference-counted, heap-allocated `bytes` value — `rule:types/bytes`'s own
     /// primitive. The same representation shape as [`Self::Str`], different

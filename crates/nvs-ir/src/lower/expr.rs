@@ -725,8 +725,7 @@ impl<'a> Lowering<'a> {
     /// `echo $a, $b;` — writes each operand's bytes to standard output in
     /// order, with no separator and no escaping:
     /// `rule:core-classes/html-auto-escape`'s auto-escaping sink is the HTTP *response*
-    /// write, not this one, and whether `echo` under `nvs serve` is that sink
-    /// is M7's decision, not this lowering's.
+    /// write, not this one.
     ///
     /// A scalar or [`Ty::Str`] operand is converted by
     /// [`Self::convert_operand`] — the same shared path `.` concatenation
@@ -2655,8 +2654,8 @@ impl<'a> Lowering<'a> {
     /// carries `nvs_array_get_index` and `nvs_array_set_index` and no third —
     /// so `unset($a[$i])` renders the decimal here rather than having
     /// codegen discover it cannot. Widening the runtime ABI to close that
-    /// is a separate decision, not a side effect of this one; `rule:packaging/an-artifact-is-one-immutable-content-addressed-file`'s
-    /// artifacts and M9's WIT signatures are about to freeze that surface.
+    /// is a separate decision, not a side effect of this one: `rule:packaging/an-artifact-is-one-immutable-content-addressed-file`'s
+    /// artifacts are compiled against that surface.
     pub(crate) fn lower_rendered_array_key(
         &mut self,
         expr: &Expr,
