@@ -51,23 +51,23 @@ const seenIn = (root: string) => JSON.parse(readFileSync(join(root, SEEN), "utf8
 
 describe("bun nv allow --learn", () => {
   test("nv allow --learn records the tool calls of a finished session", async () => {
-    const root = await repo(["peek"], ["Bash(bun nv peek:*)", "PowerShell(bun nv peek:*)"]);
+    const root = await repo(["peek"], ["Bash(bun nv peek:*)"]);
     expect(await learn(events(root), root)).toBe(0);
     expect(seenIn(root)).toEqual({
       "Bash\tmake all": { sessions: ["s3"], blocked: false },
       "Bash\tzip archive": { sessions: [], blocked: true },
     });
-    expect(readFileSync(join(root, SETTINGS), "utf8")).toBe(settings(["Bash(bun nv peek:*)", "PowerShell(bun nv peek:*)"]));
+    expect(readFileSync(join(root, SETTINGS), "utf8")).toBe(settings(["Bash(bun nv peek:*)"]));
     expect((await git(root, "rev-list", "--count", "HEAD")).stdout.trim()).toBe("1");
   });
 
   test("nv allow --learn adds the owed rules to the settings file", async () => {
-    const root = await repo(["peek", "allow"], ["Bash(bun nv peek:*)", "PowerShell(bun nv peek:*)"]);
+    const root = await repo(["peek", "allow"], ["Bash(bun nv peek:*)"]);
     const earlier: Seen = { "Bash\tmake all": { sessions: Array.from({ length: PROMOTE_AFTER - 1 }, (_, i) => `s${i}`), blocked: false } };
     tmp!.put(SEEN, JSON.stringify(earlier));
     expect(await learn(events(root), root)).toBe(0);
     const allow = (JSON.parse(readFileSync(join(root, SETTINGS), "utf8")) as { permissions: { allow: string[] } }).permissions.allow;
-    expect(allow).toEqual(["Bash(bun nv peek:*)", "PowerShell(bun nv peek:*)", "Bash(bun nv allow:*)", "PowerShell(bun nv allow:*)", "Bash(make all:*)"]);
+    expect(allow).toEqual(["Bash(bun nv peek:*)", "Bash(bun nv allow:*)", "Bash(make all:*)"]);
     expect((await git(root, "rev-list", "--count", "HEAD")).stdout.trim()).toBe("2");
     expect((await git(root, "status", "--porcelain", "--", SETTINGS)).stdout).toBe("");
   });

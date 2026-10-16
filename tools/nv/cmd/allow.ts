@@ -9,7 +9,7 @@
 //
 // Two kinds of rule are added without a person:
 //
-// - every `bun nv` command `main.ts` dispatches, except `NV_NEVER`, as soon as it exists;
+// - every `bun nv` command `main.ts` dispatches, as soon as it exists;
 // - a command prefix the classifier approved in `PROMOTE_AFTER` sessions and never blocked.
 //
 // A refused call is never added: the classifier blocked it, or the guard hook denied it. It goes to the
@@ -35,10 +35,8 @@ export const SETTINGS = ".claude/settings.json";
 export const SEEN = ".loop/allow-seen.json";
 /** Sessions in which the classifier must have approved a prefix before it becomes a rule. */
 export const PROMOTE_AFTER = 3;
-/** `bun nv` commands that are never allowlisted: `bg` runs any command, so the classifier reviews each call. */
-export const NV_NEVER = new Set(["bg"]);
-
-const SHELLS = new Set(["Bash", "PowerShell"]);
+/** The one shell tool a session has. A call to any other tool is not counted, and no rule is made for it. */
+const SHELLS = new Set(["Bash"]);
 
 /** First words a prefix rule is never made from. Compared lower case, without `.exe`. */
 const NEVER = new Set([
@@ -88,7 +86,6 @@ export function prefixOf(segment: string): string | null {
   if (name === "git" && GIT_NEVER.has(sub)) return null;
   if (name === "cargo" && CARGO_NEVER.has(sub)) return null;
   if (name === "bun" && sub !== "nv" && sub !== "test") return null;
-  if (name === "bun" && sub === "nv" && NV_NEVER.has(taken[2]!)) return null;
   return taken.join(" ");
 }
 
@@ -240,10 +237,7 @@ export function owed(seen: Seen, rules: string[], nvCommands: string[]): string[
   const want = (tool: string, prefix: string) => {
     if (!covered(rules, tool, prefix) && !covered(out, tool, prefix)) out.push(ruleText(tool, prefix));
   };
-  for (const name of nvCommands) {
-    if (NV_NEVER.has(name)) continue;
-    for (const tool of SHELLS) want(tool, `bun nv ${name}`);
-  }
+  for (const name of nvCommands) for (const tool of SHELLS) want(tool, `bun nv ${name}`);
   for (const [k, s] of Object.entries(seen)) {
     if (s.blocked || s.sessions.length < PROMOTE_AFTER) continue;
     const [tool, prefix] = k.split("\t") as [string, string];
