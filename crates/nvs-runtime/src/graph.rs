@@ -437,10 +437,10 @@ pub(crate) fn refusable(class: &ClassDesc) -> Result<(), GraphError> {
 /// representation.
 ///
 /// `receiving` is the class table the copy lands in, when the crossing has one
-/// — the isolate boundary's answer, on its way back to a parent that compiled
-/// its own unit. `None` is a copy that does not leave the program that made it
-/// (`clone`, and the argument going *in*, whose destination table does not
-/// exist yet), where every class is by construction the receiving side's own.
+/// — the isolate boundary's, in both directions. `None` is
+/// a copy that does not leave the program that made it (`clone`), where every
+/// class is by construction the receiving side's own, or one into a program
+/// nobody compiled.
 struct Live<'a> {
     receiving: Option<Receiving<'a>>,
 }
@@ -605,6 +605,27 @@ pub fn copy_graph_into(
 ) -> Result<Value, GraphError> {
     let mut seen = Seen::new();
     walk(&mut Live { receiving }, value, &mut seen, 0)
+}
+
+/// The same copy, into the program whose class table `classes` is a handle on
+/// — the isolate boundary's form for the argument at the spawn, where the
+/// child's table arrives beside its program.
+///
+/// `None` is a crossing into a program nobody compiled, which has no table to
+/// ask, and is [`copy_graph`].
+///
+/// # Errors
+///
+/// Everything [`copy_graph_into`] refuses.
+pub fn copy_graph_to(
+    value: Value,
+    classes: Option<&crate::ErrorClass>,
+) -> Result<Value, GraphError> {
+    let Some(classes) = classes else {
+        return copy_graph(value);
+    };
+    let resolve = |name: &str| -> Option<*const ClassDesc> { Some(classes.sibling(name)?.desc()) };
+    copy_graph_into(value, Some(&resolve))
 }
 
 // ============================================================================

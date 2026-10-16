@@ -229,16 +229,19 @@ fn cross(crossing: Crossing) -> Crossed {
     // *Charging a request* section owns how the two cores' time adds up.
     crate::scheduler::charge_running_task_to(child.tree_key());
     let _charged = crate::watchdog::publish_here(child.safepoint_view());
-    // The receiving table for both crossings on this side, taken before the
-    // context is moved into the run below. It is the table that crossed, so a
-    // class in the answer is the same descriptor the parent will compare against
-    // — the identity `rule:classes/graph-copy` is written in terms of.
+    // The table the answer is copied out against, taken before the context is
+    // moved into the run below. It is the table that crossed, so a class in the
+    // answer is the same descriptor the parent will compare against — the
+    // identity `rule:classes/graph-copy` is written in terms of.
     let receiving = child.class_table();
-    let program = match entry.program(&child) {
-        Ok(program) => program,
+    let prepared = match entry.program(&child) {
+        Ok(prepared) => prepared,
         Err(refusal) => return crossed(refused_completion(&refusal.to_string())),
     };
-    let value = match nvs_runtime::graph::decode(&argument, &resolver(receiving.as_ref())) {
+    // The argument is read into the table the child's code was compiled
+    // against: a path's own unit's, or for a method entry the one that crossed.
+    let into = prepared.classes.as_ref().or(receiving.as_ref());
+    let value = match nvs_runtime::graph::decode(&argument, &resolver(into)) {
         Ok(value) => value,
         // The argument was accepted by the walk on the parent's core and refused
         // by the reader on this one, which is this program disagreeing with its
@@ -248,7 +251,7 @@ fn cross(crossing: Crossing) -> Crossed {
         // could not receive it.
         Err(refusal) => return crossed(refused_completion(&refusal.to_string())),
     };
-    crossed(run_here(child, program, value, receiving, timed))
+    crossed(run_here(child, prepared.program, value, receiving, timed))
 }
 
 /// Turns what the child answered into what crosses back, spending the
@@ -432,7 +435,7 @@ mod tests {
     struct Publishable;
 
     impl nvs_runtime::script::Resolver for Publishable {
-        fn resolve(&self, path: &str) -> Result<nvs_runtime::script::Program, String> {
+        fn resolve(&self, path: &str) -> Result<nvs_runtime::script::Prepared, String> {
             Err(format!("`{path}` is not a script"))
         }
     }

@@ -105,7 +105,7 @@
 
 use nvs_runtime::sse::{DECLARED_HEADERS, Event, MEDIA_TYPE};
 use nvs_runtime::{
-    Ctx, Delivery, EventStreamDoor, Fault, NvsStr, Tag, ThrownClass, Upgrade, Value, copy_graph,
+    Ctx, Delivery, EventStreamDoor, Fault, NvsStr, Tag, ThrownClass, Upgrade, Value, copy_graph_to,
 };
 
 use crate::registry::{
@@ -578,7 +578,7 @@ nvs_runtime::nvs_helper! {
                      method are not requests",
                 )
             })?;
-        let program = entry_program(ctx, args[0], args[1], "Core\\Sse::upgrade")?;
+        let prepared = entry_program(ctx, args[0], args[1], "Core\\Sse::upgrade")?;
         let narrowing =
             upgrade_narrowing(ctx, &args[2], &args[3], &args[4], "`Core\\Sse::upgrade`")?;
         // No case can reach this, for the sibling's reason: it stands after the
@@ -586,13 +586,15 @@ nvs_runtime::nvs_helper! {
         // crossing itself is `crate::socket`'s, and
         // `an_args_value_that_cannot_cross_is_refused_before_the_slot_is_filled`
         // there is the `#[test]` that asserts this arm of it.
-        let crossed = copy_graph(retained(args[1])).map_err(|refused| {
+        let crossed = copy_graph_to(retained(args[1]), prepared.classes.as_ref()).map_err(|refused| {
             Fault::thrown_as(
                 ThrownClass::Logic,
                 format!("`Core\\Sse::upgrade`'s `args:` cannot cross into a connection: {refused}"),
             )
         })?;
-        if let Err(returned) = cell.fill(Upgrade::new(program, crossed).narrowed_by(narrowing)) {
+        if let Err(returned) =
+            cell.fill(Upgrade::new(prepared.program, crossed).narrowed_by(narrowing))
+        {
             let (_program, crossed, _narrowing) = returned.into_parts();
             release_crossed(crossed);
             // No case can reach this: a second stream needs a first, and a first
@@ -975,7 +977,7 @@ fn optional_field<'a>(value: &'a Value, field: &str) -> Result<Option<&'a [u8]>,
 
 #[cfg(test)]
 mod tests {
-    use nvs_runtime::script::{Installed, Program, Resolver, install};
+    use nvs_runtime::script::{Installed, Prepared, Program, Resolver, install};
     use nvs_runtime::{Ctx, Inbound, NvsArray, NvsStr, SseSlot, Value};
 
     use super::nvs_core_sse_upgrade;
@@ -995,12 +997,13 @@ mod tests {
     struct Fixed;
 
     impl Resolver for Fixed {
-        fn resolve(&self, path: &str) -> Result<Program, String> {
+        fn resolve(&self, path: &str) -> Result<Prepared, String> {
             let len = i64::try_from(path.len()).unwrap_or(-1);
-            Ok(Box::new(move |ctx, args| {
+            let program: Program = Box::new(move |ctx, args| {
                 ctx.set_isolate_argument(args);
                 Value::int(len)
-            }))
+            });
+            Ok(program.into())
         }
     }
 

@@ -173,7 +173,7 @@ use nvs_config::cache::{
     env_hash,
 };
 use nvs_config::tree::Config;
-use nvs_runtime::script::{Program, Resolver};
+use nvs_runtime::script::{Prepared, Program, Resolver};
 use nvs_runtime::{Ctx, Value};
 
 /// One compiled unit, and the one compile product a *caller* of this cache
@@ -268,9 +268,9 @@ struct Traced {
 /// One stamp to keep per file, or per listed directory, in order.
 type Stamps = Vec<Option<Stamp>>;
 
-/// What a resolve gives its caller: the program and its route table, or the
-/// one-line summary of why it did not compile.
-type Answer = Result<(Program, Arc<nvs_runtime::routes::Routes>), String>;
+/// What a resolve gives its caller: the program with its unit's class table and
+/// its route table, or the one-line summary of why it did not compile.
+type Answer = Result<(Prepared, Arc<nvs_runtime::routes::Routes>), String>;
 
 /// The `mtime`/size pair `rule:config/an-edit-reaches-the-next-request-without-a-restart` calls the cheap
 /// pre-filter: enough to say a file did *not* change, never enough to say what
@@ -716,6 +716,17 @@ impl Compiler {
         &self,
         path: &str,
     ) -> Result<(Program, Arc<nvs_runtime::routes::Routes>), String> {
+        self.prepared(path)
+            .map(|(prepared, routes)| (prepared.program, routes))
+    }
+
+    /// [`Self::compiled`] with the unit's class table kept beside the program,
+    /// which is what [`Resolver::resolve`] answers with.
+    ///
+    /// # Errors
+    ///
+    /// [`Self::compiled`]'s.
+    fn prepared(&self, path: &str) -> Answer {
         let written = PathBuf::from(path);
         let known = shared(&self.paths).get(&written).copied();
         if let Some(entry) = known
@@ -1549,13 +1560,14 @@ pub(crate) fn watch(compiler: &Arc<Compiler>, mut also: Option<Also>) -> Watch {
 ///
 /// Saying so is what sends a step-1 hit on that content down to step 3 to wait
 /// for the compile rather than reporting that the cache holds nothing.
-fn reply(
-    state: &CompileState,
-) -> Option<Result<(Program, Arc<nvs_runtime::routes::Routes>), String>> {
+fn reply(state: &CompileState) -> Option<Answer> {
     match state {
         CompileState::Compiling(_) => None,
         CompileState::Ready(compiled) => Some(Ok((
-            program_over(Arc::clone(compiled)),
+            Prepared {
+                classes: compiled.unit.runtime_error_class(),
+                program: program_over(Arc::clone(compiled)),
+            },
             Arc::clone(&compiled.routes),
         ))),
         CompileState::Failed(message) => Some(Err(message.clone())),
@@ -1758,12 +1770,12 @@ impl Resolver for Compiler {
     /// the parent program wants a string it can print. `rule:security/isolate-shares-nothing`'s
     /// failure-is-a-value rule is about the second and says nothing that
     /// forbids the first.
-    fn resolve(&self, path: &str) -> Result<Program, String> {
-        // A spawned isolate is not answering a request, so the table
-        // [`Self::compiled`] hands back is the half this seam has nothing to
+    fn resolve(&self, path: &str) -> Result<Prepared, String> {
+        // A spawned isolate is not answering a request, so the route table
+        // [`Self::prepared`] hands back is the half this seam has nothing to
         // do with — it still travels *into* the child, because the program
         // installs it on its own context.
-        self.compiled(path).map(|(program, _)| program)
+        self.prepared(path).map(|(prepared, _)| prepared)
     }
 }
 
@@ -1877,7 +1889,7 @@ pub(crate) fn granting_snapshot() -> nvs_config::Snapshot {
 #[cfg(test)]
 mod tests {
     use super::{CompileState, Compiler, ProbeHash, granting_ctx as granting, shared};
-    use nvs_runtime::script::{Program, ResolveError, Resolver, resolve, scoped};
+    use nvs_runtime::script::{Prepared, Program, ResolveError, Resolver, resolve, scoped};
     use nvs_runtime::{Ctx, OutputSink, Value};
     use std::sync::Arc;
     use std::sync::atomic::Ordering;
@@ -1917,7 +1929,7 @@ mod tests {
 
     /// The same, over a program resolved earlier — which is what a holder of
     /// one does with it after the cache has moved on.
-    fn run_program(program: Program) -> nvs_host::Completion {
+    fn run_program(program: impl Into<Prepared>) -> nvs_host::Completion {
         run_under(program, Ctx::new(OutputSink::Buffer(Vec::new())))
     }
 
@@ -1927,7 +1939,7 @@ mod tests {
     /// installs for exactly the same reason. The capability is `rule:security/capability-question-is-grant-and-scope`'s,
     /// denied by default, and [`granting_ctx`] is why the grant has one
     /// spelling in this crate.
-    fn run_serving(program: Program) -> nvs_host::Completion {
+    fn run_serving(program: impl Into<Prepared> + 'static) -> nvs_host::Completion {
         let mut sched = nvs_host::Scheduler::new();
         let completion = std::rc::Rc::new(std::cell::RefCell::new(None));
         sched.spawn(granting(), nvs_runtime::TaskRoot::Request, {
@@ -1948,7 +1960,7 @@ mod tests {
         taken.expect("the task ran")
     }
 
-    fn run_under(program: Program, mut parent: Ctx) -> nvs_host::Completion {
+    fn run_under(program: impl Into<Prepared>, mut parent: Ctx) -> nvs_host::Completion {
         nvs_host::Isolate::new(program, Value::null(), nvs_host::Output::Capture)
             .run(&mut parent)
             .expect("a null argument crosses")
@@ -3279,9 +3291,9 @@ mod tests {
         );
         let compiler = Compiler::default();
         scoped(&compiler, || {
-            let program = resolve(&ctx, &from_root("examples/isolate/hello.nvs"))
+            let prepared = resolve(&ctx, &from_root("examples/isolate/hello.nvs"))
                 .expect("the installed resolver answers");
-            let _ = program(&mut ctx, Value::null());
+            let _ = (prepared.program)(&mut ctx, Value::null());
         });
         // And gone again the moment the call returned, which is the half a
         // leaked resolver could not have.

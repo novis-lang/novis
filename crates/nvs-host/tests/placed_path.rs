@@ -23,7 +23,7 @@ use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use std::thread::ThreadId;
 
 use nvs_runtime::host::{Completion, Entry, Narrowing, Output, Placement};
-use nvs_runtime::script::{Program, Resolver, SharedResolver, publish};
+use nvs_runtime::script::{Prepared, Program, Resolver, SharedResolver, publish};
 use nvs_runtime::{ClassTable, Ctx, ErrorClass, FieldDefault, OutputSink, TaskRoot, Value};
 
 /// The one path [`Scripts`] compiles. Absolute, because `script::resolve`
@@ -56,16 +56,17 @@ static RAN_ON: Mutex<Vec<ThreadId>> = Mutex::new(Vec::new());
 struct Scripts;
 
 impl Resolver for Scripts {
-    fn resolve(&self, path: &str) -> Result<Program, String> {
+    fn resolve(&self, path: &str) -> Result<Prepared, String> {
         if path != CHILD {
             return Err(format!("`{path}` names no script this test compiled"));
         }
-        Ok(Box::new(|_ctx: &mut Ctx, args: Value| {
+        let program: Program = Box::new(|_ctx: &mut Ctx, args: Value| {
             ran_on().push(std::thread::current().id());
             // The argument came across as bytes and is read back into this
             // core's arena; the answer makes the same trip the other way.
             Value::int(args.as_int().unwrap_or(-1) + 1)
-        }))
+        });
+        Ok(program.into())
     }
 }
 

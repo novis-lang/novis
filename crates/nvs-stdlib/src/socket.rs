@@ -197,10 +197,10 @@
 //! ), and a connection's output is the socket.
 
 use nvs_runtime::host::Narrowing;
-use nvs_runtime::script::{Program, ResolveError};
+use nvs_runtime::script::{Prepared, Program, ResolveError};
 use nvs_runtime::{
     Closing, Ctx, Delivery, Fault, NvsStr, PeerFrame, Received, Tag, ThrownClass, Upgrade, Value,
-    copy_graph,
+    copy_graph_to,
 };
 
 use crate::registry::{
@@ -674,7 +674,7 @@ pub(crate) fn entry_program(
     entry: Value,
     args: Value,
     member: &str,
-) -> Result<Program, Fault> {
+) -> Result<Prepared, Fault> {
     // No case can reach this, and no case can reach any refusal below it: every
     // one of them stands *after* the slot, and a `.nvst` case runs a script
     // nothing offered a connection to, so the missing slot is the only report
@@ -777,7 +777,7 @@ impl Drop for HeldCallable {
 ///
 /// A `callable` recording no parameter names at all, and `rule:security/isolate-shares-nothing`'s
 /// named-argument mismatch between the target's parameters and `args`.
-fn method_program(ctx: &Ctx, entry: Value, args: Value, member: &str) -> Result<Program, Fault> {
+fn method_program(ctx: &Ctx, entry: Value, args: Value, member: &str) -> Result<Prepared, Fault> {
     // `None` is a callable with no `fn#names` field, which is an anonymous function:
     // `nvs_types::expr::isolate` refuses one where an entry is expected, so
     // this is a compiler disagreement rather than a program's — but it is
@@ -796,7 +796,10 @@ fn method_program(ctx: &Ctx, entry: Value, args: Value, member: &str) -> Result<
     let held = HeldCallable(retained(entry));
     let statics = ctx.unit_statics();
     let errors = ctx.class_table();
-    Ok(Box::new(move |child: &mut Ctx, argument: Value| {
+    // The method is the request's own unit's code, so its table is the one the
+    // connection's argument is checked against.
+    let classes = errors.clone();
+    let program: Program = Box::new(move |child: &mut Ctx, argument: Value| {
         // The whole guard is moved into the Rust closure here. The body reads only
         // `held.0`, a `Copy` field, and a Rust closure that names only a field
         // captures only that field: the guard would then be dropped when
@@ -842,12 +845,13 @@ fn method_program(ctx: &Ctx, entry: Value, args: Value, member: &str) -> Result<
             // reads it from.
             Err(_) => Value::null(),
         }
-    }))
+    });
+    Ok(Prepared { program, classes })
 }
 
 /// One more reference to `value`, for the crossing below to consume.
 ///
-/// [`copy_graph`] takes ownership of what it is handed, and a `Core` helper
+/// [`copy_graph_to`] takes ownership of what it is handed, and a `Core` helper
 /// *borrows* its arguments — so the retain is what reconciles the two
 /// conventions, and it is also what keeps the copy a copy: a value at refcount
 /// one is moved rather than walked, which would hand the connection the
@@ -966,20 +970,23 @@ nvs_runtime::nvs_helper! {
                      one",
                 )
             })?;
-        let program = entry_program(ctx, args[0], args[1], "Core\\Socket::upgrade")?;
+        let prepared = entry_program(ctx, args[0], args[1], "Core\\Socket::upgrade")?;
         let narrowing =
             upgrade_narrowing(ctx, &args[2], &args[3], &args[4], "`Core\\Socket::upgrade`")?;
         // No case can reach this: it stands after the slot, and a `.nvst` case
         // runs a script no connection offered one to.
         // `an_args_value_that_cannot_cross_is_refused_before_the_slot_is_filled`
-        // is the `#[test]` that asserts it instead.
-        let crossed = copy_graph(retained(args[1])).map_err(|refused| {
+        // is the `#[test]` that asserts it instead. The receiving table is the
+        // one the connection's code was compiled against.
+        let crossed = copy_graph_to(retained(args[1]), prepared.classes.as_ref()).map_err(|refused| {
             Fault::thrown_as(
                 ThrownClass::Logic,
                 format!("`Core\\Socket::upgrade`'s `args:` cannot cross into a connection: {refused}"),
             )
         })?;
-        if let Err(returned) = slot.fill(Upgrade::new(program, crossed).narrowed_by(narrowing)) {
+        if let Err(returned) =
+            slot.fill(Upgrade::new(prepared.program, crossed).narrowed_by(narrowing))
+        {
             let (_program, crossed, _narrowing) = returned.into_parts();
             release_crossed(crossed);
             // No case can reach this: a second upgrade needs a first, and a
@@ -1277,7 +1284,7 @@ nvs_runtime::nvs_helper! {
 
 #[cfg(test)]
 mod tests {
-    use nvs_runtime::script::{Installed, Program, Resolver, install};
+    use nvs_runtime::script::{Installed, Prepared, Program, Resolver, install};
     use nvs_runtime::{Ctx, Inbound, NvsArray, NvsStr, UpgradeSlot, Value};
 
     use nvs_runtime::{Closing, Delivery, PeerError, PeerFrame, PeerSocket, Received};
@@ -1836,12 +1843,13 @@ mod tests {
     struct Fixed;
 
     impl Resolver for Fixed {
-        fn resolve(&self, path: &str) -> Result<Program, String> {
+        fn resolve(&self, path: &str) -> Result<Prepared, String> {
             let len = i64::try_from(path.len()).unwrap_or(-1);
-            Ok(Box::new(move |ctx, args| {
+            let program: Program = Box::new(move |ctx, args| {
                 ctx.set_isolate_argument(args);
                 Value::int(len)
-            }))
+            });
+            Ok(program.into())
         }
     }
 
@@ -1851,7 +1859,7 @@ mod tests {
     struct Refusing;
 
     impl Resolver for Refusing {
-        fn resolve(&self, path: &str) -> Result<Program, String> {
+        fn resolve(&self, path: &str) -> Result<Prepared, String> {
             Err(format!("`{path}` is not a script"))
         }
     }

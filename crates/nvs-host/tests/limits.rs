@@ -23,6 +23,12 @@ use nvs_config::Snapshot;
 use nvs_config::capability::{Cap, Scope};
 use nvs_runtime::{Ctx, NvsStr, OutputSink, Value, nvs_safepoint};
 
+/// `body` as a program, which a bare `Box::new` is not once `Isolate::new`
+/// takes anything that becomes one.
+fn program(body: impl FnOnce(&mut Ctx, Value) -> Value + 'static) -> nvs_runtime::script::Program {
+    Box::new(body)
+}
+
 /// How many times the handler below has been entered, across every test in
 /// this binary. Each test asserts on a *difference* it reads for itself, so
 /// nothing here depends on the order cargo runs them in or on their not
@@ -747,9 +753,10 @@ fn reports_from_inside_the_reserve(ctx: &mut Ctx, args: Value) -> Value {
 struct ResolvesToTheProbe;
 
 impl nvs_runtime::script::Resolver for ResolvesToTheProbe {
-    fn resolve(&self, path: &str) -> Result<nvs_runtime::script::Program, String> {
+    fn resolve(&self, path: &str) -> Result<nvs_runtime::script::Prepared, String> {
         *RESOLVED_PATH.lock().expect("no test panics holding this") = Some(path.to_owned());
-        Ok(Box::new(reports_from_inside_the_reserve))
+        let program: nvs_runtime::script::Program = Box::new(reports_from_inside_the_reserve);
+        Ok(program.into())
     }
 }
 
@@ -874,7 +881,7 @@ fn a_recursive_spawn_is_reported_as_max_script_depth_and_not_as_memory() {
     deepest.set_limit_handler(callable_taking_the_report(records_the_spawn_report));
 
     let refused = nvs_host::Isolate::new(
-        Box::new(|_ctx: &mut Ctx, _args: Value| Value::null()),
+        program(|_ctx: &mut Ctx, _args: Value| Value::null()),
         Value::null(),
         nvs_host::Output::Capture,
     )
@@ -923,7 +930,7 @@ fn a_childs_memory_breach_arrives_as_ok_false_and_the_parent_keeps_running() {
     let mut parent = parent_of_isolates();
 
     let completion = nvs_host::Isolate::new(
-        Box::new(|child: &mut Ctx, _args: Value| {
+        program(|child: &mut Ctx, _args: Value| {
             child.set_memory_limit(4096);
             child.set_limit_handler(callable_taking_the_report(records_the_child_memory_report));
             // Held across the poll, as `breached` holds its own and for its reason: the reading is
@@ -1005,7 +1012,7 @@ fn a_childs_cpu_breach_arrives_as_ok_false_and_the_parent_keeps_running() {
     parent.set_cpu_limit(2_000_000_000);
 
     let completion = nvs_host::Isolate::new(
-        Box::new(|child: &mut Ctx, _args: Value| {
+        program(|child: &mut Ctx, _args: Value| {
             child.set_limit_handler(callable_taking_the_report(records_the_child_cpu_report));
             child.request_safepoint(nvs_runtime::SafepointFlags::CPU_LIMIT);
 

@@ -191,7 +191,7 @@ parent's, a tree that spawns past `max_tasks` is refused with a limit report, a 
 `wall_time` or `max_output` is stopped with one, and a `[limits]` value that is not a quantity or is
 above its ceiling stops the boot instead of leaving the request with no cap.
 
-- [ ] The `nvs_runtime::script` seam returns a unit's class table beside its entry point, and the argument walk runs with it. `crates/nvs-host/src/isolate.rs:64`, `crates/nvs-runtime/src/graph.rs:444`
+- [x] The `nvs_runtime::script` seam returns a unit's class table beside its entry point, and the argument walk runs with it. `crates/nvs-host/src/isolate.rs:64`, `crates/nvs-runtime/src/graph.rs:444`
 - [ ] A spawn past the root's `max_tasks` is refused, naming the directive. `crates/nvs-config/src/tree.rs:188`
 - [ ] Whether child CPU is summed against the root's `cpu_time` is checked, and either the code or the rule changes. `crates/nvs-host/src/isolate.rs:717`
 - [ ] `nvs run` arms a deadline from `wall_time`, and a write past `max_output` raises a flag the next poll reads. `crates/nvs-cli/src/main.rs:3681`, `crates/nvs-runtime/src/ctx/safepoint.rs:756`, `crates/nvs-runtime/src/ctx/output.rs:286`
@@ -299,11 +299,14 @@ work cannot live only in prose again.
 
 ### State
 
-Stages 1 and 2 are done. `header_timeout` is one deadline for the whole head: `ConnectionIo::arm`
-fixes `head_ends` when the head starts and progress does not move it
-(`crates/nvs-server/src/io.rs`). `a_head_keeps_one_deadline_while_its_bytes_arrive` and the served
-`a_head_sent_one_byte_at_a_time_is_closed_at_the_header_deadline` pin it, the rule says three idle
-waits and one total, and the gap record is deleted.
+Stages 1 and 2 are done, and stage 3's first item is. A resolved path answers with
+`nvs_runtime::script::Prepared`, the program and its unit's class table, and every door that
+crosses an argument into a path child checks it against that table: `Isolate::start`
+(`copy_graph_to`), the placed decode (`crates/nvs-host/src/placed.rs`) and the two upgrade doors
+(`crates/nvs-stdlib/src/socket.rs`, `sse.rs`). A method entry checks against the parent's table.
+`an_argument_of_a_class_the_child_does_not_declare_is_refused_at_the_spawn` pins it, and the gap
+record is deleted. `Isolate::new` takes `impl Into<Prepared>`, so a bare Rust `Program` still
+builds one with no table.
 
 Stage 1 found a second memory-safety hole, recorded as
 `data/gaps/nvs-runtime/a-wider-shape-view-writes-an-object-of-the-wrong-class.json`. A statically
@@ -319,11 +322,11 @@ local one. The earlier triage of its failures stands until the user pushes.
 ### Next
 
 **Stage 3, the isolate tree's own bounds.** Files: `crates/nvs-host/src/isolate.rs`,
-`crates/nvs-runtime/src/graph.rs` and `crates/nvs-config/src/tree.rs`.
+`crates/nvs-runtime/src/ctx/limits.rs` and `crates/nvs-config/src/tree.rs`.
 
-- [ ] The `nvs_runtime::script` seam returns a unit's class table beside its entry point, and the argument walk runs with it (`rule:security/isolate-values-cross-by-copy`). `crates/nvs-host/src/isolate.rs:64`, `crates/nvs-runtime/src/graph.rs:444`
-- [ ] A spawn past the root's `max_tasks` is refused, naming the directive (`rule:security/isolate-budget-is-the-trees`). `crates/nvs-config/src/tree.rs:188`
-- [ ] Whether child CPU is summed against the root's `cpu_time` is checked, and either the code or the rule changes (`rule:security/isolate-budget-is-the-trees`). `crates/nvs-host/src/isolate.rs:717`
+- [ ] A spawn past the root's `max_tasks` is refused, naming the directive (`rule:security/isolate-budget-is-the-trees`). `crates/nvs-config/src/tree.rs:188`, `crates/nvs-host/src/isolate.rs:621`
+- [ ] Whether child CPU is summed against the root's `cpu_time` is checked, and either the code or the rule changes (`rule:security/isolate-budget-is-the-trees`). `crates/nvs-host/src/isolate.rs:733`
+- [ ] `nvs run` arms a deadline from `wall_time`, and a write past `max_output` raises a flag the next poll reads (`rule:errors/on-limit`). `crates/nvs-cli/src/main.rs:3681`, `crates/nvs-runtime/src/ctx/output.rs:286`
 
 ### Backlog
 

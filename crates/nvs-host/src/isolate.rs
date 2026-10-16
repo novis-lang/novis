@@ -61,16 +61,17 @@
 //! what the child echoed before the safepoint. Both are `rule:concurrency/cancellation-runs-no-user-code`, and
 //! neither runs a line of the child's own code on the way out.
 //!
-//! § 2's *unresolvable class* is asked of the answer and not of the argument,
-//! and the asymmetry is a known gap rather than a decision. The rule needs the
-//! receiving side's class table: at the join the parent's is in hand
-//! ([`Ctx::class_table`], taken at the spawn because by then the parent's
-//! context is borrowed by the frame parked on the join), while at the spawn
-//! the child's does not exist yet — its program's prologue installs it. Closing
-//! it means the [`nvs_runtime::script`] seam answering with a unit's table
-//! beside its entry point, which is a change to that seam and not to this walk.
-//! What the rule *is* — the same class, by descriptor identity, not a class of
-//! the same name — is `nvs_runtime::graph`'s `Live::admit`, its one home.
+//! § 2's *unresolvable class* is asked in both directions, each against the
+//! receiving side's class table. At the spawn that is the child's: its
+//! program's prologue installs it only once the child runs, so the
+//! [`nvs_runtime::script`] seam answers with it beside the program
+//! ([`nvs_runtime::script::Prepared`]), and a method entry's is the parent's
+//! own. At the join it is the parent's ([`Ctx::class_table`], taken at the
+//! spawn because by then the parent's context is borrowed by the frame parked
+//! on the join). A program nobody compiled, which a host or a test writes in
+//! Rust, has no table, and an argument crossing into one is not asked. What
+//! the rule *is* — the same class, by descriptor identity, not a class of the
+//! same name — is `nvs_runtime::graph`'s `Live::admit`, its one home.
 //!
 //! # What it spends
 //!
@@ -83,7 +84,8 @@ use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 use std::time::Instant;
 
-use nvs_runtime::graph::{GraphError, copy_graph, copy_graph_into};
+use nvs_runtime::graph::{GraphError, copy_graph_into, copy_graph_to};
+use nvs_runtime::script::Prepared;
 use nvs_runtime::{
     Ctx, ErrorClass, EventStreamDoor, Fault, Inbound, Limit, OpenSpawn, OutputSink, PeerSocket,
     SpawnForm, SseSlot, TaskRoot, UpgradeSlot, Value,
@@ -105,6 +107,9 @@ pub use nvs_runtime::host::{Completion, Failure, Narrowing, Output, Running};
 /// goes.
 pub struct Isolate {
     program: Program,
+    /// The class table `program` was compiled against, which the argument is
+    /// checked against at the spawn — [`nvs_runtime::script::Prepared`].
+    classes: Option<ErrorClass>,
     args: Value,
     output: Output,
     charge: Charge,
@@ -196,10 +201,16 @@ impl Isolate {
     /// hands to the walk; dropping an `Isolate` without running it leaks that
     /// reference, the same obligation [`nvs_runtime::host::Job`] documents for a
     /// job that is never called.
+    ///
+    /// `program` is a resolved [`nvs_runtime::script::Prepared`], whose class
+    /// table the argument is checked against, or a bare [`Program`], which has
+    /// none.
     #[must_use]
-    pub fn new(program: Program, args: Value, output: Output) -> Self {
+    pub fn new(program: impl Into<Prepared>, args: Value, output: Output) -> Self {
+        let Prepared { program, classes } = program.into();
         Self {
             program,
+            classes,
             args,
             output,
             charge: Charge::Tree,
@@ -598,6 +609,7 @@ impl Isolate {
     pub fn start(self, ctx: &mut Ctx) -> Result<Box<dyn Running>, GraphError> {
         let Self {
             program,
+            classes,
             args,
             output,
             charge,
@@ -655,10 +667,15 @@ impl Isolate {
             }));
         }
         // In, at the spawn — before anything is built, so a refusal costs
-        // nothing and leaves no half-made isolate behind. No receiving table
-        // is named on this side: the child's own is installed by its program's
-        // prologue and does not exist yet, which is the module doc's known gap.
-        let crossed = copy_graph(args)?;
+        // nothing and leaves no half-made isolate behind. The receiving table
+        // is the child's: the one its program arrived with, or for a method
+        // entry this context's, whose unit the child runs.
+        let into = match (classes, entry) {
+            (Some(classes), _) => Some(classes),
+            (None, Form::Method) => ctx.class_table(),
+            (None, Form::Path) => None,
+        };
+        let crossed = copy_graph_to(args, into.as_ref())?;
         // Taken here rather than at the join, because the answer crosses on the
         // child's own stack and this context is borrowed by then
         // (`Ctx::class_table`).
@@ -1395,7 +1412,8 @@ fn finish(isolate_ctx: &mut Ctx, answer: Value, receiving: Option<&ErrorClass>) 
     // Out, at the await. A refusal here is the child's, so it is a failure
     // value rather than an `Err` — the module doc owns the asymmetry. The
     // parent's table is named, so `rule:classes/graph-copy`'s third bullet is asked here
-    // and not only of the payload carrier.
+    // and not only of the payload carrier. A parent with no table declares no
+    // class, so every object in the answer is refused.
     let resolve = |name: &str| -> Option<*const nvs_runtime::ClassDesc> {
         Some(receiving?.sibling(name)?.desc())
     };
@@ -2276,6 +2294,64 @@ mod tests {
         .expect("the argument crossed");
         assert!(done.ok, "the parent's own class crosses: {:?}", done.error);
         release(done.value);
+    }
+
+    /// The same rule in the other direction: an argument is checked against the
+    /// class table the child's program arrived with, so a parent's instance does
+    /// not reach a child compiled from another unit.
+    ///
+    /// Two legs for the sibling's reason. A class of a name the child also
+    /// declares is refused, because the child's is another descriptor, and no
+    /// child is started. An instance of the child's own class crosses, which is
+    /// what keeps the first leg from passing because every object is refused.
+    #[test]
+    fn an_argument_of_a_class_the_child_does_not_declare_is_refused_at_the_spawn() {
+        let mut ctx = parent();
+        let mut table = ClassTable::new();
+        let id = table.define("Throwable", &["message"], &[]);
+        let child = nvs_runtime::ErrorClass::new(std::sync::Arc::new(table), id);
+
+        let desc = ctx
+            .class_desc("Throwable")
+            .expect("the parent's own table declares it");
+        #[expect(unsafe_code, reason = "the parent's table outlives this isolate")]
+        // SAFETY: the descriptor came out of the parent's own live table.
+        let argument = unsafe { Value::object(NvsObj::new(desc)) };
+        let ran = Rc::new(Cell::new(false));
+        let started = Rc::clone(&ran);
+        let program: Program = Box::new(move |_: &mut Ctx, _args| {
+            started.set(true);
+            Value::null()
+        });
+        let prepared = Prepared {
+            program,
+            classes: Some(child.clone()),
+        };
+        let refused = run(Isolate::new(prepared, argument, Output::Capture), &mut ctx)
+            .expect_err("the parent's class is not the child's");
+        assert!(
+            refused.to_string().contains("Throwable"),
+            "the refusal names the class: {refused}"
+        );
+        assert!(!ran.get(), "the refusal lands before the child exists");
+
+        #[expect(
+            unsafe_code,
+            reason = "the child's table is held by `child` for this test"
+        )]
+        // SAFETY: `child` keeps its table alive past the isolate.
+        let argument = unsafe { Value::object(NvsObj::new(child.desc())) };
+        let program: Program = Box::new(|child: &mut Ctx, args: Value| {
+            child.set_isolate_argument(args);
+            Value::null()
+        });
+        let prepared = Prepared {
+            program,
+            classes: Some(child.clone()),
+        };
+        let done = run(Isolate::new(prepared, argument, Output::Capture), &mut ctx)
+            .expect("the child's own class crosses in");
+        assert!(done.ok, "{:?}", done.error);
     }
 
     /// `rule:http-server/containment-does-not-end-at-the-helper`'s third fault, at this boundary: a **panic** inside the

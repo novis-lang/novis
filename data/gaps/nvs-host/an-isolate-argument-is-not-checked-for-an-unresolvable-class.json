@@ -1,6 +1,0 @@
-{
-  "module": "crates/nvs-host/src/isolate.rs",
-  "title": "An isolate's argument is not checked for a class the child cannot resolve; only its result is.",
-  "text": "`rule:security/isolate-values-cross-by-copy` refuses a value naming a class the receiving side cannot resolve, by descriptor identity (`nvs_runtime::graph`'s `Live::admit`, `crates/nvs-runtime/src/graph.rs:451-462`). At the join the parent's class table is in hand, so the result is checked. At the spawn the child's table does not exist yet, so the argument walk runs with `receiving: None` and admits any class (`crates/nvs-host/src/isolate.rs:64-71`). A child compiled from another unit therefore receives an object whose field indices and methods are the sender's. Closing it means the `nvs_runtime::script` seam returns a unit's class table beside its entry point, so the spawn checks the argument against the child's table, and the module doc's paragraph is rewritten to say both directions are checked.",
-  "goal": "completeness-holes"
-}

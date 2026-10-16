@@ -2986,8 +2986,9 @@ mod tests {
     struct Compiles;
 
     impl nvs_runtime::script::Resolver for Compiles {
-        fn resolve(&self, _path: &str) -> Result<nvs_runtime::script::Program, String> {
-            Ok(Box::new(|_ctx, _args| Value::null()))
+        fn resolve(&self, _path: &str) -> Result<nvs_runtime::script::Prepared, String> {
+            let program: nvs_runtime::script::Program = Box::new(|_ctx, _args| Value::null());
+            Ok(program.into())
         }
     }
 

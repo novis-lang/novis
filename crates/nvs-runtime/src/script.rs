@@ -33,6 +33,11 @@
 //! seam fixes is only the shape both ends agree on, and the argument's
 //! ownership, which [`Program`]'s own doc states in full.
 //!
+//! A path answers with the unit's class table beside its program
+//! ([`Prepared`]), because the argument crosses before the child's prologue has
+//! installed that table, and the crossing has to ask it which classes the
+//! child declares.
+//!
 //! # Why `rule:security/isolate-shares-nothing`'s *other* entry form asks no resolver
 //!
 //! `rule:security/isolate-shares-nothing` gives
@@ -134,7 +139,7 @@ use nvs_config::capability::{Cap, Scope};
 
 use crate::ctx::Ctx;
 use crate::value::Value;
-use crate::{Fault, NvsArray, call_static_bound};
+use crate::{ErrorClass, Fault, NvsArray, call_static_bound};
 
 /// An isolate's code, prepared by whoever could compile it.
 ///
@@ -155,6 +160,44 @@ use crate::{Fault, NvsArray, call_static_bound};
 /// A boxed Rust closure rather than a path, and rather than a compiled artifact type
 /// this crate would have to name: the module docs own why.
 pub type Program = Box<dyn FnOnce(&mut Ctx, Value) -> Value>;
+
+/// A [`Program`] and the class table its code was compiled against — what a
+/// resolved path answers with, and what an isolate needs before its child runs.
+///
+/// The table travels beside the program because the argument crosses *before*
+/// the child exists: its prologue is what installs the table on the child's
+/// context, and `rule:security/isolate-values-cross-by-copy` refuses an object
+/// whose class the receiving side does not declare. With the table in hand the
+/// spawn asks that of the argument exactly as the join asks it of the answer
+/// against the parent's ([`crate::graph::copy_graph_to`]).
+///
+/// `classes` is `None` for a program nobody compiled — a Rust closure a host or
+/// a test wrote — and an argument crossing into one is checked against no
+/// table. A method entry's is the parent's own table, which is the child's too.
+pub struct Prepared {
+    /// The code to run.
+    pub program: Program,
+    /// The class table that code was compiled against.
+    pub classes: Option<ErrorClass>,
+}
+
+impl From<Program> for Prepared {
+    fn from(program: Program) -> Self {
+        Self {
+            program,
+            classes: None,
+        }
+    }
+}
+
+impl std::fmt::Debug for Prepared {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // Written out: a `Program` is a Rust closure and has no `Debug`.
+        f.debug_struct("Prepared")
+            .field("classes", &self.classes.is_some())
+            .finish_non_exhaustive()
+    }
+}
 
 /// Why a path did not become a [`Program`].
 ///
@@ -201,7 +244,8 @@ impl std::fmt::Display for ResolveError {
 ///
 /// `Debug` is a supertrait so that [`Installed`] can derive it.
 pub trait Resolver: std::fmt::Debug {
-    /// Prepares the script `path` names, or says why it could not.
+    /// Prepares the script `path` names, with the class table it was compiled
+    /// against, or says why it could not.
     ///
     /// `path` is exactly what the program wrote. How a relative one is
     /// anchored is the implementor's — nothing about it is decidable here, and
@@ -212,7 +256,7 @@ pub trait Resolver: std::fmt::Debug {
     ///
     /// The rendered reason, which reaches the parent as an ordinary failure
     /// value rather than as a throw.
-    fn resolve(&self, path: &str) -> Result<Program, String>;
+    fn resolve(&self, path: &str) -> Result<Prepared, String>;
 }
 
 thread_local! {
@@ -389,8 +433,8 @@ fn published_slot() -> MutexGuard<'static, Option<SharedResolver>> {
     PUBLISHED.lock().unwrap_or_else(PoisonError::into_inner)
 }
 
-/// Turns `path` into a [`Program`] through this thread's resolver, once
-/// `script.spawn` has been shown to cover it.
+/// Turns `path` into a [`Prepared`] program through this thread's resolver,
+/// once `script.spawn` has been shown to cover it.
 ///
 /// One call rather than a `with_current` the caller then has to unwrap twice:
 /// there is exactly one thing anybody does with a resolver, and every way of
@@ -423,7 +467,7 @@ fn published_slot() -> MutexGuard<'static, Option<SharedResolver>> {
 /// joined `[[schedule]] script` and `[log] handler` to their file's folder — so
 /// a relative one arriving here is a defect upstream, reported with the door's
 /// own message.
-pub fn resolve(ctx: &Ctx, path: &str) -> Result<Program, ResolveError> {
+pub fn resolve(ctx: &Ctx, path: &str) -> Result<Prepared, ResolveError> {
     if let Some(message) = crate::capability::relative(std::path::Path::new(path), "`spawn script`")
     {
         return Err(ResolveError::Denied(message));
@@ -551,8 +595,8 @@ pub fn is_installed() -> bool {
 #[cfg(test)]
 mod tests {
     use super::{
-        Installed, Program, ResolveError, Resolver, SharedResolver, install, is_installed, publish,
-        published, resolve, scoped,
+        Installed, Prepared, Program, ResolveError, Resolver, SharedResolver, install,
+        is_installed, publish, published, resolve, scoped,
     };
     use crate::ctx::{Ctx, OutputSink};
     use crate::host::Entry;
@@ -570,17 +614,18 @@ mod tests {
     struct Refusing;
 
     impl Resolver for Fixed {
-        fn resolve(&self, path: &str) -> Result<Program, String> {
+        fn resolve(&self, path: &str) -> Result<Prepared, String> {
             let len = i64::try_from(path.len()).unwrap_or(-1);
-            Ok(Box::new(move |ctx, args| {
+            let program: Program = Box::new(move |ctx, args| {
                 ctx.set_isolate_argument(args);
                 Value::int(len)
-            }))
+            });
+            Ok(program.into())
         }
     }
 
     impl Resolver for Refusing {
-        fn resolve(&self, path: &str) -> Result<Program, String> {
+        fn resolve(&self, path: &str) -> Result<Prepared, String> {
             Err(format!("`{path}` is not a script"))
         }
     }
@@ -669,8 +714,8 @@ mod tests {
         let installed = install_fixed();
         assert!(is_installed());
         let mut ctx = granting();
-        let program = resolve(&ctx, "/abc.nvs").expect("the fixed resolver answers");
-        let answer = program(&mut ctx, Value::null());
+        let prepared = resolve(&ctx, "/abc.nvs").expect("the fixed resolver answers");
+        let answer = (prepared.program)(&mut ctx, Value::null());
         assert_eq!(answer.as_int(), Some(8));
         drop(installed);
         assert!(!is_installed());
@@ -695,8 +740,8 @@ mod tests {
             );
             mine.scoped(|| {
                 let mut ctx = granting();
-                let program = resolve(&ctx, "/abcd.nvs").expect("the shared resolver answers");
-                program(&mut ctx, Value::null()).as_int()
+                let prepared = resolve(&ctx, "/abcd.nvs").expect("the shared resolver answers");
+                (prepared.program)(&mut ctx, Value::null()).as_int()
             })
         })
         .join()
@@ -718,8 +763,8 @@ mod tests {
             let handle = published().expect("the process published a handle");
             handle.scoped(|| {
                 let mut ctx = granting();
-                let program = resolve(&ctx, "/abcd.nvs").expect("the published resolver answers");
-                program(&mut ctx, Value::null()).as_int()
+                let prepared = resolve(&ctx, "/abcd.nvs").expect("the published resolver answers");
+                (prepared.program)(&mut ctx, Value::null()).as_int()
             })
         })
         .join()
@@ -745,10 +790,13 @@ mod tests {
         let mut ctx = granting();
         let entry = Entry::Path("/abc.nvs".to_owned());
         assert!(!entry.is_method());
-        let program = entry
+        let prepared = entry
             .program(&ctx)
             .expect("the path form asks this thread's resolver");
-        assert_eq!(program(&mut ctx, Value::null()).as_int(), Some(8));
+        assert_eq!(
+            (prepared.program)(&mut ctx, Value::null()).as_int(),
+            Some(8)
+        );
         drop(installed);
     }
 

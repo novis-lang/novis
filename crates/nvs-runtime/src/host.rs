@@ -99,7 +99,7 @@ use std::time::{Duration, Instant};
 
 use crate::ctx::{Ctx, DeclaredHeader, TraceEvent};
 use crate::graph::GraphError;
-use crate::script::{Program, ResolveError};
+use crate::script::ResolveError;
 use crate::throwable::Thrown;
 use crate::value::Value;
 
@@ -238,7 +238,7 @@ pub enum Output {
 /// forms it wrote — a path, or a class and a method.
 ///
 /// The name and not the code, and that is the whole of why this type is here.
-/// A [`Program`] is a boxed Rust closure over whatever the *parent's* resolver
+/// A [`Program`](crate::script::Program) is a boxed Rust closure over whatever the *parent's* resolver
 /// built, so it is neither `Send` nor meaningful anywhere but the core that
 /// made it, while a path and a label are strings. Carrying the name lets the
 /// core that is going to **run** the child be the one that prepares it, which
@@ -290,14 +290,21 @@ impl Entry {
     /// `script.spawn` grant, which [`crate::script::resolve`] asks with the
     /// path as its scope.
     ///
+    /// The answer carries the class table the child's code was compiled
+    /// against: the path's own unit's, or for a method entry `ctx`'s, which is
+    /// the parent's unit and so the child's too.
+    ///
     /// # Errors
     ///
     /// [`ResolveError`], for the path form alone. A method entry is code the
     /// parent's unit already holds, so there is nothing left to refuse.
-    pub fn program(self, ctx: &Ctx) -> Result<Program, ResolveError> {
+    pub fn program(self, ctx: &Ctx) -> Result<crate::script::Prepared, ResolveError> {
         match self {
             Self::Path(path) => crate::script::resolve(ctx, &path),
-            Self::Method { label, names } => Ok(crate::script::method_program(label, names)),
+            Self::Method { label, names } => Ok(crate::script::Prepared {
+                program: crate::script::method_program(label, names),
+                classes: ctx.class_table(),
+            }),
         }
     }
 }
@@ -316,7 +323,7 @@ impl Entry {
 pub enum StartError {
     /// The argument had no meaning on the other side, and nothing was started.
     Argument(GraphError),
-    /// The entry did not become a [`Program`]: no resolver, a path the grant
+    /// The entry did not become a [`Program`](crate::script::Program): no resolver, a path the grant
     /// does not cover, or one that did not compile.
     Entry(ResolveError),
 }
@@ -875,8 +882,8 @@ mod tests {
             // test of the seam does not have. The name becomes code on this
             // side, exactly as it does on a scheduler's.
             self.0.set(self.0.get() + 1);
-            let program = entry.program(ctx).map_err(super::StartError::Entry)?;
-            let value = program(ctx, args);
+            let prepared = entry.program(ctx).map_err(super::StartError::Entry)?;
+            let value = (prepared.program)(ctx, args);
             Ok(Box::new(Started(std::cell::Cell::new(Some(value)))))
         }
     }
