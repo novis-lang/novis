@@ -28,7 +28,7 @@ stages:
   - id: 4
     title: "a throwing `inout` callee leaks nothing, and a refused stack does not panic"
     status: open
-    context: [crates/nvs-ir/src/ty.rs, crates/nvs-ir/src/lower/mod.rs, crates/nvs-host/src/stack.rs, crates/nvs-host/src/scheduler.rs, crates/nvs-host/src/group.rs, data/gaps/nvs-host/the-stack-pool-is-capped-by-a-constant-and-a-refused-stack-panics.json]
+    context: [crates/nvs-ir/src/ty.rs, crates/nvs-ir/src/lower/mod.rs, crates/nvs-host/src/stack.rs, crates/nvs-host/src/scheduler.rs, crates/nvs-host/src/group.rs, data/gaps/nvs-host/the-stack-pool-is-capped-by-a-constant.json]
     extra:
       context:
         rules: [statements/inout-is-the-by-reference-spelling, concurrency/a-task-stack-is-reserved-wide-and-pooled]
@@ -219,7 +219,8 @@ above its ceiling stops the boot instead of leaving the request with no cap.
 stack the OS refuses fails one request, not the process.
 
 - [x] The staging reference is released on the throw edge. `crates/nvs-ir/src/lower/mod.rs:2641`, `crates/nvs-ir/src/ty.rs:309`
-- [ ] The pool is bounded by the admission arithmetic, and a refused reservation reaches the spawn as an error. `crates/nvs-host/src/stack.rs:54`, `crates/nvs-host/src/stack.rs:196`
+- [x] A refused reservation ends the one task as a limit, a root through its `Finished` and a `Core\Task` child through its group's `Outcome::Fatal`. `crates/nvs-host/src/scheduler.rs:916`, `crates/nvs-host/src/group.rs:504`
+- [ ] The pool is bounded by the admission arithmetic. `crates/nvs-host/src/stack.rs:97`
 
 ### 5. bytes cross the extension boundary in one copy each way
 
@@ -314,23 +315,15 @@ work cannot live only in prose again.
 
 ### State
 
-Stages 1, 2 and 3 are done. Stage 4's first item landed: `landing_block` reads each slot still
-on `pending_refs` and releases it on the throw edge (`crates/nvs-ir/src/lower/mod.rs:2721`), and
-`Ty::Ref`'s section says the callee's write is dropped and nothing leaks
-(`crates/nvs-ir/src/ty.rs:306`). The case is
-`tests/conformance/lang/a-callee-that-throws-after-an-inout-write-leaks-nothing.nvst`. It fails
-with the fix disabled and passes with it. Its record is deleted. The full verify failed on the
-one IR snapshot the fix changes. That snapshot now shows the throw edge's `ref.load` and
-`release`. After the update only `bun nv verify -p nvs-ir` ran, and it is green, so the sweep's
-full run is the first full check of this commit.
-
-The second item is open, and it is a whole session. `Scheduler::spawn` has about 290 callers,
-so the refused stack should end the task in `start` (`crates/nvs-host/src/scheduler.rs:847`)
-and leave `spawn`'s signature alone. A root can carry the limit through
-`Ctx::set_pending_fatal` on the `Finished` it files. A `Core\Task` child cannot: its body never
-runs, so its group fills the slot with `null` and reports no fault
-(`crates/nvs-host/src/group.rs:712`). The child path has to put a fatal on the group, through the
-`Child` guard or an equivalent, so the parent sees `Outcome::Fatal`.
+Stages 1, 2 and 3 are done. Stage 4 has two of its three items done: the `inout` throw edge
+leaks nothing, and a refused stack no longer panics. `StackPool::take` returns the OS error
+(`crates/nvs-host/src/stack.rs:205`), and `Scheduler::refuse` ends the task as a limit
+(`crates/nvs-host/src/scheduler.rs:916`). A root is filed as `Finished` with a pending fatal. A
+child's body is dropped unrun while the thread-local `REFUSED` holds the message, and the
+`Child` guard's `Drop` puts it on the group (`crates/nvs-host/src/group.rs:504`), so the caller
+gets `Outcome::Fatal`. A test-only `refuse_fresh_stacks` reaches both paths, and the two tests
+are in `scheduler.rs` and `group.rs`. The gap record now names only the pool's cap, renamed to
+`data/gaps/nvs-host/the-stack-pool-is-capped-by-a-constant.json`.
 
 Stage 1 found a second memory-safety hole, recorded as
 `data/gaps/nvs-runtime/a-wider-shape-view-writes-an-object-of-the-wrong-class.json`. A statically
@@ -344,12 +337,11 @@ behind the local one. The earlier triage of its failures stands until the user p
 
 ### Next
 
-**Stage 4, a refused stack does not panic.** One slice over `crates/nvs-host` and the serve loop
-that builds a worker's scheduler.
+**Stage 4, the pool's cap.** One slice over `crates/nvs-host`, the serve loop that builds a
+worker's scheduler, and the rule fragment, which states 1024 today.
 
-- [ ] `StackPool::take` returns the OS error, and `Scheduler::start` ends a task it cannot give a stack: a root files `Finished` with a pending fatal, and a `Core\Task` child makes its group answer `Outcome::Fatal` (`rule:concurrency/a-task-stack-is-reserved-wide-and-pooled`, `rule:errors/on-limit`). `crates/nvs-host/src/stack.rs:204`, `crates/nvs-host/src/scheduler.rs:847`, `crates/nvs-host/src/group.rs:712`
-- [ ] The pool's cap is the worker's share of `max_in_flight`, set where a serving core builds its scheduler and again on reload, and `MAX_POOLED_STACKS` goes (`rule:http-server/admission-is-arithmetic-not-a-number`). `crates/nvs-server/src/admit.rs:287`, `crates/nvs-cli/src/serve.rs:639`, `crates/nvs-host/src/stack.rs:97`, `crates/nvs-host/src/scheduler.rs:2156`
-- [ ] The gap record deleted, the stack module doc rewritten, and stage 4's status set to done. `data/gaps/nvs-host/the-stack-pool-is-capped-by-a-constant-and-a-refused-stack-panics.json`, `docs/goals/completeness-holes.md:30`
+- [ ] The pool's cap is the worker's share of `max_in_flight`, set where a serving core builds its scheduler and again on reload, and `MAX_POOLED_STACKS` goes. A scheduler with no admission number (`nvs run`, tests) needs a cap too: decide it, and say it in the fragment (`rule:http-server/admission-is-arithmetic-not-a-number`, `rule:concurrency/a-task-stack-is-reserved-wide-and-pooled`). `crates/nvs-server/src/admit.rs:287`, `crates/nvs-cli/src/serve.rs:639`, `crates/nvs-host/src/stack.rs:97`, `crates/nvs-host/src/scheduler.rs:793`, `crates/nvs-host/src/scheduler.rs:2255`
+- [ ] The gap record deleted, the stack module doc's *Why a pool* section and the fragment's memory line rewritten, and stage 4's status set to done. `data/gaps/nvs-host/the-stack-pool-is-capped-by-a-constant.json`, `docs/rules/concurrency/a-task-stack-is-reserved-wide-and-pooled.md:15`, `docs/goals/completeness-holes.md:30`
 
 ### Backlog
 
@@ -358,3 +350,4 @@ that builds a worker's scheduler.
 - Many module docs still carry numbered or prose "known gap" text with no record; stage 14's scan finds them (`tools/nv/cmd/owners.ts:225`).
 - Proof debt fails CI's `proofs` jobs: stale perf records (`bun nv benches --owed`) and the `Core\Test\Outcome`/`Summary` proofs (`bun nv proofs --owed`). The user pushes `main`, so the nightly tests the current tree (`.github/workflows/ci.yml:1`).
 - `Markup + Markup` in place is a decision for the user (`docs/perf/performance-pass.md:257`).
+- A per-connection child refused a stack is dropped unrun, so its client likely sees the socket close and no `503`; not checked (`crates/nvs-server/src/serve.rs:95`).
