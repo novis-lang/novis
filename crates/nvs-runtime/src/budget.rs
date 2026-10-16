@@ -402,7 +402,7 @@ impl OffCore {
     /// Saturating for [`wrote`]'s reason: a count that wrapped would answer
     /// "under the ceiling" for the one tree that most certainly is not.
     pub fn charge_output(&self, bytes: usize) {
-        let _ = self.output.fetch_update(
+        let _ = self.output.try_update(
             std::sync::atomic::Ordering::Relaxed,
             std::sync::atomic::Ordering::Relaxed,
             |written| Some(written.saturating_add(bytes)),

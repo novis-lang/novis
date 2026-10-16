@@ -228,7 +228,7 @@ impl Admission {
         let max_in_flight = self.available();
         let fits = self.memory_fits();
         self.in_flight
-            .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |current| {
+            .try_update(Ordering::Relaxed, Ordering::Relaxed, |current| {
                 (current < max_in_flight && (current == 0 || fits)).then_some(current + 1)
             })
             .ok()

@@ -2648,7 +2648,7 @@ impl PgColumn {
             if hex.len() % 2 != 0 {
                 return Err(self.malformed("a hex-format bytea"));
             }
-            for pair in hex.chunks_exact(2) {
+            for pair in hex.as_chunks::<2>().0 {
                 let (Some(high), Some(low)) = (hex_digit(pair[0]), hex_digit(pair[1])) else {
                     return Err(self.malformed("a hex-format bytea"));
                 };

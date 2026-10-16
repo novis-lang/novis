@@ -106,7 +106,12 @@ fn grey(request: &Request, extension: &Extension, data: &[u8]) -> (u32, u32, Vec
         let word = u64::from_be_bytes(out[at..at + 8].try_into().unwrap());
         u32::try_from(word).expect("a frame side fits in a u32")
     };
-    let luma = out[16..].chunks_exact(4).map(|px| px[0]).collect();
+    let luma = out[16..]
+        .as_chunks::<4>()
+        .0
+        .iter()
+        .map(|px| px[0])
+        .collect();
     (word(0), word(8), luma)
 }
 

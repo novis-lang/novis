@@ -29,7 +29,7 @@
 > `tests/differential`. **Each crate's own module doc is the authority on what it holds and what it
 > still owes**; `bun nv brief` prints one map line each, and `bun nv disk` the live counts.
 >
-> **Toolchain:** Rust 1.97.1 stable (pinned), Cranelift 0.135.0, wasmtime 48, MSVC 14.44 + Windows
+> **Toolchain:** Rust 1.99.1 stable (pinned), Cranelift 0.135.0, wasmtime 48, MSVC 14.44 + Windows
 > SDK 10.0.26100 for linking, PHP 8.5.9 as the differential oracle — on the Windows `PATH` and
 > inside the WSL distro alike, at the same version — `cargo-fuzz` 0.13.2 and `valgrind` under a WSL
 > nightly toolchain (docs/setup.md is what a machine installs, and why).

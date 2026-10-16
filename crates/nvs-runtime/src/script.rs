@@ -462,7 +462,6 @@ pub fn resolve(ctx: &Ctx, path: &str) -> Result<Program, ResolveError> {
 /// and means nothing on another core, and
 /// `rule:concurrency/on-worker-runs-the-child-on-another-core` needs the core
 /// that starts a child to be the one that prepares it.
-#[must_use]
 pub fn method_program(label: String, names: Vec<String>) -> Program {
     Box::new(move |child, argument| {
         // Ownership discharged into the isolate's own root, exactly as a path

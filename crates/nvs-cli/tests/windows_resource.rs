@@ -119,7 +119,9 @@ fn strings(block: &[u8], at: usize, out: &mut Vec<(String, String)>) {
 
     if text && value_len > 0 {
         let value: Vec<u16> = block[cursor..cursor + value_len * 2]
-            .chunks_exact(2)
+            .as_chunks::<2>()
+            .0
+            .iter()
             .map(|pair| u16::from_le_bytes([pair[0], pair[1]]))
             .take_while(|unit| *unit != 0)
             .collect();
@@ -231,7 +233,9 @@ fn the_message_table_renders_every_service_record_as_its_insertion_string() {
         let length = u16_at(table, cursor);
         assert_eq!(u16_at(table, cursor + 2), 1, "entry {id} is UTF-16");
         let text: Vec<u16> = table[cursor + 4..cursor + length]
-            .chunks_exact(2)
+            .as_chunks::<2>()
+            .0
+            .iter()
             .map(|pair| u16::from_le_bytes([pair[0], pair[1]]))
             .take_while(|unit| *unit != 0)
             .collect();

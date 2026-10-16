@@ -407,7 +407,7 @@ impl Budget for Meter {
 
     fn charge(&self, bytes: i64) -> bool {
         self.charged
-            .fetch_update(Ordering::AcqRel, Ordering::Acquire, |now| {
+            .try_update(Ordering::AcqRel, Ordering::Acquire, |now| {
                 let next = now.saturating_add(bytes);
                 let over = bytes > 0
                     && self

@@ -247,9 +247,11 @@ fn render_returns_a_png_of_the_same_size_with_the_differing_pixel_in_red() {
     let (width, height, pixels) = raw(&request, &extension, &rendered);
     assert_eq!((width, height), (3, 2));
     let red: Vec<usize> = pixels
-        .chunks_exact(4)
+        .as_chunks::<4>()
+        .0
+        .iter()
         .enumerate()
-        .filter(|(_, p)| *p == [255, 0, 0, 255])
+        .filter(|(_, p)| **p == [255, 0, 0, 255])
         .map(|(at, _)| at)
         .collect();
     assert_eq!(red, [4]);
@@ -732,7 +734,7 @@ fn drawn(
 /// The smallest box holding every pixel of `rgba`, `width` wide, that `inked` picks.
 fn ink_box(rgba: &[u8], width: u64, inked: impl Fn(&[u8]) -> bool) -> Option<(u64, u64, u64, u64)> {
     let mut found: Option<(u64, u64, u64, u64)> = None;
-    for (at, px) in rgba.chunks_exact(4).enumerate() {
+    for (at, px) in rgba.as_chunks::<4>().0.iter().enumerate() {
         if !inked(px) {
             continue;
         }
@@ -765,7 +767,12 @@ fn text_renders_latin_with_the_font_given_as_bytes() {
         (240, 100),
         "the step keeps the frame's size"
     );
-    let dark = rgba.chunks_exact(4).filter(|px| px[0] < 128).count();
+    let dark = rgba
+        .as_chunks::<4>()
+        .0
+        .iter()
+        .filter(|px| px[0] < 128)
+        .count();
     assert!(dark > 100, "the text is drawn in black: {dark} dark pixels");
     // The text source is the text alone, on a transparent canvas.
     let out = run_steps(
@@ -778,11 +785,13 @@ fn text_renders_latin_with_the_font_given_as_bytes() {
     .expect("the `text` source runs");
     let (_, _, rgba) = header(&out);
     assert!(
-        rgba.chunks_exact(4).any(|px| px[3] == 0),
+        rgba.as_chunks::<4>().0.iter().any(|px| px[3] == 0),
         "the canvas is transparent"
     );
     assert!(
-        rgba.chunks_exact(4)
+        rgba.as_chunks::<4>()
+            .0
+            .iter()
             .any(|px| px[3] == 255 && px[..3] == [0, 0, 0]),
         "the text is opaque black"
     );
@@ -903,7 +912,9 @@ fn text_pixels(
 
 /// The top row of ink in the columns `columns` of a `width`-wide frame.
 fn top_of_ink(rgba: &[u8], width: u64, columns: std::ops::Range<u64>) -> Option<u64> {
-    rgba.chunks_exact(4)
+    rgba.as_chunks::<4>()
+        .0
+        .iter()
         .enumerate()
         .filter(|(at, px)| px[3] > 0 && columns.contains(&(*at as u64 % width)))
         .map(|(at, _)| at as u64 / width)

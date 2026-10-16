@@ -143,7 +143,9 @@ impl<'a> Tokens<'a> {
     fn characters(&mut self, characters: usize, what: &'static str) -> io::Result<String> {
         let bytes = self.take(characters * 2, what)?;
         let units: Vec<u16> = bytes
-            .chunks_exact(2)
+            .as_chunks::<2>()
+            .0
+            .iter()
             .map(|two| u16::from_le_bytes([two[0], two[1]]))
             .collect();
         Ok(String::from_utf16_lossy(&units))

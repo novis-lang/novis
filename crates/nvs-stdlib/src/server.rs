@@ -143,7 +143,7 @@ nvs_runtime::nvs_helper! {
 fn hex_id(id: [u8; 16]) -> [u8; 32] {
     const DIGITS: &[u8; 16] = b"0123456789abcdef";
     let mut out = [0u8; 32];
-    for (pair, byte) in out.chunks_exact_mut(2).zip(id) {
+    for (pair, byte) in out.as_chunks_mut::<2>().0.iter_mut().zip(id) {
         pair[0] = DIGITS[usize::from(byte >> 4)];
         pair[1] = DIGITS[usize::from(byte & 0x0f)];
     }

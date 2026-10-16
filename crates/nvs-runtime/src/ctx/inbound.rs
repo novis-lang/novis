@@ -1645,7 +1645,6 @@ impl Upgrade {
     /// two arguments and the narrowing is its `narrowed_by`. They come out
     /// together so that no door can start the connection and leave the
     /// narrowing behind.
-    #[must_use]
     pub fn into_parts(self) -> (crate::script::Program, Value, crate::host::Narrowing) {
         (self.program, self.args, self.narrowing)
     }

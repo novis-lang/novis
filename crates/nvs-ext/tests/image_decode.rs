@@ -871,7 +871,9 @@ fn an_unembedded_standard_font_renders_with_its_substitute() {
         )
         .unwrap_or_else(|err| panic!("the {name} page rasterises: {err:?}"));
         let dark = out[16..]
-            .chunks_exact(4)
+            .as_chunks::<4>()
+            .0
+            .iter()
             .filter(|pixel| pixel[0] < 128)
             .count();
         assert!(dark > 500, "the {name} text drew {dark} dark pixels");

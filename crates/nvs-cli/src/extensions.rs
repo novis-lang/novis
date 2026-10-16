@@ -648,7 +648,7 @@ impl nvs_runtime::extension::Extensions for Calls {
             Some(extension) => extension,
             None => built_in(class, ctx.config().map(|config| &config.snapshot().config))
                 .ok_or_else(|| refused("the extension is not loaded".to_owned()))?
-                .map_err(&refused)?,
+                .map_err(refused)?,
         };
         let manifest = &extension.manifest;
         let declared = manifest
@@ -668,7 +668,7 @@ impl nvs_runtime::extension::Extensions for Calls {
             } else {
                 None
             };
-            crossing.push(lending.unwrap_or_else(|| crossed(*arg)).map_err(&refused)?);
+            crossing.push(lending.unwrap_or_else(|| crossed(*arg)).map_err(refused)?);
         }
         let mut args = crossing;
         let in_force = ctx
@@ -696,7 +696,7 @@ impl nvs_runtime::extension::Extensions for Calls {
                     .map_or(Ok(NovisType::Mixed), |declared| {
                         manifest.novis_type(&declared.returns)
                     })
-                    .map_err(&refused)?;
+                    .map_err(refused)?;
                 runtime(ctx, manifest, &ty, result).map_err(refused)
             }
             Err(failure) => Err(match failure.outcome() {

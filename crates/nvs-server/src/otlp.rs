@@ -1492,12 +1492,16 @@ mod tests {
         let total = f64::from_bits(eights(point[0], 5)[0]);
         assert!((total - 0.33).abs() < 1e-9, "the sum is {total}");
         let counts: Vec<u64> = fields(point[0], 6)[0]
-            .chunks_exact(8)
-            .map(|bits| u64::from_le_bytes(bits.try_into().expect("eight bytes")))
+            .as_chunks::<8>()
+            .0
+            .iter()
+            .map(|bits| u64::from_le_bytes(*bits))
             .collect();
         let bounds: Vec<f64> = fields(point[0], 7)[0]
-            .chunks_exact(8)
-            .map(|bits| f64::from_le_bytes(bits.try_into().expect("eight bytes")))
+            .as_chunks::<8>()
+            .0
+            .iter()
+            .map(|bits| f64::from_le_bytes(*bits))
             .collect();
         assert_eq!(
             counts.len(),

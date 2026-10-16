@@ -329,7 +329,7 @@ fn claim(ctx: &mut Ctx, body: &[u8]) -> Option<Vec<Slot>> {
     let mut slots = ctx.later.take()?;
     // Kept on the context with no entries, so a slot started below still
     // inherits the token through `Ctx::child`.
-    let entries: Vec<Slot> = slots.entries.drain(..).collect();
+    let entries: Vec<Slot> = std::mem::take(&mut slots.entries);
     ctx.later = Some(slots);
 
     let mut running = Vec::new();

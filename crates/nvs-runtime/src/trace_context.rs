@@ -265,7 +265,7 @@ fn from_hex<const N: usize>(text: &str) -> Option<[u8; N]> {
         return None;
     }
     let mut out = [0_u8; N];
-    for (byte, pair) in out.iter_mut().zip(text.chunks_exact(2)) {
+    for (byte, pair) in out.iter_mut().zip(text.as_chunks::<2>().0) {
         let high = char::from(pair[0]).to_digit(16)?;
         let low = char::from(pair[1]).to_digit(16)?;
         *byte = u8::try_from(high * 16 + low).ok()?;

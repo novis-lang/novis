@@ -871,7 +871,7 @@ fn decode_utf16(raw: &[u8], little_endian: bool) -> Result<String, usize> {
     if !raw.len().is_multiple_of(2) {
         return Err(raw.len() - 1);
     }
-    let units = raw.chunks_exact(2).map(|pair| {
+    let units = raw.as_chunks::<2>().0.iter().map(|pair| {
         let pair = [pair[0], pair[1]];
         if little_endian {
             u16::from_le_bytes(pair)
@@ -1238,7 +1238,7 @@ nvs_runtime::nvs_helper! {
             return Err(refused("it has an odd number of digits, and an octet takes two"));
         }
         let mut out = Vec::with_capacity(digits.len() / 2);
-        for pair in digits.chunks_exact(2) {
+        for pair in digits.as_chunks::<2>().0 {
             let (Some(high), Some(low)) = (nibble(pair[0]), nibble(pair[1])) else {
                 return Err(refused(
                     "only the digits `0`-`9`, `a`-`f` and `A`-`F` spell one, with nothing between \

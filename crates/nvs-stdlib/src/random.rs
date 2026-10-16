@@ -774,7 +774,12 @@ fn hex_from(
         while left > 0 {
             let width = left.min(PASS);
             rng.fill_bytes(&mut pass[..width]);
-            for (pair, byte) in hex.chunks_exact_mut(2).zip(pass[..width].iter().copied()) {
+            for (pair, byte) in hex
+                .as_chunks_mut::<2>()
+                .0
+                .iter_mut()
+                .zip(pass[..width].iter().copied())
+            {
                 pair[0] = HEX_DIGITS[usize::from(byte >> 4)];
                 pair[1] = HEX_DIGITS[usize::from(byte & 0x0f)];
             }

@@ -145,7 +145,9 @@ pub(super) fn pair(message: &[u8], at: usize) -> (usize, usize) {
 pub(super) fn field_at(message: &[u8], at: usize) -> String {
     let (offset, characters) = pair(message, at);
     let units: Vec<u16> = message[offset..offset + characters * 2]
-        .chunks_exact(2)
+        .as_chunks::<2>()
+        .0
+        .iter()
         .map(|two| u16::from_le_bytes([two[0], two[1]]))
         .collect();
     String::from_utf16(&units).expect("this driver writes back what it was handed")
@@ -667,7 +669,9 @@ pub(super) fn sent_rpc(request: &[u8]) -> (u16, Vec<SentParam>) {
                 let bytes = variable_body(request, &mut at, declared);
                 let text = bytes.map(|bytes| {
                     let units: Vec<u16> = bytes
-                        .chunks_exact(2)
+                        .as_chunks::<2>()
+                        .0
+                        .iter()
                         .map(|pair| u16::from_le_bytes([pair[0], pair[1]]))
                         .collect();
                     String::from_utf16(&units).expect("what we wrote")
@@ -853,7 +857,9 @@ pub(super) fn procedure_answer() -> Vec<u8> {
 pub(super) fn batch_text(body: &[u8]) -> String {
     let text = &body[ALL_HEADERS_BYTES as usize..];
     let units: Vec<u16> = text
-        .chunks_exact(2)
+        .as_chunks::<2>()
+        .0
+        .iter()
         .map(|pair| u16::from_le_bytes([pair[0], pair[1]]))
         .collect();
     String::from_utf16(&units).expect("UCS-2 this driver wrote")

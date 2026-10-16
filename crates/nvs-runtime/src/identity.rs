@@ -618,7 +618,6 @@ fn borrowed(ptr: *mut ArrayHeader) -> ManuallyDrop<NvsArray> {
 #[cfg(test)]
 mod tests {
     use std::collections::hash_map::DefaultHasher;
-    use std::hash::Hasher as _;
 
     use super::*;
 
