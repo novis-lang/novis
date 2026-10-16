@@ -228,7 +228,10 @@ stack the OS refuses fails one request, not the process.
 and the lowered argument bytes are charged to the request.
 
 - [ ] A typed call path for `list<u8>` signatures beside the dynamic one. `crates/nvs-ext/src/call.rs:893`
-- [ ] The lowered argument bytes are charged to the request, as the lifted results are. `crates/nvs-ext/src/call.rs:954`
+- [x] The lowered argument bytes are charged to the request, as the lifted results are. `crates/nvs-ext/src/call.rs:954`
+  - [x] `Request::run` charges the arguments' host bytes before the call and gives them back after it.
+  - [x] A call that cannot afford its arguments ends as `Limit::Memory` and gives everything back.
+  - [x] `tests/call.rs`'s `size` export pins both, and fails without the charge.
 - [ ] The image arms use a full-size frame, and `benches/results/image-guest.json` is recorded again. `crates/nvs-ext/tests/support/image_arms.rs:23`
 
 ### 6. a streamed body that ends early is cut off
@@ -315,13 +318,20 @@ work cannot live only in prose again.
 
 ### State
 
-Stages 1 to 4 are done. `MAX_POOLED_STACKS` is gone: a serving core calls
-`Scheduler::bound_pool_by` with its share of admission's live `max_in_flight`
-(`crates/nvs-cli/src/serve.rs:870`), and the pool reads it at each `give`, so a reload moves it
-and a lowered cap frees the excess. A scheduler that is not a serving core keeps its high-water
-mark, which `max_tasks` already bounds per program; the fragment
-`rule:concurrency/a-task-stack-is-reserved-wide-and-pooled` states that decision. The gap
-record is deleted.
+Stages 1 to 4 are done. In stage 5, a call's lowered arguments are now charged to the request
+until the guest returns (`crates/nvs-ext/src/call.rs`'s `Request::run`), pinned by
+`the_lowered_arguments_are_charged_to_the_request_until_the_guest_returns` in
+`crates/nvs-ext/tests/call.rs`.
+
+**Stage 5's typed path is a question for the user**, recorded in
+`data/gaps/nvs-ext/bytes-cross-one-val-per-byte.json`. wasmtime 49 fixes a typed call's
+layout at compile time (`ComponentType::ABI` is a `const`, `wasmtime-49.0.3/src/runtime/component/func/typed.rs:517`),
+so no type built from a manifest can be a typed parameter. `image`'s `run(source, plan)` carries
+its bytes inside records and variants (`wit/image.wit:330`). The choices: generated Rust
+bindings per first-party world, with a conversion from `Value` per world; a typed path only for
+exports whose whole signature is scalars, strings, `list<u8>` and `error`, which leaves `run`
+dynamic; or a change to the first-party worlds that puts the bytes in a top-level parameter or a
+lent `value`. Stage 5's other items wait on that choice.
 
 Stage 1 found a second memory-safety hole, recorded as
 `data/gaps/nvs-runtime/a-wider-shape-view-writes-an-object-of-the-wrong-class.json`. A statically
@@ -335,17 +345,17 @@ behind the local one. The earlier triage of its failures stands until the user p
 
 ### Next
 
-**Stage 5, bytes across the extension boundary.** Slices over `crates/nvs-ext/src/call.rs`
-and `crates/nvs-ext/src/convert.rs`, as the standing decision on typed calls says
-(`rule:packaging/values-cross-as-handles`, `rule:packaging/the-boundary-is-the-cost`).
+**Stage 6, a streamed body that ends early is cut off.** Slices over
+`crates/nvs-runtime/src/stream.rs` and `crates/nvs-server/src/serve.rs`
+(`rule:http-server/a-streamed-reply-is-bounded-by-idle-and-a-lifetime`).
 
-- [ ] A typed call path for exports whose parameters or results are `list<u8>`, beside the dynamic one, which third-party exports with other signatures keep. `crates/nvs-ext/src/call.rs:893`, `crates/nvs-ext/src/convert.rs:1`
-- [ ] The lowered argument bytes are charged to the request, as the lifted results are. `crates/nvs-ext/src/call.rs:954`
-- [ ] The image arms use a full-size frame, `benches/results/image-guest.json` is recorded again, and `data/gaps/nvs-ext/bytes-cross-one-val-per-byte.json` is deleted. `crates/nvs-ext/tests/support/image_arms.rs:23`
+- [ ] `Emit` gets an abort ending that `Drain` reports. `crates/nvs-runtime/src/stream.rs:260`
+- [ ] The streaming body turns the abort into an error frame. `crates/nvs-server/src/serve.rs:466`
 
 ### Backlog
 
 - The wider-shape-view hole waits on the user's choice (`data/gaps/nvs-runtime/a-wider-shape-view-writes-an-object-of-the-wrong-class.json`).
+- Stage 5's typed path and the full-size image arms wait on the user's choice (`data/gaps/nvs-ext/bytes-cross-one-val-per-byte.json`).
 - `test_request_dispatches_in_process_through_the_compiled_route_table` once returned an empty body under the full verify's load and passed alone; the cause is not found (`crates/nvs-cli/src/runner.rs:3410`).
 - Many module docs still carry numbered or prose "known gap" text with no record; stage 14's scan finds them (`tools/nv/cmd/owners.ts:225`).
 - Proof debt fails CI's `proofs` jobs: stale perf records (`bun nv benches --owed`) and the `Core\Test\Outcome`/`Summary` proofs (`bun nv proofs --owed`). The user pushes `main`, so the nightly tests the current tree (`.github/workflows/ci.yml:1`).
