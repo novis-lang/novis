@@ -46,7 +46,9 @@
 // whether it was green or red: every atom the change selected that this run did not run is marked
 // owed first, so a proof program, another case tree or a step `--fast` skipped stays selected for
 // whoever runs it next, and a red atom stays selected as red until a run of it is green. So the run
-// after one red test repeats that test, not the whole of the change's reach.
+// after one red test repeats that test, not the whole of the change's reach, and runs it first: each
+// test binary, `bun test` file and case whose verdict in the store is red when the run begins starts
+// before the rest of its step, so one still red fails at once.
 //
 // `fmt` and `nvs-fmt` format rather than check, because a red `fmt` was only ever fixed by running the
 // formatter and verifying again. `fmt` runs first, so everything after it compiles the text the commit
@@ -62,10 +64,10 @@
 // (`--lib`, `--bin <name>`, `--test <name>`), never a `-p`, so a change to a library every binary links
 // relinks only the binaries that run; the workspace graph names the rest. Without a graph, and under
 // `--no-cache`, it builds every one. It runs them side by side, as many at a time as there are cores,
-// the slowest of the last run first, each with libtest threads in proportion to its last time, and the
-// doc-tests beside them when they are selected. A binary that fails is run a second time, alone: a
-// binary that passes alone shares a port, a path or a container with another, and is reported red with
-// that diagnosis rather than retried into green. A binary not selected prints the `test result:` line
+// the red ones first and then the slowest of the last run, each with libtest threads in proportion to
+// its last time, and the doc-tests beside them when they are selected. A binary that fails is run a
+// second time, alone: a binary that passes alone shares a port, a path or a container with another,
+// and is reported red with that diagnosis rather than retried into green. A binary not selected prints the `test result:` line
 // of its last green run. Each binary runs with a compile cache and a temporary directory of its own, and
 // every `nvs` it starts records into its footprint. An unscoped run fails on a wide binary among those
 // it built that `tools/data/impact-wide.txt` does not list, and on a listed one that is narrow now
@@ -89,6 +91,18 @@
 // `.agent-tmp/verify-progress.json` names the step in flight and its process, which is how a person
 // tells a slow run in the background from a stuck one.
 //
+// Under looper, which names an event file in `LOOPER_EVENTS`, the run also writes looper's progress
+// events (`lib/events.ts`), and outside it writes none. Before the first step it declares every step
+// and, under each, the test binaries, `bun test` files and cases it will run, then `planned`. A step,
+// binary or test file that will not run is declared kept, with the time of the green it rests on; the
+// cases not selected are too many to list, so the case step gets a note with their count. Each item's
+// id is its atom (`tsc` is `step:nv:tsc`, beside the step's own `step:nv`), so looper keeps its times
+// across runs. A step, binary, test file and `tsc` each start and end as they run, red with a one-line
+// reason and the step's log; a binary run again alone is a second attempt of the same item, and red. A
+// case runs inside its batch's one process, so it only ends, with its verdict, and the case step ticks
+// once a batch. The run ends with `done`, which cancels every item a failure left unreached. What it
+// spends: one appended line per item event, and none per test.
+//
 // Exits 0 when every step is green, 1 when one is red, and 2 on a bad argument.
 
 import { cpus } from "node:os";
@@ -96,6 +110,7 @@ import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } 
 import { basename, dirname, join, relative } from "node:path";
 
 import { COVWS_TARGET, covwsCargo, covwsNvs, hostTriple } from "../lib/covws.ts";
+import { type AddFields, type EndFields, ev, eventsFile } from "../lib/events.ts";
 import { abs, ROOT } from "../lib/paths.ts";
 import { run as proc } from "../lib/proc.ts";
 import { cargoStatus, progress as showProgress } from "../lib/progress.ts";
@@ -108,7 +123,7 @@ import { recordName } from "../proofs/run.ts";
 import { caseFiles, caseId, nvTestFiles, nvTestId } from "../select/atoms.ts";
 import { buildScripts } from "../select/build.ts";
 import { WILD, repoPath } from "../select/keys.ts";
-import { advance, depInfoPaths, fullChange, pool, putTestGreen, Recorder, recordCases, testGreen, unexplainedReds } from "../select/record.ts";
+import { advance, depInfoPaths, fullChange, pool, putTestGreen, Recorder, recordCases, testGreen, testGreenSlot, unexplainedReds } from "../select/record.ts";
 import { type ChangeSet, computeChange, discover, type Selection, query, rustFiles } from "../select/select.ts";
 import { NV_TSC, runNvTest, runTsc } from "../select/nvtests.ts";
 import { nvKeys, testKeys } from "../select/seed.ts";
@@ -244,6 +259,18 @@ interface Run {
   rec: Recorder;
   /** Every atom this run ran and recorded. */
   ran: Set<string>;
+  /** Every atom whose recorded verdict was red when the run began: these run first. */
+  red: Set<string>;
+}
+
+/** The atoms whose recorded verdict is red. */
+function redAtoms(store: SelectStore): Set<string> {
+  return new Set(store.atoms().filter((a) => a.verdict === "red").map((a) => a.id));
+}
+
+/** `items` with the red ones first, each part in the order it had. */
+function redFirst<T>(items: T[], red: (x: T) => boolean): T[] {
+  return [...items.filter(red), ...items.filter((x) => !red(x))];
 }
 
 /** The change since the store's tree and what it selects. A store with no tree, or a tree git can no
@@ -288,6 +315,81 @@ function wanted(r: Run, s: Step): boolean {
   return s.atom !== undefined && picked(r, s.atom);
 }
 
+// ---- progress events -------------------------------------------------------------------------------
+
+/** The `nv` step's `tsc`, as an item under the step: the step's own item is `step:nv`, which is also
+ * `tsc`'s atom. */
+const TSC_ITEM = "step:nv:tsc";
+
+/** A step's progress item: its atom, or `step:<name>` for a step that has none. */
+const itemOf = (s: Step) => s.atom ?? `step:${s.name}`;
+/** A test job's progress item, which is its atom. */
+const jobItem = (j: Job) => (j.name === "doc-tests" ? DOC_TESTS : `test:${j.name}`);
+const stepLog = (name: string) => join(TMP, `verify-${name}.log`);
+
+/** The items this process has declared, so an item met again is not added twice. */
+const declared = new Set<string>();
+
+/** Declares item `id` once; an item first met after `planned` is a change of plan. */
+function declareItem(id: string, f: AddFields): void {
+  if (!eventsFile() || declared.has(id)) return;
+  declared.add(id);
+  ev.add(id, f);
+}
+
+/** An `end` for an exit code: green on 0, otherwise red with `why`. */
+const ended = (code: number, why: string, log?: string): EndFields => (code === 0 ? {} : { result: "red", why, ...(log ? { log } : {}) });
+
+/**
+ * Declares the run's plan: every step, and under each the test binaries, `bun test` files and cases it
+ * will run. A step, binary or test file that will not run is added as kept, with the time of the green it
+ * rests on when the store holds one. Cases not selected are many, so the case step gets a note with
+ * their count instead. Then `planned`. `runs` says whether step `i` runs, as the walk will decide it.
+ */
+function declarePlan(r: Run, steps: Step[], runs: (i: number, s: Step) => boolean): void {
+  if (!eventsFile()) return;
+  const { store, opts } = r;
+  const atomGreen = (id: string): number | undefined => {
+    const a = store.atom(id);
+    return a?.verdict === "green" && a.lastRun > 0 ? a.lastRun : undefined;
+  };
+  const kept = (green: number | undefined): AddFields => ({ kept: true, ...(green ? { green_at: green } : {}) });
+  steps.forEach((s, i) => {
+    const last = store.verdict(lastSlot(s.name));
+    declareItem(itemOf(s), { name: s.name, kind: "step", ...(runs(i, s) ? {} : kept(last?.verdict ? last.at : undefined)) });
+  });
+  for (const s of steps) {
+    const parent = itemOf(s);
+    if (s.name === "test") {
+      const chosen = testsToRun(r);
+      for (const n of chosen) declareItem(`test:${n}`, { parent, name: n, kind: "test" });
+      if (!opts.package) declareItem(DOC_TESTS, { parent, name: "doc-tests", kind: "doc-tests", ...(picked(r, DOC_TESTS) ? {} : kept(atomGreen(DOC_TESTS))) });
+      const run = new Set(chosen);
+      for (const n of [...r.testNames].sort()) {
+        if (run.has(n) || (opts.package && !n.startsWith(`${opts.package} `))) continue;
+        const green = store.verdict(testGreenSlot(n));
+        if (green?.verdict) declareItem(`test:${n}`, { parent, name: n, kind: "test", ...kept(green.at) });
+      }
+    } else if (s.name === "nv") {
+      declareItem(TSC_ITEM, { parent, name: "tsc", kind: "tsc", ...(picked(r, NV_TSC) ? {} : kept(atomGreen(NV_TSC))) });
+      const run = new Set(nvTestsToRun(r));
+      for (const f of nvTestFiles()) {
+        if (run.has(f)) declareItem(nvTestId(f), { parent, name: f, kind: "bun-test" });
+        else {
+          const green = atomGreen(nvTestId(f));
+          if (green) declareItem(nvTestId(f), { parent, name: f, kind: "bun-test", ...kept(green) });
+        }
+      }
+    } else if (CASE_TREES.includes(s.name)) {
+      const cases = casesToRun(r, s.name);
+      for (const p of cases) declareItem(caseId(p), { parent, name: p, kind: "case" });
+      const total = caseFiles().filter((p) => p.startsWith(`tests/${s.name}/`)).length;
+      if (total > cases.length) ev.note(`${total - cases.length} of ${total} case(s) kept: the change reaches nothing each one ran`, parent);
+    }
+  }
+  ev.planned();
+}
+
 // ---- running ---------------------------------------------------------------------------------------
 
 /** Each running step's name and what it is doing now; `lib/progress.ts` shows them while they run. */
@@ -322,6 +424,7 @@ async function runStep(s: Step): Promise<boolean> {
   const started = performance.now();
   running.set(s.name, "");
   stepDetail(s.name, "");
+  ev.start(itemOf(s));
   const onLine = s.exe === "cargo" ? cargoDetail(s.name) : undefined;
   try {
     [s.code, s.out] = s.runner ? await s.runner(s) : await spawnOut([s.exe, ...s.args], s.cwd, s.env, onLine, true);
@@ -329,7 +432,8 @@ async function runStep(s: Step): Promise<boolean> {
     running.delete(s.name);
   }
   s.seconds = (performance.now() - started) / 1000;
-  writeQuiet(join(TMP, `verify-${s.name}.log`), s.out);
+  writeQuiet(stepLog(s.name), s.out);
+  if (eventsFile()) ev.end(itemOf(s), ended(s.code, `exit ${s.code}: ${s.summarize(s.out)}`, stepLog(s.name)));
   return s.code === 0;
 }
 
@@ -452,9 +556,12 @@ async function runTests(r: Run, s: Step): Promise<[number, string]> {
     j.env = { ...j.env, ...r.rec.env(name), ...(await r.rec.cacheDir(name)) };
   }
 
-  // Unknown first: a binary with no recorded time is new, and new is as likely to be slow.
+  // Red last time first, so a binary still red fails at once; then unknown first, since a binary with no
+  // recorded time is new and new is as likely to be slow; then the slowest first.
   const time = (j: Job) => (typeof last[j.name] === "number" ? last[j.name]! : Infinity);
   jobs.sort((a, b) => (time(b) > time(a) ? 1 : time(b) < time(a) ? -1 : 0));
+  jobs = redFirst(jobs, (j) => r.red.has(jobItem(j)));
+  for (const j of jobs) declareItem(jobItem(j), { parent: itemOf(s), name: j.name, kind: j.name === "doc-tests" ? "doc-tests" : "test" });
   const workers = cpus().length || 4;
   // libtest's threads, per binary, in proportion to its last time against the slowest one's.
   const known = jobs.map(time).filter((t) => t !== Infinity);
@@ -471,6 +578,7 @@ async function runTests(r: Run, s: Step): Promise<[number, string]> {
       rmSync(docDir, { recursive: true, force: true });
       r.store.recordRun(DOC_TESTS, { def: digest(j.argv.join(" ")), verdict: code === 0 ? "green" : "red", keys: buildKeys(r.graph) });
       r.ran.add(DOC_TESTS);
+      ev.end(DOC_TESTS, ended(code, `exit ${code}`, stepLog(s.name)));
       return;
     }
     const id = `test:${j.name}`;
@@ -481,6 +589,8 @@ async function runTests(r: Run, s: Step): Promise<[number, string]> {
         putTestGreen(r.store, j.name, verdict, text);
         r.store.recordRun(id, { def: "", verdict, keys: testKeys(ext, j.name) });
         r.ran.add(id);
+        // Its item ends once its verdict is recorded, which is when a killed run no longer loses it.
+        ev.end(id, verdict === "green" ? {} : { result: "red", why: code === 0 ? "passed, and left no recording" : `exit ${code}`, log: stepLog(s.name) });
       }),
     );
   };
@@ -495,6 +605,7 @@ async function runTests(r: Run, s: Step): Promise<[number, string]> {
   const worker = async () => {
     while (next < jobs.length) {
       const j = jobs[next++]!;
+      ev.start(jobItem(j));
       const got = await runJob(j);
       results.set(j.name, got);
       recordJob(j, got[1], got[2]);
@@ -515,8 +626,11 @@ async function runTests(r: Run, s: Step): Promise<[number, string]> {
   for (const j of failed) {
     if (j.name !== "doc-tests") j.env = { ...j.env, ...r.rec.env(recordName(`test:${j.name}`)), ...(await r.rec.cacheDir(recordName(`test:${j.name}`))) };
     else mkdirSync(docDir, { recursive: true });
+    // A new attempt of the same item, red whatever it does: the verdict is the first run's.
+    ev.start(jobItem(j));
     const [, code] = await runJob(j);
     alone.set(j.name, code === 0);
+    ev.end(jobItem(j), { result: "red", why: code === 0 ? "failed beside the other binaries, and passed alone" : `failed alone as well, exit ${code}`, log: stepLog(s.name) });
     // What the second run left is read and dropped: the verdict is the first run's.
     if (j.name !== "doc-tests") await r.rec.keysOf(recordName(`test:${j.name}`), [j.argv[0]!, nvs]);
     else rmSync(docDir, { recursive: true, force: true });
@@ -554,10 +668,21 @@ async function runTests(r: Run, s: Step): Promise<[number, string]> {
  * a rebuild by another process while the cases run changes nothing they record. A passed case that left
  * no recording is red, and the output's `UNRECORDED_RE` line names it. */
 async function runCases(r: Run, s: Step): Promise<[number, string]> {
-  const cases = casesToRun(r, s.name);
+  const cases = redFirst(casesToRun(r, s.name), (p) => r.red.has(caseId(p)));
   const total = caseFiles().filter((p) => p.startsWith(`tests/${s.name}/`)).length;
   const jobs = cpus().length || 4;
-  const got = await recordCases(r.rec, r.rec.pin(covwsNvs()), cases, { jobs, batch: 128, onBatch: (done, all) => stepDetail(s.name, `${done}/${all} cases`) });
+  const parent = itemOf(s);
+  for (const p of cases) declareItem(caseId(p), { parent, name: p, kind: "case" });
+  // A case runs inside its batch's one `nvs test`, so its item only ends, with its verdict.
+  const got = await recordCases(r.rec, r.rec.pin(covwsNvs()), cases, {
+    jobs,
+    batch: 128,
+    onBatch: (done, all) => {
+      stepDetail(s.name, `${done}/${all} cases`);
+      ev.tick(parent, done, all);
+    },
+    onCase: (path, verdict, why) => ev.end(caseId(path), verdict === "green" ? {} : { result: "red", why: why ?? "red", log: stepLog(s.name) }),
+  });
   for (const p of cases) r.ran.add(caseId(p));
   const red = [...got.verdicts.values()].filter((v) => v === "red").length;
   const head = `${cases.length} of ${total} case(s) of tests/${s.name} selected`;
@@ -581,21 +706,28 @@ function nvTestsToRun(r: Run): string[] {
  */
 async function runSelftest(r: Run, s: Step): Promise<[number, string]> {
   const out: string[] = [];
+  const parent = itemOf(s);
   if (picked(r, NV_TSC)) {
     stepDetail(s.name, "tsc");
+    declareItem(TSC_ITEM, { parent, name: "tsc", kind: "tsc" });
+    ev.start(TSC_ITEM);
     const t = await runTsc(r.rec);
+    ev.end(TSC_ITEM, ended(t.verdict === "green" ? 0 : 1, `tsc exit ${t.code}`, stepLog(s.name)));
     r.ran.add(NV_TSC);
     if (t.verdict === "red") return [1, `${t.out}\nnv selftest: tsc failed with exit ${t.code}`];
     out.push("nv selftest: the types check");
   } else out.push("nv selftest: the types check (the change reaches nothing tsc reads)");
-  const files = nvTestsToRun(r);
+  const files = redFirst(nvTestsToRun(r), (f) => r.red.has(nvTestId(f)));
+  for (const f of files) declareItem(nvTestId(f), { parent, name: f, kind: "bun-test" });
   let passed = 0;
   let failed = 0;
   let done = 0;
   const reds: string[] = [];
   const width = Math.max(1, Math.min(4, Math.floor((cpus().length || 4) / 4)));
   await pool(files, width, async (file) => {
+    ev.start(nvTestId(file));
     const t = await runNvTest(r.rec, file);
+    ev.end(nvTestId(file), ended(t.verdict === "green" ? 0 : 1, `${t.failed} failed, exit ${t.code}`, stepLog(s.name)));
     passed += t.passed;
     failed += t.failed;
     if (t.verdict === "red") reds.push(`-- ${file}: exit ${t.code}\n${t.out}`);
@@ -1026,7 +1158,7 @@ async function verify(opts: Opts): Promise<number> {
   const graph = await metadata();
   const first = await select(store, graph);
   const rec = await Recorder.open(store, first.change.view, graph, "verify", { say: (l) => console.error(l) });
-  const r: Run = { opts, store, graph, ...first, rec, ran: new Set() };
+  const r: Run = { opts, store, graph, ...first, rec, ran: new Set(), red: redAtoms(store) };
   try {
     return await walk(r);
   } finally {
@@ -1050,13 +1182,18 @@ async function walk(r: Run): Promise<number> {
   let deferred: Step | null = null;
   const began = performance.now();
 
+  /** Whether `s` runs. `build` also runs for any later step that uses what it leaves on disk. */
+  const runs = (i: number, s: Step): boolean => wanted(r, s) || (s.name === "build" && steps.slice(i + 1).some((t) => usesBinary(t.name) && wanted(r, t)));
+  declarePlan(r, steps, runs);
+  const plannedToRun = new Set(steps.filter((s, i) => eventsFile() && runs(i, s)).map(itemOf));
+
   /** Whether `s` runs; a step that does not is noted with its last summary. */
   const needed = (i: number, s: Step): boolean => {
-    let run = wanted(r, s);
-    // `build` also runs for any later step that uses what it leaves on disk.
-    if (!run && s.name === "build") run = steps.slice(i + 1).some((t) => usesBinary(t.name) && wanted(r, t));
+    const run = runs(i, s);
     if (!run) unchanged.set(s.name, s.name === "nvs-fmt" ? "nothing new to format" : (store.verdict(lastSlot(s.name))?.verdict ?? "the change reaches nothing it reads"));
     else unchanged.delete(s.name);
+    // A rewrite read the change again, and it no longer reaches a step the plan had it run.
+    if (!run && plannedToRun.delete(itemOf(s))) ev.end(itemOf(s), { result: "skipped", why: "the change, read again after a rewrite, reaches nothing it reads" });
     return run;
   };
 
@@ -1186,6 +1323,8 @@ async function walk(r: Run): Promise<number> {
   let owedNote = "";
   const { owed } = advance(store, r.change, r.sel, r.ran, r.graph);
   if (owed > 0) owedNote = `; ${owed} reached atom(s) this run did not run stay owed (\`bun nv select\` names them)`;
+  // Every item still open, such as a step after the one that failed, is cancelled by `done`.
+  ev.done(red ? "red" : "green");
 
   const total = (performance.now() - began) / 1000;
   const lines = () => {
@@ -1246,7 +1385,7 @@ export async function verifyPlan(graph: Graph | null): Promise<{ steps: string[]
   try {
     const got = await select(store, graph);
     const opts: Opts = { fast: false, doc: false, full: false, noCache: false, list: false };
-    const r = { opts, store, graph, ...got, rec: null as unknown as Recorder, ran: new Set<string>() };
+    const r = { opts, store, graph, ...got, rec: null as unknown as Recorder, ran: new Set<string>(), red: new Set<string>() };
     const steps = stepsFor(opts, () => r);
     for (const s of steps) if (s.name === "nvs-fmt") [s.todo, s.changed] = await unformatted(store);
     const run = steps.filter((s) => wanted(r, s)).map((s) => s.name);

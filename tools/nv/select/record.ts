@@ -425,7 +425,16 @@ export async function recordCases(
   r: Recorder,
   nvs: string,
   cases: string[],
-  o: { jobs: number; batch?: number; onBatch?: (done: number, total: number) => void; timeoutMs?: number; root?: string; stop?: () => boolean },
+  o: {
+    jobs: number;
+    batch?: number;
+    onBatch?: (done: number, total: number) => void;
+    /** Called as each case is recorded, with its verdict and, when red, why. */
+    onCase?: (path: string, verdict: Verdict, why: string | null) => void;
+    timeoutMs?: number;
+    root?: string;
+    stop?: () => boolean;
+  },
 ): Promise<CaseRun> {
   const root = o.root ?? ROOT;
   const byTree = new Map<string, string[]>();
@@ -493,6 +502,7 @@ export async function recordCases(
         r.store.putVerdict(caseSkipSlot(path), "", skipped.has(path) ? "skip" : "");
         result.verdicts.set(path, verdict);
         result.processes += ext?.processes ?? 0;
+        o.onCase?.(path, verdict, why);
       });
       if (lost.length > 0) {
         let fresh: string[] | string;

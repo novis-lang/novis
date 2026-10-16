@@ -58,7 +58,8 @@ export async function runNvTest(rec: Recorder, file: string): Promise<ToolRun & 
   const log = join(rec.dir, `${name}.reads`);
   rmSync(log, { force: true });
   const p = await run([process.execPath, "test", "--timeout", String(TEST_TIMEOUT_MS), "--preload", "./tools/nv/lib/reads-preload.ts", file], {
-    env: { ...rec.env(name), NV_READS_LOG: log, NO_COLOR: "1" },
+    // A test of a command that writes progress events writes none into the run's own event file.
+    env: { ...rec.env(name), NV_READS_LOG: log, NO_COLOR: "1", LOOPER_EVENTS: "" },
     timeoutMs: TIMEOUT_MS,
     reap: true,
   });
