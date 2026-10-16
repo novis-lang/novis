@@ -200,7 +200,11 @@ above its ceiling stops the boot instead of leaving the request with no cap.
   - [x] `Ctx::write_output` raises `OUTPUT_LIMIT` at the crossing, and the handler runs with both flags lowered.
   - [x] Three `.nvst` cases under `tests/conformance/config/`, and the gap record deleted.
 - [ ] A served request is stopped at its `wall_time` by the core's timer, as `nvs run`'s clock stops a run. `crates/nvs-server/src/serve.rs:1250`, `crates/nvs-cli/src/wall.rs:1`
-- [ ] The resolve refuses a malformed `[limits]` quantity as E0601 and a global value above its written ceiling, and the runtime never reads a malformed one as no cap. `crates/nvs-config/src/app.rs:134`, `crates/nvs-runtime/src/ctx/limits.rs:959`
+- [x] The resolve refuses a malformed `[limits]` quantity as E0601 and a global value above its written ceiling, and the runtime never reads a malformed one as no cap. `crates/nvs-config/src/app.rs:134`, `crates/nvs-runtime/src/ctx/limits.rs:959`
+  - [x] `app::quantities` parses every limits block's quantity in the resolve.
+  - [x] `app::starts` refuses a start above its written ceiling, over the global tree and each folded snapshot.
+  - [x] `configured_bytes` reads a malformed value as the key's shipped default.
+  - [x] Cases under `nvs config check` and `nvs run`, and the gap record deleted.
 - [ ] A `__Host-` or `__Secure-` cookie is read only when the request's connection was secure. `crates/nvs-stdlib/src/request.rs:2096`
 
 ### 4. a throwing `inout` callee leaks nothing, and a refused stack does not panic
@@ -304,19 +308,17 @@ work cannot live only in prose again.
 
 ### State
 
-Stages 1 and 2 are done, and stage 3's first four items are. `nvs run` now stops at its
-`[limits] wall_time` and at the first write past `max_output`, each with its `on-limit` report.
-`crates/nvs-cli/src/wall.rs` is one thread per run with a `wall_time`. It raises
-`SafepointFlags::WALL_TIME` and expires the deadline at `SafepointView::wall_deadline`, which is
-counted from `TreeState::started`. It re-reads the deadline when `Core\Config::set` moves it.
-`Core\Time::sleep` ends at the deadline under any host (`Ctx::wall_time_left`,
-`Ctx::wall_time_breach`). `Ctx::write_output` raises `OUTPUT_LIMIT` at the crossing.
-`Ctx::run_limit_handler` lowers both flags for the handler's call, as it lowers the CPU flag. The
-wall clock raises its flag again one default `fatal_reserve_time` later. The three cases are
-`tests/conformance/config/wall-time-*.nvst` and `max-output-stops-a-loop-*.nvst`. The gap record
-is deleted. The served path has no wall clock, so a busy served request is not stopped at
-`wall_time`. That is a new stage-3 item and gap record
-(`data/gaps/nvs-server/a-served-request-is-not-stopped-at-its-wall-time.json`).
+Stages 1 and 2 are done, and stage 3 has two items left. A `[limits]` value that is not a
+quantity now stops the boot as E0601 (`crates/nvs-config/src/app.rs`'s `quantities`, called from
+the resolve). So does a start above its written `[limits.hard]` ceiling (`app::starts`, run over
+the global tree and again in `Snapshot::fold`, where one block's start meets another's ceiling).
+The runtime's `configured_bytes` reads a malformed value as the key's shipped default. For
+`max_output` that default is still no cap, so the boot refusal is what closes that half. The
+cases are `tests/conformance/config/a-limit-*.nvst`, `an-app-ceiling-below-*.nvst` and three
+rows in `crates/nvs-cli/tests/config_audit.rs`. The gap record is deleted.
+
+`nvs run` stops at `wall_time` (`crates/nvs-cli/src/wall.rs`). The served path has no wall clock,
+which is the next item.
 
 Stage 1 found a second memory-safety hole, recorded as
 `data/gaps/nvs-runtime/a-wider-shape-view-writes-an-object-of-the-wrong-class.json`. A statically
@@ -330,17 +332,15 @@ behind the local one. The earlier triage of its failures stands until the user p
 
 ### Next
 
-**Stage 3, a `[limits]` value is a quantity under its ceiling.** Files:
-`crates/nvs-config/src/app.rs`, `crates/nvs-config/src/resolve.rs` and
-`crates/nvs-runtime/src/ctx/limits.rs`.
+**Stage 3, a served request stops at its `wall_time`.** Files: `crates/nvs-server/src/serve.rs`,
+`crates/nvs-server/src/bounds.rs` and `crates/nvs-runtime/src/ctx/safepoint.rs`.
 
-- [ ] The resolve refuses a malformed `[limits]` or `[limits.hard]` quantity as E0601, with a case under `nvs config check` and `nvs run` (`rule:config/one-parser-for-the-boot-path-and-config-set`). `crates/nvs-config/src/app.rs:134`, `crates/nvs-config/src/resolve.rs:495`
-- [ ] A global `[limits]` value above a written `[limits.hard]` is refused as `body_caps` refuses its two keys (`rule:config/ceilings-are-their-own-directives`). `crates/nvs-config/src/app.rs:124`
-- [ ] The runtime never reads a malformed `memory` or `max_output` as no cap. `crates/nvs-runtime/src/ctx/limits.rs:1014`, `crates/nvs-runtime/src/ctx/limits.rs:1023`
+- [ ] Each core times its running requests' wall deadlines on the timer it already has, and raises `SafepointFlags::WALL_TIME` and expires the deadline as `nvs run`'s clock does (`rule:errors/on-limit`). `crates/nvs-server/src/bounds.rs:631`, `crates/nvs-runtime/src/ctx/safepoint.rs:536`, `crates/nvs-runtime/src/ctx/safepoint.rs:542`
+- [ ] A test under `nvs serve` for a busy loop past `wall_time`, and `data/gaps/nvs-server/a-served-request-is-not-stopped-at-its-wall-time.json` deleted. `crates/nvs-server/src/serve.rs:1250`
 
 ### Backlog
 
-- Stage 3's last two items: a served request stops at its `wall_time` by the core's timer (`data/gaps/nvs-server/a-served-request-is-not-stopped-at-its-wall-time.json`, `crates/nvs-server/src/bounds.rs:631`), and a `__Host-` or `__Secure-` cookie is read only on a secure connection (`data/gaps/nvs-stdlib/a-prefixed-cookie-is-read-without-checking-the-connection-was-secure.json`).
+- Stage 3's last item: a `__Host-` or `__Secure-` cookie is read only on a secure connection (`data/gaps/nvs-stdlib/a-prefixed-cookie-is-read-without-checking-the-connection-was-secure.json`, `crates/nvs-stdlib/src/request.rs:2108`, `crates/nvs-stdlib/src/request.rs:2753`).
 - The wider-shape-view hole waits on the user's choice (`data/gaps/nvs-runtime/a-wider-shape-view-writes-an-object-of-the-wrong-class.json`).
 - `test_request_dispatches_in_process_through_the_compiled_route_table` once returned an empty body under the full verify's load and passed alone; the cause is not found (`crates/nvs-cli/src/runner.rs:3410`).
 - Many module docs still carry numbered or prose "known gap" text with no record; stage 14's scan finds them (`tools/nv/cmd/owners.ts:225`).
