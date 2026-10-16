@@ -2536,7 +2536,7 @@ working as a grammar-only client (`editors/vscode/src/install.ts`).
 
 <a id="ide-the-extension-builds-no-ui-the-editor-already-has"></a>
 
-## Coverage, server health, profiles and the debugger reach the editor through its own APIs and open formats — `FileCoverage`, `LanguageStatusItem`, DAP's UI, speedscope — and the extension builds none of them  *(designed — owned by M10)*
+## Coverage, server health, profiles and the debugger reach the editor through its own APIs and open formats — `FileCoverage`, `LanguageStatusItem`, DAP's UI, speedscope — and the extension builds none of them  *(designed — owned by goal debugger-adapter)*
 
 `rule:ide/the-extension-builds-no-ui-the-editor-already-has`
 
@@ -2743,7 +2743,7 @@ support and conceals nothing.
 
 <a id="ide-the-debug-adapter-does-not-wait-for-an-editor"></a>
 
-## `nvs dap` is complete without any editor's debugger UI; VS Code's wiring is a descriptor factory and a `launch.json` schema, and PhpStorm's stays deferred  *(designed — owned by M10)*
+## `nvs dap` launches `nvs run`, `nvs test` or a development `nvs serve` over stdio and never attaches; it is complete without any editor's debugger UI, VS Code's wiring is a descriptor factory and a `launch.json` schema, and PhpStorm's stays deferred  *(designed — owned by goal debugger-adapter)*
 
 `rule:ide/the-debug-adapter-does-not-wait-for-an-editor`
 
@@ -2753,6 +2753,26 @@ deliverable on its own. A working adapter and a working debugger UI in a given e
 are two different integrations, the same way a language server and a syntax-highlighting extension are,
 so a stalled or under-scoped editor integration cannot block the adapter from shipping and being useful
 to a CLI-driven client or a third editor.
+
+**It launches, and never attaches.** `nvs dap` speaks DAP over its own stdin and stdout and answers
+`launch` alone: it compiles the program with the switch and runs it in its own process, as `nvs run`,
+`nvs test` or `nvs serve` would. A launched `nvs serve` starts in `development` whatever `[mode] default`
+says, and a breakpoint stops whichever request reaches it while every other request is served
+([`testing/a-stop-pauses-the-whole-task-tree`](testing.md#testing-a-stop-pauses-the-whole-task-tree)). There is no `attach` request, so no running process
+ever listens for a debugger and there is no debug socket to bind, guard or forget open. A production
+server cannot be debugged, which is the point: the switch slows every statement and a stop holds a
+request.
+
+stdout carries DAP frames and nothing else, on the terms
+[`ide/stdout-belongs-to-the-protocol`](ide.md#ide-stdout-belongs-to-the-protocol) sets for the language server. What the launched program
+writes to its stdout and stderr reaches the client as `output` events, so a program that prints a
+frame-shaped line shows text and cannot speak the protocol.
+
+The `launch` arguments are the whole interface: `mode` (`run`, `test` or `serve`), `program`, `args`,
+`cwd`, `env`, `stopOnEntry`, the test `filter` under `test`, `skipFiles` and `pathMappings`
+([`ide/the-debugger-ui-is-as-deep-as-the-adapter`](ide.md#ide-the-debugger-ui-is-as-deep-as-the-adapter)). `nvsCommand`, read by the editor and never by
+the adapter, names the command that starts `nvs dap`, so the adapter can run inside a container through
+`docker exec -i` and still be reached over stdio.
 
 For VS Code the editor-side wiring is small and lands with the adapter: a `DebugAdapterDescriptorFactory`
 and a `launch.json` configuration schema targeting `nvs dap`. DAP is a wire protocol, and VS Code
@@ -2766,18 +2786,27 @@ PhpStorm's `XDebugger` UI wired to a DAP backend stays deferred ([`ide/phpstorm-
 The two clients are deliberately asymmetric here; a future PhpStorm-depth pass has to address or
 explicitly accept that.
 
+- **Memory:** the adapter's own state is one entry per breakpoint and one per stopped thread's
+  variable references, freed on each resume. What the debugged program holds is the switch's
+  ([`testing/a-debugged-program-is-compiled-with-a-debug-switch`](testing.md#testing-a-debugged-program-is-compiled-with-a-debug-switch)).
+
 **Missing:** `nvs dap` and the VS Code wiring. The safepoint flag it stops on, `DEBUG_BREAK`, is built
 and is cleared without acting while no adapter exists.
 
 **Declined:**
 - **The adapter ships together with both editors' debugger UI.** PhpStorm's `XDebugger` wiring is the
   larger job, and it would hold back an adapter that VS Code and a CLI-driven client can already use.
+- **`attach` to a running server.** It needs a listener in every process that might be debugged, with
+  its own authentication, and a production process with that listener is one misconfiguration from
+  handing out its memory. Launching gives the same view of a development server with no listener.
+- **Running the program as a child process of the adapter.** The adapter would need a second protocol
+  to the child to reach its stops, and in one process the controller is a Rust call.
 
-<sub>See also [`ide/the-extension-builds-no-ui-the-editor-already-has`](ide.md#ide-the-extension-builds-no-ui-the-editor-already-has), [`ide/phpstorm-bridges-to-the-same-server`](ide.md#ide-phpstorm-bridges-to-the-same-server), [`testing/debug-probes`](testing.md#testing-debug-probes), [`ide/the-debugger-ui-is-as-deep-as-the-adapter`](ide.md#ide-the-debugger-ui-is-as-deep-as-the-adapter).</sub>
+<sub>See also [`ide/the-extension-builds-no-ui-the-editor-already-has`](ide.md#ide-the-extension-builds-no-ui-the-editor-already-has), [`ide/phpstorm-bridges-to-the-same-server`](ide.md#ide-phpstorm-bridges-to-the-same-server), [`testing/debug-probes`](testing.md#testing-debug-probes), [`ide/the-debugger-ui-is-as-deep-as-the-adapter`](ide.md#ide-the-debugger-ui-is-as-deep-as-the-adapter), [`testing/a-debugged-program-is-compiled-with-a-debug-switch`](testing.md#testing-a-debugged-program-is-compiled-with-a-debug-switch), [`testing/a-stop-pauses-the-whole-task-tree`](testing.md#testing-a-stop-pauses-the-whole-task-tree), [`ide/stdout-belongs-to-the-protocol`](ide.md#ide-stdout-belongs-to-the-protocol).</sub>
 
 <a id="ide-the-debugger-ui-is-as-deep-as-the-adapter"></a>
 
-## The debugger UI is only as deep as the capabilities `nvs dap` reports, so the adapter's capability list is the debugger's scope  *(designed — owned by M10)*
+## The debugger UI is only as deep as the capabilities `nvs dap` reports, so the adapter's capability list is the debugger's scope  *(designed — owned by goal debugger-adapter)*
 
 `rule:ide/the-debugger-ui-is-as-deep-as-the-adapter`
 
@@ -2785,28 +2814,56 @@ and is cleared without acting while no adapter exists.
 already exists — it appears only if the adapter reports the corresponding capability at `initialize`. The
 adapter's capability list is therefore the debugger's scope, and it is this:
 
+- **Stepping over, into and out, one statement at a time** — `next`, `stepIn` and `stepOut` move a
+  thread to its next stop site in the same frame, in any deeper frame, or in its caller. A step over an
+  `await` stops at the next statement of the same frame once that task resumes, and the other tasks run
+  while it waits. A step into a call through a `callable` lands in the function or closure it names. A
+  step into a `Core` method steps over it, because it has no stop sites.
 - **Conditional breakpoints, hit counts and logpoints** — `supportsConditionalBreakpoints`,
   `supportsHitConditionalBreakpoints`, `supportsLogPoints`. A logpoint that does not stop the program is
   the debugging most users actually do.
 - **Exception filters** — `exceptionBreakpointFilters`, so "break on uncaught" and "break on thrown" are
   separate switches. [`errors/escalation-ladder`](errors.md#errors-escalation-ladder)'s single `Throwable` channel is what makes this two
   filters and no more.
-- **Stepping exclusions** — a `launch.json` glob list, so stepping does not descend into package code and
-  a handled throw inside it does not stop the session.
+- **Stepping exclusions** — `skipFiles`, a `launch.json` glob list, so stepping does not descend into
+  package code and a handled throw inside it does not stop the session.
 - **Path mappings**, because the container case is the normal case: the file the adapter reports and the
-  file in the editor differ whenever the program runs anywhere but the workspace root.
+  file in the editor differ whenever the program runs anywhere but the workspace root. `pathMappings`
+  pairs an editor folder with the adapter's, and every path in and out of the adapter is mapped.
 - **The value a function just returned**, in the variables pane after stepping out. It is one frame's
   worth of state the adapter already has, and the UI renders it with no work of its own.
 - **Every task of the debugged request is a DAP thread**, a `spawn`ed isolate's included, and a stop
   pauses all of them ([`testing/a-stop-pauses-the-whole-task-tree`](testing.md#testing-a-stop-pauses-the-whole-task-tree)). That is the standard
   presentation, needing no protocol extension. The *tree* of tasks would need one and is not built.
 
+**A condition and a logpoint's `{…}` hole are expressions over the stopped frame's variables.** They
+are type-checked against the frame's slot table
+([`testing/a-debugged-program-is-compiled-with-a-debug-switch`](testing.md#testing-a-debugged-program-is-compiled-with-a-debug-switch)) when the breakpoint is set, and a
+condition must be a `bool`. They may read variables, properties and array elements, and use literals,
+operators and comparisons. They may not call a function or a method, assign, or `await`, so a
+breakpoint never changes what the program does. A call is an error the editor shows: a condition or
+hole that does not compile leaves its breakpoint unverified, with the compiler's message. A hit
+condition is `N`, `>N`, `>=N`, `==N` or `%N`, counted per breakpoint.
+
+**"Uncaught" is decided where the exception is thrown,** while every frame is still there to show. Under
+the switch each frame record keeps the classes its enclosing `try` blocks catch, so the adapter knows at
+the throw whether any frame of that task will catch it.
+
 A fixture session exercises each of these, and `nvs dap` reports each capability at `initialize`.
+
+- **Memory:** per stopped thread, one variable reference per expanded value, freed on resume; per
+  breakpoint, its compiled condition and its hit count.
 
 **Missing:** the adapter, and so every capability above
 ([`ide/the-debug-adapter-does-not-wait-for-an-editor`](ide.md#ide-the-debug-adapter-does-not-wait-for-an-editor)).
 
-<sub>See also [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency).</sub>
+**Declined:**
+- **A condition that calls a function.** The call could write, throw or `await` at a breakpoint, and the
+  program would then behave differently under the debugger than without it.
+- **Deciding "uncaught" when the exception leaves the last frame.** The frames are gone by then, and the
+  stop would show where the task ended instead of where it threw.
+
+<sub>See also [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency), [`testing/a-debugged-program-is-compiled-with-a-debug-switch`](testing.md#testing-a-debugged-program-is-compiled-with-a-debug-switch), [`testing/a-stop-pauses-the-whole-task-tree`](testing.md#testing-a-stop-pauses-the-whole-task-tree).</sub>
 
 <a id="ide-stdout-belongs-to-the-protocol"></a>
 

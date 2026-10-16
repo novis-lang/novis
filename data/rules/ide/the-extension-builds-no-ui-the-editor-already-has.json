@@ -10,5 +10,5 @@
     "ide/the-debugger-ui-is-as-deep-as-the-adapter"
   ],
   "guardedBy": [],
-  "milestone": "M10"
+  "goal": "debugger-adapter"
 }

@@ -1,12 +1,15 @@
 {
-  "title": "`nvs dap` is complete without any editor's debugger UI; VS Code's wiring is a descriptor factory and a `launch.json` schema, and PhpStorm's stays deferred",
+  "title": "`nvs dap` launches `nvs run`, `nvs test` or a development `nvs serve` over stdio and never attaches; it is complete without any editor's debugger UI, VS Code's wiring is a descriptor factory and a `launch.json` schema, and PhpStorm's stays deferred",
   "status": "designed",
   "seeAlso": [
     "ide/the-extension-builds-no-ui-the-editor-already-has",
     "ide/phpstorm-bridges-to-the-same-server",
     "testing/debug-probes",
-    "ide/the-debugger-ui-is-as-deep-as-the-adapter"
+    "ide/the-debugger-ui-is-as-deep-as-the-adapter",
+    "testing/a-debugged-program-is-compiled-with-a-debug-switch",
+    "testing/a-stop-pauses-the-whole-task-tree",
+    "ide/stdout-belongs-to-the-protocol"
   ],
   "guardedBy": [],
-  "milestone": "M10"
+  "goal": "debugger-adapter"
 }

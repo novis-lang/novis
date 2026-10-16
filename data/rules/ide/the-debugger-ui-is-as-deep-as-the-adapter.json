@@ -4,8 +4,10 @@
   "seeAlso": [
     "errors/escalation-ladder",
     "security/isolate-shares-nothing",
-    "ide/every-feature-is-staged-behind-its-dependency"
+    "ide/every-feature-is-staged-behind-its-dependency",
+    "testing/a-debugged-program-is-compiled-with-a-debug-switch",
+    "testing/a-stop-pauses-the-whole-task-tree"
   ],
   "guardedBy": [],
-  "milestone": "M10"
+  "goal": "debugger-adapter"
 }
