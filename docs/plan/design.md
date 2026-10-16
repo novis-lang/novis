@@ -44,9 +44,7 @@ document from implying otherwise.
 
 Intended outcome: a self-hosted toolchain (`nvs` binary) that runs `.nvs` files on the CLI, serves them
 over HTTP from one process, ships a working framework and a supply-chain-safe package system
-(`rule:programs/first-party-framework`, `rule:packaging/a-package-is-its-digest`),
-and can mechanically transpile an existing PHP codebase's *own* application code — including its `.phpt`
-test suites — into Novis.
+(`rule:programs/first-party-framework`, `rule:packaging/a-package-is-its-digest`).
 
 ---
 
@@ -73,7 +71,7 @@ spellings declined, and the reasoning. Do not restate that detail here when addi
 | OOP-only: no free functions, no global constants | Every callable is a method, every constant a class constant; built-ins live under `Core` domain classes (`rule:classes/no-free-functions-or-constants`) |
 | Name aliasing | No `class_alias` or import `as`; a compile-time-only `type` alias for a type expression is the one exception (`rule:statements/nothing-gets-a-second-name`) |
 | Code reuse | No `trait`; shared behavior is a `public`/`private` interface method body, shared state is explicit `implements Interface by $field;` delegation, and any resulting name collision is always a compile error requiring an explicit override — there is no `insteadof` (`rule:classes/no-traits`) |
-| PHP compatibility | Pragmatic superset of the syntax, not of the type discipline: PHP 8.5 syntax accepted, `strict_types` implicit, no `eval`/`$$var`/`goto`/`extract()`/`settype()`/pipe operator (`\|>`, deliberately unparsed — see `nvs-syntax`'s module docs). Existing PHP does not run unconverted — see *Consequences to accept* below, and each rule above for its own divergence from PHP |
+| PHP compatibility | Pragmatic superset of the syntax, not of the type discipline: PHP 8.5 syntax accepted, `strict_types` implicit, no `eval`/`$$var`/`goto`/`extract()`/`settype()`. Existing PHP does not run unconverted — see *Consequences to accept* below, and each rule above for its own divergence from PHP |
 | Templating | `<?nvs … ?>` inline-HTML mode, `<?= ?>` short echo, `.nvs` extension. Explicit escaping (not auto) |
 | Request state | Strict shared-nothing: of the program's state only compiled code survives a request; a database connection is host state, pooled per core and reset before reuse (`rule:security/db-pool-reset-is-a-boundary`). A request is the root isolate of a tree; `spawn script` adds children to it |
 | Regex | Pure Rust two-tier: `regex` (linear-time) → `fancy-regex` (lookaround/backrefs) fallback |
@@ -88,13 +86,13 @@ spellings declined, and the reasoning. Do not restate that detail here when addi
 | Real-time | WebSocket and SSE connections are root isolates opened the way a script is spawned; fan-out is a bounded `Core\Topic` (`rule:concurrency/a-connection-is-a-root-isolate`) |
 | Background work | A durable job is a row in a `Core\Db` table, enqueued inside the caller's transaction and run as an isolate (`rule:concurrency/enqueue-commits-with-your-write`) |
 | API contracts | OpenAPI 3.1 generated while compiling from the route table and derived codecs, with `nvs api diff` as a breaking-change gate (`rule:routing/api-document-is-generated-from-the-route-table`) |
-| Testing | Hand-written suite is normative; `.phpt → .nvst` transpiler imports PHP's corpus |
-| Migration | `nvs convert` — real PHP→Novis transpiler |
+| Testing | The hand-written `.nvst` suite is normative |
+| Migration | None mechanical: a program is ported by rethinking it, by hand or with an agent (`rule:programs/no-compatibility-promise`) |
 | Extensions | Three tiers: built-in, sandboxed **WebAssembly components** (`.nvsx`), statically linked native. No `dlopen` (`rule:packaging/an-extension-is-a-sandboxed-wasm-component`) |
 | Platforms | Windows x86_64, Linux x86_64, macOS (x86_64 + aarch64) |
 | Licence | MIT |
 
-### Rationale for the two calls left open
+### Rationale for the server's shape
 
 **Built-in HTTP server over FastCGI.** FastCGI's worst vulnerability class — the
 `SCRIPT_FILENAME`/`PATH_INFO`/`cgi.fix_pathinfo` RCE family — exists *because* the decision of which file
@@ -116,10 +114,10 @@ listener for it (`rule:http-server/two-deployments-and-nothing-a-proxy-owns`).
 
 ### Consequences to accept
 
-- **`Hello World` is ~3–5 weeks out, not day one.** With no interpreter tier, the first program requires
-  the whole front end *plus* a working native backend. Mitigation: the backend ships as a *baseline* tier
-  where every operation lowers to a call into a Rust runtime helper — mechanically close to an interpreter
-  loop, so it is fast to get correct, and typed inlining layers on afterwards without redesign.
+- **With no interpreter tier, every program needs the whole front end *plus* the native backend.** The
+  backend's *baseline* tier emits a native instruction for a single-scalar static type and a call into a
+  Rust runtime helper for everything else — close to an interpreter loop, so it is easy to keep correct,
+  and the optimising tier layers on behind the same IR boundary without redesign.
 - **Database connections are pooled per core, so a connection reset is a security boundary.** Shared-nothing
   is a rule about *program* state; a connection is host state Novis code cannot observe, so pooling it costs
   the model nothing (`rule:security/db-pool-reset-is-a-boundary`). What it does cost is a reset that must be
@@ -129,8 +127,8 @@ listener for it (`rule:http-server/two-deployments-and-nothing-a-proxy-owns`).
   `ArrayAccess`, no runtime autoloader (`rule:classes/no-traits`,
   `rule:iteration/no-magic-collection-interfaces`, `rule:classes/no-call-magic`,
   `rule:programs/no-runtime-autoload`) means the ecosystem built on those is
-  unreachable at any price — so `nvs convert` (M11) ports an application's own code onto Novis's own
-  framework, and never onto its old one. `rule:programs/audience` records
+  unreachable at any price — so a port moves an application's own code onto Novis's own framework, and
+  never onto its old one. `rule:programs/audience` records
   why this is survivable and what the alternative cost.
 - **A JIT means a native-codegen component in the trusted core.** User programs stay fully memory-safe
   (all codegen is type-checked and bounds-checked); the codegen itself, the coroutine stack switcher and
@@ -144,25 +142,20 @@ listener for it (`rule:http-server/two-deployments-and-nothing-a-proxy-owns`).
 - **Existing PHP does not run unconverted.** PHP has no syntax for the type of a `foreach` binding or a
   destructuring target (`rule:types/declaration`), and every one of its global
   functions and global constants needs a new home on a class before it type-checks at all
-  (`rule:classes/no-free-functions-or-constants`). A plain local has a type-eliding
-  spelling now — `rule:types/var-inference`'s `var` — so `nvs convert` can emit that
-  directly instead of inferring and writing an annotation, but it still has to write annotations and
-  rewrite call sites for everything else, not just drop `.php` files into a document root. M11 stays
-  mandatory rather than a convenience, and the imported `.phpt` pass rate is still structurally lower than
-  a compatibility-first design's, not through bugs.
+  (`rule:classes/no-free-functions-or-constants`). A plain local can elide its type with
+  `rule:types/var-inference`'s `var`, but everything else is annotated and every call site rewritten, by
+  hand or with an agent, never by a mechanical rewriter (`rule:programs/no-compatibility-promise`).
 - **One new language construct that PHP has no equivalent of.** `spawn script` is a surface a developer
   has to learn and the spec has to define next to `require`, which they will confuse it with. Accepted:
   the requirement it answers — run another file, isolated, without a second process — has no other honest
   answer, and it reuses the request boundary and the worker value rules rather than adding either
   (`rule:security/isolate-shares-nothing`).
-- **This is an 18–24 month effort at full-time pace for one experienced engineer**, front-loaded: M0–M4
-  (a usable CLI language) is roughly 3–4 months; the stdlib and DB drivers are the long tail.
 
 ---
 
 ## Validated premises
 
-The M0 spikes are now permanent guard tests in [`benches/abi-probe`](../../benches/abi-probe/), because
+The architecture spikes are permanent guard tests in [`benches/abi-probe`](../../benches/abi-probe/), because
 several decisions here rest on how Cranelift, `corosensei` and Wasmtime behave rather than on Novis's own
 code, and a dependency bump can invalidate them silently. **The tests own the numbers; this document does
 not restate them.**
@@ -191,13 +184,12 @@ loading rules, and the decisive rejection of `dlopen` — is in `rule:packaging/
 - **Tier 1 — WebAssembly component extensions (`.nvsx`).** The default for third parties: one binary that
   runs on every platform, sandboxed by construction, authorable in any language `wit-bindgen` targets.
 - **Tier 2 — statically linked native.** A Rust crate compiled into a custom `nvs` binary, for first-party
-  subsystems needing raw sockets, TLS or direct heap access — `nvs-db`, `nvs-regex`, crypto. It requires
+  subsystems needing raw sockets, TLS or direct heap access — `nvs-db`, `nvs-ldap`, crypto. It requires
   building from source, which is the right friction for code that runs unsandboxed.
 
-One sequencing constraint, which is why this section is in the plan at all: the `nvs:ext@1.0.0` WIT world
-must be authored **during** the stdlib milestone (M8), from the same value-access design as the built-ins,
-so that the Tier 0 internal interface and the Tier 1 guest interface are one design rather than two that
-drift. Deferring it to M9 would mean retrofitting.
+The `nvs:ext@1.0.0` WIT world is derived from the same value-access design as the built-ins, so the Tier 0
+internal interface and the Tier 1 guest interface are one design rather than two that drift: the parametric
+array signatures the built-ins declare are the ones the world reuses, with `uint` as `u64`.
 
 ## Architecture
 
@@ -246,7 +238,7 @@ scheduler of our own, and no crate of ours depends on `tokio` — where it appea
 with `sync` alone, a channel library and not a runtime (`rule:concurrency/one-scheduler`).
 
 **Suspension is a stack switch, so no function has a colour.** Any Novis function may perform I/O and
-yield without being marked `async`, which is what lets a converted PHP call chain become concurrent
+yield without being marked `async`, which is what lets a PHP-shaped call chain become concurrent
 with no rewriting. The cost is a stack per in-flight task
 (`rule:concurrency/a-task-stack-is-reserved-wide-and-pooled`), paid deliberately under
 `rule:programs/memory-priority`, and a small unsafe core for the switch itself, taken as a dependency
@@ -259,7 +251,7 @@ implementing plain `std::io::Read` and `Write` whose `read` returns `WouldBlock`
 coroutine and resumes when the descriptor is ready — so it *blocks* the request and never the core. That is
 what lets every synchronous Rust crate compose with no async at all: `rustls` over it, `httparse` inside
 `hyper`, the wire codecs each database driver uses. The one place a `Future` is polled is a `block_on` over
-`hyper`'s h1 connection future (M7): h1 needs no `Executor` and spawns nothing, so polling one future per
+`hyper`'s h1 connection future: h1 needs no `Executor` and spawns nothing, so polling one future per
 connection on the coroutine that owns it is a loop and a waker, not a second scheduler. `hyper` with
 `default-features = false` brings no `tokio`, and the reason it is used at all rather than hand-rolled is
 the one below — request framing is a security-critical parser.
@@ -377,13 +369,12 @@ The provisional surface, the semantics, and what is/is not shared are decided an
 values cross (the graph-copy operation `rule:classes/two-copy-depths` now
 formally defines, shared with `serialize()`/`unserialize()`), how budgets are accounted (at the root of the
 request tree, never per isolate), the `script.spawn` capability and its path resolution, and failure
-arriving as a value rather than as an unwind. The spec pins the exact grammar down in M5. The three
+arriving as a value rather than as an unwind. The three
 invariants no optimisation may trade away are listed in [AGENTS.md](../../AGENTS.md).
 
 The structural consequence for this plan: `nvs-host` gains **one** `Isolate` type, and an inbound HTTP
-request *is* the root isolate of its tree. The server path (M7) and the `spawn script` path (M5) therefore
-share one arena setup, one teardown, one place limits are enforced — and one state-bleed test suite. That
-is why isolates land in M5, before the server that depends on them.
+request *is* the root isolate of its tree. The server path and the `spawn script` path therefore share one
+arena setup, one teardown, one place limits are enforced — and one state-bleed test suite.
 
 ### `nvs.toml` — server-level, root-owned
 
@@ -411,9 +402,8 @@ Two cross-cutting consequences the milestones below depend on:
 
 ## Repository layout
 
-The layout, and which crates exist today versus which are deferred:
-[README](../../README.md#repository-layout). Crates for later milestones are created when their milestone
-starts rather than sitting empty.
+The layout is the [README](../../README.md#repository-layout)'s. A crate is created when work on it
+starts, and never sits empty ahead of it.
 
 ### Unsafe policy
 
@@ -441,13 +431,12 @@ switcher.
 ## Overall verification strategy
 
 - **Unit** — `cargo test` per crate; `insta` snapshots for AST/IR/codegen.
-- **Conformance** — hand-written `.nvst` suite as the normative definition of Novis; imported `.phpt`
-  corpus tracked as a compatibility percentage.
+- **Conformance** — hand-written `.nvst` suite as the normative definition of Novis.
 - **Property/fuzz** — `proptest` for the array and string implementations; `cargo-fuzz` on lexer, parser,
   HTTP parser, multipart, regex and JSON, run continuously in CI.
 - **Sanitisers** — Miri on the safe subset, ASAN/TSAN on the unsafe core and the scheduler.
-- **Security** — the adversarial suites from M6/M7 (capability escape, resource exhaustion, cross-request
+- **Security** — the adversarial suites (capability escape, resource exhaustion, cross-request
   *and* cross-isolate state bleed, execution-root escape, traversal, smuggling) plus `cargo deny` advisories
   on every build.
 - **Performance** — `criterion` microbenchmarks and application-level macro benchmarks, always compared
-  against the locally installed PHP 8.5.8, with results committed so regressions are visible in diffs.
+  against a locally installed PHP when one is present, with results committed so regressions are visible in diffs.
