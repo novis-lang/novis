@@ -20,13 +20,10 @@
 # TLS is on for all of them, because `rule:core-classes/db-safe-connection-defaults` is verified per
 # driver and `Core\Mail`'s endpoint shape is `Core\Db`'s:
 #
-# * MySQL 8.4 generates its own CA and leaf at first boot, in the data directory, and this file points it
-#   at the `certs` volume's pair instead: the auto-generated leaf carries no `subjectAltName` at all, so a
+# * MySQL and MariaDB each generate their own CA and leaf at first boot, and this file points both at the
+#   `certs` volume's pair instead: the auto-generated leaf carries no `subjectAltName` at all, so a
 #   client that verifies a name -- the only kind `nvs_host::tls` has -- refuses it however good the
-#   anchor is. `/certs/ca.crt` is therefore its anchor too, exactly as PostgreSQL's is.
-# * MariaDB 11.4 does NOT, as this file configures it -- `ssl_cert` comes back empty from the running
-#   server, so it serves no certificate and nothing can verify it. Giving it the `certs` volume below is
-#   Stage 6's own work; until then `bun nv db-matrix` reports it `n/a` rather than running it.
+#   anchor is. `/certs/ca.crt` is therefore their anchor too, exactly as PostgreSQL's is.
 # * SQL Server generates one too and encrypts the login packet regardless, but keeps it inside the
 #   instance rather than on the filesystem, so there is no file to hand a client as an anchor.
 # * PostgreSQL, Redis and Mailpit do not, so the `certs` service below issues them one in a shared
@@ -172,19 +169,19 @@ services:
       - ${NOVIS_DB_SOCKET_DIR:-/mnt/host/wsl/novis-db}/mysql:/run/mysqld
 
   # ---------------------------------------------------------------------------------------------------
-  # MariaDB, on the 11.4 LTS line because that is the release that turns TLS on by itself.
-  # `healthcheck.sh` ships in the image; `--innodb_initialized` is the difference between a listening
-  # socket and a server that can serve.
+  # MariaDB, on its LTS line. `healthcheck.sh` ships in the image; `--innodb_initialized` is the
+  # difference between a listening socket and a server that can serve.
   #
   # Turning TLS on by itself is not the same as being verifiable, which is why the `certs` leaf is
-  # named here as it is for MySQL two blocks above: 11.4 generates its own certificate at first boot
+  # named here as it is for MySQL two blocks above: MariaDB generates its own certificate at first boot
   # with no `subjectAltName`, and a client that verifies a name -- the only kind `nvs_host::tls` has --
   # refuses it before any credential is offered. Naming the three files replaces that certificate with
   # the one `bun nv db-matrix` hands the client as its anchor, and without them this server is one
   # the matrix reports `n/a` rather than runs.
   # ---------------------------------------------------------------------------------------------------
   mariadb:
-    image: mariadb:11.4.13
+    # HOLD (revisit 2026-11-16): 12.3 is MariaDB's LTS line, which the `lts` tag names; 13.0 is a rolling release, supported only until the next one.
+    image: mariadb:12.3.3
     depends_on:
       certs:
         condition: service_completed_successfully
