@@ -203,6 +203,7 @@ pub mod signatures;
 /// a reader of a checker diagnostic about a `\u{...}` codepoint looks first.
 pub use nvs_syntax::string_lit;
 pub mod test_hooks;
+mod test_inherit;
 pub mod testing;
 pub mod ty;
 

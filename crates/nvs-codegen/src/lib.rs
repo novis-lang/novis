@@ -674,12 +674,11 @@ impl Unit {
     /// reference taken for the call.
     ///
     /// `class` names the function to call **and** the class that reaches the
-    /// receiver slot, which is one string because an inherited body is
-    /// compiled once, under the class that declares it: a method `Derived`
-    /// inherits is reached by naming `Base`, and then `static::` inside it
-    /// answers `Base` too. A hand caller that needs a derived called-class
-    /// wants the descriptor's own method table, which is
-    /// [`Self::call_on_new_instance`]'s path.
+    /// receiver slot. An inherited body is compiled once, under the class that
+    /// declares it, so a method `Derived` inherits is reached here by naming
+    /// `Base`, and then `static::` inside it answers `Base` too.
+    /// [`Self::call_static_as`] names the two apart, for a caller that needs
+    /// `Derived` as the called class.
     ///
     /// `None` when this unit declares no such class or compiled no such
     /// method, which is an internal inconsistency for a label that came out of
@@ -713,7 +712,33 @@ impl Unit {
         method: &str,
         args: &[nvs_runtime::Value],
     ) -> Option<Result<nvs_runtime::Value, i32>> {
-        let label = format!("{class}::{method}");
+        self.call_static_as(ctx, class, class, method, args)
+    }
+
+    /// [`Self::call_static`] with the called class named apart from the class
+    /// that declares the method: the compiled function is `declared::method`,
+    /// and slot 0 gets `called`'s descriptor, so `static::` inside the body
+    /// answers `called`. A `nvs test` runner calls a hook or fixture that a
+    /// subclass inherits this way.
+    ///
+    /// # Panics
+    ///
+    /// If `args` is not as long as the method's declared arity, for
+    /// [`Self::call_static`]'s reason.
+    ///
+    /// # Errors
+    ///
+    /// The status the call reported, with its message left on `ctx`.
+    pub fn call_static_as(
+        &self,
+        ctx: &mut nvs_runtime::Ctx,
+        declared: &str,
+        called: &str,
+        method: &str,
+        args: &[nvs_runtime::Value],
+    ) -> Option<Result<nvs_runtime::Value, i32>> {
+        let class = called;
+        let label = format!("{declared}::{method}");
         let target = self.raw_function(&label)?;
         // Both maps are filled per compiled function and `shapes` in the
         // earlier pass, so a hit in one is a hit in the other.
@@ -743,6 +768,10 @@ impl Unit {
     /// through that table would put one in slot 0 and shift every argument
     /// past it.
     ///
+    /// `declared` is the class whose compiled function is called, and `class`
+    /// the called class [`Self::call_static_as`] names: the two differ for a
+    /// fixture `class` inherits.
+    ///
     /// `None` when this unit compiled no such function, which is an internal
     /// inconsistency for a roster that came out of the same compile.
     ///
@@ -754,11 +783,12 @@ impl Unit {
         &self,
         ctx: &mut nvs_runtime::Ctx,
         fixtures: &mut nvs_runtime::Fixtures,
+        declared: &str,
         class: &str,
         method: &str,
         needs: &[String],
     ) -> Option<Result<(), i32>> {
-        let target = self.raw_function(&format!("{class}::{method}"))?;
+        let target = self.raw_function(&format!("{declared}::{method}"))?;
         let receiver =
             nvs_runtime::Value::class_desc(self.classes.desc(self.classes.id_of(class)?));
         Some(fixtures.build(ctx, method, target, receiver, needs))

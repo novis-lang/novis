@@ -308,6 +308,10 @@ pub struct Fixture {
     /// inferred from this spelling: `rule:testing/fixtures` resolves a request for one by
     /// **type**, and the name is what a diagnostic points at.
     pub method: String,
+    /// The label of the class that declares the method, whose compiled
+    /// function the runner calls. A subclass that inherits the fixture names
+    /// its ancestor here (`rule:testing/hook-inheritance`).
+    pub declared_in: String,
     /// What the method returns, which is what it supplies. This is the key of
     /// the whole roster, so it is the declared return type interned — a
     /// parameter asking for a fixture is matched against it with the same
@@ -342,11 +346,17 @@ struct RawRow {
 /// because they are two questions about one member list: a method carrying
 /// both markers is refused here at all, and that refusal is not one either
 /// pass could make alone.
+///
+/// A subclass's own parameters resolve against the fixtures it inherits as
+/// well, which [`crate::test_inherit::check_class`] returns. The inherited rows
+/// join the recorded tables once every class is checked
+/// ([`crate::test_inherit::merge`]).
 pub(crate) fn check_class_tests(decl: &ClassDecl, class: &QName, ctx: &Ctx<'_>, env: &mut Env<'_>) {
     let mut cases: Vec<TestCase> = Vec::new();
     let mut case_rows: Vec<Vec<RawRow>> = Vec::new();
     let mut fixtures: Vec<Fixture> = Vec::new();
     let mut fixture_spans: Vec<Span> = Vec::new();
+    let inherited = crate::test_inherit::check_class(decl, class, ctx, env);
     for member in &decl.members {
         let ClassMemberKind::Method(m) = &member.kind else {
             continue;
@@ -393,9 +403,18 @@ pub(crate) fn check_class_tests(decl: &ClassDecl, class: &QName, ctx: &Ctx<'_>, 
             let Some(ty) = check_fixture_shape(m, &method, class, env) else {
                 continue;
             };
-            if let Some(prior) = fixtures.iter().find(|already| already.ty == ty) {
+            let prior = fixtures
+                .iter()
+                .find(|already| already.ty == ty)
+                .map(|already| already.method.clone())
+                .or_else(|| {
+                    inherited
+                        .iter()
+                        .find(|(_, supplied, _)| *supplied == ty)
+                        .map(|(name, _, owner)| format!("{owner}::{name}"))
+                });
+            if let Some(prior) = prior {
                 let described = env.interner.describe(ty);
-                let prior = prior.method.clone();
                 env.diags.report(
                     Diagnostic::error(
                         code::E_DUPLICATE_DECLARATION,
@@ -413,6 +432,7 @@ pub(crate) fn check_class_tests(decl: &ClassDecl, class: &QName, ctx: &Ctx<'_>, 
             }
             fixtures.push(Fixture {
                 method,
+                declared_in: class.to_string(),
                 ty,
                 fixtures: Vec::new(),
             });
@@ -442,12 +462,17 @@ pub(crate) fn check_class_tests(decl: &ClassDecl, class: &QName, ctx: &Ctx<'_>, 
         });
         case_rows.push(rows);
     }
+    let inherited: Vec<(String, TypeId)> = inherited
+        .into_iter()
+        .map(|(name, ty, _)| (name, ty))
+        .collect();
     resolve_injections(
         class,
         &mut cases,
         &case_rows,
         &mut fixtures,
         &fixture_spans,
+        &inherited,
         env,
     );
     if !cases.is_empty() {
@@ -484,6 +509,7 @@ fn resolve_injections(
     case_rows: &[Vec<RawRow>],
     fixtures: &mut [Fixture],
     fixture_spans: &[Span],
+    inherited: &[(String, TypeId)],
     env: &mut Env<'_>,
 ) {
     if cases.is_empty() && fixtures.is_empty() {
@@ -492,6 +518,7 @@ fn resolve_injections(
     let roster: Vec<(String, TypeId)> = fixtures
         .iter()
         .map(|fixture| (fixture.method.clone(), fixture.ty))
+        .chain(inherited.iter().cloned())
         .collect();
     for (index, span) in fixture_spans.iter().enumerate() {
         let method = fixtures[index].method.clone();

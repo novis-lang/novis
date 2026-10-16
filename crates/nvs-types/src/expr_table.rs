@@ -1432,6 +1432,7 @@ pub struct ExprTypeTable {
     tests: FxHashMap<String, Vec<crate::testing::TestCase>>,
     fixtures: FxHashMap<String, Vec<crate::testing::Fixture>>,
     test_hooks: FxHashMap<String, crate::test_hooks::TestHooks>,
+    test_lineages: Vec<(String, Vec<String>)>,
     inline_snapshots: Vec<crate::testing::InlineSnapshot>,
     property_defaults: FxHashMap<String, Vec<(String, crate::defaults::ConstArg)>>,
     property_default_types: FxHashMap<Span, TypeId>,
@@ -1992,6 +1993,50 @@ impl ExprTypeTable {
     #[must_use]
     pub fn test_hooks(&self, label: &str) -> Option<&crate::test_hooks::TestHooks> {
         self.test_hooks.get(label)
+    }
+
+    /// Records that the class labelled `label` inherits a marked method from
+    /// one of `ancestors`, which are labels, nearest first. Read once, by
+    /// [`crate::test_inherit::merge`], which takes them.
+    pub(crate) fn record_test_lineage(&mut self, label: String, ancestors: Vec<String>) {
+        self.test_lineages.push((label, ancestors));
+    }
+
+    /// Every lineage [`Self::record_test_lineage`] recorded, taken out of the
+    /// table.
+    pub(crate) fn take_test_lineages(&mut self) -> Vec<(String, Vec<String>)> {
+        std::mem::take(&mut self.test_lineages)
+    }
+
+    /// Replaces the class labelled `label`'s three test tables with the ones
+    /// [`crate::test_inherit::merge`] built from it and its ancestors. An
+    /// empty table leaves no entry.
+    pub(crate) fn replace_test_tables(
+        &mut self,
+        label: &str,
+        tests: Vec<crate::testing::TestCase>,
+        fixtures: Vec<crate::testing::Fixture>,
+        hooks: crate::test_hooks::TestHooks,
+    ) {
+        self.tests.remove(label);
+        self.fixtures.remove(label);
+        self.test_hooks.remove(label);
+        if !tests.is_empty() {
+            self.tests.insert(label.to_owned(), tests);
+        }
+        if !fixtures.is_empty() {
+            self.fixtures.insert(label.to_owned(), fixtures);
+        }
+        if hooks != crate::test_hooks::TestHooks::default() {
+            self.test_hooks.insert(label.to_owned(), hooks);
+        }
+    }
+
+    /// Removes the `#[Test]` table of the class labelled `label`, which the
+    /// runner never constructs. Its fixtures and hooks stay for its subclasses
+    /// to read.
+    pub(crate) fn forget_tests(&mut self, label: &str) {
+        self.tests.remove(label);
     }
 
     /// Records `rule:routing/table-is-opt-in`'s finished route table — every `#[Route]` in the

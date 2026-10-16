@@ -154,6 +154,29 @@ pub(crate) struct AttributeTable<'a> {
     scopes: Vec<Scope>,
 }
 
+impl AttributeTable<'_> {
+    /// Whether `class`'s own method `method` carries the compiler-recognized
+    /// attribute `want`, each attribute resolved in the file and scope it was
+    /// written in. `crate::test_inherit` asks it of an ancestor that another
+    /// file may declare.
+    pub(crate) fn method_carries(&self, class: &QName, method: &str, want: &str) -> bool {
+        let Some(sites) = self
+            .classes
+            .get(class)
+            .and_then(|attrs| attrs.methods.get(method))
+        else {
+            return false;
+        };
+        sites.iter().any(|site| {
+            site.attr.member.is_none()
+                && site.attr.name.as_ref().is_some_and(|name| {
+                    let ctx = site_ctx(&self.scopes[site.scope]);
+                    crate::derive::resolves_to(span_text(site.src, name.span), want, &ctx)
+                })
+        })
+    }
+}
+
 #[derive(Default)]
 struct ClassAttrs<'a> {
     /// The declaration's own `#[...]` groups.

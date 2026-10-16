@@ -1,0 +1,81 @@
+--TEST--
+a subclass runs the hooks, fixtures and tests it inherits under its own name, an override by name replaces one and calls `parent::` to keep its steps, and an abstract base class runs no tests of its own, `rule:testing/hook-inheritance`
+--RUN--
+test
+--FILE--
+<?nvs
+use Core\Test;
+use Core\Test\AfterClass;
+use Core\Test\BeforeClass;
+use Core\Test\Fixture;
+
+final class Catalog {
+    public function constructor(public string $name) {}
+}
+
+abstract class DatabaseTest {
+    #[BeforeClass]
+    public static function openDatabase(): void {
+        echo "open database\n";
+    }
+
+    #[Fixture]
+    public static function catalog(): Catalog {
+        echo "build shop catalog\n";
+        return new Catalog("shop");
+    }
+
+    #[Test]
+    public function itConnects(Catalog $catalog): void {
+        Test::assertTrue($catalog->name != "");
+    }
+
+    #[AfterClass]
+    public static function closeDatabase(): void {
+        echo "close database\n";
+    }
+}
+
+// Declares nothing but a test of its own, which receives the inherited fixture.
+final class ShopTest extends DatabaseTest {
+    #[Test]
+    public function itReadsTheCatalog(Catalog $catalog): void {
+        Test::assertSame($catalog->name, "shop");
+    }
+}
+
+// Overrides the setup and the fixture by name.
+final class BlogTest extends DatabaseTest {
+    #[BeforeClass]
+    public static function openDatabase(): void {
+        parent::openDatabase();
+        echo "add blog posts\n";
+    }
+
+    #[Fixture]
+    public static function catalog(): Catalog {
+        echo "build blog catalog\n";
+        return new Catalog("blog");
+    }
+
+    #[Test]
+    public function itReadsTheCatalog(Catalog $catalog): void {
+        Test::assertSame($catalog->name, "blog");
+    }
+}
+--EXPECTF--
+  BlogTest
+open database
+add blog posts
+build blog catalog
+    ✓ itConnects                       %f ms
+    ✓ itReadsTheCatalog                %f ms
+close database
+  ShopTest
+open database
+build shop catalog
+    ✓ itConnects                       %f ms
+    ✓ itReadsTheCatalog                %f ms
+close database
+
+  0 failed, 4 passed, 0 skipped, 0 flaky in %d ms

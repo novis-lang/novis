@@ -241,6 +241,9 @@ pub fn check_program_loaded(
     // `rule:tooling/commands-are-compiled`'s duplicate command name, over the same enumeration and for
     // the same reason — see `crate::commands::check_table`.
     crate::commands::check_table(&commands, diags);
+    // `rule:testing/hook-inheritance`'s tables are built once every class has
+    // recorded its own, since a base class may be declared in a later file.
+    crate::test_inherit::merge(&module.graph, exprs);
     // § 4's fold, which is the second pass over the same table and the reason
     // the table is collected across the files rather than per file.
     crate::links::resolve(&routes, &links, exprs, diags);

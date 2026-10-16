@@ -69,6 +69,10 @@ use crate::{Ctx, Env, span_text};
 pub struct HookMethod {
     /// The method's own name, exactly as declared.
     pub method: String,
+    /// The label of the class that declares the method, whose compiled
+    /// function the runner calls. A subclass that inherits the hook names its
+    /// ancestor here (`rule:testing/hook-inheritance`).
+    pub declared_in: String,
     /// Whether the method declares a parameter, which the runner fills with a
     /// `Core\Test\Summary` or a `Core\Test\Outcome`.
     pub takes_value: bool,
@@ -239,6 +243,7 @@ pub(crate) fn check_class_hooks(decl: &ClassDecl, class: &QName, ctx: &Ctx<'_>, 
     for (hook, method, takes_value) in seen {
         let row = Some(HookMethod {
             method,
+            declared_in: class.to_string(),
             takes_value,
         });
         match hook {

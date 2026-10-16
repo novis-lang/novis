@@ -1511,7 +1511,7 @@ fn run_class_hook(
     argument: Option<nvs_runtime::Value>,
 ) -> Option<FixtureFailure> {
     let args: Vec<nvs_runtime::Value> = argument.into_iter().collect();
-    let failure = match unit.call_static(ctx, class, &hook.method, &args) {
+    let failure = match unit.call_static_as(ctx, &hook.declared_in, class, &hook.method, &args) {
         Some(Ok(_)) => None,
         Some(Err(status)) if status == nvs_runtime::EXITED => {
             Some(FixtureFailure::Exited(ctx.exit_code()))
@@ -1633,7 +1633,14 @@ fn build_fixtures(
         let Some(row) = roster.iter().find(|row| row.method == name) else {
             continue;
         };
-        match unit.build_fixture(ctx, fixtures, class, &row.method, &row.fixtures) {
+        match unit.build_fixture(
+            ctx,
+            fixtures,
+            &row.declared_in,
+            class,
+            &row.method,
+            &row.fixtures,
+        ) {
             Some(Ok(())) => {}
             Some(Err(status)) if status == nvs_runtime::EXITED => {
                 return Some(FixtureFailure::Exited(ctx.exit_code()));

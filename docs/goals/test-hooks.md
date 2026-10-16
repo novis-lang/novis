@@ -36,7 +36,7 @@ stages:
         rules: [testing/tests-run-across-every-core, testing/class-hooks, testing/runner-is-strict, concurrency/on-worker-runs-the-child-on-another-core]
   - id: 5
     title: a subclass inherits hooks, fixtures and tests
-    status: open
+    status: done
     context: [crates/nvs-types/src/testing.rs, crates/nvs-cli/src/runner.rs]
     extra:
       context:
@@ -164,8 +164,8 @@ returns. The language gains three attributes, and the rejection of a class-level
 
 **Does:** test collection reads inherited methods, so an inherited hook, fixture or test runs for each subclass under the subclass's name, and an override without its attribute does not compile.
 
-- [ ] Collect a class's inherited members as well as its own; today only `decl.members` is read. `crates/nvs-types/src/testing.rs:350`
-- [ ] The runner reports an inherited test under the subclass. `crates/nvs-cli/src/runner.rs:785`
+- [x] Collect a class's inherited members as well as its own. `crates/nvs-types/src/test_inherit.rs:1`
+- [x] The runner reports an inherited test under the subclass. `crates/nvs-cli/src/runner.rs:888`
 
 ### 6. the hooks remove a real file and a real database
 
@@ -185,31 +185,31 @@ returns. The language gains three attributes, and the rejection of a class-level
 
 ### State
 
-Stages 2 to 4 are done, and `hooks-compile`, `hooks-run` and `tests-parallel` are green. Each
-`#[Test]` is a `Job` (`crates/nvs-cli/src/runner.rs:1021`) posted to a worker core with
-`nvs_host::worker::post`. On that core the job builds its own parent context, decodes its fixtures
-(`nvs_runtime::CrossedFixtures::encode`/`decode`) and fills a coverage table of its own, which
-`StmtHits::add` folds into the run's. A `Queue` (`runner.rs:1226`) keeps the report in declaration
-order and runs `#[AfterClass]` when its class end reaches the front. Output is captured per test
-and printed under a failure; `--show-output` streams it, and `--RUN-- test --show-output --jobs 1`
-is the `.nvst` form that pins a passing test's output. Two safe defaults are now in the rule: a
-program that loads an extension runs its tests one at a time on the suite's thread, because the
-extension host is a thread-local `Rc`. `nvs_host::worker`'s `pick` tries an idle registered core
-before one it started. A `server: true` listener binds on the core its test runs on.
+Stages 2 to 5 are done, and `hooks-compile`, `hooks-run`, `tests-parallel` and `hooks-inherit`
+are green. Inheritance is `crates/nvs-types/src/test_inherit.rs`, and its module doc is the home
+of how it works. At check time it reads each ancestor's marked methods from the whole-program
+signature and attribute tables (`AttributeTable::method_carries`). It refuses an override that
+drops its attribute, and a second hook beside an inherited one. It also gives the class's own
+parameters the inherited fixtures. After the file loop, `merge` builds each subclass's tables
+and removes an abstract class's tests. An inherited static hook or fixture is called through
+`Unit::call_static_as` with its `declared_in` class, and the subclass as the called class.
 
 ### Next
 
-**Stage 5: a subclass inherits hooks, fixtures and tests**, file set:
-`crates/nvs-types/src/testing.rs`, `crates/nvs-cli/src/runner.rs`.
+**Stage 6: the hooks remove a real file and a real database**, file set:
+`crates/nvs-cli/src/runner.rs`.
 
-- [ ] Collect a class's inherited hooks, fixtures and tests as well as its own; today only `decl.members` is read (`rule:testing/hook-inheritance`). `crates/nvs-types/src/testing.rs:350`
-- [ ] An override of a hook that does not repeat its attribute does not compile (`rule:testing/hook-inheritance`). `crates/nvs-types/src/testing.rs:345`
-- [ ] The runner reports an inherited test under the subclass, with its own `Queue` entries (`rule:testing/hook-inheritance`). `crates/nvs-cli/src/runner.rs:888`
+- [ ] A runner test where `#[AfterEachTest]` removes the file each test wrote (`rule:testing/after-each-test`). `crates/nvs-cli/src/runner.rs:2393`
+- [ ] A runner test where `#[BeforeClass]` seeds a table in the compose PostgreSQL and `#[AfterClass]` drops it (`rule:testing/class-hooks`). `crates/nvs-cli/src/runner.rs:3497`
 
 ### Backlog
 
 - No runner test holds several `server: true` listeners open at once; the one-listener test passes
   on a worker core. `crates/nvs-cli/src/runner.rs:2016`
+- An abstract base's `#[Test]` that needs a type only its subclasses supply does not compile in the
+  base. An overridable fixture in the base is how to write that today. `crates/nvs-types/src/testing.rs:516`
+- An inherited fixture that needs an own fixture of the subclass is not in the cycle check, which
+  reads the class's own rows. `crates/nvs-types/src/testing.rs:@reject_fixture_cycles`
 - The three rules still read `"status": "designed"`; stage 7 flips them.
   `data/rules/testing/class-hooks.json`
 - The nightly CI dispatch runs on `origin/main`, which is far behind local `main` because the loop
