@@ -1,16 +1,28 @@
 ---
-title: Field paths
+title: Autocomplete for class property names in strings
 covers: []
-description: Build a small data mapper whose field names, paths and conditions are checked against your classes.
+description: Class property names in strings get autocomplete and typo checks. Build a query builder or an ORM on top of them.
 ---
 
 import Replay from '@components/Replay.astro'
 import Snippet from '@components/Snippet.astro'
 
+`orderBy("customer.email")` names class properties in a string. A property is a variable that
+belongs to a class, also called a field. In Novis, the editor completes these names, and a typo gets
+a red underline.
+
+This works because the string has its own type. `propertyPath<Order>` is a path of property names of
+`Order`. A string with holes, `string<propertyPath<Order>>`, can have several paths in one
+condition, such as `"{total} > ? AND {customer.city} = ?"`.
+
+Your code can split these strings. `Core\Str::parts` gives the text and the holes of a condition.
+`Core\Reflect::steps` gives one property for each name of a path. So you can build a query builder,
+an ORM or any other library that takes class property names.
+
 This page builds a small data mapper in six steps. Each step adds one thing, and each program runs.
 The mapper writes SQL text. It does not connect to a database.
 
-## One field
+## One property
 
 <Snippet src="guides/how-to-use/data-mapper/01-one-field.nvs" />
 
