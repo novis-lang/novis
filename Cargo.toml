@@ -1056,7 +1056,10 @@ anstyle = "1"
 
 # --- dev / test ---
 insta = "1"
-criterion = "0.7"
+# 0.8 brings `alloca`, a crate built from C through `cc`. Only the benches in
+# `benches/abi-probe` name criterion, so that C never reaches a shipped binary:
+# `bun nv gen-attribution --check-c-deps` does not list it.
+criterion = "0.8"
 
 # ---------------------------------------------------------------------------
 # Lint policy, and the one home for it. Most crates take it wholesale with
