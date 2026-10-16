@@ -11,9 +11,14 @@ This page says what is built and what comes next. It gives no dates.
 - The language: types, classes, enums, anonymous functions, `match`, errors, tests and tainted input.
 - The compiler to machine code, with an error code for every compiler error.
 - `nvs serve`, a web server with a limit for each request.
+- `nvs.toml`: settings, limits for memory and time, and the rights a program has.
 - The standard library: text, arrays, JSON, dates, HTTP, passwords, signed URLs and much more.
 - Databases: one API for SQLite, MySQL, MariaDB, PostgreSQL and SQL Server, with background jobs.
+  There is also a client for LDAP directories.
 - Tasks and channels, to run work at the same time inside one request.
+- Extensions: code in another language runs as sandboxed WebAssembly, with its own memory.
+- Components that come with Novis: images, PDF files, spreadsheets, and text for other languages and
+  countries.
 - Tests with `nvs test`, test doubles and code coverage.
 - A language server, and an extension for Visual Studio Code.
 
@@ -21,13 +26,13 @@ This page says what is built and what comes next. It gives no dates.
 
 These are in the order they are planned. The order can change.
 
-1. **Extensions.** Code in another language runs as sandboxed WebAssembly, with its own memory.
-2. **Better tools.** More features in the editor, and support for more editors.
-3. **A faster compiler.** A second compiler makes code faster when it runs many times.
-4. **Packages.** A registry for packages, with checks that protect you from a changed package.
-5. **A web framework.** Ready-made parts for larger web apps, written and maintained by the Novis project.
-6. **Documents.** Make and read PDF files and spreadsheets, and work with images.
+1. **Better tools.** A debugger, a profiler, and more features in the editor.
+2. **A faster compiler.** A second compiler makes code faster when it runs many times.
+3. **Packages.** A registry for packages, with checks that protect you from a changed package.
+4. **A web framework.** Ready-made parts for larger web apps, written and maintained by the Novis project.
+5. **More for images.** More image formats, and more ways to read and change an image.
 
 ## Release notes
 
-[What changed](/in-depth/what-changed/) lists the changes in each release.
+There is no release of Novis yet. [What changed](/in-depth/what-changed/) lists the changes in each
+release.

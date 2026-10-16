@@ -125,9 +125,10 @@ the program never runs with it.
 
 ### Runaway requests
 
-A runaway request is a request that never ends, or one that uses more and more memory. Novis has no
-limit for memory or CPU time by default, so this test sets both in the `[limits]` table. PHP stops
-these requests with `max_execution_time` and `memory_limit`, and both are on by default.
+A runaway request is a request that never ends, or one that uses more and more memory. By default,
+Novis stops a request at 128 MB of memory or 30 seconds of CPU time. This test sets both in the
+`[limits]` table. PHP stops these requests with `max_execution_time` and `memory_limit`, and both are
+on by default.
 
 ### Many waiting requests
 
