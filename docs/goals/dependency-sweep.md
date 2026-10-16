@@ -303,54 +303,49 @@ see changes.
 
 **Does:** `bun nv deps` lists every pin in the tree with its latest stable release, and `--check` fails on one that is behind with no `HOLD` line. The next sweep starts from its output.
 
-- [ ] Read every pin and compare it with its registry: the Cargo workspaces, the three `package.json` files, action SHAs, Dockerfile bases, the toolchain and the wasi-sdk pins. Hold lines are read. The tool never edits a file. `tools/nv/cmd/deps.ts:1`
-- [ ] `dependency-update.md` § *1. Orient* starts from `bun nv deps`. Its pin table gains the npm, Docker and wasi-sdk rows it is missing. `docs/agent/dependency-update.md:1`
+- [x] Read every pin and compare it with its registry: the Cargo workspaces, the three `package.json` files, action SHAs, Dockerfile bases, the toolchain and the wasi-sdk pins. Hold lines are read. The tool never edits a file. `tools/nv/cmd/deps.ts:1`
+- [x] `dependency-update.md` § *1. Orient* starts from `bun nv deps`. Its pin table gains the npm, Docker and wasi-sdk rows it is missing. `docs/agent/dependency-update.md:1`
+- [x] A `package.json` hold is `"holds": { "<package>": "HOLD (revisit <date>): <reason>" }`. TypeScript and `@types/node` in the extension have theirs, and the image and pdf components' blocked crates have their `HOLD` lines. `editors/vscode/package.json:380`, `extensions/image/Cargo.toml:18`
+- [ ] Move or hold every image `bun nv deps --check` names. `tests/db/compose.yaml:76`, `benches/compare/compose.bun.yaml:10`
 
 ## Handoff
 
 ### State
 
-Stages 1 to 9 are done. Stage 10 is next.
-- Every action pin is its latest release. Seven moved within their majors, and the `# vX` comments
-  keep the major, as the rest of the workflows do. dtolnay's nightly branch is at `2c76c034`.
-- The release images are on `cc-debian13:nonroot` and `debian:trixie-slim` (`docker/Dockerfile:20`).
-  Both bases were checked by hand for zoneinfo, `libgcc_s`, `/etc/passwd` and glibc 2.41.
-  `docs/docker.md` and the website's Docker guide say Debian 13. The release binaries still link
-  on `ubuntu-22.04`, glibc 2.35. No image has been built around a binary on trixie yet, so CI's
-  `container images` job runs `tests/docker/smoke.sh` on it for the first time.
-- The Go bench runs on alpine 3.24.2. Its image built here and has `nc` and `cat`. `cargo-geiger`
-  is pinned to 0.14.0 (`.github/workflows/ci.yml:1000`).
-- PHP 8.5.11 is on the Windows `PATH` and in WSL, and the bench compose files pull
-  `php:8.5.11-fpm`. Leg F, `bun nv bench --check`, passes 21 of 21. Leg F's text named a
-  differential comparison that no longer exists, and now names that command
-  (`docs/agent/dependency-update.md:110`).
-- The plan's Toolchain field says Cranelift 0.136, wasmtime 49, MSVC 14.50 and PHP 8.5.11.
-- Other container images are behind or not checked, and stage 10's command is what reads them:
-  `oven/bun:1.3.5-slim` against the tree's Bun 1.4.3 (`benches/compare/compose.bun.yaml:10`),
-  `nginx:1.29.3-alpine`, `golang:1.27.2-alpine` and the `tests/db/compose.yaml` images.
-- Two editor pins are behind, with reasons, but `package.json` has no place for a `HOLD` line yet:
-  TypeScript stays on `~6.0.3` because typescript-eslint 8.71 allows `<6.1.0`, and `@types/node`
-  stays on 20 because `engines.vscode` `^1.97` runs Node 20.
+Stages 1 to 9 are done. Stage 10 has its command, and only images are left behind.
+- `bun nv deps` reads 293 pins and `--check` fails on 11, every one a container image. 12 pins are
+  held and 4 are floating tags (`trixie-slim`, `cc-debian13:nonroot`), which it does not compare.
+  What it reads and how it judges is its head comment (`tools/nv/cmd/deps.ts:1`), and its readers
+  are tested offline (`tools/nv/test/deps.test.ts`). A run takes about a minute, most of it the
+  Docker Hub tag lists of `php`, `nginx` and `mysql`.
+- A `package.json` hold is a `holds` object keyed by package (`editors/vscode/package.json:380`).
+  TypeScript `~6.0.3` and `@types/node` 20 are held there. The image component holds
+  `color_quant`, `harfrust` and `moxcms`, and pdf holds `base64` and `usvg`, each with the parent
+  that pins it (`extensions/image/Cargo.toml:18`, `extensions/pdf/Cargo.toml:16`).
+- The images behind: `alpine/openssl` 3.5.9 and `mailpit` v1.31.6 are patch moves. `oven/bun`
+  1.4.3-slim matches the tree's Bun. `nginx` 1.31.7-alpine is in three bench compose files.
+  `redis` 8.10.2, `mariadb` 13.0.2 (from the 11.4 LTS), `mysql` 26.7.0 (from the 8.4 LTS), SQL
+  Server 2025-CU9 on ubuntu-24.04, and a new `smblds` digest for `latest` are in
+  `tests/db/compose.yaml`.
+- The release images are on `cc-debian13:nonroot` and `debian:trixie-slim`. No image has been built
+  around a binary on trixie yet, so CI's `container images` job runs `tests/docker/smoke.sh` on it
+  for the first time.
 - The floor's `tests/hostile/core/Zip/extract/01-many-files-a-taken-name-and-a-deep-folder.nvs`
   passes, but takes 22 s alone in a debug build against its 30 s timeout, and fails under the
   sweep's load. Each folder level walks from the root again, so an entry costs O(depth²)
   (`crates/nvs-stdlib/src/zip.rs:894`). The fix is a linear walk, not a longer timeout.
-- The root lock's holds are unchanged: `wit-parser`, `wasmparser` and `wit-component` wait for
-  wasmtime (`Cargo.toml:372`), and so do `brotli-decompressor` (`Cargo.toml:948`) and
-  `fallible-iterator` (`Cargo.toml:1010`). pdf holds `hayro-interpret` at 0.7
-  (`extensions/pdf/Cargo.toml:18`), because krilla 0.8.2 reads a `hayro-syntax` 0.7 `Pdf`.
-- The nightly run 38869457440 tested `cb7021a24`, 798 commits behind `HEAD`, so its ten red jobs
-  say nothing about this tree.
+- The nightly run 38869457440 tested `cb7021a24`, 803 commits behind `HEAD`, because `main` is
+  not pushed. Its ten red jobs say nothing about this tree.
 
 ### Next
 
-**Stage 10: a command says what is behind.** Files: a new `tools/nv/cmd/deps.ts`,
-`tools/nv/main.ts` and `docs/agent/dependency-update.md`.
+**Stage 10: the images `bun nv deps --check` names.** Files: `tests/db/compose.yaml` and the
+compose files under `benches/compare/` and `benches/proxied/`. Then the goal-end gates and `DONE`.
 
-- [ ] `bun nv deps` reads every pin and compares it with its registry: the Cargo workspaces, the three `package.json` files, action SHAs, Dockerfile and compose images, the toolchain and the wasi-sdk pins. It reads `HOLD` lines and never edits a file. `tools/nv/main.ts:1`, `Cargo.toml:346`
-- [ ] Decide how a `package.json` hold is written, and give TypeScript `~6.0.3` and `@types/node` 20 theirs. `editors/vscode/package.json:1`
-- [ ] `dependency-update.md` § *1. Orient* starts from `bun nv deps`, and its pin table gains the npm, Docker and wasi-sdk rows. `docs/agent/dependency-update.md:1`
-- [ ] Move or hold what `bun nv deps --check` names, starting with the bench and test images above. `benches/compare/compose.bun.yaml:10`, `tests/db/compose.yaml:76`
+- [ ] The bench images: `oven/bun` 1.4.3-slim and `nginx` in all three files, one commit each, each checked with `bun nv bench-compare` or `bun nv bench-proxied` against one peer. `benches/compare/compose.bun.yaml:10`, `benches/compare/compose.common.yaml:15`
+- [ ] The test services' patch moves, `alpine/openssl` and `mailpit`, and `redis` 8.10. Run `bun nv db-matrix` against each moved service. `tests/db/compose.yaml:76`, `tests/db/compose.yaml:301`
+- [ ] MySQL, MariaDB, SQL Server and `smblds`: move each and run its matrix, or hold it with the reason. A move off an LTS line is a real choice, so a hold that names the LTS is the safe default. `tests/db/compose.yaml:133`, `tests/db/compose.yaml:392`
+- [ ] `bun nv deps --check` exits 0, then `bun nv verify --doc` and `bun nv owners --closes dependency-sweep`.
 
 ### Backlog
 
