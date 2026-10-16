@@ -243,12 +243,12 @@ see changes.
 
 **Does:** every root workspace crate is at its latest stable or holds, the lock is refreshed, and `cargo deny check` and the attribution file are current.
 
-- [ ] `cargo update` inside the ranges. hyper 1.12 and 76 other moves add `simdutf8`, `core_detect` and `multiversion_no_op`, so the attribution file must be regenerated. `Cargo.toml:1`
-- [ ] The RustCrypto group moves to digest 0.11, and the alias goes. `hmac` 0.13's `EagerHash` bound changes the `mac!` macro. The comment that claims one digest generation is rewritten. `crates/nvs-stdlib/src/hash.rs:861`, `Cargo.toml:641`
-- [ ] base64 0.23: `InvalidLastSymbol` becomes a struct variant, and SIMD is off. `crates/nvs-stdlib/src/encoding.rs:972`
-- [ ] toml 1.x. `crates/nvs-config/src/request.rs:459`
-- [ ] criterion 0.8. Its new `alloca` C dependency is dev-only. `Cargo.toml:1055`
-- [ ] The five unused rows are removed. `Cargo.toml:412`
+- [x] `cargo update` inside the ranges. hyper 1.12 and 76 other moves add `simdutf8`, `core_detect` and `multiversion_no_op`, so the attribution file must be regenerated. `Cargo.toml:1`
+- [x] The RustCrypto group moves to digest 0.11, and the alias goes. `hmac` 0.13's `EagerHash` bound changes the `mac!` macro. The comment that claims one digest generation is rewritten. `crates/nvs-stdlib/src/hash.rs:861`, `Cargo.toml:641`
+- [x] base64 0.23: `InvalidLastSymbol` becomes a struct variant, and SIMD is off. `crates/nvs-stdlib/src/encoding.rs:972`
+- [x] toml 1.x. `crates/nvs-config/src/request.rs:459`
+- [x] criterion 0.8. Its new `alloca` C dependency is dev-only. `Cargo.toml:1055`
+- [x] The five unused rows are removed. `Cargo.toml:412`
 - [ ] Every blocked row has its `HOLD` line. `Cargo.toml:1`
 
 ### 5. html5ever 0.40 with the patch carried over
@@ -310,35 +310,37 @@ see changes.
 
 ### State
 
-Stages 1, 2 and 3 are done. The engine is wasmtime 49.0.3, cranelift 0.136 and `object` 0.40, with
-`wit-parser`, `wasmparser` and `wit-component` at 0.258. `nvs_ext::call::PROPOSALS` names the wasm
-features the engine enables, and `crates/nvs-ext/tests/proposals.rs` proves the four built-in
-components load under it. wasmtime 50 is only `50.0.0-rc.1`, so a `HOLD (revisit 2026-11-16)` line
-sits above `wasmtime` in `Cargo.toml`.
-The coroutines are corosensei 0.3.4. Its 0.3.1 forced unwind takes a normal return as the end of the
-unwind and no longer panics on a swallowed marker. So `nvs_runtime::Teardown`'s doc now gives the
-reason it keeps: without it, the code after `run_task` or `run_helper` runs during a teardown.
-`looper verify` and `engine-guards` are green on Windows.
-- Not checked: the canary, the engine and corosensei 0.3 on Linux and macOS, and the `nvs ext new`
-  template built and loaded under the narrowed proposal set.
+Stages 1, 2 and 3 are done. Stage 4 has one item left. On disk, one commit each: the in-range
+`cargo update` (hyper 1.12), the five unused rows removed, base64 0.23 with
+`default-features = false`, toml 1, criterion 0.8, and the RustCrypto group on `digest 0.11` (sha2,
+sha1 and md-5 0.11, sha3 0.12, hmac 0.13, no `sha2-v11` alias).
+- sha3 0.12 has no `EagerHash`, so the SHA-3 HMACs use `hmac::SimpleHmac`
+  (`crates/nvs-stdlib/src/hash.rs:846`). The existing vectors pass.
+- base64's `simd-unsafe` is on only in `nvs-ext`'s test build, through `usvg` in the native image
+  build. The shipped graph has none (`Cargo.toml:818`).
+- `cargo deny check` passes. Its `RUSTSEC-2026-0206` ignore is not matched in the root lock,
+  because it covers the PDF component's own lock.
+- `engine-guards` and the canary are green on Windows. Not checked: Linux and macOS, and the
+  `nvs ext new` template under the narrowed proposal set.
 - The nightly run 38701926032 tested `cb7021a24`, an old commit. Its red jobs are not this tree's
   until the user pushes.
-- Under a cold rebuild, `ldap` and `live_edit` fail beside the other binaries and pass alone.
+- `live_edit`'s `a_file_that_changes_during_a_compile_discards_that_compile` failed in two gate runs
+  out of four this session, beside `spreadsheet_read` and `parallel_tests_overlap_on_more_than_one_core`.
+  Each passed alone.
 
 ### Next
 
-**Stage 4, the workspace crates.** Files: the root `Cargo.toml` and `Cargo.lock`, `THIRD-PARTY-LICENSES.txt` (`rule:packaging/one-bump-one-commit`).
+**Stage 4's last item, then stage 5.** Files: the root `Cargo.toml`, `vendor/html5ever/`, `fuzz/`.
 
-- [ ] `cargo update` inside the ranges, then `bun nv gen-attribution`. hyper 1.12 comes in here, with no new limit set. `Cargo.toml:1`
-- [ ] The five unused rows go: `smallvec`, `indexmap`, `postgres-types`, `anstream` and `proptest`. Check with `grep` that no member manifest names them first. `Cargo.toml:413`, `Cargo.toml:981`, `Cargo.toml:1050`
-- [ ] criterion 0.8. Its new `alloca` C dependency is dev-only. `Cargo.toml:1056`
-- [ ] Then toml 1.x and base64 0.23, one commit each. `Cargo.toml:574`, `Cargo.toml:820`
+- [ ] A `HOLD` line above `fallible-iterator`, because `postgres-protocol` 0.6 uses 0.2. `cargo update --verbose` lists 14 crates behind latest: each gets a hold or a bump. `Cargo.toml:1004`
+- [ ] Re-vendor html5ever 0.40.1 and carry the hunks from 6a9030d4c over. `vendor/html5ever/Cargo.toml:1`
+- [ ] The three `[patch]` rows and `markup5ever` 0.40 move together. `Cargo.toml:1180`
 
 ### Backlog
 
 - The user pushes `main`, so the nightly tests the current tree (`.github/workflows/ci.yml:7`), and decides on `looper sync`: `looper lint` says `AGENTS.md`'s managed text and `.claude/settings.json` drifted.
 - Proof debt: the stale perf records and the `Core\Test\Outcome`/`Summary` proofs (`bun nv proofs --owed`).
-- Load flakes: `ldap` deadlines and the `live_edit` 30 s wait (`crates/nvs-cli/tests/live_edit.rs:1010`). Linux only: `crates/nvs-cli/tests/run_command.rs:688`, and the scaling margin (`crates/nvs-cli/src/serve.rs:3957`).
+- Load flakes: `ldap` deadlines, the `live_edit` 30 s wait (`crates/nvs-cli/tests/live_edit.rs:1010`), `spreadsheet_read` and `parallel_tests_overlap_on_more_than_one_core` (`crates/nvs-cli/src/runner.rs:4100`). Linux only: `crates/nvs-cli/tests/run_command.rs:688`, and the scaling margin (`crates/nvs-cli/src/serve.rs:3957`).
 - wasmtime 50.0.0 final and cranelift 0.137, held at `Cargo.toml:346`: move the epoch callback's fuel refresh out, because `StoreHookState` has no `set_hostcall_fuel` (`crates/nvs-ext/src/call.rs:1075`), and drop the `new_own` workaround and its playbook bullet (`crates/nvs-ext/src/handle.rs:176`).
 - hyper 1.12's `max_header_size` is a question for the user (`crates/nvs-server/src/serve.rs`).
 - The user mirrors any `.github/dependabot.yml` change on `landing` and decides about MSVC 14.50 (`docs/setup.md`).
