@@ -44,7 +44,7 @@ stages:
         shapes: ["A `.nvst` test case"]
   - id: 6
     title: the hooks remove a real file and a real database
-    status: open
+    status: done
     context: [crates/nvs-cli/src/runner.rs]
     extra:
       context:
@@ -81,6 +81,11 @@ checks:
     name: a subclass runs an inherited hook, fixture and test under its own name, and an override without its attribute does not compile
     run: [bun, nv, suite, tests/conformance/, --case, tests/conformance/lang/a-subclass-inherits-hooks-and-fixtures.nvst, --case, tests/conformance/reject/an-override-of-a-hook-repeats-its-attribute.nvst]
     tests: [tests/conformance/lang/a-subclass-inherits-hooks-and-fixtures.nvst, tests/conformance/reject/an-override-of-a-hook-repeats-its-attribute.nvst]
+  - id: hooks-real
+    stage: 6
+    name: "`#[AfterEachTest]` removes a real file, and the class hooks seed and drop a real PostgreSQL table"
+    run: [cargo, test, --bin, nvs, "runner::tests::a_hook_"]
+    tests: [a_hook_removes_the_file_each_test_wrote, a_hook_seeds_a_table_before_the_tests_and_drops_it_after_them]
   - id: owners-closes
     stage: 7
     name: no designed rule or gap names this goal
@@ -171,7 +176,8 @@ returns. The language gains three attributes, and the rejection of a class-level
 
 **Does:** a runner test shows a file removed by `#[AfterEachTest]` and a database seeded by `#[BeforeClass]` and dropped by `#[AfterClass]`, under the grants the program already gives a test.
 
-- [ ] The database case over the compose PostgreSQL the `db:` runner tests already open. `crates/nvs-cli/src/runner.rs:2759`
+- [x] The file case: `#[AfterEachTest]` removes what a passing and a failing test wrote. `crates/nvs-cli/src/runner.rs:3661`
+- [x] The database case over the compose PostgreSQL the `db:` runner tests already open. `crates/nvs-cli/src/runner.rs:3602`
 
 ### 7. the feature proofs, and fixture examples with a real cost
 
@@ -185,22 +191,23 @@ returns. The language gains three attributes, and the rejection of a class-level
 
 ### State
 
-Stages 2 to 5 are done, and `hooks-compile`, `hooks-run`, `tests-parallel` and `hooks-inherit`
-are green. Inheritance is `crates/nvs-types/src/test_inherit.rs`, and its module doc is the home
-of how it works. At check time it reads each ancestor's marked methods from the whole-program
-signature and attribute tables (`AttributeTable::method_carries`). It refuses an override that
-drops its attribute, and a second hook beside an inherited one. It also gives the class's own
-parameters the inherited fixtures. After the file loop, `merge` builds each subclass's tables
-and removes an abstract class's tests. An inherited static hook or fixture is called through
-`Unit::call_static_as` with its `declared_in` class, and the subclass as the called class.
+Stages 2 to 6 are done, and every check but the reach check `owners-closes` is green. Stage 6's
+check `hooks-real` runs `runner::tests::a_hook_`: a file test over
+`crates/nvs-cli/tests/fixtures/runner/after-each-test-removes-a-file.nvs` (its folder reaches the
+program as `io.temp_root` in a hand-built snapshot), and a PostgreSQL test over
+`class-hooks-seed-and-drop-a-table.nvs`, run twice with `--filter`, the second run checking the
+table is gone. Both were seen to fail with the hook's delete removed. The DB test skips without the
+compose servers, and ran against them this session.
 
 ### Next
 
-**Stage 6: the hooks remove a real file and a real database**, file set:
-`crates/nvs-cli/src/runner.rs`.
+**Stage 7: the feature proofs, and fixture examples with a real cost**, file set:
+`docs/examples/lang/testing/core-test-fixture-built-once-injected-by-type/` and
+`website/src/content/docs/syntax/testing/fixtures-and-assertions.mdx`.
 
-- [ ] A runner test where `#[AfterEachTest]` removes the file each test wrote (`rule:testing/after-each-test`). `crates/nvs-cli/src/runner.rs:2393`
-- [ ] A runner test where `#[BeforeClass]` seeds a table in the compose PostgreSQL and `#[AfterClass]` drops it (`rule:testing/class-hooks`). `crates/nvs-cli/src/runner.rs:3497`
+- [ ] Example 03 around setup that costs time, and `about.md`'s sentence on why (`rule:testing/fixtures`). `docs/examples/lang/testing/core-test-fixture-built-once-injected-by-type/03-setup-that-happens-once.nvs:1`
+- [ ] The hooks' feature proofs (`rule:testing/feature-proofs`); `nv proofs --id` takes a feature id, not a rule id. `docs/examples/lang/testing/core-test-fixture-built-once-injected-by-type/about.md:1`
+- [ ] The three rules flipped to `shipped` with guard tests, then `bun nv owners --closes test-hooks`. `data/rules/testing/class-hooks.json:2`
 
 ### Backlog
 
@@ -210,10 +217,8 @@ and removes an abstract class's tests. An inherited static hook or fixture is ca
   base. An overridable fixture in the base is how to write that today. `crates/nvs-types/src/testing.rs:516`
 - An inherited fixture that needs an own fixture of the subclass is not in the cycle check, which
   reads the class's own rows. `crates/nvs-types/src/testing.rs:@reject_fixture_cycles`
-- The three rules still read `"status": "designed"`; stage 7 flips them.
-  `data/rules/testing/class-hooks.json`
-- The nightly CI dispatch runs on `origin/main`, which is far behind local `main` because the loop
-  never pushes. Its failures repeat until the user pushes. `tools/nv/cmd/sweep.ts`
+- The nightly CI dispatch runs on `origin/main`, 690 commits behind local `main` at this session
+  because the loop never pushes. Its failures repeat until the user pushes. `tools/nv/cmd/sweep.ts`
 - Not checked at HEAD: the Linux watcher test
   (`crates/nvs-cli/tests/run_command.rs:687`), the one-to-four core scaling margin
   (`crates/nvs-cli/src/serve.rs:3957`, it failed on one OS and then the other, so it may be flaky)
