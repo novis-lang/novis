@@ -83,10 +83,6 @@
 //! source file is bounded by the caller's own memory ceiling and the parser's
 //! 96-level nesting limit bounds the depth, so both this walk and
 //! [`nvs_core_ast_node_nodes`]'s recurse on a bounded stack.
-//!
-//! # Known gaps
-//!
-//! Each gap is a record, and `bun nv gaps --module crates/nvs-stdlib/src/ast.rs` lists them.
 
 use nvs_runtime::{Fault, NvsArray, NvsStr, Tag, ThrownClass, Value};
 

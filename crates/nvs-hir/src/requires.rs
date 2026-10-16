@@ -161,7 +161,7 @@ pub struct Loaded {
     /// to re-derive all three — a second copy of the rule, and one that would
     /// disagree the moment [`check_path_case`] or the cycle check changed.
     /// `nvs-ir` needs exactly this to call a required file's own script frame
-    /// at the `require` site (`nvs-ir`'s known gap 22), and its span key is
+    /// at the `require` site, and its span key is
     /// what survives both the `Stmt` move above and the crate boundary.
     ///
     /// A path that is not a literal, that resolves to nothing loadable, or

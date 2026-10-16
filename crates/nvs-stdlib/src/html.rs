@@ -136,10 +136,6 @@
 //! A *balanced* control passes through: mixed-direction text is what those
 //! code points are for, and `rule:security/bidi-predicate`'s whole position is that banning them
 //! breaks Arabic and Hebrew.
-//!
-//! # Known gaps
-//!
-//! Each gap is a record, and `bun nv gaps --module crates/nvs-stdlib/src/html.rs` lists them.
 
 use std::borrow::Cow;
 use std::cell::{Ref, RefCell};

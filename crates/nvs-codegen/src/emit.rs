@@ -3818,7 +3818,7 @@ impl Emitter<'_, '_> {
             // the IR deliberately does not require a dense or sorted one —
             // and its one producer keeps the arms few (one per `yield` in a
             // generator, plus the entry and the exhausted arm). A `br_table`
-            // over a dense case set is one of this module's known gaps.
+            // over a dense case set is one of the crate's known gaps.
             Terminator::Switch {
                 value,
                 arms,

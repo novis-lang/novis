@@ -819,9 +819,8 @@ impl RowValues {
         self.keep(Value::float(value))
     }
 
-    /// `nvs_types::ConstArg::Str`, already cooked by the checker — one fresh
-    /// allocation per call, which is what a written string literal costs at
-    /// its own site too (`nvs-codegen`'s known gap 4).
+    /// `nvs_types::ConstArg::Str`, already cooked by the checker. Each call
+    /// makes one fresh allocation.
     pub fn str(&mut self, text: &str) -> Value {
         self.keep(Value::str(crate::string::NvsStr::new(text.as_bytes())))
     }

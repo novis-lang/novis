@@ -455,11 +455,9 @@ impl NvsStr {
     /// # Panics
     ///
     /// Aborts the process through [`handle_alloc_error`] if the allocator
-    /// fails. A request-attributable out-of-memory is
-    /// `rule:errors/escalation-ladder`'s
-    /// resource-limit tier and belongs to the per-request arena that does not
-    /// exist yet (known gap 3 in the crate docs); until it does, the global
-    /// allocator's own behaviour is the honest one.
+    /// fails. A producer that can be refused at the request's memory ceiling
+    /// uses [`Self::try_build`] instead, which returns `None` there
+    /// (`rule:errors/an-allocation-past-the-ceiling-is-refused-in-front-of-itself`).
     #[must_use]
     pub fn new(bytes: &[u8]) -> Self {
         Self::from_pieces(&[bytes])

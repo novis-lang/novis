@@ -602,9 +602,8 @@ impl<'a> Lowering<'a> {
     /// convention a `Core` member is reached through — learns that defaults
     /// exist at all.
     ///
-    /// A `ConstArg::Str` allocates a fresh string per evaluation, exactly as a
-    /// written string literal does today (`nvs-codegen`'s known gap 4); it is
-    /// the same `InstKind::ConstStr` and closing that gap closes both.
+    /// A `ConstArg::Str` is the same `InstKind::ConstStr` a written string
+    /// literal lowers to.
     /// `ConstArg::Bytes` is that entry under `Ty::Bytes` — one allocation,
     /// one tag apart — and it is the only way a `bytes` constant enters a
     /// program at all, since the language has no `bytes` literal.

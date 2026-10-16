@@ -280,10 +280,6 @@
 //! question. One class answers "this data does not fit that type" at both
 //! doors, and the split is the point: a `DbError` is what the server said, a
 //! `ParseError` is what the shape said.
-//!
-//! # Known gaps
-//!
-//! Each gap is a record, and `bun nv gaps --module crates/nvs-stdlib/src/db/mod.rs` lists them.
 
 use std::net::{SocketAddr, ToSocketAddrs as _};
 

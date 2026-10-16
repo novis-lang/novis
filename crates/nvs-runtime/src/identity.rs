@@ -82,8 +82,8 @@
 //! slow comparison, never a stack overflow, which would be a security hole. It
 //! cannot loop: an array is a copy-on-write *value*, so storing one into
 //! itself separates the copy first and no array ever reaches itself, and an
-//! object — the one shape that can form a cycle (crate docs, known gap 7) —
-//! is compared by pointer without being walked.
+//! object, the one shape that can form a cycle, is compared by pointer
+//! without being walked.
 //!
 //! The cost is one worklist `Vec` per comparison that reaches a nested array,
 //! and nothing at all for the scalar and string cases, which is every

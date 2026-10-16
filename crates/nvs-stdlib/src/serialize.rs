@@ -170,10 +170,9 @@ nvs_runtime::nvs_helper! {
                 args[0].tag_byte()
             ))
         })?.to_vec();
-        // The resolver is the program's own class table — `rule:classes/serialize-is-a-closed-format`'s "a
-        // payload naming a class the receiving side cannot resolve is refused,
-        // naming the class". `nvs_runtime::graph`'s known gap 2 owns what that
-        // leaves out.
+        // The resolver is the program's own class table, so a payload naming a
+        // class this program does not declare is refused, naming the class
+        // (`rule:classes/serialize-is-a-closed-format`).
         let resolve = |name: &str| ctx.class_desc(name);
         nvs_runtime::decode(&payload, &resolve).map_err(|why| {
             Fault::thrown_as(

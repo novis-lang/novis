@@ -97,10 +97,6 @@
 //! and `::map` return with nothing still running — so the only way to fail
 //! this is a `spawn script` the test never awaited.
 //!
-//! # Known gaps
-//!
-//! Each gap is a record, and `bun nv gaps --module crates/nvs-cli/src/runner.rs` lists them.
-//!
 //! # What a constructor, a fixture and class order do
 //!
 //! A constructor that declares parameters is

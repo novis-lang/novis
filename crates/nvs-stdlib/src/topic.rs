@@ -669,8 +669,8 @@ fn externalize(value: Value) -> Result<Vec<u8>, Fault> {
 /// nobody, which is § 4's rule and is the same guarantee the local walk's
 /// copy-per-subscriber gives. An envelope naming a class this program cannot
 /// resolve is dropped rather than thrown: the connection running this drain
-/// did not publish it and has no answer to give, and the resolver is the
-/// draining program's own class table (`nvs_runtime::graph`'s known gap 2).
+/// did not publish it and has no answer to give. The resolver is the
+/// draining program's own class table.
 pub(crate) fn deliver_from_other_cores(ctx: &Ctx) {
     // The drain is held for the whole fan-out and freed by the bus, on the
     // balance the publishing core allocated it on — `crate::bus`'s accounting

@@ -130,10 +130,6 @@
 //! offender and its line — `--INI--` and `--ORACLE--` among them — so a case
 //! never runs with part of what it wrote silently ignored.
 //!
-//! ## Known gaps
-//!
-//! Each gap is a record, and `bun nv gaps --module crates/nvs-test/src/lib.rs` lists them.
-//!
 //! ## What the request sections change
 //!
 //! The seven request sections **are** honoured, and they are the one thing in

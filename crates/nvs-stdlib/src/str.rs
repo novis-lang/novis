@@ -79,10 +79,6 @@
 //! **Replaces** column lists both PHP spellings against one Novis member on
 //! purpose (R13: "no member takes an encoding argument"), so the byte-wise
 //! behaviour has no surviving spelling to be compatible with.
-//!
-//! # Known gaps
-//!
-//! Each gap is a record, and `bun nv gaps --module crates/nvs-stdlib/src/str.rs` lists them.
 
 use std::cmp::Ordering;
 

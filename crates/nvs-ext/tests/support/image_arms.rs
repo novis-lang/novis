@@ -20,9 +20,9 @@ use nvs_ext::load::{Extension, Loader};
 use nvs_image::ops::Resize;
 use nvs_image::{Encoding, Format, Input, Op, Output, Pixels, Plan};
 
-/// The size of the generated frame. Its RGBA8 rows cross the boundary one `Val` per byte, and
-/// wasmtime's hostcall fuel caps what a guest returns at 128 MiB of `Val`s, so a frame much past
-/// 800x600 traps on the way out (`data/gaps/nvs-ext/bytes-cross-one-val-per-byte.json`).
+/// The size of the generated frame. Its RGBA8 rows cross the boundary one `Val` per byte, so a
+/// bigger frame costs the arm far more in crossing than in decoding
+/// (`data/gaps/nvs-ext/bytes-cross-one-val-per-byte.json`).
 pub(crate) const WIDTH: u32 = 800;
 pub(crate) const HEIGHT: u32 = 600;
 /// The width the resize job scales the frame to. The height follows the aspect ratio.

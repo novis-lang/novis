@@ -110,10 +110,6 @@
 //! charged to the request and held until the last attempt is done with it — except a
 //! `Core\Http\Part::file`, which is a descriptor and a chunk rather than the file
 //! ([`transport::Piece`]). What the exchange itself spends is [`transport`]'s to state.
-//!
-//! # Known gaps
-//!
-//! Each gap is a record, and `bun nv gaps --module crates/nvs-stdlib/src/http.rs` lists them.
 
 mod pool;
 pub(crate) mod socket;

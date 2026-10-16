@@ -98,14 +98,13 @@
 //! `finalize_definitions`, which is the first moment a compiled function has
 //! an address.
 //!
-//! That is a *name* lookup, not a vtable index, and deliberately: the only
-//! call shape that reaches it today is `static::method()`/`new static()`,
-//! where the class is unknown until run time. An ordinary `$obj->method()` is
-//! still resolved statically from the receiver's declared type
-//! (`nvs-codegen`'s known gap 1), so nothing on the hot path pays for this.
-//! Turning that gap into real virtual dispatch wants a compile-time slot index
-//! rather than a name — a separate decision, on a table this one already
-//! builds.
+//! That is a *name* lookup, not a vtable index. Three call shapes reach it:
+//! `static::method()`/`new static()`, a call resolving to a declaration with
+//! no body, and an instance call whose declaration something in the program
+//! overrides. Every other `$obj->method()` binds to a label from the
+//! receiver's declared type, so nothing on that path pays for this. A
+//! compile-time slot index in place of the name, on the table this one already
+//! builds, is `data/gaps/nvs-ir/virtual-dispatch-resolves-by-name-not.json`.
 //!
 //! Cost, as [AGENTS.md](/AGENTS.md) requires: one `(String, *const u8)`
 //! pair per method *reachable* on each class — so a deep hierarchy holds its

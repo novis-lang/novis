@@ -138,10 +138,6 @@
 //! the same [`ConstArg`] a parameter default is folded to, through the very
 //! function that folds one, so a `#[Test]` option is never a second literal
 //! grammar.
-//!
-//! # Known gaps
-//!
-//! Each gap is a record, and `bun nv gaps --module crates/nvs-types/src/testing.rs` lists them.
 
 use nvs_diagnostics::{Diagnostic, Span, code};
 use nvs_hir::QName;

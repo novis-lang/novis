@@ -98,15 +98,7 @@
 //! call-stack compare is the one that shows, as a one-time step in
 //! `abi/frame_depth`, which is a benchmark that does nothing but call.
 //!
-//! # Scope of this slice
-//!
-//! Narrow by authorization, not by accident — the first backend is allowed to
-//! be exactly as wide as `nvs run examples/hello.nvs` requires, and each gap
-//! below is a missing *lowering*, not a missing
-//! decision. **A closed gap is deleted and its number retired**, never reused
-//! and never handed to a survivor, so the list has holes on purpose — every
-//! `nvs-codegen` gap N named anywhere else in the tree keeps meaning what it
-//! meant when it was written:
+//! # What this backend lowers
 //!
 //! Exceptions are ordinary objects here: there is no `Ty::Throwable`, a user
 //! class `extends Throwable` compiles like any other, and a typed `catch` is an
@@ -114,93 +106,58 @@
 //! from its region — `nvs_ir::lower::Lowering::lower_try` owns that policy
 //! whole, and this backend emits the copies it lowers.
 //!
-//! 1. **Virtual dispatch is by name, not by slot.** An instance call whose
-//!    resolved declaration some subtype overrides — and the two shapes with
-//!    no static answer at all, `static::method(...)`/`new static(...)` and a
-//!    call resolving to a declaration with no *body* — lower to
-//!    [`nvs_ir::ir::InstKind::CallVirtual`]/`NewDynamic`, look the method up
-//!    on the receiver's or the late-static-binding class through
-//!    [`nvs_runtime::nvs_class_method`], and call the address it returns
-//!    indirectly under the same `rule:errors/propagation` signature. Everything else binds
-//!    straight to a label, because `nvs_types` answers "does anything
-//!    override this" for the whole program once
-//!    (`nvs_types::expr_table::ResolvedCall::overridden`). What is left is a
-//!    per-class slot index instead of a string compare, which
-//!    [`nvs_ir::ir::Program::classes`] already carries the table for.
+//! **Calls.** An instance call whose resolved declaration some subtype
+//! overrides, and the two shapes with no static answer at all
+//! (`static::method(...)`/`new static(...)`, and a call resolving to a
+//! declaration with no body), lower to
+//! [`nvs_ir::ir::InstKind::CallVirtual`]/`NewDynamic`. They look the method up
+//! on the receiver's or the late-static-binding class through
+//! [`nvs_runtime::nvs_class_method`], and call the address it returns
+//! indirectly under the same `rule:errors/propagation` signature. Every other
+//! call binds straight to a label, because `nvs_types` answers "does anything
+//! override this" for the whole program once
+//! (`nvs_types::expr_table::ResolvedCall::overridden`).
 //!
-//!    Everything else about objects and arrays compiles: `New`, `FieldGet`,
-//!    `FieldSet`, an instance `Call`, every array instruction — `ArrayNew`,
-//!    `ArrayGet`, `ArraySet`, `ArrayAppend`, `ArraySpread`, `ArrayUnset` and
-//!    `foreach`'s
-//!    `ArrayNextSlot`/`ArrayKeyAt`/`ArrayValueAt` cursor — and a
-//!    `Ty::Object`/`Ty::Array` retain/release, against
-//!    [`nvs_runtime::object`]'s layout, the per-class slot table
-//!    [`nvs_ir::ir::Program::classes`] carries, and [`nvs_runtime::array`]'s
-//!    primitives. A Tier 0 `Core` member call
-//!    ([`nvs_ir::ir::InstKind::CoreCall`]) compiles too, through the helper
-//!    path unchanged — [`nvs_stdlib`]'s own docs own why it needs no path of
-//!    its own.
-//! 2. **`rule:testing/debug-probes`'s `BRANCH` probe is not emitted.** It needs a per-edge site
-//!    at [`nvs_ir::ir::Terminator::Branch`]'s lowering, which is the only one
-//!    of that ADR's sites still missing — the statement-boundary probe and the
-//!    call-site `TRACE`/`PROFILE` pair are both emitted.
-//! 4. **Two identical string literals are two data objects.** Each
-//!    `InstKind::ConstStr` emits its own immortal header and payload under its
-//!    own name, so a unit that writes `"id"` in forty places holds forty
-//!    copies of it. Nothing on the request path pays — each site materializes
-//!    one address either way — so what this costs is unit bytes and some
-//!    instruction-cache locality, and closing it means keying a map on the
-//!    literal's bytes beside `emit::Emitter::define_literal`'s counter.
-//! 5. **Integer `/` compiles, and it is the one operator that picks its
-//!    result representation at run time.**
-//!    `rule:types/arithmetic` types
-//!    `int / int` as `int|float` — PHP-exact, so `6/3` is an integer and `7/2`
-//!    is not — and that union's representation is [`nvs_ir::Ty::Tagged`], so
-//!    `emit_binop` hands the row to its own `emit_int_div`: a zero-divisor
-//!    guard in front, then a branch on whether the remainder is zero, joining
-//!    at a phi that carries the tagged value. The signed overflow
-//!    `i64::MIN / -1` takes the inexact arm rather than a second throw,
-//!    because PHP answers a `float` for it. `nvs_ir::lower::Lowering::coerce`
-//!    is where the union is absorbed back into a declared `float`, which is
-//!    what makes `float $avg = $sum / $n;` the ADR's own worked example.
-//! 6. **[`nvs_ir::ir::Terminator::Switch`] lowers to a compare chain, not a
-//!    jump table.** Correct for any case set — the IR deliberately does not
-//!    require a dense or sorted one — and the arms are few in its one
-//!    producer, `rule:iteration/generators`'s generator resumption (one per
-//!    `yield`, plus the entry and exhausted arms). A `br_table` over a dense
-//!    case set is the obvious optimisation. Novis's own `switch` statement never
-//!    reaches this terminator — it lowers to a `Branch` chain, since a label
-//!    is any expression of the subject's type — so closing this gap would also
-//!    mean teaching `nvs_ir::lower::Lowering::lower_switch` to recognise a
-//!    dense all-integer case set and reach for it.
-//! 7. **Executable memory is never freed.** [`Unit`] holds its `JITModule` for
-//!    the process's lifetime; `cranelift_jit::JITModule::free_memory` is
-//!    `unsafe` and needs the "no compiled frame is still live" proof that
-//!    `rule:config/an-edit-reaches-the-next-request-without-a-restart`'s
-//!    pointer-swap reclamation is the real home for. A one-shot `nvs run`
-//!    exits before it matters.
-//! 8. **Integer `+`, `-`, `*` and unary `-` throw on overflow rather than
-//!    wrapping**, which
-//!    `rule:types/arithmetic` calls the
-//!    divergence from PHP it is least willing to trade. `emit_binop` hands the
-//!    binary rows to `emit_checked_int_arith` and `emit_unop` takes the unary
-//!    one, each reading Cranelift's `sadd_overflow`/`uadd_overflow` family
-//!    — the flag the CPU already sets, so the cost is one predicted branch and
-//!    no synthesized compare — and raising spec § 10's `ArithmeticError` on
-//!    [`nvs_ir::ir::Inst::on_error`]'s edge through the shared
-//!    `raise_arithmetic_error`, which the zero-divisor guards use too.
-//!    The signed and unsigned rows are different instructions rather than one
-//!    read two ways: a carry out of bit 63 is not a sign flip, which is what
-//!    keeps `uint` exact over `0 … 2^64−1`.
-//! 9. **A binary operator wants both operands in one representation, and
-//!    knows only the numeric and `bool` ones.** A mixed numeric pair does not
-//!    reach here — `nvs_ir::lower` settles `1 + 1.5` by widening the integer
-//!    side and `$n < $f` by a helper, which is what keeps this crate's "a
-//!    `BinOp` has one representation" invariant a genuine internal error. What
-//!    is refused is `==` over two enum values, whose `Enum(Int)`
-//!    representation is not on the integral list even though comparing the two
-//!    integers is exactly right — a missing arm rather than a missing
-//!    mechanism, since `rule:enums/closed-integer-type` makes an enum *be* its integer.
+//! **Objects and arrays.** `New`, `FieldGet`, `FieldSet`, an instance `Call`,
+//! every array instruction (`ArrayNew`, `ArrayGet`, `ArraySet`, `ArrayAppend`,
+//! `ArraySpread`, `ArrayUnset` and `foreach`'s
+//! `ArrayNextSlot`/`ArrayKeyAt`/`ArrayValueAt` cursor) and a
+//! `Ty::Object`/`Ty::Array` retain/release compile against
+//! [`nvs_runtime::object`]'s layout, the per-class slot table
+//! [`nvs_ir::ir::Program::classes`] carries, and [`nvs_runtime::array`]'s
+//! primitives. A Tier 0 `Core` member call
+//! ([`nvs_ir::ir::InstKind::CoreCall`]) goes through the helper path
+//! unchanged, and [`nvs_stdlib`]'s own docs say why it needs no path of its
+//! own.
+//!
+//! **Integer `/` is the one operator that picks its result representation at
+//! run time.** `rule:types/arithmetic` types `int / int` as `int|float`, so
+//! `6/3` is an integer and `7/2` is not, and that union's representation is
+//! [`nvs_ir::Ty::Tagged`]. `emit_binop` hands the row to its own
+//! `emit_int_div`: a zero-divisor guard in front, then a branch on whether the
+//! remainder is zero, joining at a phi that carries the tagged value. The
+//! signed overflow `i64::MIN / -1` takes the inexact arm and gives a `float`.
+//! `nvs_ir::lower::Lowering::coerce` absorbs the union back into a declared
+//! `float`, which is what makes `float $avg = $sum / $n;` compile.
+//!
+//! **Integer `+`, `-`, `*` and unary `-` throw on overflow.** `emit_binop`
+//! hands the binary rows to `emit_checked_int_arith` and `emit_unop` takes the
+//! unary one. Each reads Cranelift's `sadd_overflow`/`uadd_overflow` family,
+//! the flag the CPU already sets, so the cost is one predicted branch, and
+//! raises spec § 10's `ArithmeticError` on [`nvs_ir::ir::Inst::on_error`]'s
+//! edge through the shared `raise_arithmetic_error`, which the zero-divisor
+//! guards use too. The signed and unsigned rows are different instructions: a
+//! carry out of bit 63 is not a sign flip, which keeps `uint` exact over
+//! `0 … 2^64−1`.
+//!
+//! **A binary operator takes both operands in one representation.** A mixed
+//! numeric pair never reaches here: `nvs_ir::lower` settles `1 + 1.5` by
+//! widening the integer side and `$n < $f` by a helper, so a `BinOp` whose
+//! operands differ in representation is an internal error.
+//!
+//! # Known gaps
+//!
+//! Each gap is a record, and `bun nv gaps --module crates/nvs-codegen/src/lib.rs` lists them.
 
 mod emit;
 mod ty;
@@ -228,7 +185,7 @@ pub use ty::clif_ty;
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum CodegenError {
-    /// An IR shape this slice does not lower — see the crate docs' scope list.
+    /// An IR shape this backend does not lower.
     #[error("nvs-codegen does not lower {0} yet")]
     Unsupported(String),
     /// A question the IR's own invariants say is never asked, asked anyway.
@@ -278,8 +235,9 @@ pub enum CodegenError {
 /// One compiled compilation unit: the native code, plus the module that owns
 /// the pages it lives on.
 ///
-/// Holding the [`JITModule`] is what keeps the code mapped — see the crate
-/// docs' known gap 7 on why nothing unmaps it.
+/// Holding the [`JITModule`] is what keeps the code mapped. Nothing unmaps a
+/// compiled unit's pages when it drops
+/// (`data/gaps/nvs-codegen/jit-pages-leak-on-every-recompile.json`).
 ///
 /// # Calling into a unit from Rust
 ///
@@ -365,8 +323,10 @@ pub struct Unit {
 /// are two somebodies: [`compile`]'s own `JITModule`, and — since `rule:packaging/an-artifact-is-verified-whole-before-a-page-is-executable`
 /// — a loader holding the private mapping it placed a cached payload into.
 /// The unit is the same type either way, because everything above this field
-/// reads an address and never asks where it came from; only the drop differs,
-/// and both arms free exactly the pages they made.
+/// reads an address and never asks where it came from. Only the drop differs:
+/// a loaded unit's owner unmaps its mapping, and a compiled unit's
+/// `JITModule` frees nothing
+/// (`data/gaps/nvs-codegen/jit-pages-leak-on-every-recompile.json`).
 #[expect(
     dead_code,
     reason = "both arms are held for their `Drop` and read by nothing: the addresses in \
@@ -842,8 +802,8 @@ impl Unit {
 ///
 /// # Errors
 ///
-/// [`CodegenError::Unsupported`] for an IR shape this slice does not lower
-/// (crate docs, scope list), [`CodegenError::Cranelift`] if Cranelift rejects
+/// [`CodegenError::Unsupported`] for an IR shape this backend does not lower,
+/// [`CodegenError::Cranelift`] if Cranelift rejects
 /// what was generated — always a bug in this crate, never in the input — and
 /// [`CodegenError::UnsupportedHost`] on a machine Cranelift has no backend
 /// for.
