@@ -185,6 +185,7 @@ language, and the text has to work for them on the first read.
   | lets go of, drops | frees, deletes |
   | refuses, is refused, a refusal | throws an error, does not compile, is not allowed |
   | member | method, function |
+  | field, for a variable of a class | property; *class property* where the sentence does not already make it clear that it is about a class. "Field" stays for an anonymous object's members, an attribute's arguments, a form, JSON, CSV and a database |
   | binding, name | variable |
   | holds | is, has, contains |
   | mark, marked | say what it is: "tainted", "secret", and explain it once |
