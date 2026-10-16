@@ -732,6 +732,9 @@ fn push(conn: &mut Conn, queue: &str, at: i64, max_attempts: &str) -> String {
                 // is: this stands in for a context that narrowed neither half.
                 None,
                 None,
+                // `non_transactional`, null on every push but one made while a
+                // transaction was open on a connection other than the queue's.
+                None,
             ],
         );
     }
@@ -751,9 +754,10 @@ fn push(conn: &mut Conn, queue: &str, at: i64, max_attempts: &str) -> String {
         None,
         None,
         Some(at.as_slice()),
-        // The tag, then the narrowing pair, at the end for the reason
-        // `INSERT_POSTGRES`'s doc gives: a value added anywhere else is a column
-        // list every other statement has to be checked against.
+        // The tag, the narrowing pair and `non_transactional`, at the end for the
+        // reason `INSERT_POSTGRES`'s doc gives: a value added anywhere else is a
+        // column list every other statement has to be checked against.
+        None,
         None,
         None,
         None,
@@ -811,7 +815,9 @@ fn push_keyed(conn: &mut Conn, queue: &str, at: i64, key: &str) -> io::Result<St
         // No tag: a key and a tag are opposites, and this helper is the key's
         // half — `rule:concurrency/a-tag-groups-jobs-and-a-key-dedupes-them`.
         None,
-        // The narrowing pair, which a hand-built push narrows neither half of.
+        // The narrowing pair, which a hand-built push narrows neither half of,
+        // and `non_transactional`, which no push in this file sets.
+        None,
         None,
         None,
     ];
@@ -875,7 +881,9 @@ fn push_marked(
             Some(at.as_slice()),
             Some(at.as_slice()),
             tag.map(str::as_bytes),
-            // The narrowing pair, which neither slot this helper fills is.
+            // The narrowing pair, which neither slot this helper fills is, and
+            // `non_transactional`, which no push in this file sets.
+            None,
             None,
             None,
         ],
@@ -1174,7 +1182,7 @@ fn set_state(conn: &mut Conn, id: &str, state: &str, lease: Option<i64>) {
     );
 }
 
-/// §§ 1 and 6's `stats` on the framed dialect, as the five columns
+/// §§ 1 and 6's `stats` on the framed dialect, as the six columns
 /// [`queue::COUNTS_MYSQL`] answers with.
 ///
 /// **The columns stay `Option`**, unlike [`one`]'s, because half of what the
@@ -3636,12 +3644,12 @@ fn a_framed_stats_counts_one_queue_across_both_of_its_tables() {
     clear(&mut conn, QUEUE);
     clear(&mut conn, OTHER);
 
-    let five = |counts: [&str; 5]| counts.map(|c| Some(c.to_owned())).to_vec();
+    let six = |counts: [&str; 6]| counts.map(|c| Some(c.to_owned())).to_vec();
 
     assert_eq!(
         stats(&mut conn, QUEUE),
-        five(["0", "0", "0", "0", "0"]),
-        "an empty queue answers five zeros and no nulls, which is the whole reason the counters \
+        six(["0", "0", "0", "0", "0", "0"]),
+        "an empty queue answers six zeros and no nulls, which is the whole reason the counters \
          count rather than sum"
     );
 
@@ -3653,7 +3661,7 @@ fn a_framed_stats_counts_one_queue_across_both_of_its_tables() {
 
     assert_eq!(
         stats(&mut conn, QUEUE),
-        five(["1", "1", "1", "0", "0"]),
+        six(["1", "1", "1", "0", "0", "0"]),
         "one job in each state, the attempt the claim wrote is the live sum's whole content, and \
          nothing has been buried for the other sum to reach"
     );
@@ -3690,7 +3698,7 @@ fn a_framed_stats_counts_one_queue_across_both_of_its_tables() {
 
     assert_eq!(
         stats(&mut conn, QUEUE),
-        five(["1", "0", "0", "1", "1"]),
+        six(["1", "0", "0", "1", "1", "0"]),
         "the exhausted job is depth rather than work, and its attempt left `nvs_jobs` with it for \
          the counter that reads the table it landed in"
     );
@@ -3702,7 +3710,7 @@ fn a_framed_stats_counts_one_queue_across_both_of_its_tables() {
 
     assert_eq!(
         stats(&mut conn, OTHER),
-        five(["1", "0", "0", "0", "0"]),
+        six(["1", "0", "0", "0", "0", "0"]),
         "and the other queue sees its own pending job and none of this one's depth, which is every \
          `?` bound to the name that was asked about"
     );
