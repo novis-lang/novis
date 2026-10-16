@@ -376,5 +376,9 @@
     "typescript-eslint": "^8.71.2",
     "vscode-oniguruma": "^2.0.1",
     "vscode-textmate": "^9.3.2"
+  },
+  "holds": {
+    "@types/node": "HOLD (revisit 2026-11-16): `engines.vscode` ^1.97 runs Node 20, so the types stay on 20.",
+    "typescript": "HOLD (revisit 2026-11-16): typescript-eslint 8.71.2, the latest, allows typescript >=4.8.4 <6.1.0."
   }
 }
