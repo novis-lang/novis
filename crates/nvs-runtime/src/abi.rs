@@ -525,10 +525,10 @@ where
                 // [`crate::host::Host::sleep`] is one — and a cancelled
                 // task is resumed into a forced unwind rather than into its
                 // body, so the unwind passes through this frame on its way out.
-                // Containing it here would leave the coroutine's own runtime
-                // with an unwind it started and never got back, which is a
-                // process abort. See [`Teardown`], and `run_task` below, which
-                // makes the same test for the same reason.
+                // Containing it here would hand `FATAL` back to the frames
+                // above, which would run on during a teardown. See
+                // [`Teardown`], and `run_task` below, which makes the same test
+                // for the same reason.
                 panic::resume_unwind(payload);
             }
             ctx.set_pending(panic_message(&*payload));
@@ -841,14 +841,14 @@ thread_local! {
 /// **This is the one hole in the outer containment boundary, and it is not
 /// optional.** A stackful coroutine that is dropped while suspended is torn
 /// down by unwinding its stack, and the mechanism that does it raises a panic
-/// carrying a private marker which it expects to see come back out. A
+/// carrying a private marker which it catches again at the coroutine's root. A
 /// `catch_unwind` in the way — [`run_task`]'s, which sits under every task root
-/// — swallows that marker, and the coroutine implementation then aborts the
-/// process because it cannot tell a swallowed teardown from a corrupted stack.
-/// That is a path to `abort()` reached by an ordinary worker shutdown with a
-/// request still parked, which
-/// `rule:http-server/a-requests-blast-radius-is-bounded-at-four-tiers`
-/// does not allow.
+/// — would swallow that marker and report the teardown as a task panic, and the
+/// code after the boundary would then run on a task that is being torn down.
+/// `corosensei` takes the coroutine returning from there as the end of the
+/// unwind, and throws the marker again at each suspension it reaches first, so
+/// nothing stops that code: the window is what keeps a teardown to native
+/// `Drop`.
 ///
 /// It is *narrow* on purpose: the guard is held only across the drop of a
 /// suspended task, by the host that is doing the dropping, on the thread doing

@@ -10,7 +10,7 @@ GENERATED FILE — do not edit by hand. Regenerate with:
     bun nv gen-attribution
 
 
-COMPONENTS (678)
+COMPONENTS (680)
 ------------------------------------------------------------------------------
 
 Where a component offers a choice of licenses, Novis takes the one shown and
@@ -112,28 +112,28 @@ platform Novis builds for, so one may appear that a given build omits.
   constant_time_eq                           0.4.2                          MIT-0                           (CC0-1.0 OR MIT-0 OR Apache-2.0)
   core_affinity                              0.8.3                          MIT                             (MIT/Apache-2.0)
   core_maths                                 0.1.1                          MIT
-  corosensei                                 0.2.2                          MIT                             (MIT OR Apache-2.0)
+  corosensei                                 0.3.4                          MIT                             (MIT OR Apache-2.0)
   cpp_demangle                               0.5.1                          MIT                             (MIT OR Apache-2.0)
   cpubits                                    0.1.1                          MIT                             (MIT OR Apache-2.0)
   cpufeatures                                0.2.17                         MIT                             (MIT OR Apache-2.0)
   cpufeatures                                0.3.0                          MIT                             (MIT OR Apache-2.0)
-  cranelift                                  0.135.5                        Apache-2.0 WITH LLVM-exception
-  cranelift-assembler-x64                    0.135.5                        Apache-2.0 WITH LLVM-exception
-  cranelift-assembler-x64-meta               0.135.5                        Apache-2.0 WITH LLVM-exception
-  cranelift-bforest                          0.135.5                        Apache-2.0 WITH LLVM-exception
-  cranelift-bitset                           0.135.5                        Apache-2.0 WITH LLVM-exception
-  cranelift-codegen                          0.135.5                        Apache-2.0 WITH LLVM-exception
-  cranelift-codegen-meta                     0.135.5                        Apache-2.0 WITH LLVM-exception
-  cranelift-codegen-shared                   0.135.5                        Apache-2.0 WITH LLVM-exception
-  cranelift-control                          0.135.5                        Apache-2.0 WITH LLVM-exception
-  cranelift-entity                           0.135.5                        Apache-2.0 WITH LLVM-exception
-  cranelift-frontend                         0.135.5                        Apache-2.0 WITH LLVM-exception
-  cranelift-isle                             0.135.5                        Apache-2.0 WITH LLVM-exception
-  cranelift-jit                              0.135.5                        Apache-2.0 WITH LLVM-exception
-  cranelift-module                           0.135.5                        Apache-2.0 WITH LLVM-exception
-  cranelift-native                           0.135.5                        Apache-2.0 WITH LLVM-exception
-  cranelift-object                           0.135.5                        Apache-2.0 WITH LLVM-exception
-  cranelift-srcgen                           0.135.5                        Apache-2.0 WITH LLVM-exception
+  cranelift                                  0.136.3                        Apache-2.0 WITH LLVM-exception
+  cranelift-assembler-x64                    0.136.3                        Apache-2.0 WITH LLVM-exception
+  cranelift-assembler-x64-meta               0.136.3                        Apache-2.0 WITH LLVM-exception
+  cranelift-bforest                          0.136.3                        Apache-2.0 WITH LLVM-exception
+  cranelift-bitset                           0.136.3                        Apache-2.0 WITH LLVM-exception
+  cranelift-codegen                          0.136.3                        Apache-2.0 WITH LLVM-exception
+  cranelift-codegen-meta                     0.136.3                        Apache-2.0 WITH LLVM-exception
+  cranelift-codegen-shared                   0.136.3                        Apache-2.0 WITH LLVM-exception
+  cranelift-control                          0.136.3                        Apache-2.0 WITH LLVM-exception
+  cranelift-entity                           0.136.3                        Apache-2.0 WITH LLVM-exception
+  cranelift-frontend                         0.136.3                        Apache-2.0 WITH LLVM-exception
+  cranelift-isle                             0.136.3                        Apache-2.0 WITH LLVM-exception
+  cranelift-jit                              0.136.3                        Apache-2.0 WITH LLVM-exception
+  cranelift-module                           0.136.3                        Apache-2.0 WITH LLVM-exception
+  cranelift-native                           0.136.3                        Apache-2.0 WITH LLVM-exception
+  cranelift-object                           0.136.3                        Apache-2.0 WITH LLVM-exception
+  cranelift-srcgen                           0.136.3                        Apache-2.0 WITH LLVM-exception
   crc32c                                     0.6.8                          MIT                             (Apache-2.0/MIT)
   crc32fast                                  1.5.0                          MIT                             (MIT OR Apache-2.0)
   crc32fast                                  1.5.2                          MIT                             (MIT OR Apache-2.0)
@@ -392,7 +392,7 @@ platform Novis builds for, so one may appear that a given build omits.
   nvs-image                                  0.1.0                          MIT
   nvs-intl                                   0.1.0                          MIT
   nvs-pdf                                    0.1.0                          MIT
-  object                                     0.39.1                         MIT                             (Apache-2.0 OR MIT)
+  object                                     0.40.0                         MIT                             (Apache-2.0 OR MIT)
   oid-registry                               0.8.1                          MIT                             (MIT OR Apache-2.0)
   once_cell                                  1.21.4                         MIT                             (MIT OR Apache-2.0)
   once_cell_polyfill                         1.70.2                         MIT                             (MIT OR Apache-2.0)
@@ -445,8 +445,8 @@ platform Novis builds for, so one may appear that a given build omits.
   proc-macro2                                1.0.107                        MIT                             (MIT OR Apache-2.0)
   profiling                                  1.0.18                         MIT                             (MIT OR Apache-2.0)
   profiling-procmacros                       1.0.18                         MIT                             (MIT OR Apache-2.0)
-  pulley-interpreter                         48.0.5                         Apache-2.0 WITH LLVM-exception
-  pulley-macros                              48.0.5                         Apache-2.0 WITH LLVM-exception
+  pulley-interpreter                         49.0.3                         Apache-2.0 WITH LLVM-exception
+  pulley-macros                              49.0.3                         Apache-2.0 WITH LLVM-exception
   pxfm                                       0.1.30                         Apache-2.0                      (BSD-3-Clause OR Apache-2.0)
   qrcode                                     0.14.1                         MIT                             (MIT OR Apache-2.0)
   quick-error                                2.0.1                          MIT                             (MIT/Apache-2.0)
@@ -485,12 +485,12 @@ platform Novis builds for, so one may appear that a given build omits.
   rustc_version                              0.4.1                          MIT                             (MIT OR Apache-2.0)
   rusticata-macros                           4.1.0                          MIT                             (MIT/Apache-2.0)
   rustix                                     1.1.4                          MIT                             (Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT)
-  rustls                                     0.23.45                        MIT                             (Apache-2.0 OR ISC OR MIT)
+  rustls                                     0.23.46                        MIT                             (Apache-2.0 OR ISC OR MIT)
   rustls-pki-types                           1.15.1                         MIT                             (MIT OR Apache-2.0)
   rustls-webpki                              0.103.15                       ISC
   rustversion                                1.0.23                         MIT                             (MIT OR Apache-2.0)
   rustybuzz                                  0.20.1                         MIT
-  ruzstd                                     0.9.0                          MIT
+  ruzstd                                     0.9.1                          MIT
   ryu                                        1.0.23                         Apache-2.0                      (Apache-2.0 OR BSL-1.0)
   saturating                                 0.1.0                          MIT
   scopeguard                                 1.2.0                          MIT                             (MIT OR Apache-2.0)
@@ -503,7 +503,7 @@ platform Novis builds for, so one may appear that a given build omits.
   serde_json                                 1.0.151                        MIT                             (MIT OR Apache-2.0)
   serde_json                                 1.0.154                        MIT                             (MIT OR Apache-2.0)
   serde_repr                                 0.1.21                         MIT                             (MIT OR Apache-2.0)
-  serde_spanned                              1.1.1                          MIT                             (MIT OR Apache-2.0)
+  serde_spanned                              1.1.2                          MIT                             (MIT OR Apache-2.0)
   serdect                                    0.4.3                          MIT                             (Apache-2.0 OR MIT)
   servo_arc                                  0.5.0                          MIT                             (MIT OR Apache-2.0)
   sha1                                       0.10.7                         MIT                             (MIT OR Apache-2.0)
@@ -568,9 +568,11 @@ platform Novis builds for, so one may appear that a given build omits.
   to_method                                  1.1.0                          CC0-1.0
   tokio                                      1.53.1                         MIT
   toml                                       0.9.12+spec-1.1.0              MIT                             (MIT OR Apache-2.0)
+  toml                                       1.1.8+spec-1.1.0               MIT                             (MIT OR Apache-2.0)
   toml_datetime                              0.7.5+spec-1.1.0               MIT                             (MIT OR Apache-2.0)
-  toml_parser                                1.1.3+spec-1.1.0               MIT                             (MIT OR Apache-2.0)
-  toml_writer                                1.1.2+spec-1.1.0               MIT                             (MIT OR Apache-2.0)
+  toml_datetime                              1.1.2+spec-1.1.0               MIT                             (MIT OR Apache-2.0)
+  toml_parser                                1.1.5+spec-1.1.0               MIT                             (MIT OR Apache-2.0)
+  toml_writer                                1.1.3+spec-1.1.0               MIT                             (MIT OR Apache-2.0)
   tracing                                    0.1.44                         MIT
   tracing-core                               0.1.36                         MIT
   try-lock                                   0.2.5                          MIT
@@ -612,30 +614,30 @@ platform Novis builds for, so one may appear that a given build omits.
   wasm-bindgen-macro-support                 0.2.129                        MIT                             (MIT OR Apache-2.0)
   wasm-bindgen-shared                        0.2.127                        MIT                             (MIT OR Apache-2.0)
   wasm-bindgen-shared                        0.2.129                        MIT                             (MIT OR Apache-2.0)
-  wasm-compose                               0.254.2                        MIT                             (Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT)
-  wasm-encoder                               0.254.2                        MIT                             (Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT)
+  wasm-compose                               0.258.3                        MIT                             (Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT)
+  wasm-encoder                               0.258.3                        MIT                             (Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT)
   wasm-encoder                               0.259.0                        MIT                             (Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT)
   wasm-encoder                               0.261.0                        MIT                             (Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT)
-  wasm-metadata                              0.254.2                        MIT                             (Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT)
+  wasm-metadata                              0.258.3                        MIT                             (Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT)
   wasm-metadata                              0.259.0                        MIT                             (Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT)
-  wasmparser                                 0.254.2                        MIT                             (Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT)
+  wasmparser                                 0.258.3                        MIT                             (Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT)
   wasmparser                                 0.259.0                        MIT                             (Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT)
   wasmparser                                 0.261.0                        MIT                             (Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT)
-  wasmprinter                                0.254.2                        MIT                             (Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT)
-  wasmtime                                   48.0.5                         Apache-2.0 WITH LLVM-exception
-  wasmtime-environ                           48.0.5                         Apache-2.0 WITH LLVM-exception
-  wasmtime-internal-cache                    48.0.5                         Apache-2.0 WITH LLVM-exception
-  wasmtime-internal-component-macro          48.0.5                         Apache-2.0 WITH LLVM-exception
-  wasmtime-internal-component-util           48.0.5                         Apache-2.0 WITH LLVM-exception
-  wasmtime-internal-core                     48.0.5                         Apache-2.0 WITH LLVM-exception
-  wasmtime-internal-cranelift                48.0.5                         Apache-2.0 WITH LLVM-exception
-  wasmtime-internal-fiber                    48.0.5                         Apache-2.0 WITH LLVM-exception
-  wasmtime-internal-jit-debug                48.0.5                         Apache-2.0 WITH LLVM-exception
-  wasmtime-internal-jit-icache-coherence     48.0.5                         Apache-2.0 WITH LLVM-exception
-  wasmtime-internal-unwinder                 48.0.5                         Apache-2.0 WITH LLVM-exception
-  wasmtime-internal-versioned-export-macros  48.0.5                         Apache-2.0 WITH LLVM-exception
-  wasmtime-internal-wit-bindgen              48.0.5                         Apache-2.0 WITH LLVM-exception
-  wasmtime-wasi-io                           48.0.5                         Apache-2.0 WITH LLVM-exception
+  wasmprinter                                0.258.3                        MIT                             (Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT)
+  wasmtime                                   49.0.3                         Apache-2.0 WITH LLVM-exception
+  wasmtime-environ                           49.0.3                         Apache-2.0 WITH LLVM-exception
+  wasmtime-internal-cache                    49.0.3                         Apache-2.0 WITH LLVM-exception
+  wasmtime-internal-component-macro          49.0.3                         Apache-2.0 WITH LLVM-exception
+  wasmtime-internal-component-util           49.0.3                         Apache-2.0 WITH LLVM-exception
+  wasmtime-internal-core                     49.0.3                         Apache-2.0 WITH LLVM-exception
+  wasmtime-internal-cranelift                49.0.3                         Apache-2.0 WITH LLVM-exception
+  wasmtime-internal-fiber                    49.0.3                         Apache-2.0 WITH LLVM-exception
+  wasmtime-internal-jit-debug                49.0.3                         Apache-2.0 WITH LLVM-exception
+  wasmtime-internal-jit-icache-coherence     49.0.3                         Apache-2.0 WITH LLVM-exception
+  wasmtime-internal-unwinder                 49.0.3                         Apache-2.0 WITH LLVM-exception
+  wasmtime-internal-versioned-export-macros  49.0.3                         Apache-2.0 WITH LLVM-exception
+  wasmtime-internal-wit-bindgen              49.0.3                         Apache-2.0 WITH LLVM-exception
+  wasmtime-wasi-io                           49.0.3                         Apache-2.0 WITH LLVM-exception
   wast                                       261.0.0                        MIT                             (Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT)
   wat                                        1.261.0                        MIT                             (Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT)
   web_atoms                                  0.2.6                          MIT                             (MIT OR Apache-2.0)
@@ -664,9 +666,9 @@ platform Novis builds for, so one may appear that a given build omits.
   wit-bindgen-core                           0.62.0                         MIT                             (Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT)
   wit-bindgen-rust                           0.62.0                         MIT                             (Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT)
   wit-bindgen-rust-macro                     0.62.0                         MIT                             (Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT)
-  wit-component                              0.254.2                        MIT                             (Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT)
+  wit-component                              0.258.3                        MIT                             (Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT)
   wit-component                              0.259.0                        MIT                             (Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT)
-  wit-parser                                 0.254.2                        MIT                             (Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT)
+  wit-parser                                 0.258.3                        MIT                             (Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT)
   wit-parser                                 0.259.0                        MIT                             (Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT)
   wnaf                                       0.14.1                         MIT                             (Apache-2.0 OR MIT)
   write-fonts                                0.48.1                         MIT                             (MIT OR Apache-2.0)
@@ -775,7 +777,7 @@ Applies to:
   anyhow 1.0.104
   async-trait 0.1.92
   atomic-waker 1.1.2
-  corosensei 0.2.2
+  corosensei 0.3.4
   curve25519-dalek-derive 0.1.1
   displaydoc 0.2.7
   dtoa 1.0.11
@@ -835,25 +837,25 @@ Applies to:
   unicode-ident 1.0.24
   unicode-ident 1.0.26
   wasi 0.11.1+wasi-snapshot-preview1
-  wasm-compose 0.254.2
-  wasm-encoder 0.254.2
+  wasm-compose 0.258.3
+  wasm-encoder 0.258.3
   wasm-encoder 0.259.0
   wasm-encoder 0.261.0
-  wasm-metadata 0.254.2
+  wasm-metadata 0.258.3
   wasm-metadata 0.259.0
-  wasmparser 0.254.2
+  wasmparser 0.258.3
   wasmparser 0.259.0
   wasmparser 0.261.0
-  wasmprinter 0.254.2
+  wasmprinter 0.258.3
   wast 261.0.0
   wat 1.261.0
   wit-bindgen 0.62.0
   wit-bindgen-core 0.62.0
   wit-bindgen-rust 0.62.0
   wit-bindgen-rust-macro 0.62.0
-  wit-component 0.254.2
+  wit-component 0.258.3
   wit-component 0.259.0
-  wit-parser 0.254.2
+  wit-parser 0.258.3
   wit-parser 0.259.0
   zmij 1.0.23
 
@@ -1161,11 +1163,13 @@ Applies to:
   colorchoice 1.0.5
   is_terminal_polyfill 1.70.2
   once_cell_polyfill 1.70.2
-  serde_spanned 1.1.1
+  serde_spanned 1.1.2
   toml 0.9.12+spec-1.1.0
+  toml 1.1.8+spec-1.1.0
   toml_datetime 0.7.5+spec-1.1.0
-  toml_parser 1.1.3+spec-1.1.0
-  toml_writer 1.1.2+spec-1.1.0
+  toml_datetime 1.1.2+spec-1.1.0
+  toml_parser 1.1.5+spec-1.1.0
+  toml_writer 1.1.3+spec-1.1.0
 
 ------------------------------------------------------------------------------
 
@@ -5836,7 +5840,7 @@ SOFTWARE.
 ==============================================================================
 
 Applies to:
-  object 0.39.1
+  object 0.40.0
 
 ------------------------------------------------------------------------------
 
@@ -6764,7 +6768,7 @@ SOFTWARE.
 ==============================================================================
 
 Applies to:
-  rustls 0.23.45
+  rustls 0.23.46
 
 ------------------------------------------------------------------------------
 
@@ -6836,7 +6840,7 @@ DEALINGS IN THE SOFTWARE.
 ==============================================================================
 
 Applies to:
-  ruzstd 0.9.0
+  ruzstd 0.9.1
 
 ------------------------------------------------------------------------------
 
@@ -8517,21 +8521,21 @@ SOFTWARE.
 
 Applies to:
   blake3 1.8.7
-  cranelift-assembler-x64 0.135.5
-  cranelift-assembler-x64-meta 0.135.5
-  cranelift-bitset 0.135.5
-  cranelift-isle 0.135.5
-  cranelift-srcgen 0.135.5
-  pulley-interpreter 48.0.5
-  pulley-macros 48.0.5
-  wasmtime-internal-component-macro 48.0.5
-  wasmtime-internal-component-util 48.0.5
-  wasmtime-internal-core 48.0.5
-  wasmtime-internal-jit-debug 48.0.5
-  wasmtime-internal-jit-icache-coherence 48.0.5
-  wasmtime-internal-versioned-export-macros 48.0.5
-  wasmtime-internal-wit-bindgen 48.0.5
-  wasmtime-wasi-io 48.0.5
+  cranelift-assembler-x64 0.136.3
+  cranelift-assembler-x64-meta 0.136.3
+  cranelift-bitset 0.136.3
+  cranelift-isle 0.136.3
+  cranelift-srcgen 0.136.3
+  pulley-interpreter 49.0.3
+  pulley-macros 49.0.3
+  wasmtime-internal-component-macro 49.0.3
+  wasmtime-internal-component-util 49.0.3
+  wasmtime-internal-core 49.0.3
+  wasmtime-internal-jit-debug 49.0.3
+  wasmtime-internal-jit-icache-coherence 49.0.3
+  wasmtime-internal-versioned-export-macros 49.0.3
+  wasmtime-internal-wit-bindgen 49.0.3
+  wasmtime-wasi-io 49.0.3
 
 ------------------------------------------------------------------------------
 
@@ -8760,26 +8764,26 @@ Software.
 ==============================================================================
 
 Applies to:
-  cranelift 0.135.5
-  cranelift-bforest 0.135.5
-  cranelift-codegen 0.135.5
-  cranelift-codegen-meta 0.135.5
-  cranelift-codegen-shared 0.135.5
-  cranelift-control 0.135.5
-  cranelift-entity 0.135.5
-  cranelift-frontend 0.135.5
-  cranelift-jit 0.135.5
-  cranelift-module 0.135.5
-  cranelift-native 0.135.5
-  cranelift-object 0.135.5
+  cranelift 0.136.3
+  cranelift-bforest 0.136.3
+  cranelift-codegen 0.136.3
+  cranelift-codegen-meta 0.136.3
+  cranelift-codegen-shared 0.136.3
+  cranelift-control 0.136.3
+  cranelift-entity 0.136.3
+  cranelift-frontend 0.136.3
+  cranelift-jit 0.136.3
+  cranelift-module 0.136.3
+  cranelift-native 0.136.3
+  cranelift-object 0.136.3
   regalloc2 0.15.2
   target-lexicon 0.13.5
-  wasmtime 48.0.5
-  wasmtime-environ 48.0.5
-  wasmtime-internal-cache 48.0.5
-  wasmtime-internal-cranelift 48.0.5
-  wasmtime-internal-fiber 48.0.5
-  wasmtime-internal-unwinder 48.0.5
+  wasmtime 49.0.3
+  wasmtime-environ 49.0.3
+  wasmtime-internal-cache 49.0.3
+  wasmtime-internal-cranelift 49.0.3
+  wasmtime-internal-fiber 49.0.3
+  wasmtime-internal-unwinder 49.0.3
 
 ------------------------------------------------------------------------------
 

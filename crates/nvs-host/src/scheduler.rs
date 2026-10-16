@@ -731,10 +731,9 @@ impl Drop for Scheduler {
     /// shutdown, not an exceptional one, and dropping a suspended coroutine
     /// unwinds its stack. That unwind has to pass through
     /// [`nvs_runtime::run_task`]'s containment boundary, which would otherwise
-    /// swallow it and leave `corosensei` unable to tell a torn-down stack from
-    /// a corrupted one — it aborts the process at that point.
-    /// [`nvs_runtime::Teardown`] is the narrow window that lets it through, and
-    /// its doc owns the reasoning.
+    /// swallow it and run the rest of the task's entry as though the task had
+    /// panicked. [`nvs_runtime::Teardown`] is the narrow window that lets it
+    /// through, and its doc owns the reasoning.
     ///
     /// No script code runs here, which is
     /// `rule:concurrency/cancellation-runs-no-user-code`
@@ -1875,12 +1874,10 @@ mod tests {
     }
 
     #[test]
-    fn a_scheduler_dropped_with_a_parked_task_tears_it_down_instead_of_aborting() {
-        // A worker retiring with a request still parked. Without
-        // `nvs_runtime::Teardown`'s window this kills the whole process, so
-        // the strongest half of this test is that it returns at all; the
-        // assertion below is the other half — the stack really unwound, rather
-        // than being leaked to dodge the abort.
+    fn a_scheduler_dropped_with_a_parked_task_unwinds_its_stack() {
+        // A worker retiring with a request still parked. The drop returns, and
+        // the assertion below checks the stack really unwound rather than
+        // being leaked.
         struct Marker(Rc<Cell<bool>>);
         impl Drop for Marker {
             fn drop(&mut self) {
