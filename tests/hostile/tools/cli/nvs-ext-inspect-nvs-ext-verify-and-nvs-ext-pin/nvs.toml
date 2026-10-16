@@ -2,7 +2,7 @@
 # The entry has no `grants`.
 [[extension]]
 path = "../../../../../docs/examples/tools/config/extension-grants-what-a-component-may-reach/atlas.nvsx"
-sha256 = "f9d428fc0a2b9aeb6e0990ddf298d7a1e9664e65a3d3b26f39c57d6f0cd0b896"
+sha256 = "e05d5aefc48218c936ce53aa42030872f4e16f4687284a00df8bc6be9a2af72a"
 
 # The program may read and write the folder `data/`, and connect to `tiles.example.com`.
 [capabilities.fs]

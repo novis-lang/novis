@@ -345,26 +345,26 @@ rcgen = { version = "0.14", default-features = false, features = [
 # --- See rule:packaging/an-extension-is-a-sandboxed-wasm-component.
 wasmtime = "49"
 # The parser of the `nvs:ext@1.0.0` world's WIT text under `wit/`, at the
-# version wasmtime 48 itself parses component types with, so it adds no crate
+# version wasmtime itself parses component types with, so it adds no crate
 # the lock file did not already hold. Only `std`: the test reads text, and
 # `decoding` would pull `wasmparser` and `serde` for binary components it never
 # reads. Its one caller is `crates/nvs-stdlib/tests/ext_world.rs`.
-wit-parser = { version = "0.254", default-features = false, features = ["std"] }
-# The reader of a `.nvsx`'s custom sections, at the version wasmtime 48 parses
+wit-parser = { version = "0.258", default-features = false, features = ["std"] }
+# The reader of a `.nvsx`'s custom sections, at the version wasmtime parses
 # with, so it adds no crate the lock file did not already hold. `std` and
 # `component-model` are what walking a component's sections needs; `validate`
 # is left off because validating is the engine's job at load.
 # `crates/nvs-ext/src/section.rs` is the one caller.
-wasmparser = { version = "0.254", default-features = false, features = ["std", "component-model"] }
+wasmparser = { version = "0.258", default-features = false, features = ["std", "component-model"] }
 # Component text compiled at test time, so a test guest needs no wasm
 # toolchain. Already in the lock file under wasmtime's own `wat` feature.
 wat = "1"
 # Turns an extension author's core module into a component against the
-# `nvs:ext` world, at the version wasmtime 48's own bindgen already pulls, so
+# `nvs:ext` world, at the version wasmtime's own bindgen already pulls, so
 # it adds no crate the lock file did not hold. The defaults are off: the
 # `dummy-module`, `wat` and `semver-check` features serve tools, not the packer.
 # `crates/nvs-ext/src/pack.rs` is the one caller.
-wit-component = { version = "0.254", default-features = false }
+wit-component = { version = "0.258", default-features = false }
 # `wasi:io`'s host half — the `pollable`, `input-stream` and `output-stream`
 # resources every other WASI interface is written in — at wasmtime's own
 # version. Not `wasmtime-wasi`: that crate's host runs on `tokio`'s `rt`, which

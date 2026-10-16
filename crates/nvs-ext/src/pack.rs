@@ -198,7 +198,7 @@ fn componentize(
     ComponentEncoder::default()
         .validate(true)
         .module(&module)
-        .and_then(|mut encoder| encoder.encode())
+        .and_then(|encoder| encoder.encode())
         .map_err(|err| {
             malformed(format!(
                 "the module does not componentize against the world: {err:#}"
