@@ -969,7 +969,11 @@ fn why_not_base64(error: &base64::DecodeError, variant: &str) -> String {
              is truncated",
             if len == 1 { "" } else { "s" }
         ),
-        base64::DecodeError::InvalidLastSymbol(offset, byte) => format!(
+        base64::DecodeError::InvalidLastSymbol {
+            offset,
+            symbol: byte,
+            ..
+        } => format!(
             "the final symbol {byte:#04x} at offset {offset} carries bits no octet reads, so \
              it is one of several spellings of the same value and not the canonical one \
              (RFC 4648 § 3.5)"
@@ -1284,7 +1288,7 @@ mod tests {
         assert_eq!(STANDARD.decode("/w==").unwrap(), [0xff]);
         assert!(matches!(
             STANDARD.decode("/x=="),
-            Err(base64::DecodeError::InvalidLastSymbol(..))
+            Err(base64::DecodeError::InvalidLastSymbol { .. })
         ));
     }
 

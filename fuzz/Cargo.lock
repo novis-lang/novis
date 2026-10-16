@@ -1352,7 +1352,7 @@ dependencies = [
 name = "nvs-config"
 version = "0.0.1"
 dependencies = [
- "base64 0.22.1",
+ "base64 0.23.1",
  "blake3",
  "jiff",
  "libc",
@@ -1406,7 +1406,7 @@ dependencies = [
 name = "nvs-host"
 version = "0.0.1"
 dependencies = [
- "base64 0.22.1",
+ "base64 0.23.1",
  "core_affinity",
  "corosensei",
  "libc",
@@ -1440,7 +1440,7 @@ dependencies = [
 name = "nvs-runtime"
 version = "0.0.1"
 dependencies = [
- "base64 0.22.1",
+ "base64 0.23.1",
  "bitflags 2.13.2",
  "chacha20poly1305",
  "jiff",
@@ -1463,7 +1463,7 @@ dependencies = [
  "aes-gcm",
  "aes-kw",
  "argon2",
- "base64 0.22.1",
+ "base64 0.23.1",
  "bcrypt",
  "blake3",
  "brainsort",

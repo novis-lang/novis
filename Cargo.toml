@@ -688,13 +688,11 @@ argon2 = { version = "0.6", default-features = false, features = [
 # digest, and the eksblowfish schedule is exactly the kind of loop where our own
 # off-by-one would be silent and permanent in a credential column we cannot
 # reproduce. It adds three crates — itself, `blowfish` (RustCrypto's, under its
-# `bcrypt` feature) and `byteorder`, all MIT/Apache-2.0 — plus a second copy of
-# `base64`, 0.23 beside the 0.22 the tree already pins for `Core\Encoding`.
+# `bcrypt` feature) and `byteorder`, all MIT/Apache-2.0. Its `base64` is the
+# 0.23 `Core\Encoding` uses, with default features off, so it turns no SIMD on.
 # `blowfish` rides the `cipher 0.5` that arrived with `chacha20poly1305`, so the
-# cipher traits are shared rather than duplicated; the base64 copy is the one
-# real duplicate, and it is compile-time surface rather than a divided
-# abstraction, since neither alphabet is the other's — bcrypt's is its own
-# non-standard one, which is why the encoder cannot simply be `Core\Encoding`'s.
+# cipher traits are shared. bcrypt's alphabet is its own non-standard one, which
+# is why the encoder cannot simply be `Core\Encoding`'s.
 #
 # `getrandom` is **on** here, where it is deliberately off for `argon2` and
 # `chacha20poly1305` above, because this crate makes it non-optional behind
@@ -808,14 +806,23 @@ ring = "0.17"
 # reaches — so `rule:packaging/a-c-dependency-answers-two-questions`'s first question is "yes" and the second one is what
 # picks the crate. `base64` is pure Rust with no build script and no C, it is
 # the crate the ecosystem already reads for this, and it adds nothing to this
-# tree at all: it is already in Cargo.lock under `wasmtime-internal-cache`.
+# tree at all: `bcrypt` already uses this version.
 # What it buys over the twenty lines a sextet table would take is the *decoder*:
 # a canonical-padding mode and a trailing-bits check, both of which are the
 # non-obvious half of RFC 4648 § 3.5 and both of which spec § 7's throw-rather-
 # than-substitute rule needs stated exactly.
 # `crates/nvs-stdlib/src/encoding.rs` owns why this crate and not another, and
 # which engine each of the four members is.
-base64 = "0.22"
+#
+# Default features are off because the default `simd-unsafe` adds `unsafe` AVX2
+# and NEON code to a path attacker-controlled text reaches. Security and request
+# isolation outranks the latency it would buy, so the scalar engine is the one
+# compiled. A crate that names this one with its defaults on turns the SIMD back
+# on for everything it is built beside. `bcrypt` keeps them off. `usvg` does
+# not, and it reaches only `nvs-ext`'s tests, through their native build of the
+# image component: `cargo tree -e normal,build -i base64@0.23` shows no
+# `simd-unsafe` in the shipped graph.
+base64 = { version = "0.23", default-features = false, features = ["std"] }
 
 # --- base32 (spec § 7's `Core\Encoding` base32 pair, which TOTP needs) ---
 # RFC 4648 § 6, and the same `rule:packaging/a-c-dependency-answers-two-questions` answer base64 gets one block up:
