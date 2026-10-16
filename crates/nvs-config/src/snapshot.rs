@@ -143,9 +143,9 @@ impl Snapshot {
     ///
     /// # Errors
     ///
-    /// `E0605` when `entry` cannot be examined, and `E0601` if the folded tree does not deserialize
-    /// — which the global tree and every block having deserialized on their own already makes
-    /// reachable only by two of them writing one key in two shapes.
+    /// `E0605` when `entry` cannot be examined. `E0601` if the folded tree does not deserialize,
+    /// which only two blocks writing one key in two shapes can reach, and `E0601` for a `[limits]`
+    /// start one block writes above a ceiling another block lowered ([`app::starts`]).
     pub fn build(
         resolved: &Resolved,
         entry: &Path,
@@ -218,7 +218,8 @@ impl Snapshot {
     ///
     /// # Errors
     ///
-    /// `E0601` if the folded tree does not deserialize.
+    /// `E0601` if the folded tree does not deserialize, or if a `[limits]` start in it is above
+    /// its `[limits.hard]` ceiling ([`app::starts`]).
     fn fold(
         &mut self,
         roster: &AppBlocks,
@@ -259,6 +260,9 @@ impl Snapshot {
             );
         }
         self.retype()?;
+        // A start one block writes may meet a ceiling another block lowered, which only the folded
+        // tree shows.
+        app::starts(&self.config, &self.origins)?;
         // `rule:security/path-scope-canonicalise-then-prefix`'s grant side, canonicalized once and here rather than per check, for the
         // reason an `[[app]]` key is canonicalized at this same point: a root still spelled the way
         // the operator typed it is a comparison against the wrong thing.

@@ -126,24 +126,23 @@ fn an_unstated_uncapped_or_malformed_cpu_time_is_no_ceiling() {
     );
 }
 
-/// `[limits] memory = false` and a malformed value are no ceiling, as they are for `cpu_time`. The
-/// armed threshold is asked as well as the reading, because the allocator compares against that
-/// and not against [`Ctx::memory_limit`]. An unstated one is the default, which the case after this
-/// one pins.
+/// `[limits] memory = false` is no ceiling, as it is for `cpu_time`. The armed threshold is asked
+/// as well as the reading, because the allocator compares against that and not against
+/// [`Ctx::memory_limit`]. A malformed value, which the resolve refuses at boot, reads as the
+/// unstated default that the case after this one pins, and never as no ceiling.
 #[test]
-fn an_uncapped_or_malformed_memory_is_no_ceiling() {
-    for written in [
-        "[limits]\nmemory = false\n",
-        "[limits]\nmemory = \"a lot\"\n",
-    ] {
-        let ctx = ctx_reading(written);
-        assert_eq!(ctx.memory_limit(), 0, "{written}");
-        assert_eq!(
-            nvs_runtime::budget::armed_ceiling(),
-            0,
-            "{written} armed a ceiling"
-        );
-    }
+fn an_uncapped_memory_is_no_ceiling_and_a_malformed_one_is_the_default() {
+    let ctx = ctx_reading("[limits]\nmemory = false\n");
+    assert_eq!(ctx.memory_limit(), 0);
+    assert_eq!(
+        nvs_runtime::budget::armed_ceiling(),
+        0,
+        "`false` armed a ceiling"
+    );
+    let unstated = ctx_reading("").memory_limit();
+    let malformed = ctx_reading("[limits]\nmemory = \"a lot\"\n");
+    assert_ne!(unstated, 0, "the unstated default is a ceiling");
+    assert_eq!(malformed.memory_limit(), unstated);
     assert_eq!(
         Ctx::new(OutputSink::Buffer(Vec::new())).memory_limit(),
         0,

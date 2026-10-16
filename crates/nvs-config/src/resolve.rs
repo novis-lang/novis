@@ -487,6 +487,10 @@ pub fn resolve(
     // `resolve()` pass is measured against* is where that rule lives, and what a later pass here
     // is checked against.
     crate::app::canonicalize(&mut resolved.config, &origins, files)?;
+    // `rule:config/one-parser-for-the-boot-path-and-config-set`'s refusal of a limit that is not a
+    // quantity, before any pass below compares one, and the global start against its own ceiling.
+    crate::app::quantities(&resolved.config, &origins)?;
+    crate::app::starts(&resolved.config, &origins)?;
     // `rule:config/an-app-block-may-widen-bounded-by-the-global-ceiling`'s bound, once the roster is keyed: what a block asks for is compared against the
     // global `[limits.hard]`, which is a property of the merged tree and of nothing smaller.
     crate::app::bound(&resolved.config, &origins)?;

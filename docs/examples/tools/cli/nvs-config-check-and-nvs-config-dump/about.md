@@ -7,9 +7,9 @@ files, with their includes, `[[app]]` blocks and secrets. It prints one line suc
 `ok: 2 files, 4 directives set, 1 override, 0 warnings`. The exit status is `1` for a syntax error,
 an unknown key or an include that does not exist.
 
+The exit status is also `1` for a `[limits]` value that is not a valid amount, such as
+`memory = "12 bananas"`. It is `1` for a `[limits]` value above its `[limits.hard]` ceiling, too.
+
 `config dump` prints one key on each line, sorted by name. `--origin` adds the file that set each
 key. `--toml` prints the result as one TOML document, which you can compare between two
 environments.
-
-**Good to know:** `config check` does not check that a value is a valid amount.
-`memory = "12 bananas"` passes it.

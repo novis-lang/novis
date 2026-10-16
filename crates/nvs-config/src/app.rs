@@ -121,9 +121,9 @@ pub fn canonicalize(
 /// treatment of `Core\Config::set`: a clamped block still reads as though it got what it asked for,
 /// and the operator finds out at the first request that hits the real ceiling.
 ///
-/// What this deliberately does not check, because `rule:config/an-app-block-may-widen-bounded-by-the-global-ceiling` does not state it: a per-app default above
-/// the block's *own* lowered ceiling, and the same shape globally. Each is incoherent rather than
-/// unsafe — the value in force is still bounded by the ceiling the request is held to.
+/// A start above its own ceiling, globally or in the tree an entry's blocks fold to, is
+/// [`starts`]'s refusal rather than this one's, because only the folded tree knows which start and
+/// which ceiling meet.
 ///
 /// # Errors
 ///
@@ -153,6 +153,98 @@ pub fn bound(config: &Config, origins: &BTreeMap<String, Origin>) -> Result<(), 
             for ((name, ceiling), (_, asked)) in host.into_iter().zip(ceilings(hard)) {
                 bounded(&hard_path, name, asked, ceiling, origins)?;
             }
+        }
+    }
+    Ok(())
+}
+
+/// `rule:config/one-parser-for-the-boot-path-and-config-set`'s boot refusal: every quantity written
+/// in `[limits]`, `[limits.hard]`, an `[app.limits]`, an `[app.limits.hard]` or a `[[schedule]]`'s
+/// `limits` parses in its key's unit.
+///
+/// Through [`Quantity::parse`], the parser every runtime reader and `Core\Config::set` use, so a
+/// value this passes is one each of them reads as the number it spells. `memory_high_water` and
+/// `disconnect_grace` are left to [`high_water`] and [`disconnect`], which refuse more than a
+/// malformed value and word their own refusal.
+///
+/// # Errors
+///
+/// `E0601` naming the key, what was written and where.
+pub fn quantities(config: &Config, origins: &BTreeMap<String, Origin>) -> Result<(), Diagnostic> {
+    /// One limits block's dotted path and its named rows.
+    type Block<'a> = (String, Vec<(&'static str, Option<&'a Setting>)>);
+    fn limits_of<'a>(blocks: &mut Vec<Block<'a>>, path: String, limits: &'a Limits) {
+        let mut rows = defaults(limits).to_vec();
+        rows.extend(system(limits));
+        if let Some(hard) = limits.hard.as_ref() {
+            blocks.push((format!("{path}.hard"), ceilings(hard).to_vec()));
+        }
+        blocks.push((path, rows));
+    }
+    let mut blocks = Vec::new();
+    if let Some(limits) = config.limits.as_ref() {
+        limits_of(&mut blocks, "limits".to_string(), limits);
+    }
+    for (index, block) in config.app.iter().enumerate() {
+        if let Some(limits) = block.limits.as_ref() {
+            limits_of(&mut blocks, format!("app.{index}.limits"), limits);
+        }
+    }
+    for (index, schedule) in config.schedule.iter().enumerate() {
+        if let Some(limits) = schedule.limits.as_ref() {
+            blocks.push((
+                format!("schedule.{index}.limits"),
+                ceilings(limits).to_vec(),
+            ));
+        }
+    }
+    for (block, rows) in blocks {
+        for (name, written) in rows {
+            let Some(written) = written else {
+                continue;
+            };
+            let key = format!("{block}.{name}");
+            let Some(unit) = unit_of(&key) else {
+                continue;
+            };
+            Quantity::parse(&key, unit, written)
+                .map_err(|invalid| invalid.diagnostic(origins.get(&key)))?;
+        }
+    }
+    Ok(())
+}
+
+/// `rule:config/ceilings-are-their-own-directives`'s cap: the value a request starts with is not
+/// above the `[limits.hard]` ceiling written beside it.
+///
+/// The ceiling is the enforceable cap, and the runtime arms the start, so a start above a written
+/// ceiling runs with more than the operator allowed. It is refused, not clamped, for [`bound`]'s
+/// reason. The resolve calls this over the global tree, and
+/// [`Snapshot::build`](crate::snapshot::Snapshot::build) over the tree an entry's `[[app]]` blocks
+/// fold to, where a start from one block meets a ceiling from another. An unwritten ceiling is the
+/// start itself, so there is nothing to compare, and the two body caps' default ceilings are
+/// [`body_caps`]'s.
+///
+/// # Errors
+///
+/// `E0601` for a start above its ceiling, naming both values and where the start was written.
+pub fn starts(config: &Config, origins: &BTreeMap<String, Origin>) -> Result<(), Diagnostic> {
+    let Some(limits) = config.limits.as_ref() else {
+        return Ok(());
+    };
+    let Some(hard) = limits.hard.as_ref() else {
+        return Ok(());
+    };
+    for ((name, asked), (_, ceiling)) in defaults(limits).into_iter().zip(ceilings(hard)) {
+        let (Some(asked), Some(ceiling)) = (asked, ceiling) else {
+            continue;
+        };
+        let key = format!("limits.{name}");
+        if crate::value::within_ceiling(&key, asked, ceiling)
+            .map_err(|invalid| invalid.diagnostic(origins.get(&key)))?
+            == Some(false)
+        {
+            return Err(start_above_ceiling(&key, asked, ceiling, origins.get(&key)));
         }
     }
     Ok(())
@@ -403,6 +495,21 @@ fn defaults(limits: &Limits) -> [(&'static str, Option<&Setting>); 8] {
     ]
 }
 
+/// The `System`-class quantities of a `[limits]` block that have no ceiling, which [`quantities`]
+/// parses beside [`defaults`]' rows.
+fn system(limits: &Limits) -> [(&'static str, Option<&Setting>); 5] {
+    [
+        ("fatal_reserve_memory", limits.fatal_reserve_memory.as_ref()),
+        ("fatal_reserve_time", limits.fatal_reserve_time.as_ref()),
+        ("max_script_depth", limits.max_script_depth.as_ref()),
+        ("max_decompressed", limits.max_decompressed.as_ref()),
+        (
+            "max_decompression_ratio",
+            limits.max_decompression_ratio.as_ref(),
+        ),
+    ]
+}
+
 /// The same keys of a `[limits.hard]`, carrying their names — one table, so a new limit is a row
 /// here rather than a scattering of places to forget.
 pub(crate) fn ceilings(set: &LimitSet) -> [(&'static str, Option<&Setting>); 8] {
@@ -450,7 +557,7 @@ pub fn body_caps(config: &Config, origins: &BTreeMap<String, Origin>) -> Result<
                 .map_err(|invalid| invalid.diagnostic(origins.get(&key)))?
                 == Some(false)
             {
-                return Err(body_cap_above_ceiling(
+                return Err(start_above_ceiling(
                     &key,
                     &asked,
                     &ceiling,
@@ -504,9 +611,9 @@ pub fn upload_total(config: &Config) -> u64 {
     }
 }
 
-/// `E0601` for a `[limits]` body cap above its ceiling. The message names both values, and the
-/// help names the one key that raises the ceiling.
-fn body_cap_above_ceiling(
+/// `E0601` for a `[limits]` start above its ceiling, from [`starts`] or [`body_caps`]. The message
+/// names both values, and the help names the one key that raises the ceiling.
+fn start_above_ceiling(
     key: &str,
     asked: &Setting,
     ceiling: &Setting,

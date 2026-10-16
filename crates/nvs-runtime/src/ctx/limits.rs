@@ -1003,23 +1003,22 @@ impl Ctx {
 
     /// `[limits] memory` as bytes. Where the configuration writes no such
     /// directive, `get` gives [`nvs_config::defaults::LIMITS_MEMORY`], for
-    /// every kind of run. It is `0` (no cap) for `false`, for a context with no
-    /// configuration at all, and for a value that is not a size.
+    /// every kind of run. It is `0` (no cap) for `false` and for a context with
+    /// no configuration at all.
     ///
-    /// A malformed value answers "no cap" rather than refusing here: the
-    /// configuration was already parsed and refused once, at the boundary that
-    /// can name the file and the line (`rule:config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`
-    /// ), and a second refusal from inside a running request could only be
-    /// a worse-worded copy of it.
+    /// A value that is not a size reads as that default. The resolve refuses
+    /// one at boot and `Core\Config::set` refuses one at run time, both through
+    /// `nvs_config::Quantity`, so only a host that builds its snapshot by hand
+    /// can hand one in (`rule:config/one-parser-for-the-boot-path-and-config-set`).
     fn configured_memory_limit(&self) -> usize {
         self.configured_bytes("memory")
     }
 
-    /// `[limits] max_output` as bytes, or `0` when there is no configuration,
-    /// no such directive, or a value that is not a size.
+    /// `[limits] max_output` as bytes, or `0` when there is no configuration
+    /// or no such directive, which is its shipped default.
     ///
-    /// Read the same way and answering "no cap" on a malformed value for the
-    /// same reason its sibling above does.
+    /// A value that is not a size reads as that default, for its sibling's
+    /// reason above.
     fn configured_output_limit(&self) -> usize {
         self.configured_bytes("max_output")
     }
@@ -1058,6 +1057,9 @@ impl Ctx {
     /// `"32M"` means, and `nvs_config::Quantity` is the one place that question
     /// is answered (`rule:config/ini-set-is-core-config-set`
     /// ).
+    ///
+    /// A value that is not a size reads as the key's shipped default, which is
+    /// what an unwritten one reads as, and never as no cap.
     fn configured_bytes(&self, key: &str) -> usize {
         let Some(written) = self.config.as_ref().and_then(|config| config.get(key)) else {
             return 0;
@@ -1065,7 +1067,14 @@ impl Ctx {
         let setting = nvs_config::Setting::Text(written);
         match nvs_config::Quantity::parse(key, nvs_config::Unit::Bytes, &setting) {
             Ok(nvs_config::Quantity::Bytes(bytes)) => usize::try_from(bytes).unwrap_or(usize::MAX),
-            _ => 0,
+            Ok(_) => 0,
+            Err(_) => match nvs_config::defaults::row(&format!("limits.{key}")) {
+                Some(nvs_config::defaults::Builtin {
+                    value: nvs_config::defaults::Value::Size(bytes),
+                    ..
+                }) => usize::try_from(*bytes).unwrap_or(usize::MAX),
+                _ => 0,
+            },
         }
     }
 }

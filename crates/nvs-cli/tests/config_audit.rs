@@ -143,12 +143,13 @@ fn dump_numbers_each_app_block_and_the_toml_document_dumps_the_same_rows() {
 }
 
 /// Every refusal the chapter lists exits `1` with its code on standard error and
-/// prints no summary line; the unchecked quantity it names passes.
+/// prints no summary line, and so does a `[limits]` value that is not a quantity or
+/// is above its ceiling.
 // covers: tools:cli/nvs-config-check-and-nvs-config-dump
 #[test]
 fn every_refusal_the_chapter_names_exits_1_with_its_code() {
     let dir = scratch("refusals");
-    let cases: [(&str, &str, &str); 7] = [
+    let cases: [(&str, &str, &str); 10] = [
         ("syntax.toml", "[limits\n", "E0601"),
         ("unknown.toml", "[limits]\nmemroy = \"1M\"\n", "E0601"),
         (
@@ -176,6 +177,21 @@ fn every_refusal_the_chapter_names_exits_1_with_its_code() {
             "[db.main]\ndriver = \"postgres\"\npassword = \"x\"\npassword_file = \"p.txt\"\n",
             "E0608",
         ),
+        (
+            "bananas.toml",
+            "[limits]\nmemory = \"12 bananas\"\n",
+            "E0601",
+        ),
+        (
+            "hard.toml",
+            "[limits.hard]\nmax_tasks = \"many\"\n",
+            "E0601",
+        ),
+        (
+            "above.toml",
+            "[limits]\nmemory = \"1G\"\n\n[limits.hard]\nmemory = \"512M\"\n",
+            "E0601",
+        ),
     ];
     for (file, text, want) in cases {
         std::fs::write(dir.join(file), text).expect("the case's directory takes a file");
@@ -196,21 +212,6 @@ fn every_refusal_the_chapter_names_exits_1_with_its_code() {
             );
         }
     }
-
-    std::fs::write(
-        dir.join("bananas.toml"),
-        "[limits]\nmemory = \"12 bananas\"\n",
-    )
-    .expect("the case's directory takes a file");
-    let (out, err, code) = nvs_in(&dir, &["config", "check", "bananas.toml"]);
-    assert_eq!(
-        (code, out.as_str()),
-        (
-            Some(0),
-            "ok: 1 file, 1 directive set, 0 overrides, 0 warnings\n"
-        ),
-        "a quantity is not checked by `config check`: {err}"
-    );
     drop(std::fs::remove_dir_all(&dir));
 }
 
