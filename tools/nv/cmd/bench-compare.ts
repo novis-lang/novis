@@ -38,7 +38,7 @@ export const COMPARE_DIR = join(ROOT, "benches", "compare");
 const GENERATED = join(COMPARE_DIR, "generated");
 const TLS_DIR = join(GENERATED, "tls");
 
-export const NGINX_IMAGE = "nginx:1.29.3-alpine";
+export const NGINX_IMAGE = "nginx:1.31.7-alpine";
 export const OHA_IMAGE = "ghcr.io/hatoo/oha@sha256:3ec3dbf549ea197793482d47a6324797411406bbf438c2fe8b91f244ec641a2f";
 const CERT_IMAGE = "alpine/openssl:3.5.7";
 const NGINX_CPUS = 4;
