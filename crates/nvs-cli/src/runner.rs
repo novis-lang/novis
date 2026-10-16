@@ -8,18 +8,25 @@
 //! Every format renders the same [`Case`] list, and a verdict is decided once
 //! — [`Outcome::verdict`] — rather than per format, so the plaintext mark, the
 //! JSON string and the JUnit element cannot disagree about how a test came
-//! out. The plaintext one is the default and is written as the run goes, which
-//! is what keeps a long suite legible; a machine format is one document
-//! written at the end, because neither JSON nor XML has a prefix worth
-//! streaming.
+//! out. The plaintext one is the default and is written in declaration order as
+//! each test is reported, which is what keeps a long suite legible; a machine
+//! format is one document written at the end, because neither JSON nor XML has
+//! a prefix worth streaming. Every line the plaintext report writes goes
+//! through the suite's own context, so a test of this module reads the report
+//! back out of a buffer.
 //!
-//! **Under a machine format the program's own output goes to stderr.** `rule:testing/report-formats`
-//! writes `nvs test --format=json > results.json`, so stdout has to be the
-//! document and nothing else — a test's `echo` interleaved into it would make
-//! the redirect produce something no parser accepts. It is not captured into
-//! the document either: what a test printed is diagnostic output a person
-//! reads, and buffering a whole suite's worth of it to quote back is a cost
-//! every run would pay for the few that are being debugged.
+//! **A test's output is captured** (`rule:testing/tests-run-across-every-core`):
+//! each test runs under a parent context of its own whose sink is a buffer, and
+//! the child isolate's `Output::Inherit` lands its `echo` there. A passing
+//! test's buffer is dropped at its report; a failing one's is written under its
+//! failure, in the report's place. What a class's `#[BeforeClass]` and fixtures
+//! print is captured on the suite's context and written under the class header,
+//! and `#[AfterClass]` runs at its place in the report, so the report reads the
+//! same on one core as on many. `--show-output` gives each test's context the
+//! terminal instead and captures nothing. **Under a machine format the suite's
+//! context writes to stderr**: `rule:testing/report-formats` writes `nvs test
+//! --format=json > results.json`, so stdout is the document and nothing else,
+//! and a failing test's output is not quoted into the document either.
 //!
 //! # Why the runner is here
 //!
@@ -53,9 +60,19 @@
 //! **test** and not per attempt, which is `rule:testing/runner-is-strict`'s retry left usable:
 //! [`run_with_retries`] runs inside it.
 //!
-//! Two things cross that boundary and both are copies. `rule:testing/fixtures`'s fixtures are
-//! built **once per class** in this process's own context and copied into each
-//! test (`nvs_runtime::CrossedFixtures`), which is the whole of what `rule:testing/fixtures` asks
+//! # Tests run across every core
+//!
+//! `rule:testing/tests-run-across-every-core` is [`run_suite`]'s queue. Each
+//! test is a [`Job`], posted to another core with `nvs_host::worker::post`, as
+//! many at once as `--jobs` allows; it builds its own parent context there and
+//! runs [`run_in_isolate`] under it. `--jobs 1`, and a core that cannot be had,
+//! run the job on the suite's own thread. The class hooks and the fixtures run
+//! on the suite's context, and the queue keeps `rule:testing/class-hooks`'s
+//! order and the report's declaration order ([`Queue`]).
+//!
+//! Two things cross the isolate boundary and both are copies. `rule:testing/fixtures`'s fixtures are
+//! built **once per class** in the suite's own context, encoded there and decoded
+//! on the test's core (`nvs_runtime::CrossedFixtures`), which is the whole of what `rule:testing/fixtures` asks
 //! for: the expensive setup runs once, and what a test can reach is its own
 //! graph. The verdict crosses the other way as data — [`Outcome`] is decided
 //! on the child's stack, off the child's own ledger, and filed into a cell the
@@ -97,8 +114,10 @@
 //! order *is* declaration order, which is what a reader of one file sees.
 
 use std::cell::RefCell;
+use std::collections::VecDeque;
 use std::process::ExitCode;
 use std::rc::Rc;
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use nvs_types::defaults::ConstArg;
@@ -235,7 +254,7 @@ impl Outcome {
 
 /// One test's place in the run: what was called, how it came out, how long it
 /// took. The machine formats render a list of these at the end; the plaintext
-/// one renders each as it arrives.
+/// one renders each as it is reported.
 struct Case {
     class: String,
     method: String,
@@ -312,7 +331,12 @@ pub(crate) fn run(
     flags: Flags,
     coverage: &crate::coverage::Requested,
 ) -> ExitCode {
-    let Flags { update, list } = flags;
+    let Flags {
+        update,
+        list,
+        jobs,
+        show_output,
+    } = flags;
     // Answered before the compile below, rather than beside the run: what
     // discovery reads is the checked program's own test table, so a listing
     // costs no lowering and can say nothing about how a test would come out.
@@ -361,15 +385,16 @@ pub(crate) fn run(
     // into the suite's task below.
     let sites = crate::coverage::Sites::of(probes, &checked.map);
 
-    // The module doc owns why a machine format sends the program's own output
+    // The module doc owns why a machine format sends the suite's own output
     // to stderr: stdout is the document, and nothing else may be written to it.
     let mut ctx = match format {
         Format::Human => nvs_runtime::Ctx::stdout(),
         Format::Json | Format::Junit => nvs_runtime::Ctx::new(nvs_runtime::OutputSink::Stderr),
     };
     unit.install_in(&mut ctx);
-    // Every context the suite makes from this one copies the flag and shares
-    // the table, so the table holds the whole run when the suite returns.
+    // The run's table. The class hooks and fixtures count into it directly, and
+    // each test's own table is added to it when the test is reported
+    // ([`Queue`]), so it holds the whole run when the suite returns.
     let hits = coverage.any().then(|| {
         let hits = std::sync::Arc::new(nvs_runtime::StmtHits::with_edges(
             sites.len(),
@@ -382,8 +407,9 @@ pub(crate) fn run(
         hits
     });
     // The tree's snapshot goes on the suite's context before anything runs, as
-    // `nvs run` puts it on the script's: every test's isolate is built from this
-    // context and asks it for its grants, so a `[capabilities]` block reaches a
+    // `nvs run` puts it on the script's: every test's own parent context is
+    // given this snapshot ([`Job::run`]), and its isolate asks that context for
+    // its grants, so a `[capabilities]` block reaches a
     // test exactly as it reaches the program. A context with no snapshot denies
     // every grant, which would leave a `#[Test(server: true)]` unable to connect
     // to its own listener. It spends one copy of the snapshot per run.
@@ -403,7 +429,11 @@ pub(crate) fn run(
         ctx,
         checked,
         &snapshot.config,
-        format,
+        Shape {
+            format,
+            jobs,
+            show_output,
+        },
         filter.as_deref(),
     ) {
         Ok(both) => both,
@@ -418,9 +448,9 @@ pub(crate) fn run(
         exited,
         class_failures,
     } = suite;
-    // Flushed before the summary: a test's own `echo` is buffered on the
-    // context, and printing the counts over the top of it would report a run
-    // whose output had not been written yet.
+    // Flushed before the summary: the report and what the class hooks printed
+    // are written through the context, and printing the counts over the top of
+    // them would report a run whose output had not been written yet.
     if let Err(error) = ctx.flush_output() {
         eprintln!("error: could not flush output: {error}");
         return ExitCode::FAILURE;
@@ -504,30 +534,48 @@ pub(crate) fn run(
 /// `Err` is the message to render — an internal failure of the run itself,
 /// never a verdict about a test.
 fn run_suite_in_a_task(
-    unit: &Rc<nvs_codegen::Unit>,
+    unit: &Arc<nvs_codegen::Unit>,
     ctx: nvs_runtime::Ctx,
     checked: crate::Checked,
     config: &nvs_config::Config,
-    format: Format,
+    shape: Shape,
     filter: Option<&str>,
 ) -> Result<(Suite, nvs_runtime::Ctx), String> {
     let mut sched = nvs_host::Scheduler::new();
-    // Built before `checked` is moved into the task below, which is the only
-    // reason it is here rather than beside the resolver: both are installed
-    // over the same `run_until_idle`.
-    let under_test = UnderTest::new(unit, &checked);
+    // `rule:testing/in-process-request`'s unit under test, built before
+    // `checked` is moved into the task below. A `Core\Test` member reaches it
+    // the way a `spawn script` reaches the resolver, so the two guards nest
+    // rather than either one being a special case; each test's [`Job`] installs
+    // the same two on the core it runs on.
+    let under_test = Arc::new(UnderTest::new(unit, &checked));
+    // A test's own isolate is built by this crate directly, but a `spawn script`
+    // *inside* a test goes through the seam and needs the same resolver
+    // `nvs run` installs — one per run, so two tests spawning one path share
+    // the compiled unit (`crate::script`). It reads the tree's own `[opcache]`,
+    // because the snapshot is resolved above the suite's compile and
+    // `rule:config/the-extension-set-is-in-every-unit-key`'s environment digest is half of every key this resolver
+    // writes: a default one would file a unit under an environment this run is
+    // not in. Nothing edits a file mid-suite, so the revalidation policy in it
+    // chooses nothing.
+    let compiler = Arc::new(crate::script::Compiler::new(config));
     let filed: Rc<RefCell<Option<Suite>>> = Rc::new(RefCell::new(None));
     let collected = Rc::clone(&filed);
-    let suite_unit = Rc::clone(unit);
+    let suite_unit = Arc::clone(unit);
+    let seams = (Arc::clone(&under_test), Arc::clone(&compiler));
     // Owned for the same reason `checked` is: the body outlives this call as
     // far as the scheduler's signature is concerned.
     let filter = filter.map(ToOwned::to_owned);
     let root = sched.spawn(ctx, nvs_runtime::TaskRoot::Request, move |ctx| {
+        let (under_test, compiler) = seams;
         *collected.borrow_mut() = Some(run_suite(
             &suite_unit,
             ctx,
             &checked,
-            format,
+            Seams {
+                shape,
+                under_test,
+                compiler,
+            },
             filter.as_deref(),
         ));
     });
@@ -538,21 +586,8 @@ fn run_suite_in_a_task(
     let reactor = nvs_host::Reactor::new()
         .map_err(|error| format!("could not start the reactor: {error}"))?;
     let installed = nvs_host::reactor::install(reactor);
-    // A test's own isolate is built by this crate directly, but a `spawn script`
-    // *inside* a test goes through the seam and needs the same resolver
-    // `nvs run` installs — one per run, so two tests spawning one path share
-    // the compiled unit (`crate::script`). It reads the tree's own `[opcache]`,
-    // because the snapshot is resolved above the suite's compile and
-    // `rule:config/the-extension-set-is-in-every-unit-key`'s environment digest is half of every key this resolver
-    // writes: a default one would file a unit under an environment this run is
-    // not in. Nothing edits a file mid-suite, so the revalidation policy in it
-    // chooses nothing.
-    let compiler = crate::script::Compiler::new(config);
-    // And `rule:testing/in-process-request`'s unit under test, over the same run: a `Core\Test`
-    // member reaches it the way a `spawn script` reaches the resolver, so the
-    // two guards nest rather than either one being a special case.
-    let ran = nvs_runtime::script::scoped(&compiler, || {
-        nvs_runtime::inproc::scoped(&under_test, || nvs_host::run_until_idle(&mut sched))
+    let ran = nvs_runtime::script::scoped(&*compiler, || {
+        nvs_runtime::inproc::scoped(&*under_test, || nvs_host::run_until_idle(&mut sched))
     });
     drop(installed);
     ran.map_err(|error| format!("the scheduler stopped: {error}"))?;
@@ -593,7 +628,8 @@ pub(crate) struct UnderTest {
     /// The unit the suite is running, whose script frame is the entry a
     /// synthetic request runs — the same frame a served request would run,
     /// which is what makes `rule:testing/in-process-request`'s "the real chain" true rather than a mock.
-    unit: Rc<nvs_codegen::Unit>,
+    /// Shared atomically, because every core a test runs on reaches this seam.
+    unit: Arc<nvs_codegen::Unit>,
     /// `rule:routing/matched-once-before-the-handler`'s table, installed on the child so that a handler reading
     /// its own route reads the same one the door matched against.
     routes: std::sync::Arc<nvs_runtime::routes::Routes>,
@@ -614,9 +650,9 @@ impl std::fmt::Debug for UnderTest {
 impl UnderTest {
     /// The unit under test for this run, with `rule:routing/matched-once-before-the-handler`'s table already
     /// crossed into the runtime's shape.
-    pub(crate) fn new(unit: &Rc<nvs_codegen::Unit>, checked: &crate::Checked) -> Self {
+    pub(crate) fn new(unit: &Arc<nvs_codegen::Unit>, checked: &crate::Checked) -> Self {
         Self {
-            unit: Rc::clone(unit),
+            unit: Arc::clone(unit),
             routes: std::sync::Arc::new(crate::runtime_routes(&checked.exprs)),
         }
     }
@@ -649,7 +685,7 @@ impl nvs_runtime::inproc::Answering for UnderTest {
                 inbound.clear_body();
             }
         }
-        let unit = Rc::clone(&self.unit);
+        let unit = Arc::clone(&self.unit);
         let routes = std::sync::Arc::clone(&self.routes);
         // The same program `crate::script::program_over` builds for a `spawn
         // script`, over this run's own unit instead of a resolved one: the
@@ -692,7 +728,8 @@ impl nvs_runtime::inproc::Answering for UnderTest {
 
 /// Lowers and compiles `checked` into the **one** unit every test isolate of
 /// this run shares — `rule:testing/isolate-per-test`'s "shares compiled code with its siblings"
-/// is this `Rc` and the program's Rust closure each child holds a clone of.
+/// is this `Arc` and the program's Rust closure each child holds a clone of, on
+/// whichever core the child runs.
 ///
 /// `Err` is the message [`crate::report_internal`] renders; a compile that
 /// fails ends the run rather than any one test.
@@ -709,7 +746,7 @@ fn compile(
     checked: &crate::Checked,
     cache: Option<&crate::cache::Cache>,
     coverage: bool,
-) -> Result<(Rc<nvs_codegen::Unit>, crate::coverage::Probes), String> {
+) -> Result<(Arc<nvs_codegen::Unit>, crate::coverage::Probes), String> {
     let files = checked.program_files();
     let program = nvs_ir::lower::lower_program(
         nvs_ir::lower::ENTRY_SCRIPT_LABEL,
@@ -724,7 +761,7 @@ fn compile(
         false => crate::coverage::Probes::default(),
     };
     crate::cache::unit_for(&program, crate::cache::program_digest(&files), cache)
-        .map(|(unit, _)| (Rc::new(unit), probes))
+        .map(|(unit, _)| (Arc::new(unit), probes))
         .map_err(|error| error.to_string())
 }
 
@@ -740,12 +777,43 @@ fn percent(hit: usize, of: usize) -> f64 {
     }
 }
 
-/// The two switches of [`run`] that change what a run does rather than how it
-/// reports: `--update` and `--list`.
+/// The switches of [`run`] that change what a run does rather than which
+/// format it reports in: `--update`, `--list`, `--jobs` and `--show-output`.
 #[derive(Clone, Copy)]
 pub(crate) struct Flags {
     pub(crate) update: bool,
     pub(crate) list: bool,
+    /// How many tests run at once (`rule:testing/tests-run-across-every-core`).
+    /// `1` runs every test on the suite's own thread, which is what a program
+    /// that loads an extension needs: the extension host is that thread's.
+    pub(crate) jobs: usize,
+    /// `--show-output`: each test writes to the terminal as it runs, and
+    /// nothing is captured.
+    pub(crate) show_output: bool,
+}
+
+/// `--jobs`'s default: the machine's hardware threads, as `nvs_test` counts
+/// them for `.nvst` cases.
+pub(crate) fn default_jobs() -> usize {
+    std::thread::available_parallelism().map_or(1, std::num::NonZeroUsize::get)
+}
+
+/// How a run reports and spreads its tests: the part of [`run`]'s arguments
+/// that crosses into the suite's task.
+#[derive(Clone, Copy)]
+struct Shape {
+    format: Format,
+    jobs: usize,
+    show_output: bool,
+}
+
+/// What [`run_suite`] hands every test it posts, beside [`Shape`]: the two
+/// seams `run_suite_in_a_task` installs on the suite's thread, which each
+/// [`Job`] installs again on the core it runs on.
+struct Seams {
+    shape: Shape,
+    under_test: Arc<UnderTest>,
+    compiler: Arc<crate::script::Compiler>,
 }
 
 /// A whole run's verdict, before any of `rule:testing/report-formats`'s renderings has been chosen —
@@ -775,31 +843,48 @@ struct Attempted {
 }
 
 /// Runs every `#[Test]` `checked` declares that `filter` selects, in `rule:testing/runner-is-strict`'s
-/// order, reporting each as it arrives under [`Format::Human`] and only
-/// collecting under the other two.
+/// order, as many at once as `--jobs` allows, reporting each in declaration
+/// order under [`Format::Human`] and only collecting under the other two.
+///
+/// The class loop runs on the suite's context: `#[BeforeClass]`, the fixtures,
+/// then one [`Job`] per selected test, posted to another core. What it cannot
+/// post — a skip, a failed setup, a fixture that cannot cross — enters the
+/// [`Queue`] with its outcome already decided. The queue is what reports, and
+/// what runs `#[AfterClass]` once the class's last test has been reported.
 fn run_suite(
-    unit: &Rc<nvs_codegen::Unit>,
+    unit: &Arc<nvs_codegen::Unit>,
     ctx: &mut nvs_runtime::Ctx,
     checked: &crate::Checked,
-    format: Format,
+    seams: Seams,
     filter: Option<&str>,
 ) -> Suite {
-    let (mut passed, mut failed, mut skipped, mut flaky) = (0_usize, 0_usize, 0_usize, 0_usize);
-    let mut exited = None;
-    let mut cases = Vec::new();
-    let mut class_failures = Vec::new();
-    // `rule:routing/matched-once-before-the-handler`'s table, crossed once for the whole suite rather than per
-    // test: it is a product of the compile every isolate already shares, and
-    // [`TestServer`] is the only thing that reads it — a run whose tests declare
-    // no `server:` pays one walk of the program's `#[Route]` rows and nothing
-    // else. `UnderTest` builds its own for `rule:testing/in-process-request`'s first mechanism, which is
-    // installed a call above this one and holds it for the whole run.
-    let routes = std::sync::Arc::new(crate::runtime_routes(&checked.exprs));
-    // The run's coverage table, or `None` when no coverage flag was given.
-    // Tests run one after another, so the counts that grew while one test ran
-    // are that test's: every attempt and every request it sent. A fixture is
-    // built before its class's first test, so it is no test's.
+    let Seams {
+        shape,
+        under_test,
+        compiler,
+    } = seams;
+    // The run's coverage table, or `None` when no coverage flag was given. A
+    // test counts into a table of its own, sized from this one, and the queue
+    // adds it here when the test is reported. A fixture is built before its
+    // class's first test, so it is no test's.
     let hits = ctx.stmt_hits().cloned();
+    let shared = Arc::new(Shared {
+        // `rule:routing/matched-once-before-the-handler`'s table, crossed once for the whole suite rather than per
+        // test: it is a product of the compile every isolate already shares, and
+        // [`TestServer`] is the only thing that reads it — a run whose tests declare
+        // no `server:` pays one walk of the program's `#[Route]` rows and nothing
+        // else. `UnderTest` builds its own for `rule:testing/in-process-request`'s first mechanism.
+        routes: Arc::new(crate::runtime_routes(&checked.exprs)),
+        config: ctx.config().map(|config| Arc::clone(config.snapshot())),
+        coverage: hits
+            .as_ref()
+            .map(|hits| (hits.counts().len(), hits.edge_counts().len())),
+        under_test,
+        compiler,
+        format: shape.format,
+        show_output: shape.show_output,
+    });
+    let mut queue = Queue::new(unit, ctx, shape.format, hits);
     for class in checked.exprs.test_classes() {
         let tests = checked.exprs.tests(class).unwrap_or_default();
         // The selection is made **before** the class is announced or its
@@ -816,132 +901,600 @@ fn run_suite(
         if calls.is_empty() {
             continue;
         }
-        if format == Format::Human {
-            println!("  {class}");
-        }
         // `rule:testing/class-hooks`'s order: `#[BeforeClass]`, the fixtures,
-        // the tests, then `#[AfterClass]`, all in the parent. A setup that
-        // threw runs no test and builds no fixture, and `#[AfterClass]` still
-        // runs, because the setup may have left something to remove.
+        // the tests, then `#[AfterClass]`, the hooks and fixtures in the
+        // parent. A setup that threw runs no test and builds no fixture, and
+        // `#[AfterClass]` still runs, because the setup may have left something
+        // to remove. The header enters the queue first; what the two print is
+        // captured and enters behind it, because an earlier class's tests may
+        // still be reporting. Under `--show-output` it streams instead.
+        if queue.push(Entry::Class(class.to_owned())) {
+            break;
+        }
+        let capture = !shape.show_output;
+        if capture {
+            queue.ctx.begin_capture();
+        }
         let hooks = checked.exprs.test_hooks(class);
         let setup = hooks
             .and_then(|hooks| hooks.before_class.as_ref())
-            .and_then(|hook| run_class_hook(unit, ctx, class, hook, "#[BeforeClass]", None));
-        if let Some(FixtureFailure::Exited(code)) = setup {
-            exited = Some(code);
-            break;
-        }
+            .and_then(|hook| run_class_hook(unit, queue.ctx, class, hook, "#[BeforeClass]", None));
         // `rule:testing/fixtures`'s "built once, in the parent" is this call: one set per class,
         // built before its first test and dropped after its last, so a fixture
         // is not rebuilt per test and not kept past the class that declared it.
         let mut fixtures = nvs_runtime::Fixtures::new();
         let unbuilt = match setup {
             Some(_) => None,
-            None => build_fixtures(unit, ctx, class, checked, tests, &mut fixtures),
+            None => build_fixtures(unit, queue.ctx, class, checked, tests, &mut fixtures),
         };
-        let mut ran = nvs_stdlib::TestCounts::default();
-        let mut failed_tests = Vec::new();
+        if capture {
+            let printed = queue.ctx.end_capture().unwrap_or_default();
+            if queue.push(Entry::Printed(printed)) {
+                break;
+            }
+        }
+        if let Some(FixtureFailure::Exited(code)) = setup {
+            // Every earlier class finishes and is reported first: the queue
+            // reaches this entry in declaration order.
+            queue.push(Entry::Exit(code));
+            break;
+        }
         for call in calls {
             let (case, label, row) = (call.case, call.label, call.row);
-            let began = Instant::now();
-            let before = hits.as_ref().map(|hits| hits.counts());
             let test = Attempted {
                 class: class.to_owned(),
                 method: case.method.clone(),
                 label: label.clone(),
                 after_each: hooks.and_then(|hooks| hooks.after_each_test.clone()),
             };
-            let (outcome, snapshots) = match setup.as_ref().or(unbuilt.as_ref()) {
+            let decided = match setup.as_ref().or(unbuilt.as_ref()) {
                 Some(FixtureFailure::Threw(message)) if setup.is_some() => {
-                    (Outcome::Failed(vec![message.clone()]), Vec::new())
+                    Some(Outcome::Failed(vec![message.clone()]))
                 }
                 // A fixture that would not build is reported against every
                 // test that asked for one, rather than against the class: a
                 // test is what a report has a line for, and a suite that lost
                 // a whole class silently is what `rule:testing/runner-is-strict` is written against.
-                Some(FixtureFailure::Exited(code)) => (Outcome::Exited(*code), Vec::new()),
+                Some(FixtureFailure::Exited(code)) => Some(Outcome::Exited(*code)),
                 Some(FixtureFailure::Threw(message)) if !fixtures_needed(case).is_empty() => {
-                    (Outcome::Failed(vec![message.clone()]), Vec::new())
+                    Some(Outcome::Failed(vec![message.clone()]))
                 }
-                _ => run_in_isolate(unit, ctx, &test, case, row, &fixtures, &routes),
+                _ => None,
             };
-            let elapsed = began.elapsed();
-            let reached = hits
-                .as_ref()
-                .zip(before)
-                .map(|(hits, before)| crate::coverage::grew(&before, &hits.counts()));
-            match &outcome {
-                Outcome::Passed => ran.passed += 1,
-                Outcome::Skipped(_) => ran.skipped += 1,
-                Outcome::Flaky { .. } => ran.flaky += 1,
-                Outcome::Failed(_) | Outcome::Exited(_) => {
-                    ran.failed += 1;
-                    failed_tests.push(label.clone());
-                }
-            }
-            if format == Format::Human {
-                report(&label, &outcome, elapsed);
-            }
-            if let Outcome::Exited(code) = outcome {
-                exited = Some(code);
-            }
-            cases.push(Case {
+            let state = match decided {
+                Some(outcome) => State::Decided(outcome),
+                None => match Job::prepare(unit, test, case, row, &fixtures, &shared) {
+                    Ok(job) => queue.start(job, shape.jobs),
+                    Err(outcome) => State::Decided(outcome),
+                },
+            };
+            let ended = queue.push(Entry::Test(Box::new(Pending {
                 class: class.to_owned(),
-                method: label,
+                label,
                 declared: declared_at(case.span, &checked.map),
-                outcome,
-                elapsed,
-                snapshots,
-                reached,
-            });
-            if exited.is_some() {
+                state,
+            })));
+            if ended {
                 break;
             }
         }
-        passed += ran.passed;
-        failed += ran.failed;
-        skipped += ran.skipped;
-        flaky += ran.flaky;
-        if exited.is_some() {
+        if queue.ended() {
             break;
         }
-        // Released before `#[AfterClass]`, which may remove what a fixture
-        // still has open.
-        drop(fixtures);
-        let Some(hook) = hooks.and_then(|hooks| hooks.after_class.as_ref()) else {
-            continue;
+        if queue.push(Entry::ClassEnd {
+            name: class.to_owned(),
+            fixtures,
+            after: hooks.and_then(|hooks| hooks.after_class.clone()),
+        }) {
+            break;
+        }
+    }
+    queue.finish()
+}
+
+/// What every test of one run shares on whichever core it runs: read-only, and
+/// built once per run.
+struct Shared {
+    routes: Arc<nvs_runtime::routes::Routes>,
+    /// The suite's configuration snapshot, which each test's own parent
+    /// context is given, or `None` for a suite nobody configured.
+    config: Option<Arc<nvs_config::Snapshot>>,
+    /// The sizes of the run's coverage table, statements then edges, or `None`
+    /// for a run with no coverage flag.
+    coverage: Option<(usize, usize)>,
+    under_test: Arc<UnderTest>,
+    compiler: Arc<crate::script::Compiler>,
+    format: Format,
+    show_output: bool,
+}
+
+/// One test on its way to the core that runs it: everything [`run_in_isolate`]
+/// reads, owned, and each fixture it asks for as graph bytes.
+///
+/// **What it spends** (`rule:programs/memory-priority`): per test in flight, a
+/// parent context of its own beside its isolate, its fixtures as bytes and then
+/// as decoded copies, its captured output and, under a coverage flag, a
+/// coverage table the size of the run's. All of it is released when the test
+/// is reported, and a passing test's output is never kept past that. That is
+/// O(`--jobs`), plus the results of finished tests waiting behind an earlier
+/// one that is still running.
+struct Job {
+    unit: Arc<nvs_codegen::Unit>,
+    test: Attempted,
+    case: nvs_types::testing::TestCase,
+    row: Option<Vec<Option<ConstArg>>>,
+    fixtures: Vec<Vec<u8>>,
+    shared: Arc<Shared>,
+}
+
+/// What a [`Job`] sends back to the suite's core.
+struct Ran {
+    outcome: Outcome,
+    snapshots: Vec<nvs_runtime::SnapshotMismatch>,
+    elapsed: Duration,
+    /// What the test, its `#[AfterEachTest]` hook and its isolate printed, or
+    /// nothing under `--show-output`.
+    output: Vec<u8>,
+    /// The test's own statement and edge counts, under a coverage flag.
+    coverage: Option<(Vec<u64>, Vec<u64>)>,
+}
+
+impl Ran {
+    /// A test that never ran a line.
+    fn decided(outcome: Outcome) -> Self {
+        Self {
+            outcome,
+            snapshots: Vec::new(),
+            elapsed: Duration::ZERO,
+            output: Vec::new(),
+            coverage: None,
+        }
+    }
+}
+
+impl Job {
+    /// The job for one test, or the outcome it has without running: a skip,
+    /// or a fixture that cannot cross. The fixtures are encoded here, on the
+    /// parent's core, because the set that owns them is the parent's.
+    fn prepare(
+        unit: &Arc<nvs_codegen::Unit>,
+        test: Attempted,
+        case: &nvs_types::testing::TestCase,
+        row: Option<&[Option<ConstArg>]>,
+        fixtures: &nvs_runtime::Fixtures,
+        shared: &Arc<Shared>,
+    ) -> Result<Self, Outcome> {
+        if let Some(reason) = skip_reason(case) {
+            return Err(Outcome::Skipped(reason));
+        }
+        let needed: Vec<String> = fixtures_needed(case)
+            .into_iter()
+            .map(str::to_owned)
+            .collect();
+        let encoded = match nvs_runtime::CrossedFixtures::encode(fixtures, &needed) {
+            Some(Ok(encoded)) => encoded,
+            // A fixture the parent built that has no meaning inside an isolate —
+            // a callable, an object over a host handle. It is reported against the
+            // test that asked for it, which is where the name in the message
+            // means something, and nothing has run.
+            Some(Err(refused)) => {
+                return Err(Outcome::Failed(vec![format!(
+                    "`{}::{}` asks for a `#[Fixture]` that cannot cross into its isolate: \
+                     {refused}",
+                    test.class, case.method
+                )]));
+            }
+            None => {
+                return Err(Outcome::Failed(vec![format!(
+                    "internal error: `{}::{}` asks for a `#[Fixture]` that was not built",
+                    test.class, case.method
+                )]));
+            }
         };
+        Ok(Self {
+            unit: Arc::clone(unit),
+            test,
+            case: case.clone(),
+            row: row.map(<[Option<ConstArg>]>::to_vec),
+            fixtures: encoded,
+            shared: Arc::clone(shared),
+        })
+    }
+
+    /// Runs the test on this thread, under a parent context built for it.
+    ///
+    /// The context is what the suite's would have been for this one test: the
+    /// unit installed, the suite's configuration, a coverage table of its own,
+    /// and the two seams. Its sink is a buffer, so what the child isolate
+    /// prints through `Output::Inherit` is the test's captured output.
+    fn run(self) -> Ran {
+        let began = Instant::now();
+        let Self {
+            unit,
+            test,
+            case,
+            row,
+            fixtures,
+            shared,
+        } = self;
+        let sink = match (shared.show_output, shared.format) {
+            (false, _) => nvs_runtime::OutputSink::Buffer(Vec::new()),
+            (true, Format::Human) => nvs_runtime::OutputSink::Stdout,
+            (true, Format::Json | Format::Junit) => nvs_runtime::OutputSink::Stderr,
+        };
+        let mut ctx = nvs_runtime::Ctx::new(sink);
+        unit.install_in(&mut ctx);
+        if let Some(config) = &shared.config {
+            ctx.set_config(Arc::clone(config));
+        }
+        let hits = shared.coverage.map(|(stmts, edges)| {
+            let hits = Arc::new(nvs_runtime::StmtHits::with_edges(stmts, edges));
+            ctx.set_stmt_hits(Some(Arc::clone(&hits)));
+            ctx.set_debug_flags(
+                ctx.debug_flags()
+                    | nvs_runtime::DebugFlags::COVERAGE
+                    | nvs_runtime::DebugFlags::BRANCH,
+            );
+            hits
+        });
+        let receiving = ctx.class_table();
+        let (outcome, snapshots) =
+            match nvs_runtime::CrossedFixtures::decode(&fixtures, receiving.as_ref()) {
+                Ok(crossed) => nvs_runtime::script::scoped(&*shared.compiler, || {
+                    nvs_runtime::inproc::scoped(&*shared.under_test, || {
+                        run_in_isolate(
+                            &unit,
+                            &mut ctx,
+                            &test,
+                            &case,
+                            row.as_deref(),
+                            crossed,
+                            &shared.routes,
+                        )
+                    })
+                }),
+                // Not reachable for bytes encoded against the same unit's
+                // table, and reported rather than unwrapped: nothing has run.
+                Err(refused) => (
+                    Outcome::Failed(vec![format!(
+                        "internal error: `{}::{}`'s `#[Fixture]` could not be read on the core \
+                         the test runs on: {refused}",
+                        test.class, case.method
+                    )]),
+                    Vec::new(),
+                ),
+            };
+        // A sink that is the terminal is flushed here, on the thread whose
+        // writes it holds, and a failure to flush is nothing a verdict can see.
+        drop(ctx.flush_output());
+        Ran {
+            outcome,
+            snapshots,
+            elapsed: began.elapsed(),
+            output: ctx.take_buffered_output().unwrap_or_default(),
+            coverage: hits.map(|hits| (hits.counts(), hits.edge_counts())),
+        }
+    }
+}
+
+/// One entry of the [`Queue`], in the order the report prints them.
+enum Entry {
+    /// A class's header, before its `#[BeforeClass]` runs.
+    Class(String),
+    /// What a class's `#[BeforeClass]` and fixtures printed, captured.
+    Printed(Vec<u8>),
+    Test(Box<Pending>),
+    /// After a class's last test: its fixtures, released here, then its
+    /// `#[AfterClass]`.
+    ClassEnd {
+        name: String,
+        fixtures: nvs_runtime::Fixtures,
+        after: Option<nvs_types::test_hooks::HookMethod>,
+    },
+    /// An `exit(n)` in a class's `#[BeforeClass]`, which ends the run here.
+    Exit(i64),
+}
+
+/// One test's place in the queue.
+struct Pending {
+    class: String,
+    label: String,
+    declared: Option<Declared>,
+    state: State,
+}
+
+/// Where one test is.
+enum State {
+    /// Its outcome was known without running it.
+    Decided(Outcome),
+    /// Running on another core.
+    Running(nvs_host::worker::Posted<Ran>),
+    /// Run on the suite's own thread.
+    Ran(Ran),
+}
+
+/// `rule:testing/tests-run-across-every-core`'s order, kept while tests run at
+/// once: every class header, test, `#[AfterClass]` and setup `exit` enters in
+/// declaration order, and leaves in that order to be reported.
+///
+/// An entry leaves as soon as everything ahead of it has, and it is not a test
+/// still running; [`Self::start`] waits at the front while `--jobs` tests are
+/// running, and [`Self::finish`] waits for all of them. So a later class's
+/// `#[BeforeClass]` may run while an earlier class's tests still are, and
+/// `#[AfterClass]` starts after its class's last test has been reported. An
+/// `exit(n)` reported here abandons every test still running behind it.
+struct Queue<'a> {
+    unit: &'a nvs_codegen::Unit,
+    ctx: &'a mut nvs_runtime::Ctx,
+    format: Format,
+    hits: Option<Arc<nvs_runtime::StmtHits>>,
+    entries: VecDeque<Entry>,
+    running: usize,
+    cases: Vec<Case>,
+    counts: Counts,
+    /// The class being reported, its counts and the labels of its failed
+    /// tests: `#[AfterClass]`'s `Core\Test\Summary`.
+    class: nvs_stdlib::TestCounts,
+    failed_tests: Vec<String>,
+    exited: Option<i64>,
+    class_failures: Vec<(String, String)>,
+}
+
+impl<'a> Queue<'a> {
+    fn new(
+        unit: &'a nvs_codegen::Unit,
+        ctx: &'a mut nvs_runtime::Ctx,
+        format: Format,
+        hits: Option<Arc<nvs_runtime::StmtHits>>,
+    ) -> Self {
+        Self {
+            unit,
+            ctx,
+            format,
+            hits,
+            entries: VecDeque::new(),
+            running: 0,
+            cases: Vec::new(),
+            counts: Counts {
+                passed: 0,
+                failed: 0,
+                skipped: 0,
+                flaky: 0,
+            },
+            class: nvs_stdlib::TestCounts::default(),
+            failed_tests: Vec::new(),
+            exited: None,
+            class_failures: Vec::new(),
+        }
+    }
+
+    /// Whether an `exit(n)` has ended the run.
+    fn ended(&self) -> bool {
+        self.exited.is_some()
+    }
+
+    /// Starts `job`: posted to another core once fewer than `jobs` tests are
+    /// running, or run here under `--jobs 1` and when no core can be had.
+    fn start(&mut self, job: Job, jobs: usize) -> State {
+        if jobs <= 1 {
+            return State::Ran(job.run());
+        }
+        while self.running >= jobs && !self.ended() {
+            self.report_front();
+        }
+        match nvs_host::worker::post(move || job.run()) {
+            Ok(posted) => State::Running(posted),
+            Err(job) => State::Ran(job()),
+        }
+    }
+
+    /// Adds `entry` behind the others and reports every entry at the front
+    /// that is ready. `true` once an `exit(n)` has ended the run.
+    fn push(&mut self, entry: Entry) -> bool {
+        if self.ended() {
+            abandon(entry);
+            return true;
+        }
+        if let Entry::Test(pending) = &entry
+            && matches!(pending.state, State::Running(_))
+        {
+            self.running += 1;
+        }
+        self.entries.push_back(entry);
+        while self.entries.front().is_some_and(ready) && !self.ended() {
+            self.report_front();
+        }
+        self.ended()
+    }
+
+    /// Reports every entry left, waiting for each test still running, and
+    /// hands back the whole run.
+    fn finish(mut self) -> Suite {
+        while !self.entries.is_empty() && !self.ended() {
+            self.report_front();
+        }
+        Suite {
+            cases: self.cases,
+            counts: self.counts,
+            exited: self.exited,
+            class_failures: self.class_failures,
+        }
+    }
+
+    /// Takes the front entry out and reports it, waiting for it if it is a
+    /// test still running. An `exit(n)` abandons everything behind it.
+    fn report_front(&mut self) {
+        let Some(entry) = self.entries.pop_front() else {
+            return;
+        };
+        match entry {
+            Entry::Class(name) => {
+                if self.format == Format::Human {
+                    say(self.ctx, &format!("  {name}\n"));
+                }
+                self.class = nvs_stdlib::TestCounts::default();
+                self.failed_tests.clear();
+            }
+            Entry::Printed(printed) => drop(self.ctx.write_output(&printed)),
+            Entry::Test(pending) => self.report_test(*pending),
+            Entry::ClassEnd {
+                name,
+                fixtures,
+                after,
+            } => {
+                // Released before `#[AfterClass]`, which may remove what a
+                // fixture still has open.
+                drop(fixtures);
+                if let Some(hook) = after {
+                    self.after_class(&name, &hook);
+                }
+            }
+            Entry::Exit(code) => self.exited = Some(code),
+        }
+        if self.ended() {
+            for entry in std::mem::take(&mut self.entries) {
+                abandon(entry);
+            }
+            self.running = 0;
+        }
+    }
+
+    /// Reports one test: its counts, its line, its output under a failure,
+    /// and its coverage added to the run's.
+    fn report_test(&mut self, pending: Pending) {
+        let Pending {
+            class,
+            label,
+            declared,
+            state,
+        } = pending;
+        let ran = match state {
+            State::Decided(outcome) => Ran::decided(outcome),
+            State::Ran(ran) => ran,
+            State::Running(posted) => {
+                self.running -= 1;
+                match posted.collect() {
+                    nvs_host::worker::Answer::Value(ran) => ran,
+                    // Contained at the far core's task root, and this test's
+                    // failure rather than the run's.
+                    nvs_host::worker::Answer::Panicked(panic) => Ran::decided(Outcome::Failed(
+                        vec![format!("the test's isolate panicked: {panic}")],
+                    )),
+                    nvs_host::worker::Answer::Stopped => Ran::decided(Outcome::Failed(vec![
+                        "the test stopped without reaching a verdict".to_owned(),
+                    ])),
+                }
+            }
+        };
+        let Ran {
+            outcome,
+            snapshots,
+            elapsed,
+            output,
+            coverage,
+        } = ran;
+        let reached = self.hits.as_ref().map(|hits| match coverage {
+            Some((counts, edges)) => {
+                hits.add(&counts, &edges);
+                crate::coverage::ran(&counts)
+            }
+            None => Vec::new(),
+        });
+        let failed = matches!(outcome, Outcome::Failed(_) | Outcome::Exited(_));
+        match &outcome {
+            Outcome::Passed => self.class.passed += 1,
+            Outcome::Skipped(_) => self.class.skipped += 1,
+            Outcome::Flaky { .. } => self.class.flaky += 1,
+            Outcome::Failed(_) | Outcome::Exited(_) => {
+                self.class.failed += 1;
+                self.failed_tests.push(label.clone());
+            }
+        }
+        match &outcome {
+            Outcome::Passed => self.counts.passed += 1,
+            Outcome::Skipped(_) => self.counts.skipped += 1,
+            Outcome::Flaky { .. } => self.counts.flaky += 1,
+            Outcome::Failed(_) | Outcome::Exited(_) => self.counts.failed += 1,
+        }
+        if self.format == Format::Human {
+            report(self.ctx, &label, &outcome, elapsed);
+        }
+        // A passing test's output is dropped with `output`. A failing one's
+        // is written in the report's place for that test, and under a machine
+        // format, where there is no line to put it under, it names the test.
+        if failed && !output.is_empty() {
+            let text = String::from_utf8_lossy(&output);
+            let (heading, indent) = match self.format {
+                Format::Human => ("      output:\n".to_owned(), "        "),
+                Format::Json | Format::Junit => (format!("{class}::{label} output:\n"), "  "),
+            };
+            say(self.ctx, &heading);
+            for line in text.lines() {
+                say(self.ctx, &format!("{indent}{line}\n"));
+            }
+        }
+        if let Outcome::Exited(code) = outcome {
+            self.exited = Some(code);
+        }
+        self.cases.push(Case {
+            class,
+            method: label,
+            declared,
+            outcome,
+            elapsed,
+            snapshots,
+            reached,
+        });
+    }
+
+    /// `rule:testing/class-hooks`'s `#[AfterClass]`, with its `Summary`.
+    fn after_class(&mut self, class: &str, hook: &nvs_types::test_hooks::HookMethod) {
         let summary = hook
             .takes_value
-            .then(|| nvs_stdlib::test_summary(class, ran, &failed_tests));
-        match run_class_hook(unit, ctx, class, hook, "#[AfterClass]", summary) {
+            .then(|| nvs_stdlib::test_summary(class, self.class, &self.failed_tests));
+        match run_class_hook(self.unit, self.ctx, class, hook, "#[AfterClass]", summary) {
             None => {}
-            Some(FixtureFailure::Exited(code)) => {
-                exited = Some(code);
-                break;
-            }
+            Some(FixtureFailure::Exited(code)) => self.exited = Some(code),
             Some(FixtureFailure::Threw(message)) => {
-                if format == Format::Human {
-                    println!("    ✗ {}", hook.method);
-                    println!("      {message}");
+                if self.format == Format::Human {
+                    say(
+                        self.ctx,
+                        &format!("    ✗ {}\n      {message}\n", hook.method),
+                    );
                 } else {
                     eprintln!("error: {class}: {message}");
                 }
-                class_failures.push((class.to_owned(), message));
+                self.class_failures.push((class.to_owned(), message));
             }
         }
     }
-    Suite {
-        cases,
-        counts: Counts {
-            passed,
-            failed,
-            skipped,
-            flaky,
+}
+
+/// Whether `entry` can be reported without waiting.
+fn ready(entry: &Entry) -> bool {
+    match entry {
+        Entry::Test(pending) => match &pending.state {
+            State::Running(posted) => posted.finished(),
+            State::Decided(_) | State::Ran(_) => true,
         },
-        exited,
-        class_failures,
+        Entry::Class(_) | Entry::Printed(_) | Entry::ClassEnd { .. } | Entry::Exit(_) => true,
     }
+}
+
+/// Drops an entry an `exit(n)` left behind, ending its test first if it is
+/// still running. Its class's `#[AfterClass]` does not run.
+fn abandon(entry: Entry) {
+    if let Entry::Test(pending) = entry
+        && let State::Running(posted) = pending.state
+    {
+        posted.abandon();
+    }
+}
+
+/// Writes `text` to the suite's own output. A write that fails is nothing a
+/// verdict can see.
+fn say(ctx: &mut nvs_runtime::Ctx, text: &str) {
+    drop(ctx.write_output(text.as_bytes()));
 }
 
 /// Calls one of `rule:testing/class-hooks`'s two hooks of `class`, in the
@@ -1007,7 +1560,7 @@ fn run_class_hook(
 /// because retries exist precisely so that a suite can pass in spite of one —
 /// what `rule:testing/runner-is-strict` takes away is the *silence*, not the green build.
 fn run_with_retries(
-    unit: &Rc<nvs_codegen::Unit>,
+    unit: &Arc<nvs_codegen::Unit>,
     ctx: &mut nvs_runtime::Ctx,
     test: &Attempted,
     args: &[nvs_runtime::Value],
@@ -1196,15 +1749,15 @@ fn random_seed(case: &nvs_types::testing::TestCase) -> Option<u64> {
 /// boundary is around the whole test, so everything the test can observe —
 /// its receiver, its statics, its ledger, its `echo` — is built on the child's
 /// own context and released with it. What this function does on the parent's
-/// side is only what has to happen before the child exists: `rule:testing/data-rows`'s row, `rule:testing/fixtures`'s
-/// copies, and the Rust closure the two are moved into.
+/// side is only what has to happen before the child exists: `rule:testing/data-rows`'s row,
+/// and the Rust closure it and `rule:testing/fixtures`'s copies, decoded by [`Job::run`], are moved into.
 fn run_in_isolate(
-    unit: &Rc<nvs_codegen::Unit>,
+    unit: &Arc<nvs_codegen::Unit>,
     ctx: &mut nvs_runtime::Ctx,
     test: &Attempted,
     case: &nvs_types::testing::TestCase,
     row: Option<&[Option<ConstArg>]>,
-    fixtures: &nvs_runtime::Fixtures,
+    crossed: nvs_runtime::CrossedFixtures,
     routes: &std::sync::Arc<nvs_runtime::routes::Routes>,
 ) -> (Outcome, Vec<nvs_runtime::SnapshotMismatch>) {
     // `rule:testing/inline-snapshots`'s mismatches cross the boundary the verdict crosses, in a cell of
@@ -1216,7 +1769,7 @@ fn run_in_isolate(
     // hands back an empty list without saying so.
     let snapshots: Rc<RefCell<Vec<nvs_runtime::SnapshotMismatch>>> =
         Rc::new(RefCell::new(Vec::new()));
-    let outcome = run_the_test(unit, ctx, test, case, row, fixtures, routes, &snapshots);
+    let outcome = run_the_test(unit, ctx, test, case, row, crossed, routes, &snapshots);
     let taken = std::mem::take(&mut *snapshots.borrow_mut());
     (outcome, taken)
 }
@@ -1228,12 +1781,12 @@ fn run_in_isolate(
     reason = "the caller's seven, plus the one cell `rule:testing/inline-snapshots`'s mismatches cross in"
 )]
 fn run_the_test(
-    unit: &Rc<nvs_codegen::Unit>,
+    unit: &Arc<nvs_codegen::Unit>,
     ctx: &mut nvs_runtime::Ctx,
     test: &Attempted,
     case: &nvs_types::testing::TestCase,
     row: Option<&[Option<ConstArg>]>,
-    fixtures: &nvs_runtime::Fixtures,
+    crossed: nvs_runtime::CrossedFixtures,
     routes: &std::sync::Arc<nvs_runtime::routes::Routes>,
     snapshots: &Rc<RefCell<Vec<nvs_runtime::SnapshotMismatch>>>,
 ) -> Outcome {
@@ -1266,33 +1819,6 @@ fn run_the_test(
     // field answered which name. A fixture's value is this test's own copy and
     // a row's is materialized just below — the call retains its own either
     // way, exactly as any other call on a value this frame holds does.
-    let needed: Vec<String> = fixtures_needed(case)
-        .into_iter()
-        .map(str::to_owned)
-        .collect();
-    // `rule:testing/fixtures`'s crossing, made here and not in the child: the source is the
-    // parent's set and the walk consumes a reference to each of its values, so
-    // it runs where that set is (`nvs_runtime::CrossedFixtures`).
-    let crossed = match nvs_runtime::CrossedFixtures::copy(fixtures, &needed) {
-        Some(Ok(crossed)) => crossed,
-        // A fixture the parent built that has no meaning inside an isolate —
-        // a callable, an object over a host handle. It is reported against the
-        // test that asked for it, which is where the name in the message
-        // means something, and nothing has run.
-        Some(Err(refused)) => {
-            return Outcome::Failed(vec![format!(
-                "`{class}::{}` asks for a `#[Fixture]` that cannot cross into its isolate: \
-                 {refused}",
-                case.method
-            )]);
-        }
-        None => {
-            return Outcome::Failed(vec![format!(
-                "internal error: `{class}::{}` asks for a `#[Fixture]` that was not built",
-                case.method
-            )]);
-        }
-    };
     // Dropped when this call is over and not before: it holds the one
     // reference each materialized value carries, and the call only borrows
     // them (`nvs_runtime::RowValues`).
@@ -1353,7 +1879,7 @@ fn run_the_test(
     // would be two transactions on two connections deadlocking on each other.
     // `nvs_stdlib::db::begin_test_transaction` is the one home of that reading.
     let transacted = wants_db(case).map(str::to_owned);
-    let child_unit = Rc::clone(unit);
+    let child_unit = Arc::clone(unit);
     let class_name = class.to_owned();
     let method = case.method.clone();
     let attempted = test.clone();
@@ -1438,9 +1964,9 @@ fn run_the_test(
             Some(outcome.with_tasks_left_running(nvs_host::children_still_running()));
         nvs_runtime::Value::null()
     });
-    // `Output::Inherit`: what a test echoed is appended to the runner's own
-    // stream at the join, which is where the ordering against the run's own
-    // report is a fact rather than a race (`nvs_runtime::host::Output`).
+    // `Output::Inherit`: what a test echoed is appended to `ctx`'s stream at
+    // the join, and `ctx` is the test's own parent context, whose buffer is
+    // the test's captured output ([`Job::run`]).
     let completion = match nvs_host::Isolate::new(
         program,
         nvs_runtime::Value::null(),
@@ -1528,7 +2054,7 @@ fn wants_db(case: &nvs_types::testing::TestCase) -> Option<&str> {
 /// a test suite that binds a routable address is a test suite that serves a
 /// program under test to the network.
 ///
-/// **The handler holds a [`std::rc::Weak`] of the unit, never an [`Rc`].** The
+/// **The handler holds a [`std::sync::Weak`] of the unit, never an [`Arc`].** The
 /// accept loop parks on a socket nothing will connect to again once the test is
 /// over, and a parked task's Rust closure is dropped when the scheduler reaps it
 /// rather than when [`Self::stop`] asks — so a strong handle here would keep the
@@ -1572,7 +2098,7 @@ impl TestServer {
     /// [`answer_on_the_wire`], because the server starts every connection
     /// from a fresh context that copies nothing from this one.
     fn bind(
-        unit: &Rc<nvs_codegen::Unit>,
+        unit: &Arc<nvs_codegen::Unit>,
         routes: &std::sync::Arc<nvs_runtime::routes::Routes>,
         door: Door,
         hits: Option<std::sync::Arc<nvs_runtime::StmtHits>>,
@@ -1583,7 +2109,7 @@ impl TestServer {
         let bound = listener
             .local_addr()
             .map_err(|error| format!("the listener bound no readable address: {error}"))?;
-        let held = Rc::downgrade(unit);
+        let held = Arc::downgrade(unit);
         let carried = std::sync::Arc::clone(routes);
         let handler = Rc::new(
             move |request: nvs_server::Request<nvs_server::Incoming>,
@@ -1609,9 +2135,9 @@ impl TestServer {
             std::sync::Arc::default(),
         );
         // A `Draining` of this server's own and deliberately not the process's:
-        // `nvs test` is one process running many listeners one after another,
-        // and a shared bit would be a `503` one test could leave armed for the
-        // next.
+        // `nvs test` is one process running many listeners, at once and one
+        // after another, and a shared bit would be a `503` one test could leave
+        // armed for another.
         let draining = nvs_server::Draining::detached();
         let waits = nvs_config::server::Waits::default();
         let task = nvs_host::spawn_child(
@@ -1710,7 +2236,7 @@ impl Door {
 /// side by side: everything about *which* program answers is the same, and
 /// everything about *what arrived* is the door's.
 fn answer_on_the_wire(
-    held: &std::rc::Weak<nvs_codegen::Unit>,
+    held: &std::sync::Weak<nvs_codegen::Unit>,
     routes: &std::sync::Arc<nvs_runtime::routes::Routes>,
     door: &Door,
     hits: Option<&std::sync::Arc<nvs_runtime::StmtHits>>,
@@ -1828,7 +2354,7 @@ fn answer_on_the_wire(
 /// them after that context's wholesale release would be reading a context that
 /// is gone. [`run_in_isolate`] is the half that runs before the child exists.
 fn run_case(
-    unit: &Rc<nvs_codegen::Unit>,
+    unit: &Arc<nvs_codegen::Unit>,
     ctx: &mut nvs_runtime::Ctx,
     test: &Attempted,
     args: &[nvs_runtime::Value],
@@ -2064,29 +2590,31 @@ impl Counts {
 }
 
 /// `rule:testing/report-formats`'s one line per test: the mark, the method's own name, and how long it
-/// took.
-fn report(method: &str, outcome: &Outcome, elapsed: Duration) {
+/// took, written to the suite's own output.
+fn report(ctx: &mut nvs_runtime::Ctx, method: &str, outcome: &Outcome, elapsed: Duration) {
     let mark = outcome.mark();
-    println!(
-        "    {mark} {method:<32} {:.1} ms",
+    let mut text = format!(
+        "    {mark} {method:<32} {:.1} ms\n",
         elapsed.as_secs_f64() * 1000.0
     );
+    let mut line = |line: &str| {
+        text.push_str("      ");
+        text.push_str(line);
+        text.push('\n');
+    };
     match outcome {
         Outcome::Passed => {}
-        Outcome::Skipped(reason) => println!("      skipped: {reason}"),
-        Outcome::Failed(reasons) => {
-            for reason in reasons {
-                println!("      {reason}");
-            }
-        }
+        Outcome::Skipped(reason) => line(&format!("skipped: {reason}")),
+        Outcome::Failed(reasons) => reasons.iter().for_each(|reason| line(reason)),
         Outcome::Flaky { attempts, failures } => {
-            println!("      flaky: it passed on attempt {attempts}, having failed with:");
-            for reason in failures {
-                println!("      {reason}");
-            }
+            line(&format!(
+                "flaky: it passed on attempt {attempts}, having failed with:"
+            ));
+            failures.iter().for_each(|reason| line(reason));
         }
-        Outcome::Exited(code) => println!("      the test called exit({code})"),
+        Outcome::Exited(code) => line(&format!("the test called exit({code})")),
     }
+    say(ctx, &text);
 }
 
 /// `rule:testing/report-formats`'s versioned JSON: one object per run, over the very [`Case`] list the
@@ -2612,7 +3140,19 @@ fn novis_literal(text: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{Format, Outcome, compile, json_document, junit_document, run_suite_in_a_task};
+    use super::{
+        Format, Outcome, Shape, compile, json_document, junit_document, run_suite_in_a_task,
+    };
+
+    /// The shape every test here runs under: collected rather than printed, as
+    /// many tests at once as `nvs test` runs by default.
+    fn collected() -> Shape {
+        Shape {
+            format: Format::Json,
+            jobs: super::default_jobs(),
+            show_output: false,
+        }
+    }
 
     /// A program under `tests/fixtures/runner/`, which `cargo test` does not
     /// run in — hence the manifest directory.
@@ -2643,7 +3183,12 @@ mod tests {
     ) -> Vec<(String, &'static str, Vec<String>)> {
         // Granting, because one fixture below spawns and `rule:security/capability-question-is-grant-and-scope` denies by
         // default — `crate::script::granting_ctx` owns why that helper exists.
-        verdicts_on(&fixture(name), crate::script::granting_ctx(), filter)
+        verdicts_on(
+            &fixture(name),
+            crate::script::granting_ctx(),
+            filter,
+            collected(),
+        )
     }
 
     /// [`verdicts_filtered`] over a context the caller built, for the one
@@ -2654,6 +3199,7 @@ mod tests {
         path: &std::path::Path,
         mut ctx: nvs_runtime::Ctx,
         filter: Option<&str>,
+        shape: Shape,
     ) -> Vec<(String, &'static str, Vec<String>)> {
         let checked = crate::front_end(path).expect("the fixture is a program");
         // No cache: a fixture's verdicts are about the runner, and a suite that
@@ -2669,12 +3215,12 @@ mod tests {
             ctx,
             checked,
             &nvs_config::Config::default(),
-            Format::Json,
+            shape,
             filter,
         )
         .expect("the suite's own task runs");
         assert_eq!(
-            std::rc::Rc::strong_count(&unit),
+            std::sync::Arc::strong_count(&unit),
             1,
             "every isolate's program is dropped with it, so the code it shared \
              is left with one owner"
@@ -2705,7 +3251,7 @@ mod tests {
             ctx,
             checked,
             &nvs_config::Config::default(),
-            Format::Json,
+            collected(),
             None,
         )
         .expect("the suite's own task runs");
@@ -2979,7 +3525,9 @@ mod tests {
         // no cleanup written anywhere — and the fourth drops the table again, so
         // a run leaves the database as it found it. A runner that opened a
         // transaction for every test would roll the *table* away and fail the
-        // second; one that opened none would fail the third.
+        // second; one that opened none would fail the third. The four share one
+        // table, so they run one at a time: `rule:testing/tests-run-across-every-core`
+        // leaves what tests share outside their isolates to the program.
         let Some(block) = compose_postgres() else {
             // Printed rather than silent: a green line for a test that reached
             // no database is exactly the outcome that should be legible.
@@ -3006,7 +3554,11 @@ mod tests {
         snapshot.config.db.insert("test".to_owned(), block);
         let mut ctx = nvs_runtime::Ctx::new(nvs_runtime::OutputSink::Buffer(Vec::new()));
         ctx.set_config(std::sync::Arc::new(snapshot));
-        let verdicts = verdicts_on(&fixture("db-transaction.nvs"), ctx, None);
+        let one_at_a_time = Shape {
+            jobs: 1,
+            ..collected()
+        };
+        let verdicts = verdicts_on(&fixture("db-transaction.nvs"), ctx, None, one_at_a_time);
         assert_eq!(
             verdicts
                 .iter()
@@ -3271,6 +3823,8 @@ mod tests {
             super::Flags {
                 update: false,
                 list: false,
+                jobs: super::default_jobs(),
+                show_output: false,
             },
             &crate::coverage::Requested::default(),
         );
@@ -3290,6 +3844,8 @@ mod tests {
             super::Flags {
                 update: true,
                 list: false,
+                jobs: super::default_jobs(),
+                show_output: false,
             },
             &crate::coverage::Requested::default(),
         );
@@ -3304,7 +3860,7 @@ mod tests {
             "and nothing outside the two literals moved: {updated}"
         );
 
-        let verdicts = verdicts_on(&program, crate::script::granting_ctx(), None);
+        let verdicts = verdicts_on(&program, crate::script::granting_ctx(), None, collected());
         assert_eq!(
             verdicts
                 .iter()
@@ -3316,5 +3872,241 @@ mod tests {
             ],
             "the rewritten snapshots are what the run produces: {verdicts:?}"
         );
+    }
+
+    /// `rule:testing/tests-run-across-every-core`, one test per claim it makes.
+    mod parallel {
+        use super::super::{Format, Outcome, Shape, Suite, compile, run_suite_in_a_task};
+        use super::fixture;
+
+        /// Runs one fixture's suite under `shape` and hands back the suite,
+        /// what the suite's own context printed, and how long the run took.
+        fn run(
+            name: &str,
+            shape: Shape,
+            coverage: Option<&mut Option<crate::coverage::Sites>>,
+        ) -> (Suite, String, std::time::Duration) {
+            let checked = crate::front_end(&fixture(name)).expect("the fixture is a program");
+            let (unit, probes) =
+                compile(&checked, None, coverage.is_some()).expect("the fixture compiles");
+            let mut ctx = crate::script::granting_ctx();
+            unit.install_in(&mut ctx);
+            if let Some(sites) = coverage {
+                let resolved = crate::coverage::Sites::of(probes, &checked.map);
+                ctx.set_stmt_hits(Some(std::sync::Arc::new(
+                    nvs_runtime::StmtHits::with_edges(resolved.len(), resolved.edges()),
+                )));
+                ctx.set_debug_flags(
+                    ctx.debug_flags()
+                        | nvs_runtime::DebugFlags::COVERAGE
+                        | nvs_runtime::DebugFlags::BRANCH,
+                );
+                *sites = Some(resolved);
+            }
+            let began = std::time::Instant::now();
+            let (suite, mut ctx) = run_suite_in_a_task(
+                &unit,
+                ctx,
+                checked,
+                &nvs_config::Config::default(),
+                shape,
+                None,
+            )
+            .expect("the suite's own task runs");
+            let took = began.elapsed();
+            let printed = ctx.take_buffered_output().unwrap_or_default();
+            (suite, String::from_utf8_lossy(&printed).into_owned(), took)
+        }
+
+        /// At least four at once, whatever this machine's thread count, so a
+        /// test here asks about overlap and not about the machine.
+        fn spread(format: Format) -> Shape {
+            Shape {
+                format,
+                jobs: super::super::default_jobs().max(4),
+                show_output: false,
+            }
+        }
+
+        /// Every case's `(method, verdict)`, in report order.
+        fn verdicts(suite: &Suite) -> Vec<(&str, &'static str)> {
+            suite
+                .cases
+                .iter()
+                .map(|case| (case.method.as_str(), case.outcome.verdict()))
+                .collect()
+        }
+
+        /// The instants printed after `marker`, in the order they were printed.
+        fn instants(printed: &str, marker: &str) -> Vec<i64> {
+            printed
+                .lines()
+                .filter_map(|line| line.trim().strip_prefix(marker))
+                .map(|rest| rest.trim().parse().expect("an instant in microseconds"))
+                .collect()
+        }
+
+        #[test]
+        fn parallel_tests_overlap_on_more_than_one_core() {
+            // Four tests of 400 ms each. One after another they cannot finish
+            // under 1.6 s, so a run under 1.2 s had them running at once.
+            let (suite, _, took) = run("parallel-overlap.nvs", spread(Format::Json), None);
+            assert!(
+                verdicts(&suite)
+                    .iter()
+                    .all(|(_, verdict)| *verdict == "passed"),
+                "{:?}",
+                verdicts(&suite)
+            );
+            assert_eq!(suite.cases.len(), 4);
+            assert!(
+                took < std::time::Duration::from_millis(1200),
+                "four 400 ms tests took {took:?}, so they ran one after another"
+            );
+        }
+
+        #[test]
+        fn parallel_class_hooks_wrap_every_test_of_their_class() {
+            let (suite, printed, _) = run("parallel-class-hooks.nvs", spread(Format::Json), None);
+            assert_eq!(
+                verdicts(&suite),
+                vec![
+                    ("itRunsBesideItsSibling", "failed"),
+                    ("itRunsBesideItsSiblingToo", "failed"),
+                ],
+                "both tests fail on purpose, so their output is printed: {printed}"
+            );
+            let before = instants(&printed, "before-class-returned ");
+            let started = instants(&printed, "test-started ");
+            let ended = instants(&printed, "test-ended ");
+            let after = instants(&printed, "after-class-started ");
+            assert_eq!(
+                (before.len(), started.len(), ended.len(), after.len()),
+                (1, 2, 2, 1),
+                "every hook and test printed its instants: {printed}"
+            );
+            assert!(
+                started.iter().all(|start| *start >= before[0]),
+                "`#[BeforeClass]` returned before either test started: {printed}"
+            );
+            assert!(
+                ended.iter().all(|end| *end <= after[0]),
+                "`#[AfterClass]` started after both tests ended: {printed}"
+            );
+            assert!(
+                started.iter().max() < ended.iter().min(),
+                "the two tests ran at the same time: {printed}"
+            );
+        }
+
+        #[test]
+        fn parallel_report_is_in_declaration_order() {
+            let (suite, _, _) = run("parallel-report-order.nvs", spread(Format::Json), None);
+            assert_eq!(
+                verdicts(&suite),
+                vec![
+                    ("itFinishesLast", "passed"),
+                    ("itFinishesThird", "passed"),
+                    ("itFinishesSecond", "passed"),
+                    ("itFinishesFirst", "passed"),
+                ],
+                "the report is in declaration order, not the order the tests finished in"
+            );
+            assert!(
+                suite.cases[0].elapsed > suite.cases[3].elapsed,
+                "the first test declared is the last to finish"
+            );
+        }
+
+        #[test]
+        fn parallel_coverage_is_each_tests_own() {
+            let source = std::fs::read_to_string(fixture("parallel-coverage.nvs"))
+                .expect("the fixture is on disk");
+            let line_of = |marker: &str| {
+                source
+                    .lines()
+                    .position(|line| line.contains(marker))
+                    .map(|index| index + 1)
+                    .expect("the marker is in the fixture")
+            };
+            let (first, second) = (
+                line_of("// only the first test"),
+                line_of("// only the second test"),
+            );
+            let mut sites = None;
+            let (suite, _, _) = run(
+                "parallel-coverage.nvs",
+                spread(Format::Json),
+                Some(&mut sites),
+            );
+            let sites = sites.expect("the run measured coverage");
+            let lines = |index: usize| -> Vec<usize> {
+                let reached = suite.cases[index]
+                    .reached
+                    .as_ref()
+                    .expect("a run with coverage records what each test reached");
+                sites
+                    .reached(reached)
+                    .into_iter()
+                    .flat_map(|(_, lines)| lines)
+                    .collect()
+            };
+            assert_eq!(
+                verdicts(&suite),
+                vec![
+                    ("itRunsTheFirstLine", "passed"),
+                    ("itRunsTheSecondLine", "passed"),
+                ]
+            );
+            let (one, two) = (lines(0), lines(1));
+            assert!(
+                one.contains(&first) && !one.contains(&second),
+                "the first test reached line {first} and not line {second}: {one:?}"
+            );
+            assert!(
+                two.contains(&second) && !two.contains(&first),
+                "the second test reached line {second} and not line {first}: {two:?}"
+            );
+        }
+
+        #[test]
+        fn a_failed_tests_output_is_printed_under_its_failure() {
+            let (suite, printed, _) = run("parallel-output.nvs", spread(Format::Human), None);
+            assert_eq!(
+                verdicts(&suite),
+                vec![("itPasses", "passed"), ("itFails", "failed")]
+            );
+            let at = |text: &str| {
+                printed
+                    .find(text)
+                    .unwrap_or_else(|| panic!("`{text}` is in the report: {printed}"))
+            };
+            let line = at("\u{2717} itFails");
+            let failure = at("Core\\Test::assertSame failed");
+            let output = at("      output:\n        printed by the failing test\n");
+            assert!(
+                line < failure && failure < output,
+                "the output is under the failure, in the test's place: {printed}"
+            );
+            assert!(
+                matches!(&suite.cases[1].outcome, Outcome::Failed(_)),
+                "the test that printed it failed"
+            );
+        }
+
+        #[test]
+        fn a_passed_tests_output_is_discarded() {
+            for format in [Format::Human, Format::Json] {
+                let (_, printed, _) = run("parallel-output.nvs", spread(format), None);
+                assert!(
+                    !printed.contains("printed by the passing test"),
+                    "a passing test's output is not printed: {printed}"
+                );
+                assert!(
+                    printed.contains("printed by the failing test"),
+                    "the failing test's output is printed in every format: {printed}"
+                );
+            }
+        }
     }
 }

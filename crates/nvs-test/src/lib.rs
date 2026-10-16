@@ -45,7 +45,7 @@
 //! | `--CLIENT_IP--` | the address the request's peer resolved to, on one line |
 //! | `--SCHEME--` | `http` or `https`, the scheme that request arrived over |
 //! | `--FILE <relative/path>--` | another file, written beside `--FILE--`; repeatable |
-//! | `--RUN--` | `run` (the default), `test`, `test --format=json`, `test --format=junit`, `test --list --format=json` or `config dump --origin`: the command line `--FILE--` goes through |
+//! | `--RUN--` | `run` (the default), `test`, `test --format=json`, `test --format=junit`, `test --show-output --jobs 1`, `test --list --format=json` or `config dump --origin`: the command line `--FILE--` goes through |
 //! | `--EXTENSION--` | fixture extensions to load, one name per line: each `<name>.nvsx` under the nearest `ext/fixtures/` above the case is copied beside `--FILE--`, and its pinned `[[extension]]` entry is added to `nvs.toml`, which is created when the case wrote none; a name with no fixture is a parse error |
 //! | `--COPY--` | repository files to copy beside `--FILE--` before `--SKIPIF--` runs, one path per line relative to the case's directory, `..` allowed: each lands under its last segment, and a source that is not there skips the case naming it |
 //!
@@ -60,6 +60,8 @@
 //! spellings of the same thing — `test --format=json` and
 //! `test --format=junit` — because a report is observable only by being read,
 //! and a format nothing pins is a format that can drift.
+//! `test --show-output --jobs 1` pins what a test prints, which the default
+//! report drops for a test that passes.
 //! `test --list --format=json` is the same argument about the document that
 //! says what a program declares *without* running it: what it pins is that a
 //! case whose tests would fail produces the same listing a passing one does.

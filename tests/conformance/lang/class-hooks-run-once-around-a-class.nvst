@@ -62,11 +62,11 @@ final class NoHooksTest {
   CatalogTest
 before class
 fixture
-test 1
     ✓ itReadsTheName                   %f ms
-test 2
     ✗ itFails                          %f ms
       Core\Test::assertSame failed: `$actual` is "shop", `$expected` is "blog"
+      output:
+        test 2
     - itIsSkipped                      %f ms
       skipped: not ready
 after class: CatalogTest

@@ -580,11 +580,22 @@ enum Command {
         /// path, or a `#[Test]` method's `Class::method`.
         #[arg(long, value_name = "TEXT")]
         filter: Option<String>,
-        /// How many `.nvst` cases run at once; the default is this machine's
-        /// hardware threads. A program's `#[Test]` methods are one process and
-        /// are not spread.
+        /// How many tests or `.nvst` cases run at once.
+        ///
+        /// The default is the number of hardware threads on this machine.
+        /// `--jobs 1` runs one test at a time. A program that loads an
+        /// extension always runs one test at a time.
+        // `rule:testing/tests-run-across-every-core`.
         #[arg(long, value_name = "N")]
         jobs: Option<std::num::NonZeroUsize>,
+        /// Print each test's output as it runs.
+        ///
+        /// Without this flag, the output of a test that passes is not shown.
+        /// The output of a test that fails is printed under its failure. With
+        /// this flag, lines from tests that run at the same time may mix.
+        // `rule:testing/tests-run-across-every-core`.
+        #[arg(long)]
+        show_output: bool,
         /// How a program's `#[Test]` run is reported.
         ///
         /// The default is the human format, and it is what a `.nvst` tree is
@@ -1879,6 +1890,7 @@ fn main() -> ExitCode {
             paths,
             filter,
             jobs,
+            show_output,
             format,
             update,
             coverage_lcov,
@@ -1892,7 +1904,12 @@ fn main() -> ExitCode {
             filter,
             jobs,
             format,
-            runner::Flags { update, list },
+            runner::Flags {
+                update,
+                list,
+                jobs: jobs.map_or_else(runner::default_jobs, std::num::NonZeroUsize::get),
+                show_output,
+            },
             &coverage::Requested {
                 lcov: coverage_lcov,
                 clover: coverage_clover,
@@ -3204,8 +3221,8 @@ fn run_run(
     // Shared rather than owned outright, because `rule:testing/in-process-request`'s in-process
     // request runs this same unit's script frame as a child isolate and the
     // seam holding it outlives no part of this run — `runner::UnderTest` is the
-    // one holder, and an `Rc` is what lets the run and the seam both name it.
-    let unit = std::rc::Rc::new(unit);
+    // one holder, and an `Arc` is what lets the run and the seam both name it.
+    let unit = std::sync::Arc::new(unit);
     let Some(entry) = unit.script() else {
         report_internal("the script frame was not compiled");
         return ExitCode::FAILURE;
@@ -3805,7 +3822,12 @@ fn run_test(
     config: &[PathBuf],
     init: config::Init,
 ) -> ExitCode {
-    let runner::Flags { update, list } = flags;
+    let runner::Flags {
+        update,
+        list,
+        show_output,
+        ..
+    } = flags;
     // `rule:testing/nvst-is-separate`'s "`nvs test` runs both", decided by the path rather than
     // by a flag: a program is a `.nvs` file or a directory holding `.nvs` files
     // (`rule:testing/a-directory-of-programs-is-one-test-program`), a
@@ -3861,6 +3883,14 @@ fn run_test(
         // section, which `nvs_test` compares whole and which nothing here
         // writes. Refused rather than ignored, for `--format`'s reason below.
         eprintln!("error: `--update` rewrites a program's inline snapshots, not a `.nvst` tree");
+        return ExitCode::FAILURE;
+    }
+    if show_output {
+        // A `.nvst` case compares its whole output with its expectation, so
+        // there is no captured output for the flag to show.
+        eprintln!(
+            "error: `--show-output` prints the output of a program's `#[Test]` methods, not of a `.nvst` tree"
+        );
         return ExitCode::FAILURE;
     }
     if format != runner::Format::Human {
@@ -3981,6 +4011,12 @@ fn run_program_tests(
     let calling = nvs_runtime::extension::install(
         calls.clone() as std::rc::Rc<dyn nvs_runtime::extension::Extensions>
     );
+    // The extension host is this thread's, so a program that loads one runs
+    // every test on this thread, one at a time (`runner::Flags::jobs`).
+    let flags = match config.extension.is_empty() {
+        true => flags,
+        false => runner::Flags { jobs: 1, ..flags },
+    };
     // `--filter` reaches both suites, and means the same thing in each:
     // `runner::selected` owns the rule and why it is the `.nvst` tree's.
     let code = runner::run(checked, &tree.snapshot, format, filter, flags, coverage);

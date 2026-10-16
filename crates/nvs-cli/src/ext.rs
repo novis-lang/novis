@@ -191,6 +191,8 @@ fn test(dir: &Path, config: &[PathBuf]) -> Result<ExitCode, String> {
         crate::runner::Flags {
             update: false,
             list: false,
+            jobs: 1,
+            show_output: false,
         },
         &crate::coverage::Requested::default(),
     ))

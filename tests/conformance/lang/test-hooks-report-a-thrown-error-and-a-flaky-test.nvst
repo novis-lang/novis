@@ -55,10 +55,11 @@ final class FlakyTest {
     ✓ itPasses                         %f ms
 FlakyTest passed 1, failed 0, flaky 1, skipped 0, failed tests 0
   ThrowingTest
-ThrowingTest::itThrows attempt 1 passed no
-failure: the queue is empty
     ✗ itThrows                         %f ms
       the queue is empty
+      output:
+        ThrowingTest::itThrows attempt 1 passed no
+        failure: the queue is empty
 
   1 failed, 1 passed, 0 skipped, 1 flaky in %d ms
 --EXPECTF-ERROR--

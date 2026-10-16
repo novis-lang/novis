@@ -1,7 +1,7 @@
 --TEST--
 `#[AfterEachTest]` runs on the test's own object after every attempt, passed or failed, receives a `Core\Test\Outcome`, does not run for a skipped test or a constructor that threw, and a hook that throws fails the attempt, `rule:testing/after-each-test`
 --RUN--
-test
+test --show-output --jobs 1
 --FILE--
 <?nvs
 use Core\Test;

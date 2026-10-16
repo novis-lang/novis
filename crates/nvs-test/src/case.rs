@@ -152,6 +152,11 @@ pub enum Subcommand {
     TestJson,
     /// `nvs test --format=junit case.nvs` — § 22's JUnit XML is the case.
     TestJunit,
+    /// `nvs test --show-output --jobs 1 case.nvs` — the plaintext report with
+    /// every test's output printed as it runs, one test at a time, so a
+    /// passing test's output is pinned in a fixed place
+    /// (`rule:testing/tests-run-across-every-core`).
+    TestShowOutput,
     /// `nvs test --list --format=json case.nvs` — § 22's discovery document is
     /// the case, and what it says is that the program's tests were located
     /// without being run.
@@ -172,6 +177,7 @@ impl Subcommand {
             Self::Test => &["test"],
             Self::TestJson => &["test", "--format=json"],
             Self::TestJunit => &["test", "--format=junit"],
+            Self::TestShowOutput => &["test", "--show-output", "--jobs", "1"],
             Self::TestListJson => &["test", "--list", "--format=json"],
             Self::ConfigDumpOrigin => &["config", "dump", "--origin"],
         }
@@ -655,14 +661,15 @@ pub fn parse(path: &Path, text: &str) -> Result<Case, ParseError> {
             "test" => Subcommand::Test,
             "test --format=json" => Subcommand::TestJson,
             "test --format=junit" => Subcommand::TestJunit,
+            "test --show-output --jobs 1" => Subcommand::TestShowOutput,
             "test --list --format=json" => Subcommand::TestListJson,
             "config dump --origin" => Subcommand::ConfigDumpOrigin,
             other => {
                 return Err(err(
                     format!(
                         "`--RUN--` is `run`, `test`, `test --format=json`, \
-                         `test --format=junit`, `test --list --format=json` or \
-                         `config dump --origin`, not `{other}`"
+                         `test --format=junit`, `test --show-output --jobs 1`, \
+                         `test --list --format=json` or `config dump --origin`, not `{other}`"
                     ),
                     Some(line),
                 ));

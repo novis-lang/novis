@@ -11,6 +11,7 @@ test --format=junit
 // two cases pin one run through two renderings — a verdict that moved in one
 // of them and not the other fails here.
 use Core\Test;
+use Core\Test\AfterClass;
 
 final class ReportTest {
     public static int $attempts = 0;
@@ -39,9 +40,11 @@ final class ReportTest {
         Test::assertSame("second", "also wrong");
     }
 
+    // A passing test's output is dropped, and what the class hook below
+    // printed is on standard error.
     #[Test]
     public function aTestsOwnOutputIsNotTheDocument(): void {
-        echo "this goes to standard error\n";
+        echo "this is dropped, because the test passes\n";
         Test::assertTrue(true);
     }
 
@@ -52,6 +55,11 @@ final class ReportTest {
     public function aRetriedTestIsReportedAsFlaky(): void {
         ReportTest::$attempts = ReportTest::$attempts + 1;
         Test::assertSame(ReportTest::$attempts, 2);
+    }
+
+    #[AfterClass]
+    public static function finish(): void {
+        echo "this goes to standard error\n";
     }
 }
 --EXPECTF--

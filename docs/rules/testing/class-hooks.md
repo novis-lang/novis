@@ -6,7 +6,7 @@ its rows seeded once for the class, then dropped after its last test.
 The order for one class is `#[BeforeClass]`, then the fixtures its selected tests need
 (`rule:testing/fixtures`), then the tests, then `#[AfterClass]`. A fixture therefore reads what the setup
 wrote. Neither hook runs for a class none of whose tests is selected, for the reason a fixture is not
-built for one (`crates/nvs-cli/src/runner.rs:805`).
+built for one (`crates/nvs-cli/src/runner.rs:890`).
 
 | What happens | Result |
 |---|---|

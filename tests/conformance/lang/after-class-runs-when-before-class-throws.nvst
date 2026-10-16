@@ -72,7 +72,6 @@ final class CleanupFailsTest {
 }
 --EXPECTF--
   CleanupFailsTest
-after CleanupFailsTest::itPasses attempt 1, passed yes, failures 0
     ✓ itPasses                         %f ms
     ✗ dropDatabase
       the `#[AfterClass]` method `dropDatabase` threw: the database is still in use

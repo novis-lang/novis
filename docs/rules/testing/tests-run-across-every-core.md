@@ -2,7 +2,9 @@
 `--jobs` defaults to the machine's hardware threads as it already does for `.nvst` cases. Every test
 already runs in an isolate of its own (`rule:testing/isolate-per-test`), so running them at once is a
 scheduling question and not an isolation one. The runner places each test isolate with the placement a
-program uses (`rule:concurrency/on-worker-runs-the-child-on-another-core`).
+program uses (`rule:concurrency/on-worker-runs-the-child-on-another-core`). `--jobs 1` runs every test
+on the runner's own core, one at a time, and so does a program that loads an extension: the extension
+host belongs to the thread that loaded it.
 
 The runner guarantees order and nothing about data. The order it guarantees is the one
 `rule:testing/class-hooks` gives: `#[BeforeClass]` returns before the class's first test starts,
@@ -17,20 +19,16 @@ test's.
 
 **A test's output is captured.** What a test, its hooks and its fixtures print while it runs is held for
 that test. A test that passes discards it, and a test that fails prints it under its failure, in the
-report's place for that test. `--show-output` turns capture off: output then goes to the terminal as it
-is printed and is not attributed, so two tests running at once may mix their lines. A test that reads
-the terminal reads end of input, so no test stops the run to wait for a person.
+report's place for that test. What a class's `#[BeforeClass]` and fixtures print is held too, and
+printed under the class's header whatever its tests did. `--show-output` turns capture off: output then
+goes to the terminal as it is printed and is not attributed, so two tests running at once may mix their
+lines. A test that reads the terminal reads end of input, so no test stops the run to wait for a person.
 
-- **Memory:** each test in flight holds its isolate, its fixture copies, its captured output and its own
-  coverage table when coverage is on, all released when it finishes. A failed test's output is held
-  until its report line is printed. That is O(cores), the most tests running at once, plus the output of
-  failed tests waiting for an earlier one, and never the output of a test that passed.
-
-**Not on disk.** The runner makes and finishes the isolates one at a time
-(`crates/nvs-cli/src/runner.rs:799`), `--jobs` spreads only `.nvst` cases
-(`crates/nvs-cli/src/main.rs:583`), a test's output goes to the terminal as it is printed
-(`crates/nvs-cli/src/runner.rs:16`), and the coverage counts of a test are the growth of one shared
-table while it runs (`crates/nvs-cli/src/runner.rs:378`).
+- **Memory:** each test in flight holds a parent context of its own, its isolate, its fixtures as bytes
+  and as copies, its captured output and its own coverage table when coverage is on, all released when
+  it is reported. A failed test's output is held until its report line is printed. That is O(`--jobs`),
+  the most tests running at once, plus the results of finished tests waiting for an earlier one, and
+  never the output of a test that passed.
 
 **Declined:**
 - **A second setting for the number of tests at once.** `--jobs` already says how many `.nvst` cases run

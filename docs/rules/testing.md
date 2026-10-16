@@ -237,7 +237,7 @@ test's own.
 
 There is no `#[BeforeEachTest]`: the constructor is that hook ([`testing/constructor-is-setup`](testing.md#testing-constructor-is-setup)).
 
-A test runs with the program's own grants (`crates/nvs-cli/src/runner.rs:384`), so the hook can remove
+A test runs with the program's own grants (`crates/nvs-cli/src/runner.rs:409`), so the hook can remove
 whatever the test was allowed to create.
 
 A test that calls `exit()` is not followed by the hook, because nothing after an `exit()` runs
@@ -299,7 +299,7 @@ its rows seeded once for the class, then dropped after its last test.
 The order for one class is `#[BeforeClass]`, then the fixtures its selected tests need
 ([`testing/fixtures`](testing.md#testing-fixtures)), then the tests, then `#[AfterClass]`. A fixture therefore reads what the setup
 wrote. Neither hook runs for a class none of whose tests is selected, for the reason a fixture is not
-built for one (`crates/nvs-cli/src/runner.rs:805`).
+built for one (`crates/nvs-cli/src/runner.rs:890`).
 
 | What happens | Result |
 |---|---|
@@ -400,7 +400,9 @@ members alone, so neither an inherited `#[Test]` nor an inherited `#[Fixture]` i
 `--jobs` defaults to the machine's hardware threads as it already does for `.nvst` cases. Every test
 already runs in an isolate of its own ([`testing/isolate-per-test`](testing.md#testing-isolate-per-test)), so running them at once is a
 scheduling question and not an isolation one. The runner places each test isolate with the placement a
-program uses ([`concurrency/on-worker-runs-the-child-on-another-core`](concurrency.md#concurrency-on-worker-runs-the-child-on-another-core)).
+program uses ([`concurrency/on-worker-runs-the-child-on-another-core`](concurrency.md#concurrency-on-worker-runs-the-child-on-another-core)). `--jobs 1` runs every test
+on the runner's own core, one at a time, and so does a program that loads an extension: the extension
+host belongs to the thread that loaded it.
 
 The runner guarantees order and nothing about data. The order it guarantees is the one
 [`testing/class-hooks`](testing.md#testing-class-hooks) gives: `#[BeforeClass]` returns before the class's first test starts,
@@ -415,20 +417,16 @@ test's.
 
 **A test's output is captured.** What a test, its hooks and its fixtures print while it runs is held for
 that test. A test that passes discards it, and a test that fails prints it under its failure, in the
-report's place for that test. `--show-output` turns capture off: output then goes to the terminal as it
-is printed and is not attributed, so two tests running at once may mix their lines. A test that reads
-the terminal reads end of input, so no test stops the run to wait for a person.
+report's place for that test. What a class's `#[BeforeClass]` and fixtures print is held too, and
+printed under the class's header whatever its tests did. `--show-output` turns capture off: output then
+goes to the terminal as it is printed and is not attributed, so two tests running at once may mix their
+lines. A test that reads the terminal reads end of input, so no test stops the run to wait for a person.
 
-- **Memory:** each test in flight holds its isolate, its fixture copies, its captured output and its own
-  coverage table when coverage is on, all released when it finishes. A failed test's output is held
-  until its report line is printed. That is O(cores), the most tests running at once, plus the output of
-  failed tests waiting for an earlier one, and never the output of a test that passed.
-
-**Not on disk.** The runner makes and finishes the isolates one at a time
-(`crates/nvs-cli/src/runner.rs:799`), `--jobs` spreads only `.nvst` cases
-(`crates/nvs-cli/src/main.rs:583`), a test's output goes to the terminal as it is printed
-(`crates/nvs-cli/src/runner.rs:16`), and the coverage counts of a test are the growth of one shared
-table while it runs (`crates/nvs-cli/src/runner.rs:378`).
+- **Memory:** each test in flight holds a parent context of its own, its isolate, its fixtures as bytes
+  and as copies, its captured output and its own coverage table when coverage is on, all released when
+  it is reported. A failed test's output is held until its report line is printed. That is O(`--jobs`),
+  the most tests running at once, plus the results of finished tests waiting for an earlier one, and
+  never the output of a test that passed.
 
 **Declined:**
 - **A second setting for the number of tests at once.** `--jobs` already says how many `.nvst` cases run
@@ -1811,7 +1809,7 @@ about what a `Core` member costs is a number with no guard test.
 bytes at exit (`crates/nvs-cli/src/main.rs:437`, `DebugFlags::COUNT` at
 `crates/nvs-runtime/src/ctx/mod.rs:297`). `#[Bench]` is not a recognised attribute
 (`crates/nvs-types/src/derive.rs:71`), no test report carries its rows
-(`crates/nvs-cli/src/runner.rs:1892`), and there is no GC-cycle count and no advisory wall-clock beside
+(`crates/nvs-cli/src/runner.rs:2644`), and there is no GC-cycle count and no advisory wall-clock beside
 the counts.
 
 **Declined:**

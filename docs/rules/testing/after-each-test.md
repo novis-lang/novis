@@ -28,7 +28,7 @@ test's own.
 
 There is no `#[BeforeEachTest]`: the constructor is that hook (`rule:testing/constructor-is-setup`).
 
-A test runs with the program's own grants (`crates/nvs-cli/src/runner.rs:384`), so the hook can remove
+A test runs with the program's own grants (`crates/nvs-cli/src/runner.rs:409`), so the hook can remove
 whatever the test was allowed to create.
 
 A test that calls `exit()` is not followed by the hook, because nothing after an `exit()` runs

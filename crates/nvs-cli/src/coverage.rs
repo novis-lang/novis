@@ -144,14 +144,13 @@ impl Probes {
     }
 }
 
-/// The statement numbers whose count is larger in `after` than in `before`:
-/// the statements that ran between two reads of the run's `StmtHits`.
-pub(crate) fn grew(before: &[u64], after: &[u64]) -> Vec<usize> {
-    before
+/// The statement numbers whose count in `counts` is above zero: the
+/// statements one test's own `StmtHits` saw run.
+pub(crate) fn ran(counts: &[u64]) -> Vec<usize> {
+    counts
         .iter()
-        .zip(after)
         .enumerate()
-        .filter(|(_, (was, is))| is > was)
+        .filter(|(_, count)| **count > 0)
         .map(|(stmt, _)| stmt)
         .collect()
 }

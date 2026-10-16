@@ -10,6 +10,7 @@ test --format=json
 // twin of this program, and the verdicts are the same because both formats
 // render one `Outcome`.
 use Core\Test;
+use Core\Test\AfterClass;
 
 final class ReportTest {
     public static int $attempts = 0;
@@ -39,10 +40,11 @@ final class ReportTest {
     }
 
     // § 22 redirects the document, so standard output is the document and
-    // nothing else: what a test itself printed is on standard error below.
+    // nothing else: a passing test's output is dropped, and what the class
+    // hook below printed is on standard error.
     #[Test]
     public function aTestsOwnOutputIsNotTheDocument(): void {
-        echo "this goes to standard error\n";
+        echo "this is dropped, because the test passes\n";
         Test::assertTrue(true);
     }
 
@@ -54,17 +56,22 @@ final class ReportTest {
         ReportTest::$attempts = ReportTest::$attempts + 1;
         Test::assertSame(ReportTest::$attempts, 2);
     }
+
+    #[AfterClass]
+    public static function finish(): void {
+        echo "this goes to standard error\n";
+    }
 }
 --EXPECTF--
 {
   "schemaVersion": 2,
   "summary": {"total": 5, "passed": 2, "failed": 1, "skipped": 1, "flaky": 1, "durationMs": %f},
   "tests": [
-    {"class": "ReportTest", "method": "aPassingTestCarriesOnlyItsVerdict", "file": "case.nvs", "line": 13, "column": 21, "verdict": "passed", "durationMs": %f},
-    {"class": "ReportTest", "method": "aSkipCarriesItsReason", "file": "case.nvs", "line": 20, "column": 21, "verdict": "skipped", "durationMs": %f, "reason": "a reason with \"quotes\" and a < sign"},
-    {"class": "ReportTest", "method": "everyFailedAssertionIsReported", "file": "case.nvs", "line": 28, "column": 21, "verdict": "failed", "durationMs": %f, "failures": ["Core\\Test::assertSame failed: `$actual` is \"first\", `$expected` is \"wrong\"", "Core\\Test::assertSame failed: `$actual` is \"second\", `$expected` is \"also wrong\""]},
-    {"class": "ReportTest", "method": "aTestsOwnOutputIsNotTheDocument", "file": "case.nvs", "line": 39, "column": 21, "verdict": "passed", "durationMs": %f},
-    {"class": "ReportTest", "method": "aRetriedTestIsReportedAsFlaky", "file": "case.nvs", "line": 48, "column": 21, "verdict": "flaky", "durationMs": %f, "attempts": 2, "failures": ["Core\\Test::assertSame failed: `$actual` is 1, `$expected` is 2"]}
+    {"class": "ReportTest", "method": "aPassingTestCarriesOnlyItsVerdict", "file": "case.nvs", "line": 14, "column": 21, "verdict": "passed", "durationMs": %f},
+    {"class": "ReportTest", "method": "aSkipCarriesItsReason", "file": "case.nvs", "line": 21, "column": 21, "verdict": "skipped", "durationMs": %f, "reason": "a reason with \"quotes\" and a < sign"},
+    {"class": "ReportTest", "method": "everyFailedAssertionIsReported", "file": "case.nvs", "line": 29, "column": 21, "verdict": "failed", "durationMs": %f, "failures": ["Core\\Test::assertSame failed: `$actual` is \"first\", `$expected` is \"wrong\"", "Core\\Test::assertSame failed: `$actual` is \"second\", `$expected` is \"also wrong\""]},
+    {"class": "ReportTest", "method": "aTestsOwnOutputIsNotTheDocument", "file": "case.nvs", "line": 41, "column": 21, "verdict": "passed", "durationMs": %f},
+    {"class": "ReportTest", "method": "aRetriedTestIsReportedAsFlaky", "file": "case.nvs", "line": 50, "column": 21, "verdict": "flaky", "durationMs": %f, "attempts": 2, "failures": ["Core\\Test::assertSame failed: `$actual` is 1, `$expected` is 2"]}
   ]
 }
 --EXPECTF-ERROR--

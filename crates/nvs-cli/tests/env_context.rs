@@ -378,7 +378,12 @@ fn a_test_method_is_a_test() {
 }
 ",
     );
-    let ran = nvs("test", &[("app.nvs", &app)], &["test", "app.nvs"]);
+    // `--show-output`, because a passing test's output is otherwise dropped.
+    let ran = nvs(
+        "test",
+        &[("app.nvs", &app)],
+        &["test", "--show-output", "app.nvs"],
+    );
     let stdout = String::from_utf8_lossy(&ran.stdout);
     assert!(
         ran.status.success(),

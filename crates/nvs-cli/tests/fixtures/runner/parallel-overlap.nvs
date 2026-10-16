@@ -1,0 +1,34 @@
+<?nvs
+// `rule:testing/tests-run-across-every-core`: four tests that each wait 400 ms.
+// One after another they take 1.6 s; run at once they take a little over 0.4 s,
+// which is the whole of what the runner's test measures.
+//
+// `crates/nvs-cli/src/runner.rs`'s own tests are the only reader of this file.
+use Core\Test;
+use Core\Time;
+
+final class OverlapTest {
+    #[Test]
+    public function itWaitsFirst(): void {
+        Time::sleep(400ms);
+        Test::assertTrue(true);
+    }
+
+    #[Test]
+    public function itWaitsSecond(): void {
+        Time::sleep(400ms);
+        Test::assertTrue(true);
+    }
+
+    #[Test]
+    public function itWaitsThird(): void {
+        Time::sleep(400ms);
+        Test::assertTrue(true);
+    }
+
+    #[Test]
+    public function itWaitsFourth(): void {
+        Time::sleep(400ms);
+        Test::assertTrue(true);
+    }
+}

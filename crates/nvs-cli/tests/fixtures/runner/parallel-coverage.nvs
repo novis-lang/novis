@@ -1,0 +1,24 @@
+<?nvs
+// `rule:testing/tests-run-across-every-core`'s coverage: two tests that wait
+// beside each other, each running one line the other does not. The runner's
+// test finds each line by the comment at its end.
+//
+// `crates/nvs-cli/src/runner.rs`'s own tests are the only reader of this file.
+use Core\Test;
+use Core\Time;
+
+final class CoverageTest {
+    #[Test]
+    public function itRunsTheFirstLine(): void {
+        Time::sleep(300ms);
+        var $first = 1; // only the first test
+        Test::assertSame($first, 1);
+    }
+
+    #[Test]
+    public function itRunsTheSecondLine(): void {
+        Time::sleep(300ms);
+        var $second = 2; // only the second test
+        Test::assertSame($second, 2);
+    }
+}
