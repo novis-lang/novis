@@ -213,7 +213,7 @@ export default defineConfig({
                 { label: 'Handling requests', link: '/guides/how-to-use/requests/' },
                 { label: 'Errors', link: '/guides/how-to-use/errors/' },
                 { label: 'Tainted input', link: '/guides/how-to-use/tainted-input/' },
-                { label: 'Field paths', link: '/guides/how-to-use/checked-field-paths/' },
+                { label: 'Class property names in strings', link: '/guides/how-to-use/checked-field-paths/' },
                 { label: 'Limits', link: '/guides/how-to-use/limits/' },
               ],
             },
