@@ -535,6 +535,7 @@ pub(crate) fn lower_generator(
         attributes: Vec::new(),
         field_types: Vec::new(),
         field_classes: Vec::new(),
+        field_checks: Vec::new(),
         // `Iterable`/`Iterator` are compiler-declared and have no layout
         // entry of their own, so `nvs_codegen::Classes::define` drops an
         // unresolvable label here the same way it does for any other —

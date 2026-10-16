@@ -1,6 +1,0 @@
-{
-  "module": "crates/nvs-runtime/src/object.rs",
-  "title": "A write through a `mixed` receiver into an `array<Class>` or a shape-typed property skips the element and shape check, and a later typed read reads the wrong object's memory.",
-  "text": "`rule:types/erased-member-access` says an erased write is checked against the field's concrete declared type. `write_erased_property` (`crates/nvs-runtime/src/object.rs:5224`) checks a slot by its tag, plus the class of a slot typed by classes alone, so an `array<Animal>` is accepted into an `array<Dog>` slot and an `Animal` into a `{pet: Dog}` shape. The module doc lists these at `crates/nvs-runtime/src/object.rs:171-190` and calls them a wrong result with no memory-safety edge (`:168-169`). That is false: with `class Kennel { public array<Dog> $dogs = []; }`, the program `mixed $m = $k; $m->dogs = [new Animal('tom')]; Dog $d = $k->dogs[0]; echo $d->legs;` prints a garbage integer, because the typed read trusts the slot and reads `legs` past the end of an `Animal`. Closing it means the write checks the element type of an `array<T>` slot, the field classes of a shape slot, and every class arm of a union, before it stores, and the module doc's list is rewritten from what is left.",
-  "goal": "completeness-holes"
-}

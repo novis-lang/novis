@@ -1,0 +1,68 @@
+--TEST--
+A property write through a `mixed` receiver checks an array's elements, a shape's fields and every arm of a union against the declared type, so a typed read never sees an object of the wrong class — `rule:types/erased-member-access`
+--FILE--
+<?nvs
+// A `Kennel` declares what its properties hold. Each write below goes through
+// a `mixed` variable, so the program checks the value when it runs.
+// A value of the declared type is written. Any other value throws an error.
+class Animal { public string $name = "tom"; }
+class Dog extends Animal { public int $legs = 4; }
+
+class Kennel {
+    public array<Dog> $dogs = [];
+    public {pet: Dog} $home;
+    public int|Dog $either = 0;
+    public ?int $count = null;
+    public ?array<Dog> $spare = null;
+
+    public function constructor() { $this->home = {pet: new Dog()}; }
+
+    public static function write(mixed $m, string $field, mixed $value): string {
+        try {
+            if ($field == "dogs") { $m->dogs = $value; }
+            if ($field == "home") { $m->home = $value; }
+            if ($field == "either") { $m->either = $value; }
+            if ($field == "count") { $m->count = $value; }
+            if ($field == "spare") { $m->spare = $value; }
+            return "written";
+        } catch (RuntimeError $e) {
+            return $e->message;
+        }
+    }
+}
+
+var $k = new Kennel();
+echo Kennel::write($k, "dogs", [new Dog(), new Dog()]), "\n";
+echo Kennel::write($k, "dogs", [new Dog(), new Animal()]), "\n";
+echo Kennel::write($k, "dogs", ["dog"]), "\n";
+echo Kennel::write($k, "home", {pet: new Dog()}), "\n";
+echo Kennel::write($k, "home", {pet: new Animal()}), "\n";
+echo Kennel::write($k, "home", {cat: new Dog()}), "\n";
+echo Kennel::write($k, "either", 3), "\n";
+echo Kennel::write($k, "either", new Dog()), "\n";
+echo Kennel::write($k, "either", new Animal()), "\n";
+echo Kennel::write($k, "either", "three"), "\n";
+echo Kennel::write($k, "count", null), "\n";
+echo Kennel::write($k, "count", 2.5), "\n";
+echo Kennel::write($k, "spare", [new Dog()]), "\n";
+echo Kennel::write($k, "spare", [new Animal()]), "\n";
+
+// The refused writes stored nothing, so every typed read finds a `Dog`.
+Dog $d = $k->dogs[1];
+echo $d->legs, " ", $k->home->pet->legs, " ", Core\Arr::count($k->dogs), "\n";
+--EXPECT--
+written
+`Kennel` declares field `dogs` as `array<Dog>`, so an array holding an object of class `Animal` cannot be written to it
+`Kennel` declares field `dogs` as `array<Dog>`, so an array holding a string cannot be written to it
+written
+`Kennel` declares field `home` as `{pet: Dog}`, so an object whose `pet` is an object of class `Animal` cannot be written to it
+`Kennel` declares field `home` as `{pet: Dog}`, so an object with no field `pet` cannot be written to it
+written
+written
+`Kennel` declares field `either` as `int|Dog`, so an object of class `Animal` cannot be written to it
+`Kennel` declares field `either` as `int|Dog`, so a string cannot be written to it
+written
+`Kennel` declares field `count` as `?int`, so a float cannot be written to it
+written
+`Kennel` declares field `spare` as `?array<Dog>`, so an array holding an object of class `Animal` cannot be written to it
+4 4 2

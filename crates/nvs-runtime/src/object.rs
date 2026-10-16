@@ -152,49 +152,39 @@
 //! Without the check, a write through the wider view would leave a `string` in
 //! a slot the narrow view still loads as an `int`.
 //!
-//! What is checked is the **tag**, from [`ClassDesc::field_tags`], and the
-//! declared type itself is deliberately not carried:
+//! A **declared** class's slot is checked against its whole declared type, in
+//! three parts, each carried on the [`ClassDesc`] once per process:
 //!
-//! * The class an anonymous object constructs is named for its **field names
-//!   alone** (`$shape{x,y}`, `nvs_ir::lower::shape_class_label`), so `{x: 1}`
-//!   and `{x: "s"}` are one class. A declared *type* per slot would have to
-//!   mint a class per name-and-type tuple — a bigger class table, a second
-//!   naming scheme for `nvs_stdlib` to keep in step with, and all of it read
-//!   by one instruction.
-//! * A tag closes the failure that matters most: representation confusion,
-//!   where a slot's payload is loaded as the wrong machine type. That is a
-//!   security question as well as a wrong result; what is left below is a
-//!   wrong result with no memory-safety edge to it.
+//! * [`ClassDesc::field_tags`] holds the slot's one tag, where its type has
+//!   one, so a payload is never loaded as the wrong machine type.
+//! * [`ClassDesc::field_classes`] holds the classes a slot typed `Node`,
+//!   `?Node` or `A|B` admits, because [`Tag::Object`] answers for every class.
+//! * [`ClassDesc::field_checks`] holds the rest as a [`SlotCheck`]: an
+//!   `array<Dog>`'s elements, a `{pet: Dog}`'s fields and every arm of a
+//!   `?int` or an `int|Dog`. [`write_erased_property`] walks the written value
+//!   against it, so an erased write costs time in the size of that value.
 //!
-//! **What a tag therefore does not catch**, and these are known gaps rather
-//! than decisions:
+//! `nvs_ir::lower`'s `field_slots` builds all three by joining every layout's
+//! slots against the declared property types the checker recorded, since an
+//! erased receiver reaches any class at all. A type the run time cannot
+//! compare against — `mixed`, `iterable`, a class with no layout of its own —
+//! is [`SlotCheck::Any`], so the check never refuses a write the checker
+//! accepted.
 //!
-//! 1. **Class identity in a shape.** [`Tag::Object`] answers for every
-//!    class, so a `{pet: Animal}` view of a `{pet: Dog}` value accepts an
-//!    `Animal`. A *declared* class's slot is checked by class as well:
-//!    [`ClassDesc::field_classes`] carries the classes a slot typed `Node`,
-//!    `?Node` or `A|B` admits, and [`write_erased_property`] refuses any
-//!    other object and any other non-`null` value there.
-//! 2. **An array's element type.** [`Tag::Array`] answers for every
-//!    `array<T>`, so an `array<Animal>` reaches an `array<Dog>` slot.
-//! 3. **A field whose declared type admits several tags** — a union, a `?T`,
-//!    a `mixed` — is unchecked by tag, because there is no one tag to
-//!    compare against and the check must not reject a legal write. Item 1's
-//!    class check covers the ones made only of classes and `null`.
-//! 4. **Two records of one shape that share their field names but not their
-//!    types** fall back to case 3 for the slots they disagree on;
-//!    `nvs_ir::lower::Lowering::record_shape_class` degrades the tag rather
-//!    than picking whichever record it saw first, and `nvs_ir::lower::lower_file`
-//!    merges the same way across frames. Two literals are one such pair;
-//!    `Core\Task::all`'s argument and its result are the other, the result's
-//!    own representations being recorded at the call site
-//!    (`nvs_ir::lower::Lowering::record_core_result_shape`).
-//! 5. **A class with no layout of its own** — a callable's environment, a
-//!    generator's state — carries no tags, because nothing declares its slots
-//!    in source for a type to come from. A *named* class does carry them: an
-//!    erased receiver reaches any class at all, so `nvs_ir::lower`'s
-//!    `field_slots` joins every layout's slots against the declared property
-//!    types the checker recorded.
+//! An **anonymous object's** slot is checked by tag alone. Its class is named
+//! for its field names (`$shape{x,y}`, `nvs_ir::lower::shape_class_label`), so
+//! `{x: 1}` and `{x: "s"}` are one class and no single declared type belongs
+//! to the slot. Two records of one shape that disagree on a slot's
+//! representation leave it with no tag at all:
+//! `nvs_ir::lower::Lowering::record_shape_class` degrades the tag rather than
+//! picking whichever record it saw first, `nvs_ir::lower::lower_file` merges
+//! the same way across frames, and `Core\Task::all`'s result is recorded at the
+//! call site (`nvs_ir::lower::Lowering::record_core_result_shape`). A class
+//! with no layout of its own, a callable's environment or a generator's state,
+//! carries no tags either, because nothing declares its slots in source.
+//!
+//! What an anonymous object's tag does not check is a gap record, and
+//! `bun nv gaps --module crates/nvs-runtime/src/object.rs` lists it.
 //!
 //! # Decision: every object is on its context's live list
 //!
@@ -520,6 +510,22 @@ pub struct ClassDesc {
     /// `Option<Vec<String>>` per field per class, once per process, not per
     /// instance.
     field_classes: Vec<Option<Vec<String>>>,
+    /// The whole declared type of each field slot, in slot order, where
+    /// [`Self::field_tags`] and [`Self::field_classes`] do not already check
+    /// all of it — `None` for every other slot, and **empty** for a class
+    /// nothing told.
+    ///
+    /// A slot typed `array<Dog>`, `{pet: Dog}`, `?int` or `int|Dog` has a tag
+    /// that answers for values the type does not admit, and compiled code
+    /// trusts the type when it reads the slot back. Without this an erased
+    /// write could store an `array<Animal>` there, and a typed read would load
+    /// a `Dog` property past the end of an `Animal`. [`SlotCheck`] is the
+    /// type in run-time terms, `nvs_ir::lower`'s `slot_check` builds it,
+    /// [`ClassTable::set_field_checks`] fills it and [`write_erased_property`]
+    /// is its one reader. **Cost:** one `Option<SlotCheck>` per field per
+    /// class, once per process, and a walk of the written value on an erased
+    /// write into such a slot.
+    field_checks: Vec<Option<SlotCheck>>,
     /// Every class constant a program can name on this class, flattened over
     /// its ancestors where `nvs_types::layout` flattened it — empty for a class
     /// no declaration laid out, on [`Self::public_fields`]' terms exactly.
@@ -1590,6 +1596,14 @@ impl ClassDesc {
         self.field_classes.get(index)?.as_deref()
     }
 
+    /// The declared type of slot `index` as a [`SlotCheck`], or `None` where
+    /// the slot's tag and admitted classes already check all of it, or
+    /// nothing told this class — see [`Self::field_checks`].
+    #[must_use]
+    pub fn field_check(&self, index: usize) -> Option<&SlotCheck> {
+        self.field_checks.get(index)?.as_ref()
+    }
+
     /// Whether an instance of this class is also an instance of `other` —
     /// the whole of `$x is C`, and of a typed `catch`'s dispatch.
     ///
@@ -2043,6 +2057,7 @@ impl ClassTable {
             readonly_fields: Vec::new(),
             field_types: Vec::new(),
             field_classes: Vec::new(),
+            field_checks: Vec::new(),
             constants: Vec::new(),
             attributes: Vec::new(),
             render: std::ptr::null(),
@@ -2316,6 +2331,28 @@ impl ClassTable {
             classes.len()
         );
         desc.field_classes = classes;
+    }
+
+    /// Fills in `id`'s per-slot declared types — see
+    /// [`ClassDesc::field_checks`].
+    ///
+    /// # Panics
+    ///
+    /// If `id` does not belong to this table, or if `checks` is not one entry
+    /// per slot, on [`Self::set_field_classes`]' terms.
+    pub fn set_field_checks(&mut self, id: ClassId, checks: Vec<Option<SlotCheck>>) {
+        let desc = self
+            .classes
+            .get_mut(id.0)
+            .expect("a class id always belongs to the table that handed it out");
+        assert!(
+            checks.len() == desc.fields.len(),
+            "`{}` has {} field slots but {} declared-type entries",
+            desc.name,
+            desc.fields.len(),
+            checks.len()
+        );
+        desc.field_checks = checks;
     }
 
     /// Fills in `id`'s declared property defaults — see [`ClassDesc::defaults`].
@@ -5313,6 +5350,17 @@ pub fn write_erased_property(
     if let Some(admitted) = desc.field_classes(slot) {
         check_admitted_class(desc, slot, name, admitted, value)?;
     }
+    // An array's elements, a shape's fields and a union's arms are not in the
+    // tag at all, and a typed read trusts every one of them.
+    if let Some(check) = desc.field_check(slot)
+        && let Err(written) = check.admits(value)
+    {
+        let declared = desc.field_type(slot).unwrap_or("its declared type");
+        return Err(Fault::thrown(format!(
+            "`{}` declares field `{name}` as `{declared}`, so {written} cannot be written to it",
+            desc.name()
+        )));
+    }
     #[expect(
         unsafe_code,
         reason = "the slot came out of this object's own descriptor, so it is \
@@ -5455,6 +5503,147 @@ fn check_admitted_class(
         "`{}` declares field `{name}` as `{declared}`, so {written} cannot be written to it",
         desc.name()
     )))
+}
+
+/// A field slot's declared type in run-time terms — [`ClassDesc::field_checks`].
+///
+/// Each arm is what a value must be to pass. The tree has the declared type's
+/// depth, so a check walks the written value no deeper than the type names.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SlotCheck {
+    /// Any value: `mixed`, or a type with no run-time form to compare against.
+    Any,
+    /// A value with exactly this tag ([`Value::exact_tag`]).
+    Tag(Tag),
+    /// An object whose class conforms to this label
+    /// ([`ClassDesc::conforms_to_name`]).
+    Class(String),
+    /// An array whose every value passes the inner check. Keys are not checked,
+    /// because every key is an `int` or a `string` already.
+    Array(Box<Self>),
+    /// An object that has each named field, whose value passes that field's
+    /// check. A field that is not required may also be missing or unset.
+    Shape(Vec<ShapeCheck>),
+    /// A value that passes at least one of the checks: a union, or a `?T`.
+    AnyOf(Vec<Self>),
+}
+
+/// One field of a [`SlotCheck::Shape`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ShapeCheck {
+    /// The field's name.
+    pub name: String,
+    /// Whether the value must have the field. A written `?` clears it.
+    pub required: bool,
+    /// What the field's value must be.
+    pub check: SlotCheck,
+}
+
+impl SlotCheck {
+    /// `Ok` when `value` is what this check describes. Otherwise the error is
+    /// a description of the part of `value` that does not pass, worded to
+    /// follow "so" in [`write_erased_property`]'s message.
+    ///
+    /// # Errors
+    ///
+    /// The description above, when `value` does not pass.
+    pub fn admits(&self, value: Value) -> Result<(), String> {
+        match self {
+            Self::Any => Ok(()),
+            Self::Tag(tag) => {
+                if value.exact_tag() == Some(*tag) {
+                    Ok(())
+                } else {
+                    Err(describe_written(value))
+                }
+            }
+            Self::Class(label) => {
+                if with_class(value, |class| class.conforms_to_name(label)) == Some(true) {
+                    Ok(())
+                } else {
+                    Err(describe_written(value))
+                }
+            }
+            Self::Array(element) => {
+                let Some(array) = value.as_array() else {
+                    return Err(describe_written(value));
+                };
+                let mut from = 0;
+                while let Some(slot) = array.next_slot(from) {
+                    if let Some(item) = array.value_at(slot) {
+                        element
+                            .admits(item)
+                            .map_err(|inner| format!("an array holding {inner}"))?;
+                    }
+                    from = slot + 1;
+                }
+                Ok(())
+            }
+            Self::Shape(fields) => {
+                let Some(ptr) = value.obj_ptr().filter(|ptr| !ptr.is_null()) else {
+                    return Err(describe_written(value));
+                };
+                for field in fields {
+                    let slot = with_class(value, |class| class.field_slot(&field.name, 0));
+                    let held = slot.flatten().map(|slot| {
+                        #[expect(
+                            unsafe_code,
+                            reason = "the slot came out of this object's own descriptor, \
+                                      so it is inside the live allocation the caller \
+                                      owns a reference to"
+                        )]
+                        unsafe {
+                            *field_ptr(ptr, slot)
+                        }
+                    });
+                    match held {
+                        Some(item) if item.exact_tag() != Some(Tag::Unset) => {
+                            field.check.admits(item).map_err(|inner| {
+                                format!("an object whose `{}` is {inner}", field.name)
+                            })?
+                        }
+                        _ if field.required => {
+                            return Err(format!("an object with no field `{}`", field.name));
+                        }
+                        _ => {}
+                    }
+                }
+                Ok(())
+            }
+            Self::AnyOf(arms) => {
+                if arms.iter().any(|arm| arm.admits(value).is_ok()) {
+                    Ok(())
+                } else {
+                    // The deepest reason is the useful one when one arm came
+                    // close, so a `?array<Dog>` names the element.
+                    Err(arms
+                        .iter()
+                        .find(|arm| !matches!(arm, Self::Tag(Tag::Null)))
+                        .and_then(|arm| arm.admits(value).err())
+                        .unwrap_or_else(|| describe_written(value)))
+                }
+            }
+        }
+    }
+}
+
+/// `read` run over the class of `value`, when it is a live object.
+fn with_class<R>(value: Value, read: impl FnOnce(&ClassDesc) -> R) -> Option<R> {
+    let ptr = value.obj_ptr().filter(|ptr| !ptr.is_null())?;
+    #[expect(
+        unsafe_code,
+        reason = "the caller owns a reference to this value, so the object is \
+                  live, and its descriptor outlives every instance of it"
+    )]
+    Some(read(unsafe { &*NvsObj::class_of(ptr) }))
+}
+
+/// "an object of class `Animal`" or "a string": what a refused write names.
+fn describe_written(value: Value) -> String {
+    with_class(value, |class| {
+        format!("an object of class `{}`", class.name())
+    })
+    .unwrap_or_else(|| format!("a {}", value.tag().map_or("malformed value", Tag::describe)))
 }
 
 /// Overwrites field slot `index` on the object at `ptr`, releasing whatever it

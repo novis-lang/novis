@@ -305,6 +305,18 @@ pub struct Class {
     /// **Cost:** one `Option<Vec<String>>` per field slot per class, once per
     /// compiled unit, not per request.
     pub field_classes: Vec<Option<Vec<String>>>,
+    /// Each field slot's whole declared type as a [`SlotCheck`], in
+    /// [`Self::fields`]' own order — or **empty**, on [`Self::field_reprs`]'
+    /// terms exactly.
+    ///
+    /// `Some` for a slot whose type the slot's tag and [`Self::field_classes`]
+    /// do not check in full: an `array<T>`, a shape, a `?T` or a union.
+    /// `nvs-codegen` hands it to `nvs_runtime::ClassTable::set_field_checks`,
+    /// and `nvs_runtime::write_erased_property` is what reads it.
+    ///
+    /// **Cost:** one `Option<SlotCheck>` per field slot per class, once per
+    /// compiled unit, not per request.
+    pub field_checks: Vec<Option<SlotCheck>>,
     /// Every *other* class and interface an instance of this one also is,
     /// transitively, as labels. Excludes the class itself.
     pub conforms: Vec<String>,
@@ -396,6 +408,26 @@ pub struct Class {
     /// **Cost:** one `bool` per class per compiled unit, once per unit, not
     /// per request.
     pub is_callable: bool,
+}
+
+/// A field slot's declared type in the terms a run-time check needs —
+/// [`Class::field_checks`]. `nvs-codegen` converts it to
+/// `nvs_runtime::SlotCheck`, arm for arm, with each [`Self::Repr`] turned
+/// into its tag.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum SlotCheck {
+    /// Any value: `mixed`, or a type with no run-time form to compare against.
+    Any,
+    /// A value of this representation, which has exactly one tag.
+    Repr(Ty),
+    /// An object whose class conforms to this label.
+    Class(String),
+    /// An array whose every value passes the inner check.
+    Array(Box<Self>),
+    /// An object with these fields: name, whether it is required, and its check.
+    Shape(Vec<(String, bool, Self)>),
+    /// A value that passes at least one of the checks.
+    AnyOf(Vec<Self>),
 }
 
 /// One lowered method or function.

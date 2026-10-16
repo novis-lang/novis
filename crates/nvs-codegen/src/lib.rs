@@ -1591,6 +1591,15 @@ impl Classes {
             self.table
                 .set_field_classes(id, class.field_classes.clone());
         }
+        // The rest of each slot's declared type, guarded the same way.
+        if class.field_checks.len() == class.fields.len() && !class.field_checks.is_empty() {
+            let checks = class
+                .field_checks
+                .iter()
+                .map(|check| check.as_ref().map(runtime_slot_check))
+                .collect();
+            self.table.set_field_checks(id, checks);
+        }
         // The class's constants, converted into the runtime's own currency
         // because `nvs-runtime` cannot see `nvs_types`. Guarded only on being
         // non-empty, where the three above are guarded on their length: a
@@ -1674,6 +1683,30 @@ impl Classes {
             .get(class)
             .and_then(|entry| entry.slots.get(field))
             .copied()
+    }
+}
+
+/// `nvs_ir::ir::SlotCheck` in the runtime's own terms, arm for arm. A
+/// representation with no single tag becomes `Any`, as the slot's tag does.
+fn runtime_slot_check(check: &nvs_ir::ir::SlotCheck) -> nvs_runtime::SlotCheck {
+    use nvs_ir::ir::SlotCheck as Ir;
+    use nvs_runtime::SlotCheck as Rt;
+    match check {
+        Ir::Any => Rt::Any,
+        Ir::Repr(ty) => crate::ty::tag_of(*ty).map_or(Rt::Any, Rt::Tag),
+        Ir::Class(label) => Rt::Class(label.clone()),
+        Ir::Array(element) => Rt::Array(Box::new(runtime_slot_check(element))),
+        Ir::Shape(fields) => Rt::Shape(
+            fields
+                .iter()
+                .map(|(name, required, check)| nvs_runtime::ShapeCheck {
+                    name: name.clone(),
+                    required: *required,
+                    check: runtime_slot_check(check),
+                })
+                .collect(),
+        ),
+        Ir::AnyOf(arms) => Rt::AnyOf(arms.iter().map(runtime_slot_check).collect()),
     }
 }
 

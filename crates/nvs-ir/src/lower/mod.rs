@@ -85,8 +85,8 @@ use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::ids::{BlockId, EdgeId, IdGen, ValueId};
 use crate::ir::{
-    AbsentKey, BasicBlock, BinOp, Function, Helper, Inst, InstKind, Prepared, Terminator,
-    TestedClass, UnOp,
+    AbsentKey, BasicBlock, BinOp, Function, Helper, Inst, InstKind, Prepared, SlotCheck,
+    Terminator, TestedClass, UnOp,
 };
 use crate::ty::{EnumRepr, Ty};
 use crate::{span_text, strip_sigil};
@@ -510,8 +510,8 @@ fn field_slots(
     layouts: &ClassLayoutTable,
     exprs: &ExprTypeTable,
     checked_types: &TypeInterner,
-) -> (Vec<Ty>, Vec<bool>, Vec<Option<Vec<String>>>) {
-    type Slot = (Ty, bool, Option<Vec<String>>);
+) -> FieldSlots {
+    type Slot = (Ty, bool, Option<Vec<String>>, Option<SlotCheck>);
     let mut image: Vec<Option<Slot>> = vec![None; layout.fields.len()];
     let chain = std::iter::once(label).chain(layout.conforms.iter().map(String::as_str));
     for owner in chain {
@@ -526,21 +526,96 @@ fn field_slots(
                 erase_checked_ty(*ty, checked_types),
                 nvs_types::expr::type_is_secret(*ty, checked_types),
                 admitted_classes(*ty, layouts, checked_types),
+                deep_check(*ty, layouts, checked_types),
             ));
         }
     }
-    let mut reprs = Vec::with_capacity(image.len());
-    let mut secret = Vec::with_capacity(image.len());
-    let mut classes = Vec::with_capacity(image.len());
-    for (repr, is_secret, admitted) in image
+    let mut slots = FieldSlots::default();
+    for (repr, is_secret, admitted, check) in image
         .into_iter()
-        .map(|slot| slot.unwrap_or((Ty::Tagged, false, None)))
+        .map(|slot| slot.unwrap_or((Ty::Tagged, false, None, None)))
     {
-        reprs.push(repr);
-        secret.push(is_secret);
-        classes.push(admitted);
+        slots.reprs.push(repr);
+        slots.secret.push(is_secret);
+        slots.classes.push(admitted);
+        slots.checks.push(check);
     }
-    (reprs, secret, classes)
+    slots
+}
+
+/// What [`field_slots`] reads off its join, one entry per slot in each list.
+#[derive(Default)]
+struct FieldSlots {
+    reprs: Vec<Ty>,
+    secret: Vec<bool>,
+    classes: Vec<Option<Vec<String>>>,
+    checks: Vec<Option<SlotCheck>>,
+}
+
+/// `crate::ir::Class::field_checks`' entry for declared type `id`: its
+/// [`slot_check`], or `None` when the slot's one tag or its
+/// [`admitted_classes`] already check all of it.
+fn deep_check(
+    id: TypeId,
+    layouts: &ClassLayoutTable,
+    checked_types: &TypeInterner,
+) -> Option<SlotCheck> {
+    let check = slot_check(id, layouts, checked_types);
+    let shallow = |arm: &SlotCheck| matches!(arm, SlotCheck::Class(_) | SlotCheck::Repr(Ty::Null));
+    match &check {
+        SlotCheck::Any | SlotCheck::Repr(_) | SlotCheck::Class(_) => None,
+        SlotCheck::AnyOf(arms) if arms.iter().all(shallow) => None,
+        _ => Some(check),
+    }
+}
+
+/// Declared type `id` as a [`SlotCheck`]: what a value written into a slot of
+/// that type must be.
+///
+/// A type the run time cannot compare a value against becomes
+/// [`SlotCheck::Any`], so the check never refuses a write the checker accepted.
+/// That covers `mixed`, `iterable`, an intersection and a class with no layout
+/// of its own, whose label no descriptor carries.
+fn slot_check(id: TypeId, layouts: &ClassLayoutTable, checked_types: &TypeInterner) -> SlotCheck {
+    match checked_types.get(id) {
+        CheckedTy::Class(name, _) => {
+            let label = name.to_string();
+            if layouts.get(&label).is_some() {
+                SlotCheck::Class(label)
+            } else {
+                SlotCheck::Repr(Ty::Object)
+            }
+        }
+        CheckedTy::Array(element) => match slot_check(*element, layouts, checked_types) {
+            SlotCheck::Any => SlotCheck::Repr(Ty::Array),
+            element => SlotCheck::Array(Box::new(element)),
+        },
+        CheckedTy::Shape(fields) => SlotCheck::Shape(
+            fields
+                .iter()
+                .map(|field| {
+                    let check = slot_check(field.ty, layouts, checked_types);
+                    (field.name.clone(), field.required, check)
+                })
+                .collect(),
+        ),
+        CheckedTy::Union(members) => {
+            let arms: Vec<SlotCheck> = members
+                .iter()
+                .map(|member| slot_check(*member, layouts, checked_types))
+                .collect();
+            if arms.contains(&SlotCheck::Any) {
+                SlotCheck::Any
+            } else {
+                SlotCheck::AnyOf(arms)
+            }
+        }
+        CheckedTy::Null => SlotCheck::Repr(Ty::Null),
+        _ => match erase_checked_ty(id, checked_types) {
+            Ty::Tagged | Ty::Void | Ty::ClassDesc => SlotCheck::Any,
+            repr => SlotCheck::Repr(repr),
+        },
+    }
 }
 
 /// The labels of the classes a value of declared type `id` may be an instance
@@ -818,8 +893,7 @@ pub fn lower_program(
     let mut classes: Vec<crate::ir::Class> = layouts
         .iter()
         .map(|(label, layout)| {
-            let (field_reprs, secret_fields, field_classes) =
-                field_slots(label, layout, layouts, exprs, checked_types);
+            let slots = field_slots(label, layout, layouts, exprs, checked_types);
             crate::ir::Class {
                 label: label.to_owned(),
                 fields: layout.fields.clone(),
@@ -827,8 +901,8 @@ pub fn lower_program(
                 // anonymous object's synthesized one, so every layout carries its
                 // slots' representations — see `field_slots`, which answers the
                 // `secret` bit off the same join.
-                field_reprs,
-                secret_fields,
+                field_reprs: slots.reprs,
+                secret_fields: slots.secret,
                 // `rule:security/reflection-enforces-visibility`'s visibility bit, copied across with the slot
                 // order it is aligned to — `nvs_types::layout` decided it where
                 // the declaration's keyword still exists.
@@ -846,7 +920,10 @@ pub fn lower_program(
                 field_types: layout.field_types.clone(),
                 // The classes each slot admits, resolved by the same join as
                 // the representations — see `admitted_classes`.
-                field_classes,
+                field_classes: slots.classes,
+                // And the rest of each slot's declared type, which neither the
+                // tag nor the classes check — see `deep_check`.
+                field_checks: slots.checks,
                 // The class's constants, already flattened over its ancestors
                 // and already folded — the front end is the only layer that
                 // still has the declaration's right-hand side to fold.
@@ -911,6 +988,7 @@ pub fn lower_program(
         attributes: Vec::new(),
         field_types: Vec::new(),
         field_classes: Vec::new(),
+        field_checks: Vec::new(),
         conforms: Vec::new(),
         methods: Vec::new(),
         hooks: Vec::new(),
@@ -943,6 +1021,7 @@ pub fn lower_program(
         attributes: Vec::new(),
         field_types: Vec::new(),
         field_classes: Vec::new(),
+        field_checks: Vec::new(),
         conforms: Vec::new(),
         methods: Vec::new(),
         hooks: Vec::new(),
@@ -2156,6 +2235,7 @@ impl<'a> Lowering<'a> {
             // spell, its slots being typed by what was written into them.
             field_types: Vec::new(),
             field_classes: Vec::new(),
+            field_checks: Vec::new(),
             // An anonymous object has no declaration body, so it declares no
             // constant and carries no attach site — empty here is the fact and
             // not an omission.
@@ -3973,6 +4053,7 @@ fn nested_shapes(
             readonly_fields: Vec::new(),
             field_types: Vec::new(),
             field_classes: Vec::new(),
+            field_checks: Vec::new(),
             constants: Vec::new(),
             attributes: Vec::new(),
             conforms: Vec::new(),

@@ -335,6 +335,9 @@ pub(crate) fn lower_anon_fn(
                     .collect(),
                 None => Vec::new(),
             },
+            // A capture's type was written on the variable, so there is no
+            // declared type to check beyond the `this` slot's class above.
+            field_checks: Vec::new(),
             // The marker `rule:types/callable-values`'s `$x is callable`
             // walks for — see `super::CALLABLE_MARKER` — and one more per
             // written signature this literal satisfies, which is the same walk
@@ -1038,6 +1041,7 @@ fn thunk_class(
         attributes: Vec::new(),
         field_types: Vec::new(),
         field_classes: Vec::new(),
+        field_checks: Vec::new(),
         // A method reference is a callable, so it carries the same
         // edges an anonymous function's class does — the one every callable has
         // and one per written signature it satisfies, read back at the
