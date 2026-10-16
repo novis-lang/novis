@@ -350,12 +350,14 @@ wasmtime = "49"
 # the lock file did not already hold. Only `std`: the test reads text, and
 # `decoding` would pull `wasmparser` and `serde` for binary components it never
 # reads. Its one caller is `crates/nvs-stdlib/tests/ext_world.rs`.
+# HOLD (revisit 2026-11-16): 0.262 is out, and wasmtime 49 parses with 0.258. It moves with wasmtime.
 wit-parser = { version = "0.258", default-features = false, features = ["std"] }
 # The reader of a `.nvsx`'s custom sections, at the version wasmtime parses
 # with, so it adds no crate the lock file did not already hold. `std` and
 # `component-model` are what walking a component's sections needs; `validate`
 # is left off because validating is the engine's job at load.
 # `crates/nvs-ext/src/section.rs` is the one caller.
+# HOLD (revisit 2026-11-16): 0.262 is out, and wasmtime 49 parses with 0.258. It moves with wasmtime.
 wasmparser = { version = "0.258", default-features = false, features = ["std", "component-model"] }
 # Component text compiled at test time, so a test guest needs no wasm
 # toolchain. Already in the lock file under wasmtime's own `wat` feature.
@@ -365,6 +367,8 @@ wat = "1"
 # it adds no crate the lock file did not hold. The defaults are off: the
 # `dummy-module`, `wat` and `semver-check` features serve tools, not the packer.
 # `crates/nvs-ext/src/pack.rs` is the one caller.
+# HOLD (revisit 2026-11-16): 0.262 is out, and wasmtime 49's bindgen pulls 0.258. It moves with wasmtime.
+# wasmtime 49's `sha2` 0.10 also keeps `generic-array` at 0.14.7, which `crypto-common` 0.1.7 pins with `=`.
 wit-component = { version = "0.258", default-features = false }
 # `wasi:io`'s host half — the `pollable`, `input-stream` and `output-stream`
 # resources every other WASI interface is written in — at wasmtime's own
@@ -940,6 +944,7 @@ flate2 = { version = "1", default-features = false, features = ["rust_backend"] 
 # and the `Read`/`Write` wrappers `crates/nvs-stdlib/src/compress.rs` decodes
 # through, which is how the output bound is applied *during* the decode rather
 # than to a buffer that has already been allocated.
+# HOLD (revisit 2026-11-16): `brotli-decompressor` 6.1 is out, and `brotli` 9.0.0, the latest, needs `~6.0`.
 brotli = { version = "9", default-features = false, features = ["std"] }
 # Zstandard (RFC 8878), and the one place the pure-Rust answer costs something:
 # `zstd` is the reference C library behind bindings, and `ruzstd` is a Rust
@@ -1001,6 +1006,7 @@ mysql_common = { version = "0.38", default-features = false, features = [
 # all, and the version here is `postgres-protocol`'s own: a second major would
 # be a second trait, and the iterator impls would silently not apply.
 bytes = "1"
+# HOLD (revisit 2026-11-16): 0.3 is out, and `postgres-protocol` 0.6, the latest, uses 0.2.
 fallible-iterator = "0.2"
 # The one C dependency this goal adds, pre-answered under `rule:packaging/a-c-dependency-answers-two-questions`'s second
 # question and recorded against it. The slice that first takes this as a
