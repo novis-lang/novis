@@ -23,7 +23,7 @@ const graph: Graph = new Map([
 const ctx: PlanContext = {
   graph,
   cases: ["tests/conformance/a.nvst", "tests/conformance/sub/b.nvst", "tests/other/c.nvst"],
-  nvTests: ["tools/nv/test/bg.test.ts", "tools/nv/test/guard.test.ts"],
+  nvTests: ["tools/nv/test/allow.test.ts", "tools/nv/test/guard.test.ts"],
   groupDirs: new Map([["Core\\Str", ["docs/examples/core/Str/length", "tests/hostile/core/Str/length"]]]),
   proofs: ["docs/examples/core/Str/length/01-basics.nvs", "tests/hostile/core/Str/length/01-x.nvs", "docs/examples/core/Arr/map/01-a.nvs"],
 };
@@ -88,8 +88,8 @@ describe("a check as atoms", () => {
   });
 
   test("the tools' gate is tsc and every test file, and one test file is its own atom", () => {
-    expect(grouped(check({ argv: ["bun", "nv", "selftest"] }), ctx).atoms).toEqual(["step:nv", "nvtest:tools/nv/test/bg.test.ts", "nvtest:tools/nv/test/guard.test.ts"]);
-    expect(grouped(check({ argv: ["bun", "test", "tools/nv/test/bg.test.ts"] }), ctx)).toMatchObject({ how: "nvtest", atoms: ["nvtest:tools/nv/test/bg.test.ts"] });
+    expect(grouped(check({ argv: ["bun", "nv", "selftest"] }), ctx).atoms).toEqual(["step:nv", "nvtest:tools/nv/test/allow.test.ts", "nvtest:tools/nv/test/guard.test.ts"]);
+    expect(grouped(check({ argv: ["bun", "test", "tools/nv/test/allow.test.ts"] }), ctx)).toMatchObject({ how: "nvtest", atoms: ["nvtest:tools/nv/test/allow.test.ts"] });
   });
 
   test("a heavy check is a heavy atom whatever its shape", () => {

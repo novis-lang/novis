@@ -6,9 +6,7 @@
 //     bun nv verify -p nvs-ir        the same build; only nvs-ir's test binaries run
 //     bun nv verify --fast           build and test only, for a mid-work check
 //     bun nv verify --doc            the rustdoc gate alone, which a session runs before DONE
-//     bun nv verify --start          run it detached through `nv bg` and return at once
-//     bun nv verify --wait           collect what --start left, with its exit status
-//     bun nv verify --full           do not truncate the failing step's output
+//     bun nv verify --full          do not truncate the failing step's output
 //     bun nv verify --no-cache       run every step, every test binary and every case, whatever changed
 //     bun nv verify --list           the steps in order, running none of them
 //
@@ -89,10 +87,9 @@
 // test binary or case batch that fails has what it left running killed (`lib/proc.ts`).
 //
 // `.agent-tmp/verify-progress.json` names the step in flight and its process, which is how a person
-// tells a slow `--start` run from a stuck one.
+// tells a slow run in the background from a stuck one.
 //
-// Exits 0 when every step is green, 1 when one is red, and 2 on a bad argument or a `--wait` with nothing
-// to collect.
+// Exits 0 when every step is green, 1 when one is red, and 2 on a bad argument.
 
 import { cpus } from "node:os";
 import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
@@ -116,17 +113,13 @@ import { type ChangeSet, computeChange, discover, type Selection, query, rustFil
 import { NV_TSC, runNvTest, runTsc } from "../select/nvtests.ts";
 import { nvKeys, testKeys } from "../select/seed.ts";
 import { type Keyed, SelectStore, testReads, type Verdict } from "../select/store.ts";
-import { alive, dirOf, exitOf, readJob, startJob } from "./bg.ts";
 
-export const summary = "the gate, one call: nv verify [-p <crate>] [--fast] [--doc] [--start | --wait] [--list] [--full] [--no-cache]";
+export const summary = "the gate, one call: nv verify [-p <crate>] [--fast] [--doc] [--list] [--full] [--no-cache]";
 
 const TMP = join(ROOT, ".agent-tmp");
 const PROGRESS = join(TMP, "verify-progress.json");
 /** Each test binary's seconds in the last run, so the next one starts the slowest first. */
 const TEST_TIMES = join(TMP, "verify-test-times.json");
-/** The job id of the last `--start`. */
-const BACKGROUND = join(TMP, "verify-background.json");
-const BACKGROUND_TIMEOUT_S = 600;
 
 const TAIL_LINES = 60;
 /** A step is killed past this, so a hung test cannot hold a session forever. */
@@ -168,8 +161,6 @@ interface Opts {
   doc: boolean;
   full: boolean;
   noCache: boolean;
-  start: boolean;
-  wait: boolean;
   list: boolean;
 }
 
@@ -1025,53 +1016,6 @@ function selectionLine(r: Run): string {
   return `verify: ${since}; the store selects ${what || "nothing"}`;
 }
 
-// ---- --start and --wait ----------------------------------------------------------------------------
-
-/** Starts the same verification as an `nv bg` job and returns at once, so the wrap is written while it
- * runs. It is the same steps, the same store and the same exit status. */
-function startBackground(args: string[]): number {
-  const passthrough = args.filter((a) => a !== "--start" && a !== "--wait");
-  const id = startJob([process.execPath, join(ROOT, "tools", "nv", "main.ts"), "verify", ...passthrough]);
-  writeQuiet(BACKGROUND, JSON.stringify({ id }));
-  console.log(`verify: started in the background (job ${id}).`);
-  console.log("        Write the wrap file now, then `bun nv verify --wait` to collect it.");
-  return 0;
-}
-
-/** Collects a `--start` run: its whole output, and its own exit status as this call's. */
-async function waitBackground(): Promise<number> {
-  const id = (readJson(BACKGROUND) as { id?: string } | undefined)?.id;
-  const job = id ? readJob(id) : null;
-  if (!id || job === null) {
-    console.log("verify: nothing was started. `bun nv verify --start` first, or just run");
-    console.log("        `bun nv verify` -- there is no state to recover here.");
-    return 2;
-  }
-  const began = performance.now();
-  let code = exitOf(id);
-  while (code === null) {
-    if (!alive(job.pid)) {
-      code = exitOf(id);
-      if (code !== null) break;
-      console.log(`verify: the background run ended with no exit status. Its output is in .agent-tmp/bg/${id}/log.`);
-      return 1;
-    }
-    if ((performance.now() - began) / 1000 > BACKGROUND_TIMEOUT_S) {
-      console.log(`verify: the background run has not finished after ${BACKGROUND_TIMEOUT_S}s.`);
-      console.log(`        Its output so far is in .agent-tmp/bg/${id}/log.`);
-      return 2;
-    }
-    await Bun.sleep(400);
-    code = exitOf(id);
-  }
-  const log = join(dirOf(id), "log");
-  const body = existsSync(log) ? readFileSync(log, "utf8").replace(/\r\n/g, "\n") : "";
-  process.stdout.write(body.endsWith("\n") || !body ? body : body + "\n");
-  const waited = (performance.now() - began) / 1000;
-  if (waited >= 1) console.log(`-- collected after a further ${waited.toFixed(0)}s; the rest of the run overlapped whatever you did in between.`);
-  return code;
-}
-
 // ---- the run ---------------------------------------------------------------------------------------
 
 const lastSlot = (name: string) => `verify:${name}`;
@@ -1292,7 +1236,7 @@ export function stepNames(built = true): string[] {
 
 /** Each step an unnarrowed run walks, as its name and the command it starts. */
 export function stepCommands(built = true): [string, string][] {
-  return stepsFor({ fast: false, doc: false, full: false, noCache: false, start: false, wait: false, list: false }, noRun, built).map((s) => [s.name, cmdOf(s)]);
+  return stepsFor({ fast: false, doc: false, full: false, noCache: false, list: false }, noRun, built).map((s) => [s.name, cmdOf(s)]);
 }
 
 /** What an unnarrowed `bun nv verify` would run over the tree as it stands: each step it would start,
@@ -1301,7 +1245,7 @@ export async function verifyPlan(graph: Graph | null): Promise<{ steps: string[]
   const store = new SelectStore();
   try {
     const got = await select(store, graph);
-    const opts: Opts = { fast: false, doc: false, full: false, noCache: false, start: false, wait: false, list: false };
+    const opts: Opts = { fast: false, doc: false, full: false, noCache: false, list: false };
     const r = { opts, store, graph, ...got, rec: null as unknown as Recorder, ran: new Set<string>() };
     const steps = stepsFor(opts, () => r);
     for (const s of steps) if (s.name === "nvs-fmt") [s.todo, s.changed] = await unformatted(store);
@@ -1316,12 +1260,12 @@ export async function verifyPlan(graph: Graph | null): Promise<{ steps: string[]
 }
 
 
-const USAGE = ["usage: nv verify [-h] [-p PACKAGE] [--fast] [--doc] [--full] [--no-cache]", "                 [--start] [--wait] [--list]"].join("\n");
+const USAGE = "usage: nv verify [-h] [-p PACKAGE] [--fast] [--doc] [--full] [--no-cache] [--list]";
 
 export async function run(args: string[]): Promise<number> {
   let parsed;
   try {
-    parsed = parseArgs(args, { flags: ["--fast", "--doc", "--full", "--no-cache", "--start", "--wait", "--list"], valued: ["--package"], short: { "-p": "--package" } });
+    parsed = parseArgs(args, { flags: ["--fast", "--doc", "--full", "--no-cache", "--list"], valued: ["--package"], short: { "-p": "--package" } });
   } catch (e) {
     if (!(e instanceof ArgError)) throw e;
     console.error(`${USAGE}\nnv verify: error: ${e.message}`);
@@ -1338,26 +1282,12 @@ export async function run(args: string[]): Promise<number> {
     doc: flags.has("--doc"),
     full: flags.has("--full"),
     noCache: flags.has("--no-cache"),
-    start: flags.has("--start"),
-    wait: flags.has("--wait"),
     list: flags.has("--list"),
   };
-  if (opts.start && opts.wait) {
-    console.log("verify: --start and --wait are two calls, not one flag pair.");
-    return 2;
-  }
   if (opts.doc && opts.fast) {
     console.log("verify: --doc is a run of one step; --fast has nothing to narrow.");
     return 2;
   }
-  if (opts.list) {
-    if (opts.start || opts.wait) {
-      console.log("verify: --list runs nothing, so there is nothing to --start or --wait for.");
-      return 2;
-    }
-    return listSteps(opts);
-  }
-  if (opts.start) return startBackground(args);
-  if (opts.wait) return waitBackground();
+  if (opts.list) return listSteps(opts);
   return verify(opts);
 }
