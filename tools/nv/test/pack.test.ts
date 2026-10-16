@@ -33,7 +33,7 @@ let saved: [string | undefined, string | undefined];
 beforeEach(() => {
   s = scratch();
   s.put("docs/goals/README.md", `---\n${JSON.stringify({ looper: 1, chain: ["bare", "g"] })}\n---\n`);
-  s.put("docs/goals/g.md", goalFile({ rules: ["alpha/one"], shapes: ["A commit message"], plan: ["Open now"], milestones: ["M1:verify"] }, { rules: ["alpha/two"] }));
+  s.put("docs/goals/g.md", goalFile({ rules: ["alpha/one"], shapes: ["A commit message"], plan: ["Open now"], milestones: ["M10:verify"] }, { rules: ["alpha/two"] }));
   s.put("docs/goals/bare.md", goalFile({}));
   write(topic, "alpha", { title: "Alpha", order: 1, rules: ["alpha/one", "alpha/two"] }, s.root);
   write(rule, "alpha/one", { title: "The first rule", status: "shipped", seeAlso: [], guardedBy: [] }, s.root);
@@ -42,8 +42,8 @@ beforeEach(() => {
   s.put("docs/rules/alpha/two.md", "The second rule's fragment.\n");
   s.put("docs/agent/conventions.md", "# Conventions\n\n## A commit message\n\nThe commit shape.\n\n## A code comment\n\nNot asked for.\n");
   s.put("data/plan/status.json", `${JSON.stringify(STATUS, null, 2)}\n`);
-  s.put("data/plan/milestones/M1.json", `${JSON.stringify({ title: "First", order: 1, loopDays: "1", state: "open" }, null, 2)}\n`);
-  s.put("docs/plan/m1.md", "# M1 — First\n\nThe scope.\n\n**Verify:** the first milestone runs.\n");
+  s.put("data/plan/milestones/M10.json", `${JSON.stringify({ title: "First", order: 1, loopDays: "1", state: "open" }, null, 2)}\n`);
+  s.put("docs/plan/m10.md", "# M10 — First\n\nThe scope.\n\n**Verify:** the first milestone runs.\n");
   saved = [process.env[LOOPER_GOAL_ENV], process.env[LOOPER_STAGE_ENV]];
   delete process.env[LOOPER_GOAL_ENV];
   delete process.env[LOOPER_STAGE_ENV];
@@ -69,7 +69,7 @@ test("nv pack prints the rules, shapes, plan fields and milestones of the goal a
   expect(r.text).not.toContain("Not asked for.");
   expect(r.text).toContain("Open now: the open work");
   expect(r.text).not.toContain("nothing blocks");
-  expect(r.text).toContain("-- M1 acceptance (docs/plan/m1.md)");
+  expect(r.text).toContain("-- M10 acceptance (docs/plan/m10.md)");
   expect(r.text).toContain("the first milestone runs");
   expect(r.text).not.toContain("TRAPS");
   const order = ["THE RULES", "THE MAP", "THE SHAPES", "THE PLAN", "THE MILESTONES", "THE NEXT FREE DIAGNOSTIC CODE"].map((t) => r.text.indexOf(`== ${t}`));

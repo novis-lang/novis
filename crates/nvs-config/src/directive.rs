@@ -98,7 +98,7 @@ pub const DIRECTIVES: &[Directive] = &[
     Directive { key: "limits.fatal_reserve_time", class: Class::System, apply: Apply::Reload },
     // The recursion ceiling, on the same grounds and not under `[limits.hard]` for the same
     // reason: a script able to raise its own would exhaust the tree's heap before any depth
-    // stopped it, which is the confusion m6.md's *Verify* asks this key to remove.
+    // stopped it, which is the confusion `rule:security/isolate-budget-is-the-trees` asks this key to remove.
     Directive { key: "limits.max_script_depth", class: Class::System, apply: Apply::Reload },
     // The decompression bound (`rule:core-classes/decompression-bound`), on the same grounds and
     // not under `[limits.hard]` for the same reason: a call lowers what it decompresses under

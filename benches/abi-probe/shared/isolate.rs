@@ -32,7 +32,7 @@
 //! [`worker_fan_out_batch`] and [`one_core_batch`] are the same [`WIDTH`]
 //! children of the same arithmetic, placed on worker cores and run one after
 //! another where they stand. Neither figure means anything alone — what
-//! [M5's acceptance](/docs/plan/m5.md) claims is *near-linear speedup*, which is
+//! `on: "worker"` placement is measured for is *near-linear speedup*, which is
 //! a ratio, and a ratio taken across two machines or two builds is not one. So
 //! both halves are measured through one driver, one after the other, and the
 //! bench rows sit side by side for the same reason `task/create_and_finish` sits
@@ -68,7 +68,7 @@ use nvs_runtime::{Ctx, OutputSink, TaskRoot, Value};
 /// What the first crossings pay for is whatever the parent's ownership root and
 /// the pooled allocator's size classes allocate once — which a real request has
 /// already paid before its first `spawn script`, and which is what "on a warm
-/// cache" means in [M5's acceptance](/docs/plan/m5.md).
+/// cache" means for the spawn-to-result figure `benches/isolation.rs` records.
 const WARM: u64 = 200;
 
 /// `iters` spawn-to-result round trips inside one task, and how long they took.
@@ -140,8 +140,8 @@ pub(crate) fn spawn_to_result(parent: &mut Ctx) -> Value {
 
 /// How many children one fan-out places at once.
 ///
-/// Four, because four cores is what [M5's acceptance](/docs/plan/m5.md) makes
-/// its near-linear claim about. A machine with fewer CPUs than this has fewer
+/// Four, because four cores is what the near-linear claim above is made
+/// about. A machine with fewer CPUs than this has fewer
 /// cores to place them on — `nvs_host::worker`'s bound is the CPU count — so the
 /// guard in `tests/perf_guards.rs` asks `nvs_host::cpus` how many cores there
 /// are, and then [`burn`] on plain threads whether they are free, before it

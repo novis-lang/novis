@@ -600,11 +600,11 @@ fn a_fatal_handler_runs_inside_its_reserved_time_slice() {
     );
 }
 
-/// `docs/plan/m6.md`'s *Verify*, and the whole reason `[limits] max_script_depth` has a default at
+/// `rule:security/isolate-budget-is-the-trees`, and the whole reason `[limits] max_script_depth` has a default at
 /// all: a recursive `spawn script` is stopped by that ceiling and **reported as that ceiling**
 /// rather than as an out-of-memory.
 ///
-/// `docs/plan/m8.md`'s *Verify*, `rule:errors/handler-script`: the tier-3 handler runs charged to the engine's own
+/// `rule:errors/handler-script`: the tier-3 handler runs charged to the engine's own
 /// reserve, and still runs when the request reporting itself is at its own ceiling.
 ///
 /// Asserted on the **context**, because that is where the exception to `rule:security/isolate-shares-nothing` lives and where a
@@ -753,7 +753,7 @@ impl nvs_runtime::script::Resolver for ResolvesToTheProbe {
     }
 }
 
-/// `docs/plan/m8.md`'s *Verify*, `rule:errors/handler-script`'s second clause: the configured handler **still
+/// `rule:errors/handler-script`'s second clause: the configured handler **still
 /// fires** when the request reporting itself is at its own memory ceiling.
 ///
 /// The sibling above asks [`Ctx::handler_isolate`] for the fields it parts from
@@ -1059,7 +1059,7 @@ fn a_childs_cpu_breach_arrives_as_ok_false_and_the_parent_keeps_running() {
     );
 }
 
-/// `docs/plan/m6.md`'s *Verify*: N concurrent isolates cannot together exceed the tree's budget —
+/// `rule:security/isolate-budget-is-the-trees`: N concurrent isolates cannot together exceed the tree's budget —
 /// because the budget is the **root's**, and a child is never handed one of its own to spend.
 ///
 /// The claim is a comparison and not a threshold, because the threshold half is green against the
@@ -1220,7 +1220,7 @@ fn snapshot_of(written: &str) -> Arc<Snapshot> {
     })
 }
 
-/// `docs/plan/m6.md`'s *Verify*: a child cannot widen a capability its parent narrowed.
+/// `rule:security/script-spawn-capability`: a child cannot widen a capability its parent narrowed.
 ///
 /// A capability is narrowed by the operator and never by the request — `nvs_config::Request::set`
 /// refuses the `capabilities` block whichever way it is asked, because that row is

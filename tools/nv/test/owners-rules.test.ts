@@ -17,13 +17,12 @@ afterEach(() => tmp?.cleanup());
 
 type Owner = { goal?: string; milestone?: string };
 
-/** A scratch tree with milestones M3 (open), M10 (open) and M11 (done), goal file `kept`, and `rules`. */
+/** A scratch tree with milestones M10 (open) and M12 (ongoing), goal file `kept`, and `rules`. */
 function seed(rules: Record<string, { status: "shipped" | "designed" } & Owner>): void {
   tmp = scratch();
-  const row = (order: number, state: "done" | "open") => ({ title: "t", order, loopDays: "1", state });
-  write(milestone, "M3", row(3, "open"), tmp.root);
+  const row = (order: number, state: "ongoing" | "open") => ({ title: "t", order, loopDays: "1", state });
   write(milestone, "M10", row(10, "open"), tmp.root);
-  write(milestone, "M11", row(11, "done"), tmp.root);
+  write(milestone, "M12", row(12, "ongoing"), tmp.root);
   tmp.put("docs/goals/kept.md", "# kept\n");
   for (const [slug, r] of Object.entries(rules)) {
     write(rule, `x/${slug}`, { title: slug, seeAlso: [], guardedBy: [], ...r }, tmp.root);
@@ -65,24 +64,23 @@ describe("nv owners, designed rules", () => {
       goal: { status: "designed", goal: "kept" },
       gone: { status: "designed", goal: "gone" },
       ahead: { status: "designed", milestone: "M10" },
-      done: { status: "designed", milestone: "M11" },
-      past: { status: "designed", milestone: "M3" },
+      ongoing: { status: "designed", milestone: "M12" },
+      finished: { status: "designed", milestone: "M11" },
       none: { status: "designed" },
       shipped: { status: "shipped" },
     });
     const found = collectRules(tmp.root);
-    expect(found.map((r) => r.id)).toEqual(["x/ahead", "x/done", "x/goal", "x/gone", "x/none", "x/past"]);
+    expect(found.map((r) => r.id)).toEqual(["x/ahead", "x/finished", "x/goal", "x/gone", "x/none", "x/ongoing"]);
     const kinds = classifyRules(found, tmp.root);
     const ids = Object.fromEntries(Object.entries(kinds).map(([k, rs]) => [k, rs.map((r) => r.id)]));
     expect(ids).toEqual({
       goal: ["x/goal"],
-      milestone: ["x/ahead"],
-      past: ["x/past"],
-      broken: ["x/done", "x/gone"],
+      milestone: ["x/ahead", "x/ongoing"],
+      broken: ["x/finished", "x/gone"],
       untagged: ["x/none"],
     });
     expect(kinds.broken.map((r) => r.why)).toEqual([
-      "milestone M11 is done; a designed rule names a milestone still ahead or a goal file",
+      "no milestone M11 under data/plan/milestones/; name a goal or a milestone still ahead",
       "no goal `gone` in docs/goals/",
     ]);
   });

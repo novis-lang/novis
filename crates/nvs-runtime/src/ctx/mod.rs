@@ -711,8 +711,8 @@ pub struct Ctx {
     /// **A written `0` takes the default here, and so does a malformed value.**
     /// A recursion of isolates left unbounded does not run on forever, it
     /// exhausts the tree's heap, so no ceiling would mean the breach is reported
-    /// as an out-of-memory — the confusion `docs/plan/m6.md`'s *Verify* asks
-    /// this directive to remove. Its siblings read malformed as no cap; on is
+    /// as an out-of-memory — the confusion `rule:security/isolate-budget-is-the-trees`
+    /// has this directive remove. Its siblings read malformed as no cap; on is
     /// the safe direction for a net.
     ///
     /// **Counting the depth is the host's, not this crate's**, the same split

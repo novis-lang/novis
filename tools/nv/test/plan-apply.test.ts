@@ -22,7 +22,7 @@ const PLAN_MD = [
   "The rest of the plan.",
   "",
 ].join("\n");
-const MILESTONE_MD = "# M1 — First\n\nThe old scope.\n\n**Verify:** it runs.\n";
+const MILESTONE_MD = "# M10 — First\n\nThe old scope.\n\n**Verify:** it runs.\n";
 
 let s: Scratch;
 let side: string | undefined;
@@ -31,8 +31,8 @@ beforeEach(() => {
   s = scratch();
   s.put(PLAN, PLAN_MD);
   s.put("data/plan/status.json", `${JSON.stringify(STATUS, null, 2)}\n`);
-  s.put("data/plan/milestones/M1.json", `${JSON.stringify({ title: "First", order: 1, loopDays: "1", state: "open" }, null, 2)}\n`);
-  s.put("docs/plan/m1.md", MILESTONE_MD);
+  s.put("data/plan/milestones/M10.json", `${JSON.stringify({ title: "First", order: 1, loopDays: "1", state: "open" }, null, 2)}\n`);
+  s.put("docs/plan/m10.md", MILESTONE_MD);
   side = process.env[SIDE_ENV];
   delete process.env[SIDE_ENV];
 });
@@ -55,7 +55,7 @@ const WRAP = [
   "--- new",
   "new",
   "",
-  "## milestone: m1",
+  "## milestone: m10",
   "The new scope.",
   "",
   "**Verify:** it still runs.",
@@ -70,7 +70,7 @@ test("nv plan --apply --dry checks the plan sections and writes nothing", () => 
   expect(code).toBe(0);
   expect(lines[0]).toBe("nv plan --apply: would apply 3 section(s)");
   expect(read(PLAN)).toBe(PLAN_MD);
-  expect(read("docs/plan/m1.md")).toBe(MILESTONE_MD);
+  expect(read("docs/plan/m10.md")).toBe(MILESTONE_MD);
   expect(planFields(s.root).find(([n]) => n === "Open now")![1]).toBe("the old sentence");
 
   // A dry run still checks: a fragment the field does not hold is refused.
@@ -90,7 +90,7 @@ test("nv plan --apply writes a plan field, a plan edit and a milestone", () => {
   const fields = new Map(planFields(s.root));
   expect(fields.get("Done")).toBe("D2");
   expect(fields.get("Open now")).toBe("the new sentence");
-  expect(read("docs/plan/m1.md")).toBe("# M1 — First\n\nThe new scope.\n\n**Verify:** it still runs.\n");
+  expect(read("docs/plan/m10.md")).toBe("# M10 — First\n\nThe new scope.\n\n**Verify:** it still runs.\n");
 });
 
 test("nv plan --apply refuses a plan field that grows past its ceiling", () => {

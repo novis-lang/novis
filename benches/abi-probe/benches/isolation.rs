@@ -17,7 +17,7 @@
 //!   which copies the argument across the heap boundary, builds the child's own
 //!   ownership root and context, runs it as a child task, copies the answer back
 //!   and releases the root. It is the
-//!   figure [M5's acceptance](/docs/plan/m5.md) asks for, and the gap
+//!   spawn-to-result figure `rule:security/isolate-shares-nothing` rests on, and the gap
 //!   between it and `task/create_and_finish` is what the boundary itself costs
 //!   over the coroutine underneath it.
 //! * `isolate/worker_fan_out` and `isolate/fan_out_on_one_core` — the other

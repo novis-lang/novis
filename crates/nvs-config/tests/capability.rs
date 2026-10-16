@@ -1,4 +1,4 @@
-//! `rule:security/capability-question-is-grant-and-scope`'s question, asked of the capability `m6.md`'s *Verify* names on its own: a
+//! `rule:security/capability-question-is-grant-and-scope`'s question, asked of one capability on its own: a
 //! `spawn script` whose tree never granted `script.spawn`.
 //!
 //! The check that opens this case names `-p nvs-config`, so what is asserted here is the **rule** —

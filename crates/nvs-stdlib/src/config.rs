@@ -198,7 +198,7 @@ nvs_runtime::nvs_helper! {
     /// `ini_set`.
     ///
     /// The `false` this can answer with is `rule:config/three-changeability-classes`'s refusal and never an
-    /// exception: `m6.md`'s *Verify* pins a set above the `[limits.hard]`
+    /// exception: `rule:config/ini-set-is-core-config-set` pins a set above the `[limits.hard]`
     /// ceiling as `false` with the previous value intact, and a version of it
     /// that threw would be a different API.
     fn nvs_core_config_set(ctx, args: [2]) {

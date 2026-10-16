@@ -68,7 +68,7 @@
 //
 // # The serve-versus-FPM leg
 //
-// `--serve-vs-fpm` is M7's throughput figure: requests/sec for `nvs serve` against PHP with opcache.
+// `--serve-vs-fpm` is the server's throughput figure: requests/sec for `nvs serve` against PHP with opcache.
 // The generator is this file: a closed loop over keep-alive connections is a page of sockets, the same
 // on every platform, and it reports no tail. The baseline is `php-cgi -b`, which is the SAPI FPM runs,
 // speaking FastCGI the way nginx drives FPM, so PHP pays no HTTP parse and no proxy hop while `nvs serve`
@@ -1305,7 +1305,7 @@ export function writeServeRecord(path: string, record: Record<string, unknown>):
   console.log(`  recorded 1 run to ${shown} (${history.length} in the history)`);
 }
 
-/** M7's throughput figure: `nvs serve` against PHP with opcache, both under one generator. */
+/** The server's throughput figure: `nvs serve` against PHP with opcache, both under one generator. */
 async function serveVsFpm(binary: string, o: Options, reps: number): Promise<number> {
   const entry = join(SERVE_DIR, `${SERVE_CASE}.nvs`);
   const twin = join(SERVE_DIR, `${SERVE_CASE}.php`);
@@ -1338,7 +1338,7 @@ async function serveVsFpm(binary: string, o: Options, reps: number): Promise<num
   else if (peer === null) caveats.push(`no PHP baseline: --serve-baseline ${o.serveBaseline} found nothing on PATH, so this run is nvs serve alone`);
   else if (peer.kind === "php-builtin-server") {
     caveats.push(
-      "the baseline is `php -S`, PHP's development server -- a far weaker peer than the FastCGI SAPI FPM runs, and a ratio against it is not M7's figure",
+      "the baseline is `php -S`, PHP's development server -- a far weaker peer than the FastCGI SAPI FPM runs, and a ratio against it is not the FPM figure",
     );
   } else {
     caveats.push(

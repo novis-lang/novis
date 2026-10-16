@@ -1,7 +1,7 @@
 # The proxied benchmark: nginx in front of both peers
 
 `bun nv bench-proxied` runs this directory. It answers the same question
-[docs/plan/m7.md](../../docs/plan/m7.md)'s *Verify* line asks — requests/sec for `nvs serve` against
+`bun nv bench --serve-vs-fpm` asks — requests/sec for `nvs serve` against
 PHP 8.5 with opcache — but in the shape both peers actually ship in, with the same generator, the
 same kernel and the same CPU budget on either side.
 

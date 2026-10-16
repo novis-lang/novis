@@ -1829,7 +1829,8 @@ impl SseSlot {
 /// § 6 closes the remaining option before it is asked: there is no temp file, so
 /// "neither resident nor streamed" is not a place a body can be put. Buffered
 /// or streamed is the whole choice, and only one of them is bounded — which is
-/// exactly what `docs/plan/m7.md`'s load-bearing acceptance case asserts, a
+/// exactly what `rule:http-server/an-upload-is-received-only-through-files`'s
+/// load-bearing case asserts, a
 /// multipart body far larger than any in-memory bound received in full at a
 /// bounded resident **high-water mark**.
 ///

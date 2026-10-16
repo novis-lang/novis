@@ -107,8 +107,8 @@
 //!
 //! # What is here, and what is deliberately not
 //!
-//! This is the runtime half of milestone M3's vertical slice (see
-//! `docs/plan/m3.md`), and every part of it is testable without a
+//! This is the runtime half of the baseline backend, and every part of it is
+//! testable without a
 //! backend. It covers exactly:
 //!
 //! * the ABI surface — [`OK`]/[`THROWN`]/[`FATAL`], [`Value`], [`Ctx`],

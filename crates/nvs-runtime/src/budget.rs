@@ -146,7 +146,7 @@
 //! other way. So the bracket belongs to the store, around every path that
 //! allocates or frees what it holds, rather than to a call site that happens to
 //! be storing. Charging a free to whoever allocated the block instead needs
-//! per-request provenance, which is what the request arena in `docs/plan/m6.md`
+//! per-request provenance, which is what a request arena
 //! gives; until then, a store that is not bracketed is one whose frees are the
 //! freeing request's.
 //!

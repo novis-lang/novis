@@ -24,7 +24,7 @@ const valid: Goal = {
   weight: 1.5,
   live: true,
   kind: "chain",
-  milestone: "M9",
+  milestone: "M10",
   parent: null,
   files: ["a.ts"],
   env: { B: "2", A: "1" },

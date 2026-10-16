@@ -104,8 +104,9 @@
 //! key under the write guard is the one that compiles it; every caller that
 //! arrives while that runs finds the [`Flight`] it left in the table, waits on
 //! that, and is then answered out of the table like any other hit. This is what
-//! makes `docs/plan/m7.md`'s "ten thousand cold requests compile it exactly
-//! once" a claim about the fleet rather than about one core, and why
+//! makes single-flight compilation (`docs/plan/design.md` § *Compiled-unit
+//! cache with single-flight compilation*) a claim about the fleet rather than
+//! about one core, and why
 //! [`Compiler::compiles`] counts contents rather than workers.
 //!
 //! **A waiter gives up its thread, and that is the cheaper of its two
@@ -530,8 +531,8 @@ pub(crate) struct Compiler {
     /// compile clones it out, which is one path per compile.
     cache: RwLock<Option<crate::cache::Cache>>,
     /// How many times [`Self::compile`] has run on this cache — the counter
-    /// `docs/plan/m7.md`'s acceptance paragraph asks the "compiles it exactly
-    /// once" claim to be asserted against, and the only number a caller could
+    /// single-flight compilation's "compiles it exactly once" claim is
+    /// asserted against, and the only number a caller could
     /// state it as: every other observable — the table's length, what a
     /// resolve hands back — is equal for a unit compiled once and one
     /// compiled a thousand times.
@@ -2293,7 +2294,7 @@ mod tests {
 
     #[test]
     fn ten_thousand_concurrent_cold_requests_compile_the_file_exactly_once() {
-        // `docs/plan/m7.md`'s core requirement, asserted at the only place a
+        // Single-flight compilation's core requirement, asserted at the only place a
         // compile happens: ten thousand requests for one cold file, every one
         // of them created before any of them runs — `Scheduler::spawn`'s own
         // doc says nothing runs until `run` is called, so this is the widest
@@ -2352,7 +2353,7 @@ mod tests {
     #[test]
     fn ten_thousand_concurrent_cold_requests_for_one_file_compile_it_exactly_once() {
         // The test above's claim, made about the fleet — which is the shape
-        // `docs/plan/m7.md` states it in and the only shape a served request
+        // `docs/plan/design.md` states it in and the only shape a served request
         // meets. One core collapses the race by construction: no second resolve
         // of a path runs between an observation and the write that follows it.
         // Here the ten thousand requests are spread over four workers sharing
@@ -2953,8 +2954,8 @@ mod tests {
 
     #[test]
     fn the_compile_counter_counts_compiles_and_not_cores() {
-        // [`Compiler::compiles`]'s own claim, which is what `docs/plan/m7.md`'s
-        // "compiles it exactly once" is asserted against: one counter per
+        // [`Compiler::compiles`]'s own claim, which is what single-flight
+        // compilation's "compiles it exactly once" is asserted against: one counter per
         // cache rather than one per worker. Two contents move it twice; any
         // number of cores reading either of them does not move it at all.
         const CORES: usize = 4;
@@ -3013,7 +3014,7 @@ mod tests {
 
     #[test]
     fn no_request_stalls_while_the_file_is_compiled() {
-        // The other half of `docs/plan/m7.md`'s core requirement, and the half
+        // The other half of single-flight compilation's core requirement, and the half
         // the number above cannot state: compiling once is worth nothing if
         // the other requests paid for it by waiting.
         //

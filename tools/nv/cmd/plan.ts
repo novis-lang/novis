@@ -1,8 +1,10 @@
-// `bun nv plan`: the modes over the implementation plan. `--show M8` prints a milestone's scope file
-// whole, `--show M8:lead` its first paragraph and `--show M8:verify` its `**Verify:**` paragraph, its
-// acceptance test. `--get <Field>` prints one field of the status block, unwrapped. `--past` prints one
-// line per milestone the program is behind, and whether it is complete. `--check` reports the status
-// fields' sizes, and fails when a milestone record disagrees with its scope file or the chain.
+// `bun nv plan`: the modes over the implementation plan. `--show M10` prints a milestone's scope file
+// whole, `--show M10:lead` its first paragraph and `--show M10:verify` its `**Verify:**` paragraph, its
+// acceptance test. `--get <Field>` prints one field of the status block, unwrapped. `--check` reports
+// the status fields' sizes, and fails when a milestone record disagrees with its scope file or the chain.
+//
+// The plan holds the milestones still ahead and nothing else. A finished milestone's record and scope
+// file are deleted, so no state means "done" and no mode reports the past.
 //
 // `--apply <wrap-file | ->` is the one mode that writes. It takes a wrap file's `## plan:`, `## plan-edit:`
 // and `## milestone:` sections, checks them with `planChecks`, and writes them only when every one is
@@ -23,16 +25,12 @@ import { head, inOrder, nbytes, normalize, occurrences, parseEdits, parseWrap, P
 import { record } from "../lib/written.ts";
 import { milestone as milestoneType } from "../schema/milestone.ts";
 import { planStatus } from "../schema/plan-status.ts";
-import { collect, FIRST_FUTURE_MILESTONE, registers } from "./owners.ts";
 
-export const summary = "the plan: nv plan --show M8[:lead|:verify] | --get <Field> | --past | --check | --apply <wrap-file | -> [--dry]";
+export const summary = "the plan: nv plan --show M10[:lead|:verify] | --get <Field> | --check | --apply <wrap-file | -> [--dry]";
 
 export const PLAN = "docs/implementation-plan.md";
 
-/** A milestone id; its number is its place in the program, and the suffix does not move it. */
-const MILESTONE = /^M(\d+)[A-Z]?$/;
-
-/** A milestone file's H1: `# M4S — The `Core` API contract and its pure half (~5 weeks)`. */
+/** A milestone file's H1: `# M16 — `nvs/web`, `nvs new`, and the framework (~12 weeks)`. */
 export const H1 = /^#\s+(M\d+[A-Z]?)\s*—\s*(.*)$/;
 
 /** The status block's field names as the plan writes them, and each one's key in the record. */
@@ -69,7 +67,7 @@ export interface TableRow {
   loopDays: string;
 }
 
-/** A row of the milestone table: `| <carried by> | [M4](plan/m4.md) | <what it builds> | <loop-days> |`. */
+/** A row of the milestone table: `| <carried by> | [M10](plan/m10.md) | <what it builds> | <loop-days> |`. */
 const TABLE_ROW = /^\|\s*([^|]*?)\s*\|\s*\[(M\d+[A-Z]?)\]\(([^)]*)\)\s*\|\s*(.*?)\s*\|\s*([^|]*?)\s*\|\s*$/;
 
 /** Every row of the milestone table in `text`, in the order written. */
@@ -94,14 +92,14 @@ export interface RowSource {
 }
 
 /**
- * The row the table owes a milestone. **Carried by** is `done` for a finished one, else the goals that
- * carry it by slug (``goal `a` `` or ``goals `a`, `b` ``), else where it stands on its own: `ongoing` or
- * `backlog N`. **What it builds** is the record's title with its estimate in brackets.
+ * The row the table owes a milestone. **Carried by** is the goals that carry it by slug
+ * (``goal `a` `` or ``goals `a`, `b` ``), else where it stands on its own: `ongoing` or `backlog N`.
+ * **What it builds** is the record's title with its estimate in brackets.
  */
 export function expectedRow(s: RowSource): Omit<TableRow, "line"> {
   const cited = s.carriers.map((g) => `\`${g}\``).join(", ");
   const carried =
-    s.state === "done" ? "done" : s.carriers.length === 1 ? `goal ${cited}` : s.carriers.length > 1 ? `goals ${cited}` : s.backlog !== undefined ? `backlog ${s.backlog}` : s.state;
+    s.carriers.length === 1 ? `goal ${cited}` : s.carriers.length > 1 ? `goals ${cited}` : s.backlog !== undefined ? `backlog ${s.backlog}` : s.state;
   return {
     carried,
     id: s.id,
@@ -194,77 +192,6 @@ function get(name: string): number {
   return 0;
 }
 
-/** Python's `textwrap.fill` with `break_long_words` and `break_on_hyphens` off. */
-function wrap(text: string, width: number, first: string, rest: string): string {
-  const chunks = text.match(/\s+|\S+/g) ?? [];
-  const lines: string[] = [];
-  let i = 0;
-  while (i < chunks.length) {
-    const indent = lines.length > 0 ? rest : first;
-    const room = width - indent.length;
-    if (lines.length > 0 && !chunks[i]!.trim()) i++;
-    const line: string[] = [];
-    let len = 0;
-    while (i < chunks.length && len + chunks[i]!.length <= room) {
-      len += chunks[i]!.length;
-      line.push(chunks[i++]!);
-    }
-    if (i < chunks.length && chunks[i]!.length > room && line.length === 0) line.push(chunks[i++]!);
-    if (line.length > 0 && !line[line.length - 1]!.trim()) line.pop();
-    if (line.length > 0) lines.push(indent + line.join(""));
-  }
-  return lines.join("\n");
-}
-
-type GoalState = "live" | "ahead";
-
-/**
- * Every milestone before the first future one, and whether it is complete: no goal on the chain carries
- * it, and no register still tags an item to it. The goal switch deletes a reached goal, so a goal still
- * on the chain is live or ahead. A milestone at or past the first future one is left out, since ahead
- * of the program is not a state this answers.
- */
-function pastState(): { id: string; complete: boolean; tagged: number; carried: [string, GoalState][] }[] {
-  const goals = chainGoals();
-  const live = liveGoal(goals);
-  const tagged = new Map<string, number>();
-  for (const reg of registers(collect(), true)) {
-    for (const owner of reg.owners) tagged.set(owner, (tagged.get(owner) ?? 0) + 1);
-  }
-  const out = [];
-  for (const m of milestones()) {
-    const num = MILESTONE.exec(m.id);
-    if (!num || Number(num[1]) >= FIRST_FUTURE_MILESTONE) continue;
-    const slugs = goals.filter((g) => g.milestone === m.id).map((g) => g.slug);
-    const n = tagged.get(m.id) ?? 0;
-    out.push({
-      id: m.id,
-      complete: n === 0 && slugs.length === 0,
-      tagged: n,
-      carried: slugs.map((s): [string, GoalState] => [s, live?.slug === s ? "live" : "ahead"]),
-    });
-  }
-  return out;
-}
-
-function past(): number {
-  const rows = pastState();
-  const live = liveGoal();
-  console.log(`nv plan --past: the ${rows.length} milestone(s) the index holds before M${FIRST_FUTURE_MILESTONE}, ` +
-    "against the chain and every register nv owners reads");
-  console.log("  complete = no goal on the chain carries it, and nothing is still tagged to it" +
-    (live ? `; live at goal \`${live.slug}\`` : ""));
-  for (const row of rows) {
-    const carried = row.carried.map(([slug, state]) => `\`${slug}\` ${state}`).join(", ");
-    console.log(wrap(`${row.id.padEnd(4)} ${(row.complete ? "complete" : "open").padEnd(8)} ` +
-      `carried by ${carried || "no goal on the chain"}, ${row.tagged} item(s) still tagged to it`, 98, "  ", " ".repeat(16)));
-  }
-  console.log("\nA count above zero names work no closing goal has taken yet: `bun nv owners --check` lists the " +
-    "items behind it, each to be closed or re-owned.");
-  console.log(`${rows.filter((r) => r.complete).length} of ${rows.length} past milestone(s) complete`);
-  return 0;
-}
-
 /** Guidance per status field in bytes, and the multiple of it a growing edit may not cross. */
 const FIELD_AIM_FALLBACK = 400;
 const FIELD_CEILING_X_FALLBACK = 5;
@@ -294,10 +221,9 @@ function round0(x: number): string {
  * The sizes of the status fields, then the milestone records against the prose and the chain. A size is
  * reported and never fails the check; a structural finding does. A record's `title`, with its `estimate`
  * in brackets after it, must be its scope file's H1, and every `docs/plan/m*.md` must have a record. Its
- * `state` must agree with the chain: `done`
- * exactly when `pastState()` calls it complete, `open` with no `backlog` place while a chain goal carries
- * it, and `done`, `ongoing` or a `backlog` place while none does. Last, every row of the plan's milestone
- * table must be the row `expectedRow` builds from its record and the chain, in the records' order.
+ * `state` must agree with the chain: `open` with no `backlog` place while a chain goal carries it, and
+ * `ongoing` or a `backlog` place while none does. Last, every row of the plan's milestone table must be
+ * the row `expectedRow` builds from its record and the chain, in the records' order.
  */
 function check(): number {
   const problems: string[] = [];
@@ -359,30 +285,19 @@ function check(): number {
         problems.push(`goal \`${g.slug}\`: tagged ${g.milestone}, which is not a milestone record`);
       }
     }
-    const past = new Map(pastState().map((row) => [row.id, row]));
     const carriedIds = new Set(goals.flatMap((g) => (g.milestone ? [g.milestone] : [])));
     for (const m of index) {
       const rec = records.get(m.id)!;
       const slugs = goals.filter((g) => g.milestone === m.id).map((g) => g.slug);
-      const st = past.get(m.id);
       const where = rec.backlog !== undefined ? `${rec.state}, backlog ${rec.backlog}` : rec.state;
-      if (st?.complete) {
-        if (rec.state !== "done") {
-          problems.push(`${m.id}: no goal on the chain carries it and no register still tags an item to it, ` +
-            `so its record's state is \`done\`\n      record: ${where}\n      \`bun nv plan --past\` is the report`);
-        }
-      } else if (st && rec.state === "done") {
-        const held = st.carried.map(([slug]) => `goal \`${slug}\` is on the chain`);
-        if (st.tagged) held.push(`${st.tagged} item(s) in the registers still name it`);
-        problems.push(`${m.id}: its record says it is finished and \`bun nv plan --past\` does not -- ${held.join("; ")}`);
-      } else if (slugs.length > 0) {
-        if (rec.state !== "done" && (rec.state !== "open" || rec.backlog !== undefined)) {
+      if (slugs.length > 0) {
+        if (rec.state !== "open" || rec.backlog !== undefined) {
           problems.push(`${m.id}: goals ${slugs.map((s) => `\`${s}\``).join(", ")} carry it, so its record is ` +
             `\`open\` with no backlog place, not ${repr(where)}`);
         }
       } else if (rec.state === "open" && rec.backlog === undefined) {
         problems.push(`${m.id}: no chain goal carries it, so its record says where it stands on its own -- ` +
-          "`done`, `ongoing` or a `backlog` place, not 'open'");
+          "`ongoing` or a `backlog` place, not 'open'");
       }
     }
     const none = goals.filter((g) => g.milestone === null).map((g) => `\`${g.slug}\``);
@@ -651,7 +566,7 @@ export function applyMilestone(s: Section, dry: boolean, root: string = ROOT): s
   const at = lines.findIndex((l) => H1.test(l));
   const top = at < 0 ? [`# ${entry.id}`] : lines.slice(0, at + 1);
   writeFileSync(join(root, entry.rel), `${top.join("\n")}\n\n${body}\n`);
-  if (!verifyParagraph(entry, root)) note += "  !! no `**Verify:**` paragraph -- nothing can call this milestone done";
+  if (!verifyParagraph(entry, root)) note += "  !! no `**Verify:**` paragraph -- the milestone has no acceptance test";
   return note;
 }
 
@@ -676,7 +591,7 @@ export function apply(text: string, dry: boolean, root: string = ROOT): { code: 
 }
 
 const USAGE =
-  "usage: bun nv plan --show M8[:lead|:verify] | --get <Field> | --past | --check | --apply <wrap-file | -> [--dry]\n" +
+  "usage: bun nv plan --show M10[:lead|:verify] | --get <Field> | --check | --apply <wrap-file | -> [--dry]\n" +
   "  --apply writes a wrap's `## plan:`, `## plan-edit:` and `## milestone:` sections; `-` reads the wrap on stdin";
 
 export async function run(args: string[]): Promise<number> {
@@ -684,7 +599,6 @@ export async function run(args: string[]): Promise<number> {
   if ((flag === "--show" || flag === "--get") && value !== undefined && rest.length === 0) {
     return flag === "--show" ? show(value) : get(value);
   }
-  if (flag === "--past" && value === undefined) return past();
   if (flag === "--check" && value === undefined) return check();
   if (flag === "--apply" && value !== undefined && rest.every((a) => a === "--dry")) {
     let text: string;

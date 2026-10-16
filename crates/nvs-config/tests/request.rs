@@ -1,6 +1,6 @@
 //! `rule:config/ini-set-is-core-config-set` and `rule:config/three-changeability-classes`: what one request may move, how far, and how far that move reaches.
 //!
-//! The cases `m6.md`'s *Verify* names in one sentence are here under its own words, because
+//! The cases `rule:config/ini-set-is-core-config-set` names in one sentence are here under its own words, because
 //! invisibility to the next request on the same core is the one a shared mutable registry passes
 //! every other test while getting wrong. It is asked of two `Request`s built from **one**
 //! `Arc<Snapshot>`, which is exactly what two requests on a core hold.
@@ -91,7 +91,7 @@ memory = \"512M\"
 ";
 
 /// `rule:config/three-changeability-classes`: `[limits]` states the **default**, and a request may move above it for itself as far
-/// as the ceiling — the first of `m6.md`'s clauses.
+/// as the ceiling.
 #[test]
 fn config_set_above_the_default_takes_effect() {
     let mut request = Request::new(snapshot_of(BOUNDED));
@@ -357,7 +357,7 @@ fn the_same_two_refusals_come_from_config_set_as_from_the_boot() {
     );
 }
 
-/// m6.md's *Verify*, adversarially: **every** `System` row is refused, counted over the registry
+/// `rule:config/three-changeability-classes`, adversarially: **every** `System` row is refused, counted over the registry
 /// rather than asked of one key.
 ///
 /// `a_system_directive_is_not_settable_by_a_request` above pins the class rule on the keys it

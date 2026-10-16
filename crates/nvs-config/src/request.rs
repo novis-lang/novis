@@ -7,14 +7,14 @@
 //! makes the API request-local, and it is a property of the shape rather than of a discipline —
 //! there is no `&mut Snapshot` anywhere for a member to reach.
 //!
-//! **A bare name is a limit's name.** § 5's API is keyed on a directive *name* and `m6.md`'s own
-//! worked call is `Core\Config::set('memory', '512M')`, with no block in it. So a name with no dot
+//! **A bare name is a limit's name.** § 5's API is keyed on a directive *name*, and the common
+//! call is `Core\Config::set('memory', '512M')`, with no block in it. So a name with no dot
 //! that [`value::unit_of`] knows is read and written in `[limits]` — the block `rule:config/three-changeability-classes` states the
 //! request-settable default in — and every other name is the dotted path the file writes. This is
 //! not a second rule: it is the empty block [`value::unit_of`] already answers for, made into the
 //! one place that decides it.
 //!
-//! **What `set` refuses, it refuses by returning `false`** (`rule:config/three-changeability-classes`, and `m6.md`'s *Verify*): a
+//! **What `set` refuses, it refuses by returning `false`** (`rule:config/three-changeability-classes` and `rule:config/ini-set-is-core-config-set`): a
 //! name no [`Directive`](crate::directive::Directive) row governs, a name a row governs that is not
 //! a leaf key the file may write (`log`, `log.x`), a `System` one, a value that
 //! does not spell its unit, a value above its ceiling (`[limits.hard]`, or where that is not

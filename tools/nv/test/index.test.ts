@@ -27,8 +27,8 @@ afterEach(() => tmp?.cleanup());
 
 function seed(): Index {
   tmp = scratch();
-  write(milestone, "M9", { title: "Tooling" }, tmp.root);
-  write(goal, "tools", { milestone: "M9", live: true, tags: ["a", "b"], checks: [{ id: "selftest", stage: 3 }] }, tmp.root);
+  write(milestone, "M10", { title: "Tooling" }, tmp.root);
+  write(goal, "tools", { milestone: "M10", live: true, tags: ["a", "b"], checks: [{ id: "selftest", stage: 3 }] }, tmp.root);
   write(chain, "chain", ["tools"], tmp.root);
   tmp.put("docs/a.md", "# A\n\nSee `rule:x/y`.\n");
   return new Index({ root: tmp.root, types: TYPES, prose: ["docs/**/*.md"] });
@@ -38,7 +38,7 @@ describe("index", () => {
   test("a rebuild builds a table per type, child tables per list, and the views", () => {
     const index = seed();
     expect(index.refresh()).toEqual({ read: 4, unchanged: 0, removed: 0 });
-    expect(index.query("SELECT id, milestone, live FROM goal")).toEqual([{ id: "tools", milestone: "M9", live: 1 }]);
+    expect(index.query("SELECT id, milestone, live FROM goal")).toEqual([{ id: "tools", milestone: "M10", live: 1 }]);
     expect(index.query("SELECT value FROM goal__tags ORDER BY ord")).toEqual([{ value: "a" }, { value: "b" }]);
     expect(index.query("SELECT owner, id, stage FROM goal__checks")).toEqual([{ owner: "tools", id: "selftest", stage: 3 }]);
     expect(index.query("SELECT value FROM chain__items")).toEqual([{ value: "tools" }]);
@@ -46,7 +46,7 @@ describe("index", () => {
     expect(index.query("SELECT type, id FROM records ORDER BY type")).toEqual([
       { type: "chain", id: "chain" },
       { type: "goal", id: "tools" },
-      { type: "milestone", id: "M9" },
+      { type: "milestone", id: "M10" },
     ]);
     expect(index.query("SELECT kind, target, line FROM citations")).toEqual([{ kind: "rule", target: "x/y", line: 3 }]);
     expect(index.check()).toEqual([]);
@@ -82,7 +82,7 @@ describe("index", () => {
     const future = new Date(Date.now() + 60_000);
     utimesSync(join(tmp.root, "docs/a.md"), future, future);
     expect(index.refresh()).toEqual({ read: 0, unchanged: 4, removed: 0 });
-    write(goal, "tools", { milestone: "M9", live: false, tags: [], checks: [{ id: "one", stage: 1 }] }, tmp.root);
+    write(goal, "tools", { milestone: "M10", live: false, tags: [], checks: [{ id: "one", stage: 1 }] }, tmp.root);
     expect(index.refresh()).toEqual({ read: 1, unchanged: 3, removed: 0 });
     expect(index.query("SELECT count(*) AS n FROM goal__tags")).toEqual([{ n: 0 }]);
     expect(index.query("SELECT id FROM goal__checks")).toEqual([{ id: "one" }]);

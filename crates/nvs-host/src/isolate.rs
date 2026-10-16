@@ -636,7 +636,7 @@ impl Isolate {
             // reported in place of the limit that stopped the request. The
             // report it is handed reads `max_script_depth`, which is what
             // separates this from the out-of-memory the heap would deliver
-            // otherwise (`docs/plan/m6.md`'s *Verify*).
+            // otherwise (`rule:security/isolate-budget-is-the-trees`).
             ctx.run_limit_handler(Limit::ScriptDepth);
             ctx.set_pending(message.clone());
             // Not a `GraphError`: that error is the *argument's* and this

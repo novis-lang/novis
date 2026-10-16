@@ -1,8 +1,10 @@
 // A milestone: `data/plan/milestones/<id>.json`, one row of the plan's milestone table, with its scope
-// in `docs/plan/<id>.md` when it has one. A goal names the milestone it carries, and which goals carry a
-// milestone is read off the goals rather than written here.
+// in `docs/plan/<id>.md`. A goal names the milestone it carries, and which goals carry a milestone is
+// read off the goals rather than written here.
 //
-// A milestone no goal carries yet is `backlog`, and `backlog` is its place behind the chain.
+// The plan holds only the milestones still ahead: a finished one's record and scope file are deleted.
+// A milestone a goal carries is `open`. One no goal carries is `ongoing`, or `open` with a `backlog`
+// place, its position behind the chain.
 
 import { defineRecord, s } from "../lib/schema.ts";
 
@@ -15,9 +17,9 @@ export const milestone = defineRecord({
     order: s.int(),
     /** The effort the plan estimated, as written: `~6 weeks`. */
     estimate: s.optional(s.string()),
-    /** Loop-days, as written: `0.3`, `~2.5`, `measurement-bound`. */
+    /** Loop-days, as written: `~8`, `measurement-bound`. */
     loopDays: s.string(),
-    state: s.enum("done", "open", "ongoing"),
+    state: s.enum("open", "ongoing"),
     backlog: s.optional(s.int()),
   }),
 });

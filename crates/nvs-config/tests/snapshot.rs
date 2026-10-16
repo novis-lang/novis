@@ -528,7 +528,7 @@ fn a_request_that_started_before_a_swap_reads_the_old_value_to_completion() {
     assert!(reload.boot.is_empty());
 }
 
-/// `rule:config/reloadability-is-its-own-field` and m6.md's *Verify*: a changed `Boot` key is reported in the result **and does not
+/// `rule:config/reloadability-is-its-own-field`: a changed `Boot` key is reported in the result **and does not
 /// take effect** — the published snapshot still carries the running value, because a report beside
 /// a snapshot holding the new one would be a report of something that had already happened.
 #[test]
@@ -762,7 +762,7 @@ fn only_the_rules_restart_keys_are_boot() {
     );
 }
 
-/// `rule:config/the-config-is-an-immutable-snapshot`'s validate-then-publish, and m6.md's *Verify*: a reload whose tree does not parse
+/// `rule:config/the-config-is-an-immutable-snapshot`'s validate-then-publish: a reload whose tree does not parse
 /// never reaches [`Current::publish`] at all, so the snapshot serving is the one that was already
 /// serving, and the refusal names the line an operator has to fix rather than a byte offset.
 #[test]

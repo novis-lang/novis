@@ -218,7 +218,7 @@ pub struct Limits {
     /// own recursion ceiling is the case that class exists for. Not under `[limits.hard]` either,
     /// and for the reserve's reason — no request may set it, so there is no value for a ceiling to
     /// bound. Unlike every key above it this one has a *default*: an uncapped recursion of isolates
-    /// does not run forever, it exhausts the tree's heap, and m6.md's *Verify* asks for that spawn
+    /// does not run forever, it exhausts the tree's heap, and `rule:security/isolate-budget-is-the-trees` asks for that spawn
     /// to be stopped as a depth rather than reported as an out-of-memory.
     pub max_script_depth: Option<Setting>,
     /// `System` — the most any one `Core\Compress` or `Core\Zip` decompression may produce
