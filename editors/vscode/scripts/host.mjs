@@ -28,7 +28,7 @@ const ROOT = resolve(PACKAGE, "..", "..");
 // .captureSyntaxTokens`, a private command a release is free to move. Bumping this is a deliberate edit
 // with the suite run behind it, and the fallback when a pinned stable will not start beside the
 // developer's own is a pinned Insiders build — never a dropped isolation flag.
-const VERSION = "1.136.2";
+const VERSION = "1.142.0";
 
 const CACHE = join(PACKAGE, ".vscode-test");
 const PROFILE = join(CACHE, "user-data");
