@@ -27,7 +27,7 @@ stages:
         rules: [security/isolate-values-cross-by-copy, security/isolate-budget-is-the-trees, errors/on-limit, config/no-configuration-file-is-a-complete-configuration, config/one-parser-for-the-boot-path-and-config-set, config/ceilings-are-their-own-directives]
   - id: 4
     title: "a throwing `inout` callee leaks nothing, and a refused stack does not panic"
-    status: open
+    status: done
     context: [crates/nvs-ir/src/ty.rs, crates/nvs-ir/src/lower/mod.rs, crates/nvs-host/src/stack.rs, crates/nvs-host/src/scheduler.rs, crates/nvs-host/src/group.rs, data/gaps/nvs-host/the-stack-pool-is-capped-by-a-constant.json]
     extra:
       context:
@@ -220,7 +220,7 @@ stack the OS refuses fails one request, not the process.
 
 - [x] The staging reference is released on the throw edge. `crates/nvs-ir/src/lower/mod.rs:2641`, `crates/nvs-ir/src/ty.rs:309`
 - [x] A refused reservation ends the one task as a limit, a root through its `Finished` and a `Core\Task` child through its group's `Outcome::Fatal`. `crates/nvs-host/src/scheduler.rs:916`, `crates/nvs-host/src/group.rs:504`
-- [ ] The pool is bounded by the admission arithmetic. `crates/nvs-host/src/stack.rs:97`
+- [x] The pool is bounded by the admission arithmetic. `crates/nvs-host/src/stack.rs:97`
 
 ### 5. bytes cross the extension boundary in one copy each way
 
@@ -315,15 +315,13 @@ work cannot live only in prose again.
 
 ### State
 
-Stages 1, 2 and 3 are done. Stage 4 has two of its three items done: the `inout` throw edge
-leaks nothing, and a refused stack no longer panics. `StackPool::take` returns the OS error
-(`crates/nvs-host/src/stack.rs:205`), and `Scheduler::refuse` ends the task as a limit
-(`crates/nvs-host/src/scheduler.rs:916`). A root is filed as `Finished` with a pending fatal. A
-child's body is dropped unrun while the thread-local `REFUSED` holds the message, and the
-`Child` guard's `Drop` puts it on the group (`crates/nvs-host/src/group.rs:504`), so the caller
-gets `Outcome::Fatal`. A test-only `refuse_fresh_stacks` reaches both paths, and the two tests
-are in `scheduler.rs` and `group.rs`. The gap record now names only the pool's cap, renamed to
-`data/gaps/nvs-host/the-stack-pool-is-capped-by-a-constant.json`.
+Stages 1 to 4 are done. `MAX_POOLED_STACKS` is gone: a serving core calls
+`Scheduler::bound_pool_by` with its share of admission's live `max_in_flight`
+(`crates/nvs-cli/src/serve.rs:870`), and the pool reads it at each `give`, so a reload moves it
+and a lowered cap frees the excess. A scheduler that is not a serving core keeps its high-water
+mark, which `max_tasks` already bounds per program; the fragment
+`rule:concurrency/a-task-stack-is-reserved-wide-and-pooled` states that decision. The gap
+record is deleted.
 
 Stage 1 found a second memory-safety hole, recorded as
 `data/gaps/nvs-runtime/a-wider-shape-view-writes-an-object-of-the-wrong-class.json`. A statically
@@ -337,11 +335,13 @@ behind the local one. The earlier triage of its failures stands until the user p
 
 ### Next
 
-**Stage 4, the pool's cap.** One slice over `crates/nvs-host`, the serve loop that builds a
-worker's scheduler, and the rule fragment, which states 1024 today.
+**Stage 5, bytes across the extension boundary.** Slices over `crates/nvs-ext/src/call.rs`
+and `crates/nvs-ext/src/convert.rs`, as the standing decision on typed calls says
+(`rule:packaging/values-cross-as-handles`, `rule:packaging/the-boundary-is-the-cost`).
 
-- [ ] The pool's cap is the worker's share of `max_in_flight`, set where a serving core builds its scheduler and again on reload, and `MAX_POOLED_STACKS` goes. A scheduler with no admission number (`nvs run`, tests) needs a cap too: decide it, and say it in the fragment (`rule:http-server/admission-is-arithmetic-not-a-number`, `rule:concurrency/a-task-stack-is-reserved-wide-and-pooled`). `crates/nvs-server/src/admit.rs:287`, `crates/nvs-cli/src/serve.rs:639`, `crates/nvs-host/src/stack.rs:97`, `crates/nvs-host/src/scheduler.rs:793`, `crates/nvs-host/src/scheduler.rs:2255`
-- [ ] The gap record deleted, the stack module doc's *Why a pool* section and the fragment's memory line rewritten, and stage 4's status set to done. `data/gaps/nvs-host/the-stack-pool-is-capped-by-a-constant.json`, `docs/rules/concurrency/a-task-stack-is-reserved-wide-and-pooled.md:15`, `docs/goals/completeness-holes.md:30`
+- [ ] A typed call path for exports whose parameters or results are `list<u8>`, beside the dynamic one, which third-party exports with other signatures keep. `crates/nvs-ext/src/call.rs:893`, `crates/nvs-ext/src/convert.rs:1`
+- [ ] The lowered argument bytes are charged to the request, as the lifted results are. `crates/nvs-ext/src/call.rs:954`
+- [ ] The image arms use a full-size frame, `benches/results/image-guest.json` is recorded again, and `data/gaps/nvs-ext/bytes-cross-one-val-per-byte.json` is deleted. `crates/nvs-ext/tests/support/image_arms.rs:23`
 
 ### Backlog
 
