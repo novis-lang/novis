@@ -14,9 +14,11 @@
 //   live       the goal `docs/goals/README.md`'s chain names live, or the side goal this process runs. Accepted,
 //              because the sweep's owner gate (`--closes`) will not let that goal walk while the gap
 //              names it, so the gap cannot outlive its owner.
-//   goal       any other goal. A goal is a schedule rather than an owner: the goal switch deletes it,
-//              and the gap outlives it.
-//   broken     an owner that resolves to no goal or milestone, or to a milestone that is done.
+//   goal       a goal further down the chain. Accepted for the same reason: it becomes live before it
+//              is reached, and its `--closes` gate holds the gap then. Deleting its file makes the
+//              owner `broken`, which this gate refuses.
+//   broken     an owner that resolves to no goal or milestone, a goal file that is neither on the
+//              chain nor running, or a milestone that is done.
 //   unowned    the retired word `unowned`, refused by name so the reader knows the edit is to choose an
 //              owner rather than to fix a typo.
 //   untagged   no owner at all.
@@ -53,7 +55,7 @@
 
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { goalPlan, liveGoal, sideGoal as runningSideGoal } from "../lib/chain.ts";
+import { chainGoals, goalPlan, liveGoal, sideGoal as runningSideGoal } from "../lib/chain.ts";
 import { ROOT } from "../lib/paths.ts";
 import { load } from "../lib/store.ts";
 import { gap as gapType } from "../schema/gap.ts";
@@ -88,8 +90,8 @@ export interface Gap {
 export type Kind = "live" | "goal" | "milestone" | "past" | "unowned" | "untagged" | "broken";
 export type Kinds = Record<Kind, Gap[]>;
 
-/** Every kind `--check` refuses: all but `milestone` and `live`. */
-export const REFUSED: Kind[] = ["broken", "untagged", "unowned", "past", "goal"];
+/** Every kind `--check` refuses: all but `milestone`, `live` and `goal`. */
+export const REFUSED: Kind[] = ["broken", "untagged", "unowned", "past"];
 
 /** The label each kind is counted under, one count per line so a `want` of `0` cannot match `10`. */
 const LABELS: [Kind, string][] = [
@@ -98,11 +100,7 @@ const LABELS: [Kind, string][] = [
 ];
 
 /** The sentence a refused gap gets when its kind has only one way of being wrong. */
-const WHY: Partial<Record<Kind, string>> = {
-  goal: "names a goal, and a goal is a schedule rather than an owner: the goal switch deletes it, " +
-    "and the gap outlives it. Build the item, strike it as a stated bound, or defer it to a " +
-    "milestone whose plan states the scope",
-};
+const WHY: Partial<Record<Kind, string>> = {};
 
 /** Every gap record, ordered by module and then slug. */
 export function collect(): Gap[] {
@@ -159,7 +157,9 @@ function resolve(owner: string, plan: Plan, isGoal: (slug: string) => boolean, o
 export function classify(found: Gap[]): Kinds {
   // A side goal owns a gap exactly as a chain goal does, and its end gate asks `--closes` of its slug.
   const plan = milestonePlan();
-  const running = new Set([liveGoal()?.slug, runningSideGoal()].filter((s): s is string => !!s));
+  const chain = chainGoals();
+  const running = new Set([liveGoal(chain)?.slug, runningSideGoal()].filter((s): s is string => !!s));
+  const onChain = new Set(chain.map((g) => g.slug));
   const out: Kinds = { live: [], goal: [], milestone: [], past: [], unowned: [], untagged: [], broken: [] };
   for (const gap of found) {
     if (gap.owner === UNOWNED) {
@@ -172,6 +172,14 @@ export function classify(found: Gap[]): Kinds {
     }
     const r = resolve(gap.owner, plan, (slug) => goalPlan(slug) !== null,
       "a gap it did not close is owned by a goal or by nobody");
+    if (r.kind === "goal" && !running.has(gap.owner) && !onChain.has(gap.owner)) {
+      out.broken.push({
+        ...gap,
+        why: `goal \`${gap.owner}\` is on no chain and not running, so no end gate holds the gap; ` +
+          "put the goal on the chain, or name a goal that is",
+      });
+      continue;
+    }
     const kind = r.kind === "goal" && running.has(gap.owner) ? "live" : r.kind;
     out[kind].push(r.why ? { ...gap, why: r.why } : gap);
   }
@@ -393,13 +401,14 @@ function runCheck(kinds: Kinds): number {
       `nv owners: ${bad.length} recorded gap(s) name an owner this gate refuses, each for the reason on ` +
         `its own line. A gap may name a milestone at M${FIRST_FUTURE_MILESTONE} or later whose plan file ` +
         "states the scope, written as the record's `milestone`, which `bun nv owners --deferrals` holds " +
-        "to that scope; or the goal that is running, which `--closes` holds at its end.",
+        "to that scope; or a goal on the chain or running, which `--closes` holds at its end.",
     );
   } else {
+    const tagged = kinds.milestone.length + kinds.live.length + kinds.goal.length;
     console.log(
-      `nv owners: every one of the ${kinds.milestone.length + kinds.live.length} tagged gap(s) names an ` +
-        "owner the chain or the plan knows -- a milestone still ahead of the program, or the goal that is " +
-        "running, whose own end gate refuses to reach it while the gap is open",
+      `nv owners: every one of the ${tagged} tagged gap(s) names an ` +
+        "owner the chain or the plan knows -- a milestone still ahead of the program, or a goal on the " +
+        "chain or running, whose own end gate refuses to reach it while the gap is open",
     );
   }
   console.log(countLines(kinds).join("\n"));

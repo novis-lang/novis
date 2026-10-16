@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-config/src/tree.rs",
+  "title": "`max_tasks` is parsed and documented, and nothing enforces it.",
+  "text": "`rule:security/isolate-budget-is-the-trees` says child tasks count against the root's `max_tasks`, child output against its `max_output` and child CPU against its `cpu_time`, so a fork bomb is bounded by arithmetic. `Runtime::max_tasks` is parsed, rostered and named to users, and no scheduler or budget reads it (`crates/nvs-config/src/tree.rs:188-191`); a queued job's recorded limits leave it out for that reason (`crates/nvs-stdlib/src/queue.rs:2943-2946`). A child isolate takes the tree's CPU ceiling as a deadline (`Ctx::take_tree_cpu_limit`, `crates/nvs-host/src/isolate.rs:717`); whether that sums the children's CPU time as the rule says is not checked. Closing it means the spawn refuses a task past the root's `max_tasks` with a limit report naming the directive (`rule:errors/on-limit`), and the CPU half either sums or the rule states the shared deadline.",
+  "goal": "completeness-holes"
+}

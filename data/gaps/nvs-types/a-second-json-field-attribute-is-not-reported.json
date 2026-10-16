@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-types/src/derive.rs",
+  "title": "A second `#[Json\\Field]` on one property is ignored and not reported.",
+  "text": "The derive pass reads only the first `#[Json\\Field]` on a property (`attribute_fields`, `crates/nvs-types/src/derive.rs:2478-2481`), so a second one is silently ignored. `rule:core-classes/derive-attribute` makes a field's overrides one attribute. Closing it means a diagnostic at the second attribute, the same code a repeated attribute gets elsewhere.",
+  "goal": "completeness-holes"
+}

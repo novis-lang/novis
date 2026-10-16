@@ -22,7 +22,8 @@ program, and the row-table case passes `mixed` values to the fixture's `kindOf`
 (`tests/conformance/ext/an-extension-call-crosses-every-row-of-the-value-table.nvst`). A `bytes`
 value or an open `Core\IO\File` passed as `mixed` is lent by number and not copied, and the host
 serves each `range` the guest reads from the program's own copy between two polls of the call
-(`rule:core-classes/spreadsheet-reads-as-a-stream`). The bulk copy is missing: a block a guest reads
-through `as-bytes` or `range` crosses as one wasmtime `Val` per byte, so it costs tens of
-nanoseconds per byte rather than about 12 ns per KiB
+(`rule:core-classes/spreadsheet-reads-as-a-stream`). `as-bytes` and `range` are typed host
+functions that return a `list<u8>` whole, so a block a guest reads through a handle is one bulk copy
+(`crates/nvs-ext/src/handle.rs:262-285`). A `bytes` parameter or result of an export, which does not
+go through a handle, still crosses as one wasmtime `Val` per byte
 (`data/gaps/nvs-ext/bytes-cross-one-val-per-byte.json`).

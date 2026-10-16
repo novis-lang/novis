@@ -3087,7 +3087,7 @@ chosen for the deployment that has not thought about it.
 
 <a id="core-classes-image-pipeline"></a>
 
-## An image is an immutable value carrying a plan, and nothing decodes until a terminal runs it  *(designed — owned by M9)*
+## An image is an immutable value carrying a plan, and nothing decodes until a terminal runs it  *(designed — owned by goal completeness-holes)*
 
 `rule:core-classes/image-pipeline`
 
@@ -3158,10 +3158,12 @@ builder is Novis source in `extensions/image/nvs/`, packed into the component's 
 `Color` with `rgba` and `hex` and no named constants yet (`tests/conformance/novis/`). A canvas or
 pixel source is held to the default pixel cap, not the `[image]` one.
 
-What is missing is `raw()` on a large image. A list of bytes crosses the boundary as one wasmtime
-value per byte, so a `raw()` of an image over about one megapixel runs out of wasmtime's hostcall
-fuel and throws `ExtensionError` (`crates/nvs-ext/src/convert.rs`). The bulk path that copies the
-bytes once each way is M9's gap `data/gaps/nvs-ext/bytes-cross-one-val-per-byte.json`.
+What is missing is a fast `raw()` on a large image. A list of bytes crosses the boundary as one
+wasmtime value per byte (`crates/nvs-ext/src/convert.rs:347-355`), so returning decoded pixels costs
+several times the decode. The hostcall fuel is the request's remaining memory, so a `raw()` too large
+for the request stops at its memory limit (`crates/nvs-ext/src/call.rs:1241`). Typed calls for
+`list<u8>` parameters and results, one copy each way, are the gap
+`data/gaps/nvs-ext/bytes-cross-one-val-per-byte.json`.
 
 **Declined:**
 - **A gd-shaped handle with a call per operation.** It materialises every intermediate, prevents

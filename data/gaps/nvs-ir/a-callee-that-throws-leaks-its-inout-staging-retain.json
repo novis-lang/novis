@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-ir/src/ty.rs",
+  "title": "A callee that writes a refcounted value to an `inout` parameter and then throws leaks one reference per call.",
+  "text": "The copy-back of an `inout` argument sits on the call's normal edge only (`crates/nvs-ir/src/ty.rs:309-321`), so a callee that throws past it leaves the staging retain unpaid: `flush_ref_writebacks` (`crates/nvs-ir/src/lower/mod.rs:3306`) runs only in the block the call returned into. In a loop that catches the throw, many calls reach a 128M ceiling. The lost partial write is the language's choice (`rule:statements/inout-is-the-by-reference-spelling`, `docs/rules/statements/inout-is-the-by-reference-spelling.md:14`); the leak is the hole, and it grows with calls, not with in-flight work. Closing it means releasing the staging reference on the throw edge, in `crate::lower::Lowering::landing_block`'s release sweep (`crates/nvs-ir/src/lower/mod.rs:2641`), and rewriting the `ty.rs` section to state the write is dropped and nothing leaks.",
+  "goal": "completeness-holes"
+}

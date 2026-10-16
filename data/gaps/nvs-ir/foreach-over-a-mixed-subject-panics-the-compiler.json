@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-ir/src/lower/control.rs",
+  "title": "`foreach` over a `mixed` subject passes the checker and panics the compiler.",
+  "text": "The checker accepts a `foreach` whose subject is `mixed`, records no `ForeachDrive` for it, and lowering panics with \"no recorded `ForeachDrive`\" (`crates/nvs-ir/src/lower/control.rs:992-996`). A panic in the compiler is an engine failure on code the language accepts. `rule:iteration/foreach-subjects` names what a subject may be. Closing it means either a drive for a `mixed` subject that checks the tag at run time, or a checker diagnostic where the `foreach` is written; the rule says which.",
+  "goal": "completeness-holes"
+}

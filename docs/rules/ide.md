@@ -3,7 +3,7 @@
 
 # The editor
 
-*16 of 81 rules below are **designed** rather than shipped, and are marked where they appear.*
+*15 of 81 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="ide-one-grammar-one-tree"></a>
 
@@ -1291,7 +1291,7 @@ proves it.
 
 <a id="ide-novis-ships-names-not-colours"></a>
 
-## Both layers ship standard names and no colours: every scope is on the TextMate allowlist, every token type is in LSP's legend, and the extension overrides no theme  *(designed — owned by M10)*
+## Both layers ship standard names and no colours: every scope is on the TextMate allowlist, every token type is in LSP's legend, and the extension overrides no theme
 
 `rule:ide/novis-ships-names-not-colours`
 
