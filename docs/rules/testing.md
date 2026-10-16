@@ -3,7 +3,7 @@
 
 # Testing
 
-*16 of 62 rules below are **designed** rather than shipped, and are marked where they appear.*
+*12 of 62 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="testing-test-attribute"></a>
 
@@ -203,7 +203,7 @@ method's own parameters are filled by [`testing/fixtures`](testing.md#testing-fi
 
 <a id="testing-after-each-test"></a>
 
-## `#[AfterEachTest]` runs on each attempt's own object, and is told which test ran and how it ended  *(designed — owned by goal test-hooks)*
+## `#[AfterEachTest]` runs on each attempt's own object, and is told which test ran and how it ended
 
 `rule:testing/after-each-test`
 
@@ -287,7 +287,7 @@ descends, because a test may be written above the fixture that supplies it.
 
 <a id="testing-class-hooks"></a>
 
-## `#[BeforeClass]` and `#[AfterClass]` run once around a class's tests, and the second runs whenever the first started  *(designed — owned by goal test-hooks)*
+## `#[BeforeClass]` and `#[AfterClass]` run once around a class's tests, and the second runs whenever the first started
 
 `rule:testing/class-hooks`
 
@@ -346,7 +346,7 @@ exits with a failure either way.
 
 <a id="testing-hook-inheritance"></a>
 
-## A test class has at most one hook of each kind, and a subclass inherits hooks, fixtures and tests like any method  *(designed — owned by goal test-hooks)*
+## A test class has at most one hook of each kind, and a subclass inherits hooks, fixtures and tests like any method
 
 `rule:testing/hook-inheritance`
 
@@ -387,7 +387,7 @@ class of its own as well, and runs its tests once for itself.
 
 <a id="testing-tests-run-across-every-core"></a>
 
-## `nvs test` runs tests in parallel across every core, captures each test's output, and guarantees the hooks' order but not data consistency  *(designed — owned by goal test-hooks)*
+## `nvs test` runs tests in parallel across every core, captures each test's output, and guarantees the hooks' order but not data consistency
 
 `rule:testing/tests-run-across-every-core`
 

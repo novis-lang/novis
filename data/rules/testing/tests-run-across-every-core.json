@@ -1,12 +1,13 @@
 {
   "title": "`nvs test` runs tests in parallel across every core, captures each test's output, and guarantees the hooks' order but not data consistency",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "testing/isolate-per-test",
     "testing/class-hooks",
     "testing/runner-is-strict",
     "concurrency/on-worker-runs-the-child-on-another-core"
   ],
-  "guardedBy": [],
-  "goal": "test-hooks"
+  "guardedBy": [
+    "crates/nvs-cli/src/runner.rs"
+  ]
 }

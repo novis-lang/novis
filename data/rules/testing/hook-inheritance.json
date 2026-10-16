@@ -1,11 +1,14 @@
 {
   "title": "A test class has at most one hook of each kind, and a subclass inherits hooks, fixtures and tests like any method",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "testing/class-hooks",
     "testing/after-each-test",
     "testing/fixtures"
   ],
-  "guardedBy": [],
-  "goal": "test-hooks"
+  "guardedBy": [
+    "tests/conformance/lang/a-subclass-inherits-hooks-and-fixtures.nvst",
+    "tests/conformance/reject/a-test-class-has-at-most-one-hook-of-each-kind.nvst",
+    "tests/conformance/reject/an-override-of-a-hook-repeats-its-attribute.nvst"
+  ]
 }

@@ -1,6 +1,6 @@
 {
   "title": "`#[BeforeClass]` and `#[AfterClass]` run once around a class's tests, and the second runs whenever the first started",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "testing/fixtures",
     "testing/after-each-test",
@@ -8,6 +8,11 @@
     "testing/isolate-per-test",
     "testing/tests-run-across-every-core"
   ],
-  "guardedBy": [],
-  "goal": "test-hooks"
+  "guardedBy": [
+    "tests/conformance/lang/class-hooks-run-once-around-a-class.nvst",
+    "tests/conformance/lang/after-class-runs-when-before-class-throws.nvst",
+    "tests/conformance/reject/a-class-hook-does-not-write-a-static.nvst",
+    "tests/conformance/reject/a-hook-has-the-shape-its-rule-gives.nvst",
+    "crates/nvs-cli/src/runner.rs"
+  ]
 }
