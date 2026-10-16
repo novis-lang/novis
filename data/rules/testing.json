@@ -64,6 +64,7 @@
     "testing/an-exception-is-one-row-per-class-and-site",
     "testing/two-requests-compare-and-a-replay-asks-first",
     "testing/a-site-in-the-viewer-opens-in-the-editor",
+    "testing/a-recorded-request-becomes-a-test",
     "testing/bench-counters",
     "testing/perf-two-mechanisms",
     "testing/perf-secondary-figures",

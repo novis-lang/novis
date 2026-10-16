@@ -8,7 +8,8 @@
     "ide/the-index-answers-the-cursor",
     "tooling/doc-comment-tags-are-see-and-example",
     "ide/every-feature-is-staged-behind-its-dependency",
-    "ide/five-features-are-one-reference-index"
+    "ide/five-features-are-one-reference-index",
+    "ide/used-by-counts-the-routes-and-tests-that-reach-a-method"
   ],
   "guardedBy": [
     "crates/nvs-lsp/tests/handshake.rs",

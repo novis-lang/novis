@@ -3,7 +3,7 @@
 
 # The editor
 
-*15 of 81 rules below are **designed** rather than shipped, and are marked where they appear.*
+*19 of 85 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="ide-one-grammar-one-tree"></a>
 
@@ -522,6 +522,12 @@ source said it, so a re-derived one is a confident lie. `documentHighlight` read
 applies resolution to every occurrence of a name, which is a different walk from resolving the one under
 a cursor.
 
+`callHierarchy` is admitted on the same test and is not declared yet. The user decided to offer it. It
+reads the call-site edges that [`ide/used-by-counts-the-routes-and-tests-that-reach-a-method`](ide.md#ide-used-by-counts-the-routes-and-tests-that-reach-a-method) adds
+to the reference index, so the server declares it in the change that builds those edges, as the
+eighteenth standard request. It answers incoming and outgoing calls. A call through a `callable` value
+or a `mixed` receiver is not shown, because the checker resolved no single target for it.
+
 The second non-standard request is `nvs/regions`
 ([`ide/a-template-region-gets-the-editors-services-and-formatter`](ide.md#ide-a-template-region-gets-the-editors-services-and-formatter)), and it passes the same test the
 eight do: the lexer already knows where a mode ends, so the boundary list is a projection of a walk the
@@ -572,8 +578,6 @@ has no `.lspt` vocabulary, and `crates/nvs-lsp/tests/autoload.rs` holds it.
   is not settled. A third shape — a `foreach` variable, a
   chained call's intermediate type, a closure's return — is a decision on the same test a new request
   is.
-- **Call hierarchy.** It needs a second index of call-site edges that nothing else reads
-  ([`ide/five-features-are-one-reference-index`](ide.md#ide-five-features-are-one-reference-index)).
 - **Resolving an `autoload` root, or joining a path argument's text, in `crates/nvs-lsp`.** Each is a
   second copy of the compiler's resolution rule, and could disagree with the path the program opens.
 - **Marking a directory link in `data` or `tooltip`.** Both are free-form fields a client has to know
@@ -583,7 +587,7 @@ has no `.lspt` vocabulary, and `crates/nvs-lsp/tests/autoload.rs` holds it.
 - **Resolving the string of `as class<T>` through the file's `use` lines.** The conversion does not, so
   the editor would jump to a class the program then fails to find.
 
-<sub>See also [`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server), [`ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`](ide.md#ide-a-code-action-ships-only-a-fix-a-diagnostic-already-knows), [`ide/diagnostics-are-phase-gated`](ide.md#ide-diagnostics-are-phase-gated), [`ide/the-index-answers-the-cursor`](ide.md#ide-the-index-answers-the-cursor), [`tooling/doc-comment-tags-are-see-and-example`](tooling.md#tooling-doc-comment-tags-are-see-and-example), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency), [`ide/five-features-are-one-reference-index`](ide.md#ide-five-features-are-one-reference-index).</sub>
+<sub>See also [`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server), [`ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`](ide.md#ide-a-code-action-ships-only-a-fix-a-diagnostic-already-knows), [`ide/diagnostics-are-phase-gated`](ide.md#ide-diagnostics-are-phase-gated), [`ide/the-index-answers-the-cursor`](ide.md#ide-the-index-answers-the-cursor), [`tooling/doc-comment-tags-are-see-and-example`](tooling.md#tooling-doc-comment-tags-are-see-and-example), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency), [`ide/five-features-are-one-reference-index`](ide.md#ide-five-features-are-one-reference-index), [`ide/used-by-counts-the-routes-and-tests-that-reach-a-method`](ide.md#ide-used-by-counts-the-routes-and-tests-that-reach-a-method).</sub>
 
 <a id="ide-every-feature-is-staged-behind-its-dependency"></a>
 
@@ -1345,8 +1349,10 @@ the index is a diagnostic carrying LSP's `Unnecessary` tag, rendered as dimming 
 It is only correct at workspace scope — a symbol unused in the open buffer is not unused — so it is
 silent under the default of [`ide/check-scope-defaults-to-the-workspace`](ide.md#ide-check-scope-defaults-to-the-workspace) rather than wrong.
 
-Call hierarchy is deliberately not in this list. `textDocument/callHierarchy` is a different index —
-call-site edges kept incrementally — and nothing else needs it, so it is not built.
+Call hierarchy is not in this list yet. `textDocument/callHierarchy` reads call-site edges, and an
+occurrence does not record the function it is written in, so the index has none.
+[`ide/used-by-counts-the-routes-and-tests-that-reach-a-method`](ide.md#ide-used-by-counts-the-routes-and-tests-that-reach-a-method) adds that record, and call hierarchy
+then reads the same index rather than a second one ([`ide/the-request-set-is-closed`](ide.md#ide-the-request-set-is-closed)).
 
 One more reader reads the same index and is not a reference feature: `nvs/fileKinds`
 ([`ide/a-file-shows-what-it-declares`](ide.md#ide-a-file-shows-what-it-declares)) lists the files that declare one type, from the kind the index
@@ -1374,6 +1380,132 @@ warm index is what keeps references and highlight inside [`ide/a-full-reanalysis
   query, so the fifth reader would need a second construction site.
 
 <sub>See also [`ide/check-scope-defaults-to-the-workspace`](ide.md#ide-check-scope-defaults-to-the-workspace), [`classes/no-traits`](classes.md#classes-no-traits), [`classes/interface-default-methods`](classes.md#classes-interface-default-methods), [`classes/delegation-by-field`](classes.md#classes-delegation-by-field), [`ide/contributions-are-frozen-and-only-ever-added`](ide.md#ide-contributions-are-frozen-and-only-ever-added), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency).</sub>
+
+<a id="ide-used-by-counts-the-routes-and-tests-that-reach-a-method"></a>
+
+## A method's "used by" lens counts the routes whose handlers reach it through resolved calls and the tests the last coverage run saw reach it, and a click runs exactly those tests  *(designed — owned by goal request-aware-editor)*
+
+`rule:ide/used-by-counts-the-routes-and-tests-that-reach-a-method`
+
+Above a method, a code lens says "used by N routes, M tests". A click runs exactly the tests it
+counted, through the Test Explorer's own filtered run
+([`ide/the-test-tree-is-discovered-and-run-through-the-cli`](ide.md#ide-the-test-tree-is-discovered-and-run-through-the-cli)).
+
+**A route counts through the call graph.** A route counts when its handler reaches the method through a
+chain of calls the checker resolved, the handler itself as the first link. The chain is a call graph
+read off the one reference index ([`ide/five-features-are-one-reference-index`](ide.md#ide-five-features-are-one-reference-index)). Each occurrence
+records the function or method it is written in, so an occurrence that resolved to a method is an edge
+from that function to it. The graph is the index read one more way, never a second walk of the
+workspace. Reach walks callers backwards from the method and visits each function once, so a recursive
+chain ends.
+
+**A test counts through the last coverage run, and through the call graph where there is none.** The
+user decided this. When the Coverage run profile has run, its JSON report lists the lines each test
+reached ([`testing/report-formats`](testing.md#testing-report-formats), [`testing/coverage-report`](testing.md#testing-coverage-report)), and a test counts when it
+reached a line of the method. That count is exact for the run it came from. Where no report exists,
+a test counts when its `#[Test]` method reaches the method through the call graph, or when it calls
+`Core\Test::request` with a literal method and path that the compiled route table matches to a route
+that counts ([`testing/in-process-request`](testing.md#testing-in-process-request)), and the lens marks the test count "static". The match
+is the server's own matcher, so the lens and the server never disagree about which handler answers a
+path. A path built at run time is not matched.
+
+A call the checker did not resolve to one method is not followed: a call through a `callable` value,
+and a call by name on a `mixed` receiver. Where either could reach the method, the lens puts "at
+least" before a count read off the graph. That is the case when the method is taken as a callable
+value anywhere in the workspace, or when a call on a `mixed` receiver names a method of the same name.
+A count read off the graph is never too high: everything counted reaches the method.
+
+The route count and a static test count are read from the index, so they are current after every edit.
+A test count from a report is as old as its run, and the next coverage run refreshes it. The lens is
+gated on `nvs.codeLens.enable` with the other lenses.
+
+- **Memory:** one function name per occurrence in the index, held in the editor process for the
+  index's life, and the newest report's per-test lines while the server holds it. Each lens request
+  allocates its visited set and frees it with the answer. Nothing at compile time for running, and
+  nothing at run time.
+
+**Declined:**
+- **Counting tests by the call graph alone.** A test that reaches the method only through a `callable`
+  or a path built at run time would never count, and a test that names the method on a branch it never
+  takes would. The coverage run already records what each test reached.
+- **Following a call through a `callable` value or a `mixed` receiver.** Its target is known only at
+  run time, so a count through it is a guess. "at least" says where the count may be low.
+
+<sub>See also [`ide/five-features-are-one-reference-index`](ide.md#ide-five-features-are-one-reference-index), [`routing/routes-are-compiled-not-registered`](routing.md#routing-routes-are-compiled-not-registered), [`testing/in-process-request`](testing.md#testing-in-process-request), [`testing/report-formats`](testing.md#testing-report-formats), [`testing/coverage-report`](testing.md#testing-coverage-report), [`ide/the-test-tree-is-discovered-and-run-through-the-cli`](ide.md#ide-the-test-tree-is-discovered-and-run-through-the-cli), [`ide/the-request-set-is-closed`](ide.md#ide-the-request-set-is-closed).</sub>
+
+<a id="ide-a-route-hover-shows-the-programs-grants"></a>
+
+## Hovering a route shows what the program's grants allow, labelled as that program's and read from the `nvs.toml` that `nvs check` reads in that directory  *(designed — owned by goal request-aware-editor)*
+
+`rule:ide/a-route-hover-shows-the-programs-grants`
+
+Hovering a `#[Route]` attribute, or the name of the method it is on, shows what the program's grants
+allow: the files it may read and write, the hosts it may connect to, the databases it may open, the
+processes it may run, and every other grant by its name, each with its scope. The hover's first line
+names the `nvs.toml` it read and says that the grants are the program's.
+
+The grants are the configuration snapshot for the program's entry file, resolved the way `nvs check`
+resolves it when run in that directory, through the same reader the extension set uses
+(`crates/nvs-lsp/src/document.rs:787`). Nothing is inferred from the code, so the hover is exactly as
+deep as the grant table the runtime enforces
+([`security/capability-question-is-grant-and-scope`](security.md#security-capability-question-is-grant-and-scope)). An edit to the grants changes the hover with
+no edit to the source, because the tree is resolved again for each hover, as the extension set is: a
+cached tree would outlive an edit to `nvs.toml`. With no `nvs.toml`, the hover says that none was found
+and that the program runs under the default policy.
+
+A grant belongs to a program, never to a route, so the hover never presents it as the route's.
+Diagnostics are answered with no grants (`crates/nvs-lsp/src/document.rs:725-730`), because a
+diagnostic sits on a line of code and cannot say which configuration it came from. A hover can, in its
+first line, so the reader always sees which file answered.
+
+- **Memory:** nothing at compile time for running and nothing at run time. A hover reads the
+  configuration tree once and frees it with the answer.
+
+**Declined:**
+- **Narrowing the grants to what one route's handler calls.** It would be a guess from the code at
+  what the program may do, and the runtime checks the program's grant, not the guess.
+
+<sub>See also [`security/capability-question-is-grant-and-scope`](security.md#security-capability-question-is-grant-and-scope), [`ide/the-request-set-is-closed`](ide.md#ide-the-request-set-is-closed), [`routing/routes-are-compiled-not-registered`](routing.md#routing-routes-are-compiled-not-registered).</sub>
+
+<a id="ide-a-query-lens-shows-what-one-recorded-request-ran-at-a-site"></a>
+
+## Above each query call, a lens shows what the newest recorded request that reached it ran there: the count, the total and the slowest time, and whether one statement repeated  *(designed — owned by goal request-aware-editor)*
+
+`rule:ide/a-query-lens-shows-what-one-recorded-request-ran-at-a-site`
+
+With `[debug] store` on, each `Core\Db` call that sends a statement gets a code lens read from the debug
+service's index ([`testing/the-ingester-runs-whether-or-not-anyone-is-looking`](testing.md#testing-the-ingester-runs-whether-or-not-anyone-is-looking)). It describes the
+newest recorded request whose trace reached that site: how many statements ran there, their total time
+and the slowest one. When one statement text ran at the site more than once in that request, the lens
+says it repeated and how many times, which is the N+1 pattern a query inside a loop makes. A click
+opens that request in the viewer.
+
+A query is grouped by the site id the compiler gave its call
+([`observability/a-query-span-names-its-call-site`](observability.md#observability-a-query-span-names-its-call-site)), never by its text. So the figures are a few
+numbers per site a request reached, however many times a loop ran the query, which is
+[`testing/debug-surface`](testing.md#testing-debug-surface)'s argument for line counters. The statement is shown as written, its
+placeholders still placeholders: no parameter value is recorded or shown
+([`observability/a-query-is-a-trace-event`](observability.md#observability-a-query-is-a-trace-event)).
+
+Each site carries the hash of its file's text when the program was compiled, and a record whose hash is
+not the hash of the file on disk is not shown. A lens never sits on a line that ran something else.
+
+The server opens the index read-only, from the data folder, and makes no network request. An index
+that is absent, or that the service holds locked, gives no lens and no error.
+
+- **Memory:** in the editor process, a few numbers per query site per lens request, freed with the
+  answer. In the spool and the index, one site id per traced query, under the service's byte cap.
+
+**Declined:**
+- **One parameter set kept per site.** No query span holds a parameter value, and a parameter is
+  where request input and secrets are.
+- **Variable values shown inline from recorded requests.** Recording values grows with every iteration
+  and every request. A conditional breakpoint or a logpoint in `nvs dap` answers the same question on
+  demand.
+- **Picking the request in the viewer.** It needs state shared between the viewer and the editor. The
+  newest request that reached the site is the one a developer just sent.
+
+<sub>See also [`observability/a-query-span-names-its-call-site`](observability.md#observability-a-query-span-names-its-call-site), [`observability/a-query-is-a-trace-event`](observability.md#observability-a-query-is-a-trace-event), [`testing/the-ingester-runs-whether-or-not-anyone-is-looking`](testing.md#testing-the-ingester-runs-whether-or-not-anyone-is-looking), [`testing/debug-surface`](testing.md#testing-debug-surface), [`ide/the-extension-builds-no-ui-the-editor-already-has`](ide.md#ide-the-extension-builds-no-ui-the-editor-already-has).</sub>
 
 <a id="ide-completion-offers-only-what-the-compiler-derived"></a>
 
@@ -3223,3 +3355,37 @@ user's theme.
   the `secret` redaction with it in the user's mind.
 
 <sub>See also [`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server), [`security/sink-predicate`](security.md#security-sink-predicate), [`security/tainted-qualifier`](security.md#security-tainted-qualifier).</sub>
+
+<a id="ide-a-hover-shows-where-a-tainted-or-secret-value-came-from"></a>
+
+## Hovering a `tainted` or `secret` value shows its path inside the method, from where the qualifier entered to the cursor with the launderer marked, and only the language server has the checker record it  *(designed — owned by goal request-aware-editor)*
+
+`rule:ide/a-hover-shows-where-a-tainted-or-secret-value-came-from`
+
+Hovering a value whose type carries `tainted` or `secret`, or an argument where such a value reaches a
+sink, shows the path the qualifier took inside the method: where it entered, each step that carried
+it, and the call that laundered it, each with its line. The checker records that path only under a
+switch that `nvs-lsp` alone sets, so a compile for running, `nvs check` and `nvs build` record nothing.
+
+A path starts where the qualifier entered the method: a source ([`security/tainted-sources`](security.md#security-tainted-sources)), a
+conversion out of `mixed` ([`security/taint-propagation`](security.md#security-taint-propagation)), or a parameter, property or return type
+declared with the qualifier. Each assignment, concatenation and interpolation that carried it is a
+step. A launderer ([`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named)) is the step where the qualifier ended,
+and the hover marks it.
+
+The path stops at the method's boundary. A qualifier crosses a boundary only through a declared type,
+so a parameter declared `tainted` is where the value entered this method, and the hover names that
+declaration. That declaration is everything the method knows about its caller.
+
+- **Memory:** under the switch, one list of steps per qualified value, bounded by the statements of its
+  method and freed with the analysis in the editor process. Without the switch, one predicted branch per
+  recording site at compile time, and nothing at run time.
+
+**Declined:**
+- **Recording the path on every compile.** Nothing but the editor reads it.
+- **A path across methods.** It would be a whole-program flow analysis, and the declared qualifier on
+  a parameter already states what crosses.
+- **A panel or a request of its own for the path.** A hover is a surface every editor has
+  ([`ide/the-extension-builds-no-ui-the-editor-already-has`](ide.md#ide-the-extension-builds-no-ui-the-editor-already-has)).
+
+<sub>See also [`security/tainted-sources`](security.md#security-tainted-sources), [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named), [`security/taint-propagation`](security.md#security-taint-propagation), [`ide/tainted-has-no-default-decoration`](ide.md#ide-tainted-has-no-default-decoration), [`ide/the-request-set-is-closed`](ide.md#ide-the-request-set-is-closed).</sub>

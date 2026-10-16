@@ -1,0 +1,11 @@
+{
+  "title": "Every `Core\\Db` call that sends a statement passes a compile-time site id, and a recorded query span carries the file and line it names",
+  "status": "designed",
+  "seeAlso": [
+    "observability/a-query-is-a-trace-event",
+    "ide/a-query-lens-shows-what-one-recorded-request-ran-at-a-site",
+    "security/reflection-enforces-visibility"
+  ],
+  "guardedBy": [],
+  "goal": "request-aware-editor"
+}

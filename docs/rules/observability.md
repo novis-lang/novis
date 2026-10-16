@@ -3,7 +3,7 @@
 
 # Observability
 
-*2 of 32 rules below are **designed** rather than shipped, and are marked where they appear.*
+*3 of 33 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="observability-the-runtime-exports-what-it-already-measures"></a>
 
@@ -438,6 +438,40 @@ readers there are, and it is what becomes a query span in
 [`observability/four-kinds-become-a-span`](observability.md#observability-four-kinds-become-a-span). Both outputs are inert unless asked for.
 
 <sub>See also [`observability/a-slow-query-is-logged-past-a-threshold`](observability.md#observability-a-slow-query-is-logged-past-a-threshold), [`observability/four-kinds-become-a-span`](observability.md#observability-four-kinds-become-a-span), [`core-classes/db-error`](core-classes.md#core-classes-db-error), [`core-classes/db-connection-is-named`](core-classes.md#core-classes-db-connection-is-named), [`testing/debug-probes`](testing.md#testing-debug-probes), [`observability/trace-events-carry-a-kind`](observability.md#observability-trace-events-carry-a-kind).</sub>
+
+<a id="observability-a-query-span-names-its-call-site"></a>
+
+## Every `Core\Db` call that sends a statement passes a compile-time site id, and a recorded query span carries the file and line it names  *(designed — owned by goal request-aware-editor)*
+
+`rule:observability/a-query-span-names-its-call-site`
+
+The compiler passes each `Core\Db` member that sends a statement one more constant argument: the call
+site's id, an index into the program's query site table. The table maps an id to the file and line of
+the call and the hash of that file's text. The id is passed in every mode, so a program's compiled code
+is the same whether tracing is on or off. The member reads the id only when its span is recorded, and
+the span then carries the file and line it names.
+
+The id follows the rosters the registry already keeps for constants of a call
+([`security/reflection-enforces-visibility`](security.md#security-reflection-enforces-visibility)'s call site is one): there is no argument position a
+program can write it in. A call through a callable reference passes the zero id, which names no site,
+because the statement goes out wherever the callable is invoked.
+
+The site is exact because the compiler wrote it. Two calls with the same SQL are two sites, and one
+call that builds its SQL at run time is one site. The span still holds no bound parameter
+([`observability/a-query-is-a-trace-event`](observability.md#observability-a-query-is-a-trace-event)): a site id is not a value of the program.
+
+- **Memory:** one integer constant per query call site in the compiled code, and one table row per
+  site per compiled program. A recorded span holds one more integer. A call nobody traces reads
+  nothing.
+
+**Declined:**
+- **Passing the id only when tracing is on.** One compiled program serves requests with tracing on and
+  off, so its code cannot depend on either.
+- **Grouping queries by their SQL text.** Two sites that run the same statement would read as one.
+- **Walking the stack to find the caller.** It costs a walk per query, and outside the debug switch a
+  frame does not say where it is.
+
+<sub>See also [`observability/a-query-is-a-trace-event`](observability.md#observability-a-query-is-a-trace-event), [`ide/a-query-lens-shows-what-one-recorded-request-ran-at-a-site`](ide.md#ide-a-query-lens-shows-what-one-recorded-request-ran-at-a-site), [`security/reflection-enforces-visibility`](security.md#security-reflection-enforces-visibility).</sub>
 
 <a id="observability-a-slow-query-is-logged-past-a-threshold"></a>
 

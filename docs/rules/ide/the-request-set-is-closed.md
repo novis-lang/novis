@@ -69,6 +69,12 @@ source said it, so a re-derived one is a confident lie. `documentHighlight` read
 applies resolution to every occurrence of a name, which is a different walk from resolving the one under
 a cursor.
 
+`callHierarchy` is admitted on the same test and is not declared yet. The user decided to offer it. It
+reads the call-site edges that `rule:ide/used-by-counts-the-routes-and-tests-that-reach-a-method` adds
+to the reference index, so the server declares it in the change that builds those edges, as the
+eighteenth standard request. It answers incoming and outgoing calls. A call through a `callable` value
+or a `mixed` receiver is not shown, because the checker resolved no single target for it.
+
 The second non-standard request is `nvs/regions`
 (`rule:ide/a-template-region-gets-the-editors-services-and-formatter`), and it passes the same test the
 eight do: the lexer already knows where a mode ends, so the boundary list is a projection of a walk the
@@ -119,8 +125,6 @@ has no `.lspt` vocabulary, and `crates/nvs-lsp/tests/autoload.rs` holds it.
   is not settled. A third shape — a `foreach` variable, a
   chained call's intermediate type, a closure's return — is a decision on the same test a new request
   is.
-- **Call hierarchy.** It needs a second index of call-site edges that nothing else reads
-  (`rule:ide/five-features-are-one-reference-index`).
 - **Resolving an `autoload` root, or joining a path argument's text, in `crates/nvs-lsp`.** Each is a
   second copy of the compiler's resolution rule, and could disagree with the path the program opens.
 - **Marking a directory link in `data` or `tooltip`.** Both are free-form fields a client has to know

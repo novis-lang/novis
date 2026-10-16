@@ -1,0 +1,15 @@
+{
+  "title": "A method's \"used by\" lens counts the routes whose handlers reach it through resolved calls and the tests the last coverage run saw reach it, and a click runs exactly those tests",
+  "status": "designed",
+  "seeAlso": [
+    "ide/five-features-are-one-reference-index",
+    "routing/routes-are-compiled-not-registered",
+    "testing/in-process-request",
+    "testing/report-formats",
+    "testing/coverage-report",
+    "ide/the-test-tree-is-discovered-and-run-through-the-cli",
+    "ide/the-request-set-is-closed"
+  ],
+  "guardedBy": [],
+  "goal": "request-aware-editor"
+}

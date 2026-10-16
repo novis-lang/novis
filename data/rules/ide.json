@@ -38,6 +38,9 @@
     "ide/semantic-tokens-carry-the-qualifiers",
     "ide/novis-ships-names-not-colours",
     "ide/five-features-are-one-reference-index",
+    "ide/used-by-counts-the-routes-and-tests-that-reach-a-method",
+    "ide/a-route-hover-shows-the-programs-grants",
+    "ide/a-query-lens-shows-what-one-recorded-request-ran-at-a-site",
     "ide/completion-offers-only-what-the-compiler-derived",
     "ide/completion-files-offer-values-at-named-parameters",
     "ide/a-bare-name-reaches-every-type-and-imports-the-one-accepted",
@@ -82,6 +85,7 @@
     "ide/redaction-covers-bytes-only",
     "ide/reveal-is-explicit-and-window-local",
     "ide/redaction-does-not-reach",
-    "ide/tainted-has-no-default-decoration"
+    "ide/tainted-has-no-default-decoration",
+    "ide/a-hover-shows-where-a-tainted-or-secret-value-came-from"
   ]
 }

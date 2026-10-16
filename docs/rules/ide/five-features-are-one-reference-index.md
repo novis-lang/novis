@@ -15,8 +15,10 @@ the index is a diagnostic carrying LSP's `Unnecessary` tag, rendered as dimming 
 It is only correct at workspace scope — a symbol unused in the open buffer is not unused — so it is
 silent under the default of `rule:ide/check-scope-defaults-to-the-workspace` rather than wrong.
 
-Call hierarchy is deliberately not in this list. `textDocument/callHierarchy` is a different index —
-call-site edges kept incrementally — and nothing else needs it, so it is not built.
+Call hierarchy is not in this list yet. `textDocument/callHierarchy` reads call-site edges, and an
+occurrence does not record the function it is written in, so the index has none.
+`rule:ide/used-by-counts-the-routes-and-tests-that-reach-a-method` adds that record, and call hierarchy
+then reads the same index rather than a second one (`rule:ide/the-request-set-is-closed`).
 
 One more reader reads the same index and is not a reference feature: `nvs/fileKinds`
 (`rule:ide/a-file-shows-what-it-declares`) lists the files that declare one type, from the kind the index

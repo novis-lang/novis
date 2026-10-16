@@ -16,6 +16,7 @@
     "observability/four-kinds-become-a-span",
     "observability/trace-events-carry-a-kind",
     "observability/a-query-is-a-trace-event",
+    "observability/a-query-span-names-its-call-site",
     "observability/a-slow-query-is-logged-past-a-threshold",
     "observability/gc-pause-is-its-own-event",
     "observability/spawn-is-its-own-event",
