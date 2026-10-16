@@ -4,8 +4,10 @@
   "seeAlso": [
     "testing/writing-a-debug-record-to-disk-is-its-own-gate",
     "testing/debug-surface",
-    "errors/engine-floor"
+    "errors/engine-floor",
+    "testing/a-recorded-request-keeps-its-input-with-credentials-replaced",
+    "config/ownership-is-the-trust-boundary"
   ],
   "guardedBy": [],
-  "milestone": "M10"
+  "goal": "debug-service"
 }

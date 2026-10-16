@@ -5,8 +5,10 @@
     "testing/debug-mode-directive",
     "testing/debug-surface",
     "errors/debug-dump",
-    "errors/log-level"
+    "errors/log-level",
+    "testing/the-debug-stream-reaches-the-service-through-the-disk",
+    "testing/a-recorded-request-keeps-its-input-with-credentials-replaced"
   ],
   "guardedBy": [],
-  "milestone": "M10"
+  "goal": "debug-service"
 }

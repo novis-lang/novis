@@ -3,7 +3,7 @@
 
 # Testing
 
-*18 of 68 rules below are **designed** rather than shipped, and are marked where they appear.*
+*21 of 71 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="testing-test-attribute"></a>
 
@@ -1858,7 +1858,7 @@ coverage flags are refused over a `.nvst` tree (`crates/nvs-cli/src/main.rs:3912
 
 <a id="testing-writing-a-debug-record-to-disk-is-its-own-gate"></a>
 
-## `[debug] store` is off by default and can only subtract, so no run mode or log level ever turns debug records on  *(designed — owned by M10)*
+## `[debug] store` is off by default and can only subtract, so no run mode or log level ever turns debug records on  *(designed — owned by goal debug-service)*
 
 `rule:testing/writing-a-debug-record-to-disk-is-its-own-gate`
 
@@ -1873,19 +1873,29 @@ data-exposure switch.**
 
 So this is a second gate read together with every ceiling already in force, and off wherever either
 says off. [`testing/debug-mode-directive`](testing.md#testing-debug-mode-directive)'s reconnaissance argument does not weaken because a
-second key said yes, and a tree that writes no `[debug]` block gets no debug stream at all.
+second key said yes, and a tree that writes no `[debug]` block gets no debug stream at all. The key is
+`RuntimeTighten`, as `[debug] mode` and `[debug] inline` are: a request may turn its own recording off,
+and no code can turn it on. What it turns on is the spool
+([`testing/the-debug-stream-reaches-the-service-through-the-disk`](testing.md#testing-the-debug-stream-reaches-the-service-through-the-disk)); what a request's record holds
+in `development` is [`testing/a-recorded-request-keeps-its-input-with-credentials-replaced`](testing.md#testing-a-recorded-request-keeps-its-input-with-credentials-replaced)'s, and
+which process starts the service is
+[`testing/nvs-debug-is-the-service-and-a-development-server-starts-it`](testing.md#testing-nvs-debug-is-the-service-and-a-development-server-starts-it)'s.
+
+With the gate on, every request records its bounded span events (`query`, `http`, `spawn`) whatever
+the sampling decision, because the spool is where they go. The unbounded `call` events still need the
+`trace` probe bit ([`testing/debug-probes`](testing.md#testing-debug-probes)).
 
 With the gate off nothing reaches the disk, so a debug record that survives into a deployment costs
 the predicted-not-taken branch [`testing/debug-probes`](testing.md#testing-debug-probes) already pays and nothing further.
 
-**Not on disk.** `[debug]` has no `store` key (`crates/nvs-config/src/default.toml:313`), and nothing
-writes a debug record to disk.
+**Not on disk.** `[debug]` has no `store` key (`crates/nvs-config/src/default.toml:326` is the block),
+and nothing writes a debug record to disk.
 
-<sub>See also [`testing/debug-mode-directive`](testing.md#testing-debug-mode-directive), [`testing/debug-surface`](testing.md#testing-debug-surface), [`errors/debug-dump`](errors.md#errors-debug-dump), [`errors/log-level`](errors.md#errors-log-level).</sub>
+<sub>See also [`testing/debug-mode-directive`](testing.md#testing-debug-mode-directive), [`testing/debug-surface`](testing.md#testing-debug-surface), [`errors/debug-dump`](errors.md#errors-debug-dump), [`errors/log-level`](errors.md#errors-log-level), [`testing/the-debug-stream-reaches-the-service-through-the-disk`](testing.md#testing-the-debug-stream-reaches-the-service-through-the-disk), [`testing/a-recorded-request-keeps-its-input-with-credentials-replaced`](testing.md#testing-a-recorded-request-keeps-its-input-with-credentials-replaced).</sub>
 
 <a id="testing-the-debug-stream-reaches-the-service-through-the-disk"></a>
 
-## A debug record reaches the service through a sealed spool file that one writer owns, never over a socket  *(designed — owned by M10)*
+## A debug record reaches the service through a sealed spool file that one writer owns, never over a socket  *(designed — owned by goal debug-service)*
 
 `rule:testing/the-debug-stream-reaches-the-service-through-the-disk`
 
@@ -1898,24 +1908,46 @@ than a socket write rather than more expensive. It is never `fsync`ed per record
 that, is what would make this cost milliseconds. Nothing is lost while the service is stopped,
 because the files are simply still there when it starts.
 
-**One file per writer, sealed by an atomic rename** at a size or an age, whichever comes first. Per
-writer because the server accepts per core, and `O_APPEND` gives an atomic offset bump and not an
-atomic large write, so a shared file would tear records that a dumped object tree easily makes large
-enough to tear. Sealed by rename because a reader then never has to ask whether a file is still being
-written. Deleted after ingest, so this stream needs no rotation of its own. A file a crash left
-unsealed and untouched for longer than any live writer would take is swept by the same pass.
+**One file per writer, sealed by an atomic rename** at 4 MiB or 250 milliseconds after its first
+record, whichever comes first. A writer is one core's thread under `nvs serve` and the one thread of
+`nvs run` or `nvs test`, so it needs no lock. Per writer because the server accepts per core, and
+`O_APPEND` gives an atomic offset bump and not an atomic large write, so a shared file would tear
+records that a dumped object tree easily makes large enough to tear. Sealed by rename because a reader
+then never has to ask whether a file is still being written. A writer with no record opens no file and
+arms no timer, so an idle server costs nothing here. Deleted after ingest, so this stream needs no
+rotation of its own. An unsealed file untouched for a minute is past any live writer's seal, and the
+ingester reads it as sealed.
 
 The seal interval is the latency between a dump and its appearing, which is what buys everything
 above.
 
+**Where it lives.** `debug/spool/` in the data folder, `<writer>.<n>.open` while written and
+`<writer>.<n>.spool` once sealed. `<writer>` is the process id, the process start time and the thread's
+index, so a restarted process never reuses a name and the writer id with the line's sequence number is
+a dedupe key ([`testing/the-ingester-runs-whether-or-not-anyone-is-looking`](testing.md#testing-the-ingester-runs-whether-or-not-anyone-is-looking)).
+
+**What a line is.** One JSON object per line, with a `kind`: `request` (the request's outcome and,
+in `development`, its input and its response,
+[`testing/a-recorded-request-keeps-its-input-with-credentials-replaced`](testing.md#testing-a-recorded-request-keeps-its-input-with-credentials-replaced)),
+`event` (a trace event, [`observability/trace-events-carry-a-kind`](observability.md#observability-trace-events-carry-a-kind), with a `query` event's call
+site id where the compiler passed one), `dump` (a `Core\Debug::dump` record's bounded tree,
+[`errors/record-transformations`](errors.md#errors-record-transformations)), `log` (a log record of the request, because a development
+server logs to its terminal and the viewer has no file to read) and `dropped` (how many records the cap
+evicted). Every line carries the trace id, so the viewer joins them. A line is at most 4 MiB; a record
+that would be longer is written with its tree elided to fit, and the elision says so.
+
 **The records are at rest, so the spool is guarded like a secret.** The spool and its directory are
 created for the service's account alone, in a directory that must pass the same ownership check a
-configuration file gets. A byte cap with oldest-first eviction is mandatory rather than advisory,
-because nothing drains the spool while the service is stopped. Because the files are the transport,
-a container needs none: the developer already mounts the project directory, and the same property
-makes the service a viewer for a copied-down log directory or a CI artifact.
+configuration file gets ([`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary)). A byte cap with oldest-first
+eviction is mandatory rather than advisory, because nothing drains the spool while the service is
+stopped. `[debug] spool_max`, a `System` key and 256 MiB by default, bounds one process's spool, split evenly between its
+writers, and a writer past its share deletes its own oldest sealed file and writes a `dropped` line
+with the count. A writer never reads another writer's files, so the cap needs no directory scan.
+Because the files are the transport, a container needs none: the developer already mounts the project
+directory, and the same property makes the service a viewer for a copied-down spool or a CI artifact.
 
-- **Memory:** one write buffer per writer, held while the writer lives, and no queue anywhere.
+- **Memory:** one write buffer per writer, held while the writer has an open file, and no queue
+  anywhere. **Disk:** at most `spool_max` per process.
 
 **Not on disk.** Nothing writes a spool file and nothing reads one.
 
@@ -1927,12 +1959,101 @@ makes the service a viewer for a copied-down log directory or a CI artifact.
 - **One file per record.** It costs a create, a write, a close and a later delete per record. On
   Windows real-time antivirus scans each new file on close, and an undrained directory of small files
   takes seconds to enumerate.
+- **A cap enforced across every writer's files.** Each seal would scan the directory, and the writers
+  would need to agree on which file is oldest.
 
-<sub>See also [`testing/writing-a-debug-record-to-disk-is-its-own-gate`](testing.md#testing-writing-a-debug-record-to-disk-is-its-own-gate), [`testing/debug-surface`](testing.md#testing-debug-surface), [`errors/engine-floor`](errors.md#errors-engine-floor).</sub>
+<sub>See also [`testing/writing-a-debug-record-to-disk-is-its-own-gate`](testing.md#testing-writing-a-debug-record-to-disk-is-its-own-gate), [`testing/debug-surface`](testing.md#testing-debug-surface), [`errors/engine-floor`](errors.md#errors-engine-floor), [`testing/a-recorded-request-keeps-its-input-with-credentials-replaced`](testing.md#testing-a-recorded-request-keeps-its-input-with-credentials-replaced), [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary).</sub>
+
+<a id="testing-a-recorded-request-keeps-its-input-with-credentials-replaced"></a>
+
+## A request recorded in development keeps its method, path, query, headers, the body it read and its response, with the four credential headers and every field decoded into a `secret` property replaced before anything is written  *(designed — owned by goal debug-service)*
+
+`rule:testing/a-recorded-request-keeps-its-input-with-credentials-replaced`
+
+With `[debug] store` on, a request served in `development` records its method, path, query, headers and
+the body bytes the program read, up to `[limits] request_body`, and its response's status, headers and
+body, up to `[limits] max_output`. Before the record is written, the values of `Authorization`,
+`Cookie`, `Set-Cookie` and `Proxy-Authorization` are replaced with `[redacted]` in the request and the
+response alike, and so is every body field the program decoded into a `secret` property. In
+`production` the record holds the request's outcome, and its trace events and dumps are recorded as in
+development, but no header and no body of the request or the response is.
+
+The input is what makes a recorded request comparable with another and replayable, and what
+`request-aware-editor` turns into a `Core\Test::request` case, which writes a placeholder where the
+record says `[redacted]`. Those four headers are replaced by name, before anything reaches the disk,
+because they carry a credential in every application, and a replayed request must not log in as the
+person who sent the original. A header's name stays, so a compare shows that one was sent. The
+response is what a test made from the record asserts: its status, its key headers and its body, a
+JSON body compared structurally, and what the viewer's compare view diffs between two requests.
+
+**The body is what the program read.** The server streams a body to the program one chunk at a time
+and reads nothing the program did not ask for (`crates/nvs-server/src/body.rs`), and recording does not
+change that: the record keeps each chunk the program pulled, up to `request_body`, and says how many
+bytes the request declared. A body the program never read is recorded as not read. Reading the rest
+of the body to record it would change what the server does under the debugger, and a large upload would
+be held twice.
+
+**A body decoded into a class keeps its `secret` fields off the disk.** When the handler reads the body
+through `Core\Request::jsonAs<X>()` or `postAs<X>()`
+([`routing/a-request-body-is-read-from-the-handlers-own-call`](routing.md#routing-a-request-body-is-read-from-the-handlers-own-call)), the decoder knows which field lands
+in a `secret` property of `X` ([`security/secret-qualifier`](security.md#security-secret-qualifier)), and the record replaces that field's
+value with `[redacted]` in the stored body. A body the program read any other way is stored as it
+arrived, so a password in a development login form read as raw bytes is on disk until the index forgets
+it ([`testing/the-debug-index-holds-what-the-viewer-reads-for-a-bounded-time`](testing.md#testing-the-debug-index-holds-what-the-viewer-reads-for-a-bounded-time)), in a directory only
+the service's account can open. The `nvs debug` reference page says so.
+
+- **Memory:** per recorded request, the bytes the program read, up to `request_body`, and the response
+  bytes it wrote, up to `max_output`, held until the request's record is written at its end. A request
+  with the gate off holds nothing more.
+
+**Declined:**
+- **Recording input or a response body in production.** A production request's body is a customer's
+  data, and the spool is a debugging aid. The mode, not a second key, decides it. The outcome, the trace
+  events and the dumps are what a production incident needs, and they carry no body.
+- **Redacting a body field by its name, such as `password`.** A list of names misses the field an
+  application named its own way, and the `secret` property is where the program already says which
+  value is a credential.
+- **Replacing a credential with a hash.** A hash of a short token is a token, so a dictionary turns
+  the record back into the credential.
+
+<sub>See also [`testing/writing-a-debug-record-to-disk-is-its-own-gate`](testing.md#testing-writing-a-debug-record-to-disk-is-its-own-gate), [`testing/the-debug-stream-reaches-the-service-through-the-disk`](testing.md#testing-the-debug-stream-reaches-the-service-through-the-disk), [`testing/the-debug-index-holds-what-the-viewer-reads-for-a-bounded-time`](testing.md#testing-the-debug-index-holds-what-the-viewer-reads-for-a-bounded-time), [`http-server/an-upload-is-received-only-through-files`](http-server.md#http-server-an-upload-is-received-only-through-files), [`routing/a-request-body-is-read-from-the-handlers-own-call`](routing.md#routing-a-request-body-is-read-from-the-handlers-own-call), [`security/secret-qualifier`](security.md#security-secret-qualifier).</sub>
+
+<a id="testing-nvs-debug-is-the-service-and-a-development-server-starts-it"></a>
+
+## `nvs debug` runs the debug service for one data folder, and a development `nvs serve` with `[debug] store` on starts it and stops it on exit  *(designed — owned by goal debug-service)*
+
+`rule:testing/nvs-debug-is-the-service-and-a-development-server-starts-it`
+
+`nvs debug` runs the debug service — the ingester and the viewer — for one data folder, and a
+development `nvs serve` with `[debug] store` on starts it as a child process and stops it when the
+server exits. It also runs by hand, for a spool that `nvs run`, `nvs test` or a copied-down directory
+filled.
+
+One service per data folder, because the index has one writer
+([`testing/the-ingester-runs-whether-or-not-anyone-is-looking`](testing.md#testing-the-ingester-runs-whether-or-not-anyone-is-looking)). The service holds
+`debug/service.lock` in the data folder for as long as it runs. A server that finds the lock held uses
+the running service and does not stop it on exit; a server that started its own stops it on exit, and
+the child also exits within one ingest pass of noticing its parent is gone, so a killed server leaves
+no service behind on any platform. Spool files written while no service ran wait for the next one.
+The service reads `[debug] index_age` and `index_max` from the configuration of the server that started
+it, and from the working directory's when it is run by hand, as every command does.
+
+A production server never starts it: a host that records with `store` on runs `nvs debug` itself, where
+and when its operator chooses. The service's listener, its port and its token are the viewer's
+([`testing/the-viewer-shows-the-stream-and-hands-off-every-artifact`](testing.md#testing-the-viewer-shows-the-stream-and-hands-off-every-artifact)).
+
+- **Memory:** the service is its own process, so a server holds nothing for it but the child's handle.
+
+**Declined:**
+- **The service inside the server process.** Ingesting would scan directories and write the index on a
+  core that serves requests ([`testing/the-ingester-runs-whether-or-not-anyone-is-looking`](testing.md#testing-the-ingester-runs-whether-or-not-anyone-is-looking)).
+- **One service per server.** Two ingesters would write one index.
+
+<sub>See also [`testing/the-ingester-runs-whether-or-not-anyone-is-looking`](testing.md#testing-the-ingester-runs-whether-or-not-anyone-is-looking), [`testing/writing-a-debug-record-to-disk-is-its-own-gate`](testing.md#testing-writing-a-debug-record-to-disk-is-its-own-gate), [`testing/the-viewer-shows-the-stream-and-hands-off-every-artifact`](testing.md#testing-the-viewer-shows-the-stream-and-hands-off-every-artifact).</sub>
 
 <a id="testing-the-ingester-runs-whether-or-not-anyone-is-looking"></a>
 
-## The ingester owns every write to the index and runs without a browser, and the viewer only ever reads  *(designed — owned by M10)*
+## The ingester owns every write to the index and runs without a browser, and the viewer only ever reads  *(designed — owned by goal debug-service)*
 
 `rule:testing/the-ingester-runs-whether-or-not-anyone-is-looking`
 
@@ -1946,19 +2067,24 @@ an effect of somebody having a tab open. Putting the ingester inside the applica
 refused: it would put directory scanning and index writes on the request path, in every deployment,
 to save a hop that costs nothing.
 
-**Two ingest modes.** A spool file is read whole, inserted, and deleted. The application's own log is
-read from a checkpoint, inserted, and never touched — the checkpoint keyed on the file's identity
-plus its offset plus a hash of its first line, because a path misses a rotation and an identity alone
-misses identity reuse and truncation in place. Every record carries a **dedupe key** under a unique
-index and inserts ignoring conflicts, so re-ingesting anything is harmless: the writer's id and
-sequence for a spool record, the file identity and byte offset for a tailed one.
+**Two ingest modes.** A spool file is read whole, inserted, and deleted. A log file named with
+`nvs debug --tail <file>` is read from a checkpoint, inserted, and never touched — the checkpoint keyed
+on the file's identity plus its offset plus a hash of its first line, because a path misses a rotation
+and an identity alone misses identity reuse and truncation in place. Every record carries a **dedupe
+key** under a unique index and inserts ignoring conflicts, so re-ingesting anything is harmless: the
+writer's id and sequence for a spool record, the file identity and byte offset for a tailed one.
+
+The ingester lists the spool directory every 250 milliseconds, the seal age, while files arrive, and
+every two seconds once none has arrived for a minute. A listing of an empty directory is the whole cost
+of an idle service.
 
 The order is read, insert, commit, **then** delete. A crash in that window re-ingests, which the
-dedupe key makes a no-op. The index holds nothing that cannot be rebuilt from the files, which is
-what licenses running it in its fastest mode — write-ahead logging, so the one writer and the readers
-do not block each other, and synchronous writes off — and makes a corrupt index a cache miss to
-discard rather than a failure to resolve. The documented risk of that mode is corruption rather than
-lost transactions, so the viewer offers discarding and re-ingesting the index as an action.
+dedupe key makes a no-op. **The index is a cache of what was recorded**: losing it loses history and
+never correctness, which is what licenses running it in its fastest mode — write-ahead logging, so the
+one writer and the readers do not block each other, and synchronous writes off — and makes a corrupt
+index a file to discard rather than a failure to resolve. The documented risk of that mode is
+corruption rather than lost transactions, so the viewer offers discarding the index as an action, and a
+tailed file is then read again from its start.
 
 **The viewer is pushed a watermark, not records** — a monotonic sequence published after each
 committed batch, with the browser fetching the delta through the same query path it uses for
@@ -1967,35 +2093,96 @@ the ingester buffer, and a browser that was closed needs no replay buffer. That 
 record's own timestamp, orders the live view, which makes it immune to clock skew between writers and
 to a garbage timestamp in a corrupt file.
 
+- **Memory:** one batch of parsed records per pass, bounded by
+  [`testing/a-bad-line-degrades-and-a-bad-file-is-quarantined`](testing.md#testing-a-bad-line-degrades-and-a-bad-file-is-quarantined)'s work per source.
+
 **Not on disk.** There is no ingester.
 
-<sub>See also [`testing/the-debug-stream-reaches-the-service-through-the-disk`](testing.md#testing-the-debug-stream-reaches-the-service-through-the-disk), [`testing/a-bad-line-degrades-and-a-bad-file-is-quarantined`](testing.md#testing-a-bad-line-degrades-and-a-bad-file-is-quarantined), [`errors/log-write`](errors.md#errors-log-write).</sub>
+<sub>See also [`testing/the-debug-stream-reaches-the-service-through-the-disk`](testing.md#testing-the-debug-stream-reaches-the-service-through-the-disk), [`testing/a-bad-line-degrades-and-a-bad-file-is-quarantined`](testing.md#testing-a-bad-line-degrades-and-a-bad-file-is-quarantined), [`errors/log-write`](errors.md#errors-log-write), [`testing/the-debug-index-holds-what-the-viewer-reads-for-a-bounded-time`](testing.md#testing-the-debug-index-holds-what-the-viewer-reads-for-a-bounded-time), [`testing/nvs-debug-is-the-service-and-a-development-server-starts-it`](testing.md#testing-nvs-debug-is-the-service-and-a-development-server-starts-it).</sub>
+
+<a id="testing-the-debug-index-holds-what-the-viewer-reads-for-a-bounded-time"></a>
+
+## The debug index is one SQLite file whose tables hold every query the viewer makes, full-text search and exception groups included, and it forgets a request past `[debug] index_age` or `[debug] index_max`  *(designed — owned by goal debug-service)*
+
+`rule:testing/the-debug-index-holds-what-the-viewer-reads-for-a-bounded-time`
+
+The index is one SQLite file, `debug/index.sqlite` in the data folder, whose tables hold every query
+the viewer makes, and the ingester deletes what is older than `[debug] index_age` or past `[debug]
+index_max`, the oldest request first.
+
+| Table | One row per | What the viewer reads it for |
+|---|---|---|
+| `requests` | recorded request: trace id, start, duration, method, route, path, status, query, dump and log counts, its exception group | the request list and its filters |
+| `inputs` | request recorded with its input: query, headers, body, bytes declared, whether the body was read, and the response's headers and body | compare, replay and a test made from the request ([`testing/a-recorded-request-keeps-its-input-with-credentials-replaced`](testing.md#testing-a-recorded-request-keeps-its-input-with-credentials-replaced)) |
+| `events` | trace event: trace id, kind, label, start, end, status, a `query` event's driver, SQL, rows and call site id | a request's timeline |
+| `dumps` | dump: trace id, file, line, the bounded tree | a request's dumps |
+| `logs` | log record: trace id where it has one, level, message, fields, source file and offset for a tailed line | the log view |
+| `exceptions` | uncaught exception: trace id, class, message, file, line, group | a request's error |
+| `exception_groups` | class and throw site: count, first seen, last seen | grouped exceptions |
+| `search` | searchable text of one row above, with its table and row id | full-text search |
+| `unparseable`, `quarantine` | [`testing/a-bad-line-degrades-and-a-bad-file-is-quarantined`](testing.md#testing-a-bad-line-degrades-and-a-bad-file-is-quarantined)'s records | what was not read |
+| `checkpoints`, `meta` | tailed file's checkpoint; the watermark and the schema version | the ingester itself |
+
+**An exception group is a class and the file and line that threw it,** never the message, because a
+message carries values and would split one bug into a group per value. A group's count, first seen
+and last seen are updated as each exception is inserted, so the grouped view is one indexed read.
+
+**Search is one FTS5 table** over a request's path and route, a dump's rendered text, a log message, a
+query's SQL and an exception's class and message. Each row names the table and row it came from, and
+deleting a row deletes its search row. FTS5 is in the SQLite that `rusqlite`'s bundled build already
+compiles, so search costs no new dependency. A secret is already redacted in every record before it is
+written ([`security/redaction-reaches-the-tools-own-renderings`](security.md#security-redaction-reaches-the-tools-own-renderings)), so search cannot find one.
+
+**The deletion window.** `[debug] index_age`, `7d` by default, is the oldest record kept, and
+`[debug] index_max`, 1 GiB by default, is the largest the file may grow. Both are `System` keys. After
+each batch the ingester deletes requests past either bound with every row that names their trace id,
+in batches of a thousand so the viewer never waits on a long write. An exception group stays while its
+last seen is within `index_age`, and
+its count still counts deleted requests. A saved filter is the viewer's own and is not in the index,
+because discarding the index must lose nothing a person wrote.
+
+A schema version in `meta` that the running binary does not know is a cache miss: the file is
+discarded and rebuilt from what is still on disk
+([`testing/the-ingester-runs-whether-or-not-anyone-is-looking`](testing.md#testing-the-ingester-runs-whether-or-not-anyone-is-looking)).
+
+- **Disk:** at most `index_max`. **Memory:** SQLite's page cache in the service process, never in a
+  server.
+
+**Declined:**
+- **Grouping exceptions by message.** One bug that puts an id in its message would show as a group per
+  id.
+- **Keeping the index until a person clears it.** Recorded bodies and dumps hold request data, and a
+  debugging aid that keeps them forever is a store of personal data nobody chose to keep.
+
+<sub>See also [`testing/the-ingester-runs-whether-or-not-anyone-is-looking`](testing.md#testing-the-ingester-runs-whether-or-not-anyone-is-looking), [`testing/the-viewer-shows-the-stream-and-hands-off-every-artifact`](testing.md#testing-the-viewer-shows-the-stream-and-hands-off-every-artifact), [`testing/a-recorded-request-keeps-its-input-with-credentials-replaced`](testing.md#testing-a-recorded-request-keeps-its-input-with-credentials-replaced), [`security/redaction-reaches-the-tools-own-renderings`](security.md#security-redaction-reaches-the-tools-own-renderings).</sub>
 
 <a id="testing-a-bad-line-degrades-and-a-bad-file-is-quarantined"></a>
 
-## A malformed line becomes a visible record and an unreadable file is quarantined under a backoff, so ingestion never stops  *(designed — owned by M10)*
+## A malformed line becomes a visible record and an unreadable file is quarantined under a backoff, so ingestion never stops  *(designed — owned by goal debug-service)*
 
 `rule:testing/a-bad-line-degrades-and-a-bad-file-is-quarantined`
 
 A malformed line becomes a record that says so and an unreadable file is quarantined under a backoff,
 so nothing on disk can stop the ingester.
 
-Line length is capped, and past the cap the line is truncated, marked, and skipped to the next
-newline. A corrupt file is often one enormous line with no newline in it, and reading it whole is how
-a log tailer dies.
+Line length is capped at 4 MiB, the longest line a spool writer writes
+([`testing/the-debug-stream-reaches-the-service-through-the-disk`](testing.md#testing-the-debug-stream-reaches-the-service-through-the-disk)), and past the cap the line is
+truncated, marked, and skipped to the next newline. A corrupt file is often one enormous line with no
+newline in it, and reading it whole is how a log tailer dies.
 
 A line that will not parse is kept as an `unparseable` record carrying its file, its offset and its
-truncated bytes, and is shown. Dropping it silently would leave a viewer quietly disagreeing with
-what is on disk, which is worse than an ugly row. Invalid UTF-8 is a lossy conversion with a flag,
-never an error.
+first 4 KiB, and is shown. Dropping it silently would leave a viewer quietly disagreeing with what is
+on disk, which is worse than an ugly row. Invalid UTF-8 is a lossy conversion with a flag, never an
+error.
 
 A file that fails at the file level — permissions, an IO error, a mount that went away — is
 quarantined with its error and a retry-after, never retried hot, and listed in the UI, so a file that
-stopped being read says so instead of merely not appearing. Other files keep flowing.
+stopped being read says so instead of merely not appearing. The first retry is after one second and
+each next one doubles, up to five minutes. Other files keep flowing.
 
-Work is bounded per source per pass and sources are taken in turn, so one enormous file cannot starve
-the live spool. A disk that is full or an index that errors backs off rather than spinning, and never
-deletes a spool file whose batch did not commit.
+Work is bounded per source per pass, at 16 MiB, and sources are taken in turn, so one enormous file
+cannot starve the live spool. A disk that is full or an index that errors backs off on the same
+schedule rather than spinning, and never deletes a spool file whose batch did not commit.
 
 **Not on disk.** There is no ingester, so nothing reads a debug file and nothing quarantines one.
 

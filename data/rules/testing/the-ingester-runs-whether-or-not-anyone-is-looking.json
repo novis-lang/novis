@@ -4,8 +4,10 @@
   "seeAlso": [
     "testing/the-debug-stream-reaches-the-service-through-the-disk",
     "testing/a-bad-line-degrades-and-a-bad-file-is-quarantined",
-    "errors/log-write"
+    "errors/log-write",
+    "testing/the-debug-index-holds-what-the-viewer-reads-for-a-bounded-time",
+    "testing/nvs-debug-is-the-service-and-a-development-server-starts-it"
   ],
   "guardedBy": [],
-  "milestone": "M10"
+  "goal": "debug-service"
 }

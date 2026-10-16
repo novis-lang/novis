@@ -8,19 +8,24 @@ an effect of somebody having a tab open. Putting the ingester inside the applica
 refused: it would put directory scanning and index writes on the request path, in every deployment,
 to save a hop that costs nothing.
 
-**Two ingest modes.** A spool file is read whole, inserted, and deleted. The application's own log is
-read from a checkpoint, inserted, and never touched — the checkpoint keyed on the file's identity
-plus its offset plus a hash of its first line, because a path misses a rotation and an identity alone
-misses identity reuse and truncation in place. Every record carries a **dedupe key** under a unique
-index and inserts ignoring conflicts, so re-ingesting anything is harmless: the writer's id and
-sequence for a spool record, the file identity and byte offset for a tailed one.
+**Two ingest modes.** A spool file is read whole, inserted, and deleted. A log file named with
+`nvs debug --tail <file>` is read from a checkpoint, inserted, and never touched — the checkpoint keyed
+on the file's identity plus its offset plus a hash of its first line, because a path misses a rotation
+and an identity alone misses identity reuse and truncation in place. Every record carries a **dedupe
+key** under a unique index and inserts ignoring conflicts, so re-ingesting anything is harmless: the
+writer's id and sequence for a spool record, the file identity and byte offset for a tailed one.
+
+The ingester lists the spool directory every 250 milliseconds, the seal age, while files arrive, and
+every two seconds once none has arrived for a minute. A listing of an empty directory is the whole cost
+of an idle service.
 
 The order is read, insert, commit, **then** delete. A crash in that window re-ingests, which the
-dedupe key makes a no-op. The index holds nothing that cannot be rebuilt from the files, which is
-what licenses running it in its fastest mode — write-ahead logging, so the one writer and the readers
-do not block each other, and synchronous writes off — and makes a corrupt index a cache miss to
-discard rather than a failure to resolve. The documented risk of that mode is corruption rather than
-lost transactions, so the viewer offers discarding and re-ingesting the index as an action.
+dedupe key makes a no-op. **The index is a cache of what was recorded**: losing it loses history and
+never correctness, which is what licenses running it in its fastest mode — write-ahead logging, so the
+one writer and the readers do not block each other, and synchronous writes off — and makes a corrupt
+index a file to discard rather than a failure to resolve. The documented risk of that mode is
+corruption rather than lost transactions, so the viewer offers discarding the index as an action, and a
+tailed file is then read again from its start.
 
 **The viewer is pushed a watermark, not records** — a monotonic sequence published after each
 committed batch, with the browser fetching the delta through the same query path it uses for
@@ -28,5 +33,8 @@ everything else. One rendering path serves live and historical data, a backgroun
 the ingester buffer, and a browser that was closed needs no replay buffer. That sequence, not a
 record's own timestamp, orders the live view, which makes it immune to clock skew between writers and
 to a garbage timestamp in a corrupt file.
+
+- **Memory:** one batch of parsed records per pass, bounded by
+  `rule:testing/a-bad-line-degrades-and-a-bad-file-is-quarantined`'s work per source.
 
 **Not on disk.** There is no ingester.

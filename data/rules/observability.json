@@ -4,6 +4,7 @@
   "rules": [
     "observability/the-runtime-exports-what-it-already-measures",
     "observability/a-trace-id-exists-for-every-request",
+    "observability/the-traceresponse-header-can-be-turned-off",
     "observability/a-log-record-carries-trace-ids-when-a-trace-is-active",
     "observability/metrics-three-members",
     "observability/default-series",

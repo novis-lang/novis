@@ -5,5 +5,5 @@
     "testing/the-ingester-runs-whether-or-not-anyone-is-looking"
   ],
   "guardedBy": [],
-  "milestone": "M10"
+  "goal": "debug-service"
 }
