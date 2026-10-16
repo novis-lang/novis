@@ -57,9 +57,10 @@
 //!
 //! Every key in every one of these files carries `# <owner>` after it: the goal
 //! from [the goals directory](/docs/goals/) that will strike the line, or
-//! a milestone ahead of the program whose own plan carries the work.
+//! a milestone still ahead whose own plan carries the work.
 //! [`every_outstanding_key_names_an_owner`] is what makes that a field rather
-//! than a note — it reads the chain and the plan's table and fails on an owner
+//! than a note — it reads the chain and the milestone records under
+//! `data/plan/milestones/` and fails on an owner
 //! neither of them answers for, so a goal renamed or dropped cannot leave a key
 //! pointing at nothing. [`owner_problem`] is where the two kinds are decided,
 //! and `tools/nv/cmd/owners.ts`'s module doc states the same kinds for a gap
@@ -117,7 +118,6 @@ use std::fs;
 use std::path::Path;
 
 use nvs_stdlib::registry;
-use regex::Regex;
 
 mod corpus;
 
@@ -423,64 +423,48 @@ fn chain_live() -> String {
         .unwrap_or_else(|| panic!("docs/goals/README.md: the chain is empty"))
 }
 
-/// The first milestone a key may be deferred to.
+/// The ids of the milestones still ahead: one record each under
+/// `data/plan/milestones/`, named `<id>.json`.
 ///
-/// Everything before it is complete at the end of the program, so a key tagged
-/// to an earlier one names a carrier that has been and gone rather than work
-/// that is scheduled. `tools/nv/cmd/owners.ts`'s `FIRST_FUTURE_MILESTONE` is the
-/// same number for the same reason over the gap records; there is no file both
-/// sides can read it from, so each states it.
-const FIRST_FUTURE_MILESTONE: u32 = 9;
-
-/// Every milestone in the plan's table, mapped to its *Carried by* cell.
-///
-/// The row shape is the carrier cell first, then
-/// the milestone as a link to its own file under `docs/plan/`. That cell is the
-/// only place a milestone is finished — the plan's own § under the table says
-/// so — and `done` is the whole vocabulary for it.
-fn plan_milestones() -> BTreeMap<String, String> {
-    let path = nvs_repo::path("docs/implementation-plan.md");
-    let text = fs::read_to_string(&path).unwrap_or_else(|err| panic!("{}: {err}", path.display()));
-    let row = Regex::new(r"^\|\s*([^|]*?)\s*\|\s*\[(M\d+[A-Z]?)\]").expect("the plan's table row");
-    let mut found = BTreeMap::new();
-    for line in text.lines() {
-        if let Some(cells) = row.captures(line) {
-            found.insert(cells[2].to_owned(), cells[1].to_owned());
-        }
-    }
-    found
+/// A finished milestone's record is deleted with its plan file, so a record on
+/// disk is the whole of "still ahead". `tools/nv/cmd/owners.ts`'s
+/// `milestonePlan` reads the same directory for the gap records.
+fn plan_milestones() -> BTreeSet<String> {
+    let dir = nvs_repo::path("data/plan/milestones");
+    fs::read_dir(&dir)
+        .unwrap_or_else(|err| panic!("{}: {err}", dir.display()))
+        .map(|entry| {
+            entry
+                .unwrap_or_else(|err| panic!("{}: {err}", dir.display()))
+                .path()
+        })
+        .filter(|path| path.extension().is_some_and(|ext| ext == "json"))
+        .filter_map(|path| path.file_stem().and_then(|s| s.to_str()).map(str::to_owned))
+        .collect()
 }
 
-/// The number a milestone tag names, or `None` when the owner is not a tag.
-///
-/// A suffixed milestone is its number's — `M4S` and `M4B` are both M4's, which
-/// is what the suffix means in the plan's table — so the suffix is read and
-/// dropped rather than making the tag unparseable. The shape is
-/// `tools/nv/cmd/owners.ts`'s `MILESTONE`, and a goal slug cannot collide with it: a
-/// slug is lower case throughout.
-fn milestone_number(owner: &str) -> Option<u32> {
-    let rest = owner.strip_prefix('M')?;
-    let digits = match rest.strip_suffix(|c: char| c.is_ascii_uppercase()) {
-        Some(head) => head,
-        None => rest,
+/// Whether an owner is written as a milestone id: `M`, digits, and at most one
+/// upper-case suffix letter. The shape is `tools/nv/cmd/owners.ts`'s
+/// `MILESTONE`, and a goal slug cannot collide with it: a slug is lower case
+/// throughout.
+fn is_milestone_tag(owner: &str) -> bool {
+    let Some(rest) = owner.strip_prefix('M') else {
+        return false;
     };
-    if digits.is_empty() || !digits.bytes().all(|b| b.is_ascii_digit()) {
-        return None;
-    }
-    digits.parse().ok()
+    let digits = rest
+        .strip_suffix(|c: char| c.is_ascii_uppercase())
+        .unwrap_or(rest);
+    !digits.is_empty() && digits.bytes().all(|b| b.is_ascii_digit())
 }
 
 /// What is wrong with one key's owner column, or `None` if nothing is.
 ///
-/// Two kinds pass here: a goal
-/// the chain still holds, named by its slug, and a milestone tag. A milestone
-/// owns a key the way it owns a gap —
-/// the work is scheduled rather than missing — and the three things that make a
-/// tag empty are the same three `tools/nv/cmd/owners.ts:@classify` asks about, in its
-/// order. A tag the plan's table does not list names no milestone at all; one
-/// before [`FIRST_FUTURE_MILESTONE`] is behind the program, so nothing is left
-/// to carry the key; and a row whose *Carried by* cell reads `done` closed
-/// without closing this.
+/// Two kinds pass here: a goal the chain still holds, named by its slug, and a
+/// milestone tag with a record under `data/plan/milestones/`. A milestone owns a
+/// key the way it owns a gap: the work is scheduled rather than missing. A tag
+/// with no record is a milestone that finished and was deleted, or one that
+/// never existed, so nothing is left to carry the key. That is the same test
+/// `tools/nv/cmd/owners.ts:@resolve` makes.
 ///
 /// `unowned` is asked about ahead of both and refused with a sentence of its
 /// own, because "this owner kind is retired" is the edit a reader has to make,
@@ -490,13 +474,11 @@ fn milestone_number(owner: &str) -> Option<u32> {
 /// It is a function rather than a `match` inside the gate so that
 /// [`an_owner_that_is_not_a_live_chain_entry_fails`] can ask it about an owner
 /// no file on disk writes: a refusal nothing ever exercises is a refusal that
-/// can stop refusing without anything going red. The table arrives as an
-/// argument for that reason too — a `done` future milestone is a row the plan
-/// does not currently hold.
+/// can stop refusing without anything going red.
 fn owner_problem(
     owner: Option<&String>,
     goals: &BTreeSet<String>,
-    plan: &BTreeMap<String, String>,
+    plan: &BTreeSet<String>,
 ) -> Option<String> {
     let Some(owner) = owner else {
         return Some("names no owner".to_owned());
@@ -511,24 +493,14 @@ fn owner_problem(
     if goals.contains(owner.as_str()) {
         return None;
     }
-    if let Some(number) = milestone_number(owner) {
-        let Some(carried) = plan.get(owner.as_str()) else {
-            return Some(format!(
-                "names milestone {owner}, which is no row in the plan's table"
-            ));
-        };
-        if number < FIRST_FUTURE_MILESTONE {
-            return Some(format!(
-                "names milestone {owner}, which is behind the program — only \
-                 M{FIRST_FUTURE_MILESTONE} and later is a deferral"
-            ));
+    if is_milestone_tag(owner) {
+        if plan.contains(owner.as_str()) {
+            return None;
         }
-        if carried.to_lowercase().starts_with("done") {
-            return Some(format!(
-                "names milestone {owner}, which the plan's table marks done"
-            ));
-        }
-        return None;
+        return Some(format!(
+            "names milestone {owner}, which has no record under data/plan/milestones/ — it \
+             finished and was deleted, or never existed"
+        ));
     }
     Some(format!(
         "names goal `{owner}`, which is not on the chain in docs/goals/README.md"
@@ -551,11 +523,15 @@ fn every_outstanding_key_names_an_owner() {
          every owner below is being checked against nothing"
     );
     assert!(
-        plan.len() > 10,
-        "docs/implementation-plan.md's table yielded only {} milestone(s) — the row shape has \
-         moved under `plan_milestones`, and every milestone owner below is being refused for the \
-         wrong reason",
-        plan.len()
+        !plan.is_empty(),
+        "data/plan/milestones/ yielded no record — the directory has moved under \
+         `plan_milestones`, and every milestone owner below is being refused for the wrong reason"
+    );
+    let misnamed: Vec<&String> = plan.iter().filter(|id| !is_milestone_tag(id)).collect();
+    assert!(
+        misnamed.is_empty(),
+        "data/plan/milestones/ holds records whose file name is not a milestone id: {misnamed:?} — \
+         the naming has moved under `plan_milestones`, and an owner naming one could never match"
     );
 
     let mut wrong = Vec::new();
@@ -572,7 +548,7 @@ fn every_outstanding_key_names_an_owner() {
         wrong.is_empty(),
         "{} outstanding key(s) name an owner nobody can act on:\n  {}\n\
          Write `# <goal-slug>` after the key, taking the slug from docs/goals/, or \
-         `# M<n>` naming a milestone the plan's table still carries. An owner that went \
+         `# M<n>` naming a milestone with a record under data/plan/milestones/. An owner that went \
          green without striking its key is struck, not renamed.",
         wrong.len(),
         wrong.join("\n  ")
@@ -602,13 +578,9 @@ fn every_outstanding_key_names_an_owner() {
 
 /// The refusal [`every_outstanding_key_names_an_owner`] is written around, asked
 /// of the columns no file on disk writes: a goal the chain does not list, a
-/// milestone the plan's table has no row for, a milestone whose row reads
-/// `done`, and no column at all.
-///
-/// The `done` case is handed a table of its own, because every milestone the
-/// plan currently marks `done` is also behind the program and would be refused
-/// one branch earlier. [`a_future_milestone_owns_a_key_and_a_past_one_does_not`]
-/// is the half that reads the real table.
+/// milestone no record names, and no column at all.
+/// [`a_milestone_with_a_record_owns_a_key_and_a_deleted_one_does_not`] is the
+/// half that reads the real records.
 #[test]
 fn an_owner_that_is_not_a_live_chain_entry_fails() {
     let goals = chain_goals();
@@ -616,7 +588,6 @@ fn an_owner_that_is_not_a_live_chain_entry_fails() {
     let live = chain_live();
     let orphan = "no-such-goal".to_owned();
     let unplanned = "M99".to_owned();
-    let finished = "M9".to_owned();
 
     assert!(
         !goals.contains(orphan.as_str()),
@@ -625,9 +596,9 @@ fn an_owner_that_is_not_a_live_chain_entry_fails() {
     );
 
     assert!(
-        !plan.contains_key(unplanned.as_str()),
-        "the plan's table now carries {unplanned}, so this case is asserting nothing — take a tag \
-         no row writes"
+        !plan.contains(unplanned.as_str()),
+        "data/plan/milestones/ now holds {unplanned}, so this case is asserting nothing — take a \
+         tag no record names"
     );
 
     assert_eq!(owner_problem(Some(&live), &goals, &plan), None);
@@ -638,14 +609,8 @@ fn an_owner_that_is_not_a_live_chain_entry_fails() {
     );
     assert!(
         owner_problem(Some(&unplanned), &goals, &plan).is_some(),
-        "an owner naming milestone {unplanned}, which the plan's table has no row for, was \
-         accepted — a key can be deferred to a milestone nobody has planned"
-    );
-    let done = BTreeMap::from([(finished.clone(), "done".to_owned())]);
-    assert!(
-        owner_problem(Some(&finished), &goals, &done).is_some(),
-        "an owner naming milestone {finished}, whose row reads `done`, was accepted — a milestone \
-         that finished without closing this key still reads as its carrier"
+        "an owner naming milestone {unplanned}, which no record names, was accepted — a key can \
+         be deferred to a milestone nobody has planned"
     );
     assert!(
         owner_problem(None, &goals, &plan).is_some(),
@@ -681,40 +646,41 @@ fn unowned_is_no_longer_an_owner_for_a_key() {
     );
 }
 
-/// The owner kind stage 3 of goal `gap-register` adds: a key deferred to a
-/// milestone ahead of the program is scheduled work, and one deferred to a
-/// milestone behind it is not.
+/// A key deferred to a milestone still ahead is scheduled work, and one
+/// deferred to a milestone that finished is not.
 ///
-/// Both tags are read from the real table, because the claim is about the plan
-/// as it stands: M9 and later are what the program has left, and M1 is carried
-/// by goals that are walking now. The `milestone` and `past` kinds in
-/// `tools/nv/cmd/owners.ts`'s module doc are the rule, and the user's decision
-/// behind it is goal `gap-register` § *Standing decisions*.
+/// Both tags are read from the real records, because the claim is about the
+/// plan as it stands. The ahead tag is any record under `data/plan/milestones/`.
+/// The finished tag is `M9`, whose record was deleted when it closed. The
+/// `milestone` and `broken` kinds in `tools/nv/cmd/owners.ts`'s module doc are
+/// the same rule over the gap records.
 #[test]
-fn a_future_milestone_owns_a_key_and_a_past_one_does_not() {
+fn a_milestone_with_a_record_owns_a_key_and_a_deleted_one_does_not() {
     let goals = chain_goals();
     let plan = plan_milestones();
-    let future = format!("M{FIRST_FUTURE_MILESTONE}");
-    let past = format!("M{}", FIRST_FUTURE_MILESTONE - 1);
+    let ahead = plan
+        .iter()
+        .next()
+        .cloned()
+        .unwrap_or_else(|| panic!("data/plan/milestones/ holds no record"));
+    let finished = "M9".to_owned();
 
-    for tag in [&future, &past] {
-        assert!(
-            plan.contains_key(tag.as_str()),
-            "the plan's table has no row for {tag}, so this case is asserting nothing about the \
-             milestone either side of M{FIRST_FUTURE_MILESTONE}"
-        );
-    }
+    assert!(
+        !plan.contains(finished.as_str()),
+        "data/plan/milestones/ holds {finished} again, so this case is asserting nothing about a \
+         finished milestone — take a tag whose record was deleted"
+    );
 
     assert_eq!(
-        owner_problem(Some(&future), &goals, &plan),
+        owner_problem(Some(&ahead), &goals, &plan),
         None,
-        "a key deferred to {future}, which the plan still carries, was refused — a milestone ahead \
-         of the program owns a key the way it owns a gap"
+        "a key deferred to {ahead}, which has a record, was refused — a milestone still ahead \
+         owns a key the way it owns a gap"
     );
     assert!(
-        owner_problem(Some(&past), &goals, &plan).is_some(),
-        "a key deferred to {past} was accepted — everything before M{FIRST_FUTURE_MILESTONE} is \
-         complete at the end of the program, so the tag names a carrier that has been and gone"
+        owner_problem(Some(&finished), &goals, &plan).is_some(),
+        "a key deferred to {finished} was accepted — its record is deleted, so the tag names a \
+         carrier that has been and gone"
     );
 }
 
