@@ -107,8 +107,8 @@ wsl.exe -- bash -lc "cd /mnt/<drive>/<repo> && cargo +nightly fuzz run parse -- 
 [AGENTS.md](../../AGENTS.md) § *Fuzzing and callgrind on Windows* and record the delta in the report. A
 double-digit percentage move is a finding, not a footnote.
 
-**F. If the PHP oracle version changed,** re-run the differential conformance comparison before trusting a
-single one of its results.
+**F. If the PHP oracle version changed,** run `bun nv bench --check`. Every case's Novis and PHP twins must
+print the same output, byte for byte, before a single PHP figure is trusted.
 
 **Two rules that are not yours to bend** (`rule:packaging/a-dependency-move-proves-two-things`): a failing guard test in `benches/abi-probe/` is never
 fixed by editing its threshold — the rule named in the test's own comment is what gets revisited, and the
