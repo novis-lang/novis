@@ -21,7 +21,7 @@ stages:
   - id: 3
     title: "the isolate boundary checks both directions, and `max_tasks` bounds the tree"
     status: open
-    context: [crates/nvs-host/src/isolate.rs, crates/nvs-runtime/src/graph.rs, crates/nvs-config/src/tree.rs, crates/nvs-cli/src/main.rs, crates/nvs-runtime/src/ctx/safepoint.rs, crates/nvs-runtime/src/ctx/output.rs, data/gaps/nvs-host/an-isolate-argument-is-not-checked-for-an-unresolvable-class.json, data/gaps/nvs-config/max-tasks-is-enforced-nowhere.json, data/gaps/nvs-cli/wall-time-and-max-output-are-not-enforced-under-nvs-run.json, crates/nvs-config/src/app.rs, crates/nvs-config/src/resolve.rs, crates/nvs-runtime/src/ctx/limits.rs, data/gaps/nvs-config/a-malformed-limit-or-one-above-its-ceiling-is-not-refused.json]
+    context: [crates/nvs-host/src/isolate.rs, crates/nvs-runtime/src/graph.rs, crates/nvs-config/src/tree.rs, crates/nvs-cli/src/main.rs, crates/nvs-runtime/src/ctx/safepoint.rs, crates/nvs-runtime/src/ctx/output.rs, data/gaps/nvs-host/an-isolate-argument-is-not-checked-for-an-unresolvable-class.json, data/gaps/nvs-config/max-tasks-is-enforced-nowhere.json, data/gaps/nvs-cli/wall-time-and-max-output-are-not-enforced-under-nvs-run.json, crates/nvs-config/src/app.rs, crates/nvs-config/src/resolve.rs, crates/nvs-runtime/src/ctx/limits.rs, data/gaps/nvs-config/a-malformed-limit-or-one-above-its-ceiling-is-not-refused.json, crates/nvs-stdlib/src/request.rs, data/gaps/nvs-stdlib/a-prefixed-cookie-is-read-without-checking-the-connection-was-secure.json]
     extra:
       context:
         rules: [security/isolate-values-cross-by-copy, security/isolate-budget-is-the-trees, errors/on-limit, config/no-configuration-file-is-a-complete-configuration, config/one-parser-for-the-boot-path-and-config-set, config/ceilings-are-their-own-directives]
@@ -196,6 +196,7 @@ above its ceiling stops the boot instead of leaving the request with no cap.
 - [ ] Whether child CPU is summed against the root's `cpu_time` is checked, and either the code or the rule changes. `crates/nvs-host/src/isolate.rs:717`
 - [ ] `nvs run` arms a deadline from `wall_time`, and a write past `max_output` raises a flag the next poll reads. `crates/nvs-cli/src/main.rs:3681`, `crates/nvs-runtime/src/ctx/safepoint.rs:756`, `crates/nvs-runtime/src/ctx/output.rs:286`
 - [ ] The resolve refuses a malformed `[limits]` quantity as E0601 and a global value above its written ceiling, and the runtime never reads a malformed one as no cap. `crates/nvs-config/src/app.rs:134`, `crates/nvs-runtime/src/ctx/limits.rs:959`
+- [ ] A `__Host-` or `__Secure-` cookie is read only when the request's connection was secure. `crates/nvs-stdlib/src/request.rs:2096`
 
 ### 4. a throwing `inout` callee leaks nothing, and a refused stack does not panic
 
@@ -291,7 +292,8 @@ the class, and a check fails for a diagnostic code no test raises.
 work cannot live only in prose again.
 
 - [ ] The scan reads "known gap" headings and numbered gap references, not only the "owed" wording. `tools/nv/cmd/owners.ts:225`
-- [ ] Every module the scan names gets a record or loses the prose. `tools/nv/cmd/gaps.ts:30`
+- [ ] Every module the scan names gets a record or loses the prose: about 40 numbered "gap N" references remain (`rg -n 'gap [0-9]+' crates tests`), and the prose gaps at `crates/nvs-runtime/src/ctx/error.rs:777` and `crates/nvs-ir/src/ty.rs:224`. `tools/nv/cmd/gaps.ts:30`
+- [ ] No comment cites a decision record: the ~270 "ADR" citations cite the rule that holds the decision, or go (`rg -n '\bADR\b' crates`). `crates/nvs-types/src/lib.rs:1`
 
 ## Handoff
 
