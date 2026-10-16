@@ -119,9 +119,11 @@ jobs:
     runs-on: ${{ matrix.os }}
     # Debug only: one build of the workspace, its tests, the doc tests and the conformance suite.
     # The release-profile guards are the `cost-guards` job, so the two profiles never share a
-    # deadline or a cache. Windows is the slow leg: its debug steps took 32 minutes on a partial
-    # cache hit (build 17, tests 8, conformance 7), which a warm cache shortens, so 60 is about twice.
-    timeout-minutes: 60
+    # deadline or a cache. The limit is sized for a cold cache, which every dependency bump causes:
+    # a job cut off by its limit skips rust-cache's post step and saves nothing, so a limit only a
+    # warm cache fits keeps the leg cold and red on every later run. A cold Windows or macOS leg
+    # spends most of it in the build and in `nvs-ext`'s pdf and spreadsheet tests.
+    timeout-minutes: 90
     strategy:
       fail-fast: false
       matrix:
