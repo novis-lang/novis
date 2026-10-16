@@ -1,6 +1,0 @@
-{
-  "module": "crates/nvs-server/src/serve.rs",
-  "title": "A served request that runs past `[limits] wall_time` without sleeping is not stopped.",
-  "text": "`rule:errors/on-limit` lists wall time among the limit `FATAL`s. Under `nvs run`, `crates/nvs-cli/src/wall.rs` raises `SafepointFlags::WALL_TIME` and expires the deadline when the run's `wall_time` passes, and `Core\\Time::sleep` ends at the deadline under either host (`crates/nvs-stdlib/src/time.rs`). Nothing on the served path raises the flag: the only readers of the tree's `wall_time` there are the disconnect grace (`crates/nvs-server/src/serve.rs:1250`) and the sleep, and the only raiser of a stop flag is the CPU watchdog (`crates/nvs-host/src/watchdog.rs:1177`). A served request in a loop, or waiting on a socket or a database, therefore runs until `cpu_time` stops it or forever. Closing it means each core times its running requests' wall deadlines (`SafepointView::wall_deadline`) on the timer it already has and raises the same flag and deadline, with a test under `nvs serve`.",
-  "goal": "completeness-holes"
-}

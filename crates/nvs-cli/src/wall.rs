@@ -1,9 +1,9 @@
 //! `nvs run`'s wall clock: the thread that stops a run at its `[limits] wall_time`
 //! (`rule:errors/on-limit`).
 //!
-//! The CPU ceiling has `nvs_host::watchdog` to charge it, and that watchdog samples CPU
-//! time and never wall time. This is the other half: one thread that sleeps until the
-//! run's deadline, then raises [`nvs_runtime::SafepointFlags::WALL_TIME`] and expires the
+//! A served request is stopped at its `wall_time` by `nvs_host::watchdog`'s sweep, which
+//! reads the deadline once per interval. A run is timed to the instant: one thread that
+//! sleeps until the run's deadline, then raises [`nvs_runtime::SafepointFlags::WALL_TIME`] and expires the
 //! deadline through the run's [`SafepointView`]. The flag stops compiled code at its next
 //! poll, and the deadline stops a helper loop already running. A sleeping task reaches
 //! neither, so `Core\Time::sleep` ends at the deadline itself. The `Core\Fatal::onLimit`

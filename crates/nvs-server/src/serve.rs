@@ -7171,6 +7171,85 @@ pub(crate) mod tests {
         );
     }
 
+    /// `rule:errors/on-limit`'s wall time on the served path: a request that
+    /// runs past its `wall_time` and never parks is stopped by the watchdog its
+    /// core publishes it on. The core cannot time it, because the loop is what
+    /// the core is running.
+    #[test]
+    fn a_served_request_in_a_busy_loop_is_stopped_at_its_wall_time() {
+        let watchdog = nvs_host::Watchdog::with(
+            Duration::from_secs(3600),
+            Duration::from_millis(10),
+            |_stall| {},
+        );
+        let watched = Rc::new(watchdog.register_requests());
+        let serving = booted_on("[limits]\nwall_time = \"100ms\"\n");
+        let (told, flagged) = std::sync::mpsc::channel::<bool>();
+        let handler = Rc::new(move |request: Request<Incoming>, _origin: Origin| {
+            let (inbound, supply) = carrying(request);
+            let told = told.clone();
+            let program: Program = Box::new(move |run: &mut Ctx, _args| {
+                // A loop that polls the word and never waits, as compiled code
+                // does. The bound only ends a case whose flag never comes.
+                let bound = Instant::now() + Duration::from_secs(10);
+                while Instant::now() < bound {
+                    if run
+                        .safepoint_flags()
+                        .contains(nvs_runtime::SafepointFlags::WALL_TIME)
+                    {
+                        let _ = told.send(true);
+                        return Value::null();
+                    }
+                    std::hint::spin_loop();
+                }
+                let _ = told.send(false);
+                Value::null()
+            });
+            Reply::Run(
+                Isolate::new(program, Value::null(), Output::Capture)
+                    .answering(inbound)
+                    .watched_by(Rc::clone(&watched)),
+                supply,
+                None,
+            )
+        });
+
+        let mut listener = NvsListener::bind("127.0.0.1:0".parse().expect("a literal address"))
+            .expect("the OS refused a port");
+        let addr = listener
+            .local_addr()
+            .expect("a bound listener had no address");
+        let client = std::thread::spawn(move || {
+            let mut socket = TcpStream::connect(addr).expect("the loopback refused a connection");
+            socket
+                .write_all(b"GET / HTTP/1.1\r\nHost: example.com\r\nConnection: close\r\n\r\n")
+                .expect("the write failed");
+            let _ = socket.read_to_end(&mut Vec::new());
+        });
+        let mut sched = nvs_host::Scheduler::new();
+        let _installed =
+            nvs_host::reactor::install(nvs_host::Reactor::new().expect("the OS refused a poll"));
+        sched.spawn(Ctx::new(OutputSink::Sink), TaskRoot::Request, move |_ctx| {
+            serve_on_this_core(
+                &mut listener,
+                &handler,
+                Waits::default(),
+                &serving,
+                &Draining::detached(),
+                |_note| {},
+                || ControlFlow::Break(()),
+            )
+            .expect("the accept loop failed");
+        });
+        nvs_host::run_until_idle(&mut sched).expect("the loop failed");
+        client.join().expect("the client thread panicked");
+        assert_eq!(
+            flagged.recv_timeout(Duration::from_secs(1)),
+            Ok(true),
+            "a served request ran past its `wall_time` unstopped"
+        );
+    }
+
     /// A drain that begins while a request runs on without its client waits
     /// for it as for an attached one: a request that ends inside the drain
     /// period runs to its end, and one that does not is cut at the period's

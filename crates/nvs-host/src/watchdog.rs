@@ -141,6 +141,23 @@
 //! core, which is what a request's body pays where it starts; per sweep, one
 //! map entry per tree under a ceiling, on the watchdog's own thread.
 //!
+//! # Stopping a request at its wall time
+//!
+//! The same walk stops a published request whose `[limits] wall_time` has
+//! passed (`rule:errors/on-limit`), through the same two stores:
+//! `SafepointFlags::WALL_TIME` and the expired deadline. A core cannot time
+//! this itself, because a request in a loop with no wait is what the core is
+//! running, and its timers are read only when it turns. So the stop arrives
+//! within one interval of the deadline. The deadline is read through the handle
+//! on each sweep, so one `Core\Config::set` moved is the one enforced. A
+//! request's `Core\Fatal::onLimit` handler runs with the flag lowered, and the
+//! walk raises it again one interval past the deadline, which bounds the
+//! handler as the CPU half's next sweep does. `nvs run` also times its one
+//! request with a clock of its own, which stops it at the instant.
+//!
+//! **What it spends:** one load of the tree's `wall_time` per published request
+//! per sweep, on this thread, and nothing on the request path.
+//!
 //! # Registering a core
 //!
 //! Whoever installs a core's [`Reactor`](crate::Reactor) registers it, because
@@ -1104,7 +1121,8 @@ impl Drop for Registration {
 
 impl Shared {
     /// One pass over every registered thread: it stops each published request
-    /// that has burned past its CPU ceiling, and answers with every *core* that
+    /// that has burned past its CPU ceiling or run past its `wall_time`
+    /// ([`stop_at_wall_time`]), and answers with every *core* that
     /// is past its deadline by the margin and has not already been reported for
     /// that deadline.
     ///
@@ -1153,6 +1171,7 @@ impl Shared {
         }
         for watched in &mut state.watching {
             for running in &watched.running {
+                stop_at_wall_time(running.view(), now, self.interval);
                 let Some(limit) = running.limit() else {
                     continue;
                 };
@@ -1207,6 +1226,27 @@ impl Shared {
         state.recount(&self.shed);
         stalls
     }
+}
+
+/// Stops `view`'s request once its `[limits] wall_time` has passed
+/// (`rule:errors/on-limit`): [`SafepointFlags::WALL_TIME`] into the word
+/// compiled code polls, and the deadline a helper loop reads, as the CPU
+/// ceiling's two stores are.
+///
+/// The `Core\Fatal::onLimit` handler runs with the flag lowered, so a deadline
+/// already expired is raised again only once a whole `interval` has passed
+/// since the wall deadline. That gives the handler at least one interval, from
+/// this sweep or from `nvs run`'s own clock, which expires the same deadline
+/// first and raises its own flag again after the handler's reserve.
+fn stop_at_wall_time(view: &SafepointView, now: Instant, interval: Duration) {
+    let Some(at) = view.wall_deadline() else {
+        return;
+    };
+    if now < at || (view.deadline_expired() && now < at + interval) {
+        return;
+    }
+    view.request(SafepointFlags::WALL_TIME);
+    view.expire_deadline();
 }
 
 /// The watchdog thread: wait an interval, read every core, report what is new.
@@ -1859,6 +1899,79 @@ mod tests {
             request.deadline_expired(),
             "a request past its ceiling was left the poll a long member makes"
         );
+    }
+
+    /// A request with this `[limits]` block, read as a served request reads its
+    /// snapshot.
+    fn configured(written: &str) -> Ctx {
+        let table: toml::Table = written.parse().expect("the case writes valid TOML");
+        let mut request = ctx();
+        request.set_config(Arc::new(nvs_config::Snapshot {
+            config: table
+                .clone()
+                .try_into()
+                .expect("the case writes a block this tree has"),
+            table,
+            ..nvs_config::Snapshot::default()
+        }));
+        request
+    }
+
+    /// `rule:errors/on-limit`'s wall time, on a request no thread of its own
+    /// times: the sweep stops it at its deadline, and stops one already stopped
+    /// again only a whole interval past that deadline, which is the slice its
+    /// `Core\Fatal::onLimit` handler runs in.
+    #[test]
+    fn the_walk_stops_a_request_at_its_wall_time_and_leaves_its_handler_an_interval() {
+        const INTERVAL: Duration = Duration::from_millis(100);
+        let (tx, _rx) = mpsc::channel();
+        let dog = Watchdog::with(Duration::from_secs(3600), INTERVAL, move |stall| {
+            let _ = tx.send(*stall);
+        });
+        if ThreadClock::current().is_none() {
+            // A thread with no clock publishes nothing, as the CPU half's cases
+            // above say.
+            return;
+        }
+        let registered = dog.register_requests();
+        let request = configured("[limits]\nwall_time = \"10s\"\n");
+        registered.publish(request.safepoint_view());
+        let at = request
+            .safepoint_view()
+            .wall_deadline()
+            .expect("a request with a `wall_time` has a deadline");
+        let flagged = |request: &Ctx| {
+            request
+                .safepoint_flags()
+                .contains(SafepointFlags::WALL_TIME)
+        };
+
+        dog.shared.sweep(at - Duration::from_millis(1));
+        assert!(
+            !flagged(&request),
+            "a request was stopped before its deadline"
+        );
+        assert!(!request.deadline_expired());
+        dog.shared.sweep(at);
+        assert!(flagged(&request), "a request past its `wall_time` ran on");
+        assert!(
+            request.deadline_expired(),
+            "a request past its `wall_time` was left the poll a long member makes"
+        );
+
+        // Expired by another clock, as `nvs run`'s expires it, with the flag
+        // lowered as a handler runs.
+        let handled = configured("[limits]\nwall_time = \"10s\"\n");
+        registered.publish(handled.safepoint_view());
+        let at = handled
+            .safepoint_view()
+            .wall_deadline()
+            .expect("a request with a `wall_time` has a deadline");
+        handled.safepoint_view().expire_deadline();
+        dog.shared.sweep(at + INTERVAL / 2);
+        assert!(!flagged(&handled), "a handler was stopped inside its slice");
+        dog.shared.sweep(at + INTERVAL);
+        assert!(flagged(&handled), "a handler ran on past its slice");
     }
 
     /// The distinction the ceiling exists for, from the other side: a request

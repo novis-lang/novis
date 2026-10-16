@@ -21,7 +21,7 @@ stages:
   - id: 3
     title: "the isolate boundary checks both directions, and `max_tasks` bounds the tree"
     status: open
-    context: [crates/nvs-host/src/isolate.rs, crates/nvs-runtime/src/graph.rs, crates/nvs-config/src/tree.rs, crates/nvs-cli/src/main.rs, crates/nvs-runtime/src/ctx/safepoint.rs, crates/nvs-runtime/src/ctx/output.rs, crates/nvs-cli/src/wall.rs, data/gaps/nvs-server/a-served-request-is-not-stopped-at-its-wall-time.json, crates/nvs-config/src/app.rs, crates/nvs-config/src/resolve.rs, crates/nvs-runtime/src/ctx/limits.rs, data/gaps/nvs-config/a-malformed-limit-or-one-above-its-ceiling-is-not-refused.json, crates/nvs-stdlib/src/request.rs, data/gaps/nvs-stdlib/a-prefixed-cookie-is-read-without-checking-the-connection-was-secure.json]
+    context: [crates/nvs-host/src/isolate.rs, crates/nvs-runtime/src/graph.rs, crates/nvs-config/src/tree.rs, crates/nvs-cli/src/main.rs, crates/nvs-runtime/src/ctx/safepoint.rs, crates/nvs-runtime/src/ctx/output.rs, crates/nvs-cli/src/wall.rs, crates/nvs-host/src/watchdog.rs, crates/nvs-config/src/app.rs, crates/nvs-config/src/resolve.rs, crates/nvs-runtime/src/ctx/limits.rs, crates/nvs-stdlib/src/request.rs, data/gaps/nvs-stdlib/a-prefixed-cookie-is-read-without-checking-the-connection-was-secure.json]
     extra:
       context:
         rules: [security/isolate-values-cross-by-copy, security/isolate-budget-is-the-trees, errors/on-limit, config/no-configuration-file-is-a-complete-configuration, config/one-parser-for-the-boot-path-and-config-set, config/ceilings-are-their-own-directives]
@@ -199,7 +199,10 @@ above its ceiling stops the boot instead of leaving the request with no cap.
   - [x] `crates/nvs-cli/src/wall.rs` raises the flag at the deadline, and `Core\Time::sleep` ends at it.
   - [x] `Ctx::write_output` raises `OUTPUT_LIMIT` at the crossing, and the handler runs with both flags lowered.
   - [x] Three `.nvst` cases under `tests/conformance/config/`, and the gap record deleted.
-- [ ] A served request is stopped at its `wall_time` by the core's timer, as `nvs run`'s clock stops a run. `crates/nvs-server/src/serve.rs:1250`, `crates/nvs-cli/src/wall.rs:1`
+- [x] A served request is stopped at its `wall_time` by the watchdog's sweep, as `nvs run`'s clock stops a run. `crates/nvs-host/src/watchdog.rs:1`, `crates/nvs-cli/src/wall.rs:1`
+  - [x] `stop_at_wall_time` raises `WALL_TIME` and expires the deadline for each published request past its deadline.
+  - [x] An expired deadline is raised again only one interval past it, so a handler keeps its slice.
+  - [x] A watchdog unit case and a served busy-loop case, and the gap record deleted.
 - [x] The resolve refuses a malformed `[limits]` quantity as E0601 and a global value above its written ceiling, and the runtime never reads a malformed one as no cap. `crates/nvs-config/src/app.rs:134`, `crates/nvs-runtime/src/ctx/limits.rs:959`
   - [x] `app::quantities` parses every limits block's quantity in the resolve.
   - [x] `app::starts` refuses a start above its written ceiling, over the global tree and each folded snapshot.
@@ -308,17 +311,16 @@ work cannot live only in prose again.
 
 ### State
 
-Stages 1 and 2 are done, and stage 3 has two items left. A `[limits]` value that is not a
-quantity now stops the boot as E0601 (`crates/nvs-config/src/app.rs`'s `quantities`, called from
-the resolve). So does a start above its written `[limits.hard]` ceiling (`app::starts`, run over
-the global tree and again in `Snapshot::fold`, where one block's start meets another's ceiling).
-The runtime's `configured_bytes` reads a malformed value as the key's shipped default. For
-`max_output` that default is still no cap, so the boot refusal is what closes that half. The
-cases are `tests/conformance/config/a-limit-*.nvst`, `an-app-ceiling-below-*.nvst` and three
-rows in `crates/nvs-cli/tests/config_audit.rs`. The gap record is deleted.
-
-`nvs run` stops at `wall_time` (`crates/nvs-cli/src/wall.rs`). The served path has no wall clock,
-which is the next item.
+Stages 1 and 2 are done, and stage 3 has one item left, the prefixed cookie. A served request
+now stops at its `wall_time`: `nvs_host::watchdog`'s sweep raises `WALL_TIME` and expires the
+deadline for every published request past it (`stop_at_wall_time`, the module doc's *Stopping a
+request at its wall time*). The handoff's plan to time it on the core's own timer could not work,
+because a busy loop is what the core is running. The stop lands within one sweep interval (500ms
+by default). A thread with no CPU clock publishes nothing, so there neither ceiling is enforced.
+The cases are `the_walk_stops_a_request_at_its_wall_time_and_leaves_its_handler_an_interval`
+(`crates/nvs-host/src/watchdog.rs`) and `a_served_request_in_a_busy_loop_is_stopped_at_its_wall_time`
+(`crates/nvs-server/src/serve.rs`). The gap record is deleted. A served request parked on a socket
+or a database reaches no poll. Whether each such wait ends at the expired deadline is not checked.
 
 Stage 1 found a second memory-safety hole, recorded as
 `data/gaps/nvs-runtime/a-wider-shape-view-writes-an-object-of-the-wrong-class.json`. A statically
@@ -332,15 +334,16 @@ behind the local one. The earlier triage of its failures stands until the user p
 
 ### Next
 
-**Stage 3, a served request stops at its `wall_time`.** Files: `crates/nvs-server/src/serve.rs`,
-`crates/nvs-server/src/bounds.rs` and `crates/nvs-runtime/src/ctx/safepoint.rs`.
+**Stage 3's last item, a prefixed cookie is read only on a secure connection.** File:
+`crates/nvs-stdlib/src/request.rs`, and conformance cases under `tests/conformance/`.
 
-- [ ] Each core times its running requests' wall deadlines on the timer it already has, and raises `SafepointFlags::WALL_TIME` and expires the deadline as `nvs run`'s clock does (`rule:errors/on-limit`). `crates/nvs-server/src/bounds.rs:631`, `crates/nvs-runtime/src/ctx/safepoint.rs:536`, `crates/nvs-runtime/src/ctx/safepoint.rs:542`
-- [ ] A test under `nvs serve` for a busy loop past `wall_time`, and `data/gaps/nvs-server/a-served-request-is-not-stopped-at-its-wall-time.json` deleted. `crates/nvs-server/src/serve.rs:1250`
+- [ ] `cookie_of` drops a `__Host-` or `__Secure-` cookie when the request's scheme is not `https` (`rule:errors/cookie-name-bytes`). `crates/nvs-stdlib/src/request.rs:2108`, `crates/nvs-stdlib/src/request.rs:2753`
+- [ ] A case per prefix over a plain and a secure request, and `data/gaps/nvs-stdlib/a-prefixed-cookie-is-read-without-checking-the-connection-was-secure.json` deleted. `crates/nvs-stdlib/src/request.rs:4939`
+- [ ] Stage 3's status set to done in the front matter. `docs/goals/completeness-holes.md:23`
 
 ### Backlog
 
-- Stage 3's last item: a `__Host-` or `__Secure-` cookie is read only on a secure connection (`data/gaps/nvs-stdlib/a-prefixed-cookie-is-read-without-checking-the-connection-was-secure.json`, `crates/nvs-stdlib/src/request.rs:2108`, `crates/nvs-stdlib/src/request.rs:2753`).
+- Stage 4, a throwing `inout` callee and a refused stack, is the group after stage 3 (the goal's § *Stages*).
 - The wider-shape-view hole waits on the user's choice (`data/gaps/nvs-runtime/a-wider-shape-view-writes-an-object-of-the-wrong-class.json`).
 - `test_request_dispatches_in_process_through_the_compiled_route_table` once returned an empty body under the full verify's load and passed alone; the cause is not found (`crates/nvs-cli/src/runner.rs:3410`).
 - Many module docs still carry numbered or prose "known gap" text with no record; stage 14's scan finds them (`tools/nv/cmd/owners.ts:225`).

@@ -597,9 +597,11 @@ impl Ctx {
         // The wall-time and output halves, for the CPU flag's reason: the
         // handler is a function, and its entry is a poll either flag would stop
         // it at. What bounds the wall-time slice is the clock that raised the
-        // flag, which raises it again one reserve later (`nvs run`'s `wall`
-        // module). The output flag is raised again by the handler's own first
-        // write, since the request is still over its ceiling.
+        // flag and raises it again: `nvs run`'s `wall` module one reserve
+        // later, and `nvs_host::watchdog`'s sweep for a served request one
+        // interval past the deadline. The output flag is raised again by the
+        // handler's own first write, since the request is still over its
+        // ceiling.
         let stopped_for_wall = self.safepoint_flags().contains(SafepointFlags::WALL_TIME);
         let stopped_for_output = self
             .safepoint_flags()

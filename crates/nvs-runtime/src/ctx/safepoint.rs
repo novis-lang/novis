@@ -788,7 +788,8 @@ pub unsafe extern "C" fn nvs_safepoint(ctx: *mut Ctx) -> i32 {
     if ctx.safepoint_flags().contains(SafepointFlags::WALL_TIME) {
         // The CPU branch's two lines in the same order. `Ctx::run_limit_handler`
         // lowers this flag for the handler's call, and the clock that raised it
-        // raises it again one reserve later.
+        // raises it again once the handler's slice has passed: `nvs run`'s own
+        // clock, or `nvs_host::watchdog`'s sweep for a served request.
         ctx.run_limit_handler(Limit::WallTime);
         ctx.set_pending(ctx.wall_time_message());
         return crate::FATAL;

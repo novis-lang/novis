@@ -138,16 +138,16 @@ its entry says what closed it.
       *refp/wall, refp/out* A run now stops at its `wall_time`, looping or sleeping, and at the first
       write past `max_output`, each with its limit report, pinned by
       `tests/conformance/config/wall-time-*.nvst` and
-      `tests/conformance/config/max-output-stops-a-loop-at-the-write-that-crosses-it.nvst`. The served
-      path's wall time is open as
-      `data/gaps/nvs-server/a-served-request-is-not-stopped-at-its-wall-time.json`.
+      `tests/conformance/config/max-output-stops-a-loop-at-the-write-that-crosses-it.nvst`. A served
+      request stops at its `wall_time` through `nvs_host::watchdog`'s sweep, pinned by
+      `a_served_request_in_a_busy_loop_is_stopped_at_its_wall_time` in `crates/nvs-server/src/serve.rs`.
 - [x] **U8** A memory-limit breach in a **child isolate** is not observed: `[limits] memory = "8M"`
       with a child holding 64 MiB answered `ok = true`. *refp/childmem* — the child's result is now
       `ok = false` with the memory-limit `RuntimeError` as its `error`.
-- [ ] **U9** `nvs config check`/`nvs run` do not validate quantities or ceilings: `memory = "12
+- [x] **U9** `nvs config check`/`nvs run` do not validate quantities or ceilings: `memory = "12
       bananas"` and `[limits] memory = "1G"` over `[limits.hard] memory = "512M"` both pass and run.
-      `tree.rs` says values are refused where sizes are parsed. *php-diff/config probes* Open as
-      `data/gaps/nvs-config/a-malformed-limit-or-one-above-its-ceiling-is-not-refused.json`.
+      *php-diff/config probes* Both now stop the boot as `E0601`, from `crates/nvs-config/src/app.rs`'s
+      `quantities` and `starts`, pinned by `tests/conformance/config/a-limit-*.nvst`.
 - [x] **U10** The config trust rule (a file writable by another account is refused) is applied by
       neither `nvs run` nor `nvs config check` — `crates/nvs-cli/src/config.rs` reserves it for
       `serve`, which does not exist. E0607/W1005 are unreachable in this binary.
