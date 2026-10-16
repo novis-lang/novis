@@ -13,10 +13,10 @@
 # Stage `build` -- nvs for Linux, from this checkout.
 # --------------------------------------------------------------------------------------
 # Pinned to `rust-toolchain.toml`'s channel rather than to `latest`: a benchmark that silently
-# compiled under a different rustc than CI does is reporting the compiler, not the tree. Bookworm on
-# both halves because the runtime below is bookworm too -- a binary built against a newer glibc than
+# compiled under a different rustc than CI does is reporting the compiler, not the tree. Trixie on
+# both halves because the runtime below is trixie too -- a binary built against a newer glibc than
 # the image it runs in fails at exec with a message that says nothing about why.
-FROM rust:1.97.1-slim-bookworm AS build
+FROM rust:1.99.1-slim-trixie AS build
 
 # `ring` (via rustls) has a `cc` build script, so the slim image's missing toolchain is a hard
 # failure rather than a fallback to something pure-Rust. `pkg-config` and `perl` are ring's other two
@@ -52,7 +52,7 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry,sharing=locked \
 # --------------------------------------------------------------------------------------
 # Stage `source` -- the default runtime, carrying the binary the stage above built.
 # --------------------------------------------------------------------------------------
-FROM debian:bookworm-slim AS source
+FROM debian:trixie-slim AS source
 
 # `ca-certificates` is not needed by the `hello` case and is installed anyway: a case added later
 # that reaches an origin would otherwise fail inside a benchmark, where a TLS error is the least
@@ -88,7 +88,7 @@ CMD ["serve", "/app/hello.nvs", "--listen", "0.0.0.0:8080"]
 # The driver checks the file is a Linux ELF and a release build before it stages it. Nothing here
 # repeats that check -- a Dockerfile is the wrong place to discover that a debug binary is being
 # benchmarked, because by then the image is built and the number is already wrong.
-FROM debian:bookworm-slim AS prebuilt
+FROM debian:trixie-slim AS prebuilt
 
 RUN apt-get update \
  && apt-get install -y --no-install-recommends ca-certificates curl \
