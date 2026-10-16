@@ -32,11 +32,11 @@ stages:
     context: [vendor/html5ever/Cargo.toml, crates/nvs-stdlib/src/html.rs]
   - id: 6
     title: the built-in components and wasi-sdk
-    status: open
+    status: done
     context: [extensions/image/Cargo.toml, extensions/pdf/Cargo.toml, extensions/intl/Cargo.toml, extensions/spreadsheet/Cargo.toml, extensions/image/libwebp/SOURCE.json]
   - id: 7
     title: the repository tools and Bun
-    status: open
+    status: done
     context: [package.json, tools/nv-scan/Cargo.toml, tools/nv/keys/scan.ts]
   - id: 8
     title: the editor extension and the website
@@ -264,20 +264,20 @@ see changes.
 **Does:** each component's own lock is current, its incompatible bumps are taken or held, and CI and libwebp build with one wasi-sdk, the latest.
 
 - [x] wit-bindgen 0.63 in the four components and the template, with CI's `wit-bindgen-cli` at the same version. `crates/nvs-cli/templates/ext/rust/Cargo.toml:12`, `.github/workflows/ci.yml:564`
-- [ ] pdf: taffy 0.15. The alignment fields are not `Option`, `Position::Static` is now the default, and absolute insets are relative to the border box, so the layout output moves. `extensions/pdf/src/layout/flex.rs:25`
+- [x] pdf: taffy 0.15. The alignment fields are not `Option`, `Position::Static` is now the default, and absolute insets are relative to the border box, so the layout output moves. `extensions/pdf/src/layout/flex.rs:25`
 - [x] pdf: hayro-interpret 0.8, the same as image and the root. Held: `krilla` 0.8.2 takes a `hayro-syntax` 0.7 `Pdf`. `extensions/pdf/Cargo.toml:18`
 - [x] image: ravif 0.13. `extensions/image/src/encode.rs:78`
 - [x] One wasi-sdk, the latest, for CI and libwebp. CI is at 25 and libwebp's pin at 30. Rebuild libwebp with `bun nv webp-lib`. `.github/workflows/ci.yml:535`, `extensions/image/libwebp/SOURCE.json:11`
-- [ ] The `.nvsx` hashes and the committed guest figures are regenerated. `crates/nvs-ext/build.rs:183`
+- [x] The `.nvsx` hashes and the committed guest figures are regenerated. `crates/nvs-ext/build.rs:183`
 
 ### 7. the repository tools and Bun
 
 **Does:** the Bun tooling runs on the latest Bun, and `tools/nv-scan` and `fuzz/` are on current crates.
 
-- [ ] Bun 1.4.x in `engines.bun`, with `@types/bun` to match. The user installs it on the machine first. Check `bun:ffi` `dlopen` in `proctree.ts` and `tty.ts`, and `bun test --parallel`, which now isolates. `package.json:8`
-- [ ] `playwright-core` and `smol-toml`. `package.json:16`
-- [ ] nv-scan's `=` pins follow the root lock, including syn 3 if the root has moved its own use. Every scanner digest moves, and that is expected. `tools/nv-scan/Cargo.toml:1`, `tools/nv/keys/scan.ts:32`
-- [ ] The `fuzz/` lock is refreshed. `fuzz/Cargo.toml:1`
+- [x] Bun 1.4.x in `engines.bun`, with `@types/bun` to match. The user installs it on the machine first. Check `bun:ffi` `dlopen` in `proctree.ts` and `tty.ts`, and `bun test --parallel`, which now isolates. `package.json:8`
+- [x] `playwright-core` and `smol-toml`. `package.json:16`
+- [x] nv-scan's `=` pins follow the root lock, including syn 3 if the root has moved its own use. Every scanner digest moves, and that is expected. `tools/nv-scan/Cargo.toml:1`, `tools/nv/keys/scan.ts:32`
+- [x] The `fuzz/` lock is refreshed. `fuzz/Cargo.toml:1`
 
 ### 8. the editor extension and the website
 
@@ -310,33 +310,34 @@ see changes.
 
 ### State
 
-Stages 1 to 5 are done. Stage 6 has taffy 0.15 and the regenerated hashes left.
+Stages 1 to 7 are done. Stage 8 is next.
 - The root lock's holds are unchanged: `wit-parser`, `wasmparser` and `wit-component` wait for
   wasmtime (`Cargo.toml:372`), and so do `brotli-decompressor` (`Cargo.toml:948`) and
-  `fallible-iterator` (`Cargo.toml:1010`). The guest graph's copies of the first three are 0.262
-  now, through wit-bindgen 0.63, and live beside the host's 0.258.
-- Battery leg D ran under WSL against html5ever 0.40.1. `lex` did 793,829 runs and `parse` 308,107,
-  each in 302 s, with no crash.
-- wit-bindgen 0.63 is in the four components, the Rust template and CI. The component tests
-  and `bun nv ext-templates --lang rust` pass. The C template on wasi-sdk 34 is checked only by CI.
+  `fallible-iterator` (`Cargo.toml:1010`). `fuzz/Cargo.lock` keeps `brotli-decompressor` 6.0 under
+  the same hold.
 - pdf holds `hayro-interpret` at 0.7 (`extensions/pdf/Cargo.toml:18`): `merge.rs` hands its
   `Pdf` to krilla 0.8.2, which reads a `hayro-syntax` 0.7 one.
-- ravif is 0.13. CI and libwebp are on wasi-sdk 34, and `libwebp.a` is rebuilt.
-- The nightly run 38869457440 tested `cb7021a24`, an old commit, again. The floor debt run needs
-  `samba-ad`, and Docker is not running on this machine.
-- `nv selftest` went red twice mid-session on another session's uncommitted `tools/nv/cmd/owners.ts`,
-  so the component checks ran as `cargo test --test <name>` instead.
-- The gate on this session's tip is red, and the cause is not this goal's: build, `nv` and
-  `fuzz-lock` pass, then `spec_registry_coverage` fails twice (`crates/nvs-stdlib/tests/spec_registry_coverage.rs:553`,
-  `:701`). Both read the plan's milestone table, which `01317cf00` cut to five rows.
+- taffy 0.15 moved no pdf output. The component never sets taffy's `position` or `inset`.
+- The built-in hashes are made at build time (`crates/nvs-ext/build.rs:183`), so none is committed.
+  The image guest figures were taken again, and every ratio is within ten percent of the last record.
+- nv-scan is on syn 3.0.9 and sha2 0.11.1, so every build key moved once.
+- Bun 1.4.3 and TypeScript 7.0.2 are the latest releases. `@types/bun` 1.4.3 widened
+  `Subprocess.signalCode`, and `Owned` follows it (`tools/nv/lib/proctree.ts:241`).
+- The nightly run 38869457440 tested `cb7021a24`, an old commit, so its ten red jobs say nothing
+  about this tree.
+- The gate on this tip is green. Its first two runs were red on load flakes alone:
+  `spreadsheet_read` and `live_edit`, which passed when rerun alone.
+- This machine's build links against MSVC 14.50.35717 from Visual Studio 18, according to the
+  link paths in `.agent-tmp/verify-clippy.log`.
 
 ### Next
 
-**Stage 6's last two items, then stage 7.** Files: `extensions/pdf/`, `crates/nvs-ext/`, then `package.json`.
+**Stage 8: the editor extension and the website.** Files: `editors/vscode/`, then `website/`.
 
-- [ ] pdf: taffy 0.15. The alignment fields are not `Option`, `Position::Static` is the default, and absolute insets are relative to the border box. `extensions/pdf/src/layout/flex.rs:25`
-- [ ] The `.nvsx` hashes and the committed guest figures are regenerated. `crates/nvs-ext/build.rs:183`
-- [ ] The `fuzz/` lock is refreshed. `fuzz/Cargo.toml:1`
+- [ ] vscode-languageclient 10, the tsconfig on `node16` resolution, and the output channel with `{ log: true }`. `editors/vscode/src/extension.ts:122`, `editors/vscode/tsconfig.json:1`
+- [ ] TypeScript 6.0.x with `"types": ["node", "mocha"]`, and eslint 10 with `@eslint/js` 10. `editors/vscode/package.json:1`
+- [ ] mocha 12, which is ESM-only, plus vsce 4 and test-electron 3. `editors/vscode/test/host/index.ts:18`, `editors/vscode/scripts/host.mjs:31`
+- [ ] Starlight 0.42 and astro latest, with `engines.node` at `>=22.12.0`. `website/src/components/PageFrame.astro:94`, `website/package.json:1`
 
 ### Backlog
 
@@ -345,4 +346,4 @@ Stages 1 to 5 are done. Stage 6 has taffy 0.15 and the regenerated hashes left.
 - Load flakes: `ldap` deadlines, the `live_edit` 30 s wait (`crates/nvs-cli/tests/live_edit.rs:1010`), `spreadsheet_read` and `parallel_tests_overlap_on_more_than_one_core` (`crates/nvs-cli/src/runner.rs:4100`). Linux only: `crates/nvs-cli/tests/run_command.rs:688`, and the scaling margin (`crates/nvs-cli/src/serve.rs:3957`).
 - wasmtime 50.0.0 final and cranelift 0.137, held at `Cargo.toml:346`: move the epoch callback's fuel refresh out, because `StoreHookState` has no `set_hostcall_fuel` (`crates/nvs-ext/src/call.rs:1075`), and drop the `new_own` workaround and its playbook bullet (`crates/nvs-ext/src/handle.rs:176`).
 - hyper 1.12's `max_header_size` is a question for the user (`crates/nvs-server/src/serve.rs`).
-- The user mirrors any `.github/dependabot.yml` change on `landing` and decides about MSVC 14.50 (`docs/setup.md`).
+- The user mirrors any `.github/dependabot.yml` change on `landing`. MSVC 14.50 is already the toolset in use here, so `docs/setup.md`'s 14.44 line may need the user's update.
