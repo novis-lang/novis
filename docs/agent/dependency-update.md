@@ -56,17 +56,30 @@ cargo update -p <crate>                   # inside the declared range
 cargo update -p <crate> --precise <version>
 ```
 
-Run the battery after each one. Batching is what makes a failure take an hour to attribute.
+Each bump gets a narrow check, and is committed as soon as it passes:
+
+```sh
+cargo check --all-targets                 # the whole tree compiles against the moved crate
+bun nv verify -p <crate>                  # each workspace crate that names the moved dependency
+```
+
+**The full gate runs once per group of bumps, never once per bump.** A moved `Cargo.lock` reaches every
+build, so each `looper verify` is the whole suite, and the per-bump commits already give `git bisect` one
+bump per step. Take every bump of the group you can this session, then run the gate once on the tip: `looper verify`
+in the loop, `bun nv affected --run` anywhere else, and the § 3 legs the group reaches.
+A red gate is fixed before the session ends: the failing test usually names the crate, and when it does
+not, `git bisect` walks the bump commits. This is the one place a commit lands before the full gate, and
+the user chose it for the sweep's speed.
 
 ## 3. The battery
 
-Run **A** for every bump. Add the conditional legs the moved crate actually touches — over-running costs
+Run **A** once per group of bumps, on the tip. Add the conditional legs the moved crate actually touches — over-running costs
 minutes, under-running costs a silently retracted premise.
 
 **A. Always.**
 
 ```sh
-bun nv affected --run                     # a moved Cargo.lock reaches every build: verify, then every check it reaches
+bun nv affected --run                     # a moved Cargo.lock reaches every build; looper verify in the loop
 cargo deny check                          # cargo install cargo-deny --locked, if absent
 bun nv gen-attribution                    # regenerate; commit the diff in the same commit
 ```

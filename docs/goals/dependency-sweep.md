@@ -130,6 +130,10 @@ named below were the latest when this goal was written. A stage takes whatever i
 worked, and the notes here are the starting point for reading the release notes. They do not cap the
 version.
 
+**One gate per group, not per bump.** Each bump is committed after its narrow check, and `looper
+verify` runs once on the tip of the session's bumps, as `docs/agent/dependency-update.md` § *2. Move
+one thing at a time* says. The user chose this, because a gate per bump made the sweep slow.
+
 **One bump, one commit** (`rule:packaging/one-bump-one-commit`). These groups move as one commit each,
 because their crates share types or pin each other exactly:
 - wasmtime, wasmtime-wasi-io, wasmtime-internal-jit-icache-coherence, the five `cranelift-*` crates
