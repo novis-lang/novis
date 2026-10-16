@@ -73,7 +73,7 @@ services:
   # volume generated before they existed gains the copy on the next `up` instead of only on a fresh one.
   # ---------------------------------------------------------------------------------------------------
   certs:
-    image: alpine/openssl:3.5.7
+    image: alpine/openssl:3.5.9
     entrypoint: ["/bin/sh", "-c"]
     command:
       - >
