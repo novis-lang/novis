@@ -270,7 +270,7 @@ see changes.
 
 **Does:** the Bun tooling runs on the latest Bun, and `tools/nv-scan` and `fuzz/` are on current crates.
 
-- [ ] Bun 1.4.x in `engines.bun`, with `@types/bun` to match. The user installs it on the machine first. Check `bun:ffi` `dlopen` in `bg.ts`, `proctree.ts` and `tty.ts`, and `bun test --parallel`, which now isolates. `package.json:8`
+- [ ] Bun 1.4.x in `engines.bun`, with `@types/bun` to match. The user installs it on the machine first. Check `bun:ffi` `dlopen` in `proctree.ts` and `tty.ts`, and `bun test --parallel`, which now isolates. `package.json:8`
 - [ ] `playwright-core` and `smol-toml`. `package.json:16`
 - [ ] nv-scan's `=` pins follow the root lock, including syn 3 if the root has moved its own use. Every scanner digest moves, and that is expected. `tools/nv-scan/Cargo.toml:1`, `tools/nv/keys/scan.ts:32`
 - [ ] The `fuzz/` lock is refreshed. `fuzz/Cargo.toml:1`
