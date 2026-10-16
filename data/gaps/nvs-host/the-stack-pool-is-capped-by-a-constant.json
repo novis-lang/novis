@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-host/src/stack.rs",
+  "title": "The task stack pool is capped by a compiled-in constant rather than the worker's share of `max_in_flight`.",
+  "text": "`MAX_POOLED_STACKS = 1024` stands in for the worker's in-flight cap (`crates/nvs-host/src/stack.rs`'s *Why a pool* section and the constant itself), and both comments cite a goal that no longer exists. `rule:concurrency/a-task-stack-is-reserved-wide-and-pooled` and `rule:http-server/admission-is-arithmetic-not-a-number` own the bound. Closing it means the pool is bounded by the worker's admission arithmetic (`max_in_flight` per core), set where a serving core builds its scheduler and again on reload.",
+  "goal": "completeness-holes"
+}

@@ -1,6 +1,0 @@
-{
-  "module": "crates/nvs-host/src/stack.rs",
-  "title": "The task stack pool is capped by a compiled-in constant, and a stack reservation the OS refuses panics.",
-  "text": "`MAX_POOLED_STACKS = 1024` stands in for the worker's in-flight cap (`crates/nvs-host/src/stack.rs:54-57`, `:97`), and `take` calls `expect` when the OS refuses a reservation (`:196-203`), so a refused stack takes the process down instead of refusing one request. Both comments cite a goal that no longer exists. `rule:concurrency/a-task-stack-is-reserved-wide-and-pooled` and `rule:http-server/admission-is-arithmetic-not-a-number` own the bound. Closing it means the pool is bounded by the worker's admission arithmetic (`max_in_flight` per core), and a refused reservation reaches the spawn as an error the request sees as a limit, not a panic.",
-  "goal": "completeness-holes"
-}
