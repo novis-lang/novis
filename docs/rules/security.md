@@ -2231,7 +2231,7 @@ to rewrite the developer's terminal from inside a failure message.
 
 <a id="security-redaction-reaches-the-tools-own-renderings"></a>
 
-## No rendering the toolchain itself produces prints a `secret` in the clear, the AST dump included  *(designed — owned by M10)*
+## No rendering the toolchain itself produces prints a `secret` in the clear, the AST dump included  *(designed — owned by goal diagnostic-records)*
 
 `rule:security/redaction-reaches-the-tools-own-renderings`
 

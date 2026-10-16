@@ -7,5 +7,5 @@
     "ide/redaction-ranges-come-from-the-server"
   ],
   "guardedBy": [],
-  "milestone": "M10"
+  "goal": "diagnostic-records"
 }

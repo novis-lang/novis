@@ -485,7 +485,7 @@ a kind.
 
 <a id="errors-record-producers"></a>
 
-## Five producers build the one record  *(designed — owned by M10)*
+## Five producers build the one record  *(designed — owned by goal diagnostic-records)*
 
 `rule:errors/record-producers`
 

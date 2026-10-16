@@ -7,5 +7,5 @@
     "errors/debug-dump"
   ],
   "guardedBy": [],
-  "milestone": "M10"
+  "goal": "diagnostic-records"
 }
