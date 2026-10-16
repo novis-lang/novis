@@ -65,10 +65,8 @@
 //! [`value::within_ceiling`]. `nvs-runtime`'s `Ctx` holds one per request; nothing in this crate
 //! knows that, which is why the type is here and the field is there.
 //!
-//! What is **not** here yet: nothing reads a [`snapshot::Current`] — `nvs-host` still runs on
-//! compiled-in defaults and says so at each site, so a limit a request set through
-//! [`request::Request`] is visible to `Core\Config::get` and not yet to what enforces it. Stage 4
-//! is where those meet.
+//! `nvs-server` holds a [`snapshot::Current`] and derives each published snapshot's policies from
+//! it.
 
 pub mod app;
 pub mod audit;

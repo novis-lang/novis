@@ -5,10 +5,11 @@
 //! is built to keep: **a filesystem path is never derived from a URL at request
 //! time.** A request *selects* an entry point from a table expanded against
 //! disk at boot; it never constructs one. Nothing in this crate resolves a path
-//! from request bytes, and the test that says so is the goal's Stage 9 set
-//! equality rather than a suite of attempted escapes.
+//! from request bytes, and the test that says so is a set equality,
+//! `mount`'s `the_executable_path_set_after_boot_equals_the_expanded_mount_table`,
+//! rather than a suite of attempted escapes.
 //!
-//! # What is here so far
+//! # The three core modules
 //!
 //! [`io`], [`serve`] and [`mount`]. The first is the seam between a library that is
 //! `async` and a runtime that is not: `hyper`'s two IO traits over
@@ -20,7 +21,7 @@
 //! own task, and what that isolate echoed is the response body
 //! (`rule:tooling/echo-always-has-a-sink`
 //! ). There is one isolation path in this tree and that is it; a second one
-//! would leave M7's state-bleed suite proving nothing.
+//! would leave the state-bleed suite proving nothing.
 //!
 //! **A connection is bounded by a clock**: `rule:http-server/the-server-block-is-boot-class`'s waits arrive as
 //! one `nvs_config::server::Waits`, and [`io`]'s docs § *The clock* are where

@@ -30,8 +30,7 @@
 //! answers for a size, a duration, a count or a ratio and for nothing else; `[capabilities]` is the
 //! only such row and a grant is a list. Refusing is the safe direction — a request that
 //! cannot drop a capability is inconvenient, one that silently widens one is the failure `rule:config/three-changeability-classes`
-//! exists to prevent — and the capability model that will answer it properly is this milestone's
-//! own Stage 4.
+//! exists to prevent.
 //!
 //! Cost: one `Arc` clone per request, plus one `String` pair per key a request actually set.
 //! O(in-flight requests) and never O(requests served).

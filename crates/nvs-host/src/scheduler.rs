@@ -2115,8 +2115,8 @@ mod tests {
     /// guard is: `nv verify` runs this binary beside every other test
     /// binary in the workspace, and a hundred thousand stack reservations and
     /// the switches they cost through an unoptimized scheduler is not a thing to
-    /// do on that path. The driver runs it under `--release` once its sweep has
-    /// finished — the release checks `bun nv loop` runs.
+    /// do on that path. The acceptance runner (`tools/nv/accept/runner.ts`) runs
+    /// it under `--release` as one of its release checks.
     #[test]
     #[cfg_attr(
         debug_assertions,

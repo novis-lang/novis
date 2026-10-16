@@ -1364,7 +1364,7 @@ fn joined_when_ended(writing: &RefCell<Option<Streamed<'_>>>, ctx: &mut Ctx) {
 /// that is a program it is an
 /// `rule:security/isolate-shares-nothing` [`Isolate`] —
 /// the same type `spawn script` runs, and deliberately **not** a second isolation
-/// path, since M7's state-bleed suite is a parameterisation of one mechanism and
+/// path, since the state-bleed suite is a parameterisation of one mechanism and
 /// would prove nothing about two of them. Where it is already a response
 /// (`rule:http-server/a-request-resolves-in-five-steps`'s `404`, or a file), nothing is run for it at all.
 ///
@@ -3623,7 +3623,7 @@ pub(crate) mod tests {
         );
     }
 
-    /// M7's header injection suite — `rule:http-server/secure-headers-with-nothing-written`, one row per published
+    /// The header injection suite — `rule:http-server/secure-headers-with-nothing-written`, one row per published
     /// technique rather than one case per spelling.
     ///
     /// **This is the lower of two layers, and the only one a `-p nvs-server`
@@ -6427,9 +6427,8 @@ pub(crate) mod tests {
         );
     }
 
-    /// M7's acceptance paragraph, its third clause: **a request whose isolates
-    /// are still running when the client disconnects leaves none of them
-    /// behind.**
+    /// **A request whose isolates are still running when the client
+    /// disconnects leaves none of them behind.**
     ///
     /// **The isolate is parked when the peer goes away**, which is what makes
     /// this a case about a request still running rather than about one that
@@ -7611,7 +7610,7 @@ pub(crate) mod tests {
     }
 
     /// `rule:http-server/an-upload-is-received-only-through-files`'s
-    /// load-bearing case, in M7's own words: a multipart body far larger than
+    /// load-bearing case: a multipart body far larger than
     /// any in-memory bound is received **in full at bounded resident memory**,
     /// asserted against a high-water mark rather than against the request
     /// merely succeeding.
@@ -7731,7 +7730,7 @@ pub(crate) mod tests {
         );
     }
 
-    /// One row of M7's state-bleed suite: a kind of state a run can leave
+    /// One row of the state-bleed suite: a kind of state a run can leave
     /// behind, and what the run after it can see of it.
     ///
     /// The two halves are `fn` pointers rather than closures on purpose — a row
@@ -7760,7 +7759,7 @@ pub(crate) mod tests {
     /// The only passing answer, for every row and both boundaries.
     const NOTHING: &str = "nothing";
 
-    /// M7's state-bleed rows: the per-request state a program can reach, one
+    /// The state-bleed rows: the per-request state a program can reach, one
     /// row per kind, each planted by a run that then ends.
     ///
     /// **Memory is deliberately not a row here.** A run's arena is the one
@@ -8181,9 +8180,8 @@ pub(crate) mod tests {
             .unwrap_or_else(|| panic!("the response had no body at all: {answer}"))
     }
 
-    /// M7's acceptance paragraph, its second clause: **a state-bleed suite
-    /// proves nothing leaks between requests, and the same suite runs across an
-    /// isolate boundary.**
+    /// **The state-bleed suite proves nothing leaks between requests, and the
+    /// same suite runs across an isolate boundary.**
     ///
     /// **It is one suite run more than once, and the plan says so in the same
     /// breath**: "which the shared `Isolate` makes a parameterisation rather
@@ -9007,8 +9005,8 @@ pub(crate) mod tests {
         answer.matches("HTTP/1.1 ").count()
     }
 
-    /// M7's request smuggling suite — `rule:http-server/two-deployments-and-nothing-a-proxy-owns`'s last paragraph, which is
-    /// the one place that ADR does *not* delegate to the proxy: smuggling is a
+    /// The request smuggling suite — `rule:http-server/two-deployments-and-nothing-a-proxy-owns`'s last paragraph, which is
+    /// the one place that rule does *not* delegate to the proxy: smuggling is a
     /// proxy/origin parser differential, so the deployment that always has a
     /// proxy in front is exactly the one where a lenient origin is dangerous,
     /// and `rule:errors/ambiguous-input-refused`
@@ -9462,9 +9460,8 @@ pub(crate) mod tests {
         );
     }
 
-    /// Stage 2's item 2, and the reason it is an item rather than an
-    /// assumption: a request runs as [`Isolate`] — the type `spawn script`
-    /// runs under `rule:security/isolate-shares-nothing` — on a task of its own, so M7's state-bleed suite
+    /// A request runs as [`Isolate`] — the type `spawn script`
+    /// runs under `rule:security/isolate-shares-nothing` — on a task of its own, so the state-bleed suite
     /// parameterises one isolation mechanism instead of proving something about
     /// two.
     ///

@@ -214,7 +214,7 @@ fn an_entry_matched_by_no_block_is_not_an_error() {
     assert!(blocks_for(&fs, &resolved, "srv/other/x.nvs").is_empty());
 }
 
-/// `rule:config/app-keys-are-canonicalized-before-matching`'s reason for canonicalizing, in the shape M6's acceptance names it, and both halves of it in
+/// `rule:config/app-keys-are-canonicalized-before-matching`'s reason for canonicalizing, and both halves of it in
 /// one case because they are one rule: a path that *reaches* an application's tree through `..` is
 /// not inside it, and neither is a symlink *planted inside* that tree — the one an attacker writes —
 /// because the name a path resolves to is what is compared. Asserted together so an implementation

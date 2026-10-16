@@ -10,7 +10,7 @@
 //! wholesale is dropping that context.
 //!
 //! `docs/plan/design.md` § *In-process isolated script execution* asks for
-//! **one** `Isolate` type serving both the `spawn script` path and, at M7, an
+//! **one** `Isolate` type serving both the `spawn script` path and an
 //! inbound HTTP request. This is that type; what differs between the two is the
 //! [`Program`] handed in and the [`Output`] asked for, not the boundary.
 //!

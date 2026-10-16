@@ -1380,7 +1380,7 @@ mod tests {
         assert!(sent.contains(&p("/www/blog/public/style.css")));
     }
 
-    /// M7's path traversal suite — `rule:http-server/a-path-is-never-derived-from-a-url` and § 4 step 3, one row per
+    /// The path traversal suite — `rule:http-server/a-path-is-never-derived-from-a-url` and § 4 step 3, one row per
     /// published technique rather than one case per file.
     ///
     /// The suite is run at the **widest** reading of the table, `dispatch =

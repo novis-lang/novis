@@ -85,8 +85,8 @@ use crate::serve::Answer;
 /// **A stated reserve rather than a measurement**, and deliberately generous:
 /// under-reserving is the direction that hands admission back to the
 /// out-of-memory killer, while over-reserving costs an operator a little
-/// headroom. M7's benchmark is what replaces it with a number, and the plan's
-/// *Verify* paragraph is where that is asked for.
+/// headroom. No benchmark measures the engine's own footprint, so the figure is
+/// stated here and nowhere else.
 pub const ENGINE_RESERVE: u64 = 128 * 1024 * 1024;
 
 /// The numbers admission compares against, resolved from one configuration.
