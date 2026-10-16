@@ -1,5 +1,6 @@
-`nvs dap` — the debug adapter, using safepoints for breakpoints (`rule:testing/debug-probes`) — is a
-complete, testable deliverable on its own. A working adapter and a working debugger UI in a given editor
+`nvs dap` — the debug adapter, stopping at the stop sites its debug compile switch puts at every
+statement (`rule:testing/a-debugged-program-is-compiled-with-a-debug-switch`) — is a complete, testable
+deliverable on its own. A working adapter and a working debugger UI in a given editor
 are two different integrations, the same way a language server and a syntax-highlighting extension are,
 so a stalled or under-scoped editor integration cannot block the adapter from shipping and being useful
 to a CLI-driven client or a third editor.

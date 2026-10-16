@@ -49,6 +49,8 @@
     "testing/debug-mode-directive",
     "testing/debug-probes",
     "testing/debug-surface",
+    "testing/a-debugged-program-is-compiled-with-a-debug-switch",
+    "testing/a-stop-pauses-the-whole-task-tree",
     "testing/probes-on-is-a-tested-configuration",
     "testing/writing-a-debug-record-to-disk-is-its-own-gate",
     "testing/the-debug-stream-reaches-the-service-through-the-disk",

@@ -2744,8 +2744,9 @@ support and conceals nothing.
 
 `rule:ide/the-debug-adapter-does-not-wait-for-an-editor`
 
-`nvs dap` — the debug adapter, using safepoints for breakpoints ([`testing/debug-probes`](testing.md#testing-debug-probes)) — is a
-complete, testable deliverable on its own. A working adapter and a working debugger UI in a given editor
+`nvs dap` — the debug adapter, stopping at the stop sites its debug compile switch puts at every
+statement ([`testing/a-debugged-program-is-compiled-with-a-debug-switch`](testing.md#testing-a-debugged-program-is-compiled-with-a-debug-switch)) — is a complete, testable
+deliverable on its own. A working adapter and a working debugger UI in a given editor
 are two different integrations, the same way a language server and a syntax-highlighting extension are,
 so a stalled or under-scoped editor integration cannot block the adapter from shipping and being useful
 to a CLI-driven client or a third editor.
@@ -2793,8 +2794,9 @@ adapter's capability list is therefore the debugger's scope, and it is this:
   file in the editor differ whenever the program runs anywhere but the workspace root.
 - **The value a function just returned**, in the variables pane after stepping out. It is one frame's
   worth of state the adapter already has, and the UI renders it with no work of its own.
-- **A `spawn`ed isolate is a DAP thread** — the standard presentation, needing no protocol extension. The
-  *tree* of isolates would need one and is not built.
+- **Every task of the debugged request is a DAP thread**, a `spawn`ed isolate's included, and a stop
+  pauses all of them ([`testing/a-stop-pauses-the-whole-task-tree`](testing.md#testing-a-stop-pauses-the-whole-task-tree)). That is the standard
+  presentation, needing no protocol extension. The *tree* of tasks would need one and is not built.
 
 A fixture session exercises each of these, and `nvs dap` reports each capability at `initialize`.
 

@@ -14,8 +14,9 @@ adapter's capability list is therefore the debugger's scope, and it is this:
   file in the editor differ whenever the program runs anywhere but the workspace root.
 - **The value a function just returned**, in the variables pane after stepping out. It is one frame's
   worth of state the adapter already has, and the UI renders it with no work of its own.
-- **A `spawn`ed isolate is a DAP thread** — the standard presentation, needing no protocol extension. The
-  *tree* of isolates would need one and is not built.
+- **Every task of the debugged request is a DAP thread**, a `spawn`ed isolate's included, and a stop
+  pauses all of them (`rule:testing/a-stop-pauses-the-whole-task-tree`). That is the standard
+  presentation, needing no protocol extension. The *tree* of tasks would need one and is not built.
 
 A fixture session exercises each of these, and `nvs dap` reports each capability at `initialize`.
 

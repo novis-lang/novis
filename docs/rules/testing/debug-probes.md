@@ -21,8 +21,13 @@ function entry, deliberately sparse, and line and branch counting need a site at
 edge. So the probes add more checks than the poll has, each of the same cheap shape, and the
 all-bits-off cost per site is a measured guard rather than an assumption. If that guard ever shows a
 real regression, the fix is coarsening the site to one per basic block, never dropping the flag word.
-A debugger's breakpoints stay on the safepoint poll itself: a debugged request may or may not also
-collect coverage, and the two are independent mechanisms.
+
+**A compile switch of this same compiler is not a second tier.** What this rule declines is a second
+compiled unit chosen per request while a program runs. The debugger's switch
+(`rule:testing/a-debugged-program-is-compiled-with-a-debug-switch`) is chosen once, when a debug
+session starts, changes how the one baseline compiler lowers every unit of that session, and is never
+set for a normal run. Its stop sites are separate from these probes, so a debugged request may or may
+not also collect coverage, and the two are independent mechanisms.
 
 **Declined:**
 - **A second, instrumented compiled tier chosen per request.** A request's tier is fixed once it is

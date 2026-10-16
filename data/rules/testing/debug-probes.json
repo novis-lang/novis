@@ -4,7 +4,8 @@
   "seeAlso": [
     "testing/debug-surface",
     "testing/debug-mode-directive",
-    "testing/bench-counters"
+    "testing/bench-counters",
+    "testing/a-debugged-program-is-compiled-with-a-debug-switch"
   ],
   "guardedBy": [
     "crates/nvs-codegen/tests/probes.rs",
