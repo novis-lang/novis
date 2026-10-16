@@ -1,0 +1,11 @@
+{
+  "title": "`#[Test(tags: [...])]` labels a test, `--tag`/`--skip-tag` select by label, and `--shard N/M` runs one of M stable disjoint parts",
+  "status": "designed",
+  "seeAlso": [
+    "testing/test-attribute",
+    "testing/tests-run-across-every-core",
+    "testing/report-formats"
+  ],
+  "guardedBy": [],
+  "goal": "test-surface"
+}

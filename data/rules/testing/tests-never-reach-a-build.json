@@ -6,5 +6,5 @@
     "testing/determinism-declared-on-the-test"
   ],
   "guardedBy": [],
-  "milestone": "M10"
+  "goal": "test-surface"
 }

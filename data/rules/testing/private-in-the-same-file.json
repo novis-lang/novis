@@ -6,5 +6,5 @@
     "testing/tests-never-reach-a-build"
   ],
   "guardedBy": [],
-  "milestone": "M10"
+  "goal": "test-surface"
 }

@@ -8,5 +8,6 @@ artifact. Production pays nothing for them, and no test surface is reachable at 
 `nvs check` does type-check test code. That is the one place tests and non-tests are treated alike,
 and deliberately so: a test cannot rot silently while the code around it changes.
 
-**Not on disk.** `nvs check` type-checks test methods (`crates/nvs-types/src/check.rs:409`). `nvs run`
-and `nvs build` still lower them: nothing in the lowering leaves a `#[Test]` method out.
+**Not on disk.** `nvs check` type-checks test methods (`crates/nvs-types/src/check.rs:413`). `nvs run`
+and `nvs build` still lower them: nothing in the lowering leaves a `#[Test]` method out
+(`crates/nvs-ir/src/lower/mod.rs:774`).

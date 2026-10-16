@@ -6,5 +6,5 @@ exists only because a test needed to reach it. White-box testing stays possible 
 already chosen to put the test next to the code; everything at a distance tests behaviour.
 
 **Not on disk.** Member visibility is checked against the accessing class alone
-(`crates/nvs-types/src/expr/members.rs:1844`), so a test in the same file is held to the public contract
+(`crates/nvs-types/src/signatures.rs:1733`), so a test in the same file is held to the public contract
 too.

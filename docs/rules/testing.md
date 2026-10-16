@@ -3,7 +3,7 @@
 
 # Testing
 
-*12 of 62 rules below are **designed** rather than shipped, and are marked where they appear.*
+*16 of 66 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="testing-test-attribute"></a>
 
@@ -45,7 +45,7 @@ so a single `use Core\Test;` places both.
 
 <a id="testing-tests-never-reach-a-build"></a>
 
-## `nvs run` and `nvs build` lower no test, and `nvs check` type-checks every one  *(designed — owned by M10)*
+## `nvs run` and `nvs build` lower no test, and `nvs check` type-checks every one  *(designed — owned by goal test-surface)*
 
 `rule:testing/tests-never-reach-a-build`
 
@@ -59,8 +59,9 @@ artifact. Production pays nothing for them, and no test surface is reachable at 
 `nvs check` does type-check test code. That is the one place tests and non-tests are treated alike,
 and deliberately so: a test cannot rot silently while the code around it changes.
 
-**Not on disk.** `nvs check` type-checks test methods (`crates/nvs-types/src/check.rs:409`). `nvs run`
-and `nvs build` still lower them: nothing in the lowering leaves a `#[Test]` method out.
+**Not on disk.** `nvs check` type-checks test methods (`crates/nvs-types/src/check.rs:413`). `nvs run`
+and `nvs build` still lower them: nothing in the lowering leaves a `#[Test]` method out
+(`crates/nvs-ir/src/lower/mod.rs:774`).
 
 <sub>See also [`testing/test-attribute`](testing.md#testing-test-attribute), [`testing/determinism-declared-on-the-test`](testing.md#testing-determinism-declared-on-the-test).</sub>
 
@@ -98,7 +99,7 @@ machine.
 
 <a id="testing-private-in-the-same-file"></a>
 
-## A test reaches `private` members of classes declared in its own file, and nowhere else  *(designed — owned by M10)*
+## A test reaches `private` members of classes declared in its own file, and nowhere else  *(designed — owned by goal test-surface)*
 
 `rule:testing/private-in-the-same-file`
 
@@ -110,7 +111,7 @@ exists only because a test needed to reach it. White-box testing stays possible 
 already chosen to put the test next to the code; everything at a distance tests behaviour.
 
 **Not on disk.** Member visibility is checked against the accessing class alone
-(`crates/nvs-types/src/expr/members.rs:1844`), so a test in the same file is held to the public contract
+(`crates/nvs-types/src/signatures.rs:1733`), so a test in the same file is held to the public contract
 too.
 
 <sub>See also [`testing/test-attribute`](testing.md#testing-test-attribute), [`testing/tests-never-reach-a-build`](testing.md#testing-tests-never-reach-a-build).</sub>
@@ -433,6 +434,158 @@ lines. A test that reads the terminal reads end of input, so no test stops the r
 
 <sub>See also [`testing/isolate-per-test`](testing.md#testing-isolate-per-test), [`testing/class-hooks`](testing.md#testing-class-hooks), [`testing/runner-is-strict`](testing.md#testing-runner-is-strict), [`concurrency/on-worker-runs-the-child-on-another-core`](concurrency.md#concurrency-on-worker-runs-the-child-on-another-core).</sub>
 
+<a id="testing-a-test-has-a-wall-time-limit"></a>
+
+## `[limits] wall_time` bounds each test on its own, and `#[Test(timeout: ...)]` replaces it for one test  *(designed — owned by goal test-surface)*
+
+`rule:testing/a-test-has-a-wall-time-limit`
+
+Each test runs under a wall-time limit: `[limits] wall_time` applies to every test on its own, and
+`#[Test(timeout: "5s")]` replaces it for one test.
+
+The limit is counted from the moment the test's class is constructed to the moment the test method
+returns, so a test's fixtures and hooks count toward it and the tests that ran before it do not. A test
+that passes its limit is stopped the way a request past its wall time is stopped
+([`errors/on-limit`](errors.md#errors-on-limit)), and it fails with a message that names the limit and where it came from: the
+configuration or the attribute. A stopped test is a failure like any other, so `retries:` applies to it
+([`testing/runner-is-strict`](testing.md#testing-runner-is-strict)).
+
+`timeout` is written in the duration syntax `nvs.toml` uses, and a value that does not parse does not
+compile. It may be longer or shorter than `[limits] wall_time`, and `[limits.hard]`'s `wall_time` bounds
+it as it bounds a request's own setting. Where neither is written, a test has no wall-time limit, which
+is what `[limits] wall_time` already means when it is absent.
+
+Reusing the request's key is the point: a test of a handler is held to the time the handler gets in
+production, and one setting says it for both. The override is per test because a slow test is a fact
+about that test, not about the run.
+
+- **Memory:** one deadline per test in flight, the same one a request carries.
+
+**Not on disk.** `#[Test]`'s option roster has no `timeout` (`crates/nvs-types/src/testing.rs:231`).
+
+**Declined:**
+- **A run-wide `--timeout` flag.** It is a second setting for what `[limits] wall_time` already says,
+  and it would hold a fast test and a slow one to one number.
+- **A default limit for tests when none is written.** A test that is meant to be slow would fail on a
+  number nobody chose, and `nvs run` has no default either.
+
+<sub>See also [`testing/test-attribute`](testing.md#testing-test-attribute), [`testing/runner-is-strict`](testing.md#testing-runner-is-strict), [`errors/on-limit`](errors.md#errors-on-limit).</sub>
+
+<a id="testing-tags-and-shards-select-what-runs"></a>
+
+## `#[Test(tags: [...])]` labels a test, `--tag`/`--skip-tag` select by label, and `--shard N/M` runs one of M stable disjoint parts  *(designed — owned by goal test-surface)*
+
+`rule:testing/tags-and-shards-select-what-runs`
+
+`#[Test(tags: ["slow", "db"])]` labels a test, `--tag` and `--skip-tag` select by label, and
+`--shard N/M` runs the Nth of M disjoint parts of the selection.
+
+A tag is a string, and a test may carry any number of them. `--tag slow` runs only the tests that carry
+`slow`, and `--skip-tag slow` leaves them out. Both flags may be repeated: a test runs when it carries
+at least one `--tag` label, or when no `--tag` is given, and when it carries no `--skip-tag` label. They
+combine with `--filter`, and a test must pass every one. The compiler checks that each tag is a string
+literal, and nothing more: the set of tags is the program's own.
+
+`--shard 2/4` splits the selected tests into four parts and runs the second. A test's part is a hash of
+its `Class::method` name, a data row going with its test, so the parts do not change when another test
+is added or removed, and four machines that each run one part run every selected test exactly once. A
+`.nvst` case's part is a hash of its path. The parts are disjoint and together they are the whole
+selection. They are not balanced by run time.
+
+The summary says how many tests the selection left out, so a run that selected nothing is visible as
+one.
+
+- **Memory:** nothing per test beyond its list of tags, held in the test table while compiling.
+
+**Not on disk.** `#[Test]`'s option roster has no `tags` (`crates/nvs-types/src/testing.rs:231`), and
+`nvs test` has no `--tag`, `--skip-tag` or `--shard` (`crates/nvs-cli/src/main.rs:574`).
+
+**Declined:**
+- **Shards balanced by recorded run time.** It needs a timing file every machine reads, and a part
+  would change whenever the timings do, so two runs of one commit could split differently.
+- **Shards by position in declaration order.** Adding one test would move every test after it to
+  another part.
+- **A closed list of tags declared somewhere.** A typo in a tag selects nothing, and the summary's count
+  shows it. A roster would be a second place to edit for every new label.
+
+<sub>See also [`testing/test-attribute`](testing.md#testing-test-attribute), [`testing/tests-run-across-every-core`](testing.md#testing-tests-run-across-every-core), [`testing/report-formats`](testing.md#testing-report-formats).</sub>
+
+<a id="testing-a-run-can-stop-early-rerun-failures-and-shuffle"></a>
+
+## `--fail-fast` stops starting tests after a failure, `--rerun-failed` runs the last run's failures, and `--shuffle` randomises start order with a printed seed  *(designed — owned by goal test-surface)*
+
+`rule:testing/a-run-can-stop-early-rerun-failures-and-shuffle`
+
+`nvs test --fail-fast` stops starting tests after the first failure, `--rerun-failed` runs only the
+tests the last run failed, and `--shuffle` starts tests in a random order and prints the seed.
+
+**`--fail-fast`.** After the first test fails, no new test starts. Tests already running finish and
+are reported, and the summary counts the tests that never started as not run. A flaky test is not a
+failure ([`testing/runner-is-strict`](testing.md#testing-runner-is-strict)), so it does not stop the run. The exit status is the failed
+run's.
+
+**`--rerun-failed`.** Every run of a program writes the names of its failed tests to a small file in the
+data folder, keyed by the program's entry path. `--rerun-failed` runs exactly those tests, and a later
+run overwrites the file. When the last run failed nothing, or no run was recorded, it runs the whole
+selection and says so in its first line. It combines with `--filter` and the tag flags
+([`testing/tags-and-shards-select-what-runs`](testing.md#testing-tags-and-shards-select-what-runs)), which narrow it further.
+
+**`--shuffle`.** Tests start in an order drawn from a seed, and the summary prints the seed.
+`--shuffle=<seed>` repeats that order. Report order stays declaration order
+([`testing/runner-is-strict`](testing.md#testing-runner-is-strict)), so a shuffled run and a plain one print the same report when both
+pass. Every test runs in its own isolate ([`testing/isolate-per-test`](testing.md#testing-isolate-per-test)), so a random order finds
+nothing inside the program. It finds what two tests share outside it, a database or a file, which
+[`testing/tests-run-across-every-core`](testing.md#testing-tests-run-across-every-core) leaves to the program to keep apart. `--shuffle` is off by
+default.
+
+- **Memory:** the failed-test file is one line per failed test, on disk. Nothing per test in flight.
+
+**Not on disk.** `nvs test` has none of the three flags (`crates/nvs-cli/src/main.rs:574`).
+
+**Declined:**
+- **Shuffling by default.** A run that changes order on its own makes a shared-state failure look like
+  a flaky test, and a developer who did not ask for it has no seed in mind to repeat it.
+- **The failed-test file in the project folder.** It would appear in every working tree and in
+  `git status`, for a fact about one machine's last run.
+- **A `--fail-fast` that kills tests already running.** Their result is already being paid for, and a
+  killed test would report nothing useful.
+
+<sub>See also [`testing/runner-is-strict`](testing.md#testing-runner-is-strict), [`testing/tests-run-across-every-core`](testing.md#testing-tests-run-across-every-core), [`testing/tags-and-shards-select-what-runs`](testing.md#testing-tags-and-shards-select-what-runs).</sub>
+
+<a id="testing-watch-reruns-on-an-edit"></a>
+
+## `nvs test --watch` reruns the selection each time a file the program requires changes  *(designed — owned by goal test-surface)*
+
+`rule:testing/watch-reruns-on-an-edit`
+
+`nvs test --watch` runs the selected tests, then runs them again each time a file the program
+requires changes, until it is interrupted.
+
+The change is found by the same background check that brings an edit to a running `nvs run` or
+`nvs serve` ([`config/an-edit-reaches-the-next-request-without-a-restart`](config.md#config-an-edit-reaches-the-next-request-without-a-restart)), so `--watch` adds no
+second file watcher and sees exactly the files a compile reads. Every pass recompiles what changed and
+runs the whole selection: `--filter`, the tag flags and `--rerun-failed` apply to each pass. A pass
+that does not compile prints its diagnostics and waits for the next change. A change that arrives while
+a pass runs starts the next pass when this one ends, never in the middle of it.
+
+`--watch` runs a program's `#[Test]` methods. It is refused with `--list` and `--update`, which do one
+thing and stop, and with a machine format, whose one document per run a consumer reads once. A `.nvst`
+tree is not a program and has no require graph to watch, so naming one with `--watch` is refused.
+
+- **Memory:** the compiled program between passes, which the background check already holds for
+  `nvs run`. Each pass's tests are released when the pass is reported.
+
+**Not on disk.** `nvs test` has no `--watch` (`crates/nvs-cli/src/main.rs:574`). The background check
+is `crates/nvs-cli/src/script.rs:1501`.
+
+**Declined:**
+- **Running only the tests a change reaches.** It needs a map from every line to the tests that reach
+  it, which only a coverage run builds, and a wrong map skips a test that should have failed.
+- **A watcher of its own over the project folder.** It would see files the program never reads, and
+  miss none the background check misses.
+
+<sub>See also [`config/an-edit-reaches-the-next-request-without-a-restart`](config.md#config-an-edit-reaches-the-next-request-without-a-restart), [`testing/a-run-can-stop-early-rerun-failures-and-shuffle`](testing.md#testing-a-run-can-stop-early-rerun-failures-and-shuffle).</sub>
+
 <a id="testing-data-rows"></a>
 
 ## `#[TestWith]` is matched against the parameters by name and by type, and each row is its own case
@@ -728,7 +881,7 @@ surface, and a table that pretended to them would be asserting its own implement
 
 <a id="testing-property-testing"></a>
 
-## `#[Property]` derives its generators from the parameters' declared types  *(designed — owned by M10)*
+## `#[Property]` derives its generators from the parameters' declared types  *(designed — owned by goal test-surface)*
 
 `rule:testing/property-testing`
 
@@ -743,7 +896,7 @@ A failure shrinks to a minimal counterexample and reports the seed that reproduc
 `string` is valid UTF-8 including combining marks and grapheme clusters, because that is what a
 `string` is — a property that only holds for ASCII is a property that is not true.
 
-**Not on disk.** `#[Property]` is not a recognised attribute (`crates/nvs-types/src/derive.rs:71`), and
+**Not on disk.** `#[Property]` is not a recognised attribute (`crates/nvs-types/src/derive.rs:73`), and
 nothing derives a generator or shrinks a counterexample.
 
 <sub>See also [`testing/data-rows`](testing.md#testing-data-rows), [`testing/assertions-are-typed`](testing.md#testing-assertions-are-typed).</sub>
@@ -821,9 +974,11 @@ in every summary, and the element CI systems already read as "passed, but it fla
 failure is retried: a skip never ran, and an `exit(n)` ended the program rather than the test. A
 flaky test does not fail the run — what this takes away is the silence, not the green build.
 
-Report order is **declaration order**, even though execution is unordered. Total isolation makes
-execution order semantically irrelevant, so nothing is bought by randomizing it and stable output is
-worth a great deal.
+Report order is **declaration order**, even though execution is unordered, because stable output is
+worth a great deal. Total isolation makes execution order irrelevant inside the program. What a random
+start order can still find is state two tests share outside it, and
+[`testing/a-run-can-stop-early-rerun-failures-and-shuffle`](testing.md#testing-a-run-can-stop-early-rerun-failures-and-shuffle) shuffles the start order without
+changing the report's.
 
 <sub>See also [`testing/failure-ledger`](testing.md#testing-failure-ledger), [`testing/report-formats`](testing.md#testing-report-formats), [`testing/task-tree-and-virtual-clock`](testing.md#testing-task-tree-and-virtual-clock), [`testing/db-transaction`](testing.md#testing-db-transaction).</sub>
 

@@ -1,0 +1,10 @@
+{
+  "title": "`nvs test --watch` reruns the selection each time a file the program requires changes",
+  "status": "designed",
+  "seeAlso": [
+    "config/an-edit-reaches-the-next-request-without-a-restart",
+    "testing/a-run-can-stop-early-rerun-failures-and-shuffle"
+  ],
+  "guardedBy": [],
+  "goal": "test-surface"
+}

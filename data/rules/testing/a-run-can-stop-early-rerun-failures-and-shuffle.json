@@ -1,0 +1,11 @@
+{
+  "title": "`--fail-fast` stops starting tests after a failure, `--rerun-failed` runs the last run's failures, and `--shuffle` randomises start order with a printed seed",
+  "status": "designed",
+  "seeAlso": [
+    "testing/runner-is-strict",
+    "testing/tests-run-across-every-core",
+    "testing/tags-and-shards-select-what-runs"
+  ],
+  "guardedBy": [],
+  "goal": "test-surface"
+}

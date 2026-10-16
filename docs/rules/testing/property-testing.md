@@ -9,5 +9,5 @@ A failure shrinks to a minimal counterexample and reports the seed that reproduc
 `string` is valid UTF-8 including combining marks and grapheme clusters, because that is what a
 `string` is — a property that only holds for ASCII is a property that is not true.
 
-**Not on disk.** `#[Property]` is not a recognised attribute (`crates/nvs-types/src/derive.rs:71`), and
+**Not on disk.** `#[Property]` is not a recognised attribute (`crates/nvs-types/src/derive.rs:73`), and
 nothing derives a generator or shrinks a counterexample.
