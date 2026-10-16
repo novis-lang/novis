@@ -6,8 +6,8 @@ context: [tools/nv/cmd/owners.ts, data/schema/gap.schema.json, docs/rules/progra
 stages:
   - id: 1
     title: "a write through `mixed` checks the declared type"
-    status: open
-    context: [crates/nvs-runtime/src/object.rs, docs/rules/types/erased-member-access.md, data/gaps/nvs-runtime/a-write-through-mixed-skips-the-element-and-shape-check.json]
+    status: done
+    context: [crates/nvs-runtime/src/object.rs, docs/rules/types/erased-member-access.md, data/gaps/nvs-runtime/a-wider-shape-view-writes-an-object-of-the-wrong-class.json]
     extra:
       context:
         rules: [types/erased-member-access]
@@ -171,9 +171,9 @@ what it spends, as `rule:programs/memory-priority` asks.
 **Does:** an erased write into an `array<Class>`, a shape or a union-typed property is checked
 against the declared type before it stores, so no typed read can see an object of the wrong class.
 
-- [ ] `write_erased_property` checks the element type of an `array<T>` slot, the field classes of a shape slot and every class arm of a union. `crates/nvs-runtime/src/object.rs:5224`
-- [ ] A conformance case per shape of write, with `Kennel`/`Dog`/`Animal`, asserting the throw. `docs/rules/types/erased-member-access.md:1`
-- [ ] The module doc's "what a tag does not catch" list is rewritten from what is left, without the false "no memory-safety edge" sentence. `crates/nvs-runtime/src/object.rs:168`
+- [x] `write_erased_property` checks the element type of an `array<T>` slot, the field classes of a shape slot and every class arm of a union. `crates/nvs-runtime/src/object.rs:5224`
+- [x] A conformance case per shape of write, with `Kennel`/`Dog`/`Animal`, asserting the throw. `docs/rules/types/erased-member-access.md:1`
+- [x] The module doc's "what a tag does not catch" list is rewritten from what is left, without the false "no memory-safety edge" sentence. `crates/nvs-runtime/src/object.rs:168`
 
 ### 2. a request head has one deadline for the whole head
 
@@ -299,33 +299,36 @@ work cannot live only in prose again.
 
 ### State
 
-The goal is new and nothing is built. Each of the 27 audit holes is a gap record naming this goal,
-and so is each of the four holes `docs/reference/findings.md`'s re-check confirmed (U7, U9, U13,
-D29, in stages 3, 12, 11 and 8); `bun nv owners` lists them. The extension byte-crossing gap and the two designed rules it
-blocks (`rule:packaging/values-cross-as-handles`, `rule:core-classes/image-pipeline`) moved here
-from M9. `bun nv owners --check` accepts a gap owned by a goal further down the chain.
+Stage 1 is done. A declared class's slot carries its whole declared type as a `SlotCheck`
+(`ClassDesc::field_checks`), built by `slot_check` in `crates/nvs-ir/src/lower/mod.rs` and walked by
+`write_erased_property`. `a-property-write-through-a-mixed-receiver-checks-the-whole-declared-type.nvst`
+pins every write shape. Its gap record is deleted.
 
-The nightly's failures are triaged. It tested `cb7021a24` because GitHub's `main` stops at
-`e110c9c0b`, and everything after that is unpushed. At `e110c9c0b` lint, supply chain and the Linux
-tests pass. Unpushed commits fix the `docs` job (`69e3ee6a1`), the website (`1eb5fb3a1`), the
-five-driver matrix (`460a68396`) and Windows LDAP (`bad78dd04`). The macOS and Windows test legs ran
-out of their 60 minutes on a cold cache, which a cut-off job never saves, so the limit is now 90
-(`.github/workflows/ci.yml:120`). The `proofs` jobs are proof debt, in the backlog.
+Stage 1 found a second memory-safety hole, recorded as
+`data/gaps/nvs-runtime/a-wider-shape-view-writes-an-object-of-the-wrong-class.json`. A statically
+typed `{pet: Animal}` view of a `{pet: Dog}` anonymous object writes an `Animal`, and the narrow
+view's read prints garbage. No erased receiver is involved. **This is a question for the user:**
+make a shape's mutable fields invariant in the checker, carry a declared type per anonymous object
+at run time, or refuse a write through a view wider than the value's own. The record stays open
+until they choose.
+
+The nightly still tests `e110c9c0b`, GitHub's `main`, which is 108 commits behind the local one. The
+previous handoff's triage of its failures stands until the user pushes.
 
 ### Next
 
-**Stage 1, the memory-safety bug.** Files: `crates/nvs-runtime/src/object.rs` and its conformance
-cases. A declared class's slot classes are already in `ClassDesc::field_classes`
-(`crates/nvs-runtime/src/object.rs:175`). Whether anything at run time carries an `array<T>` slot's
-element class is not checked. Find that first, because a new descriptor field is the slice's real
-cost.
+**Stage 2, the whole-head deadline.** Files: `crates/nvs-server/src/io.rs`,
+`crates/nvs-config/src/default.toml` and `docs/rules/http-server/four-idle-waits-all-finite.md`.
+The standing decision words the design in full.
 
-- [ ] `write_erased_property` checks an `array<T>` slot's elements, a shape slot's field classes and a union's class arms before it stores (`rule:types/erased-member-access`). `crates/nvs-runtime/src/object.rs:5224`
-- [ ] A conformance case per write shape, asserting the throw. `docs/rules/types/erased-member-access.md:1`
-- [ ] The module doc's list is rewritten from what is left. `crates/nvs-runtime/src/object.rs:168`
+- [ ] `arm` keeps the head phase's deadline when bytes arrive, and sets it when the head starts (`rule:http-server/four-idle-waits-all-finite`). `crates/nvs-server/src/io.rs:309`, `crates/nvs-server/src/io.rs:417`
+- [ ] A test feeds a head one byte at a time and is closed at the deadline. `crates/nvs-server/src/io.rs:46`
+- [ ] The module doc, the default file's comment and the rule say three idle waits and one total (`rule:http-server/a-streamed-reply-is-bounded-by-idle-and-a-lifetime`). `crates/nvs-config/src/default.toml:536`, `docs/rules/http-server/four-idle-waits-all-finite.md:1`
 
 ### Backlog
 
+- The wider-shape-view hole waits on the user's choice (`data/gaps/nvs-runtime/a-wider-shape-view-writes-an-object-of-the-wrong-class.json`).
+- `test_request_dispatches_in_process_through_the_compiled_route_table` once returned an empty body under the full verify's load and passed alone; the cause is not found (`crates/nvs-cli/src/runner.rs:3410`).
 - Many module docs still carry numbered or prose "known gap" text with no record; stage 14's scan finds them (`tools/nv/cmd/owners.ts:225`).
 - Proof debt fails CI's `proofs` jobs: perf records gone stale by edits to their implementation files, which `bun nv benches --owed` re-measures, and the `Core\Test\Outcome`/`Summary` proofs (`bun nv proofs --owed`). The user pushes `main`, so the nightly tests the current tree (`.github/workflows/ci.yml:1`).
 - `Markup + Markup` in place is a decision for the user (`docs/perf/performance-pass.md:258`).
