@@ -528,6 +528,15 @@ impl SafepointView {
             .load(std::sync::atomic::Ordering::Relaxed)
     }
 
+    /// The instant the request's `wall_time` runs out, counted from the
+    /// request's start, or `None` for a request with none. Read again after
+    /// each wake [`Self::watch_wall_time`] files, since `Core\Config::set` moves
+    /// it.
+    #[must_use]
+    pub fn wall_deadline(&self) -> Option<std::time::Instant> {
+        self.tree.wall_deadline()
+    }
+
     /// Files `wake` to be called once, the next time the request's
     /// `wall_time` moves, in place of any wake filed before it.
     pub fn watch_wall_time(&self, wake: Box<dyn FnOnce() + Send>) {
@@ -594,6 +603,11 @@ pub struct TreeState {
     /// takes it back after. Empty for every request whose client stays, so
     /// nothing locks it on the request path.
     pub(super) wall_time_watch: WallTimeWatch,
+    /// When the request this tree answers started, which is where its
+    /// [`Self::wall_time`] is counted from: a served request's tree is made
+    /// fresh by [`Ctx::reroot`] in front of it, and a `nvs run`'s with its
+    /// first context.
+    pub(super) started: Started,
     /// What [`crate::extension`]'s host keeps for this request — the
     /// extension instances its calls made, and the resources they returned —
     /// set at its first call into an extension and dropped with the tree,
@@ -633,6 +647,31 @@ impl TreeState {
     #[must_use]
     pub fn extensions(&self) -> &std::sync::OnceLock<Box<dyn std::any::Any + Send + Sync>> {
         &self.extensions
+    }
+}
+
+/// [`TreeState::started`]: the instant the tree was made, which is what its
+/// `Default` reads.
+#[derive(Debug)]
+pub(super) struct Started(std::time::Instant);
+
+impl Default for Started {
+    fn default() -> Self {
+        Self(std::time::Instant::now())
+    }
+}
+
+impl TreeState {
+    /// The instant the request's `[limits] wall_time` runs out, or `None` for a
+    /// request with none.
+    pub(super) fn wall_deadline(&self) -> Option<std::time::Instant> {
+        match self.wall_time.load(std::sync::atomic::Ordering::Relaxed) {
+            0 => None,
+            nanos => self
+                .started
+                .0
+                .checked_add(std::time::Duration::from_nanos(nanos)),
+        }
     }
 }
 
@@ -746,6 +785,14 @@ pub unsafe extern "C" fn nvs_safepoint(ctx: *mut Ctx) -> i32 {
         ctx.set_pending("the request exceeded its CPU-time limit");
         return crate::FATAL;
     }
+    if ctx.safepoint_flags().contains(SafepointFlags::WALL_TIME) {
+        // The CPU branch's two lines in the same order. `Ctx::run_limit_handler`
+        // lowers this flag for the handler's call, and the clock that raised it
+        // raises it again one reserve later.
+        ctx.run_limit_handler(Limit::WallTime);
+        ctx.set_pending(ctx.wall_time_message());
+        return crate::FATAL;
+    }
     // Ahead of the memory branch below, which is the whole point of it: the
     // flag was raised by the allocation that crossed
     // `rule:errors/on-limit`'s ceiling, and reclaiming the cyclic garbage
@@ -809,15 +856,20 @@ pub unsafe extern "C" fn nvs_safepoint(ctx: *mut Ctx) -> i32 {
         ctx.run_shutdown_handler();
     }
     // Reached only by a request that is under every ceiling it has, so the
-    // memory bit is lowered with the two housekeeping ones: a request whose
-    // allocation crossed the ceiling and whose release brought it back again
-    // would otherwise take this slow path at every back edge it has left, for a
-    // breach the branch above has already declined to report. The collect bit
+    // memory and output bits are lowered with the two housekeeping ones: a
+    // request whose allocation crossed the ceiling and whose release brought it
+    // back again would otherwise take this slow path at every back edge it has
+    // left, for a breach the branch above has already declined to report. The
+    // output bit raised by a child under a ceiling its parent does not share
+    // is lowered by the same reading. The collect bit
     // is here for the same reading of the same fact — any ask still standing
     // was raised by the walk's own allocations, above a ceiling this request
     // is no longer over.
     ctx.lower_safepoint(
-        SafepointFlags::COLLECT | SafepointFlags::DEBUG_BREAK | SafepointFlags::MEMORY_LIMIT,
+        SafepointFlags::COLLECT
+            | SafepointFlags::DEBUG_BREAK
+            | SafepointFlags::MEMORY_LIMIT
+            | SafepointFlags::OUTPUT_LIMIT,
     );
     crate::OK
 }

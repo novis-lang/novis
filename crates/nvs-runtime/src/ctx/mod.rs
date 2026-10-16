@@ -272,6 +272,20 @@ bitflags::bitflags! {
         /// is what makes the delivery — which is a store in a signal context and
         /// nothing else — reach Novis code at a safepoint.
         const SHUTDOWN = 1 << 4;
+        /// The request has run past its `[limits] wall_time`.
+        ///
+        /// Raised by whoever times the request — `nvs run`'s wall clock — beside
+        /// the expired deadline, for [`SafepointView::expire_deadline`]'s reason:
+        /// the flag stops compiled code at its next poll, and the deadline stops
+        /// a helper loop already running. A sleep is not either, so
+        /// `Core\Time::sleep` reads [`Ctx::wall_time_left`] itself.
+        const WALL_TIME = 1 << 6;
+        /// A write has carried the request past its `[limits] max_output`.
+        ///
+        /// Raised by [`Ctx::write_output`] at the write that crosses the
+        /// ceiling, and like [`Self::MEMORY_LIMIT`] it asks for a poll rather
+        /// than being the verdict: the poll asks [`Ctx::output_breach`].
+        const OUTPUT_LIMIT = 1 << 7;
     }
 }
 
@@ -519,8 +533,9 @@ pub struct Ctx {
     /// one out of `memory` and one out of `cpu_time` because a tier-1 handler
     /// cannot run without allocating and cannot run without taking time. It can
     /// run without writing, and nothing refuses a write in the first place —
-    /// this ceiling is *noticed* at the safepoint poll and never enforced at
-    /// [`Self::write_output`]. So there is no `fatal_reserve_output` for
+    /// [`Self::write_output`] raises [`SafepointFlags::OUTPUT_LIMIT`] at the
+    /// write that crosses it, and the stop is the safepoint poll's. So there is
+    /// no `fatal_reserve_output` for
     /// [`Self::refresh_limits`] to carve, and this one field is the whole of
     /// what the directive becomes.
     ///
@@ -1778,10 +1793,10 @@ pub const STACK_RESERVE: usize = 256 << 10;
 /// written. What it spends is two allocations out of § 1's reserved slice, once
 /// per request that both registers a handler and is stopped.
 ///
-/// **A variant per enforced limit.** § 1 lists more than these; wall time and
-/// call-stack depth each gain a variant in the slice that gives them a breach
-/// to report, since a variant nothing can produce is a word in this report's
-/// vocabulary that no handler could see.
+/// **A variant per enforced limit.** § 1 lists more than these; call-stack
+/// depth gains a variant in the slice that gives it a breach to report, since a
+/// variant nothing can produce is a word in this report's vocabulary that no
+/// handler could see.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Limit {
     /// `[limits] memory`, reached at a helper boundary ([`crate::run_helper`])
@@ -1802,6 +1817,10 @@ pub enum Limit {
     /// than the ceiling allows. Like [`Self::ScriptDepth`] it is asked once, at
     /// the spawn, by [`Ctx::claim_task`].
     Tasks,
+    /// `[limits] wall_time`, reached at the safepoint poll under
+    /// [`SafepointFlags::WALL_TIME`], or by `Core\Time::sleep` where the sleep
+    /// would end past it ([`Ctx::wall_time_breach`]).
+    WallTime,
 }
 
 impl Limit {
@@ -1819,6 +1838,7 @@ impl Limit {
             Self::Output => "max_output",
             Self::ScriptDepth => "max_script_depth",
             Self::Tasks => "max_tasks",
+            Self::WallTime => "wall_time",
         }
     }
 }

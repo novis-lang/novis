@@ -133,12 +133,14 @@ its entry says what closed it.
       `commands.rs`'s `check_command_shape`, worded from what the declaration did as the `#[Test]` and
       `#[Fixture]` shape refusals are. A method writing no return type at all is left to the diagnostic
       that already refuses that, rather than told it returns the `mixed` it never wrote.
-- [ ] **U7** Under `nvs run` `[limits] wall_time` and `max_output` are not enforced: `wall_time = "1s"`
+- [x] **U7** Under `nvs run` `[limits] wall_time` and `max_output` are not enforced: `wall_time = "1s"`
       with an infinite loop ran past 60 s, `max_output = "10"` let 28 bytes through.
-      `Core\Fatal::onLimit`'s card lists both. `cpu_time` is enforced, pinned by
-      `tests/conformance/error/a-loop-that-allocates-nothing-is-stopped-by-the-cpu-ceiling.nvst`.
-      *refp/wall, refp/out* Open as
-      `data/gaps/nvs-cli/wall-time-and-max-output-are-not-enforced-under-nvs-run.json`.
+      *refp/wall, refp/out* A run now stops at its `wall_time`, looping or sleeping, and at the first
+      write past `max_output`, each with its limit report, pinned by
+      `tests/conformance/config/wall-time-*.nvst` and
+      `tests/conformance/config/max-output-stops-a-loop-at-the-write-that-crosses-it.nvst`. The served
+      path's wall time is open as
+      `data/gaps/nvs-server/a-served-request-is-not-stopped-at-its-wall-time.json`.
 - [x] **U8** A memory-limit breach in a **child isolate** is not observed: `[limits] memory = "8M"`
       with a child holding 64 MiB answered `ok = true`. *refp/childmem* — the child's result is now
       `ok = false` with the memory-limit `RuntimeError` as its `error`.

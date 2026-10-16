@@ -1,0 +1,21 @@
+--TEST--
+A `Core\Time::sleep` that would end past `[limits] wall_time` ends when the time runs out, and the request stops with a limit report naming `wall_time` — `rule:errors/on-limit`
+--FILE nvs.toml--
+# The run may take 300 milliseconds from start to end.
+[limits]
+wall_time = "300ms"
+--FILE--
+<?nvs
+Core\Fatal::onLimit(fn (array<string> $report): void => {
+    echo "onLimit ", $report['limit'], "\n";
+});
+
+// The sleep ends when the wall time runs out, so the request stops there.
+echo "sleeping\n";
+Core\Time::sleep(Core\Time\Duration::seconds(30));
+echo "not reached\n";
+--EXPECT--
+sleeping
+onLimit wall_time
+--EXPECT-ERROR--
+FATAL: the request exceeded its wall-time limit of 300ms

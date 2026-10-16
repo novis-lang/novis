@@ -1,0 +1,23 @@
+--TEST--
+A loop that calls nothing is stopped at its `[limits] wall_time` with a limit report naming `wall_time` — `rule:errors/on-limit`
+--FILE nvs.toml--
+# The run may take 300 milliseconds from start to end.
+[limits]
+wall_time = "300ms"
+--FILE--
+<?nvs
+Core\Fatal::onLimit(fn (array<string> $report): void => {
+    echo "onLimit ", $report['limit'], "\n";
+});
+
+// This loop never ends on its own, so the wall time stops it.
+echo "looping\n";
+var $i = 0;
+while (true) {
+    $i = $i + 1;
+}
+--EXPECT--
+looping
+onLimit wall_time
+--EXPECT-ERROR--
+FATAL: the request exceeded its wall-time limit of 300ms

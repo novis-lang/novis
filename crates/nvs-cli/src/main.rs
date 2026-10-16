@@ -162,6 +162,7 @@ mod stop;
 #[cfg(test)]
 mod testing;
 mod tmp;
+mod wall;
 mod worker;
 
 /// The two lines every `nvs --help` opens with: what this program is, then
@@ -3683,9 +3684,12 @@ fn run_run(
         .then(nvs_host::Watchdog::new);
     let watched = watchdog.as_ref().map(|watchdog| {
         let watched = watchdog.register_requests();
-        watched.publish(tree);
+        watched.publish(tree.clone());
         watched
     });
+    // `[limits] wall_time`'s half of the same stop, which the watchdog above
+    // cannot give because it samples CPU time; `wall`'s module doc owns it.
+    let wall_clock = wall::start(tree);
     let ran = nvs_runtime::script::scoped(compiler.as_ref(), || {
         nvs_runtime::inproc::scoped(&under_test, || nvs_host::run_until_idle(&mut sched))
     });
@@ -3695,6 +3699,7 @@ fn run_run(
     // Everything below reads a context nothing is sampling any more.
     drop(watched);
     drop(watchdog);
+    drop(wall_clock);
     drop(installed);
     drop(calling);
     // The last reference, so this ends the request and drops its resources.

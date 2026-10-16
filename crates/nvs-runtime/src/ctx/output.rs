@@ -281,9 +281,16 @@ impl Ctx {
         //
         // Charged whether or not *this* context has a ceiling, because the
         // counter is the thread's and the context holding the ceiling may be a
-        // parent two levels up. The compare is `Ctx::over_output_limit`'s and
-        // happens at the safepoint poll.
+        // parent two levels up. A context over its own ceiling raises the flag
+        // that brings compiled code to its next poll, which is where
+        // `Ctx::output_breach` stops the request. Compiled code reaches that
+        // poll only through a raised flag, so a loop that only echoes would
+        // otherwise write past the ceiling until it ended. An uncapped context
+        // pays one compare.
         crate::budget::wrote(bytes.len());
+        if self.over_output_limit() {
+            self.request_safepoint(SafepointFlags::OUTPUT_LIMIT);
+        }
         write_to(&mut self.output, bytes)
     }
 

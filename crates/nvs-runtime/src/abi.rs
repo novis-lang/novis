@@ -375,6 +375,11 @@ fn deadline_passed(ctx: &Ctx, member: &str) -> Fault {
     if ctx.safepoint_flags().contains(SafepointFlags::CPU_LIMIT) {
         return Fault::fatal(format!("{member}: the request exceeded its CPU-time limit"));
     }
+    if ctx.safepoint_flags().contains(SafepointFlags::WALL_TIME) {
+        return Fault::fatal(format!(
+            "{member}: the request exceeded its wall-time limit"
+        ));
+    }
     Fault::fatal(format!("{member}: the request's deadline passed"))
 }
 

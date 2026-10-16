@@ -713,6 +713,40 @@ impl Ctx {
         }
     }
 
+    /// How long this request has left before its `[limits] wall_time` runs
+    /// out, or `None` for a request with none. `Some(ZERO)` once it has.
+    ///
+    /// Counted from the start of the request this context's tree answers, so a
+    /// `spawn script` child reads its request's time and not its own.
+    /// `Core\Time::sleep` is the reader: a parked task reaches no poll, so a
+    /// sleep that would end past the deadline ends at it instead.
+    #[must_use]
+    pub fn wall_time_left(&self) -> Option<std::time::Duration> {
+        self.tree
+            .wall_deadline()
+            .map(|at| at.saturating_duration_since(std::time::Instant::now()))
+    }
+
+    /// The `FATAL`'s message for a request past its `[limits] wall_time`,
+    /// naming the ceiling as the request has it now.
+    pub(super) fn wall_time_message(&self) -> String {
+        let ceiling = std::time::Duration::from_nanos(
+            self.tree
+                .wall_time
+                .load(std::sync::atomic::Ordering::Relaxed),
+        );
+        format!("the request exceeded its wall-time limit of {ceiling:?}")
+    }
+
+    /// Runs `rule:errors/on-limit`'s handler for a request past its
+    /// `[limits] wall_time`, and gives the [`crate::Fault`] the helper that
+    /// found it returns. The safepoint poll's branch, for a helper:
+    /// `Core\Time::sleep` is the one caller.
+    pub fn wall_time_breach(&mut self) -> crate::Fault {
+        self.run_limit_handler(crate::Limit::WallTime);
+        crate::Fault::fatal(self.wall_time_message())
+    }
+
     /// The CPU time this request may burn, in nanoseconds, or `0` for one under
     /// no cap — `rule:errors/on-limit`.
     ///

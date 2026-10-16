@@ -594,6 +594,17 @@ impl Ctx {
         if stopped_for_cpu {
             self.lower_safepoint(SafepointFlags::CPU_LIMIT);
         }
+        // The wall-time and output halves, for the CPU flag's reason: the
+        // handler is a function, and its entry is a poll either flag would stop
+        // it at. What bounds the wall-time slice is the clock that raised the
+        // flag, which raises it again one reserve later (`nvs run`'s `wall`
+        // module). The output flag is raised again by the handler's own first
+        // write, since the request is still over its ceiling.
+        let stopped_for_wall = self.safepoint_flags().contains(SafepointFlags::WALL_TIME);
+        let stopped_for_output = self
+            .safepoint_flags()
+            .contains(SafepointFlags::OUTPUT_LIMIT);
+        self.lower_safepoint(SafepointFlags::WALL_TIME | SafepointFlags::OUTPUT_LIMIT);
         // Built here rather than by either caller, and *after* the reserve is
         // in force: it allocates, and a report the ladder could not afford to
         // build would be a tier that says nothing for the same reason a handler
@@ -618,6 +629,12 @@ impl Ctx {
         self.fatal_reserve_time = cpu_reserve;
         if stopped_for_cpu {
             self.request_safepoint(SafepointFlags::CPU_LIMIT);
+        }
+        if stopped_for_wall {
+            self.request_safepoint(SafepointFlags::WALL_TIME);
+        }
+        if stopped_for_output {
+            self.request_safepoint(SafepointFlags::OUTPUT_LIMIT);
         }
         // SAFETY: the slot held one owned reference, which this frame now
         // holds; `call_callable` took its own of every slot for the callee to
