@@ -1,0 +1,44 @@
+<?nvs
+// `rule:testing/after-each-test`'s hook removing a real file: each test writes
+// one into the folder `io.temp_root` names, and the hook deletes it after the
+// test, whether the test passed or failed. The runner's test reads the folder
+// afterwards and finds it empty.
+//
+// `crates/nvs-cli/src/runner.rs`'s own tests are the only reader of this file,
+// and they build the configuration: a fixture has no `nvs.toml` beside it.
+use Core\Config;
+use Core\IO;
+use Core\Path;
+use Core\Test;
+use Core\Test\AfterEachTest;
+
+final class ScratchFileTest {
+    public string $file = "";
+
+    public function constructor() {
+        string $folder = Config::get("io.temp_root") ?? "";
+        Test::assertTrue($folder != "");
+        $this->file = $folder;
+    }
+
+    #[Test]
+    public function itWritesAFile(): void {
+        $this->file = Path::join($this->file, "passed.txt");
+        IO::write($this->file, "written by a passing test\n");
+        Test::assertTrue(IO::exists($this->file));
+    }
+
+    #[Test]
+    public function itWritesAFileAndFails(): void {
+        $this->file = Path::join($this->file, "failed.txt");
+        IO::write($this->file, "written by a failing test\n");
+        Test::assertTrue(IO::exists($this->file));
+        Test::assertSame(1, 2);
+    }
+
+    #[AfterEachTest]
+    public function removeTheFile(): void {
+        IO::remove($this->file);
+        Test::assertTrue(!IO::exists($this->file));
+    }
+}

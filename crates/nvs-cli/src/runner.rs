@@ -3517,6 +3517,31 @@ mod tests {
         })
     }
 
+    /// A context whose configuration is `block` as `[db.test]`, and the grant
+    /// to connect to it.
+    ///
+    /// `rule:core-classes/db-capabilities`'s grant, for the one name the
+    /// fixtures open. `net.*` is not granted beside it: a `[db.<name>]`
+    /// endpoint is operator-written and so is pre-approved against
+    /// `rule:http-server/allow-url-pins-the-address`'s denied ranges
+    /// (`nvs_config::tree::CapDb`), and a test that granted both could not tell
+    /// which of the two the connection went through.
+    fn connecting_to(block: nvs_config::tree::Database) -> nvs_runtime::Ctx {
+        let mut snapshot = nvs_config::Snapshot::default();
+        snapshot.config.capabilities = Some(nvs_config::tree::Capabilities {
+            db: Some(nvs_config::tree::CapDb {
+                connect: Some(nvs_config::tree::Setting::List(vec!["test".into()])),
+                open: None,
+                schema: None,
+            }),
+            ..nvs_config::tree::Capabilities::default()
+        });
+        snapshot.config.db.insert("test".to_owned(), block);
+        let mut ctx = nvs_runtime::Ctx::new(nvs_runtime::OutputSink::Buffer(Vec::new()));
+        ctx.set_config(std::sync::Arc::new(snapshot));
+        ctx
+    }
+
     #[test]
     fn a_test_with_db_runs_inside_a_transaction_that_is_rolled_back() {
         // `rule:testing/db-transaction`, and the crate that can assert it is this one for the
@@ -3544,28 +3569,16 @@ mod tests {
             );
             return;
         };
-        let mut snapshot = nvs_config::Snapshot::default();
-        // `rule:core-classes/db-capabilities`'s grant, for the one name the fixture opens. `net.*` is
-        // deliberately not granted beside it: a `[db.<name>]` endpoint is
-        // operator-written and so is pre-approved against `rule:http-server/allow-url-pins-the-address`'s denied
-        // ranges (`nvs_config::tree::CapDb`), and a test that granted both could
-        // not tell which of the two the connection went through.
-        snapshot.config.capabilities = Some(nvs_config::tree::Capabilities {
-            db: Some(nvs_config::tree::CapDb {
-                connect: Some(nvs_config::tree::Setting::List(vec!["test".into()])),
-                open: None,
-                schema: None,
-            }),
-            ..nvs_config::tree::Capabilities::default()
-        });
-        snapshot.config.db.insert("test".to_owned(), block);
-        let mut ctx = nvs_runtime::Ctx::new(nvs_runtime::OutputSink::Buffer(Vec::new()));
-        ctx.set_config(std::sync::Arc::new(snapshot));
         let one_at_a_time = Shape {
             jobs: 1,
             ..collected()
         };
-        let verdicts = verdicts_on(&fixture("db-transaction.nvs"), ctx, None, one_at_a_time);
+        let verdicts = verdicts_on(
+            &fixture("db-transaction.nvs"),
+            connecting_to(block),
+            None,
+            one_at_a_time,
+        );
         assert_eq!(
             verdicts
                 .iter()
@@ -3582,6 +3595,124 @@ mod tests {
                 .iter()
                 .flat_map(|(_, _, failures)| failures.clone())
                 .collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn a_hook_seeds_a_table_before_the_tests_and_drops_it_after_them() {
+        // `rule:testing/class-hooks` over the compose PostgreSQL: the setup's
+        // effect lives outside every isolate, which is what the hooks exist for.
+        // Two runs of one fixture. The first is the class: `#[BeforeClass]`
+        // creates and seeds the table, both tests read the seeded rows (one
+        // after writing a row its transaction rolls back), and `#[AfterClass]`
+        // drops it. The second asks the database whether the table is still
+        // there. A hook that never ran fails the first run, and an
+        // `#[AfterClass]` that never ran fails the second.
+        let Some(block) = compose_postgres() else {
+            eprintln!(
+                "skipped: no PostgreSQL on 127.0.0.1:15432, or no `tests/db/ca.crt` — \
+                 `docker compose -f tests/db/compose.yaml up -d --wait` is what this needs"
+            );
+            return;
+        };
+        let path = fixture("class-hooks-seed-and-drop-a-table.nvs");
+        let class = verdicts_on(
+            &path,
+            connecting_to(block.clone()),
+            Some("SeededTableTest::"),
+            collected(),
+        );
+        assert_eq!(
+            class
+                .iter()
+                .map(|(method, verdict, _)| (method.as_str(), *verdict))
+                .collect::<Vec<_>>(),
+            vec![
+                ("itReadsTheSeededRows", "passed"),
+                ("itWritesARowThatIsRolledBack", "passed"),
+            ],
+            "failures: {:?}",
+            class
+                .iter()
+                .flat_map(|(_, _, failures)| failures.clone())
+                .collect::<Vec<_>>()
+        );
+        let after = verdicts_on(
+            &path,
+            connecting_to(block),
+            Some("TableIsGoneTest::"),
+            collected(),
+        );
+        assert_eq!(
+            after
+                .iter()
+                .map(|(method, verdict, _)| (method.as_str(), *verdict))
+                .collect::<Vec<_>>(),
+            vec![("itFindsNoTable", "passed")],
+            "`#[AfterClass]` dropped the table: {:?}",
+            after
+                .iter()
+                .flat_map(|(_, _, failures)| failures.clone())
+                .collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn a_hook_removes_the_file_each_test_wrote() {
+        // `rule:testing/after-each-test` over a real file. Each test writes one
+        // into a folder of this case's own and asserts it is there; the hook
+        // deletes it after the test, and one of the two tests fails on purpose,
+        // because the hook runs after a failed attempt as well. The folder is
+        // empty afterwards only if the hook ran after both.
+        //
+        // The fixture has no `nvs.toml`, so the configuration is written here:
+        // `fs.*` for the folder, under the program's grants as the rule says,
+        // and `io.temp_root` naming it, which is the key the fixture reads.
+        let scratch = nvs_repo::scratch("runner-after-each-test");
+        // Canonical, because a grant's roots are compared against the
+        // canonical path a door is asked about, and a resolve would have
+        // written them that way.
+        let folder = nvs_config::trust::canonical(&scratch).expect("the folder is there");
+        let folder = folder.to_string_lossy();
+        let written = format!(
+            "[capabilities.fs]\nread = ['{folder}']\nwrite = ['{folder}']\n\n\
+             [io]\ntemp_root = '{folder}'\n"
+        );
+        let table: toml::Table = written.parse().expect("the case writes valid TOML");
+        let snapshot = nvs_config::Snapshot {
+            config: table
+                .clone()
+                .try_into()
+                .expect("the case writes a block this tree has"),
+            table,
+            ..Default::default()
+        };
+        let mut ctx = nvs_runtime::Ctx::new(nvs_runtime::OutputSink::Buffer(Vec::new()));
+        ctx.set_config(std::sync::Arc::new(snapshot));
+        let verdicts = verdicts_on(
+            &fixture("after-each-test-removes-a-file.nvs"),
+            ctx,
+            None,
+            collected(),
+        );
+        assert_eq!(
+            verdicts
+                .iter()
+                .map(|(method, verdict, failures)| (method.as_str(), *verdict, failures.len()))
+                .collect::<Vec<_>>(),
+            vec![
+                ("itWritesAFile", "passed", 0),
+                ("itWritesAFileAndFails", "failed", 1),
+            ],
+            "the failing test fails its own assertion and nothing else: {verdicts:?}"
+        );
+        let left: Vec<_> = std::fs::read_dir(&*scratch)
+            .expect("the folder is still there")
+            .map(|entry| entry.expect("the folder can be listed").file_name())
+            .collect();
+        assert!(
+            left.is_empty(),
+            "`#[AfterEachTest]` removed the file each test wrote, and {left:?} is left"
         );
     }
 
