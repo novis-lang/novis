@@ -68,7 +68,7 @@ runs the benches and no tests. It is test code under `rule:testing/tests-never-r
 `gc=<cycles>` after `bytes`, so `tools/nv/proofs/perf.ts:49`, which matches from the start of the line,
 keeps reading the four it reads today.
 
-**Two `nvs test` flags select the tested configurations.** The planning session's call. A flag that
+**Two `nvs test` flags select the tested configurations.** The user decided this. A flag that
 turns every probe bit on for each case, and one that picks Cranelift's optimisation level, both named in
 `rule:testing/probes-on-is-a-tested-configuration` before the code. They are flags because the CI lane
 runs the built binary, and a flag is visible in `nvs test --help` where an environment variable is not.

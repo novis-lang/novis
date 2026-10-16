@@ -5,8 +5,9 @@ finalized Testing API and its `FileCoverage` model — per-file statement, branc
 from the Clover/lcov exporters `nvs test` already produces (`rule:testing/debug-probes`,
 `rule:testing/report-formats`) — and VS Code's own gutter and summary UI shows it; no gutter renderer
 is written. A profile from `nvs run --profile` is emitted in the open speedscope JSON format, and a
-"View Profile" command opens it in speedscope.app or an embedded webview that speaks the same format,
-because VS Code's built-in flame chart is V8-specific and no bespoke flamegraph is built. The debugger
+"View Profile" command opens it in a webview that runs speedscope's built viewer, bundled with the
+extension. VS Code's built-in flame chart is V8-specific, and no bespoke flamegraph is built. The
+bundled viewer keeps a profile on the machine and works in a remote window. The debugger
 is DAP's existing UI over `nvs dap` (`rule:ide/the-debug-adapter-does-not-wait-for-an-editor`).
 
 That is four pieces of UI infrastructure Novis neither builds nor maintains, which is the simplicity
@@ -21,5 +22,7 @@ from the lcov tracefile (`editors/vscode/src/tests.ts`). **Missing:** the speeds
 - **A Novis coverage gutter and a Novis flamegraph renderer.** VS Code's Test Coverage API and the
   speedscope format already exist and are maintained elsewhere; building equivalents is scope the
   simplicity priority does not pay for.
+- **Opening a profile in speedscope.app.** It needs a browser and the network outside the editor, and
+  the page cannot reach a file in a remote window.
 - **A hand-rolled status-bar item for server health.** `LanguageStatusItem` is the API VS Code provides
   for exactly that.

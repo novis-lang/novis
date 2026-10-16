@@ -78,9 +78,9 @@ properties (`data/gaps/nvs-cli/response-body-that-is-an-object.json`).
 carries "body: `T`, JSON or form". There is no new syntax, so the document cannot disagree with the
 code. A body read inside a helper method is not seen: the document then has no `requestBody`, and `nvs
 check` warns at the route. `rule:routing/a-request-body-is-read-from-the-handlers-own-call` holds it.
-The planning session's calls in that rule: the warning follows resolved calls through any number of
-methods and not through a `callable` or `mixed` receiver, two reads of one kind give a `oneOf`, and
-required-ness follows what `jsonAs` and `postAs` throw. Trade-offs: one body entry per route row while
+The user decided that the warning follows resolved calls through any number of methods and not
+through a `callable` or `mixed` receiver. The planning session's calls in that rule: two reads of one
+kind give a `oneOf`, and required-ness follows what `jsonAs` and `postAs` throw. Trade-offs: one body entry per route row while
 compiling, and a walk over resolved calls in `nvs check` alone. Nothing runs per request. A handler
 author who reads the body in a helper gets a warning and moves the read.
 

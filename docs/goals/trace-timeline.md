@@ -87,10 +87,10 @@ new limit.
 working folder, `callgrind.out.<pid>` (the name KCachegrind opens by default) and
 `profile.<pid>.speedscope.json`, with `--profile-out <path>` to choose another.
 
-**View Profile opens an embedded speedscope.** The planning session's call. The extension bundles
+**View Profile opens an embedded speedscope.** The user decided this. The extension bundles
 speedscope's built viewer and opens the file in a webview, so a profile never leaves the machine and it
-works in a remote window. `rule:ide/the-extension-builds-no-ui-the-editor-already-has` admits a webview
-or speedscope.app. Stage 5 writes the choice into that rule.
+works in a remote window. `rule:ide/the-extension-builds-no-ui-the-editor-already-has` names the
+bundled webview and declines speedscope.app.
 
 **Trade-offs, all together.** Request path: one clock read per event, and only while a bit that records
 events is on. A request with every bit off pays nothing new. Memory: the call half no longer grows in
@@ -144,7 +144,7 @@ exports.
 **Does:** a *View Profile* command opens a speedscope file in a webview, and the profiler is a
 documented tool.
 
-- [ ] The rule names the bundled webview, and the command and its contribution land (`rule:ide/the-extension-builds-no-ui-the-editor-already-has`). `editors/vscode/src/extension.ts:129-153`, `editors/vscode/package.json:204`
+- [ ] The command and its contribution land (`rule:ide/the-extension-builds-no-ui-the-editor-already-has`). `editors/vscode/src/extension.ts:129-153`, `editors/vscode/package.json:204`
 - [ ] The webview loads only the bundled viewer and the chosen file, under a content security policy that allows nothing else.
 - [ ] A section for the profiler in `docs/reference/tools/10-cli.md`, and `bun nv proofs --id` on its id passes: `about.md`, examples, a bench of the probe's cost per call, and an attack that a request cannot write a profile without the grant.
 - [ ] `bun nv owners --closes trace-timeline` passes.
