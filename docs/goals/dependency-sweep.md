@@ -16,7 +16,7 @@ stages:
       context:
         rules: [errors/propagation, errors/helper-abi]
   - id: 3
-    title: the engine moves as one, and the sandbox names its wasm proposals
+    title: "the engine moves as one, and the sandbox names its wasm proposals"
     status: open
     context: [crates/nvs-ext/src/call.rs, crates/nvs-ext/src/pack.rs, crates/nvs-codegen/src/lib.rs, crates/nvs-host/src/scheduler.rs]
     extra:
@@ -43,7 +43,7 @@ stages:
     status: open
     context: [editors/vscode/package.json, editors/vscode/tsconfig.json, editors/vscode/src/extension.ts, website/package.json, website/src/components/PageFrame.astro]
   - id: 9
-    title: CI actions, runners, images and machine tools
+    title: "CI actions, runners, images and machine tools"
     status: open
     context: [.github/workflows/ci.yml, .github/workflows/release.yml, docker/Dockerfile, docs/implementation-plan.md]
   - id: 10
@@ -54,8 +54,8 @@ checks:
   - id: toolchain
     stage: 1
     name: the pinned toolchain is 1.99.1
+    output_contains: ["channel = \"1.99.1\""]
     file: rust-toolchain.toml
-    output_contains: [channel = "1.99.1"]
   - id: unwind-entry
     stage: 2
     name: a JIT frame has no unwind entry the platform unwinder can find
@@ -73,17 +73,17 @@ checks:
     timeout: 1800
   - id: deny
     stage: 4
-    name: advisories, licences and bans pass on the root lock
+    name: "advisories, licences and bans pass on the root lock"
     run: [cargo, deny, check]
   - id: vendored-html5ever
     stage: 5
     name: the vendored html5ever is 0.40
+    output_contains: ["version = \"0.40."]
     file: vendor/html5ever/Cargo.toml
-    output_contains: [version = "0.40.]
   - id: editor-headless
     stage: 8
     name: the extension compiles and its headless suite passes
-    run: [npm, run, test:headless]
+    run: [npm, run, "test:headless"]
     cwd: editors/vscode
     timeout: 900
   - id: editor-lint
@@ -307,14 +307,22 @@ see changes.
 
 ### State
 
-Nothing is moved yet. The research behind every item above was read from release notes and `git grep`
-only. Nothing was built on a new version, and each item's *not checked* edges are where the build
-speaks first. `cargo deny check advisories` passes on the root and on all four component locks.
-wasmtime 48.0.6 already carries every advisory fix that applies to 48.
+The nightly CI run that the sweep reported ran on the remote `main` at `cb7021a24`. That is 698 commits
+behind the local `main`, because nothing has been pushed since Oct 11. Checked against the local tree:
+- Already fixed locally: the rustls advisories in `supply chain` (rustls 0.23.46, `cargo deny check
+  advisories` ok), the `dispatch::serving` rustdoc link in `lint`, the removed `bun nv records --check` in
+  `docs`, and the LDAP cases on macOS and Windows, which now skip.
+- Fixed this session: `website/src/data/core.json` was missing `Core\Test\Outcome` and `Core\Test\Summary`.
+  `bun nv render --website --check` is now current.
+- Still failing locally: `bun nv proofs --gate`. 244 features have stale perf records, and the
+  `Core\Test\Outcome`/`Summary` members owe all their proofs. Both are outside this goal.
+- Not checked locally: `run_command.rs:688` on Linux, and the `serve.rs:3957` scaling margin.
+
+Stage 1 is not started. Nothing on the toolchain has moved.
 
 ### Next
 
-**Stage 1: the Rust toolchain is 1.99.1**, one file set: `rust-toolchain.toml`, `Cargo.toml`, the `chunks_exact` sites.
+**Stage 1: the Rust toolchain is 1.99.1.** Files: `rust-toolchain.toml`, `Cargo.toml`, the `chunks_exact` sites.
 
 - [ ] Pin 1.99.1 and `rust-version = "1.99"` (`docs/agent/dependency-update.md`). `rust-toolchain.toml:4`
 - [ ] Rewrite the `chunks_exact` sites until clippy is clean. `crates/nvs-db/src/pg.rs:2651`
@@ -322,6 +330,9 @@ wasmtime 48.0.6 already carries every advisory fix that applies to 48.
 
 ### Backlog
 
+- The user pushes `main`, so the nightly tests the current tree (`.github/workflows/ci.yml:7`).
+- Proof debt: the stale perf records and the `Core\Test\Outcome`/`Summary` proofs (`bun nv proofs --owed`).
+- Linux only, not reproduced: `a_spawned_process_ends_when_nvs_is_killed_and_what_it_started_does_not` sees no watcher (`crates/nvs-cli/tests/run_command.rs:688`). The scaling margin was 1.33× against 1.5× (`crates/nvs-cli/src/serve.rs:3957`).
 - wasmtime 50.0.0 final and cranelift 0.137: the stage 3 items marked "if wasmtime 50" (`crates/nvs-ext/src/call.rs`).
 - hyper 1.12's `max_header_size` is a question for the user (`crates/nvs-server/src/serve.rs`).
 - The user mirrors any `.github/dependabot.yml` change on `landing` and decides about MSVC 14.50 (`docs/setup.md`).
