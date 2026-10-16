@@ -4,20 +4,23 @@
  * `replay-frames.mjs` writes the replay's HTML and its frames, one per
  * keystroke, when the site is built. This script draws a frame into the code
  * area: the coloured text, the text cursor, the open completion list narrowed by
- * `replay-narrow.mjs`, and the red underline and its card on a hover step.
+ * `replay-narrow.mjs`, and the red underline and its card on a hover step. A
+ * bar under the code shows how far the replay has played.
  *
  * The rules it keeps are `rule:testing/a-replay-plays-what-the-language-server-returned`'s:
- * a replay starts when at least half of it is in view, pauses when it leaves,
- * plays once and stops on its last frame. Only one replay on a page plays at a
- * time. With `prefers-reduced-motion` it does not start, and shows its poster
- * frame. Previous and next step one frame and pause. The frame is `inert`, so
- * the code never takes focus and a click on it does nothing.
+ * a replay never starts by itself, and shows its poster frame until the reader
+ * presses its button. The button plays from the first frame, pauses, and plays
+ * again from the first frame after the end. A replay plays once and stops on
+ * its last frame, pauses when it leaves the view, and only one replay on a page
+ * plays at a time. The frame is `inert`, so the code never takes focus and a
+ * click on it does nothing.
  *
  * Each replay's root carries `data-replay-state` (`ready`, `playing`, `paused`
- * or `ended`) and `data-replay-frame`, which the browser test reads.
+ * or `ended`) and `data-replay-frame`, and has its player as `nvReplay`. The
+ * browser test reads the first two and draws frames with `nvReplay.show`.
  */
 
-import { codeHtml, escapeHtml, frameColours, position } from './replay-frames.mjs'
+import { buttonHtml, codeHtml, escapeHtml, frameColours, position } from './replay-frames.mjs'
 import { narrow } from './replay-narrow.mjs'
 
 /** The symbol and colour group of a completion row's kind icon. */
@@ -46,10 +49,10 @@ const LIST_ROWS = 8
 /** The replay that plays now, so a second one pauses it. */
 let current = null
 
-/** Starts every replay under `root` that has not started yet. */
+/** Sets up every replay under `root` that has no player yet. */
 export function startReplays(root = document) {
   for (const el of root.querySelectorAll('[data-replay]')) {
-    if (!el.dataset.replayState) new Player(el)
+    if (!el.dataset.replayState) el.nvReplay = new Player(el)
   }
 }
 
@@ -64,33 +67,23 @@ class Player {
     })
     this.last = this.data.frames.length - 1
     this.code = el.querySelector('.nv-replay-code')
+    this.progress = el.querySelector('.nv-replay-progress')
     this.button = el.querySelector('[data-replay-do="play"]')
+    this.label = this.button.dataset.replayLabel
     this.timer = 0
-    // A replay that left the view while playing plays on when it comes back.
-    this.resume = false
-    this.still = matchMedia('(prefers-reduced-motion: reduce)').matches
     this.button.addEventListener('click', () => (this.state === 'playing' ? this.pause() : this.play()))
-    el.querySelector('[data-replay-do="previous"]').addEventListener('click', () => this.step(-1))
-    el.querySelector('[data-replay-do="next"]').addEventListener('click', () => this.step(1))
-    this.show(this.still ? this.data.poster : 0)
-    this.set(this.still ? 'paused' : 'ready')
-    new IntersectionObserver((entries) => this.seen(entries.at(-1).intersectionRatio >= 0.5), { threshold: [0, 0.5] }).observe(el)
-  }
-
-  // A replay that comes into view starts only when no other one plays, and a click on play always starts it.
-  seen(inView) {
-    if (inView && !this.still && current === null && (this.state === 'ready' || this.resume)) this.play()
-    else if (!inView && this.state === 'playing') {
-      this.pause()
-      this.resume = true
-    }
+    this.show(this.data.poster)
+    this.set('ready')
+    const frame = el.querySelector('.nv-replay-frame')
+    new IntersectionObserver((entries) => {
+      if (!entries.at(-1).isIntersecting && this.state === 'playing') this.pause()
+    }).observe(frame)
   }
 
   play() {
     if (current && current !== this) current.pause()
     current = this
-    this.resume = false
-    if (this.index >= this.last) this.show(0)
+    if (this.state === 'ready' || this.state === 'ended') this.show(0)
     this.set('playing')
     this.schedule()
   }
@@ -107,7 +100,6 @@ class Player {
   pause() {
     clearTimeout(this.timer)
     if (current === this) current = null
-    this.resume = false
     this.set('paused')
   }
 
@@ -117,16 +109,17 @@ class Player {
     this.set('ended')
   }
 
-  step(by) {
-    this.pause()
-    this.show(Math.min(this.last, Math.max(0, this.index + by)))
-    if (this.index === this.last) this.end()
-  }
-
   set(state) {
     this.state = state
     this.el.dataset.replayState = state
-    this.button.textContent = state === 'playing' ? 'Pause' : state === 'ended' ? 'Play again' : 'Play'
+    this.button.innerHTML = state === 'playing' ? buttonHtml('pause', 'Pause') : state === 'ended' ? buttonHtml('again', 'Play again') : buttonHtml('play', this.label)
+    this.bar()
+  }
+
+  /** The progress bar: empty before the replay plays, then the share of frames shown. */
+  bar() {
+    const done = this.state === 'ready' ? 0 : this.last === 0 ? 1 : this.index / this.last
+    this.progress.style.setProperty('--nv-progress', String(done))
   }
 
   show(index) {
@@ -144,6 +137,13 @@ class Player {
       html += '</div>'
     }
     this.code.innerHTML = html
+    // A list or a card that would pass the right edge of the code moves left until it fits, as in VS Code.
+    const edge = this.code.getBoundingClientRect().right
+    for (const box of this.code.querySelectorAll('.nv-list, .nv-hover')) {
+      const over = box.getBoundingClientRect().right - edge
+      if (over > 0) box.style.translate = `${-Math.ceil(over)}px 0`
+    }
+    if (this.state) this.bar()
   }
 
   /** The open list, narrowed by what was typed since it opened, best row first and selected. */

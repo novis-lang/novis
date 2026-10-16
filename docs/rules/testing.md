@@ -1164,21 +1164,32 @@ own work, so the page imitates it: case-insensitive matching of the letters in o
 first, the matched letters highlighted. The component's head comment says which parts are recorded
 and which are imitated, and a page never presents the replay as VS Code's exact behaviour.
 
-A replay is labelled as a demo: a "Recording" badge in the frame's title bar, and a caption above it
-that says it was recorded from the editor extension, that the reader cannot type in it, and that links
-to the editor install page. Its play, pause, previous and next buttons sit outside the frame and work
-from the keyboard. The code never takes keyboard focus, and clicking it does nothing. It starts when at
-least half of it is in view, pauses when it leaves, plays once and stops on the last frame with a
-"Play again" button, and only one replay on a page plays at a time. Under `prefers-reduced-motion` it
-does not start: it shows the last frame with its list open. A collapsed section under it gives the same
-steps as text, for screen readers and search. Every caption and label follows AGENTS.md § *Text an end
-user reads*.
+A replay is one panel with a look of its own, tinted with the site's accent, that holds everything
+in order: a header "How it looks in your editor", a notice that says it was recorded from the editor
+extension, that the reader cannot type in it, and that links to the editor install page, then the
+editor window, then one button, then a collapsed section that gives the same steps as text, for
+screen readers and search. The window has a title bar with the snippet's file name, and a bar along
+its bottom that shows how far the replay has played. The panel's root carries Starlight's
+`not-content` class, so the page's text styles add no space between the code's lines, and a list
+opens on the line under the cursor, at the column where the word it completes starts.
+
+A replay never starts by itself. Before it plays, it shows the last frame with a list open. The
+button plays it from the first frame, pauses it while it plays, and plays it again from the first
+frame once it has ended; its icon and its label say which it does next. Before the first play and
+while paused, the label says what the recording shows: "Preview the error message" when the
+recording has a diagnostic, and "Preview the autocompletion" when it has only completion lists. The
+button works from the keyboard. The code never takes keyboard focus, and clicking it does nothing.
+A replay pauses when its window leaves the view, plays once and stops on the last frame, and only
+one replay on a page plays at a time. Under `prefers-reduced-motion` the cursor does not blink and the
+progress bar does not slide. Every caption and label follows AGENTS.md § *Text an end user reads*.
 
 A recording drawn by hand would show completions the server never offers, and nothing would notice
 when the server changes. Recording the server's answers and checking them on every `--check` keeps the
 page honest the same way a `.out` keeps a snippet's output honest. The snippet is the replay's last
-frame, so the code a page shows and the code the replay ends on cannot disagree. The demo label and the
-focus rules keep a reader from mistaking the replay for an editor they can type in.
+frame, so the code a page shows and the code the replay ends on cannot disagree, and a page needs no
+`<Snippet>` of the same file beside it. The header, the notice, the panel's own look and the focus
+rules keep a reader from mistaking the replay for an editor they can type in, or for code to copy. A
+replay that plays only when asked does not move while somebody reads the text around it.
 
 **Memory:** nothing in the language or the binary. A page pays for one small script and the
 recording of each replay it shows. `--bless` and `--check snippets` start `nvs lsp` once more per
@@ -1191,6 +1202,10 @@ replay.
   after it is the editor's, so recording it would claim the server did work it does not do.
 - **Hover cards and quick fixes as steps before a page needs them.** Each kind of step is another
   format to check, and no page shows one yet.
+- **Starting when the replay scrolls into view.** Motion the reader did not ask for pulls the eye
+  from the text they are reading, and the poster frame already shows the list.
+- **Buttons that step one frame back or forward.** The steps as text give the same detail, and one
+  button is simpler to read.
 
 <sub>See also [`testing/website-pages-are-stamped`](testing.md#testing-website-pages-are-stamped), [`ide/completion-is-asked-where-a-spelling-ends`](ide.md#ide-completion-is-asked-where-a-spelling-ends), [`ide/a-completion-row-reads-as-a-declaration`](ide.md#ide-a-completion-row-reads-as-a-declaration).</sub>
 

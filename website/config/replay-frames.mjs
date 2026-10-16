@@ -103,7 +103,10 @@ export function position(text, offset) {
 // How long a frame stays before the next one, in milliseconds. The variation
 // is fixed, so a replay plays the same way every time.
 const TYPE_MS = (i) => 75 + ((i * 37) % 70)
-const LIST_OPENS_MS = 450
+// A list that opens stays long enough to read its rows, and each letter that narrows it stays long
+// enough to see which rows are left.
+const LIST_OPENS_MS = 1500
+const NARROW_MS = 600
 const BEFORE_ACCEPT_MS = 900
 const ACCEPT_MS = 650
 const HOVER_MS = 3200
@@ -119,8 +122,8 @@ const FIRST_MS = 700
  *   the open list as `{ ask, from }` (its answer and where its typed text
  *   starts) or null, the diagnostic shown as an index into `asks` or null, and
  *   how long the frame stays;
- * - `poster` is the frame shown when the page asks for no motion: the last one
- *   with a list open, or the last frame;
+ * - `poster` is the frame shown before the replay plays: the last one with a
+ *   list open, or the last frame;
  * - `steps` is one sentence group per step, for the text under the replay.
  *
  * A step the recording does not fit throws, naming `where`.
@@ -152,7 +155,9 @@ export function replayData(replay, asks, where) {
           list = { ask: next++, from: /[A-Za-z_]/.test(c) && !nameChar(text[cursor - 2]) ? cursor - 1 : cursor }
           opened = true
           delay = LIST_OPENS_MS
-        } else if (!(list !== null && nameChar(c))) list = null
+        } else if (list !== null && nameChar(c)) {
+          if (kept(list).length > 0) delay = NARROW_MS
+        } else list = null
         frames.push({ edit: [at, 0, c], cursor, list, hover: null, delay })
       }
       const words = s.text.split('\n').map((part) => (part === '' ? '' : `Type \`${part}\`.`))
@@ -291,32 +296,63 @@ export function replayPaint(texts, colours, where) {
 /** The colours of frame `index`, as `codeHtml` reads them, from what `replayPaint` returned. */
 export const frameColours = (paint, index) => (paint ? { styles: paint.styles, lines: paint.frames[index].map((i) => paint.lines[i]) } : null)
 
+const svg = (body) => `<svg viewBox="0 0 24 24" width="1em" height="1em" aria-hidden="true" focusable="false">${body}</svg>`
+const STROKE = 'fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"'
+
+/** The replay's icons as inline SVG: the header's editor window, and the button's play, pause and play again. */
+export const ICONS = {
+  editor: svg(`<rect x="3" y="4" width="18" height="16" rx="2" ${STROKE}/><path d="M3 9h18M8 13l-2 2 2 2M12 17h4" ${STROKE}/>`),
+  play: svg('<path d="M8 5.5v13l10.5-6.5z" fill="currentColor"/>'),
+  pause: svg('<path d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z" fill="currentColor"/>'),
+  again: svg(`<path d="M4 12a8 8 0 1 0 2.4-5.7M4 4.5v4h4" ${STROKE}/>`),
+}
+
+/** The button's label before the replay plays: what the recording shows, from what the server returned. */
+export function playLabel(asks) {
+  if (asks.some((a) => a.kind === 'diagnostic')) return 'Preview the error message'
+  if (asks.some((a) => a.kind === 'completion')) return 'Preview the autocompletion'
+  return 'Play the recording'
+}
+
+/** The button's content: an icon and a label. */
+export const buttonHtml = (icon, label) => `${ICONS[icon]}<span>${escapeHtml(label)}</span>`
+
 /**
- * The HTML of one replay: the caption, the editor frame, the buttons, the
- * steps as text, and the frames as JSON for `replay-player.mjs`. `title` is the
- * tab's title, `install` the address of the editor install page, and `where`
- * names the snippet in an error. `colours`, when it is given, colours the code
- * as `replayPaint` describes, and the code is plain text without it.
+ * The HTML of one replay: one panel with a header and a notice, the editor
+ * window, the play button, the steps as text, and the frames as JSON for
+ * `replay-player.mjs`. `title` is the window's file name, `install` the
+ * address of the editor install page, and `where` names the snippet in an
+ * error. `colours`, when it is given, colours the code as `replayPaint`
+ * describes, and the code is plain text without it.
+ *
+ * The root has Starlight's `not-content` class, so the page's text styles do
+ * not add margins between the code's lines and the list stays on its line.
  */
 export function replayMarkup({ replay, recording, title, install, where, colours = null }) {
   const data = replayOf({ replay, recording, where })
   const texts = frameTexts(data)
-  // The code area is as tall as the longest frame, so it does not grow while the replay plays.
+  // The code area is as tall as the longest frame, so it does not grow while the replay plays. Its font
+  // gets smaller until the widest line, `cols`, fits, and stops at 11px. It goes under 11px only as far
+  // as a line the cursor visits, `edited`, needs to fit. `Replay.astro`'s style does the sums.
   const rows = Math.max(...texts.map((text) => text.split('\n').length))
+  const cols = Math.max(...texts.flatMap((text) => text.split('\n').map((line) => line.length)))
+  const edited = Math.max(...data.frames.map((f, i) => texts[i].split('\n')[position(texts[i], f.cursor).line].length))
   const paint = colours ? replayPaint(texts, colours, where) : null
+  const label = playLabel(data.asks)
   const json = JSON.stringify({ start: data.start, asks: data.asks, frames: data.frames, poster: data.poster, paint }).replace(/</g, '\\u003c')
   return [
-    '<figure class="nv-replay" data-replay>',
-    `<figcaption class="nv-replay-caption">A recording from the <a href="${escapeHtml(install)}">Novis editor extension</a>. You cannot type here.</figcaption>`,
-    '<div class="nv-replay-frame" inert aria-hidden="true">',
-    `<div class="nv-replay-bar"><span class="nv-replay-tab">${escapeHtml(title)}</span><span class="nv-replay-badge">Recording</span></div>`,
+    '<figure class="nv-replay not-content" data-replay>',
+    '<figcaption class="nv-replay-head">',
+    `<span class="nv-replay-icon">${ICONS.editor}</span>`,
+    '<span class="nv-replay-heading"><span class="nv-replay-title">How it looks in your editor</span>',
+    `<span class="nv-replay-note">A recording from the <a href="${escapeHtml(install)}">Novis editor extension</a>. You cannot type here.</span></span>`,
+    '</figcaption>',
+    `<div class="nv-replay-frame" inert aria-hidden="true" style="--nv-cols: ${cols}; --nv-edited: ${edited}">`,
+    `<div class="nv-replay-bar"><span class="nv-replay-dots"><i></i><i></i><i></i></span><span class="nv-replay-tab">${escapeHtml(title)}</span></div>`,
     `<div class="nv-replay-code" style="--nv-rows: ${rows}">${codeHtml(data.last, null, null, frameColours(paint, texts.length - 1))}</div>`,
+    '<div class="nv-replay-progress"><span></span></div>',
     '</div>',
-    '<div class="nv-replay-controls">',
-    '<button type="button" data-replay-do="previous">Previous</button>',
-    '<button type="button" data-replay-do="play">Play</button>',
-    '<button type="button" data-replay-do="next">Next</button>',
-    '</div>',
+    `<div class="nv-replay-controls"><button type="button" class="nv-button nv-button-primary nv-replay-button" data-replay-do="play" data-replay-label="${escapeHtml(label)}">${buttonHtml('play', label)}</button></div>`,
     `<details class="nv-replay-steps"><summary>What this recording shows</summary><ol>${data.steps.map((s) => `<li>${withCode(s)}</li>`).join('')}</ol></details>`,
     `<script type="application/json" data-replay-data>${json}</script>`,
     '</figure>',

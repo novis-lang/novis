@@ -1,15 +1,22 @@
 ---
 /**
  * A recorded editor session that ends on one snippet from website/snippets/,
- * played like the VS Code extension. A page shows it beside the snippet, and
- * `src` names the snippet:
+ * played like the VS Code extension. `src` names the snippet:
  *
  *   <Replay src="install/property-key-completion.nvs" />
  *
  * The `.replay` beside the snippet lists the steps, and the `.replay.out`
  * beside it is what `nvs lsp` returned for them. `tools/nv/cmd/site.ts`
  * § *A snippet* is the home of both formats, and `bun nv site --check
- * snippets` fails when the server returns something else.
+ * snippets` fails when the server returns something else. The replay ends on
+ * the snippet's code, so a page needs no `<Snippet>` of the same file to show
+ * that code.
+ *
+ * It is one tinted panel: a header and a notice that say it is a recording,
+ * the editor window with its title bar and a progress bar, one button, and the
+ * steps as text. The panel has its own look, so a reader does not take it for
+ * a code example to copy. The window has the page's code colours in the dark
+ * and the light theme.
  *
  * What is recorded: each completion list, each diagnostic, and where each list
  * opens. What is imitated: the list narrowing as letters are typed, the typing
@@ -62,19 +69,66 @@ const html = replayMarkup({
 </script>
 
 <style is:global>
+  /* The panel: the accent wash and an accent border, in both themes. */
   .nv-replay {
-    margin: 1.5rem 0;
-  }
-  .nv-replay-caption {
+    margin: 1.5rem 0 0;
+    padding: 1rem;
+    border: 1px solid color-mix(in oklab, var(--sl-color-accent) 35%, transparent);
+    border-radius: var(--nv-radius-lg, 1rem);
+    background: var(--nv-wash-soft);
+    color: var(--sl-color-white);
     font-size: var(--sl-text-sm);
-    color: var(--sl-color-gray-3);
-    margin-bottom: 0.5rem;
   }
+  .nv-replay-head {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    margin-bottom: 0.85rem;
+    line-height: 1.45;
+  }
+  .nv-replay-icon {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    width: 2.25rem;
+    height: 2.25rem;
+    border: 1px solid color-mix(in oklab, var(--sl-color-accent) 30%, transparent);
+    border-radius: var(--nv-radius, 0.625rem);
+    background: var(--nv-wash);
+    color: var(--sl-color-text-accent);
+    font-size: 1.25rem;
+  }
+  .nv-replay-heading {
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+  }
+  .nv-replay-title {
+    font-size: var(--sl-text-base);
+    font-weight: 650;
+    color: var(--sl-color-white);
+  }
+  .nv-replay-note {
+    color: var(--sl-color-gray-2);
+  }
+  .nv-replay a {
+    color: var(--sl-color-text-accent);
+    text-decoration: underline;
+    text-underline-offset: 0.15em;
+  }
+  .nv-replay a:hover {
+    color: var(--sl-color-white);
+  }
+
+  /* The editor window: a title bar with three dots and the file name, the code, and the progress bar. */
   .nv-replay-frame {
-    border: 1px solid var(--sl-color-gray-5);
-    border-radius: 0.5rem;
+    container-type: inline-size;
     overflow: hidden;
+    border: 1px solid var(--nv-hairline-strong, var(--sl-color-gray-5));
+    border-radius: var(--nv-radius, 0.625rem);
     background: var(--nv-code-bg);
+    box-shadow: var(--nv-shadow-md, none);
     color: var(--sl-color-white);
     cursor: default;
     user-select: none;
@@ -82,30 +136,39 @@ const html = replayMarkup({
   .nv-replay-bar {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    padding: 0.35rem 0.75rem;
-    border-bottom: 1px solid var(--sl-color-gray-5);
-    background: var(--sl-color-black);
+    gap: 0.75rem;
+    padding: 0.45rem 0.8rem;
+    border-bottom: 1px solid var(--nv-hairline, var(--sl-color-gray-5));
+    background: var(--nv-surface-2, var(--sl-color-black));
+    color: var(--sl-color-gray-2);
     font-size: var(--sl-text-xs);
   }
+  .nv-replay-dots {
+    display: inline-flex;
+    gap: 0.35rem;
+  }
+  .nv-replay-dots i {
+    width: 0.65rem;
+    height: 0.65rem;
+    border-radius: 50%;
+    background: var(--nv-hairline-strong, var(--sl-color-gray-5));
+  }
   .nv-replay-tab {
-    font-family: var(--__sl-font-mono);
+    font-family: var(--__sl-font-mono, monospace);
   }
-  .nv-replay-badge {
-    padding: 0.05rem 0.5rem;
-    border-radius: 1rem;
-    background: var(--sl-color-red);
-    color: var(--sl-color-black);
-    font-weight: 600;
-  }
+  /* The font gets smaller until the widest line, its line number and the cursor fit, and stops at 11px.
+     It goes under 11px only as far as a line the cursor visits needs to fit. JetBrains Mono is 0.6em
+     wide per character. */
   .nv-replay-code {
     --nv-lh: 1.6em;
     --nv-gutter: calc(0.75rem + 5ch);
+    --nv-fit: calc((100cqi - 0.75rem) / ((var(--nv-cols) + 7) * 0.6));
+    --nv-fit-edited: calc((100cqi - 0.75rem) / ((var(--nv-edited) + 7) * 0.6));
     position: relative;
     padding: 0.75rem 0;
     min-height: calc((var(--nv-rows) + 7) * var(--nv-lh));
-    font-family: var(--__sl-font-mono), monospace;
-    font-size: var(--sl-text-sm);
+    font-family: var(--__sl-font-mono, monospace);
+    font-size: min(var(--sl-text-sm, 0.875rem), max(var(--nv-fit), min(0.6875rem, var(--nv-fit-edited))));
     line-height: var(--nv-lh);
   }
   .nv-replay .nv-line {
@@ -125,9 +188,11 @@ const html = replayMarkup({
     font-style: var(--1fs, inherit);
     font-weight: var(--1fw, inherit);
   }
+  /* The line number and the space after it are the 5ch of --nv-gutter. */
   .nv-replay .nv-ln {
     flex: none;
-    width: 3ch;
+    box-sizing: border-box;
+    width: 5ch;
     padding-right: 2ch;
     text-align: right;
     color: var(--sl-color-gray-4);
@@ -138,7 +203,7 @@ const html = replayMarkup({
     height: 1.2em;
     margin-right: -2px;
     vertical-align: text-bottom;
-    border-left: 2px solid var(--sl-color-white);
+    border-left: 2px solid var(--sl-color-white, currentColor);
     animation: nv-blink 1s step-end infinite;
   }
   @keyframes nv-blink {
@@ -146,16 +211,12 @@ const html = replayMarkup({
       border-color: transparent;
     }
   }
-  @media (prefers-reduced-motion: reduce) {
-    .nv-replay .nv-caret {
-      animation: none;
-    }
-  }
   .nv-replay .nv-squiggle {
     text-decoration: underline wavy var(--sl-color-red);
     text-decoration-skip-ink: none;
     text-underline-offset: 0.2em;
   }
+  /* A list opens on the line under the cursor, at the column where the completed word starts. */
   .nv-replay .nv-list,
   .nv-replay .nv-hover {
     position: absolute;
@@ -201,6 +262,7 @@ const html = replayMarkup({
     color: var(--sl-color-gray-3);
   }
   .nv-replay .nv-row mark {
+    padding: 0;
     background: none;
     color: var(--sl-color-accent-high);
     font-weight: 700;
@@ -221,23 +283,70 @@ const html = replayMarkup({
   .nv-replay .nv-hover-code {
     color: var(--sl-color-gray-3);
   }
-  .nv-replay-controls {
-    display: flex;
-    gap: 0.5rem;
-    margin-top: 0.5rem;
+  .nv-replay-progress {
+    height: 3px;
+    background: var(--nv-hairline, var(--sl-color-gray-5));
   }
-  .nv-replay-controls button {
-    padding: 0.2rem 0.75rem;
-    border: 1px solid var(--sl-color-gray-5);
-    border-radius: 0.25rem;
-    background: var(--sl-color-black);
-    color: var(--sl-color-white);
+  .nv-replay-progress span {
+    display: block;
+    height: 100%;
+    background: var(--sl-color-accent);
+    transform: scaleX(var(--nv-progress, 0));
+    transform-origin: left;
+    transition: transform 0.2s linear;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .nv-replay .nv-caret {
+      animation: none;
+    }
+    .nv-replay-progress span {
+      transition: none;
+    }
+  }
+
+  /* One button: the site's primary button, smaller. */
+  .nv-replay-controls {
+    margin-top: 0.85rem;
+  }
+  .nv-replay .nv-replay-button {
+    min-height: 2.25rem;
+    padding: 0.4rem 1rem;
     font: inherit;
     font-size: var(--sl-text-sm);
+    font-weight: 650;
     cursor: pointer;
   }
+  .nv-replay .nv-replay-button svg,
+  .nv-replay .nv-replay-button:hover svg {
+    flex: none;
+    transform: none;
+  }
+  .nv-replay .nv-replay-button:focus-visible {
+    outline: 2px solid var(--sl-color-text-accent);
+    outline-offset: 2px;
+  }
+
   .nv-replay-steps {
-    margin-top: 0.5rem;
-    font-size: var(--sl-text-sm);
+    margin-top: 0.85rem;
+    color: var(--sl-color-gray-2);
+  }
+  .nv-replay-steps summary {
+    cursor: pointer;
+    color: var(--sl-color-white);
+  }
+  .nv-replay-steps ol {
+    margin: 0.5rem 0 0;
+    padding-left: 1.5rem;
+    list-style: decimal;
+  }
+  .nv-replay-steps li + li {
+    margin-top: 0.25rem;
+  }
+  .nv-replay-steps code {
+    padding: 0.05rem 0.3rem;
+    border-radius: var(--nv-radius-sm, 0.375rem);
+    background: var(--nv-code-bg);
+    font-family: var(--__sl-font-mono, monospace);
+    font-size: 0.9em;
   }
 </style>
