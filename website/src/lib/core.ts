@@ -170,6 +170,13 @@ const BUILTIN_TYPES = new Set([
   'callable', 'array', 'object', 'Iterable', 'Iterator', 'self', 'static',
 ])
 
+/** The language types the syntax page has no heading for, each to the concept page that explains it. */
+const FIELD_NAMES_PAGE = withBase('/in-depth/concepts/checked-field-names/')
+const LANGUAGE_TYPES = new Map([
+  ['property', `${FIELD_NAMES_PAGE}#a-field-name`],
+  ['propertyPath', `${FIELD_NAMES_PAGE}#a-path-through-objects`],
+])
+
 /** Every linkable name, fully qualified (`Core\Str`, `Core\Arr::Order`, `Throwable`), to its page. */
 const pageOf = new Map<string, string>()
 for (const cls of classes) pageOf.set(cls.name, cls.url)
@@ -238,6 +245,8 @@ export function typeLink(name: string, owner?: string): string | null {
   const found = lookup(name, owner) ?? declaredNearby(name, owner)
   if (found) return found
   if (BUILTIN_TYPES.has(name)) return `${SYNTAX_PAGE}#${name}`
+  const language = LANGUAGE_TYPES.get(name)
+  if (language) return language
   const only = byLastSegment.get(name)
   if (only?.size === 1) return [...only][0]
   if (NO_PAGE.has(name)) return null
