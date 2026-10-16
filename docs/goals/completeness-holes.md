@@ -21,7 +21,7 @@ stages:
   - id: 3
     title: "the isolate boundary checks both directions, and `max_tasks` bounds the tree"
     status: open
-    context: [crates/nvs-host/src/isolate.rs, crates/nvs-runtime/src/graph.rs, crates/nvs-config/src/tree.rs, crates/nvs-cli/src/main.rs, crates/nvs-runtime/src/ctx/safepoint.rs, crates/nvs-runtime/src/ctx/output.rs, data/gaps/nvs-cli/wall-time-and-max-output-are-not-enforced-under-nvs-run.json, crates/nvs-config/src/app.rs, crates/nvs-config/src/resolve.rs, crates/nvs-runtime/src/ctx/limits.rs, data/gaps/nvs-config/a-malformed-limit-or-one-above-its-ceiling-is-not-refused.json, crates/nvs-stdlib/src/request.rs, data/gaps/nvs-stdlib/a-prefixed-cookie-is-read-without-checking-the-connection-was-secure.json]
+    context: [crates/nvs-host/src/isolate.rs, crates/nvs-runtime/src/graph.rs, crates/nvs-config/src/tree.rs, crates/nvs-cli/src/main.rs, crates/nvs-runtime/src/ctx/safepoint.rs, crates/nvs-runtime/src/ctx/output.rs, crates/nvs-cli/src/wall.rs, data/gaps/nvs-server/a-served-request-is-not-stopped-at-its-wall-time.json, crates/nvs-config/src/app.rs, crates/nvs-config/src/resolve.rs, crates/nvs-runtime/src/ctx/limits.rs, data/gaps/nvs-config/a-malformed-limit-or-one-above-its-ceiling-is-not-refused.json, crates/nvs-stdlib/src/request.rs, data/gaps/nvs-stdlib/a-prefixed-cookie-is-read-without-checking-the-connection-was-secure.json]
     extra:
       context:
         rules: [security/isolate-values-cross-by-copy, security/isolate-budget-is-the-trees, errors/on-limit, config/no-configuration-file-is-a-complete-configuration, config/one-parser-for-the-boot-path-and-config-set, config/ceilings-are-their-own-directives]
@@ -194,7 +194,12 @@ above its ceiling stops the boot instead of leaving the request with no cap.
 - [x] The `nvs_runtime::script` seam returns a unit's class table beside its entry point, and the argument walk runs with it. `crates/nvs-host/src/isolate.rs:64`, `crates/nvs-runtime/src/graph.rs:444`
 - [x] A spawn past the root's `max_tasks` is refused, naming the directive. `crates/nvs-config/src/tree.rs:188`
 - [x] Whether child CPU is summed against the root's `cpu_time` is checked, and either the code or the rule changes. `crates/nvs-host/src/isolate.rs:717`
-- [ ] `nvs run` arms a deadline from `wall_time`, and a write past `max_output` raises a flag the next poll reads. `crates/nvs-cli/src/main.rs:3681`, `crates/nvs-runtime/src/ctx/safepoint.rs:756`, `crates/nvs-runtime/src/ctx/output.rs:286`
+- [x] `nvs run` arms a deadline from `wall_time`, and a write past `max_output` raises a flag the next poll reads. `crates/nvs-cli/src/main.rs:3681`, `crates/nvs-runtime/src/ctx/safepoint.rs:756`, `crates/nvs-runtime/src/ctx/output.rs:286`
+  - [x] `SafepointFlags::WALL_TIME` and `OUTPUT_LIMIT`, `Limit::WallTime`, and the poll's wall-time branch.
+  - [x] `crates/nvs-cli/src/wall.rs` raises the flag at the deadline, and `Core\Time::sleep` ends at it.
+  - [x] `Ctx::write_output` raises `OUTPUT_LIMIT` at the crossing, and the handler runs with both flags lowered.
+  - [x] Three `.nvst` cases under `tests/conformance/config/`, and the gap record deleted.
+- [ ] A served request is stopped at its `wall_time` by the core's timer, as `nvs run`'s clock stops a run. `crates/nvs-server/src/serve.rs:1250`, `crates/nvs-cli/src/wall.rs:1`
 - [ ] The resolve refuses a malformed `[limits]` quantity as E0601 and a global value above its written ceiling, and the runtime never reads a malformed one as no cap. `crates/nvs-config/src/app.rs:134`, `crates/nvs-runtime/src/ctx/limits.rs:959`
 - [ ] A `__Host-` or `__Secure-` cookie is read only when the request's connection was secure. `crates/nvs-stdlib/src/request.rs:2096`
 
@@ -299,18 +304,19 @@ work cannot live only in prose again.
 
 ### State
 
-Stages 1 and 2 are done, and stage 3's first three items are. A spawn now claims a place in its
-tree's count of running child isolates (`TreeState::tasks`) through `Ctx::claim_task`, against
-the spawning context's `[limits] max_tasks`. The child's context holds the `TaskSlot` and gives
-it back as it drops. A refused claim takes the depth refusal's path, `refused_at_spawn` in
-`crates/nvs-host/src/isolate.rs`, so the request is `FATAL` with an `on-limit` report naming
-`max_tasks`. A request, a connection, a scheduled run and a job each start their own tree and are
-not counted. A placed child's slot is claimed in `crates/nvs-host/src/placed.rs` and rides its
-`PlacedIsolate`. A queued job's row does not record `max_tasks`, because `Core\Queue::push`'s
-bag has no option for it, so a job runs under the worker's own value. The gap record is
-deleted. Child CPU was already summed: every task of a tree is charged to the tree's one `Charge`
-(`crates/nvs-host/src/watchdog.rs:92`), and `a_tree_charged_on_two_threads_is_stopped_at_the_sum_of_both`
-pins the cross-core sum, so neither the code nor the rule changed.
+Stages 1 and 2 are done, and stage 3's first four items are. `nvs run` now stops at its
+`[limits] wall_time` and at the first write past `max_output`, each with its `on-limit` report.
+`crates/nvs-cli/src/wall.rs` is one thread per run with a `wall_time`. It raises
+`SafepointFlags::WALL_TIME` and expires the deadline at `SafepointView::wall_deadline`, which is
+counted from `TreeState::started`. It re-reads the deadline when `Core\Config::set` moves it.
+`Core\Time::sleep` ends at the deadline under any host (`Ctx::wall_time_left`,
+`Ctx::wall_time_breach`). `Ctx::write_output` raises `OUTPUT_LIMIT` at the crossing.
+`Ctx::run_limit_handler` lowers both flags for the handler's call, as it lowers the CPU flag. The
+wall clock raises its flag again one default `fatal_reserve_time` later. The three cases are
+`tests/conformance/config/wall-time-*.nvst` and `max-output-stops-a-loop-*.nvst`. The gap record
+is deleted. The served path has no wall clock, so a busy served request is not stopped at
+`wall_time`. That is a new stage-3 item and gap record
+(`data/gaps/nvs-server/a-served-request-is-not-stopped-at-its-wall-time.json`).
 
 Stage 1 found a second memory-safety hole, recorded as
 `data/gaps/nvs-runtime/a-wider-shape-view-writes-an-object-of-the-wrong-class.json`. A statically
@@ -324,17 +330,17 @@ behind the local one. The earlier triage of its failures stands until the user p
 
 ### Next
 
-**Stage 3, the CLI run's own limits.** Files: `crates/nvs-cli/src/main.rs`,
-`crates/nvs-runtime/src/ctx/safepoint.rs`, `crates/nvs-runtime/src/ctx/output.rs` and
+**Stage 3, a `[limits]` value is a quantity under its ceiling.** Files:
+`crates/nvs-config/src/app.rs`, `crates/nvs-config/src/resolve.rs` and
 `crates/nvs-runtime/src/ctx/limits.rs`.
 
-- [ ] `nvs run` arms a deadline from `wall_time` that expires the safepoint word, with a `.nvst` case pinning the `FATAL` (`rule:errors/on-limit`). `crates/nvs-cli/src/main.rs:3681`, `crates/nvs-runtime/src/ctx/safepoint.rs:89`
-- [ ] A write that crosses `max_output` raises a safepoint flag the next poll reads, with a `.nvst` case (`rule:errors/on-limit`). `crates/nvs-runtime/src/ctx/output.rs:286`, `crates/nvs-runtime/src/ctx/safepoint.rs:756`
-- [ ] The resolve refuses a malformed `[limits]` quantity as E0601 and a global value above its written ceiling, and the runtime never reads a malformed one as no cap (`rule:config/one-parser-for-the-boot-path-and-config-set`). `crates/nvs-config/src/app.rs:134`, `crates/nvs-runtime/src/ctx/limits.rs:959`
+- [ ] The resolve refuses a malformed `[limits]` or `[limits.hard]` quantity as E0601, with a case under `nvs config check` and `nvs run` (`rule:config/one-parser-for-the-boot-path-and-config-set`). `crates/nvs-config/src/app.rs:134`, `crates/nvs-config/src/resolve.rs:495`
+- [ ] A global `[limits]` value above a written `[limits.hard]` is refused as `body_caps` refuses its two keys (`rule:config/ceilings-are-their-own-directives`). `crates/nvs-config/src/app.rs:124`
+- [ ] The runtime never reads a malformed `memory` or `max_output` as no cap. `crates/nvs-runtime/src/ctx/limits.rs:1014`, `crates/nvs-runtime/src/ctx/limits.rs:1023`
 
 ### Backlog
 
-- A `__Host-` or `__Secure-` cookie is read only on a secure connection, stage 3's last item (`data/gaps/nvs-stdlib/a-prefixed-cookie-is-read-without-checking-the-connection-was-secure.json`).
+- Stage 3's last two items: a served request stops at its `wall_time` by the core's timer (`data/gaps/nvs-server/a-served-request-is-not-stopped-at-its-wall-time.json`, `crates/nvs-server/src/bounds.rs:631`), and a `__Host-` or `__Secure-` cookie is read only on a secure connection (`data/gaps/nvs-stdlib/a-prefixed-cookie-is-read-without-checking-the-connection-was-secure.json`).
 - The wider-shape-view hole waits on the user's choice (`data/gaps/nvs-runtime/a-wider-shape-view-writes-an-object-of-the-wrong-class.json`).
 - `test_request_dispatches_in_process_through_the_compiled_route_table` once returned an empty body under the full verify's load and passed alone; the cause is not found (`crates/nvs-cli/src/runner.rs:3410`).
 - Many module docs still carry numbered or prose "known gap" text with no record; stage 14's scan finds them (`tools/nv/cmd/owners.ts:225`).
