@@ -32,8 +32,10 @@
 //! [`Val`]s, one per element of a list, and bounds each crossing by the store's hostcall fuel.
 //! The fuel is [`Budget::left`] when the call starts and at every tick, so a crossing allocates
 //! no more on the host than the request can still afford, and running out is [`Limit::Memory`].
-//! A call's lifted results are charged to the request while they are converted, and given back
-//! after. A request with no memory limit has no bound here either.
+//! A call's lowered arguments are measured once they are made and charged to the request until
+//! the guest returns, and its lifted results are charged while they are converted; a call that
+//! cannot afford either is [`Limit::Memory`], and both are given back after. A request with no
+//! memory limit has no bound here either.
 //!
 //! **Failures** (`rule:packaging/a-guest-crash-throws`). Every export the loader accepts returns
 //! `result<T, error>`, and [`Request::call`] returns the `ok` side's value or a [`Failure`]:
@@ -951,25 +953,31 @@ impl Request {
         let Some(live) = held.live.as_mut() else {
             unreachable!("the instance was made above");
         };
-        let args = args(&mut live.store, at);
-        if args.is_ok() {
-            self.crossings.fetch_add(1, Ordering::Relaxed);
-        }
-        let outcome = match args {
-            Ok(args) => match live.call(at, &declared.name, &args).await {
-                Ok(out) => {
-                    let held =
-                        i64::try_from(out.iter().map(lifted).sum::<u64>()).unwrap_or(i64::MAX);
-                    if self.budget.charge(held) {
-                        let read = results(&mut live.store, out, at);
-                        self.budget.charge(-held);
-                        read
-                    } else {
-                        Err(Failure::Limit(Limit::Memory))
+        let outcome = match args(&mut live.store, at) {
+            Ok(args) => {
+                let sent = on_heap(&args);
+                if self.budget.charge(sent) {
+                    self.crossings.fetch_add(1, Ordering::Relaxed);
+                    let called = live.call(at, &declared.name, &args).await;
+                    drop(args);
+                    self.budget.charge(-sent);
+                    match called {
+                        Ok(out) => {
+                            let held = on_heap(&out);
+                            if self.budget.charge(held) {
+                                let read = results(&mut live.store, out, at);
+                                self.budget.charge(-held);
+                                read
+                            } else {
+                                Err(Failure::Limit(Limit::Memory))
+                            }
+                        }
+                        Err(failure) => Err(failure),
                     }
+                } else {
+                    Err(Failure::Limit(Limit::Memory))
                 }
-                Err(failure) => Err(failure),
-            },
+            }
             Err(failure) => Err(failure),
         };
         let outcome = match (live.end_call().await, outcome) {
@@ -1262,8 +1270,13 @@ fn fuel(budget: &dyn Budget) -> usize {
     })
 }
 
-/// The host bytes lifting `val` put on the heap: one [`Val`] for each value inside it, and the
-/// text of each string and name. A scalar puts nothing there.
+/// The host bytes `vals` hold on the heap, which a call charges to its request while it holds them.
+fn on_heap(vals: &[Val]) -> i64 {
+    i64::try_from(vals.iter().map(lifted).sum::<u64>()).unwrap_or(i64::MAX)
+}
+
+/// The host bytes `val` puts on the heap: one [`Val`] for each value inside it, and the text of
+/// each string and name. A scalar puts nothing there.
 fn lifted(val: &Val) -> u64 {
     let text = |text: &str| text.len() as u64;
     let inside = |val: &Val| size_of::<Val>() as u64 + lifted(val);

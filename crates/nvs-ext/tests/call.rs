@@ -25,7 +25,8 @@ const PAGE: u64 = 65536;
 
 /// A component exporting `shop:counter/api`. `echo` calls the `wait` import, which is pending until
 /// the test's gate opens; `spin` loops until the `flag` import is true; `bump` adds one to a global
-/// and returns it; `grow` grows the memory by its argument in pages.
+/// and returns it; `grow` grows the memory by its argument in pages; `size` returns the length of
+/// the bytes it is passed, which its `realloc` places in pages it grows for them.
 const GUEST: &str = r#"(component
   (import "wait" (func $wait (param "x" u64) (result u64)))
   (import "flag" (func $flag (result bool)))
@@ -34,7 +35,7 @@ const GUEST: &str = r#"(component
   (core module $m
     (import "host" "wait" (func $wait (param i64) (result i64)))
     (import "host" "flag" (func $flag (result i32)))
-    (memory 1)
+    (memory (export "memory") 1)
     (global $n (mut i64) (i64.const 0))
     (func (export "double") (param i64) (result i64)
       (i64.mul (local.get 0) (i64.const 2)))
@@ -43,6 +44,12 @@ const GUEST: &str = r#"(component
       (global.get $n))
     (func (export "grow") (param i32) (result i32)
       (memory.grow (local.get 0)))
+    (func (export "size") (param i32 i32) (result i32)
+      (local.get 1))
+    (func (export "realloc") (param i32 i32 i32 i32) (result i32)
+      (i32.mul
+        (memory.grow (i32.div_u (i32.add (local.get 3) (i32.const 65535)) (i32.const 65536)))
+        (i32.const 65536)))
     (func (export "forever")
       (loop $again (br $again)))
     (func (export "echo") (param i64) (result i64)
@@ -59,6 +66,9 @@ const GUEST: &str = r#"(component
   (func $double (param "x" s64) (result s64) (canon lift (core func $i "double")))
   (func $bump (result s64) (canon lift (core func $i "bump")))
   (func $grow (param "pages" u32) (result s32) (canon lift (core func $i "grow")))
+  (func $size (param "data" (list u8)) (result s32)
+    (canon lift (core func $i "size") (memory (core memory $i "memory"))
+      (realloc (core func $i "realloc"))))
   (func $forever (canon lift (core func $i "forever")))
   (func $echo (param "x" u64) (result u64) (canon lift (core func $i "echo")))
   (func $spin (result u64) (canon lift (core func $i "spin")))
@@ -66,6 +76,7 @@ const GUEST: &str = r#"(component
     (export "double" (func $double))
     (export "bump" (func $bump))
     (export "grow" (func $grow))
+    (export "size" (func $size))
     (export "forever" (func $forever))
     (export "echo" (func $echo))
     (export "spin" (func $spin)))
@@ -75,6 +86,7 @@ const METHODS: &str = r#"[
   {"name": "double", "params": [{"name": "x", "type": "int"}], "returns": "int"},
   {"name": "bump", "params": [], "returns": "int"},
   {"name": "grow", "params": [{"name": "pages", "type": "int"}], "returns": "int"},
+  {"name": "size", "params": [{"name": "data", "type": "bytes"}], "returns": "int"},
   {"name": "forever", "params": [], "returns": "void"},
   {"name": "echo", "params": [{"name": "x", "type": "int"}], "returns": "int"},
   {"name": "spin", "params": [], "returns": "int"}
@@ -443,6 +455,32 @@ fn a_guest_growing_past_the_request_memory_limit_is_stopped() {
         0,
         "the stopped instance gave its memory back"
     );
+}
+
+#[test]
+fn the_lowered_arguments_are_charged_to_the_request_until_the_guest_returns() {
+    let fx = fixture();
+    let ext = extension(&fx.host, None, None);
+    let data = Val::List(vec![Val::U8(7); 4 * 65536]);
+    let budget = meter(None);
+    let request = fx.host.request(budget.clone());
+    assert_eq!(
+        int(&call(&request, &ext, "size", std::slice::from_ref(&data))),
+        4 * 65536
+    );
+    assert_eq!(
+        budget.charged(),
+        5 * PAGE,
+        "the guest's pages stay charged, and the arguments are given back"
+    );
+    drop(request);
+
+    // The guest's five pages fit under eight, and a host `Val` per byte does not.
+    let budget = meter(Some(8 * PAGE));
+    let request = fx.host.request(budget.clone());
+    let out = call(&request, &ext, "size", std::slice::from_ref(&data));
+    assert_eq!(out, Err(Failure::Limit(Limit::Memory)));
+    assert_eq!(budget.charged(), 0, "the request gave everything back");
 }
 
 /// How many pages the guest reaches, one page at a time, under the three limits, in pages.
