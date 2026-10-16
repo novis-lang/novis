@@ -5,8 +5,9 @@
 //! suffix becomes the number the enforcement path compares against, and — for
 //! the one ceiling that describes a tree rather than a request — what a child
 //! context inherits of it. They ask a breach only where the question is one a
-//! `Ctx` answers on its own, which is `max_script_depth` alone: nothing is over
-//! that ceiling until an isolate is asked for, so the refusal needs no task.
+//! `Ctx` answers on its own, which is `max_script_depth` and `max_tasks`:
+//! nothing is over either ceiling until an isolate is asked for, so the refusal
+//! needs no task.
 //! What each of the others does to a request in flight is `nvs-host`'s
 //! `tests/limits.rs`, which needs a task to stop and a safepoint to stop it at.
 
@@ -420,4 +421,47 @@ fn a_spawn_past_max_script_depth_is_a_breach_naming_the_depth_and_the_ceiling() 
     }
     assert_eq!(uncapped.script_depth(), 4);
     assert!(uncapped.script_depth_breach().is_none());
+}
+
+/// `rule:security/isolate-budget-is-the-trees`: child tasks count against the root's `max_tasks`.
+///
+/// The count is the tree's, so a slot a child claims is one the root sees, and a slot given back
+/// makes room again — a ceiling that only ever filled would refuse a loop that spawns and awaits
+/// one child at a time. Both sides of the bound are asserted at the ceiling and one past it.
+#[test]
+fn a_tree_runs_at_most_max_tasks_children_and_a_finished_one_makes_room() {
+    let root = ctx_reading("[limits]\nmax_tasks = 2\n");
+    let first = root.claim_task().expect("one child under a ceiling of 2");
+    let child = root.isolate(OutputSink::Buffer(Vec::new()));
+    let second = child
+        .claim_task()
+        .expect("a grandchild is the tree's second task, still under the ceiling");
+    let message = root
+        .claim_task()
+        .expect_err("a third task is past the ceiling, whichever context asks");
+    assert!(
+        message.contains("with 2 running") && message.contains("ceiling of 2"),
+        "the refusal names both numbers: {message}"
+    );
+    assert_eq!(Limit::Tasks.name(), "max_tasks");
+
+    drop(first);
+    let third = root
+        .claim_task()
+        .expect("a task that ended gave its place back");
+    drop((second, third));
+
+    // `0` is a ceiling of no children at all, a malformed value fails closed to the same, and
+    // `false` or no value at all is no ceiling.
+    for written in ["max_tasks = 0", "max_tasks = \"many\""] {
+        let closed = ctx_reading(&format!("[limits]\n{written}\n"));
+        assert!(closed.claim_task().is_err(), "`{written}` allows no child");
+    }
+    for written in ["[limits]\nmax_tasks = false\n", ""] {
+        let open = ctx_reading(written);
+        let slots: Vec<_> = (0..64)
+            .map(|_| open.claim_task().expect("no ceiling refuses no spawn"))
+            .collect();
+        assert_eq!(slots.len(), 64);
+    }
 }

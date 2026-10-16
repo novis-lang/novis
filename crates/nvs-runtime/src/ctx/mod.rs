@@ -735,6 +735,13 @@ pub struct Ctx {
     ///
     /// **What it spends:** one word per request, and one per in-flight isolate.
     script_depth: u32,
+    /// The place this context takes in its tree's count of running child
+    /// isolates, or `None` for a context that is not one — [`Self::claim_task`]
+    /// makes it, `nvs_host::Isolate` hands it to the child, and dropping this
+    /// context gives it back.
+    ///
+    /// **What it spends:** one pointer per context.
+    task_slot: Option<TaskSlot>,
     /// `rule:concurrency/after-response-outlives-the-connection`
     /// 's after-response work, in registration order — `None` once the
     /// queue has been drained, which is the encoding of
@@ -1791,6 +1798,10 @@ pub enum Limit {
     /// reached in flight, since nothing is over it until an isolate is asked
     /// for. [`Ctx::script_depth_breach`] is where the question is asked.
     ScriptDepth,
+    /// `[limits] max_tasks`, reached where a spawn would run one child more
+    /// than the ceiling allows. Like [`Self::ScriptDepth`] it is asked once, at
+    /// the spawn, by [`Ctx::claim_task`].
+    Tasks,
 }
 
 impl Limit {
@@ -1807,6 +1818,7 @@ impl Limit {
             Self::CpuTime => "cpu_time",
             Self::Output => "max_output",
             Self::ScriptDepth => "max_script_depth",
+            Self::Tasks => "max_tasks",
         }
     }
 }

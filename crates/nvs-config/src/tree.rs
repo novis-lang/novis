@@ -185,9 +185,8 @@ pub struct Limits {
     pub cpu_time: Option<Setting>,
     /// `Runtime` — wall time.
     pub wall_time: Option<Setting>,
-    /// `Runtime` — concurrent tasks. Parsed, rostered and named to users, and **enforced
-    /// nowhere yet**: no scheduler or budget reads it, though
-    /// `rule:security/isolate-budget-is-the-trees` names it as the root's bound on child tasks.
+    /// `Runtime` — how many child isolates the request's tree may run at once
+    /// (`rule:security/isolate-budget-is-the-trees`). `nvs_runtime::Ctx::claim_task` reads it.
     pub max_tasks: Option<Setting>,
     /// `Runtime` — bytes written to the response.
     pub max_output: Option<Setting>,

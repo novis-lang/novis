@@ -517,6 +517,74 @@ impl Ctx {
         )))
     }
 
+    /// Counts one more running child isolate in this context's tree, or answers
+    /// the `FATAL` a tree already at `[limits] max_tasks` owes.
+    ///
+    /// Asked where [`Self::script_depth_breach`] is asked and for its reason: a
+    /// spawn is the one call that adds a task, so the answer is taken once
+    /// there and never polled. The count is the tree's ([`TreeState::tasks`]),
+    /// and the claim is one compare-and-swap on it, because a child placed on
+    /// another core spawns from there at the same time.
+    ///
+    /// The ceiling is the one this context reads. That is the root's, unless a
+    /// spawn site's `limits:` narrowed it on the way down, and a narrowed one
+    /// is only ever lower, so a child cannot let the tree grow past the root's
+    /// number (`rule:security/isolate-budget-is-the-trees`). The request
+    /// itself is not a task here: only its children are counted.
+    ///
+    /// # Errors
+    ///
+    /// The message of the `FATAL` naming both numbers, which the spawn raises
+    /// beside [`Limit::Tasks`]'s report.
+    ///
+    /// [`TreeState::tasks`]: super::TreeState
+    /// [`Limit::Tasks`]: crate::Limit::Tasks
+    pub fn claim_task(&self) -> Result<super::TaskSlot, String> {
+        let ceiling = self.configured_max_tasks();
+        let claimed = self.tree.tasks.try_update(
+            std::sync::atomic::Ordering::Relaxed,
+            std::sync::atomic::Ordering::Relaxed,
+            |running| {
+                ceiling
+                    .is_none_or(|ceiling| running < ceiling)
+                    .then_some(running + 1)
+            },
+        );
+        match claimed {
+            Ok(_) => Ok(super::TaskSlot(std::sync::Arc::clone(&self.tree))),
+            Err(running) => Err(format!(
+                "the request exceeded its task limit — a spawn was asked for with {running} running against a ceiling of {}",
+                ceiling.unwrap_or(0),
+            )),
+        }
+    }
+
+    /// `[limits] max_tasks` as a count, or `None` for a tree under no ceiling.
+    ///
+    /// Unwritten, and `false`, are no ceiling, which is what
+    /// `nvs_config::defaults` ships. A written `0` is a ceiling of no children
+    /// at all. A malformed value is that same `0`: the boot refuses one where it
+    /// can name the line, and a reading that got this far stops every spawn
+    /// rather than allowing any number of them.
+    fn configured_max_tasks(&self) -> Option<u64> {
+        let written = self
+            .config
+            .as_ref()
+            .and_then(|config| config.get("max_tasks"))?;
+        let setting = nvs_config::Setting::Text(written);
+        match nvs_config::Quantity::parse("max_tasks", nvs_config::Unit::Count, &setting) {
+            Ok(nvs_config::Quantity::Count(count)) => Some(count),
+            Ok(nvs_config::Quantity::Unbounded) => None,
+            _ => Some(0),
+        }
+    }
+
+    /// Makes `slot` this context's, so the task it counts ends when this
+    /// context drops — the isolate's end, however it ended.
+    pub fn hold_task(&mut self, slot: super::TaskSlot) {
+        self.task_slot = Some(slot);
+    }
+
     /// Re-reads the resource ceilings this request's configuration states.
     ///
     /// Called by [`Self::set_config`], and owed by anything that moves the

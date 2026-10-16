@@ -712,6 +712,7 @@ impl Ctx {
             cpu_limit: remains.cpu,
             fatal_reserve: self.fatal_reserve,
             narrowing: crate::host::Narrowing::default(),
+            task: None,
         }
     }
 
@@ -941,6 +942,10 @@ pub struct PlacedIsolate {
     cpu_limit: u64,
     fatal_reserve: usize,
     narrowing: crate::host::Narrowing,
+    /// The child's place in its tree's count of running tasks, claimed by the
+    /// parent where it placed the child ([`Ctx::claim_task`]) and held by the
+    /// context [`Self::build`] makes.
+    task: Option<super::TaskSlot>,
 }
 
 impl PlacedIsolate {
@@ -954,6 +959,15 @@ impl PlacedIsolate {
     #[must_use]
     pub fn narrowed_by(mut self, narrowing: crate::host::Narrowing) -> Self {
         self.narrowing = narrowing;
+        self
+    }
+
+    /// Carries the child's place in its tree's count of running tasks to the
+    /// core that builds it, where [`Self::build`] hands it to the child's
+    /// context.
+    #[must_use]
+    pub fn holding(mut self, slot: super::TaskSlot) -> Self {
+        self.task = Some(slot);
         self
     }
 
@@ -997,6 +1011,7 @@ impl PlacedIsolate {
         child.cpu_limit = self.cpu_limit;
         child.fatal_reserve = self.fatal_reserve;
         child.output_limit = self.output_limit;
+        child.task_slot = self.task;
         // Before the ceiling below, and that order is load-bearing:
         // [`Ctx::arm_memory_ceiling`] arms the allocator with this context's
         // safepoint address beside the number, and until the tree is joined that

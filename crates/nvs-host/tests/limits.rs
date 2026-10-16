@@ -209,6 +209,41 @@ unsafe extern "C" fn records_the_spawn_report(
     nvs_runtime::OK
 }
 
+/// [`SEEN_LIMIT`]'s twin for the spawn refused at `max_tasks`, and that slot's
+/// doc owns why every case here has one of its own.
+static SEEN_TASK_LIMIT: Mutex<Option<String>> = Mutex::new(None);
+
+/// [`records_the_report`] writing into [`SEEN_TASK_LIMIT`] instead, a copy for
+/// [`records_the_spawn_report`]'s reason: the ABI captures nothing.
+#[expect(
+    unsafe_code,
+    reason = "the same callee contract as `records_the_report`, over the same \
+              two live values"
+)]
+unsafe extern "C" fn records_the_task_report(
+    _ctx: *mut Ctx,
+    args: *const Value,
+    out: *mut Value,
+) -> i32 {
+    unsafe {
+        let report = *args.add(1);
+        let array = report
+            .array_ptr()
+            .expect("§ 1's report reaches the handler as one array");
+        let key = NvsStr::new(b"limit").into_raw();
+        let mut named = Value::null();
+        nvs_runtime::nvs_array_get(array, key, &raw mut named);
+        *SEEN_TASK_LIMIT.lock().expect("no test panics holding this") =
+            named.as_text().map(str::to_owned);
+        drop(NvsStr::from_raw(key));
+
+        (*args).release();
+        report.release();
+        *out = Value::null();
+    }
+    nvs_runtime::OK
+}
+
 /// [`SEEN_LIMIT`]'s twin for the child isolate stopped by its memory ceiling,
 /// and that slot's doc owns why every case here has one of its own.
 static SEEN_CHILD_MEMORY_LIMIT: Mutex<Option<String>> = Mutex::new(None);
@@ -908,6 +943,67 @@ fn a_recursive_spawn_is_reported_as_max_script_depth_and_not_as_memory() {
     let failure = completion.error.expect("a failed completion names why");
     assert!(
         failure.message.contains("ceiling of 2"),
+        "the failure names the ceiling the operator wrote: {failure:?}",
+    );
+}
+
+/// `rule:security/isolate-budget-is-the-trees`: child tasks count against the root's `max_tasks`,
+/// and a spawn past it is refused with a report naming the directive (`rule:errors/on-limit`).
+///
+/// A running child holds its place: under a ceiling of 1 its own spawn is the one refused, so the
+/// count is asserted from inside the child, where the place is taken. After the child ends a
+/// second one starts, because a finished child gives its place back. The refusal is read from the
+/// report, for the depth case's reason: a program branches on `max_tasks`, never on a sentence.
+#[test]
+fn a_spawn_past_max_tasks_is_refused_and_reported_as_max_tasks() {
+    let mut parent = parent_of_isolates();
+    parent.set_config(snapshot_of("[limits]\nmax_tasks = 1\n"));
+
+    for _ in 0..2 {
+        let completion = nvs_host::Isolate::new(
+            program(|child: &mut Ctx, _args: Value| {
+                assert!(
+                    child.claim_task().is_err(),
+                    "this child is the tree's one task, so the tree has no room for another",
+                );
+                Value::null()
+            }),
+            Value::null(),
+            nvs_host::Output::Capture,
+        )
+        .run(&mut parent)
+        .expect("a null argument has a meaning on the other side");
+        assert!(completion.ok, "one child at a time is under a ceiling of 1");
+    }
+
+    let mut closed = parent_of_isolates();
+    closed.set_config(snapshot_of("[limits]\nmax_tasks = 0\n"));
+    closed.set_limit_handler(callable_taking_the_report(records_the_task_report));
+    let refused = nvs_host::Isolate::new(
+        program(|_ctx: &mut Ctx, _args: Value| Value::null()),
+        Value::null(),
+        nvs_host::Output::Capture,
+    )
+    .start(&mut closed)
+    .expect("a task refusal is the tree's, not the argument's `GraphError`");
+    assert_eq!(
+        SEEN_TASK_LIMIT
+            .lock()
+            .expect("no test panics holding this")
+            .take()
+            .as_deref(),
+        Some("max_tasks"),
+    );
+    assert!(
+        closed.pending().is_some(),
+        "the request is failing from the refusal onwards",
+    );
+    let failure = refused
+        .join(&mut closed)
+        .error
+        .expect("a failed completion names why");
+    assert!(
+        failure.message.contains("ceiling of 0"),
         "the failure names the ceiling the operator wrote: {failure:?}",
     );
 }

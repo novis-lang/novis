@@ -152,6 +152,7 @@ impl Ctx {
             exit_drain: None,
             max_script_depth: Self::DEFAULT_MAX_SCRIPT_DEPTH,
             script_depth: 0,
+            task_slot: None,
             deferred: Some(Vec::new()),
             holds_deferred_slot: false,
             later: None,

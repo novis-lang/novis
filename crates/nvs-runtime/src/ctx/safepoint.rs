@@ -559,7 +559,8 @@ impl SafepointView {
 /// ceiling and the `wall_time`, written when the request's move; the two
 /// off-core counters, which stay zero and unwritten for a tree that places
 /// nothing off its core; the `wall_time`'s watch, an empty lock for a
-/// request whose client stays; and an empty cell for the extension host.
+/// request whose client stays; an empty cell for the extension host; and the
+/// count of running child isolates.
 #[derive(Debug, Default)]
 pub struct TreeState {
     /// The safepoint word itself, named by [`Ctx::safepoint`] and polled by
@@ -599,6 +600,31 @@ pub struct TreeState {
     /// which is the request's end, after-response work included. Empty for
     /// every request that calls no extension.
     pub(super) extensions: std::sync::OnceLock<Box<dyn std::any::Any + Send + Sync>>,
+    /// How many child isolates of this tree are running now — one per
+    /// [`TaskSlot`] alive, which [`Ctx::claim_task`] hands out against
+    /// `[limits] max_tasks` and the child's context gives back as it drops
+    /// (`rule:security/isolate-budget-is-the-trees`). Shared rather than
+    /// counted on the root because a child placed on another core spawns from
+    /// there.
+    pub(super) tasks: std::sync::atomic::AtomicU64,
+}
+
+/// One running child isolate, counted in its tree's [`TreeState::tasks`] for as
+/// long as this lives.
+///
+/// [`Ctx::claim_task`] is the only maker, and the child's context holds it
+/// ([`Ctx::hold_task`]), so the count falls when that context drops — the
+/// isolate's end, however it ended. It is `Send` so that a child placed on
+/// another core carries it there inside its [`crate::PlacedIsolate`].
+#[derive(Debug)]
+pub struct TaskSlot(pub(super) std::sync::Arc<TreeState>);
+
+impl Drop for TaskSlot {
+    fn drop(&mut self) {
+        self.0
+            .tasks
+            .fetch_sub(1, std::sync::atomic::Ordering::Relaxed);
+    }
 }
 
 impl TreeState {

@@ -641,31 +641,27 @@ impl Isolate {
             Charge::EngineReserve => None,
         };
         if let Some(Fault::Fatal(message)) = depth_breach {
-            // The safepoint's memory branch, in its order and for its reason
-            // (`nvs_runtime::nvs_safepoint`): § 1's tier 1 runs before the
-            // breach becomes the message the ladder prints, so a throw of the
-            // handler's own is overwritten by `set_pending` rather than
-            // reported in place of the limit that stopped the request. The
-            // report it is handed reads `max_script_depth`, which is what
-            // separates this from the out-of-memory the heap would deliver
-            // otherwise (`rule:security/isolate-budget-is-the-trees`).
-            ctx.run_limit_handler(Limit::ScriptDepth);
-            ctx.set_pending(message.clone());
-            // Not a `GraphError`: that error is the *argument's* and this
-            // refusal is the tree's, and the module doc holds the argument's to
-            // its own meaning. The parent is fatal from here, so the handle
-            // this answers with carries the failure the child never ran to
-            // produce — a `spawn` whose `await` is never reached sees the
-            // `FATAL` first either way.
-            return Ok(Box::new(Collected {
-                completion: Some(refused_completion(&message)),
-                output,
-                // No child was started, so there is no spawn to record: the
-                // event `rule:observability/spawn-is-its-own-event` asks for is
-                // filed where a body begins, and none did.
-                open: None,
-            }));
+            return Ok(refused_at_spawn(ctx, Limit::ScriptDepth, message, output));
         }
+        // `rule:security/isolate-budget-is-the-trees`'s `max_tasks`, asked
+        // second and for the depth's reason. Only a child in the parent's tree
+        // is one of its tasks: a request, a connection, a scheduled run and a
+        // job each start a tree of their own, and the handler is charged to
+        // the engine's reserve. The slot is held by the child's context below,
+        // and given back if anything between here and there refuses.
+        let counted = charge == Charge::Tree
+            && watch.is_none()
+            && inbound.is_none()
+            && peer.is_none()
+            && event_stream.is_none()
+            && kind.is_none();
+        let task = match counted.then(|| ctx.claim_task()) {
+            Some(Ok(slot)) => Some(slot),
+            Some(Err(message)) => {
+                return Ok(refused_at_spawn(ctx, Limit::Tasks, message, output));
+            }
+            None => None,
+        };
         // In, at the spawn — before anything is built, so a refusal costs
         // nothing and leaves no half-made isolate behind. The receiving table
         // is the child's: the one its program arrived with, or for a method
@@ -708,6 +704,9 @@ impl Isolate {
             (Charge::Tree, Form::Method) => ctx.method_isolate(sink),
             (Charge::EngineReserve, _) => ctx.handler_isolate(sink),
         };
+        if let Some(slot) = task {
+            isolate_ctx.hold_task(slot);
+        }
         // The kind of run a host started this as, before the narrowings below:
         // a scheduled run and a queued job are server work, and that decides
         // the CPU ceiling an unwritten `[limits] cpu_time` gives, which a
@@ -1459,6 +1458,40 @@ fn finish(isolate_ctx: &mut Ctx, answer: Value, receiving: Option<&ErrorClass>) 
 /// asks: this failure is not a throw, and `rule:errors/escalation-ladder`'s rule that a `FATAL` never
 /// reaches a `catch` is the reason there is no class here that a program could
 /// name.
+/// The handle a spawn answers when the tree's `limit` refuses the child before
+/// it is built — `max_script_depth` or `max_tasks`.
+///
+/// The safepoint's memory branch, in its order and for its reason
+/// (`nvs_runtime::nvs_safepoint`): § 1's tier 1 runs before the breach becomes
+/// the message the ladder prints, so a throw of the handler's own is
+/// overwritten by `set_pending` rather than reported in place of the limit
+/// that stopped the request. The report names the directive, which is what
+/// separates this from the out-of-memory the heap would deliver otherwise
+/// (`rule:security/isolate-budget-is-the-trees`).
+///
+/// Not a `GraphError`: that error is the *argument's* and this refusal is the
+/// tree's. The parent is fatal from here, so the handle carries the failure
+/// the child never ran to produce, and a `spawn` whose `await` is never
+/// reached sees the `FATAL` first either way. No child was started, so no
+/// spawn event is open: `rule:observability/spawn-is-its-own-event` files one
+/// where a body begins, and none did.
+pub(crate) fn refused_at_spawn(
+    ctx: &mut Ctx,
+    limit: Limit,
+    message: impl Into<std::borrow::Cow<'static, str>>,
+    output: Output,
+) -> Box<dyn Running> {
+    let message = message.into();
+    ctx.run_limit_handler(limit);
+    let completion = refused_completion(&message);
+    ctx.set_pending(message);
+    Box::new(Collected {
+        completion: Some(completion),
+        output,
+        open: None,
+    })
+}
+
 pub(crate) fn refused_completion(message: &str) -> Completion {
     Completion {
         ok: false,

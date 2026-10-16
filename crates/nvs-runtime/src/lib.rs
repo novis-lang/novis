@@ -305,9 +305,9 @@ pub use ctx::{
     RunKind, SAFEPOINT_OFFSET, SPAN_EVENT_CEILING, STACK_CEILING, STACK_LIMIT_OFFSET,
     STACK_RESERVE, STATICS_OFFSET, SafepointFlags, SafepointView, Scheme, Session, Settled,
     SnapshotMismatch, SocketAnswer, SocketFrame, SpawnForm, SpecBody, SpecPart, SseSlot, StmtHits,
-    TraceEvent, TraceKind, TreeState, Upgrade, UpgradeSlot, is_carrier, nvs_deprecated_use,
-    nvs_probe_call_enter, nvs_probe_call_exit, nvs_probe_edge, nvs_probe_stmt, nvs_safepoint,
-    nvs_stack_check, stack_pointer,
+    TaskSlot, TraceEvent, TraceKind, TreeState, Upgrade, UpgradeSlot, is_carrier,
+    nvs_deprecated_use, nvs_probe_call_enter, nvs_probe_call_exit, nvs_probe_edge, nvs_probe_stmt,
+    nvs_safepoint, nvs_stack_check, stack_pointer,
 };
 pub use decimal::{Decimal, NotDecimal};
 pub use dispatch::{

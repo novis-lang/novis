@@ -2940,10 +2940,10 @@ fn max_attempts_of(args: &[Value], configured: u32) -> Result<u32, Fault> {
 /// The `[limits]` keys [`limits_recorded`] records, which are the `Runtime` half of that block
 /// something enforces.
 ///
-/// `max_tasks` is `Runtime` too and is read by no scheduler
-/// (`nvs_config::tree::Limits::max_tasks`), so recording it would put a value on the row that no
-/// isolate applies; the reserves and the recursion ceiling are `System`, which a request may not
-/// set and so a narrowing may not carry.
+/// `max_tasks` is `Runtime` too, and `push`'s bag has no option for it ([`LIMIT_OPTIONS`]), so a
+/// job's tree runs under the `max_tasks` the worker's own configuration states, and a row naming it
+/// is refused. The reserves and the recursion ceiling are `System`, which a request may not set and
+/// so a narrowing may not carry.
 const RECORDED_LIMITS: &[&str] = &["memory", "cpu_time", "wall_time", "max_output"];
 
 /// The capability names the enqueuing context may still ask for, as the JSON array the row's
@@ -7479,8 +7479,8 @@ mod tests {
         assert_eq!(
             super::limits_recorded(Some(&untracked)).as_deref(),
             Some(r#"{"memory":"128M"}"#),
-            "`max_tasks` is read by no scheduler, so recording it would put a value on the row that \
-             no isolate applies; the memory default is in force, so it is recorded"
+            "`push` has no option for `max_tasks`, so the row leaves it to the worker's own \
+             configuration; the memory default is in force, so it is recorded"
         );
     }
 
@@ -7556,7 +7556,7 @@ mod tests {
                 Some(r#"{"memory":64}"#),
             ),
             (
-                "a key no isolate applies",
+                "a key `push` cannot write",
                 None,
                 Some(r#"{"max_tasks":"4"}"#),
             ),

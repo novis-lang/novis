@@ -1,0 +1,38 @@
+--TEST--
+A `spawn script` that would run more children at once than `[limits] max_tasks` allows stops the request with a limit report naming `max_tasks`, and a child that ended makes room for the next one — `rule:security/isolate-budget-is-the-trees`, `rule:errors/on-limit`
+--FILE nvs.toml--
+# `spawn script` needs `script.spawn`. The ceiling allows one child at a time.
+[capabilities.script]
+spawn = true
+
+[limits]
+max_tasks = 1
+--FILE child.nvs--
+<?nvs
+echo "child ran\n";
+--FILE--
+<?nvs
+Core\Fatal::onLimit(fn (array<string> $report): void => {
+    echo "onLimit ", $report['limit'], "\n";
+});
+
+// One child at a time is under the ceiling. The first child ends before the
+// second starts, so both run.
+var $first = await spawn script "child.nvs" with(output: "capture");
+echo $first->output;
+var $second = await spawn script "child.nvs" with(output: "capture");
+echo $second->output;
+
+// The third child is still running when the fourth is started, so the fourth
+// is one task too many and the request stops there.
+var $running = spawn script "child.nvs" with(output: "capture");
+echo "spawning one too many\n";
+var $tooMany = spawn script "child.nvs" with(output: "capture");
+echo "not reached\n";
+--EXPECT--
+child ran
+child ran
+spawning one too many
+onLimit max_tasks
+--EXPECT-ERROR--
+FATAL: the request exceeded its task limit — a spawn was asked for with 1 running against a ceiling of 1

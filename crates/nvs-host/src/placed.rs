@@ -137,6 +137,21 @@ pub(crate) fn start(
     output: Output,
     narrowing: Narrowing,
 ) -> Result<Box<dyn Running>, GraphError> {
+    // The tree's count of running tasks, claimed here where the parent can
+    // still answer a refusal, and carried to the far core inside the seed —
+    // `crate::isolate::Isolate::start` asks the same question in the same
+    // place for a child that stays.
+    let task = match ctx.claim_task() {
+        Ok(slot) => slot,
+        Err(message) => {
+            return Ok(crate::isolate::refused_at_spawn(
+                ctx,
+                nvs_runtime::Limit::Tasks,
+                message,
+                output,
+            ));
+        }
+    };
     // Out, at the spawn, and before the seed below for the reason the refusal
     // stands where it does in a same-core start: a refusal costs one walk and
     // leaves nothing half-made, here not even a core told to expect work.
@@ -156,7 +171,7 @@ pub(crate) fn start(
         // context it holds does not exist until the far core builds one, and the
         // ceilings it is clamped against are the ones this reading just resolved
         // (`nvs_runtime::PlacedIsolate::narrowed_by`).
-        seed: ctx.placed_isolate().narrowed_by(narrowing),
+        seed: ctx.placed_isolate().narrowed_by(narrowing).holding(task),
         timed: open.is_some(),
     };
     Ok(Box::new(Placed {
