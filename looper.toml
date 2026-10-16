@@ -23,8 +23,31 @@ sweep = "every"
 [verify]
 run = [["bun", "nv", "verify"]]
 
+# The Bash calls that take machine-wide heavy-job slots beside looper's built-in cargo and `bun test`. A
+# pattern matches a command's first words, so a flag counts only where it comes first. The measuring
+# commands take every slot, so no build runs beside them and skews what they record.
+[jobs]
+heavy = [
+  "bun nv verify",
+  "bun nv affected --run",
+  "bun nv suite",
+  "bun nv try",
+  "bun nv proofs --run",
+  "bun nv legs",
+  "bun nv db-matrix",
+]
+exclusive = [
+  "bun nv bench",
+  "bun nv benches",
+  "bun nv bench-load",
+  "bun nv bench-proxied",
+  "bun nv bench-compare",
+  "bun nv scaling",
+  "bun nv proofs --record-perf",
+]
+
 [checks]
-timeout = 1800            # the acceptance runner's own
+timeout = 1800           # the acceptance runner's own
 # Bun 1.3 prints only failing tests when `CLAUDECODE` is set, and a check's `tests` list is matched against
 # the `(pass)` lines, so every check runs with it empty.
 env = { CLAUDECODE = "" }
