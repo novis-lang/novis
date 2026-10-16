@@ -10,7 +10,7 @@ GENERATED FILE — do not edit by hand. Regenerate with:
     bun nv gen-attribution
 
 
-COMPONENTS (680)
+COMPONENTS (665)
 ------------------------------------------------------------------------------
 
 Where a component offers a choice of licenses, Novis takes the one shown and
@@ -39,7 +39,7 @@ platform Novis builds for, so one may appear that a given build omits.
   anstyle-query                              1.1.5                          MIT                             (MIT OR Apache-2.0)
   anstyle-wincon                             3.0.11                         MIT                             (MIT OR Apache-2.0)
   anyhow                                     1.0.104                        MIT                             (MIT OR Apache-2.0)
-  arbitrary                                  1.4.2                          MIT                             (MIT OR Apache-2.0)
+  arbitrary                                  1.5.0                          MIT                             (MIT OR Apache-2.0)
   arg_enum_proc_macro                        0.3.4                          MIT
   argon2                                     0.6.0                          MIT                             (MIT OR Apache-2.0)
   arrayref                                   0.3.9                          BSD-2-Clause
@@ -68,7 +68,6 @@ platform Novis builds for, so one may appear that a given build omits.
   bit-vec                                    0.8.0                          MIT                             (Apache-2.0 OR MIT)
   bit-vec                                    0.9.1                          MIT                             (Apache-2.0 OR MIT)
   bitflags                                   1.3.2                          MIT                             (MIT/Apache-2.0)
-  bitflags                                   2.13.1                         MIT                             (MIT OR Apache-2.0)
   bitflags                                   2.13.2                         MIT                             (MIT OR Apache-2.0)
   bitreader                                  0.3.11                         MIT                             (MIT OR Apache-2.0)
   bitstream-io                               4.10.0                         MIT                             (MIT/Apache-2.0)
@@ -81,7 +80,7 @@ platform Novis builds for, so one may appear that a given build omits.
   brainsort                                  0.5.0                          MIT
   brotli                                     9.0.0                          BSD-3-Clause AND MIT
   brotli-decompressor                        5.0.3                          MIT                             (BSD-3-Clause/MIT)
-  brotli-decompressor                        6.0.0                          MIT                             (BSD-3-Clause/MIT)
+  brotli-decompressor                        6.0.1                          MIT                             (BSD-3-Clause/MIT)
   btoi                                       0.5.0                          MIT                             (MIT OR Apache-2.0)
   built                                      0.8.1                          MIT
   bumpalo                                    3.20.3                         MIT                             (MIT OR Apache-2.0)
@@ -92,17 +91,16 @@ platform Novis builds for, so one may appear that a given build omits.
   bytes                                      1.12.1                         MIT
   calendrical_calculations                   0.2.4                          Apache-2.0
   caseless                                   0.2.2                          MIT
-  cc                                         1.4.3                          MIT                             (MIT OR Apache-2.0)
   cc                                         1.6.0                          MIT                             (MIT OR Apache-2.0)
-  cfg-if                                     1.0.4                          MIT                             (MIT OR Apache-2.0)
+  cc                                         1.8.0                          MIT                             (MIT OR Apache-2.0)
   cfg-if                                     1.0.5                          MIT                             (MIT OR Apache-2.0)
   chacha20                                   0.10.2                         MIT                             (MIT OR Apache-2.0)
   chacha20poly1305                           0.11.0                         MIT                             (Apache-2.0 OR MIT)
   cipher                                     0.5.2                          MIT                             (MIT OR Apache-2.0)
-  clap                                       4.6.6                          MIT                             (MIT OR Apache-2.0)
-  clap_builder                               4.6.6                          MIT                             (MIT OR Apache-2.0)
-  clap_derive                                4.6.4                          MIT                             (MIT OR Apache-2.0)
-  clap_lex                                   1.1.0                          MIT                             (MIT OR Apache-2.0)
+  clap                                       4.6.7                          MIT                             (MIT OR Apache-2.0)
+  clap_builder                               4.6.7                          MIT                             (MIT OR Apache-2.0)
+  clap_derive                                4.6.7                          MIT                             (MIT OR Apache-2.0)
+  clap_lex                                   1.1.1                          MIT                             (MIT OR Apache-2.0)
   cmov                                       0.5.4                          MIT                             (Apache-2.0 OR MIT)
   cobs                                       0.3.0                          MIT                             (MIT OR Apache-2.0)
   color                                      0.3.3                          MIT                             (Apache-2.0 OR MIT)
@@ -111,12 +109,13 @@ platform Novis builds for, so one may appear that a given build omits.
   const-oid                                  0.10.2                         MIT                             (Apache-2.0 OR MIT)
   constant_time_eq                           0.4.2                          MIT-0                           (CC0-1.0 OR MIT-0 OR Apache-2.0)
   core_affinity                              0.8.3                          MIT                             (MIT/Apache-2.0)
+  core_detect                                1.0.0                          MIT                             (MIT/Apache-2.0)
   core_maths                                 0.1.1                          MIT
   corosensei                                 0.3.4                          MIT                             (MIT OR Apache-2.0)
   cpp_demangle                               0.5.1                          MIT                             (MIT OR Apache-2.0)
   cpubits                                    0.1.1                          MIT                             (MIT OR Apache-2.0)
   cpufeatures                                0.2.17                         MIT                             (MIT OR Apache-2.0)
-  cpufeatures                                0.3.0                          MIT                             (MIT OR Apache-2.0)
+  cpufeatures                                0.3.1                          MIT                             (MIT OR Apache-2.0)
   cranelift                                  0.136.3                        Apache-2.0 WITH LLVM-exception
   cranelift-assembler-x64                    0.136.3                        Apache-2.0 WITH LLVM-exception
   cranelift-assembler-x64-meta               0.136.3                        Apache-2.0 WITH LLVM-exception
@@ -135,14 +134,10 @@ platform Novis builds for, so one may appear that a given build omits.
   cranelift-object                           0.136.3                        Apache-2.0 WITH LLVM-exception
   cranelift-srcgen                           0.136.3                        Apache-2.0 WITH LLVM-exception
   crc32c                                     0.6.8                          MIT                             (Apache-2.0/MIT)
-  crc32fast                                  1.5.0                          MIT                             (MIT OR Apache-2.0)
   crc32fast                                  1.5.2                          MIT                             (MIT OR Apache-2.0)
   crossbeam-channel                          0.5.17                         MIT                             (MIT OR Apache-2.0)
-  crossbeam-deque                            0.8.7                          MIT                             (MIT OR Apache-2.0)
   crossbeam-deque                            0.8.8                          MIT                             (MIT OR Apache-2.0)
-  crossbeam-epoch                            0.9.20                         MIT                             (MIT OR Apache-2.0)
   crossbeam-epoch                            0.9.21                         MIT                             (MIT OR Apache-2.0)
-  crossbeam-utils                            0.8.22                         MIT                             (MIT OR Apache-2.0)
   crossbeam-utils                            0.8.23                         MIT                             (MIT OR Apache-2.0)
   crypto-bigint                              0.7.5                          MIT                             (Apache-2.0 OR MIT)
   crypto-common                              0.1.7                          MIT                             (MIT OR Apache-2.0)
@@ -151,19 +146,19 @@ platform Novis builds for, so one may appear that a given build omits.
   cssparser-macros                           0.7.1                          MPL-2.0
   csv-core                                   0.1.13                         MIT                             (Unlicense/MIT)
   ctr                                        0.10.1                         MIT                             (MIT OR Apache-2.0)
-  ctutils                                    0.4.2                          MIT                             (Apache-2.0 OR MIT)
+  ctutils                                    0.4.3                          MIT                             (Apache-2.0 OR MIT)
   curve25519-dalek                           5.0.0                          BSD-3-Clause
   curve25519-dalek-derive                    0.1.1                          MIT                             (MIT/Apache-2.0)
   data-encoding                              2.11.1                         MIT
   data-url                                   0.3.2                          MIT                             (MIT OR Apache-2.0)
   datamatrix                                 0.3.3                          MIT                             (Apache-2.0 OR MIT)
   debugid                                    0.8.0                          Apache-2.0
-  defmt                                      1.1.1                          MIT                             (MIT OR Apache-2.0)
-  defmt-macros                               1.1.1                          MIT                             (MIT OR Apache-2.0)
-  defmt-parser                               1.0.0                          MIT                             (MIT OR Apache-2.0)
+  defmt                                      1.2.0                          MIT                             (MIT OR Apache-2.0)
+  defmt-macros                               1.2.0                          MIT                             (MIT OR Apache-2.0)
+  defmt-parser                               1.1.0                          MIT                             (MIT OR Apache-2.0)
   der                                        0.8.2                          MIT                             (Apache-2.0 OR MIT)
   der-parser                                 10.0.0                         MIT                             (MIT OR Apache-2.0)
-  deranged                                   0.5.8                          MIT                             (MIT OR Apache-2.0)
+  deranged                                   0.5.9                          MIT                             (MIT OR Apache-2.0)
   derive_more                                2.1.1                          MIT
   derive_more-impl                           2.1.1                          MIT
   digest                                     0.10.7                         MIT                             (MIT OR Apache-2.0)
@@ -177,22 +172,22 @@ platform Novis builds for, so one may appear that a given build omits.
   ecdsa                                      0.17.0                         MIT                             (Apache-2.0 OR MIT)
   ed25519                                    3.0.0                          MIT                             (Apache-2.0 OR MIT)
   ed25519-dalek                              3.0.0                          BSD-3-Clause
-  either                                     1.17.0                         MIT                             (MIT OR Apache-2.0)
   either                                     1.19.0                         MIT                             (MIT OR Apache-2.0)
   elliptic-curve                             0.14.1                         MIT                             (Apache-2.0 OR MIT)
   embedded-io                                0.4.0                          MIT                             (MIT OR Apache-2.0)
   embedded-io                                0.6.1                          MIT                             (MIT OR Apache-2.0)
-  encoding_rs                                0.8.35                         MIT AND BSD-3-Clause            ((Apache-2.0 OR MIT) AND BSD-3-Clause)
+  encoding_rs                                0.8.42                         MIT AND BSD-3-Clause            ((Apache-2.0 OR MIT) AND BSD-3-Clause)
   equator                                    0.4.2                          MIT
   equator-macro                              0.4.2                          MIT
   equivalent                                 1.0.2                          MIT                             (Apache-2.0 OR MIT)
+  equivalent                                 1.0.3                          MIT                             (Apache-2.0 OR MIT)
   errno                                      0.3.14                         MIT                             (MIT OR Apache-2.0)
   euclid                                     0.22.14                        MIT                             (MIT OR Apache-2.0)
   fallible-iterator                          0.2.0                          MIT                             (MIT/Apache-2.0)
   fallible-iterator                          0.3.0                          MIT                             (MIT/Apache-2.0)
   fallible-streaming-iterator                0.1.9                          MIT                             (MIT/Apache-2.0)
   fallible_collections                       0.5.2                          MIT                             (MIT OR Apache-2.0)
-  fancy-regex                                0.19.0                         MIT
+  fancy-regex                                0.19.2                         MIT
   fast_image_resize                          6.1.0                          MIT                             (MIT OR Apache-2.0)
   fastrand                                   2.5.0                          MIT                             (Apache-2.0 OR MIT)
   fdeflate                                   0.3.7                          MIT                             (MIT OR Apache-2.0)
@@ -201,7 +196,6 @@ platform Novis builds for, so one may appear that a given build omits.
   fearless_simd                              1.1.0                          MIT                             (Apache-2.0 OR MIT)
   ff                                         0.14.0                         MIT                             (MIT/Apache-2.0)
   fiat-crypto                                0.3.0                          MIT                             (MIT OR Apache-2.0 OR BSD-1-Clause)
-  find-msvc-tools                            0.1.11                         MIT                             (MIT OR Apache-2.0)
   find-msvc-tools                            0.1.14                         MIT                             (MIT OR Apache-2.0)
   fixed_decimal                              0.7.2                          Unicode-3.0
   fixedbitset                                0.4.2                          MIT                             (MIT/Apache-2.0)
@@ -237,7 +231,7 @@ platform Novis builds for, so one may appear that a given build omits.
   harfrust                                   0.12.0                         MIT
   hashbrown                                  0.16.1                         MIT                             (MIT OR Apache-2.0)
   hashbrown                                  0.17.1                         MIT                             (MIT OR Apache-2.0)
-  hashlink                                   0.12.1                         MIT                             (MIT OR Apache-2.0)
+  hashlink                                   0.12.2                         MIT                             (MIT OR Apache-2.0)
   hayro                                      0.8.0                          MIT                             (Apache-2.0 OR MIT)
   hayro-ccitt                                0.3.0                          MIT                             (Apache-2.0 OR MIT)
   hayro-ccitt                                0.4.0                          MIT                             (Apache-2.0 OR MIT)
@@ -252,7 +246,7 @@ platform Novis builds for, so one may appear that a given build omits.
   hayro-syntax                               0.8.0                          MIT                             (Apache-2.0 OR MIT)
   hayro-write                                0.7.0                          MIT                             (Apache-2.0 OR MIT)
   heck                                       0.5.0                          MIT                             (MIT OR Apache-2.0)
-  hermit-abi                                 0.5.2                          MIT                             (MIT OR Apache-2.0)
+  hermit-abi                                 0.5.3                          MIT                             (MIT OR Apache-2.0)
   hex                                        0.4.3                          MIT                             (MIT OR Apache-2.0)
   hkdf                                       0.13.0                         MIT                             (MIT OR Apache-2.0)
   hmac                                       0.12.1                         MIT                             (MIT OR Apache-2.0)
@@ -262,9 +256,8 @@ platform Novis builds for, so one may appear that a given build omits.
   http-body                                  1.1.0                          MIT
   httparse                                   1.10.1                         MIT                             (MIT OR Apache-2.0)
   httpdate                                   1.0.3                          MIT                             (MIT OR Apache-2.0)
-  hybrid-array                               0.4.14                         MIT                             (MIT OR Apache-2.0)
   hybrid-array                               0.4.15                         MIT                             (MIT OR Apache-2.0)
-  hyper                                      1.11.1                         MIT
+  hyper                                      1.12.0                         MIT
   hypher                                     0.1.8                          MIT                             (MIT OR Apache-2.0)
   icu_calendar                               2.3.0                          Unicode-3.0
   icu_calendar_data                          2.3.0                          Unicode-3.0
@@ -304,22 +297,22 @@ platform Novis builds for, so one may appear that a given build omits.
   imagesize                                  0.14.0                         MIT
   imagesize                                  0.15.0                         MIT
   imgref                                     1.12.3                         Apache-2.0                      (CC0-1.0 OR Apache-2.0)
-  indexmap                                   2.14.0                         MIT                             (Apache-2.0 OR MIT)
   indexmap                                   2.14.2                         MIT                             (Apache-2.0 OR MIT)
   inout                                      0.2.2                          MIT                             (MIT OR Apache-2.0)
+  inout                                      0.2.3                          MIT                             (MIT OR Apache-2.0)
   is_terminal_polyfill                       1.70.2                         MIT                             (MIT OR Apache-2.0)
   itertools                                  0.14.0                         MIT                             (MIT OR Apache-2.0)
   itoa                                       1.0.18                         MIT                             (MIT OR Apache-2.0)
   ittapi                                     0.4.0                          BSD-3-Clause                    (GPL-2.0-only OR BSD-3-Clause)
   ittapi-sys                                 0.4.0                          BSD-3-Clause                    (GPL-2.0-only OR BSD-3-Clause)
   ixdtf                                      0.6.6                          Unicode-3.0
-  jiff                                       0.2.35                         MIT                             (Unlicense OR MIT)
-  jiff-core                                  0.1.0                          MIT                             (Unlicense OR MIT)
-  jiff-static                                0.2.35                         MIT                             (Unlicense OR MIT)
-  jiff-tzdb                                  0.1.8                          MIT                             (Unlicense OR MIT)
+  jiff                                       0.2.38                         MIT                             (Unlicense OR MIT)
+  jiff-core                                  0.1.1                          MIT                             (Unlicense OR MIT)
+  jiff-static                                0.2.38                         MIT                             (Unlicense OR MIT)
+  jiff-tzdb                                  0.1.9                          MIT                             (Unlicense OR MIT)
   jiff-tzdb-platform                         0.1.3                          MIT                             (Unlicense OR MIT)
   jobserver                                  0.1.35                         MIT                             (MIT OR Apache-2.0)
-  js-sys                                     0.3.104                        MIT                             (MIT OR Apache-2.0)
+  js-sys                                     0.3.106                        MIT                             (MIT OR Apache-2.0)
   jxl-bitstream                              1.1.0                          MIT                             (MIT OR Apache-2.0)
   jxl-coding                                 1.0.1                          MIT                             (MIT OR Apache-2.0)
   jxl-color                                  0.11.0                         MIT                             (MIT OR Apache-2.0)
@@ -338,14 +331,13 @@ platform Novis builds for, so one may appear that a given build omits.
   krilla                                     0.8.2                          MIT                             (MIT OR Apache-2.0)
   krilla-svg                                 0.8.1                          MIT                             (MIT OR Apache-2.0)
   kurbo                                      0.13.1                         MIT                             (Apache-2.0 OR MIT)
-  lazy_static                                1.5.0                          MIT                             (MIT OR Apache-2.0)
+  lazy_static                                1.5.1                          MIT                             (MIT OR Apache-2.0)
   leb128                                     0.2.7                          MIT                             (MIT OR Apache-2.0)
   leb128fmt                                  0.1.0                          MIT                             (MIT OR Apache-2.0)
-  libc                                       0.2.189                        MIT                             (MIT OR Apache-2.0)
   libc                                       0.2.190                        MIT                             (MIT OR Apache-2.0)
   Liberation Fonts                           2.1.5                          OFL-1.1
   libm                                       0.2.16                         MIT
-  libredox                                   0.1.20                         MIT
+  libredox                                   0.1.25                         MIT
   libsqlite3-sys                             0.38.2                         MIT
   libwebp                                    1.6.0                          BSD-3-Clause
   linebender_resource_handle                 0.1.1                          MIT                             (Apache-2.0 OR MIT)
@@ -353,7 +345,6 @@ platform Novis builds for, so one may appear that a given build omits.
   litemap                                    0.8.3                          Unicode-3.0
   litrs                                      1.0.0                          MIT                             (MIT OR Apache-2.0)
   lock_api                                   0.4.14                         MIT                             (MIT OR Apache-2.0)
-  log                                        0.4.33                         MIT                             (MIT OR Apache-2.0)
   log                                        0.4.34                         MIT                             (MIT OR Apache-2.0)
   loop9                                      0.1.5                          MIT
   lsp-server                                 0.10.0                         MIT                             (MIT OR Apache-2.0)
@@ -366,13 +357,14 @@ platform Novis builds for, so one may appear that a given build omits.
   md-5                                       0.10.6                         MIT                             (MIT OR Apache-2.0)
   md-5                                       0.11.0                         MIT                             (MIT OR Apache-2.0)
   memchr                                     2.8.3                          MIT                             (Unlicense OR MIT)
-  memfd                                      0.6.5                          MIT                             (MIT OR Apache-2.0)
+  memfd                                      0.6.6                          MIT                             (MIT OR Apache-2.0)
   memmap2                                    0.9.11                         MIT                             (MIT OR Apache-2.0)
   minimal-lexical                            0.2.1                          MIT                             (MIT/Apache-2.0)
   miniz_oxide                                0.8.9                          MIT                             (MIT OR Zlib OR Apache-2.0)
   miniz_oxide                                0.9.1                          MIT                             (MIT OR Zlib OR Apache-2.0)
-  mio                                        1.2.2                          MIT
+  mio                                        1.2.4                          MIT
   moxcms                                     0.8.1                          Apache-2.0                      (BSD-3-Clause OR Apache-2.0)
+  multiversion_no_op                         1.0.0                          MIT                             (Apache-2.0 OR MIT)
   mutate_once                                0.1.2                          BSD-2-Clause
   mysql_common                               0.38.2                         MIT                             (MIT OR Apache-2.0)
   nasm-rs                                    0.3.2                          MIT                             (MIT OR Apache-2.0)
@@ -433,11 +425,11 @@ platform Novis builds for, so one may appear that a given build omits.
   polycool                                   0.4.0                          MIT                             (MIT OR Apache-2.0)
   polyval                                    0.7.3                          MIT                             (Apache-2.0 OR MIT)
   portable-atomic                            1.15.0                         MIT                             (Apache-2.0 OR MIT)
-  portable-atomic-util                       0.2.7                          MIT                             (Apache-2.0 OR MIT)
+  portable-atomic-util                       0.2.8                          MIT                             (Apache-2.0 OR MIT)
   postcard                                   1.1.3                          MIT                             (MIT OR Apache-2.0)
   postgres-protocol                          0.6.12                         MIT                             (MIT OR Apache-2.0)
   potential_utf                              0.1.6                          Unicode-3.0
-  powerfmt                                   0.2.0                          MIT                             (MIT OR Apache-2.0)
+  powerfmt                                   0.2.1                          MIT                             (MIT OR Apache-2.0)
   precomputed-hash                           0.1.1                          MIT
   prettyplease                               0.3.0                          MIT                             (MIT OR Apache-2.0)
   primefield                                 0.14.0                         MIT                             (Apache-2.0 OR MIT)
@@ -452,7 +444,7 @@ platform Novis builds for, so one may appear that a given build omits.
   quick-error                                2.0.1                          MIT                             (MIT/Apache-2.0)
   quote                                      1.0.47                         MIT                             (MIT OR Apache-2.0)
   r-efi                                      6.0.0                          MIT                             (MIT OR Apache-2.0 OR LGPL-2.1-or-later)
-  rand                                       0.10.2                         MIT                             (MIT OR Apache-2.0)
+  rand                                       0.10.3                         MIT                             (MIT OR Apache-2.0)
   rand_core                                  0.10.1                         MIT                             (MIT OR Apache-2.0)
   rav1d                                      1.1.0                          BSD-2-Clause
   rav1e                                      0.8.1                          BSD-2-Clause
@@ -484,7 +476,7 @@ platform Novis builds for, so one may appear that a given build omits.
   rustc-hash                                 2.1.3                          MIT                             (Apache-2.0 OR MIT)
   rustc_version                              0.4.1                          MIT                             (MIT OR Apache-2.0)
   rusticata-macros                           4.1.0                          MIT                             (MIT/Apache-2.0)
-  rustix                                     1.1.4                          MIT                             (Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT)
+  rustix                                     1.1.5                          MIT                             (Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT)
   rustls                                     0.23.46                        MIT                             (Apache-2.0 OR ISC OR MIT)
   rustls-pki-types                           1.15.1                         MIT                             (MIT OR Apache-2.0)
   rustls-webpki                              0.103.15                       ISC
@@ -510,23 +502,23 @@ platform Novis builds for, so one may appear that a given build omits.
   sha1                                       0.11.0                         MIT                             (MIT OR Apache-2.0)
   sha2                                       0.10.9                         MIT                             (MIT OR Apache-2.0)
   sha2                                       0.11.0                         MIT                             (MIT OR Apache-2.0)
+  sha2                                       0.11.1                         MIT                             (MIT OR Apache-2.0)
   sha3                                       0.10.9                         MIT                             (MIT OR Apache-2.0)
   shlex                                      2.0.1                          MIT                             (MIT OR Apache-2.0)
   signature                                  3.0.0                          MIT                             (Apache-2.0 OR MIT)
   simd-adler32                               0.3.10                         MIT
   simd_helpers                               0.1.0                          MIT
+  simdutf8                                   0.1.5                          MIT                             (MIT OR Apache-2.0)
   simplecss                                  0.2.2                          MIT                             (Apache-2.0 OR MIT)
-  siphasher                                  1.0.3                          MIT                             (MIT/Apache-2.0)
   siphasher                                  1.0.4                          MIT                             (MIT OR Apache-2.0)
   skrifa                                     0.42.1                         MIT                             (MIT OR Apache-2.0)
   skrifa                                     0.44.0                         MIT                             (MIT OR Apache-2.0)
   skrifa                                     0.46.2                         MIT                             (MIT OR Apache-2.0)
   slab                                       0.4.12                         MIT
   slotmap                                    1.1.1                          Zlib
-  smallvec                                   1.15.2                         MIT                             (MIT OR Apache-2.0)
   smallvec                                   1.16.2                         MIT                             (MIT OR Apache-2.0)
   smallvec                                   1.16.3                         MIT                             (MIT OR Apache-2.0)
-  spki                                       0.8.0                          MIT                             (Apache-2.0 OR MIT)
+  spki                                       0.8.1                          MIT                             (Apache-2.0 OR MIT)
   sqlite-wasm-rs                             0.5.5                          MIT
   stable_deref_trait                         1.2.1                          MIT                             (MIT OR Apache-2.0)
   strict-num                                 0.1.1                          MIT
@@ -542,6 +534,7 @@ platform Novis builds for, so one may appear that a given build omits.
   syn                                        2.0.119                        MIT                             (MIT OR Apache-2.0)
   syn                                        3.0.6                          MIT                             (MIT OR Apache-2.0)
   syn                                        3.0.8                          MIT                             (MIT OR Apache-2.0)
+  syn                                        3.0.9                          MIT                             (MIT OR Apache-2.0)
   synstructure                               0.13.2                         MIT
   synstructure                               0.14.0                         MIT
   taffy                                      0.14.0                         MIT
@@ -551,10 +544,8 @@ platform Novis builds for, so one may appear that a given build omits.
   termcolor                                  1.4.1                          MIT                             (Unlicense OR MIT)
   terminal_size                              0.4.4                          MIT                             (MIT OR Apache-2.0)
   thiserror                                  1.0.69                         MIT                             (MIT OR Apache-2.0)
-  thiserror                                  2.0.20                         MIT                             (MIT OR Apache-2.0)
   thiserror                                  2.0.21                         MIT                             (MIT OR Apache-2.0)
   thiserror-impl                             1.0.69                         MIT                             (MIT OR Apache-2.0)
-  thiserror-impl                             2.0.20                         MIT                             (MIT OR Apache-2.0)
   thiserror-impl                             2.0.21                         MIT                             (MIT OR Apache-2.0)
   time                                       0.3.55                         MIT                             (MIT OR Apache-2.0)
   time-core                                  0.1.9                          MIT                             (MIT OR Apache-2.0)
@@ -562,11 +553,9 @@ platform Novis builds for, so one may appear that a given build omits.
   tiny-skia                                  0.12.0                         BSD-3-Clause
   tiny-skia-path                             0.12.0                         BSD-3-Clause
   tinystr                                    0.8.4                          Unicode-3.0
-  tinyvec                                    1.12.0                         MIT                             (Zlib OR Apache-2.0 OR MIT)
   tinyvec                                    1.13.3                         MIT                             (Zlib OR Apache-2.0 OR MIT)
-  tinyvec_macros                             0.1.1                          MIT                             (MIT OR Apache-2.0 OR Zlib)
   to_method                                  1.1.0                          CC0-1.0
-  tokio                                      1.53.1                         MIT
+  tokio                                      1.53.3                         MIT
   toml                                       0.9.12+spec-1.1.0              MIT                             (MIT OR Apache-2.0)
   toml                                       1.1.8+spec-1.1.0               MIT                             (MIT OR Apache-2.0)
   toml_datetime                              0.7.5+spec-1.1.0               MIT                             (MIT OR Apache-2.0)
@@ -578,13 +567,13 @@ platform Novis builds for, so one may appear that a given build omits.
   try-lock                                   0.2.5                          MIT
   ttf-parser                                 0.25.1                         MIT                             (MIT OR Apache-2.0)
   tungstenite                                0.30.0                         MIT                             (MIT OR Apache-2.0)
-  twox-hash                                  2.1.4                          MIT
+  twox-hash                                  2.1.5                          MIT
   typenum                                    1.20.1                         MIT                             (MIT OR Apache-2.0)
   unicode-bidi                               0.3.18                         MIT                             (MIT OR Apache-2.0)
   unicode-bidi-mirroring                     0.4.0                          MIT                             (MIT/Apache-2.0)
   unicode-ccc                                0.4.0                          MIT                             (MIT/Apache-2.0)
-  unicode-ident                              1.0.24                         MIT AND Unicode-3.0             ((MIT OR Apache-2.0) AND Unicode-3.0)
   unicode-ident                              1.0.26                         MIT AND Unicode-3.0             ((MIT OR Apache-2.0) AND Unicode-3.0)
+  unicode-ident                              1.0.27                         MIT AND Unicode-3.0             ((MIT OR Apache-2.0) AND Unicode-3.0)
   unicode-normalization                      0.1.25                         MIT                             (MIT OR Apache-2.0)
   unicode-properties                         0.1.4                          MIT                             (MIT/Apache-2.0)
   unicode-script                             0.5.8                          MIT                             (MIT OR Apache-2.0)
@@ -598,31 +587,27 @@ platform Novis builds for, so one may appear that a given build omits.
   utf16_iter                                 1.0.5                          MIT                             (Apache-2.0 OR MIT)
   utf8_iter                                  1.0.4                          MIT                             (Apache-2.0 OR MIT)
   utf8parse                                  0.2.2                          MIT                             (Apache-2.0 OR MIT)
-  uuid                                       1.24.1                         MIT                             (Apache-2.0 OR MIT)
+  uuid                                       1.28.0                         MIT                             (Apache-2.0 OR MIT)
   v_frame                                    0.3.9                          BSD-2-Clause
   vcpkg                                      0.2.15                         MIT                             (MIT/Apache-2.0)
   vello_common                               0.3.0                          MIT                             (Apache-2.0 OR MIT)
   vello_cpu                                  0.3.0                          MIT                             (Apache-2.0 OR MIT)
   version_check                              0.9.5                          MIT                             (MIT/Apache-2.0)
-  want                                       0.3.1                          MIT
+  want                                       0.3.2                          MIT
   wasi                                       0.11.1+wasi-snapshot-preview1  MIT                             (Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT)
-  wasm-bindgen                               0.2.127                        MIT                             (MIT OR Apache-2.0)
   wasm-bindgen                               0.2.129                        MIT                             (MIT OR Apache-2.0)
-  wasm-bindgen-macro                         0.2.127                        MIT                             (MIT OR Apache-2.0)
   wasm-bindgen-macro                         0.2.129                        MIT                             (MIT OR Apache-2.0)
-  wasm-bindgen-macro-support                 0.2.127                        MIT                             (MIT OR Apache-2.0)
   wasm-bindgen-macro-support                 0.2.129                        MIT                             (MIT OR Apache-2.0)
-  wasm-bindgen-shared                        0.2.127                        MIT                             (MIT OR Apache-2.0)
   wasm-bindgen-shared                        0.2.129                        MIT                             (MIT OR Apache-2.0)
   wasm-compose                               0.258.3                        MIT                             (Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT)
   wasm-encoder                               0.258.3                        MIT                             (Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT)
   wasm-encoder                               0.259.0                        MIT                             (Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT)
-  wasm-encoder                               0.261.0                        MIT                             (Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT)
+  wasm-encoder                               0.262.0                        MIT                             (Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT)
   wasm-metadata                              0.258.3                        MIT                             (Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT)
   wasm-metadata                              0.259.0                        MIT                             (Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT)
   wasmparser                                 0.258.3                        MIT                             (Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT)
   wasmparser                                 0.259.0                        MIT                             (Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT)
-  wasmparser                                 0.261.0                        MIT                             (Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT)
+  wasmparser                                 0.262.0                        MIT                             (Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT)
   wasmprinter                                0.258.3                        MIT                             (Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT)
   wasmtime                                   49.0.3                         Apache-2.0 WITH LLVM-exception
   wasmtime-environ                           49.0.3                         Apache-2.0 WITH LLVM-exception
@@ -638,8 +623,8 @@ platform Novis builds for, so one may appear that a given build omits.
   wasmtime-internal-versioned-export-macros  49.0.3                         Apache-2.0 WITH LLVM-exception
   wasmtime-internal-wit-bindgen              49.0.3                         Apache-2.0 WITH LLVM-exception
   wasmtime-wasi-io                           49.0.3                         Apache-2.0 WITH LLVM-exception
-  wast                                       261.0.0                        MIT                             (Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT)
-  wat                                        1.261.0                        MIT                             (Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT)
+  wast                                       262.0.0                        MIT                             (Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT)
+  wat                                        1.262.0                        MIT                             (Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT)
   web_atoms                                  0.2.6                          MIT                             (MIT OR Apache-2.0)
   webpki-roots                               1.0.9                          CDLA-Permissive-2.0
   weezl                                      0.1.12                         MIT                             (MIT OR Apache-2.0)
@@ -686,20 +671,20 @@ platform Novis builds for, so one may appear that a given build omits.
   zerocopy-derive                            0.7.35                         MIT                             (BSD-2-Clause OR Apache-2.0 OR MIT)
   zerofrom                                   0.1.8                          Unicode-3.0
   zerofrom-derive                            0.1.8                          Unicode-3.0
-  zeroize                                    1.9.0                          MIT                             (Apache-2.0 OR MIT)
+  zeroize                                    1.9.1                          MIT                             (Apache-2.0 OR MIT)
   zerotrie                                   0.2.5                          Unicode-3.0
   zerovec                                    0.11.8                         Unicode-3.0
   zerovec-derive                             0.11.6                         Unicode-3.0
   zlib-rs                                    0.6.8                          Zlib
   zmij                                       1.0.23                         MIT
   zstd                                       0.13.3                         MIT
-  zstd-safe                                  7.2.4                          MIT                             (MIT OR Apache-2.0)
-  zstd-sys                                   2.0.16+zstd.1.5.7              MIT                             (MIT/Apache-2.0)
+  zstd-safe                                  7.3.0                          BSD-3-Clause
+  zstd-sys                                   2.1.1+zstd.1.5.7               BSD-3-Clause
   zune-core                                  0.5.3                          MIT                             (MIT OR Apache-2.0 OR Zlib)
   zune-jpeg                                  0.5.15                         MIT                             (MIT OR Apache-2.0 OR Zlib)
 
 
-LICENSE TEXTS (262)
+LICENSE TEXTS (263)
 ------------------------------------------------------------------------------
 
 Each text below is reproduced verbatim as its component ships it. Components
@@ -709,7 +694,7 @@ than once.
 
 
 ==============================================================================
-[1/262]  MIT
+[1/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -717,9 +702,8 @@ Applies to:
   asn1-rs-impl 0.2.0
   atomig-macro 0.4.0
   brotli-decompressor 5.0.3
-  brotli-decompressor 6.0.0
+  brotli-decompressor 6.0.1
   crc32c 0.6.8
-  defmt-parser 1.0.0
   fxprof-processed-profile 0.8.1
   krilla 0.8.2
   krilla-svg 0.8.1
@@ -733,7 +717,6 @@ Applies to:
   rcgen 0.14.10
   rsqlite-vfs 0.1.1
   simd_helpers 0.1.0
-  siphasher 1.0.3
   taffy 0.14.0
   winapi-i686-pc-windows-gnu 0.4.0
   winapi-x86_64-pc-windows-gnu 0.4.0
@@ -768,7 +751,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[2/262]  MIT
+[2/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -783,7 +766,7 @@ Applies to:
   dtoa 1.0.11
   fastrand 2.5.0
   group 0.14.0
-  hermit-abi 0.5.2
+  hermit-abi 0.5.3
   itoa 1.0.18
   jxl-bitstream 1.1.0
   jxl-coding 1.0.1
@@ -798,6 +781,7 @@ Applies to:
   jxl-render 0.12.4
   jxl-threadpool 1.0.0
   jxl-vardct 0.11.1
+  lazy_static 1.5.1
   leb128fmt 0.1.0
   linux-raw-sys 0.12.1
   lsp-server 0.10.0
@@ -808,14 +792,14 @@ Applies to:
   pastey 0.1.1
   pin-project-lite 0.2.17
   portable-atomic 1.15.0
-  portable-atomic-util 0.2.7
+  portable-atomic-util 0.2.8
   prettyplease 0.3.0
   proc-macro2 1.0.107
   quote 1.0.47
   ref-cast 1.0.27
   ref-cast-impl 1.0.27
   rustc-hash 2.1.3
-  rustix 1.1.4
+  rustix 1.1.5
   rustversion 1.0.23
   semver 1.0.28
   serde 1.0.229
@@ -828,27 +812,26 @@ Applies to:
   syn 2.0.119
   syn 3.0.6
   syn 3.0.8
+  syn 3.0.9
   thiserror 1.0.69
-  thiserror 2.0.20
   thiserror 2.0.21
   thiserror-impl 1.0.69
-  thiserror-impl 2.0.20
   thiserror-impl 2.0.21
-  unicode-ident 1.0.24
   unicode-ident 1.0.26
+  unicode-ident 1.0.27
   wasi 0.11.1+wasi-snapshot-preview1
   wasm-compose 0.258.3
   wasm-encoder 0.258.3
   wasm-encoder 0.259.0
-  wasm-encoder 0.261.0
+  wasm-encoder 0.262.0
   wasm-metadata 0.258.3
   wasm-metadata 0.259.0
   wasmparser 0.258.3
   wasmparser 0.259.0
-  wasmparser 0.261.0
+  wasmparser 0.262.0
   wasmprinter 0.258.3
-  wast 261.0.0
-  wat 1.261.0
+  wast 262.0.0
+  wat 1.262.0
   wit-bindgen 0.62.0
   wit-bindgen-core 0.62.0
   wit-bindgen-rust 0.62.0
@@ -887,7 +870,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[3/262]  MIT
+[3/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -924,7 +907,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[4/262]  MIT
+[4/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -961,7 +944,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[5/262]  MIT
+[5/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -1001,7 +984,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[6/262]  MIT
+[6/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -1037,7 +1020,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[7/262]  MIT
+[7/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -1045,10 +1028,10 @@ Applies to:
   byteorder 1.5.0
   byteorder-lite 0.1.0
   csv-core 0.1.13
-  jiff 0.2.35
-  jiff-core 0.1.0
-  jiff-static 0.2.35
-  jiff-tzdb 0.1.8
+  jiff 0.2.38
+  jiff-core 0.1.1
+  jiff-static 0.2.38
+  jiff-tzdb 0.1.9
   jiff-tzdb-platform 0.1.3
   memchr 2.8.3
   termcolor 1.4.1
@@ -1079,7 +1062,7 @@ THE SOFTWARE.
 
 
 ==============================================================================
-[8/262]  MIT
+[8/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -1115,7 +1098,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[9/262]  MIT
+[9/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -1147,7 +1130,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[10/262]  MIT
+[10/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -1156,10 +1139,10 @@ Applies to:
   anstyle-parse 1.0.0
   anstyle-query 1.1.5
   anstyle-wincon 3.0.11
-  clap 4.6.6
-  clap_builder 4.6.6
-  clap_derive 4.6.4
-  clap_lex 1.1.0
+  clap 4.6.7
+  clap_builder 4.6.7
+  clap_derive 4.6.7
+  clap_lex 1.1.1
   colorchoice 1.0.5
   is_terminal_polyfill 1.70.2
   once_cell_polyfill 1.70.2
@@ -1195,11 +1178,11 @@ SOFTWARE.
 
 
 ==============================================================================
-[11/262]  MIT
+[11/263]  MIT
 ==============================================================================
 
 Applies to:
-  arbitrary 1.4.2
+  arbitrary 1.5.0
   unicode-script 0.5.8
 
 ------------------------------------------------------------------------------
@@ -1234,7 +1217,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[12/262]  MIT
+[12/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -1266,7 +1249,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[13/262]  MIT
+[13/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -1274,7 +1257,7 @@ Applies to:
   crypto-bigint 0.7.5
   phc 0.6.1
   sec1 0.8.1
-  spki 0.8.0
+  spki 0.8.1
 
 ------------------------------------------------------------------------------
 
@@ -1306,7 +1289,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[14/262]  MIT
+[14/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -1342,7 +1325,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[15/262]  MIT
+[15/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -1378,7 +1361,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[16/262]  MIT
+[16/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -1419,7 +1402,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[17/262]  MIT
+[17/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -1455,7 +1438,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[18/262]  MIT
+[18/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -1491,7 +1474,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[19/262]  MIT
+[19/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -1527,7 +1510,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[20/262]  MIT
+[20/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -1559,7 +1542,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[21/262]  MIT
+[21/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -1589,7 +1572,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[22/262]  MIT
+[22/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -1626,7 +1609,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[23/262]  MIT
+[23/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -1658,7 +1641,7 @@ THE SOFTWARE.
 
 
 ==============================================================================
-[24/262]  MIT
+[24/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -1690,7 +1673,7 @@ THE SOFTWARE.
 
 
 ==============================================================================
-[25/262]  MIT
+[25/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -1727,7 +1710,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[26/262]  MIT
+[26/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -1759,7 +1742,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[27/262]  MIT
+[27/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -1797,15 +1780,13 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[28/262]  MIT
+[28/263]  MIT
 ==============================================================================
 
 Applies to:
   bitflags 1.3.2
-  bitflags 2.13.1
   bitflags 2.13.2
   core_affinity 0.8.3
-  log 0.4.33
   log 0.4.34
   num-bigint 0.4.8
   num-bigint 0.5.1
@@ -1847,7 +1828,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[29/262]  MIT
+[29/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -1883,7 +1864,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[30/262]  MIT
+[30/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -1919,7 +1900,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[31/262]  MIT
+[31/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -1957,7 +1938,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[32/262]  MIT
+[32/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -1993,7 +1974,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[33/262]  MIT
+[33/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -2029,7 +2010,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[34/262]  MIT
+[34/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -2065,7 +2046,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[35/262]  MIT
+[35/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -2097,7 +2078,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[36/262]  MIT
+[36/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -2127,7 +2108,7 @@ THE SOFTWARE.
 
 
 ==============================================================================
-[37/262]  MIT
+[37/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -2163,7 +2144,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[38/262]  MIT
+[38/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -2195,7 +2176,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[39/262]  MIT
+[39/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -2231,7 +2212,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[40/262]  MIT
+[40/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -2252,7 +2233,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 
 ==============================================================================
-[41/262]  MIT
+[41/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -2288,7 +2269,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[42/262]  MIT
+[42/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -2321,28 +2302,22 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[43/262]  MIT
+[43/263]  MIT
 ==============================================================================
 
 Applies to:
-  cc 1.4.3
   cc 1.6.0
-  cfg-if 1.0.4
+  cc 1.8.0
   cfg-if 1.0.5
-  find-msvc-tools 0.1.11
   find-msvc-tools 0.1.14
   id-arena 2.3.0
   jobserver 0.1.35
-  js-sys 0.3.104
+  js-sys 0.3.106
   pkg-config 0.3.34
   rustc-demangle 0.1.28
-  wasm-bindgen 0.2.127
   wasm-bindgen 0.2.129
-  wasm-bindgen-macro 0.2.127
   wasm-bindgen-macro 0.2.129
-  wasm-bindgen-macro-support 0.2.127
   wasm-bindgen-macro-support 0.2.129
-  wasm-bindgen-shared 0.2.127
   wasm-bindgen-shared 0.2.129
 
 ------------------------------------------------------------------------------
@@ -2375,7 +2350,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[44/262]  MIT
+[44/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -2411,12 +2386,11 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[45/262]  MIT
+[45/263]  MIT
 ==============================================================================
 
 Applies to:
   cmov 0.5.4
-  hybrid-array 0.4.14
   hybrid-array 0.4.15
 
 ------------------------------------------------------------------------------
@@ -2449,7 +2423,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[46/262]  MIT
+[46/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -2479,7 +2453,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[47/262]  MIT
+[47/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -2487,6 +2461,7 @@ Applies to:
   hypher 0.1.8
   linebender_resource_handle 0.1.1
   pdf-writer 0.15.0
+  simdutf8 0.1.5
   subsetter 0.2.6
   xmp-writer 0.3.3
 
@@ -2514,7 +2489,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[48/262]  MIT
+[48/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -2546,11 +2521,12 @@ SOFTWARE.
 
 
 ==============================================================================
-[49/262]  MIT
+[49/263]  MIT
 ==============================================================================
 
 Applies to:
   const-oid 0.10.2
+  cpufeatures 0.3.1
   der 0.8.2
   pkcs8 0.11.0
 
@@ -2584,7 +2560,43 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[50/262]  MIT
+[50/263]  MIT
+==============================================================================
+
+Applies to:
+  core_detect 1.0.0
+
+------------------------------------------------------------------------------
+
+Copyright (c) 2017-2020 The Rust Project Developers
+
+Permission is hereby granted, free of charge, to any
+person obtaining a copy of this software and associated
+documentation files (the "Software"), to deal in the
+Software without restriction, including without
+limitation the rights to use, copy, modify, merge,
+publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons to whom the Software
+is furnished to do so, subject to the following
+conditions:
+
+The above copyright notice and this permission notice
+shall be included in all copies or substantial portions
+of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
+ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
+TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
+SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
+IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+DEALINGS IN THE SOFTWARE.
+
+
+==============================================================================
+[51/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -2616,7 +2628,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[51/262]  MIT
+[52/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -2660,7 +2672,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[52/262]  MIT
+[53/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -2696,12 +2708,11 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[53/262]  MIT
+[54/263]  MIT
 ==============================================================================
 
 Applies to:
   cpufeatures 0.2.17
-  cpufeatures 0.3.0
 
 ------------------------------------------------------------------------------
 
@@ -2733,11 +2744,10 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[54/262]  MIT
+[55/263]  MIT
 ==============================================================================
 
 Applies to:
-  crc32fast 1.5.0
   crc32fast 1.5.2
 
 ------------------------------------------------------------------------------
@@ -2766,16 +2776,13 @@ SOFTWARE.
 
 
 ==============================================================================
-[55/262]  MIT
+[56/263]  MIT
 ==============================================================================
 
 Applies to:
   crossbeam-channel 0.5.17
-  crossbeam-deque 0.8.7
   crossbeam-deque 0.8.8
-  crossbeam-epoch 0.9.20
   crossbeam-epoch 0.9.21
-  crossbeam-utils 0.8.22
   crossbeam-utils 0.8.23
 
 ------------------------------------------------------------------------------
@@ -2810,7 +2817,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[56/262]  MIT
+[57/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -2846,7 +2853,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[57/262]  MIT
+[58/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -2882,7 +2889,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[58/262]  MIT
+[59/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -2919,11 +2926,11 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[59/262]  MIT
+[60/263]  MIT
 ==============================================================================
 
 Applies to:
-  ctutils 0.4.2
+  ctutils 0.4.3
 
 ------------------------------------------------------------------------------
 
@@ -2955,7 +2962,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[60/262]  MIT
+[61/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -2988,7 +2995,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[61/262]  MIT
+[62/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -3024,7 +3031,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[62/262]  MIT
+[63/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -3042,12 +3049,13 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 
 ==============================================================================
-[63/262]  MIT
+[64/263]  MIT
 ==============================================================================
 
 Applies to:
-  defmt 1.1.1
-  defmt-macros 1.1.1
+  defmt 1.2.0
+  defmt-macros 1.2.0
+  defmt-parser 1.1.0
 
 ------------------------------------------------------------------------------
 
@@ -3079,11 +3087,11 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[64/262]  MIT
+[65/263]  MIT
 ==============================================================================
 
 Applies to:
-  deranged 0.5.8
+  deranged 0.5.9
 
 ------------------------------------------------------------------------------
 
@@ -3109,7 +3117,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[65/262]  MIT
+[66/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -3142,7 +3150,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[66/262]  MIT
+[67/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -3180,7 +3188,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[67/262]  MIT
+[68/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -3217,7 +3225,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[68/262]  MIT
+[69/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -3247,7 +3255,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[69/262]  MIT
+[70/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -3277,7 +3285,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[70/262]  MIT
+[71/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -3307,7 +3315,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[71/262]  MIT
+[72/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -3345,11 +3353,10 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[72/262]  MIT
+[73/263]  MIT
 ==============================================================================
 
 Applies to:
-  either 1.17.0
   either 1.19.0
   itertools 0.14.0
   petgraph 0.6.5
@@ -3384,7 +3391,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[73/262]  MIT
+[74/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -3422,7 +3429,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[74/262]  MIT
+[75/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -3458,7 +3465,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[75/262]  MIT
+[76/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -3494,11 +3501,12 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[76/262]  MIT
+[77/263]  MIT
 ==============================================================================
 
 Applies to:
-  encoding_rs 0.8.35
+  encoding_rs 0.8.42
+  multiversion_no_op 1.0.0
   utf16_iter 1.0.5
   utf8_iter 1.0.4
   write16 1.0.0
@@ -3533,7 +3541,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[77/262]  MIT
+[78/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -3566,11 +3574,12 @@ SOFTWARE.
 
 
 ==============================================================================
-[78/262]  MIT
+[79/263]  MIT
 ==============================================================================
 
 Applies to:
   equivalent 1.0.2
+  equivalent 1.0.3
 
 ------------------------------------------------------------------------------
 
@@ -3602,7 +3611,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[79/262]  MIT
+[80/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -3638,7 +3647,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[80/262]  MIT
+[81/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -3676,7 +3685,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[81/262]  MIT
+[82/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -3707,7 +3716,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[82/262]  MIT
+[83/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -3737,12 +3746,11 @@ SOFTWARE.
 
 
 ==============================================================================
-[83/262]  MIT
+[84/263]  MIT
 ==============================================================================
 
 Applies to:
   fallible_collections 0.5.2
-  lazy_static 1.5.0
   rayon 1.12.0
   rayon-core 1.13.0
 
@@ -3776,11 +3784,11 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[84/262]  MIT
+[85/263]  MIT
 ==============================================================================
 
 Applies to:
-  fancy-regex 0.19.0
+  fancy-regex 0.19.2
 
 ------------------------------------------------------------------------------
 
@@ -3808,7 +3816,7 @@ THE SOFTWARE.
 
 
 ==============================================================================
-[85/262]  MIT
+[86/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -3840,7 +3848,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[86/262]  MIT
+[87/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -3878,7 +3886,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[87/262]  MIT
+[88/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -3919,7 +3927,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[88/262]  MIT
+[89/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -3951,7 +3959,7 @@ THE SOFTWARE.
 
 
 ==============================================================================
-[89/262]  MIT
+[90/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -3983,7 +3991,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[90/262]  MIT
+[91/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -4019,7 +4027,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[91/262]  MIT
+[92/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -4055,7 +4063,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[92/262]  MIT
+[93/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -4085,7 +4093,7 @@ IN THE SOFTWARE.
 
 
 ==============================================================================
-[93/262]  MIT
+[94/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -4117,7 +4125,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[94/262]  MIT
+[95/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -4149,7 +4157,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[95/262]  MIT
+[96/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -4185,7 +4193,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[96/262]  MIT
+[97/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -4224,7 +4232,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[97/262]  MIT
+[98/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -4264,7 +4272,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[98/262]  MIT
+[99/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -4299,7 +4307,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[99/262]  MIT
+[100/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -4335,7 +4343,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[100/262]  MIT
+[101/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -4378,7 +4386,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[101/262]  MIT
+[102/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -4410,7 +4418,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[102/262]  MIT
+[103/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -4447,7 +4455,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[103/262]  MIT
+[104/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -4484,7 +4492,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[104/262]  MIT
+[105/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -4516,7 +4524,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[105/262]  MIT
+[106/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -4552,7 +4560,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[106/262]  MIT
+[107/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -4583,7 +4591,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[107/262]  MIT
+[108/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -4617,7 +4625,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[108/262]  MIT
+[109/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -4654,11 +4662,11 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[109/262]  MIT
+[110/263]  MIT
 ==============================================================================
 
 Applies to:
-  hashlink 0.12.1
+  hashlink 0.12.2
 
 ------------------------------------------------------------------------------
 
@@ -4691,7 +4699,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[110/262]  MIT
+[111/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -4721,7 +4729,7 @@ THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR I
 
 
 ==============================================================================
-[111/262]  MIT
+[112/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -4752,7 +4760,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[112/262]  MIT
+[113/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -4789,7 +4797,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[113/262]  MIT
+[114/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -4827,7 +4835,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[114/262]  MIT
+[115/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -4863,7 +4871,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[115/262]  MIT
+[116/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -4899,7 +4907,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[116/262]  MIT
+[117/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -4930,7 +4938,7 @@ THE SOFTWARE.
 
 
 ==============================================================================
-[117/262]  MIT
+[118/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -4960,11 +4968,11 @@ THE SOFTWARE.
 
 
 ==============================================================================
-[118/262]  MIT
+[119/263]  MIT
 ==============================================================================
 
 Applies to:
-  hyper 1.11.1
+  hyper 1.12.0
 
 ------------------------------------------------------------------------------
 
@@ -4990,7 +4998,7 @@ THE SOFTWARE.
 
 
 ==============================================================================
-[119/262]  MIT
+[120/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -5023,11 +5031,10 @@ SOFTWARE.
 
 
 ==============================================================================
-[120/262]  MIT
+[121/263]  MIT
 ==============================================================================
 
 Applies to:
-  indexmap 2.14.0
   indexmap 2.14.2
 
 ------------------------------------------------------------------------------
@@ -5060,11 +5067,12 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[121/262]  MIT
+[122/263]  MIT
 ==============================================================================
 
 Applies to:
   inout 0.2.2
+  inout 0.2.3
 
 ------------------------------------------------------------------------------
 
@@ -5097,7 +5105,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[122/262]  MIT
+[123/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -5133,11 +5141,10 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[123/262]  MIT
+[124/263]  MIT
 ==============================================================================
 
 Applies to:
-  libc 0.2.189
   libc 0.2.190
 
 ------------------------------------------------------------------------------
@@ -5170,11 +5177,11 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[124/262]  MIT
+[125/263]  MIT
 ==============================================================================
 
 Applies to:
-  libredox 0.1.20
+  libredox 0.1.25
 
 ------------------------------------------------------------------------------
 
@@ -5202,7 +5209,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[125/262]  MIT
+[126/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -5233,7 +5240,7 @@ THE SOFTWARE.
 
 
 ==============================================================================
-[126/262]  MIT
+[127/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -5269,7 +5276,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[127/262]  MIT
+[128/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -5309,7 +5316,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[128/262]  MIT
+[129/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -5327,7 +5334,7 @@ THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR I
 
 
 ==============================================================================
-[129/262]  MIT
+[130/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -5359,7 +5366,7 @@ THE SOFTWARE.
 
 
 ==============================================================================
-[130/262]  MIT
+[131/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -5396,7 +5403,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[131/262]  MIT
+[132/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -5428,7 +5435,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[132/262]  MIT
+[133/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -5468,13 +5475,14 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[133/262]  MIT
+[134/263]  MIT
 ==============================================================================
 
 Applies to:
   md-5 0.11.0
   sha1 0.11.0
   sha2 0.11.0
+  sha2 0.11.1
 
 ------------------------------------------------------------------------------
 
@@ -5509,11 +5517,11 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[134/262]  MIT
+[135/263]  MIT
 ==============================================================================
 
 Applies to:
-  memfd 0.6.5
+  memfd 0.6.6
 
 ------------------------------------------------------------------------------
 
@@ -5536,7 +5544,7 @@ OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWA
 
 
 ==============================================================================
-[135/262]  MIT
+[136/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -5573,7 +5581,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[136/262]  MIT
+[137/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -5610,11 +5618,11 @@ SOFTWARE.
 
 
 ==============================================================================
-[137/262]  MIT
+[138/263]  MIT
 ==============================================================================
 
 Applies to:
-  mio 1.2.2
+  mio 1.2.4
 
 ------------------------------------------------------------------------------
 
@@ -5640,7 +5648,7 @@ THE SOFTWARE.
 
 
 ==============================================================================
-[138/262]  MIT
+[139/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -5676,7 +5684,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[139/262]  MIT
+[140/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -5712,7 +5720,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[140/262]  MIT
+[141/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -5742,7 +5750,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[141/262]  MIT
+[142/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -5774,7 +5782,7 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[142/262]  MIT
+[143/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -5806,7 +5814,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[143/262]  MIT
+[144/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -5836,7 +5844,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[144/262]  MIT
+[145/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -5872,7 +5880,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[145/262]  MIT
+[146/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -5910,7 +5918,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[146/262]  MIT
+[147/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -5948,7 +5956,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[147/262]  MIT
+[148/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -5984,7 +5992,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[148/262]  MIT
+[149/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -6021,7 +6029,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[149/262]  MIT
+[150/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -6053,7 +6061,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[150/262]  MIT
+[151/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -6092,7 +6100,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[151/262]  MIT
+[152/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -6122,7 +6130,7 @@ THE SOFTWARE.
 
 
 ==============================================================================
-[152/262]  MIT
+[153/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -6158,7 +6166,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[153/262]  MIT
+[154/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -6194,7 +6202,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[154/262]  MIT
+[155/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -6230,7 +6238,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[155/262]  MIT
+[156/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -6262,11 +6270,11 @@ SOFTWARE.
 
 
 ==============================================================================
-[156/262]  MIT
+[157/263]  MIT
 ==============================================================================
 
 Applies to:
-  powerfmt 0.2.0
+  powerfmt 0.2.1
 
 ------------------------------------------------------------------------------
 
@@ -6292,7 +6300,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[157/262]  MIT
+[158/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -6324,7 +6332,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[158/262]  MIT
+[159/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -6360,7 +6368,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[159/262]  MIT
+[160/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -6396,7 +6404,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[160/262]  MIT
+[161/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -6425,7 +6433,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[161/262]  MIT
+[162/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -6455,11 +6463,11 @@ SOFTWARE.
 
 
 ==============================================================================
-[162/262]  MIT
+[163/263]  MIT
 ==============================================================================
 
 Applies to:
-  rand 0.10.2
+  rand 0.10.3
 
 ------------------------------------------------------------------------------
 
@@ -6492,7 +6500,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[163/262]  MIT
+[164/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -6528,7 +6536,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[164/262]  MIT
+[165/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -6560,7 +6568,7 @@ THE SOFTWARE.
 
 
 ==============================================================================
-[165/262]  MIT
+[166/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -6593,7 +6601,7 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[166/262]  MIT
+[167/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -6625,7 +6633,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[167/262]  MIT
+[168/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -6661,7 +6669,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[168/262]  MIT
+[169/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -6700,7 +6708,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[169/262]  MIT
+[170/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -6732,7 +6740,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[170/262]  MIT
+[171/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -6764,7 +6772,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[171/262]  MIT
+[172/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -6800,7 +6808,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[172/262]  MIT
+[173/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -6836,7 +6844,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[173/262]  MIT
+[174/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -6868,7 +6876,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[174/262]  MIT
+[175/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -6900,7 +6908,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[175/262]  MIT
+[176/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -6936,7 +6944,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[176/262]  MIT
+[177/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -6968,7 +6976,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[177/262]  MIT
+[178/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -7007,7 +7015,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[178/262]  MIT
+[179/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -7039,7 +7047,7 @@ THE SOFTWARE.
 
 
 ==============================================================================
-[179/262]  MIT
+[180/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -7071,7 +7079,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[180/262]  MIT
+[181/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -7104,7 +7112,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[181/262]  MIT
+[182/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -7132,7 +7140,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[182/262]  MIT
+[183/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -7168,11 +7176,10 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[183/262]  MIT
+[184/263]  MIT
 ==============================================================================
 
 Applies to:
-  smallvec 1.15.2
   smallvec 1.16.2
   smallvec 1.16.3
 
@@ -7206,7 +7213,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[184/262]  MIT
+[185/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -7238,7 +7245,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[185/262]  MIT
+[186/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -7274,7 +7281,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[186/262]  MIT
+[187/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -7304,7 +7311,7 @@ THE SOFTWARE.
 
 
 ==============================================================================
-[187/262]  MIT
+[188/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -7334,7 +7341,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[188/262]  MIT
+[189/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -7368,7 +7375,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[189/262]  MIT
+[190/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -7401,7 +7408,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[190/262]  MIT
+[191/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -7432,7 +7439,7 @@ THE SOFTWARE.
 
 
 ==============================================================================
-[191/262]  MIT
+[192/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -7451,7 +7458,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 
 ==============================================================================
-[192/262]  MIT
+[193/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -7487,7 +7494,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[193/262]  MIT
+[194/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -7523,7 +7530,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[194/262]  MIT
+[195/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -7553,7 +7560,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[195/262]  MIT
+[196/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -7585,11 +7592,10 @@ SOFTWARE.
 
 
 ==============================================================================
-[196/262]  MIT
+[197/263]  MIT
 ==============================================================================
 
 Applies to:
-  tinyvec 1.12.0
   tinyvec 1.13.3
 
 ------------------------------------------------------------------------------
@@ -7602,43 +7608,11 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 
 ==============================================================================
-[197/262]  MIT
+[198/263]  MIT
 ==============================================================================
 
 Applies to:
-  tinyvec_macros 0.1.1
-
-------------------------------------------------------------------------------
-
-MIT License
-
-Copyright (c) 2020 Soveu
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-
-
-==============================================================================
-[198/262]  MIT
-==============================================================================
-
-Applies to:
-  tokio 1.53.1
+  tokio 1.53.3
 
 ------------------------------------------------------------------------------
 
@@ -7666,7 +7640,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[199/262]  MIT
+[199/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -7703,7 +7677,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[200/262]  MIT
+[200/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -7734,7 +7708,7 @@ THE SOFTWARE.
 
 
 ==============================================================================
-[201/262]  MIT
+[201/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -7765,11 +7739,11 @@ THE SOFTWARE.
 
 
 ==============================================================================
-[202/262]  MIT
+[202/263]  MIT
 ==============================================================================
 
 Applies to:
-  twox-hash 2.1.4
+  twox-hash 2.1.5
 
 ------------------------------------------------------------------------------
 
@@ -7797,7 +7771,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[203/262]  MIT
+[203/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -7829,7 +7803,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[204/262]  MIT
+[204/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -7865,7 +7839,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[205/262]  MIT
+[205/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -7901,11 +7875,11 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[206/262]  MIT
+[206/263]  MIT
 ==============================================================================
 
 Applies to:
-  uuid 1.24.1
+  uuid 1.28.0
 
 ------------------------------------------------------------------------------
 
@@ -7938,7 +7912,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[207/262]  MIT
+[207/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -7974,7 +7948,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[208/262]  MIT
+[208/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -8011,7 +7985,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[209/262]  MIT
+[209/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -8041,11 +8015,11 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[210/262]  MIT
+[210/263]  MIT
 ==============================================================================
 
 Applies to:
-  want 0.3.1
+  want 0.3.2
 
 ------------------------------------------------------------------------------
 
@@ -8071,7 +8045,7 @@ THE SOFTWARE.
 
 
 ==============================================================================
-[211/262]  MIT
+[211/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -8103,7 +8077,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[212/262]  MIT
+[212/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -8133,7 +8107,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[213/262]  MIT
+[213/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -8165,7 +8139,7 @@ THE SOFTWARE.
 
 
 ==============================================================================
-[214/262]  MIT
+[214/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -8209,7 +8183,7 @@ MIT License
 
 
 ==============================================================================
-[215/262]  MIT
+[215/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -8239,7 +8213,7 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[216/262]  MIT
+[216/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -8276,7 +8250,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[217/262]  MIT
+[217/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -8308,7 +8282,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[218/262]  MIT
+[218/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -8341,7 +8315,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[219/262]  MIT
+[219/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -8359,7 +8333,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 
 ==============================================================================
-[220/262]  MIT
+[220/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -8396,11 +8370,11 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[221/262]  MIT
+[221/263]  MIT
 ==============================================================================
 
 Applies to:
-  zeroize 1.9.0
+  zeroize 1.9.1
 
 ------------------------------------------------------------------------------
 
@@ -8432,13 +8406,11 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[222/262]  MIT
+[222/263]  MIT
 ==============================================================================
 
 Applies to:
   zstd 0.13.3
-  zstd-safe 7.2.4
-  zstd-sys 2.0.16+zstd.1.5.7
 
 ------------------------------------------------------------------------------
 
@@ -8453,7 +8425,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 
 ==============================================================================
-[223/262]  MIT
+[223/263]  MIT
 ==============================================================================
 
 Applies to:
@@ -8486,7 +8458,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[224/262]  MIT-0
+[224/263]  MIT-0
 ==============================================================================
 
 Applies to:
@@ -8516,7 +8488,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[225/262]  Apache-2.0 WITH LLVM-exception
+[225/263]  Apache-2.0 WITH LLVM-exception
 ==============================================================================
 
 Applies to:
@@ -8760,7 +8732,7 @@ Software.
 
 
 ==============================================================================
-[226/262]  Apache-2.0 WITH LLVM-exception
+[226/263]  Apache-2.0 WITH LLVM-exception
 ==============================================================================
 
 Applies to:
@@ -9008,7 +8980,7 @@ Software.
 
 
 ==============================================================================
-[227/262]  Apache-2.0
+[227/263]  Apache-2.0
 ==============================================================================
 
 Applies to:
@@ -9197,7 +9169,7 @@ Apache License
 
 
 ==============================================================================
-[228/262]  Apache-2.0
+[228/263]  Apache-2.0
 ==============================================================================
 
 Applies to:
@@ -9409,7 +9381,7 @@ Apache License
 
 
 ==============================================================================
-[229/262]  Apache-2.0
+[229/263]  Apache-2.0
 ==============================================================================
 
 Applies to:
@@ -9621,7 +9593,7 @@ limitations under the License.
 
 
 ==============================================================================
-[230/262]  Apache-2.0
+[230/263]  Apache-2.0
 ==============================================================================
 
 Applies to:
@@ -9834,7 +9806,7 @@ Apache License
 
 
 ==============================================================================
-[231/262]  Apache-2.0
+[231/263]  Apache-2.0
 ==============================================================================
 
 Applies to:
@@ -10048,7 +10020,7 @@ Apache License
 
 
 ==============================================================================
-[232/262]  Apache-2.0
+[232/263]  Apache-2.0
 ==============================================================================
 
 Applies to:
@@ -10330,7 +10302,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
 ==============================================================================
-[233/262]  Apache-2.0
+[233/263]  Apache-2.0
 ==============================================================================
 
 Applies to:
@@ -10517,7 +10489,7 @@ END OF TERMS AND CONDITIONS
 
 
 ==============================================================================
-[234/262]  BSD-3-Clause
+[234/263]  BSD-3-Clause
 ==============================================================================
 
 Applies to:
@@ -10546,7 +10518,7 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
 
 
 ==============================================================================
-[235/262]  BSD-3-Clause
+[235/263]  BSD-3-Clause
 ==============================================================================
 
 Applies to:
@@ -10586,7 +10558,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
 ==============================================================================
-[236/262]  BSD-3-Clause
+[236/263]  BSD-3-Clause
 ==============================================================================
 
 Applies to:
@@ -10626,7 +10598,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
 ==============================================================================
-[237/262]  BSD-3-Clause
+[237/263]  BSD-3-Clause
 ==============================================================================
 
 Applies to:
@@ -10665,11 +10637,11 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
 ==============================================================================
-[238/262]  BSD-3-Clause
+[238/263]  BSD-3-Clause
 ==============================================================================
 
 Applies to:
-  encoding_rs 0.8.35
+  encoding_rs 0.8.42
 
 ------------------------------------------------------------------------------
 
@@ -10702,7 +10674,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
 ==============================================================================
-[239/262]  BSD-3-Clause
+[239/263]  BSD-3-Clause
 ==============================================================================
 
 Applies to:
@@ -10766,7 +10738,7 @@ litigation is filed.
 
 
 ==============================================================================
-[240/262]  BSD-3-Clause
+[240/263]  BSD-3-Clause
 ==============================================================================
 
 Applies to:
@@ -10806,7 +10778,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
 ==============================================================================
-[241/262]  BSD-3-Clause
+[241/263]  BSD-3-Clause
 ==============================================================================
 
 Applies to:
@@ -10846,7 +10818,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
 ==============================================================================
-[242/262]  BSD-3-Clause
+[242/263]  BSD-3-Clause
 ==============================================================================
 
 Applies to:
@@ -10888,7 +10860,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
 ==============================================================================
-[243/262]  BSD-3-Clause
+[243/263]  BSD-3-Clause
 ==============================================================================
 
 Applies to:
@@ -10928,7 +10900,47 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
 ==============================================================================
-[244/262]  BSD-2-Clause
+[244/263]  BSD-3-Clause
+==============================================================================
+
+Applies to:
+  zstd-safe 7.3.0
+  zstd-sys 2.1.1+zstd.1.5.7
+
+------------------------------------------------------------------------------
+
+BSD 3-Clause License
+
+Copyright (c) 2026, Alexandre Bury
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+1. Redistributions of source code must retain the above copyright notice, this
+   list of conditions and the following disclaimer.
+
+2. Redistributions in binary form must reproduce the above copyright notice,
+   this list of conditions and the following disclaimer in the documentation
+   and/or other materials provided with the distribution.
+
+3. Neither the name of the copyright holder nor the names of its
+   contributors may be used to endorse or promote products derived from
+   this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+
+==============================================================================
+[245/263]  BSD-2-Clause
 ==============================================================================
 
 Applies to:
@@ -10965,7 +10977,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
 ==============================================================================
-[245/262]  BSD-2-Clause
+[246/263]  BSD-2-Clause
 ==============================================================================
 
 Applies to:
@@ -11001,7 +11013,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
 ==============================================================================
-[246/262]  BSD-2-Clause
+[247/263]  BSD-2-Clause
 ==============================================================================
 
 Applies to:
@@ -11035,7 +11047,7 @@ SUCH DAMAGE.
 
 
 ==============================================================================
-[247/262]  BSD-2-Clause
+[248/263]  BSD-2-Clause
 ==============================================================================
 
 Applies to:
@@ -11069,7 +11081,7 @@ SUCH DAMAGE.
 
 
 ==============================================================================
-[248/262]  BSD-2-Clause
+[249/263]  BSD-2-Clause
 ==============================================================================
 
 Applies to:
@@ -11104,7 +11116,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
 ==============================================================================
-[249/262]  BSD-2-Clause
+[250/263]  BSD-2-Clause
 ==============================================================================
 
 Applies to:
@@ -11140,7 +11152,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
 ==============================================================================
-[250/262]  BSD-2-Clause
+[251/263]  BSD-2-Clause
 ==============================================================================
 
 Applies to:
@@ -11176,7 +11188,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
 ==============================================================================
-[251/262]  ISC
+[252/263]  ISC
 ==============================================================================
 
 Applies to:
@@ -11200,7 +11212,7 @@ CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 
 ==============================================================================
-[252/262]  ISC
+[253/263]  ISC
 ==============================================================================
 
 Applies to:
@@ -11230,7 +11242,7 @@ third-party/chromium/LICENSE.
 
 
 ==============================================================================
-[253/262]  ISC
+[254/263]  ISC
 ==============================================================================
 
 Applies to:
@@ -11254,7 +11266,7 @@ Applies to:
 
 
 ==============================================================================
-[254/262]  Zlib
+[255/263]  Zlib
 ==============================================================================
 
 Applies to:
@@ -11284,7 +11296,7 @@ the following restrictions:
 
 
 ==============================================================================
-[255/262]  Zlib
+[256/263]  Zlib
 ==============================================================================
 
 Applies to:
@@ -11314,7 +11326,7 @@ the following restrictions:
 
 
 ==============================================================================
-[256/262]  Zlib
+[257/263]  Zlib
 ==============================================================================
 
 Applies to:
@@ -11344,7 +11356,7 @@ freely, subject to the following restrictions:
 
 
 ==============================================================================
-[257/262]  Unicode-3.0
+[258/263]  Unicode-3.0
 ==============================================================================
 
 Applies to:
@@ -11445,12 +11457,12 @@ ICU 1.8.1 to ICU 57.1 © 1995-2016 International Business Machines Corporation a
 
 
 ==============================================================================
-[258/262]  Unicode-3.0
+[259/263]  Unicode-3.0
 ==============================================================================
 
 Applies to:
-  unicode-ident 1.0.24
   unicode-ident 1.0.26
+  unicode-ident 1.0.27
 
 ------------------------------------------------------------------------------
 
@@ -11496,7 +11508,7 @@ authorization of the copyright holder.
 
 
 ==============================================================================
-[259/262]  CC0-1.0
+[260/263]  CC0-1.0
 ==============================================================================
 
 Applies to:
@@ -11628,7 +11640,7 @@ express Statement of Purpose.
 
 
 ==============================================================================
-[260/262]  CDLA-Permissive-2.0
+[261/263]  CDLA-Permissive-2.0
 ==============================================================================
 
 Applies to:
@@ -11700,7 +11712,7 @@ insights.
 
 
 ==============================================================================
-[261/262]  MPL-2.0
+[262/263]  MPL-2.0
 ==============================================================================
 
 Applies to:
@@ -12088,7 +12100,7 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 
 
 ==============================================================================
-[262/262]  OFL-1.1
+[263/263]  OFL-1.1
 ==============================================================================
 
 Applies to:
