@@ -17,7 +17,7 @@ stages:
         rules: [errors/propagation, errors/helper-abi]
   - id: 3
     title: "the engine moves as one, and the sandbox names its wasm proposals"
-    status: open
+    status: done
     context: [crates/nvs-ext/src/call.rs, crates/nvs-ext/src/pack.rs, crates/nvs-codegen/src/lib.rs, crates/nvs-host/src/scheduler.rs]
     extra:
       context:
@@ -230,11 +230,10 @@ see changes.
 **Does:** the JIT and the sandbox are on the latest final wasmtime and its matching cranelift. Battery leg B is green, and the engine enables only the wasm proposals the components use.
 
 - [x] One commit: wasmtime ×3, cranelift ×5 and `object` 0.40. With wasmtime 49 / cranelift 0.136, only manifests changed the last time this was tried. `Cargo.toml:99`, `Cargo.toml:346`, `Cargo.toml:112`
-- [ ] If wasmtime 50 is final: the epoch callback gets a `StoreHookState`, which has no `set_hostcall_fuel`. Move the per-tick fuel refresh out of the callback. `crates/nvs-ext/src/call.rs:1075`
 - [x] `wit-parser`, `wasmparser` and `wit-component` move to the version that wasmtime uses. At 0.258 the `ComponentEncoder` builder takes `&mut self`. At 0.261 `embed_component_metadata` gains `canonical_names`, at four sites. `crates/nvs-ext/src/pack.rs:196`
 - [x] Turn the unused proposals off in the engine config, and test that each component still loads. `crates/nvs-ext/src/call.rs:722`
-- [ ] If wasmtime 50: drop the `new_own` workaround, because a borrow converts outside a call now. Retire its playbook bullet. `crates/nvs-ext/src/handle.rs:176`
-- [ ] `corosensei` 0.3, in its own commit. `with_stack` needs `Stack: 'static`, and 0.3.1 changes forced unwinding. `crates/nvs-host/src/scheduler.rs:658`
+- [x] wasmtime 50 is only `50.0.0-rc.1`, so a `HOLD` line above `wasmtime` names it. Its two changes wait in the Backlog: the epoch callback's fuel refresh (`StoreHookState` has no `set_hostcall_fuel`) and dropping the `new_own` workaround. `Cargo.toml:346`
+- [x] `corosensei` 0.3, in its own commit. `with_stack` needs `Stack: 'static`, and 0.3.1 changes forced unwinding. `crates/nvs-host/src/scheduler.rs:658`
 
 ### 4. the workspace crates
 
@@ -307,34 +306,35 @@ see changes.
 
 ### State
 
-Stages 1 and 2 are done, and stage 3's three main items are in. The engine is wasmtime 49.0.3,
-cranelift 0.136 and `object` 0.40. wasmtime 50 is still `50.0.0-rc.1`, so 49 is the latest final.
-`wit-parser`, `wasmparser` and `wit-component` are at 0.258, wasmtime 49's version. The packer's
-output moved with them, so the fixture `.nvsx` pins and the `nvs.toml` entries naming them are
-rewritten. `nvs_ext::call::PROPOSALS` is WebAssembly 2.0 without `externref`, plus the component
-model, and `Host::new` turns every other feature off. `crates/nvs-ext/tests/proposals.rs` proves the
-four built-in components load under it and nine excluded proposals do not compile.
-`engine-guards` and `unwind-entry` are green, and `looper verify` is green on Windows.
-- Not checked: the canary and the engine on Linux and macOS, and the `nvs ext new` template built and
-  loaded under the narrowed set (it targets `wasm32-wasip2` as the built-in components do).
-- The `makeDir` bench the sweep called red meets its growth on two re-runs: a noisy filesystem clock.
-- The nightly CI run 38701926032 tested `cb7021a24`, an old commit. Its red jobs are not this
-  tree's until the user pushes.
+Stages 1, 2 and 3 are done. The engine is wasmtime 49.0.3, cranelift 0.136 and `object` 0.40, with
+`wit-parser`, `wasmparser` and `wit-component` at 0.258. `nvs_ext::call::PROPOSALS` names the wasm
+features the engine enables, and `crates/nvs-ext/tests/proposals.rs` proves the four built-in
+components load under it. wasmtime 50 is only `50.0.0-rc.1`, so a `HOLD (revisit 2026-11-16)` line
+sits above `wasmtime` in `Cargo.toml`.
+The coroutines are corosensei 0.3.4. Its 0.3.1 forced unwind takes a normal return as the end of the
+unwind and no longer panics on a swallowed marker. So `nvs_runtime::Teardown`'s doc now gives the
+reason it keeps: without it, the code after `run_task` or `run_helper` runs during a teardown.
+`looper verify` and `engine-guards` are green on Windows.
+- Not checked: the canary, the engine and corosensei 0.3 on Linux and macOS, and the `nvs ext new`
+  template built and loaded under the narrowed proposal set.
+- The nightly run 38701926032 tested `cb7021a24`, an old commit. Its red jobs are not this tree's
+  until the user pushes.
 - Under a cold rebuild, `ldap` and `live_edit` fail beside the other binaries and pass alone.
 
 ### Next
 
-**Stage 3, the rest.** Files: `crates/nvs-host/src/scheduler.rs`, the root `Cargo.toml` corosensei row (`rule:packaging/one-bump-one-commit`).
+**Stage 4, the workspace crates.** Files: the root `Cargo.toml` and `Cargo.lock`, `THIRD-PARTY-LICENSES.txt` (`rule:packaging/one-bump-one-commit`).
 
-- [ ] `corosensei` 0.3, in its own commit. `with_stack` needs `Stack: 'static`, and 0.3.1 changes forced unwinding, which cancellation relies on (`rule:concurrency/cancellation-runs-no-user-code`). `crates/nvs-host/src/scheduler.rs:658`, `Cargo.toml:115`
-- [ ] If wasmtime 50 is still a release candidate: write a `HOLD` line above `wasmtime` naming it, leave the two "if wasmtime 50" items to it, and set stage 3 done. `Cargo.toml:346`
-- [ ] Then stage 4 opens with `cargo update` inside the ranges and the attribution file. `Cargo.toml:1`
+- [ ] `cargo update` inside the ranges, then `bun nv gen-attribution`. hyper 1.12 comes in here, with no new limit set. `Cargo.toml:1`
+- [ ] The five unused rows go: `smallvec`, `indexmap`, `postgres-types`, `anstream` and `proptest`. Check with `grep` that no member manifest names them first. `Cargo.toml:413`, `Cargo.toml:981`, `Cargo.toml:1050`
+- [ ] criterion 0.8. Its new `alloca` C dependency is dev-only. `Cargo.toml:1056`
+- [ ] Then toml 1.x and base64 0.23, one commit each. `Cargo.toml:574`, `Cargo.toml:820`
 
 ### Backlog
 
 - The user pushes `main`, so the nightly tests the current tree (`.github/workflows/ci.yml:7`), and decides on `looper sync`: `looper lint` says `AGENTS.md`'s managed text and `.claude/settings.json` drifted.
 - Proof debt: the stale perf records and the `Core\Test\Outcome`/`Summary` proofs (`bun nv proofs --owed`).
 - Load flakes: `ldap` deadlines and the `live_edit` 30 s wait (`crates/nvs-cli/tests/live_edit.rs:1010`). Linux only: `crates/nvs-cli/tests/run_command.rs:688`, and the scaling margin (`crates/nvs-cli/src/serve.rs:3957`).
-- wasmtime 50.0.0 final and cranelift 0.137: the epoch callback's fuel refresh and the `new_own` workaround (`crates/nvs-ext/src/call.rs`, `crates/nvs-ext/src/handle.rs:176`).
+- wasmtime 50.0.0 final and cranelift 0.137, held at `Cargo.toml:346`: move the epoch callback's fuel refresh out, because `StoreHookState` has no `set_hostcall_fuel` (`crates/nvs-ext/src/call.rs:1075`), and drop the `new_own` workaround and its playbook bullet (`crates/nvs-ext/src/handle.rs:176`).
 - hyper 1.12's `max_header_size` is a question for the user (`crates/nvs-server/src/serve.rs`).
 - The user mirrors any `.github/dependabot.yml` change on `landing` and decides about MSVC 14.50 (`docs/setup.md`).
