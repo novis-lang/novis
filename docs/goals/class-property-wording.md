@@ -131,8 +131,8 @@ says property for a class property, and every expectation that pins one is re-re
 **Does:** the rules about delegation and the derive list have ids that say property, and every
 citation of them follows.
 
-- [ ] `rule:classes/delegation-by-field` is `rule:classes/delegation-by-property`, and every citation in code, help text and docs follows. `docs/rules/classes/delegation-by-field.md:1`, `crates/nvs-types/src/conformance.rs:690`
-- [ ] `rule:core-classes/derive-field-list` is `rule:core-classes/derive-property-list`, and every citation follows. `docs/rules/core-classes/derive-field-list.md:1`, `crates/nvs-types/src/derive.rs:2227`
+- [ ] `rule:classes/delegation-by-field` is renamed to the id `classes/delegation-by-property`, and every citation in code, help text and docs follows. `docs/rules/classes/delegation-by-field.md:1`, `crates/nvs-types/src/conformance.rs:690`
+- [ ] `rule:core-classes/derive-field-list` is renamed to the id `core-classes/derive-property-list`, and every citation follows. `docs/rules/core-classes/derive-field-list.md:1`, `crates/nvs-types/src/derive.rs:2227`
 
 ## Handoff
 
