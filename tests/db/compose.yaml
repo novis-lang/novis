@@ -467,7 +467,7 @@ services:
   # use -- allowed on the plain connection too, so a test can exercise either path.
   # ---------------------------------------------------------------------------------------------------
   mailpit:
-    image: axllent/mailpit:v1.31.0
+    image: axllent/mailpit:v1.31.6
     depends_on:
       certs:
         condition: service_completed_successfully
