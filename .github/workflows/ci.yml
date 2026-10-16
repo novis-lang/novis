@@ -647,7 +647,7 @@ jobs:
       # `editors/vscode/.nvmrc` is the one home for the Node version, read the
       # way `website/.nvmrc` is. `npm ci` installs exactly `package-lock.json`,
       # which is what the cache keys on.
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
           node-version-file: editors/vscode/.nvmrc
           cache: npm
@@ -674,7 +674,7 @@ jobs:
 
       - name: The installable extension
         if: matrix.os == 'ubuntu-latest'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: nvs-vsix
           path: editors/vscode/nvs.vsix
@@ -707,7 +707,7 @@ jobs:
       - name: Build nvs
         run: cargo build -p nvs-cli
 
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
           node-version-file: editors/vscode/.nvmrc
           cache: npm
@@ -736,9 +736,9 @@ jobs:
   # Both release images, built from `docker/Dockerfile` around a binary this job compiles and
   # run through `tests/docker/smoke.sh`. The release does the same with the binary it ships.
   #
-  # ubuntu-22.04 rather than -latest: the images are Debian bookworm, glibc 2.36, and a binary
-  # linked on 24.04 needs 2.39, so it would not start in either of them. A debug build is enough,
-  # because what is under test is the image around the binary.
+  # ubuntu-22.04 rather than -latest, because the release binaries link against its glibc 2.35, and
+  # this job builds the binary the way a release does. A debug build is enough, because what is
+  # under test is the image around the binary.
   # ---------------------------------------------------------------------------
   docker:
     name: container images
@@ -997,7 +997,7 @@ jobs:
         run: rustup toolchain install --no-self-update
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
       - name: Install cargo-geiger
-        run: cargo install cargo-geiger --locked
+        run: cargo install cargo-geiger --version 0.14.0 --locked
       # One `cargo geiger` per workspace member, because geiger will not run against the root
       # manifest: it lists members and is no package itself, and `--workspace` does not change that.
       # A member geiger cannot scan is a warning annotation naming it, and the step goes on to the
@@ -1036,7 +1036,7 @@ jobs:
         target: [ast, image_path, lex, parse, prefix, uri]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-      - uses: dtolnay/rust-toolchain@be39649afda95dbf70f87cce95f68b8d5797b296 # nightly branch
+      - uses: dtolnay/rust-toolchain@2c76c034f9e32a5d6e2c104dc4df23a22476db04 # nightly branch
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
         with:
           key: fuzz-${{ matrix.target }}
@@ -1087,7 +1087,7 @@ jobs:
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-      - uses: dtolnay/rust-toolchain@be39649afda95dbf70f87cce95f68b8d5797b296 # nightly branch
+      - uses: dtolnay/rust-toolchain@2c76c034f9e32a5d6e2c104dc4df23a22476db04 # nightly branch
         with:
           components: miri
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
@@ -1178,7 +1178,7 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-      - uses: dtolnay/rust-toolchain@be39649afda95dbf70f87cce95f68b8d5797b296 # nightly branch
+      - uses: dtolnay/rust-toolchain@2c76c034f9e32a5d6e2c104dc4df23a22476db04 # nightly branch
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
         with:
           key: asan
@@ -1249,7 +1249,7 @@ jobs:
       CARGO_TARGET_DIR: target
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-      - uses: dtolnay/rust-toolchain@be39649afda95dbf70f87cce95f68b8d5797b296 # nightly branch
+      - uses: dtolnay/rust-toolchain@2c76c034f9e32a5d6e2c104dc4df23a22476db04 # nightly branch
         with:
           # `-Zbuild-std` compiles the standard library from source, and this is
           # that source.
