@@ -410,8 +410,6 @@ lsp-types = "0.97"
 anyhow = "1"
 thiserror = "2"
 bitflags = "2"
-smallvec = { version = "1", features = ["union", "const_generics"] }
-indexmap = "2"
 rustc-hash = "2"
 # Two consumers, one crate: the on-disk artifact cache keys on it, and
 # spec § 11's `Core\Hash::Digest::Blake3` computes it — the second is what finally put
@@ -978,7 +976,6 @@ ruzstd = "0.9.1"
 # implementation is async over `futures-io` with its TLS behind `tokio-rustls`,
 # so `nvs-db` writes TDS 7.4 by hand.
 postgres-protocol = "0.6"
-postgres-types = "0.2"
 # `default-features = false` is load-bearing and not tidiness: this crate's
 # default set contains `flate2/zlib`, which resolves `flate2` onto `libz-sys` and
 # would put a C library in the default binary's graph. `tools/nv/cmd/gen-attribution.ts`
@@ -1045,14 +1042,13 @@ rusqlite = { version = "0.40", features = ["bundled", "column_decltype", "hooks"
 # --- cli / diagnostics rendering ---
 # Diagnostic layout is hand-written in nvs-diagnostics (the output format is
 # part of the language's UI and should not shift with a dependency bump), so
-# only the styling primitives and terminal detection are external.
+# only the styling primitives are external. Terminal detection is the standard
+# library's `IsTerminal`.
 clap = { version = "4", features = ["derive", "wrap_help"] }
-anstream = "0.6"
 anstyle = "1"
 
 # --- dev / test ---
 insta = "1"
-proptest = "1"
 criterion = "0.7"
 
 # ---------------------------------------------------------------------------
