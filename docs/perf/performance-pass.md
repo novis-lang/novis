@@ -248,13 +248,6 @@ next change to any of them.
 
 ## Decided
 
-**A request head gets one deadline for the whole head.** `header_timeout` is an idle wait today:
-every byte that arrives restarts it (`crates/nvs-server/src/io.rs:309-321`), so a client that sends
-its head one byte at a time holds a connection for as long as it likes. `header_timeout` becomes a
-deadline fixed when the head starts, and the other three waits stay idle. Goal `completeness-holes`
-builds it, under the gap record
-`data/gaps/nvs-server/header-timeout-is-an-idle-wait-not-a-whole-head-deadline.json`.
-
 **A `Core\Task` child is charged its whole stack reservation.**
 `rule:concurrency/a-task-stack-is-reserved-wide-and-pooled` charges the reservation because it is what an
 admission decision can count ahead of time, and bounds resident growth by the recursion limit.

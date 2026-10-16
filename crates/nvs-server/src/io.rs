@@ -45,12 +45,12 @@
 //!
 //! # The clock, and why it lives here
 //!
-//! `rule:http-server/the-server-block-is-boot-class`
-//! 's waits are the stream's own deadline — `hyper` knows nothing about
-//! them — and they are **idle** waits rather than totals, so a slow 2 GB upload
-//! completes while a stalled socket does not. That is one rule and two
-//! mechanisms, both of them in this module because this is the only code that
-//! sees a byte move:
+//! `rule:http-server/four-idle-waits-all-finite`'s waits are the stream's own
+//! deadline — `hyper` knows nothing about them. Three are **idle** waits, so a
+//! slow 2 GB upload completes while a stalled socket does not, and the head's
+//! is a **total**, so a peer that trickles a head one byte at a time is closed
+//! when `header_timeout` passes. Three mechanisms, all of them in this module
+//! because this is the only code that sees a byte move:
 //!
 //! - **Arm on entry.** Every poll below sets the stream's deadline to
 //!   `now + the wait the current [`Phase`] names`, once per phase rather than
@@ -58,7 +58,12 @@
 //!   the poll that follows a deadline's own expiry is exactly the one that has
 //!   to see it passed, and it would instead push it forward.
 //! - **Refresh on progress.** A poll that actually moved bytes re-arms the same
-//!   phase, which is what makes the wait idle. A `Pending` refreshes nothing.
+//!   phase, which is what makes the body, write and keep-alive waits idle. A
+//!   `Pending` refreshes nothing.
+//! - **Fix the head's end once.** A head starts at accept, or at the first byte
+//!   after a keep-alive wait, and its deadline is fixed then
+//!   (`ConnectionIo::head_ends`). Progress does not refresh it, and a drain
+//!   that begins mid-head can only bring it closer.
 //!
 //! **Not every phase change is visible here.** A first
 //! byte after a response ends the keep-alive wait, and a read attempted while a
@@ -124,7 +129,8 @@ pub const SCRATCH: usize = 8 * 1024;
 /// which is the whole of `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`'s headline stated as a type.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Phase {
-    /// Reading a request head — `header_timeout`.
+    /// Reading a request head — `header_timeout`, the one wait that is a total
+    /// for the whole head rather than an idle wait.
     Head,
     /// Reading a request body — `body_idle_timeout`. Set by the connection
     /// loop, because framing a head is `hyper`'s knowledge and not this
@@ -214,6 +220,9 @@ pub struct ConnectionIo {
     /// the deadline it is about to be judged against forward — and a poll
     /// that is the first to see the drain does re-arm without progress.
     armed: Option<(Phase, bool)>,
+    /// The instant the head being read must be complete by, fixed when that
+    /// head starts: at accept, or at the first byte after a keep-alive wait.
+    head_ends: Option<Instant>,
     /// When this connection first saw the drain — [`DrainSeen`].
     drain_seen: DrainSeen,
     /// The instant the drain ends the response being written, fixed when that
@@ -238,6 +247,7 @@ impl ConnectionIo {
             waits,
             phase: Rc::new(Cell::new(Phase::Head)),
             armed: None,
+            head_ends: None,
             drain_seen: DrainSeen::default(),
             response_ends: None,
             draining: None,
@@ -305,16 +315,28 @@ impl ConnectionIo {
     /// `progressed` is what makes a wait idle rather than total: bytes moved,
     /// so the clock starts again. Without it the arming is once per phase, for
     /// the module doc's reason — the poll after an expiry is the one that has
-    /// to see it.
+    /// to see it. The head is the exception: its end is fixed when the head
+    /// starts, and neither progress nor a drain beginning moves it later.
     fn arm(&mut self, progressed: bool) {
         let phase = self.phase.get();
+        let starts = self.armed.map(|(was, _)| was) != Some(phase);
         let closing = self.closing(phase);
         let armed = (phase, closing.is_some());
         if !progressed && self.armed == Some(armed) {
             return;
         }
         self.armed = Some(armed);
-        let mut at = Instant::now() + phase.wait_in(&self.waits);
+        let now = Instant::now();
+        let mut at = if phase == Phase::Head {
+            let ends = match self.head_ends {
+                Some(ends) if !starts => ends,
+                _ => now + self.waits.header,
+            };
+            self.head_ends = Some(ends);
+            ends
+        } else {
+            now + phase.wait_in(&self.waits)
+        };
         if let Some(closing) = closing {
             at = at.min(closing);
         }
@@ -413,7 +435,8 @@ impl Read for ConnectionIo {
         match self.stream.poll_read(&mut scratch[..want]) {
             Poll::Ready(Ok(read)) => {
                 // The first byte after a response is the next request's head,
-                // which ends the keep-alive wait and starts the header one.
+                // which ends the keep-alive wait and fixes that head's deadline.
+                // In the head itself this arming moves nothing.
                 if read > 0 {
                     if self.phase.get() == Phase::KeepAlive {
                         self.phase.set(Phase::Head);
@@ -669,6 +692,15 @@ mod tests {
     /// An adapter over one end of a loopback connection, under a drain that
     /// has begun, with the far end returned so that the connection stays open.
     fn draining_adapter(waits: Waits) -> (ConnectionIo, std::net::TcpStream) {
+        let (io, far) = adapter(waits);
+        let draining = Draining::detached();
+        draining.begin();
+        (io.ending_at_drain(&draining), far)
+    }
+
+    /// An adapter over one end of a loopback connection that nothing drains,
+    /// with the far end returned so that the connection stays open.
+    fn adapter(waits: Waits) -> (ConnectionIo, std::net::TcpStream) {
         let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("the OS refused a port");
         let near = std::net::TcpStream::connect(
             listener
@@ -678,10 +710,44 @@ mod tests {
         .expect("the loopback refused a connection");
         let (far, _) = listener.accept().expect("the accept failed");
         let stream = nvs_host::NvsTcp::from_std(near).expect("the socket refused non-blocking");
-        let draining = Draining::detached();
-        draining.begin();
-        let io = ConnectionIo::new(NvsConnection::Tcp(stream), waits).ending_at_drain(&draining);
-        (io, far)
+        (ConnectionIo::new(NvsConnection::Tcp(stream), waits), far)
+    }
+
+    /// `rule:http-server/four-idle-waits-all-finite`'s one total: bytes of a
+    /// head arriving do not move the head's deadline, and the next head after
+    /// a keep-alive wait gets a deadline of its own. The body wait beside it
+    /// is still refreshed by progress.
+    #[test]
+    fn a_head_keeps_one_deadline_while_its_bytes_arrive() {
+        let (mut io, _far) = adapter(Waits::default());
+        io.arm(false);
+        let head_ends = deadline(&mut io).expect("a head was armed with no deadline");
+        std::thread::sleep(Duration::from_millis(5));
+        io.arm(true);
+        assert_eq!(
+            deadline(&mut io),
+            Some(head_ends),
+            "a byte of the head moved the head's deadline"
+        );
+
+        io.phase().set(Phase::Body);
+        io.arm(false);
+        let body = deadline(&mut io).expect("a body was armed with no deadline");
+        std::thread::sleep(Duration::from_millis(5));
+        io.arm(true);
+        assert!(
+            deadline(&mut io).is_some_and(|at| at > body),
+            "a byte of the body did not refresh the body's idle wait"
+        );
+
+        io.phase().set(Phase::KeepAlive);
+        io.arm(false);
+        io.phase().set(Phase::Head);
+        io.arm(true);
+        assert!(
+            deadline(&mut io).is_some_and(|at| at > head_ends),
+            "the next request's head kept the first head's deadline"
+        );
     }
 
     /// The deadline the adapter last put on its stream.

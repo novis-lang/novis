@@ -264,11 +264,10 @@ failed one flushes the stalled frame first and throws without queueing its own
 peer. No ladder: the scaling tool has no WebSocket load, and the frames a test sends stay inside a
 serve ladder's peak slack.
 
-**A rule, not a defect:** `header_timeout` is an idle wait, re-armed on every byte
-(`crates/nvs-server/src/io.rs:309-321`, `:421`), as `rule:http-server/four-idle-waits-all-finite`
-says. A client that sends a head one byte per interval holds the connection, and the HTTP layer
-parses its buffer again on each read, up to its own buffer limit. Whether the head gets a total
-deadline as well is under *Decisions for you* in [performance-pass.md](performance-pass.md).
+**Bounded:** `header_timeout` is one deadline for the whole head, fixed when the head starts
+(`crates/nvs-server/src/io.rs`'s `arm`), as `rule:http-server/four-idle-waits-all-finite` says. A
+client that sends a head one byte per interval is closed when it passes, and until then the HTTP
+layer parses its buffer again on each read, up to its own buffer limit.
 
 **Bounded:** `hand_over` takes one process-wide mutex per sampled request, and its queue drops the
 oldest past its ceiling. The clock is read once per read or write that moved bytes.

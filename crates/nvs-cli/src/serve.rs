@@ -4984,8 +4984,8 @@ echo Core\Router::{member}("Docs::here", []);
     /// here neither reads nor writes the process's bit.
     ///
     /// The waits are the deployment's own defaults, and that is load-bearing:
-    /// every one of them is an idle wait and none bounds a connection that is
-    /// working (`nvs_config::server::Waits`), so nothing in the `[server]`
+    /// every one of them bounds a connection that waits, and none bounds one
+    /// that is working (`nvs_config::server::Waits`), so nothing in the `[server]`
     /// block can be what ends the request. The watchdog is the process's own
     /// type under a margin nothing reaches, for the same reason — it is here to
     /// be the registration the door hands every isolate over with, and a stall

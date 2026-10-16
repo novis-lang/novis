@@ -34353,7 +34353,7 @@ trusted_proxies    = []                   # empty: forwarding headers are never 
 health_path        = ""                   # "" is off
 max_in_flight      = 10000                # requests in flight before a 503
 workers            = 4                    # accept cores; unset is the machine's parallelism
-header_timeout     = "10s"                # idle waits, each finite with nothing written
+header_timeout     = "10s"                # the waits, each finite with nothing written
 body_idle_timeout  = "30s"
 write_idle_timeout = "30s"
 keepalive_timeout  = "75s"
@@ -34383,7 +34383,10 @@ always starts. A request that cannot start gets the status `503`. If the running
 grow past the rest, the server stops the request that grew, with an error that says the server's
 memory is full.
 
-The four waits are idle waits, never a total, and none can be turned off. `[server.connection]`
+`header_timeout` is the total time a client has to send a whole request head. The clock starts
+when the connection opens, or at the first byte of the next request on a kept-alive connection.
+The other three waits are idle waits: each starts again whenever bytes move. None of the four can be
+turned off. `[server.connection]`
 bounds a connection that was upgraded out of a request — a WebSocket, or an event stream — with
 `max_open`, `max_frame`, `max_message`, `idle_timeout`, `max_lifetime` and `send_timeout`, all
 finite with nothing written.

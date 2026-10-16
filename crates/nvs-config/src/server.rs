@@ -1,4 +1,4 @@
-//! `rule:http-server/the-server-block-is-boot-class`'s `[server]` block, read into what a server starts on: the idle waits and the
+//! `rule:http-server/the-server-block-is-boot-class`'s `[server]` block, read into what a server starts on: the connection waits and the
 //! drain period as durations — refusing the magnitudes that would leave a connection unbounded —
 //! and `listen` as the sockets to bind.
 //!

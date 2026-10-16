@@ -13,8 +13,8 @@ stages:
         rules: [types/erased-member-access]
   - id: 2
     title: a request head has one deadline for the whole head
-    status: open
-    context: [crates/nvs-server/src/io.rs, crates/nvs-config/src/default.toml, docs/rules/http-server/four-idle-waits-all-finite.md, data/gaps/nvs-server/header-timeout-is-an-idle-wait-not-a-whole-head-deadline.json]
+    status: done
+    context: [crates/nvs-server/src/io.rs, crates/nvs-config/src/default.toml, docs/rules/http-server/four-idle-waits-all-finite.md]
     extra:
       context:
         rules: [http-server/four-idle-waits-all-finite, http-server/a-streamed-reply-is-bounded-by-idle-and-a-lifetime]
@@ -180,9 +180,9 @@ against the declared type before it stores, so no typed read can see an object o
 **Does:** `header_timeout` bounds the whole request head, so a client that trickles header bytes is
 closed when the deadline passes, and the other three waits stay idle waits.
 
-- [ ] `arm` keeps the head phase's deadline when bytes arrive, and sets it when the head starts. `crates/nvs-server/src/io.rs:309`, `crates/nvs-server/src/io.rs:417`
-- [ ] A test feeds a head one byte at a time and is closed at the deadline. `crates/nvs-server/src/io.rs:46`
-- [ ] The module doc's clock section, the default file's comment and the rule say three idle waits and one total. `crates/nvs-config/src/default.toml:536`, `docs/rules/http-server/four-idle-waits-all-finite.md:1`
+- [x] `arm` keeps the head phase's deadline when bytes arrive, and sets it when the head starts. `crates/nvs-server/src/io.rs:309`, `crates/nvs-server/src/io.rs:417`
+- [x] A test feeds a head one byte at a time and is closed at the deadline. `crates/nvs-server/src/io.rs:46`
+- [x] The module doc's clock section, the default file's comment and the rule say three idle waits and one total. `crates/nvs-config/src/default.toml:536`, `docs/rules/http-server/four-idle-waits-all-finite.md:1`
 
 ### 3. the isolate boundary checks both directions, and `max_tasks` bounds the tree
 
@@ -299,10 +299,11 @@ work cannot live only in prose again.
 
 ### State
 
-Stage 1 is done. A declared class's slot carries its whole declared type as a `SlotCheck`
-(`ClassDesc::field_checks`), built by `slot_check` in `crates/nvs-ir/src/lower/mod.rs` and walked by
-`write_erased_property`. `a-property-write-through-a-mixed-receiver-checks-the-whole-declared-type.nvst`
-pins every write shape. Its gap record is deleted.
+Stages 1 and 2 are done. `header_timeout` is one deadline for the whole head: `ConnectionIo::arm`
+fixes `head_ends` when the head starts and progress does not move it
+(`crates/nvs-server/src/io.rs`). `a_head_keeps_one_deadline_while_its_bytes_arrive` and the served
+`a_head_sent_one_byte_at_a_time_is_closed_at_the_header_deadline` pin it, the rule says three idle
+waits and one total, and the gap record is deleted.
 
 Stage 1 found a second memory-safety hole, recorded as
 `data/gaps/nvs-runtime/a-wider-shape-view-writes-an-object-of-the-wrong-class.json`. A statically
@@ -312,18 +313,17 @@ make a shape's mutable fields invariant in the checker, carry a declared type pe
 at run time, or refuse a write through a view wider than the value's own. The record stays open
 until they choose.
 
-The nightly still tests `e110c9c0b`, GitHub's `main`, which is 108 commits behind the local one. The
-previous handoff's triage of its failures stands until the user pushes.
+The nightly tests an old commit (`cb7021a24`), and GitHub's `main` is `e110c9c0b`, far behind the
+local one. The earlier triage of its failures stands until the user pushes.
 
 ### Next
 
-**Stage 2, the whole-head deadline.** Files: `crates/nvs-server/src/io.rs`,
-`crates/nvs-config/src/default.toml` and `docs/rules/http-server/four-idle-waits-all-finite.md`.
-The standing decision words the design in full.
+**Stage 3, the isolate tree's own bounds.** Files: `crates/nvs-host/src/isolate.rs`,
+`crates/nvs-runtime/src/graph.rs` and `crates/nvs-config/src/tree.rs`.
 
-- [ ] `arm` keeps the head phase's deadline when bytes arrive, and sets it when the head starts (`rule:http-server/four-idle-waits-all-finite`). `crates/nvs-server/src/io.rs:309`, `crates/nvs-server/src/io.rs:417`
-- [ ] A test feeds a head one byte at a time and is closed at the deadline. `crates/nvs-server/src/io.rs:46`
-- [ ] The module doc, the default file's comment and the rule say three idle waits and one total (`rule:http-server/a-streamed-reply-is-bounded-by-idle-and-a-lifetime`). `crates/nvs-config/src/default.toml:536`, `docs/rules/http-server/four-idle-waits-all-finite.md:1`
+- [ ] The `nvs_runtime::script` seam returns a unit's class table beside its entry point, and the argument walk runs with it (`rule:security/isolate-values-cross-by-copy`). `crates/nvs-host/src/isolate.rs:64`, `crates/nvs-runtime/src/graph.rs:444`
+- [ ] A spawn past the root's `max_tasks` is refused, naming the directive (`rule:security/isolate-budget-is-the-trees`). `crates/nvs-config/src/tree.rs:188`
+- [ ] Whether child CPU is summed against the root's `cpu_time` is checked, and either the code or the rule changes (`rule:security/isolate-budget-is-the-trees`). `crates/nvs-host/src/isolate.rs:717`
 
 ### Backlog
 
@@ -331,5 +331,5 @@ The standing decision words the design in full.
 - `test_request_dispatches_in_process_through_the_compiled_route_table` once returned an empty body under the full verify's load and passed alone; the cause is not found (`crates/nvs-cli/src/runner.rs:3410`).
 - Many module docs still carry numbered or prose "known gap" text with no record; stage 14's scan finds them (`tools/nv/cmd/owners.ts:225`).
 - Proof debt fails CI's `proofs` jobs: perf records gone stale by edits to their implementation files, which `bun nv benches --owed` re-measures, and the `Core\Test\Outcome`/`Summary` proofs (`bun nv proofs --owed`). The user pushes `main`, so the nightly tests the current tree (`.github/workflows/ci.yml:1`).
-- `Markup + Markup` in place is a decision for the user (`docs/perf/performance-pass.md:258`).
+- `Markup + Markup` in place is a decision for the user (`docs/perf/performance-pass.md:257`).
 - `rule:packaging/values-cross-as-handles` may be fully built once stage 5 lands; ship it then (`data/rules/packaging/values-cross-as-handles.json`).

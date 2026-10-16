@@ -533,9 +533,10 @@
 # (`rule:http-server/the-accept-fan-out-is-one-worker-per-core`).
 #max_in_flight = 10000                # default
 #workers = 4                          # default: one per core; restart required
-# The connection waits — the header read, the body idle, the write idle and the keep-alive idle
-# wait — each idle rather than total, and each finite with nothing configured. A bare number is
-# seconds, so `"10s"` and `10` are the same wait.
+# The connection waits, each finite with nothing configured. `header_timeout` is the total time a
+# client has to send a whole request head, counted from when the head starts. The other three are
+# idle waits: each starts again whenever bytes move. A bare number is seconds, so `"10s"` and `10`
+# are the same wait.
 #header_timeout = "10s"               # default
 #body_idle_timeout = "30s"            # default
 #write_idle_timeout = "30s"           # default

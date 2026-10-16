@@ -1,5 +1,5 @@
 {
-  "title": "Four waits bound a connection, all finite with nothing configured and all idle rather than total",
+  "title": "Four waits bound a connection, all finite with nothing configured: three idle waits and one total for the head",
   "status": "shipped",
   "seeAlso": [
     "http-server/the-server-block-is-boot-class",

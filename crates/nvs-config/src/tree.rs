@@ -1278,8 +1278,9 @@ pub struct Server {
     /// How many cores accept, over this machine's own available parallelism
     /// (`rule:http-server/the-accept-fan-out-is-one-worker-per-core`).
     pub workers: Option<u64>,
-    /// The header read wait — one of the waits below, all finite with nothing configured and all
-    /// *idle* rather than total. [`mod@crate::server`] reads them into durations and owns what each
+    /// The header read wait — one of the waits below, all finite with nothing configured. This one
+    /// is a total for the whole head and the other three are *idle*. [`mod@crate::server`] reads
+    /// them into durations and owns what each
     /// one bounds; a `Setting` rather than a `String` so that `"10s"` and a bare `10` spell the
     /// same wait, which is [`mod@crate::value`]'s rule for every duration in the tree.
     pub header_timeout: Option<Setting>,

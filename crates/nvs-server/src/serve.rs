@@ -10537,6 +10537,85 @@ pub(crate) mod tests {
         );
     }
 
+    /// `rule:http-server/four-idle-waits-all-finite`'s one total: a peer that
+    /// sends its head one byte at a time, and keeps sending, is closed when
+    /// the header deadline passes. An idle head wait would never fire here.
+    /// The client trickles for far longer than the deadline, so a close timed
+    /// after the trickle ends is the idle wait and fails the assertion.
+    #[test]
+    fn a_head_sent_one_byte_at_a_time_is_closed_at_the_header_deadline() {
+        const TRICKLE: Duration = Duration::from_secs(4);
+        let mut listener = NvsListener::bind("127.0.0.1:0".parse().expect("a literal address"))
+            .expect("the OS refused a port");
+        let addr = listener
+            .local_addr()
+            .expect("a bound listener had no address");
+
+        let client = std::thread::spawn(move || {
+            let mut socket = TcpStream::connect(addr).expect("the loopback refused a connection");
+            socket
+                .set_read_timeout(Some(CLIENT_PATIENCE))
+                .expect("the socket refused a read timeout");
+            let mut writer = socket.try_clone().expect("the socket refused a clone");
+            let started = Instant::now();
+            let trickle = std::thread::spawn(move || {
+                let head = b"GET / HTTP/1.1\r\nHost: localhost\r\nX-Slow: ";
+                for byte in head.iter().chain(std::iter::repeat(&b'a')) {
+                    if started.elapsed() > TRICKLE || writer.write_all(&[*byte]).is_err() {
+                        break;
+                    }
+                    std::thread::sleep(Duration::from_millis(20));
+                }
+            });
+            let mut seen = Vec::new();
+            // A byte the server never read turns its close into a reset, which
+            // is a close as well.
+            let closed = match socket.read_to_end(&mut seen) {
+                Ok(_) => true,
+                Err(err) => matches!(
+                    err.kind(),
+                    std::io::ErrorKind::ConnectionReset | std::io::ErrorKind::ConnectionAborted
+                ),
+            };
+            let after = started.elapsed();
+            trickle.join().expect("the trickling thread panicked");
+            (closed, after, String::from_utf8_lossy(&seen).into_owned())
+        });
+
+        let waits = Waits {
+            header: Duration::from_millis(300),
+            ..Waits::default()
+        };
+        let mut sched = nvs_host::Scheduler::new();
+        let _installed =
+            nvs_host::reactor::install(nvs_host::Reactor::new().expect("the OS refused a poll"));
+        sched.spawn(Ctx::new(OutputSink::Sink), TaskRoot::Request, move |_ctx| {
+            serve_on_this_core(
+                &mut listener,
+                &echo_the_path(),
+                waits,
+                &wide_open(),
+                &Draining::detached(),
+                |_note| {},
+                || ControlFlow::Break(()),
+            )
+            .expect("the accept loop failed");
+        });
+        nvs_host::run_until_idle(&mut sched).expect("the loop failed");
+
+        let (closed, after, seen) = client.join().expect("the client thread panicked");
+        assert!(closed, "a trickled head outlived the client's patience");
+        assert!(
+            after < TRICKLE / 2,
+            "a trickled head was closed after {after:?}, which is not its {:?} deadline",
+            waits.header
+        );
+        assert!(
+            seen.is_empty(),
+            "a connection that framed no request was answered anyway: {seen}"
+        );
+    }
+
     /// The keep-alive wait, which is the one that proves the phase machine
     /// **moves**: this connection is answered under the header wait and then
     /// closed under a different one. The header wait is left far above the
