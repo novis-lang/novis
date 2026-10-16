@@ -10,7 +10,7 @@ stages:
     context: [rust-toolchain.toml, benches/proxied/Dockerfile]
   - id: 2
     title: the unwind canary checks for an unwind entry
-    status: open
+    status: done
     context: [benches/abi-probe/tests/unwind_unavailable.rs, docs/rules/errors/propagation.md, crates/nvs-runtime/src/abi.rs]
     extra:
       context:
@@ -222,8 +222,8 @@ see changes.
 
 **Does:** the canary asks the platform whether a JIT PC has an unwind entry, so its result no longer depends on stack layout. `rule:errors/propagation` names how it checks.
 
-- [ ] Replace the panic probe with `a_jit_frame_has_no_unwind_entry`. It uses `RtlLookupFunctionEntry` on Windows and `_Unwind_Find_FDE` on Unix, on a PC inside a finalized JIT function, with the canary's flags (`is_pic=false`, `unwind_info=true`). The module doc is rewritten as a whole. `benches/abi-probe/tests/unwind_unavailable.rs:1`
-- [ ] The rule's canary paragraph says what the canary checks. The sentence about unwind tables stays. `docs/rules/errors/propagation.md:25`
+- [x] Replace the panic probe with `a_jit_frame_has_no_unwind_entry`. It uses `RtlLookupFunctionEntry` on Windows and `_Unwind_Find_FDE` on Unix, on a PC inside a finalized JIT function, with the canary's flags (`is_pic=false`, `unwind_info=true`). The module doc is rewritten as a whole. `benches/abi-probe/tests/unwind_unavailable.rs:1`
+- [x] The rule's canary paragraph says what the canary checks. The sentence about unwind tables stays. `docs/rules/errors/propagation.md:25`
 
 ### 3. the engine moves as one, and the sandbox names its wasm proposals
 
@@ -307,29 +307,29 @@ see changes.
 
 ### State
 
-Stage 1 is done. The tree pins Rust 1.99.1 and `rust-version = "1.99"`, and the plan's Toolchain field
-says so. `cargo clippy --all-targets -- -D warnings` is clean on Windows. The
-`semicolon_in_expressions_from_non_local_macros` warning the stage named did not appear there.
-`looper verify` is green on Windows, and the `toolchain` check passes.
-- Not checked: clippy and the tests on Linux and macOS, and a build of the proxied bench image. Only
-  its base `rust:1.99.1-slim-trixie` was confirmed to exist.
-- Bun 1.4.3 is on this machine now. Its registry leaves the entry point out of `require.cache`, so
-  `tools/nv/lib/reads.ts` adds `Bun.main`. Stage 7 still owns `engines.bun`.
-- Under the cold rebuild, `nvs-stdlib test ldap` (socket deadlines) and `nvs-cli test live_edit`
-  (`a_file_that_changes_during_a_compile_discards_that_compile`, a 30 s wait) failed beside the other
-  binaries and passed alone. The warm rerun was green.
-- The nightly CI still tests the remote `main`, which is far behind the local one.
+Stages 1 and 2 are done. The tree pins Rust 1.99.1. The canary
+`a_jit_frame_has_no_unwind_entry` asks `RtlLookupFunctionEntry` / `_Unwind_Find_FDE` about a JIT PC,
+with a control lookup on a function of the test binary (skipped on macOS, where Rust code has compact
+unwind records only). It passes on Windows in release and debug, and on Linux under WSL. The
+`unwind-entry` check is green, and `looper verify` is green on Windows.
+- Not checked: the canary on macOS, clippy and the tests on Linux and macOS, and a build of the
+  proxied bench image.
+- Bun 1.4.3 is on this machine. Stage 7 still owns `engines.bun`.
+- Under a cold rebuild, `ldap` and `live_edit` fail beside the other binaries and pass alone.
+- The nightly CI run 38701926032 tested `cb7021a24`, 705 commits behind the local `main`. Its red
+  jobs are not this tree's until the user pushes.
 
 ### Next
 
-**Stage 2: the unwind canary checks for an unwind entry.** Files: `benches/abi-probe/tests/unwind_unavailable.rs`, `docs/rules/errors/propagation.md`.
+**Stage 3: the engine moves as one.** Files: the root `Cargo.toml` engine rows, `crates/nvs-ext/src/call.rs`, `crates/nvs-ext/src/pack.rs` (`rule:packaging/a-dependency-move-proves-two-things`).
 
-- [ ] Replace the panic probe with `a_jit_frame_has_no_unwind_entry`: `RtlLookupFunctionEntry` on Windows and `_Unwind_Find_FDE` on Unix, on a PC inside a finalized JIT function (`rule:errors/propagation`). `benches/abi-probe/tests/unwind_unavailable.rs:1`
-- [ ] The rule's canary paragraph says what the canary checks. The sentence about unwind tables stays. Then `looper check --name unwind-entry`. `docs/rules/errors/propagation.md:25`
+- [ ] One commit: wasmtime ×3, cranelift ×5 and `object` at the latest final. The canary now guards the cranelift move. `Cargo.toml:99`, `Cargo.toml:346`, `Cargo.toml:112`
+- [ ] `wit-parser`, `wasmparser` and `wit-component` at wasmtime's version. `crates/nvs-ext/src/pack.rs:196`
+- [ ] The unused wasm proposals are off, and each component still loads (`rule:packaging/an-extension-is-a-sandboxed-wasm-component`). Then `looper check --name engine-guards` and `--name components-load`. `crates/nvs-ext/src/call.rs:722`
 
 ### Backlog
 
-- The user pushes `main`, so the nightly tests the current tree (`.github/workflows/ci.yml:7`).
+- The user pushes `main`, so the nightly tests the current tree (`.github/workflows/ci.yml:7`), and decides on `looper sync`: `looper lint` says `AGENTS.md`'s managed text and `.claude/settings.json` drifted.
 - Proof debt: the stale perf records and the `Core\Test\Outcome`/`Summary` proofs (`bun nv proofs --owed`).
 - Load flakes: `ldap` deadlines and the `live_edit` 30 s wait (`crates/nvs-cli/tests/live_edit.rs:1010`). Linux only: `crates/nvs-cli/tests/run_command.rs:688`, and the scaling margin (`crates/nvs-cli/src/serve.rs:3957`).
 - wasmtime 50.0.0 final and cranelift 0.137: the stage 3 items marked "if wasmtime 50" (`crates/nvs-ext/src/call.rs`).
