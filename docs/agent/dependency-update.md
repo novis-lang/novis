@@ -28,18 +28,24 @@ Read the version in [Cargo.toml](../../Cargo.toml)'s `[workspace.package]`.
 ```sh
 looper orient --full                      # where the run and the work stand
 git status                                # start clean; a sweep never rides on top of unrelated work
+bun nv deps                               # every pin beside its latest stable release, the ones behind first
 cargo update --dry-run                    # what would move inside the declared ranges
 cargo tree --duplicates                   # multiple-versions warnings that a bump might fix or create
 ```
 
-Then look at the four places a pin lives, because `cargo update` sees only the first:
+**`bun nv deps` is the sweep's list.** Each `behind` row is moved or held, each `expired` row is retried,
+and the pass is over when `bun nv deps --check` exits 0. `tools/nv/cmd/deps.ts`'s head comment is the home
+of what it reads and how it judges a pin. It reads these places, and `cargo update` sees only the first:
 
-| Pin | File |
-|---|---|
-| Crate ranges, and any `# HOLD (revisit …)` records | [Cargo.toml](../../Cargo.toml) `[workspace.dependencies]` |
-| The Rust toolchain, components and targets | [rust-toolchain.toml](../../rust-toolchain.toml) |
-| CI action majors (`actions/checkout@v4`, `Swatinem/rust-cache@v2`, …) | [.github/workflows/ci.yml](../../.github/workflows/ci.yml) |
-| Everything else that has a version — PHP oracle, `cargo-fuzz`, valgrind, MSVC/SDK | [the plan](../implementation-plan.md)'s status block § *Toolchain*, which is that field's only home |
+| Pin | File | A hold |
+|---|---|---|
+| Crate ranges | [Cargo.toml](../../Cargo.toml) `[workspace.dependencies]`, and each `Cargo.toml` under `extensions/`, `fuzz/`, `tools/`, `benches/` and the `nvs ext new` template | `# HOLD (revisit <date>): <reason>` directly above the row |
+| npm packages, and Bun as `engines.bun` | `package.json` at the root, in `editors/vscode/` and in `website/` | `"holds": { "<package>": "HOLD (revisit <date>): <reason>" }`, because JSON has no comments |
+| The Rust toolchain, components and targets | [rust-toolchain.toml](../../rust-toolchain.toml) | the comment form |
+| CI actions, by SHA with the release in a comment, and `cargo install --version` tools | [.github/workflows/](../../.github/workflows/) | the comment form |
+| Container images | `docker/Dockerfile`, the Dockerfiles and compose files under `benches/`, and `tests/db/compose.yaml` | the comment form |
+| wasi-sdk | CI's `WASI_SDK_VERSION`, and [extensions/image/libwebp/SOURCE.json](../../extensions/image/libwebp/SOURCE.json), which `bun nv webp-lib` rebuilds from | the comment form, in the workflow |
+| Everything else that has a version — PHP oracle, `cargo-fuzz`, valgrind, MSVC/SDK | [the plan](../implementation-plan.md)'s status block § *Toolchain*, which is that field's only home | not read by `bun nv deps` |
 
 Any `HOLD` whose date has passed is part of this sweep: retry it, and either drop the hold or give it a new
 date and a reason that is still true.
