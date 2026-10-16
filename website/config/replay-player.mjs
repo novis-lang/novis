@@ -5,15 +5,18 @@
  * keystroke, when the site is built. This script draws a frame into the code
  * area: the coloured text, the text cursor, the open completion list narrowed by
  * `replay-narrow.mjs`, and the red underline and its card on a hover step. A
- * bar under the code shows how far the replay has played.
+ * bar under the code shows how far the replay has played. A line wider than
+ * the window does not wrap: the code scrolls sideways, and after each frame the
+ * player scrolls it so the cursor and the open list or card are in view, as an
+ * editor does. The poster frame is scrolled the same way.
  *
  * The rules it keeps are `rule:testing/a-replay-plays-what-the-language-server-returned`'s:
  * a replay never starts by itself, and shows its poster frame until the reader
  * presses its button. The button plays from the first frame, pauses, and plays
  * again from the first frame after the end. A replay plays once and stops on
  * its last frame, pauses when it leaves the view, and only one replay on a page
- * plays at a time. The frame is `inert`, so the code never takes focus and a
- * click on it does nothing.
+ * plays at a time. The frame is `inert`, so the code never takes focus, a
+ * click on it does nothing, and only the player scrolls it.
  *
  * Each replay's root carries `data-replay-state` (`ready`, `playing`, `paused`
  * or `ended`) and `data-replay-frame`, and has its player as `nvReplay`. The
@@ -78,12 +81,19 @@ class Player {
     new IntersectionObserver((entries) => {
       if (!entries.at(-1).isIntersecting && this.state === 'playing') this.pause()
     }).observe(frame)
+    // A web font that loads late, or a window that changes width, moves the cursor, so the scroll is set again.
+    new ResizeObserver(() => this.follow()).observe(this.code)
+    document.fonts?.ready.then(() => this.follow())
   }
 
   play() {
     if (current && current !== this) current.pause()
     current = this
-    if (this.state === 'ready' || this.state === 'ended') this.show(0)
+    if (this.state === 'ready' || this.state === 'ended') {
+      // The first frame starts from the left edge, as a file does when an editor opens it.
+      this.code.scrollLeft = 0
+      this.show(0)
+    }
     this.set('playing')
     this.schedule()
   }
@@ -137,13 +147,40 @@ class Player {
       html += '</div>'
     }
     this.code.innerHTML = html
-    // A list or a card that would pass the right edge of the code moves left until it fits, as in VS Code.
-    const edge = this.code.getBoundingClientRect().right
-    for (const box of this.code.querySelectorAll('.nv-list, .nv-hover')) {
+    this.follow()
+    if (this.state) this.bar()
+  }
+
+  /**
+   * Scrolls the code sideways, as an editor does, so the cursor and the open list or card are in view
+   * right of the line numbers, with a margin of up to 4 characters on each side. A frame that is
+   * already in view with its margin keeps the scroll it has. A list or a card still past the right
+   * edge moves left until it fits, as in VS Code.
+   */
+  follow() {
+    const code = this.code
+    const boxes = [...code.querySelectorAll('.nv-list, .nv-hover')]
+    for (const box of boxes) box.style.translate = ''
+    const view = code.getBoundingClientRect()
+    const gutter = code.querySelector('.nv-ln')?.getBoundingClientRect().width ?? 0
+    const margin = 4 * 0.6 * parseFloat(getComputedStyle(code).fontSize)
+    const parts = [code.querySelector('.nv-caret'), ...boxes].filter((e) => e !== null).map((e) => e.getBoundingClientRect())
+    if (parts.length > 0) {
+      // Where the parts start and end, measured from the left edge of the code's whole width.
+      const from = Math.min(...parts.map((r) => r.left)) - view.left + code.scrollLeft
+      const to = Math.max(...parts.map((r) => r.right)) - view.left + code.scrollLeft
+      // Parts that only just fit get a smaller margin, so the margin never pushes one of them out.
+      const pad = Math.max(0, Math.min(margin, (code.clientWidth - gutter - (to - from)) / 2))
+      let left = code.scrollLeft
+      if (to + pad > left + code.clientWidth) left = to + pad - code.clientWidth
+      if (from - pad < left + gutter) left = from - pad - gutter
+      if (left !== code.scrollLeft) code.scrollLeft = Math.max(0, left)
+    }
+    const edge = view.left + code.clientWidth
+    for (const box of boxes) {
       const over = box.getBoundingClientRect().right - edge
       if (over > 0) box.style.translate = `${-Math.ceil(over)}px 0`
     }
-    if (this.state) this.bar()
   }
 
   /** The open list, narrowed by what was typed since it opened, best row first and selected. */

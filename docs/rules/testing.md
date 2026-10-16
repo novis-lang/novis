@@ -1171,7 +1171,10 @@ editor window, then one button, then a collapsed section that gives the same ste
 screen readers and search. The window has a title bar with the snippet's file name, and a bar along
 its bottom that shows how far the replay has played. The panel's root carries Starlight's
 `not-content` class, so the page's text styles add no space between the code's lines, and a list
-opens on the line under the cursor, at the column where the word it completes starts.
+opens on the line under the cursor, at the column where the word it completes starts. The code's font
+never goes below 12px. A line wider than the window does not wrap: the code scrolls sideways, as an
+editor does, so after each frame the cursor and the open list or error card are in view, and a frame
+already in view does not move it. The line numbers stay in place while it scrolls.
 
 A replay never starts by itself. Before it plays, it shows the last frame with a list open. The
 button plays it from the first frame, pauses it while it plays, and plays it again from the first
@@ -1204,6 +1207,8 @@ replay.
   format to check, and no page shows one yet.
 - **Starting when the replay scrolls into view.** Motion the reader did not ask for pulls the eye
   from the text they are reading, and the poster frame already shows the list.
+- **A font that shrinks until every line fits.** On a phone the code became too small to read, and
+  a long line still did not fit.
 - **Buttons that step one frame back or forward.** The steps as text give the same detail, and one
   button is simpler to read.
 

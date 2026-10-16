@@ -332,11 +332,10 @@ export function replayMarkup({ replay, recording, title, install, where, colours
   const data = replayOf({ replay, recording, where })
   const texts = frameTexts(data)
   // The code area is as tall as the longest frame, so it does not grow while the replay plays. Its font
-  // gets smaller until the widest line, `cols`, fits, and stops at 11px. It goes under 11px only as far
-  // as a line the cursor visits, `edited`, needs to fit. `Replay.astro`'s style does the sums.
+  // gets smaller until the widest line, `cols`, fits, and stops at 12px. `Replay.astro`'s style does the
+  // sums, and `replay-player.mjs` scrolls a line that is still too wide.
   const rows = Math.max(...texts.map((text) => text.split('\n').length))
   const cols = Math.max(...texts.flatMap((text) => text.split('\n').map((line) => line.length)))
-  const edited = Math.max(...data.frames.map((f, i) => texts[i].split('\n')[position(texts[i], f.cursor).line].length))
   const paint = colours ? replayPaint(texts, colours, where) : null
   const label = playLabel(data.asks)
   const json = JSON.stringify({ start: data.start, asks: data.asks, frames: data.frames, poster: data.poster, paint }).replace(/</g, '\\u003c')
@@ -347,7 +346,7 @@ export function replayMarkup({ replay, recording, title, install, where, colours
     '<span class="nv-replay-heading"><span class="nv-replay-title">How it looks in your editor</span>',
     `<span class="nv-replay-note">A recording from the <a href="${escapeHtml(install)}">Novis editor extension</a>. You cannot type here.</span></span>`,
     '</figcaption>',
-    `<div class="nv-replay-frame" inert aria-hidden="true" style="--nv-cols: ${cols}; --nv-edited: ${edited}">`,
+    `<div class="nv-replay-frame" inert aria-hidden="true" style="--nv-cols: ${cols}">`,
     `<div class="nv-replay-bar"><span class="nv-replay-dots"><i></i><i></i><i></i></span><span class="nv-replay-tab">${escapeHtml(title)}</span></div>`,
     `<div class="nv-replay-code" style="--nv-rows: ${rows}">${codeHtml(data.last, null, null, frameColours(paint, texts.length - 1))}</div>`,
     '<div class="nv-replay-progress"><span></span></div>',

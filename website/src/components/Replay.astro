@@ -18,6 +18,11 @@
  * a code example to copy. The window has the page's code colours in the dark
  * and the light theme.
  *
+ * The code's font gets smaller until the widest line fits, and stops at 12px,
+ * so the code stays readable on a phone. A line that is still too wide does not
+ * wrap. The code scrolls sideways instead, and the player keeps the cursor and
+ * the open list or card in view.
+ *
  * What is recorded: each completion list, each diagnostic, and where each list
  * opens. What is imitated: the list narrowing as letters are typed, the typing
  * pace and the editor's look. It is close to VS Code and is not its exact
@@ -156,25 +161,28 @@ const html = replayMarkup({
   .nv-replay-tab {
     font-family: var(--__sl-font-mono, monospace);
   }
-  /* The font gets smaller until the widest line, its line number and the cursor fit, and stops at 11px.
-     It goes under 11px only as far as a line the cursor visits needs to fit. JetBrains Mono is 0.6em
-     wide per character. */
+  /* The font gets smaller until the widest line, its line number and the cursor fit, and stops at 12px.
+     JetBrains Mono is 0.6em wide per character. A line that is still too wide does not wrap: the code
+     scrolls sideways, and the player keeps the cursor in view. The window is inert, so only the player
+     scrolls it. */
   .nv-replay-code {
     --nv-lh: 1.6em;
     --nv-gutter: calc(0.75rem + 5ch);
     --nv-fit: calc((100cqi - 0.75rem) / ((var(--nv-cols) + 7) * 0.6));
-    --nv-fit-edited: calc((100cqi - 0.75rem) / ((var(--nv-edited) + 7) * 0.6));
     position: relative;
+    overflow: hidden;
     padding: 0.75rem 0;
     min-height: calc((var(--nv-rows) + 7) * var(--nv-lh));
     font-family: var(--__sl-font-mono, monospace);
-    font-size: min(var(--sl-text-sm, 0.875rem), max(var(--nv-fit), min(0.6875rem, var(--nv-fit-edited))));
+    font-size: clamp(0.75rem, var(--nv-fit), var(--sl-text-sm, 0.875rem));
     line-height: var(--nv-lh);
   }
   .nv-replay .nv-line {
     display: flex;
+    width: max-content;
+    min-width: 100%;
     height: var(--nv-lh);
-    padding-left: 0.75rem;
+    padding-right: 2ch;
     white-space: pre;
   }
   /* A token's colours are those of a <Snippet>: --0 in the dark theme, --1 in the light one. */
@@ -188,12 +196,15 @@ const html = replayMarkup({
     font-style: var(--1fs, inherit);
     font-weight: var(--1fw, inherit);
   }
-  /* The line number and the space after it are the 5ch of --nv-gutter. */
+  /* The line numbers are --nv-gutter wide, and they stay in place when the code scrolls sideways. */
   .nv-replay .nv-ln {
+    position: sticky;
+    left: 0;
     flex: none;
-    box-sizing: border-box;
-    width: 5ch;
-    padding-right: 2ch;
+    box-sizing: content-box;
+    width: 3ch;
+    padding: 0 2ch 0 0.75rem;
+    background: var(--nv-code-bg);
     text-align: right;
     color: var(--sl-color-gray-4);
   }
@@ -216,17 +227,30 @@ const html = replayMarkup({
     text-decoration-skip-ink: none;
     text-underline-offset: 0.2em;
   }
-  /* A list opens on the line under the cursor, at the column where the completed word starts. */
+  /* A list opens on the line under the cursor, at the column where the completed word starts. It is as
+     wide as its rows, even where it opens past the visible part of the code. */
   .nv-replay .nv-list,
   .nv-replay .nv-hover {
+    --nv-left: calc(var(--nv-gutter) + var(--nv-col) * 1ch);
     position: absolute;
     top: calc(0.75rem + var(--nv-line) * var(--nv-lh));
-    left: calc(var(--nv-gutter) + var(--nv-col) * 1ch);
+    left: var(--nv-left);
+    width: max-content;
     margin: 0;
     border: 1px solid var(--sl-color-gray-5);
     border-radius: 0.25rem;
     background: var(--sl-color-black);
     box-shadow: var(--sl-shadow-md);
+  }
+  /* An empty box right of the list or the card, so the code scrolls far enough to leave a gap after it. */
+  .nv-replay .nv-list::after,
+  .nv-replay .nv-hover::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 100%;
+    width: 0.5rem;
+    height: 1px;
   }
   .nv-replay .nv-list {
     min-width: 22ch;
@@ -275,8 +299,10 @@ const html = replayMarkup({
     margin-left: auto;
     padding-left: 2ch;
   }
+  /* The error card wraps its text to fit the space right of where it opens, when that space is at least
+     36 characters wide. It is never wider than the code right of the line numbers, or than 60 characters. */
   .nv-replay .nv-hover {
-    max-width: 60ch;
+    max-width: min(60ch, max(100% - var(--nv-left) - 0.5rem, 36ch), 100cqi - var(--nv-gutter) - 1rem);
     padding: 0.35rem 0.6rem;
     white-space: pre-wrap;
   }

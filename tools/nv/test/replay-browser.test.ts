@@ -22,6 +22,13 @@ const RECORDING = [...LIST, "diagnostic 3 2:1+4 E0001", "  `name` is not defined
 // The same steps with no hover: a recording that shows only completion lists.
 const LIST_ONLY = { replay: "--START--\n<?nvs\n<|>\n--STEPS--\ntype na\naccept name\n", recording: LIST.join("\n") };
 
+// The same steps at the end of a line too wide for a phone, so the code scrolls sideways to the cursor.
+const WIDE_START = "$total = Shop::orderTotal($order, $discount, $shipping, $tax); echo ";
+const WIDE = {
+  replay: `--START--\n<?nvs\n${WIDE_START}<|>\n--STEPS--\ntype na\naccept name\nhover\n`,
+  recording: [`completion 1 2:${WIDE_START.length + 2}`, ...LIST.slice(1), `diagnostic 3 2:${WIDE_START.length + 1}+4 E0001`, "  `name` is not defined.", ""].join("\n"),
+};
+
 const markup = (o: { replay: string; recording: string }) => replayMarkup({ ...o, title: "01-name.nvs", install: "/install/editor/", where: "fixture" });
 const replay = () => markup({ replay: REPLAY, recording: RECORDING });
 
@@ -40,6 +47,8 @@ const PAGES: Record<string, string> = {
   "/one": page(`<div style="height:1500px"></div>${replay()}<div style="height:1500px"></div>`),
   // Two replays side by side, both in view when the page opens.
   "/two": page(`<div style="display:flex;gap:1rem">${replay()}${replay()}</div>`),
+  // One replay whose line is too wide for a phone.
+  "/wide": page(markup(WIDE)),
 };
 
 let server: ReturnType<typeof Bun.serve> | undefined;
@@ -86,6 +95,28 @@ const CLICK = (i: number) => `document.querySelectorAll('[data-replay-do="play"]
 const ROWS = `[...document.querySelectorAll(".nv-list .nv-row")].map((r) => [r.querySelector(".nv-label").textContent, [...r.querySelectorAll("mark")].map((m) => m.textContent).join(""), r.classList.contains("nv-selected")])`;
 const PROGRESS = `getComputedStyle(document.querySelector(".nv-replay-progress")).getPropertyValue("--nv-progress")`;
 const INTO_VIEW = `document.querySelector("[data-replay]").scrollIntoView({ block: "center" })`;
+// How far the list's top-left corner is from the start of the word before a cursor that follows one
+// typed letter, sideways and down from the bottom of the cursor's line, in whole pixels.
+const PLACE = `(() => {
+  const caret = document.querySelector(".nv-caret").getBoundingClientRect();
+  const line = document.querySelector(".nv-caret").closest(".nv-line").getBoundingClientRect();
+  const text = document.querySelector(".nv-caret").closest(".nv-text");
+  const ch = text.getBoundingClientRect().width / text.textContent.length;
+  const list = document.querySelector(".nv-list").getBoundingClientRect();
+  return [Math.round(list.left - (caret.left - ch)), Math.round(list.top - line.bottom)];
+})()`;
+// The code's font size and sideways scroll, and whether the cursor and the list are inside the part of
+// the code that shows, right of the line numbers.
+const VIEW = `(() => {
+  const code = document.querySelector(".nv-replay-code");
+  const from = code.querySelector(".nv-ln").getBoundingClientRect().right;
+  const to = code.getBoundingClientRect().left + code.clientWidth;
+  const inside = (selector) => {
+    const box = code.querySelector(selector)?.getBoundingClientRect();
+    return box !== undefined && box.left >= from - 0.5 && box.right <= to + 0.5;
+  };
+  return { font: parseFloat(getComputedStyle(code).fontSize), scroll: Math.round(code.scrollLeft), caret: inside(".nv-caret"), list: inside(".nv-list") };
+})()`;
 
 describe("a replay's button", () => {
   test("is labelled with what the recording shows", () => {
@@ -221,15 +252,7 @@ describe.skipIf(!EXE)("a replay in Chromium", () => {
       ["count", "n", false],
     ]);
     // The list's top-left corner is on the line under the cursor, at the column of the `n` it completes.
-    const place = await tab.run(`(() => {
-      const caret = document.querySelector(".nv-caret").getBoundingClientRect();
-      const line = document.querySelector(".nv-caret").closest(".nv-line").getBoundingClientRect();
-      const text = document.querySelector(".nv-caret").closest(".nv-text");
-      const ch = text.getBoundingClientRect().width / text.textContent.length;
-      const list = document.querySelector(".nv-list").getBoundingClientRect();
-      return [Math.round(list.left - (caret.left - ch)), Math.round(list.top - line.bottom)];
-    })()`);
-    expect(place).toEqual([0, 0]);
+    expect(await tab.run(PLACE)).toEqual([0, 0]);
     await show(2);
     expect(await tab.run(ROWS)).toEqual([["name", "na", true]]);
     await show(3);
@@ -238,6 +261,31 @@ describe.skipIf(!EXE)("a replay in Chromium", () => {
     await show(4);
     expect(await tab.run(`document.querySelector(".nv-squiggle").textContent`)).toBe("name");
     expect(await tab.run(`document.querySelector(".nv-hover-message").textContent`)).toBe("`name` is not defined.");
+    await tab.close();
+  }, 30_000);
+
+  test("on a phone the font stays readable, and the code scrolls so the cursor and the list are in view", async () => {
+    const tab = await open("/wide", (sessionId) => browser.send("Emulation.setDeviceMetricsOverride", { width: 390, height: 844, deviceScaleFactor: 1, mobile: false }, sessionId));
+    await tab.run(INTO_VIEW);
+    expect(await tab.run(`document.querySelector(".nv-replay-frame").inert`)).toBe(true);
+    // Before play, the poster frame is scrolled so its cursor and its list show.
+    const poster = await tab.run(VIEW);
+    expect(poster.font).toBeGreaterThanOrEqual(12);
+    expect(poster).toMatchObject({ caret: true, list: true });
+    expect(poster.scroll).toBeGreaterThan(0);
+    // Play draws the first frame, and the code scrolls to its cursor.
+    await tab.run(CLICK(0));
+    await tab.run(CLICK(0));
+    expect(await tab.run(FRAME)).toBe(0);
+    expect(await tab.run(VIEW)).toMatchObject({ caret: true, list: false });
+    // The list opens in view, directly under the start of the word.
+    await tab.run(`document.querySelector("[data-replay]").nvReplay.show(1)`);
+    const opened = await tab.run(VIEW);
+    expect(opened).toMatchObject({ caret: true, list: true });
+    for (const offset of await tab.run(PLACE)) expect(Math.abs(offset)).toBeLessThanOrEqual(1);
+    // The next letter needs no scroll, so the code stays where it is.
+    await tab.run(`document.querySelector("[data-replay]").nvReplay.show(2)`);
+    expect(await tab.run(VIEW)).toMatchObject({ caret: true, list: true, scroll: opened.scroll });
     await tab.close();
   }, 30_000);
 });
