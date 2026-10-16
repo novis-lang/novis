@@ -196,12 +196,13 @@ const listed = (n: Noted): Reads => ({ files: [...n.files].sort(), exists: [...n
 
 /** Appends this process's line to `log`, once: what it read, listed, tested and started, what each part
  * read besides under `parts`, and every tools module Bun's registry holds by then other than those
- * `loadUnrecorded` loaded. The exit handler calls it; `bun test` fires no exit handler, so
- * `reads-preload.ts` calls it after the last test. */
+ * `loadUnrecorded` loaded, with the entry point `Bun.main` added, because Bun's registry leaves it out.
+ * The exit handler calls it; `bun test` fires no exit handler, so `reads-preload.ts` calls it after the
+ * last test. */
 export function flush(log: string): void {
   if (flushed) return;
   flushed = true;
-  const modules = Object.keys(require.cache)
+  const modules = [...new Set([Bun.main, ...Object.keys(require.cache)])]
     .filter((m) => everyModule || !unnoted.has(m))
     .map((m) => inTree(m))
     .filter((m): m is string => m !== null && m.endsWith(".ts"))
