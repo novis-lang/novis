@@ -11,10 +11,16 @@ may go (`rule:concurrency/a-tasks-recursion-limit-comes-from-its-own-stack`).
 
 Stacks are pooled per worker. A stack is an `mmap` or `VirtualAlloc` pair, which is the wrong thing
 to do per request on a hot path, so a freed stack goes back to the pool and is handed to the next
-task. The pool never holds more stacks than the worker has had tasks in flight at once, and it keeps
-at most 1024 idle; a stack freed past that is handed back to the operating system, so one burst does
-not leave its stacks resident for the life of the worker. That is the O(in-flight) shape
-`rule:programs/memory-priority` asks for.
+task. The pool never holds more stacks than the worker has had tasks in flight at once. A serving
+core also keeps at most its share of `[server] max_in_flight` idle, the number divided by the worker
+count and rounded up, read each time a stack comes back so a reload moves it. A stack freed past that
+is handed back to the operating system, so one burst does not leave its stacks resident for the life
+of the worker. That is the O(in-flight) shape `rule:programs/memory-priority` asks for.
+
+A scheduler that is not a serving core, such as `nvs run`'s or a queue worker's, has no admission
+number and keeps its high-water mark. Its tasks are already bounded by `max_tasks` per program, and
+`nvs run`'s scheduler ends with its one program, so a second compiled-in number would bound nothing
+the work does not.
 
 A parse whose native recursion depth is set by its input, such as `Core\Json::decode` at its 1024-level
 ceiling, runs on the worker thread's one **spare stack**, 8 MiB reserved, and never on the task's
@@ -24,5 +30,5 @@ worker thread, O(workers), and the pages the deepest parse touched stay resident
 thread. Code on it never calls compiled Novis code, whose recursion limit is armed for the task's stack.
 
 - **Memory:** each task in flight reserves 1 MiB of address space, charged to its request, and keeps
-  resident only the pages its frames touched. Each worker also holds up to 1024 idle reservations
-  between tasks, and each worker thread one 8 MiB spare stack.
+  resident only the pages its frames touched. A serving core also holds up to its share of
+  `max_in_flight` in idle reservations between tasks, and each worker thread one 8 MiB spare stack.
