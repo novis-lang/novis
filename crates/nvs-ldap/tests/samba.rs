@@ -8,8 +8,8 @@
 //!
 //! **A case that needs the server skips when it is not there**, the way
 //! `nvs-cli`'s `compose_postgres` does: no `tests/db/ca.crt`, or nothing
-//! listening on the LDAPS port, prints a line and returns. `bun nv loop` brings
-//! the server up for the acceptance sweep, which is where these assert. CI's
+//! listening on the LDAPS port, prints a line and returns. `docker compose -f
+//! tests/db/compose.yaml up` brings the server up, and then these assert. CI's
 //! `database` job sets `NVS_LDAP_SAMBA`, which turns the skip into a failure.
 //!
 //! **Four cases use a local listener and always run.** Two prove that nothing

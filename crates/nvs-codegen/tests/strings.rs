@@ -95,7 +95,8 @@ class Label {
 fn a_concatenation_in_a_loop_keeps_producing_the_right_bytes() {
     // Each iteration's result is released once the local it was assigned to is
     // overwritten, so a botched refcount here shows up as freed bytes rather
-    // than only as a leak. The leak half is what M4's Valgrind/ASAN run is for.
+    // than only as a leak. The leak half is what the valgrind run
+    // (`rule:testing/valgrind-on-wsl`) is for.
     assert_eq!(
         output_of(
             "<?nvs\nstring $s = \"\";\nint $i = 0;\nwhile ($i < 4) {\n    $s = $s . \"ab\";\n    $i = $i + 1;\n}\necho $s;\n"

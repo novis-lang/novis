@@ -3488,8 +3488,8 @@ mod tests {
     /// **`None` is a skip and not a failure.** The bundle is issued by
     /// `tests/db/compose.yaml`'s own `certs` service into a Docker volume and is
     /// not in git, so a checkout with no servers up cannot reach the database
-    /// this asserts about at all. `bun nv loop` brings both up for the
-    /// acceptance sweep, which is where the assertion below actually runs.
+    /// this asserts about at all. `docker compose -f tests/db/compose.yaml up`
+    /// brings both up, and then the assertion below runs.
     fn compose_postgres() -> Option<nvs_config::tree::Database> {
         let bundle = nvs_repo::path("tests/db/ca.crt");
         if !bundle.is_file() {

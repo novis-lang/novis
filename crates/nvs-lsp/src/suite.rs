@@ -6,9 +6,9 @@
 //! [`crate::render`] and compares it to `--EXPECT--` byte for byte
 //! (`rule:ide/an-lsp-answer-is-frozen-as-an-lspt-case`).
 //!
-//! The last line is always `N passed, M failed` — the shape `bun nv loop`'s
-//! `nvs-suite` check parses, which is how an editor-behaviour gate reaches the
-//! loop with no change to the driver. **It is `.lspt`'s own count and shares
+//! The last line is always `N passed, M failed` — the shape the acceptance
+//! runner's `nvs-suite` check parses, which is how an editor-behaviour gate
+//! reaches it with no change to the runner. **It is `.lspt`'s own count and shares
 //! nothing with `nvs test`'s**: two suites answering two questions, and a
 //! summary that meant both would mean neither.
 //!
@@ -113,9 +113,9 @@ pub struct Outcome {
 /// What a run prints when it is done.
 ///
 /// Whether the matrix comes first, never whether the verdict comes at all:
-/// `bun nv loop`'s `nvs-suite` check reads the last line as `N passed, M
-/// failed`, so the matrix goes above it, where it is a report for a person and
-/// the line under it is still the one the driver finds.
+/// the acceptance runner's `nvs-suite` check reads the last line as `N passed,
+/// M failed`, so the matrix goes above it, where it is a report for a person and
+/// the line under it is still the one the runner finds.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Report {
     /// The verdict alone.

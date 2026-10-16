@@ -69,7 +69,7 @@ fn a_static_call_names_the_class_it_was_written_on() {
 
 #[test]
 fn new_static_allocates_the_called_class_through_two_levels() {
-    // M4's acceptance sentence, exactly: `new static()` reached through two
+    // `new static()` reached through two
     // levels of inheritance returns the called class. Proved by asking the
     // fresh instance what it is — a class test reads the descriptor the
     // allocation actually used.

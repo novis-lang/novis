@@ -4,8 +4,8 @@
 //! specification: find-references, occurrence highlight, CodeLens, type
 //! hierarchy and unused-member dimming are **five queries against one index**,
 //! and none of them gets a walk of its own. What is here is the index, its one
-//! construction site and its invalidation; the readers are a later slice's and
-//! they read it rather than building a second one.
+//! construction site and its invalidation; the readers live in their own
+//! modules and read it rather than building a second one.
 //!
 //! # Decision: a symbol is a string, and this module owns the spelling
 //!

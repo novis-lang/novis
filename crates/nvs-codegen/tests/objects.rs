@@ -8,7 +8,7 @@ mod common;
 use common::*;
 
 // ---------------------------------------------------------------------------
-// Objects — M4's representation, end to end
+// Objects — the object representation, end to end
 // ---------------------------------------------------------------------------
 /// A two-property class with a constructor and two readers, plus a subclass
 /// that inherits both — the shape every object test below builds on.

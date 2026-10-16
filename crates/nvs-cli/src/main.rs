@@ -1,12 +1,12 @@
 //! The `nvs` binary.
 //!
-//! One subcommand per milestone that needed one:
+//! The subcommands:
 //!
-//! * `nvs ast` (M1) — dump what the parser produced, as Rust's `Debug` for a
+//! * `nvs ast` — dump what the parser produced, as Rust's `Debug` for a
 //!   person or as `rule:ide/ast-json-schema-is-frozen`'s JSON for the AST
 //!   panel that shells out to it. Resilient by default, since the file a panel
 //!   is opened for is the one that does not compile; see [`ast`].
-//! * `nvs check` (M2) — parse, resolve, type-check, report every diagnostic.
+//! * `nvs check` — parse, resolve, type-check, report every diagnostic.
 //!   `--autoload-map` prints the resolved `autoload` map in place of the
 //!   success line, which is
 //!   `rule:programs/autoload`'s last sentence; the shape is `nvs_hir::autoload`'s module doc.
@@ -14,10 +14,10 @@
 //!   `rule:ide/check-json-is-the-diagnostic-record-as-a-document`'s document
 //!   instead of rendering them for a terminal, for CI and for the agents that
 //!   drive this compiler; see [`check`].
-//! * `nvs run` (M3) — all of the above, then compile and execute. Its dump
+//! * `nvs run` — all of the above, then compile and execute. Its dump
 //!   flags stop one stage earlier and print instead of running:
 //!   `--dump-ir` after lowering, `--dump-asm` after code generation.
-//! * `nvs test` (M4) — run a tree of `.nvst` conformance cases, or a program's
+//! * `nvs test` — run a tree of `.nvst` conformance cases, or a program's
 //!   own `#[Test]` methods. `rule:testing/nvst-is-separate` keeps the two formats apart and puts
 //!   them under one subcommand; which is meant is read off the path. The
 //!   `.nvst` format, and every decision behind it, is [`nvs_test`]'s own
@@ -28,17 +28,17 @@
 //!   generates from the compile-time route table, on standard output. A build
 //!   artifact and never a runtime feature; see [`openapi`] for what the table
 //!   supplies and what it does not yet.
-//! * `nvs build --compile` (M6) —
+//! * `nvs build --compile` —
 //!   `rule:packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host`'s
 //!   portable single-file executable: the program's `require` graph as plain
 //!   source, appended to a copy of this binary. Also the one subcommand this
 //!   binary can *be*: a copy carrying that payload runs it instead of parsing
 //!   arguments at all; see [`bundle`].
-//! * `nvs api diff <old.json> <new.json>` — the same ADR's § 4 gate over two
+//! * `nvs api diff <old.json> <new.json>` — the same rule's § 4 gate over two
 //!   finished documents: breaking, additive or cosmetic per change, non-zero
 //!   exit on a breaking one. It compiles nothing, because the old side of a
 //!   diff is a released artifact rather than a program; see [`api_diff`].
-//! * `nvs config check` (M6) — resolve the configuration tree and report what
+//! * `nvs config check` — resolve the configuration tree and report what
 //!   it holds, exiting non-zero on any refusal.
 //!   `rule:config/check-and-dump-audit-the-tree-offline`
 //!   's offline audit, which exists because `rule:config/later-wins-and-every-override-is-recorded`'s later-wins precedence is

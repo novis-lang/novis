@@ -1,11 +1,9 @@
 //! The two things a reader cannot see, written where the source left them out.
 //!
 //! `rule:ide/every-feature-is-staged-behind-its-dependency` lists inlay hints
-//! among what the VS Code client eventually gets, and
-//! `rule:ide/the-request-set-is-closed` kept them out of M4B because they
-//! wanted a settings story and the idioms they would show were still moving.
-//! Both halves of that have settled, and this module answers **only** the two
-//! idioms that stopped moving:
+//! among what the VS Code client gets, and
+//! `rule:ide/the-request-set-is-closed` admits them bounded to two idioms.
+//! This module answers **only** those two:
 //!
 //! | Shape | Hint |
 //! |---|---|
@@ -15,7 +13,7 @@
 //! There is no third, and a candidate is a decision rather than an addition:
 //! everything else an editor could annotate — a `foreach` binding with its
 //! type written, a chained call's intermediate type, an anonymous function's return — is
-//! either written in the source already or is a claim about an idiom M5–M9 is
+//! either written in the source already or is a claim about an idiom that is
 //! still moving.
 //!
 //! # Decision: a hint is read out of the type phase's table, never re-derived

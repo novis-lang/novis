@@ -74,9 +74,8 @@ down, and only then brings up the other.
 | 3 | `oha` → `nvs serve` | `oha` | what nginx costs us |
 | 4 | fcgi → php-fpm | `bun nv bench`'s FastCGI client | what nginx and the bridge cost PHP |
 
-**`oha` and not our own generator**, unlike the other leg: M7's *Verify* names `wrk`/`oha` by name,
-and `bun nv bench` substitutes a hand-rolled one only because neither is installed on the Windows
-box it runs on. In a container both are one pinned image away, so the substitution has no reason to
+**`oha` and not our own generator**, unlike the other leg: `bun nv bench` uses a hand-rolled one
+only because neither `wrk` nor `oha` is installed on the Windows box it runs on. In a container both are one pinned image away, so the substitution has no reason to
 survive here — and `oha` reports the tail latencies our own generator deliberately does not.
 
 **Arm 4 is the one asymmetry, and it is recorded rather than hidden.** FPM has no HTTP origin, so

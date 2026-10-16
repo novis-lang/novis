@@ -1157,7 +1157,7 @@ fn stacks_pooled_after(round_trips: usize) -> (usize, usize) {
 fn a_spawn_to_result_round_trip_stays_in_the_microsecond_class() {
     let _quiet = serialised();
 
-    // The figure M5's acceptance asks for, and the one the test above only
+    // The figure an isolate's boundary is held to, and the one the test above only
     // approximates: that one prices a bare coroutine, this one prices the isolate
     // boundary itself — the argument's graph copy in, the child's own ownership
     // root and context, the child task, the answer's copy out, the release.
@@ -1172,7 +1172,7 @@ fn a_spawn_to_result_round_trip_stays_in_the_microsecond_class() {
     // inline on its parent's stack leaves one, and a stack handed back to the OS
     // leaves none.
     //
-    // The soft bound is M5's own number rather than a multiple of a baseline:
+    // The soft bound is a stated number rather than a multiple of a baseline:
     // at ten microseconds "single-digit microseconds" stops being true, and the
     // run says so. The hard bound, a hundred microseconds, is a boundary that
     // has acquired a syscall or a child doing something a child should not.
@@ -1203,8 +1203,8 @@ fn a_spawn_to_result_round_trip_stays_in_the_microsecond_class() {
     judge(
         "isolate spawn to result",
         PER_ROUND_TRIP,
-        "an isolate replaces a child process with this boundary and M5's acceptance puts it in \
-         the single-digit microseconds; at this figure the child is doing something a child \
+        "an isolate replaces a child process with this boundary, which is held to the \
+         single-digit microseconds; at this figure the child is doing something a child \
          should not, or the boundary has acquired a syscall.",
         |_yard| {
             // Each batch builds its own scheduler and task and warms inside
@@ -1227,7 +1227,7 @@ fn a_spawn_to_result_round_trip_stays_in_the_microsecond_class() {
 fn concurrent_spawns_leave_the_scheduler_serving_other_tasks() {
     let _quiet = serialised();
 
-    // M8's list for `rule:core-classes/process-is-argv-only`: children in
+    // `rule:core-classes/process-is-argv-only`: children in
     // flight do not stop the core they were started from serving anything else.
     // What is driven is the handoff the member performs — `blocking::run`
     // around a real child — and not the member, which this crate cannot reach;
@@ -1444,7 +1444,7 @@ fn overlapping_fan_out(patience: Duration) -> Vec<(thread::ThreadId, bool)> {
 fn a_cpu_bound_fan_out_across_four_worker_cores_is_near_linear_by_the_margin_this_test_names() {
     let _quiet = serialised();
 
-    // The second figure M5's acceptance asks for, and the one that is a ratio:
+    // The second figure concurrency is held to, and the one that is a ratio:
     // CPU-bound children placed `on: "worker"` against the same children run one
     // after another on the core that asked for them. The construct is the
     // placement rather than `Core\Task::map`, which is concurrency on one core —
@@ -1524,7 +1524,7 @@ fn a_cpu_bound_fan_out_across_four_worker_cores_is_near_linear_by_the_margin_thi
     let measured = judge_where_measurable(
         "fan-out across worker cores",
         SPEEDUP,
-        "M5's acceptance claims near-linear speedup across cores for exactly this shape of work; \
+        "workers are held to near-linear speedup across cores for exactly this shape of work; \
          at this ratio the children are sharing a core rather than spreading over them.",
         |yard| {
             let mut placed = f64::MAX;

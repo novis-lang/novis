@@ -236,8 +236,9 @@ fn turning_tracing_on_records_an_entry_and_an_exit_per_call() {
 // belongs to an end-to-end fixture with `throw`.
 #[test]
 fn a_second_script_runs_after_a_contained_helper_panic() {
-    // M3's "leaves the process able to run the next one", which a one-shot
-    // `nvs run` cannot show: two compiles and two runs in *this* process, the
+    // A contained helper panic leaves the process able to run the next script,
+    // which a one-shot `nvs run` cannot show: two compiles and two runs in
+    // *this* process, the
     // first faulted deliberately. `benches/abi-probe`'s
     // `the_jit_is_still_usable_after_a_contained_panic` is the ABI-level
     // version of the same claim over hand-built frames; this is the compiler's.

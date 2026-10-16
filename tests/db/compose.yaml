@@ -1,11 +1,9 @@
-# Every server a test needs, as one file: the five database servers `Core\Db` speaks, the SMTP catcher
-# goal `core-part-ii`'s stage 9 points `Core\Mail` at, and the Samba AD domain controller `Core\Ldap`
-# is tested against.
+# Every server a test needs, as one file: the five database servers `Core\Db` speaks, `redis`, the
+# SMTP catcher `Core\Mail` is tested against, and the Samba AD domain controller `Core\Ldap` is
+# tested against.
 #
-# `bun nv loop` brings these up when a run starts and at every goal switch -- `docker compose -f
-# tests/db/compose.yaml up -d --wait <services>` -- from the live goal record's `env.docker`: goal
-# `core-part-ii` names `redis` and `mailpit`, goal `database` the five database servers, and goal
-# `server` reuses `postgres` and `redis` alone, and goal `ldap` names `samba-ad`. `--wait` is why every service below
+# `docker compose -f tests/db/compose.yaml up -d --wait <services>` brings them up, and `bun nv
+# db-matrix` runs it for the database servers. `--wait` is why every service below
 # carries a healthcheck: it makes "up" mean *healthy* rather than *started*, so a driver's first
 # connection is not racing the server's own initialisation.
 #

@@ -280,8 +280,9 @@ pub fn listed(found: Vec<PathBuf>, only: &[PathBuf]) -> io::Result<Vec<PathBuf>>
 
 /// Runs every case in `paths`, writing a report to `out`.
 ///
-/// The last line is always `N passed, M failed, K skipped` — the shape
-/// `bun nv loop` reads to decide whether an `nvs-suite` check held.
+/// The last line is always `N passed, M failed, K skipped` — the shape the
+/// acceptance runner (`tools/nv/accept/runner.ts`) reads to decide whether an
+/// `nvs-suite` check held.
 ///
 /// Cases run [`Options::jobs`] at a time, which asks nothing of a case: each
 /// runs in its own process with its own working directory, and the artifact

@@ -156,7 +156,7 @@
 //! entries down to a floor below that cap. [`Cache::store`] is the only caller,
 //! [`gc`](Cache::gc) is the same walk without the roll — § 6's `nvs cache gc` — and nothing on the
 //! read path calls either. **A warm hit performs no directory walk, checks no size and pays
-//! nothing beyond § 3's read, verify and load**, which is what keeps M6's warm-start bullet reachable.
+//! nothing beyond § 3's read, verify and load**, and that is the whole cost of a warm start.
 //!
 //! The roll is PHP's `session.gc_probability`/`gc_divisor` shape deliberately, and the floor is
 //! hysteresis: evicting to exactly the cap leaves the next miss's roll finding work again, so a

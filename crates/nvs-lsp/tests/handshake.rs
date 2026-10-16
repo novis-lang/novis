@@ -147,9 +147,7 @@ fn initialize_declares_exactly_the_capabilities_this_goal_ships() {
         "semanticTokensProvider",
         "codeActionProvider",
         // The two readers of the one workspace symbol index that answer a
-        // cursor. They are here rather than in M4B's nine because they are
-        // `rule:ide/five-features-are-one-reference-index`'s, and the index
-        // they read is what they were waiting for.
+        // cursor, both `rule:ide/five-features-are-one-reference-index`'s.
         "referencesProvider",
         "documentHighlightProvider",
         // The same rule's third reader. It answers a document rather than a
@@ -161,10 +159,8 @@ fn initialize_declares_exactly_the_capabilities_this_goal_ships() {
         // `nvs_lsp::declared_capabilities` is what puts it in the object, which
         // is why this test reads the object and not the struct.
         "typeHierarchyProvider",
-        // The one request M4B held back by name and
-        // `rule:ide/the-request-set-is-closed` admits at M10, bounded to the two
-        // idioms `nvs_lsp::hints` answers: everything else held back with it is
-        // still held back.
+        // The one request `rule:ide/the-request-set-is-closed` admits only in
+        // part, bounded to the two idioms `nvs_lsp::hints` answers.
         "inlayHintProvider",
         // Not a request. It is the answer to "in what units are the positions
         // in every one of the above", and LSP 3.17 puts it here.

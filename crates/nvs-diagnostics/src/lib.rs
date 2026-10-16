@@ -5950,7 +5950,7 @@ mod tests {
     /// The band's highest number is the newest code in it, which is what makes
     /// "the next free one is the highest plus one" answerable by reading the
     /// registry. A code allocated into a hole would leave this failing rather
-    /// than leave `bun nv orient`'s next-free line quietly wrong.
+    /// than leave `bun nv pack`'s next-free line quietly wrong.
     #[test]
     fn the_newest_parser_code_is_the_bands_highest_number() {
         assert_eq!(code::E_CLASS_KEYWORD_MEMBER_IN_TYPE.as_str(), "E0135");

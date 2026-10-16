@@ -1,7 +1,7 @@
 //! The behavioural invariants Novis's execution model depends on.
 //!
-//! If any of these fail after a dependency bump, the plan for M3 (backend) or
-//! M5 (concurrency) is broken and needs revisiting before more code is written
+//! If any of these fail after a dependency bump, the design of the backend or
+//! of concurrency is broken and needs revisiting before more code is written
 //! on top of it. See `rule:errors/propagation` and `rule:errors/helper-abi`.
 
 use nvs_abi_probe::{Ctx, FATAL, Helper, NvsFn, OK, Probe, THROWN, Value, call, in_coroutine};
