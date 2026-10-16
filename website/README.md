@@ -157,11 +157,12 @@ service.
 ## Logo and favicon
 
 `media/novis-logo.png` (512×512, the export beside its `.afdesign` source) is the one copy.
-The header renders it through Starlight's `logo` option and sizes it in
-`src/components/Header.astro`. The icons are cut from the same file — regenerate them after
-a logo change, from `website/`:
+The header mark and the icons are cut from it — regenerate them after a logo change, from
+`website/`:
 
 ```sh
+magick media/novis-logo.png -filter Lanczos -resize 96x96 -strip -quality 90 \
+  -define webp:alpha-quality=100 media/novis-logo-header.webp
 magick media/novis-logo.png -trim +repage mark.png
 magick mark.png -filter Lanczos -resize 48x48 -unsharp 0x0.6+0.5+0.02 i48.png
 magick mark.png -filter Lanczos -resize 32x32 -unsharp 0x0.6+0.6+0.02 i32.png
@@ -173,6 +174,10 @@ magick mark.png -filter Lanczos -resize 160x160 -background white \
 
 `mark.png` and the three `i*.png` are scratch, and nothing ignores them — delete them once
 the two icons are written.
+
+The header renders `novis-logo-header.webp` through Starlight's `logo` option and sizes it
+in `src/components/Header.astro` to 32px at most. 96px covers a screen at three times that
+density, in a few kilobytes; the 512px export would cost every page ten times as much.
 
 The trim matters: the export carries a thin transparent margin, which at 16px costs the ring
 its counters. Each size is sharpened for the size it is, which `-define icon:auto-resize`

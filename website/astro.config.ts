@@ -60,12 +60,13 @@ export default defineConfig({
       title: SITE_TITLE,
       description: SITE_DESCRIPTION,
       // The mark in the header replaces the wordmark and links to the home
-      // page. Its alt text keeps the title for screen readers. One source
-      // of truth: media/novis-logo.png is the design export, sized down by
-      // CSS in src/components/Header.astro. public/favicon.ico and
-      // public/apple-touch-icon.png are cut from the same file — see the
-      // website README's "Logo and favicon" section for the command.
-      logo: { src: './media/novis-logo.png', alt: SITE_TITLE, replacesTitle: true },
+      // page. Its alt text keeps the title for screen readers. The image is
+      // a 96px cut of media/novis-logo.png, the design export, so the header
+      // ships a few kilobytes and stays sharp at three times its CSS size in
+      // src/components/Header.astro. public/favicon.ico and
+      // public/apple-touch-icon.png are cut from the same export: the
+      // website README's "Logo and favicon" section has the commands.
+      logo: { src: './media/novis-logo-header.webp', alt: SITE_TITLE, replacesTitle: true },
       favicon: '/favicon.ico',
       // The two typefaces are self-hosted from npm, so a page makes no request to a font
       // service. custom.css names them in --sl-font and --sl-font-mono.
