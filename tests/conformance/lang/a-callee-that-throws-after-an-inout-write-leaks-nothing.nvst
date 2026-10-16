@@ -1,0 +1,60 @@
+--TEST--
+A callee that writes a fresh string to an `inout` parameter and then throws frees that string on the throw edge, so a thousand caught throws stay under a 16M ceiling and the caller's variable keeps its pre-call value — `rule:statements/inout-is-the-by-reference-spelling`, `rule:programs/memory-priority`
+--FILE--
+<?nvs
+final class Cell {
+    public string $s = "cell";
+}
+
+final class Writer {
+    // Writes 64 KiB through the reference and then throws, so the write never
+    // reaches the caller.
+    public static function fill(inout string $s): void {
+        $s = Core\Str::repeat('w', 65536);
+        throw new LogicError('no');
+    }
+
+    public static function fail(): string {
+        throw new LogicError('no');
+    }
+
+    public static function take(inout string $s, string $tail): void {
+        $s = $s . $tail;
+    }
+}
+
+// A thousand writes of 64 KiB is four times the ceiling, so one leaked
+// reference per call stops the run before the loop ends.
+string $s = Core\Str::repeat('a', 5);
+Cell $c = new Cell();
+int $threw = 0;
+int $round = 0;
+while ($round < 1000) {
+    try {
+        Writer::fill(inout $s);
+    } catch (LogicError $e) {
+        $threw = $threw + 1;
+    }
+    try {
+        Writer::fill(inout $c->s);
+    } catch (LogicError $e) {
+        $threw = $threw + 1;
+    }
+    // The second argument throws before the call runs, after the first one
+    // was already passed by reference.
+    try {
+        Writer::take(inout $s, Writer::fail());
+    } catch (LogicError $e) {
+        $threw = $threw + 1;
+    }
+    $round = $round + 1;
+}
+
+echo "threw ", $threw, "\n";
+echo $s, " ", $c->s, "\n";
+--FILE nvs.toml--
+[limits]
+memory = "16M"
+--EXPECT--
+threw 3000
+aaaaa cell

@@ -11,19 +11,21 @@ fn <script>() -> tagged {
     v1 = class.desc Shout  ; classdesc
     retain v0
     v2 = ref.slot v0  ; ref
-    v3 = call Shout::upper(this: v1, v2) ! bb1  ; void
-    v4 = ref.load v2  ; string
+    v4 = call Shout::upper(this: v1, v2) ! bb1  ; void
+    v5 = ref.load v2  ; string
     release v0
     ; stmt s2 @7:1-7:11
-    helper.echo_str v4 ! bb2
-    release v4
-    v5 = const.null  ; null
-    v6 = tag v5  ; tagged
-    return v6
+    helper.echo_str v5 ! bb2
+    release v5
+    v6 = const.null  ; null
+    v7 = tag v6  ; tagged
+    return v7
   bb1:
+    v3 = ref.load v2  ; string
+    release v3
     release v0
     propagate "<script>() at t.nvs:6"
   bb2:
-    release v4
+    release v5
     propagate "<script>() at t.nvs:7"
 }

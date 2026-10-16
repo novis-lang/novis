@@ -3813,7 +3813,8 @@ class T {
 /// staging `retain` before `ref.slot`, and one `release` of the holder's
 /// previous value at the copy-back. The pair balances, which is what
 /// makes the slot's own reference transfer into the holder rather than
-/// leak or double-free.
+/// leak or double-free. On the call's throw edge the landing block loads the
+/// slot and releases it instead, so a callee that throws leaks nothing.
 #[test]
 fn a_refcounted_by_reference_argument_balances_its_staging_retain() {
     let (f, map, file) = lower_script_src(
