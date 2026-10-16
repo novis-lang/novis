@@ -17,9 +17,9 @@ describe("the commands a session reaches by name", () => {
     expect(r.stdout).toContain("rule:testing/");
   });
 
-  test("guard --check finds the hook wired for all three tools in the committed settings", async () => {
+  test("guard --check finds the hook wired for Read and Bash in the committed settings", async () => {
     const r = await nv("guard", "--check");
     expect(r.code).toBe(0);
-    expect(r.stdout).toStartWith("guard: wired for Read, Bash and PowerShell");
+    expect(r.stdout).toStartWith("guard: wired for Read and Bash");
   });
 });

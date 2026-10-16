@@ -11,7 +11,6 @@ const SMALL = "package.json";
 
 const event = (tool: Tool, input: Record<string, unknown>) => ({ tool_name: tool, tool_input: input, cwd: ROOT });
 const bash = (command: string) => decide(event("Bash", { command }));
-const pwsh = (command: string) => decide(event("PowerShell", { command }));
 
 /** Each rule's denied command and its near miss. The rule's own name has to open the reason. */
 const CASES: Record<string, { deny: [Tool, Record<string, unknown>][]; allow: [Tool, Record<string, unknown>][] }> = {
@@ -20,49 +19,37 @@ const CASES: Record<string, { deny: [Tool, Record<string, unknown>][]; allow: [T
       ["Read", { file_path: join(ROOT, LONG) }],
       ["Bash", { command: `cat ${LONG}` }],
       ["Bash", { command: `sed -n '1,9999p' ${LONG}` }],
-      ["PowerShell", { command: `Get-Content ${LONG}` }],
     ],
     allow: [
       ["Read", { file_path: join(ROOT, LONG), offset: 100, limit: 40 }],
       ["Read", { file_path: join(ROOT, SMALL) }],
       ["Bash", { command: `cat ${LONG} | head -40` }],
       ["Bash", { command: `sed -n '120,160p' ${LONG}` }],
-      ["PowerShell", { command: `Get-Content ${LONG} -TotalCount 40` }],
     ],
   },
   "proof-loop": {
     deny: [
       ["Bash", { command: "for f in docs/examples/str/*.nvs; do target/debug/nvs.exe run $f; done" }],
-      ["PowerShell", { command: "Get-ChildItem tests\\hostile\\arr -Filter *.nvs | ForEach-Object { & target\\debug\\nvs.exe run $_.FullName }" }],
+      ["Bash", { command: "ls tests/hostile/arr/*.nvs | xargs -n1 target/debug/nvs.exe run" }],
     ],
     allow: [["Bash", { command: "target/debug/nvs.exe run docs/examples/str/one.nvs" }]],
-  },
-
-  "sleep-poll": {
-    deny: [["Bash", { command: 'until grep -q done "C:/Users/u/AppData/Local/Temp/claude/x/tasks/b1.output"; do sleep 5; done' }]],
-    allow: [
-      ["Bash", { command: 'tail -20 "C:/Users/u/AppData/Local/Temp/claude/x/tasks/b1.output"' }],
-      ["Bash", { command: "until curl -s localhost:8080; do sleep 1; done" }],
-    ],
   },
   "inline-write": {
     deny: [
       ["Bash", { command: "cat > tools/nv/cmd/x.ts <<'EOF'\nconst a = 1;\nEOF" }],
       ["Bash", { command: `python -c "open('tools/nv/cmd/x.ts', 'w').write('x')"` }],
       ["Bash", { command: `bun -e "Bun.write('tools/nv/cmd/x.ts', 'x')"` }],
-      ["PowerShell", { command: "@'\nconst a = 1;\n'@ | Set-Content tools/nv/cmd/x.ts" }],
     ],
     allow: [
       ["Bash", { command: "cat > .agent-tmp/msg.txt <<'EOF'\nfeat: x > tools/nv/cmd/x.ts\nEOF" }],
       ["Bash", { command: "git commit -F - <<'EOF'\nfeat: x\nEOF" }],
       ["Bash", { command: `python -c "print(open('tools/nv/main.ts').read())"` }],
-      ["PowerShell", { command: "@'\nx\n'@ | Set-Content .agent-tmp/x.txt" }],
     ],
   },
   "cargo-p": {
     deny: [
       ["Bash", { command: "cargo test -p nvs-stdlib --lib" }],
-      ["PowerShell", { command: "cargo build --package nvs-cli" }],
+      ["Bash", { command: "cargo build --package nvs-cli" }],
     ],
     allow: [
       ["Bash", { command: "cargo build --release -p nvs-cli" }],
@@ -73,14 +60,14 @@ const CASES: Record<string, { deny: [Tool, Record<string, unknown>][]; allow: [T
   "heavy-run": {
     deny: [
       ["Bash", { command: "cargo test 2>&1 | tail -20" }],
-      ["PowerShell", { command: "cargo test --workspace --features x" }],
+      ["Bash", { command: "cargo test --workspace --features x" }],
       ["Bash", { command: "timeout 100 looper check > .agent-tmp/out 2>&1" }],
-      ["PowerShell", { command: "looper check" }],
+      ["Bash", { command: "looper check" }],
       ["Bash", { command: "bun nv proofs --verify" }],
       ["Bash", { command: "bun nv verify --no-cache" }],
-      ["PowerShell", { command: "bun nv select --full" }],
+      ["Bash", { command: "bun nv select --full" }],
       ["Bash", { command: "bun nv benches --owed" }],
-      ["PowerShell", { command: "bun nv sweep" }],
+      ["Bash", { command: "bun nv sweep" }],
     ],
     allow: [
       ["Bash", { command: "cargo test --lib html::tests 2>&1 | tail -20" }],
@@ -122,20 +109,21 @@ describe("nv guard", () => {
   test("it fails open on what it cannot read", () => {
     expect(decide(null)).toBeNull();
     expect(decide({ tool_name: "Write", tool_input: { file_path: join(ROOT, LONG) } })).toBeNull();
+    expect(decide({ tool_name: "PowerShell", tool_input: { command: `Get-Content ${LONG}` } })).toBeNull();
     expect(decide({ tool_name: "Bash", tool_input: {} })).toBeNull();
     expect(bash(`cat ${LONG} 'never closed`)).toBeNull();
-    expect(pwsh(`Get-Content ${LONG} "never closed`)).toBeNull();
+    expect(bash(`cat ${LONG} "never closed`)).toBeNull();
     expect(bash("cat no/such/file.txt")).toBeNull();
   });
 
   test("a heredoc's body is not read as commands", () => {
-    const p = parse(`cat > .agent-tmp/a <<'EOF'\ncargo test -p x\nEOF\necho ok`, "Bash")!;
+    const p = parse(`cat > .agent-tmp/a <<'EOF'\ncargo test -p x\nEOF\necho ok`)!;
     expect(p.segments.map((s) => s.words.filter((w) => !w.op)[0]!.text)).toEqual(["cat", "echo"]);
   });
 
   test("the wiring is read from the settings' PreToolUse entries", () => {
     const hook = (matcher: string) => ({ matcher, hooks: [{ type: "command", command: "bun nv guard" }] });
-    expect(wiredTools({ hooks: { PreToolUse: [hook("Read|Bash|PowerShell")] } })).toEqual(["Read", "Bash", "PowerShell"]);
+    expect(wiredTools({ hooks: { PreToolUse: [hook("Read|Bash")] } })).toEqual(["Read", "Bash"]);
     expect(wiredTools({ hooks: { PreToolUse: [hook("Read")] } })).toEqual(["Read"]);
     expect(wiredTools({})).toEqual([]);
   });

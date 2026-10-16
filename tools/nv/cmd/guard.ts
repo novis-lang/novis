@@ -1,5 +1,5 @@
-// `bun nv guard`: the one `PreToolUse` hook, wired in `.claude/settings.json` for `Read`, `Bash` and
-// `PowerShell`. It reads the harness's event from standard input and denies a call that does by hand
+// `bun nv guard`: the one `PreToolUse` hook, wired in `.claude/settings.json` for `Read` and `Bash`.
+// It reads the harness's event from standard input and denies a call that does by hand
 // what an `nv` command or an AGENTS.md rule already covers. A denial's reason starts `guard: <rule>:`
 // and names the call to make instead. A hook's denial holds in every permission mode, including
 // the `auto` mode the loop runs its sessions in and the allowlist they match, so this is where a habit is
@@ -13,10 +13,9 @@
 //
 // A shell command is split into segments at `;`, `&&`, `||`, `|` and newlines, and each segment into
 // words with its quotes removed. This is not a shell: it is enough to find a command's name, its flags
-// and its file arguments, and a heredoc's or here-string's body is skipped so its text is never read as
-// commands.
+// and its file arguments, and a heredoc's body is skipped so its text is never read as commands.
 //
-// `bun nv guard --check` says whether the hook is wired for all three tools, and whether every `nv`
+// `bun nv guard --check` says whether the hook is wired for both tools, and whether every `nv`
 // command a rule names is registered. It exits 0 when both hold and 1 when one does not. The hook
 // itself always exits 0.
 
@@ -28,8 +27,8 @@ import { DEFAULT_MAX_LINES } from "./peek.ts";
 
 export const summary = "the PreToolUse hook that denies a raw command an nv command replaces: nv guard [--check]";
 
-export type Tool = "Read" | "Bash" | "PowerShell";
-export const TOOLS: Tool[] = ["Read", "Bash", "PowerShell"];
+export type Tool = "Read" | "Bash";
+export const TOOLS: Tool[] = ["Read", "Bash"];
 /** The hook command `.claude/settings.json` runs. */
 export const HOOK = "bun nv guard";
 
@@ -54,8 +53,6 @@ export interface Segment {
 export interface Parsed {
   text: string;
   segments: Segment[];
-  /** A PowerShell here-string (`@'` … `'@`) appears in the command. */
-  hereString: boolean;
 }
 
 export interface Rule {
@@ -67,14 +64,12 @@ export interface Rule {
   deny(call: Call, parsed: Parsed | null): string | null;
 }
 
-/** Splits a shell command into segments of words, or returns null when a quote or here-string never closes. */
-export function parse(text: string, tool: "Bash" | "PowerShell"): Parsed | null {
-  const ps = tool === "PowerShell";
+/** Splits a Bash command into segments of words, or returns null when a quote never closes. */
+export function parse(text: string): Parsed | null {
   const segments: Segment[] = [];
   let words: Word[] = [];
   let cur = "";
   let open = false;
-  let hereString = false;
   let delimNext: boolean | null = null;
   const heredocs: { delim: string; strip: boolean }[] = [];
   const flush = () => {
@@ -93,15 +88,6 @@ export function parse(text: string, tool: "Bash" | "PowerShell"): Parsed | null 
   let i = 0;
   while (i < text.length) {
     const c = text[i]!;
-    if (ps && c === "@" && (text[i + 1] === "'" || text[i + 1] === '"') && /^\r?\n/.test(text.slice(i + 2, i + 4))) {
-      const close = text.indexOf(`\n${text[i + 1]}@`, i + 2);
-      if (close < 0) return null;
-      cur += text.slice(i + 2, close);
-      open = true;
-      hereString = true;
-      i = close + 3;
-      continue;
-    }
     if (c === "'") {
       const close = text.indexOf("'", i + 1);
       if (close < 0) return null;
@@ -114,7 +100,7 @@ export function parse(text: string, tool: "Bash" | "PowerShell"): Parsed | null 
       let j = i + 1;
       let s = "";
       while (j < text.length && text[j] !== '"') {
-        const esc = ps ? text[j] === "`" : text[j] === "\\" && '"\\$`'.includes(text[j + 1] ?? "");
+        const esc = text[j] === "\\" && '"\\$`'.includes(text[j + 1] ?? "");
         if (esc && j + 1 < text.length) {
           s += text[j + 1];
           j += 2;
@@ -129,7 +115,7 @@ export function parse(text: string, tool: "Bash" | "PowerShell"): Parsed | null 
       i = j + 1;
       continue;
     }
-    if ((ps ? c === "`" : c === "\\") && i + 1 < text.length) {
+    if (c === "\\" && i + 1 < text.length) {
       if (text[i + 1] === "\n" || text.startsWith("\r\n", i + 1)) {
         i += text[i + 1] === "\n" ? 2 : 3;
       } else {
@@ -168,7 +154,7 @@ export function parse(text: string, tool: "Bash" | "PowerShell"): Parsed | null 
       i += or ? 2 : 1;
       continue;
     }
-    if (c === "&" && (text[i + 1] === "&" || !ps)) {
+    if (c === "&") {
       end(false);
       i += text[i + 1] === "&" ? 2 : 1;
       continue;
@@ -183,12 +169,12 @@ export function parse(text: string, tool: "Bash" | "PowerShell"): Parsed | null 
         flush();
       }
       while (i < text.length && "<>&".includes(text[i]!)) op += text[i++];
-      if (!ps && /^\d*<<$/.test(op) && text[i] === "-") {
+      if (/^\d*<<$/.test(op) && text[i] === "-") {
         op += "-";
         i++;
       }
       words.push({ text: op, op: true });
-      if (!ps && /^\d*<<-?$/.test(op)) delimNext = op.endsWith("-");
+      if (/^\d*<<-?$/.test(op)) delimNext = op.endsWith("-");
       continue;
     }
     cur += c;
@@ -196,7 +182,7 @@ export function parse(text: string, tool: "Bash" | "PowerShell"): Parsed | null 
     i++;
   }
   end(false);
-  return { text, segments, hereString };
+  return { text, segments };
 }
 
 /** A command word's name: no directory, no `.exe`, lower case. */
@@ -279,26 +265,11 @@ function wholeFile(path: string, advice = ""): string | null {
   }
 }
 
-const GET_CONTENT_VALUE = /^-(encoding|readcount|delimiter|stream|filter|include|exclude|credential)$/i;
-const GET_CONTENT_PATH = /^-(path|literalpath|lp|pspath)$/i;
-const GET_CONTENT_NARROW = /^-(totalcount|head|first|tail|last)$/i;
-
 /** The files a segment prints whole, or null when it is not a whole read. */
-function wholeReads(words: string[], ps: boolean): string[] | null {
+function wholeReads(words: string[]): string[] | null {
   const cmd = base(words[0]);
   const args = words.slice(1);
-  if (cmd === "cat" && !ps) return args.filter((w) => !w.startsWith("-"));
-  if (cmd === "get-content" || cmd === "gc" || (ps && (cmd === "cat" || cmd === "type"))) {
-    const files: string[] = [];
-    for (let j = 0; j < args.length; j++) {
-      const w = args[j]!;
-      if (GET_CONTENT_NARROW.test(w)) return null;
-      if (GET_CONTENT_PATH.test(w)) files.push(args[++j] ?? "");
-      else if (GET_CONTENT_VALUE.test(w)) j++;
-      else if (!w.startsWith("-")) files.push(w);
-    }
-    return files;
-  }
+  if (cmd === "cat") return args.filter((w) => !w.startsWith("-"));
   if (cmd === "sed") {
     if (!args.some((w) => /^-[a-zA-Z]*n[a-zA-Z]*$/.test(w))) return null;
     const e = args.findIndex((w) => w === "-e");
@@ -313,10 +284,7 @@ function wholeReads(words: string[], ps: boolean): string[] | null {
 }
 
 const PROOF_DIRS = ["docs/examples/", "tests/hostile/", "benches/members/"];
-const LOOP_WORD = /^(?:for|while|until|foreach|foreach-object|xargs)(?![\w-])|^%$/i;
-const WRITERS = new Set(["set-content", "out-file", "add-content"]);
-const WRITER_PATH = /^-(path|filepath|literalpath)$/i;
-const WRITER_VALUE = /^-(value|encoding|inputobject|width)$/i;
+const LOOP_WORD = /^(?:for|while|until|xargs)(?![\w-])/;
 /** A write in inline code, with the path it writes as the second group. */
 const CODE_WRITES = [
   /open\(\s*[rbfu]*(['"])(.+?)\1\s*,\s*(?:mode\s*=\s*)?[rbfu]*(['"])[^'"]*[wax][^'"]*\3/g,
@@ -327,7 +295,7 @@ const CODE_WRITES = [
 export const RULES: Rule[] = [
   {
     name: "whole-read",
-    tools: ["Read", "Bash", "PowerShell"],
+    tools: ["Read", "Bash"],
     commands: ["peek"],
     deny(call, parsed) {
       if (call.tool === "Read") {
@@ -338,7 +306,7 @@ export const RULES: Rule[] = [
       }
       for (const seg of parsed!.segments) {
         if (seg.piped) continue;
-        const files = wholeReads(plain(seg), call.tool === "PowerShell");
+        const files = wholeReads(plain(seg));
         for (const f of files ?? []) {
           const why = f ? wholeFile(resolvePath(f, call.cwd)) : null;
           if (why) return why;
@@ -349,7 +317,7 @@ export const RULES: Rule[] = [
   },
   {
     name: "proof-loop",
-    tools: ["Bash", "PowerShell"],
+    tools: ["Bash"],
     commands: ["proofs"],
     deny(_call, parsed) {
       const segs = parsed!.segments;
@@ -364,25 +332,9 @@ export const RULES: Rule[] = [
       );
     },
   },
-
-  {
-    name: "sleep-poll",
-    tools: ["Bash", "PowerShell"],
-    commands: ["bg"],
-    deny(_call, parsed) {
-      const t = parsed!.text;
-      if (!/(?:^|[\s;&|({])(?:until|while)\b/i.test(t)) return null;
-      if (!/\b(?:sleep|start-sleep)\b/i.test(t)) return null;
-      if (!/[\\/]tasks[\\/][^\s"'\\/]+\.output\b/.test(t)) return null;
-      return (
-        `this loop sleeps until a harness task file changes. Start the command with \`bun nv bg <command…>\`, and ` +
-        `\`bun nv bg --wait <id>\` blocks until it ends and gives back its output and exit status.`
-      );
-    },
-  },
   {
     name: "inline-write",
-    tools: ["Bash", "PowerShell"],
+    tools: ["Bash"],
     commands: ["splice"],
     deny(call, parsed) {
       for (const seg of parsed!.segments) {
@@ -392,23 +344,6 @@ export const RULES: Rule[] = [
         if (seg.words.some((w) => w.op && /^\d*<<-?$/.test(w.text))) {
           targets.push(...redirectTargets(seg));
           if (cmd === "tee") targets.push(...words.slice(1).filter((w) => !w.startsWith("-")));
-        }
-        if (parsed!.hereString) {
-          targets.push(...redirectTargets(seg));
-          if (WRITERS.has(cmd)) {
-            const args = words.slice(1);
-            const named = args.findIndex((w) => WRITER_PATH.test(w));
-            if (named >= 0) targets.push(args[named + 1] ?? "");
-            else {
-              for (let j = 0; j < args.length; j++) {
-                if (WRITER_VALUE.test(args[j]!)) j++;
-                else if (!args[j]!.startsWith("-")) {
-                  targets.push(args[j]!);
-                  break;
-                }
-              }
-            }
-          }
         }
         const flag = cmd.startsWith("python") || cmd === "py" ? ["-c"] : cmd === "bun" || cmd === "node" ? ["-e", "--eval"] : [];
         const at = words.findIndex((w, j) => j > 0 && flag.includes(w));
@@ -431,7 +366,7 @@ export const RULES: Rule[] = [
   },
   {
     name: "cargo-p",
-    tools: ["Bash", "PowerShell"],
+    tools: ["Bash"],
     commands: ["verify"],
     deny(_call, parsed) {
       for (const seg of parsed!.segments) {
@@ -452,7 +387,7 @@ export const RULES: Rule[] = [
   },
   {
     name: "heavy-run",
-    tools: ["Bash", "PowerShell"],
+    tools: ["Bash"],
     commands: ["affected"],
     deny(call, parsed) {
       for (const seg of parsed!.segments) {
@@ -545,13 +480,13 @@ export function decide(event: unknown): string | null {
     if (!event || typeof event !== "object") return null;
     const e = event as Record<string, unknown>;
     const tool = e.tool_name;
-    if (tool !== "Read" && tool !== "Bash" && tool !== "PowerShell") return null;
+    if (tool !== "Read" && tool !== "Bash") return null;
     const input = (e.tool_input && typeof e.tool_input === "object" ? e.tool_input : {}) as Record<string, unknown>;
     const cwd = typeof e.cwd === "string" && e.cwd ? e.cwd : process.cwd();
     let parsed: Parsed | null = null;
     if (tool !== "Read") {
       if (typeof input.command !== "string") return null;
-      parsed = parse(input.command, tool);
+      parsed = parse(input.command);
       if (!parsed) return null;
     }
     const call: Call = { tool, input, cwd };
@@ -596,7 +531,7 @@ async function check(): Promise<number> {
   }
   const wired = wiredTools(settings);
   const missing = TOOLS.filter((t) => !wired.includes(t));
-  if (missing.length === 0) console.log("guard: wired for Read, Bash and PowerShell");
+  if (missing.length === 0) console.log("guard: wired for Read and Bash");
   else {
     ok = false;
     console.log(`guard: \`${HOOK}\` is not wired in ${relOf(settingsPath)} for ${missing.join(", ")}`);
