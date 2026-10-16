@@ -28,7 +28,7 @@ stages:
     context: [Cargo.toml, crates/nvs-stdlib/src/hash.rs, crates/nvs-stdlib/src/encoding.rs, deny.toml]
   - id: 5
     title: html5ever 0.40 with the patch carried over
-    status: open
+    status: done
     context: [vendor/html5ever/Cargo.toml, crates/nvs-stdlib/src/html.rs]
   - id: 6
     title: the built-in components and wasi-sdk
@@ -257,17 +257,17 @@ see changes.
 
 - [x] Re-vendor 0.40.1 and carry the hunks from 6a9030d4c over. The patch is not upstream. `finish_attribute` conflicts with upstream's atom comparison, and the tokenizer states moved into enums. `vendor/html5ever/Cargo.toml:1`
 - [x] The three `[patch]` rows and `markup5ever` 0.40 move. `Cargo.toml:1180`
-- [ ] Fuzz `lex` and `parse` per battery leg D. `fuzz/Cargo.toml:1`
+- [x] Fuzz `lex` and `parse` per battery leg D. `fuzz/Cargo.toml:1`
 
 ### 6. the built-in components and wasi-sdk
 
 **Does:** each component's own lock is current, its incompatible bumps are taken or held, and CI and libwebp build with one wasi-sdk, the latest.
 
-- [ ] wit-bindgen 0.63 in the four components and the template, with CI's `wit-bindgen-cli` at the same version. `crates/nvs-cli/templates/ext/rust/Cargo.toml:12`, `.github/workflows/ci.yml:564`
+- [x] wit-bindgen 0.63 in the four components and the template, with CI's `wit-bindgen-cli` at the same version. `crates/nvs-cli/templates/ext/rust/Cargo.toml:12`, `.github/workflows/ci.yml:564`
 - [ ] pdf: taffy 0.15. The alignment fields are not `Option`, `Position::Static` is now the default, and absolute insets are relative to the border box, so the layout output moves. `extensions/pdf/src/layout/flex.rs:25`
-- [ ] pdf: hayro-interpret 0.8, the same as image and the root. `extensions/pdf/src/read.rs:29`
-- [ ] image: ravif 0.13. `extensions/image/src/encode.rs:78`
-- [ ] One wasi-sdk, the latest, for CI and libwebp. CI is at 25 and libwebp's pin at 30. Rebuild libwebp with `bun nv webp-lib`. `.github/workflows/ci.yml:535`, `extensions/image/libwebp/SOURCE.json:11`
+- [x] pdf: hayro-interpret 0.8, the same as image and the root. Held: `krilla` 0.8.2 takes a `hayro-syntax` 0.7 `Pdf`. `extensions/pdf/Cargo.toml:18`
+- [x] image: ravif 0.13. `extensions/image/src/encode.rs:78`
+- [x] One wasi-sdk, the latest, for CI and libwebp. CI is at 25 and libwebp's pin at 30. Rebuild libwebp with `bun nv webp-lib`. `.github/workflows/ci.yml:535`, `extensions/image/libwebp/SOURCE.json:11`
 - [ ] The `.nvsx` hashes and the committed guest figures are regenerated. `crates/nvs-ext/build.rs:183`
 
 ### 7. the repository tools and Bun
@@ -310,33 +310,33 @@ see changes.
 
 ### State
 
-Stages 1 to 4 are done. Stage 5 has its fuzz item left.
-- The root lock has six crates behind latest, and each has a `HOLD` line dated 2026-11-16 in
-  `Cargo.toml`. `wit-parser`, `wasmparser` and `wit-component` 0.262 wait for wasmtime, whose
-  `sha2` 0.10 also keeps `generic-array` at 0.14.7 (`Cargo.toml:372`). `brotli` 9.0.0 needs
-  `brotli-decompressor ~6.0` (`Cargo.toml:948`). `postgres-protocol` 0.6.12 uses
-  `fallible-iterator` 0.2 (`Cargo.toml:1010`).
-- html5ever is 0.40.1 in `vendor/`, merged three ways from 0.39.0. All eleven `// Novis:` sites
-  are there. Upstream now compares attribute names as `LocalName` atoms, so the duplicate-name set
-  holds atoms (`vendor/html5ever/src/tokenizer/mod.rs:569`). 0.40.1 still has no cap on open elements
-  and no fingerprint. `markup5ever` 0.40, `string_cache` 0.11 and `web_atoms` 0.3 follow in all
-  three locks: the root, `fuzz/` and `extensions/pdf/`.
-- `cargo deny check` passes, and the attribution file is regenerated.
-- The gate was not green when these two slices were committed. Its first run failed only in
-  tests: `nvs-host`'s `a_herd_of_accepts_on_duplicates_of_one_listener_all_return`
-  (`crates/nvs-host/src/net.rs:2994`) and `live_edit`, each passing alone. Its second run stopped
-  at `owners`, on gap records another session had not committed.
-- The nightly run 38869457440 tested `cb7021a24`, an old commit, again. Its red jobs are not this
-  tree's until the user pushes. The floor debt run needs `samba-ad`, and Docker is not running on
-  this machine.
+Stages 1 to 5 are done. Stage 6 has taffy 0.15 and the regenerated hashes left.
+- The root lock's holds are unchanged: `wit-parser`, `wasmparser` and `wit-component` wait for
+  wasmtime (`Cargo.toml:372`), and so do `brotli-decompressor` (`Cargo.toml:948`) and
+  `fallible-iterator` (`Cargo.toml:1010`). The guest graph's copies of the first three are 0.262
+  now, through wit-bindgen 0.63, and live beside the host's 0.258.
+- Battery leg D ran under WSL against html5ever 0.40.1. `lex` did 793,829 runs and `parse` 308,107,
+  each in 302 s, with no crash.
+- wit-bindgen 0.63 is in the four components, the Rust template and CI. The component tests
+  and `bun nv ext-templates --lang rust` pass. The C template on wasi-sdk 34 is checked only by CI.
+- pdf holds `hayro-interpret` at 0.7 (`extensions/pdf/Cargo.toml:18`): `merge.rs` hands its
+  `Pdf` to krilla 0.8.2, which reads a `hayro-syntax` 0.7 one.
+- ravif is 0.13. CI and libwebp are on wasi-sdk 34, and `libwebp.a` is rebuilt.
+- The nightly run 38869457440 tested `cb7021a24`, an old commit, again. The floor debt run needs
+  `samba-ad`, and Docker is not running on this machine.
+- `nv selftest` went red twice mid-session on another session's uncommitted `tools/nv/cmd/owners.ts`,
+  so the component checks ran as `cargo test --test <name>` instead.
+- The gate on this session's tip is red, and the cause is not this goal's: build, `nv` and
+  `fuzz-lock` pass, then `spec_registry_coverage` fails twice (`crates/nvs-stdlib/tests/spec_registry_coverage.rs:553`,
+  `:701`). Both read the plan's milestone table, which `01317cf00` cut to five rows.
 
 ### Next
 
-**Stage 5's fuzz item, then stage 6.** Files: `fuzz/`, then `extensions/*/Cargo.toml`.
+**Stage 6's last two items, then stage 7.** Files: `extensions/pdf/`, `crates/nvs-ext/`, then `package.json`.
 
-- [ ] Fuzz `lex` and `parse` per battery leg D against html5ever 0.40.1. `fuzz/Cargo.toml:1`
-- [ ] wit-bindgen 0.63 in the four components and the template, with CI's `wit-bindgen-cli` at the same version. `crates/nvs-cli/templates/ext/rust/Cargo.toml:12`, `.github/workflows/ci.yml:564`
-- [ ] pdf: hayro-interpret 0.8, the same as image and the root. `extensions/pdf/src/read.rs:29`
+- [ ] pdf: taffy 0.15. The alignment fields are not `Option`, `Position::Static` is the default, and absolute insets are relative to the border box. `extensions/pdf/src/layout/flex.rs:25`
+- [ ] The `.nvsx` hashes and the committed guest figures are regenerated. `crates/nvs-ext/build.rs:183`
+- [ ] The `fuzz/` lock is refreshed. `fuzz/Cargo.toml:1`
 
 ### Backlog
 
