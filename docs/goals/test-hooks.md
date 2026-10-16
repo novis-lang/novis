@@ -29,7 +29,7 @@ stages:
         shapes: ["A `.nvst` test case", "A `Core` member"]
   - id: 4
     title: tests run across every core
-    status: open
+    status: done
     context: [crates/nvs-cli/src/runner.rs, crates/nvs-host/src/placed.rs]
     extra:
       context:
@@ -154,11 +154,11 @@ returns. The language gains three attributes, and the rejection of a class-level
 
 **Does:** `nvs test` runs test isolates at once across every core with a program's own placement under `--jobs`, keeps the order `rule:testing/class-hooks` gives, captures each test's output, and reports and counts coverage as a run on one core does.
 
-- [ ] `--jobs` reaches a `#[Test]` run, and its help no longer says the methods are not spread. `crates/nvs-cli/src/main.rs:583`
-- [ ] Each test's output captured, printed under a failure, discarded on a pass, `--show-output` to stream it, and end of input for a read; the module comment at the anchor rewritten. `crates/nvs-cli/src/runner.rs:16`
-- [ ] Place each test isolate with `on: "worker"`'s placement, the class hooks around each class's tests. `crates/nvs-cli/src/runner.rs:804`
-- [ ] Coverage counted into one table per test and added to the run's when it finishes. `crates/nvs-cli/src/runner.rs:378`
-- [ ] Each `#[Test(server: true)]` listener runs beside others. `crates/nvs-cli/src/runner.rs:1505`
+- [x] `--jobs` reaches a `#[Test]` run, and its help no longer says the methods are not spread. `crates/nvs-cli/src/main.rs:583`
+- [x] Each test's output captured, printed under a failure, discarded on a pass, `--show-output` to stream it, and end of input for a read; the module comment at the anchor rewritten. `crates/nvs-cli/src/runner.rs:16`
+- [x] Place each test isolate with `on: "worker"`'s placement, the class hooks around each class's tests. `crates/nvs-cli/src/runner.rs:804`
+- [x] Coverage counted into one table per test and added to the run's when it finishes. `crates/nvs-cli/src/runner.rs:378`
+- [x] Each `#[Test(server: true)]` listener runs beside others. `crates/nvs-cli/src/runner.rs:1505`
 
 ### 5. a subclass inherits hooks, fixtures and tests
 
@@ -185,32 +185,35 @@ returns. The language gains three attributes, and the rejection of a class-level
 
 ### State
 
-Stages 2 and 3 are done, and `hooks-run` and `hooks-compile` are green. The checker records each
-class's hooks as `nvs_types::test_hooks::TestHooks` (`ExprTypeTable::test_hooks`). `run_suite` calls
-`#[BeforeClass]` before the fixtures and `#[AfterClass]` after the tests, with fixtures released
-first. `run_case` calls `#[AfterEachTest]` through the `after` callback that
-`nvs_runtime::construct_and_call` now takes. `Core\Test\Outcome` and `Summary` are in
-`crates/nvs-stdlib/src/test/hooks.rs`, read through methods because a `Core` instance has no
-properties; both rules say so. A failed `#[AfterClass]` is printed under its class in the human
-format and goes to stderr in JSON and JUnit, which have no class-level entry.
+Stages 2 to 4 are done, and `hooks-compile`, `hooks-run` and `tests-parallel` are green. Each
+`#[Test]` is a `Job` (`crates/nvs-cli/src/runner.rs:1021`) posted to a worker core with
+`nvs_host::worker::post`. On that core the job builds its own parent context, decodes its fixtures
+(`nvs_runtime::CrossedFixtures::encode`/`decode`) and fills a coverage table of its own, which
+`StmtHits::add` folds into the run's. A `Queue` (`runner.rs:1226`) keeps the report in declaration
+order and runs `#[AfterClass]` when its class end reaches the front. Output is captured per test
+and printed under a failure; `--show-output` streams it, and `--RUN-- test --show-output --jobs 1`
+is the `.nvst` form that pins a passing test's output. Two safe defaults are now in the rule: a
+program that loads an extension runs its tests one at a time on the suite's thread, because the
+extension host is a thread-local `Rc`. `nvs_host::worker`'s `pick` tries an idle registered core
+before one it started. A `server: true` listener binds on the core its test runs on.
 
 ### Next
 
-**Stage 4: tests run across every core**, file set: `crates/nvs-cli/src/runner.rs`,
-`crates/nvs-cli/src/main.rs`, `crates/nvs-host/src/placed.rs`.
+**Stage 5: a subclass inherits hooks, fixtures and tests**, file set:
+`crates/nvs-types/src/testing.rs`, `crates/nvs-cli/src/runner.rs`.
 
-- [ ] `--jobs` reaches a `#[Test]` run, and its help stops saying methods are not spread (`rule:testing/tests-run-across-every-core`). `crates/nvs-cli/src/main.rs:583`
-- [ ] Place each test isolate with `on: "worker"`'s placement, each class's hooks around only its own tests (`rule:testing/class-hooks`). `crates/nvs-cli/src/runner.rs:803`
-- [ ] Capture each test's output, print it under a failure, drop it on a pass; rewrite the module comment (`rule:testing/tests-run-across-every-core`). `crates/nvs-cli/src/runner.rs:16`
-- [ ] One coverage table per test, added to the run's when it finishes (`rule:testing/tests-run-across-every-core`). `crates/nvs-cli/src/runner.rs:378`
+- [ ] Collect a class's inherited hooks, fixtures and tests as well as its own; today only `decl.members` is read (`rule:testing/hook-inheritance`). `crates/nvs-types/src/testing.rs:350`
+- [ ] An override of a hook that does not repeat its attribute does not compile (`rule:testing/hook-inheritance`). `crates/nvs-types/src/testing.rs:345`
+- [ ] The runner reports an inherited test under the subclass, with its own `Queue` entries (`rule:testing/hook-inheritance`). `crates/nvs-cli/src/runner.rs:888`
 
 ### Backlog
 
-- Each `#[Test(server: true)]` listener runs beside others, stage 4's last item.
-  `crates/nvs-cli/src/runner.rs:1513`
+- No runner test holds several `server: true` listeners open at once; the one-listener test passes
+  on a worker core. `crates/nvs-cli/src/runner.rs:2016`
+- The three rules still read `"status": "designed"`; stage 7 flips them.
+  `data/rules/testing/class-hooks.json`
 - The nightly CI dispatch runs on `origin/main`, which is far behind local `main` because the loop
-  never pushes. Its failures repeat until the user pushes; `lint`, `docs`, `supply chain`, the website
-  render and the LDAP cases are already green at HEAD. `tools/nv/cmd/sweep.ts`
+  never pushes. Its failures repeat until the user pushes. `tools/nv/cmd/sweep.ts`
 - Not checked at HEAD: the Linux watcher test
   (`crates/nvs-cli/tests/run_command.rs:687`), the one-to-four core scaling margin
   (`crates/nvs-cli/src/serve.rs:3957`, it failed on one OS and then the other, so it may be flaky)
