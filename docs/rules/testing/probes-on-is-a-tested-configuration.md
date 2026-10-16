@@ -12,6 +12,6 @@ build of the same program prints something else. The cost is CI wall-clock propo
 axes, and nothing at all at run time.
 
 **Not on disk.** The codegen tests compile with probes on (`crates/nvs-codegen/tests/probes.rs:276`),
-and CI runs the conformance suite once, with probes off (`.github/workflows/ci.yml:184`). The coverage
-flags are refused over a `.nvst` tree (`crates/nvs-cli/src/main.rs:3862`), and Cranelift's `opt_level`
-is fixed at `speed` (`crates/nvs-codegen/src/lib.rs:1949`).
+and CI runs the conformance suite once, with probes off (`.github/workflows/ci.yml:220-221`). The
+coverage flags are refused over a `.nvst` tree (`crates/nvs-cli/src/main.rs:3912`), and Cranelift's
+`opt_level` is fixed at `speed` (`crates/nvs-codegen/src/lib.rs:1973`).

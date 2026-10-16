@@ -1742,7 +1742,7 @@ result.
 
 <a id="testing-probes-on-is-a-tested-configuration"></a>
 
-## The conformance suite runs with the probes on, and once per optimisation level  *(designed — owned by M10)*
+## The conformance suite runs with the probes on, and once per optimisation level  *(designed — owned by goal bench-counters)*
 
 `rule:testing/probes-on-is-a-tested-configuration`
 
@@ -1760,9 +1760,9 @@ build of the same program prints something else. The cost is CI wall-clock propo
 axes, and nothing at all at run time.
 
 **Not on disk.** The codegen tests compile with probes on (`crates/nvs-codegen/tests/probes.rs:276`),
-and CI runs the conformance suite once, with probes off (`.github/workflows/ci.yml:184`). The coverage
-flags are refused over a `.nvst` tree (`crates/nvs-cli/src/main.rs:3862`), and Cranelift's `opt_level`
-is fixed at `speed` (`crates/nvs-codegen/src/lib.rs:1949`).
+and CI runs the conformance suite once, with probes off (`.github/workflows/ci.yml:220-221`). The
+coverage flags are refused over a `.nvst` tree (`crates/nvs-cli/src/main.rs:3912`), and Cranelift's
+`opt_level` is fixed at `speed` (`crates/nvs-codegen/src/lib.rs:1973`).
 
 <sub>See also [`testing/debug-probes`](testing.md#testing-debug-probes), [`testing/the-deep-lane`](testing.md#testing-the-deep-lane), [`testing/nvst-is-separate`](testing.md#testing-nvst-is-separate).</sub>
 
@@ -1966,7 +1966,7 @@ the lcov file `nvs test` writes (`editors/vscode/src/tests.ts:237`).
 
 <a id="testing-bench-counters"></a>
 
-## `#[Bench]` reports counted semantic work, and CI may gate on the counts but never on wall-clock  *(designed — owned by M10)*
+## `#[Bench]` reports counted semantic work, and CI may gate on the counts but never on wall-clock  *(designed — owned by goal bench-counters)*
 
 `rule:testing/bench-counters`
 
@@ -1987,10 +1987,10 @@ not overlap. There is no per-member cost table and there will not be one — a h
 about what a `Core` member costs is a number with no guard test.
 
 **Not on disk.** The counting mode is built: `nvs run --count` prints statements, calls, allocations and
-bytes at exit (`crates/nvs-cli/src/main.rs:437`, `DebugFlags::COUNT` at
-`crates/nvs-runtime/src/ctx/mod.rs:297`). `#[Bench]` is not a recognised attribute
-(`crates/nvs-types/src/derive.rs:71`), no test report carries its rows
-(`crates/nvs-cli/src/runner.rs:2644`), and there is no GC-cycle count and no advisory wall-clock beside
+bytes at exit (`crates/nvs-cli/src/main.rs:439-451`, `DebugFlags::COUNT` in
+`crates/nvs-runtime/src/ctx/mod.rs`). `#[Bench]` is not a recognised attribute
+(`crates/nvs-types/src/derive.rs:73`), no test report carries its rows
+(`crates/nvs-cli/src/runner.rs:2647`), and there is no GC-cycle count and no advisory wall-clock beside
 the counts.
 
 **Declined:**

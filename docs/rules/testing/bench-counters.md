@@ -15,10 +15,10 @@ not overlap. There is no per-member cost table and there will not be one — a h
 about what a `Core` member costs is a number with no guard test.
 
 **Not on disk.** The counting mode is built: `nvs run --count` prints statements, calls, allocations and
-bytes at exit (`crates/nvs-cli/src/main.rs:437`, `DebugFlags::COUNT` at
-`crates/nvs-runtime/src/ctx/mod.rs:297`). `#[Bench]` is not a recognised attribute
-(`crates/nvs-types/src/derive.rs:71`), no test report carries its rows
-(`crates/nvs-cli/src/runner.rs:2644`), and there is no GC-cycle count and no advisory wall-clock beside
+bytes at exit (`crates/nvs-cli/src/main.rs:439-451`, `DebugFlags::COUNT` in
+`crates/nvs-runtime/src/ctx/mod.rs`). `#[Bench]` is not a recognised attribute
+(`crates/nvs-types/src/derive.rs:73`), no test report carries its rows
+(`crates/nvs-cli/src/runner.rs:2647`), and there is no GC-cycle count and no advisory wall-clock beside
 the counts.
 
 **Declined:**

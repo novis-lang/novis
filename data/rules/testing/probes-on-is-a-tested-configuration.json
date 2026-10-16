@@ -7,5 +7,5 @@
     "testing/nvst-is-separate"
   ],
   "guardedBy": [],
-  "milestone": "M10"
+  "goal": "bench-counters"
 }
