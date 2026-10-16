@@ -238,7 +238,7 @@ function screened(pids: number[]): { kill: number[]; table: Proc[]; refused: boo
 export interface Owned {
   readonly pid: number;
   readonly exitCode: number | null;
-  readonly signalCode: string | null;
+  readonly signalCode: number | string | null;
   kill(signal?: number | NodeJS.Signals): void;
 }
 
