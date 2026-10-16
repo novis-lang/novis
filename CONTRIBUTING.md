@@ -8,8 +8,8 @@ tree.
 
 > **Status: pre-alpha.** The language runs: `nvs run` compiles and executes a `.nvs` file, `nvs test`
 > runs the conformance trees, `nvs serve` answers HTTP. Nothing is released — the version is `0.0.1`
-> with no tag behind it — and nothing is stable. Work runs as a chain of numbered goals rather than as
-> a march through milestones; `looper orient --full` prints the live one.
+> with no tag behind it — and nothing is stable. Work runs as a chain of goals, each named by its slug,
+> and `looper orient --full` prints the live one.
 
 ## Where to take what you have
 
@@ -94,7 +94,8 @@ bun nv brief --where <word>    # which file owns a topic
 
 Requires the pinned toolchain in [`rust-toolchain.toml`](rust-toolchain.toml), which `rustup` installs on
 the first `cargo` command in the tree. Everything else a development machine needs — the MSVC build tools,
-WSL and PHP 8.5 on Windows, valgrind on Linux — is [docs/setup.md](docs/setup.md).
+WSL on Windows, valgrind on Linux, and PHP 8.5 for the cross-language benchmarks only — is
+[docs/setup.md](docs/setup.md).
 
 ```sh
 cargo build            # debug; dependencies are still built with opt-level 2
@@ -123,7 +124,7 @@ this file is checked by them and by nothing else:
 ```sh
 bun nv links             # every markdown link resolves, with matching case
 bun nv layout            # the layout listing below still describes the tree
-bun nv records --check   # a record's field set, heading order, and the derived counters
+bun nv rules --check     # every rule fragment is well formed, and every `rule:` citation resolves
 bun nv plan --check      # every milestone row agrees with the file it names
 ```
 
@@ -135,9 +136,9 @@ bun nv plan --check      # every milestone row agrees with the file it names
 true: it fails if a row names something that is not there, if a crate or a tracked top-level directory
 has no row, or if an `[audited unsafe]` marker disagrees with the crate's own lint policy — that marker
 means the crate overrides the workspace's `unsafe_code = "forbid"` with its own audited `deny`. What the
-workspace has *not* built yet — the extension loader, the formatter, the language server, the PHP
-converter, the package manager — is scheduled in [docs/implementation-plan.md](docs/implementation-plan.md)
-and named nowhere else, because a second copy of a schedule is how this section last went stale.
+workspace has *not* built yet, such as the package manager, is scheduled in
+[docs/implementation-plan.md](docs/implementation-plan.md) and named nowhere else, because a second copy
+of a schedule goes stale.
 
 <!-- layout:begin  bun nv layout --check gates this listing; see tools/nv/cmd/layout.ts -->
 ```
@@ -170,7 +171,7 @@ benches/
   members           per-`Core`-member figures, and their calibration
   serve             the request-path pair the server comparison runs
   proxied           compose files, nginx and PHP configuration for the proxied comparison
-tests/              the case trees: conformance, differential, db, hostile, config
+tests/              the case trees: conformance, db, hostile, config, fmt, lsp, docker
 examples/           `.nvs` programs the guard tests and the docs compile
 apps/               whole example apps in Novis, each with its own `nvs.toml` and tests
 extensions/         the built-in extensions, each a Rust crate compiled to a wasm component
@@ -181,18 +182,18 @@ docker/             the container image
 website/            the Astro site
 editors/            the VS Code extension, and where a second editor's would sit
 tools/              how this repository is driven; docs/agent/commands.md is the full set
-data/               the JSON records `bun nv` reads and writes: goals, gaps, rules, playbook
+data/               the JSON records `bun nv` reads and writes: gaps, rules, plan, proofs, reference, spec
 docs/
   setup.md          what a development machine installs, and what a clone does not carry
   novis.md          the one-file reference to everything Novis has (generated)
   implementation-plan.md   the milestone index, and the status block a session overwrites
-  agent/            how agents work here: loop, goals, prompts, conventions, live handoff
-  plan/             one file per milestone, plus the frozen pre-M0 design
+  agent/            how agents work here: the loop, conventions, commands and the playbook
+  plan/             one file per open milestone, plus the frozen design
   spec/             the normative language reference
   reference/        the chapters `bun nv reference` generates `docs/novis.md` from
   perf/             recorded benchmark figures
   examples/         worked `Core` examples
-.github/            CI: three platforms, miri, asan and fuzz legs, and a Bun-only docs job
+.github/            CI: three platforms, miri, asan, tsan and fuzz legs, and a Bun-only docs job
 .claude/            Claude Code settings, and the pointer file to AGENTS.md
 ```
 <!-- layout:end -->
@@ -202,12 +203,12 @@ the rules a session follows. The loop itself is looper, an external tool configu
 goal is one file under [docs/goals/](docs/goals/README.md), and its `## Handoff` is live state,
 overwritten by each session. The schedule is the goal chain, the front matter of `docs/goals/README.md`,
 not the milestone table: a milestone is an identity tag one or more goals carry, so "goal `<slug>`" says
-what is happening and "M7" does not.
+what is happening and a milestone number does not.
 
-The two editor clients are not here yet. When they arrive they sit outside the Cargo workspace — the VS
-Code extension is TypeScript/Node tooling, the PhpStorm plugin is Kotlin/Gradle/IntelliJ Platform
-tooling — and each is a thin client over `nvs-lsp`/`nvs-fmt`, never a second implementation of language
-smarts or formatting (`rule:ide/one-server-two-thin-clients`).
+The editor clients sit outside the Cargo workspace. The VS Code extension under `editors/vscode` is
+TypeScript/Node tooling, and a PhpStorm plugin would be Kotlin/Gradle/IntelliJ Platform tooling. Each is
+a thin client over `nvs-lsp`/`nvs-fmt`, never a second implementation of language smarts or formatting
+(`rule:ide/one-server-two-thin-clients`).
 
 [`benches/abi-probe`](benches/abi-probe/) is worth knowing about early. Several rules under `docs/rules/`
 depend on how Cranelift, `corosensei` and Wasmtime behave rather than on Novis's own code, so a dependency
@@ -236,9 +237,9 @@ the premise the calling convention exists for.
 | Serving | built-in HTTP/1.1 with exactly two deployments — a development server, and a proxied production origin that replaces FastCGI. No TLS listener, no h2c, no compression: a proxy does each earlier and better. A filesystem path is never derived from a URL at request time (`rule:http-server/two-deployments-and-nothing-a-proxy-owns`, `rule:http-server/a-path-is-never-derived-from-a-url`) |
 | Extensions | built-in, sandboxed wasm (`.nvsx`), or statically linked native — never `dlopen` ([`packaging/an-extension-is-a-sandboxed-wasm-component`](docs/rules/packaging.md#packaging-an-extension-is-a-sandboxed-wasm-component)) |
 
-This is the short form. The fuller decision table, with the sequencing each choice implies, is in
-[docs/implementation-plan.md](docs/implementation-plan.md); the reasoning behind each choice is in its
-rule, and [docs/ground-rules.md](docs/ground-rules.md) lists every rule.
+This is the short form. The fuller decision table is in [docs/plan/design.md](docs/plan/design.md); the
+reasoning behind each choice is in its rule, and [docs/ground-rules.md](docs/ground-rules.md) lists
+every rule.
 
 ### Making a change
 

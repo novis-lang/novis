@@ -5,8 +5,9 @@ blocked from anywhere dangerous. Secrets: can't leak into logs or screens, not e
 Downloaded code: does only what you allow. Fast, like you would expect. Easy to write, easy to scale.
 For web servers and the command line. Familiar syntax (Hello PHP).
 
-> **Status: pre-alpha, milestone M0.** The architecture is validated by working spikes but the language
-> does not run yet. `Hello World` is milestone M3. Nothing here is stable.
+> **Status: pre-alpha, not released.** The language, its standard library, the HTTP server, the
+> extension system and the editor support are built and tested. There is no release yet, and nothing
+> here is stable.
 
 ## What it is trying to be
 
@@ -29,7 +30,8 @@ For web servers and the command line. Familiar syntax (Hello PHP).
   `mixed` are there for the cases that genuinely are dynamic. `uint` gives you the whole unsigned 64-bit
   range, and arrays are ordered hashes with declarable, nestable element types — `array<array<uint>>`
   ([the type rules](docs/rules/types.md)).
-- **Memory-safe and contained.** Written in Rust with `unsafe` confined to three audited modules. A
+- **Memory-safe and contained.** Written in Rust. `unsafe` is forbidden in every crate but seven, and
+  each `unsafe` block in those seven is audited and states its reason. A
   runtime bug or a resource-limit breach kills one request, never the process.
 - **Fast and simple first; memory is what pays for that.** Novis targets server-class hardware, so where a
   design can be safer, faster or simpler by holding more memory, it holds more memory — deliberately, within
@@ -43,24 +45,26 @@ Coming from PHP? [How Novis is different, and how to port a program](docs/refere
 
 ## Roadmap
 
-The full plan — milestones broken into deliverables, with their verification criteria and the reasoning
-behind each design decision — is [docs/implementation-plan.md](docs/implementation-plan.md).
+**Built:**
 
-| | Milestone | State |
-|---|---|---|
-| M0 | Project setup, CI, architecture spikes | **done** |
-| M1 | Lexer, parser, diagnostics | **next** |
-| M2 | HIR, type system, IR | |
-| M3 | Baseline Cranelift backend → **Hello World** | |
-| M4 | Language completeness, test runner | |
-| M5 | Concurrency: coroutines, channels, workers, script isolates | |
-| M6 | `nvs.toml`, capabilities, limits, artifact cache | |
-| M7 | Built-in HTTP server | |
-| M8 | Stdlib, database drivers, the `nvs:ext` WIT world | |
-| M9 | Extension system: `.nvsx` loading, sandboxing, `nvs ext` tooling | |
-| M10 | LSP, formatter, debugger, profiler, package manager | |
-| M12 | Optimising JIT tier | |
-| M13 | Optional FastCGI transport | if a deployment target needs it |
+- The language: parser, type checker, the Cranelift backend, and the test runner.
+- The `Core` library, concurrency (coroutines, channels, workers and script isolates), and `nvs.toml`
+  with its capabilities, limits and artifact cache.
+- The built-in HTTP server.
+- The standard library, five SQL database drivers, and LDAP.
+- The extension system, with the built-in image, intl, PDF and spreadsheet components.
+- The language server and the VS Code extension.
+
+**Planned** ([docs/implementation-plan.md](docs/implementation-plan.md) has each milestone, its
+deliverables and how it is verified):
+
+| | Milestone |
+|---|---|
+| M10 | Developer tooling: the debugger, the profiler, property tests and the rest of the editor features |
+| M12 | Optimising JIT tier |
+| M15 | Packages, the registry and the supply chain |
+| M16 | `nvs/web`, the first-party framework, and `nvs new` |
+| M17 | The image component's second wave |
 
 ## Contributing
 

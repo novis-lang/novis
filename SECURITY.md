@@ -22,7 +22,7 @@ is no backport branch. Do not run it anywhere that matters yet.
 Do not open a public issue, a discussion, or a pull request containing a fix for an unreported flaw — the
 patch discloses the bug.
 
-Please include, as far as you have it: the affected component (crate, `Core` class, ADR), the version or
+Please include, as far as you have it: the affected component (crate, `Core` class, rule), the version or
 commit, a minimal `.nvs` or Rust reproducer, what you expected the boundary to do, and what it did instead.
 
 What to expect:
@@ -40,7 +40,7 @@ and do not pivot beyond what is needed to demonstrate the issue.
 ## What counts as a vulnerability
 
 The security model is one page: [docs/ground-rules.md](docs/ground-rules.md) § *Security and
-isolation*, with each rule's ADR behind it. Anything that defeats one of these is in scope:
+isolation*, and each rule there links its reasons. Anything that defeats one of these is in scope:
 
 - **Qualifier bypass** — a `tainted` value reaching a sink unlaundered, a `secret` reaching output, a log,
   a dump, a `Throwable` or serialization, or a sink that should refuse and doesn't

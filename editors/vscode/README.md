@@ -35,7 +35,7 @@ tiers, and the isolation that makes this one safe to run on a machine someone is
 
 ## Decided here
 
-These are small enough to belong to the extension rather than to a numbered decision record.
+These are small enough to belong to the extension rather than to a rule under `docs/rules/`.
 
 **No pixel tier.** Driving the real editor with Playwright to assert that a decoration was *drawn* is
 rejected, and not on cost grounds — the host tier already runs a real editor on every sweep. It is
