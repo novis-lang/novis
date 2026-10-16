@@ -1,0 +1,11 @@
+{
+  "title": "A website screenshot is taken by `bun nv site --shoot` from a real run, and the text beside it fails `bun nv site --check shots` when the run would now show something else",
+  "status": "designed",
+  "seeAlso": [
+    "testing/the-viewer-shows-the-stream-and-hands-off-every-artifact",
+    "testing/the-tools-area-has-a-page-for-each-tool",
+    "observability/speedscope-timeline-export"
+  ],
+  "guardedBy": [],
+  "goal": "tools-website"
+}

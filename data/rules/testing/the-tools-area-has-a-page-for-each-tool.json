@@ -1,0 +1,13 @@
+{
+  "title": "The website's Tools area has an overview and one page for each developer tool, every page about running a tool lives there, and a page that moved there leaves nothing behind",
+  "status": "designed",
+  "seeAlso": [
+    "testing/website-pages-are-stamped",
+    "testing/a-terminal-block-shows-what-nvs-printed",
+    "testing/a-replay-plays-what-the-language-server-returned",
+    "testing/a-debugger-replay-plays-what-nvs-dap-returned",
+    "testing/a-screenshot-is-taken-from-a-real-run"
+  ],
+  "guardedBy": [],
+  "goal": "tools-website"
+}

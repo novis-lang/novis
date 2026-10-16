@@ -3,7 +3,7 @@
 
 # Testing
 
-*26 of 76 rules below are **designed** rather than shipped, and are marked where they appear.*
+*31 of 81 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="testing-test-attribute"></a>
 
@@ -1297,6 +1297,78 @@ the context the page names.
 
 <sub>See also [`testing/examples-live-in-the-repository`](testing.md#testing-examples-live-in-the-repository), [`testing/feature-proofs`](testing.md#testing-feature-proofs), [`tooling/echo-always-has-a-sink`](tooling.md#tooling-echo-always-has-a-sink), [`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape).</sub>
 
+<a id="testing-the-tools-area-has-a-page-for-each-tool"></a>
+
+## The website's Tools area has an overview and one page for each developer tool, every page about running a tool lives there, and a page that moved there leaves nothing behind  *(designed — owned by goal tools-website)*
+
+`rule:testing/the-tools-area-has-a-page-for-each-tool`
+
+The website has a Tools area, the fourth after Guides, Syntax and Reference and before In-Depth, with
+an overview page and one page for each developer tool: the debug viewer, the debugger, the profiler,
+the editor, the formatter, the test runner, the API document and the CLI. The overview shows each tool
+with one picture and one line and links to its page. Each tool is a directory under `tools/`, its page
+the directory's `index.mdx`, and a tool with more than one page keeps the rest beside it, as the test
+runner keeps coverage.
+
+Every picture on these pages is generated from a real run and checked, never drawn by hand: a terminal
+block ([`testing/a-terminal-block-shows-what-nvs-printed`](testing.md#testing-a-terminal-block-shows-what-nvs-printed)), an editor replay
+([`testing/a-replay-plays-what-the-language-server-returned`](testing.md#testing-a-replay-plays-what-the-language-server-returned)), a debugger replay
+([`testing/a-debugger-replay-plays-what-nvs-dap-returned`](testing.md#testing-a-debugger-replay-plays-what-nvs-dap-returned)) or a screenshot
+([`testing/a-screenshot-is-taken-from-a-real-run`](testing.md#testing-a-screenshot-is-taken-from-a-real-run)). A picture nothing checks shows a tool as it
+was, and nothing notices when it changes.
+
+**A page's place is its subject.** A page about using one of these tools lives under Tools. A page
+about writing Novis code, or about running a program in production, stays where it is: a guide to
+testing a route writes code, and a guide to running a server as a service runs a program. The user
+decided that a page that moves into Tools leaves nothing behind: no stub page, no note that it moved,
+no link back and no redirect. A list of guides that named it drops the entry. Every other link to its
+old address is changed to the new one, and its search questions are keyed to the new address. A reader
+who arrives from a search lands on the page that answers, and the old address is not one the site
+builds.
+
+`bun nv site --check structure` holds the five areas and the sidebar, and its `tools` part holds the
+eight pages, each with a checked picture and a `covers:` list
+([`testing/website-pages-are-stamped`](testing.md#testing-website-pages-are-stamped)).
+
+- **Memory:** nothing in the language or the binary. The site carries the pictures' files, and a page
+  loads only its own.
+
+**Declined:**
+- **Tool pages kept under Guides.** A guide shows how to write a program, and a reader looking for
+  what the debugger does would not look there.
+- **A redirect or a stub at a moved page's old address.** A moved page leaves no trace, and the site
+  has no redirects (`bun nv site --check structure`).
+
+<sub>See also [`testing/website-pages-are-stamped`](testing.md#testing-website-pages-are-stamped), [`testing/a-terminal-block-shows-what-nvs-printed`](testing.md#testing-a-terminal-block-shows-what-nvs-printed), [`testing/a-replay-plays-what-the-language-server-returned`](testing.md#testing-a-replay-plays-what-the-language-server-returned), [`testing/a-debugger-replay-plays-what-nvs-dap-returned`](testing.md#testing-a-debugger-replay-plays-what-nvs-dap-returned), [`testing/a-screenshot-is-taken-from-a-real-run`](testing.md#testing-a-screenshot-is-taken-from-a-real-run).</sub>
+
+<a id="testing-a-terminal-block-shows-what-nvs-printed"></a>
+
+## A terminal block on a website page shows commands run in a fixture and what `nvs` printed, and `bun nv site --check snippets` fails when the output changes  *(designed — owned by goal tools-website)*
+
+`rule:testing/a-terminal-block-shows-what-nvs-printed`
+
+A terminal block shows commands run in a fixture directory and what `nvs` printed for each, with its
+exit code. A hand-written `.term` beside the fixture under `website/snippets/` lists the commands, one
+per line. `bun nv site --bless` runs them in a copy of the fixture and writes the output beside it as
+`.term.out`, and `bun nv site --check snippets` fails when the binary now prints something else.
+`tools/nv/cmd/site.ts` § *A snippet* is the home of both formats.
+
+A value that differs from run to run is masked in both the recording and the comparison by a fixed
+pattern: a duration, a date, a trace id, a temporary path and a port. The page shows the masked value
+as the binary printed it on the run that was blessed, so the reader sees real output. Only the commands
+are copied by the block's copy button.
+
+A terminal block is to a command what a snippet's `.out` is to a program
+([`testing/website-pages-are-stamped`](testing.md#testing-website-pages-are-stamped)): output on a page that the binary is known to print.
+
+- **Memory:** nothing in the language or the binary. `--check snippets` runs each block's commands once.
+
+**Declined:**
+- **A typed screen recording of a terminal.** It would be a video to regenerate, and its text could not
+  be compared or searched.
+
+<sub>See also [`testing/website-pages-are-stamped`](testing.md#testing-website-pages-are-stamped), [`testing/the-tools-area-has-a-page-for-each-tool`](testing.md#testing-the-tools-area-has-a-page-for-each-tool).</sub>
+
 <a id="testing-a-replay-plays-what-the-language-server-returned"></a>
 
 ## A website replay plays what `nvs lsp` returned for its steps, and `bun nv site --check` fails when the server now returns something else
@@ -1368,6 +1440,102 @@ replay.
   button is simpler to read.
 
 <sub>See also [`testing/website-pages-are-stamped`](testing.md#testing-website-pages-are-stamped), [`ide/completion-is-asked-where-a-spelling-ends`](ide.md#ide-completion-is-asked-where-a-spelling-ends), [`ide/a-completion-row-reads-as-a-declaration`](ide.md#ide-a-completion-row-reads-as-a-declaration).</sub>
+
+<a id="testing-a-replay-renames-applies-an-action-and-shows-a-lens"></a>
+
+## A website replay can rename, apply a code action, show the code lenses, the call hierarchy and a hover card, each recorded from `nvs lsp` and checked like a completion list  *(designed — owned by goal tools-website)*
+
+`rule:testing/a-replay-renames-applies-an-action-and-shows-a-lens`
+
+A replay ([`testing/a-replay-plays-what-the-language-server-returned`](testing.md#testing-a-replay-plays-what-the-language-server-returned)) has five more kinds of step.
+`rename NAME` renames the name under the cursor, and the frame shows the edit in the open file and how
+many other files it changed. `action TITLE` opens the code actions at the cursor, shows their titles,
+and applies the one with that title. `lens` shows the code lenses of the open file above their lines.
+`calls` shows the call hierarchy at the cursor, its incoming and its outgoing calls
+([`ide/the-request-set-is-closed`](ide.md#ide-the-request-set-is-closed)). `card` shows the hover at the cursor. Each answer is what
+`nvs lsp` returned, recorded into the `.replay.out` in a block of its own, and
+`bun nv site --check snippets` fails when the server now returns something else.
+
+The steps still end on the snippet's own text. A rename or an action changes the text, so the snippet
+is the text after the edit, and the start text is the text before it.
+
+A rename, an action, a lens, a call hierarchy and a hover card are what the editor's own features look
+like, and the Tools area shows each of them. Recording them keeps a page from showing an edit or an
+answer the server does not give.
+
+- **Memory:** nothing in the language or the binary. A page pays for the recording of each replay it
+  shows.
+
+**Declined:**
+- **Showing the other files a rename changed.** The frame is one editor window, and the count says
+  what the reader needs.
+
+<sub>See also [`testing/a-replay-plays-what-the-language-server-returned`](testing.md#testing-a-replay-plays-what-the-language-server-returned), [`testing/the-tools-area-has-a-page-for-each-tool`](testing.md#testing-the-tools-area-has-a-page-for-each-tool), [`ide/the-request-set-is-closed`](ide.md#ide-the-request-set-is-closed).</sub>
+
+<a id="testing-a-debugger-replay-plays-what-nvs-dap-returned"></a>
+
+## A website debugger replay plays what `nvs dap` returned for a session's breakpoints and steps, and `bun nv site --check snippets` fails when it now returns something else  *(designed — owned by goal tools-website)*
+
+`rule:testing/a-debugger-replay-plays-what-nvs-dap-returned`
+
+A debugger replay on a website page shows a debug session over one snippet: where it stopped, the call
+stack, and the variables with their values. A hand-written `.dap` beside the snippet lists the
+breakpoints and the steps: `continue`, `next`, `in` and `out`. `bun nv site --bless` runs `nvs dap`
+over the snippet, sends those requests, and writes each stop's answers to `.dap.out`: the line and the
+reason, the frames by name and line, and each variable's name, type and value.
+`bun nv site --check snippets` fails when `nvs dap` now returns something else.
+`tools/nv/cmd/site.ts` § *A snippet* is the home of both formats.
+
+A number that only names an object for the length of one session, such as a variables reference, is
+left out of the recording, so two runs of the same session record the same file.
+
+The panel has the replay's look and its rules for play, pause and focus
+([`testing/a-replay-plays-what-the-language-server-returned`](testing.md#testing-a-replay-plays-what-the-language-server-returned)). The editor window shows the
+breakpoint and the stopped line, and beside it are the call stack and the variables. A drawn debugger
+would show values the program never had, and recording `nvs dap`'s answers is what keeps the page true.
+
+- **Memory:** nothing in the language or the binary. `--bless` and `--check snippets` start `nvs dap`
+  once per replay.
+
+**Declined:**
+- **A screenshot of VS Code's debugger.** It needs a real editor in CI, and the picture would show
+  VS Code's look, which changes with every release.
+
+<sub>See also [`testing/a-replay-plays-what-the-language-server-returned`](testing.md#testing-a-replay-plays-what-the-language-server-returned), [`ide/the-debug-adapter-does-not-wait-for-an-editor`](ide.md#ide-the-debug-adapter-does-not-wait-for-an-editor), [`testing/the-tools-area-has-a-page-for-each-tool`](testing.md#testing-the-tools-area-has-a-page-for-each-tool).</sub>
+
+<a id="testing-a-screenshot-is-taken-from-a-real-run"></a>
+
+## A website screenshot is taken by `bun nv site --shoot` from a real run, and the text beside it fails `bun nv site --check shots` when the run would now show something else  *(designed — owned by goal tools-website)*
+
+`rule:testing/a-screenshot-is-taken-from-a-real-run`
+
+A screenshot on a website page is taken from a real run by `bun nv site --shoot`, and nothing else
+writes one. A hand-written `.shot` names an app under `apps/`, the requests to send it, and the steps
+to take in the browser: open an address, click, type and wait. The command serves the app in
+development with `[debug] store` on, sends the requests, starts `nvs debug`, takes the steps with
+Playwright, and writes the picture beside the `.shot` with a `.shot.out`.
+
+The `.shot.out` is what the picture shows, as text: the page's visible text with every duration, date,
+trace id and port masked, and the hash of the viewer's built assets. `bun nv site --check shots` runs
+the same steps and fails when the text or the hash differs. Pixels are never compared, because two
+machines draw the same page with different fonts and different anti-aliasing. A change to the viewer's
+look changes the hash, so the picture is taken again.
+
+A profile's picture is the speedscope build the VS Code extension bundles, opening a real
+`--profile=speedscope` export of a fixture. Speedscope is the viewer a profile is handed to
+([`testing/the-viewer-shows-the-stream-and-hands-off-every-artifact`](testing.md#testing-the-viewer-shows-the-stream-and-hands-off-every-artifact)), so the website draws no flame
+chart of its own. Its `.shot.out` holds the frames and their call counts, never their times, because
+times differ on every run.
+
+- **Memory:** nothing in the language or the binary. The site carries each picture's file. `--shoot`
+  and `--check shots` start a server, `nvs debug` and a browser once per run.
+
+**Declined:**
+- **Comparing pixels.** The same page differs by font rendering on each machine, so the check would
+  fail on a machine that changed nothing.
+- **A screenshot taken by hand.** Nothing would notice when the viewer changes.
+
+<sub>See also [`testing/the-viewer-shows-the-stream-and-hands-off-every-artifact`](testing.md#testing-the-viewer-shows-the-stream-and-hands-off-every-artifact), [`testing/the-tools-area-has-a-page-for-each-tool`](testing.md#testing-the-tools-area-has-a-page-for-each-tool), [`observability/speedscope-timeline-export`](observability.md#observability-speedscope-timeline-export).</sub>
 
 <a id="testing-hostile-case-contract"></a>
 
