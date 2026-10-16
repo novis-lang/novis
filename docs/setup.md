@@ -29,12 +29,12 @@ run over the slow 9p mount: it syncs its own copy of the tree onto the distro's 
 |---|---|---|
 | Rust, the version pinned in [rust-toolchain.toml](../rust-toolchain.toml) | `rustup` installs it on the first `cargo` command inside the tree — nothing to do by hand. Never a different channel: the pin is what makes three platforms the same compiler. | `cargo --version` |
 | Python 3.11+ — **optional, for `bun nv bench` only** | The Python engine of the cross-language bench: `bun nv bench` runs the `.py` twin of every case under [benches/userland/](../benches/userland/). Nothing else in the tree runs Python. No third-party package is ever required. | `python --version` |
-| The `claude` CLI on `PATH` — **the unattended loop only** | `bun nv loop` spawns one `claude -p` per session and finds it with `Bun.which("claude")`. With nothing on `PATH` it falls back to the bare name and the run dies on session 1, *after* printing the launch line and building the orientation pack — so it reads like a loop bug rather than a missing install. **An IDE extension does not count.** The VS Code extension carries its own `claude` binary inside its versioned extension directory and never puts it on `PATH`, so a machine that runs Claude Code all day can still have none; `claude install stable`, runnable from that bundled binary, lands one in `~/.local/bin` (`%USERPROFILE%\.local\bin` on Windows) that updates itself independently of the editor. Nothing else in the tree spawns a session — `nv verify` and `nv loop --goal-only` never do. | `bun -e "console.log(Bun.which('claude'))"` — the CLI's own `--version` can pass on a shell alias that `bun nv loop` cannot see |
+| The `claude` CLI on `PATH` — **the unattended loop only** | The loop's driver, looper, runs one `claude -p` per session. **An IDE extension does not count.** The VS Code extension carries its own `claude` binary inside its versioned extension directory and never puts it on `PATH`, so a machine that runs Claude Code all day can still have none; `claude install stable`, runnable from that bundled binary, lands one in `~/.local/bin` (`%USERPROFILE%\.local\bin` on Windows) that updates itself independently of the editor. Nothing in the tree itself spawns a session: `nv verify` never does. | `bun -e "console.log(Bun.which('claude'))"` — the CLI's own `--version` can pass on a shell alias that a spawned process cannot see |
 | PHP on `PATH`, at the version in [the plan](implementation-plan.md)'s status block § *Toolchain* — **optional, for the PHP benchmarks only** | The PHP engine of the cross-language bench: `bun nv bench` runs the `.php` twin of every case under [benches/userland/](../benches/userland/), and `bun nv bench --serve-vs-fpm` measures `nvs serve` against PHP with opcache. No test and no check runs PHP. | `php -v` |
-| Node.js 20 LTS or newer, with `npm` — **from M4B onward** | `editors/vscode` is TypeScript, and its headless tests — the TextMate grammar snapshots and the LSP protocol round-trip against the real `nvs lsp` binary — are acceptance checks. Without Node they do not fail, they cannot run. Only the machine's native side needs it: those checks run once, not once per leg, so the WSL distro does not. | `node --version`, `npm --version` |
+| Node.js 20 LTS or newer, with `npm` | `editors/vscode` is TypeScript, and its headless tests — the TextMate grammar snapshots and the LSP protocol round-trip against the real `nvs lsp` binary — are acceptance checks. Without Node they do not fail, they cannot run. Only the machine's native side needs it: those checks run once, not once per leg, so the WSL distro does not. | `node --version`, `npm --version` |
 | Bun, at the version `package.json`'s `engines` pins | It runs the repository's tools: `bun nv <command>`, from `tools/nv/`. Run `bun install` once after a clone and again whenever `bun.lock` changes. It installs `typescript`, `@types/bun` and `smol-toml` into the git-ignored `node_modules/`. `nv verify`'s `nv` step runs `bun nv selftest`, so a machine without Bun fails the gate. It is also the fourth engine in [benches/userland/](../benches/userland/), which runs the `.ts` twin of every case (`rule:tooling/bench-engine-list-is-data`). Its Windows installer does not always land on `PATH`; `bun nv bench --bun <path>` takes the executable explicitly. | `bun --version`, then `bun nv selftest` |
 | Docker, with Compose — Docker Desktop on Windows and macOS | The floor's database matrix, `bun nv db-matrix --all`, runs each database server in a container, and a goal whose record names `env.docker` stops before its first session when `docker` is not on `PATH` or its daemon does not answer (`tools/nv/cmd/services.ts`). `bun nv bench-proxied` is containers too. `--driver sqlite` needs no container. | `docker compose version` |
-| VS Code — **from M4B onward** | Two different things. `@vscode/test-electron` downloads its **own** pinned build into `editors/vscode/.vscode-test/` for the extension-host tier, so a system install is not what that test runs against; the system install is what you drive the extension in by hand, which is the entire point of pulling M4B ahead of M10. Fetch the test build once (below) and nothing afterwards touches the network. | `code --version` |
+| VS Code | Two different things. `@vscode/test-electron` downloads its **own** pinned build into `editors/vscode/.vscode-test/` for the extension-host tier, so a system install is not what that test runs against; the system install is what you drive the extension in by hand. Fetch the test build once (below) and nothing afterwards touches the network. | `code --version` |
 
 Novis generates native code, so "it compiles here" is a weaker claim in this repository than in most. CI
 builds all three supported targets — `x86_64-pc-windows-msvc`, `x86_64-unknown-linux-gnu`,
@@ -53,7 +53,7 @@ A clone carries it, so there is normally nothing to do. **If it is absent — an
 that keeps `.claude/` out of git — write it before the first session**, with that import line and nothing
 project-specific in it. Without it a Claude session opens with no project instructions whatsoever and reads
 like a model that has never seen this repository; the unattended loop fails the same way, because
-`bun nv loop` spawns that same `claude` binary. No other harness needs anything here: Codex reads
+looper spawns that same `claude` binary. No other harness needs anything here: Codex reads
 `AGENTS.md` at the root directly.
 
 ## Windows
@@ -169,11 +169,11 @@ green is what costs a debugging session, so do not archive them "just in case".
 bun nv verify                                            # build, fmt, test, the .nvst trees, clippy, the extension
 ```
 
-The WSL leg and the valgrind sweep are the driver's: every `bun nv loop` sweep runs them once the native
-sweep is green (`tools/nv/accept/legs.ts`).
+The WSL leg and the valgrind sweep are the loop's: `bun nv sweep`, which looper runs after every
+session, runs them over the live goal (`tools/nv/cmd/legs.ts`), and `bun nv legs` runs them by hand.
 
-From M4B onward, one more one-time step, because the extension-host tier downloads a VS Code build and
-the acceptance run must never go to the network:
+One more one-time step, because the extension-host tier downloads a VS Code build and the acceptance run
+must never go to the network:
 
 ```sh
 cd editors/vscode && npm ci && npm run test:prepare       # fetches the pinned VS Code into .vscode-test/
@@ -186,12 +186,12 @@ Once those are green, in this order:
 
 1. `git status` and `git log --oneline -5`. The old machine's last session committed everything it did, so
    a clean tree sitting at `origin/main` *is* the handover.
-2. **`bun nv orient --full`** — where the run and the work stand, one line per module, the rules, the
-   shapes and the plan's fields. Step 1 of every session, machine move or not ([AGENTS.md](../AGENTS.md)).
-3. The live goal's handoff, which `bun nv orient` prints from `data/goals/<slug>.handoff.json` —
-   where the work stands now, and the next group of slices with the file set they share. It is
-   overwritten each session, so it is state rather than history.
-4. `bun nv loop` if the unattended loop is what runs next; its design is
+2. **`looper orient --full`** — the live goal, its stage, its handoff and the traps. Step 1 of every
+   session, machine move or not ([AGENTS.md](../AGENTS.md)).
+3. The live goal's handoff, the `## Handoff` of its file under [goals/](goals/README.md), which the
+   orientation prints: where the work stands now, and the next group of slices with the file set they
+   share. It is overwritten each session, so it is state rather than history.
+4. looper's loop, if the unattended loop is what runs next; what is specific to Novis is
    [docs/agent/coordinator.md](agent/coordinator.md). It is the one thing here that needs a `claude` on
    `PATH` (§ *Every platform*), and the only step above will not have caught its absence.
 

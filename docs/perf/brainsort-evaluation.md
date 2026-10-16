@@ -53,9 +53,7 @@ All of it lands with the seam:
   ordering throws on two `bytes` values, and `crate::ordering`'s doc says so and names the two-line
   change that would give it a row. The key sort declines the row, so the throw is the answer under
   both binaries; a comparator over `Core\Bytes::compare` sorts it.
-- **Against PHP** (`tests/differential/core/arr-sort-at-size-matches-phps-sort-and-rsort.nvst` and
-  `arr-sort-orders-utf-8-strings-as-phps-sort-does.nvst`): ints and non-numeric strings at 1 000 and
-  5 000, and UTF-8 strings of every encoding length at 3 000, `sort` and `rsort`.
+
 - **The attack** (`tests/hostile/core/Arr/sort/01-every-row-at-size-with-its-corners.nvs`): every
   row at 200 000 entries with its corner values mixed in, both orders, keys preserved, `sortByKey`,
   and a declined subject. Both binaries print the same five lines.

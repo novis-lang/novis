@@ -73,7 +73,7 @@
     },
     {
       "section": [
-        "Part I — the pure core (M4S)",
+        "Part I — the pure core",
         "1. `Core\\Str`",
         "Inspection"
       ],
@@ -137,7 +137,7 @@
     },
     {
       "section": [
-        "Part I — the pure core (M4S)",
+        "Part I — the pure core",
         "1. `Core\\Str`",
         "Extraction"
       ],
@@ -191,7 +191,7 @@
     },
     {
       "section": [
-        "Part I — the pure core (M4S)",
+        "Part I — the pure core",
         "1. `Core\\Str`",
         "Transformation"
       ],
@@ -310,7 +310,7 @@
     },
     {
       "section": [
-        "Part I — the pure core (M4S)",
+        "Part I — the pure core",
         "2. `Core\\Arr`",
         "Inspection"
       ],
@@ -384,7 +384,7 @@
     },
     {
       "section": [
-        "Part I — the pure core (M4S)",
+        "Part I — the pure core",
         "2. `Core\\Arr`",
         "Structure"
       ],
@@ -493,7 +493,7 @@
     },
     {
       "section": [
-        "Part I — the pure core (M4S)",
+        "Part I — the pure core",
         "2. `Core\\Arr`",
         "Combining and set operations"
       ],
@@ -547,7 +547,7 @@
     },
     {
       "section": [
-        "Part I — the pure core (M4S)",
+        "Part I — the pure core",
         "2. `Core\\Arr`",
         "Iteration and aggregation"
       ],
@@ -631,7 +631,7 @@
     },
     {
       "section": [
-        "Part I — the pure core (M4S)",
+        "Part I — the pure core",
         "2. `Core\\Arr`",
         "Ordering"
       ],
@@ -655,7 +655,7 @@
     },
     {
       "section": [
-        "Part I — the pure core (M4S)",
+        "Part I — the pure core",
         "3. `Core\\Math`"
       ],
       "columns": [
@@ -818,7 +818,7 @@
     },
     {
       "section": [
-        "Part I — the pure core (M4S)",
+        "Part I — the pure core",
         "4. `Core\\Time`",
         "Entry points on `Core\\Time`"
       ],
@@ -867,7 +867,7 @@
     },
     {
       "section": [
-        "Part I — the pure core (M4S)",
+        "Part I — the pure core",
         "4. `Core\\Time`",
         "Entry points on `Core\\Time`"
       ],
@@ -912,7 +912,7 @@
     },
     {
       "section": [
-        "Part I — the pure core (M4S)",
+        "Part I — the pure core",
         "4. `Core\\Time`",
         "`Core\\Time\\Instant` — an absolute point on the timeline"
       ],
@@ -961,7 +961,7 @@
     },
     {
       "section": [
-        "Part I — the pure core (M4S)",
+        "Part I — the pure core",
         "4. `Core\\Time`",
         "`Core\\Time\\DateTime` — a civil date and time in a zone"
       ],
@@ -1035,7 +1035,7 @@
     },
     {
       "section": [
-        "Part I — the pure core (M4S)",
+        "Part I — the pure core",
         "4. `Core\\Time`",
         "`Core\\Time\\Duration` and `Core\\Time\\Zone`"
       ],
@@ -1094,7 +1094,7 @@
     },
     {
       "section": [
-        "Part I — the pure core (M4S)",
+        "Part I — the pure core",
         "5. `Core\\Regex`"
       ],
       "columns": [
@@ -1147,7 +1147,7 @@
     },
     {
       "section": [
-        "Part I — the pure core (M4S)",
+        "Part I — the pure core",
         "5. `Core\\Regex`"
       ],
       "columns": [
@@ -1180,7 +1180,7 @@
     },
     {
       "section": [
-        "Part I — the pure core (M4S)",
+        "Part I — the pure core",
         "6. `Core\\Json`"
       ],
       "columns": [
@@ -1213,7 +1213,7 @@
     },
     {
       "section": [
-        "Part I — the pure core (M4S)",
+        "Part I — the pure core",
         "6. `Core\\Json`"
       ],
       "columns": [
@@ -1236,7 +1236,7 @@
     },
     {
       "section": [
-        "Part I — the pure core (M4S)",
+        "Part I — the pure core",
         "7. `Core\\Encoding` and `Core\\Bytes`"
       ],
       "columns": [
@@ -1284,7 +1284,7 @@
     },
     {
       "section": [
-        "Part I — the pure core (M4S)",
+        "Part I — the pure core",
         "8. `Core\\Path`"
       ],
       "columns": [
@@ -1347,7 +1347,7 @@
     },
     {
       "section": [
-        "Part I — the pure core (M4S)",
+        "Part I — the pure core",
         "9. Collections: `Core\\ObjectMap`, `Core\\ObjectSet`, `Core\\Heap`"
       ],
       "columns": [
@@ -1371,7 +1371,7 @@
     },
     {
       "section": [
-        "Part I — the pure core (M4S)",
+        "Part I — the pure core",
         "11. `Core\\Random`, `Core\\Uuid`, `Core\\Hash`"
       ],
       "columns": [
@@ -1419,7 +1419,7 @@
     },
     {
       "section": [
-        "Part I — the pure core (M4S)",
+        "Part I — the pure core",
         "11. `Core\\Random`, `Core\\Uuid`, `Core\\Hash`"
       ],
       "columns": [
@@ -1497,7 +1497,7 @@
     },
     {
       "section": [
-        "Part I — the pure core (M4S)",
+        "Part I — the pure core",
         "11. `Core\\Random`, `Core\\Uuid`, `Core\\Hash`"
       ],
       "columns": [
@@ -1601,7 +1601,7 @@
     },
     {
       "section": [
-        "Part I — the pure core (M4S)",
+        "Part I — the pure core",
         "12. `Core\\Uri`, `Core\\Validate`, `Core\\Csv`, `Core\\Out`"
       ],
       "columns": [
@@ -1689,7 +1689,7 @@
     },
     {
       "section": [
-        "Part I — the pure core (M4S)",
+        "Part I — the pure core",
         "12. `Core\\Uri`, `Core\\Validate`, `Core\\Csv`, `Core\\Out`"
       ],
       "columns": [
@@ -1722,13 +1722,13 @@
     },
     {
       "section": [
-        "Part I — the pure core (M4S)",
+        "Part I — the pure core",
         "13. Compiler-facing surfaces"
       ],
       "columns": [
         "Class",
         "Owns",
-        "ADR"
+        "Rule"
       ],
       "rows": [
         [
@@ -1795,13 +1795,13 @@
     },
     {
       "section": [
-        "Part II — the capability-bearing half (M8)",
+        "Part II — the capability-bearing half",
         "16. Network, data and crypto"
       ],
       "columns": [
         "Class",
         "Surface",
-        "ADR"
+        "Rule"
       ],
       "rows": [
         [
@@ -1908,7 +1908,7 @@
     },
     {
       "section": [
-        "Part II — the capability-bearing half (M8)",
+        "Part II — the capability-bearing half",
         "17. Documents and formats"
       ],
       "columns": [
@@ -1946,7 +1946,7 @@
     },
     {
       "section": [
-        "Part II — the capability-bearing half (M8)",
+        "Part II — the capability-bearing half",
         "18. `Core\\Db`",
         "Entry points on `Core\\Db`"
       ],
@@ -1980,7 +1980,7 @@
     },
     {
       "section": [
-        "Part II — the capability-bearing half (M8)",
+        "Part II — the capability-bearing half",
         "18. `Core\\Db`",
         "`Core\\Db\\Queryable` — the interface both a connection and a transaction satisfy"
       ],
@@ -2029,7 +2029,7 @@
     },
     {
       "section": [
-        "Part II — the capability-bearing half (M8)",
+        "Part II — the capability-bearing half",
         "18. `Core\\Db`",
         "`Core\\Db\\Queryable` — the interface both a connection and a transaction satisfy"
       ],
@@ -2050,7 +2050,7 @@
     },
     {
       "section": [
-        "Part II — the capability-bearing half (M8)",
+        "Part II — the capability-bearing half",
         "18. `Core\\Db`",
         "Results"
       ],
@@ -2083,7 +2083,7 @@
     },
     {
       "section": [
-        "Part II — the capability-bearing half (M8)",
+        "Part II — the capability-bearing half",
         "19. `Core\\Task`"
       ],
       "columns": [

@@ -52,7 +52,7 @@ A beginner and an expert should both read it once and come away with the same pi
   directory show exactly that. A feature the prose fully explains gets no such sentence.
 - **Plain English, the same as a comment.** [`AGENTS.md`](../../AGENTS.md) § *Text an end user
   reads* is the rule for both, and its word table holds here too.
-- **No code, no internals, no history.** No ADR numbers, no crate names, no "the registry", and
+- **No code, no internals, no history.** No rule ids, no crate names, no "the registry", and
   no PHP function the feature replaces: the page says what the feature does.
 
 The file is plain Markdown with no front matter and no heading — the page supplies the title.

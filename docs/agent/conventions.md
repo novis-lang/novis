@@ -229,8 +229,8 @@ needs one, and adding it to a case that already exists is the whole edit.
 
 An LSP answer, frozen the way the section above freezes stdout. Sibling of `.nvst` and deliberately a
 separate suite: `nvs test`'s `N passed` is a number the loop gates on, and it must keep meaning one thing.
-The format is `crates/nvs-lsp`'s module doc; the section lexer is the same one `.nvst` uses. Lands at
-M4B — `rule:ide/an-lsp-answer-is-frozen-as-an-lspt-case`.
+The format is `crates/nvs-lsp`'s module doc; the section lexer is the same one `.nvst` uses
+(`rule:ide/an-lsp-answer-is-frozen-as-an-lspt-case`).
 
 ```
 --TEST--
@@ -371,8 +371,8 @@ forms.**
 
 | Where you are writing | The form | Why |
 |---|---|---|
-| a `.md` file | relative to the file — `](../plan/m8.md)` | GitHub and the website render it, and both resolve against the file's own location |
-| a `.rs`, `.nvs` or `.nvst` file | absolute from the repository root — `](/docs/plan/m8.md)` | nothing renders it, so the readers are people, agents and `grep` |
+| a `.md` file | relative to the file — `](../plan/m12.md)` | GitHub and the website render it, and both resolve against the file's own location |
+| a `.rs`, `.nvs` or `.nvst` file | absolute from the repository root — `](/docs/plan/m12.md)` | nothing renders it, so the readers are people, agents and `grep` |
 
 A source file's link had a `../` prefix until it was measured: 465 of 1,640 were dead — 442 with the
 wrong number of `../`, 23 naming a filename the target no longer had. A prefix encodes the **citing**
@@ -418,7 +418,7 @@ The record, `data/rules/core-classes/schema-plan.json`:
   not hold yet. `docs/novis.md` filters to `shipped` so every line in it runs; the rulebook carries both,
   and the pack marks a designed rule where it prints one.
 - **A `designed` rule names the one owner that ships it**, as a gap does: `goal`, the slug of any goal
-  file under `docs/goals/`, or `milestone`, a milestone at M9 or later that is not done. Never both,
+  file under `docs/goals/`, or `milestone`, a milestone that is not done. Never both,
   and a `shipped` rule names neither. The chapter prints the owner beside the title, and
   `bun nv owners` lists every designed rule by its owner.
 - **`guardedBy` is what holds the rule** — a test path, not a description. It is how a reader gets from

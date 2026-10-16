@@ -19,8 +19,9 @@ analysis. Not fixed yet.
 [`benches/scaling/scheduler/tasks.nvs`](../../benches/scaling/scheduler/tasks.nvs) grows linearly,
 so it passes. But `Core\Task::map` over 300 labels stops the request at the default ceiling of
 256 MB: the release build reports 315,284,654 bytes held, which is 1.05 MB per task. So one request
-can run about 250 tasks at once. The ladder stays at 128 tasks or fewer. Where the megabyte goes is
-not checked yet.
+can run about 250 tasks at once. The ladder stays at 128 tasks or fewer. The megabyte is the task's
+stack reservation, `TASK_STACK_SIZE` (`crates/nvs-host/src/stack.rs:88`), which
+`rule:concurrency/a-task-stack-is-reserved-wide-and-pooled` charges to the request when the task starts.
 
 **A POST body the program does not read can lose the response.** Checked over a raw socket
 against `nvs serve` on a program that only echoes `ok` and never calls `Core\Request::body`. Up to
@@ -245,15 +246,20 @@ so. The open, edit and hover session the review measured now runs three analyses
 four; neither figure was measured again. It spends one analysis per open document, freed at the
 next change to any of them.
 
-## Decisions for you
+## Decided
 
-**Should a request head get a total deadline as well as its idle one?** `header_timeout` is an idle
-wait: every byte that arrives restarts it (`crates/nvs-server/src/io.rs:309-321`), as
-`rule:http-server/four-idle-waits-all-finite` decides. A client that sends its head one byte at a
-time, just inside the wait, holds a connection for as long as it likes, and the HTTP layer parses its
-buffer again on each read up to its own buffer limit. A total deadline for the head alone closes
-that. It changes a rule and the behaviour a slow client sees, so it is yours to decide. Not
-measured yet.
+**A request head gets one deadline for the whole head.** `header_timeout` is an idle wait today:
+every byte that arrives restarts it (`crates/nvs-server/src/io.rs:309-321`), so a client that sends
+its head one byte at a time holds a connection for as long as it likes. `header_timeout` becomes a
+deadline fixed when the head starts, and the other three waits stay idle. Goal `completeness-holes`
+builds it, under the gap record
+`data/gaps/nvs-server/header-timeout-is-an-idle-wait-not-a-whole-head-deadline.json`.
+
+**A `Core\Task` child is charged its whole stack reservation.**
+`rule:concurrency/a-task-stack-is-reserved-wide-and-pooled` charges the reservation because it is what an
+admission decision can count ahead of time, and bounds resident growth by the recursion limit.
+
+## Decisions for you
 
 **Should `Markup + Markup` append into the left operand when nothing else holds it?**
 `nvs_core_html_markup_concat` (`crates/nvs-stdlib/src/html.rs:817-830`) copies both sides into a new
@@ -267,19 +273,6 @@ operand's reference only where its holder is re-pointed at the result, and a hel
 the carrier's text slot when both the object and its string have one reference. Both are new `unsafe`
 code, so it is recorded rather than built. `Core\Html::join` is the linear form now. The gain is the
 whole quadratic term, and it spends no memory beyond the doubling a string `.` already spends.
-
-**Should a `Core\Task` child be charged less than its whole stack?** Each child is charged
-`TASK_STACK_SIZE`, 1 MiB (`crates/nvs-host/src/stack.rs:88`), against the memory cap when it starts
-(`crates/nvs-host/src/group.rs:399`), and the charge is returned when it ends. `Core\Task::map` holds
-a child for every element at once, so n children are charged n MiB together, even when each one
-touches a few pages. Under the repository's `nvs.toml`, which sets `[limits] memory` to 256M, the
-ladders `scheduler/waiters.nvs` and `scheduler/parked.nvs` stop at 128 parked tasks. With no
-configuration there is no cap, and 4096 children use 26 MB of real memory. There are two answers.
-Smaller stacks that grow make the charge small, but they change how deep a task may recurse, and a
-program can see that. Charging the pages a stack touched makes the charge match real memory, but the
-charge then grows while the task runs, so the cap stops a task in the middle of its work rather than
-when it starts. Both change observable behaviour or the memory accounting, so it is recorded rather
-than built. Not measured: the pages a typical task touches, which is the gain of the second answer.
 
 ## Benches to look at
 

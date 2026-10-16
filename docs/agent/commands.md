@@ -394,6 +394,11 @@ session as its `after_session` hook (`tools/nv/cmd/sweep.ts`). Each run pays the
 the owed atoms oldest first, for at most its `DEBT_BUDGET_MS`, and leaves the rest owed. It also reads
 the newest nightly CI run back, and writes each job it failed into `.loop/last-sweep.md`.
 
+**CI's billing and runners are the user's.** A session that finds CI blocked by billing says so and
+stops: whether the repository gets a self-hosted runner is not its call. A hosted-runner failure that
+does not reproduce locally is still a failure, fixed from its log, and a platform `cfg` that hides the
+symptom is not a fix.
+
 **Every sweep names every red check, not the first.** `bun nv affected --run` runs past a red check,
 so one red check never keeps the others from being judged, and its `NOT GREEN:` line is followed by one
 `also red:` line per other red check. A build that fails still stops it, since nothing behind a build
@@ -544,7 +549,7 @@ containers and no proxy, drives `php-cgi -b` over FastCGI with a generator writt
 must keep working where there is no Docker and no `wrk`. The second
 is [`benches/proxied/`](../../benches/proxied/README.md), which owns every decision it makes: nginx in
 front of both peers because that is the only deployment either has, two compose files brought up one at a
-time, equal CPU budgets, and `oha` as the generator M7's *Verify* line actually names. Their inputs
+time, equal CPU budgets, and `oha` as the generator. Their inputs
 differ in every dimension, so the two files are separate and a row from one is never a baseline for the
 other.
 
@@ -756,8 +761,8 @@ Those same seeds are replayed on stable by
 `crates/nvs-stdlib/src/ast.rs`'s `core_ast_parse_gives_the_compilers_verdict_on_every_parse_seed`, which is
 the leg that runs on Windows and in the acceptance check.
 
-`prefix` — truncated and mid-edit documents through `nvs-syntax`, which is M4B's *Verify* asking for a
-five-minute run — is on the acceptance list and takes its two corpus directories as arguments:
+`prefix` — truncated and mid-edit documents through `nvs-syntax`, run for five minutes — is on the
+acceptance list and takes its two corpus directories as arguments:
 
     mkdir -p fuzz/corpus/prefix
     cargo +nightly fuzz run prefix fuzz/corpus/prefix fuzz/seeds/prefix -- -max_total_time=300

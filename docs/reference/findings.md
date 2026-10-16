@@ -8,26 +8,17 @@ one. Tick an item when it is fixed, or when the decision is "the binary is right
 disagreed has been folded.
 
 Categories: **P** — a panic or abort (exit 101/127) where a diagnostic or a clean error was owed;
-**U** — a rule the docs state that the binary does not enforce; **D** — the binary and an ADR/spec/
-registry card disagree on behaviour; **M** — a member, class or feature the docs name that does not
+**U** — a rule the docs state that the binary does not enforce; **D** — the binary and a rule, the
+spec or a registry card disagree on behaviour; **M** — a member, class or feature the docs name that does not
 exist in the registry (or the reverse).
 
 ## Triage
 
-Every item was decided against the ADR that owns it; the decisions that were open were put to the user
-and are folded into their ADRs (0007, 0047, 0071, 0090, 0091, 0094, 0103, 0107,
-`README.md` § *Decisions taken at project start*). The code and card work is the five
-rows whose owner is an item number, 31 to 35. An item's owner is the row it sits in.
-
-| Verdict | Items | Owner |
-|---|---|---|
-| Code — the abort and the wrong answers a working program hits | P15, D34, D5, D25, U15, D24, D14, U11, D15 | item 31 |
-| Code — a panic or an acceptance where a refusal was owed | P2, P3, P6, P7, P8, P9, P10, P11, P12, P13, P14, P16, U18, U19, U20, M5, M8, M9, D30 | item 32 |
-| Code — modifiers and attributes parsed and not enforced | U1, U2, U3, U4, U5, U6, U12, U14, P5 | item 33 |
-| Code — lowering and library gaps | P1, P4, D1, D7, D8, D10, D12, D16, D17, D21, D22, D23, D27, D33, D35, U21, M1 | item 34 |
-| Docs in the tree — cards, help texts, module docs, reference chapters | M10, D2, D3, D4, D6, D9, D20, D29, U13, M2, M3, M4, M6, M7, and § *Facts worth keeping* | item 35 |
-| Planned, and unchanged by this pass | U7, U8, U9, U16, D31, D11 and D28 | each finding's own entry below |
-| Closed — the binary is right and the doc now says so | U10 (`rule:config/ownership-is-the-trust-boundary` states the `run`/`check`/`dump` exemption), U17 (`rule:types/grammar`: a bare `array` is `array<mixed>`), D13 (`rule:security/isolate-shares-nothing`: capture is the default), D18 (`rule:types/erased-member-access`), D19 (`rule:types/enum-case-type`: `as` is the only narrowing), D26, D32 (a validator does not launder) | — |
+Every item was decided against the rule that owns it. Five are still open, each re-checked against
+the binary: U7 (`wall_time` and `max_output` under `nvs run`), U9 (a quantity or a ceiling `nvs config
+check` does not validate), U13 (a throwable's properties are writable), D29 (how `Core\Debug::render`
+names an `await` result) and M10 (two cards still cite a rule inline). Every other item is ticked, and
+its entry says what closed it.
 
 ## Panics and aborts (P)
 
@@ -96,9 +87,10 @@ rows whose owner is an item number, 31 to 35. An item's owner is the row it sits
       lowering panic on the union clause (exit 1); a property read through the union is E0495.
       *ref-errors; ref30* — `E0245` refuses the clause at parse time, where the type grammar's union
       shows up; the clause is still built from its first class, so the block behind it is checked.
-- [ ] **P15** A memory-limit breach inside `try { … } finally { … }` aborts the process with a Rust
+- [x] **P15** A memory-limit breach inside `try { … } finally { … }` aborts the process with a Rust
       panic in `nvs_array_release` ("attempt to subtract with overflow", exit 127) instead of the
-      clean `FATAL`. Without the `finally` it is clean. *refp/fatal/main.nvs*
+      clean `FATAL`. Without the `finally` it is clean. *refp/fatal/main.nvs* — the breach inside
+      the `try` now ends with the clean `FATAL` and exit 1.
 - [x] **P16** `Core\Env::EOL` panics in `nvs-ir` (exit 101) — `Core\Env` resolves as a class but has
       no members; the `E0319` help text names `Core\Env::mode()`. *php-diff probes* — the registry is
       the whole roster of `Core`, so an unregistered class's member is E0405 and no help text names a
@@ -146,8 +138,9 @@ rows whose owner is an item number, 31 to 35. An item's owner is the row it sits
       `Core\Fatal::onLimit`'s card lists both. `cpu_time` is enforced, pinned by
       `tests/conformance/error/a-loop-that-allocates-nothing-is-stopped-by-the-cpu-ceiling.nvst`.
       *refp/wall, refp/out*
-- [ ] **U8** A memory-limit breach in a **child isolate** is not observed: `[limits] memory = "8M"`
-      with a child holding 64 MiB answered `ok = true`. *refp/childmem*
+- [x] **U8** A memory-limit breach in a **child isolate** is not observed: `[limits] memory = "8M"`
+      with a child holding 64 MiB answered `ok = true`. *refp/childmem* — the child's result is now
+      `ok = false` with the memory-limit `RuntimeError` as its `error`.
 - [ ] **U9** `nvs config check`/`nvs run` do not validate quantities or ceilings: `memory = "12
       bananas"` and `[limits] memory = "1G"` over `[limits.hard] memory = "512M"` both pass and run.
       `tree.rs` says values are refused where sizes are parsed. *php-diff/config probes*
@@ -177,7 +170,9 @@ rows whose owner is an item number, 31 to 35. An item's owner is the row it sits
       containment rule (`nvs-cli`'s `runner::selected`), over `Class::method` for a program's tests;
       it is case-sensitive there as it already was over a path, so `clock` selects nothing a class
       or method spells `Clock`.
-- [ ] **U16** `#[Test(db: …)]` and `#[Test(server: …)]` are accepted and have no reader in the runner.
+- [x] **U16** `#[Test(db: …)]` and `#[Test(server: …)]` are accepted and have no reader in the runner.
+      Both are read now: `crates/nvs-cli/src/runner.rs` wires a test's database and its listener,
+      pinned by `crates/nvs-cli/tests/fixtures/test-grants/wire.nvs`.
 - [x] **U17** `array $a = [1, 2];` with no `<T>` is accepted (ground rules: every array declares its
       element type). *php-diff probes*
 - [x] **U18** `<>` parses as `!=` — `rule:expressions/one-equality-operator` says `==`/`!=` are the whole set. *ref30* The lexer now
@@ -217,15 +212,17 @@ rows whose owner is an item number, 31 to 35. An item's owner is the row it sits
       computed argument reaches the throw, and the `DateTime::format` card names `Date::format` and
       `TimeOfDay::format` as the off-roster half `nvs_types::intrinsics` owns.
       *coretime-probes `t_format_bad_literal`, `t_parse_errors`*
-- [ ] **D5** `Core\IO::read("missing.txt")` under a valid `fs.read` grant throws the **capability**
+- [x] **D5** `Core\IO::read("missing.txt")` under a valid `fs.read` grant throws the **capability**
       `RuntimeError` ("needs the capability fs.read for missing.txt, which is not granted"), not the
       card's `IOError`; `"./missing.txt"` gets the `IOError`. Likewise `write("copy.txt", …)` with
       `write = ["."]` is refused while `"./copy.txt"` succeeds. Cause: `capability.rs:257`
       `resolved()` — `Path::new("copy.txt").parent()` is `""`, which never canonicalizes.
-      *refp/fs; coretime-probes*
-- [ ] **D6** `Core\Router::url` with a **computed** name throws for every name, declared or not:
+      *refp/fs; coretime-probes* — both now behave as their `./` forms do: the read throws the
+      card's `IOError`, and the write succeeds.
+- [x] **D6** `Core\Router::url` with a **computed** name throws for every name, declared or not:
       "no route is named 'u'. The compile-time route table is not built yet (`rule:routing/table-is-opt-in`)". The
-      card says only an unknown computed name throws. *ref-attr `route-url-computed-name`*
+      card says only an unknown computed name throws. *ref-attr `route-url-computed-name`* — the card
+      now says a name not written directly in the code throws, which is what the binary does.
 - [x] **D7** `Core\Json::decodeAs<T>` was a **FATAL** for an **enum** field (encode always handled
       one). All three halves are closed: a class field erases to `CodecTy::Class` carrying its
       label, an `array<T>` to `CodecTy::List` carrying its element's wire type beside that label,
@@ -267,8 +264,9 @@ rows whose owner is an item number, 31 to 35. An item's owner is the row it sits
       an `errors` entry naming it. What is left is `crates/nvs-cli/src/openapi.rs`'s gap 3, which is not
       this finding: nothing in the tree declares what a named scheme *is*, so the document names schemes
       it does not define.
-- [ ] **D11** `spawn script Class::method(...)` as the operand is refused (`E0401: expected string,
+- [x] **D11** `spawn script Class::method(...)` as the operand is refused (`E0401: expected string,
       found callable`); spec § 2 and `rule:security/isolate-shares-nothing` describe it as available. *refp/spawn/method.nvs*
+      It compiles and runs now, pinned by the method-operand cases under `tests/conformance/isolate/`.
 - [x] **D12** `spawn script … with(args: …)` is accepted but there is no reader: `Core\Script::args()`
       is E0405, and the parser's own hint (`$_ARGS` → `Core\Script::args()`) names it. *refp/spawn/args.nvs*
       `Core\Script` is a registered class now and `args()` is its one row. It answers `mixed` rather
@@ -325,33 +323,35 @@ rows whose owner is an item number, 31 to 35. An item's owner is the row it sits
       parses, but the recursive call resolves as a free function (E0320). *ref30*
 - [x] **D24** `1.0 / 0` answers `INF` without throwing; `rule:types/arithmetic`'s `/ 0` row is the integer one.
       *ref30*
-- [ ] **D25** A property default of `null` on a `?T` property is refused (E0472, "must be a `int|null`
+- [x] **D25** A property default of `null` on a `?T` property is refused (E0472, "must be a `int|null`
       constant … not a constant of the declared type") — `null` is exactly such a constant. *probes2
-      `nullable_default_int`, `nullable_default_class`*
+      `nullable_default_int`, `nullable_default_class`* — `public ?int $n = null;` compiles now.
 - [x] **D26** `continue` (level 1) inside a `switch` inside a loop continues the enclosing loop — the
       documented Novis choice, where PHP acts as `break`; the statements chapter states it.
 - [x] **D27** A shebang `#!` first line opens code mode, per `rule:tooling/shebang-opens-code-mode`, and is trivia rather than
       output. `nvs_syntax::lexer`'s `Lexer::new` owns why it is lexed as the `#` comment it already is
       instead of skipped before lexing, and `E0009` names an `<?nvs` in such a file. *php-diff probes*
-- [ ] **D28** The on-disk compile cache is unwired: `cache.rs` and `[cache] dir` exist, nothing in
+- [x] **D28** The on-disk compile cache is unwired: `cache.rs` and `[cache] dir` exist, nothing in
       `nvs-cli/src` outside `cache.rs` references it, and `nvs run` compiles fresh every time.
+      Closed: `runner.rs`, `script.rs`, `serve.rs` and `reload.rs` all read the artifact cache.
 - [ ] **D29** `await`'s result renders as `Core\Script\Result#1` in `Core\Debug::render`, while
       `isolate.rs` types it as an anonymous shape.
 - [x] **D30** Diagnostics name classes that are empty or absent in this build: E0211's help says
       `Core\Request`, `Core\Server`, `Core\Cli`; each resolves but has no members and none is in
       `nvs meta --json`. A help text now names a `Core` member only where the registry holds one
       (`nvs_syntax::parser`'s `superglobal_replacement` owns why, and it is the rule for any help).
-- [ ] **D31** `Core\Cli\Text` has no members and no constructor (module doc: deliberate), so
+- [x] **D31** `Core\Cli\Text` has no members and no constructor (module doc: deliberate), so
       `Core\Str::length($text)` is refused while `echo`, `.` and `as string` accept it; `rule:tooling/terminal-output-is-a-sink`
-      gives it `plain`/`styled`/`+`.
+      gives it `plain`/`styled`/`+`. Closed: the registry holds `plain`, `styled` and `text`.
 - [x] **D32** `Core\Validate::isEmail` does not launder — `string $s = $in;` after a `true` answer is
       still E0401 (may be intended; noted because a reader expects a validator to launder).
 - [x] **D33** `assertSame($uintValue, 2)` is `E0401: expected uint, found int` — an integer literal beside a
       generic parameter does not adapt. Closed: it is placed against the substituted parameter type
       (`nvs_types::expr::args::check_generic_args` owns the rule).
-- [ ] **D34** `Core\Arr::sort` on an `array<decimal>` throws at run time: "no natural order for tag
+- [x] **D34** `Core\Arr::sort` on an `array<decimal>` throws at run time: "no natural order for tag
       10 against tag 10: two numbers, two strings, two bools or two nulls have one" — `decimal` is a
       number and the checker accepted the call. Found by the blind proof's CSV task. *probes4 `sort_decimal`*
+      — it sorts now.
 - [x] **D35** There is no typed decode of a JSON **array**: `Core\Json::decodeAs<array<U>>` is E0465
       ("builds a class, and `array<U>` is not one"), so a list of derived objects is read as
       `array<mixed>` and converted element by element. Found by the blind proof's JSON task.
@@ -367,7 +367,8 @@ rows whose owner is an item number, 31 to 35. An item's owner is the row it sits
       that has no response. Only the request's own task may register — a child's queue would be
       drained by nobody — and that module's known gaps are § 7's `max_concurrent` and an isolate's
       own drain, both of which need a host that holds more than one tree.
-- [ ] **M2** `Core\Fatal::onUncaughtThrow` (`rule:errors/on-uncaught-throw`) — only `onLimit` exists.
+- [x] **M2** `Core\Fatal::onUncaughtThrow` (`rule:errors/on-uncaught-throw`) — only `onLimit` exists.
+      Closed: the registry holds both.
 - [x] **M3** `rule:testing/test-attribute`'s wider assertion roster (`assertStartsWith`, …). Closed:
       the roster's one home is [docs/spec/01-core-library.md](../spec/01-core-library.md)'s Part II
       class table, and `assertStartsWith` is on it nowhere — `rule:testing/assertions-are-typed` names
@@ -387,9 +388,11 @@ rows whose owner is an item number, 31 to 35. An item's owner is the row it sits
 - [x] **M5** `Core\Uuid` has no `version()`; the cards' `errors` never name it. (Calling it is P12.)
       Closed as *the member is not in the spec's roster*: calling it is now E0405 rather than a panic,
       and adding a member is a spec question rather than a finding.
-- [ ] **M6** `Core\Command::run`/`help`/`completions` (`rule:tooling/commands-are-compiled`) do not exist; the command table
-      is built and checked, and `Core\Program::implementing` is the only reader.
-- [ ] **M7** `nvs serve`, `nvs fmt`, `nvs lsp` are unrecognized subcommands.
+- [x] **M6** `Core\Command::run`/`help`/`completions` (`rule:tooling/commands-are-compiled`) do not exist; the command table
+      is built and checked, and `Core\Program::implementing` is the only reader. Closed: the registry
+      holds all three.
+- [x] **M7** `nvs serve`, `nvs fmt`, `nvs lsp` are unrecognized subcommands. Closed: `nvs --help`
+      lists all three.
 - [x] **M8** `Core\Secret`, `Core\Taint`, `Core\Log`, `Core\Env`, `Core\Cli`, `Core\Request`,
       `Core\Server`, `Core\IO`, `Core\Html` resolved as names in diagnostics but had no registry rows.
       The name still resolves — nothing under `Core\` needs a declaration — but every member of one is
@@ -397,9 +400,11 @@ rows whose owner is an item number, 31 to 35. An item's owner is the row it sits
 - [x] **M9** `Core\Env::mode()`, `$_ARGS`/`Core\Script::args()` are named by diagnostic help texts
       and do not exist. E0211's table now cites `rule:statements/no-host-populated-variables`'s map rather than restating a row of it,
       and E0319 names `Core\Math::PI`, which ships.
-- [ ] **M10** The registry cards cite ADR numbers inline in 33 places ("`rule:core-classes/regex-two-tiers`'s two engines",
-      "`rule:types/bytes`'s default unit") — meaningless to the reference's readers. `bun nv reference`
+- [ ] **M10** The registry cards cite a rule inline ("`rule:core-classes/regex-two-tiers`'s two engines",
+      "`rule:types/bytes`'s default unit"), which is meaningless to the reference's readers. `bun nv reference`
       strips the parenthesised form `(`rule:classes/comparable`)`; the inline ones need rewording in the cards.
+      Two remain in `nvs meta --json`: `rule:security/tainted-sources` and
+      `rule:testing/task-tree-and-virtual-clock`.
 
 ## Facts worth keeping (not bugs, but not written anywhere a user reads until now)
 

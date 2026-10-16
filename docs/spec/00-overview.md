@@ -1,9 +1,9 @@
 # Novis Specification — 00: Overview and Surface Syntax
 
-- **Status:** Draft — the first spec document. It exists to fix *spelling* the ADRs deliberately left open;
-  it does not restate any ADR's semantics, and where this document and an ADR ever disagree on wording, the
-  ADR owns the semantics and this document owns the syntax (see [AGENTS.md](../../AGENTS.md), "every fact
-  has exactly one home").
+- **Status:** the surface syntax the parser implements. It fixes *spelling* the rules leave open; it
+  does not restate any rule's semantics, and where this document and a rule ever disagree on wording,
+  the rule owns the semantics and this document owns the syntax (see [AGENTS.md](../../AGENTS.md),
+  "every fact has exactly one home").
 - **Scope:** file modes and inline HTML; `require` next to `eval` and `spawn script`, since the
   plan names confusing the last two as the predictable mistake; the concrete grammar for every declaration
   slot `rule:types/declaration` requires (typed locals, `foreach` bindings,
@@ -11,9 +11,8 @@
   storage classes `rule:statements/static-is-a-member-modifier` decided, restated here only as a syntax
   table; the `bytes` literal question `rule:types/bytes` deferred here.
 - **Out of scope, deliberately:** full expression/operator-precedence tables, the concurrency surface
-  (`spawn`/`await`/`Channel`, M5), the HTTP/`Core` accessor surface (M7), and anything not named above. This
-  file grows, and later spec files (`01-…`, `02-…`) are expected — it is not meant to be read as the whole
-  language on its own.
+  (`spawn`/`await`/`Channel`), the HTTP/`Core` accessor surface ([01-core-library.md](01-core-library.md)),
+  and anything not named above. It is not meant to be read as the whole language on its own.
 
 > **In short:** a `.nvs` file opens code mode with `<?nvs` or the short echo tag `<?=`; everything else is
 > inline HTML emitted verbatim, exactly like PHP. `require` shares
@@ -65,9 +64,9 @@ collapses PHP's four same-frame inclusion keywords to this one: `include`, `incl
 
 | construct | isolation | resolution | status |
 |---|---|---|---|
-| `require 'path.nvs';` | **none** — same frame's globals, same statics, same output, same heap | statically resolved where the path is a literal (M2); a dynamic path falls back to a runtime resolve | kept, PHP semantics — throws on a missing/unparseable file, and runs every time control reaches it |
+| `require 'path.nvs';` | **none** — same frame's globals, same statics, same output, same heap | statically resolved where the path is a literal; a dynamic path falls back to a runtime resolve | kept, PHP semantics — throws on a missing/unparseable file, and runs every time control reaches it |
 | `eval($source)` | n/a — there is no such construct | n/a | **rejected**, no diagnostic-with-replacement needed beyond *there is no `eval`*: a string has no stable identity, no cache key, and no path a `script.spawn` grant could name. `rule:security/no-eval` holds the full rejection and the four analyses `eval` would make unsound at once; see also `rule:security/isolate-shares-nothing` |
-| `spawn script 'path.nvs' with(…)` | **full** — fresh arena, fresh globals/statics, own config overlay, sharing only immutable compiled code | the path is an arbitrary `string` expression, canonicalised and prefix-checked against `script.spawn`'s granted roots at run time (M6); the operand may instead be a static method — `Class::method(...)`, called with `args:` bound to its parameters by name — decided at the spawn site (`rule:security/isolate-shares-nothing`) | new construct, grammar fixed below |
+| `spawn script 'path.nvs' with(…)` | **full** — fresh arena, fresh globals/statics, own config overlay, sharing only immutable compiled code | the path is an arbitrary `string` expression, canonicalised and prefix-checked against `script.spawn`'s granted roots at run time; the operand may instead be a static method — `Class::method(...)`, called with `args:` bound to its parameters by name — decided at the spawn site (`rule:security/isolate-shares-nothing`) | new construct, grammar fixed below |
 
 The rule of thumb the diagnostics should teach: **`require` runs code in this frame; `spawn script` runs a
 file as if it were its own request.** A "why can't the required/spawned code see my variable" question
@@ -131,11 +130,10 @@ and the parent's remaining budget.
 
 The expression's static type is `Core\Script\Handle`, a registered class with no members at all — `await` is
 the only thing a program may do with one — and `await` answers with a `ScriptResult` **shape** rather than
-with a class. Both are the concurrency type surface M5 defines rather than this document's:
+with a class. Both are the concurrency type surface rather than this document's:
 `crates/nvs-types/src/expr/isolate.rs`'s module doc is the one home of the field set and of why the two
 halves take opposite mechanisms, and `crates/nvs-stdlib/src/script.rs` is the handle's row. This section
-fixes only the `spawn script … with(…)` token sequence, so that the M1 parser has a grammar to implement
-without waiting on M5's design.
+fixes only the `spawn script … with(…)` token sequence.
 
 `await`'s operand is a *unary* expression, so the postfix chain binds tighter than the keyword does and
 `await $h->handle` awaits the property. Both `spawn`/`script`/`with` and `await` are **contextual**: they
@@ -196,7 +194,7 @@ keyword, not the conversion operator, so converting the *subject* — not a bind
 foreach (($m as array<int>) as int $v) { … }     // convert $m to array<int>, then bind each element as int
 ```
 
-This is the one case M1's snapshot tests must pin down explicitly, per the plan's M1 verification section.
+This is the one case the parser's snapshot tests pin down explicitly.
 
 ### 3.3 Destructuring
 
@@ -240,8 +238,8 @@ Sits at file/namespace scope, alongside `use` and `namespace`, or as a member of
 enum body (`rule:types/type-alias`). `type` on its own is otherwise an ordinary reserved word in
 this one declaration position; it is not a general statement keyword. The restriction that `TypeExpr` may
 not be a single bare class/interface/enum atom (`rule:types/alias-is-never-a-bare-class`) is a
-resolution-time check (M2), not a parse-time one — the grammar above parses `type Id = SomeClass;` exactly
-like any other alias declaration, and M2's resolver is where it becomes a diagnostic.
+resolution-time check, not a parse-time one — the grammar above parses `type Id = SomeClass;` exactly
+like any other alias declaration, and the resolver is where it becomes a diagnostic.
 
 ## 4. The scoping surface (`rule:statements/static-is-a-member-modifier`'s spelling only)
 
@@ -265,7 +263,7 @@ fix: each rejection's replacement is one of the five rows above, already covered
 ## 5. `bytes`: no dedicated literal
 
 `rule:types/bytes` leaves `bytes` literal syntax to this document. Decision: **there
-is no `bytes` literal token.** The lexer needs no `b"…"`-shaped production, and M1's scope is smaller for it.
+is no `bytes` literal token.** The lexer needs no `b"…"`-shaped production.
 
 - For the common case — a byte sequence that happens to be valid UTF-8, which is most binary-ish constants a
   program writes by hand (magic strings, protocol markers made of ASCII) — a plain string literal converts
@@ -277,8 +275,8 @@ is no `bytes` literal token.** The lexer needs no `b"…"`-shaped production, an
   rule exactly as every other domain class does: `Core\Encoding::fromHex('deadbeef')`,
   `Core\Encoding::fromBase64('...')`. That class, not `Core\Bytes`, because
   [01-core-library § 7](01-core-library.md) sites every `bytes`↔`string` conversion there, and each of
-  these is one. Both join the domain-class roster `rule:classes/no-free-functions-or-constants`'s summary names as examples, not as a closed list; building
-  them is ordinary M4S stdlib work, not part of this spec.
+  these is one. Both join the domain-class roster `rule:classes/no-free-functions-or-constants`'s summary
+  names as examples, not as a closed list.
 
 This is a decision about literal syntax only, not about `string`'s default length/indexing granularity,
 which `rule:types/string-is-utf8` owns.
@@ -290,8 +288,6 @@ which `rule:types/string-is-utf8` owns.
   precedence table belongs in a later spec file once the parser needs one written down rather than inferred
   from the grammar productions above.
 - `spawn`/`await`/`Channel`/`spawn worker` and the rest of the concurrency surface are named here only where
-  `spawn script`'s grammar needs to distinguish itself from them; M5 is where they get their own spec
-  section.
-- If `.phpt`-corpus parsing (M1's verification) turns up a real PHP file using a short open tag (bare `<?`),
-  that is a decision to make then, not a gap in this document — Novis never had one to begin with, so adding
-  one would be a new grammar choice, not a restatement of an existing one.
+  `spawn script`'s grammar needs to distinguish itself from them; the concurrency rules under
+  [docs/rules/](../rules/) own them.
+- Novis has no short open tag (bare `<?`), and adding one would be a new grammar choice.

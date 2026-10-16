@@ -16,7 +16,7 @@ follows the code without anyone remembering to.
 
 ## Who reads this, and what that means for the prose
 
-A reader of `novis.md` has **only that file**. They cannot follow a link to an ADR, do not know what
+A reader of `novis.md` has **only that file**. They cannot follow a link to a rule, do not know what
 a milestone is, and do not care why a decision was made — they need to know what the language
 *does*, completely and once. So:
 
@@ -30,7 +30,7 @@ a milestone is, and do not care why a decision was made — they need to know wh
   The binary is the test: if `nvs run` refuses it, it is not in the reference. A chapter that must
   mention a door that is closed says it is closed, not that it will open.
 - **Short sentences, concrete spellings, no rationale.** Write "`and`/`or` do not parse; write
-  `&&`/`||`", not why. The ADR that owns a paragraph may be cited for *this repository's* readers
+  `&&`/`||`", not why. The rule that owns a paragraph may be cited for *this repository's* readers
   in an HTML comment — `<!-- src: `rule:expressions/no-keyword-logical-operators` -->` — which the generator strips.
 - **No links out of the file.** Cross-reference another section by its heading text in backticks
   or by its anchor, `[types](#lang-types)`; anchors are `lang-<id>`, `tools-<id>`,

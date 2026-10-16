@@ -3,7 +3,7 @@
 **Injection and secret leakage are compile errors in Novis, not findings from a scanner run afterwards.**
 That is the first of the three claims `rule:programs/three-claims` makes on the
 project's behalf. This page is that claim written for the three people who ask about it, plus the comparison
-that backs it. The mechanics live in the ADRs at the foot; nothing here restates them.
+that backs it. The mechanics live in the rules at the foot; nothing here restates them.
 
 ## The claim, for three readers
 
@@ -65,12 +65,12 @@ whose guarantee is genuinely stronger than the rule
 
 ## What not to claim yet
 
-**Not "XSS is impossible."** Auto-escaping closes text-node XSS; attribute context, `javascript:` URLs,
-inline `<script>` and CSS context need the context-specific escapers that
-`rule:security/launderers-are-sink-named` still owes as stdlib design, and
-`Core\Html::sanitize` is the hardest item on that roster. Until they land, the sentence this project may
-write is *injection is a compile error* — which is the stronger claim anyway, because it is about who
-enforces it rather than about how complete the escaping is.
+**Not "XSS is impossible."** Auto-escaping closes text-node XSS. An unquoted or URL-valued attribute,
+an inline `<script>` and CSS context are positions the escape does not cover
+(`rule:core-classes/html-template`), and each needs the launderer for its own sink
+(`rule:security/launderers-are-sink-named`). So the sentence this project may write is *injection is a
+compile error*, which is the stronger claim anyway, because it is about who enforces it rather than
+about how complete the escaping is.
 
 **Not "faster than PHP" alongside it.** `rule:programs/three-claims` retired
 that as a headline, and pairing a retired claim with a live one weakens both.

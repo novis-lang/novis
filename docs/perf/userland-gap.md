@@ -189,8 +189,7 @@ request end, and `rule:programs/memory-priority`'s *Footprint, not traffic*
 already makes an allocation on a hot path a priority-3 question. **This is not a new decision — it
 is that decision, landing early, in two halves.** The half measured above is a thread-local
 size-class cache in front of `System`, which needs no per-request accounting and no `Ctx`. The
-per-request ceiling attaches to it at M6, where `nvs_runtime::affordable`'s own doc comment already
-says it does.
+per-request ceiling is checked in front of it, by `nvs_runtime::affordable`.
 
 What it spends, per `rule:programs/memory-priority`'s *Say what you spend*: a
 bounded per-thread cache of freed blocks — the probe held at most 512 blocks in each of 16 size
@@ -487,8 +486,8 @@ ever reads zero passes just as well when it is broken.
   It costs 1.5 ns against a native ~0.5 ns, and removing it means trading
   `rule:testing/debug-probes`'s guarantee
   that a probe can be switched on for a request already running. That is a decision, not a defect,
-  and its natural gate is `rule:config/two-modes-and-the-default-is-production`'s
-  production mode at M6 — an amendment to 0018 when it gets there, not now.
+  and its natural gate is `rule:config/two-modes-and-the-default-is-production`'s production mode,
+  which would need a change to that rule.
 - **Cranelift emits redundant register moves and does not clean up the block chains.** That is the
   baseline tier's ceiling and [M12](../plan/m12.md) is where it is raised. Nothing above is a
   codegen-quality item; every one of them is a representation or an ABI.

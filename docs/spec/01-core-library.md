@@ -4,8 +4,8 @@
 `rule:core-api/reserved-namespace` leaves open and
 `rule:core-api/tier-roster` placed. The *shape* rules every entry obeys are
 `rule:core-api/shape-rules` — read that first; this file applies it and does not
-re-argue it. Where a class has its own ADR (`Core\Regex`, `Core\Decimal`, `Core\Reflect`, `Core\Process`,
-`Core\Cache`, …) that ADR owns the semantics and this file owns only the signatures. For an *implemented*
+re-argue it. Where a class has its own rule (`Core\Regex`, `Core\Decimal`, `Core\Reflect`, `Core\Process`,
+`Core\Cache`, …) that rule owns the semantics and this file owns only the signatures. For an *implemented*
 member, `rule:core-api/reference-card` puts its
 reference documentation in the `nvs-stdlib` registry declaration, exposed by `nvs meta --json`, and a doc
 field the registry carries wins over this file, field by field; this file remains authoritative for every
@@ -42,7 +42,7 @@ A blank cell here means *contagious was chosen*, never *nobody looked*: the clas
 parameter in `nvs-stdlib`'s member registry, an unclassified `string`/`bytes` parameter **refuses** a
 tainted argument, and a member that ships with one fails that crate's own test suite
 (`rule:security/unclassified-parameter-refuses-tainted`). Which parameters are
-sinks follows from that ADR's § 1 predicate — *the content becomes an instruction something executes,
+sinks follows from that rule's predicate — *the content becomes an instruction something executes,
 rather than data something returns or frames* — of which one corollary is that all four
 `rule:core-api/no-mode-strings` grammars are sinks.
 
@@ -71,29 +71,16 @@ The same division applies elsewhere: `**` is exponentiation, so there is no `Mat
 modulo, so `Math::mod` exists only for the `float` case; `is` is an operator, so `Core\Reflect` has
 no `isA`.
 
-## Milestones
+## The two parts
 
-**M4S** builds every class in §§ 1–12: they are pure, need no capability, no reactor, no driver, and no
-open file — so they can be implemented, tested and depended upon before the HTTP server exists. **M8**
-builds §§ 14–17, which need one of those things, under the same rules and the same conformance checks.
-
-Three entries in Part II land earlier than M8 because their dependency is not a capability:
-**`Core\Task`** (§ 19) needs the M5 scheduler and lands with it; **`Core\Metrics`** and its exporter (§ 16)
-need the M7 server's own series to be testable and land there; and **`Core\Router`** (§ 13) is split — the
-compile-time table with M4S's other attribute pass, the matcher with M7.
-
-§ 13 is neither: each of its entries is pure, but each also waits on something outside `Core`.
-`Core\Program` needs `rule:programs/no-runtime-autoload`'s `autoload`,
-`Core\Ast` needs `rule:tooling/reflection-and-source-parsing-are-core-features`'s inert-AST
-surface, `Core\Attributes`' retrieval body is M8 by `rule:attributes/inert-metadata`
-(its `#[...]` *syntax* is M4), and `Core\Reflect`, `Core\Decimal` and `Core\BigInt` want a finished object
-representation under them. They land with whichever milestone closes their dependency, to this same
-contract. `Core\Test` is the one entry whose schedule is already fixed rather than dependency-driven,
-from the assertions at the M4S tail to `#[Bench]` and mutation testing at M10.
+**Part I**, §§ 1–13, is the pure core: no member needs a capability, the reactor, a driver or an open
+file. **Part II**, §§ 14–19, is everything that needs one of those things, under the same rules and the
+same conformance checks. `Core\Task` (§ 19) needs no capability but needs the scheduler, so it sits in
+Part II.
 
 ---
 
-# Part I — the pure core (M4S)
+# Part I — the pure core
 
 ## 1. `Core\Str`
 
@@ -799,6 +786,12 @@ algorithm including `Md5`, `Sha1` and `Crc32`, because checksum interop genuinel
 that the HMAC and signature members declare, so `Hash::hmac($m, $k, Digest::Md5)` is a compile error naming
 the reason. Password hashing takes no algorithm argument at all and is in § 16.
 
+`Digest` leaves out the table hashes (`xxh*`, `murmur3*`, `fnv1*`, `adler32`, `joaat`), because an enum
+that also has `Sha512` would invite one where a strong digest is needed, and the dead algorithms
+(`md2`, `md4`, `ripemd*`, `whirlpool`, `tiger*`, `snefru*`, `gost*`, `haval*`), because nothing current
+uses them. `Sha3` and `Crc32c` are in: SHA-3 rides the same traits as the SHA-2 family, and CRC32C is
+the checksum object stores send.
+
 **This table is `Digest`'s roster and its only home.** The **S** column is membership of `StrongDigest`.
 
 | Case | Octets | S | Notes |
@@ -873,7 +866,7 @@ of § 6.2.3's scheme-based normalization, so `http://h:80/` and `http://h/` are 
 `80` is `http`'s default is knowledge about a scheme, and a member carrying a table of them would answer
 differently as the table grew. `==` on two `Uri`s is still object identity, which
 `rule:expressions/object-identity-equality` fixes for every
-class; `compareTo` is that ADR's own named answer for content equality, and it gives an order as well —
+class; `compareTo` is that rule's own named answer for content equality, and it gives an order as well —
 component-lexicographic, absent before present.
 
 **`$uri->sign` signs exactly what `compareTo` normalizes**, and that is the whole reason the two signing
@@ -884,8 +877,8 @@ reserved `_sig` parameter carries the tag and the lifetime together, every other
 covered — so appending a parameter invalidates — and the fragment is never signed, because the server
 never receives one. `rule:core-api/signing-is-over-a-payload`
 owns all of it, including why `verifySignature` answers nothing and throws rather than returning a
-`bool` a caller can drop. **These two land with M8** rather than with the rest of Part I: they need
-`Core\Crypto`'s construction, which is the same split `Core\Router` already carries.
+`bool` a caller can drop. The two signing members use `Core\Crypto`'s construction, so they are the
+one part of this class that needs a key.
 
 **Asking whether text is a URI is `Uri::tryParse($s) != null`** — `parse` with `null` where it throws, and
 the one spelling `rule:core-api/shape-rules` R5 admits `try…` for
@@ -970,10 +963,10 @@ capability was checked at `IO::open`, and this member neither opens nor closes w
 
 ## 13. Compiler-facing surfaces
 
-These are `Core` classes whose semantics live in their own ADRs; this file fixes only that they follow the
+These are `Core` classes whose semantics live in their own rules; this file fixes only that they follow the
 same shape rules.
 
-| Class | Owns | ADR |
+| Class | Owns | Rule |
 |---|---|---|
 | `Core\Reflect` | `forClass`, `forObject`, `typeOf(mixed): TypeKind`, and the visibility-respecting walk | `rule:core-classes/reflect` |
 | `Core\Ast` | `parse(string): Node` returning inert typed data | `rule:core-classes/ast-is-inert` |
@@ -1015,12 +1008,11 @@ there is no hook to customise it
 
 ---
 
-# Part II — the capability-bearing half (M8)
+# Part II — the capability-bearing half
 
 Everything below needs a capability grant, the reactor, an open handle or a driver. It is listed at one
 line per member because the semantics are owned by `rule:core-api/tier-placement`'s
-roster and by each subsystem's own ADR; the shape rules are identical to Part I's. Three entries land
-before M8 — see *Milestones* above for which and why.
+roster and by each subsystem's own rules; the shape rules are identical to Part I's.
 
 ## 14. `Core\IO`
 
@@ -1178,7 +1170,7 @@ that comes from outside the process is `tainted` (`rule:security/tainted-qualifi
 
 ## 16. Network, data and crypto
 
-| Class | Surface | ADR |
+| Class | Surface | Rule |
 |---|---|---|
 | `Core\Http\Client` | `get`, `post`, `put`, `patch`, `delete`, `head`, plus `request(Core\Http\Method, …)` for a verb chosen at run time and `stream(Core\Http\Method, …)` for a body read as it arrives — each over `string \| Core\Http\Target`, and there is no `Core\Http\Request` class. `Core\Http::allowUrl` is the SSRF launderer, and the `Target` it answers carries every approved address. `Core\Http::methodName(Core\Http\Method): string` answers a case's wire token (`GET`), for an `Allow` header or a log line. One trailing `Core\Http\Options` shape — the bounds `{deadline?, connectTimeout?, idle?, maxDuration?}`, the retry keys `{retryAttempts?, retryBackoff?, retryIdempotencyKey?}`, `{headers?, followRedirects?}`, at most one body of `{json?, form?, body? + contentType?, multipart?}`, and the connection keys `{identity?, connectTo?, redirectToHttp?, tlsCa?, tlsPin?, tlsVerifyHost?, tlsVerify?, tlsMinVersion?}` — with **no spelling for an unbounded wait**: `deadline` covers every attempt and every hop, `idle` and `maxDuration` bound a streamed body, retry is jittered, and two body keys, a body on `get`, or `post`/`patch` with `retryAttempts` and no `retryIdempotencyKey`, are compile errors. A reply answers `status`, `text`, `bytes`, `header`, `headers`, `jsonAs<T>` and `tls`, all of it `tainted`; a `Core\Http\Stream` answers the head and then `events`, `lines`, `chunks` or `saveTo` — one of them, once. `Http\Part::file`/`::bytes` are a body sent without being held, `Http\Identity::read` is a client certificate, and `Core\Test::answerHttp`/`::sentHttp` answer outbound calls from a table so a test needs no network | `rule:http-server/allow-url-pins-the-address`, `rule:http-server/no-spelling-for-an-unbounded-wait` |
 | `Core\RateLimit` | `consume(tainted string $key, uint $limit, Duration $per, {burst?, cost?}): RateLimit\Decision` over the shared store, and `shed(…)` per server process and approximate, its count kept in the memory cache tier. `Decision` is readonly `allowed: bool`, `limit: uint`, `remaining: uint`, `retryAfter: ?Duration`. Both **neutral**; a `secret` key is refused; an unreachable store throws | `rule:core-classes/ratelimit-two-members` |
@@ -1322,8 +1314,8 @@ Two `Throwable`s join § 10's tree, both under `Core\Db`:
 
 Semantics are `rule:concurrency/one-scheduler` — what cancellation does and does
 not run, why control never leaves a call with work still running, and the `[deferred]` bound. This section
-owns the signatures only. Nothing here needs a capability; it needs the M5 scheduler, which is why it sits
-in Part II and lands at **M5** rather than M8.
+owns the signatures only. Nothing here needs a capability; it needs the scheduler, which is why it sits
+in Part II.
 
 | Member | Signature | Q |
 |---|---|---|
@@ -1346,4 +1338,4 @@ the request tree, may not touch `Core\Response`, and throws at the call site pas
 process loses the work.
 
 `Core\Task\Channel` and the `spawn`/`await` keywords are the concurrency *language* surface and belong to
-[docs/spec/00-overview.md](00-overview.md) § 2 with M5, not to this file.
+[docs/spec/00-overview.md](00-overview.md) § 2 and the concurrency rules, not to this file.
