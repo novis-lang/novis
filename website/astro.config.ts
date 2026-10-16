@@ -213,7 +213,11 @@ export default defineConfig({
                 { label: 'Handling requests', link: '/guides/how-to-use/requests/' },
                 { label: 'Errors', link: '/guides/how-to-use/errors/' },
                 { label: 'Tainted input', link: '/guides/how-to-use/tainted-input/' },
-                { label: 'Class property names in strings', link: '/guides/how-to-use/checked-field-paths/' },
+                {
+                  label: 'Autocomplete and parsing',
+                  link: '/guides/how-to-use/checked-field-paths/',
+                  attrs: { 'data-subtext': 'For class property names in strings' },
+                },
                 { label: 'Limits', link: '/guides/how-to-use/limits/' },
               ],
             },

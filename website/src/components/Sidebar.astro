@@ -2,6 +2,10 @@
 /**
  * Sidebar override: the default sidebar plus a filter box at the top.
  *
+ * A link can have a second, smaller line under its label: give the entry in
+ * astro.config.ts `attrs: { 'data-subtext': '...' }`. The line is drawn by CSS
+ * from that attribute, so it needs no script, and the filter matches it too.
+ *
  * Typing filters the tree live: matching entries stay visible and highlighted,
  * their groups expand, everything else is hidden. Escape (or clearing the box)
  * restores the default view, including each group's original open state.
@@ -73,6 +77,24 @@ const { sidebar } = Astro.locals.starlightRoute
   #nv-sidebar-tree :global(li[data-nv-hidden]) {
     display: none;
   }
+  #nv-sidebar-tree :global(a[data-subtext]) {
+    flex-wrap: wrap;
+    row-gap: 0.1rem;
+  }
+  #nv-sidebar-tree :global(a[data-subtext])::after {
+    content: attr(data-subtext);
+    display: block;
+    flex-basis: 100%;
+    margin-top: 0.1rem;
+    font-size: var(--sl-text-xs);
+    font-weight: 400;
+    line-height: 1.35;
+    color: var(--sl-color-gray-3);
+  }
+  #nv-sidebar-tree :global(a[data-subtext][aria-current='page'])::after {
+    color: inherit;
+    opacity: 0.85;
+  }
   #nv-sidebar-tree :global(mark.nv-filter-match) {
     background-color: var(--nv-gold);
     color: var(--nv-on-gold);
@@ -120,7 +142,8 @@ const { sidebar } = Astro.locals.starlightRoute
     /** @returns whether this <li> (or a descendant) matches. */
     function filterItem(li: Element, query: string): boolean {
       const span = labelSpan(li)
-      const ownMatch = (span?.textContent ?? '').toLowerCase().includes(query)
+      const subtext = li.querySelector<HTMLElement>(':scope > a')?.dataset.subtext ?? ''
+      const ownMatch = `${span?.textContent ?? ''} ${subtext}`.toLowerCase().includes(query)
       const details = li.querySelector(':scope > details')
       let childMatch = false
       if (details) {
