@@ -1,6 +1,11 @@
 [toolchain]
 # Pinned so every developer and CI runner compiles Novis identically.
 # Bump deliberately, in its own commit, with CI green on all three platforms.
+#
+# 1.99.1 exactly. 1.99.0 on x86_64 leaves junk in bits 1 to 7 of a `bool` that an `extern "C"` Rust
+# function returns (rust-lang/rust#163911), and the JIT reads helper results such as `nvs_str_eq`
+# as `I8`, so a string comparison could come out wrong. 1.98.x has the Windows fiber TLS-destructor
+# bug fixed in 1.99.0, and wasmtime runs guest calls on Windows fibers.
 channel = "1.99.1"
 components = ["rustfmt", "clippy", "rust-src", "llvm-tools"]
 targets = [

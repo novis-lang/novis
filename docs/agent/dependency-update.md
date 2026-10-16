@@ -50,6 +50,10 @@ of what it reads and how it judges a pin. It reads these places, and `cargo upda
 Any `HOLD` whose date has passed is part of this sweep: retry it, and either drop the hold or give it a new
 date and a reason that is still true.
 
+**Latest stable means a final release**: never an `-rc`, `-alpha`, `-beta` or `-dev`, which is what
+`bun nv deps` compares against. A server image tracks its vendor's LTS line, and the newer line gets a hold
+naming it. **A workspace row no member manifest names is removed, not bumped.**
+
 ## 2. Move one thing at a time
 
 **One dependency, one commit** (`rule:packaging/one-bump-one-commit`) — or one group that genuinely cannot move separately, such as

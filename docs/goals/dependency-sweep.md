@@ -48,7 +48,7 @@ stages:
     context: [.github/workflows/ci.yml, .github/workflows/release.yml, docker/Dockerfile, docs/implementation-plan.md]
   - id: 10
     title: a command says what is behind
-    status: open
+    status: done
     context: [docs/agent/dependency-update.md, tools/nv/main.ts]
 checks:
   - id: toolchain
@@ -306,52 +306,40 @@ see changes.
 - [x] Read every pin and compare it with its registry: the Cargo workspaces, the three `package.json` files, action SHAs, Dockerfile bases, the toolchain and the wasi-sdk pins. Hold lines are read. The tool never edits a file. `tools/nv/cmd/deps.ts:1`
 - [x] `dependency-update.md` § *1. Orient* starts from `bun nv deps`. Its pin table gains the npm, Docker and wasi-sdk rows it is missing. `docs/agent/dependency-update.md:1`
 - [x] A `package.json` hold is `"holds": { "<package>": "HOLD (revisit <date>): <reason>" }`. TypeScript and `@types/node` in the extension have theirs, and the image and pdf components' blocked crates have their `HOLD` lines. `editors/vscode/package.json:380`, `extensions/image/Cargo.toml:18`
-- [ ] Move or hold every image `bun nv deps --check` names. `tests/db/compose.yaml:76`, `benches/compare/compose.bun.yaml:10`
+- [x] Move or hold every image `bun nv deps --check` names. `tests/db/compose.yaml:76`, `benches/compare/compose.bun.yaml:10`
 
 ## Handoff
 
 ### State
 
-Stages 1 to 9 are done. Stage 10 has its command, and only images are left behind.
-- `bun nv deps` reads 293 pins and `--check` fails on 11, every one a container image. 12 pins are
-  held and 4 are floating tags (`trixie-slim`, `cc-debian13:nonroot`), which it does not compare.
-  What it reads and how it judges is its head comment (`tools/nv/cmd/deps.ts:1`), and its readers
-  are tested offline (`tools/nv/test/deps.test.ts`). A run takes about a minute, most of it the
-  Docker Hub tag lists of `php`, `nginx` and `mysql`.
-- A `package.json` hold is a `holds` object keyed by package (`editors/vscode/package.json:380`).
-  TypeScript `~6.0.3` and `@types/node` 20 are held there. The image component holds
-  `color_quant`, `harfrust` and `moxcms`, and pdf holds `base64` and `usvg`, each with the parent
-  that pins it (`extensions/image/Cargo.toml:18`, `extensions/pdf/Cargo.toml:16`).
-- The images behind: `alpine/openssl` 3.5.9 and `mailpit` v1.31.6 are patch moves. `oven/bun`
-  1.4.3-slim matches the tree's Bun. `nginx` 1.31.7-alpine is in three bench compose files.
-  `redis` 8.10.2, `mariadb` 13.0.2 (from the 11.4 LTS), `mysql` 26.7.0 (from the 8.4 LTS), SQL
-  Server 2025-CU9 on ubuntu-24.04, and a new `smblds` digest for `latest` are in
-  `tests/db/compose.yaml`.
-- The release images are on `cc-debian13:nonroot` and `debian:trixie-slim`. No image has been built
-  around a binary on trixie yet, so CI's `container images` job runs `tests/docker/smoke.sh` on it
-  for the first time.
-- The floor's `tests/hostile/core/Zip/extract/01-many-files-a-taken-name-and-a-deep-folder.nvs`
-  passes, but takes 22 s alone in a debug build against its 30 s timeout, and fails under the
-  sweep's load. Each folder level walks from the root again, so an entry costs O(depth²)
-  (`crates/nvs-stdlib/src/zip.rs:894`). The fix is a linear walk, not a longer timeout.
-- The nightly run 38869457440 tested `cb7021a24`, 803 commits behind `HEAD`, because `main` is
-  not pushed. Its ten red jobs say nothing about this tree.
+Every stage is done, and `bun nv deps --check` exits 0: 293 pins, 14 held, 4 floating, 275 current.
+- The bench images are `oven/bun` 1.4.3-slim and `nginx` 1.31.7-alpine. `bun nv bench-compare
+  --smoke` has all four peers agree on every case. `bench-proxied` uses the same nginx image and was
+  not run, because it needs a Linux release `nvs`.
+- `tests/db/compose.yaml` runs `alpine/openssl` 3.5.9, `mailpit` v1.31.6, `redis` 8.10.2, SQL Server
+  2025-CU9 and the new `smblds` digest. MySQL moves to 9.7.2 and MariaDB to 12.3.3, the lines each
+  `lts` tag names, and each holds against the newer short-support line (`tests/db/compose.yaml:130`,
+  `tests/db/compose.yaml:183`). `bun nv db-matrix --all` passes its five TCP legs, `cargo test --test
+  samba` passes, and so do the 90 `ldap-` and 17 `session-` conformance cases.
+- The three socket legs of `bun nv db-matrix` fail on this Windows host with `EOPNOTSUPP`, for
+  PostgreSQL too, whose image did not move. A socket that Docker Desktop's VM creates under
+  `/mnt/wsl` cannot be connected to from the distro.
+- `looper verify` failed only on two binaries this group does not reach, and each passed alone:
+  `nvs-ext`'s `a_200_page_report_crosses_under_the_requests_memory` hit `Limit(Cpu)` under load
+  (`crates/nvs-ext/tests/pdf.rs:644`), and `live_edit`'s two compile-race cases timed out.
+- The nightly run 38869457440 tested `cb7021a24`, 806 commits behind `HEAD`, because `main` is not
+  pushed. Its ten red jobs say nothing about this tree.
 
 ### Next
 
-**Stage 10: the images `bun nv deps --check` names.** Files: `tests/db/compose.yaml` and the
-compose files under `benches/compare/` and `benches/proxied/`. Then the goal-end gates and `DONE`.
-
-- [ ] The bench images: `oven/bun` 1.4.3-slim and `nginx` in all three files, one commit each, each checked with `bun nv bench-compare` or `bun nv bench-proxied` against one peer. `benches/compare/compose.bun.yaml:10`, `benches/compare/compose.common.yaml:15`
-- [ ] The test services' patch moves, `alpine/openssl` and `mailpit`, and `redis` 8.10. Run `bun nv db-matrix` against each moved service. `tests/db/compose.yaml:76`, `tests/db/compose.yaml:301`
-- [ ] MySQL, MariaDB, SQL Server and `smblds`: move each and run its matrix, or hold it with the reason. A move off an LTS line is a real choice, so a hold that names the LTS is the safe default. `tests/db/compose.yaml:133`, `tests/db/compose.yaml:392`
-- [ ] `bun nv deps --check` exits 0, then `bun nv verify --doc` and `bun nv owners --closes dependency-sweep`.
+**Goal reached.** The next goal on the chain is `completeness-holes`, and its own handoff names its
+first group.
 
 ### Backlog
 
 - The user pushes `main`, so the nightly tests the current tree (`.github/workflows/ci.yml:7`), and decides on `looper sync`: `looper lint` says `AGENTS.md`'s managed text and `.claude/settings.json` drifted.
+- The socket legs of `bun nv db-matrix` on a Windows host (`tools/nv/cmd/db-matrix.ts:41`, `rule:core-classes/db-unix-socket-path`).
 - Proof debt: the stale perf records and the `Core\Test\Outcome`/`Summary` proofs (`bun nv proofs --owed`). The Zip extract attack needs a linear folder walk (`crates/nvs-stdlib/src/zip.rs:894`, `rule:security/writes-open-beneath-a-handle`).
-- The website's mobile menu needs one look in a narrow browser window (`website/src/styles/custom.css:907`).
-- Load flakes: `ldap` deadlines, the `live_edit` 30 s wait (`crates/nvs-cli/tests/live_edit.rs:1010`), `spreadsheet_read` and `parallel_tests_overlap_on_more_than_one_core` (`crates/nvs-cli/src/runner.rs:4100`). Linux only: `crates/nvs-cli/tests/run_command.rs:688`, and the scaling margin (`crates/nvs-cli/src/serve.rs:3957`).
-- wasmtime 50.0.0 final and cranelift 0.137, held at `Cargo.toml:346`: move the epoch callback's fuel refresh out, because `StoreHookState` has no `set_hostcall_fuel` (`crates/nvs-ext/src/call.rs:1075`), and drop the `new_own` workaround and its playbook bullet (`crates/nvs-ext/src/handle.rs:176`).
-- hyper 1.12's `max_header_size` is a question for the user (`crates/nvs-server/src/serve.rs`). The user mirrors this group's `.github/dependabot.yml` comment on `landing` (`.github/dependabot.yml:31`).
+- Load flakes: the pdf report's CPU limit (`crates/nvs-ext/tests/pdf.rs:644`), `ldap` handshake deadlines under a loaded host (`crates/nvs-ldap/tests/samba.rs:75`), the `live_edit` 30 s wait (`crates/nvs-cli/tests/live_edit.rs:1010`), `spreadsheet_read` and `parallel_tests_overlap_on_more_than_one_core` (`crates/nvs-cli/src/runner.rs:4100`).
+- wasmtime 50.0.0 final and cranelift 0.137, held at `Cargo.toml:346`: move the epoch callback's fuel refresh out (`crates/nvs-ext/src/call.rs:1075`), and drop the `new_own` workaround (`crates/nvs-ext/src/handle.rs:176`).
+- hyper 1.12's `max_header_size` is a question for the user (`crates/nvs-server/src/serve.rs`). The user mirrors `.github/dependabot.yml` on `landing` (`.github/dependabot.yml:31`), and moves the local MSVC to VS 2026's 14.50.
