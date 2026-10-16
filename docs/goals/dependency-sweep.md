@@ -322,6 +322,10 @@ Stages 1 to 4 are done. Stage 5 has its fuzz item left.
   and no fingerprint. `markup5ever` 0.40, `string_cache` 0.11 and `web_atoms` 0.3 follow in all
   three locks: the root, `fuzz/` and `extensions/pdf/`.
 - `cargo deny check` passes, and the attribution file is regenerated.
+- The gate was not green when these two slices were committed. Its first run failed only in
+  tests: `nvs-host`'s `a_herd_of_accepts_on_duplicates_of_one_listener_all_return`
+  (`crates/nvs-host/src/net.rs:2994`) and `live_edit`, each passing alone. Its second run stopped
+  at `owners`, on gap records another session had not committed.
 - The nightly run 38869457440 tested `cb7021a24`, an old commit, again. Its red jobs are not this
   tree's until the user pushes. The floor debt run needs `samba-ad`, and Docker is not running on
   this machine.
