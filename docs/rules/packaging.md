@@ -1545,6 +1545,16 @@ it is a sandbox escape — and it is the same argument that puts `hyper` in fron
 Novis did not write. Wasmtime is memory-safe Rust and pins the same Cranelift version the JIT already
 uses, so the two coexist with one shared `cranelift-codegen`.
 
+**The engine names the wasm features a guest may use, and turns every other one off.** The set is
+WebAssembly 2.0 without `externref`, plus the component model: what `wasm32-wasip2` with `+simd128`
+emits for the built-in components and the `nvs ext new` template. GC, exceptions, threads, tail calls,
+memory64, multi-memory, relaxed SIMD, wide arithmetic and the component model's async are off. Each is
+validator and compiler code a guest could reach, and wasmtime's recent advisories were in exactly the
+exception and GC paths. A proposal joins the set only when a built-in component or the template needs
+it, and a wasmtime bump that turns a new one on by default does not widen the sandbox. The set is
+`nvs_ext::call::PROPOSALS`, and `crates/nvs-ext/tests/proposals.rs` loads every built-in component
+under it and checks that a guest using each excluded proposal does not compile.
+
 What this buys: one binary for every platform; bindings generated for any language with a wasm target
 rather than C only; a crashing or malicious extension that harms one request and not the process; and
 calls that are type-checked at compile time ([`packaging/extension-calls-are-statically-typed`](packaging.md#packaging-extension-calls-are-statically-typed)).
@@ -1571,6 +1581,8 @@ under the request's budget (`crates/nvs-ext/tests/call.rs`).
   half of the story, not a substitute ([`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest)).
 - **A wasm engine of Novis's own on the Cranelift it already embeds.** Its validator would be a
   sandbox nobody else audits.
+- **wasmtime's default proposal set.** It follows wasmtime's releases, so a dependency bump would
+  decide what a guest may run, and it carries GC and exception code no component uses.
 
 <sub>See also [`core-api/five-placements`](core-api.md#core-api-five-placements), [`packaging/values-cross-as-handles`](packaging.md#packaging-values-cross-as-handles), [`packaging/a-guest-has-no-ambient-authority`](packaging.md#packaging-a-guest-has-no-ambient-authority), [`security/no-ffi`](security.md#security-no-ffi), [`security/closed-doors`](security.md#security-closed-doors), [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest).</sub>
 

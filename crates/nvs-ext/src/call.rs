@@ -1,8 +1,8 @@
 //! A guest call: one instance per extension per request, run as a wasmtime async call on the
 //! request's own core, its CPU time and linear memory charged to the request.
 //!
-//! [`Host`] is the process's half: one engine with epoch interruption and the pooling allocator,
-//! the linker every instance is made with, and the ticker thread that advances the epoch every
+//! [`Host`] is the process's half: one engine with epoch interruption, the pooling allocator and
+//! only the wasm features in [`PROPOSALS`], the linker every instance is made with, and the ticker thread that advances the epoch every
 //! [`TICK`]. A [`Loader`](crate::load::Loader) made over [`Host::engine`] compiles each component
 //! once, and every core instantiates that same compiled component.
 //!
@@ -87,7 +87,7 @@ use rand::Rng;
 use wasmtime::component::{ComponentExportIndex, Instance, Linker, ResourceAny, Val};
 use wasmtime::{
     AsContextMut, Config, Engine, InstanceAllocationStrategy, PoolingAllocationConfig,
-    ResourceLimiter, Store, Trap, UpdateDeadline,
+    ResourceLimiter, Store, Trap, UpdateDeadline, WasmFeatures,
 };
 
 use nvs_config::resolve::Disk;
@@ -702,6 +702,17 @@ const CORE_INSTANCES: u32 = 3;
 /// The tables one guest may hold: its own module's function table and the shim's.
 const TABLES: u32 = 2;
 
+/// The wasm features a guest may use, and the engine turns every other one off: WebAssembly 2.0
+/// without `externref`, and the component model. That is what `wasm32-wasip2` with `+simd128`
+/// emits for the built-in components and for the `nvs ext new` template, so a component built
+/// either way loads. GC, exceptions, threads, tail calls, memory64, multi-memory, relaxed SIMD,
+/// wide arithmetic and the component model's async are off, so a wasmtime bump that turns a new
+/// proposal on by default does not widen the sandbox. A proposal joins this set only when a
+/// built-in component or the template needs it.
+pub const PROPOSALS: WasmFeatures = WasmFeatures::WASM2
+    .difference(WasmFeatures::GC_TYPES)
+    .union(WasmFeatures::COMPONENT_MODEL);
+
 impl Host {
     /// A host with room for `slots` instances at once, its linker filled by `imports`, and its
     /// ticker started. Each slot reserves the pool's address space for one memory,
@@ -722,6 +733,7 @@ impl Host {
         pool.total_tables(slots.saturating_mul(TABLES));
         pool.total_stacks(slots);
         let mut config = Config::new();
+        config.wasm_features(PROPOSALS.complement(), false);
         config.epoch_interruption(true);
         // One call per store at a time, on wasmtime's own fiber: a component is not re-entered.
         config.concurrency_support(false);
