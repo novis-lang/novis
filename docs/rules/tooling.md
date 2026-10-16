@@ -3,7 +3,7 @@
 
 # Tooling
 
-*7 of 64 rules below are **designed** rather than shipped, and are marked where they appear.*
+*8 of 65 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="tooling-shebang-opens-code-mode"></a>
 
@@ -762,7 +762,7 @@ evolves ([`tooling/fmt-is-idempotent`](tooling.md#tooling-fmt-is-idempotent)).
 
 <a id="tooling-fmt-a-list-is-one-line-or-one-item-per-line"></a>
 
-## A list is on one line or has one item per line, and a line break its author wrote at the list's own level is what breaks it  *(designed — owned by M10)*
+## A list is on one line or has one item per line, and a line break its author wrote at the list's own level is what breaks it  *(designed — owned by goal formatter-complete)*
 
 `rule:tooling/fmt-a-list-is-one-line-or-one-item-per-line`
 
@@ -1152,11 +1152,36 @@ it is given.
 
 These, with the target paths, are the only flags: every one is an I/O mode, and none changes the output
 ([`tooling/fmt-is-one-canonical-style`](tooling.md#tooling-fmt-is-one-canonical-style)). `--check` exits `0` on an already-formatted file because the
-formatter is a fixed point ([`tooling/fmt-is-idempotent`](tooling.md#tooling-fmt-is-idempotent)); a non-zero exit names the file, and it means
-one thing only, since formatting and repair are never one command
-([`tooling/fmt-is-never-a-diagnostic`](tooling.md#tooling-fmt-is-never-a-diagnostic)).
+formatter is a fixed point ([`tooling/fmt-is-idempotent`](tooling.md#tooling-fmt-is-idempotent)). A non-zero exit names the file, and
+[`tooling/fmt-exit-status-says-what-it-found`](tooling.md#tooling-fmt-exit-status-says-what-it-found) says what each code means. Formatting and repair are
+never one command ([`tooling/fmt-is-never-a-diagnostic`](tooling.md#tooling-fmt-is-never-a-diagnostic)).
 
 <sub>See also [`tooling/fmt-is-never-a-diagnostic`](tooling.md#tooling-fmt-is-never-a-diagnostic), [`tooling/fmt-is-idempotent`](tooling.md#tooling-fmt-is-idempotent).</sub>
+
+<a id="tooling-fmt-exit-status-says-what-it-found"></a>
+
+## `nvs fmt` exits `1` when a file would change and `2` when a file is refused  *(designed — owned by goal formatter-complete)*
+
+`rule:tooling/fmt-exit-status-says-what-it-found`
+
+`nvs fmt` exits `0` when it found nothing to report, `1` when `--check` or `--diff` found a file that
+would change, and `2` when a file was refused: it does not parse, or it could not be read or written.
+When one run finds both, it exits `2`. `--check` beside `--stdin` reads standard input, writes nothing
+and exits by the same codes.
+
+A CI job or a pre-commit hook acts differently on the two failures. A file that would change is fixed
+by running `nvs fmt`. A file that does not parse is not, and running the formatter again only repeats
+the refusal. Prettier and Black split their exit codes the same way, so a hook written for either reads
+this one without a lookup.
+
+**Not on disk.** Both failures exit `1` (`crates/nvs-cli/src/fmt.rs`), and `--check` is refused
+beside `--stdin` (`crates/nvs-cli/src/main.rs`).
+
+**Declined:**
+- **One non-zero code for both failures.** A hook then reports a broken file as unformatted, and the
+  fix it suggests does nothing.
+
+<sub>See also [`tooling/fmt-check-writes-nothing`](tooling.md#tooling-fmt-check-writes-nothing), [`tooling/fmt-is-never-a-diagnostic`](tooling.md#tooling-fmt-is-never-a-diagnostic).</sub>
 
 <a id="tooling-doc-comment-is-three-slashes"></a>
 

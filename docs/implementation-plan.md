@@ -68,7 +68,7 @@ being sorted like one. Nothing is ever renumbered, because a number that moves b
 | Carried by | Milestone | What it builds | Loop-days |
 |---|---|---|---|
 
-| goal `diagnostic-records` | [M10](plan/m10.md) | Developer tooling and IDE integration (~14 weeks; scope shifted by `rule:ide/every-feature-is-staged-behind-its-dependency`, net change undetermined) | ~8 |
+| goals `diagnostic-records`, `formatter-complete` | [M10](plan/m10.md) | Developer tooling and IDE integration (~14 weeks; scope shifted by `rule:ide/every-feature-is-staged-behind-its-dependency`, net change undetermined) | ~8 |
 | ongoing | [M12](plan/m12.md) | Optimising JIT tier (ongoing) | measurement-bound |
 | backlog 4 | [M15](plan/m15.md) | Packages, the registry and the supply chain (~8 weeks) | ~3 + a calendar floor |
 | backlog 5 | [M16](plan/m16.md) | `nvs/web`, `nvs new`, and the framework (~12 weeks) | ~4 |

@@ -6,6 +6,6 @@ it is given.
 
 These, with the target paths, are the only flags: every one is an I/O mode, and none changes the output
 (`rule:tooling/fmt-is-one-canonical-style`). `--check` exits `0` on an already-formatted file because the
-formatter is a fixed point (`rule:tooling/fmt-is-idempotent`); a non-zero exit names the file, and it means
-one thing only, since formatting and repair are never one command
-(`rule:tooling/fmt-is-never-a-diagnostic`).
+formatter is a fixed point (`rule:tooling/fmt-is-idempotent`). A non-zero exit names the file, and
+`rule:tooling/fmt-exit-status-says-what-it-found` says what each code means. Formatting and repair are
+never one command (`rule:tooling/fmt-is-never-a-diagnostic`).

@@ -38,6 +38,7 @@
     "tooling/fmt-is-idempotent",
     "tooling/fmt-is-never-a-diagnostic",
     "tooling/fmt-check-writes-nothing",
+    "tooling/fmt-exit-status-says-what-it-found",
     "tooling/doc-comment-is-three-slashes",
     "tooling/doc-comment-attaches-to-the-next-declaration",
     "tooling/doc-comment-tags-are-see-and-example",
