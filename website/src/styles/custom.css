@@ -904,7 +904,7 @@ starlight-theme-select select {
 :root {
   --sl-menu-button-size: 2.75rem;
 }
-starlight-menu-button button {
+.sl-menu-button {
   justify-content: center;
   align-items: center;
   border: 1px solid var(--nv-hairline-strong);
@@ -918,24 +918,25 @@ starlight-menu-button button {
     border-color var(--nv-fast) var(--nv-ease),
     transform var(--nv-fast) var(--nv-ease);
 }
-starlight-menu-button button svg {
+.sl-menu-button svg {
   width: 1.25rem;
   height: 1.25rem;
 }
-starlight-menu-button button:active {
+.sl-menu-button:active {
   transform: scale(0.94);
 }
-starlight-menu-button[aria-expanded='true'] button {
+/* The button while the menu is open. The menu is a popover beside it. */
+.sl-menu-button:has(~ :popover-open) {
   border-color: var(--sl-color-accent);
   background-color: var(--sl-color-accent-low);
   color: var(--sl-color-text-accent);
   box-shadow: none;
 }
-:root[data-theme='light'] starlight-menu-button button {
+:root[data-theme='light'] .sl-menu-button {
   background-color: var(--nv-surface);
   color: var(--sl-color-white);
 }
-:root[data-theme='light'] starlight-menu-button[aria-expanded='true'] button {
+:root[data-theme='light'] .sl-menu-button:has(~ :popover-open) {
   background-color: var(--sl-color-accent-low);
   color: var(--sl-color-accent-high);
 }

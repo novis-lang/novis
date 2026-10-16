@@ -5,7 +5,7 @@
   "type": "module",
   "description": "The public website for Novis.",
   "engines": {
-    "node": ">=20.19.0"
+    "node": ">=22.22.0"
   },
   "scripts": {
     "dev": "astro dev",
@@ -16,9 +16,9 @@
     "sync:render": "bun ../tools/nv/main.ts render --website"
   },
   "dependencies": {
-    "@astrojs/starlight": "^0.41.9",
+    "@astrojs/starlight": "^0.42.6",
     "@fontsource-variable/jetbrains-mono": "^5.3.0",
     "@fontsource-variable/plus-jakarta-sans": "^5.3.0",
-    "astro": "^7.2.9"
+    "astro": "^7.4.0"
   }
 }
