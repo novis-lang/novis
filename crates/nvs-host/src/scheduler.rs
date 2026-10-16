@@ -1270,12 +1270,23 @@ impl Scheduler {
 
     /// How many task stacks this worker is holding idle for the next spawn.
     ///
-    /// Bounded by [`crate::stack::MAX_POOLED_STACKS`] and, below that, by the
-    /// number of tasks this scheduler has ever had in flight at once — which is
-    /// the O(in-flight) property `rule:programs/memory-priority` asks of anything the runtime keeps.
+    /// Bounded by the cap [`bound_pool_by`](Self::bound_pool_by) set, if any,
+    /// and by the number of tasks this scheduler has ever had in flight at
+    /// once, which is the O(in-flight) property `rule:programs/memory-priority`
+    /// asks of anything the runtime keeps.
     #[must_use]
     pub fn pooled_stacks(&self) -> usize {
         self.stacks.pooled()
+    }
+
+    /// Keeps at most what `cap` returns of idle task stacks, read each time a
+    /// finished task gives its stack back.
+    ///
+    /// A serving core passes its share of `[server] max_in_flight`, read live so
+    /// that a reload moves it. A scheduler never bounded keeps the most it has
+    /// had in flight at once. [`crate::stack`]'s *Why a pool* owns both.
+    pub fn bound_pool_by(&mut self, cap: impl Fn() -> usize + 'static) {
+        self.stacks.bound_by(Box::new(cap));
     }
 }
 
@@ -1597,7 +1608,7 @@ fn yield_on(raw: *const (), waiting: Waiting, tree: Option<usize>) -> Resumed {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::stack::{MAX_POOLED_STACKS, TASK_STACK_SIZE};
+    use crate::stack::TASK_STACK_SIZE;
     use crate::{Worker, cpus};
     use nvs_runtime::{NvsStr, OutputSink};
     use std::cell::{Cell, RefCell};
@@ -2197,8 +2208,38 @@ mod tests {
         );
         assert_eq!(
             sched.pooled_stacks(),
-            TASKS.min(MAX_POOLED_STACKS),
+            TASKS,
             "the pool kept a different number of stacks than the tasks in flight"
+        );
+    }
+
+    /// A serving core's cap is read each time a stack comes back, so a reload
+    /// that lowers `max_in_flight` shrinks the pool at the next task that ends.
+    #[test]
+    fn the_pool_keeps_what_its_bound_returns_now() {
+        let cap = Rc::new(Cell::new(4_usize));
+        let mut sched = Scheduler::new();
+        let read = Rc::clone(&cap);
+        sched.bound_pool_by(move || read.get());
+        for _ in 0..8 {
+            sched.spawn(ctx(), TaskRoot::Request, |ctx| {
+                suspend(ctx, Waiting::Yielded);
+            });
+        }
+        sched.run();
+        assert_eq!(
+            sched.pooled_stacks(),
+            4,
+            "eight tasks in flight left the pool past its cap"
+        );
+
+        cap.set(2);
+        sched.spawn(ctx(), TaskRoot::Request, |_ctx| {});
+        sched.run();
+        assert_eq!(
+            sched.pooled_stacks(),
+            2,
+            "a lowered cap was not met when the next task ended"
         );
     }
 
@@ -2252,9 +2293,9 @@ mod tests {
         assert_eq!(ran.get(), TASKS, "a task's body did not run past its turn");
         assert_eq!(
             sched.pooled_stacks(),
-            MAX_POOLED_STACKS,
+            TASKS,
             "a hundred thousand finished tasks left the pool at something other \
-             than its cap"
+             than the most it had in flight"
         );
     }
 

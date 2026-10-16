@@ -654,6 +654,8 @@ pub(crate) fn run(
             waits,
             serving,
             ticks: true,
+            admission: Arc::clone(&admission),
+            cores: 1,
             // Unpinned, and a `CpuId` is only ever handed out by `cpus()`, so
             // there is no core to report a stall against and nothing to watch.
             watched: None,
@@ -723,6 +725,8 @@ pub(crate) fn run(
             // One roster and so one ticker, on the first worker: a schedule
             // armed per core would fire every entry once per core.
             ticks: index == 0,
+            admission: Arc::clone(&admission),
+            cores: workers,
             watched: Some((cpu, Arc::clone(&watchdog))),
         };
         match nvs_host::Worker::spawn(cpu, move |sched| serve_on_worker(sched, core)) {
@@ -821,6 +825,11 @@ struct Core {
     /// A flag rather than the roster itself, because an `Armed` holds an `Rc`
     /// and so is one of the things a worker builds rather than is handed.
     ticks: bool,
+    /// The process's one valve, which this core reads its share of
+    /// `max_in_flight` from to cap its idle task stacks.
+    admission: Arc<Admission>,
+    /// How many cores serve, which is what `max_in_flight` is shared by.
+    cores: usize,
     /// This core's place in `rule:http-server/a-wedged-core-is-detected-by-its-deadline`'s
     /// watched set: the CPU it is pinned to, and the process's one watchdog,
     /// which it registers with itself once it holds a reactor to read a
@@ -851,8 +860,14 @@ fn serve_on_worker(sched: &mut nvs_host::Scheduler, core: Core) -> bool {
         waits,
         serving,
         ticks,
+        admission,
+        cores,
         watched,
     } = core;
+    // `rule:concurrency/a-task-stack-is-reserved-wide-and-pooled`: this core
+    // keeps at most its share of `max_in_flight` idle. The number is read each
+    // time a stack comes back, so a reload that moves it reaches the pool too.
+    sched.bound_pool_by(move || admission.max_in_flight().div_ceil(cores.max(1)));
     let stopped = Rc::new(Cell::new(false));
     // This core's own table over § 4's set, which is the same set on every
     // core: what is per-core is the structure, because an `Rc` graph belongs to
@@ -3749,7 +3764,8 @@ mod tests {
     /// the TLB on every core the process runs on, so a cold arm measures four
     /// cores queueing on the kernel rather than four cores serving, and scaled
     /// barely past one. The warm batch leaves twice [`PER_CORE`] stacks in the
-    /// pool, under [`nvs_host::MAX_POOLED_STACKS`], so the timed batch maps none.
+    /// pool, which has no cap here and keeps them all, so the timed batch maps
+    /// none.
     ///
     /// The ratio does not rest on the pinning, which is a best effort the OS may
     /// refuse ([`nvs_host::Worker::pinned`]): a worker is one thread and so is

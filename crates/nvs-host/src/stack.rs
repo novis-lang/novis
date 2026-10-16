@@ -28,8 +28,9 @@
 //! What it spends, in the terms
 //! `rule:programs/memory-priority` asks for: one
 //! reservation per in-flight task, charged to the request that owns it, plus at
-//! most [`MAX_POOLED_STACKS`] reservations per worker held idle between tasks.
-//! Both are O(in-flight) and neither grows with requests served.
+//! most the worker's cap of reservations held idle between tasks, which is its
+//! share of `[server] max_in_flight` on a serving core. Both are O(in-flight)
+//! and neither grows with requests served.
 //!
 //! # Why the width is 1 MiB and not chosen freely
 //!
@@ -51,14 +52,21 @@
 //! [`Scheduler`](crate::Scheduler), which is `!Send` for the same reason
 //! everything else on a core is.
 //!
-//! **[`MAX_POOLED_STACKS`] is a compiled-in stand-in for the worker's in-flight
-//! cap**, which does not exist yet: admission arithmetic and the configurable
-//! `[limits]` that bound it are goal `governance`'s, and this constant is what that work
-//! replaces. Without it the pool's only bound would be the high-water mark of
-//! concurrency, so one burst would leave its stacks — and the pages they
-//! touched — resident for the life of the worker. Handing a stack back to the
-//! OS past the cap is the deliberate trade: the burst pays a syscall on the way
-//! down so the steady state does not pay a footprint forever.
+//! **A serving core caps its pool at its share of `max_in_flight`**:
+//! `nvs serve` hands [`Scheduler::bound_pool_by`](crate::Scheduler::bound_pool_by)
+//! a function reading admission's live number divided by the worker count, so
+//! a reload that moves `max_in_flight` moves the cap at the next stack that
+//! comes back, and a lowered cap frees the excess there. Without a cap the
+//! pool's only bound is the most tasks the worker has had in flight at once,
+//! so one burst would leave its stacks, and the pages they touched, resident
+//! for the life of the worker. Handing a stack back to the OS past the cap is
+//! the deliberate trade: the burst pays a syscall on the way down so the
+//! steady state does not pay a footprint forever.
+//!
+//! A scheduler that is not a serving core has no admission number and keeps
+//! that high-water mark. Each program's tasks are bounded by its `max_tasks`,
+//! and `nvs run`'s scheduler ends with its one program, so a compiled-in
+//! number here would bound nothing the work does not.
 //!
 //! # The spare stack
 //!
@@ -86,15 +94,6 @@ use corosensei::stack::{DefaultStack, Stack as _};
 /// of time (`rule:http-server/a-wedged-core-is-detected-by-its-deadline`), which is the only thing outside this crate that has
 /// a reason to know it.
 pub const TASK_STACK_SIZE: usize = 1 << 20;
-
-/// How many idle stacks one worker's pool keeps before handing one back to the
-/// OS.
-///
-/// A compiled-in stand-in for that worker's in-flight cap, exactly as every
-/// other limit in this goal is compiled in: 1 GiB of reserved address space per
-/// worker, which is unremarkable, against the resident pages those stacks
-/// touched, which is what the cap actually bounds.
-pub const MAX_POOLED_STACKS: usize = 1024;
 
 /// The address space a thread's spare stack reserves, guard page excluded.
 ///
@@ -159,7 +158,11 @@ pub(crate) fn bounds(stack: &DefaultStack) -> (usize, usize) {
 /// and for the same reason.
 pub(crate) struct StackPool {
     free: Vec<DefaultStack>,
-    cap: usize,
+    /// How many idle stacks the pool keeps, read each time one comes back.
+    /// `None` keeps every one, so the pool is bounded by the most tasks its
+    /// scheduler has had in flight at once. The module doc owns which
+    /// schedulers have a cap.
+    cap: Option<Box<dyn Fn() -> usize>>,
     /// Whether a fresh reservation fails, which only a test sets.
     #[cfg(test)]
     refuse_fresh: bool,
@@ -171,26 +174,33 @@ impl std::fmt::Debug for StackPool {
         // between runs; how many are idle is the only interesting fact.
         f.debug_struct("StackPool")
             .field("pooled", &self.free.len())
-            .field("cap", &self.cap)
+            .field("cap", &self.cap.as_ref().map(|cap| cap()))
             .finish()
     }
 }
 
 impl StackPool {
-    /// An empty pool bounded by [`MAX_POOLED_STACKS`].
-    pub(crate) const fn new() -> Self {
-        Self::with_cap(MAX_POOLED_STACKS)
-    }
-
-    /// An empty pool with an explicit bound, so a test can reach the cap
-    /// without reserving a gigabyte to do it.
-    pub(crate) const fn with_cap(cap: usize) -> Self {
+    /// An empty pool with no cap of its own.
+    pub(crate) fn new() -> Self {
         Self {
             free: Vec::new(),
-            cap,
+            cap: None,
             #[cfg(test)]
             refuse_fresh: false,
         }
+    }
+
+    /// An empty pool that keeps at most `cap` idle stacks.
+    #[cfg(test)]
+    pub(crate) fn with_cap(cap: usize) -> Self {
+        let mut pool = Self::new();
+        pool.bound_by(Box::new(move || cap));
+        pool
+    }
+
+    /// Keeps at most what `cap` returns idle, from the next stack given back.
+    pub(crate) fn bound_by(&mut self, cap: Box<dyn Fn() -> usize>) {
+        self.cap = Some(cap);
     }
 
     /// A stack for a task, recycled if the pool has one and freshly reserved if
@@ -221,11 +231,17 @@ impl StackPool {
     }
 
     /// Takes a finished task's stack back, keeping it for the next task unless
-    /// the pool is already at its cap.
+    /// the pool is already at its cap. A cap lowered since the last call frees
+    /// the idle stacks past it here.
     pub(crate) fn give(&mut self, stack: DefaultStack) {
-        if self.free.len() < self.cap {
+        let Some(cap) = self.cap.as_ref().map(|cap| cap()) else {
+            self.free.push(stack);
+            return;
+        };
+        if self.free.len() < cap {
             self.free.push(stack);
         }
+        self.free.truncate(cap);
     }
 
     /// How many stacks are idle in this pool.
@@ -259,13 +275,27 @@ mod tests {
 
     #[test]
     fn a_stack_past_the_cap_goes_back_to_the_os() {
-        // The property `MAX_POOLED_STACKS` exists for, at a width a test can
-        // afford: a burst that ends does not leave its whole peak resident.
+        // A burst that ends does not leave its whole peak resident.
         let mut pool = StackPool::with_cap(2);
         for _ in 0..4 {
             pool.give(DefaultStack::new(TASK_STACK_SIZE).expect("a test stack"));
         }
         assert_eq!(pool.pooled(), 2);
+    }
+
+    #[test]
+    fn a_lowered_cap_frees_the_idle_stacks_past_it_at_the_next_give() {
+        let cap = std::rc::Rc::new(std::cell::Cell::new(4));
+        let mut pool = StackPool::new();
+        let read = std::rc::Rc::clone(&cap);
+        pool.bound_by(Box::new(move || read.get()));
+        for _ in 0..4 {
+            pool.give(DefaultStack::new(TASK_STACK_SIZE).expect("a test stack"));
+        }
+        assert_eq!(pool.pooled(), 4);
+        cap.set(1);
+        pool.give(DefaultStack::new(TASK_STACK_SIZE).expect("a test stack"));
+        assert_eq!(pool.pooled(), 1, "a reload's lower cap was not met");
     }
 
     /// Where a local of the function `on_spare_stack` runs lives.
