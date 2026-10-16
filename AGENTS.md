@@ -91,9 +91,9 @@ which are whole where they stand.
 4. **Verify with one call, once, at the end:** `bun nv affected --run`. It names what your change
    reaches, runs `bun nv verify` — build, fmt, test, the `.nvst` trees and clippy, each step only when
    what it reads changed — and then only the acceptance checks your change reaches that are not green
-   yet. A loop session runs `bun nv verify` alone, because the driver sweeps the rest. Never choose a
-   wider command yourself: `nv guard` refuses one, and `bun nv affected` without `--run` says what
-   would run and why.
+   yet. A loop session runs `looper verify` instead, which runs `bun nv verify` alone and joins the
+   tree's run if one is going, because the driver sweeps the rest. Never choose a wider command
+   yourself: `nv guard` refuses one, and `bun nv affected` without `--run` says what would run and why.
 5. **A debug cargo command never takes `-p`.** `cargo build`, `cargo test` and `cargo clippy
    --all-targets` are the whole tree and warm in seconds; a `-p <crate>` resolves features over that one
    package and writes a second copy of every workspace crate beside the first, and a day of those
@@ -122,7 +122,7 @@ which are whole where they stand.
    clean up. **Whoever writes a scratch file deletes it when the work it served is done** — a session
    before it stops, a subagent before it reports, a test in its own `afterAll` or `finally` — and leaves
    only what a tool reads back on its next run (the `verify-*` logs and timings, `peek-ledger.json`,
-   `select-rec/discard/`, `bg/`). Delete only the files you wrote yourself: another
+   `select-rec/discard/`). Delete only the files you wrote yourself: another
    agent may be working in the tree at the same time. A git worktree is scratch too: it goes under
    `.agent-tmp/worktrees/<branch>`, and the agent that made it removes it and deletes its branch the
    moment that branch is merged into `main`, with `git worktree remove` and `git branch -d`, never a
@@ -284,9 +284,9 @@ Every session runs the same five steps, in this order, and **stops**:
    wrapping — that is the same for a three-line slice as for a three-hundred-line one, so small slices over
    one file set share a session and one hard slice fills it alone. looper's session log (`looper log`)
    shows that fixed cost; read it there, because this file copies no measured figure.
-3. **Verify what you touched, once, at the end of the group** — `bun nv verify` in the loop, `bun nv
-   affected --run` anywhere else, plus whatever the change specifically warrants (a `valgrind` run for a
-   new refcount edge). **This is the only place
+3. **Verify what you touched, once, at the end of the group** — `looper verify` in the loop, started
+   in the background as § *In the loop* says, `bun nv affected --run` anywhere else, plus whatever the
+   change specifically warrants (a `valgrind` run for a new refcount edge). **This is the only place
    verification happens**, and a group shares one run: the build is the same build.
 4. **Write the docs and the handoff, once for the whole group.** The plan's status block, a playbook bullet
    if a trap cost you time, and the live goal's handoff overwritten with where the work stands now. The
@@ -362,8 +362,10 @@ What a loop session owes on top of § *Session workflow*:
   never a write, a file you are about to edit, a design question, whether a check passed, or the wrap.
   Its prompt is the question, the place to look and the answer's shape (`file.rs:NN` and one line each,
   no excerpts), never the project, because it reads its own copy of this file.
-- **Start `bun nv verify --start` before you write the handoff**, and collect it with `--wait`. A
-  mid-work check is `--fast` or `-p <crate>`, never the full gate.
+- **Start `looper verify` with `run_in_background` before you write the handoff, then end your turn
+  to wait.** Its report starts your next turn, and nothing polls. It joins the tree's verify run if
+  another session started one, so never wait for or kill another session's verify. A mid-work check
+  is `bun nv verify --fast` or `-p <crate>`, never the full gate.
 - **`BLOCKED` is for a decision expensive to reverse with no safe default.** Otherwise take the safe
   option and say so in the handoff.
 - **Before `DONE`, the goal-end gates.** `bun nv verify --doc` and every broken doc link it names
