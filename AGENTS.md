@@ -391,6 +391,7 @@ What a loop session owes on top of § *Session workflow*:
 |---|---|
 | A session of the unattended loop | Nothing. The driver piped the orientation pack in behind your prompt. |
 | Working interactively | `looper orient --full`: the live goal, its handoff, its decisions and the traps |
+| Working without looper | [commands.md](docs/agent/commands.md) § *Without looper*: what to do instead of each command |
 | Looking for how something works | [docs/design.md](docs/design.md) until a module's head comment owns it |
 
 - **[docs/agent/commands.md](docs/agent/commands.md)**: how the project is driven, and the shell rules.
