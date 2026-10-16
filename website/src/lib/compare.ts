@@ -13,9 +13,15 @@ import data from '../data/compare.json'
 import { githubFile } from '@config/site.mjs'
 
 interface PeerFigures {
+  /** The fastest of the run's repetitions. */
   requests_per_sec: number
+  /** The median of the run's repetitions. */
+  median_requests_per_sec: number
+  /** From the fastest repetition. */
   p99_ms: number | null
   memory_peak_bytes: number | null
+  /** How many responses had each status, over every repetition. */
+  status_codes: Record<string, number>
 }
 
 type Verdict = 'built-in' | 'on-by-default' | 'one-setting' | 'your-code' | 'no'
@@ -29,6 +35,8 @@ interface RowResult {
 
 interface CompareRecord {
   recorded: true
+  /** When the run was recorded, local time with no zone: `2026-10-11T14:34:18`. */
+  date: string
   backend_cpus: number
   requests: number
   reps: number
@@ -43,7 +51,7 @@ const raw = data as { recorded: false } | CompareRecord
 /** The recorded run, or `null` before the first one. */
 export const record: CompareRecord | null = raw.recorded ? raw : null
 
-const CASE_TEXT: Record<string, { title: string; text: string }> = {
+export const CASE_TEXT: Record<string, { title: string; text: string }> = {
   hello: { title: 'Hello', text: 'Returns a short text for every request.' },
   'json-api': { title: 'JSON API', text: 'Reads an order as JSON, checks it, and returns the order with its totals as JSON.' },
   'html-page': { title: 'HTML page', text: 'Builds a page of 100 products and escapes a search term in it.' },

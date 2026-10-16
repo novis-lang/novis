@@ -5,6 +5,7 @@ description: Novis is written with coding agents. This page shows the rules, the
 ---
 
 import { githubFile } from '@config/site.mjs'
+import { atLeast, counts } from '~/lib/numbers'
 
 Novis is written with coding agents. A coding agent is a program that reads and changes code with
 the help of a large language model (LLM). We use today's top coding agents and models. We say this
@@ -55,7 +56,7 @@ work session. <a href={githubFile('AGENTS.md')}>Read AGENTS.md.</a>
   <a href={githubFile('docs/agent/conventions.md')}>Read the conventions.</a>
 - **A claim needs evidence.** An agent names the file and line for each claim, or says that it did
   not check. <a href={githubFile('docs/agent/grounding.md')}>Read the rule.</a>
-- **Unsafe Rust is limited.** It is forbidden in 14 of the 21 parts. In the other 7, each unsafe
+- **Unsafe Rust is limited.** It is forbidden in {counts.cratesWithoutUnsafe} of the {counts.crates} parts. In the other {counts.crates - counts.cratesWithoutUnsafe}, each unsafe
   block has a written reason, and a check reviews them every night.
 - **A mistake is written down once.** When a problem costs an agent time, it writes a short note
   for the next agent. There are more than 1,200 of these notes.
@@ -79,12 +80,12 @@ CI stops when a feature is missing one of them.
 
 | Kind of test | Count | What it checks |
 |---|---|---|
-| Language tests | more than 2,700 | each rule of the language, with the exact output or error |
-| Rust tests | more than 6,800 | the compiler, the runtime and the library, from the inside |
-| Examples | more than 3,800 | each example runs, and its output matches a saved file |
-| Attacks | more than 1,300 | the runtime does not crash, hang or leak memory |
-| Benchmarks | more than 1,500 | the speed of each feature, and how its cost grows |
-| Editor tests | more than 370 | completion, hover and errors in the editor |
+| Language tests | {atLeast(counts.languageTests)} | each rule of the language, with the exact output or error |
+| Rust tests | {atLeast(counts.rustTests)} | the compiler, the runtime and the library, from the inside |
+| Examples | {atLeast(counts.examples)} | each example runs, and its output matches a saved file |
+| Attacks | {atLeast(counts.attacks)} | the runtime does not crash, hang or leak memory |
+| Benchmarks | {atLeast(counts.benchmarks)} | the speed of each feature, and how its cost grows |
+| Editor tests | {atLeast(counts.editorTests)} | completion, hover and errors in the editor |
 
 Each push builds and tests Novis on Linux, Windows and macOS. Every night, more checks run:
 
