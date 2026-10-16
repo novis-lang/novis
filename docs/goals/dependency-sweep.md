@@ -44,7 +44,7 @@ stages:
     context: [editors/vscode/package.json, editors/vscode/tsconfig.json, editors/vscode/src/extension.ts, website/package.json, website/src/components/PageFrame.astro]
   - id: 9
     title: "CI actions, runners, images and machine tools"
-    status: open
+    status: done
     context: [.github/workflows/ci.yml, .github/workflows/release.yml, docker/Dockerfile, docs/implementation-plan.md]
   - id: 10
     title: a command says what is behind
@@ -293,11 +293,11 @@ see changes.
 
 **Does:** every action SHA is its latest release, no job names a retired runner, the images are on the current Debian, and the plan's Toolchain field is true.
 
-- [ ] Action SHAs move for `setup-node`, `upload-artifact`, `download-artifact`, `setup-qemu`, `setup-buildx`, `build-push` and dtolnay's nightly branch. Each `# vX` comment is rewritten with its SHA. `.github/workflows/ci.yml:1`
-- [ ] Use `cc-debian13:nonroot` and `debian:trixie-slim`. Debian 12 is out of security support. `docker/Dockerfile:20`
-- [ ] Use alpine 3.24.x for the Go bench. `benches/compare/go/Dockerfile:26`
-- [ ] Pin `cargo-geiger` to a version. `.github/workflows/ci.yml:994`
-- [ ] The user installs PHP 8.5.11 on the Windows `PATH`. The session moves the WSL copy to match, writes the Toolchain field and runs battery leg F. `docs/implementation-plan.md:32`
+- [x] Action SHAs move for `setup-node`, `upload-artifact`, `download-artifact`, `setup-qemu`, `setup-buildx`, `build-push` and dtolnay's nightly branch. Each `# vX` comment is rewritten with its SHA. `.github/workflows/ci.yml:1`
+- [x] Use `cc-debian13:nonroot` and `debian:trixie-slim`. Debian 12 is out of security support. `docker/Dockerfile:20`
+- [x] Use alpine 3.24.x for the Go bench. `benches/compare/go/Dockerfile:26`
+- [x] Pin `cargo-geiger` to a version. `.github/workflows/ci.yml:994`
+- [x] The user installs PHP 8.5.11 on the Windows `PATH`. The session moves the WSL copy to match, writes the Toolchain field and runs battery leg F. `docs/implementation-plan.md:32`
 
 ### 10. a command says what is behind
 
@@ -310,48 +310,47 @@ see changes.
 
 ### State
 
-Stages 1 to 8 are done. Stage 9 is next.
-- The extension is on vscode-languageclient 10.1, TypeScript 6.0.3, eslint 10, mocha 12, vsce 4
-  and test-electron 3. The host suite passes 15 of 15 on VS Code 1.142.0
-  (`editors/vscode/scripts/host.mjs:31`). The host runner loads Mocha with `import()`, because
-  mocha 12 is ESM-only (`editors/vscode/test/host/index.ts:23`).
+Stages 1 to 9 are done. Stage 10 is next.
+- Every action pin is its latest release. Seven moved within their majors, and the `# vX` comments
+  keep the major, as the rest of the workflows do. dtolnay's nightly branch is at `2c76c034`.
+- The release images are on `cc-debian13:nonroot` and `debian:trixie-slim` (`docker/Dockerfile:20`).
+  Both bases were checked by hand for zoneinfo, `libgcc_s`, `/etc/passwd` and glibc 2.41.
+  `docs/docker.md` and the website's Docker guide say Debian 13. The release binaries still link
+  on `ubuntu-22.04`, glibc 2.35. No image has been built around a binary on trixie yet, so CI's
+  `container images` job runs `tests/docker/smoke.sh` on it for the first time.
+- The Go bench runs on alpine 3.24.2. Its image built here and has `nc` and `cat`. `cargo-geiger`
+  is pinned to 0.14.0 (`.github/workflows/ci.yml:1000`).
+- PHP 8.5.11 is on the Windows `PATH` and in WSL, and the bench compose files pull
+  `php:8.5.11-fpm`. Leg F, `bun nv bench --check`, passes 21 of 21. Leg F's text named a
+  differential comparison that no longer exists, and now names that command
+  (`docs/agent/dependency-update.md:110`).
+- The plan's Toolchain field says Cranelift 0.136, wasmtime 49, MSVC 14.50 and PHP 8.5.11.
+- Other container images are behind or not checked, and stage 10's command is what reads them:
+  `oven/bun:1.3.5-slim` against the tree's Bun 1.4.3 (`benches/compare/compose.bun.yaml:10`),
+  `nginx:1.29.3-alpine`, `golang:1.27.2-alpine` and the `tests/db/compose.yaml` images.
 - Two editor pins are behind, with reasons, but `package.json` has no place for a `HOLD` line yet:
   TypeScript stays on `~6.0.3` because typescript-eslint 8.71 allows `<6.1.0`, and `@types/node`
-  stays on 20 because `engines.vscode` `^1.97` runs Node 20. Stage 10 decides how a
-  `package.json` hold is written.
-- The website is on Starlight 0.42.6 and Astro 7.4.0. Astro 7.4 needs Node `>=22.22.0`, which
-  `engines.node` now says. The mobile menu is a popover (`website/src/components/PageFrame.astro:28`).
-  The built markup is right, but nobody has looked at the menu in a narrow browser window yet.
-- The website build was red because `Core\Reflect::steps` takes a `propertyPath<T>`. `property`
-  and `propertyPath` now link to the concept page (`website/src/lib/core.ts:175`).
+  stays on 20 because `engines.vscode` `^1.97` runs Node 20.
 - The floor's `tests/hostile/core/Zip/extract/01-many-files-a-taken-name-and-a-deep-folder.nvs`
-  passes, but takes 22 s alone in a debug build against its 30 s timeout. It fails under the
-  sweep's load. The cost is step 6c: each folder level walks from the root again, so an entry costs
-  O(depth²) (`crates/nvs-stdlib/src/zip.rs:894`). The fix is a linear walk, not a longer timeout.
+  passes, but takes 22 s alone in a debug build against its 30 s timeout, and fails under the
+  sweep's load. Each folder level walks from the root again, so an entry costs O(depth²)
+  (`crates/nvs-stdlib/src/zip.rs:894`). The fix is a linear walk, not a longer timeout.
 - The root lock's holds are unchanged: `wit-parser`, `wasmparser` and `wit-component` wait for
   wasmtime (`Cargo.toml:372`), and so do `brotli-decompressor` (`Cargo.toml:948`) and
-  `fallible-iterator` (`Cargo.toml:1010`). `fuzz/Cargo.lock` keeps `brotli-decompressor` 6.0 under
-  the same hold.
-- pdf holds `hayro-interpret` at 0.7 (`extensions/pdf/Cargo.toml:18`): `merge.rs` hands its
-  `Pdf` to krilla 0.8.2, which reads a `hayro-syntax` 0.7 one.
-- taffy 0.15 moved no pdf output. The component never sets taffy's `position` or `inset`.
-- The built-in hashes are made at build time (`crates/nvs-ext/build.rs:183`), so none is committed.
-  The image guest figures were taken again, and every ratio is within ten percent of the last record.
-- nv-scan is on syn 3.0.9 and sha2 0.11.1, so every build key moved once.
-- Bun 1.4.3 and TypeScript 7.0.2 are the latest releases for the repository tools.
-- The nightly run 38869457440 tested `cb7021a24`, an old commit, so its ten red jobs say nothing
-  about this tree.
-- This machine's build links against MSVC 14.50.35717 from Visual Studio 18.
+  `fallible-iterator` (`Cargo.toml:1010`). pdf holds `hayro-interpret` at 0.7
+  (`extensions/pdf/Cargo.toml:18`), because krilla 0.8.2 reads a `hayro-syntax` 0.7 `Pdf`.
+- The nightly run 38869457440 tested `cb7021a24`, 798 commits behind `HEAD`, so its ten red jobs
+  say nothing about this tree.
 
 ### Next
 
-**Stage 9: CI actions, runners, images and machine tools.** Files: `.github/workflows/ci.yml`,
-`docker/Dockerfile`, `benches/compare/go/Dockerfile`.
+**Stage 10: a command says what is behind.** Files: a new `tools/nv/cmd/deps.ts`,
+`tools/nv/main.ts` and `docs/agent/dependency-update.md`.
 
-- [ ] Action SHAs move for `setup-node`, `upload-artifact`, `download-artifact`, `setup-qemu`, `setup-buildx`, `build-push` and dtolnay's nightly branch, each `# vX` comment rewritten. `.github/workflows/ci.yml:650`, `.github/workflows/ci.yml:677`, `.github/workflows/ci.yml:1039`
-- [ ] `cc-debian13:nonroot` and `debian:trixie-slim`. `docker/Dockerfile:20`
-- [ ] alpine 3.24.x for the Go bench. `benches/compare/go/Dockerfile:26`
-- [ ] `cargo-geiger` pinned to a version. `.github/workflows/ci.yml:1000`
+- [ ] `bun nv deps` reads every pin and compares it with its registry: the Cargo workspaces, the three `package.json` files, action SHAs, Dockerfile and compose images, the toolchain and the wasi-sdk pins. It reads `HOLD` lines and never edits a file. `tools/nv/main.ts:1`, `Cargo.toml:346`
+- [ ] Decide how a `package.json` hold is written, and give TypeScript `~6.0.3` and `@types/node` 20 theirs. `editors/vscode/package.json:1`
+- [ ] `dependency-update.md` § *1. Orient* starts from `bun nv deps`, and its pin table gains the npm, Docker and wasi-sdk rows. `docs/agent/dependency-update.md:1`
+- [ ] Move or hold what `bun nv deps --check` names, starting with the bench and test images above. `benches/compare/compose.bun.yaml:10`, `tests/db/compose.yaml:76`
 
 ### Backlog
 
@@ -360,5 +359,4 @@ Stages 1 to 8 are done. Stage 9 is next.
 - The website's mobile menu needs one look in a narrow browser window (`website/src/styles/custom.css:907`).
 - Load flakes: `ldap` deadlines, the `live_edit` 30 s wait (`crates/nvs-cli/tests/live_edit.rs:1010`), `spreadsheet_read` and `parallel_tests_overlap_on_more_than_one_core` (`crates/nvs-cli/src/runner.rs:4100`). Linux only: `crates/nvs-cli/tests/run_command.rs:688`, and the scaling margin (`crates/nvs-cli/src/serve.rs:3957`).
 - wasmtime 50.0.0 final and cranelift 0.137, held at `Cargo.toml:346`: move the epoch callback's fuel refresh out, because `StoreHookState` has no `set_hostcall_fuel` (`crates/nvs-ext/src/call.rs:1075`), and drop the `new_own` workaround and its playbook bullet (`crates/nvs-ext/src/handle.rs:176`).
-- hyper 1.12's `max_header_size` is a question for the user (`crates/nvs-server/src/serve.rs`).
-- The user mirrors any `.github/dependabot.yml` change on `landing`. MSVC 14.50 is already the toolset in use here, so `docs/setup.md`'s 14.44 line may need the user's update.
+- hyper 1.12's `max_header_size` is a question for the user (`crates/nvs-server/src/serve.rs`). The user mirrors this group's `.github/dependabot.yml` comment on `landing` (`.github/dependabot.yml:31`).
