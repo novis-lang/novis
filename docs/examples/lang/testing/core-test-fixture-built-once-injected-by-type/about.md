@@ -8,7 +8,8 @@ declare a parameter as well, so one fixture can be built from another.
 
 The method runs once for the whole class, before the tests. Each test then works on its own copy, so
 a change one test makes is not visible to another. Setup that costs time, such as reading a file or
-building a large object, happens one time.
+building a large object, happens one time. Each test runs on its own, so without a fixture this setup
+runs once for every test.
 
 **Good to know:** a fixture belongs to its own class, and a test cannot use another class's fixture.
 A parameter that no fixture supplies does not compile.
