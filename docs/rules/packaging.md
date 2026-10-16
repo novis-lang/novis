@@ -296,7 +296,7 @@ time through [`packaging/nvs-cache-gc-and-clear-are-the-deterministic-escape`](p
 
 <a id="packaging-nvs-cache-gc-and-clear-are-the-deterministic-escape"></a>
 
-## `nvs cache gc` and `nvs cache clear` are the operator's deterministic alternative to the roll  *(designed — owned by M10)*
+## `nvs cache gc` and `nvs cache clear` are the operator's deterministic alternative to the roll  *(designed — owned by goal cli-housekeeping)*
 
 `rule:packaging/nvs-cache-gc-and-clear-are-the-deterministic-escape`
 

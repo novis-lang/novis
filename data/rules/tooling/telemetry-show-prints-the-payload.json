@@ -7,5 +7,5 @@
     "config/telemetry-and-update-endpoints-are-configuration"
   ],
   "guardedBy": [],
-  "milestone": "M10"
+  "goal": "cli-housekeeping"
 }

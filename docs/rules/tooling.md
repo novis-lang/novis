@@ -1978,7 +1978,7 @@ step, and the byte-identical gate is what stops one rotting silently.
 
 <a id="tooling-telemetry-is-two-opt-ins"></a>
 
-## Usage telemetry and the update check are two independent opt-ins, both off by default, and neither ever implies the other  *(designed — owned by M10)*
+## Usage telemetry and the update check are two independent opt-ins, both off by default, and neither ever implies the other  *(designed — owned by goal cli-housekeeping)*
 
 `rule:tooling/telemetry-is-two-opt-ins`
 
@@ -2019,7 +2019,7 @@ Download counts and cronned update checks are the correction.
 
 <a id="tooling-telemetry-counters-are-a-closed-set"></a>
 
-## A counter is `invocation.<subcommand>` from the compiled-in command table or `invocation.unknown`, and nothing derived from traffic is ever counted  *(designed — owned by M10)*
+## A counter is `invocation.<subcommand>` from the compiled-in command table or `invocation.unknown`, and nothing derived from traffic is ever counted  *(designed — owned by goal cli-housekeeping)*
 
 `rule:tooling/telemetry-counters-are-a-closed-set`
 
@@ -2049,7 +2049,7 @@ default. The counter file is provably a function of what the operator did.
 
 <a id="tooling-telemetry-show-prints-the-payload"></a>
 
-## `nvs telemetry show` prints the exact payload the next upload would send, and the schema, the endpoint contracts and the aggregated data are all published  *(designed — owned by M10)*
+## `nvs telemetry show` prints the exact payload the next upload would send, and the schema, the endpoint contracts and the aggregated data are all published  *(designed — owned by goal cli-housekeeping)*
 
 `rule:tooling/telemetry-show-prints-the-payload`
 
@@ -2058,11 +2058,12 @@ bytes equal what the listener then receives. That is what makes the design falsi
 promised: a reader can compare the printed payload against the closed counter schema
 ([`tooling/telemetry-counters-are-a-closed-set`](tooling.md#tooling-telemetry-counters-are-a-closed-set)) with no trust in prose.
 
-Both sides are published when this ships. The reference's tools chapter documents both consents, the
-complete counter list and both endpoints' contracts, and that chapter — not a design record — is then the
-user-facing statement of what is collected. The service side's contract is published with it: aggregates
-only, no IP retention, and the aggregated data itself public, so anyone can see exactly what the project
-sees.
+The client side is published when this ships. The reference's tools chapter documents both consents,
+the complete counter list and both endpoints' contracts, and that chapter is the user-facing statement
+of what is collected. No collector exists, so telemetry has no default upload URL
+([`config/telemetry-and-update-endpoints-are-configuration`](config.md#config-telemetry-and-update-endpoints-are-configuration)). The service side's contract is
+published with the collector: aggregates only, no IP retention, and the aggregated data itself public,
+so anyone can see exactly what the project sees.
 
 **Not on disk.** There is no `nvs telemetry show`.
 
@@ -2070,7 +2071,7 @@ sees.
 
 <a id="tooling-a-serving-process-never-uploads"></a>
 
-## An upload carries only the previous finished week, rides a short-lived user-initiated command at most weekly, and a process that has bound a socket never uploads  *(designed — owned by M10)*
+## An upload carries only the previous finished week, rides a short-lived user-initiated command at most weekly, and a process that has bound a socket never uploads  *(designed — owned by goal cli-housekeeping)*
 
 `rule:tooling/a-serving-process-never-uploads`
 
@@ -2100,7 +2101,7 @@ configuration ([`config/telemetry-and-update-endpoints-are-configuration`](confi
 
 <a id="tooling-a-failed-upload-never-fails-the-command"></a>
 
-## An upload gets three seconds, is abandoned with its counters kept when that expires, says so, and never changes the carrying command's exit status  *(designed — owned by M10)*
+## An upload gets three seconds, is abandoned with its counters kept when that expires, says so, and never changes the carrying command's exit status  *(designed — owned by goal cli-housekeeping)*
 
 `rule:tooling/a-failed-upload-never-fails-the-command`
 
@@ -2120,7 +2121,7 @@ one honest line, never a failed cron job or a changed exit code
 
 <a id="tooling-update-check-states-the-whole-picture"></a>
 
-## `nvs update-check` always reports the telemetry switch, the local and latest versions, and with telemetry on its upload history; `--json` is stable and the exit status is always 0  *(designed — owned by M10)*
+## `nvs update-check` always reports the telemetry switch, the local and latest versions, and with telemetry on its upload history; `--json` is stable and the exit status is always 0  *(designed — owned by goal cli-housekeeping)*
 
 `rule:tooling/update-check-states-the-whole-picture`
 

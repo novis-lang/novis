@@ -9,5 +9,5 @@
     "http-server/two-deployments-and-nothing-a-proxy-owns"
   ],
   "guardedBy": [],
-  "milestone": "M10"
+  "goal": "cli-housekeeping"
 }

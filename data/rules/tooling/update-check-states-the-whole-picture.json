@@ -8,5 +8,5 @@
     "tooling/terminal-output-is-a-sink"
   ],
   "guardedBy": [],
-  "milestone": "M10"
+  "goal": "cli-housekeeping"
 }

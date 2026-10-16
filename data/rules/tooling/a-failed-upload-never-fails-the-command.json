@@ -6,5 +6,5 @@
     "tooling/update-check-states-the-whole-picture"
   ],
   "guardedBy": [],
-  "milestone": "M10"
+  "goal": "cli-housekeeping"
 }

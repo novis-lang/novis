@@ -9,5 +9,5 @@
     "packaging/a-package-is-its-digest"
   ],
   "guardedBy": [],
-  "milestone": "M10"
+  "goal": "cli-housekeeping"
 }

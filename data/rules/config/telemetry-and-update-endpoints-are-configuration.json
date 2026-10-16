@@ -1,7 +1,10 @@
 {
-  "title": "The update-check and telemetry endpoints are compiled-in defaults overridable by `NVS_UPDATE_URL` and `NVS_TELEMETRY_URL`",
+  "title": "The update check reads GitHub's latest release by default, telemetry has no default upload URL, and `NVS_UPDATE_URL` and `NVS_TELEMETRY_URL` set either",
   "status": "designed",
-  "seeAlso": [],
+  "seeAlso": [
+    "tooling/update-check-states-the-whole-picture",
+    "tooling/a-serving-process-never-uploads"
+  ],
   "guardedBy": [],
-  "milestone": "M10"
+  "goal": "cli-housekeeping"
 }

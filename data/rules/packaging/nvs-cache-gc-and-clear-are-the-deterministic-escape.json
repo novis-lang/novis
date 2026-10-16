@@ -5,5 +5,5 @@
     "packaging/eviction-rides-the-cold-miss-at-a-probability"
   ],
   "guardedBy": [],
-  "milestone": "M10"
+  "goal": "cli-housekeeping"
 }
