@@ -1,0 +1,11 @@
+{
+  "title": "The viewer compares two requests side by side, and resends a recorded request to the development server only after the developer confirms",
+  "status": "designed",
+  "seeAlso": [
+    "testing/the-viewer-shows-the-stream-and-hands-off-every-artifact",
+    "testing/the-debug-stream-reaches-the-service-through-the-disk",
+    "testing/writing-a-debug-record-to-disk-is-its-own-gate"
+  ],
+  "guardedBy": [],
+  "goal": "debug-viewer"
+}

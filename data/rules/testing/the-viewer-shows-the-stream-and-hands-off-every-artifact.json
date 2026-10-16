@@ -5,8 +5,14 @@
     "ide/the-extension-builds-no-ui-the-editor-already-has",
     "observability/speedscope-timeline-export",
     "observability/a-trace-id-exists-for-every-request",
-    "errors/record-transformations"
+    "errors/record-transformations",
+    "testing/the-ingester-runs-whether-or-not-anyone-is-looking",
+    "testing/the-viewer-searches-every-record-and-saves-a-filter",
+    "testing/an-exception-is-one-row-per-class-and-site",
+    "testing/two-requests-compare-and-a-replay-asks-first",
+    "testing/a-site-in-the-viewer-opens-in-the-editor",
+    "packaging/the-third-party-notice-is-generated-never-written-by-hand"
   ],
   "guardedBy": [],
-  "milestone": "M10"
+  "goal": "debug-viewer"
 }

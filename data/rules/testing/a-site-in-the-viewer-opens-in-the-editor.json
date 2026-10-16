@@ -1,0 +1,11 @@
+{
+  "title": "Every `file:line` the viewer shows opens that line in the developer's editor, VS Code by default",
+  "status": "designed",
+  "seeAlso": [
+    "testing/the-viewer-shows-the-stream-and-hands-off-every-artifact",
+    "testing/an-exception-is-one-row-per-class-and-site",
+    "ide/the-extension-builds-no-ui-the-editor-already-has"
+  ],
+  "guardedBy": [],
+  "goal": "debug-viewer"
+}

@@ -1,0 +1,10 @@
+{
+  "title": "The viewer groups exceptions into one row per class and throw site, with its count, first and last time, and its requests",
+  "status": "designed",
+  "seeAlso": [
+    "testing/the-viewer-shows-the-stream-and-hands-off-every-artifact",
+    "testing/a-site-in-the-viewer-opens-in-the-editor"
+  ],
+  "guardedBy": [],
+  "goal": "debug-viewer"
+}

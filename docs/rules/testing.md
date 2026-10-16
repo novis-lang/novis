@@ -3,7 +3,7 @@
 
 # Testing
 
-*21 of 71 rules below are **designed** rather than shipped, and are marked where they appear.*
+*25 of 75 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="testing-test-attribute"></a>
 
@@ -2190,56 +2190,255 @@ schedule rather than spinning, and never deletes a spool file whose batch did no
 
 <a id="testing-the-viewer-shows-the-stream-and-hands-off-every-artifact"></a>
 
-## The viewer renders the correlated request stream and hands every artifact with an existing viewer to it  *(designed — owned by M10)*
+## The viewer renders the correlated request stream and hands every artifact with an existing viewer to it  *(designed — owned by goal debug-viewer)*
 
 `rule:testing/the-viewer-shows-the-stream-and-hands-off-every-artifact`
 
 The viewer renders the correlated request stream and the log, and every artifact that an existing
 tool already renders is handed to that tool rather than drawn.
 
+It is held to the standard of a tool every developer keeps open all day: it is the window a Novis
+developer watches their program through, so it is fast at any size of index, works from the keyboard
+alone, and never shows a value in a way that runs it. A view that is slow, a list that jumps while it
+is read, or a link that stops working after a restart is a bug in this rule's sense, not a polish item.
+
 A profile is handed to speedscope in the format [`observability/speedscope-timeline-export`](observability.md#observability-speedscope-timeline-export)
 already commits to, and a coverage report to whatever reads Clover or lcov. A coverage **heatmap**
 over source is drawn, because that is a per-line background over text rather than a viewer. This is
 [`ide/the-extension-builds-no-ui-the-editor-already-has`](ide.md#ide-the-extension-builds-no-ui-the-editor-already-has)'s test applied rather than set aside:
 where a renderer exists, feed it. The live, correlated request stream is the one thing here that has
-no incumbent in any ecosystem, which is the whole of the exception.
+no incumbent in any ecosystem, which is the whole of the exception. The boundary is written as a rule
+because the failure mode of an in-house dashboard is that it slowly grows a second copy of every tool
+the project deliberately did not build.
 
-The boundary is written as a rule rather than left as an intention because the failure mode of an
-in-house dashboard is that it slowly grows a second copy of every tool the project deliberately did
-not build.
+**The request is the primary object.** The main view lists requests — method, route, status,
+duration, query count, dump count and whether it threw — and one opens to its own timeline: the
+calls, queries, spawns, garbage-collection pauses, dumps and log lines of that request on one time
+axis. The flat filterable stream and the application's log are the second and third views, not the
+front page. A request is keyed by its trace id and the span id the server drew for it
+([`observability/a-trace-id-exists-for-every-request`](observability.md#observability-a-trace-id-exists-for-every-request)), because an inbound `traceparent` can give
+two requests one trace id. The response carries both in its `traceresponse` header unless
+`[trace] response_header = false`, so pasting that header's value, or a bare trace id, into the
+viewer's search opens the request it names.
 
-**The request is the primary object.** The main view lists requests — route, status, duration, query
-count, dump count — and one opens to its own timeline; the flat filterable stream is the second view,
-not the front page. The correlation key is the trace id every request already carries
-([`observability/a-trace-id-exists-for-every-request`](observability.md#observability-a-trace-id-exists-for-every-request)), so it costs nothing to derive. In
-development the response also carries that id in a header so the viewer can move from the call being
-looked at to its timeline; in production it does not, being a correlation and fingerprinting leak.
+**The baseline every view has.** The live view follows new records and pauses at a keystroke or
+when the developer scrolls away from the newest row, and a paused view counts what arrived without
+moving what is on screen. Every view and every request has a link that survives a restart of the
+service and a reload of the tab: `/requests/<trace id>/<span id>`, and a filter is part of its view's
+link. Every action is reachable from the keyboard, `?` lists the keys, and lists and value trees
+follow the WAI-ARIA listbox and tree patterns. A dark and a light theme follow the browser's
+`prefers-color-scheme` and can be fixed in the viewer's settings, both at WCAG AA contrast. A long list
+keeps only the rows on screen in the DOM, so the browser's cost does not grow with the index.
+
+Four features complete it, each with its own rule: full-text search with saved filters
+([`testing/the-viewer-searches-every-record-and-saves-a-filter`](testing.md#testing-the-viewer-searches-every-record-and-saves-a-filter)), exceptions grouped by class and
+site ([`testing/an-exception-is-one-row-per-class-and-site`](testing.md#testing-an-exception-is-one-row-per-class-and-site)), comparing two requests and replaying
+one ([`testing/two-requests-compare-and-a-replay-asks-first`](testing.md#testing-two-requests-compare-and-a-replay-asks-first)), and every `file:line` opening in the
+editor ([`testing/a-site-in-the-viewer-opens-in-the-editor`](testing.md#testing-a-site-in-the-viewer-opens-in-the-editor)).
 
 The value tree the browser receives is already finite — [`errors/record-transformations`](errors.md#errors-record-transformations) bounded
 it with elision and resolved every repeat to an identity before it was written — so a repeat renders
 as a link to the node it names and expansion needs no fetch. Children are built from data already
 loaded.
 
-**The listener is the service's own.** The viewer is a subcommand, binds loopback by default, and is
-never mounted on the application's listener: there every path-normalization bug and proxy
-misconfiguration would become disclosure, and a reserved path prefix would collide with the
-compile-time route table. A non-loopback bind needs TLS and a token read from a file, and boot fails
-if the file is absent. Because it is a browser-facing local listener, `Host` and `Origin` are
-allowlisted against DNS rebinding, its renderer builds DOM rather than assigning markup, and it runs
-no Novis code.
+**The front end is TypeScript and Solid**, in the repository's top-level `viewer/` folder, a Bun
+workspace of the root package so the root `bun.lock` pins it. `solid-js` is its one runtime
+dependency, at a caret range. Bun bundles it into one JavaScript file and one CSS file, with a
+bundler plugin running Solid's JSX preset at build time, because Bun's own JSX transform has only the
+React-style runtimes. The two files are committed under `viewer/dist/`, `bun nv viewer --check`
+rebuilds them and fails on any byte difference, and the crate that serves `nvs debug` embeds them with
+`include_bytes!`. A Rust build therefore never runs Bun, and the bytes in a binary are the reviewed
+ones. Solid's licence is reproduced in the notice the binary carries
+([`packaging/the-third-party-notice-is-generated-never-written-by-hand`](packaging.md#packaging-the-third-party-notice-is-generated-never-written-by-hand)). A second runtime
+dependency is a change to this rule, because each one ships in every binary.
 
-The viewer's assets ship in every binary. What keeps that cheap is reachability rather than size: a
-server process never has a viewer in it.
+The browser talks to one JSON API on the same listener. The Rust side owns its shapes: a test writes a
+fixture from a real index, the TypeScript types are checked against that fixture by `tsc`, and the
+browser tests run against it, so the two halves cannot drift without a failing build.
 
-**Not on disk.** There is no viewer. The one hand-off built is the editor's: the VS Code extension reads
-the lcov file `nvs test` writes (`editors/vscode/src/tests.ts:237`).
+**The listener is the service's own.** The viewer is a subcommand, `nvs debug`, binds loopback by
+default on a fixed port so a link outlives a restart, and is never mounted on the application's
+listener: there every path-normalization bug and proxy misconfiguration would become disclosure, and a
+reserved path prefix would collide with the compile-time route table. It is `hyper` over the host's
+own sockets and `rustls`, the transport the server already uses, so it adds no HTTP or TLS crate.
+
+**Off loopback, `nvs debug` secures itself.** `[debug] listen` is the one key a container needs. With
+an address off loopback, `nvs debug` generates a self-signed certificate with `rcgen`, already in the
+graph, and a random token, keeps both in the data folder's `debug/` directory, private to the
+service's account, and prints a URL that carries the token. The browser warns about the certificate
+once. `[debug] tls_cert_file`, `tls_key_file` and `token_file` are optional overrides for someone who
+brings their own, and boot does not fail when they are absent. The token is accepted once from the
+printed URL and then lives in an `HttpOnly`, `Secure`, `SameSite=Strict` cookie, and a request without
+that cookie is refused. A bind off loopback never serves plain HTTP and never serves without a token.
+
+Because it is a browser-facing local listener, `Host` and `Origin` are
+allowlisted against DNS rebinding, a request that changes anything needs an allowed `Origin` and a
+JSON body, and every page is sent with a `Content-Security-Policy` that admits no inline script, no
+inline style, no `eval` and no other origin. Its renderer builds DOM rather than assigning markup: no
+value from a record reaches `innerHTML`, and Solid's compiled templates are constant strings fixed at
+build time. It runs no Novis code.
+
+The viewer is pushed a watermark as server-sent events
+([`testing/the-ingester-runs-whether-or-not-anyone-is-looking`](testing.md#testing-the-ingester-runs-whether-or-not-anyone-is-looking)), and every list is a page keyed on
+that sequence, so reading the newest page costs the same with a hundred requests in the index as with
+a million.
+
+The viewer's settings — the theme, the editor link, path mappings and saved filters — are one file
+beside the index in the data folder, outside the index, so discarding and re-ingesting the index keeps
+them, and a restart on the same port finds them.
+
+- **Memory:** the two bundled files are read-only data in every binary, and a server process never
+  pages them in, because only `nvs debug` reaches them. `nvs debug` holds one read connection to the
+  index and one sequence number per open tab. The browser holds one page of rows and the request it
+  shows.
+
+**Not on disk.** There is no viewer and no `viewer/` folder. The one hand-off built is the editor's:
+the VS Code extension reads the lcov file `nvs test` writes (`editors/vscode/src/tests.ts:237`).
 
 **Declined:**
 - **Fetching a value tree lazily as the developer expands it.** The tree is already bounded before it
   is written, so a fetch per expansion would add round trips and server-side state to make a bounded
   thing safe again.
+- **Building the bundle from a Cargo build script.** Every Rust build, on every CI leg and every
+  contributor's machine, would need Bun and the viewer's dependencies installed.
+- **A second runtime dependency for a virtual list, a chart or a component kit.** Each one ships in
+  every binary and widens what the notice and the audit cover. The viewer draws them with Solid.
+- **A WebSocket for the watermark.** The push is one integer in one direction, and server-sent events
+  carry it over the same HTTP connection with no upgrade and no framing to keep correct.
+- **A port chosen at random on each start.** Every link and every open tab would break on a restart.
 
-<sub>See also [`ide/the-extension-builds-no-ui-the-editor-already-has`](ide.md#ide-the-extension-builds-no-ui-the-editor-already-has), [`observability/speedscope-timeline-export`](observability.md#observability-speedscope-timeline-export), [`observability/a-trace-id-exists-for-every-request`](observability.md#observability-a-trace-id-exists-for-every-request), [`errors/record-transformations`](errors.md#errors-record-transformations).</sub>
+<sub>See also [`ide/the-extension-builds-no-ui-the-editor-already-has`](ide.md#ide-the-extension-builds-no-ui-the-editor-already-has), [`observability/speedscope-timeline-export`](observability.md#observability-speedscope-timeline-export), [`observability/a-trace-id-exists-for-every-request`](observability.md#observability-a-trace-id-exists-for-every-request), [`errors/record-transformations`](errors.md#errors-record-transformations), [`testing/the-ingester-runs-whether-or-not-anyone-is-looking`](testing.md#testing-the-ingester-runs-whether-or-not-anyone-is-looking), [`testing/the-viewer-searches-every-record-and-saves-a-filter`](testing.md#testing-the-viewer-searches-every-record-and-saves-a-filter), [`testing/an-exception-is-one-row-per-class-and-site`](testing.md#testing-an-exception-is-one-row-per-class-and-site), [`testing/two-requests-compare-and-a-replay-asks-first`](testing.md#testing-two-requests-compare-and-a-replay-asks-first), [`testing/a-site-in-the-viewer-opens-in-the-editor`](testing.md#testing-a-site-in-the-viewer-opens-in-the-editor), [`packaging/the-third-party-notice-is-generated-never-written-by-hand`](packaging.md#packaging-the-third-party-notice-is-generated-never-written-by-hand).</sub>
+
+<a id="testing-the-viewer-searches-every-record-and-saves-a-filter"></a>
+
+## The viewer searches the text of every request, dump, log line, query and exception, and a search can be saved and linked  *(designed — owned by goal debug-viewer)*
+
+`rule:testing/the-viewer-searches-every-record-and-saves-a-filter`
+
+One search box searches the text of every request, dump, log line, query and exception in the index,
+and any search can be saved under a name and opened again from a link.
+
+The text is an SQLite FTS5 index the ingester fills as it commits each batch, so a search is one
+indexed query and the viewer never scans records. FTS5 is compiled into the SQLite Novis already
+bundles, so it adds no dependency. What is indexed is the record after
+[`errors/record-transformations`](errors.md#errors-record-transformations), so a `secret` value is already a redacted node and is not
+searchable, and a value the record elided is not either.
+
+Words match as words, a quoted phrase matches as a phrase, and a field term narrows the search:
+`status:500`, `method:POST`, `route:`, `kind:query`, `level:error`, `duration:>200ms` and
+`trace:<id>`. A pasted `traceresponse` value is a `trace:` term. Results come newest first, are
+grouped by the request they belong to, and open that request's timeline at the matching record. The
+search is part of the view's link, so a search is shared by copying the address.
+
+A saved filter is a name and a search. It is listed beside the views, opens with its own link, and is
+kept in the viewer's settings file, outside the index, so discarding the index keeps it.
+
+- **Memory:** the FTS5 index lives on disk beside the records it indexes, and grows with them under
+  the spool's byte cap and the index's deletion window. A search holds one page of results.
+
+**Declined:**
+- **A regular-expression search.** It cannot use an index, so its cost grows with every record kept.
+- **Searching a parameter value of a query.** Parameters are where request data sits, and the query's
+  text with its placeholders already finds the call.
+
+<sub>See also [`testing/the-viewer-shows-the-stream-and-hands-off-every-artifact`](testing.md#testing-the-viewer-shows-the-stream-and-hands-off-every-artifact), [`testing/the-ingester-runs-whether-or-not-anyone-is-looking`](testing.md#testing-the-ingester-runs-whether-or-not-anyone-is-looking), [`errors/record-transformations`](errors.md#errors-record-transformations), [`packaging/a-c-dependency-answers-two-questions`](packaging.md#packaging-a-c-dependency-answers-two-questions).</sub>
+
+<a id="testing-an-exception-is-one-row-per-class-and-site"></a>
+
+## The viewer groups exceptions into one row per class and throw site, with its count, first and last time, and its requests  *(designed — owned by goal debug-viewer)*
+
+`rule:testing/an-exception-is-one-row-per-class-and-site`
+
+The exceptions view shows one row per exception class and throw site, with how many times it was
+thrown, when it was first and last thrown, and links to the requests that threw it.
+
+A site is the file and line of the `throw` that raised it, as the record's first frame names it. The
+row shows the class, the message of the latest throw, the site as a link into the editor
+([`testing/a-site-in-the-viewer-opens-in-the-editor`](testing.md#testing-a-site-in-the-viewer-opens-in-the-editor)), the count, the first and last time, a small
+chart of the count over time and the routes it was thrown under. Opening a row lists its requests
+newest first, and each opens to its timeline at the throw. The grouping is a column the ingester
+writes with the record, so the view is one indexed query.
+
+An edit that moves the `throw` to another line starts a new row. The rows describe the code that
+ran, and the index keeps them only as long as its deletion window, so an old row ages out with its
+requests.
+
+- **Memory:** one group key per exception record, on disk in the index.
+
+**Declined:**
+- **Grouping by the throwing function instead of the line.** Two different `throw` statements of one
+  class in one function would share a row, and the row could not say which one ran.
+- **Marking a group resolved or ignored.** That is state an index rebuilt from the files would lose,
+  and the deletion window already ends a row that stops recurring.
+
+<sub>See also [`testing/the-viewer-shows-the-stream-and-hands-off-every-artifact`](testing.md#testing-the-viewer-shows-the-stream-and-hands-off-every-artifact), [`testing/a-site-in-the-viewer-opens-in-the-editor`](testing.md#testing-a-site-in-the-viewer-opens-in-the-editor).</sub>
+
+<a id="testing-two-requests-compare-and-a-replay-asks-first"></a>
+
+## The viewer compares two requests side by side, and resends a recorded request to the development server only after the developer confirms  *(designed — owned by goal debug-viewer)*
+
+`rule:testing/two-requests-compare-and-a-replay-asks-first`
+
+Two requests open side by side with what differs marked, and a recorded request is sent again to the
+development server only after the developer confirms it in a dialog that names what will be sent.
+
+**Compare** sets the recorded input of each — method, path, query, headers and body — against the
+other, then the response — its status, headers and body, a JSON body compared structurally — the
+duration, the queries in the order they ran with their text aligned, the dumps and the log lines. A second request is picked by marking it in any list, and a request's own
+view offers the previous request to the same route. A redacted header shows as redacted on both
+sides, never as a difference.
+
+**Replay** sends the recorded method, path, query, headers and body to the development `nvs serve`
+that started this service, and to nothing else: the target is the address that server gave its child,
+never a value from the browser, so the action cannot be turned into a request to another host. A
+service started by hand has no target, and the action says so. The dialog names the method, the full
+path and the target, opens with the cancel button focused, and asks every time, because a replay runs
+the handler's side effects again. A header the spool redacted is listed in the dialog with an empty
+field: a value typed there is sent once and is never written anywhere. The replayed request gets its
+own trace id, and the viewer opens it beside the original in the compare view.
+
+Replay is a request that changes something, so it needs an allowed `Origin`
+([`testing/the-viewer-shows-the-stream-and-hands-off-every-artifact`](testing.md#testing-the-viewer-shows-the-stream-and-hands-off-every-artifact)).
+
+- **Memory:** a replay holds one recorded request's input, under the spool's own body cap, while it is
+  sent.
+
+**Declined:**
+- **Replaying to a URL the developer types.** A browser-facing listener that sends requests where it
+  is told is a request forger for any page that reaches it.
+- **A setting that stops the dialog asking.** The cost of one keystroke is smaller than the cost of a
+  repeated payment or a repeated email.
+
+<sub>See also [`testing/the-viewer-shows-the-stream-and-hands-off-every-artifact`](testing.md#testing-the-viewer-shows-the-stream-and-hands-off-every-artifact), [`testing/the-debug-stream-reaches-the-service-through-the-disk`](testing.md#testing-the-debug-stream-reaches-the-service-through-the-disk), [`testing/writing-a-debug-record-to-disk-is-its-own-gate`](testing.md#testing-writing-a-debug-record-to-disk-is-its-own-gate).</sub>
+
+<a id="testing-a-site-in-the-viewer-opens-in-the-editor"></a>
+
+## Every `file:line` the viewer shows opens that line in the developer's editor, VS Code by default  *(designed — owned by goal debug-viewer)*
+
+`rule:testing/a-site-in-the-viewer-opens-in-the-editor`
+
+Every `file:line` the viewer shows is a link that opens that line in the developer's editor, through
+the editor's own URL scheme, and VS Code's `vscode://file/` is the default.
+
+The viewer's settings offer presets for VS Code, VS Code Insiders, VSCodium, Cursor, Zed and the
+JetBrains IDEs, and a template with `{file}`, `{line}` and `{column}` for any other editor. A list of
+path mappings rewrites a prefix before the link is built, for a program that ran in a container, a
+virtual machine or WSL and recorded paths the editor's machine does not have. The setting is the
+developer's, not the project's, so it lives in the viewer's settings file and never in `nvs.toml`.
+
+A link is built only from a site the record carries as structured data — a frame, a query's call site,
+a dump's or a log call's location — and never from text found inside a message, so a logged string
+cannot make a link. A profile the timeline names opens in VS Code's *View Profile* view through the
+extension's own `vscode://novis-lang.nvs/` link when the editor is VS Code, and is offered as a download
+otherwise.
+
+**Declined:**
+- **Opening the file from the service with a command line.** The service would run a program a
+  browser asked it to run, which is exactly what a local listener must never do.
+- **Linking `file:line` text found in a log message.** Its path is whatever the message says, and the
+  structured site is already there for every record that has one.
+
+<sub>See also [`testing/the-viewer-shows-the-stream-and-hands-off-every-artifact`](testing.md#testing-the-viewer-shows-the-stream-and-hands-off-every-artifact), [`testing/an-exception-is-one-row-per-class-and-site`](testing.md#testing-an-exception-is-one-row-per-class-and-site), [`ide/the-extension-builds-no-ui-the-editor-already-has`](ide.md#ide-the-extension-builds-no-ui-the-editor-already-has).</sub>
 
 <a id="testing-bench-counters"></a>
 
