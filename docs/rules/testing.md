@@ -934,7 +934,7 @@ so a snapshot cannot become the place secrets get committed.
 
 <a id="testing-mutation-testing"></a>
 
-## A mutation run asks whether any test would have noticed the code being wrong  *(designed — owned by M10)*
+## A mutation run asks whether any test would have noticed the code being wrong  *(designed — owned by goal mutation-testing)*
 
 `rule:testing/mutation-testing`
 

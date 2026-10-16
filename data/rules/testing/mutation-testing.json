@@ -7,5 +7,5 @@
     "testing/feature-proofs"
   ],
   "guardedBy": [],
-  "milestone": "M10"
+  "goal": "mutation-testing"
 }
