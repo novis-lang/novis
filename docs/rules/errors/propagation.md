@@ -24,9 +24,13 @@ check and the landing block are the same code for both.
 
 Checked returns stay even if `cranelift-jit` learns to unwind through JIT frames, because coroutine
 stack switches and error-path refcount drops the optimiser can see still favour them. The canary
-`benches/abi-probe/tests/unwind_unavailable.rs` fails when that happens. The sentence about unwind
-tables above is then rewritten and the canary turned around, so it records that unwinding works and
-fails if that changes back.
+`benches/abi-probe/tests/unwind_unavailable.rs` fails when that happens. It compiles a JIT function
+with `unwind_info` on and asks the platform unwinder for an entry covering a PC inside it:
+`RtlLookupFunctionEntry` on Windows, `_Unwind_Find_FDE` on Unix. Both see a table registered at run
+time as well as the loaded images, and neither answer depends on the stack layout a provoked panic
+would walk. A control lookup on a function of the test binary keeps a lookup that never finds
+anything from passing. When the canary fails, the sentence about unwind tables above is rewritten
+and the canary turned around, so it records that the entry exists and fails if that changes back.
 
 **Declined:**
 - **Native unwinding through JIT frames.** It needs unwind tables, frame descriptions and

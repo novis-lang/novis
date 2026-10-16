@@ -10,7 +10,7 @@
 //! | probe | guards |
 //! |---|---|
 //! | `tests/invariants.rs` | the checked-return ABI and coroutine behaviour of `rule:errors/propagation` |
-//! | `tests/unwind_unavailable.rs` | the *premise* of `rule:errors/propagation` — that native unwinding is unavailable |
+//! | `tests/unwind_unavailable.rs` | the *premise* of `rule:errors/propagation` — that the platform unwinder has no entry for a JIT frame |
 //! | `tests/wasm_sandbox.rs` | the sandbox guarantees of `rule:packaging/an-extension-is-a-sandboxed-wasm-component` |
 //! | `tests/wasm_async.rs` | the async bridge of `rule:packaging/a-guest-call-yields-on-its-core`: a guest call parks, yields and traps inside a coroutine |
 //! | `tests/perf_guards.rs` | order-of-magnitude regressions in the quoted costs |

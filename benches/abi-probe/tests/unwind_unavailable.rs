@@ -1,142 +1,51 @@
 //! Guards the *premise* of `rule:errors/propagation`.
 //!
-//! Novis propagates errors by checked return rather than by unwinding, because
-//! `cranelift-jit` does not register JIT frames with the platform unwinder — so
-//! a Rust panic raised beneath JIT code cannot be caught above it and instead
-//! terminates the process.
-//!
-//! That is a property of a dependency, not of our code, and it could change. If
-//! it does, that rule says to reconsider, and this test is how we find out. It
-//! fails loudly with an explanation rather than silently continuing to pay for a
-//! workaround that is no longer needed.
+//! Novis propagates errors by checked return because `cranelift-jit` registers
+//! no unwind tables for the code it emits, so the platform unwinder has nothing
+//! to walk a JIT frame with. That is a property of a dependency, and it could
+//! change. This test is how we find out.
 //!
 //! # How it works
 //!
-//! The dangerous case cannot be exercised in-process: when unwinding fails the
-//! process dies, taking the test runner with it. So the test re-executes its own
-//! binary as a child, and inspects how the child died.
+//! It compiles a small JIT function with the flags most likely to produce unwind
+//! information (`is_pic=false`, `unwind_info=true`), finalizes it, and asks the
+//! platform's own lookup whether a PC inside it has an unwind entry:
+//! `RtlLookupFunctionEntry` on Windows, `_Unwind_Find_FDE` on Unix. Both consult
+//! the tables a JIT would register at run time (`RtlAddFunctionTable`,
+//! `__register_frame`) as well as the loaded images, so a registration shows up
+//! here whichever way it is done. The test fails when an entry is found.
+//!
+//! The question is put to the platform directly. Provoking a panic beneath the
+//! frame and seeing whether `catch_unwind` above it fires makes the result depend
+//! on the stack layout of the test binary: on Windows x64 a PC with no function
+//! entry is treated as a leaf, and whatever stale slot sits at `[RSP]` decides
+//! where the walk goes next.
+//!
+//! A control asks the same lookup about a function of this binary, which does
+//! have an entry, so a lookup that finds nothing for everything cannot pass the
+//! test by accident. The control is skipped on macOS, where Rust code is
+//! described by compact unwind records and `_Unwind_Find_FDE` reports DWARF
+//! entries only.
 
-#![expect(
-    clippy::print_stdout,
-    clippy::print_stderr,
-    reason = "stdout is this test's channel, not its logging: the child reports through the \
-              `STARTED` and `CAUGHT` markers below and the parent reads them back off its \
-              `Output`, so a print here is the mechanism being tested rather than a stray \
-              debug line the lint exists to catch"
-)]
-
-use std::panic::{self, AssertUnwindSafe};
+use std::ffi::c_void;
 
 use cranelift::prelude::*;
 use cranelift_jit::{JITBuilder, JITModule};
 use cranelift_module::{Linkage, Module};
 
-/// Set by the parent to tell the child to run the dangerous probe.
-const CHILD_ENV: &str = "NVS_PROBE_UNWIND_CHILD";
-/// Printed by the child before anything risky, so the parent can tell a real
-/// result from a harness misfire.
-const STARTED: &str = "PROBE_CHILD_RUNNING";
-/// Printed by the child only if a panic successfully unwound through JIT frames.
-const CAUGHT: &str = "PROBE_UNWIND_WAS_CAUGHT";
-
-const TEST_NAME: &str = "native_unwinding_through_jit_frames_is_still_unavailable";
-
-/// A helper that is *allowed* to unwind, which is exactly what Novis's real
-/// helpers must never be. Declared `extern "C-unwind"` so the panic is permitted
-/// to escape rather than aborting at the boundary.
-extern "C-unwind" fn helper_that_panics(x: i64) -> i64 {
-    if x == 42 {
-        panic!("probe: deliberate panic beneath a JIT frame");
-    }
+/// The callee the JIT function calls, so that function has a frame of its own
+/// rather than being a leaf an unwinder could step over without an entry.
+extern "C" fn helper_that_doubles(x: i64) -> i64 {
     x * 2
 }
 
 #[test]
-fn native_unwinding_through_jit_frames_is_still_unavailable() {
-    if std::env::var_os(CHILD_ENV).is_some() {
-        run_child();
-        return;
-    }
-
-    // The child is this same binary, and its half of the test opens no file in the tree.
-    let exe = std::env::current_exe().expect("cannot locate the test binary");
-    let output = nvs_repo::spawn(&exe, &[])
-        .args([TEST_NAME, "--exact", "--nocapture", "--test-threads=1"])
-        .env(CHILD_ENV, "1")
-        .output()
-        .expect("failed to spawn the probe child");
-
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let stderr = String::from_utf8_lossy(&output.stderr);
-
-    assert!(
-        stdout.contains(STARTED),
-        "harness problem, not a result: the child never reached the probe.\n\
-         Did the test name change? Expected to run `{TEST_NAME}`.\n\
-         --- child stdout ---\n{stdout}\n--- child stderr ---\n{stderr}"
-    );
-
-    if output.status.success() {
-        assert!(
-            !stdout.contains(CAUGHT),
-            "\n\
-             ============================================================\n\
-             A panic unwound through a Cranelift JIT frame and was caught.\n\
-             \n\
-             This did not work when the calling convention was chosen, and\n\
-             the fact that it does now means cranelift-jit has started\n\
-             registering JIT frames with the platform unwinder.\n\
-             \n\
-             rule:errors/propagation names this as the condition for\n\
-             reconsidering the checked-return calling convention. Read\n\
-             docs/rules/errors.md before acting: the other two reasons given there\n\
-             (composing with coroutine stack switches, and keeping error-path\n\
-             refcount drops visible to the optimiser) still favour checked\n\
-             returns, so this is an invitation to re-evaluate rather than a\n\
-             verdict.\n\
-             \n\
-             Update the rule either way, so the next reader knows this was\n\
-             considered and not merely missed.\n\
-             ============================================================"
-        );
-        panic!(
-            "the child exited cleanly without reporting either outcome.\n\
-             --- child stdout ---\n{stdout}\n--- child stderr ---\n{stderr}"
-        );
-    }
-
-    // The expected path: the child died because the unwinder could not walk
-    // through the JIT frame. On Windows this surfaces as the MSVC C++ exception
-    // code 0xE06D7363; on Unix as a signal.
-    let code = output.status.code();
-    println!(
-        "premise holds: the child was terminated (exit {code:?}) rather than \
-         catching the unwind, so the checked-return calling convention remains necessary"
-    );
-}
-
-/// The child half: build a JIT frame, panic beneath it, and report whether the
-/// panic could be caught above it.
-fn run_child() {
-    // Keep the log readable: a passing run intentionally provokes a panic, and
-    // the default hook's output looks like a failure to anyone reading CI.
-    panic::set_hook(Box::new(|info| {
-        let msg = info
-            .payload()
-            .downcast_ref::<&str>()
-            .copied()
-            .unwrap_or("panic");
-        // Deliberately stderr, so it cannot be confused with the markers.
-        eprintln!("probe child: expected panic occurred ({msg})");
-    }));
-
-    println!("{STARTED}");
-
+fn a_jit_frame_has_no_unwind_entry() {
     let mut flags = settings::builder();
     flags.set("use_colocated_libcalls", "false").unwrap();
     flags.set("is_pic", "false").unwrap();
-    // Ask for unwind tables explicitly, so this is a fair test of the premise
-    // rather than a self-fulfilling one.
+    // Ask for unwind information explicitly, so this is a fair test of the
+    // premise rather than a self-fulfilling one.
     flags.set("unwind_info", "true").unwrap();
 
     let isa = cranelift_native::builder()
@@ -145,7 +54,7 @@ fn run_child() {
         .expect("failed to construct the host ISA");
 
     let mut builder = JITBuilder::with_isa(isa, cranelift_module::default_libcall_names());
-    builder.symbol("helper_that_panics", helper_that_panics as *const u8);
+    builder.symbol("helper_that_doubles", helper_that_doubles as *const u8);
     let mut module = JITModule::new(builder);
 
     let mut sig = module.make_signature();
@@ -153,7 +62,7 @@ fn run_child() {
     sig.returns.push(AbiParam::new(types::I64));
 
     let helper = module
-        .declare_function("helper_that_panics", Linkage::Import, &sig)
+        .declare_function("helper_that_doubles", Linkage::Import, &sig)
         .unwrap();
     let wrapper = module
         .declare_function("jit_wrapper", Linkage::Export, &sig)
@@ -180,21 +89,107 @@ fn run_child() {
     module.clear_context(&mut ctx);
     module.finalize_definitions().unwrap();
 
+    let code = module.get_finalized_function(wrapper);
+
     #[allow(
         unsafe_code,
         reason = "the function was just compiled with exactly this signature"
     )]
     // SAFETY: `jit_wrapper` was declared as `(i64) -> i64` above and the module
     // has been finalized, so the code pointer is valid and executable.
-    let jit: extern "C-unwind" fn(i64) -> i64 =
-        unsafe { std::mem::transmute(module.get_finalized_function(wrapper)) };
+    let jit: extern "C" fn(i64) -> i64 = unsafe { std::mem::transmute(code) };
+    assert_eq!(
+        jit(5),
+        10,
+        "the JIT function must run before its entry is looked up"
+    );
 
-    // Confirm the compiled frame works at all before provoking it.
-    assert_eq!(jit(5), 10, "the JIT frame itself must be sound");
+    // One byte past the start is inside the prologue, which is the range an
+    // unwind entry for this function would have to cover.
+    let jit_pc = code.wrapping_add(1);
 
-    // If this returns Err, the unwinder walked through the JIT frame.
-    // If unwind info is unregistered, this call terminates the process instead.
-    if panic::catch_unwind(AssertUnwindSafe(|| jit(42))).is_err() {
-        println!("{CAUGHT}");
+    if cfg!(not(target_os = "macos")) {
+        let control = a_jit_frame_has_no_unwind_entry as *const u8;
+        assert!(
+            has_unwind_entry(control.wrapping_add(1)),
+            "harness problem, not a result: the platform lookup found no unwind entry for a \
+             function of this test binary either, so it cannot tell whether the JIT frame has one"
+        );
     }
+
+    assert!(
+        !has_unwind_entry(jit_pc),
+        "\n\
+         ============================================================\n\
+         The platform unwinder has an unwind entry for a Cranelift JIT\n\
+         frame, which means cranelift-jit now registers unwind tables.\n\
+         \n\
+         rule:errors/propagation says what to do: rewrite its sentence\n\
+         about unwind tables, and turn this canary around so it records\n\
+         that the entry exists and fails if that changes back. Checked\n\
+         returns stay, for the reasons the rule gives.\n\
+         ============================================================"
+    );
+}
+
+/// Whether the platform unwinder has an entry covering `pc`.
+#[cfg(windows)]
+fn has_unwind_entry(pc: *const u8) -> bool {
+    #[allow(
+        unsafe_code,
+        reason = "declares the documented kernel32 export the unwinder itself uses"
+    )]
+    unsafe extern "system" {
+        fn RtlLookupFunctionEntry(
+            control_pc: u64,
+            image_base: *mut u64,
+            history_table: *mut c_void,
+        ) -> *const c_void;
+    }
+
+    let mut image_base = 0_u64;
+    #[allow(
+        unsafe_code,
+        reason = "the lookup only reads the loader's and the dynamic function tables"
+    )]
+    // SAFETY: `RtlLookupFunctionEntry` accepts any PC, writes only through
+    // `image_base`, which is a valid local, and takes a null history table.
+    let entry =
+        unsafe { RtlLookupFunctionEntry(pc as u64, &raw mut image_base, std::ptr::null_mut()) };
+    !entry.is_null()
+}
+
+/// The bases `_Unwind_Find_FDE` fills in beside the entry it returns.
+#[cfg(unix)]
+#[repr(C)]
+struct DwarfEhBases {
+    tbase: *const c_void,
+    dbase: *const c_void,
+    func: *const c_void,
+}
+
+/// Whether the platform unwinder has an entry covering `pc`.
+#[cfg(unix)]
+fn has_unwind_entry(pc: *const u8) -> bool {
+    #[allow(
+        unsafe_code,
+        reason = "declares the unwinder export that libgcc and libunwind both provide"
+    )]
+    unsafe extern "C" {
+        fn _Unwind_Find_FDE(pc: *const c_void, bases: *mut DwarfEhBases) -> *const c_void;
+    }
+
+    let mut bases = DwarfEhBases {
+        tbase: std::ptr::null(),
+        dbase: std::ptr::null(),
+        func: std::ptr::null(),
+    };
+    #[allow(
+        unsafe_code,
+        reason = "the lookup only reads the loaded images' and the registered frame tables"
+    )]
+    // SAFETY: `_Unwind_Find_FDE` accepts any PC and writes only through
+    // `bases`, which is a valid local of the layout it expects.
+    let entry = unsafe { _Unwind_Find_FDE(pc.cast(), &raw mut bases) };
+    !entry.is_null()
 }
