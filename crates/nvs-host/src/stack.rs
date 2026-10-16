@@ -121,8 +121,7 @@ thread_local! {
 ///
 /// # Panics
 ///
-/// If `f` panics, or if the OS refuses to reserve the stack, which is the same
-/// `expect` [`StackPool::take`] makes.
+/// If `f` panics, or if the OS refuses to reserve the stack.
 pub fn on_spare_stack<R>(f: impl FnOnce() -> R) -> R {
     let mut stack = SPARE
         .with(|spare| spare.borrow_mut().take())
@@ -161,6 +160,9 @@ pub(crate) fn bounds(stack: &DefaultStack) -> (usize, usize) {
 pub(crate) struct StackPool {
     free: Vec<DefaultStack>,
     cap: usize,
+    /// Whether a fresh reservation fails, which only a test sets.
+    #[cfg(test)]
+    refuse_fresh: bool,
 }
 
 impl std::fmt::Debug for StackPool {
@@ -186,28 +188,36 @@ impl StackPool {
         Self {
             free: Vec::new(),
             cap,
+            #[cfg(test)]
+            refuse_fresh: false,
         }
     }
 
     /// A stack for a task, recycled if the pool has one and freshly reserved if
     /// it does not.
     ///
-    /// # Panics
+    /// # Errors
     ///
-    /// If the OS refuses the reservation. Nothing softer is available here —
-    /// `Scheduler::spawn` has no error to return and a task with no stack
-    /// cannot be queued — and nothing softer is wanted either: address space is
-    /// precisely the resource `rule:http-server/a-wedged-core-is-detected-by-its-deadline`'s admission arithmetic counts before
-    /// it admits a request, so a refusal at this point means admission let in
-    /// work the worker could not hold. That arithmetic is goal `governance`'s; until it
-    /// exists this is the same `expect` `corosensei`'s own default stack does.
-    pub(crate) fn take(&mut self) -> DefaultStack {
-        match self.free.pop() {
-            Some(stack) => stack,
-            None => {
-                DefaultStack::new(TASK_STACK_SIZE).expect("a worker could not reserve a task stack")
-            }
+    /// The OS error, when the pool is empty and the OS refuses the reservation.
+    /// [`crate::Scheduler`] ends the task the stack was for as a limit
+    /// (`rule:errors/on-limit`), so a refusal fails that task's request and
+    /// the worker goes on serving the others.
+    pub(crate) fn take(&mut self) -> std::io::Result<DefaultStack> {
+        if let Some(stack) = self.free.pop() {
+            return Ok(stack);
         }
+        #[cfg(test)]
+        if self.refuse_fresh {
+            return Err(std::io::Error::other("the test refused the reservation"));
+        }
+        DefaultStack::new(TASK_STACK_SIZE)
+    }
+
+    /// Makes every reservation this pool would make from now on fail, so a
+    /// test can reach the refusal without exhausting the address space.
+    #[cfg(test)]
+    pub(crate) fn refuse_fresh(&mut self) {
+        self.refuse_fresh = true;
     }
 
     /// Takes a finished task's stack back, keeping it for the next task unless
@@ -231,14 +241,14 @@ mod tests {
     #[test]
     fn a_finished_task_s_stack_is_handed_to_the_next_one() {
         let mut pool = StackPool::new();
-        let first = pool.take();
+        let first = pool.take().expect("a test stack");
         let base = first.base();
         assert_eq!(pool.pooled(), 0, "a stack in use is not idle");
 
         pool.give(first);
         assert_eq!(pool.pooled(), 1);
 
-        let second = pool.take();
+        let second = pool.take().expect("a test stack");
         assert_eq!(
             second.base(),
             base,

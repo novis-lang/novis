@@ -499,6 +499,11 @@ impl Drop for Child {
         nvs_runtime::budget::carry(-STACK_CHARGE);
         let mut group = self.group.borrow_mut();
         group.outstanding = group.outstanding.saturating_sub(1);
+        // A child the worker could not give a stack never ran, and its group
+        // ends on that limit as it would on one the child reached.
+        if let Some(message) = crate::scheduler::refusal() {
+            group.fatal.get_or_insert(message);
+        }
         drop(group);
         // Unconditionally, including for a child that was torn down: the parent
         // is parked on this count and a wake naming a task that is already
@@ -1347,6 +1352,34 @@ mod tests {
         sched.run();
 
         assert_eq!(*seen.borrow(), "the request exceeded its memory limit");
+    }
+
+    /// A child the worker cannot give a stack ends its group on a limit, so
+    /// the caller sees the refusal and never a `null` in that child's place:
+    /// `rule:errors/on-limit`.
+    #[test]
+    fn a_child_the_worker_cannot_give_a_stack_is_the_group_s_fatal() {
+        let mut sched = Scheduler::new();
+        let seen = Rc::new(RefCell::new(String::new()));
+        let out = Rc::clone(&seen);
+
+        sched.spawn(Ctx::buffered(), TaskRoot::Request, move |ctx| {
+            let jobs: Vec<Job> = vec![Box::new(|_: &mut Ctx| Value::int(1))];
+            *out.borrow_mut() = match group(ctx, jobs, Bounds::default()) {
+                Outcome::Fatal(message) => message,
+                other => format!("not a FATAL: {other:?}"),
+            };
+        });
+        // After the parent has its stack, so only the child is refused.
+        sched.refuse_fresh_stacks();
+        sched.run();
+
+        let seen = seen.borrow();
+        assert!(
+            seen.starts_with("the server could not reserve memory for a new task"),
+            "{seen}"
+        );
+        assert_eq!(sched.tracked_tasks(), 0, "the refused child left the tree");
     }
 
     /// A child's `echo` reaches the request in **job** order, whatever order the

@@ -817,11 +817,8 @@ impl Scheduler {
     /// what that doc means by "an embedder that knows its bounds" — `rule:concurrency/a-task-stack-is-reserved-wide-and-pooled`
     /// 's last bullet.
     ///
-    /// # Panics
-    ///
-    /// If the OS refuses a stack reservation and the pool is empty;
-    /// [`crate::stack::StackPool::take`] owns why nothing softer is available
-    /// or wanted here.
+    /// A task the worker cannot give a stack never runs: [`Scheduler::refuse`]
+    /// ends it as a limit and files it the way a task that ran is filed.
     ///
     /// Nothing runs until [`Scheduler::run`] is called.
     pub fn spawn<F>(&mut self, ctx: Ctx, root: TaskRoot, body: F) -> TaskId
@@ -845,7 +842,13 @@ impl Scheduler {
     /// pending list — both have to arm the stack limit the same way, and the
     /// way it is armed is the whole reason this is not two copies.
     fn start(&mut self, id: TaskId, ctx: Ctx, root: TaskRoot, body: Box<dyn FnOnce(&mut Ctx)>) {
-        let stack = self.stacks.take();
+        let stack = match self.stacks.take() {
+            Ok(stack) => stack,
+            Err(error) => {
+                self.refuse(id, ctx, body, &error);
+                return;
+            }
+        };
         let mut ctx = ctx;
         let tree = ctx.tree_key();
         let (base, ceiling) = crate::stack::bounds(&stack);
@@ -900,6 +903,46 @@ impl Scheduler {
             tree,
             fiber: Fiber::new(),
         });
+    }
+
+    /// Ends a task the worker could not give a stack, as a limit
+    /// (`rule:errors/on-limit`): the task fails and the worker does not.
+    ///
+    /// A root is filed as [`Finished`] with the limit pending on its context,
+    /// which is what a request boundary already reads. A child's context has no
+    /// reader, so its body is dropped unrun while [`REFUSED`] holds the
+    /// message, and a guard the body captured files the limit with whoever
+    /// waits on the child — [`crate::group`]'s does.
+    fn refuse(
+        &mut self,
+        id: TaskId,
+        mut ctx: Ctx,
+        body: Box<dyn FnOnce(&mut Ctx)>,
+        error: &std::io::Error,
+    ) {
+        let message = format!("the server could not reserve memory for a new task: {error}");
+        REFUSED.set(Some(message.clone()));
+        drop(body);
+        REFUSED.set(None);
+        // Asked before `orphan` retires the node, as the return path does.
+        let is_root = self.parent_of(id).is_none();
+        self.ended.push(id);
+        self.orphan(id);
+        if is_root {
+            ctx.set_pending_fatal(message);
+            self.finished.push(Finished {
+                id,
+                ctx,
+                outcome: Ok(()),
+            });
+        }
+    }
+
+    /// Makes every stack this worker would reserve from now on fail, so a test
+    /// can reach [`Scheduler::refuse`].
+    #[cfg(test)]
+    pub(crate) fn refuse_fresh_stacks(&mut self) {
+        self.stacks.refuse_fresh();
     }
 
     /// Moves a parked task back to the run queue, reporting whether there was
@@ -1364,6 +1407,23 @@ thread_local! {
     static RUNNING: Cell<Option<Running>> = const { Cell::new(None) };
 }
 
+thread_local! {
+    /// The message of the stack refusal whose task body [`Scheduler::refuse`]
+    /// is dropping right now, and `None` at every other moment.
+    ///
+    /// A body that never runs is dropped, and a guard it captured is how its
+    /// owner learns that it ended. This is what lets that guard tell a refused
+    /// task, which failed, from one cancelled before its first resume, which
+    /// did not.
+    static REFUSED: RefCell<Option<String>> = const { RefCell::new(None) };
+}
+
+/// The limit a task body being dropped unrun was refused with, or `None` when
+/// no refusal is being dropped.
+pub(crate) fn refusal() -> Option<String> {
+    REFUSED.with_borrow(Clone::clone)
+}
+
 /// What a running task publishes for code that was handed no [`Ctx`].
 #[derive(Clone, Copy)]
 struct Running {
@@ -1671,6 +1731,45 @@ mod tests {
             sched.run();
         }
         assert_eq!(sched.pooled_stacks(), 2, "sequential tasks reuse, not grow");
+    }
+
+    #[test]
+    fn a_root_the_worker_cannot_give_a_stack_ends_on_a_limit_and_the_worker_goes_on() {
+        // `rule:errors/on-limit`: a stack the OS refuses fails the one task it
+        // was for. The idle stack the first task leaves is still handed out,
+        // so only the task that needed a fresh reservation is refused.
+        let mut sched = Scheduler::new();
+        sched.spawn(ctx(), TaskRoot::Request, |_| {});
+        sched.run();
+        let _ = sched.take_finished();
+        sched.refuse_fresh_stacks();
+
+        let ran = Rc::new(Cell::new(0));
+        let mut ids = Vec::new();
+        for _ in 0..2 {
+            let ran = Rc::clone(&ran);
+            ids.push(sched.spawn(ctx(), TaskRoot::Request, move |_| ran.set(ran.get() + 1)));
+        }
+        sched.run();
+
+        assert_eq!(ran.get(), 1, "the task with the pooled stack runs");
+        let mut finished = sched.take_finished();
+        assert_eq!(
+            finished.len(),
+            2,
+            "a refused root is filed like one that ran"
+        );
+        let refused = finished
+            .iter_mut()
+            .find(|done| done.id == ids[1])
+            .expect("the refused root is filed");
+        assert!(refused.outcome.is_ok(), "a refusal is a limit, not a panic");
+        let message = refused.ctx.take_fatal().expect("the refusal is a limit");
+        assert!(
+            message.starts_with("the server could not reserve memory for a new task"),
+            "{message}"
+        );
+        assert_eq!(sched.tracked_tasks(), 0, "the refused task left the tree");
     }
 
     #[test]
