@@ -15,9 +15,12 @@
 import { readdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { format } from "node:util";
-import * as Mocha from "mocha";
+import type { Stats } from "mocha";
 
 export async function run(): Promise<void> {
+  // Mocha is an ES module, and this file is compiled to CommonJS for the extension host to
+  // require, so Mocha is loaded with `import()` when the run starts.
+  const { default: Mocha } = await import("mocha");
   const here = __dirname;
   const report = process.env.NVS_HOST_REPORT ?? join(here, "..", "..", "..", ".vscode-test", "host-report.txt");
 
@@ -35,7 +38,7 @@ export async function run(): Promise<void> {
   }
   await mocha.loadFilesAsync();
 
-  const stats = await new Promise<Mocha.Stats | undefined>((done) => {
+  const stats = await new Promise<Stats | undefined>((done) => {
     const runner = mocha.run(() => done(runner.stats));
   });
   // A run that ends with no statistics ended some other way than by finishing, which is a failure

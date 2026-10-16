@@ -29,7 +29,7 @@ import {
   ExtensionContext,
   LanguageStatusItem,
   LanguageStatusSeverity,
-  OutputChannel,
+  LogOutputChannel,
   ProgressLocation,
   Uri,
   commands,
@@ -111,7 +111,7 @@ const RESPAWNING_SETTINGS = ["nvs.path", "nvs.lsp.enable"];
 
 let client: LanguageClient | undefined;
 let status: LanguageStatusItem | undefined;
-let channel: OutputChannel | undefined;
+let channel: LogOutputChannel | undefined;
 let watching: Watch | undefined;
 let turn: Promise<void> = Promise.resolve();
 // Whether the install offer has been shown since a server last answered. A failed start is retried
@@ -119,7 +119,7 @@ let turn: Promise<void> = Promise.resolve();
 let offered = false;
 
 export async function activate(context: ExtensionContext): Promise<Surface> {
-  channel = window.createOutputChannel("Novis");
+  channel = window.createOutputChannel("Novis", { log: true });
   status = languages.createLanguageStatusItem("nvs.server", SELECTOR);
   status.name = "Novis";
   status.command = RESTART;
