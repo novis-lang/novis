@@ -324,11 +324,16 @@ Every stage is done, and `bun nv deps --check` exits 0: 293 pins, 14 held, 4 flo
 - The three socket legs of `bun nv db-matrix` fail on this Windows host with `EOPNOTSUPP`, for
   PostgreSQL too, whose image did not move. A socket that Docker Desktop's VM creates under
   `/mnt/wsl` cannot be connected to from the distro.
-- `looper verify` failed only on two binaries this group does not reach, and each passed alone:
-  `nvs-ext`'s `a_200_page_report_crosses_under_the_requests_memory` hit `Limit(Cpu)` under load
-  (`crates/nvs-ext/tests/pdf.rs:644`), and `live_edit`'s two compile-race cases timed out.
-- The nightly run 38869457440 tested `cb7021a24`, 806 commits behind `HEAD`, because `main` is not
-  pushed. Its ten red jobs say nothing about this tree.
+- The refused DONE: `engine-guards` was red only on the fan-out ratio guard, which sat at 0.23x
+  while other loops held the host's cores. `looper check --name engine-guards` and `--name
+  deps-check` are both green alone. Its plain-thread baseline reached 3.42x in the same attempt.
+  So the baseline does not see load that starves parked worker cores, and the guard can still read
+  load as a fault (`benches/abi-probe/tests/perf_guards.rs:1536`).
+- CI run 38878542511 tested the pushed `e110c9c0b`, 102 commits behind `HEAD`. Its test, lint and
+  supply-chain jobs pass. Unpushed commits fix the five-driver matrix (`460a68396`) and the
+  website's `propertyPath` page (`1eb5fb3a1`). The `docs` job's one finding was a shipped rule that
+  named the retired goal `route-dispatch`, and this session removed that field. The `proofs` jobs
+  are the proof debt in the backlog.
 
 ### Next
 
@@ -340,6 +345,6 @@ first group.
 - The user pushes `main`, so the nightly tests the current tree (`.github/workflows/ci.yml:7`), and decides on `looper sync`: `looper lint` says `AGENTS.md`'s managed text and `.claude/settings.json` drifted.
 - The socket legs of `bun nv db-matrix` on a Windows host (`tools/nv/cmd/db-matrix.ts:41`, `rule:core-classes/db-unix-socket-path`).
 - Proof debt: the stale perf records and the `Core\Test\Outcome`/`Summary` proofs (`bun nv proofs --owed`). The Zip extract attack needs a linear folder walk (`crates/nvs-stdlib/src/zip.rs:894`, `rule:security/writes-open-beneath-a-handle`).
-- Load flakes: the pdf report's CPU limit (`crates/nvs-ext/tests/pdf.rs:644`), `ldap` handshake deadlines under a loaded host (`crates/nvs-ldap/tests/samba.rs:75`), the `live_edit` 30 s wait (`crates/nvs-cli/tests/live_edit.rs:1010`), `spreadsheet_read` and `parallel_tests_overlap_on_more_than_one_core` (`crates/nvs-cli/src/runner.rs:4100`).
+- Load flakes: the pdf report's CPU limit (`crates/nvs-ext/tests/pdf.rs:644`), `ldap` handshake deadlines under a loaded host (`crates/nvs-ldap/tests/samba.rs:75`), the `live_edit` 30 s wait (`crates/nvs-cli/tests/live_edit.rs:1010`), `spreadsheet_read` and `parallel_tests_overlap_on_more_than_one_core` (`crates/nvs-cli/src/runner.rs:4100`), and the fan-out guard, whose baseline spawns fresh threads and misses load that delays waking a parked worker core (`benches/abi-probe/tests/perf_guards.rs:1354`).
 - wasmtime 50.0.0 final and cranelift 0.137, held at `Cargo.toml:346`: move the epoch callback's fuel refresh out (`crates/nvs-ext/src/call.rs:1075`), and drop the `new_own` workaround (`crates/nvs-ext/src/handle.rs:176`).
 - hyper 1.12's `max_header_size` is a question for the user (`crates/nvs-server/src/serve.rs`). The user mirrors `.github/dependabot.yml` on `landing` (`.github/dependabot.yml:31`), and moves the local MSVC to VS 2026's 14.50.
