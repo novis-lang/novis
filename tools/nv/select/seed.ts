@@ -102,6 +102,8 @@ export interface Ctx {
   say: (line: string) => void;
   tally: (kind: AtomKind, verdict: Verdict, ext: Extracted | null) => void;
   root: string;
+  /** Told of each atom a runner starts on its own; an atom of a batch is not told. */
+  starting?: (id: string) => void;
 }
 
 export async function seed(store: SelectStore, opts: SeedOptions = {}): Promise<SeedReport> {
@@ -198,6 +200,7 @@ export async function seedTests(ctx: Ctx, exes: { pkg: string; t: TestExe }[], s
   await pool(exes, width, async ({ pkg, t }) => {
     if (stop()) return;
     const id = testId(pkg, t);
+    ctx.starting?.(id);
     const name = recordName(id);
     // The binary's own compile cache starts empty, so the first compile of each program runs whole.
     // `NOVIS_NO_FILE_CACHE` is not set: the binaries that test the cache would test nothing.

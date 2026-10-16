@@ -61,6 +61,9 @@ export interface FullOptions {
   only?: string[];
   /** When no further atom starts, in milliseconds since the epoch. */
   deadline?: number;
+  /** Told of each atom as it starts on its own: a test executable, a tools test file or a plan check.
+   * A case or a proof program runs in a batch, and is not told. */
+  onStart?: (id: string) => void;
 }
 
 export interface Miss {
@@ -197,7 +200,7 @@ export async function fullRun(store: SelectStore, opts: FullOptions = {}): Promi
   }
 
   const r = await Recorder.open(store, sweep.change.view, sweep.graph, "full", { root, say });
-  const ctx: Ctx = { r, nvs: r.pin(build.nvs), built: build.nvs, jobs, say, tally: () => {}, root };
+  const ctx: Ctx = { r, nvs: r.pin(build.nvs), built: build.nvs, jobs, say, tally: () => {}, root, ...(opts.onStart && { starting: opts.onStart }) };
   // A run of `only` takes one pool's width of cases or proof programs at a time, so the deadline is asked
   // before each of them starts.
   const batch = only === null ? undefined : jobs;
@@ -217,6 +220,7 @@ export async function fullRun(store: SelectStore, opts: FullOptions = {}): Promi
       let done = 0;
       await pool(files, width, async (f) => {
         if (spent()) return;
+        opts.onStart?.(nvTestId(f));
         await runNvTest(r, f);
         say(`select: tools tests ${++done}/${files.length}`);
       });
@@ -235,6 +239,8 @@ export async function fullRun(store: SelectStore, opts: FullOptions = {}): Promi
         if (origin !== null) say(`select: ${origin.line}`);
         for (const c of own) {
           if (spent()) break;
+          const atom = sweep.groups.get(c.id)?.own?.id;
+          if (atom !== undefined) opts.onStart?.(atom);
           await sweep.check(c);
         }
       } finally {

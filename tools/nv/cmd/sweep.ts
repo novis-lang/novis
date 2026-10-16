@@ -29,16 +29,27 @@
 // the file when no line is left. A run that cannot work, because of a bad argument or a runner that threw,
 // writes why as a `FLOOR_LINE`; a nightly run `gh` cannot read is one `NIGHTLY_LINE` that says so.
 //
+// Under looper, which names an event file in `LOOPER_EVENTS`, the run writes looper's progress events
+// (`lib/events.ts`), and outside it writes none. It declares the debt's item, `DEBT_ITEM`, and under it
+// one item per debt atom in the order the turns pay them, with the atom's id and the debt kind; then one
+// item each for the disk sweep and the nightly read, and `planned`. A runner tells it of each atom it
+// starts on its own: a test executable, a tools test file, a plan check or a bench. The Linux legs start
+// with their turn, and a case or a proof program, which runs in a batch, only ends. An atom's item ends
+// when its run is recorded (`store.ts` `onRecorded`), red when it ran red. One paid with no recorded run
+// ends with its verdict once the turns are over, and one the budget did not reach ends `skipped`. The
+// run ends with `done`. What it spends: one appended line per item event.
+//
 // It always exits 0, because looper pauses the loop on a hook that fails: the file is the verdict.
 
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { namedPlan } from "../lib/chain.ts";
+import { type EndFields, ev } from "../lib/events.ts";
 import { ROOT } from "../lib/paths.ts";
 import { run as proc } from "../lib/proc.ts";
 import { LEGS, legId } from "../select/checks.ts";
 import { fullRun } from "../select/full.ts";
-import { type AtomRow, SelectStore } from "../select/store.ts";
+import { type AtomRow, onRecorded, SelectStore } from "../select/store.ts";
 import { benchTurn } from "./benches.ts";
 import { clean, freedLines, freeGb, human, KEEP_RUNS, total } from "./disk.ts";
 import { type LegsCmdSeams, legsOver } from "./legs.ts";
@@ -55,6 +66,11 @@ export const NIGHTLY_LINE = "- nightly CI: ";
  * programs to finish. Debt larger than the budget is paid over the runs that follow.
  */
 export const DEBT_BUDGET_MS = 10 * 60_000;
+
+/** The progress items of the run's three parts; each debt atom's item is its atom id, under `DEBT_ITEM`. */
+export const DEBT_ITEM = "sweep:debt";
+export const DISK_ITEM = "sweep:disk";
+export const NIGHTLY_ITEM = "sweep:nightly";
 
 export const summary = `looper's hook after each session: pays owed and red atoms for at most ${DEBT_BUDGET_MS / 60_000} minutes, sweeps the disk, reads the newest nightly CI run, and writes what is red into ${LAST_SWEEP}: nv sweep [--goal <slug>] [--keep-runs <n>]`;
 
@@ -104,8 +120,8 @@ export interface SweepSeams {
   /** The floor debt the store holds now. */
   debt(): DebtAtom[];
   /** Runs one turn, no atom of it starting at or after `deadline`: a red line, or "". `slug` is the goal
-   * the legs run over, `namedPlan`'s when unset. */
-  pay(turn: DebtTurn, deadline: number, slug: string | undefined, note: (line: string) => void): Promise<string>;
+   * the legs run over, `namedPlan`'s when unset. `onStart` is told of each atom as the runner starts it. */
+  pay(turn: DebtTurn, deadline: number, slug: string | undefined, note: (line: string) => void, onStart?: (id: string) => void): Promise<string>;
   /** `gh` with `args`. It throws when `gh` cannot start. */
   gh(args: string[]): Promise<GhRun>;
   /** The disk sweep's one-line summary. */
@@ -199,26 +215,64 @@ export async function payDebt(i: DebtInput, voice: SweepVoice, s: SweepSeams): P
   const started = s.now();
   const deadline = started + DEBT_BUDGET_MS;
   const reds: string[] = [];
-  if (before.length === 0) voice.step("floor debt: none");
-  else {
-    voice.step(`floor debt: ${before.length} atom(s), ${byKind(before)}; paying for at most ${minutes(DEBT_BUDGET_MS)}, the red ones first, then the oldest owed`);
-    for (const turn of debtTurns(before)) {
-      if (s.now() >= deadline) {
-        voice.step("floor debt: the budget is spent, so the rest waits for the next run");
-        break;
+  const turns = debtTurns(before);
+  // The plan: the debt's item and an item per atom under it, in the order the turns pay them, then the
+  // disk sweep and the nightly read.
+  const planned = new Set(turns.flatMap((t) => t.ids));
+  const kindOf = new Map(before.map((a) => [a.id, a.kind]));
+  ev.add(DEBT_ITEM, { name: "floor debt", kind: "step" });
+  for (const id of planned) ev.add(id, { parent: DEBT_ITEM, name: id, kind: kindOf.get(id) ?? "atom" });
+  ev.add(DISK_ITEM, { name: "disk sweep", kind: "step" });
+  ev.add(NIGHTLY_ITEM, { name: "nightly CI read", kind: "step" });
+  ev.planned();
+  ev.start(DEBT_ITEM);
+  // An atom's item ends when its run is recorded, whichever runner records it.
+  const ended = new Set<string>();
+  const end = (id: string, f: EndFields) => {
+    if (!planned.has(id) || ended.has(id)) return;
+    ended.add(id);
+    ev.end(id, f);
+  };
+  onRecorded((id, verdict) => end(id, verdict === "red" ? { result: "red", why: "ran red" } : {}));
+  const onStart = (id: string) => {
+    if (planned.has(id) && !ended.has(id)) ev.start(id);
+  };
+  try {
+    if (before.length === 0) voice.step("floor debt: none");
+    else {
+      voice.step(`floor debt: ${before.length} atom(s), ${byKind(before)}; paying for at most ${minutes(DEBT_BUDGET_MS)}, the red ones first, then the oldest owed`);
+      for (const turn of turns) {
+        if (s.now() >= deadline) {
+          voice.step("floor debt: the budget is spent, so the rest waits for the next run");
+          break;
+        }
+        const kinds = byKind(before.filter((a) => turn.ids.includes(a.id)));
+        voice.step(`floor debt: paying ${kinds}, by ${turn.runner === "full" ? "the full run's runners" : turn.runner === "bench" ? "the bench turn" : "the Linux legs"}`);
+        reds.push(await s.pay(turn, deadline, i.slug, voice.note, onStart));
       }
-      const kinds = byKind(before.filter((a) => turn.ids.includes(a.id)));
-      voice.step(`floor debt: paying ${kinds}, by ${turn.runner === "full" ? "the full run's runners" : turn.runner === "bench" ? "the bench turn" : "the Linux legs"}`);
-      reds.push(await s.pay(turn, deadline, i.slug, voice.note));
     }
+  } finally {
+    onRecorded(null);
   }
   const left = before.length === 0 ? [] : s.debt();
   const paid = paidOf(before, left);
   if (before.length > 0) {
     voice.step(`floor debt: paid ${paid.length}${paid.length > 0 ? ` (${byKind(paid)})` : ""} in ${minutes(s.now() - started)}; left ${left.length}${left.length > 0 ? ` (${byKind(left)})` : ""}`);
   }
-  voice.step(await s.disk(i.keepRuns, voice.note));
+  // An atom paid without a recorded run, such as a bench a skip proved, ends with its verdict now, and an
+  // atom the budget did not reach ends skipped.
+  const after = new Map(left.map((a) => [a.id, a]));
+  const paidIds = new Set(paid.map((a) => a.id));
+  for (const id of planned) {
+    if (paidIds.has(id)) end(id, after.get(id)?.verdict === "red" ? { result: "red", why: "ran red" } : {});
+    else end(id, { result: "skipped", why: "the budget did not reach it, so it stays owed for the next run" });
+  }
   const found = reds.filter((r) => r !== "");
+  ev.end(DEBT_ITEM, found.length > 0 ? { result: "red", why: found[0]!.split("\n")[0]! } : {});
+  ev.start(DISK_ITEM);
+  const disk = await s.disk(i.keepRuns, voice.note);
+  voice.step(disk);
+  ev.end(DISK_ITEM, disk.startsWith("disk: the sweep failed") ? { result: "red", why: disk } : {});
   writeOwnLines(s.root, FLOOR_LINE, found.flatMap(redsOf));
   return { paid, left, reds: found };
 }
@@ -245,10 +299,10 @@ function storeDebt(): DebtAtom[] {
  * recorded. Returns a red line naming the atoms that ran red, or the covws build that failed, and "" when
  * there is neither.
  */
-async function fullTurn(ids: string[], deadline: number, note: (line: string) => void): Promise<string> {
+async function fullTurn(ids: string[], deadline: number, note: (line: string) => void, onStart: (id: string) => void): Promise<string> {
   const store = new SelectStore();
   try {
-    const r = await fullRun(store, { only: ids, deadline, say: note });
+    const r = await fullRun(store, { only: ids, deadline, say: note, onStart });
     if (r.buildFailed) return "owed atoms: not run, the covws build failed";
     const red = [...r.ran].filter(([, v]) => v === "red").map(([id]) => id);
     note(`owed atoms: ${r.ran.size} ran, ${red.length} red, in ${r.seconds}s`);
@@ -270,10 +324,14 @@ export async function legsTurn(slug: string | undefined, note: (line: string) =>
   return legsOver(found.goal, full, { say: note, ...over });
 }
 
-async function payTurn(turn: DebtTurn, deadline: number, slug: string | undefined, note: (line: string) => void): Promise<string> {
-  if (turn.runner === "bench") return benchTurn(note, false, { ids: turn.ids, deadline });
-  if (turn.runner === "leg") return legsTurn(slug, note, false);
-  return fullTurn(turn.ids, deadline, note);
+async function payTurn(turn: DebtTurn, deadline: number, slug: string | undefined, note: (line: string) => void, onStart: (id: string) => void = () => {}): Promise<string> {
+  if (turn.runner === "bench") return benchTurn(note, false, { ids: turn.ids, deadline, onStart });
+  if (turn.runner === "leg") {
+    // The legs run inside one call, which says nothing of each, so each starts with it.
+    for (const id of turn.ids) onStart(id);
+    return legsTurn(slug, note, false);
+  }
+  return fullTurn(turn.ids, deadline, note, onStart);
 }
 
 /** `nv disk --clean`'s sweep. Says each part, and returns the one-line summary. */
@@ -349,25 +407,30 @@ export async function readNightly(gh: SweepSeams["gh"]): Promise<Nightly | null 
   }
 }
 
-/** Reads the nightly run and replaces the `NIGHTLY_LINE` lines with what it found. It never throws. */
-export async function nightlyTurn(s: Pick<SweepSeams, "root" | "gh">, voice: SweepVoice): Promise<void> {
+/** Reads the nightly run and replaces the `NIGHTLY_LINE` lines with what it found. Returns the line it
+ * said when the run is red or could not be read, and "" otherwise. It never throws. */
+export async function nightlyTurn(s: Pick<SweepSeams, "root" | "gh">, voice: SweepVoice): Promise<string> {
   const got = await readNightly(s.gh);
   let lines: string[];
+  let red = "";
   if (typeof got === "string") {
     lines = [`could not be read: ${got}`];
-    voice.step(`nightly CI: could not be read: ${got}`);
+    red = `nightly CI: could not be read: ${got}`;
+    voice.step(red);
   } else if (got === null) {
     lines = [];
     voice.step("nightly CI: no completed nightly run");
   } else {
     lines = got.failed.map((f) => `${f}: ${got.url}`);
-    voice.step(got.failed.length === 0 ? `nightly CI: green, ${got.url}` : `nightly CI: ${got.failed.length} job(s) red, ${got.url}`);
+    if (got.failed.length > 0) red = `nightly CI: ${got.failed.length} job(s) red, ${got.url}`;
+    voice.step(red || `nightly CI: green, ${got.url}`);
   }
   try {
     writeOwnLines(s.root, NIGHTLY_LINE, lines);
   } catch (e) {
     console.error(`nv sweep: ${LAST_SWEEP} could not be written: ${(e as Error).message}`);
   }
+  return red;
 }
 
 // ---- the file ----------------------------------------------------------------------------------------
@@ -417,20 +480,27 @@ export async function sweep(args: string[], over: Partial<SweepCmdSeams> = {}): 
     else if (a === "--keep-runs" && value !== undefined && /^\d+$/.test(value)) keepRuns = Number(args[++i]);
     else bad = a === "--goal" || a === "--keep-runs" ? `${a} needs a value` : `unexpected argument ${a}`;
   }
+  let red = false;
   if (bad !== "") {
     console.error(`${USAGE}\nnv sweep: error: ${bad}`);
     writeOwnLines(s.root, FLOOR_LINE, [`could not run: \`bun nv sweep\` was started with a bad argument: ${bad}`]);
+    red = true;
   } else {
     try {
       const out = await payDebt({ ...(slug !== undefined && { slug }), keepRuns }, voice, s);
       voice.step(out.reds.length > 0 ? `RED: ${LAST_SWEEP} names what the debt run found` : "GREEN: the floor debt this run paid");
+      red = out.reds.length > 0;
     } catch (e) {
       const why = (e as Error).message.split("\n")[0] ?? String(e);
       console.error(`nv sweep: ${why}`);
       writeOwnLines(s.root, FLOOR_LINE, [`could not run: the debt run stopped: ${why}`]);
+      red = true;
     }
   }
-  await nightlyTurn(s, voice);
+  ev.start(NIGHTLY_ITEM);
+  const nightly = await nightlyTurn(s, voice);
+  ev.end(NIGHTLY_ITEM, nightly ? { result: "red", why: nightly } : {});
+  ev.done(red || nightly ? "red" : "green");
   return 0;
 }
 

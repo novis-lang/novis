@@ -23,6 +23,8 @@ const USAGE = "usage: bun nv benches [--owed]";
 export interface BenchDebt {
   ids: string[];
   deadline: number;
+  /** Told of each bench as it starts. */
+  onStart?: (id: string) => void;
 }
 
 /**
@@ -37,7 +39,7 @@ export async function benchTurn(note: (line: string) => void, owedOnly = false, 
   let got: Awaited<ReturnType<typeof runBenches>>;
   try {
     got = debt
-      ? await runBenches(note, new Set(debt.ids), { order: debt.ids, deadline: debt.deadline })
+      ? await runBenches(note, new Set(debt.ids), { order: debt.ids, deadline: debt.deadline, ...(debt.onStart && { onStart: debt.onStart }) })
       : await runBenches(note, owedOnly ? (s) => s.why === "owed" : undefined);
   } finally {
     lock.release();

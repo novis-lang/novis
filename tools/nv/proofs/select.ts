@@ -262,7 +262,7 @@ export async function planBenches(reach: Reach[], judge: (path: string) => Promi
 export async function runBenches(
   say: (line: string) => void = () => {},
   only?: Set<string> | ((s: Selected) => boolean),
-  o: { order?: string[]; deadline?: number } = {},
+  o: { order?: string[]; deadline?: number; onStart?: (id: string) => void } = {},
 ): Promise<{ reached: number; ran: number; skipped: Map<string, string[]>; left: number; red: RedBench[] } | string> {
   const { advance, benchFiles, benchId, changedItems, computeChange, fullChange, metadata, query, Recorder } = await engine();
   const { DEFAULT_WSL_NVS, growthOf } = await import("../cmd/scaling.ts");
@@ -308,6 +308,7 @@ export async function runBenches(
       const stop = () => o.deadline !== undefined && Date.now() >= o.deadline;
       const plan = await planBenches(reach, async (path) => {
         const id = benchId(path);
+        o.onStart?.(id);
         let judged = key === null ? null : store.judged<{ green: boolean; findings: string[] }>(id, key);
         say(`benches: ${verdicts.size + 1}/${chosen.length} ${judged ? "judged on this tree before" : "judging"} ${path}`);
         if (judged === null) {

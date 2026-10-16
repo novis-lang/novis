@@ -1,7 +1,8 @@
 // `bun nv sweep`, looper's hook after every session, with every runner, the store, the clock and `gh`
 // handed in, so nothing builds and nothing runs: which debt it pays and in what order, that the budget
 // starts no turn once it is spent, the Linux legs it pays, what it reads of the nightly CI run, the lines
-// it writes into `.loop/last-sweep.md` beside looper's, and its exit code.
+// it writes into `.loop/last-sweep.md` beside looper's, the progress events it writes under looper, and
+// its exit code.
 
 import { afterAll, describe, expect, test } from "bun:test";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -319,5 +320,45 @@ describe("bun nv sweep: the nightly CI run", () => {
     const text = readFileSync(lastSweep(garbled.root), "utf8");
     expect(text.startsWith(`${NIGHTLY_LINE}could not be read: \`gh\` failed: `)).toBe(true);
     expect(text.split("\n").filter((l) => l !== "")).toHaveLength(1);
+  });
+});
+
+describe("progress events", () => {
+  test("under looper, each debt atom is an item, what the budget did not reach ends skipped, and the run ends with done", async () => {
+    const h = hook("events", [atom("proof:a.nvs", "owed", 1), atom("proof:b.nvs", "owed", 2), atom("proof:c.nvs", "owed", 3)], { cost: 6 * MINUTE });
+    const file = join(h.root, "events.ndjson");
+    const was = process.env.LOOPER_EVENTS;
+    process.env.LOOPER_EVENTS = file;
+    try {
+      expect(await sweep([], h)).toBe(0);
+    } finally {
+      if (was === undefined) delete process.env.LOOPER_EVENTS;
+      else process.env.LOOPER_EVENTS = was;
+    }
+    const got = readFileSync(file, "utf8")
+      .split("\n")
+      .filter((l) => l !== "")
+      .map((l) => JSON.parse(l) as { event: string; id?: string; parent?: string; kind?: string; result?: string });
+    const said = got.map((e) => `${e.event}${e.id ? ` ${e.id}` : ""}${e.result ? ` ${e.result}` : ""}`);
+    expect(said).toEqual([
+      "add sweep:debt",
+      "add proof:a.nvs",
+      "add proof:b.nvs",
+      "add proof:c.nvs",
+      "add sweep:disk",
+      "add sweep:nightly",
+      "planned",
+      "start sweep:debt",
+      "end proof:a.nvs",
+      "end proof:b.nvs",
+      "end proof:c.nvs skipped",
+      "end sweep:debt",
+      "start sweep:disk",
+      "end sweep:disk",
+      "start sweep:nightly",
+      "end sweep:nightly",
+      "done green",
+    ]);
+    expect(got[1]).toMatchObject({ parent: "sweep:debt", kind: "proof" });
   });
 });

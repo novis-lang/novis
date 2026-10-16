@@ -87,6 +87,14 @@ export function currentPlatform(): string {
   return process.platform;
 }
 
+let recordListener: ((id: string, verdict: Verdict) => void) | null = null;
+
+/** Sets the one function told of each run any store of this process records, once it is recorded, or
+ * clears it with null. `nv sweep` ends an atom's progress item through it, whichever runner paid it. */
+export function onRecorded(f: ((id: string, verdict: Verdict) => void) | null): void {
+  recordListener = f;
+}
+
 /** The kind an atom id names. */
 export function kindOfAtom(id: string): AtomKind {
   return id.slice(0, id.indexOf(":")) as AtomKind;
@@ -491,6 +499,7 @@ export class SelectStore {
         .run(run.def, run.verdict, run.at ?? Date.now(), sorted.length, pack(sorted), this.stamp(), n);
       this.deleteVerdict(judgedSlot(this.platform, id));
     });
+    recordListener?.(id, run.verdict);
   }
 
   /** Whether `keys` read a configuration file by part that the footprint `old` holds whole, and the run
