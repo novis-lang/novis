@@ -51,7 +51,7 @@ stages:
         rules: [testing/after-each-test, testing/class-hooks, testing/db-transaction]
   - id: 7
     title: the feature proofs, and fixture examples with a real cost
-    status: open
+    status: done
     context: [docs/examples/lang/testing/core-test-fixture-built-once-injected-by-type/about.md, website/src/content/docs/syntax/testing/fixtures-and-assertions.mdx]
     extra:
       context:
@@ -183,31 +183,26 @@ returns. The language gains three attributes, and the rejection of a class-level
 
 **Does:** the hooks have their feature proofs, and the fixture page shows why a fixture exists.
 
-- [ ] `bun nv proofs --id` for each hook, and every proof it names. `docs/examples/lang/testing/core-test-fixture-built-once-injected-by-type/about.md:1`
-- [ ] Example 03 rewritten around setup that costs time. `docs/examples/lang/testing/core-test-fixture-built-once-injected-by-type/03-setup-that-happens-once.nvs:1`
-- [ ] The three rules flipped to `shipped` with their guard tests. `docs/rules/testing/class-hooks.md:1`
+- [x] `bun nv proofs --id` for each hook, and every proof it names. `docs/examples/lang/testing/core-test-fixture-built-once-injected-by-type/about.md:1`
+- [x] Example 03 rewritten around setup that costs time. `docs/examples/lang/testing/core-test-fixture-built-once-injected-by-type/03-setup-that-happens-once.nvs:1`
+- [x] The three rules flipped to `shipped` with their guard tests. `docs/rules/testing/class-hooks.md:1`
 
 ## Handoff
 
 ### State
 
-Stages 2 to 6 are done, and every check but the reach check `owners-closes` is green. Stage 6's
-check `hooks-real` runs `runner::tests::a_hook_`: a file test over
-`crates/nvs-cli/tests/fixtures/runner/after-each-test-removes-a-file.nvs` (its folder reaches the
-program as `io.temp_root` in a hand-built snapshot), and a PostgreSQL test over
-`class-hooks-seed-and-drop-a-table.nvs`, run twice with `--filter`, the second run checking the
-table is gone. Both were seen to fail with the hook's delete removed. The DB test skips without the
-compose servers, and ran against them this session.
+Every stage is done and the goal is reached: `owners-closes` passes, and the four rules are
+`shipped` with their guards. The hooks are one feature,
+`lang:testing/hooks-beforeclass-afterclass-and-aftereachtest`, whose reference section is
+`docs/reference/lang/95-testing.md:281`. `bun nv proofs --id` reports it complete, and the fixtures
+page covers it. Fixture example 03 now hashes a password once in a fixture. The examples' tests
+need an `fs` grant, so the sweep runs only their top-level lines.
 
 ### Next
 
-**Stage 7: the feature proofs, and fixture examples with a real cost**, file set:
-`docs/examples/lang/testing/core-test-fixture-built-once-injected-by-type/` and
-`website/src/content/docs/syntax/testing/fixtures-and-assertions.mdx`.
+The goal is reached, and the next goal on the chain is `dependency-sweep`.
 
-- [ ] Example 03 around setup that costs time, and `about.md`'s sentence on why (`rule:testing/fixtures`). `docs/examples/lang/testing/core-test-fixture-built-once-injected-by-type/03-setup-that-happens-once.nvs:1`
-- [ ] The hooks' feature proofs (`rule:testing/feature-proofs`); `nv proofs --id` takes a feature id, not a rule id. `docs/examples/lang/testing/core-test-fixture-built-once-injected-by-type/about.md:1`
-- [ ] The three rules flipped to `shipped` with guard tests, then `bun nv owners --closes test-hooks`. `data/rules/testing/class-hooks.json:2`
+- [ ] Retire this goal file once the driver confirms the reach (`rule:testing/feature-proofs`). `docs/goals/test-hooks.md:1`
 
 ### Backlog
 
@@ -217,8 +212,10 @@ compose servers, and ran against them this session.
   base. An overridable fixture in the base is how to write that today. `crates/nvs-types/src/testing.rs:516`
 - An inherited fixture that needs an own fixture of the subclass is not in the cycle check, which
   reads the class's own rows. `crates/nvs-types/src/testing.rs:@reject_fixture_cycles`
-- The nightly CI dispatch runs on `origin/main`, 690 commits behind local `main` at this session
+- The nightly CI dispatch runs on `origin/main`, 692 commits behind local `main` at this session
   because the loop never pushes. Its failures repeat until the user pushes. `tools/nv/cmd/sweep.ts`
+- `bun nv check` reports a shipped rule that still names goal `route-dispatch`.
+  `data/rules/routing/a-gate-answers-around-every-handler.json:1`
 - Not checked at HEAD: the Linux watcher test
   (`crates/nvs-cli/tests/run_command.rs:687`), the one-to-four core scaling margin
   (`crates/nvs-cli/src/serve.rs:3957`, it failed on one OS and then the other, so it may be flaky)
