@@ -620,7 +620,8 @@ bun nv legs [--goal <slug>] [--full]                  # the WSL leg and the valg
 bun nv services --up [--goal <slug>]                  # Docker preflight, then the goal's services up and healthy
 bun nv sweep [--goal <slug>] [--keep-runs <n>]        # pays the floor debt, reads nightly CI: looper's after_session hook
 bun nv benches [--owed]                               # the bench turn by hand
-bun nv side --prepare <slug> [--dir <path>] [--min-free-gb <n>]   # make or complete a side worktree
+bun nv side --prepare --hook                          # looper's before_run: readies a side loop's lane, else nothing
+bun nv side --prepare <slug> [--dir <path>] [--min-free-gb <n>]   # make or complete a side worktree by hand
 bun nv allow --learn <events.jsonl>                   # record a session's shell calls, add the owed allow rules
 bun nv plan --apply <wrap-file | -> [--dry]           # check, then write, a wrap's plan, plan-edit and milestone sections
 bun nv pack [--goal <slug>] [--stage <n>]             # the pack sections only Novis has
@@ -630,8 +631,9 @@ Each is a piece of the old loop driver that a person or a hook can run alone. Ea
 red and 2 on a usage error, except `bun nv sweep`, which always exits 0 and writes what was red into
 `.loop/last-sweep.md`, below the lines looper's own sweep wrote there. `--goal` and `--stage` win over
 `LOOPER_GOAL` and `LOOPER_STAGE`, which win over the live goal and its handoff's next stage.
-`looper.toml` wires two of them: `bun nv verify` as `[verify] run`, and `bun nv sweep` as `[hooks]
-after_session`, whose comment there says why its timeout and `on_fail` are what they are. looper runs
+`looper.toml` wires three of them: `bun nv verify` as `[verify] run`, `bun nv side --prepare --hook` as
+`[hooks] before_run`, and `bun nv sweep` as `[hooks] after_session`, whose comments there say why each
+timeout and `on_fail` are what they are. looper runs
 none of the others on its own. Each command's `--help` and module doc own its flags.
 
 ## Disk

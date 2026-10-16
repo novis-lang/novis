@@ -73,9 +73,11 @@ That is the whole of it. The run walks the chain until it is walked, something g
 `looper status` shows every loop, `looper log` a session's events, and the controls are `looper loop
 stop`, `pause`, `resume`, `freeze`, `thaw`, `say` and `interrupt` (`looper loop --help`).
 
-A **side goal** runs in a worktree of its own: `bun nv side --prepare <slug>` makes it under
-`.agent-tmp/worktrees/side/<slug>`, and `looper loop add --side <slug>` adds its loop. AGENTS.md
-§ *The schedule is the chain* is what one is and how it lands.
+A **side goal** runs in a lane: `looper loop add --side <slug>` adds its loop, looper makes the worktree
+`.agent-tmp/worktrees/lane-<n>` on branch `side/<slug>`, and `looper.toml`'s `before_run` hook, `bun nv
+side --prepare --hook`, readies it before each run. A side loop whose `.agent-tmp/worktrees/side/<slug>`
+already exists keeps that worktree, and `bun nv side --prepare <slug>` makes and readies one by hand.
+AGENTS.md § *The schedule is the chain* is what a side goal is and how it lands.
 
 **A session runs under `--permission-mode auto`, and that is not an incidental setting.** A `claude -p`
 session auto-denies any tool call that would otherwise prompt, so under `default` an unattended session

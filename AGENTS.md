@@ -341,8 +341,10 @@ Step 5 above, in detail:
 - **The schedule is the chain, not the milestone table.** The chain and the goal files are looper's,
   under [docs/goals/](docs/goals/README.md), as § *Goals* below says. A milestone is an identity tag
   goals carry, so its number says nothing about what is next. **A side goal is a goal file off the
-  chain.** It runs as a side loop (`looper loop add --side <slug>`) in its own worktree at
-  `.agent-tmp/worktrees/side/<slug>`, which `bun nv side --prepare` makes. Once its goal is reached
+  chain.** It runs as a side loop (`looper loop add --side <slug>`) in a lane: looper makes the
+  worktree `.agent-tmp/worktrees/lane-<n>` on branch `side/<slug>`, and the `before_run` hook `bun nv
+  side --prepare --hook` prepares it. A side loop whose `.agent-tmp/worktrees/side/<slug>` already
+  exists keeps that worktree. Once its goal is reached
   and its file deleted, the loop lands its branch itself: it merges `main` in, runs verify, pauses the
   other loops and fast-forwards `main`. It never pushes.
 - **Name a goal by its slug, never by its number** — in prose, a comment, a commit message, an owner
