@@ -6,7 +6,7 @@ context: [rust-toolchain.toml, Cargo.toml, docs/agent/dependency-update.md, docs
 stages:
   - id: 1
     title: the Rust toolchain is 1.99.1
-    status: open
+    status: done
     context: [rust-toolchain.toml, benches/proxied/Dockerfile]
   - id: 2
     title: the unwind canary checks for an unwind entry
@@ -212,11 +212,11 @@ see changes.
 
 **Does:** the whole tree builds, tests and lints clean on Rust 1.99.1 on all three platforms.
 
-- [ ] `channel = "1.99.1"`, and `rust-version = "1.99"`. `rust-toolchain.toml:4`, `Cargo.toml:40`
-- [ ] The proxied bench builds on `rust:1.99.1-slim-trixie`, with its runtime stages on trixie too, as its comment says. `benches/proxied/Dockerfile:19`
-- [ ] clippy's `chunks_exact_to_as_chunks` sites are rewritten to `as_chunks::<N>()`. There are about 25 sites in 15 files, all with literal sizes. `crates/nvs-db/src/pg.rs:2651`
-- [ ] A full `cargo clippy --all-targets` is clean. That includes a dependency macro's `semicolon_in_expressions_from_non_local_macros` warning, which `-D warnings` turns into a failure. `Cargo.toml:1085`
-- [ ] The plan's Toolchain field says 1.99.1. `docs/implementation-plan.md:32`
+- [x] `channel = "1.99.1"`, and `rust-version = "1.99"`. `rust-toolchain.toml:4`, `Cargo.toml:40`
+- [x] The proxied bench builds on `rust:1.99.1-slim-trixie`, with its runtime stages on trixie too, as its comment says. `benches/proxied/Dockerfile:19`
+- [x] clippy's `chunks_exact_to_as_chunks` sites are rewritten to `as_chunks::<N>()`. There are about 25 sites in 15 files, all with literal sizes. `crates/nvs-db/src/pg.rs:2651`
+- [x] A full `cargo clippy --all-targets` is clean. That includes a dependency macro's `semicolon_in_expressions_from_non_local_macros` warning, which `-D warnings` turns into a failure. `Cargo.toml:1085`
+- [x] The plan's Toolchain field says 1.99.1. `docs/implementation-plan.md:32`
 
 ### 2. the unwind canary checks for an unwind entry
 
@@ -307,32 +307,31 @@ see changes.
 
 ### State
 
-The nightly CI run that the sweep reported ran on the remote `main` at `cb7021a24`. That is 698 commits
-behind the local `main`, because nothing has been pushed since Oct 11. Checked against the local tree:
-- Already fixed locally: the rustls advisories in `supply chain` (rustls 0.23.46, `cargo deny check
-  advisories` ok), the `dispatch::serving` rustdoc link in `lint`, the removed `bun nv records --check` in
-  `docs`, and the LDAP cases on macOS and Windows, which now skip.
-- Fixed this session: `website/src/data/core.json` was missing `Core\Test\Outcome` and `Core\Test\Summary`.
-  `bun nv render --website --check` is now current.
-- Still failing locally: `bun nv proofs --gate`. 244 features have stale perf records, and the
-  `Core\Test\Outcome`/`Summary` members owe all their proofs. Both are outside this goal.
-- Not checked locally: `run_command.rs:688` on Linux, and the `serve.rs:3957` scaling margin.
-
-Stage 1 is not started. Nothing on the toolchain has moved.
+Stage 1 is done. The tree pins Rust 1.99.1 and `rust-version = "1.99"`, and the plan's Toolchain field
+says so. `cargo clippy --all-targets -- -D warnings` is clean on Windows. The
+`semicolon_in_expressions_from_non_local_macros` warning the stage named did not appear there.
+`looper verify` is green on Windows, and the `toolchain` check passes.
+- Not checked: clippy and the tests on Linux and macOS, and a build of the proxied bench image. Only
+  its base `rust:1.99.1-slim-trixie` was confirmed to exist.
+- Bun 1.4.3 is on this machine now. Its registry leaves the entry point out of `require.cache`, so
+  `tools/nv/lib/reads.ts` adds `Bun.main`. Stage 7 still owns `engines.bun`.
+- Under the cold rebuild, `nvs-stdlib test ldap` (socket deadlines) and `nvs-cli test live_edit`
+  (`a_file_that_changes_during_a_compile_discards_that_compile`, a 30 s wait) failed beside the other
+  binaries and passed alone. The warm rerun was green.
+- The nightly CI still tests the remote `main`, which is far behind the local one.
 
 ### Next
 
-**Stage 1: the Rust toolchain is 1.99.1.** Files: `rust-toolchain.toml`, `Cargo.toml`, the `chunks_exact` sites.
+**Stage 2: the unwind canary checks for an unwind entry.** Files: `benches/abi-probe/tests/unwind_unavailable.rs`, `docs/rules/errors/propagation.md`.
 
-- [ ] Pin 1.99.1 and `rust-version = "1.99"` (`docs/agent/dependency-update.md`). `rust-toolchain.toml:4`
-- [ ] Rewrite the `chunks_exact` sites until clippy is clean. `crates/nvs-db/src/pg.rs:2651`
-- [ ] The proxied bench image and the plan's Toolchain field. `benches/proxied/Dockerfile:19`
+- [ ] Replace the panic probe with `a_jit_frame_has_no_unwind_entry`: `RtlLookupFunctionEntry` on Windows and `_Unwind_Find_FDE` on Unix, on a PC inside a finalized JIT function (`rule:errors/propagation`). `benches/abi-probe/tests/unwind_unavailable.rs:1`
+- [ ] The rule's canary paragraph says what the canary checks. The sentence about unwind tables stays. Then `looper check --name unwind-entry`. `docs/rules/errors/propagation.md:25`
 
 ### Backlog
 
 - The user pushes `main`, so the nightly tests the current tree (`.github/workflows/ci.yml:7`).
 - Proof debt: the stale perf records and the `Core\Test\Outcome`/`Summary` proofs (`bun nv proofs --owed`).
-- Linux only, not reproduced: `a_spawned_process_ends_when_nvs_is_killed_and_what_it_started_does_not` sees no watcher (`crates/nvs-cli/tests/run_command.rs:688`). The scaling margin was 1.33× against 1.5× (`crates/nvs-cli/src/serve.rs:3957`).
+- Load flakes: `ldap` deadlines and the `live_edit` 30 s wait (`crates/nvs-cli/tests/live_edit.rs:1010`). Linux only: `crates/nvs-cli/tests/run_command.rs:688`, and the scaling margin (`crates/nvs-cli/src/serve.rs:3957`).
 - wasmtime 50.0.0 final and cranelift 0.137: the stage 3 items marked "if wasmtime 50" (`crates/nvs-ext/src/call.rs`).
 - hyper 1.12's `max_header_size` is a question for the user (`crates/nvs-server/src/serve.rs`).
 - The user mirrors any `.github/dependabot.yml` change on `landing` and decides about MSVC 14.50 (`docs/setup.md`).
