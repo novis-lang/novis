@@ -17,8 +17,8 @@
 # reach if a request ever escapes the runtime, and `debian` exists because sometimes you have to
 # get inside a container to find out what is wrong.
 
-ARG DISTROLESS_BASE=gcr.io/distroless/cc-debian12:nonroot
-ARG DEBIAN_BASE=debian:bookworm-slim
+ARG DISTROLESS_BASE=gcr.io/distroless/cc-debian13:nonroot
+ARG DEBIAN_BASE=debian:trixie-slim
 
 # Neither base is pinned by digest yet, because a digest cannot be written down honestly until
 # Dependabot is resolving it — `.github/dependabot.yml` has the `docker` ecosystem pointed here,
@@ -48,7 +48,7 @@ WORKDIR /.nvsdata
 # `docs/docker.md` § *Why not Alpine or scratch*.
 #
 # Three things this image needs that a `scratch` one would not have, all of them already inside
-# `cc-debian12`:
+# `cc-debian13`:
 #
 #   - **glibc**, for the reason above, and for DNS: every hostname Novis resolves goes through
 #     `std::net::ToSocketAddrs`, which is `getaddrinfo`.

@@ -28,7 +28,7 @@ updates:
       prefix: 'chore(ci)'
 
   # `docker/Dockerfile`'s two runtime bases. They are on floating tags today —
-  # `gcr.io/distroless/cc-debian12:nonroot` and `debian:bookworm-slim` — because a digest written
+  # `gcr.io/distroless/cc-debian13:nonroot` and `debian:trixie-slim` — because a digest written
   # by hand and never revisited stops taking the base's security updates silently, which is the
   # worse of the two failures while nothing is watching. The first PR this opens is the one that
   # adds the digests, and from then on it is what moves them.

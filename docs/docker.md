@@ -46,8 +46,8 @@ moment it is built.
 
 | | |
 |---|---|
-| `0.4.1` | **Default.** `gcr.io/distroless/cc-debian12` — about 38 MB on disk before the binary. No shell, no package manager, no `apt`. |
-| `0.4.1-debian` | `debian:bookworm-slim` — about 114 MB before the binary, three times the default. The same binary, in an image with a shell you can `exec` into. |
+| `0.4.1` | **Default.** `gcr.io/distroless/cc-debian13` — about 43 MB on disk before the binary. No shell, no package manager, no `apt`. |
+| `0.4.1-debian` | `debian:trixie-slim` — about 119 MB before the binary, almost three times the default. The same binary, in an image with a shell you can `exec` into. |
 
 Use the default. Reach for `-debian` when you need to get inside a running container, and prefer
 reproducing the problem in it rather than shipping it: a debugging image that differs from the
@@ -291,11 +291,12 @@ same bytes. `tests/docker/smoke.sh` runs the image the ways this guide describes
 when one of them fails. The release runs it on each variant before it pushes, and CI runs it when
 `docker/` changes.
 
-**Build the binary against glibc 2.36 or older.** Both images are Debian bookworm, and a binary
+**Build the binary against glibc 2.41 or older.** Both images are Debian trixie, and a binary
 linked against a newer glibc does not start in them, and the error names a missing `GLIBC_`
-version. Ubuntu 22.04 links against 2.35, which is why the release builds there. On a newer host,
-or on Windows, the `build` stage of [benches/proxied/Dockerfile](../benches/proxied/Dockerfile)
-compiles one in a bookworm container, with the toolchain pinned to `rust-toolchain.toml`:
+version. The release builds on Ubuntu 22.04, which links against 2.35, so its binaries also run on
+every older distribution back to that one. On a newer host, or on Windows, the `build` stage of
+[benches/proxied/Dockerfile](../benches/proxied/Dockerfile) compiles one in a trixie container,
+with the toolchain pinned to `rust-toolchain.toml`:
 
 ```sh
 docker build -f benches/proxied/Dockerfile --target build -t novis-build .
