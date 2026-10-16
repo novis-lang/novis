@@ -9,5 +9,5 @@
     "types/arrays"
   ],
   "guardedBy": [],
-  "milestone": "M10"
+  "goal": "editor-fixes"
 }

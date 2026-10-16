@@ -7,5 +7,5 @@
     "routing/route-attribute"
   ],
   "guardedBy": [],
-  "milestone": "M10"
+  "goal": "editor-fixes"
 }

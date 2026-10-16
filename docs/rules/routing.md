@@ -1078,7 +1078,7 @@ against the last release's document and a broken client turns from an incident i
 
 <a id="routing-a-quick-fix-writes-a-derived-path"></a>
 
-## A `#[Route]` missing its `path` gets a quick fix that offers a derived one, and nothing derives a path on its own  *(designed — owned by M10)*
+## A `#[Route]` missing its `path` gets a quick fix that offers a derived one, and nothing derives a path on its own  *(designed — owned by goal editor-fixes)*
 
 `rule:routing/a-quick-fix-writes-a-derived-path`
 

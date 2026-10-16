@@ -10,5 +10,5 @@
     "ide/every-feature-is-staged-behind-its-dependency"
   ],
   "guardedBy": [],
-  "milestone": "M10"
+  "goal": "editor-fixes"
 }

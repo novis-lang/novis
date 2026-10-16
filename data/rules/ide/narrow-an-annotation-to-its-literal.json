@@ -11,5 +11,5 @@
     "ide/one-grammar-one-tree"
   ],
   "guardedBy": [],
-  "milestone": "M10"
+  "goal": "editor-fixes"
 }

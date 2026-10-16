@@ -6,5 +6,5 @@
     "ide/reveal-is-explicit-and-window-local"
   ],
   "guardedBy": [],
-  "milestone": "M10"
+  "goal": "editor-fixes"
 }

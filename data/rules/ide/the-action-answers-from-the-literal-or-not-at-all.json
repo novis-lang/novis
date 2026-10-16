@@ -8,5 +8,5 @@
     "security/tainted-sources"
   ],
   "guardedBy": [],
-  "milestone": "M10"
+  "goal": "editor-fixes"
 }

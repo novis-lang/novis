@@ -746,7 +746,7 @@ action for itself; the ones that write a declaration are
 
 <a id="ide-a-quick-fix-is-a-diagnostics-own-suggestion"></a>
 
-## An inspection is a code action backed by a diagnostic the checker emits, runs on the resilient tree, and is off by default under `source.fixAll.nvs` so it composes with format-on-save while `nvs fmt` stays layout-only  *(designed — owned by M10)*
+## An inspection is a code action backed by a diagnostic the checker emits, runs on the resilient tree, and is off by default under `source.fixAll.nvs` so it composes with format-on-save while `nvs fmt` stays layout-only  *(designed — owned by goal editor-fixes)*
 
 `rule:ide/a-quick-fix-is-a-diagnostics-own-suggestion`
 
@@ -976,7 +976,7 @@ spelling — a list of name pairs and a text edit — and are held by a Rust tes
 
 <a id="ide-a-code-action-writes-only-what-is-already-determined"></a>
 
-## A code action that writes may write only text the type system has already fully determined, and never makes a choice  *(designed — owned by M10)*
+## A code action that writes may write only text the type system has already fully determined, and never makes a choice  *(designed — owned by goal editor-fixes)*
 
 `rule:ide/a-code-action-writes-only-what-is-already-determined`
 
@@ -1038,7 +1038,7 @@ and cross-file symbol search.
 
 <a id="ide-narrow-an-annotation-to-its-literal"></a>
 
-## One editor action rewrites an `array<mixed>` annotation to the type of the array literal that initializes it, and rewrites nothing else  *(designed — owned by M10)*
+## One editor action rewrites an `array<mixed>` annotation to the type of the array literal that initializes it, and rewrites nothing else  *(designed — owned by goal editor-fixes)*
 
 `rule:ide/narrow-an-annotation-to-its-literal`
 
@@ -1076,7 +1076,7 @@ initializer, and the file it produces still checks clean.
 
 <a id="ide-narrowest-means-narrowest-base-type"></a>
 
-## The synthesized element type is the canonical union of the elements' base types, recursed through nested literals and bounded at depth 32  *(designed — owned by M10)*
+## The synthesized element type is the canonical union of the elements' base types, recursed through nested literals and bounded at depth 32  *(designed — owned by goal editor-fixes)*
 
 `rule:ide/narrowest-means-narrowest-base-type`
 
@@ -1111,7 +1111,7 @@ offer, a `mixed` element yielding no offer, and a literal past depth 32 yielding
 
 <a id="ide-the-action-answers-from-the-literal-or-not-at-all"></a>
 
-## The narrowing action answers from a literal in the same file, or it is not offered: no literal, a `mixed` element, or a no-op each hides it  *(designed — owned by M10)*
+## The narrowing action answers from a literal in the same file, or it is not offered: no literal, a `mixed` element, or a no-op each hides it  *(designed — owned by goal editor-fixes)*
 
 `rule:ide/the-action-answers-from-the-literal-or-not-at-all`
 
@@ -1181,7 +1181,7 @@ choice in it: the type is the one its elements state, so `var` takes it.
 
 <a id="ide-narrowing-is-a-diff-never-a-save-time-fix"></a>
 
-## The narrowing action is never registered under `source.fixAll.nvs` and never chases the call sites it affects, because it breaks writes it cannot see  *(designed — owned by M10)*
+## The narrowing action is never registered under `source.fixAll.nvs` and never chases the call sites it affects, because it breaks writes it cannot see  *(designed — owned by goal editor-fixes)*
 
 `rule:ide/narrowing-is-a-diff-never-a-save-time-fix`
 
@@ -2339,7 +2339,7 @@ the wrong token.
 
 <a id="ide-doc-comment-authoring-is-the-editors-own"></a>
 
-## Writing a `///` run is the editor's job: `onEnterRules` continues one, a paste provider prefixes one, and neither contributes a name  *(designed — owned by M10)*
+## Writing a `///` run is the editor's job: `onEnterRules` continues one, a paste provider prefixes one, and neither contributes a name  *(designed — owned by goal editor-fixes)*
 
 `rule:ide/doc-comment-authoring-is-the-editors-own`
 
@@ -3086,7 +3086,7 @@ user is the only thing that turns it off, with `nvs.secrets.redact` (default `tr
 
 <a id="ide-redaction-does-not-reach"></a>
 
-## What the editor's concealment cannot cover is written down, because a redaction trusted past its reach is worse than none  *(designed — owned by M10)*
+## What the editor's concealment cannot cover is written down, because a redaction trusted past its reach is worse than none  *(designed — owned by goal editor-fixes)*
 
 `rule:ide/redaction-does-not-reach`
 
