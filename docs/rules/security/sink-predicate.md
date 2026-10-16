@@ -10,7 +10,7 @@ body is not, because `Content-Length` frames it. A path component is a sink beca
 separators direct the resolver; a file's contents are not. A regex pattern is a sink; its subject is
 not.
 
-A new sink therefore needs no decision record of its own — it needs the predicate applied. The four
+A new sink therefore needs no rule of its own — it needs the predicate applied. The four
 grammars the library parses are all instructions by it
 (`rule:security/every-grammar-is-a-sink`), and a member nobody classified fails closed
 (`rule:security/unclassified-parameter-refuses-tainted`).

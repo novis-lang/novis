@@ -27,6 +27,11 @@ The extension's archive table names the targets `.github/workflows/release.yml` 
 x86_64 musl machine on the musl archive, and the two lists must agree: a target on one side only is a download that
 fails with a 404.
 
+An install that cannot finish ends one way, whatever stopped it: an unsupported platform, a release
+list with no matching `major.minor` series and a network failure all end the same. The status item
+says which of the three it was, the release page stays one command away, and the extension keeps
+working as a grammar-only client (`editors/vscode/src/install.ts`).
+
 - **Memory:** one unpacked archive under the extension's own storage, once per machine. Nothing on
   the request path.
 

@@ -65,5 +65,7 @@ writing twice the type the subject already states.
 - **A new code per refused literal, or for a bare literal under a `var` value binding.** Every refused
   literal is the one mistake `var` cannot type, and one mistake gets one code; the message names the
   case.
+- **`var` as a house style.** A written element type tells a beginner what the loop or the array has,
+  so a program keeps its written type and neither form is preferred in a new one.
 - **An untyped `foreach ($xs as $v)` meaning `var`.** The binding would look like PHP's and mean
   something PHP does not; `var` says in the source that the type was taken.

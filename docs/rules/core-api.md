@@ -168,10 +168,9 @@ The placements the tests produce, outside the `Core` classes the spec lists:
 `crates/nvs-stdlib/src/registry.rs`: the four `spec-*-outstanding.txt` ratchets under
 `crates/nvs-stdlib/tests/` are the gates that say so, each holds no keys, and each only shrinks. The
 tier-boundary guard in `crates/nvs-stdlib/tests/tier_boundary.rs` holds the rule for what is
-registered. Three of the four first-party components are on disk: `extensions/image/`,
-`extensions/intl/` and `extensions/pdf/`, which the `pdf` goal is still building. The spreadsheet
-component is not written ([`core-classes/spreadsheet-has-no-io`](core-classes.md#core-classes-spreadsheet-has-no-io)), and the image component has no
-EXIF reader yet ([`core-classes/image-pixel-model`](core-classes.md#core-classes-image-pixel-model)); both are M17's (`docs/plan/m17.md`).
+registered. The four first-party components are on disk: `extensions/image/`, `extensions/intl/`,
+`extensions/pdf/` and `extensions/spreadsheet/`. The image component has no EXIF reader
+([`core-classes/image-pixel-model`](core-classes.md#core-classes-image-pixel-model)); it is M17's (`docs/plan/m17.md`).
 
 **Declined**, each named so it is not re-proposed:
 - **The procedural `mysqli`, `pgsql` and `sqlite3` APIs.** One database API ([`core-classes/db-one-api`](core-classes.md#core-classes-db-one-api)).

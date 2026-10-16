@@ -142,6 +142,8 @@ writing twice the type the subject already states.
 - **A new code per refused literal, or for a bare literal under a `var` value binding.** Every refused
   literal is the one mistake `var` cannot type, and one mistake gets one code; the message names the
   case.
+- **`var` as a house style.** A written element type tells a beginner what the loop or the array has,
+  so a program keeps its written type and neither form is preferred in a new one.
 - **An untyped `foreach ($xs as $v)` meaning `var`.** The binding would look like PHP's and mean
   something PHP does not; `var` says in the source that the type was taken.
 
@@ -462,6 +464,8 @@ every key is a `string` already ([`types/arrays`](types.md#types-arrays)).
   scalar later would mean rewriting every money-handling program written against the class.
 - **A `money` type carrying a currency.** Currency is application domain, and what USD ÷ USD is has no
   single right answer. A userland `Money` class layers on `decimal` correctly.
+- **A `Core\BigDecimal`.** No user has asked for one. `Core\BigInt` is the arbitrary-precision type,
+  and `decimal` with `Core\Decimal` is the bounded one.
 - **A scale in the type, `decimal<2>`.** It needs type-level integers, which nothing else in Novis has,
   and it makes every signature that accepts some decimal either generic or wrong.
 - **Arbitrary precision as the scalar.** A heap mantissa puts an allocation on every intermediate of

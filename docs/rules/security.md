@@ -1245,6 +1245,10 @@ is `?tainted bytes`. The list of sources being **enumerable** is what lets the q
 automatically, and is exactly what `secret` has no equivalent of
 ([`security/secret-has-no-ambient-source`](security.md#security-secret-has-no-ambient-source)).
 
+No `Core` member names a qualifier, and the taint diagnosis has no opt-out. A `taintedPostAs` would
+make every other member's name read as a claim it does not make. A caller who finds the diagnosis
+verbose writes `tainted {…}` over the shape.
+
 <sub>See also [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`security/secret-has-no-ambient-source`](security.md#security-secret-has-no-ambient-source), [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables).</sub>
 
 <a id="security-taint-propagation"></a>
@@ -1358,7 +1362,7 @@ body is not, because `Content-Length` frames it. A path component is a sink beca
 separators direct the resolver; a file's contents are not. A regex pattern is a sink; its subject is
 not.
 
-A new sink therefore needs no decision record of its own — it needs the predicate applied. The four
+A new sink therefore needs no rule of its own — it needs the predicate applied. The four
 grammars the library parses are all instructions by it
 ([`security/every-grammar-is-a-sink`](security.md#security-every-grammar-is-a-sink)), and a member nobody classified fails closed
 ([`security/unclassified-parameter-refuses-tainted`](security.md#security-unclassified-parameter-refuses-tainted)).

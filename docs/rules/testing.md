@@ -1095,11 +1095,10 @@ and `website/site.lock.json` records the hash each feature had when the page was
 it. The hash covers the feature's help card or reference section, its `about.md` and its examples.
 
 A covered id the roster no longer has is **broken**. A covered feature whose hash moved since the
-page's stamp is **stale**. `bun nv session --wrap` refuses every broken id, and every stale page the
-session made stale itself: the session that changes a feature rereads the pages that cover it, fixes
-them and runs `bun nv site --stamp`, the same way it owes the feature's proofs. CI's `proofs` job runs
-`bun nv site --check` over the whole tree, so a stale page the wrap did not attribute is still caught
-before a merge. A stamp is written by whoever reread the page, never to quiet the check.
+page's stamp is **stale**. `bun nv site --check` refuses every broken id and every stale page, and
+CI's `proofs` job runs it over the whole tree. The session that changes a feature rereads the pages
+that cover it, fixes them and runs `bun nv site --stamp`, the same way it owes the feature's proofs. A
+stamp is written by whoever reread the page, never to quiet the check.
 
 The generated half of the site, the reference, is rewritten from the binary and the roster on every
 render and cannot drift; the handwritten half can, because nothing else connects a guide to the
@@ -1275,7 +1274,12 @@ AGENTS.md § *Text an end user reads*, because a user and their coding agent loo
 anywhere else, and a feature the binary cannot show them reads as one that does not exist. The
 features that landed before Help was a proof are listed in `data/proofs/help-backlog.json` and read as
 skips with one shared reason, so a finished goal's floor does not fail over a proof that was not owed
-when it finished; a feature leaves the list when it gains its help.
+when it finished; a feature leaves the list when it gains its help, and nothing is ever added to it,
+because a feature that lands owes its help at once.
+
+The `about` page is owed by every feature, so `data/proofs/policy.json` carries no `about` skip. A
+description that fails the shape check is rewritten, never padded or trimmed to fit: too long means it
+explains edge cases the tests own, and too short means its lead sentence carries the page.
 
 Each tree's own README owns what a file in it *is*, and this rule restates none of them.
 

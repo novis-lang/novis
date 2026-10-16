@@ -23,3 +23,7 @@ A typed reader answers the tainted form itself: a row's `string` is `?tainted st
 is `?tainted bytes`. The list of sources being **enumerable** is what lets the qualifier attach itself
 automatically, and is exactly what `secret` has no equivalent of
 (`rule:security/secret-has-no-ambient-source`).
+
+No `Core` member names a qualifier, and the taint diagnosis has no opt-out. A `taintedPostAs` would
+make every other member's name read as a claim it does not make. A caller who finds the diagnosis
+verbose writes `tainted {…}` over the shape.

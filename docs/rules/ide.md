@@ -1262,13 +1262,13 @@ attribute that is not a comment, a nowdoc that does not interpolate, inline HTML
 
 `rule:ide/semantic-tokens-carry-the-qualifiers`
 
-The token types M4B emits are each chosen because the grammar structurally cannot answer them:
+The token types the server emits are each chosen because the grammar structurally cannot answer them:
 `namespace`, `class` (with `defaultLibrary` for a `Core` class, so the standard library is visibly not
 user code), `interface`, `enum`, `enumMember`, `type` (an alias), `method`, `property`, `parameter`,
 `variable`, `typeParameter` — and two modifiers of Novis's own, **`tainted` and `secret`**, so a qualified
 value is visibly qualified at every use site rather than only where it was declared.
 
-That pair is why this layer is built at M4B rather than M10: [`security/tainted-qualifier`](security.md#security-tainted-qualifier)'s and
+That pair is why this layer is part of the editor's minimum: [`security/tainted-qualifier`](security.md#security-tainted-qualifier)'s and
 [`security/secret-qualifier`](security.md#security-secret-qualifier)'s whole model is that a value carries a qualifier through the program, and
 an editor that shows it is the cheapest teaching surface the language has. "The qualifier is visible" is
 verified as "the token carries the modifier", never as a colour.
@@ -2463,7 +2463,7 @@ client spawns `nvs lsp`, which has to be the binary next to the code, so a WSL d
 devcontainer all get the remote's toolchain rather than a missing one.
 
 CI produces an installable `.vsix` artifact. Nothing is published — no Marketplace publisher and no
-listing; that decision is open and M4B does not close it. The package does carry the branding a listing
+listing; that decision is open. The package does carry the branding a listing
 would need. `media/novis-logo.png` is the extension's icon and both languages' file icon, copied from
 `website/media/` because a `.vsix` holds no path out of its own directory; `displayName` is the H1 of the
 repository's `README.md`, the same home `nvs --help`'s first line reads from
@@ -2511,6 +2511,11 @@ the status item names whichever candidate answered.
 The extension's archive table names the targets `.github/workflows/release.yml` builds, with an
 x86_64 musl machine on the musl archive, and the two lists must agree: a target on one side only is a download that
 fails with a 404.
+
+An install that cannot finish ends one way, whatever stopped it: an unsupported platform, a release
+list with no matching `major.minor` series and a network failure all end the same. The status item
+says which of the three it was, the release page stays one command away, and the extension keeps
+working as a grammar-only client (`editors/vscode/src/install.ts`).
 
 - **Memory:** one unpacked archive under the extension's own storage, once per machine. Nothing on
   the request path.

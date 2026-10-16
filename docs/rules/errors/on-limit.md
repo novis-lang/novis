@@ -36,6 +36,10 @@ stopped like one that never waited, and the requests waiting beside it are charg
 loop. A runaway request therefore stops itself at its next poll, and the core it ran on is never
 wedged.
 
+A limit handler that cannot run without weakening the bound does not run: stopping the request is
+security and its report is not, so the bound stays as it is (`Ctx::run_limit_handler` in
+`crates/nvs-runtime/src/ctx/hooks.rs`).
+
 **Declined:**
 - **A wall clock in place of CPU time.** A wall clock cannot tell a runaway loop from a request waiting
   on a slow database, and `[limits] cpu_time` exists to stop the first and leave the second alone. A

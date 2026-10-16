@@ -20,7 +20,12 @@ AGENTS.md § *Text an end user reads*, because a user and their coding agent loo
 anywhere else, and a feature the binary cannot show them reads as one that does not exist. The
 features that landed before Help was a proof are listed in `data/proofs/help-backlog.json` and read as
 skips with one shared reason, so a finished goal's floor does not fail over a proof that was not owed
-when it finished; a feature leaves the list when it gains its help.
+when it finished; a feature leaves the list when it gains its help, and nothing is ever added to it,
+because a feature that lands owes its help at once.
+
+The `about` page is owed by every feature, so `data/proofs/policy.json` carries no `about` skip. A
+description that fails the shape check is rewritten, never padded or trimmed to fit: too long means it
+explains edge cases the tests own, and too short means its lead sentence carries the page.
 
 Each tree's own README owns what a file in it *is*, and this rule restates none of them.
 

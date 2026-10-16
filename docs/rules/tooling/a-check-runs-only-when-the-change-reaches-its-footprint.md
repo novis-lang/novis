@@ -55,7 +55,7 @@ matrix, fuzz and TSan hold. Fuzz and TSan build inside WSL and have no twin: the
 item and directory of the crates they build, the one predicted key left. A twin that cannot run or be
 read records `*`, which every change reaches until a twin is read again. A check with `memoize = false`
 is never answered from the store, and
-`bun nv loop --goal-only --full` runs every atom of every check.
+`bun nv select --full` runs every atom that is not heavy.
 
 A heavy check keyed on every file of every crate it builds would be reached by almost any Rust change,
 so a goal that names them would pay for all of them after nearly every session; the twin is what keeps a
