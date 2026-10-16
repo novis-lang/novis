@@ -19,12 +19,12 @@ stages:
       context:
         rules: [routing/api-document-is-generated-from-the-route-table, core-classes/derive-attribute, attributes/api-adds-and-cannot-contradict]
   - id: 3
-    title: a request body is declared, and the document describes it
+    title: a request body is read from the handler's call, and the document describes it
     status: open
-    context: [crates/nvs-cli/src/openapi.rs, crates/nvs-types/src/routes.rs, data/gaps/nvs-cli/request-body-schemas.json, docs/rules/routing/route-attribute.md]
+    context: [crates/nvs-cli/src/openapi.rs, crates/nvs-types/src/routes.rs, crates/nvs-types/src/expr/args.rs, data/gaps/nvs-cli/request-body-schemas.json, docs/rules/routing/a-request-body-is-read-from-the-handlers-own-call.md]
     extra:
       context:
-        rules: [routing/route-attribute, routing/api-document-is-generated-from-the-route-table, core-classes/derive-attribute]
+        rules: [routing/a-request-body-is-read-from-the-handlers-own-call, routing/api-document-is-generated-from-the-route-table, attributes/api-adds-and-cannot-contradict, core-classes/derive-attribute]
   - id: 4
     title: a strict validator accepts the document, and the editor completes `#[Api]`
     status: open
@@ -51,8 +51,8 @@ extra:
 `security` names schemes that the document never defines, because nothing in the tree declares one
 (`crates/nvs-cli/src/openapi.rs:155-166`). A handler that returns a class gets the empty schema, because
 the codec's field roster is not on the route row (`crates/nvs-cli/src/openapi.rs:196-205`). No operation
-has a `requestBody` at all, because no handler declares its body: the router ignores every parameter the
-path does not name (`docs/rules/routing/route-attribute.md:13-14`). This goal closes the three gap
+has a `requestBody` at all, because the row does not record the type a handler decodes its body into
+(`crates/nvs-types/src/routes.rs:346-356`). This goal closes the three gap
 records, then proves the result with a strict validator in a test. `nvs api diff` already compares
 `responses` and `requestBody`, so a complete document is what makes that gate useful.
 
@@ -73,21 +73,25 @@ cannot reach the codec table without resolving anything itself, the row carries 
 stage 2 states what that costs per route. Only the roster is published, never a class's private
 properties (`data/gaps/nvs-cli/response-body-that-is-an-object.json`).
 
-**How a handler declares its request body is the user's to decide.** The planning session's call to
-ask rather than choose. Today a handler reads its body through `Core\Request`, and the compiler cannot
-see which class it decodes. A document that names a body the code does not decode is the contradiction
-`rule:attributes/api-adds-and-cannot-contradict` forbids, so an unchecked `#[Api(body: ...)]` is not a
-safe default. The likely answer is a body parameter that the server decodes through the codec before the
-handler runs. That is a language feature with its own trade-offs, so stage 3 starts by asking.
+**A request body is read from the handler's own call.** The user decided this. The compiler records a
+`Core\Request::jsonAs<T>()` or `postAs<T>()` call written directly in a route handler, and the route row
+carries "body: `T`, JSON or form". There is no new syntax, so the document cannot disagree with the
+code. A body read inside a helper method is not seen: the document then has no `requestBody`, and `nvs
+check` warns at the route. `rule:routing/a-request-body-is-read-from-the-handlers-own-call` holds it.
+The planning session's calls in that rule: the warning follows resolved calls through any number of
+methods and not through a `callable` or `mixed` receiver, two reads of one kind give a `oneOf`, and
+required-ness follows what `jsonAs` and `postAs` throw. Trade-offs: one body entry per route row while
+compiling, and a walk over resolved calls in `nvs check` alone. Nothing runs per request. A handler
+author who reads the body in a helper gets a warning and moves the read.
 
 **The validator is a test dependency only.** The planning session's call. The stage picks a maintained
 validator that implements OpenAPI 3.1 and its JSON Schema dialect, as a dev-dependency (a caret range in
 `package.json`, or a Rust `dev-dependencies` entry). No build of `nvs` links it.
 
-**Trade-offs, all together.** Request path: nothing. Compile path: one row per scheme, and stage 3's
-body declaration once the user has decided it. Usability: a typo in `security` becomes a compile error,
-and a generated client gets real types for a class response and a body. Simplicity: one new attribute
-and, after stage 3, one way to declare a body.
+**Trade-offs, all together.** Request path: nothing. Compile path: one row per scheme and one body
+entry per route. Usability: a typo in `security` becomes a compile error, and a generated client gets
+real types for a class response and a body. Simplicity: one new attribute, one new warning, and no new
+way to declare a body.
 
 ## Stages
 
@@ -112,14 +116,15 @@ fields, and so does an `errors` entry's class.
 - [ ] An `errors` entry's class gets the same schema under its status. `crates/nvs-cli/src/openapi.rs:180-183`
 - [ ] Tests over a class with a skipped field and a private property, and `data/gaps/nvs-cli/response-body-that-is-an-object.json` deleted.
 
-### 3. a request body is declared, and the document describes it
+### 3. a request body is read from the handler's call, and the document describes it
 
-**Does:** once the user has decided how a handler declares its body, the row says which parameter it
-is, and the document writes `requestBody`.
+**Does:** the row records the type a handler decodes its body into, the document writes `requestBody`,
+and `nvs check` warns when the read is in a helper.
 
-- [ ] Ask the user how a handler declares its body, with the options and their trade-offs. Write the answer into `rule:routing/route-attribute` or a new rule before any code. `docs/rules/routing/route-attribute.md:13-14`
-- [ ] The row records the body parameter and its class, and the document writes `requestBody` with the codec's schema from stage 2. `crates/nvs-types/src/routes.rs:356`, `crates/nvs-cli/src/openapi.rs:127`
-- [ ] Tests, and `data/gaps/nvs-cli/request-body-schemas.json` deleted.
+- [ ] The checker records each `Core\Request::jsonAs<T>()` and `postAs<T>()` written directly in a route handler, and the row carries `T` with JSON or form (`rule:routing/a-request-body-is-read-from-the-handlers-own-call`). `crates/nvs-types/src/expr/args.rs:1530`, `crates/nvs-types/src/routes.rs:356`
+- [ ] The document writes `requestBody` with `T`'s schema from stage 2 under its media type, a `oneOf` for two types of one kind, and `required` as the rule says. `crates/nvs-cli/src/openapi.rs:127`
+- [ ] `nvs check` warns at a route whose handler reaches a body read only through resolved calls, with a new warning code, its card and a test. `crates/nvs-diagnostics/src/lib.rs:5624`
+- [ ] Tests for a JSON body, a form body, both, and a read in a helper. `data/gaps/nvs-cli/request-body-schemas.json` deleted, and the rule `shipped`.
 
 ### 4. a strict validator accepts the document, and the editor completes `#[Api]`
 
@@ -135,7 +140,7 @@ is, and the document writes `requestBody`.
 ### State
 
 The goal is new. No stage is started. The anchors above were checked against the tree when it was
-written. Stage 3 waits on the user's decision about how a handler declares its body.
+written.
 
 ### Next
 

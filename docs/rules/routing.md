@@ -3,7 +3,7 @@
 
 # Routing
 
-*3 of 31 rules below are **designed** rather than shipped, and are marked where they appear.*
+*4 of 32 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="routing-routes-are-compiled-not-registered"></a>
 
@@ -1021,6 +1021,45 @@ published artifact.
   ([`routing/api-document-is-a-deterministic-build-artifact`](routing.md#routing-api-document-is-a-deterministic-build-artifact)).
 
 <sub>See also [`routing/api-document-is-a-deterministic-build-artifact`](routing.md#routing-api-document-is-a-deterministic-build-artifact), [`routing/api-diff-fails-a-breaking-change`](routing.md#routing-api-diff-fails-a-breaking-change), [`routing/a-shared-name-is-one-endpoint-everywhere`](routing.md#routing-a-shared-name-is-one-endpoint-everywhere), [`attributes/api-adds-and-cannot-contradict`](attributes.md#attributes-api-adds-and-cannot-contradict), [`core-classes/derive-attribute`](core-classes.md#core-classes-derive-attribute), [`security/route-capture-is-laundered-by-its-type`](security.md#security-route-capture-is-laundered-by-its-type), [`routing/a-query-parameter-is-declared-like-a-capture`](routing.md#routing-a-query-parameter-is-declared-like-a-capture).</sub>
+
+<a id="routing-a-request-body-is-read-from-the-handlers-own-call"></a>
+
+## A route's request body is the type its handler decodes with `Core\Request::jsonAs` or `postAs`, read from the handler's own call  *(designed — owned by goal api-document)*
+
+`rule:routing/a-request-body-is-read-from-the-handlers-own-call`
+
+The compiler records each `Core\Request::jsonAs<T>()` and `Core\Request::postAs<T>()` call written
+directly in a route handler's body, and the route's row carries what it found: the body is `T`, as JSON
+for `jsonAs` and as a form for `postAs`. The API document writes it as the operation's `requestBody`,
+with `T`'s schema under `application/json` or `application/x-www-form-urlencoded`
+([`routing/api-document-is-generated-from-the-route-table`](routing.md#routing-api-document-is-generated-from-the-route-table)). A JSON body is `required`, because
+`jsonAs` throws on an empty body. A form body is `required` when `T` has a required field, because
+`postAs` throws when one is missing.
+
+There is no new syntax. The type is the one the handler already writes to decode its body, so the
+document cannot name a body the code does not decode ([`attributes/api-adds-and-cannot-contradict`](attributes.md#attributes-api-adds-and-cannot-contradict)).
+A handler with a `jsonAs` and a `postAs` gets both media types. Two reads of one kind with different
+types give that media type a `oneOf` of the two schemas.
+
+A body read inside a helper method is not seen. A handler that reaches a `jsonAs` or `postAs` call only
+through methods it calls gets no `requestBody`, and `nvs check` warns at the route that the document does
+not describe its body. The warning follows the calls the checker resolved, through any number of
+methods, and does not follow a call through a `callable` or a `mixed` receiver. Moving the read into the
+handler removes the warning.
+
+- **Memory:** one body entry per route row, on the compile path only. The warning's walk runs only in
+  `nvs check` over a program with routes, and holds one list of resolved callees per method while it
+  runs.
+
+**Declined:**
+- **An `#[Api(body: ...)]` field.** It could name a type the handler does not decode, the contradiction
+  [`attributes/api-adds-and-cannot-contradict`](attributes.md#attributes-api-adds-and-cannot-contradict) forbids.
+- **A body parameter the server decodes before the handler runs.** It is new syntax and a second way to
+  read a body.
+- **Following a helper's body read into the document.** The published API would then change when a read
+  moves between two methods, without any change to the handler.
+
+<sub>See also [`routing/api-document-is-generated-from-the-route-table`](routing.md#routing-api-document-is-generated-from-the-route-table), [`attributes/api-adds-and-cannot-contradict`](attributes.md#attributes-api-adds-and-cannot-contradict), [`routing/route-attribute`](routing.md#routing-route-attribute).</sub>
 
 <a id="routing-a-security-scheme-is-declared-in-code"></a>
 
