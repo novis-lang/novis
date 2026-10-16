@@ -81,8 +81,6 @@ const { sidebar } = Astro.locals.starlightRoute
      entry has more space around it than between its two lines, so each
      subtext reads as part of the label above it. */
   #nv-sidebar-tree :global(a[data-subtext]) {
-    flex-wrap: wrap;
-    row-gap: 0.15rem;
     padding-block: 0.4rem;
   }
   #nv-sidebar-tree :global(a[data-subtext]:not([aria-current='page'])) {
@@ -92,7 +90,7 @@ const { sidebar } = Astro.locals.starlightRoute
   #nv-sidebar-tree :global(a[data-subtext])::after {
     content: attr(data-subtext);
     display: block;
-    flex-basis: 100%;
+    margin-top: 0.3rem;
     font-size: 0.75rem;
     font-weight: 400;
     line-height: 1.4;
