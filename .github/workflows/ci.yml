@@ -567,7 +567,7 @@ jobs:
           tar -xzf wasi-sdk.tar.gz
           echo "WASI_SDK_PATH=$RUNNER_TEMP/wasi-sdk-${WASI_SDK_VERSION}.0-${{ matrix.wasi-sdk }}" >> "$GITHUB_ENV"
       - name: wit-bindgen
-        run: cargo install wit-bindgen-cli --version 0.62.0 --locked
+        run: cargo install wit-bindgen-cli --version 0.63.0 --locked
 
       - run: cargo build --bin nvs
 

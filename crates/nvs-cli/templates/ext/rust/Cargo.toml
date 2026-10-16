@@ -9,7 +9,7 @@ publish = false
 crate-type = ["cdylib"]
 
 [dependencies]
-wit-bindgen = "0.62"
+wit-bindgen = "0.63"
 
 [profile.release]
 opt-level = "s"

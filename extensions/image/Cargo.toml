@@ -37,7 +37,7 @@ zune-core = "0.5"
 zune-jpeg = "0.5"
 
 [target.'cfg(target_family = "wasm")'.dependencies]
-wit-bindgen = "0.62"
+wit-bindgen = "0.63"
 
 [profile.release]
 opt-level = 3

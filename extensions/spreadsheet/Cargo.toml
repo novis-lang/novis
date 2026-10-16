@@ -22,7 +22,7 @@ itoa = "1"
 ryu = "1"
 
 [target.'cfg(target_family = "wasm")'.dependencies]
-wit-bindgen = "0.62"
+wit-bindgen = "0.63"
 
 # calamine reads the written files back as a second opinion in `tests/excel.rs`. The component's
 # own reader is ours, so calamine stays on the host and out of the `wasm32-wasip2` graph.
