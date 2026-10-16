@@ -164,16 +164,21 @@ The header mark and the icons are cut from it — regenerate them after a logo c
 magick media/novis-logo.png -filter Lanczos -resize 96x96 -strip -quality 90 \
   -define webp:alpha-quality=100 media/novis-logo-header.webp
 magick media/novis-logo.png -trim +repage mark.png
-magick mark.png -filter Lanczos -resize 48x48 -unsharp 0x0.6+0.5+0.02 i48.png
 magick mark.png -filter Lanczos -resize 32x32 -unsharp 0x0.6+0.6+0.02 i32.png
 magick mark.png -filter Lanczos -resize 16x16 -unsharp 0x0.6+0.8+0.02 i16.png
-magick i48.png i32.png i16.png public/favicon.ico
+magick i32.png i16.png public/favicon.ico
 magick mark.png -filter Lanczos -resize 160x160 -background white \
-  -gravity center -extent 180x180 -alpha remove -alpha off public/apple-touch-icon.png
+  -gravity center -extent 180x180 -alpha remove -alpha off -colors 128 -strip \
+  PNG8:public/apple-touch-icon.png
 ```
 
-`mark.png` and the three `i*.png` are scratch, and nothing ignores them — delete them once
+`mark.png` and the two `i*.png` are scratch, and nothing ignores them — delete them once
 the two icons are written.
+
+Each icon is a few kilobytes. The favicon carries 16px and 32px only, the two sizes a tab
+and a bookmark pick from; an ICO stores its frames unpacked, so each larger one costs more
+than both. The home-screen icon is opaque, so a 128-colour palette keeps it intact at a fifth
+of a full-colour PNG.
 
 The header renders `novis-logo-header.webp` through Starlight's `logo` option and sizes it
 in `src/components/Header.astro` to 32px at most. 96px covers a screen at three times that
