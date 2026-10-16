@@ -277,6 +277,73 @@ final class SlugTest {
 - `#[TestWith]` on a method that is not a `#[Test]` is refused. `skip:` on a test with rows skips
   every row.
 
+# Hooks: `#[BeforeClass]`, `#[AfterClass]` and `#[AfterEachTest]`
+
+A hook is a method the test runner calls around your tests. You use one to clean up something that
+lives outside a test, such as a file or a database table.
+
+- `#[BeforeClass]` runs once, before the fixtures and the tests of its class. It is a `public static`
+  method that returns `void` and takes no parameters.
+- `#[AfterClass]` runs once, after the last test of its class. It runs when a test failed, and also
+  when `#[BeforeClass]` threw an error. It is a `public static` method that returns `void`. It may take
+  one parameter of type `Core\Test\Summary`, which has the counts of the class's results.
+- `#[AfterEachTest]` runs after every attempt of every test, on the same object the test ran on. It
+  runs when the test passed and when it failed. It is a `public` method that returns `void`. It may take
+  one parameter of type `Core\Test\Outcome`, which says which test ran and whether it passed.
+
+```nvs test
+<?nvs
+use Core\Test;
+use Core\Test\AfterClass;
+use Core\Test\AfterEachTest;
+use Core\Test\BeforeClass;
+use Core\Test\Outcome;
+use Core\Test\Summary;
+
+final class HookTest {
+    #[BeforeClass]
+    public static function createTable(): void {
+        echo "create the table\n";
+    }
+
+    #[AfterClass]
+    public static function dropTable(Summary $summary): void {
+        echo "drop the table, ", $summary->passed(), " passed\n";
+    }
+
+    #[AfterEachTest]
+    public function removeFiles(Outcome $outcome): void {
+        Test::assertSame($outcome->class(), "HookTest");
+    }
+
+    #[Test]
+    public function first(): void {
+        Test::assertSame(1 + 1, 2);
+    }
+
+    #[Test]
+    public function second(): void {
+        Test::assertSame(2 + 2, 4);
+    }
+}
+```
+```output
+  HookTest
+create the table
+drop the table, 2 passed
+  0 failed, 2 passed, 0 skipped, 0 flaky in
+```
+
+- If `#[BeforeClass]` throws an error, no test runs. Each test is reported as failed with that error.
+- If `#[AfterClass]` throws an error, the run fails, and the error is reported under the class.
+- If `#[AfterEachTest]` throws an error, that attempt of the test fails.
+- A class has at most one hook of each kind. A hook that writes a `static` property does not compile.
+  Each test runs in its own isolate, so the test would not see the value.
+- A subclass inherits the hooks, the fixtures and the tests of its parent class. It runs them under its
+  own name. A method that overrides a hook must repeat the hook's attribute.
+- Tests run at the same time on every core. The hooks of one class always run in the order above.
+  There is no `#[BeforeEachTest]`, because the constructor runs before each test.
+
 # Assertions
 
 Every assertion is a static method of `Core\Test`, subject first (`$actual`, then `$expected`),

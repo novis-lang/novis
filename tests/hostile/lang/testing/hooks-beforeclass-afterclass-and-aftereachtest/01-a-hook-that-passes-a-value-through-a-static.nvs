@@ -1,0 +1,38 @@
+<?nvs
+// Attack: hooks try to give the tests a value through a `static` property. Each
+// test runs on its own and does not see that value, so this program should not compile.
+// hostile: expect-refusal
+
+use Core\Test;
+use Core\Test\AfterClass;
+use Core\Test\BeforeClass;
+
+final class Session
+{
+    public static string $token = '';
+}
+
+final class LoginTest
+{
+    // 1. The setup writes a token that the tests expect to read.
+    #[BeforeClass]
+    public static function logIn(): void
+    {
+        Session::$token = 'admin';
+    }
+
+    // 2. The last hook clears the token again.
+    #[AfterClass]
+    public static function logOut(): void
+    {
+        Session::$token = '';
+    }
+
+    #[Test]
+    public function itIsLoggedIn(): void
+    {
+        Test::assertSame(Session::$token, 'admin');
+    }
+}
+
+echo 'this line must never run', "\n";

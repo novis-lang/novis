@@ -223,9 +223,10 @@
     "lang:types/what-does-not-exist": "a7033148ac6b1dad"
   },
   "syntax/testing/fixtures-and-assertions.mdx": {
-    "lang:testing/assertions": "88f8814b01f452de",
-    "lang:testing/core-test-fixture-built-once-injected-by-type": "d322149122dd6d89",
-    "lang:testing/core-test-testwith-data-rows": "9540224bea0fab5a"
+    "lang:testing/assertions": "03d848ccd438b78a",
+    "lang:testing/core-test-fixture-built-once-injected-by-type": "f8b8a64d50dc25c9",
+    "lang:testing/core-test-testwith-data-rows": "9540224bea0fab5a",
+    "lang:testing/hooks-beforeclass-afterclass-and-aftereachtest": "cc64babb6a31a6c3"
   },
   "syntax/testing/writing-tests.mdx": {
     "lang:testing/a-test-is-a-method-marked-test": "dc33aa0b38837e06",

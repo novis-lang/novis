@@ -1,0 +1,1 @@
+insert into products (name) values ('tea'), ('cake')

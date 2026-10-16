@@ -1,0 +1,53 @@
+<?nvs
+// Shows hooks that keep the log of a failed test and delete the log of a passed
+// one. A build server can then show the logs of the failed tests.
+
+use Core\IO;
+use Core\Path;
+use Core\Test;
+use Core\Test\AfterClass;
+use Core\Test\AfterEachTest;
+use Core\Test\Outcome;
+use Core\Test\Summary;
+
+class Evidence {
+    // A retry is a new attempt, so the attempt number is part of the name.
+    public static function fileName(string $class, string $test, int $attempt): string {
+        return $class . "-" . $test . "-" . $attempt . ".log";
+    }
+}
+
+class CheckoutTest {
+    public string $log;
+
+    public function constructor() {
+        $this->log = Path::fromCwd("checkout-test.log");
+    }
+
+    #[Test]
+    public function itAddsTheShippingCost(): void {
+        // The prices are in cents.
+        IO::write($this->log, "total 1250, shipping 490\n");
+        Test::assertSame(1250 + 490, 1740);
+    }
+
+    // `Outcome` says which test ran and whether it passed.
+    #[AfterEachTest]
+    public function keepTheLogIfItFailed(Outcome $outcome): void {
+        if ($outcome->passed()) {
+            IO::remove($this->log);
+        } else {
+            string $name = Evidence::fileName($outcome->class(), $outcome->name(), $outcome->attempt());
+            IO::move($this->log, Path::fromCwd($name));
+        }
+    }
+
+    // `Summary` has the counts for the whole class.
+    #[AfterClass]
+    public static function report(Summary $summary): void {
+        echo $summary->failed(), " failed, their logs are kept\n";
+    }
+}
+
+// This prints `CheckoutTest-itAddsTheShippingCost-2.log`.
+echo Evidence::fileName("CheckoutTest", "itAddsTheShippingCost", 2), "\n";

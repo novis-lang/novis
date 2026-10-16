@@ -4,6 +4,7 @@ a `#[BeforeClass]` that throws runs no test and builds no fixture, each selected
 test
 --FILE--
 <?nvs
+// covers: lang:testing/hooks-beforeclass-afterclass-and-aftereachtest
 use Core\Test;
 use Core\Test\AfterClass;
 use Core\Test\AfterEachTest;

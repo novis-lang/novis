@@ -1,7 +1,7 @@
 ---
 title: Fixtures, data rows and assertions
-covers: ['lang:testing/core-test-fixture-built-once-injected-by-type', 'lang:testing/core-test-testwith-data-rows', 'lang:testing/assertions']
-description: How a test gets objects from a fixture, runs once per row of data with TestWith, and checks values with the Core\Test assertions.
+covers: ['lang:testing/core-test-fixture-built-once-injected-by-type', 'lang:testing/core-test-testwith-data-rows', 'lang:testing/hooks-beforeclass-afterclass-and-aftereachtest', 'lang:testing/assertions']
+description: How a test gets objects from a fixture, runs once per row of data with TestWith, cleans up with hooks, and checks values with the Core\Test assertions.
 ---
 import Snippet from '@components/Snippet.astro'
 
@@ -44,6 +44,23 @@ once for each row.
 - A field with no parameter, or a value of the wrong type, does not compile.
 - A parameter that no row names is filled by a fixture.
 - `#[TestWith]` needs `#[Test]` on the same method. `skip:` skips every row.
+
+## Hooks
+
+A hook is a method the test runner calls around your tests. You use one to clean up something a
+test leaves outside itself, such as a file or a database table.
+
+<Snippet src="syntax/test-data/03-hooks.nvs" />
+
+- `#[BeforeClass]` runs once, before the fixtures and the tests of the class. It is a
+  `public static` method.
+- `#[AfterClass]` runs once, after the last test. It is a `public static` method. It can take a
+  `Core\Test\Summary`, which has the counts of passed and failed tests.
+- `#[AfterEachTest]` runs after each test, on the same object as the test. It can take a
+  `Core\Test\Outcome`, which has the name of the test and whether it passed.
+- The after hooks also run when a test fails. `#[AfterClass]` also runs when `#[BeforeClass]`
+  throws an error.
+- A class has at most one hook of each kind. A subclass inherits the hooks of its parent class.
 
 ## Assertions
 

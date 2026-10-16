@@ -4,6 +4,7 @@
 test --show-output --jobs 1
 --FILE--
 <?nvs
+// covers: lang:testing/hooks-beforeclass-afterclass-and-aftereachtest
 use Core\Test;
 use Core\Test\AfterEachTest;
 use Core\Test\Outcome;

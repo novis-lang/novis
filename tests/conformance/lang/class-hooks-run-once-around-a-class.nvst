@@ -4,6 +4,7 @@
 test
 --FILE--
 <?nvs
+// covers: lang:testing/hooks-beforeclass-afterclass-and-aftereachtest
 use Core\Test;
 use Core\Test\AfterClass;
 use Core\Test\BeforeClass;
