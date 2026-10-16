@@ -25,4 +25,5 @@ happens to look like one is not one (`rule:attributes/attach-sites-and-forms`).
 
 A `security` name is carried uninterpreted rather than compared: nothing in the compiler or in
 `nvs.toml` declares a scheme, so there is no roster to check against and the emitted document names
-schemes it does not define. The comparison lands here on the day a scheme has a home.
+schemes it does not define. `rule:routing/a-security-scheme-is-declared-in-code` gives a scheme its
+home and the comparison.

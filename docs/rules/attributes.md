@@ -281,7 +281,8 @@ happens to look like one is not one ([`attributes/attach-sites-and-forms`](attri
 
 A `security` name is carried uninterpreted rather than compared: nothing in the compiler or in
 `nvs.toml` declares a scheme, so there is no roster to check against and the emitted document names
-schemes it does not define. The comparison lands here on the day a scheme has a home.
+schemes it does not define. [`routing/a-security-scheme-is-declared-in-code`](routing.md#routing-a-security-scheme-is-declared-in-code) gives a scheme its
+home and the comparison.
 
 <sub>See also [`attributes/access-is-a-required-sibling`](attributes.md#attributes-access-is-a-required-sibling), [`attributes/inert-metadata`](attributes.md#attributes-inert-metadata).</sub>
 

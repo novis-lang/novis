@@ -29,6 +29,7 @@
     "routing/an-origin-is-per-mount-and-checked-at-boot",
     "routing/table-is-opt-in",
     "routing/api-document-is-generated-from-the-route-table",
+    "routing/a-security-scheme-is-declared-in-code",
     "routing/api-document-is-a-deterministic-build-artifact",
     "routing/api-diff-fails-a-breaking-change",
     "routing/a-quick-fix-writes-a-derived-path"
