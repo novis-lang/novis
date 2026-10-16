@@ -137,13 +137,15 @@ its entry says what closed it.
       with an infinite loop ran past 60 s, `max_output = "10"` let 28 bytes through.
       `Core\Fatal::onLimit`'s card lists both. `cpu_time` is enforced, pinned by
       `tests/conformance/error/a-loop-that-allocates-nothing-is-stopped-by-the-cpu-ceiling.nvst`.
-      *refp/wall, refp/out*
+      *refp/wall, refp/out* Open as
+      `data/gaps/nvs-cli/wall-time-and-max-output-are-not-enforced-under-nvs-run.json`.
 - [x] **U8** A memory-limit breach in a **child isolate** is not observed: `[limits] memory = "8M"`
       with a child holding 64 MiB answered `ok = true`. *refp/childmem* — the child's result is now
       `ok = false` with the memory-limit `RuntimeError` as its `error`.
 - [ ] **U9** `nvs config check`/`nvs run` do not validate quantities or ceilings: `memory = "12
       bananas"` and `[limits] memory = "1G"` over `[limits.hard] memory = "512M"` both pass and run.
-      `tree.rs` says values are refused where sizes are parsed. *php-diff/config probes*
+      `tree.rs` says values are refused where sizes are parsed. *php-diff/config probes* Open as
+      `data/gaps/nvs-config/a-malformed-limit-or-one-above-its-ceiling-is-not-refused.json`.
 - [x] **U10** The config trust rule (a file writable by another account is refused) is applied by
       neither `nvs run` nor `nvs config check` — `crates/nvs-cli/src/config.rs` reserves it for
       `serve`, which does not exist. E0607/W1005 are unreachable in this binary.
@@ -160,6 +162,7 @@ its entry says what closed it.
       hook reads, which is how such a property holds a value. The differences page carries the row.
 - [ ] **U13** `$e->message = "b"` on a throwable is accepted and reads back — the properties are not
       read-only, though a conformance case calls `location` "readonly". *ref-errors `write_message`*
+      Open as `data/gaps/nvs-types/a-throwable-property-is-writable.json`.
 - [x] **U14** `#[Access]` on a method with no `#[Route]` compiles (no stray-marker refusal, unlike
       `#[Query]`/`#[Option]`/`#[Api]`). *ref-attr* `E0788` now refuses it from the same per-method
       walk those three are asked in — `rule:attributes/access-is-a-required-sibling`'s sibling rule read from the other side, and a
@@ -335,7 +338,8 @@ its entry says what closed it.
       `nvs-cli/src` outside `cache.rs` references it, and `nvs run` compiles fresh every time.
       Closed: `runner.rs`, `script.rs`, `serve.rs` and `reload.rs` all read the artifact cache.
 - [ ] **D29** `await`'s result renders as `Core\Script\Result#1` in `Core\Debug::render`, while
-      `isolate.rs` types it as an anonymous shape.
+      `isolate.rs` types it as an anonymous shape. Open as
+      `data/gaps/nvs-stdlib/an-await-result-is-a-named-class-not-a-shape.json`.
 - [x] **D30** Diagnostics name classes that are empty or absent in this build: E0211's help says
       `Core\Request`, `Core\Server`, `Core\Cli`; each resolves but has no members and none is in
       `nvs meta --json`. A help text now names a `Core` member only where the registry holds one

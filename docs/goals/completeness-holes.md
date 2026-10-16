@@ -21,10 +21,10 @@ stages:
   - id: 3
     title: "the isolate boundary checks both directions, and `max_tasks` bounds the tree"
     status: open
-    context: [crates/nvs-host/src/isolate.rs, crates/nvs-runtime/src/graph.rs, crates/nvs-config/src/tree.rs, data/gaps/nvs-host/an-isolate-argument-is-not-checked-for-an-unresolvable-class.json, data/gaps/nvs-config/max-tasks-is-enforced-nowhere.json]
+    context: [crates/nvs-host/src/isolate.rs, crates/nvs-runtime/src/graph.rs, crates/nvs-config/src/tree.rs, crates/nvs-cli/src/main.rs, crates/nvs-runtime/src/ctx/safepoint.rs, crates/nvs-runtime/src/ctx/output.rs, data/gaps/nvs-host/an-isolate-argument-is-not-checked-for-an-unresolvable-class.json, data/gaps/nvs-config/max-tasks-is-enforced-nowhere.json, data/gaps/nvs-cli/wall-time-and-max-output-are-not-enforced-under-nvs-run.json]
     extra:
       context:
-        rules: [security/isolate-values-cross-by-copy, security/isolate-budget-is-the-trees]
+        rules: [security/isolate-values-cross-by-copy, security/isolate-budget-is-the-trees, errors/on-limit, config/no-configuration-file-is-a-complete-configuration]
   - id: 4
     title: "a throwing `inout` callee leaks nothing, and a refused stack does not panic"
     status: open
@@ -56,10 +56,10 @@ stages:
   - id: 8
     title: compiled code does what the checker accepted
     status: open
-    context: [crates/nvs-ir/src/ir.rs, crates/nvs-types/src/expr_table.rs, crates/nvs-ir/src/lower/control.rs, crates/nvs-ir/src/lower/convert.rs]
+    context: [crates/nvs-ir/src/ir.rs, crates/nvs-types/src/expr_table.rs, crates/nvs-ir/src/lower/control.rs, crates/nvs-ir/src/lower/convert.rs, crates/nvs-stdlib/src/instance.rs, data/gaps/nvs-stdlib/an-await-result-is-a-named-class-not-a-shape.json]
     extra:
       context:
-        rules: [types/arrays, expressions/method-reference, iteration/foreach-subjects, expressions/nullable-conversion]
+        rules: [types/arrays, expressions/method-reference, iteration/foreach-subjects, expressions/nullable-conversion, types/anonymous-object]
   - id: 9
     title: "JIT pages are freed, and every call site has its probe"
     status: open
@@ -77,17 +77,17 @@ stages:
   - id: 11
     title: the checker reports what it accepts today
     status: open
-    context: [crates/nvs-types/src/lower.rs, crates/nvs-types/src/expr/isolate.rs, crates/nvs-hir/src/qname.rs, crates/nvs-types/src/lateinit.rs, crates/nvs-types/src/derive.rs, crates/nvs-types/src/defaults.rs]
+    context: [crates/nvs-types/src/lower.rs, crates/nvs-types/src/expr/isolate.rs, crates/nvs-hir/src/qname.rs, crates/nvs-types/src/lateinit.rs, crates/nvs-types/src/derive.rs, crates/nvs-types/src/defaults.rs, crates/nvs-types/src/error_lib.rs, data/gaps/nvs-types/a-throwable-property-is-writable.json]
     extra:
       context:
-        rules: [types/type-alias, security/isolate-shares-nothing, core-api/reserved-namespace, classes/lateinit-read-before-write, core-classes/derive-attribute, types/decimal]
+        rules: [types/type-alias, security/isolate-shares-nothing, core-api/reserved-namespace, classes/lateinit-read-before-write, core-classes/derive-attribute, types/decimal, classes/readonly-is-written-once]
   - id: 12
     title: "every error message names its cause, and every code is tested"
     status: open
-    context: [crates/nvs-cli/src/main.rs, crates/nvs-ir/src/lower/convert.rs, crates/nvs-diagnostics/src/lib.rs]
+    context: [crates/nvs-cli/src/main.rs, crates/nvs-ir/src/lower/convert.rs, crates/nvs-diagnostics/src/lib.rs, crates/nvs-config/src/app.rs, crates/nvs-config/src/resolve.rs, data/gaps/nvs-config/a-malformed-limit-or-one-above-its-ceiling-is-not-refused.json]
     extra:
       context:
-        rules: [errors/on-limit, types/conversion, tooling/a-diagnostic-code-carries-its-card]
+        rules: [errors/on-limit, types/conversion, tooling/a-diagnostic-code-carries-its-card, config/one-parser-for-the-boot-path-and-config-set, config/ceilings-are-their-own-directives]
   - id: 13
     title: every shipped promise the audit named has its test
     status: open
@@ -187,11 +187,13 @@ closed when the deadline passes, and the other three waits stay idle waits.
 ### 3. the isolate boundary checks both directions, and `max_tasks` bounds the tree
 
 **Does:** a spawn argument is checked against the child's class table as the result is against the
-parent's, and a tree that spawns past `max_tasks` is refused with a limit report.
+parent's, a tree that spawns past `max_tasks` is refused with a limit report, and a run past its
+`wall_time` or `max_output` is stopped with one.
 
 - [ ] The `nvs_runtime::script` seam returns a unit's class table beside its entry point, and the argument walk runs with it. `crates/nvs-host/src/isolate.rs:64`, `crates/nvs-runtime/src/graph.rs:444`
 - [ ] A spawn past the root's `max_tasks` is refused, naming the directive. `crates/nvs-config/src/tree.rs:188`
 - [ ] Whether child CPU is summed against the root's `cpu_time` is checked, and either the code or the rule changes. `crates/nvs-host/src/isolate.rs:717`
+- [ ] `nvs run` arms a deadline from `wall_time`, and a write past `max_output` raises a flag the next poll reads. `crates/nvs-cli/src/main.rs:3681`, `crates/nvs-runtime/src/ctx/safepoint.rs:756`, `crates/nvs-runtime/src/ctx/output.rs:286`
 
 ### 4. a throwing `inout` callee leaks nothing, and a refused stack does not panic
 
@@ -228,13 +230,14 @@ the client sees a failed download.
 
 ### 8. compiled code does what the checker accepted
 
-**Does:** an array literal keeps every value, a method reference calls the override, and the two
-compiler panics on accepted code are gone.
+**Does:** an array literal keeps every value, a method reference calls the override, an `await`
+result is the shape it is typed as, and the two compiler panics on accepted code are gone.
 
 - [ ] A positional element after an integer key takes the next key after the highest. `crates/nvs-ir/src/ir.rs:1693`
 - [ ] `$cls::f(...)` resolves through the class `$cls` holds. `crates/nvs-types/src/expr_table.rs:612`
 - [ ] `foreach` over `mixed` lowers or is refused by the checker. `crates/nvs-ir/src/lower/control.rs:992`
 - [ ] `as ?{...}` from `mixed` lowers or is refused by the checker. `crates/nvs-ir/src/lower/convert.rs:443`
+- [ ] The `Core` shape descriptors take the `$shape{...}` label, so an `await` result renders and encodes as a shape. `crates/nvs-stdlib/src/instance.rs:652`, `crates/nvs-stdlib/src/script.rs:476`
 
 ### 9. JIT pages are freed, and every call site has its probe
 
@@ -254,7 +257,7 @@ filtered by visibility.
 
 ### 11. the checker reports what it accepts today
 
-**Does:** six programs the checker accepts or misreports get the right diagnostic, each with a test.
+**Does:** seven programs the checker accepts or misreports get the right diagnostic, each with a test.
 
 - [ ] A recursive alias gets one diagnostic at the alias. `crates/nvs-types/src/lower.rs:68`
 - [ ] A literal `args:` map is checked at compile time. `crates/nvs-types/src/expr/isolate.rs:229`
@@ -262,14 +265,17 @@ filtered by visibility.
 - [ ] An inherited `lateinit` read gets E0428. `crates/nvs-types/src/lateinit.rs:48`
 - [ ] A second `#[Json\Field]` is reported. `crates/nvs-types/src/derive.rs:2478`
 - [ ] A `decimal` property default is accepted. `crates/nvs-types/src/defaults.rs:79`
+- [ ] A write to a `Throwable` property after construction is E0782. `crates/nvs-types/src/error_lib.rs:106`, `crates/nvs-types/src/signatures.rs:1696`
 
 ### 12. every error message names its cause, and every code is tested
 
 **Does:** a limit stop in runtime bookkeeping names its directive, a failed class conversion names
-the class, and a check fails for a diagnostic code no test raises.
+the class, a `[limits]` value that is not a quantity or is above its ceiling stops the boot, and a
+check fails for a diagnostic code no test raises.
 
 - [ ] The empty `FATAL: ` path raises the usual limit report. `crates/nvs-cli/src/main.rs:3789`
 - [ ] The `class<T>` conversion error names the operand. `crates/nvs-ir/src/lower/convert.rs:1070`
+- [ ] The resolve refuses a malformed `[limits]` quantity as E0601 and a global value above its written ceiling, and the runtime never reads a malformed one as no cap. `crates/nvs-config/src/app.rs:134`, `crates/nvs-runtime/src/ctx/limits.rs:959`
 - [ ] A check over `code::ALL`, and tests for E0001, E0004, E0005, E0217 and E0768. `crates/nvs-diagnostics/src/lib.rs:5871`
 
 ### 13. every shipped promise the audit named has its test
@@ -291,8 +297,9 @@ work cannot live only in prose again.
 
 ### State
 
-The goal is new and nothing is built. Each of the 27 audit holes is a gap record naming this goal:
-38 records, listed by `bun nv owners`. The extension byte-crossing gap and the two designed rules it
+The goal is new and nothing is built. Each of the 27 audit holes is a gap record naming this goal,
+and so is each of the four holes `docs/reference/findings.md`'s re-check confirmed (U7, U9, U13,
+D29, in stages 3, 12, 11 and 8); `bun nv owners` lists them. The extension byte-crossing gap and the two designed rules it
 blocks (`rule:packaging/values-cross-as-handles`, `rule:core-classes/image-pipeline`) moved here
 from M9. `bun nv owners --check` accepts a gap owned by a goal further down the chain.
 
