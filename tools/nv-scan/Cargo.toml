@@ -12,5 +12,5 @@ description = "What `bun nv`'s build keys read from a Rust file, and each file's
 # `span-locations` gives `--items` the line each item starts and ends on.
 proc-macro2 = { version = "=1.0.107", features = ["span-locations"] }
 quote = "=1.0.47"
-sha2 = "=0.10.9"
-syn = { version = "=2.0.119", default-features = false, features = ["clone-impls", "full", "parsing", "printing", "visit", "visit-mut"] }
+sha2 = "=0.11.1"
+syn = { version = "=3.0.9", default-features = false, features = ["clone-impls", "full", "parsing", "printing", "visit", "visit-mut"] }

@@ -451,7 +451,7 @@ impl Walker<'_> {
                     let t = test || is_test(&i.attrs);
                     let self_ty = type_name(&i.self_ty);
                     let base = match &i.trait_ {
-                        Some((_, tr, _)) => format!(
+                        Some((tr, _)) => format!(
                             "<{self_ty} as {}>",
                             tr.segments
                                 .last()
@@ -842,7 +842,7 @@ fn flatten(tree: UseTree) -> UseTree {
         UseTree::Group(mut g) => {
             let lone_self = matches!(g.items.first(), Some(UseTree::Name(n)) if n.ident == "self");
             if g.items.len() == 1 && !lone_self {
-                return flatten(g.items.pop().expect("one entry").into_value());
+                return flatten(g.items.pop().expect("one entry"));
             }
             g.items = g.items.into_iter().map(flatten).collect();
             UseTree::Group(g)
