@@ -303,19 +303,15 @@ pub enum Ty {
     /// [`Self::is_refcounted`], so `crate::lower::Lowering::release_all_locals`
     /// already skips it.
     ///
-    /// ## Known gap: a callee that throws
+    /// ## A callee that throws
     ///
-    /// The copy-back sits on the normal edge only, so a callee that throws
-    /// past it leaves the staging retain unpaid — one leaked reference per
-    /// by-reference argument with a refcounted pointee, and the caller's
-    /// holder keeps its pre-call value instead of the callee's partial write
-    /// (PHP would keep the write). Never a dangling reference: that is what
-    /// the staging retain buys, and why it is unconditional rather than
-    /// keyed on whether the callee writes. Closing it means emitting the same
-    /// [`crate::ir::InstKind::RefLoad`] and write-back into
-    /// `crate::lower::Lowering::landing_block`'s block, ahead of its release
-    /// sweep, and updating the `crate::lower::TryFrame` edge's captured `Env`
-    /// so a `catch` handler's phis see the written-back binding.
+    /// The copy-back sits on the normal edge only. On the throw edge
+    /// `crate::lower::Lowering::landing_block` reads each staged slot with a
+    /// [`crate::ir::InstKind::RefLoad`] and releases what it holds, which pays
+    /// the staging retain, or the reference a callee's `RefStore` left there.
+    /// The caller's holder keeps its pre-call value, so a write the callee made
+    /// before it threw is dropped. The same sweep covers an argument staged for
+    /// a call that a later argument's throw kept from running.
     ///
     /// Materialized into a `nvs_runtime::Value` it takes the same shape
     /// [`Self::ClassDesc`] does — a `Tag::Null` tag byte with the address in

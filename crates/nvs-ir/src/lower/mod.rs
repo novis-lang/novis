@@ -2718,9 +2718,26 @@ impl<'a> Lowering<'a> {
     /// The sweep covers what a producer actually **staged**, and reads no
     /// [`TemporaryKind`]: a transferred argument is as much this frame's to
     /// drop on the way to a call it never reached as an owned one is.
+    ///
+    /// Every by-reference argument still on [`Self::pending_refs`] is released
+    /// beside them, out of its slot: the slot owns one reference
+    /// ([`Ty::Ref`]'s refcounting section), and the copy-back that would have
+    /// moved it into the holder sits on the normal edge only. The holder keeps
+    /// its pre-call value, so a callee's write before it threw is dropped, as
+    /// `rule:statements/inout-is-the-by-reference-spelling` states.
     pub(crate) fn landing_block(&mut self, env: &Env) -> BlockId {
         let b = self.new_block();
         for (v, _) in self.owned_temporaries.clone() {
+            self.emit_release(b, v);
+        }
+        let staged: Vec<(ValueId, Ty)> = self
+            .pending_refs
+            .iter()
+            .filter(|staged| staged.ty.is_refcounted())
+            .map(|staged| (staged.slot, staged.ty))
+            .collect();
+        for (slot, ty) in staged {
+            let (v, _) = self.emit(b, ty, InstKind::RefLoad { slot });
             self.emit_release(b, v);
         }
         // The innermost frame that actually has a handler — not simply the
