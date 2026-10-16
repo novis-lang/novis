@@ -12,8 +12,8 @@ before it runs anything, so an apostrophe in a doc sentence, a backtick in a com
 unbalanced heredoc terminator fails the whole call with `unexpected EOF while looking for matching '` —
 the command never executed, and nothing tells you which quote was at fault. The dedicated tools pass
 content as JSON parameters with no shell in the path, so that failure cannot occur. This repo makes the
-problem worse than most: prose full of apostrophes, backtick-quoted identifiers everywhere, and two shells
-with incompatible quoting grammars (PowerShell primary, Git Bash for the Bash tool).
+problem worse than most: prose full of apostrophes, backtick-quoted identifiers everywhere, and Git Bash
+parsing every shell call, with PowerShell's own quoting on top whenever a call runs `powershell`.
 
 **Reading and searching are a preference, not a prohibition.** Prefer Read, Grep and Glob: they need no
 quoting, they return line numbers you can cite, and Grep takes a real regex without a shell mangling it.
@@ -145,11 +145,69 @@ reached into the same one repeatedly.
 **The 400-line floor is enforced on both sides.** `bun nv peek` refuses a bare `path` over
 `--max-lines` — 400, which is AGENTS.md rule 3's "whole file under ~400 lines".
 The harness's own tools have no such floor, so `bun nv guard` is a `PreToolUse` hook, wired in
-`.claude/settings.json` for `Read`, `Bash` and `PowerShell`. It denies a raw command where a tool or a rule
-in this file covers it: a whole `Read`, `cat`, `Get-Content` or `sed -n` of a tracked file over that same
-400 lines, and the other habits `tools/nv/cmd/guard.ts`'s `RULES` list. Each denial starts `guard: <rule>:`
-and names the call to make instead, and anything the guard cannot read is allowed. Claude Code is the only
-harness that reads `.claude/`; every other one gets the floor from `bun nv peek` alone.
+`.claude/settings.json` for `Read` and `Bash`. It denies a raw command where a tool or a rule in this
+file covers it: a whole `Read`, `cat` or `sed -n` of a tracked file over that same 400 lines, and the
+other habits `tools/nv/cmd/guard.ts`'s `RULES` list. Each denial starts `guard: <rule>:` and names the
+call to make instead, and anything the guard cannot read is allowed. `looper guard` is the second
+`PreToolUse` hook, on `Bash`, `Read`, `Edit`, `Write` and `NotebookEdit`: it refuses `sleep` and poll
+loops, a write through a shell, and an edit or a `git add` of a file another session claims
+(§ *Other sessions' edits*). Claude Code is the only harness that reads `.claude/`; every other one gets
+the floor from `bun nv peek` alone.
+
+## One shell
+
+- **Bash is the only shell tool.** `.claude/settings.json` turns the PowerShell tool off. Run PowerShell
+  from Bash as `powershell -NoProfile -Command '…'`, or `powershell -File <script>` for a script such
+  as `tools/service-live.ps1`.
+- **Every Bash call runs as a recorded job.** The user and other sessions see it in looper's Running
+  page and in `looper exec list`.
+
+## Long commands
+
+- **Wait for a long command by ending your turn.** Start it with `run_in_background`, then end the
+  turn. Its report starts your next turn, so nothing polls. looper's guard refuses `sleep` and poll
+  loops.
+- **A command the harness moved to the background at its timeout is still running.** Its report comes
+  the same way, so never run it a second time.
+- **Watch a command's output with Monitor while you work, never to wait.** Stop your own background
+  command with TaskStop.
+- **Never trim a build's, a test's or a bench's output with `head` or `tail`.** The harness keeps the
+  whole output and previews it past 30,000 characters. Pipe it into `grep` for the lines you need.
+- **A heavy command takes a machine-wide slot.** cargo builds and tests, `bun test` and the commands
+  under `looper.toml`'s `[jobs] heavy` take one heavy-job slot each, and wait while every slot is held.
+  The `[jobs] exclusive` commands take every slot, so no build runs beside a measurement. The comment
+  above `[jobs]` there says which commands are which.
+
+## Other sessions' jobs
+
+Another session's command is a job too. Never kill a process by its name, `nvs.exe` and `cargo`
+included, because the name may be another session's process.
+
+| Command | What it does |
+|---|---|
+| `looper exec list [--all] [--project <p>] [--session <s>] [--port <n>]` | The running jobs with their owners. `--all` adds the ended ones. |
+| `looper exec log <id> [--from <line>] [--lines <n>]` | A job's log, which Read cannot open outside your tree |
+| `looper exec wait <id>` | Waits for the job to end. Run it with `run_in_background`. |
+| `looper exec kill <id>` | Ends the job's whole tree, and records that you asked |
+
+A verify is the exception: `looper verify` joins the run another session started (§ *Verifying*), so
+never wait for or kill another session's verify.
+
+## Other sessions' edits
+
+A file has one editor at a time. A session's first edit of a file claims it until the file matches
+`HEAD` again, so until its edits are committed or undone.
+
+- **The guard refuses an edit of a file another live session claims.** Work on another file, wait for
+  that session's commit, or ask the user to release the claim.
+- **Stage your own files by name.** The guard refuses `git add` of a file another live session claims.
+  It refuses `git add -A`, `git add .`, `git add -u` and `git commit -a` while such a claim is in the
+  tree.
+
+| Command | What it does |
+|---|---|
+| `looper claims [--json]` | Every claim in the project's trees, with its session, loop, goal, file and age |
+| `looper claims release <session>` | Frees the session's claims, and records who asked. An agent may free only a dead session's. |
 
 ## A debug cargo command never takes `-p`
 
@@ -190,7 +248,7 @@ bun nv affected --paths crates/nvs-ir/src/lower.rs             # the same, for t
 bun nv verify                                                  # build + fmt + test + clippy, one call
 bun nv verify --fast                                           # build + test only, for a mid-work check
 bun nv verify -p nvs-ir                                        # the same build; only nvs-ir's test binaries run
-bun nv verify --start   ... --wait                             # run it while you write the wrap file
+looper verify                                                  # the loop's gate: bun nv verify, joining a run already going
 bun nv verify --no-cache                                       # run every step, whatever the cache holds; by hand only
 bun nv verify --doc                                            # the rustdoc gate alone, a session's before DONE
 bun nv verify --list                                           # the steps in order, running none of them
@@ -224,20 +282,24 @@ at 1.9 runs a session, so a mid-work check that only needs to know whether the c
 pass should say so: `--fast` for build and test, `-p <crate>` when the change cannot reach further. The
 run at the **end of the group** is always the full one — that is step 3, and it is not negotiable.
 
-**And the last one need not be spent in series.** `--start` runs the whole verification detached and
-returns at once; `--wait` collects it, with its exit status, and prints how much of it overlapped. Start
-it, write the wrap file — which is prose you already know and cannot fail — then collect:
+**And the last one need not be spent in series.** Start it with `run_in_background`, write the wrap
+file — which is prose you already know and cannot fail — and end your turn. The verify's report starts
+the next turn, and the wrap follows it:
 
 ```sh
-bun nv verify --start
-<Write the wrap file>
-bun nv verify --wait
-looper wrap .agent-tmp/wrap.md
+looper verify                        # with run_in_background; bun nv affected --run interactively
+<Write the wrap file, then end the turn>
+looper wrap .agent-tmp/wrap.md       # in the turn the green report starts
 ```
 
 It is the same verification: the same steps in the same order, the same selection, the same exit status.
 Nothing is traded for the overlap, which is why this is the shape to use for step 3 whenever the wrap is
-the next thing you were going to do anyway.
+the next thing you were going to do anyway. Edit nothing once it has started: each step reads the tree
+when it runs.
+
+**`looper verify` runs `bun nv verify`, `looper.toml`'s `[verify] run`, and joins the tree's run when
+another session started one,** so two sessions in one tree share one build. Never wait for or kill
+another session's verify. `.agent-tmp/verify-progress.json` names the step a run is on.
 
 **`--list` is what the order is.** It prints the steps in the order the gate walks them and runs none of
 them, narrowed by `-p`, `--fast` and `--doc` exactly as far as those narrow a run — so a sentence here
@@ -703,8 +765,9 @@ For the instruction-count leg: `cargo build --release -p nvs-abi-probe --example
 `valgrind --tool=callgrind --callgrind-out-file=/tmp/cg.out ./target/release/examples/callgrind_spike`.
 
 **A hand-written refcount protocol is where a leak hides, so check one before you commit it.**
-`wsl.exe -- bash /mnt/<drive>/<repo>/tools/leak-check.sh <fixture> …` runs `valgrind --leak-check=full` over the
-`.nvs` files you name. Run it for **any** new refcount edge, against a fixture that actually exercises it —
+`MSYS_NO_PATHCONV=1 wsl.exe -- bash /mnt/<drive>/<repo>/tools/leak-check.sh <fixture> …` runs
+`valgrind --leak-check=full` over the `.nvs` files you name. Without the variable, Git Bash rewrites the
+`/mnt/…` path before `wsl.exe` sees it. Run it for **any** new refcount edge, against a fixture that actually exercises it —
 this repository's one real leak went unnoticed until a fixture happened to declare a refcounted local
 inside a loop.
 
@@ -730,3 +793,30 @@ the thread onto another stack. That module's doc is the one home of the rule an 
 and a report that names `__tsan_func_entry` is a broken annotation rather than a race in the code under
 it. Its target directory is under `/var/tmp` and its own, because `RUSTFLAGS` is part of a fingerprint
 and sharing one with the leak sweep would rebuild the tree on every alternation.
+
+## Without looper
+
+Nothing an agent needs to do its work depends on looper being installed. looper is absent when
+`command -v looper` fails. The agent then runs no `looper` command and does what this table says. Its
+handoff names the checks it could not run, and the next session with looper runs them. The rules of
+every file still bind, and every `bun nv` command works as it does with looper.
+
+| looper command | Without looper |
+|---|---|
+| `looper orient [--full]` | Read the front matter of `docs/goals/README.md`, whose first `chain` slug is the live goal. Then read `docs/goals/<slug>.md` and `docs/agent/playbook.md`. |
+| `looper verify` | Run `bun nv verify`, the `[verify] run` of `looper.toml`, or `bun nv affected --run` interactively. § *Verifying* names the narrow forms. |
+| `looper affected` | `bun nv affected`. |
+| `looper check [--name <text>]` | Run the `run` of each check in the live goal's front matter. Judge its matchers by reading the output. |
+| `looper lint`, `looper links`, `looper layout --check`, `looper prose` | Run `bun nv links` and `bun nv layout --check`. The other two have no equivalent: follow the rules they check by hand, and name each in the handoff as not run. |
+| `looper goal …` | Edit the goal's front matter by hand, in the shape the goal format gives. |
+| `looper render` | Leave the body of `docs/goals/README.md` as it is. The next `looper render` rewrites it. |
+| `looper wrap` | Apply the plan sections with `bun nv plan --apply <file>`, overwrite `## Handoff`, tick what is done, and commit each slice with `git commit -F <file>`. |
+| `looper log`, `looper playbook retire` | No equivalent. |
+| `looper sync`, `looper doctor`, `looper clean` | Not needed. Never edit the text between looper's markers by hand. |
+| `looper guard` | The settings run it by itself. Without looper, the call goes through, `bun nv guard` still runs on Read and Bash, and the shell rules still bind. |
+| `looper exec list`, `looper exec log`, `looper exec wait`, `looper exec kill` | No equivalent. Ask the user before stopping a process another session started. |
+| `looper claims`, `looper claims release` | No equivalent. There are no claims, so stage only your own files by name. |
+| `looper loop start` | No equivalent. The unattended loop needs looper. |
+
+`tools/git-hooks/commit-msg` is this repository's own hook. It rejects a trailer with or without looper,
+and adds looper's shape check where looper is installed.

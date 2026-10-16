@@ -72,7 +72,7 @@ bun nv gen-attribution                    # regenerate; commit the diff in the s
 ```
 
 **B. If `cranelift-*`, `wasmtime`, `corosensei` or anything the runtime links moved** — the premise guards.
-Takes over two minutes; start it in the background:
+Takes over two minutes, so start it with `run_in_background` and end your turn to wait for its report:
 
 ```sh
 cargo test --release -p nvs-abi-probe
@@ -182,7 +182,8 @@ Needs you
 
 - `cargo test` does not always relink `target/debug/nvs.exe` — run `cargo build` before testing a
   fixture by hand.
-- `wsl.exe` needs PowerShell and prefers a **script file**; a long inline `bash -lc "…"` mangles.
-- `cargo test --release -p nvs-abi-probe` takes over two minutes — background it.
+- `wsl.exe` prefers a **script file**; a long inline `bash -lc "…"` mangles. From Bash, put
+  `MSYS_NO_PATHCONV=1` in front of a `wsl.exe` call that passes a POSIX path such as `/mnt/…`.
+- `cargo test --release -p nvs-abi-probe` takes over two minutes: start it with `run_in_background`.
 - Another agent may be editing this repo concurrently: stage your own paths explicitly and check
   `git show --stat` after committing.
