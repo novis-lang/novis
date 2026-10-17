@@ -113,6 +113,10 @@ for (; $i < $n; ) {
     $i = $i + 1;
 }
 
+// A `name:` may write the two arguments in either order, and the link is the
+// same. A call that read them by position would pass the array as the name.
+echo "named=", Core\Router::url(params: ["id" => 7], name: "Posts::show"), "\n";
+
 // Declared *after* every statement that links to it, which is the whole point
 // of the table being built from the program enumeration (`rule:programs/implementing`'s scan,
 // `rule:routing/table-is-opt-in`): a row exists because the class is in the program, not because
@@ -137,3 +141,4 @@ Files::download=/files/a/b/c.txt
 Admin::users=/admin/users
 Admin::edit=/admin/users/9
 Admin::delete=/admin/users/9/delete
+named=/posts/7

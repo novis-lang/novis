@@ -51,7 +51,7 @@
 
 use nvs_diagnostics::{Diagnostic, Diagnostics, Span, code};
 use nvs_hir::QName;
-use nvs_syntax::ast::{CallArgs, Expr, ExprKind};
+use nvs_syntax::ast::{Arg, CallArgs, Expr, ExprKind};
 
 use crate::defaults::ConstArg;
 use crate::expr::args::argument_filling;
@@ -96,6 +96,11 @@ pub(crate) struct LinkSite {
     /// reported: the call's span underlines `$params` too, and the mistake is
     /// in the name.
     name_span: Span,
+    /// The written position of the argument that fills `$params`.
+    params_at: usize,
+    /// The written position of the argument that fills `urlSigned`'s signing
+    /// settings, and `None` for the two members that sign nothing.
+    settings_at: Option<usize>,
     /// Argument 1's literal string keys, in written order, or `None` where it
     /// is not an array literal — in which case there is nothing to check
     /// coverage against and § 4 asks for nothing.
@@ -183,14 +188,35 @@ pub(crate) fn record_site(
     let Some(ConstArg::Str(name)) = folded_as(name_arg, crate::ty::Ty::String, env) else {
         return;
     };
-    let args = argument_filling(1, list, slots).and_then(|arg| literal_args(&arg.value, ctx, env));
+    let Some(params_at) = written_at(1, list, slots) else {
+        return;
+    };
+    let settings_at = match member == SIGNED {
+        true => {
+            let Some(at) = written_at(2, list, slots) else {
+                return;
+            };
+            Some(at)
+        }
+        false => None,
+    };
+    let args = literal_args(&list[params_at].value, ctx, env);
     env.links.push(LinkSite {
         span: call.span,
         member: member.to_owned(),
         name,
         name_span: name_arg.span,
+        params_at,
+        settings_at,
         args,
     });
+}
+
+/// The written position of the argument that fills parameter `param`, found
+/// the way [`argument_filling`] finds it.
+fn written_at(param: usize, list: &[Arg], slots: &[ArgSlot]) -> Option<usize> {
+    let arg = argument_filling(param, list, slots)?;
+    list.iter().position(|written| std::ptr::eq(written, arg))
 }
 
 /// `$params`' entries where it is an array literal every key of which is a
@@ -348,6 +374,8 @@ pub(crate) fn resolve(
                 // site is what makes "the signature is over what resolved"
                 // true by construction rather than by a second comparison.
                 signed: (site.member == SIGNED).then(|| site.name.clone()),
+                params_at: site.params_at,
+                settings_at: site.settings_at,
             },
         );
     }
