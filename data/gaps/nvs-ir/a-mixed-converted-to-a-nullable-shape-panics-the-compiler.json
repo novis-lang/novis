@@ -1,6 +1,0 @@
-{
-  "module": "crates/nvs-ir/src/lower/convert.rs",
-  "title": "`$m as ?{x: int}` from a `mixed` value passes the checker and panics the compiler.",
-  "text": "`rule:expressions/nullable-conversion`'s `as ?T` lowers for the checked scalar targets, `bytes`, literal and enum-case types and `array<U>`. An object or shape target from `mixed` reaches the catch-all and panics with \"got Tagged as ?Object\" (`crates/nvs-ir/src/lower/convert.rs:443-452`). The checker accepts it, so the compiler fails on code the language accepts. Closing it means a `?` helper for the shape and object targets that returns `null` when the value does not fit, or a checker refusal the rule names.",
-  "goal": "completeness-holes"
-}

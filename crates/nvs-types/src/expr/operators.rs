@@ -1971,7 +1971,14 @@ fn reject_unavailable_nullable_conversion(from: TypeId, to: TypeId, span: Span, 
     let Some(inner) = nullable_inner_target(to, env) else {
         return;
     };
-    if !nullable_conversion_is_total(from, to, inner, env) {
+    // A shape is tested by its fields, so `object as ?Shape` can fail although
+    // both sides are objects. Only an operand that always has the fields is
+    // the row that cannot fail.
+    let shape_can_fail = matches!(env.interner.get(inner), Ty::Shape(_))
+        && from != to
+        && from != inner
+        && !super::type_test::always_holds(from, inner, env);
+    if shape_can_fail || !nullable_conversion_is_total(from, to, inner, env) {
         reject_unconvertible(from, inner, span, env);
         return;
     }

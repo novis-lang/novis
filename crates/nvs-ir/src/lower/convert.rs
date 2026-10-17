@@ -406,15 +406,11 @@ impl<'a> Lowering<'a> {
     ///
     /// # Panics
     ///
-    /// Panics for a row `rule:expressions/nullable-conversion-availability` calls **available** and this crate has no
-    /// `?` helper to run — `$m as ?array<T>`.
-    /// Both of that section's *refusals* belong to `nvs_types`, so neither
-    /// reaches here: a conversion that cannot fail is `E0709` and a pair
-    /// naming no row is `E0708`, both where the conversion is written. The
-    /// remaining target is the same missing lowering [`Self::convert`]'s own
-    /// catch-all names, minus the targets this form adds — `string` and
-    /// `bytes`, each a row that throws in the checked spelling and so needs a
-    /// null-answering twin rather than the same helper.
+    /// Panics for a target with no `?` helper. None reaches here from a
+    /// checked program: both of `rule:expressions/nullable-conversion-availability`'s
+    /// *refusals* belong to `nvs_types` (`E0709` for a conversion that cannot
+    /// fail, `E0708` for a pair naming no row), and the shape and `array<U>`
+    /// targets are arms of [`Self::lower_conversion`] ahead of this one.
     pub(crate) fn convert_or_null(
         &mut self,
         v: ValueId,
@@ -445,11 +441,10 @@ impl<'a> Lowering<'a> {
                  `bytes`, and through `Self::lower_nullable_membership` for `rule:types/single-value-types`'s literal \
                  and enum-case ones — got `{from:?} as ?{other:?}`. Both of § 3's refusals are \
                  `nvs_types`' now (`E0709` for a row that cannot fail, `E0708` for a pair naming \
-                 no row), so what reaches here is a row that exists, can fail, and has no `?` \
-                 helper to run it: the object target `Lowering::convert`'s own catch-all already \
-                 names. The `array<U>` target had been the other one and is \
-                 `Self::lower_array_restamp` now, which answers both spellings out of one walk. \
-                 See the crate docs' known gaps"
+                 no row), a class target is `E0473`, and `Lowering::lower_conversion` takes a \
+                 shape target to `Self::lower_nullable_shape_conversion` and an `array<U>` one to \
+                 `Self::lower_array_restamp` before this. So a pair arriving here is a row the \
+                 checker admitted and no arm lowers"
             ),
         };
         let call = InstKind::HelperCall {
@@ -728,6 +723,14 @@ impl<'a> Lowering<'a> {
                     .and_then(|id| super::array_element_tags(id, self.checked_types))
                 {
                     return self.lower_array_restamp(v, from, tags, inner, true, env, cur);
+                }
+                // `rule:types/conversion`'s shape row under the same sugar: the
+                // field walk the checked form runs, with a miss answering `null`.
+                if (from == Ty::Tagged || from == Ty::Object)
+                    && let Some(&ExprInfo::ShapeConversion { shape }) = self.exprs.lookup(span)
+                {
+                    return self
+                        .lower_nullable_shape_conversion(v, from, shape, inner, ty.span, env, cur);
                 }
                 // `rule:types/property-key`'s two run-time rows under `rule:expressions/nullable-conversion-availability`'s sugar:
                 // the same set and the same chain the checked form below gets,
@@ -1302,6 +1305,70 @@ impl<'a> Lowering<'a> {
         let holds = self.emit_shape_walk(shape, value, from, span, env, cur);
         let described = self.checked_types.describe(shape);
         self.lower_tested_conversion(holds, value, from, &described, operand, span, env, cur)
+    }
+
+    /// `$x as ?Shape`, the non-throwing twin of [`Self::lower_shape_conversion`]:
+    /// the same field walk, and `null` where that one throws.
+    ///
+    /// The answer is the operand under a tag. An operand that is already
+    /// [`Ty::Tagged`] is that answer as it stands, and an object is relabelled
+    /// with [`InstKind::Tag`], which shares its reference. Either way the frame
+    /// owns one reference to it before the branch: a borrowed operand is
+    /// retained, and a fresh one transfers. The hit edge hands that reference
+    /// to the consumer, and the miss edge releases it.
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "the same caller state `Self::lower_shape_conversion` takes"
+    )]
+    fn lower_nullable_shape_conversion(
+        &mut self,
+        value: ValueId,
+        from: Ty,
+        shape: TypeId,
+        operand: &Expr,
+        span: Span,
+        env: &mut Env,
+        cur: &mut BlockId,
+    ) -> (ValueId, Ty) {
+        let holds = self.emit_shape_walk(shape, value, from, span, env, cur);
+        if self.aliasing_read(operand) {
+            self.emit_retain(*cur, value);
+        }
+        let answer = if from == Ty::Tagged {
+            value
+        } else {
+            self.emit(*cur, Ty::Tagged, InstKind::Tag { operand: value })
+                .0
+        };
+        let hit = self.new_block();
+        let miss = self.new_block();
+        let join = self.new_block();
+        let hit_edge = self.ids.next_edge(span);
+        let miss_edge = self.ids.next_edge(span);
+        self.seal(
+            *cur,
+            Terminator::Branch {
+                cond: holds,
+                then_block: hit,
+                then_edge: hit_edge,
+                else_block: miss,
+                else_edge: miss_edge,
+            },
+        );
+        self.seal(hit, Terminator::Jump(join));
+        self.emit_release(miss, answer);
+        let (null_v, _) = self.emit(miss, Ty::Null, InstKind::ConstNull);
+        let null_v = self.coerce(miss, null_v, Ty::Null, Ty::Tagged, env);
+        self.seal(miss, Terminator::Jump(join));
+        let (merged, _) = self.emit(
+            join,
+            Ty::Tagged,
+            InstKind::Phi {
+                incoming: vec![(hit, answer), (miss, null_v)],
+            },
+        );
+        *cur = join;
+        (merged, Ty::Tagged)
     }
 
     /// The half of a checked conversion into an object that comes after its
