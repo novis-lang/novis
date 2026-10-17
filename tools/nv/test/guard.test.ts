@@ -68,6 +68,7 @@ const CASES: Record<string, { deny: [Tool, Record<string, unknown>][]; allow: [T
       ["Bash", { command: "bun nv select --full" }],
       ["Bash", { command: "bun nv benches --owed" }],
       ["Bash", { command: "bun nv sweep" }],
+      ["Bash", { command: "bun nv debt --goal lean-loop" }],
     ],
     allow: [
       ["Bash", { command: "cargo test --lib html::tests 2>&1 | tail -20" }],
@@ -80,6 +81,7 @@ const CASES: Record<string, { deny: [Tool, Record<string, unknown>][]; allow: [T
       ["Bash", { command: "bun nv verify" }],
       ["Bash", { command: "bun nv select --stats" }],
       ["Bash", { command: "bun nv sweep --help" }],
+      ["Bash", { command: "bun nv debt --help" }],
     ],
   },
 };

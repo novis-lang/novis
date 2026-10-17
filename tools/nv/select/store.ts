@@ -90,7 +90,7 @@ export function currentPlatform(): string {
 let recordListener: ((id: string, verdict: Verdict) => void) | null = null;
 
 /** Sets the one function told of each run any store of this process records, once it is recorded, or
- * clears it with null. `nv sweep` ends an atom's progress item through it, whichever runner paid it. */
+ * clears it with null. `nv debt` ends an atom's progress item through it, whichever runner paid it. */
 export function onRecorded(f: ((id: string, verdict: Verdict) => void) | null): void {
   recordListener = f;
 }

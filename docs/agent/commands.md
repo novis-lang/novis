@@ -265,13 +265,13 @@ test binary and case whose footprint holds a key the change moved, or that is ne
 the path each came from. Its acceptance half is each plan check one of whose atoms is selected. A heavy
 check — the release profile, fuzz, TSan, the database matrix — is named and left to looper's sweep when
 the live goal names it, and to CI's nightly deep lane whatever changed; the Linux legs are owed, and
-`bun nv sweep` pays them. A check reached only because its atoms were owed or red before the change is left out, since
+`bun nv debt` pays them at the goal's end. A check reached only because its atoms were owed or red before the change is left out, since
 it stays red until the goal is reached. `--run` runs the rest: `nv verify` first,
 then the sweep over exactly the checks it named, and a binary or case verify ran green is not started
 twice.
 
 **`nv guard` refuses the commands that run more than a change reaches**: `cargo test` with no target
-and no filter, `bun nv benches`, `bun nv select --full`, `bun nv sweep`, `bun nv proofs --verify` or
+and no filter, `bun nv benches`, `bun nv debt`, `bun nv select --full`, `bun nv sweep`, `bun nv proofs --verify` or
 `--run` over every feature, and `bun nv verify --no-cache`. A person runs them by hand; looper's sweep
 and its hooks are not tool calls, so the guard never sees them. To look into one test, name it: `cargo test --test <name>` or `cargo test --lib <filter>`.
 
@@ -389,10 +389,11 @@ afterwards. The edits are reverted in a `finally`, and a batch fails when `git s
 the test binaries a change reaches and every `.nvst` case, and looper's sweep after each session runs
 the live goal's acceptance checks, each as often as its `every` says. Nothing is dropped: an atom the
 change reached that a run did not start is `owed` in the store, and stays selected until a run of it is
-green. What no check covers is floor debt, and `bun nv sweep` pays it, which looper runs after each
-session as its `after_session` hook (`tools/nv/cmd/sweep.ts`). Each run pays the red benches first, then
-the owed atoms oldest first, for at most its `DEBT_BUDGET_MS`, and leaves the rest owed. It also reads
-the newest nightly CI run back, and writes each job it failed into `.loop/last-sweep.md`.
+green. What no check covers is floor debt, and `bun nv debt` pays all of it once per goal, as the floor
+check `floor-debt` that looper judges last (`tools/nv/cmd/debt.ts`): the red benches first, then the
+owed atoms oldest first. Between two sessions only `bun nv sweep` runs, looper's `after_session` hook
+(`tools/nv/cmd/sweep.ts`): it sweeps the disk, the build only when the disk is low, and reads the newest
+nightly CI run back, writing each job it failed into `.loop/last-sweep.md`.
 
 **CI's billing and runners are the user's.** A session that finds CI blocked by billing says so and
 stops: whether the repository gets a self-hosted runner is not its call. A hosted-runner failure that
@@ -623,7 +624,8 @@ blocks back in the order you asked for them.
 bun nv suite <tree>... [--case <path>]... [--min-passing <n>] [--full]   # judge one suite as an nvs-suite check
 bun nv legs [--goal <slug>] [--full]                  # the WSL leg and the valgrind sweep over a goal's fixtures
 bun nv services --up [--goal <slug>]                  # Docker preflight, then the goal's services up and healthy
-bun nv sweep [--goal <slug>] [--keep-runs <n>]        # pays the floor debt, reads nightly CI: looper's after_session hook
+bun nv sweep [--keep-runs <n>]                        # sweeps the disk, reads nightly CI: looper's after_session hook
+bun nv debt [--goal <slug>]                           # pays the floor debt: the floor check `floor-debt`
 bun nv benches [--owed]                               # the bench turn by hand
 bun nv side --prepare --hook                          # looper's before_run: readies a side loop's lane, else nothing
 bun nv side --prepare <slug> [--dir <path>] [--min-free-gb <n>]   # make or complete a side worktree by hand

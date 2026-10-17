@@ -21,7 +21,7 @@
 // what it finished; the full run itself runs everything again. The store's tree then moves past the
 // change, as after any sweep.
 //
-// The same run pays debt for `bun nv sweep` (`cmd/sweep.ts`): `only` names the atoms that run, in their
+// The same run pays debt for `bun nv debt` (`cmd/debt.ts`): `only` names the atoms that run, in their
 // order, and `deadline` is when no further one starts. Each kind's turn comes when its first atom's turn
 // comes in `only`. The deadline is asked before each batch of cases or proof programs, which is one pool's
 // width, and before each test executable, tools test file and plan check. An atom that started runs to
