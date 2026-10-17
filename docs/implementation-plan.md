@@ -67,7 +67,7 @@ being sorted like one. Nothing is ever renumbered, because a number that moves b
 
 | Carried by | Milestone | What it builds | Loop-days |
 |---|---|---|---|
-| backlog 4 | [M15](plan/m15.md) | Packages, the registry and the supply chain (~8 weeks) | ~3 + a calendar floor |
+| goals `namespace-grants`, `api-compat`, `package-client`, `registry-log`, `core-passkey`, `core-web-push`, `registry-service`, `registry-website`, `package-audit`, `first-packages` | [M15](plan/m15.md) | Packages, the registry and the supply chain (~8 weeks) | ~3 + a calendar floor |
 
 **One milestone is not one block of schedule, which is why the cell holds a list.** A milestone's work
 can spread across several goals, and a goal may carry no milestone at all. A single number per milestone
