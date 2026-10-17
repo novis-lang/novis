@@ -351,8 +351,9 @@ the class, and a check fails for a diagnostic code no test raises.
   - [x] An `inout` alias at both copy sites: E0793 for a spawn entry, E0714 at `Core\Serialize::encode`.
   - [x] `bindTo`, `bind` and `call` on a function a method made without `$this`.
   - [x] A derived decoder reporting four bad fields, and a revealed secret crossing spawn, worker and serialize.
-  - [ ] A failed pool reset destroys the connection for MySQL, SQL Server and SQLite.
-  - [ ] The four `nvs-cli`, `nvs-codegen` and `nvs-stdlib` records.
+  - [x] A failed pool reset destroys the connection for MySQL, SQL Server and SQLite.
+  - [x] `Core\Server::traceId` throws in a spawned child, the one request member of that class.
+  - [ ] The three `nvs-cli` records and the `nvs-codegen` one.
 - [ ] `examples/*.nvs` run in a test the compiler and runtime reach. `data/gaps/nv/the-examples-run-end-to-end-only-under-valgrind.json:1`
 
 ### 14. a prose known gap without a record fails a check
@@ -368,20 +369,17 @@ work cannot live only in prose again.
 
 ### State
 
-Stages 1 to 4 and 8 to 12 are done. This session closed four of stage 13's ten `no-test-*` records
-in two slices, with no change to the compiler or runtime:
+Stages 1 to 4 and 8 to 12 are done. Stage 13 has closed six of its ten `no-test-*` records. This
+session closed two, with no change to the compiler or runtime:
 
-- `tests/conformance/reject/a-spawn-entry-cannot-declare-an-inout-parameter.nvst` (E0793) and
-  `tests/conformance/reject/serialize-encode-takes-no-inout-argument.nvst` (E0714) pin the `inout`
-  refusal at both copy sites. Each also compiles an `inout` parameter read as a value at that site.
-- `tests/conformance/callables/an-anonymous-function-made-in-a-method-without-this-binds-to-any-object.nvst`
-  binds such a function to an unrelated object and to `null`.
-- `tests/conformance/core/a-derived-decoder-reports-four-bad-fields-in-one-parse-error.nvst` and
-  `tests/conformance/isolate/a-revealed-secret-crosses-a-spawn-a-worker-and-serialize.nvst`, and
-  `crates/nvs-types/tests/secret.rs`'s accepted half now calls `Core\Secret::reveal` for real.
-
-`bun nv try` writes its snippet under `.agent-tmp/` alone, so a probe with a `--FILE x--` section
-runs through `target/debug/nvs.exe test <case>` instead.
+- `a_failed_reset_destroys_the_connection_rather_than_returning_it` now exists for MySQL
+  (`crates/nvs-db/src/mysql.rs`), SQL Server (`crates/nvs-db/src/tds/plan.rs`) and SQLite
+  (`crates/nvs-db/src/sqlite.rs`) beside PostgreSQL's. Each pins the by-value `reset` signature.
+  MySQL asserts that only `COM_QUIT` follows a refused reset. SQL Server asserts that nothing follows
+  it, isolation restore included, since TDS has no goodbye. SQLite asserts that the refused reset
+  drops the last owner of the database handle.
+- `tests/conformance/isolate/a-child-cannot-read-the-trace-id-of-the-request-that-spawned-it.nvst`:
+  `traceId` is `Core\Server`'s only request member, and `isDraining` was already pinned in a child.
 
 `bun nv rules --render` also rewrites `core-api.md`, `core-classes.md`, `errors.md` and
 `iteration.md`, and `bun nv render` drops `done` from `data/schema/milestone.schema.json`. That drift
@@ -391,16 +389,17 @@ Stage 6's remainder is `data/gaps/nvs-ext/a-workbook-never-finished-is-neither-l
 no Novis member can abort a response. Stage 5's typed path, stage 1's second hole and stage 7's two
 records are questions for the user, each in its record (Backlog).
 
-The nightly still tests `cb7021a24` (`gh run view 38869457440`). The local `main` is far ahead and
-not pushed, so its failures are the old tree's until the user pushes.
+The nightly run the sweep reported (`gh run view 38869457440`) tested `cb7021a24`, 907 commits behind
+the local `main`, which is not pushed. Its failures are the old tree's until the user pushes.
 
 ### Next
 
-**Stage 13: the pool-reset record, then the `nvs-stdlib` one. Files: `crates/nvs-db/src/{mysql,sqlite}.rs`, `crates/nvs-db/src/tds/`.**
+**Stage 13: the three `nvs-cli` records, each its own slice. Files: `crates/nvs-cli/src/{reload,script,queue,main}.rs`, `crates/nvs-cli/tests/`.**
 
-- [ ] `no-test-a-failed-pool-reset-destroys-the-connection-outside-postgres`: the PostgreSQL test's two halves (a by-value signature coercion, and the goodbye after a refused `reset_session`) for MySQL, SQL Server and SQLite (`rule:security/db-pool-reset-is-a-boundary`). `crates/nvs-db/src/pg.rs:6081`, `crates/nvs-db/src/mysql.rs:2003`, `crates/nvs-db/src/sqlite.rs:1327`
-- [ ] `no-test-core-server-request-members-in-a-spawned-child`: one case per request member, called in a spawned child (`rule:security/request-state-throws-in-an-isolate`). `data/gaps/nvs-stdlib/no-test-core-server-request-members-in-a-spawned-child.json:1`
-- [ ] The three `nvs-cli` records and the `nvs-codegen` one, each its own slice (`rule:testing/feature-proofs`). `data/gaps/nvs-cli/no-test-hot-reload-makes-no-stat-per-request.json:1`
+- [ ] `no-test-hot-reload-makes-no-stat-per-request`: serve many requests between two background checks and count the file-system calls (`rule:config/an-edit-reaches-the-next-request-without-a-restart`). `crates/nvs-cli/src/reload.rs:80`, `crates/nvs-cli/src/script.rs:3215`
+- [ ] `no-test-nvs-queue-migrate`: run `nvs queue migrate` on SQLite twice and read back the tables (`rule:testing/feature-proofs`). `crates/nvs-cli/src/queue.rs:108`
+- [ ] `no-test-nvs-run-dump-asm-end-to-end`: run the binary with `--dump-asm` and check a listing per function and the program's own output (`rule:testing/feature-proofs`). `crates/nvs-cli/src/main.rs:1663`
+- [ ] Then `no-test-a-jit-page-is-not-writable-after-the-flip`, alone in its session (`rule:http-server/a-jit-page-is-never-writable-and-executable-at-once`). `data/gaps/nvs-codegen/no-test-a-jit-page-is-not-writable-after-the-flip.json:1`
 
 ### Backlog
 
