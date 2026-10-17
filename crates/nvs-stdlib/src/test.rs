@@ -902,7 +902,7 @@ pub(crate) const RESPONSE_NAME: &str = r"Core\Test\Response";
 ///
 /// A `Core`-owned instance rather than an `rule:types/object-top` shape, which is the one
 /// place this surface departs from `rule:testing/in-process-request`'s worked example's `$rs->status`. A
-/// shape would be the smaller surface, and `Core\Script\Result` is the
+/// shape would be the smaller surface, and `await`'s record is the
 /// precedent for spelling a result as one; what decides it the other way is
 /// that there is no registry spelling for a *returned* shape at all —
 /// [`CoreTy::Shape`] is a parameter's arms, flattened at the call site into one
