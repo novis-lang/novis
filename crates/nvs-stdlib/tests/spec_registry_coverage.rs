@@ -427,10 +427,14 @@ fn chain_live() -> String {
 /// `data/plan/milestones/`, named `<id>.json`.
 ///
 /// A finished milestone's record is deleted with its plan file, so a record on
-/// disk is the whole of "still ahead". `tools/nv/cmd/owners.ts`'s
+/// disk is the whole of "still ahead", and with no record left git keeps no
+/// directory, so a missing one is an empty set. `tools/nv/cmd/owners.ts`'s
 /// `milestonePlan` reads the same directory for the gap records.
 fn plan_milestones() -> BTreeSet<String> {
     let dir = nvs_repo::path("data/plan/milestones");
+    if !dir.exists() {
+        return BTreeSet::new();
+    }
     fs::read_dir(&dir)
         .unwrap_or_else(|err| panic!("{}: {err}", dir.display()))
         .map(|entry| {
@@ -523,9 +527,9 @@ fn every_outstanding_key_names_an_owner() {
          every owner below is being checked against nothing"
     );
     assert!(
-        !plan.is_empty(),
-        "data/plan/milestones/ yielded no record — the directory has moved under \
-         `plan_milestones`, and every milestone owner below is being refused for the wrong reason"
+        nvs_repo::path("data/plan").is_dir(),
+        "data/plan/ is gone — the milestone records have moved under `plan_milestones`, and every \
+         milestone owner below is being refused for the wrong reason"
     );
     let misnamed: Vec<&String> = plan.iter().filter(|id| !is_milestone_tag(id)).collect();
     assert!(
@@ -649,20 +653,17 @@ fn unowned_is_no_longer_an_owner_for_a_key() {
 /// A key deferred to a milestone still ahead is scheduled work, and one
 /// deferred to a milestone that finished is not.
 ///
-/// Both tags are read from the real records, because the claim is about the
-/// plan as it stands. The ahead tag is any record under `data/plan/milestones/`.
-/// The finished tag is `M9`, whose record was deleted when it closed. The
-/// `milestone` and `broken` kinds in `tools/nv/cmd/owners.ts`'s module doc are
-/// the same rule over the gap records.
+/// The plan is the real records under `data/plan/milestones/`, which may be
+/// none, with one tag added that has no record on disk, `M99`, as the
+/// milestone ahead. The finished tag is `M9`, whose record was deleted when it
+/// closed. The `milestone` and `broken` kinds in `tools/nv/cmd/owners.ts`'s
+/// module doc are the same rule over the gap records.
 #[test]
 fn a_milestone_with_a_record_owns_a_key_and_a_deleted_one_does_not() {
     let goals = chain_goals();
-    let plan = plan_milestones();
-    let ahead = plan
-        .iter()
-        .next()
-        .cloned()
-        .unwrap_or_else(|| panic!("data/plan/milestones/ holds no record"));
+    let mut plan = plan_milestones();
+    let ahead = "M99".to_owned();
+    plan.insert(ahead.clone());
     let finished = "M9".to_owned();
 
     assert!(
