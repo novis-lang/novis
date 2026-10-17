@@ -67,6 +67,15 @@ fn a_section_inside_a_nested_module_is_not_the_extensions() {
 }
 
 #[test]
+fn a_section_after_a_nested_module_and_component_is_still_found() {
+    let text = r#"(component (core module (func)) (component (core module)))"#;
+    let bytes = with_section(component(text), MANIFEST, MINIMAL.as_bytes());
+    let sections = section::read(&bytes).expect("the component reads");
+
+    assert_eq!(sections.manifest, Some(MINIMAL.as_bytes()));
+}
+
+#[test]
 fn a_core_module_a_repeated_section_and_bytes_that_are_not_wasm_are_refused() {
     let module = with_section(component("(module)"), MANIFEST, MINIMAL.as_bytes());
     let twice = with_section(
