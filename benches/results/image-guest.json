@@ -1,34 +1,34 @@
 {
   "host": "x86_64-windows",
-  "how": "`cargo bench -p nvs-ext --bench image_guest -- --record`: the median of 21 runs of each arm after 3 untimed ones, in a release build. The guest arm is one host-to-guest call through nvs-ext's call bridge, so it includes copying the input in and the output out, and a list of bytes crosses as one wasmtime `Val` per byte. `guest_size_only_median_ns` is the same call returning the size header alone, so no pixel crosses back. The native arm is the same crate built for the host, with the SIMD the host's compiler picks.",
+  "how": "`cargo bench -p nvs-ext --bench image_guest -- --record`: the median of 21 runs of each arm after 3 untimed ones, in a release build. The guest arm is one host-to-guest call through nvs-ext's call bridge, so it includes copying the input in and the output out. The image world is called typed, so a list of bytes crosses in one copy each way. `guest_size_only_median_ns` is the same call returning the size header alone, so no pixel crosses back. The native arm is the same crate built for the host, with the SIMD the host's compiler picks.",
   "jobs": {
     "jpeg_decode": {
-      "guest_median_ns": 82820700,
-      "guest_size_only_median_ns": 7900800,
-      "native_median_ns": 3018200,
-      "ratio": 27.44,
-      "what": "one 800x600 JPEG at the default quality decoded to RGBA8, returned as raw pixels"
+      "guest_median_ns": 25455500,
+      "guest_size_only_median_ns": 23940000,
+      "native_median_ns": 12566800,
+      "ratio": 2.03,
+      "what": "one 1920x1080 JPEG at the default quality decoded to RGBA8, returned as raw pixels"
     },
     "pdf_image_page": {
-      "guest_median_ns": 449129600,
-      "guest_size_only_median_ns": 71556400,
-      "native_median_ns": 33392200,
-      "ratio": 13.45,
-      "what": "one A4 page drawing the 800x600 JPEG 6 times, rasterised at 150 dpi and returned as raw pixels"
+      "guest_median_ns": 165783500,
+      "guest_size_only_median_ns": 164514600,
+      "native_median_ns": 91133700,
+      "ratio": 1.82,
+      "what": "one A4 page drawing the 1920x1080 JPEG 6 times, rasterised at 150 dpi and returned as raw pixels"
     },
     "pdf_text_page": {
-      "guest_median_ns": 394214400,
-      "guest_size_only_median_ns": 14181900,
-      "native_median_ns": 9433300,
-      "ratio": 41.79,
+      "guest_median_ns": 14841700,
+      "guest_size_only_median_ns": 13548800,
+      "native_median_ns": 9608000,
+      "ratio": 1.54,
       "what": "one A4 page of 64 lines of text in two unembedded standard fonts, rasterised at 150 dpi and returned as raw pixels"
     },
     "resize": {
-      "guest_median_ns": 34156800,
-      "guest_size_only_median_ns": 29630000,
-      "native_median_ns": 1197200,
-      "ratio": 28.53,
-      "what": "800x600 RGBA8 pixels resized to 200 wide with Lanczos3, returned as raw pixels"
+      "guest_median_ns": 6451600,
+      "guest_size_only_median_ns": 6473700,
+      "native_median_ns": 3861500,
+      "ratio": 1.67,
+      "what": "1920x1080 RGBA8 pixels resized to 200 wide with Lanczos3, returned as raw pixels"
     }
   }
 }

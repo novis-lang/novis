@@ -73,7 +73,7 @@ fn main() {
     if record {
         let figures = serde_json::json!({
             "how": format!(
-                "`cargo bench -p nvs-ext --bench image_guest -- --record`: the median of {RUNS} runs of each arm after {WARMUP} untimed ones, in a release build. The guest arm is one host-to-guest call through nvs-ext's call bridge, so it includes copying the input in and the output out, and a list of bytes crosses as one wasmtime `Val` per byte. `guest_size_only_median_ns` is the same call returning the size header alone, so no pixel crosses back. The native arm is the same crate built for the host, with the SIMD the host's compiler picks."
+                "`cargo bench -p nvs-ext --bench image_guest -- --record`: the median of {RUNS} runs of each arm after {WARMUP} untimed ones, in a release build. The guest arm is one host-to-guest call through nvs-ext's call bridge, so it includes copying the input in and the output out. The image world is called typed, so a list of bytes crosses in one copy each way. `guest_size_only_median_ns` is the same call returning the size header alone, so no pixel crosses back. The native arm is the same crate built for the host, with the SIMD the host's compiler picks."
             ),
             "host": format!("{}-{}", std::env::consts::ARCH, std::env::consts::OS),
             "jobs": jobs,

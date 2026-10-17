@@ -1,0 +1,809 @@
+//! A call to a built-in component through wasmtime's typed functions, so a `bytes` value crosses
+//! as one copy each way (`rule:packaging/a-value-crosses-as-its-wit-type`).
+//!
+//! A built-in component's world is a file of this repository, so its Rust types are generated
+//! here by `bindgen!`, one module per world, and its exports are called with
+//! [`wasmtime::component::Func::typed`]. A typed call lowers a `Vec<u8>` into the guest's memory in
+//! one copy and lifts one back the same way, where the dynamic path in `crate::convert` holds one
+//! `Val` per byte. Every other extension stays on that dynamic path, because its types are only
+//! known at run time and a typed call needs them when the host is compiled.
+//!
+//! The conversion from a [`Value`] to a generated type is directed by the manifest's
+//! [`NovisType`], as `crate::convert`'s is, and takes the same values: an enum by its case or its
+//! number, a `uint` from an `int` that is not negative, a list or a keyed array by its pairs in
+//! order, a shape by its field names, and a closed union of shapes as the one case its keys fit.
+//! A field, a case and a method are matched by name in kebab-case, so a generated `has_alpha` is
+//! the manifest's `hasAlpha`. The conversion back writes what `crate::convert::from_wit` writes.
+//!
+//! What it costs: a `bytes` value moves into its generated `Vec<u8>` and out of it again, so the
+//! host copies no byte. wasmtime copies it once into the guest and once out of it. A call checks
+//! the export's type against the generated one each time it runs.
+
+use wasmtime::component::Func;
+use wasmtime::{AsContextMut, Store};
+
+use crate::call::{Error, Guest};
+use crate::convert::{self, Key, Value};
+use crate::types::{Field, NovisType};
+
+/// A built-in world whose exports this module calls typed, by the interface its manifest maps.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum World {
+    /// `nvs:image/codec`.
+    Image,
+}
+
+impl World {
+    /// The world `interface` is, where the component is a built-in one.
+    pub(crate) fn of(interface: &str) -> Option<Self> {
+        match interface {
+            "nvs:image/codec" => Some(Self::Image),
+            _ => None,
+        }
+    }
+
+    /// The typed arguments of `method`, converted from `args` by `params`. `Err` gives `args`
+    /// back where the world has no such method, so the call takes the dynamic path.
+    pub(crate) fn lower(
+        self,
+        method: &str,
+        params: &[NovisType],
+        args: Vec<Value>,
+    ) -> Result<Result<Args, String>, Vec<Value>> {
+        match self {
+            Self::Image => {
+                image::Args::lower(method, params, args).map(|args| args.map(Args::Image))
+            }
+        }
+    }
+}
+
+/// One typed call's arguments.
+pub(crate) enum Args {
+    /// A call to the image world.
+    Image(image::Args),
+}
+
+/// What one typed call returned.
+pub(crate) enum Out {
+    /// A result of the image world.
+    Image(image::Out),
+}
+
+impl Args {
+    /// The host bytes the arguments hold on the heap.
+    pub(crate) fn heap(&self) -> u64 {
+        match self {
+            Self::Image(args) => args.heap(),
+        }
+    }
+
+    /// Calls `func` with the arguments. The outer `Err` is wasmtime's, a trap or a type that does
+    /// not match, and the inner one is the export's own `err`.
+    pub(crate) async fn call(
+        self,
+        store: &mut Store<Guest>,
+        func: Func,
+    ) -> wasmtime::Result<Result<Out, Error>> {
+        match self {
+            Self::Image(args) => Ok(args.call(store, func).await?.map(Out::Image)),
+        }
+    }
+}
+
+impl Out {
+    /// The host bytes the result holds on the heap.
+    pub(crate) fn heap(&self) -> u64 {
+        match self {
+            Self::Image(out) => out.heap(),
+        }
+    }
+
+    /// The Novis value the result is, where the manifest's return type is `ty`.
+    pub(crate) fn into_value(self, ty: &NovisType) -> Result<Value, String> {
+        match self {
+            Self::Image(out) => out.into_value(ty),
+        }
+    }
+}
+
+/// A generated type a Novis value converts to.
+pub(crate) trait FromValue: Sized {
+    /// The value `value` is, where the manifest's type is `ty`.
+    fn from_value(ty: &NovisType, value: Value) -> Result<Self, String>;
+
+    /// What an optional shape field that is absent converts to. Only an `Option` has a value here.
+    fn absent() -> Option<Self> {
+        None
+    }
+
+    /// The entry of a keyed array, where the manifest's types are `key` and `value`. Only a pair
+    /// is one.
+    fn from_entry(_: &NovisType, _: &NovisType, key: Key, _: Value) -> Result<Self, String> {
+        Err(format!(
+            "the array entry {key:?} is not a pair of a keyed array"
+        ))
+    }
+
+    /// `bytes` as a list of this type. Only `u8` has it, so `Vec<u8>` takes a `bytes` value.
+    fn list_from_bytes(_: Vec<u8>) -> Option<Vec<Self>> {
+        None
+    }
+}
+
+/// A generated type that converts back to a Novis value.
+pub(crate) trait IntoValue: Sized {
+    /// The Novis value `self` is, where the manifest's type is `ty`.
+    fn into_value(self, ty: &NovisType) -> Result<Value, String>;
+
+    /// Whether an optional shape field of this value is left out of the array: an `Option` that
+    /// is `None`.
+    fn omitted(&self) -> bool {
+        false
+    }
+
+    /// The key and the value of a keyed array's entry. Only a pair is one.
+    fn into_entry(self, _: &NovisType, _: &NovisType) -> Result<(Key, Value), String> {
+        Err("only a pair is an entry of a keyed array".to_owned())
+    }
+
+    /// A list of this type as `bytes`. Only `u8` has it.
+    fn list_into_bytes(list: Vec<Self>) -> Result<Vec<u8>, Vec<Self>> {
+        Err(list)
+    }
+}
+
+/// The host bytes a generated value holds on the heap, which a call charges to its request.
+pub(crate) trait Heap {
+    /// The bytes `self` holds on the heap. A scalar holds none.
+    fn heap(&self) -> u64;
+}
+
+/// A generated record, which is a Novis shape.
+pub(crate) trait Shape: Sized {
+    /// The record the array of `entries` is, where the shape is `fields`.
+    fn from_shape(fields: &[Field], entries: Vec<(Key, Value)>) -> Result<Self, String>;
+
+    /// The array the record is, where the shape is `fields`.
+    fn into_shape(self, fields: &[Field]) -> Result<Value, String>;
+}
+
+/// The arguments of one method: a tuple of generated types, converted from the call's values.
+pub(crate) trait Params: Sized {
+    /// The arguments `args` are, where the parameters' types are `params`.
+    fn from_values(params: &[NovisType], args: Vec<Value>) -> Result<Self, String>;
+}
+
+macro_rules! scalars {
+    ($($rust:ty: $novis:ident $value:ident;)*) => {$(
+        impl FromValue for $rust {
+            fn from_value(ty: &NovisType, value: Value) -> Result<Self, String> {
+                match (ty, value) {
+                    (NovisType::$novis, Value::$value(v)) => Ok(v),
+                    (ty, value) => Err(mismatch(ty, &value)),
+                }
+            }
+        }
+
+        impl IntoValue for $rust {
+            fn into_value(self, ty: &NovisType) -> Result<Value, String> {
+                match ty {
+                    NovisType::$novis => Ok(Value::$value(self)),
+                    ty => Err(back(ty, stringify!($rust))),
+                }
+            }
+        }
+
+        impl Heap for $rust {
+            fn heap(&self) -> u64 {
+                0
+            }
+        }
+    )*};
+}
+
+scalars! {
+    bool: Bool Bool;
+    i64: Int Int;
+    f64: Float Float;
+}
+
+impl FromValue for u64 {
+    fn from_value(ty: &NovisType, value: Value) -> Result<Self, String> {
+        match (ty, value) {
+            (NovisType::Uint, Value::Uint(n)) => Ok(n),
+            (NovisType::Uint, Value::Int(n)) if let Ok(n) = u64::try_from(n) => Ok(n),
+            (ty, value) => Err(mismatch(ty, &value)),
+        }
+    }
+}
+
+impl IntoValue for u64 {
+    fn into_value(self, ty: &NovisType) -> Result<Value, String> {
+        match ty {
+            NovisType::Uint => Ok(Value::Uint(self)),
+            ty => Err(back(ty, "u64")),
+        }
+    }
+}
+
+impl Heap for u64 {
+    fn heap(&self) -> u64 {
+        0
+    }
+}
+
+impl FromValue for String {
+    fn from_value(ty: &NovisType, value: Value) -> Result<Self, String> {
+        match (ty, value) {
+            (NovisType::String, Value::String(s)) => Ok(s),
+            (ty, value) => Err(mismatch(ty, &value)),
+        }
+    }
+}
+
+impl IntoValue for String {
+    fn into_value(self, ty: &NovisType) -> Result<Value, String> {
+        match ty {
+            NovisType::String => Ok(Value::String(self)),
+            ty => Err(back(ty, "String")),
+        }
+    }
+}
+
+impl Heap for String {
+    fn heap(&self) -> u64 {
+        self.len() as u64
+    }
+}
+
+impl FromValue for u8 {
+    fn from_value(ty: &NovisType, value: Value) -> Result<Self, String> {
+        Err(mismatch(ty, &value))
+    }
+
+    fn list_from_bytes(bytes: Vec<u8>) -> Option<Vec<Self>> {
+        Some(bytes)
+    }
+}
+
+impl IntoValue for u8 {
+    fn into_value(self, ty: &NovisType) -> Result<Value, String> {
+        Err(back(ty, "u8"))
+    }
+
+    fn list_into_bytes(list: Vec<Self>) -> Result<Vec<u8>, Vec<Self>> {
+        Ok(list)
+    }
+}
+
+impl Heap for u8 {
+    fn heap(&self) -> u64 {
+        0
+    }
+}
+
+impl<T: FromValue> FromValue for Vec<T> {
+    fn from_value(ty: &NovisType, value: Value) -> Result<Self, String> {
+        match (ty, value) {
+            (NovisType::Bytes, Value::Bytes(bytes)) => {
+                T::list_from_bytes(bytes).ok_or_else(|| back(ty, "a list that is not bytes"))
+            }
+            (NovisType::List(item), Value::Array(entries)) => entries
+                .into_iter()
+                .map(|(_, value)| T::from_value(item, value))
+                .collect(),
+            (NovisType::Keyed(key, value), Value::Array(entries)) => entries
+                .into_iter()
+                .map(|(k, v)| T::from_entry(key, value, k, v))
+                .collect(),
+            (ty, value) => Err(mismatch(ty, &value)),
+        }
+    }
+}
+
+impl<T: IntoValue> IntoValue for Vec<T> {
+    fn into_value(self, ty: &NovisType) -> Result<Value, String> {
+        match ty {
+            NovisType::Bytes => T::list_into_bytes(self)
+                .map(Value::Bytes)
+                .map_err(|_| back(ty, "a list that is not bytes")),
+            NovisType::List(item) => Ok(Value::Array(
+                (0_i64..)
+                    .zip(self)
+                    .map(|(at, value)| Ok((Key::Int(at), value.into_value(item)?)))
+                    .collect::<Result<_, String>>()?,
+            )),
+            NovisType::Keyed(key, value) => Ok(Value::Array(
+                self.into_iter()
+                    .map(|entry| entry.into_entry(key, value))
+                    .collect::<Result<_, String>>()?,
+            )),
+            ty => Err(back(ty, "a list")),
+        }
+    }
+}
+
+impl<T: Heap> Heap for Vec<T> {
+    fn heap(&self) -> u64 {
+        (self.len() * size_of::<T>()) as u64 + self.iter().map(Heap::heap).sum::<u64>()
+    }
+}
+
+/// An `Option` is a `?T` or an optional shape field, so its type is the `?T`'s inner one or, for a
+/// field, the field's own.
+impl<T: FromValue> FromValue for Option<T> {
+    fn from_value(ty: &NovisType, value: Value) -> Result<Self, String> {
+        let inner = match ty {
+            NovisType::Optional(inner) => inner,
+            ty => ty,
+        };
+        match value {
+            Value::Null => Ok(None),
+            value => T::from_value(inner, value).map(Some),
+        }
+    }
+
+    fn absent() -> Option<Self> {
+        Some(None)
+    }
+}
+
+impl<T: IntoValue> IntoValue for Option<T> {
+    fn into_value(self, ty: &NovisType) -> Result<Value, String> {
+        let inner = match ty {
+            NovisType::Optional(inner) => inner,
+            ty => ty,
+        };
+        match self {
+            None => Ok(Value::Null),
+            Some(value) => value.into_value(inner),
+        }
+    }
+
+    fn omitted(&self) -> bool {
+        self.is_none()
+    }
+}
+
+impl<T: Heap> Heap for Option<T> {
+    fn heap(&self) -> u64 {
+        self.as_ref().map_or(0, Heap::heap)
+    }
+}
+
+/// A pair is one entry of a keyed array. A key the runtime stored as an `int` is its decimal text
+/// where the key type is `string`, as `crate::convert` crosses it.
+impl<K: FromValue, V: FromValue> FromValue for (K, V) {
+    fn from_value(ty: &NovisType, value: Value) -> Result<Self, String> {
+        Err(mismatch(ty, &value))
+    }
+
+    fn from_entry(key: &NovisType, value: &NovisType, k: Key, v: Value) -> Result<Self, String> {
+        let k = match (key, k) {
+            (NovisType::String, Key::Int(n)) => Value::String(n.to_string()),
+            (_, Key::Int(n)) => Value::Int(n),
+            (_, Key::String(s)) => Value::String(s),
+        };
+        Ok((K::from_value(key, k)?, V::from_value(value, v)?))
+    }
+}
+
+impl<K: IntoValue, V: IntoValue> IntoValue for (K, V) {
+    fn into_value(self, ty: &NovisType) -> Result<Value, String> {
+        Err(back(ty, "a pair"))
+    }
+
+    fn into_entry(self, key: &NovisType, value: &NovisType) -> Result<(Key, Value), String> {
+        let k = match self.0.into_value(key)? {
+            Value::Int(n) => Key::Int(n),
+            Value::String(s) => Key::String(s),
+            other => {
+                return Err(format!(
+                    "an array key is an `int` or a `string`, and the guest returned {other:?}"
+                ));
+            }
+        };
+        Ok((k, self.1.into_value(value)?))
+    }
+}
+
+macro_rules! params {
+    ($($n:literal: $($t:ident),*;)*) => {$(
+        impl<$($t: FromValue + Heap),*> Params for ($($t,)*) {
+            fn from_values(params: &[NovisType], args: Vec<Value>) -> Result<Self, String> {
+                if params.len() != $n || args.len() != $n {
+                    return Err(format!(
+                        "the method takes {} arguments, and the call passed {}",
+                        params.len(),
+                        args.len()
+                    ));
+                }
+                let mut params = params.iter();
+                let mut args = args.into_iter();
+                Ok(($(next::<$t>(&mut params, &mut args)?,)*))
+            }
+        }
+
+        impl<$($t: Heap),*> Heap for ($($t,)*) {
+            #[allow(non_snake_case, reason = "each element is named by its type parameter")]
+            fn heap(&self) -> u64 {
+                let ($($t,)*) = self;
+                0 $(+ $t.heap())*
+            }
+        }
+    )*};
+}
+
+params! {
+    1: A;
+    2: A, B;
+    3: A, B, C;
+}
+
+/// The next argument, converted by the next parameter's type.
+fn next<T: FromValue>(
+    params: &mut std::slice::Iter<'_, NovisType>,
+    args: &mut std::vec::IntoIter<Value>,
+) -> Result<T, String> {
+    match (params.next(), args.next()) {
+        (Some(ty), Some(value)) => T::from_value(ty, value),
+        _ => Err("the call passed fewer arguments than the method takes".to_owned()),
+    }
+}
+
+/// The value of the next field of a record, where `field` is the shape's field at the same
+/// position and `rust` the generated field's name.
+pub(crate) fn field<T: FromValue>(
+    field: Option<&Field>,
+    entries: &mut Vec<(Key, Value)>,
+    rust: &str,
+) -> Result<T, String> {
+    let (name, optional, ty) = shape_field(field, rust)?;
+    let found = entries
+        .iter()
+        .position(|(key, _)| matches!(key, Key::String(k) if k == name))
+        .map(|at| entries.swap_remove(at).1);
+    match found {
+        Some(value) => T::from_value(ty, value),
+        None if *optional => {
+            T::absent().ok_or_else(|| format!("the optional field `{name}` cannot be absent"))
+        }
+        None => Err(format!(
+            "the shape has no field `{name}`, which is required"
+        )),
+    }
+}
+
+/// Writes the record field `value` into `entries`, where `field` is the shape's field at the same
+/// position and `rust` the generated field's name. An optional field that is `None` is left out.
+pub(crate) fn put<T: IntoValue>(
+    field: Option<&Field>,
+    entries: &mut Vec<(Key, Value)>,
+    rust: &str,
+    value: T,
+) -> Result<(), String> {
+    let (name, optional, ty) = shape_field(field, rust)?;
+    if *optional && value.omitted() {
+        return Ok(());
+    }
+    entries.push((Key::String(name.clone()), value.into_value(ty)?));
+    Ok(())
+}
+
+/// The shape's field `field`, checked to be the generated field `rust`. The loader has already
+/// checked that a shape's fields are its record's, in the same order.
+fn shape_field<'f>(field: Option<&'f Field>, rust: &str) -> Result<&'f Field, String> {
+    let rust = rust.trim_end_matches('_');
+    match field {
+        Some(field) if same_name(&field.0, rust) => Ok(field),
+        Some((name, ..)) => Err(format!(
+            "the shape's field `{name}` is where the record has `{rust}`"
+        )),
+        None => Err(format!("the shape has no field for the record's `{rust}`")),
+    }
+}
+
+/// The Novis case of the enum `ty` that `value` is: a case by its name, or by its number.
+pub(crate) fn enum_case<'t>(ty: &'t NovisType, value: &Value) -> Result<&'t str, String> {
+    let NovisType::Enum { name, cases } = ty else {
+        return Err(mismatch(ty, value));
+    };
+    let found = match value {
+        Value::Case(case) => cases.iter().find(|of| *of == case),
+        Value::Int(number) => usize::try_from(*number).ok().and_then(|at| cases.get(at)),
+        _ => None,
+    };
+    found
+        .map(String::as_str)
+        .ok_or_else(|| format!("{value:?} is not a case of the enum `{name}`"))
+}
+
+/// The Novis value of the generated enum case `rust`, where the manifest's type is `ty`.
+pub(crate) fn enum_value(ty: &NovisType, rust: &str) -> Result<Value, String> {
+    match ty {
+        NovisType::Enum { cases, .. } => cases
+            .iter()
+            .find(|case| same_name(case, rust))
+            .map(|case| Value::Case(case.clone()))
+            .ok_or_else(|| back(ty, rust)),
+        ty => Err(back(ty, rust)),
+    }
+}
+
+/// The case of the closed union `ty` the array of `entries` is a value of, and its shape.
+pub(crate) fn union_case<'t>(
+    ty: &'t NovisType,
+    entries: &[(Key, Value)],
+) -> Result<(&'t str, &'t [Field]), String> {
+    let NovisType::Union { name, cases } = ty else {
+        return Err(format!("a shape where the type is {ty:?}"));
+    };
+    cases
+        .iter()
+        .find(|(_, fields)| convert::fits(fields, entries))
+        .map(|(case, fields)| (case.as_str(), fields.as_slice()))
+        .ok_or_else(|| format!("the array is a value of no case of `{name}`"))
+}
+
+/// The shape of the case `rust` of the closed union `ty`.
+pub(crate) fn union_shape<'t>(ty: &'t NovisType, rust: &str) -> Result<&'t [Field], String> {
+    match ty {
+        NovisType::Union { cases, .. } => cases
+            .iter()
+            .find(|(case, _)| same_name(case, rust))
+            .map(|(_, fields)| fields.as_slice())
+            .ok_or_else(|| back(ty, rust)),
+        ty => Err(back(ty, rust)),
+    }
+}
+
+/// Whether the names `a` and `b` are one WIT name, as `crate::kebab` writes both.
+pub(crate) fn same_name(a: &str, b: &str) -> bool {
+    kebab(a).eq(kebab(b))
+}
+
+/// The characters of `crate::kebab(name)`, without allocating.
+fn kebab(name: &str) -> impl Iterator<Item = char> + '_ {
+    let mut dash = true;
+    name.chars().flat_map(move |c| {
+        let out = if c == '_' {
+            [Some('-'), None]
+        } else if c.is_ascii_uppercase() {
+            [(!dash).then_some('-'), Some(c.to_ascii_lowercase())]
+        } else {
+            [Some(c), None]
+        };
+        dash = c == '_' || c == '-';
+        out.into_iter().flatten()
+    })
+}
+
+/// The error for a Novis value that is not one of the type `ty`.
+pub(crate) fn mismatch(ty: &NovisType, value: &Value) -> String {
+    format!("{value:?} is not a value of the type {ty:?}")
+}
+
+/// The error for a result the guest returned that the type `ty` does not describe.
+pub(crate) fn back(ty: &NovisType, what: &str) -> String {
+    format!("the guest's {what} is not one the type {ty:?} crosses as")
+}
+
+/// The typed function `func` is, for the parameters `P` and the result `R`, called with `args` in
+/// `store`.
+pub(crate) async fn call<P, R>(store: &mut Store<Guest>, func: Func, args: P) -> wasmtime::Result<R>
+where
+    P: wasmtime::component::ComponentNamedList + wasmtime::component::Lower + Send + Sync,
+    R: wasmtime::component::ComponentNamedList + wasmtime::component::Lift + Send + Sync + 'static,
+{
+    let typed = func.typed::<P, R>(&*store)?;
+    typed.call_async(store.as_context_mut(), args).await
+}
+
+/// Converts generated records, each written with its fields in the WIT's order, to and from Novis
+/// shapes.
+macro_rules! records {
+    ($($ty:ident { $($field:ident),* $(,)? })*) => {$(
+        impl $crate::typed::Shape for $ty {
+            fn from_shape(
+                fields: &[$crate::types::Field],
+                mut entries: Vec<($crate::convert::Key, $crate::convert::Value)>,
+            ) -> Result<Self, String> {
+                let mut at = fields.iter();
+                Ok(Self {
+                    $($field: $crate::typed::field(at.next(), &mut entries, stringify!($field))?,)*
+                })
+            }
+
+            fn into_shape(self, fields: &[$crate::types::Field]) -> Result<$crate::convert::Value, String> {
+                let mut at = fields.iter();
+                let mut entries = Vec::with_capacity(fields.len());
+                $($crate::typed::put(at.next(), &mut entries, stringify!($field), self.$field)?;)*
+                Ok($crate::convert::Value::Array(entries))
+            }
+        }
+
+        impl $crate::typed::FromValue for $ty {
+            fn from_value(
+                ty: &$crate::types::NovisType,
+                value: $crate::convert::Value,
+            ) -> Result<Self, String> {
+                match (ty, value) {
+                    ($crate::types::NovisType::Shape(fields), $crate::convert::Value::Array(entries)) => {
+                        $crate::typed::Shape::from_shape(fields, entries)
+                    }
+                    (ty, value) => Err($crate::typed::mismatch(ty, &value)),
+                }
+            }
+        }
+
+        impl $crate::typed::IntoValue for $ty {
+            fn into_value(self, ty: &$crate::types::NovisType) -> Result<$crate::convert::Value, String> {
+                match ty {
+                    $crate::types::NovisType::Shape(fields) => $crate::typed::Shape::into_shape(self, fields),
+                    ty => Err($crate::typed::back(ty, stringify!($ty))),
+                }
+            }
+        }
+
+        impl $crate::typed::Heap for $ty {
+            fn heap(&self) -> u64 {
+                0 $(+ $crate::typed::Heap::heap(&self.$field))*
+            }
+        }
+    )*};
+}
+
+/// Converts generated enums to and from a Novis enum's cases.
+macro_rules! enums {
+    ($($ty:ident [$($case:ident),* $(,)?])*) => {$(
+        impl $crate::typed::FromValue for $ty {
+            fn from_value(
+                ty: &$crate::types::NovisType,
+                value: $crate::convert::Value,
+            ) -> Result<Self, String> {
+                let case = $crate::typed::enum_case(ty, &value)?;
+                $(if $crate::typed::same_name(case, stringify!($case)) {
+                    return Ok(Self::$case);
+                })*
+                Err($crate::typed::mismatch(ty, &value))
+            }
+        }
+
+        impl $crate::typed::IntoValue for $ty {
+            fn into_value(self, ty: &$crate::types::NovisType) -> Result<$crate::convert::Value, String> {
+                $crate::typed::enum_value(ty, match self {
+                    $(Self::$case => stringify!($case),)*
+                })
+            }
+        }
+
+        impl $crate::typed::Heap for $ty {
+            fn heap(&self) -> u64 {
+                0
+            }
+        }
+    )*};
+}
+
+/// Converts generated variants, each of whose cases carries a record, to and from a Novis closed
+/// union of shapes.
+macro_rules! variants {
+    ($($ty:ident [$($case:ident),* $(,)?])*) => {$(
+        impl $crate::typed::FromValue for $ty {
+            fn from_value(
+                ty: &$crate::types::NovisType,
+                value: $crate::convert::Value,
+            ) -> Result<Self, String> {
+                let entries = match value {
+                    $crate::convert::Value::Array(entries) => entries,
+                    value => return Err($crate::typed::mismatch(ty, &value)),
+                };
+                let (case, fields) = $crate::typed::union_case(ty, &entries)?;
+                $(if $crate::typed::same_name(case, stringify!($case)) {
+                    return Ok(Self::$case($crate::typed::Shape::from_shape(fields, entries)?));
+                })*
+                Err(format!("`{case}` is not a case of the record's variant"))
+            }
+        }
+
+        impl $crate::typed::IntoValue for $ty {
+            fn into_value(self, ty: &$crate::types::NovisType) -> Result<$crate::convert::Value, String> {
+                match self {
+                    $(Self::$case(payload) => $crate::typed::Shape::into_shape(
+                        payload,
+                        $crate::typed::union_shape(ty, stringify!($case))?,
+                    ),)*
+                }
+            }
+        }
+
+        impl $crate::typed::Heap for $ty {
+            fn heap(&self) -> u64 {
+                match self {
+                    $(Self::$case(payload) => $crate::typed::Heap::heap(payload),)*
+                }
+            }
+        }
+    )*};
+}
+
+/// A world's typed calls: [`Args`] and [`Out`] with one case per method, named as the method is,
+/// each with its generated parameter types and its `ok` type. `error` is the world's generated
+/// `error` variant, which converts to [`Error`].
+macro_rules! world {
+    (error: $error:ty; $($method:ident($($param:ty),*) -> $ret:ty;)*) => {
+        /// One call's typed arguments, by the method.
+        #[allow(non_camel_case_types, reason = "each case is named as its method is")]
+        pub(crate) enum Args {
+            $($method(($($param,)*)),)*
+        }
+
+        /// What one call returned, by the method.
+        #[allow(non_camel_case_types, reason = "each case is named as its method is")]
+        pub(crate) enum Out {
+            $($method($ret),)*
+        }
+
+        impl Args {
+            /// The typed arguments of `method`, converted from `args` by `params`. `Err` gives
+            /// `args` back where the world has no such method.
+            pub(crate) fn lower(
+                method: &str,
+                params: &[$crate::types::NovisType],
+                args: Vec<$crate::convert::Value>,
+            ) -> Result<Result<Self, String>, Vec<$crate::convert::Value>> {
+                $(if $crate::typed::same_name(method, stringify!($method)) {
+                    return Ok(<($($param,)*) as $crate::typed::Params>::from_values(params, args)
+                        .map(Self::$method));
+                })*
+                Err(args)
+            }
+
+            /// The host bytes the arguments hold on the heap.
+            pub(crate) fn heap(&self) -> u64 {
+                match self {
+                    $(Self::$method(args) => $crate::typed::Heap::heap(args),)*
+                }
+            }
+
+            /// Calls `func`, the export of the method, with the arguments.
+            pub(crate) async fn call(
+                self,
+                store: &mut wasmtime::Store<$crate::call::Guest>,
+                func: wasmtime::component::Func,
+            ) -> wasmtime::Result<Result<Out, $crate::call::Error>> {
+                match self {
+                    $(Self::$method(args) => {
+                        let (result,) = $crate::typed::call::<($($param,)*), (Result<$ret, $error>,)>(
+                            store, func, args,
+                        )
+                        .await?;
+                        Ok(result.map(Out::$method).map_err($crate::call::Error::from))
+                    })*
+                }
+            }
+        }
+
+        impl Out {
+            /// The host bytes the result holds on the heap.
+            pub(crate) fn heap(&self) -> u64 {
+                match self {
+                    $(Self::$method(out) => $crate::typed::Heap::heap(out),)*
+                }
+            }
+
+            /// The Novis value the result is, where the manifest's return type is `ty`.
+            pub(crate) fn into_value(
+                self,
+                ty: &$crate::types::NovisType,
+            ) -> Result<$crate::convert::Value, String> {
+                match self {
+                    $(Self::$method(out) => $crate::typed::IntoValue::into_value(out, ty),)*
+                }
+            }
+        }
+    };
+}
+
+mod image;

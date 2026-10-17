@@ -54,7 +54,9 @@
 //! [`Error::Invalid`]: it throws `LogicError` and keeps the instance. A result that does not convert
 //! is the extension's fault, a [`Failure::Trap`]. When the call returns, the borrows it was lent
 //! are dropped and every handle it made stops being valid, whatever the outcome. It parses the
-//! method's types on every call.
+//! method's types on every call. A built-in component whose world `crate::typed` has bindings for
+//! is called typed instead: its values convert to the generated types, and the same charges are
+//! made at those types' host size.
 //!
 //! **A resource lives until the request ends** (`rule:packaging/a-value-crosses-as-its-wit-type`).
 //! One a call returns is kept in the store of the instance that made it, under a number the
@@ -99,7 +101,7 @@ use crate::grants::{self, Caller};
 use crate::handle::{self, Handles};
 use crate::load::Extension;
 use crate::manifest::{Method, Settings};
-use crate::{wasi, world};
+use crate::{typed, wasi, world};
 
 /// How often the ticker advances the engine's epoch, which is how often a running guest checks
 /// its request's CPU deadline and yields to the other tasks on its core.
@@ -862,8 +864,11 @@ impl Request {
         self.run(
             extension,
             declared,
-            |_, _| Ok(args.to_vec()),
-            |_, results, _| Ok(results),
+            |_, _| Ok(Sent::Dynamic(args.to_vec())),
+            |_, results, at| match results {
+                Got::Dynamic(results) => Ok(results),
+                Got::Typed(_) => Err(at.crash("a dynamic call returned a typed result")),
+            },
         )
         .await
     }
@@ -892,6 +897,25 @@ impl Request {
                 args.len()
             )));
         }
+        let world = manifest
+            .builtin
+            .as_ref()
+            .and_then(|_| typed::World::of(&manifest.interface));
+        let args = match world {
+            Some(world) => {
+                let params = declared
+                    .params
+                    .iter()
+                    .map(|param| manifest.novis_type(&param.ty))
+                    .collect::<Result<Vec<_>, _>>()
+                    .map_err(invalid)?;
+                match world.lower(&declared.name, &params, args) {
+                    Ok(lowered) => return self.call_typed(extension, declared, lowered).await,
+                    Err(args) => args,
+                }
+            }
+            None => args,
+        };
         let lower = |store: &mut Store<Guest>, _: At<'_>| {
             let mut call = Call {
                 store,
@@ -905,9 +929,13 @@ impl Request {
                     let ty = manifest.novis_type(&param.ty).map_err(invalid)?;
                     convert::to_wit_with(&ty, value, &mut call).map_err(invalid)
                 })
-                .collect()
+                .collect::<Result<_, _>>()
+                .map(Sent::Dynamic)
         };
-        let lift = |store: &mut Store<Guest>, results: Vec<Val>, at: At<'_>| {
+        let lift = |store: &mut Store<Guest>, results: Got, at: At<'_>| {
+            let Got::Dynamic(results) = results else {
+                return Err(at.crash("a dynamic call returned a typed result"));
+            };
             if declared.returns == "void" {
                 return Ok(None);
             }
@@ -932,14 +960,40 @@ impl Request {
         self.run(extension, declared, lower, lift).await
     }
 
+    /// Calls `declared` of a built-in `extension` with the typed arguments `lowered`, and converts
+    /// its result back by the type the manifest declares.
+    async fn call_typed(
+        &self,
+        extension: &Extension,
+        declared: &Method,
+        lowered: Result<typed::Args, String>,
+    ) -> Result<Option<Value>, Failure> {
+        let lowered = lowered.map_err(|err| Failure::Error(Error::Invalid(err)))?;
+        let manifest = &extension.manifest;
+        let lift = |_: &mut Store<Guest>, results: Got, at: At<'_>| {
+            let Got::Typed(out) = results else {
+                return Err(at.crash("a typed call returned dynamic results"));
+            };
+            if declared.returns == "void" {
+                return Ok(None);
+            }
+            let ty = manifest
+                .novis_type(&declared.returns)
+                .map_err(|err| at.crash(err))?;
+            out.into_value(&ty).map(Some).map_err(|err| at.crash(err))
+        };
+        self.run(extension, declared, |_, _| Ok(Sent::Typed(lowered)), lift)
+            .await
+    }
+
     /// Runs one call of `declared` on this request's instance of `extension`: `args` makes the
     /// arguments in its store, and `results` reads what the export returned.
     async fn run<R>(
         &self,
         extension: &Extension,
         declared: &Method,
-        args: impl FnOnce(&mut Store<Guest>, At<'_>) -> Result<Vec<Val>, Failure>,
-        results: impl FnOnce(&mut Store<Guest>, Vec<Val>, At<'_>) -> Result<R, Failure>,
+        args: impl FnOnce(&mut Store<Guest>, At<'_>) -> Result<Sent, Failure>,
+        results: impl FnOnce(&mut Store<Guest>, Got, At<'_>) -> Result<R, Failure>,
     ) -> Result<R, Failure> {
         let export = declared.export_name();
         let at = At {
@@ -955,15 +1009,14 @@ impl Request {
         };
         let outcome = match args(&mut live.store, at) {
             Ok(args) => {
-                let sent = on_heap(&args);
+                let sent = args.heap();
                 if self.budget.charge(sent) {
                     self.crossings.fetch_add(1, Ordering::Relaxed);
-                    let called = live.call(at, &declared.name, &args).await;
-                    drop(args);
+                    let called = live.call(at, &declared.name, args).await;
                     self.budget.charge(-sent);
                     match called {
                         Ok(out) => {
-                            let held = on_heap(&out);
+                            let held = out.heap();
                             if self.budget.charge(held) {
                                 let read = results(&mut live.store, out, at);
                                 self.budget.charge(-held);
@@ -1153,18 +1206,35 @@ impl Live {
         dropped
     }
 
-    async fn call(&mut self, at: At<'_>, method: &str, args: &[Val]) -> Result<Vec<Val>, Failure> {
+    /// Calls the export `at` names with `args`, which it drops once they have crossed.
+    async fn call(&mut self, at: At<'_>, method: &str, args: Sent) -> Result<Got, Failure> {
         let func = self
             .instance
             .get_export_index(&mut self.store, Some(&self.interface), at.export)
             .and_then(|index| self.instance.get_func(&mut self.store, index))
             .ok_or_else(|| Failure::NoMethod(method.to_owned()))?;
-        let mut results = vec![Val::Bool(false); func.ty(&self.store).results().len()];
         let fuel = fuel(&*self.store.data().budget);
         self.store.set_hostcall_fuel(fuel);
-        func.call_async(&mut self.store, args, &mut results)
+        let args = match args {
+            Sent::Dynamic(args) => args,
+            Sent::Typed(args) => {
+                return match args.call(&mut self.store, func).await {
+                    Ok(Ok(out)) => Ok(Got::Typed(out)),
+                    Ok(Err(err)) => Err(Failure::Error(err)),
+                    Err(err) => Err(failure(&self.store, &err, at)),
+                };
+            }
+        };
+        let mut results = vec![Val::Bool(false); func.ty(&self.store).results().len()];
+        func.call_async(&mut self.store, &args, &mut results)
             .await
             .map_err(|err| failure(&self.store, &err, at))?;
+        drop(args);
+        Ok(Got::Dynamic(Self::dynamic_results(results, at)?))
+    }
+
+    /// The `ok` side's value of a dynamic call's `results`, or the [`Failure`] its `err` is.
+    fn dynamic_results(results: Vec<Val>, at: At<'_>) -> Result<Vec<Val>, Failure> {
         match <[Val; 1]>::try_from(results) {
             Ok([Val::Result(Ok(value))]) => Ok(value.map(|value| vec![*value]).unwrap_or_default()),
             Ok([Val::Result(Err(err))]) => Err(match err.as_deref() {
@@ -1178,6 +1248,39 @@ impl Live {
             }),
             Ok(result) => Ok(result.into()),
             Err(results) => Ok(results),
+        }
+    }
+}
+
+/// One call's arguments: the dynamic `Val`s of any export, or the typed arguments of a built-in
+/// world's (`crate::typed`).
+enum Sent {
+    Dynamic(Vec<Val>),
+    Typed(typed::Args),
+}
+
+impl Sent {
+    /// The host bytes the arguments hold on the heap, which the call charges to its request.
+    fn heap(&self) -> i64 {
+        match self {
+            Self::Dynamic(vals) => on_heap(vals),
+            Self::Typed(args) => i64::try_from(args.heap()).unwrap_or(i64::MAX),
+        }
+    }
+}
+
+/// What one call returned, in the form its [`Sent`] crossed in.
+enum Got {
+    Dynamic(Vec<Val>),
+    Typed(typed::Out),
+}
+
+impl Got {
+    /// The host bytes the results hold on the heap, which the call charges while they convert.
+    fn heap(&self) -> i64 {
+        match self {
+            Self::Dynamic(vals) => on_heap(vals),
+            Self::Typed(out) => i64::try_from(out.heap()).unwrap_or(i64::MAX),
         }
     }
 }
