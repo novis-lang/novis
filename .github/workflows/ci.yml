@@ -110,7 +110,7 @@ jobs:
   # them. This is a public repository: which host a contributor pushes from is
   # unknowable, so no platform's coverage may rest on an assumption about who is
   # developing on what. What the gate skips is a run that changed no build input
-  # at all — an ADR, a plan status block, a playbook bullet. `rule:testing/lane-table`.
+  # at all — a goal's handoff, a plan status block, a playbook bullet. `rule:testing/lane-table`.
   # ---------------------------------------------------------------------------
   test:
     name: test / ${{ matrix.name }}
@@ -777,9 +777,9 @@ jobs:
           done
 
   # There is deliberately no doc-size job. Length guidance for a status field, a
-  # milestone heading or an ADR decision cell is in AGENTS.md, addressed to the
-  # author — never a CI gate. A tripwire here bought nothing and cost whole
-  # sessions spent trimming bytes to clear it; see AGENTS.md § Writing docs here.
+  # milestone heading or a rule fragment is in docs/agent/doc-style.md, addressed
+  # to the author — never a CI gate. A tripwire here would buy nothing and would
+  # cost sessions spent trimming bytes to clear it.
 
   lint:
     name: lint

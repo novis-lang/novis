@@ -42,7 +42,7 @@ while ($steps < 101) {
 }
 echo $steps, " steps, at ", $walk->name, "\n";
 
-// The self-cycle the ADR spells out by name, which is the one-node case the
+// The self-cycle `rule:classes/graph-copy` spells out by name, which is the one-node case the
 // two-node walk cannot distinguish from a bug.
 var $self = new Node("self");
 var $selfCopy = Core\Serialize::decode(Core\Serialize::encode($self)) as Node;

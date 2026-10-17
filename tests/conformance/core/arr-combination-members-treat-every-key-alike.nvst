@@ -4,7 +4,7 @@ Core\Arr::overlay, ::overlayDeep, ::underlay and ::appendAll combine by the memb
 <?nvs
 // `rule:types/array-combination`: four members, each doing one thing to every key alike.
 // `Core\Json::encode` pins the values *and* the key order in one line, and the
-// order is half of what the ADR is about.
+// order is half of what that rule is about.
 array<int> $base = ["a" => 1, "b" => 2];
 array<int> $layer = ["b" => 9, "c" => 3];
 

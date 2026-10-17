@@ -1,4 +1,4 @@
-//! Regression guards on the costs the ADRs quote: timings with two bounds each,
+//! Regression guards on the costs the rules quote: timings with two bounds each,
 //! and counts with one.
 //!
 //! The criterion benches in `benches/` track these costs precisely but cannot
@@ -847,7 +847,8 @@ fn an_amortised_deadline_poll_costs_less_than_the_check_it_rides_beside() {
     // measuring its cost class needs nothing new and answers the same question.
     //
     // The figure is the poll's cost as a multiple of the check's. The soft
-    // bound is the ADR's own, a poll cheaper than the check; the hard one is a
+    // bound is `rule:http-server/time-is-bounded-inside-a-helper`'s own, a poll
+    // cheaper than the check; the hard one is a
     // poll ten checks dear, which is a batch that stopped amortising. Both
     // sides are differences of two sub-nanosecond timings, so a burst of load
     // on one batch moves a side by a whole nanosecond, and that is what the
@@ -923,7 +924,7 @@ fn an_amortised_deadline_poll_costs_less_than_the_check_it_rides_beside() {
         POLL_PER_CHECK,
         "The in-helper deadline rule bounds the poll by the check, and the fix is the batch in \
          `nvs_runtime::DEADLINE_POLL_BATCH` or the shape of `bounded_loop`'s countdown — not \
-         this comparison, which is what the ADR says.",
+         this comparison, which is what that rule says.",
         |yard| {
             let t_plain_chain = ns_per_op(200_000, 5, || {
                 black_box(call(plain_chain, &mut probe_ctx, arg));

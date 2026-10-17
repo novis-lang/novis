@@ -14,11 +14,12 @@
 // rather than out of the shape of the result object.
 //
 // The child is this platform's own shell, named absolutely and started as an
-// ordinary program with a split argv. § 1 says a `PATH` lookup is the caller's
-// own to make, so there is no name here to look up, and § 4's refusal tells a
-// caller who wants an interpreter to "start that interpreter yourself if it is
-// what you mean" — what the ADR closes is a command line *Novis* builds, and
-// nothing here builds one. The two candidates are the two families CI runs on,
+// ordinary program with a split argv. `rule:security/process-exec-capability`
+// makes a `PATH` lookup the caller's own to make, so there is no name here to
+// look up. `rule:core-classes/process-refuses-a-shell-target` tells a caller who
+// wants an interpreter to "start that interpreter yourself if it is what you
+// mean": what that rule closes is a command line *Novis* builds, and nothing
+// here builds one. The two candidates are the two families CI runs on,
 // and the one that is not this platform's starts nothing. On Windows `/bin/sh`
 // starts at the drive's root and nothing is there, so the operating system
 // answers `IOError`. On Unix `C:\Windows\System32\cmd.exe` starts at no root, so

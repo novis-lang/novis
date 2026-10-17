@@ -46,7 +46,7 @@ fn refusal(fixture: &str) -> String {
     stderr
 }
 
-/// The `fn` literal half of the rule, and specifically the *help* — the ADR
+/// The `fn` literal half of the rule, and specifically the *help* — the rule
 /// refuses this spelling because `fn() => …` one keyword away in `spawn worker`
 /// captures, so a diagnostic that only said "no" would leave a reader with a
 /// working alternative one keyword away and no reason to prefer either.
@@ -116,7 +116,7 @@ fn run(fixture: &str) -> String {
     String::from_utf8_lossy(&out.stdout).into_owned()
 }
 
-/// The entry form the ADR specifies, end to end — one unit, a `static` method
+/// The entry form `rule:security/isolate-shares-nothing` specifies, end to end — one unit, a `static` method
 /// of it called in a child, and the child's statics its own.
 ///
 /// The three lines are three claims, and the last two are what make the run an
@@ -168,7 +168,7 @@ fn failing_run(fixture: &str) -> String {
 
 /// A map that does not name the entry's parameters is `rule:security/isolate-shares-nothing`'s ordinary
 /// named-argument error, and it is raised **at the spawn** — the parent's own
-/// frame, where the ADR says a non-literal map's mismatch is reported, so
+/// frame, where that rule says a non-literal map's mismatch is reported, so
 /// nothing is started and no `ScriptResult` carries it.
 ///
 /// `nvs_stdlib::script`'s `entry_names_agree` is the rule's home. The fixture

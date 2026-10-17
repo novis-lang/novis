@@ -411,7 +411,7 @@ pub enum Node {
 /// becomes an [`Elision`].
 ///
 /// The numbers are this crate's, taken under AGENTS.md's priority ordering
-/// rather than from the ADR, which names the caps without fixing them. They
+/// rather than from the rule, which names the caps without fixing them. They
 /// are chosen for a **reader**: a dump is looked at by a person, so the bound
 /// that matters is what stays legible rather than what stays cheap.
 ///

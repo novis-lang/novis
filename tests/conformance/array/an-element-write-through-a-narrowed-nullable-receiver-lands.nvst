@@ -24,8 +24,8 @@ if ($m != null) {
     echo $m->rows["0"], " ", $m->rows["1"], " ", $m->grid["a"]["b"], " ", $m->tag, "\n";
 }
 
-// The narrowing is a fact about the binding, not a copy of the object (ADR
-// 0023), so a second narrowing of the same local reads back everything the
+// The narrowing is a fact about the binding, not a copy of the object
+// (`rule:types/narrowing`), so a second narrowing of the same local reads back everything the
 // first one wrote.
 if ($m != null) {
     echo Core\Json::encode($m->rows), "\n";

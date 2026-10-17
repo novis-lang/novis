@@ -3688,8 +3688,8 @@ mod tests {
     /// it has, because the key's whole content is which answer wins.
     ///
     /// The default is asserted against this machine's own parallelism rather than against a number
-    /// the case picked, since a resolution that answered a constant — `1`, or the ADR's example —
-    /// would pass against anything else. The written count is asserted **above** the machine's own
+    /// the case picked, since a resolution that answered a constant such as `1` would pass against
+    /// anything else. The written count is asserted **above** the machine's own
     /// as well as below it: a clamp against the box is exactly what the goal's § *Standing
     /// decisions* refuses, and only the high side can tell one from a bound that merely happens to
     /// agree. `0` is the one refusal, on `listen = []`'s reasoning reached from the other end.

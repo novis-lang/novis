@@ -1732,8 +1732,9 @@ fn exclusive<T>(lock: &RwLock<T>) -> RwLockWriteGuard<'_, T> {
 /// **The source is read once more than the compile alone would need**: this
 /// read hashes it, and the front end opens it again through its own
 /// `SourceMap`. One extra read of one file per compile, and per check that
-/// observes a change, against a compile — the ADR's own accounting makes the
-/// hash the thing that is trusted, and there is no `SourceMap` to hand here.
+/// observes a change, against a compile. Under `hash` the hash is what is
+/// trusted, because the stamps are not (`rule:config/opcache-revalidation-is-system-class`),
+/// and there is no `SourceMap` to hand here.
 ///
 /// # Errors
 ///

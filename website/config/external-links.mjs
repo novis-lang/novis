@@ -11,8 +11,8 @@
  *
  * - Markdown/MDX content passes through the markdown pipeline, where the
  *   `externalLinks()` integration below decorates every `<a>` — the ones
- *   markdown made and the ones embedded as raw HTML (the ADR meta rows the
- *   sync script writes). It is shaped like base-links.mjs, and for the same
+ *   markdown made and the ones embedded as raw HTML (the HTML the sync
+ *   script writes into a page). It is shaped like base-links.mjs, and for the same
  *   reasons: the default Sätteri processor takes its plugins on the processor
  *   object, and the unified pipeline still reads `markdown.rehypePlugins`.
  * - Component output never passes through the pipeline, so a component

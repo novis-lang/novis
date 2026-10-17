@@ -65,12 +65,11 @@ use crate::render_diagnostics;
 /// [`check`] reads through it for a reason of its own, which is this module's
 /// own doc comment.
 ///
-/// **This is not the whole answer, and the rest is Stage 4's.** Where a
-/// capability check sits so that no member can route around it is the one ADR
-/// slot this milestone reserved, and whether a CLI run may be granted anything
-/// out of an unchecked file belongs in it. Until then nothing here grants
-/// anything: `Core\Config` reads values and `[capabilities]` is enforced
-/// nowhere, so the split above costs no right that is currently checked.
+/// **Where a capability is checked is not this reader's concern.** The check
+/// sits inside the function that performs each effect, so that no member can
+/// route around it (`rule:security/capability-check-at-the-door`). The split
+/// above decides only which file a CLI run's configuration may come from, not
+/// where a grant in it is checked.
 ///
 /// The language server reads a document's tree through the same type, for the
 /// same reason: the editor is the developer's own.

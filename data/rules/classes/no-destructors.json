@@ -8,7 +8,7 @@
     "programs/memory-priority"
   ],
   "guardedBy": [
-    "tests/conformance/reject/every-magic-method-name-this-adr-closes-is-unspellable.nvst",
+    "tests/conformance/reject/every-reserved-magic-method-name-is-unspellable.nvst",
     "tests/conformance/iter/an-abandoned-generator-runs-the-finally-it-is-suspended-inside.nvst"
   ]
 }
