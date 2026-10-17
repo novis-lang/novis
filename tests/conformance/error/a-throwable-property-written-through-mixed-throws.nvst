@@ -1,0 +1,20 @@
+--TEST--
+A write to a `Throwable`'s `readonly` property through a `mixed` receiver throws, and the message stays as the constructor wrote it — `rule:classes/readonly-is-written-once`
+--FILE--
+<?nvs
+class Renamer {
+    public static function rename(mixed $error): void {
+        $error->message = "b";
+    }
+}
+
+RuntimeError $e = new RuntimeError("a");
+try {
+    Renamer::rename($e);
+} catch (RuntimeError $failure) {
+    echo $failure->message, "\n";
+}
+echo $e->message, "\n";
+--EXPECT--
+cannot modify `readonly` property `RuntimeError::$message`
+a

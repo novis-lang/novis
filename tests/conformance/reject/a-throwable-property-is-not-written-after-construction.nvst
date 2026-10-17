@@ -1,0 +1,18 @@
+--TEST--
+A `Throwable`'s properties are `readonly`, so a write to a caught one's `message` is E0782 — `rule:classes/readonly-is-written-once`
+--FILE--
+<?nvs
+try {
+    throw new RuntimeError("a");
+} catch (RuntimeError $e) {
+    $e->message = "b";
+    echo $e->message, "\n";
+}
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0782]: `Throwable::$message` is `readonly`, so only `Throwable`'s constructor writes it
+  --> case.nvs:5:5
+%A
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

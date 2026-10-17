@@ -103,7 +103,8 @@ pub(crate) fn seed(table: &mut SignatureTable, interner: &mut TypeInterner) {
         } else {
             FxHashMap::default()
         };
-        table.seed_class(qname, properties, methods);
+        table.seed_class(qname.clone(), properties, methods);
+        table.seed_readonly(qname);
     }
 }
 

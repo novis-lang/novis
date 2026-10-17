@@ -441,13 +441,16 @@ pub fn build_class_layouts(
     for (name, _) in nvs_hir::errors::TREE {
         // Public on `own_methods`' terms, and for its reason: spec § 10's four
         // properties are read from inside every `catch` block, and a
-        // synthesized declaration writes no modifier to read. The declared
-        // type is `ClassLayout::field_types`' empty case for the reason that
-        // field's doc gives: this roster is names, and `crate::error_lib` types
-        // it in a currency no text of these slots exists in.
+        // synthesized declaration writes no modifier to read. Readonly, because
+        // the synthesized constructor writes each slot inline and nothing writes
+        // it after (`rule:classes/readonly-is-written-once`), so a write through
+        // an erased receiver throws. The declared type is
+        // `ClassLayout::field_types`' empty case for the reason that field's doc
+        // gives: this roster is names, and `crate::error_lib` types it in a
+        // currency no text of these slots exists in.
         let fields = nvs_hir::errors::own_properties(name)
             .iter()
-            .map(|p| ((*p).to_owned(), true, false, false, String::new()))
+            .map(|p| ((*p).to_owned(), true, false, true, String::new()))
             .collect();
         // These constructors are synthesized rather than written
         // (`nvs_ir::lower::exception`), so they are the methods with a body

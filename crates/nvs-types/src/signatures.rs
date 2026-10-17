@@ -788,6 +788,14 @@ impl SignatureTable {
         entry.methods = methods;
     }
 
+    /// Records that every property [`seed_class`](Self::seed_class) gave `qname` is `readonly`.
+    /// Only [`crate::error_lib`] calls it: spec § 10's properties are written by the synthesized
+    /// constructor and by nothing after it (`rule:classes/readonly-is-written-once`).
+    pub(crate) fn seed_readonly(&mut self, qname: QName) {
+        let entry = self.entry(qname);
+        entry.readonly_properties = entry.properties.keys().cloned().collect();
+    }
+
     /// Records that a seeded class implements `interface` at `args` — the
     /// [`ClassSignature::implements`] half of [`seed_class`](Self::seed_class),
     /// which [`resolve_iteration_element`] and [`resolve_interface_args`] read.
