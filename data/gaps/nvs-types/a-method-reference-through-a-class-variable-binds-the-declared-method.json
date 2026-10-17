@@ -1,6 +1,0 @@
-{
-  "module": "crates/nvs-types/src/expr_table.rs",
-  "title": "`$cls::f(...)` written as a method reference names the declared class's method, not the override of the class `$cls` holds.",
-  "text": "A method reference through a class-reference variable records `ExprInfo::CallableRef` like any other class side (`crates/nvs-types/src/expr_table.rs:612-616`), so the callable names `T`'s method. With a `Dog` override of a static `Animal::f`, `$cls::f()` prints the override and `$cls::f(...)()` prints the declared method. `rule:expressions/method-reference` makes a reference call what the direct call would. Closing it means the reference resolves through the class `$cls` holds at the point it is made, the way the direct call dispatches, and the doc comment is rewritten.",
-  "goal": "completeness-holes"
-}

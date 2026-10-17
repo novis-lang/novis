@@ -536,6 +536,11 @@ fn check_param_class(
 /// sentence here and no code anywhere.
 pub(crate) const FCC_RECV: &str = "fcc#recv";
 
+/// The field a `$cls::f(...)` method reference stores the descriptor `$cls`
+/// held in, for its thunk to dispatch on. It is placed last for [`FCC_RECV`]'s
+/// reason, and the two never share an object: that target is always `static`.
+pub(crate) const FCC_DESC: &str = "fcc#desc";
+
 /// One `Class::method(...)`/`$obj->method(...)` met while lowering a body,
 /// waiting for the thunk that forwards it — see [`lower_callable`].
 ///
@@ -572,6 +577,9 @@ pub(crate) enum ThunkTarget {
         /// decided at the site and recorded so the thunk and the object's
         /// field list cannot disagree about whether [`FCC_RECV`] exists.
         takes_receiver: bool,
+        /// Whether the class side was a `class<T>` value, so [`FCC_DESC`]
+        /// exists and the thunk dispatches on the descriptor it holds.
+        through_class_reference: bool,
     },
     /// `new class(<the thunk's arguments>)`, with the constructor's own
     /// defaults filling every parameter past them.
@@ -610,7 +618,10 @@ pub(crate) enum ThunkTarget {
 /// An instance target's receiver is stored **by value at the point the
 /// `(...)` is evaluated**, which is `rule:types/implicit-capture`'s rule for a capture and the
 /// answer PHP's own first-class callable syntax gives. A static target's
-/// called class is baked in as an [`InstKind::ClassDescConst`] instead.
+/// called class is baked in as an [`InstKind::ClassDescConst`] instead. Through
+/// a class reference, `$cls::f(...)`, the descriptor `$cls` holds is stored in
+/// [`FCC_DESC`] at the same point, and the thunk dispatches on it as the direct
+/// call `$cls::f()` does.
 ///
 /// **`static::method(...)` binds the declaring class, not the frame's called
 /// class.** The checker records `ResolvedCall::static_class` only for a
@@ -669,15 +680,17 @@ pub(crate) fn lower_callable(
         params,
         span,
     } = pending;
-    let (ret, takes_receiver) = match target {
+    let (ret, takes_receiver, through_class_reference) = match target {
         ThunkTarget::Forward {
             call,
             takes_receiver,
+            through_class_reference,
         } => (
             erase_checked_ty(call.return_ty, checked_types),
             *takes_receiver,
+            *through_class_reference,
         ),
-        ThunkTarget::Build { .. } => (Ty::Object, false),
+        ThunkTarget::Build { .. } => (Ty::Object, false, false),
     };
     let label = format!("{class}::{FN_INVOKE}");
     let mut low = Lowering::new(&label, Some(&label), src, ret, exprs, checked_types, enums);
@@ -759,7 +772,7 @@ pub(crate) fn lower_callable(
             );
             low.release_all_locals(cur, &env, None);
             low.seal(cur, Terminator::Return(Some(value)));
-            let mut classes = vec![thunk_class(class, false, *span, exprs)];
+            let mut classes = vec![thunk_class(class, false, false, *span, exprs)];
             classes.append(&mut low.shapes);
             let (blocks, stmt_spans, edge_spans) = low.finish();
             return (
@@ -872,6 +885,27 @@ pub(crate) fn lower_callable(
             // at an ordinary call site. `static_class` is the class the site
             // *wrote*; the declaring class stands in for the forwarding
             // spellings, which is this function's stated divergence.
+            // Through a class reference the called class is the descriptor the
+            // reference stored, and the call is the virtual one the direct
+            // `$cls::f()` makes, with the declaration as its fallback.
+            None if through_class_reference => {
+                let (desc, _) = low.emit(
+                    cur,
+                    Ty::ClassDesc,
+                    InstKind::FieldGet {
+                        object: self_v,
+                        class: class.clone(),
+                        field: FCC_DESC.to_owned(),
+                    },
+                );
+                InstKind::CallVirtual {
+                    lsb: desc,
+                    method: call.method.clone(),
+                    fallback: call.has_body.then_some(target),
+                    receiver: None,
+                    args,
+                }
+            }
             None => {
                 let called = call
                     .static_class
@@ -917,7 +951,13 @@ pub(crate) fn lower_callable(
     // A shape a thunk builds, such as the payloads a
     // `nvs_stdlib::registry::ROUTE_ATTRIBUTE_MEMBERS` member is handed, rides
     // out beside the thunk's class, as an anonymous function's does.
-    let mut classes = vec![thunk_class(class, takes_receiver, *span, exprs)];
+    let mut classes = vec![thunk_class(
+        class,
+        takes_receiver,
+        through_class_reference,
+        *span,
+        exprs,
+    )];
     classes.append(&mut low.shapes);
     let (blocks, stmt_spans, edge_spans) = low.finish();
     (
@@ -1009,10 +1049,12 @@ fn build_thunk_body(
 
 /// The class a [`PendingCallable`] synthesizes: [`FN_ARITY`],
 /// [`FN_PARAM_TAGS`] and [`FN_PARAM_NAMES`], [`FCC_RECV`] where the target
-/// takes a receiver, and the one `invoke`.
+/// takes a receiver, [`FCC_DESC`] where it was reached through a class
+/// reference, and the one `invoke`.
 fn thunk_class(
     class: &str,
     takes_receiver: bool,
+    through_class_reference: bool,
     span: Span,
     exprs: &ExprTypeTable,
 ) -> crate::ir::Class {
@@ -1031,6 +1073,7 @@ fn thunk_class(
         ]
         .into_iter()
         .chain(takes_receiver.then(|| FCC_RECV.to_owned()))
+        .chain(through_class_reference.then(|| FCC_DESC.to_owned()))
         .collect(),
         field_reprs: Vec::new(),
         secret_fields: Vec::new(),

@@ -3131,6 +3131,49 @@ impl<'a> Lowering<'a> {
             target: ThunkTarget::Forward {
                 call: call.clone(),
                 takes_receiver,
+                through_class_reference: false,
+            },
+            params,
+            span: expr.span,
+        });
+        (obj, Ty::Object)
+    }
+
+    /// `rule:expressions/method-reference`'s `$cls::f(...)` over a `class<T>`
+    /// class side: [`Self::lower_method_ref`]'s object, with the descriptor
+    /// `$cls` holds when the reference is made stored in [`FCC_DESC`].
+    ///
+    /// The thunk dispatches on that descriptor with `call`'s label as the
+    /// fallback, the same [`InstKind::CallVirtual`]
+    /// [`Self::lower_static_call_on_a_class_reference`] emits for the direct
+    /// call, so the callable runs the implementor's override. The target is
+    /// always `static`, for that function's reason, so nothing else is stored.
+    /// It costs one word in the callable object, and a descriptor needs no
+    /// retain.
+    fn lower_method_ref_on_a_class_reference(
+        &mut self,
+        call: &ResolvedCall,
+        class_side: &Expr,
+        expr: &Expr,
+        env: &mut Env,
+        cur: &mut BlockId,
+    ) -> (ValueId, Ty) {
+        let class = format!("{}$fcc{}", self.fn_label, self.callables.len());
+        // The class side is written first and evaluated first, as at the call.
+        let (desc, _) = self.lower_expr(class_side, Some(Ty::ClassDesc), env, cur);
+        let params: Vec<Ty> = call
+            .param_tys
+            .iter()
+            .map(|&id| erase_checked_ty(id, self.checked_types))
+            .collect();
+        let obj = self.emit_thunk_object(&class, &params, call.param_names.join(","), env, cur);
+        self.emit_field_set(*cur, obj, class.clone(), FCC_DESC.to_owned(), desc);
+        self.callables.push(PendingCallable {
+            class,
+            target: ThunkTarget::Forward {
+                call: call.clone(),
+                takes_receiver: false,
+                through_class_reference: true,
             },
             params,
             span: expr.span,
@@ -4333,6 +4376,9 @@ impl<'a> Lowering<'a> {
         // variant is what selects this and the resolved facts are the same.
         if let Some(ExprInfo::CallableRef(call)) = self.exprs.lookup(expr.span) {
             let call = call.clone();
+            if !nvs_types::is_written_class_side(class) {
+                return self.lower_method_ref_on_a_class_reference(&call, class, expr, env, cur);
+            }
             return self.lower_method_ref(&call, None, expr, env, cur);
         }
         // `rule:types/class-reference-sites`'s `$cls::f(...)`, which is the same resolved call
