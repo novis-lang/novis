@@ -1,6 +1,0 @@
-{
-  "module": "crates/nvs-diagnostics/src/lib.rs",
-  "title": "Nothing checks that every diagnostic code is raised by a test, and five codes are not.",
-  "text": "`every_code_carries_its_card_or_is_listed` checks that each code has its card (`crates/nvs-diagnostics/src/lib.rs:5871`), and nothing checks that each code is raised by a test that names it. E0001, E0004 and E0005 are asserted only as `has_errors`, and E0217 and E0768 have no `.nvst` case. `rule:tooling/a-diagnostic-code-carries-its-card` and `rule:testing/feature-proofs` make a diagnostic a promise with a proof. Closing it means a check over `code::ALL` that fails for a code no test asserts by its code, and a test for each of the five.",
-  "goal": "completeness-holes"
-}

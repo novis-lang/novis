@@ -26,7 +26,7 @@ like success.
 page and one in `README.md` say Novis grew out of PHP's ideas. Elsewhere PHP is named only on the one
 concept page, `docs/reference/tools/30-php-differences.md`, with its examples and attacks; on
 `why-novis` and the claims pages that compare the languages; in the PHP benchmarks; and in the
-diagnostics for a PHP habit — `E0229` for `<?php`, `W1004`, and the superglobals and PHP-constant
+diagnostics for a PHP habit — `E0229` for `<?php`, and the superglobals and PHP-constant
 reference cards — because each of those is help for one error a person meets, not a table to
 translate from. The `php-differences` id and paths, the `E_PHP_*` constants and a conformance case
 whose file name mentions PHP keep their names.

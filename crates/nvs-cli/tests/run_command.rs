@@ -106,6 +106,31 @@ fn nvs_run_reads_the_working_directory_s_nvs_toml_unless_a_config_is_named() {
     );
 }
 
+/// An anchor bundle that opens but holds no certificate stops the run before
+/// the program starts, as `E0641` naming the file: an outbound client with no
+/// anchor to trust could verify no server at all.
+#[test]
+fn an_anchor_bundle_with_no_certificate_stops_the_run_as_e0641() {
+    let dir = scratch("tls-no-anchor");
+    fs::write(dir.join("main.nvs"), PROGRAM).unwrap();
+    fs::write(dir.join("anchors.pem"), "not a certificate\n").unwrap();
+    fs::write(
+        dir.join("nvs.toml"),
+        "[http.client.tls]\nroots = ['anchors.pem']\n",
+    )
+    .unwrap();
+
+    let run = run_in(&dir, &["main.nvs"]);
+    let stderr = String::from_utf8_lossy(&run.stderr);
+    assert_eq!(run.status.code(), Some(1), "{stderr}");
+    assert!(stderr.contains("error[E0641]"), "{stderr}");
+    assert!(
+        stderr.contains("anchors.pem"),
+        "the file is named: {stderr}"
+    );
+    assert!(run.stdout.is_empty(), "the program never ran");
+}
+
 /// The data folder's `nvs.toml` is read when the working directory has none,
 /// and `./nvs.toml` wins when it is there. A broken data-folder file stops the
 /// run and names that file, which is how the case tells which file was read.

@@ -529,6 +529,24 @@ fn an_attachment_to_a_class_the_index_does_not_declare_is_a_hint() {
     );
 }
 
+/// Each kind is published under a code of its own, and the numbers are the ones `nvs agent show`
+/// prints the card for.
+#[test]
+fn each_finding_kind_is_published_under_its_own_code() {
+    let published = [
+        (FindingKind::Invalid, "W1013"),
+        (FindingKind::MissingSet, "W1014"),
+        (FindingKind::MissingLocation, "W1015"),
+        (FindingKind::ReplacementNotDeprecated, "W1016"),
+        (FindingKind::MissingMember, "W1017"),
+        (FindingKind::NotAString, "W1018"),
+        (FindingKind::UndeclaredClass, "W1019"),
+    ];
+    for (kind, number) in published {
+        assert_eq!(kind.code().as_str(), number, "{kind:?}");
+    }
+}
+
 #[test]
 fn an_attachment_to_a_parameter_that_is_not_a_string_is_reported() {
     let workspace = Workspace::new("not-a-string");

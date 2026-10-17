@@ -83,7 +83,7 @@ stages:
         rules: [types/type-alias, security/isolate-shares-nothing, core-api/reserved-namespace, classes/lateinit-read-before-write, core-classes/derive-attribute, types/decimal, classes/readonly-is-written-once]
   - id: 12
     title: "every error message names its cause, and every code is tested"
-    status: open
+    status: done
     context: [crates/nvs-cli/src/main.rs, crates/nvs-ir/src/lower/convert.rs, crates/nvs-diagnostics/src/lib.rs]
     extra:
       context:
@@ -337,7 +337,11 @@ the class, and a check fails for a diagnostic code no test raises.
 - [x] The `class<T>` conversion error names the operand. `crates/nvs-ir/src/lower/convert.rs:1083`
   - [x] The refused edge concatenates the string, or a narrowed descriptor's name.
   - [x] The conformance case covers a name, an unrelated class and a narrowing, and valgrind finds no leak.
-- [ ] A check over `code::ALL`, and tests for E0001, E0004, E0005, E0217 and E0768. `crates/nvs-diagnostics/src/lib.rs:5871`
+- [x] A check over `code::ALL`, and tests for E0001, E0004, E0005, E0217 and E0768. `crates/nvs-diagnostics/tests/every_code_is_tested.rs:1`
+  - [x] `every_code_is_asserted_by_its_code_in_a_test` fails for a code no test names as `[E…]`, `"E…"` or `code::NAME`.
+  - [x] E0104, W1001 and W1004, which nothing raised, are retired.
+  - [x] Reject cases for E0001, E0004 and E0005; E0217 and E0768 already had Rust tests by code.
+  - [x] Tests for E0641 and W1014 to W1019, and the record is deleted.
 
 ### 13. every shipped promise the audit named has its test
 
@@ -359,20 +363,20 @@ work cannot live only in prose again.
 
 ### State
 
-Stages 1 to 4 and 8 to 11 are done, and stage 12 has one item left. This session landed three slices:
+Stages 1 to 4 and 8 to 12 are done. This session closed stage 12's last item in one slice:
 
-- The floor's red proof, `docs/examples/types/Throwable/02-what-a-caught-error-carries.nvs`, wrote
-  `previous` after construction, which E0782 now refuses. It passes `{previous: $cause}` to the
-  constructor. The `Throwable` attack did the same, so it builds its chain through the constructor and
-  drops the step that made an error its own `previous`, which the language no longer allows. The
-  file is renamed to `01-a-chain-of-causes-and-a-backtrace-as-deep-as-the-stack.nvs`.
-- A `FATAL` reached while the request still holds more than its ceiling prints its limit report.
-  `Ctx::take_thrown` builds the promoted error inside `budget::Reporting`, so the message string is
-  not refused. Case: `tests/conformance/core/test-assertions-past-the-memory-ceiling-name-the-ceiling.nvst`.
-- A failed `as class<T>` names what failed: "cannot convert `Nothing` to `class<Formatter>`: it does
-  not name a class that is a `Formatter`". A narrowed descriptor is named through
-  `Helper::ClassDescName`. Valgrind finds no leak. Trade-offs: two allocations on the throwing edge
-  only, none on success.
+- `crates/nvs-diagnostics/tests/every_code_is_tested.rs` fails for a code in `code::ALL` that no test
+  names as `[E…]`, `"E…"` or `code::NAME`. It walks `crates/` and `tests/`, and skips
+  `nvs-diagnostics/src`, whose renderer tests use codes as examples.
+- E0104, W1001 and W1004 were declared and raised by nothing. They are retired like W1002, and the
+  rule fragment that named W1004 no longer does. An unclosed bracket is E0101 `expected }`.
+- New tests: reject cases for E0001, E0004 and E0005 under `tests/conformance/reject/`, E0641 in
+  `crates/nvs-cli/tests/run_command.rs`, and W1013 to W1019 in `crates/nvs-lsp/tests/completion_files.rs`.
+  E0004's card now says what the lexer checks: only a broken `\u{...}` escape.
+
+`bun nv rules --render` also rewrites `core-api.md`, `core-classes.md`, `errors.md` and
+`iteration.md`, and `bun nv render` drops `done` from `data/schema/milestone.schema.json`. That drift
+predates this session and is not committed here.
 
 Stage 6's two items are on disk. Its remainder is
 `data/gaps/nvs-ext/a-workbook-never-finished-is-neither-logged-nor-cut-off.json`: no Novis member
@@ -384,21 +388,22 @@ user: `data/gaps/nvs-runtime/a-wider-shape-view-writes-an-object-of-the-wrong-cl
 two questions for the user: `data/gaps/nvs-config/debug-mode-is-read-by-nothing.json` and
 `data/gaps/nvs-db/span-renders-on-a-flag-no.json`.
 
-The nightly still tests `cb7021a24` (`gh run view 38869457440`). The local `main` is about 185
+The nightly still tests `cb7021a24` (`gh run view 38869457440`). The local `main` is about 190
 commits ahead and not pushed, so its failures are the old tree's until the user pushes.
 
 ### Next
 
-**Stage 12's last item, then stage 13, over `crates/nvs-diagnostics/src/lib.rs` and the `.nvst` trees.**
+**Stage 13: the ten `data/gaps/*/no-test-*.json` records, starting with the three in `nvs-runtime` and `nvs-types`.**
 
-- [ ] A check over `code::ALL` that fails for a code no test asserts by its code, and tests for E0001, E0004, E0005, E0217 and E0768 (`rule:tooling/a-diagnostic-code-carries-its-card`, `data/gaps/nvs-diagnostics/no-check-that-every-diagnostic-code-is-raised-by-a-test.json`). `crates/nvs-diagnostics/src/lib.rs:77`
-- [ ] Each `data/gaps/*/no-test-*.json` record gets its test, and the record is deleted (`rule:testing/feature-proofs`). `crates/nvs-db/src/pg.rs:6081`
+- [ ] `no-test-an-inout-alias-is-refused-at-an-isolate-copy` and `no-test-bindto-on-a-method-closure-that-does-not-name-this` get their tests, and the records are deleted (`rule:testing/feature-proofs`). `data/gaps/nvs-runtime/no-test-an-inout-alias-is-refused-at-an-isolate-copy.json:1`
+- [ ] `no-test-a-derive-error-listing-four-fields` and `no-test-a-revealed-secret-crossing-spawn-and-serialize` get their cases (`rule:testing/feature-proofs`). `data/gaps/nvs-types/no-test-a-derive-error-listing-four-fields.json:1`
+- [ ] `no-test-a-failed-pool-reset-destroys-the-connection-outside-postgres` (`rule:testing/feature-proofs`). `crates/nvs-db/src/pg.rs:6081`
 
 ### Backlog
 
 - Stage 6's last item needs a way for Novis code to abort a response body, such as an `abort` method on `Core\Response\Stream`, a new method that states its trade-offs first (`data/gaps/nvs-ext/a-workbook-never-finished-is-neither-logged-nor-cut-off.json`).
 - Four wait on the user: stage 7's two records, the wider-shape-view hole, and stage 5's typed path with its full-size image arms (each record above), plus `Markup + Markup` in place (`docs/perf/performance-pass.md:257`).
 - `rule:security/isolate-shares-nothing` says a *required* parameter `args:` omits is the error, but `entry_names_agree` and `check_literal_args` need every parameter, defaults included. Decide which is right and make the two agree (`crates/nvs-stdlib/src/script.rs:970`).
-- `test_request_dispatches_in_process_through_the_compiled_route_table` once returned an empty body under the full verify's load and passed alone; the cause is not found (`crates/nvs-cli/src/runner.rs:3410`).
+- Two tests fail under the full verify's load and pass alone, causes not found: `test_request_dispatches_in_process_through_the_compiled_route_table` returned an empty body (`crates/nvs-cli/src/runner.rs:3410`), and `live_edit`'s `a_file_that_changes_during_a_compile_discards_that_compile` and `a_link_switch_during_a_compile_never_builds_a_program_from_both_releases` saw no swap within 30s (`crates/nvs-cli/tests/live_edit.rs:1010`).
 - Proof debt fails CI's `proofs` jobs: stale perf records (`bun nv benches --owed`) and the `Core\Test\Outcome`/`Summary` proofs (`bun nv proofs --owed`) (`.github/workflows/ci.yml:1`).
 - A per-connection child refused a stack is dropped unrun, so its client likely sees the socket close and no `503`; not checked (`crates/nvs-server/src/serve.rs:95`).

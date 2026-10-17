@@ -1,0 +1,20 @@
+--TEST--
+a `\u{...}` escape with no hex digit, or with no closing brace, is `E0004`
+--FILE--
+<?nvs
+// A `\u{...}` escape needs one or more hex digits and a closing `}`.
+var $none = "\u{}";
+var $open = "\u{41";
+
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0004]: invalid `\u{...}` escape: expected one or more hex digits followed by `}`
+  --> case.nvs:3:14
+%A
+error[E0004]: invalid `\u{...}` escape: expected one or more hex digits followed by `}`
+  --> case.nvs:4:14
+%A
+error: aborting due to 2 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

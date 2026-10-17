@@ -151,10 +151,11 @@ pub mod code {
         "This number is not written correctly. Check that every digit is allowed in its base: \
          a `0b` number uses only `0` and `1`, and a `0x` number needs at least one digit.",
     );
-    /// A backslash escape that is not defined.
+    /// A `\u{...}` escape with no hex digit or no closing `}`. Every other
+    /// backslash sequence is left as it is written.
     pub const E_INVALID_ESCAPE: Code = Code::new("E0004").card(
-        "A backslash in this string is followed by a character that is not an escape sequence. \
-         Write `\\\\` for a backslash itself, or use an escape such as `\\n` or `\\t`.",
+        "A `\\u{...}` escape in this string needs one or more hex digits and a closing `}`, \
+         such as `\\u{1F600}`. Write `\\\\u` for a backslash followed by the letter `u`.",
     );
     /// A heredoc whose closing identifier is missing or misindented.
     pub const E_BAD_HEREDOC: Code = Code::new("E0005").card(
@@ -225,11 +226,9 @@ pub mod code {
     );
     // `E0103` is retired and is never reused: the parser reads a statement
     // position as an expression statement, so `E0101` and `E0102` report it.
-    /// A bracket, brace or paren was opened and never closed.
-    pub const E_UNCLOSED_DELIMITER: Code = Code::new("E0104").card(
-        "A bracket, brace or parenthesis is opened and never closed. Add the closing `]`, `}` \
-         or `)` in the right place.",
-    );
+    // `E0104` is retired and is never reused: the parser reports a bracket
+    // that is never closed as the token it expected, `E0101`, and no check
+    // raised it.
     /// Assignment to something that cannot be assigned to.
     pub const E_INVALID_ASSIGN_TARGET: Code = Code::new("E0105").card(
         "This expression cannot be assigned to. The left side of `=` must be something that \
@@ -5621,8 +5620,8 @@ pub mod code {
     );
 
     // --- W1xxx warnings ----------------------------------------------------
-    /// Code that can never execute.
-    pub const W_UNREACHABLE: Code = Code::new("W1001").card("This code can never run, so you can delete it.");
+    // `W1001` is retired and is never reused: no check raised an
+    // unreachable-code warning.
     // `W1002` is retired and is never reused: no rule asks for an
     // unused-variable warning, and no check raised it.
     /// A use of a declaration that carries `#[Core\Deprecated]`, or an
@@ -5632,12 +5631,8 @@ pub mod code {
          remove it. The message names it, then the version that deprecated it, then the note, \
          then the code to write instead.",
     );
-    /// A construct whose behaviour differs from PHP's, where converted code may
-    /// silently change meaning.
-    pub const W_PHP_DIVERGENCE: Code = Code::new("W1004").card(
-        "This code gives a different result in Novis than in PHP. Check that the result is \
-         what you expect.",
-    );
+    // `W1004` is retired and is never reused: no check raised a warning for
+    // a construct whose result differs from PHP's.
     /// A secret file the configuration reads can be read by an account other
     /// than the one the runtime runs as. `rule:config/a-secret-is-a-file-whose-content-is-the-value` advises here where it
     /// refuses on writability: a Compose secret is mounted `0444` and a

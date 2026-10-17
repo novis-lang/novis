@@ -73,7 +73,7 @@ impl Code {
         Self(s)
     }
 
-    /// The code as it is displayed, e.g. `"E0104"`.
+    /// The code as it is displayed, e.g. `"E0401"`.
     #[must_use]
     pub const fn as_str(self) -> &'static str {
         self.0

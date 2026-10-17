@@ -15,6 +15,8 @@ nvs-footprint.workspace = true
 
 [dev-dependencies]
 insta.workspace = true
+# `tests/every_code_is_tested.rs` reads every test in `crates/` and `tests/`.
+nvs-repo.workspace = true
 
 [lints]
 workspace = true
