@@ -17,7 +17,7 @@ own terms. Prefixing lines with a marker is not language logic, so
 inside a doc comment is the first thing here that would have to answer it.
 
 Each client owns its own copy (`rule:ide/one-server-two-thin-clients`): these are editing affordances,
-not server answers, so the PhpStorm plugin writes both again or goes without.
+not server answers, so another editor client would write both again or go without.
 
 No rule guesses where a doc comment ends. The continuation over-runs by one line until the author deletes
 it, the familiar nuisance of every `///` language, and a heuristic would guess wrong in the other

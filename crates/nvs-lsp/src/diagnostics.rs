@@ -144,9 +144,8 @@ pub enum Phases {
 /// reports over all of it, but a `publishDiagnostics` notification is about one
 /// URI. A diagnostic in a file the entry required belongs to *that* file's own
 /// notification, which it gets when it is open and analysed as its own entry
-/// point — and which is nothing at all when nobody opened it, because
-/// publishing for an unopened file is workspace scope and
-/// `rule:ide/an-open-document-is-its-own-entry-point` puts that at M10.
+/// point. A file nobody opened gets none: a pass over it is `nvs check`'s
+/// (`rule:ide/an-open-document-is-its-own-entry-point`).
 ///
 /// A diagnostic with no span at all is kept rather than dropped: it belongs to
 /// no file, so filtering by file is how it would be lost everywhere at once,

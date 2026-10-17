@@ -15,8 +15,7 @@ so a fix that fired only on a clean parse would never fire on the file that need
 They are off by default and composable with format-on-save. The extension registers them under
 `source.fixAll.nvs`, which VS Code runs through `editor.codeActionsOnSave` independently of
 `editor.formatOnSave`, so a developer who opts in gets layout and fixes on one keystroke while `nvs fmt`
-itself stays layout-only and `nvs fmt --check` fails for exactly one reason. PhpStorm's Reformat Code
-dialog, with its per-action checkboxes, is the same composition through a different client.
+itself stays layout-only and `nvs fmt --check` fails for exactly one reason.
 
 A suggestion marked as an **alternative**, one of several edits a person chooses between, is offered
 as a quick fix and never under `source.fixAll.nvs`, since a save that applied every alternative would

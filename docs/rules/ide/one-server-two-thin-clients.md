@@ -7,22 +7,19 @@ the formatter, translates its own editor's events into LSP requests, and renders
 (`rule:tooling/nvs-code-answers-about-the-project`).
 
 The reason is the same one that gives every fact one home in the documentation, applied to executable
-behaviour: two implementations of the formatting rules drift the first time one editor's plugin fixes a
-bug the other's has not, and the verification that both editors produce byte-identical diagnostics and
-formatted output for one file only holds while there is one implementation to agree with. A command
-line that answered "who calls this" with a walk of its own would drift from the editor's references the
-same way.
+behaviour: a client with a formatting or resolution rule of its own drifts from `nvs-lsp` and
+`nvs-fmt` the first time one of them fixes a bug the other has not. A command line that answered "who
+calls this" with a walk of its own would drift from the editor's references the same way.
 
 **Markup is the one exception, and it belongs to the editor rather than to the client.** Inside an
 inline-HTML region the services and the formatter are the editor's own HTML ones
 (`rule:ide/a-template-region-gets-the-editors-services-and-formatter`): the client forwards to them on
-boundaries the server reports and implements neither. So byte-identical formatted output across the two
-editors holds for the Novis bytes of a file; its markup bytes are each editor's HTML formatter's. The
+boundaries the server reports and implements neither. So `nvs fmt` decides the Novis bytes of a
+formatted file, and its markup bytes are the editor's HTML formatter's. The
 client's format pass is its most intricate code, chunks, stand-ins, the base column and refusing an edit
 that reaches a hole, and all of it is over text the server delimited and none of it is language logic.
 
-The VS Code extension (`rule:ide/vscode-is-the-reference-client`) is the editor client on disk, the
-PhpStorm plugin (`rule:ide/phpstorm-bridges-to-the-same-server`) is the second, and `nvs code` is a
-client in the `nvs` binary. A dependency-allowlist test on the extension
+The VS Code extension (`rule:ide/vscode-is-the-reference-client`) is the one editor client, and
+`nvs code` is a client in the `nvs` binary. A dependency-allowlist test on the extension
 (`editors/vscode/test/contributions/contributions.test.ts`) is what enforces "holds no language logic"
 for an editor client rather than review.

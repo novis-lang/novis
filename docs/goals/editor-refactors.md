@@ -39,8 +39,6 @@ checks:
     run: [bun, nv, owners, --closes, editor-refactors]
     reach: true
     floor: false
-extra:
-  milestone: M10
 ---
 
 # The editor renames, finds, imports and generates

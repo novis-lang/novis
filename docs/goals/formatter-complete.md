@@ -46,8 +46,6 @@ checks:
     run: [bun, nv, owners, --closes, formatter-complete]
     reach: true
     floor: false
-extra:
-  milestone: M10
 ---
 
 # `nvs fmt` has no open gap

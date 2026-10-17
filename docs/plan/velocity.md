@@ -27,7 +27,7 @@ and the multiplier each gets:
   system. A written rule plus a conformance case that pins it is the best case this loop has.
 - **Integration-bound — 15–18×.** Real servers, real wire protocols, a dependency that has to be stood
   up before it can be debugged. M15's registry client.
-- **Human-in-the-loop — 12–15×.** Anything whose acceptance is a person looking at it: M10's editor
+- **Human-in-the-loop — 12–15×.** Anything whose acceptance is a person looking at it: the editor
   surfaces.
 - **Nondeterministic or wall-clock-bound — 10×.** Races, schedulers, soak runs. Fuzz and valgrind
   campaigns cannot be compressed by writing code faster.
@@ -45,7 +45,7 @@ In the order the risk is real:
    largest lever, and it is the user's.
 2. **Context, which is the binding budget** — AGENTS.md § *Session workflow* step 2 owns the ceiling and
    the number. As the tree grows, a cross-cutting change needs more sessions per unit of work, which is
-   why M10 is decayed above.
+   why the editor surfaces are decayed above.
 3. **Depth costing more than breadth.** A depth case pins one claim where a breadth case covered a
    member, so cases a day fall while commits a day hold. If that decay turns out to be intrinsic, the
    spec-driven multiplier is the first figure that slips.

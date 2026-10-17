@@ -1866,8 +1866,8 @@ pub const CLASSES: &[CoreClass] = &[
     crate::serialize::CLASS,
     crate::validate::CLASS,
     crate::out::CLASS,
-    // § 16. `rule:errors/debug-dump`'s `dump` and `render` only — the coverage, trace and profile members
-    // that section also lists are `rule:testing/debug-probes`'s and land at M10.
+    // § 16. `rule:errors/debug-dump`'s `dump` and `render` only. The coverage, trace and profile members
+    // that section also lists are `rule:testing/debug-surface`'s, which goal `trace-timeline` builds.
     crate::debug::CLASS,
     // `rule:testing/assertions-are-typed`'s assertion surface rather than a spec § of its own: testing is a
     // language feature, and `Core\Test` is the same `QName` `#[Test]` names.

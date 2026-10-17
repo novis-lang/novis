@@ -46,8 +46,6 @@ checks:
     run: [bun, nv, owners, --closes, trace-timeline]
     reach: true
     floor: false
-extra:
-  milestone: M10
 ---
 
 # Trace events have times, and the profiler exports a timeline and a call graph

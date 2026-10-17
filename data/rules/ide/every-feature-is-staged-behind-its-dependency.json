@@ -16,5 +16,5 @@
     "ide/ast-json-schema-is-frozen"
   ],
   "guardedBy": [],
-  "milestone": "M10"
+  "goal": "debugger-adapter"
 }

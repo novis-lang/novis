@@ -2084,8 +2084,7 @@ fn apply(documents: &mut Documents, notification: Notification) -> Option<Change
 ///
 /// The list is [`Documents::to_republish`]'s: the edited document itself, and
 /// every open document whose last analysis read the edited file. A document
-/// nobody opened is not on it, which is where this stays a document server
-/// rather than M10's workspace index
+/// nobody opened is not on it
 /// (`rule:ide/an-open-document-is-its-own-entry-point`).
 ///
 /// Each one is analysed as its own entry point and sent its own file's

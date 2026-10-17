@@ -59,23 +59,21 @@ checks:
     run: [bun, nv, owners, --closes, tools-website]
     reach: true
     floor: false
-extra:
-  milestone: M10
 ---
 
 # The website shows every developer tool in detail, with pictures made from real runs
 
 ## Why
 
-M10 builds a debug viewer, a debugger, a profiler, a deep editor, a finished formatter, a test runner
+The developer-tooling goals build a debug viewer, a debugger, a profiler, a deep editor, a finished formatter, a test runner
 with mutation testing and benches, a complete API document and the housekeeping commands. The website
 shows almost none of it. The tools are spread across Guides and Install: running tests and coverage in
 `guides/testing/`, the editor in `install/editor.mdx`, and the rest nowhere. The home page's Tooling
 section links to the editor install page (`website/src/components/home/Tooling.astro:29`). The user's
 words: "we should list each and every of this powerful features in detail, with examples and
 screenshots, so devs instantly get the picture of it." A picture that nothing checks shows a tool as it
-was, so every picture here is made from a real run and checked as a snippet's output is. This is the
-last goal of M10, after every goal whose tool it shows.
+was, so every picture here is made from a real run and checked as a snippet's output is. It runs
+after every goal whose tool it shows.
 
 ## Standing decisions
 
@@ -205,7 +203,7 @@ passes its check.
 ### State
 
 The goal is new. No stage is started. The anchors above were checked against the tree when it was
-written. It runs after every other M10 goal, because each page shows a tool another goal builds.
+written. It runs after every other developer-tooling goal, because each page shows a tool another goal builds.
 
 ### Next
 
@@ -216,5 +214,3 @@ Stage 1, terminal blocks and the replay's new steps, on `tools/nv/cmd/site.ts` a
 - the player and its browser test. `website/config/replay-player.mjs`
 
 ### Backlog
-
-- A picture of PhpStorm waits for the PhpStorm client, which no goal carries (`docs/plan/m10.md`).

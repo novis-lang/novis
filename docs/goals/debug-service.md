@@ -53,8 +53,6 @@ checks:
     run: [bun, nv, owners, --closes, debug-service]
     reach: true
     floor: false
-extra:
-  milestone: M10
 ---
 
 # Requests are recorded to a spool and indexed by `nvs debug`

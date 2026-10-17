@@ -32,8 +32,6 @@ checks:
     run: [bun, nv, owners, --closes, diagnostic-records]
     reach: true
     floor: false
-extra:
-  milestone: M10
 ---
 
 # A compiler diagnostic and a test result are records

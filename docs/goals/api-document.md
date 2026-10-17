@@ -39,8 +39,6 @@ checks:
     run: [bun, nv, owners, --closes, api-document]
     reach: true
     floor: false
-extra:
-  milestone: M10
 ---
 
 # The generated API document passes a strict OpenAPI validator

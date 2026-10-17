@@ -3,7 +3,6 @@
   "status": "shipped",
   "seeAlso": [
     "ide/vscode-is-the-reference-client",
-    "ide/phpstorm-bridges-to-the-same-server",
     "ide/one-crate-and-one-extension-grow-in-place",
     "ide/redaction-ranges-come-from-the-server",
     "tooling/fmt-is-one-canonical-style",

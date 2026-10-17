@@ -35,7 +35,7 @@
 //    and `test/protocol/requests.test.ts`) and never against an editor. What is missing is a way to
 //    make the editor fire a real copy; until there is one, a user is the only thing that has run this
 //    path end to end.
-//    — owner: M10
+//    — owner: goal `editor-fixes`
 
 import {
   CancellationToken,

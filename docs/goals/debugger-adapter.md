@@ -39,8 +39,6 @@ checks:
     run: [bun, nv, owners, --closes, debugger-adapter]
     reach: true
     floor: false
-extra:
-  milestone: M10
 ---
 
 # `nvs dap` drives VS Code's debugger UI over a launched program
@@ -174,4 +172,3 @@ Stage 1, `nvs dap` over stdio, on `crates/nvs-cli/src/main.rs` and a new `crates
 
 - `evaluate` for watch and hover expressions is not asked for by any rule; a goal that wants it writes it into `docs/rules/ide/the-debugger-ui-is-as-deep-as-the-adapter.md` first.
 - A condition that may call a pure `Core` function would need a purity mark on `Core` methods (`docs/rules/ide/the-debugger-ui-is-as-deep-as-the-adapter.md`).
-- PhpStorm's debugger stays deferred with the PhpStorm client (`docs/rules/ide/phpstorm-bridges-to-the-same-server.md`).

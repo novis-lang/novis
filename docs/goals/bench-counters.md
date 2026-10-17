@@ -39,8 +39,6 @@ checks:
     run: [bun, nv, owners, --closes, bench-counters]
     reach: true
     floor: false
-extra:
-  milestone: M10
 ---
 
 # Benches report counted work that CI can gate on, and the probes and optimisation levels are tested configurations

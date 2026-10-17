@@ -2,5 +2,5 @@
   "module": "crates/nvs-stdlib/src/registry.rs",
   "title": "Older `Core` reference cards are not yet written in the plain voice.",
   "text": "`rule:core-api/reference-card` holds every card to `AGENTS.md` § *Text an end user reads*, because a hover and `nvs help` print it. Cards written before that rule remain in another voice, for example `crates/nvs-stdlib/src/objset.rs:157` (\"holds\"), `crates/nvs-stdlib/src/objset.rs:185` (\"drops\") and `crates/nvs-stdlib/src/math.rs:623` (\"drops the remainder\"). Goal `editor-fixes` rewrites them, and this record is deleted when no card in the old voice is left.",
-  "milestone": "M10"
+  "goal": "editor-fixes"
 }
