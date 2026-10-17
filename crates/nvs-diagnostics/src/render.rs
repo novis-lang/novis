@@ -109,7 +109,7 @@ impl Renderer {
         let gutter = Self::gutter_style();
         let bold = Style::new().bold();
 
-        // error[E0104]: message
+        // error[E0401]: message
         let head = match d.code {
             Some(code) => format!("{}[{code}]", d.severity.label()),
             None => d.severity.label().to_string(),
@@ -449,7 +449,7 @@ mod tests {
     fn multiline_span_is_clipped_and_annotated() {
         let mut map = SourceMap::new();
         let f = map.add("t.nvs", "fn a() {\n  body\n}\n");
-        let d = Diagnostic::error(code::E_UNCLOSED_DELIMITER, "unclosed block")
+        let d = Diagnostic::error(code::E_UNTERMINATED, "unclosed block")
             .with_primary(Span::new(f, 7, 17), "starts here");
         let out = render_to_string(&d, &map);
         assert!(out.contains("..."), "clipped marker missing:\n{out}");
@@ -505,7 +505,7 @@ mod tests {
         let items = [
             Diagnostic::error(code::E_EVAL_UNSUPPORTED, "one").with_primary(Span::new(f, 0, 1), ""),
             Diagnostic::error(code::E_EVAL_UNSUPPORTED, "two").with_primary(Span::new(f, 1, 2), ""),
-            Diagnostic::warning(code::W_UNREACHABLE, "three").with_primary(Span::new(f, 2, 3), ""),
+            Diagnostic::warning(code::W_DEPRECATED, "three").with_primary(Span::new(f, 2, 3), ""),
         ];
         let mut buf = Vec::new();
         Renderer::new()
@@ -526,7 +526,7 @@ mod tests {
         let mut map = SourceMap::new();
         let f = map.add("t.nvs", "abc\n");
         let items =
-            [Diagnostic::warning(code::W_UNREACHABLE, "w").with_primary(Span::new(f, 0, 1), "")];
+            [Diagnostic::warning(code::W_DEPRECATED, "w").with_primary(Span::new(f, 0, 1), "")];
         let mut buf = Vec::new();
         Renderer::new()
             .render_all(items.iter(), &map, &mut buf)

@@ -297,7 +297,7 @@ fn diagnostic_json(diagnostic: &Diagnostic, map: &SourceMap) -> Value {
         .partition(|note| note.starts_with(HELP_PREFIX));
     json!({
         // The same spelling the text head carries, so `severity` and
-        // `error[E0104]` name one thing.
+        // `error[E0401]` name one thing.
         "severity": diagnostic.severity.label(),
         "code": diagnostic.code.map(|code| code.as_str()),
         "message": diagnostic.message,

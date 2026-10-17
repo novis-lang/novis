@@ -5,7 +5,7 @@
   "rustTests": 7100,
   "examples": 4100,
   "benchmarks": 1600,
-  "editorTests": 380,
+  "editorTests": 390,
   "crates": 21,
   "cratesWithoutUnsafe": 14
 }

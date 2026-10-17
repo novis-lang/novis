@@ -3342,6 +3342,7 @@ dependencies = [
  "anstyle",
  "insta",
  "nvs-footprint",
+ "nvs-repo",
 ]
 
 [[package]]

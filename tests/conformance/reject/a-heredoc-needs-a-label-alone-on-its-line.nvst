@@ -1,0 +1,16 @@
+--TEST--
+a `<<<` with no label after it is `E0005`
+--FILE--
+<?nvs
+// A heredoc starts with `<<<` and a label, alone on its line.
+var $none = <<<
+text
+;
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0005]: expected a heredoc/nowdoc label after `<<<`
+  --> case.nvs:3:13
+%A
+error: aborting due to 3 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.
