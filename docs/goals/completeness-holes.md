@@ -233,11 +233,18 @@ stack the OS refuses fails one request, not the process.
 and the lowered argument bytes are charged to the request.
 
 - [ ] A typed call path for `list<u8>` signatures beside the dynamic one. `crates/nvs-ext/src/call.rs:893`
+  - [x] `crates/nvs-ext/src/typed.rs` converts a `Value` to generated types, and `call_values` routes a built-in world through it.
+  - [x] The image world (`crates/nvs-ext/src/typed/image.rs`) is called typed, and `tests/builtin.rs` pins its one-copy charge.
+  - [ ] The pdf world, under `crates/nvs-ext/src/typed/`.
+  - [ ] The intl world.
+  - [ ] The spreadsheet world, then the gap record deleted.
 - [x] The lowered argument bytes are charged to the request, as the lifted results are. `crates/nvs-ext/src/call.rs:954`
   - [x] `Request::run` charges the arguments' host bytes before the call and gives them back after it.
   - [x] A call that cannot afford its arguments ends as `Limit::Memory` and gives everything back.
   - [x] `tests/call.rs`'s `size` export pins both, and fails without the charge.
-- [ ] The image arms use a full-size frame, and `benches/results/image-guest.json` is recorded again. `crates/nvs-ext/tests/support/image_arms.rs:23`
+- [x] The image arms use a full-size frame, and `benches/results/image-guest.json` is recorded again. `crates/nvs-ext/tests/support/image_arms.rs:23`
+  - [x] The frame is 1920x1080, and `tests/image_guest.rs` still holds both arms equal.
+  - [x] The figures are recorded again, and the two rule fragments that cited the per-byte cost say what is true now.
 
 ### 6. a streamed body that ends early is cut off
 
@@ -391,19 +398,24 @@ work cannot live only in prose again.
 
 ### State
 
-Every stage but 5 is done. Stage 14 closed: `bun nv owners --check` fails on a prose gap, and
-`bun nv rules --check` fails on a decision record named in any tracked file, by its name alone or by
-a test named for its number (`tools/nv/cmd/rules.ts:80`). Every such citation in the tree now cites
-the rule that holds the decision or says what the code does. `no_registry_card_cites_a_rule`
-(`crates/nvs-stdlib/src/registry.rs:5934`) now looks for a `rule:` token on a card.
+Every stage but 5 is done. Stage 5 is half landed: `crates/nvs-ext/src/typed.rs` calls a built-in
+component's exports through wasmtime's typed functions, and the image world
+(`crates/nvs-ext/src/typed/image.rs`) goes through it. `Request::call_values` routes a call there when
+the manifest is a built-in one and `typed::World::of` knows its interface
+(`crates/nvs-ext/src/call.rs:893`). Every other export stays on the dynamic path. The argument and
+result charges are the same, made at the generated types' host size. `tests/builtin.rs`'s
+`a_built_in_call_charges_its_bytes_once_and_not_one_val_per_byte` fails on the dynamic path and
+passes on the typed one. The image arms now use a 1920x1080 frame, and
+`benches/results/image-guest.json` is recorded again: guest against native is 1.5 to 2 times, where
+it was 13 to 42 times on an 800x600 frame.
 
-The goal's last open record is `data/gaps/nvs-ext/bytes-cross-one-val-per-byte.json`, so
-`owners --closes completeness-holes` fails until stage 5 lands.
+The goal's last open record is `data/gaps/nvs-ext/bytes-cross-one-val-per-byte.json`, which now
+names only the pdf, intl and spreadsheet worlds, so `owners --closes completeness-holes` fails until
+they land.
 
 The nightly run the sweep reports (`39013536848`) tested `e110c9c0b`, which is `origin/main`, more
-than 220 commits behind local `main`. Its `docs` failure (a shipped rule naming an owner) is already
-fixed locally: `bun nv check` is clean. Its five-driver failures (mysql, mariadb, postgres, mssql)
-need the database servers and were not reproduced here.
+than 220 commits behind local `main`. Its `docs` failure is already fixed locally, and its
+five-driver failures need the database servers and were not reproduced here.
 
 `bun nv rules --render` also rewrites `core-api.md`, `errors.md` and `iteration.md`, and `bun nv render`
 drops `done` from `data/schema/milestone.schema.json`. That drift predates these sessions and is not
@@ -411,19 +423,21 @@ committed.
 
 ### Next
 
-**Stage 5: bytes cross the extension boundary in one copy each way. Files: `crates/nvs-ext/src/call.rs`,
-`crates/nvs-ext/src/convert.rs`, `wit/*.wit`.** The decided design is in the gap record above, and
-`rule:packaging/a-value-crosses-as-its-wit-type` holds the table.
+**Stage 5: the other three worlds go typed. Files: `crates/nvs-ext/src/typed.rs`,
+`crates/nvs-ext/src/typed/*.rs`, `wit/pdf.wit`, `wit/intl.wit`, `wit/spreadsheet.wit`.**
+`rule:packaging/a-value-crosses-as-its-wit-type` holds the table. Each world is one module shaped
+as `crates/nvs-ext/src/typed/image.rs` is: a `bindgen!` of an inline world that exports the interface
+alone, then `world!`, `records!`, `enums!` and `variants!` listing every type in WIT order.
 
-- [ ] Generate typed bindings for one first-party world first (`wit/image.wit`) with `bindgen!`, as `crates/nvs-ext/src/wasi.rs:67` does for the host side, and a conversion from `Value` to the generated types. The call site is the dynamic `func.call_async` at `crates/nvs-ext/src/call.rs:1165`.
-- [ ] Route an export of a first-party world through its typed call, keep a third-party export on the dynamic path, and keep the argument charge (`crates/nvs-ext/src/call.rs:954`).
-- [ ] The other three worlds (`pdf`, `intl`, `spreadsheet`), then the image arms at full size and `benches/results/image-guest.json` recorded again (`crates/nvs-ext/tests/support/image_arms.rs:23`); delete the gap record and rewrite `crates/nvs-ext/src/convert.rs`'s cost paragraph. `Markup + Markup` in place goes with it (`docs/perf/performance-pass.md:257`).
+- [ ] `wit/pdf.wit` as `crates/nvs-ext/src/typed/pdf.rs`, and its arm in `World::of` (`crates/nvs-ext/src/typed.rs:38`). A WIT type the macros do not cover yet, such as a flags type or a variant case with no payload, gets a macro arm in `typed.rs` first.
+- [ ] `wit/intl.wit:13` the same way, as `crates/nvs-ext/src/typed/intl.rs`.
+- [ ] `wit/spreadsheet.wit:19` the same way, as `crates/nvs-ext/src/typed/spreadsheet.rs`. It takes `mixed` and resources, which the typed path does not convert, so an export that has one stays on the dynamic path (`typed::Params` fails it, so leave it out of `world!`). Then delete the gap record and rewrite the per-byte sentence of `crates/nvs-ext/src/convert.rs`'s cost paragraph and `docs/rules/packaging/values-cross-as-handles.md`.
 
 ### Backlog
 
-- Many `§ N` marks in crate comments still point at a section of a decision record that no longer exists, for example `crates/nvs-types/src/links.rs:3` and `crates/nvs-server/src/bounds.rs:155`. The check only catches a zero-led number before `§` (`tools/nv/cmd/rules.ts:80`).
-- A `Core` member call counts as a Novis call in the perf counters, so every `calls 0` bench fails `--record-perf`: find the commit, then fix the count or the declarations (`tools/nv/proofs/collect.ts`, `benches/members/core/Response-Stream/length.nvs:5`).
-- `rule:security/isolate-shares-nothing` says a *required* parameter `args:` omits is the error, but `entry_names_agree` and `check_literal_args` need every parameter, defaults included. Decide which is right and make the two agree (`crates/nvs-stdlib/src/script.rs:970`).
-- Tests that fail under the full verify's load and pass alone, causes not found: `test_request_dispatches_in_process_through_the_compiled_route_table` (`crates/nvs-cli/src/runner.rs:3410`), two `live_edit` swaps (`crates/nvs-cli/tests/live_edit.rs:1010`), and five `ldap` tests against the Samba server (`crates/nvs-stdlib/tests/ldap.rs:102`).
-- CI's Windows warm-start budget fails: `nvs run`'s work is 12-13 ms against 6, about 4.7 ms of it `nvs_ext::section::read`'s `parse_all` (`crates/nvs-ext/src/section.rs:35`). Proof debt fails CI's `proofs` jobs: `bun nv benches --owed` and `bun nv proofs --owed` (`.github/workflows/ci.yml:1`).
-- A per-connection child refused a stack is dropped unrun, so its client likely sees the socket close and no `503`; not checked (`crates/nvs-server/src/serve.rs:95`).
+- `Markup + Markup` copies both sides on every append, which is quadratic in a loop; the fix is new `unsafe` code and waits for a decision (`docs/perf/performance-pass.md:257`).
+- Many `§ N` marks in crate comments still point at a section of a decision record that no longer exists, for example `crates/nvs-types/src/links.rs:3` and `crates/nvs-server/src/bounds.rs:155` (`tools/nv/cmd/rules.ts:80`).
+- A `Core` member call counts as a Novis call in the perf counters, so every `calls 0` bench fails `--record-perf` (`tools/nv/proofs/collect.ts`, `benches/members/core/Response-Stream/length.nvs:5`).
+- `rule:security/isolate-shares-nothing` says a *required* parameter `args:` omits is the error, but `entry_names_agree` and `check_literal_args` need every parameter (`crates/nvs-stdlib/src/script.rs:970`).
+- Tests that fail under the full verify's load and pass alone: `test_request_dispatches_in_process_through_the_compiled_route_table` (`crates/nvs-cli/src/runner.rs:3410`), two `live_edit` swaps (`crates/nvs-cli/tests/live_edit.rs:1010`), and five `ldap` tests (`crates/nvs-stdlib/tests/ldap.rs:102`).
+- CI's Windows warm-start budget and proof debt fail CI (`crates/nvs-ext/src/section.rs:35`, `.github/workflows/ci.yml:1`); a per-connection child refused a stack likely closes with no `503`, not checked (`crates/nvs-server/src/serve.rs:95`).
