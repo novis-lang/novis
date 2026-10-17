@@ -12,9 +12,15 @@ program `process.exec` approved, and it can change its own folder the moment it 
 parent's — explicit replacement is simpler to reason about than merge semantics. Every key and value
 is plain `string`, so an API key held as a `secret` needs `rule:core-classes/secret-reveal` first;
 this is a new sink reusing an existing escape hatch, not a new mechanism. A name that is empty or holds
-`=` or a NUL, and a value that holds a NUL, are refused before anything starts. Left out, `env`
-inherits the parent's environment whole, the default Python, Go, Rust, Node and PHP's `proc_open` all
-share.
+`=` or a NUL, and a value that holds a NUL, are refused before anything starts.
+
+Left out, `env` gives the child a fixed base set taken from the parent's environment, and nothing
+else: `PATH`, `HOME` on Unix or `USERPROFILE` on Windows, `TEMP`, `TMP`, `LANG`, and `SYSTEMROOT` on
+Windows, without which a child cannot open a socket. A variable the parent does not have is not set.
+A server's environment is where its database password and its cloud keys live, and a child started
+to resize an image has no use for them; a child that does need one is given it by name. Python, Go,
+Rust, Node and PHP's `proc_open` all pass the whole environment on, and a script that relied on that
+names the variables it needs. The list is the door's `BASE_ENV` in `crates/nvs-runtime/src/capability.rs`.
 
 `timeout` counts from the start of the child, and is no timer of its own: it bounds the waits the two
 members already park on. `run`'s wait for the exit and every `Core\Process\Handle` member that parks —

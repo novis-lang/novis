@@ -198,10 +198,11 @@ pub(crate) const CLASS: CoreClass = CoreClass {
 /// and `spawn` cannot take different ones.
 ///
 /// Every default is [`Const::Null`], the absence itself: no folder is the
-/// parent's, no environment is the parent's, and no timeout leaves the child
-/// bounded by the request alone. `env` is `array<string>` keyed by name, and a
-/// given one **replaces** the parent's environment, so `{env: []}` is a child
-/// with no variables and is told apart from an omitted `env` by that null.
+/// parent's, no environment is the door's small base set taken from the
+/// parent's, and no timeout leaves the child bounded by the request alone.
+/// `env` is `array<string>` keyed by name, and a given one is the child's whole
+/// environment, so `{env: []}` is a child with no variables and is told apart
+/// from an omitted `env` by that null.
 /// `cwd` is a path position, so a relative path given as a string literal is
 /// joined to the folder of the file that wrote it, and a sink, so a `tainted`
 /// folder does not compile.
@@ -246,7 +247,9 @@ const ENV_DOC: ParamDoc = ParamDoc {
     name: "env",
     desc: "The environment variables of the program, as name => value. This replaces all of \
            them, so a variable that is not in the array is not set. Without it, the program \
-           gets the same variables as this program. A `secret` value must be revealed first.",
+           gets only these variables from this program: `PATH`, `HOME` or `USERPROFILE`, \
+           `TEMP`, `TMP`, `LANG`, and `SYSTEMROOT` on Windows. A `secret` value must be \
+           revealed first.",
     shape: &[],
 };
 
@@ -770,7 +773,7 @@ fn argv_of(value: &Value) -> Result<Vec<String>, Fault> {
 struct Options {
     /// `cwd`, or `None` for the parent's folder.
     dir: Option<String>,
-    /// `env` as name and value, or `None` for the parent's environment.
+    /// `env` as name and value, or `None` for the door's base set.
     env: Option<Vec<(String, String)>>,
     /// `timeout`, always longer than zero, or `None` for no timeout.
     timeout: Option<Duration>,
@@ -2526,7 +2529,12 @@ mod tests {
         let probe = std::env::var("NVS_PROBE").unwrap_or_else(|_| "none".to_owned());
         let path = std::env::vars_os().any(|(name, _)| name.eq_ignore_ascii_case("PATH"));
         let path = if path { "set" } else { "unset" };
-        let report = format!("folder=[{here}]\nprobe=[{probe}]\npath=[{path}]\n");
+        let cargo = if std::env::var_os("CARGO_PKG_NAME").is_some() {
+            "set"
+        } else {
+            "unset"
+        };
+        let report = format!("folder=[{here}]\nprobe=[{probe}]\npath=[{path}]\ncargo=[{cargo}]\n");
         std::io::Write::write_all(&mut std::io::stderr().lock(), report.as_bytes())
             .expect("the parent's pipe is writable");
     }
@@ -2603,9 +2611,11 @@ mod tests {
     }
 
     /// `rule:core-classes/process-options`' `cwd` and `env`, each **on both sides**: the same
-    /// child reports this process's folder and environment when the options are left out, and the
-    /// folder and the one variable it was given when they are not. `PATH` is the tell for
-    /// replacement: it is set in every test run, so a child that still sees it got a merge.
+    /// child reports this process's folder and the base variables alone when the options are left
+    /// out, and the folder and the one variable it was given when they are not. `PATH` is the tell
+    /// for replacement: it is set in every test run, so a child that still sees it got a merge.
+    /// `CARGO_PKG_NAME`, which cargo sets for a test run, is the tell for the base set: it is not
+    /// in it, so a child with no `env` does not see it.
     // covers: Core\Process::run
     #[test]
     fn run_starts_its_child_in_cwd_with_only_the_env_it_was_given() {
@@ -2622,8 +2632,14 @@ mod tests {
         );
         assert!(
             plain.contains("probe=[none]") && plain.contains("path=[set]"),
-            "a child with no `env` sees this process's environment: {plain}"
+            "a child with no `env` sees this process's `PATH`: {plain}"
         );
+        if std::env::var_os("CARGO_PKG_NAME").is_some() {
+            assert!(
+                plain.contains("cargo=[unset]"),
+                "a child with no `env` sees only the base variables: {plain}"
+            );
+        }
 
         // A coverage build's child writes its counters to `LLVM_PROFILE_FILE`, and into the folder
         // it runs in when that is unset. This child runs in `src` with an environment of its own,
