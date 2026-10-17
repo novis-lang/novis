@@ -3247,7 +3247,7 @@ fn the_floors_destination_is_the_operators_and_a_value_naming_none_refuses_the_t
         );
     }
 
-    for written in ["stderr", "syslog", "file:/var/log/nvs.log"] {
+    for written in ["stderr", "file:/var/log/nvs.log"] {
         assert_eq!(
             target_refusal(written),
             None,
@@ -3255,6 +3255,11 @@ fn the_floors_destination_is_the_operators_and_a_value_naming_none_refuses_the_t
              refuses it, so a deployment that spelled its sink correctly does not start",
         );
     }
+    assert_eq!(
+        target_refusal("syslog").is_none(),
+        nvs_config::log::SYSLOG,
+        "`syslog` boots exactly where the host has a syslog socket to write it to",
+    );
     for written in ["stdout", "STDERR", "journald", "file:", ""] {
         assert_eq!(
             target_refusal(written),
