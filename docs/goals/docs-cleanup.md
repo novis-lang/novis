@@ -171,11 +171,17 @@ is in its home.
 **Does:** every signature, summary, enum and constant on the website comes from the registry, the
 class intros and the `about.md` files, and no file cites the spec.
 
-- [ ] `website-core.ts` builds every class from the registry: the summary is the registry's short doc plus the class intro under `docs/reference/core/`, and every registered constant and enum is published. `tools/nv/renderers/website-core.ts:659`, `tools/nv/renderers/website-core.ts:758`
+- [x] `website-core.ts` builds every class from the registry: the summary is the registry's short doc plus the class intro under `docs/reference/core/`, and every registered constant and enum is published. `tools/nv/renderers/website-core.ts:659`, `tools/nv/renderers/website-core.ts:758`
+  - [x] `registryClasses` builds classes, members, shape types, constants and owned enums from `nvs meta --json`
+  - [x] the summary is the card's sentence plus the introduction, and `blocksHtml` renders its fences and tables
+  - [x] the signature linker reads `Core\Arr::Order` and an enum case `Core\Hash::Digest::Sha256` as one name, and the site builds
 - [ ] The spec's machinery is deleted: `parseSpec`, the `spec-tables` renderer, the `spec_core_members` record and schema, `website/config/spec-overrides.mjs`, the "Spec note" and unparsed-row UI, the spec tests in `render.test.ts`, the spec path in `php-names.test.ts`, the existence check in `gaps.ts`, and `spec_registry_coverage.rs` with its four empty ratchets. `tools/nv/renderers/spec-tables.ts:17`, `tools/nv/cmd/gaps.ts:509`, `crates/nvs-stdlib/tests/spec_registry_coverage.rs:725`
+  - [x] the renderer, the record, its schema, the overrides, the UI, the tests in `render.test.ts` and the check in `gaps.ts`
+  - [x] `spec_registry_coverage.rs`, its four ratchets, `owners.ts`'s ratchet register, the rules' `guardedBy` and the six playbook bullets about them
+  - [ ] the spec path in `php-names.test.ts`, which goes with `docs/spec/` itself
 - [ ] The spec's unique conventions become rules: a variadic member takes no options shape (`rule:core-api/options-bag`), a `readonly` property of a `Core` value object is read as `->x()`, and what is a member and what is an operator (`rule:core-api/one-paradigm-per-operation`). `00-overview.md`'s unique facts go to `rule:types/grammar`, the lexer's and the parser's module docs and `rule:security/isolate-shares-nothing`. The fragments that call the spec authoritative are reworded. `docs/rules/core-api/field-wise-precedence.md:1`, `docs/rules/core-api/tier-roster.md:37`, `crates/nvs-syntax/src/lexer.rs:600`
 - [ ] A script rewrites every citation of the spec, about 630 files: `spec § N` becomes the class it names, or is dropped where a `rule:` id stands beside it. `docs/spec/` is deleted and joins `RECORD_CITE`. `tests/conformance/core/`, `crates/nvs-stdlib/src/arr.rs:1`
-- [ ] `website/README.md` says how the Core reference is built now. `website/README.md:43`
+- [x] `website/README.md` says how the Core reference is built now. `website/README.md:43`
 
 ### 3. docs/perf is gone, its ledgers are data and its findings have homes
 
@@ -252,15 +258,23 @@ managed block in AGENTS.md links it (`AGENTS.md:392`), and `looper lint` refuses
 the markers. It goes once looper's `agents` template stops linking it; then add `design\.md` back to
 `DELETED_DOC_CITE` and tick stage 1's last sub-item. Stage 1 stays `open` until then.
 
-The nightly CI failures the sweep reported are on `main`'s commit, not this branch: `nv check` is
-clean here. The rest (stale member perf, the Windows warm-start budget, the DB matrix) are `main`'s.
+Stage 2's website half is done. `website-core.ts` reads only `nvs meta --json` and the class
+introductions under `docs/reference/core/` and `docs/reference/novis/`; `core.json` keeps the same
+205 classes and gains `Core\Response\Stream::end` and 19 constants (`Core\Cli\Color`, `Core\Env`,
+`Core\Time\Zone`). Signatures are the registry's, fully qualified. The four namespace enums the
+spec listed on `Core\Math` and `Core\Time` are on their Types pages only. The spec's member notes
+are gone from the pages: a member's text is its `about.md` and its card. `spec-tables`, the
+`spec_core_members` record, `spec-overrides.mjs` and `spec_registry_coverage.rs` with its ratchets
+are deleted. `docs/spec/` itself is still on disk, and so is `php-names.test.ts`'s path to it.
+
+The nightly CI failures the sweep reported are on `main`'s commit, not this branch. The rest (stale
+member perf, the Windows warm-start budget, the DB matrix) are `main`'s.
 
 ### Next
 
-Stage 2, on `tools/nv/renderers/website-core.ts` and the spec machinery. About two sessions:
-- [ ] `website-core.ts` builds every class from the registry: the summary is the registry's short doc plus the class intro under `docs/reference/core/`, and every registered constant and enum is published. `tools/nv/renderers/website-core.ts:659`, `tools/nv/renderers/website-core.ts:758`
-- [ ] The spec's machinery is deleted: `parseSpec`, the `spec-tables` renderer, the `spec_core_members` record and schema, `website/config/spec-overrides.mjs`, the spec UI, and `spec_registry_coverage.rs`. `tools/nv/renderers/spec-tables.ts:17`, `tools/nv/cmd/gaps.ts:509`, `crates/nvs-stdlib/tests/spec_registry_coverage.rs:725`
-- [ ] `website/README.md` says how the Core reference is built now. `website/README.md:43`
+Stage 2's spec half, on `docs/spec/` and the rule fragments that cite it. About two sessions:
+- [ ] The spec's unique conventions become rules, and the fragments that call the spec authoritative are reworded; `rule:core-api/field-wise-precedence` now has only the registry to describe. `docs/rules/core-api/field-wise-precedence.md:1`, `docs/rules/core-api/options-bag.md:1`, `crates/nvs-syntax/src/lexer.rs:600`
+- [ ] A script rewrites every citation of the spec, about 630 files. `docs/spec/` is deleted with `php-names.test.ts`'s path to it, and joins `DELETED_DOC_CITE`. `tools/nv/cmd/rules.ts:113`, `tools/nv/test/php-names.test.ts:80`, `crates/nvs-stdlib/src/arr.rs:1`
 
 ### Backlog
 
