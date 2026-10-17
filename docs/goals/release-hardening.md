@@ -193,6 +193,10 @@ multipart, JSON, XML, `Serialize::decode`, cookies, regex compile and decompress
 in the nightly fuzz job. The published request-smuggling payloads are fixed server tests.
 
 - [ ] One target per parser above, registered in the fuzz crate and in the fuzz job's matrix. `fuzz/Cargo.toml:23`, `.github/workflows/ci.yml:1038`
+  - [x] JSON and `Serialize::decode`.
+  - [ ] A fuzzing seam for the crate-private parsers.
+  - [ ] The request head and body, multipart and cookies.
+  - [ ] The outbound reply parser, XML, regex compile and decompression.
 - [ ] The "funky chunks" payloads and the 0.CL and Expect desync shapes are tests in the smuggling suite. `crates/nvs-server/src/serve.rs:9031`
 - [ ] HTTP Garden runs once against `nvs serve`, and each finding becomes a test. The handoff records the run.
 
@@ -257,29 +261,29 @@ is `BLOCKED` and names the call.
 
 ### State
 
-Stages 1 to 5 are done.
+Stages 1 to 5 are done. Stage 6 is live.
 
-- Every opening door checks its grant on one resolution and opens it beneath a handle:
-  `open_read`, every mode of `open` and both ends of `copy` go through `resolve`
-  (`crates/nvs-runtime/src/capability.rs:705`) and `beneath::open_file`. `Mode::Read` creates
-  nothing. A read-write handle checks `fs.read` and `fs.write` on that one resolution. The rule's
-  title and text name the read doors, and its `IOError` sentence no longer says "write".
-- `Core\Json::decode` and every decoder on `json::read` throw a `ParseError` naming a key one
-  object writes twice (`crates/nvs-stdlib/src/json.rs:1820`). `NvsArray::replace` gives the
-  answer from the insert's own lookup. `rule:errors/ambiguous-input-refused`'s closed list names it.
-- `rule:types/conversion`'s `string` row says what `parse` accepts, pinned by
-  `tests/conformance/lang/a-string-converts-to-a-number-with-a-sign-and-leading-zeros.nvst`.
-
-The nightly ran on the pushed `main`, which is behind the local one. Its `docs`, `five-driver
-matrix` and `test / windows-x86_64` failures are fixed locally, and the `proofs` and `cost guards`
-failures are in the backlog.
+- `fuzz/fuzz_targets/json.rs` and `fuzz/fuzz_targets/serialize.rs` exist, are `[[bin]]`s in
+  `fuzz/Cargo.toml` and are in the `fuzz-smoke` matrix. `json` asserts one encode-decode round
+  settles the text. `serialize` decodes against a typed `Owner`/`Dog`/`Cat` table and asserts
+  the re-encoded payload is stable. Each ran 120 s clean in WSL after the fix below. The
+  `serialize` corpus reached `Owner` but not yet `Dog` in that time; the nightly's cached corpus
+  carries it further.
+- The `json` target found that `serde_json` parsed some floats one step off
+  (`8888888388888831.0` decoded as `…830.0`). The workspace turns on `float_roundtrip`
+  (`Cargo.toml:576`), about twice the time per float parsed. Pinned by
+  `a_float_decodes_to_the_nearest_f64` (`crates/nvs-stdlib/src/json.rs:3980`).
+- The nightly failures the sweep listed are the same run on the old pushed `main` (`e110c9c0b`)
+  the last handoff triaged: `docs`, `five-driver matrix` and `test / windows-x86_64` are fixed
+  locally, `proofs` and `cost guards` are in the backlog.
 
 ### Next
 
-Stage 6, on `fuzz/Cargo.toml`, `fuzz/fuzz_targets/` and `.github/workflows/ci.yml` (`rule:testing/the-deep-lane`):
-- [ ] A fuzz target for JSON (`crate::json::read`) and one for `Core\Serialize::decode`, each registered as a `[[bin]]` and in the fuzz job's matrix. `fuzz/Cargo.toml:23`, `.github/workflows/ci.yml:1037`, `crates/nvs-stdlib/src/json.rs:1851`
-- [ ] Targets for the request head and body, multipart and cookies. `crates/nvs-server/src/serve.rs:9153`
-- [ ] Targets for the outbound reply parser, XML, regex compile and decompression. `crates/nvs-stdlib/src/xml.rs:1`, `crates/nvs-stdlib/src/regex.rs:1`, `crates/nvs-stdlib/src/compress.rs:1`
+Stage 6, the crate-private parsers, on `fuzz/Cargo.toml`, `crates/nvs-stdlib/src/lib.rs` and the parser modules (`rule:testing/the-deep-lane`):
+- [ ] A fuzzing seam: the multipart, cookie and reply-head parsers are `pub(crate)` in a private `mod`. Add one `#[doc(hidden)] pub mod fuzz` in `nvs-stdlib` re-exporting thin wrappers, rather than widening each module. `crates/nvs-stdlib/src/lib.rs:191`
+- [ ] Targets for multipart (`Multipart::new` and `next_part`) and cookies (`cookie_pair`, `cookie_of`). `crates/nvs-stdlib/src/multipart.rs:191`, `crates/nvs-stdlib/src/request.rs:2114`, `crates/nvs-stdlib/src/test.rs:3176`
+- [ ] Targets for the outbound reply head and framing (`head_of`, `frame_of`), XML, regex compile and decompression. `crates/nvs-stdlib/src/http/transport.rs:2785`, `crates/nvs-stdlib/src/xml.rs:1`, `crates/nvs-stdlib/src/regex.rs:1`, `crates/nvs-stdlib/src/compress.rs:1`
+- [ ] The request head and body target, through `nvs-server`'s head scan, which needs `nvs-server` in `fuzz/Cargo.toml`. `crates/nvs-server/src/io.rs:309`
 
 ### Backlog
 
@@ -288,4 +292,5 @@ Stage 6, on `fuzz/Cargo.toml`, `fuzz/fuzz_targets/` and `.github/workflows/ci.ym
 - CI's Windows warm-start budget still fails: a warm `nvs run` is 8.1 ms of work on this host against 6. Resolving the extension tree once per `run`, not three times, is the next cut (`crates/nvs-ext/src/load.rs:567`, `tools/nv/cmd/bench.ts:132`).
 - CI's `proofs` jobs fail on proof debt: stale perf records (`bun nv benches --owed`) and owed proofs (`bun nv proofs --owed`). Stage 10 owns it (`.github/workflows/ci.yml:1`).
 - A forged payload can put an enum case with a backing value the enum does not declare into an enum-typed property (`rule:enums/representation`). Whether a typed read of it is safe is not checked (`crates/nvs-runtime/src/object.rs:5629`).
+- `bun nv verify` fails on load: `crates/nvs-stdlib/tests/ldap.rs:277` and `:1485` hit their socket deadline, and `crates/nvs-cli/tests/live_edit.rs:1010` misses its 30 s swap, beside the other binaries. Each passes alone (`tools/nv/cmd/verify.ts`'s module doc).
 - The nightly tests GitHub's `main`, so its `supply chain` failure says nothing about the current lock until the user pushes (`.github/workflows/ci.yml:838`).

@@ -35,6 +35,13 @@ doc = false
 bench = false
 
 [[bin]]
+name = "json"
+path = "fuzz_targets/json.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
 name = "lex"
 path = "fuzz_targets/lex.rs"
 test = false
@@ -51,6 +58,13 @@ bench = false
 [[bin]]
 name = "prefix"
 path = "fuzz_targets/prefix.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "serialize"
+path = "fuzz_targets/serialize.rs"
 test = false
 doc = false
 bench = false
