@@ -712,7 +712,8 @@ impl Ctx {
         self.body_stream = Some(emit);
     }
 
-    /// Takes the writing half away, which **ends the body it was written on** —
+    /// Takes the writing half away so that the finish path **ends the body it
+    /// was written on**, or aborts it for a program that did not end cleanly —
     /// the finish path's fourth call, beside [`Self::take_headers`].
     ///
     /// This is where "a request-scoped stream ends with its request" is a fact

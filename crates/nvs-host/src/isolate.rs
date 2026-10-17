@@ -1351,13 +1351,19 @@ fn finish(isolate_ctx: &mut Ctx, answer: Value, receiving: Option<&ErrorClass>) 
     // reason. A list rather than a word, and empty for the child that set none.
     let headers = isolate_ctx.take_headers();
     // `rule:concurrency/a-stream-that-outlives-its-request-is-a-connection`'s
-    // request-scoped body, ended here because this is where its request ends:
-    // dropping the writing half is what tells the connection the body is over,
-    // and a program that streamed one has already written every byte of it by
-    // the time this line runs. Beside the three takes above because it is the
-    // same act — what is left on the context once the program has stopped
-    // running belongs to nobody.
-    drop(isolate_ctx.take_body_stream());
+    // request-scoped body, ended here because this is where its request ends.
+    // A program that returned, exited or finished has written every byte of
+    // it, so dropping the writing half ends the body. A program that threw,
+    // met a limit or was cancelled has not, so the body is aborted and the
+    // client sees a failed response rather than a complete one
+    // (`rule:core-classes/spreadsheet-writes-as-a-stream`'s cut-off download).
+    // Beside the three takes above because it is the same act: what is left on
+    // the context once the program has stopped running belongs to nobody.
+    if let Some(mut body) = isolate_ctx.take_body_stream()
+        && (cancelled || failed || isolate_ctx.ending() == Err(nvs_runtime::FATAL))
+    {
+        body.abort();
+    }
     // And `rule:observability/four-kinds-become-a-span`'s half of that same
     // act: what a recorded request filed leaves on the completion, which is the
     // only channel to a door that never holds this context. Taken once, above
@@ -2539,6 +2545,45 @@ mod tests {
             done.headers, carried,
             "one name set twice crossed as two headers, or one appended twice crossed as one"
         );
+    }
+
+    /// A streamed body whose program threw is cut off, and one whose program
+    /// returned is ended: the connection must never frame a failed program's
+    /// half-written body as a complete one.
+    #[test]
+    fn a_streamed_body_is_aborted_when_its_program_throws_and_ended_when_it_returns() {
+        for throws in [true, false] {
+            let mut ctx = parent();
+            let (emit, mut drain) =
+                nvs_runtime::stream::open(std::time::Duration::from_secs(5), 1 << 20);
+            let program: Program = Box::new(move |child: &mut Ctx, _args| {
+                child.set_body_stream(emit);
+                if throws {
+                    child.set_pending("the program stopped half way through its body");
+                }
+                Value::null()
+            });
+
+            let done = run(
+                Isolate::new(program, Value::null(), Output::Capture),
+                &mut ctx,
+            )
+            .expect("a null argument crosses");
+
+            assert_eq!(done.ok, !throws);
+            let drained = drain.next_chunk(std::task::Waker::noop());
+            if throws {
+                assert!(
+                    matches!(drained, nvs_runtime::stream::Drained::Aborted),
+                    "a program that threw ended its body as complete: {drained:?}"
+                );
+            } else {
+                assert!(
+                    matches!(drained, nvs_runtime::stream::Drained::Ended),
+                    "a program that returned did not end its body cleanly: {drained:?}"
+                );
+            }
+        }
     }
 
     /// `rule:concurrency/nothing-is-still-running-when-a-call-returns` and `rule:concurrency/cancellation-runs-no-user-code` from the *parent's* side: the task parked in
