@@ -1105,7 +1105,9 @@ fn resolve_name_type(
         // A loaded extension's class and its resources: declared by no source file, and in the
         // symbol table only as names (`nvs_types::ext_lib`).
         None if env.symbols.is_extension(&qname) => env.interner.class(qname),
-        None if qname.is_core()
+        // A `Core` name is a type when the roster holds it, and is reported
+        // below as any undeclared name is when it does not.
+        None if qname.is_core() && crate::core_lib::is_importable(&qname)
             || qname.is_reserved_global_class()
             || qname.is_reserved_global_interface() =>
         {

@@ -16,16 +16,13 @@
 //!   `Core\Arr::count($a)` is the only reachable spelling and
 //!   `$a->count()` resolves to nothing, as `rule:core-api/shape-rules` R20 ("no operation is
 //!   reachable two ways") requires.
-//! * A member `nvs_stdlib` does not register does not exist. Before this
-//!   existed, `nvs_hir::QName::is_core` made every `Core\…` reference trusted
-//!   and unchecked; every class is now checked like any other, and the
-//!   registry being the whole roster of `Core` is what makes an *unregistered*
-//!   class's member knowably wrong too — `Core\Env::EOL` is `E0405` where it
-//!   is written rather than a panic in `nvs-ir`, which is the crate that would
-//!   otherwise have to lower a call with no target. What stays trusted is the
-//!   bare *name*: `nvs_hir` still resolves any `Core\…` without a declaration,
-//!   so a not-yet-implemented class may be named in a type position while no
-//!   member of it can be reached.
+//! * A name or a member `nvs_stdlib` does not register does not exist. The
+//!   registry is the whole roster of `Core`, so an *unregistered* class's
+//!   member is knowably wrong — `Core\Env::EOL` is `E0405` where it is written
+//!   rather than a panic in `nvs-ir`, which is the crate that would otherwise
+//!   have to lower a call with no target. The bare name is checked too:
+//!   [`importable`] is the roster a `use` and a type annotation are checked
+//!   against.
 
 use nvs_hir::QName;
 use nvs_hir::interfaces::{COMPARABLE, ITERABLE, ITERATOR, PARSES};
@@ -191,6 +188,51 @@ pub(crate) fn seed(table: &mut SignatureTable, interner: &mut TypeInterner) {
 #[must_use]
 pub fn interface_implementors(qname: &QName) -> Option<&'static [&'static str]> {
     nvs_stdlib::registry::interface(&qname.to_string()).map(|found| found.implementors)
+}
+
+/// Every name a program may import or write as a type from `Core`, spelled as
+/// source writes it: each class, interface and enum
+/// (`nvs_stdlib::registry::type_names`), each `Core` exception of
+/// [`nvs_hir::errors::TREE`] and each compiler attribute of
+/// [`crate::derive::ATTRIBUTES`] (`rule:core-api/reserved-namespace`).
+///
+/// It is what a front end passes as `nvs_hir::CoreRoster::Names`'s `imports`,
+/// a copy of the list [`is_importable`] reads.
+#[must_use]
+pub fn importable() -> Vec<&'static str> {
+    nvs_footprint::every_class();
+    importable_names().to_vec()
+}
+
+/// Whether `qname` is one of [`importable`]'s names, matched without regard to
+/// ASCII case as `nvs_hir::CoreRoster` matches. A type annotation naming a
+/// `Core` type is checked against it. The list is built once per process.
+#[must_use]
+pub fn is_importable(qname: &QName) -> bool {
+    let written = qname.to_string();
+    nvs_footprint::class(&written);
+    importable_names()
+        .iter()
+        .any(|name| name.eq_ignore_ascii_case(&written))
+}
+
+/// [`importable`]'s names, built on the first call.
+fn importable_names() -> &'static [&'static str] {
+    static NAMES: OnceLock<Vec<&'static str>> = OnceLock::new();
+    NAMES.get_or_init(build_importable)
+}
+
+/// [`importable`]'s list, read from the three tables it names.
+fn build_importable() -> Vec<&'static str> {
+    let mut names = nvs_stdlib::registry::type_names();
+    names.extend(
+        nvs_hir::errors::TREE
+            .iter()
+            .map(|(name, _)| *name)
+            .filter(|name| QName::parse(name).is_core()),
+    );
+    names.extend(crate::derive::ATTRIBUTES);
+    names
 }
 
 /// One registry row as the checker's own signature.

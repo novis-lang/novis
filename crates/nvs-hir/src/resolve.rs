@@ -256,12 +256,16 @@ impl Resolver {
     }
 
     /// Checks every `use` import collected so far against the symbol table,
-    /// reporting `E_UNRESOLVED_IMPORT` for any that names nothing declared
-    /// and is not trusted. Call once, after every file
-    /// sharing this `Module` has run [`Self::collect_declarations`] — an
-    /// import may legally name a declaration that appears later in its own
-    /// file, or in a different file entirely.
-    pub fn resolve_imports(&mut self, diags: &mut Diagnostics) {
+    /// and a `Core` one against `core`'s importable names, reporting
+    /// `E_UNRESOLVED_IMPORT` for any that names nothing. Call once, after
+    /// every file sharing this `Module` has run [`Self::collect_declarations`]
+    /// — an import may legally name a declaration that appears later in its
+    /// own file, or in a different file entirely.
+    pub fn resolve_imports(
+        &mut self,
+        core: crate::hierarchy::CoreRoster<'_>,
+        diags: &mut Diagnostics,
+    ) {
         for import in &mut self.module.imports {
             // The same set every other resolver in this crate trusts — see
             // `hierarchy::resolve_supertype`. Importing a reserved global is
@@ -269,10 +273,12 @@ impl Resolver {
             // the exception tree: `rule:statements/no-fallback-to-the-root-namespace`
             // gives a short name no fallback to the root, so `use Throwable;`
             // is how `catch (Throwable $e)` is written under a `namespace`.
-            import.resolved = import.target.is_core()
-                || import.target.is_reserved_global_class()
+            // A loaded extension's class is in the symbol table, under `Core`
+            // or not.
+            import.resolved = import.target.is_reserved_global_class()
                 || import.target.is_reserved_global_interface()
-                || self.module.symbols.contains(&import.target);
+                || self.module.symbols.contains(&import.target)
+                || import.target.is_core() && core.imports(&import.target);
             if !import.resolved {
                 diags.report(
                     Diagnostic::error(
@@ -361,7 +367,7 @@ pub fn resolve_file_with_extensions(
     let mut resolver = Resolver::new();
     resolver.declare_extensions(extensions);
     resolver.collect_declarations(stmts, src, diags);
-    resolver.resolve_imports(diags);
+    resolver.resolve_imports(crate::hierarchy::CoreRoster::Trusted, diags);
     let mut hierarchy =
         crate::hierarchy::HierarchyResolver::new(crate::hierarchy::CoreRoster::Trusted);
     hierarchy.collect_links(stmts, src);
@@ -412,7 +418,7 @@ mod tests {
             assert!(!diags.has_errors(), "fixture failed to parse: {diags:?}");
             resolver.collect_declarations(&stmts, map.file(file), &mut diags);
         }
-        resolver.resolve_imports(&mut diags);
+        resolver.resolve_imports(crate::hierarchy::CoreRoster::Trusted, &mut diags);
         (resolver.into_module(), diags)
     }
 

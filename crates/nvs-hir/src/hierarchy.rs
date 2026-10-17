@@ -90,6 +90,11 @@ pub enum CoreRoster<'a> {
         /// "no such class" a name in neither list gets.
         /// `nvs_stdlib::registry::closed_interfaces` builds it.
         closed: &'a [&'a str],
+        /// Every name a `use` may import from `Core`: each class, interface
+        /// and enum, each `Core` exception and each compiler attribute. A
+        /// `use` naming one of them, or a namespace one of them is under,
+        /// resolves. `nvs_types::core_lib::importable` builds it.
+        imports: &'a [&'a str],
     },
 }
 
@@ -136,6 +141,27 @@ impl CoreRoster<'_> {
                     nvs_footprint::class(&written);
                 }
                 links.iter().any(|name| name.eq_ignore_ascii_case(&written))
+            }
+        }
+    }
+
+    /// Whether a `use` may import `qname` from `Core`: it is one of
+    /// [`Self::Names`]'s `imports`, or a namespace one of them is under, so
+    /// `use Core\Db;` resolves because `Core\Db\Connection` exists. Matched
+    /// without regard to ASCII case, as [`Self::holds`] matches. Always `true`
+    /// for [`Self::Trusted`].
+    #[must_use]
+    pub fn imports(&self, qname: &QName) -> bool {
+        match self {
+            Self::Trusted => true,
+            Self::Names { imports, .. } => {
+                let written = qname.to_string();
+                imports.iter().any(|name| {
+                    name.eq_ignore_ascii_case(&written)
+                        || name.len() > written.len()
+                            && name.as_bytes()[written.len()] == b'\\'
+                            && name[..written.len()].eq_ignore_ascii_case(&written)
+                })
             }
         }
     }
@@ -891,7 +917,7 @@ mod tests {
         for (stmts, &file) in parsed.iter().zip(&files) {
             resolver.collect_declarations(stmts, map.file(file), &mut diags);
         }
-        resolver.resolve_imports(&mut diags);
+        resolver.resolve_imports(core, &mut diags);
         let mut hierarchy = HierarchyResolver::new(core);
         for (stmts, &file) in parsed.iter().zip(&files) {
             hierarchy.collect_links(stmts, map.file(file));
@@ -917,6 +943,7 @@ mod tests {
         const ROSTER: CoreRoster<'static> = CoreRoster::Names {
             links: &[r"Core\Arr"],
             closed: &[],
+            imports: &[r"Core\Arr"],
         };
         let listed = "<?nvs\nclass Listish implements Core\\Arr {}\n";
         let missing = "<?nvs\nclass Listish implements Core\\Arrr {}\n";
@@ -955,6 +982,40 @@ mod tests {
         );
     }
 
+    /// A `use` of a `Core` name is checked against the roster's `imports`. A
+    /// name on it resolves, and so does a namespace a name on it is under. Any
+    /// other name is `E_UNRESOLVED_IMPORT` at the import, and
+    /// [`CoreRoster::Trusted`] still takes every name.
+    #[test]
+    fn a_core_import_the_roster_lacks_is_refused() {
+        const ROSTER: CoreRoster<'static> = CoreRoster::Names {
+            links: &[],
+            closed: &[],
+            imports: &[r"Core\Db\Connection"],
+        };
+        for written in [r"Core\Db\Connection", r"core\db\connection", r"Core\Db"] {
+            let source = format!("<?nvs\nuse {written};\n");
+            let (_graph, diags) = links(ROSTER, &source);
+            assert!(!diags.has_errors(), "`{written}` resolves: {diags:?}");
+        }
+        for written in [r"Core\Nope", r"Core\Db\Conn", r"Core\Db\Connection\More"] {
+            let source = format!("<?nvs\nuse {written};\n");
+            let (_graph, diags) = links(ROSTER, &source);
+            assert!(
+                diags
+                    .iter()
+                    .any(|d| d.code == Some(code::E_UNRESOLVED_IMPORT)
+                        && d.message.contains(written)),
+                "`{written}` is refused: {diags:?}"
+            );
+            let (_graph, diags) = links(CoreRoster::Trusted, &source);
+            assert!(
+                !diags.has_errors(),
+                "`Trusted` takes `{written}`: {diags:?}"
+            );
+        }
+    }
+
     /// A `Core` interface on the roster's `closed` list exists, so a link
     /// naming it gets `E_CORE_INTERFACE_NOT_IMPLEMENTABLE` and not the
     /// "no such class" of `E_UNDEFINED_CLASS`, and the link stays out of the
@@ -964,6 +1025,7 @@ mod tests {
         let roster = CoreRoster::Names {
             links: &[r"Core\Arr"],
             closed: &[r"Core\Db\Queryable"],
+            imports: &[r"Core\Arr", r"Core\Db\Queryable"],
         };
         let source = "<?nvs\nclass Fake implements Core\\Db\\Queryable {}\n";
         let (graph, diags) = links(roster, source);

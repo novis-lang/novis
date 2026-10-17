@@ -588,7 +588,7 @@ fn walk(
         work.push((new_id, new_stmts, 0, Some(path)));
     }
 
-    resolver.resolve_imports(diags);
+    resolver.resolve_imports(core, diags);
     let mut module = resolver.into_module();
     module.graph = hierarchy.resolve(&module.symbols, diags);
 

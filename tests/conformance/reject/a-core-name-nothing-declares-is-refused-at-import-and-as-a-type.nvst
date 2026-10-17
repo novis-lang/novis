@@ -1,0 +1,22 @@
+--TEST--
+A `use` or a type naming a `Core` name nothing declares does not compile — `rule:core-api/reserved-namespace`
+--FILE--
+<?nvs
+namespace Shop;
+
+// `Core\Db` is a namespace with classes in it, so importing it compiles.
+use Core\Db;
+use Core\Db\DbError;
+use Core\Json\Derive;
+use Core\Nope;
+
+class Order {
+    public static function find(Core\Request $request, ?Core\Db\Missing $row): void {}
+}
+--EXPECTF-ERROR--
+error[E0306]: `Core\Nope` does not resolve to any declaration
+%A
+error[E0303]: `Core\Db\Missing` is not declared
+%A
+error: aborting due to 2 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.
