@@ -49,20 +49,6 @@ patch costs a Write plus a call, so it only wins from three. Past that it wins b
 them**, in runs of up to 17, and each of those runs was one decision the model had already made, spent one
 round trip at a time. That is the same saving `bun nv peek` takes on the read side, for the same reason.
 
-**The plan's status block is written by `bun nv plan --apply <file>`, never by hand.** A wrap file's
-`## plan: <Field>` section replaces a field whole, and `## plan-edit: <Field>` replaces one fragment of
-it; `--apply` writes them before `looper wrap` applies the rest. Locating a field's exact bytes and
-splicing them by hand was the single most expensive repeated action a session performed. `bun nv plan
---get <Field>` prints a field's current text.
-
-**The plan is an index and one file per milestone**, and `bun nv plan` reads both. `--show M8` prints
-one milestone, `--show M8:verify` its acceptance paragraph alone, `--past` the milestones the program is
-behind, and `--stale` the sentences that defer work to a goal the chain has already walked. The roster
-and the status block are records under `data/plan/`, a milestone's scope is prose under `docs/plan/`,
-and an applied `## milestone: M8` section rewrites one. `--check` reports the status fields' sizes and
-fails when a milestone record disagrees with its scope file or with the chain. Nothing adds a field or a
-milestone — both are decisions, not forms — and nothing refuses over a length.
-
 **A playbook bullet is one file under [playbook/](playbook/)**, and Grep over that directory finds one by
 its words. Every bullet ends with an `` `until: <kind> <arg>` `` trailer, whose kinds are looper's
 `docs/goal-format.md` § *The playbook*. `looper playbook retire` deletes every bullet whose condition
@@ -338,7 +324,7 @@ wide one is, and `tools/data/impact-data-literals.txt` lists the `"../x"` litera
 the fix was always the same command and the whole run again.
 
 **The docs gates are not in that list and `nv verify` runs none of them.** `bun nv rules --check`,
-`bun nv rules --render --check`, `bun nv links`, `bun nv layout --check`, `bun nv plan --check` and
+`bun nv rules --render --check`, `bun nv links`, `bun nv layout --check` and
 `bun nv release --check` are CI's `docs` job, which has no Rust toolchain.
 `looper wrap` runs none of them, so a session that edited the tree one of them reads runs that one
 itself before the wrap: `bun nv links` after any doc edit, and `bun nv rules --check` after one under
@@ -463,7 +449,6 @@ even when a snippet fails to compile — what it printed is the finding, not an 
 ```sh
 looper wrap --template                      # the format, with this project's playbook headings in it
 <Write one wrap file>                       # the whole tail as data
-bun nv plan --apply .agent-tmp/wrap.md      # the plan sections first, when there are any
 looper wrap .agent-tmp/wrap.md              # apply the rest, or refuse and change nothing
 ```
 
@@ -472,10 +457,6 @@ bullet, `## handoff` replaces the live goal's handoff, `## commit: <paths>` stag
 with that message — one section per slice, in order — and `## status` is the loop's one line. **Nothing
 lands unless all of it does**, because a half-finished tail is the one failure mode worth designing out.
 
-The plan's sections are Novis's own and looper does not read them: `## plan: <Field>` rewrites one status
-field, `## plan-edit: <Field>` one fragment of it and `## milestone: <id>` a milestone's scope. `bun nv
-plan --apply` writes them, all or none, before `looper wrap` runs, so a `## commit:` may name
-`docs/implementation-plan.md` and the plan records in the same file.
 
 **`bun nv links` is not part of the wrap**, and `nv verify` does not run it either, so a green
 verification says nothing about links. It is whole-tree rather than diff-scoped because the way links
@@ -628,7 +609,7 @@ bun nv benches [--owed]                               # the bench turn by hand
 bun nv side --prepare --hook                          # looper's before_run: readies a side loop's lane, else nothing
 bun nv side --prepare <slug> [--dir <path>] [--min-free-gb <n>]   # make or complete a side worktree by hand
 bun nv allow --learn <events.jsonl>                   # record a session's shell calls, add the owed allow rules
-bun nv plan --apply <wrap-file | -> [--dry]           # check, then write, a wrap's plan, plan-edit and milestone sections
+
 bun nv pack [--goal <slug>] [--stage <n>]             # the pack sections only Novis has
 ```
 
@@ -658,7 +639,7 @@ that fills the disk dies inside a session with the tree half-edited.
 What fills the disk is **build generations**. A crate's artifacts are named `<name>-<metadata-hash>`, and
 that hash covers the dependency graph — so every `Cargo.toml` or `Cargo.lock` edit mints a fresh set for
 every crate downstream and orphans the previous one, forever: cargo has no garbage collector on stable.
-Editing *source* costs nothing, because a source-only rebuild reuses every hash. A milestone that adds a
+Editing *source* costs nothing, because a source-only rebuild reuses every hash. A goal that adds a
 dependency most sessions therefore adds a whole generation most sessions. One generation of this
 workspace was ~6 GB when this was found, and nine of them were on disk at once.
 
@@ -831,7 +812,7 @@ every file still bind, and every `bun nv` command works as it does with looper.
 | `looper lint`, `looper links`, `looper layout --check`, `looper prose` | Run `bun nv links` and `bun nv layout --check`. The other two have no equivalent: follow the rules they check by hand, and name each in the handoff as not run. |
 | `looper goal …` | Edit the goal's front matter by hand, in the shape the goal format gives. |
 | `looper render` | Leave the body of `docs/goals/README.md` as it is. The next `looper render` rewrites it. |
-| `looper wrap` | Apply the plan sections with `bun nv plan --apply <file>`, overwrite `## Handoff`, tick what is done, and commit each slice with `git commit -F <file>`. |
+| `looper wrap` | Overwrite `## Handoff`, tick what is done, and commit each slice with `git commit -F <file>`. |
 | `looper log`, `looper playbook retire` | No equivalent. |
 | `looper sync`, `looper doctor`, `looper clean` | Not needed. Never edit the text between looper's markers by hand. |
 | `looper guard` | The settings run it by itself. Without looper, the call goes through, `bun nv guard` still runs on Read and Bash, and the shell rules still bind. |

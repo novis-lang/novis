@@ -28,7 +28,7 @@ Those three route to everything else. The five files behind them, none of which 
   it states. The rule's fragment under `docs/rules/<topic>/` is the rule; the chapter
   `docs/rules/<topic>.md` that renders it is what you read.
 - **[docs/agent/commands.md](docs/agent/commands.md)** — how this repo is driven: `nv peek`, `nv verify`,
-  `nv splice`, `nv plan`, `nv disk`, WSL, valgrind, and the two shell rules below in full.
+  `nv splice`, `nv disk`, WSL, valgrind, and the two shell rules below in full.
 - **[docs/agent/doc-style.md](docs/agent/doc-style.md)** — how to write anything in `docs/`, and the length
   targets nothing enforces.
 - **[docs/agent/conventions.md](docs/agent/conventions.md)** — the *shape* of a commit message, a `.nvst`
@@ -100,8 +100,7 @@ which are whole where they stand.
    filled the disk. Narrow what *runs* — `bun nv verify -p <crate>`, or a `--test <name>`
    or `--lib` filter under `cargo test` — and leave `--release -p` to the cost guards.
 6. **Finish with one call:** `looper wrap <file>` applies steps 4 and 5 below — playbook bullet,
-   handoff, one commit per slice, status — or refuses and changes nothing. Plan fields go first
-   through `bun nv plan --apply <file>`.
+   handoff, one commit per slice, status — or refuses and changes nothing.
 7. **A comment says what the code does now, and is rewritten as a whole** — never edited by leaving the
    old sentence beside the new one, so no comment ever reads as a changelog. `git log` is the only
    history this repository keeps: no dates, no counts of things that can change, no measured figures
@@ -289,8 +288,8 @@ Every session runs the same five steps, in this order, and **stops**:
    in the background as § *In the loop* says, `bun nv affected --run` anywhere else, plus whatever the
    change specifically warrants (a `valgrind` run for a new refcount edge). **This is the only place
    verification happens**, and a group shares one run: the build is the same build.
-4. **Write the docs and the handoff, once for the whole group.** The plan's status block, a playbook bullet
-   if a trap cost you time, and the live goal's handoff overwritten with where the work stands now. The
+4. **Write the docs and the handoff, once for the whole group.** A playbook bullet if a trap cost you
+   time, and the live goal's handoff overwritten with where the work stands now. The
    handoff is *state* — a fact that will still be true in ten sessions belongs in the playbook, a rule, or
    a crate's module doc instead. Naming the **next** group, and the file set it shares, is this step's job:
    you are the only one holding the context to decide it cheaply, and `bun nv peek --locate` turns
@@ -300,8 +299,7 @@ Every session runs the same five steps, in this order, and **stops**:
 
 **Steps 4 and 5 are one call.** Write a single wrap file — playbook bullet, handoff, a `## commit:` per
 slice, the status line — and apply it with `looper wrap <file>` (`--template` is the format). It applies
-everything or refuses everything, so there is no half-written tail. A plan field is written before it,
-with `bun nv plan --apply <file>`.
+everything or refuses everything, so there is no half-written tail.
 
 **After step 5, stop.** Do not re-run `cargo build`/`test`/`clippy`/`fmt`, do not re-read the orientation,
 do not re-check a doc against a length. Writing prose cannot break a build, so there is nothing a second
@@ -333,15 +331,9 @@ Step 5 above, in detail:
 - Every time we add, change or remove a feature, decide and say what the tradeoffs are in performance,
   memory, usability and simplicity for developers using the language. If there are large tradeoffs, notify
   the user and ask for agreement before proceeding. If there are only benefits, go ahead.
-- **The plan** is [docs/implementation-plan.md](docs/implementation-plan.md), an index whose status block
-  has a fixed field set — `Status`, `Done`, `On disk`, `Toolchain`, `Open now`,
-  `Blocking` — plus one file per milestone under [docs/plan/](docs/plan/) and the frozen design in
-  [docs/plan/design.md](docs/plan/design.md). Overwrite a field in place; never append a paragraph or add
-  a field. Known-gap detail belongs in the crate's module doc. `bun nv plan --show M8` prints a milestone,
-  `--show M8:verify` its acceptance paragraph, and a `## milestone: M8` wrap section rewrites one.
-- **The schedule is the chain, not the milestone table.** The chain and the goal files are looper's,
-  under [docs/goals/](docs/goals/README.md), as § *Goals* below says. A milestone is an identity tag
-  goals carry, so its number says nothing about what is next. **A side goal is a goal file off the
+- **The schedule is the chain.** The chain and the goal files are looper's, under
+  [docs/goals/](docs/goals/README.md), as § *Goals* below says. Known-gap detail is a gap record under
+  `data/gaps/`, named from the crate's module doc. **A side goal is a goal file off the
   chain.** It runs as a side loop (`looper loop add --side <slug>`) in a lane: looper makes the
   worktree `.agent-tmp/worktrees/lane-<n>` on branch `side/<slug>`, and the `before_run` hook `bun nv
   side --prepare --hook` prepares it. A side loop whose `.agent-tmp/worktrees/side/<slug>` already

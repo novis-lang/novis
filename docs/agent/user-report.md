@@ -79,15 +79,13 @@ Search with several keywords per item, including the PHP name of the thing and t
 ```sh
 bun nv brief --where <keyword>      # rules; `(designed)` means decided and not built
 bun nv owners                       # every gap record under data/gaps/, and who owns each
-bun nv plan --show M<n>             # a milestone the search pointed at
 ```
 
-and grep `docs/goals/` and `docs/plan/` for the same words.
+and grep `docs/goals/` for the same words.
 
-**If an item is already planned**, name the goal, milestone or gap in the summary, and add the report's
+**If an item is already planned**, name the goal or gap in the summary, and add the report's
 requirement to it in neutral words so whoever builds it knows a user needs it: a line in the goal's
-file under `docs/goals/`, a check through `looper goal check`, or the milestone's file under
-`docs/plan/`. The goal the loop is running now — `looper goal show` names it — is not edited from
+file under `docs/goals/`, or a check through `looper goal check`. The goal the loop is running now — `looper goal show` names it — is not edited from
 here: the user decides whether it absorbs the item.
 
 ## 4. Examine the rest, and ask
