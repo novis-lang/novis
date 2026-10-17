@@ -645,7 +645,7 @@ own surface is a closed claim rather than a list with an exception column.
 
 <a id="security-authority-is-the-enclosing-namespace"></a>
 
-## Authority is a property of the namespace enclosing the code, never of the nesting depth or the name being called  *(designed — owned by M15)*
+## Authority is a property of the namespace enclosing the code, never of the nesting depth or the name being called  *(designed — owned by goal namespace-grants)*
 
 `rule:security/authority-is-the-enclosing-namespace`
 
@@ -670,45 +670,50 @@ it reaches code no package manager ever touched.
 
 <a id="security-grants-are-keyed-on-a-namespace"></a>
 
-## The application's grant table is keyed on namespace prefixes, and a capability it names must be on the roster  *(designed — owned by M15)*
+## The application's grant table is `[grants]` in its own `package.toml`, keyed on namespace prefixes, and a capability it names must be on the roster  *(designed — owned by goal namespace-grants)*
 
 `rule:security/grants-are-keyed-on-a-namespace`
 
-The application's grant table is keyed on namespace prefixes and lives in the application's own
-configuration rather than in a package manifest. A package still declares what it requests and that
-declaration still grants nothing; the application grants explicitly, one line at a time.
+The application's grant table is keyed on namespace prefixes and is the `[grants]` table of the
+application's own `package.toml` ([`packaging/package-toml-is-a-tool-input`](packaging.md#packaging-package-toml-is-a-tool-input)), never a package's
+manifest. A package still declares what it requests, and that declaration still grants nothing; the
+application grants explicitly, one line at a time
+([`security/package-authority-is-granted-one-line-at-a-time`](security.md#security-package-authority-is-granted-one-line-at-a-time)).
 
 A capability named in a grant line must appear on the roster
-([`security/capability-roster-is-closed`](security.md#security-capability-roster-is-closed)); an unknown name is an error at boot, because a
-directive that silently means nothing is worse than one that refuses.
+([`security/capability-roster-is-closed`](security.md#security-capability-roster-is-closed)); an unknown name is an error when the table is read,
+because a directive that silently means nothing is worse than one that refuses.
 
-The effective set at a call site is the **intersection** of the operator's configuration, the
-application's grant, the package's own declaration and any narrowing an enclosing isolate applied —
-every one of which may only tighten ([`security/no-runtime-grant`](security.md#security-no-runtime-grant)).
+The effective set at a call site is the **intersection** of the operator's configuration in `nvs.toml`,
+the application's grant, the package's own declaration and any narrowing an enclosing isolate applied —
+every one of which may only tighten ([`security/no-runtime-grant`](security.md#security-no-runtime-grant)). The operator's `nvs.toml` can
+therefore narrow what `[grants]` gives and never widen it.
 
 The key is a namespace because a path is the one thing about third-party code a developer is invited
 to change. Overriding one class of a dependency by putting a file in an earlier autoload root is a
 supported pattern, and under a path key that file would hold the application's authority. Code the
 package manager never fetched, such as a git submodule, a `discover` glob or a pasted file, has no
-package path at all, and most untrusted code arrives that way. A namespace is stable exactly where
-the path is not: an override must declare the namespace it overrides, and hand-vendored code keeps
-the namespace its own source declares.
+package path at all, and most untrusted code arrives that way. A namespace is stable exactly where the
+path is not: an override must declare the namespace it overrides, and hand-copied code keeps the
+namespace its own source declares.
+
+**For a registry package the grant table and the package graph are the same thing.** A package's name
+is its root namespace ([`packaging/a-package-name-is-vendor-slash-name`](packaging.md#packaging-a-package-name-is-vendor-slash-name)), and every file in it stays
+under that namespace ([`packaging/a-package-file-stays-under-its-declared-prefix`](packaging.md#packaging-a-package-file-stays-under-its-declared-prefix)). A name has two
+segments, so no other package lives under `Acme\Http`, and the line `nvs pkg add` writes for it covers
+exactly that package's code. The same table
+also covers code no package manager fetched, by the namespace that code declares.
 
 `Core` is never a grantee. The namespace `Core` and everything under it is reserved
-([`core-api/reserved-namespace`](core-api.md#core-api-reserved-namespace)), so no grant line can name a namespace that inherits the standard
-library's own authority.
+([`core-api/reserved-namespace`](core-api.md#core-api-reserved-namespace)), so a key under `Core` is an error and no grant line can name a
+namespace that inherits the standard library's own authority.
 
 **Memory:** the grant table is compile-time input, and nothing of it is held per request.
 
-What this gives up is that the grant table and the package graph are no longer the same thing. One
-package may declare several prefixes, and hand-vendored code has a prefix and no package, so the line
-written for a package does not promise to cover exactly that package's code. That is the price of
-covering code no package manager fetched, which is the code a package key left holding everything.
-
 **Declined:**
-- **The package key kept, with the override diagnosed.** It closes the override and leaves
-  hand-vendored code, which never had a package, unprotected, and it makes a supported pattern argue
-  with its author.
+- **A key on the package rather than the namespace, with the override diagnosed.** It closes the
+  override and leaves hand-copied code, which never had a package, unprotected, and it makes a
+  supported pattern argue with its author.
 - **A `grants` clause on the `autoload` declaration.** A `require`d file may declare a namespace with
   no `autoload` line involved, so grants on the import site protect only code that arrived by that
   route. For a fetched package the clause would also sit in a generated file marked *do not edit*,
@@ -718,18 +723,18 @@ covering code no package manager fetched, which is the code a package key left h
 **Not on disk.** The tree reads the deployment's capability block; it has no per-namespace grant
 table, and the diagnostics this rule needs do not exist.
 
-<sub>See also [`security/authority-is-the-enclosing-namespace`](security.md#security-authority-is-the-enclosing-namespace), [`security/capability-roster-is-closed`](security.md#security-capability-roster-is-closed), [`security/longest-prefix-wins`](security.md#security-longest-prefix-wins).</sub>
+<sub>See also [`security/authority-is-the-enclosing-namespace`](security.md#security-authority-is-the-enclosing-namespace), [`security/capability-roster-is-closed`](security.md#security-capability-roster-is-closed), [`security/longest-prefix-wins`](security.md#security-longest-prefix-wins), [`packaging/package-toml-is-a-tool-input`](packaging.md#packaging-package-toml-is-a-tool-input), [`packaging/a-package-name-is-vendor-slash-name`](packaging.md#packaging-a-package-name-is-vendor-slash-name).</sub>
 
 <a id="security-longest-prefix-wins"></a>
 
-## The longest matching grant key wins, and a subtree is spelled out because it reaches code that does not exist yet  *(designed — owned by M15)*
+## The longest matching grant key wins, and a subtree is spelled out because it reaches code that does not exist yet  *(designed — owned by goal namespace-grants)*
 
 `rule:security/longest-prefix-wins`
 
 Lookup reuses the resolution rule a developer already learned. A bare prefix grants **that namespace's
 own declarations only**; a subtree is spelled with an explicit wildcard and grants every depth below
 it. The **longest matching key wins**, an exact key beats a subtree key at equal length, and two keys
-that would match identically is an error at boot naming both.
+that would match identically is an error naming both when the table is read.
 
 **The subtree form is spelled out because it is the dangerous one.** A subtree grant reaches code that
 does not exist yet: granting a vendor's whole subtree means a module introduced by an upgrade eight
@@ -747,7 +752,7 @@ thing costs two extra characters and is visible in review as its own token.
 
 <a id="security-an-unmatched-namespace-holds-the-application"></a>
 
-## A namespace matching no grant line holds the application's own authority, and a fetch leaves nothing unmatched  *(designed — owned by M15)*
+## A namespace matching no grant line holds the application's own authority, and a fetch leaves nothing unmatched  *(designed — owned by goal package-audit)*
 
 `rule:security/an-unmatched-namespace-holds-the-application`
 
@@ -892,7 +897,7 @@ deployment never looks like a negative result.
 
 <a id="security-optional-capability-degrades"></a>
 
-## A capability is required or optional, and only a required one refuses to build  *(designed — owned by M15)*
+## A capability is required or optional, and only a required one refuses to build  *(designed — owned by goal namespace-grants)*
 
 `rule:security/optional-capability-degrades`
 
@@ -979,7 +984,7 @@ is rather than because of how it is written.
 
 <a id="security-package-authority-is-granted-one-line-at-a-time"></a>
 
-## A dependency's authority is granted by the application one line at a time, and a declaration grants nothing  *(designed — owned by M15)*
+## A dependency's authority is granted by the application one line at a time, and a declaration grants nothing  *(designed — owned by goal namespace-grants)*
 
 `rule:security/package-authority-is-granted-one-line-at-a-time`
 
@@ -2581,6 +2586,10 @@ shared key, and verified when another party issued it ([`security/jws-issued-sub
 ([`security/jwe-compact-subset`](security.md#security-jwe-compact-subset)), and detached signatures over a canonical payload. Nothing joins it
 without meeting the admission test ([`security/protocol-admission-test`](security.md#security-protocol-admission-test)).
 
+Two more entries are admitted and not built: `Core\Passkey`, the server half of a WebAuthn sign-in
+([`core-classes/passkey-verifies-a-webauthn-ceremony`](core-classes.md#core-classes-passkey-verifies-a-webauthn-ceremony)), and `Core\WebPush`, one encrypted push
+message ([`core-classes/web-push-sends-an-encrypted-message`](core-classes.md#core-classes-web-push-sends-an-encrypted-message)).
+
 Each entry is a protocol whose usual failure is a silent bug in the library, not in the application:
 a JWT verifier that accepts an unsigned token returns a valid-looking claim set, and nothing goes wrong
 until it does. Left to userland, such a protocol grows several implementations, and some of them carry
@@ -2595,7 +2604,7 @@ reveal at every call site — turning a deliberately conspicuous escape hatch in
 destroys its value as a signal. A userland implementation is still possible and cannot be prevented;
 the claim is not exclusivity but that the obvious, documented option is the correct one.
 
-**Every entry above is registered and carries conformance cases**, `Jwt::verifyIssued` included —
+**Every entry in the first paragraph is registered and carries conformance cases**, `Jwt::verifyIssued` included —
 so a token another party issued is verified against a `Jwt\KeySet` here rather than in userland.
 What the roster still owes is not a member but the flow around one: fetching, caching and rotating
 a key set are a package's job ([`security/protocol-admission-test`](security.md#security-protocol-admission-test)), and every member here is
@@ -2627,10 +2636,15 @@ the application uses it. **The failure is silent** — a wrong implementation re
 rather than an error. **The need is near-universal** for the kind of program Novis exists to run.
 
 One structural boundary decides the edge: **the operation is stateless over a key.** A protocol
-requiring network round trips, a redirect dance, or stored per-flow state is a *flow*, not a token
-operation. The major delegated-authentication and hardware-credential protocols are all flows: they
-need clients, discovery documents, nonce storage and expiry policy, and their designs vary per
-provider. They are out permanently, and are ordinary userland or package code built on this roster.
+requiring a redirect dance, discovery documents, or per-flow state that `Core` would have to store is a
+*flow*, not a token operation. The delegated-authentication protocols are all flows: they need clients,
+discovery documents, nonce storage and expiry policy, and their designs vary per provider. They are out
+permanently, and are ordinary userland or package code built on this roster.
+
+WebAuthn's server half is inside the line: each verification is a signature check over a public key
+the application stores, against a challenge the started session keeps. Its attestation part, which
+needs vendor certificate lists, stays out. Sending one encrypted push message is inside it too: one
+request out, with nothing stored and nothing to come back for.
 
 The closed list will be argued with, and this test is the answer — recording the boundary is what
 makes it a decision rather than a negotiation.

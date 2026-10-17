@@ -1,0 +1,12 @@
+{
+  "title": "Each vendor resolves from exactly one registry set in `package.toml`, by default `https://registry.novis-lang.org`, and never from the first registry that has the name",
+  "status": "designed",
+  "seeAlso": [
+    "packaging/a-git-dependency-is-root-only",
+    "packaging/the-lockfile-holds-every-digest",
+    "packaging/resolution-takes-the-highest-minimum",
+    "security/package-authority-is-granted-one-line-at-a-time"
+  ],
+  "guardedBy": [],
+  "goal": "package-client"
+}

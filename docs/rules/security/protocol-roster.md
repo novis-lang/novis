@@ -4,6 +4,10 @@ shared key, and verified when another party issued it (`rule:security/jws-issued
 (`rule:security/jwe-compact-subset`), and detached signatures over a canonical payload. Nothing joins it
 without meeting the admission test (`rule:security/protocol-admission-test`).
 
+Two more entries are admitted and not built: `Core\Passkey`, the server half of a WebAuthn sign-in
+(`rule:core-classes/passkey-verifies-a-webauthn-ceremony`), and `Core\WebPush`, one encrypted push
+message (`rule:core-classes/web-push-sends-an-encrypted-message`).
+
 Each entry is a protocol whose usual failure is a silent bug in the library, not in the application:
 a JWT verifier that accepts an unsigned token returns a valid-looking claim set, and nothing goes wrong
 until it does. Left to userland, such a protocol grows several implementations, and some of them carry
@@ -18,7 +22,7 @@ reveal at every call site — turning a deliberately conspicuous escape hatch in
 destroys its value as a signal. A userland implementation is still possible and cannot be prevented;
 the claim is not exclusivity but that the obvious, documented option is the correct one.
 
-**Every entry above is registered and carries conformance cases**, `Jwt::verifyIssued` included —
+**Every entry in the first paragraph is registered and carries conformance cases**, `Jwt::verifyIssued` included —
 so a token another party issued is verified against a `Jwt\KeySet` here rather than in userland.
 What the roster still owes is not a member but the flow around one: fetching, caching and rotating
 a key set are a package's job (`rule:security/protocol-admission-test`), and every member here is

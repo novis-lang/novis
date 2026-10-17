@@ -1,10 +1,13 @@
 {
-  "title": "A known-bad version is retracted, never deleted, and `nvs audit` names the minimum bump that clears it",
+  "title": "A known-bad version is retracted, never deleted, a token-sent retraction waits seven days, and `nvs pkg audit` names the minimum bump that clears it",
   "status": "designed",
   "seeAlso": [
     "packaging/resolution-takes-the-highest-minimum",
+    "packaging/a-release-waits-seven-days-unless-an-owner-confirms",
+    "packaging/the-operator-only-withholds",
+    "packaging/an-owner-may-unlist",
     "packaging/the-registry-keeps-an-append-only-log"
   ],
   "guardedBy": [],
-  "milestone": "M15"
+  "goal": "package-audit"
 }

@@ -1,0 +1,10 @@
+{
+  "title": "Registry search sorts by the reader's choice, ranks only on facts the registry witnessed and on downloads, and counts downloads without storing an address",
+  "status": "designed",
+  "seeAlso": [
+    "packaging/the-registry-is-a-novis-program",
+    "packaging/only-a-major-may-break-the-api"
+  ],
+  "guardedBy": [],
+  "goal": "registry-website"
+}

@@ -1,0 +1,40 @@
+The registry service and its website are a Novis web application in this repository, `apps/registry/`,
+and the byte-level work it needs is Rust in `nvs` subcommands the service runs — the same code the
+client runs.
+
+**The application** stores its data in SQLite through `Core\Db`, signs users in with `Core\Passkey`
+(`rule:core-classes/passkey-verifies-a-webauthn-ceremony`), sends push notifications with `Core\WebPush`
+(`rule:core-classes/web-push-sends-an-encrypted-message`), and runs the subcommands below as child
+processes, granted in its own `nvs.toml`. It serves the static index — one JSON file per package and one
+archive per digest — that the client reads, and it serves the archives itself so it can count
+downloads (`rule:packaging/search-sorts-by-the-readers-choice`).
+
+**The byte work** is these commands:
+
+| Command | Does |
+|---|---|
+| `nvs registry build` | clones a commit and packs and digests the package directory (`rule:packaging/the-registry-builds-the-archive-from-git`) |
+| `nvs registry log append` | adds entries to the log and signs a new checkpoint (`rule:packaging/the-registry-keeps-an-append-only-log`) |
+| `nvs registry log verify` | checks a log directory from scratch |
+| `nvs pkg api`, `nvs pkg diff` | extract a package's API and compare two versions (`rule:packaging/only-a-major-may-break-the-api`) |
+| `nvs pkg pack` | builds the deterministic archive, as `nvs registry build` does after its clone |
+
+`nvs registry` is operator surface for the service and prints no help in a user's command list. The
+`nvs pkg` commands are the user's (`rule:packaging/package-toml-is-a-tool-input`).
+
+Running the same Rust on both sides is what makes a digest predictable: `nvs pkg publish --dry-run` and
+the registry's build produce the same bytes from the same commit. Writing the service in Novis makes the
+registry a real program that depends on `Core`'s web surface, so a gap in that surface is found by the
+project before a user finds it. A deployment guide states how to run it, so a private registry is the
+same program.
+
+**Memory:** the service's memory is per request, with SQLite on disk. A build or a log append is a
+child process whose memory ends with it.
+
+**Declined:**
+- **A service in Rust or another language.** It would share no code path with the programs Novis
+  exists to run, and its byte work would be a second implementation of the client's.
+- **Byte work written in Novis.** Cloning, packing, digesting and log signing are the client's code
+  already, and a second copy could produce a different digest.
+
+**Not on disk.** There is no `apps/registry/` and no `nvs registry` command.

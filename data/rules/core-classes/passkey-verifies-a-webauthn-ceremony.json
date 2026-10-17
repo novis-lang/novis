@@ -1,0 +1,13 @@
+{
+  "title": "`Core\\Passkey` creates WebAuthn options and verifies registration and sign-in for ES256 and Ed25519, with a single-use challenge, no attestation check, and the credential stored by the application",
+  "status": "designed",
+  "seeAlso": [
+    "security/protocol-roster",
+    "security/protocol-admission-test",
+    "core-classes/session-is-started-explicitly",
+    "packaging/somebody-elses-specification-is-a-crate",
+    "packaging/a-registry-account-is-a-passkey"
+  ],
+  "guardedBy": [],
+  "goal": "core-passkey"
+}

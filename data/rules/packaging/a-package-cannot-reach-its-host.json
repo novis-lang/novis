@@ -7,5 +7,5 @@
     "security/path-scope-canonicalise-then-prefix"
   ],
   "guardedBy": [],
-  "milestone": "M15"
+  "goal": "namespace-grants"
 }

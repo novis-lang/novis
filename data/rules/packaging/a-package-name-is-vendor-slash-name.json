@@ -1,12 +1,13 @@
 {
-  "title": "A package name is `vendor/name`, lowercase ASCII compared exactly, and `nvs` is reserved for first-party packages",
+  "title": "A package's name is its two-segment root namespace `Vendor\\Package`, `acme/http` is that name lowercased, and the first publish under a vendor owns the vendor",
   "status": "designed",
   "seeAlso": [
     "packaging/a-package-is-its-digest",
+    "packaging/a-package-file-stays-under-its-declared-prefix",
     "core-api/reserved-namespace",
-    "programs/path-case",
-    "packaging/a-c-dependency-answers-two-questions"
+    "security/grants-are-keyed-on-a-namespace",
+    "packaging/the-operator-only-withholds"
   ],
   "guardedBy": [],
-  "milestone": "M15"
+  "goal": "package-client"
 }

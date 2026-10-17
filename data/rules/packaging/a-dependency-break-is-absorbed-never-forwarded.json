@@ -4,7 +4,7 @@
   "seeAlso": [
     "packaging/who-can-see-it-decides-the-release-slot",
     "packaging/a-forced-break-is-announced-before-it-lands",
-    "packaging/a-breaking-release-is-a-new-name",
+    "packaging/only-a-major-may-break-the-api",
     "packaging/the-sweep-is-fired-by-a-human",
     "security/no-ffi",
     "packaging/a-c-dependency-answers-two-questions",

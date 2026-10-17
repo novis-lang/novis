@@ -6,5 +6,5 @@
     "security/package-authority-is-granted-one-line-at-a-time"
   ],
   "guardedBy": [],
-  "milestone": "M15"
+  "goal": "package-audit"
 }

@@ -1,11 +1,13 @@
 {
-  "title": "The application's grant table is keyed on namespace prefixes, and a capability it names must be on the roster",
+  "title": "The application's grant table is `[grants]` in its own `package.toml`, keyed on namespace prefixes, and a capability it names must be on the roster",
   "status": "designed",
   "seeAlso": [
     "security/authority-is-the-enclosing-namespace",
     "security/capability-roster-is-closed",
-    "security/longest-prefix-wins"
+    "security/longest-prefix-wins",
+    "packaging/package-toml-is-a-tool-input",
+    "packaging/a-package-name-is-vendor-slash-name"
   ],
   "guardedBy": [],
-  "milestone": "M15"
+  "goal": "namespace-grants"
 }

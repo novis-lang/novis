@@ -9,5 +9,5 @@
     "packaging/autoload-probes-fold-into-the-cache-key"
   ],
   "guardedBy": [],
-  "milestone": "M15"
+  "goal": "package-client"
 }

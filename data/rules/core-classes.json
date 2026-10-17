@@ -73,6 +73,8 @@
     "core-classes/ratelimit-unreachable-store-throws",
     "core-classes/crypto-interop-tier",
     "core-classes/signature",
+    "core-classes/passkey-verifies-a-webauthn-ceremony",
+    "core-classes/web-push-sends-an-encrypted-message",
     "core-classes/router-signed-url",
     "core-classes/uri-removable-components",
     "core-classes/output-that-scales-with-its-input-bounds-the-input",

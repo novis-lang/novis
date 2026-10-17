@@ -1994,8 +1994,8 @@ everything held locally. What is recorded is a closed set of operator actions
 ([`tooling/a-serving-process-never-uploads`](tooling.md#tooling-a-serving-process-never-uploads)), and the exact payload is printable before anything is
 sent ([`tooling/telemetry-show-prints-the-payload`](tooling.md#tooling-telemetry-show-prints-the-payload)).
 
-The verb is `update-check`, not `update`, on purpose: `nvs update` is the package resolver's, and the two
-never collide.
+The verb is `update-check`, not `update`, on purpose: updating a dependency is `nvs pkg update`
+([`packaging/package-toml-is-a-tool-input`](packaging.md#packaging-package-toml-is-a-tool-input)), and a bare `nvs update` would read as either.
 
 The population worth measuring is the developers and operators who run `nvs`, most of them as an HTTP
 server. `nvs serve` is itself a command, so the boundary is not the CLI against the server: it is

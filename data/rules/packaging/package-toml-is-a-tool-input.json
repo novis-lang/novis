@@ -1,13 +1,16 @@
 {
-  "title": "`package.toml` is read by the `nvs` CLI, never by the runtime and never by name resolution",
+  "title": "`package.toml` is read by the `nvs pkg` commands, and the compiler reads its `[grants]` table and nothing else of the application's file",
   "status": "designed",
   "seeAlso": [
     "packaging/a-fetched-package-is-an-autoload-line",
     "config/nvs-toml-is-not-a-project-manifest",
     "config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one",
+    "config/the-extension-set-is-in-every-unit-key",
+    "packaging/the-cli-surface-is-novis-own",
     "programs/no-runtime-autoload",
+    "security/grants-are-keyed-on-a-namespace",
     "security/optional-capability-degrades"
   ],
   "guardedBy": [],
-  "milestone": "M15"
+  "goal": "package-client"
 }

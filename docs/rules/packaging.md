@@ -3,7 +3,7 @@
 
 # Packaging
 
-*15 of 79 rules below are **designed** rather than shipped, and are marked where they appear.*
+*26 of 90 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="packaging-an-artifact-is-one-immutable-content-addressed-file"></a>
 
@@ -859,29 +859,55 @@ flag-gated for reasons this command does not share.
 
 <a id="packaging-a-package-name-is-vendor-slash-name"></a>
 
-## A package name is `vendor/name`, lowercase ASCII compared exactly, and `nvs` is reserved for first-party packages  *(designed — owned by M15)*
+## A package's name is its two-segment root namespace `Vendor\Package`, `acme/http` is that name lowercased, and the first publish under a vendor owns the vendor  *(designed — owned by goal package-client)*
 
 `rule:packaging/a-package-name-is-vendor-slash-name`
 
-A package name is **`vendor/name`**: both segments lowercase ASCII with `-` permitted, and compared
-**exactly** — the same rule the compiler applies to every other name, so that a name which resolves
-on one operating system resolves on all three. A registry maps a name plus a minimum version to a
-digest; the name is never the identity ([`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest)).
+A package's name is its root namespace, which has exactly two segments, `Vendor\Package` — `Acme\Http`
+— and every file in the package declares that namespace or one under it
+([`packaging/a-package-file-stays-under-its-declared-prefix`](packaging.md#packaging-a-package-file-stays-under-its-declared-prefix)). Nothing else about the namespaces or
+class names inside a package is required.
 
-The vendor segment `nvs` is reserved for first-party packages, exactly as `Core` is reserved in the
-language ([`core-api/reserved-namespace`](core-api.md#core-api-reserved-namespace)). First-party packages are otherwise subject to every
-rule here: `nvs/rest` resolves, locks, is logged and is granted like anyone else's package, because a
-registry whose maintainers do not depend on it does not stay good.
+**The command line and URL spelling is derived, never chosen.** Lowercase the namespace and replace `\`
+with `/`: `Acme\Http` is `acme/http`. Nobody types a name into a form. Two namespaces that differ only
+by case map to one name, and the registry refuses the second at publish. A name only finds a digest;
+the digest is the identity ([`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest)).
 
-Names are first-come, and the squatting policy is the registry operator's own operational document.
+**Who may take a name:**
+
+- The first publish of `Acme\Http` takes the name. Nothing is reserved in advance, and nothing expires.
+- **The vendor is owned.** The first publish under `Acme` makes that account the owner of the vendor
+  `Acme`. Only the vendor's owners publish further `Acme\...` packages, and an owner may add other
+  accounts as owners.
+- A name that has ever had a published version is **never reassigned**, by an owner or by the operator
+  ([`packaging/the-operator-only-withholds`](packaging.md#packaging-the-operator-only-withholds)).
+- `Core\` and `Novis\` are refused for every account but the project's own. `Core` is the standard
+  library's ([`core-api/reserved-namespace`](core-api.md#core-api-reserved-namespace)). `Novis\` holds the built-in components and the
+  first-party packages, so no package takes a built-in component's name such as `Novis\Image`. The
+  first-party REST client is `Novis\Rest`, published by the project account and held to every rule
+  here, because a registry whose maintainers do not depend on it does not stay good.
+
+Because the name is the namespace, one registry cannot hold two packages that claim one prefix, and for
+a registry package the grant line and the package are the same thing
+([`security/grants-are-keyed-on-a-namespace`](security.md#security-grants-are-keyed-on-a-namespace)). A name derived from the code cannot drift from it.
+Taking a name costs a real publish from a public repository
+([`packaging/the-registry-builds-the-archive-from-git`](packaging.md#packaging-the-registry-builds-the-archive-from-git)), so there is nothing to squat before code
+exists.
+
+**Declined:**
+- **A `vendor/name` chosen on a form, beside a declared namespace prefix.** Two names for one package
+  can disagree, two packages can claim one prefix, and the grant line would cover a prefix rather than
+  a package.
+- **Reserving a name before its first publish.** A reservation is a name with no code behind it, which
+  is what squatting is.
 
 **Not on disk.** The tree has no package system.
 
-<sub>See also [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest), [`core-api/reserved-namespace`](core-api.md#core-api-reserved-namespace), [`programs/path-case`](programs.md#programs-path-case), [`packaging/a-c-dependency-answers-two-questions`](packaging.md#packaging-a-c-dependency-answers-two-questions).</sub>
+<sub>See also [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest), [`packaging/a-package-file-stays-under-its-declared-prefix`](packaging.md#packaging-a-package-file-stays-under-its-declared-prefix), [`core-api/reserved-namespace`](core-api.md#core-api-reserved-namespace), [`security/grants-are-keyed-on-a-namespace`](security.md#security-grants-are-keyed-on-a-namespace), [`packaging/the-operator-only-withholds`](packaging.md#packaging-the-operator-only-withholds).</sub>
 
 <a id="packaging-a-package-is-its-digest"></a>
 
-## A package is an immutable source archive whose identity is its BLAKE3 digest  *(designed — owned by M15)*
+## A package is an immutable source archive whose identity is its BLAKE3 digest  *(designed — owned by goal package-client)*
 
 `rule:packaging/a-package-is-its-digest`
 
@@ -903,87 +929,121 @@ subsystem of the standard library is never a package.
 Compiled artifacts are never published: a compiled unit is unreviewable, and source distribution is
 what makes "the digest is the identity" a statement about code a human could read.
 
-**Not on disk.** There is no `nvs add`, `fetch`, `update`, `outdated`, `vendor`, `audit` or `publish`
-subcommand, no `package.toml` or `package.lock` reader, and nothing in the tree digests a package
-archive.
+**Not on disk.** There is no `nvs pkg` command, no `package.toml` or `package.lock` reader, and
+nothing in the tree digests a package archive.
 
 <sub>See also [`packaging/a-package-name-is-vendor-slash-name`](packaging.md#packaging-a-package-name-is-vendor-slash-name), [`packaging/a-package-cannot-reach-its-host`](packaging.md#packaging-a-package-cannot-reach-its-host), [`packaging/the-lockfile-holds-every-digest`](packaging.md#packaging-the-lockfile-holds-every-digest), [`security/package-authority-is-granted-one-line-at-a-time`](security.md#security-package-authority-is-granted-one-line-at-a-time), [`security/extension-manifest-only-tightens`](security.md#security-extension-manifest-only-tightens), [`programs/bundle-trust-domain`](programs.md#programs-bundle-trust-domain), [`packaging/an-extension-is-a-sandboxed-wasm-component`](packaging.md#packaging-an-extension-is-a-sandboxed-wasm-component), [`packaging/an-extension-package-carries-two-payloads`](packaging.md#packaging-an-extension-package-carries-two-payloads), [`packaging/an-artifact-is-one-immutable-content-addressed-file`](packaging.md#packaging-an-artifact-is-one-immutable-content-addressed-file).</sub>
 
 <a id="packaging-package-toml-is-a-tool-input"></a>
 
-## `package.toml` is read by the `nvs` CLI, never by the runtime and never by name resolution  *(designed — owned by M15)*
+## `package.toml` is read by the `nvs pkg` commands, and the compiler reads its `[grants]` table and nothing else of the application's file  *(designed — owned by goal package-client)*
 
 `rule:packaging/package-toml-is-a-tool-input`
 
+`package.toml` is read by the `nvs pkg` commands, and the compiler reads **one table of the
+application's file, `[grants]`**, and nothing else of it. Neither the runtime nor name resolution ever
+reads `package.toml`.
+
+**Every package and registry command a user types is a subcommand of `nvs pkg`**: `add`, `fetch`,
+`update`, `outdated`, `vendor`, `audit`, `publish`, `retract`, `unlist`, `login`, `whoami`, `api`,
+`diff` and `pack`. That is the one spelling, short as `nvs ext` is
+([`packaging/the-cli-surface-is-novis-own`](packaging.md#packaging-the-cli-surface-is-novis-own)): there is no `nvs package` alias and no flat `nvs add`
+or `nvs update`, so a package verb never collides with a toolchain command such as `nvs update-check`.
+The files keep their full names, `package.toml` and `package.lock`. The registry service's own byte work is `nvs registry`
+([`packaging/the-registry-is-a-novis-program`](packaging.md#packaging-the-registry-is-a-novis-program)), which is operator surface.
+
 The rejection of "a manifest file found by walking up from the entry file"
 ([`programs/no-runtime-autoload`](programs.md#programs-no-runtime-autoload)) stands, and so does
-[`config/nvs-toml-is-not-a-project-manifest`](config.md#config-nvs-toml-is-not-a-project-manifest). `package.toml` is neither, because the distinction
-both draw is about *who reads the file*.
+[`config/nvs-toml-is-not-a-project-manifest`](config.md#config-nvs-toml-is-not-a-project-manifest). Both are about where a declaration is found, and no
+declaration is in `package.toml`: a program whose `vendor/` is populated resolves every name the same
+way whether the file is present, absent or malformed. A fetched package reaches the program as an
+ordinary `autoload` line ([`packaging/a-fetched-package-is-an-autoload-line`](packaging.md#packaging-a-fetched-package-is-an-autoload-line)).
 
-**Neither the runtime nor name resolution ever reads `package.toml`.** Program semantics do not
-depend on it, no compiled unit's cache key includes it, and a program whose `vendor/` is already
-populated resolves every name identically whether the file is present, absent or malformed. That is
-a statement about *name resolution*, not about the build as a whole: the manifest's
-`required`/`optional` split ([`security/optional-capability-degrades`](security.md#security-optional-capability-degrades)) and its declared
-namespace prefix are compiler inputs, reached through the fetched layout, so a malformed manifest
-still fails a build.
+**`[grants]` is the application's grant table** ([`security/grants-are-keyed-on-a-namespace`](security.md#security-grants-are-keyed-on-a-namespace)).
+`nvs pkg add` and `nvs pkg fetch` write one line per package in the resolved graph, an empty one
+included, and never rewrite a line a person already edited. A person reviews and edits the lines. The
+operator's `nvs.toml` can only narrow what they grant. A package's own `package.toml` declares its name,
+version, dependencies and the capabilities it requests, split into `required` and `optional`
+([`security/optional-capability-degrades`](security.md#security-optional-capability-degrades)); the compiler reads that name and that split for a file
+inside the package, and nothing else of a package's file.
 
-It is read by the **`nvs` CLI** — `add`, `fetch`, `update`, `vendor`, `audit`, `publish` — which may
-find it by walking up from the working directory the way `git` finds `.git`, because a tool locating
-its own project is a different question from a language locating a declaration.
+**Only the grants fold into the cache key.** Every compiled unit's key carries the grant table and the
+capability declarations it is intersected with, the way it carries the extension set
+([`config/the-extension-set-is-in-every-unit-key`](config.md#config-the-extension-set-is-in-every-unit-key)), so an edited grant line is an ordinary cache
+miss. A changed version, dependency or comment changes no key, because none of them changes what
+compiles.
 
-It is TOML with unknown fields refused ([`config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`](config.md#config-a-duplicate-key-is-an-error-and-so-is-an-unknown-one)),
-and its integration with the program is the generated file
-[`packaging/a-fetched-package-is-an-autoload-line`](packaging.md#packaging-a-fetched-package-is-an-autoload-line) describes.
+`nvs check`, the editor and every `nvs pkg` command find the file by walking up from the working
+directory, the way `git` finds `.git`: a tool locating its own project is a different question from a
+language locating a declaration. The file is TOML with unknown fields refused
+([`config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`](config.md#config-a-duplicate-key-is-an-error-and-so-is-an-unknown-one)).
 
-**Not on disk.** The tree has no package system and reads no `package.toml`.
+**Memory:** the grant table is compile-time input, and nothing of it is held per request.
 
-<sub>See also [`packaging/a-fetched-package-is-an-autoload-line`](packaging.md#packaging-a-fetched-package-is-an-autoload-line), [`config/nvs-toml-is-not-a-project-manifest`](config.md#config-nvs-toml-is-not-a-project-manifest), [`config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`](config.md#config-a-duplicate-key-is-an-error-and-so-is-an-unknown-one), [`programs/no-runtime-autoload`](programs.md#programs-no-runtime-autoload), [`security/optional-capability-degrades`](security.md#security-optional-capability-degrades).</sub>
+**Declined:**
+- **The grant table in `nvs.toml`.** That file is the operator's and deployment-scoped
+  ([`config/nvs-toml-is-not-a-project-manifest`](config.md#config-nvs-toml-is-not-a-project-manifest)). A grant is the application author's decision
+  about a dependency, and it changes in the same commit as the dependency graph. The operator keeps the
+  ceiling through the intersection.
+- **The whole file in the cache key.** A version bump or a comment would invalidate every unit, while
+  only the grants change what compiles.
+- **Flat package verbs, `nvs add` and `nvs publish`.** They spread one workflow across the toolchain's
+  top level, and `nvs update` would sit beside `nvs update-check` meaning something else.
+- **`nvs package` as a second spelling of `nvs pkg`.** Two spellings of one command are two things to
+  document, complete and search for.
+
+**Not on disk.** The tree reads no `package.toml` and has no `nvs pkg` command.
+
+<sub>See also [`packaging/a-fetched-package-is-an-autoload-line`](packaging.md#packaging-a-fetched-package-is-an-autoload-line), [`config/nvs-toml-is-not-a-project-manifest`](config.md#config-nvs-toml-is-not-a-project-manifest), [`config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`](config.md#config-a-duplicate-key-is-an-error-and-so-is-an-unknown-one), [`config/the-extension-set-is-in-every-unit-key`](config.md#config-the-extension-set-is-in-every-unit-key), [`packaging/the-cli-surface-is-novis-own`](packaging.md#packaging-the-cli-surface-is-novis-own), [`programs/no-runtime-autoload`](programs.md#programs-no-runtime-autoload), [`security/grants-are-keyed-on-a-namespace`](security.md#security-grants-are-keyed-on-a-namespace), [`security/optional-capability-degrades`](security.md#security-optional-capability-degrades).</sub>
 
 <a id="packaging-a-package-file-stays-under-its-declared-prefix"></a>
 
-## Every file in a fetched package declares a namespace under the prefix its manifest claims, and two packages claiming one prefix is a fetch error naming both  *(designed — owned by M15)*
+## Every file in a package declares the package's namespace or one under it, or it does not compile  *(designed — owned by goal namespace-grants)*
 
 `rule:packaging/a-package-file-stays-under-its-declared-prefix`
 
+Every file in a package declares the package's namespace, `Vendor\Package`, or one under it, and a
+file that declares anything else is a **compile error** naming the file, the namespace it declared and
+the package it had to stay inside.
+
+A file belongs to a package when it was reached through an autoload root inside a directory that holds
+a `package.toml`, and that manifest gives the package's name
+([`packaging/a-package-name-is-vendor-slash-name`](packaging.md#packaging-a-package-name-is-vendor-slash-name)). The check needs nothing more: the package comes
+from the layout, its name from the manifest, and the declaration is in the file. It needs no package
+manager either, so a package copied in by hand with its manifest is checked exactly as a fetched one is.
+
 Authority is looked up by the enclosing namespace alone
-([`security/authority-is-the-enclosing-namespace`](security.md#security-authority-is-the-enclosing-namespace)), and keying on a self-declared attribute would
-be worthless if a package could declare any attribute it liked. Two checks close that.
+([`security/authority-is-the-enclosing-namespace`](security.md#security-authority-is-the-enclosing-namespace)), which would be worthless if a package could
+declare any namespace it liked. This check is separate from the lookup: it makes the namespace the
+lookup trusts one the package was not free to choose. A package file that declares `namespace App;` to
+reach the application's grants does not compile.
 
-**A package declares its namespace prefix in its manifest, and two packages claiming one prefix is
-an error at fetch time naming both.** The collision is caught when the graph is assembled, not as a
-redeclaration during compilation.
+**No fetch-time clash check exists.** A package's prefix is its name, a resolved graph holds one source
+per name, and each vendor resolves from one registry
+([`packaging/a-vendor-resolves-from-one-registry`](packaging.md#packaging-a-vendor-resolves-from-one-registry)), so two packages in one graph cannot claim one
+prefix.
 
-**Every file in a fetched package must declare a namespace under that package's declared prefix.**
-This is a compile-time check needing no new information: the file's package is known from the
-fetched layout, the prefix from the manifest, and the declaration is in the file. A package whose
-file declares `namespace App;` in order to reach the application's grants fails to compile, naming
-the file, the namespace it declared and the prefix it was required to stay inside.
+Hand-copied code with no manifest has no package and so no file check. It has the grant check, a person
+writing the `autoload` line that names its prefix, and the audit warning
+[`security/an-unmatched-namespace-holds-the-application`](security.md#security-an-unmatched-namespace-holds-the-application) describes.
 
-The second check is *not* how authority is looked up — the lookup reads the namespace alone. It is a
-separate integrity check that the fetched layout and the declared namespaces agree, so the attribute
-the lookup trusts is one the package was not free to choose. Hand-vendored code has no manifest and
-so no such check; what it has instead is a human writing the `autoload` line that names its prefix,
-and the audit warning [`security/an-unmatched-namespace-holds-the-application`](security.md#security-an-unmatched-namespace-holds-the-application) describes if they
-did not think about it.
+**Not on disk.** Nothing checks a package file's namespace against its package. The diagnostic takes
+the next free code in its band.
 
-**Not on disk.** Nothing checks a package file's path against its prefix. The check's diagnostic
-takes the next free code in its band.
-
-<sub>See also [`security/grants-are-keyed-on-a-namespace`](security.md#security-grants-are-keyed-on-a-namespace), [`security/authority-is-the-enclosing-namespace`](security.md#security-authority-is-the-enclosing-namespace), [`security/an-unmatched-namespace-holds-the-application`](security.md#security-an-unmatched-namespace-holds-the-application), [`packaging/a-fetched-package-is-an-autoload-line`](packaging.md#packaging-a-fetched-package-is-an-autoload-line).</sub>
+<sub>See also [`packaging/a-package-name-is-vendor-slash-name`](packaging.md#packaging-a-package-name-is-vendor-slash-name), [`security/grants-are-keyed-on-a-namespace`](security.md#security-grants-are-keyed-on-a-namespace), [`security/authority-is-the-enclosing-namespace`](security.md#security-authority-is-the-enclosing-namespace), [`security/an-unmatched-namespace-holds-the-application`](security.md#security-an-unmatched-namespace-holds-the-application), [`packaging/a-fetched-package-is-an-autoload-line`](packaging.md#packaging-a-fetched-package-is-an-autoload-line).</sub>
 
 <a id="packaging-a-fetched-package-is-an-autoload-line"></a>
 
-## A fetched package is reached by an ordinary `autoload` line in a committed, generated `vendor/packages.nvs`  *(designed — owned by M15)*
+## A fetched package is reached by an ordinary `autoload` line in a committed, generated `vendor/packages.nvs`  *(designed — owned by goal package-client)*
 
 `rule:packaging/a-fetched-package-is-an-autoload-line`
 
-`nvs fetch` materialises the graph under `vendor/` and writes **one generated Novis source file**,
+`nvs pkg fetch` materialises the graph under `vendor/` and writes **one generated Novis source file**,
 `vendor/packages.nvs`, containing nothing but ordinary declarations:
 
 ```nvs
 <?nvs
-// Generated by `nvs fetch` from package.lock. Do not edit.
+// Generated by `nvs pkg fetch` from package.lock. Do not edit.
 autoload 'Acme\Http' from './acme-http-1.4.0/src';
 autoload 'Acme\Csv'  from './acme-csv-0.3.0/src';
 ```
@@ -997,17 +1057,18 @@ learns nothing about packages in order to resolve a name. The proof is structura
 **The generated file is committed.** It is short and readable, and every change to the dependency
 graph shows up in a diff as a line of source rather than as a change in a tool's behaviour.
 
-The prefix each line names is the one the package's manifest declares, and a clash between two
-packages is caught when the graph is assembled rather than as a confusing redeclaration during
-compilation ([`packaging/a-package-file-stays-under-its-declared-prefix`](packaging.md#packaging-a-package-file-stays-under-its-declared-prefix)).
+The prefix each line names is the package's name ([`packaging/a-package-name-is-vendor-slash-name`](packaging.md#packaging-a-package-name-is-vendor-slash-name)).
+Beside each `autoload` line, the fetch writes one grant line for the same package into `[grants]`, an
+empty one included ([`security/an-unmatched-namespace-holds-the-application`](security.md#security-an-unmatched-namespace-holds-the-application)), and never rewrites
+a grant line a person already edited ([`packaging/package-toml-is-a-tool-input`](packaging.md#packaging-package-toml-is-a-tool-input)).
 
-**Not on disk.** `autoload` is shipped; `nvs fetch` and the generated file are not.
+**Not on disk.** `autoload` is shipped; `nvs pkg fetch` and the generated file are not.
 
 <sub>See also [`programs/no-runtime-autoload`](programs.md#programs-no-runtime-autoload), [`programs/autoload`](programs.md#programs-autoload), [`packaging/a-package-file-stays-under-its-declared-prefix`](packaging.md#packaging-a-package-file-stays-under-its-declared-prefix), [`packaging/package-toml-is-a-tool-input`](packaging.md#packaging-package-toml-is-a-tool-input), [`packaging/autoload-probes-fold-into-the-cache-key`](packaging.md#packaging-autoload-probes-fold-into-the-cache-key).</sub>
 
 <a id="packaging-nothing-runs-before-the-program"></a>
 
-## Nothing in a package runs before your program does  *(designed — owned by M15)*
+## Nothing in a package runs before your program does  *(designed — owned by goal package-client)*
 
 `rule:packaging/nothing-runs-before-the-program`
 
@@ -1026,7 +1087,7 @@ where a human reviews the output and the digest covers it. The generated file is
 other.
 
 A package containing a top-level statement with an observable effect produces no effect from
-`nvs fetch`, `nvs build` or `nvs vendor` — only from a call. There is no legitimate exception: in a
+`nvs pkg fetch`, `nvs build` or `nvs pkg vendor` — only from a call. There is no legitimate exception: in a
 language with no FFI and no native compilation step available to userland, an allowance for
 "packages that genuinely need it" would exist only to be abused, and if such a need ever appears
 the rule is re-argued from scratch rather than amended.
@@ -1037,7 +1098,7 @@ the rule is re-argued from scratch rather than amended.
 
 <a id="packaging-a-package-cannot-reach-its-host"></a>
 
-## A package ships no `nvs.toml`, and none of its `require` or `autoload` paths reaches outside its own directory  *(designed — owned by M15)*
+## A package ships no `nvs.toml`, and none of its `require` or `autoload` paths reaches outside its own directory  *(designed — owned by goal namespace-grants)*
 
 `rule:packaging/a-package-cannot-reach-its-host`
 
@@ -1059,35 +1120,105 @@ map against which to check a path.
 
 <sub>See also [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest), [`config/nvs-toml-is-not-a-project-manifest`](config.md#config-nvs-toml-is-not-a-project-manifest), [`security/path-scope-canonicalise-then-prefix`](security.md#security-path-scope-canonicalise-then-prefix).</sub>
 
+<a id="packaging-only-a-major-may-break-the-api"></a>
+
+## From `0.1.0` on, a minor or patch release never breaks the public API of the release before it, and `nvs` checks that at publish without running code  *(designed — owned by goal api-compat)*
+
+`rule:packaging/only-a-major-may-break-the-api`
+
+A package version is `MAJOR.MINOR.PATCH`, read literally, and from `0.1.0` onward a minor or patch
+release never breaks the public API of the release before it. A major may change anything.
+
+- `0.0.x` is experimental. Any shape may change in any release, and nothing is checked.
+- From the first release at `0.1.0` or higher the API is stable. The second part goes up for a minor
+  (features and fixes), the third for a patch (usually fixes), and the first for a major.
+- Additions and widening are allowed in a minor and in a patch alike.
+
+Package versions do not follow [`packaging/below-1-0-the-breaking-slot-moves-left`](packaging.md#packaging-below-1-0-the-breaking-slot-moves-left), which is the
+toolchain's own scheme.
+
+**A break** is any of these, and an addition that breaks a caller counts:
+
+- removing or renaming anything public;
+- a new method on a public interface, or a new abstract method;
+- a new enum case, because it breaks an exhaustive `match`;
+- a parameter type that narrows, or a return type that widens;
+- a new required parameter.
+
+A change the comparison cannot classify is a break, and there is no way to suppress one.
+
+**`nvs` checks it statically, without running any code.** `nvs pkg api` extracts the public API
+from the checked program after name resolution, so an alias, an import or a formatting change is not a
+change, and `nvs pkg diff` compares two versions and exits non-zero on a break the version step
+does not allow. The registry runs the same comparison at publish and refuses the release
+([`packaging/publishing-never-overwrites`](packaging.md#packaging-publishing-never-overwrites)). The first release at `0.1.0` or higher waits for a
+one-time passkey confirmation by an owner on the website, which shows the exact API being frozen and
+says that from then on only a major may break it
+([`packaging/a-release-waits-seven-days-unless-an-owner-confirms`](packaging.md#packaging-a-release-waits-seven-days-unless-an-owner-confirms)).
+
+**The guarantee is about shape only.** Behaviour may change in any release, and the reference says
+so. Shape is what a compiler can check without running code, and a promise about behaviour would be
+one that nothing holds.
+
+**A maintainer who keeps an old major alive publishes a new package**, `Acme\HttpNext` or `Acme\HttpV2`
+as they choose, and may set `supersedes = "acme/http"` so that `nvs pkg outdated` and
+`nvs pkg audit` point at it. Nothing requires this.
+
+The check is what keeps [`packaging/resolution-takes-the-highest-minimum`](packaging.md#packaging-resolution-takes-the-highest-minimum) sound: a minimum is never
+a ceiling, so a higher version inside a major must always be acceptable, and the registry refuses one
+that is not. Across a major, a break that matters is a compile error, because the whole program is
+type-checked.
+
+**Declined:**
+- **A new name for every breaking release**, `acme/http` → `acme/http2`. It kept resolution sound only
+  by convention, and it charged every maintainer a rename where a checked major does the same job.
+- **A namespace depth per major**, `Acme\Http\V2`. It writes the version into every `use` line and
+  class name, and asks something of package code beyond its name
+  ([`packaging/a-package-name-is-vendor-slash-name`](packaging.md#packaging-a-package-name-is-vendor-slash-name)).
+- **Cargo's `0.x` shift**, where `0.MINOR` is the breaking slot. A version read literally needs no table
+  to explain it, and `0.0.x` already covers code that promises nothing.
+- **A mark that suppresses a break the author calls harmless.** A check its author can switch off is a
+  convention again.
+
+**Not on disk.** `nvs api diff` compares two OpenAPI documents ([`routing/api-diff-fails-a-breaking-change`](routing.md#routing-api-diff-fails-a-breaking-change));
+nothing extracts or compares a package's API.
+
+<sub>See also [`packaging/resolution-takes-the-highest-minimum`](packaging.md#packaging-resolution-takes-the-highest-minimum), [`packaging/a-release-waits-seven-days-unless-an-owner-confirms`](packaging.md#packaging-a-release-waits-seven-days-unless-an-owner-confirms), [`packaging/below-1-0-the-breaking-slot-moves-left`](packaging.md#packaging-below-1-0-the-breaking-slot-moves-left), [`packaging/a-dependency-break-is-absorbed-never-forwarded`](packaging.md#packaging-a-dependency-break-is-absorbed-never-forwarded), [`routing/api-diff-fails-a-breaking-change`](routing.md#routing-api-diff-fails-a-breaking-change).</sub>
+
 <a id="packaging-resolution-takes-the-highest-minimum"></a>
 
-## Resolution selects the highest minimum any package asked for, and nothing upgrades itself  *(designed — owned by M15)*
+## Resolution selects the highest minimum any package asked for, across majors, never a pending version, and nothing upgrades itself  *(designed — owned by goal package-client)*
 
 `rule:packaging/resolution-takes-the-highest-minimum`
 
-Every dependency names the **minimum version** it needs. The version selected for a package is the
-**highest minimum any package in the graph asked for**. That is the whole algorithm.
+Every dependency names the **minimum version** it needs, and the version selected for a package is the
+**highest minimum any package in the graph asked for**, across majors too. That is the whole algorithm.
 
-There is no solver, no backtracking and no unsolvable graph: resolution is a walk taking a maximum,
-so it always succeeds, it is fast, and it is deterministic without the lockfile — the lockfile
-records digests for *integrity*, not to pin a choice that would otherwise wobble
-([`packaging/the-lockfile-holds-every-digest`](packaging.md#packaging-the-lockfile-holds-every-digest)). Adding a dependency cannot move an unrelated
-one, and the version you get is one somebody explicitly asked for, never the newest thing published
-this morning, so a build that worked yesterday works today and a fresh clone matches CI.
+There is no solver, no backtracking and no unsolvable graph: resolution is a walk taking a maximum, so
+it always succeeds, it is fast, and it is deterministic without the lockfile — the lockfile records
+digests for *integrity*, not to pin a choice that would otherwise wobble
+([`packaging/the-lockfile-holds-every-digest`](packaging.md#packaging-the-lockfile-holds-every-digest)). Adding a dependency cannot move an unrelated one,
+and the version you get is one somebody explicitly asked for, never the newest thing published this
+morning, so a build that worked yesterday works today and a fresh clone matches CI. A graph where two
+packages require different minimums of a third selects the higher, and no other package's version
+changes.
 
-**Upgrades are explicit.** `nvs update <package>` raises a minimum in `package.toml` and shows the
-effect on the whole graph; `nvs outdated` reports what is available. Nothing upgrades itself — which
-is also why a security patch does not arrive on its own, and why retraction and `nvs audit`
-([`packaging/a-known-bad-version-is-retracted-not-deleted`](packaging.md#packaging-a-known-bad-version-is-retracted-not-deleted)) have to be genuinely good rather
-than an afterthought.
+**A higher version inside a major is always acceptable**, because a minor or patch release may not
+break the API of the release before it ([`packaging/only-a-major-may-break-the-api`](packaging.md#packaging-only-a-major-may-break-the-api)). **Across a
+major, a break that matters is a compile error** naming the package, the member and both versions,
+because the whole program is type-checked. `nvs pkg add` and `nvs pkg update` print when a
+selection crosses a major and which package asked for the older one. A `0.0.x` dependency is an
+ordinary minimum.
 
-A minimum is a floor and never a ceiling, so the algorithm is sound only if a higher version is
-always acceptable — which is what [`packaging/a-breaking-release-is-a-new-name`](packaging.md#packaging-a-breaking-release-is-a-new-name) guarantees.
+**Only a released version is selected.** A version still pending
+([`packaging/a-release-waits-seven-days-unless-an-owner-confirms`](packaging.md#packaging-a-release-waits-seven-days-unless-an-owner-confirms)) is fetchable by its exact
+version and is never chosen by `add` or `update`. A retracted version is not selected, and resolution
+names its fix ([`packaging/a-known-bad-version-is-retracted-not-deleted`](packaging.md#packaging-a-known-bad-version-is-retracted-not-deleted)).
 
-A graph where two packages require different minimums of a third selects the higher, and no other
-package's version changes. No manifest exists for which resolution reports a conflict.
-
-**Not on disk.** The tree has no package system and no resolver.
+**Upgrades are explicit.** `nvs pkg update <package>` raises a minimum in `package.toml` and shows
+the effect on the whole graph; `nvs pkg outdated` reports what is available. Nothing upgrades
+itself, which is also why a security patch does not arrive on its own, and why retraction and
+`nvs pkg audit` have to be genuinely good rather than an afterthought.
 
 **Declined:**
 - **A solver over version ranges.** A range can say "not 2.3.1, it is broken", and every incumbent has
@@ -1096,24 +1227,32 @@ package's version changes. No manifest exists for which resolution reports a con
   that a minimum cannot ([`packaging/a-known-bad-version-is-retracted-not-deleted`](packaging.md#packaging-a-known-bad-version-is-retracted-not-deleted)).
 - **Exact pins only, with no minimums.** Every transitive upgrade becomes a manual sweep across the
   whole graph, so a security patch spreads more slowly still.
+- **A ceiling at the next major.** It makes a graph unsolvable whenever two packages want different
+  majors of a third. The compile error names the real break, and only when the program uses it.
+- **A root-only rule for `0.0.x` dependencies.** A `0.0.x` package promises nothing, and the compile
+  error already names a break that matters.
 
-<sub>See also [`packaging/a-breaking-release-is-a-new-name`](packaging.md#packaging-a-breaking-release-is-a-new-name), [`packaging/a-known-bad-version-is-retracted-not-deleted`](packaging.md#packaging-a-known-bad-version-is-retracted-not-deleted), [`packaging/the-lockfile-holds-every-digest`](packaging.md#packaging-the-lockfile-holds-every-digest).</sub>
+**Not on disk.** The tree has no package system and no resolver.
+
+<sub>See also [`packaging/only-a-major-may-break-the-api`](packaging.md#packaging-only-a-major-may-break-the-api), [`packaging/a-release-waits-seven-days-unless-an-owner-confirms`](packaging.md#packaging-a-release-waits-seven-days-unless-an-owner-confirms), [`packaging/a-known-bad-version-is-retracted-not-deleted`](packaging.md#packaging-a-known-bad-version-is-retracted-not-deleted), [`packaging/the-lockfile-holds-every-digest`](packaging.md#packaging-the-lockfile-holds-every-digest).</sub>
 
 <a id="packaging-the-lockfile-holds-every-digest"></a>
 
-## `package.lock` records every package's digest, a mismatch is a hard error, and `--locked` fetches nothing the lock does not name  *(designed — owned by M15)*
+## `package.lock` records every package's digest, a mismatch is a hard error, and `--locked` fetches nothing the lock does not name  *(designed — owned by goal package-client)*
 
 `rule:packaging/the-lockfile-holds-every-digest`
 
 **`package.lock` records every package in the graph** — direct and transitive — with its name,
-selected version, source and digest. `nvs build --locked`, and every CI invocation, fetches nothing
-that is not in the lock and fails rather than updating it.
+selected version, source and digest, and with the requested capabilities, repository, commit and
+owners that `nvs pkg update` compares against
+([`packaging/a-vendor-resolves-from-one-registry`](packaging.md#packaging-a-vendor-resolves-from-one-registry)). `nvs build --locked`, and every CI invocation,
+fetches nothing that is not in the lock and fails rather than updating it.
 
 **A digest mismatch is a hard error** — never a warning and never a re-fetch — and the failure names
 the package. The digest is the same BLAKE3 the artifact cache keys on, so a package's identity
 ([`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest)) and its integrity check are one hash.
 
-**`nvs vendor`** writes the whole resolved graph into the application tree, so a build needs no
+**`nvs pkg vendor`** writes the whole resolved graph into the application tree, so a build needs no
 network at all. Vendored bytes are digest-checked against the lock on every build, which makes
 vendoring a convenience rather than a second trust root.
 
@@ -1125,142 +1264,625 @@ byte-identical compiled units to the machine that wrote the lock, on all three p
 
 <sub>See also [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest), [`packaging/the-registry-keeps-an-append-only-log`](packaging.md#packaging-the-registry-keeps-an-append-only-log), [`packaging/resolution-takes-the-highest-minimum`](packaging.md#packaging-resolution-takes-the-highest-minimum), [`packaging/an-artifact-is-one-immutable-content-addressed-file`](packaging.md#packaging-an-artifact-is-one-immutable-content-addressed-file).</sub>
 
+<a id="packaging-a-vendor-resolves-from-one-registry"></a>
+
+## Each vendor resolves from exactly one registry set in `package.toml`, by default `https://registry.novis-lang.org`, and never from the first registry that has the name  *(designed — owned by goal package-client)*
+
+`rule:packaging/a-vendor-resolves-from-one-registry`
+
+Each vendor resolves from exactly one registry, set in `package.toml`, and every vendor not named there
+resolves from `https://registry.novis-lang.org`. The client never asks a second registry for a name the
+first one lacks.
+
+A registry URL is `https:` or `file:`. `file:` is how the tests and an offline mirror read a directory.
+A private registry is an ordinary registry, so an organisation points its own vendors at it and leaves
+every other vendor on the default ([`packaging/a-git-dependency-is-root-only`](packaging.md#packaging-a-git-dependency-is-root-only)).
+
+**`nvs pkg add` and `nvs pkg update` print what a change brings** before a person accepts it: every
+capability the package and its whole subgraph request
+([`security/package-authority-is-granted-one-line-at-a-time`](security.md#security-package-authority-is-granted-one-line-at-a-time)), the capabilities that changed since
+the lock, the number of packages in the subgraph, the owners and repositories that changed since the
+lock, and every major a selection crossed ([`packaging/resolution-takes-the-highest-minimum`](packaging.md#packaging-resolution-takes-the-highest-minimum)). The
+lock records each package's capabilities, repository, commit and owners so the comparison has something
+to compare against ([`packaging/the-lockfile-holds-every-digest`](packaging.md#packaging-the-lockfile-holds-every-digest)).
+
+A vendor bound to one registry closes dependency confusion: an attacker who publishes `Acme\Internal`
+on the public registry is never consulted for a vendor the application pinned to its own. Searching
+registries in order would make the first one that answers the owner of every name.
+
+**Declined:**
+- **The first registry that has the name.** That order is exactly how dependency confusion works: the
+  public registry answers for a private name it should never have been asked about.
+
+**Not on disk.** The tree has no package system.
+
+<sub>See also [`packaging/a-git-dependency-is-root-only`](packaging.md#packaging-a-git-dependency-is-root-only), [`packaging/the-lockfile-holds-every-digest`](packaging.md#packaging-the-lockfile-holds-every-digest), [`packaging/resolution-takes-the-highest-minimum`](packaging.md#packaging-resolution-takes-the-highest-minimum), [`security/package-authority-is-granted-one-line-at-a-time`](security.md#security-package-authority-is-granted-one-line-at-a-time).</sub>
+
 <a id="packaging-a-git-dependency-is-root-only"></a>
 
-## A git dependency pins an exact commit, and only the root application may declare one  *(designed — owned by M15)*
+## A git dependency pins an exact commit, and only the root application may declare one  *(designed — owned by goal package-client)*
 
 `rule:packaging/a-git-dependency-is-root-only`
 
-Two kinds of source produce a package's digest, and only one of them is transitive.
+A git dependency pins an exact commit, and only the root application may declare one. Two kinds of
+source produce a package's digest, and only the registry kind is transitive.
 
 A **registry dependency** is a name plus a minimum version, which the registry maps to a digest. A
 **git dependency** is a URL plus an **exact commit `rev`** — never a branch, never a tag, because
-neither is immutable. The fetched tree is archived and digested exactly as a registry artifact is,
-and the digest goes in the lockfile, so from the second fetch onward the two kinds are
-indistinguishable.
+neither is immutable. The fetched tree is packed and digested exactly as a registry archive is, and the
+digest goes in the lockfile, so from the second fetch onward the two kinds are indistinguishable. The
+clone runs over HTTPS inside a size and a time limit, and its host's address is checked against the
+outbound address table, so an internal host is refused.
 
-**Only the root application may declare a git dependency.** A package published to the registry
-whose manifest names a git source is rejected at publish time, and a git dependency encountered
-below the root is a hard error naming the package that declared it. The convenience of git — a fork,
-a patch under test, private code, a monorepo — is entirely a property of *your own* project, and
-your transitive graph stays inside a namespace with a transparency log and a retraction mechanism:
-no dependency of yours can drag in code from a URL you never saw.
+**Only the root application may declare a git dependency.** The registry refuses a publish whose
+manifest names one ([`packaging/publishing-never-overwrites`](packaging.md#packaging-publishing-never-overwrites)), and a git dependency found below the
+root is a hard error naming the package that declared it. The convenience of git — a fork, a patch
+under test, private code, a monorepo — is a property of *your own* project, and your transitive graph
+stays inside registries with a transparency log and retraction: no dependency of yours can bring in
+code from a URL you never saw.
 
-A private registry is a registry: the protocol is static signed files over HTTPS, so an organisation
-that cannot use the public one runs or mirrors its own, and nothing above changes.
-
-**Not on disk**, with the rest of the package system.
+**A private registry is a registry.** An organisation that cannot use the public one runs or mirrors
+its own, and points its vendors at it ([`packaging/a-vendor-resolves-from-one-registry`](packaging.md#packaging-a-vendor-resolves-from-one-registry)). Nothing
+above changes.
 
 **Declined:**
 - **Git URLs only, with no registry.** Nothing to operate, but the transparency log, retraction, the
-  advisory feed and `nvs audit` all need a namespace with an authority behind it, and every URL in the
+  advisory feed and `nvs pkg audit` all need an authority behind a name, and every URL in the
   transitive graph would be a trust root.
 - **A registry only, with git repositories mirrored into it as named packages.** One resolution path,
   but too rigid for private code and monorepos, and not needed: the root-only rule already confines a
   git source to the project that chose it.
 
-<sub>See also [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest), [`packaging/the-lockfile-holds-every-digest`](packaging.md#packaging-the-lockfile-holds-every-digest), [`packaging/publishing-never-overwrites`](packaging.md#packaging-publishing-never-overwrites).</sub>
+**Not on disk**, with the rest of the package system.
 
-<a id="packaging-the-registry-keeps-an-append-only-log"></a>
+<sub>See also [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest), [`packaging/the-lockfile-holds-every-digest`](packaging.md#packaging-the-lockfile-holds-every-digest), [`packaging/a-vendor-resolves-from-one-registry`](packaging.md#packaging-a-vendor-resolves-from-one-registry), [`packaging/publishing-never-overwrites`](packaging.md#packaging-publishing-never-overwrites).</sub>
 
-## The registry publishes an append-only transparency log, and a client verifies inclusion and consistency before using an artifact  *(designed — owned by M15)*
+<a id="packaging-the-registry-is-a-novis-program"></a>
 
-`rule:packaging/the-registry-keeps-an-append-only-log`
+## The registry service and website are the Novis application `apps/registry/`, and its byte work is the same Rust the client runs, in `nvs` subcommands  *(designed — owned by goal registry-service)*
 
-The registry publishes an **append-only transparency log** of `name → version → digest`: a Merkle
-tree with signed checkpoints. Before a client uses an artifact it verifies the artifact's inclusion
-in the log and the log's consistency with the newest checkpoint the client has seen. An artifact
-absent from the log is refused; a checkpoint inconsistent with a previously seen one is refused and
-reported as a registry fork rather than as a network error.
+`rule:packaging/the-registry-is-a-novis-program`
 
-A registry that serves one client different bytes than another must therefore either fork the log —
-detected by the next client that checks consistency — or produce a signed statement contradicting
-one it already made. Compromising the registry stops being silent, which is the property that
-matters; the lockfile ([`packaging/the-lockfile-holds-every-digest`](packaging.md#packaging-the-lockfile-holds-every-digest)) then holds the digest so a
-client need not trust the registry twice.
+The registry service and its website are a Novis web application in this repository, `apps/registry/`,
+and the byte-level work it needs is Rust in `nvs` subcommands the service runs — the same code the
+client runs.
 
-The log is also why a registry, rather than git URLs alone, is the transitive source: retraction,
-the advisory feed and `nvs audit` all need a namespace with an authority behind it that cannot
-quietly rewrite what it said.
+**The application** stores its data in SQLite through `Core\Db`, signs users in with `Core\Passkey`
+([`core-classes/passkey-verifies-a-webauthn-ceremony`](core-classes.md#core-classes-passkey-verifies-a-webauthn-ceremony)), sends push notifications with `Core\WebPush`
+([`core-classes/web-push-sends-an-encrypted-message`](core-classes.md#core-classes-web-push-sends-an-encrypted-message)), and runs the subcommands below as child
+processes, granted in its own `nvs.toml`. It serves the static index — one JSON file per package and one
+archive per digest — that the client reads, and it serves the archives itself so it can count
+downloads ([`packaging/search-sorts-by-the-readers-choice`](packaging.md#packaging-search-sorts-by-the-readers-choice)).
 
-**Not on disk.** There is no registry and no log.
+**The byte work** is these commands:
 
-<sub>See also [`packaging/the-lockfile-holds-every-digest`](packaging.md#packaging-the-lockfile-holds-every-digest), [`packaging/a-known-bad-version-is-retracted-not-deleted`](packaging.md#packaging-a-known-bad-version-is-retracted-not-deleted), [`packaging/publishing-never-overwrites`](packaging.md#packaging-publishing-never-overwrites).</sub>
+| Command | Does |
+|---|---|
+| `nvs registry build` | clones a commit and packs and digests the package directory ([`packaging/the-registry-builds-the-archive-from-git`](packaging.md#packaging-the-registry-builds-the-archive-from-git)) |
+| `nvs registry log append` | adds entries to the log and signs a new checkpoint ([`packaging/the-registry-keeps-an-append-only-log`](packaging.md#packaging-the-registry-keeps-an-append-only-log)) |
+| `nvs registry log verify` | checks a log directory from scratch |
+| `nvs pkg api`, `nvs pkg diff` | extract a package's API and compare two versions ([`packaging/only-a-major-may-break-the-api`](packaging.md#packaging-only-a-major-may-break-the-api)) |
+| `nvs pkg pack` | builds the deterministic archive, as `nvs registry build` does after its clone |
+
+`nvs registry` is operator surface for the service and prints no help in a user's command list. The
+`nvs pkg` commands are the user's ([`packaging/package-toml-is-a-tool-input`](packaging.md#packaging-package-toml-is-a-tool-input)).
+
+Running the same Rust on both sides is what makes a digest predictable: `nvs pkg publish --dry-run` and
+the registry's build produce the same bytes from the same commit. Writing the service in Novis makes the
+registry a real program that depends on `Core`'s web surface, so a gap in that surface is found by the
+project before a user finds it. A deployment guide states how to run it, so a private registry is the
+same program.
+
+**Memory:** the service's memory is per request, with SQLite on disk. A build or a log append is a
+child process whose memory ends with it.
+
+**Declined:**
+- **A service in Rust or another language.** It would share no code path with the programs Novis
+  exists to run, and its byte work would be a second implementation of the client's.
+- **Byte work written in Novis.** Cloning, packing, digesting and log signing are the client's code
+  already, and a second copy could produce a different digest.
+
+**Not on disk.** There is no `apps/registry/` and no `nvs registry` command.
+
+<sub>See also [`packaging/the-registry-builds-the-archive-from-git`](packaging.md#packaging-the-registry-builds-the-archive-from-git), [`packaging/the-registry-keeps-an-append-only-log`](packaging.md#packaging-the-registry-keeps-an-append-only-log), [`packaging/only-a-major-may-break-the-api`](packaging.md#packaging-only-a-major-may-break-the-api), [`packaging/package-toml-is-a-tool-input`](packaging.md#packaging-package-toml-is-a-tool-input), [`core-classes/passkey-verifies-a-webauthn-ceremony`](core-classes.md#core-classes-passkey-verifies-a-webauthn-ceremony), [`core-classes/web-push-sends-an-encrypted-message`](core-classes.md#core-classes-web-push-sends-an-encrypted-message).</sub>
+
+<a id="packaging-a-registry-account-is-a-passkey"></a>
+
+## A registry account is passkeys and one-time recovery codes, with no email, no SMS, no password, no forge binding and no human recovery  *(designed — owned by goal registry-service)*
+
+`rule:packaging/a-registry-account-is-a-passkey`
+
+A registry account is one or more passkeys and a set of one-time recovery codes shown once at sign-up,
+with **no email, no SMS and no password**, and it is bound to no forge.
+
+- **Sign-up** carries a small proof-of-work against bulk sign-ups. An account can do nothing until its
+  first publish, and a publish needs a public git repository
+  ([`packaging/the-registry-builds-the-archive-from-git`](packaging.md#packaging-the-registry-builds-the-archive-from-git)).
+- **Several passkeys** may be registered on one account. Signing in is a WebAuthn ceremony verified by
+  `Core\Passkey` ([`core-classes/passkey-verifies-a-webauthn-ceremony`](core-classes.md#core-classes-passkey-verifies-a-webauthn-ceremony)).
+- **There is no human recovery.** Losing every passkey and every recovery code loses the account. Its
+  packages keep working, and its co-owners keep publishing; the guide advises two owners per vendor.
+- **Contact with an owner** is the inbox on the website and the package's public repository.
+
+Every way an account is usually taken over goes through something this design does not have. A
+password is phished or reused; a mailbox is taken over and its reset link followed; an SMS code is
+swapped to another SIM; a forge account is compromised and its OAuth grant inherited. A passkey is bound
+to the registry's origin and cannot be typed into a fake page. Recovery by a human is the step attackers
+talk their way through, so there is none, and the cost of that is carried by a second owner rather
+than by a support desk.
+
+**Declined:**
+- **Email accounts, with reset links.** A mailbox is the most common takeover path, and an address is
+  personal data the registry would have to hold.
+- **Sign-in through GitHub, GitLab or another forge, or OIDC trusted publishing.** It makes one forge's
+  account system part of every package's security and shuts out every other git host.
+- **Passwords with a second factor.** A password is still phishable, and the second factor's usual
+  fallback is SMS or email.
+- **Account recovery by the operator.** A process a person can be talked through is the weakest
+  credential on the account.
+
+**Not on disk.** There is no registry.
+
+<sub>See also [`core-classes/passkey-verifies-a-webauthn-ceremony`](core-classes.md#core-classes-passkey-verifies-a-webauthn-ceremony), [`packaging/an-account-stays-active-by-proof-not-by-token`](packaging.md#packaging-an-account-stays-active-by-proof-not-by-token), [`packaging/an-owner-is-notified-without-email`](packaging.md#packaging-an-owner-is-notified-without-email), [`packaging/a-publish-token-is-scoped-and-expires`](packaging.md#packaging-a-publish-token-is-scoped-and-expires).</sub>
+
+<a id="packaging-an-account-stays-active-by-proof-not-by-token"></a>
+
+## An account that shows no passkey sign-in or reminder answer for 60 fixed days can no longer publish, and token use never counts  *(designed — owned by goal registry-service)*
+
+`rule:packaging/an-account-stays-active-by-proof-not-by-token`
+
+An account must show activity within 60 days, or it can no longer publish; **token use never counts as
+activity**. The 60 days are fixed and are not a setting. The account's packages stay available, and its
+releases are untouched.
+
+**Activity is one of two things:**
+
+- **A passkey sign-in** ([`packaging/a-registry-account-is-a-passkey`](packaging.md#packaging-a-registry-account-is-a-passkey)).
+- **The "Yes, I am here" answer to a reminder.** A Web Push reminder carries a one-time code inside its
+  encrypted payload, and the action button, or the notification itself through a small page, sends that
+  code back. A webhook reminder carries a one-time "I am here" link that counts the same way, so an
+  owner whose only channel is a webhook can answer too
+  ([`packaging/an-owner-is-notified-without-email`](packaging.md#packaging-an-owner-is-notified-without-email)).
+
+**An answer keeps an active account active, and cannot revive a lapsed one.** After 60 days without
+activity, only a passkey sign-in makes the account active again. The owner chooses when reminders start,
+such as after 14, 30 or 45 quiet days.
+
+A token lives in CI and is the credential most likely to leak, and an account kept alive by its own
+token would stay able to publish long after its owner stopped looking. The rule ties publishing to a
+person who answered recently. The answer to a reminder needs the device that holds the push
+subscription or the channel the owner verified, which a leaked token does not give, and a lapsed
+account needs the passkey itself.
+
+**Declined:**
+- **Counting a publish or any token use as activity.** A stolen token would then keep the account it
+  was stolen from active forever.
+- **A period the owner sets.** The 60 days are a bound on how long a leaked token stays useful, and a
+  bound that each owner can raise is not one.
+
+**Not on disk.** There is no registry.
+
+<sub>See also [`packaging/a-registry-account-is-a-passkey`](packaging.md#packaging-a-registry-account-is-a-passkey), [`packaging/an-owner-is-notified-without-email`](packaging.md#packaging-an-owner-is-notified-without-email), [`packaging/a-publish-token-is-scoped-and-expires`](packaging.md#packaging-a-publish-token-is-scoped-and-expires).</sub>
+
+<a id="packaging-an-owner-is-notified-without-email"></a>
+
+## Every owner is notified of each publish, token, owner change, unlist and retraction through Web Push or a webhook they verified, and an account with no verified channel cannot publish  *(designed — owned by goal registry-service)*
+
+`rule:packaging/an-owner-is-notified-without-email`
+
+Every owner is notified of each publish, new token, owner change, unlist and retraction through the
+channels that owner set up — **Web Push** and **webhooks** — and an account with no verified channel
+cannot publish and cannot be added as an owner.
+
+**The channels an owner sets up:**
+
+- **Web Push**, one click in the browser. Each message is sent through `Core\WebPush`
+  ([`core-classes/web-push-sends-an-encrypted-message`](core-classes.md#core-classes-web-push-sends-an-encrypted-message)), encrypted to the device and signed with the
+  registry's VAPID key. An owner may register any number of devices. A device is added only while signed
+  in with a passkey, and adding or removing one notifies every other device and webhook of that account.
+  A subscription the push service reports gone is dropped, and the account page lists each device with
+  the date it last answered.
+- **Webhooks**: a signed POST to a URL the owner gives, such as ntfy, Matrix, Discord or the owner's own
+  server. It is sent through the outbound address table, so an internal host is refused, and it is
+  retried. Each message also carries a one-time "I am here" link
+  ([`packaging/an-account-stays-active-by-proof-not-by-token`](packaging.md#packaging-an-account-stays-active-by-proof-not-by-token)).
+
+**Always present, whatever the owner set up:** a signed feed per vendor, the inbox on the website, and
+`nvs pkg publish` and `nvs pkg whoami` printing the pending releases the caller did not confirm. A
+public feed lists every pending release ([`packaging/a-release-waits-seven-days-unless-an-owner-confirms`](packaging.md#packaging-a-release-waits-seven-days-unless-an-owner-confirms)).
+`nvs pkg publish` warns when no owner of the vendor has a working channel.
+
+**A verified channel is mandatory.** A push device is verified by the action on a test push, which
+sends back the one-time code inside the encrypted payload. A webhook is verified by a one-time code the
+registry sends to it, which the owner returns on the website or through the link in the message. **A
+channel that stops working stops counting**: the push service reports it gone, or a webhook still fails
+after its retries. An account whose last channel fails cannot publish until it verifies one again.
+
+The seven-day window protects a vendor only if somebody hears about the release inside it, so a channel
+that reaches a person is part of the right to publish. Adding a device needs a passkey, and every other
+channel hears about it, so an attacker cannot quietly add a device of their own to receive the codes.
+
+**Memory:** the service holds one message per send while it encrypts and posts it; subscriptions and
+webhooks are rows on disk.
+
+**Declined:**
+- **Email.** The registry holds no address ([`packaging/a-registry-account-is-a-passkey`](packaging.md#packaging-a-registry-account-is-a-passkey)), and a
+  mailbox is a takeover path.
+- **Notification as an option an owner may skip.** An owner nobody can reach makes the pending window
+  worthless for that vendor.
+
+**Not on disk.** There is no registry.
+
+<sub>See also [`core-classes/web-push-sends-an-encrypted-message`](core-classes.md#core-classes-web-push-sends-an-encrypted-message), [`packaging/a-release-waits-seven-days-unless-an-owner-confirms`](packaging.md#packaging-a-release-waits-seven-days-unless-an-owner-confirms), [`packaging/an-account-stays-active-by-proof-not-by-token`](packaging.md#packaging-an-account-stays-active-by-proof-not-by-token), [`packaging/a-registry-account-is-a-passkey`](packaging.md#packaging-a-registry-account-is-a-passkey).</sub>
+
+<a id="packaging-a-publish-token-is-scoped-and-expires"></a>
+
+## A publish token is scoped to one vendor or package, expires within a year, starts with `nvsreg_`, and is stored only as a hash  *(designed — owned by goal registry-service)*
+
+`rule:packaging/a-publish-token-is-scoped-and-expires`
+
+Publishing uses a token scoped to one vendor or one package, which expires after one year at most, starts
+with `nvsreg_`, and is stored by the registry only as a hash.
+
+- **The scope** is one vendor or one package, so a token in one project's CI cannot publish another.
+- **The expiry** is at most one year, and the owner may choose a shorter one.
+- **The `nvsreg_` prefix** lets a secret scanner recognise a leaked token in a commit or a log.
+- **The registry stores a hash**, so a copy of its database holds no usable token.
+- **`nvs pkg login`** stores the token in the data folder under the ownership check the artifact cache
+  uses ([`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary)).
+
+Creating and revoking a token are log entries ([`packaging/the-registry-keeps-an-append-only-log`](packaging.md#packaging-the-registry-keeps-an-append-only-log)),
+and every owner is notified of a new one ([`packaging/an-owner-is-notified-without-email`](packaging.md#packaging-an-owner-is-notified-without-email)). A token
+only publishes: a release it sends waits seven days
+([`packaging/a-release-waits-seven-days-unless-an-owner-confirms`](packaging.md#packaging-a-release-waits-seven-days-unless-an-owner-confirms)), and using it never keeps the
+account active ([`packaging/an-account-stays-active-by-proof-not-by-token`](packaging.md#packaging-an-account-stays-active-by-proof-not-by-token)). Everything that changes
+ownership, the repository binding or a listing needs a passkey.
+
+**Declined:**
+- **A token that never expires.** A token copied into a forgotten CI system stays a publishing key for
+  as long as the package exists.
+
+**Not on disk.** There is no registry and no `nvs pkg login`.
+
+<sub>See also [`packaging/a-release-waits-seven-days-unless-an-owner-confirms`](packaging.md#packaging-a-release-waits-seven-days-unless-an-owner-confirms), [`packaging/an-account-stays-active-by-proof-not-by-token`](packaging.md#packaging-an-account-stays-active-by-proof-not-by-token), [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary).</sub>
+
+<a id="packaging-the-registry-builds-the-archive-from-git"></a>
+
+## The registry builds each archive itself from a public git commit as a deterministic uncompressed tar, and `nvs pkg publish` uploads no file  *(designed — owned by goal registry-service)*
+
+`rule:packaging/the-registry-builds-the-archive-from-git`
+
+The registry builds every archive itself from a git commit: `nvs pkg publish` sends a repository URL,
+a commit, a version and the package's directory within the repository, and uploads no file.
+
+- **The directory** defaults to the repository root, and `nvs pkg publish` may name a subdirectory, so
+  one repository can hold several packages.
+- **The clone** is `nvs registry build`, which fetches that commit over HTTPS from any git host through
+  `gix`, inside a size and a time limit. Its host's address is checked against the outbound address
+  table, so an internal host is refused.
+- **The archive** is an uncompressed `ustar` tar of the directory's regular files, sorted by path bytes,
+  with every time, owner and mode field fixed and no link or special file. Its BLAKE3 digest is the
+  package's identity ([`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest)). A transport may compress it.
+- **The repository URL is bound at the package's first publish.** Changing it needs a passkey, is a log
+  entry, and notifies every owner.
+- **`nvs pkg publish --dry-run` runs the same packing locally**, so a publisher can predict the digest
+  before sending anything. The client's `nvs pkg pack` and the registry's build run the same code
+  ([`packaging/the-registry-is-a-novis-program`](packaging.md#packaging-the-registry-is-a-novis-program)).
+
+The commit each version was built from is public on the package page, so anybody can read exactly the
+source the digest covers. An uploaded file has no such tie: it can contain code that is in no
+repository, which is how a release built on a compromised laptop carries what its source does not. A
+build the registry does itself makes the public commit and the published bytes one thing.
+
+**Memory:** a build holds one clone, inside its size limit, on disk while it packs. Nothing of it is
+held after the digest is recorded.
+
+**Declined:**
+- **An uploaded archive.** The bytes would be whatever the publisher's machine produced, with nothing
+  linking them to any reviewable source.
+- **Binding a package to a forge,** through forge sign-in or OIDC trusted publishing. Any git host
+  over HTTPS works, and no forge's account system becomes part of the registry's security
+  ([`packaging/a-registry-account-is-a-passkey`](packaging.md#packaging-a-registry-account-is-a-passkey)).
+- **A compressed archive as the identity.** Compression output differs between library versions; the
+  uncompressed tar is the same bytes on every machine.
+
+**Not on disk.** There is no registry and no `nvs pkg pack`.
+
+<sub>See also [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest), [`packaging/publishing-never-overwrites`](packaging.md#packaging-publishing-never-overwrites), [`packaging/the-registry-is-a-novis-program`](packaging.md#packaging-the-registry-is-a-novis-program), [`packaging/a-git-dependency-is-root-only`](packaging.md#packaging-a-git-dependency-is-root-only).</sub>
 
 <a id="packaging-publishing-never-overwrites"></a>
 
-## `nvs publish` uploads a clean-checkout archive, and the registry never overwrites a published `name@version`  *(designed — owned by M15)*
+## `nvs pkg publish` names a commit, the registry refuses what the package may not carry, and it never overwrites a published `name@version`  *(designed — owned by goal registry-service)*
 
 `rule:packaging/publishing-never-overwrites`
 
-`nvs publish` uploads a source archive built from a **clean checkout**. The registry requires a
-verified account with a second factor, and then:
+`nvs pkg publish` names a repository, a commit and a version, and the registry never overwrites a
+published `name@version`. A version, once published, is immutable; a bad one is retracted
+([`packaging/a-known-bad-version-is-retracted-not-deleted`](packaging.md#packaging-a-known-bad-version-is-retracted-not-deleted)).
 
-- **refuses to overwrite a published `name@version` under any circumstance** — a version, once
-  published, is immutable; a bad one is retracted
-  ([`packaging/a-known-bad-version-is-retracted-not-deleted`](packaging.md#packaging-a-known-bad-version-is-retracted-not-deleted));
-- refuses an archive containing an `nvs.toml` ([`packaging/a-package-cannot-reach-its-host`](packaging.md#packaging-a-package-cannot-reach-its-host)) or
-  a git dependency ([`packaging/a-git-dependency-is-root-only`](packaging.md#packaging-a-git-dependency-is-root-only));
-- records the artifact in the transparency log
-  ([`packaging/the-registry-keeps-an-append-only-log`](packaging.md#packaging-the-registry-keeps-an-append-only-log)) **before** it is downloadable;
-- records the manifest's requested capabilities, so that `nvs add` can show them before a human
-  grants anything ([`security/package-authority-is-granted-one-line-at-a-time`](security.md#security-package-authority-is-granted-one-line-at-a-time)).
+The caller authenticates with a publish token ([`packaging/a-publish-token-is-scoped-and-expires`](packaging.md#packaging-a-publish-token-is-scoped-and-expires)),
+and the registry builds the archive itself from that commit
+([`packaging/the-registry-builds-the-archive-from-git`](packaging.md#packaging-the-registry-builds-the-archive-from-git)). **It refuses the publish when:**
 
-Operating the registry — index, artifact store, log, advisory feed, accounts, moderation, uptime —
-is a real and permanent responsibility; the protocol is static signed files so that the serving side
-is cheap and mirrorable, but the responsibility is the main cost of having a package system at all.
+- a file declares a namespace outside the package's name
+  ([`packaging/a-package-file-stays-under-its-declared-prefix`](packaging.md#packaging-a-package-file-stays-under-its-declared-prefix)), or the name differs only by case
+  from one already taken ([`packaging/a-package-name-is-vendor-slash-name`](packaging.md#packaging-a-package-name-is-vendor-slash-name));
+- the archive holds an `nvs.toml` ([`packaging/a-package-cannot-reach-its-host`](packaging.md#packaging-a-package-cannot-reach-its-host));
+- the manifest names a git dependency ([`packaging/a-git-dependency-is-root-only`](packaging.md#packaging-a-git-dependency-is-root-only));
+- the repository is over the size limit;
+- a minor or patch breaks the API of the release before it
+  ([`packaging/only-a-major-may-break-the-api`](packaging.md#packaging-only-a-major-may-break-the-api));
+- the version was published before, under any circumstance;
+- the account is not active ([`packaging/an-account-stays-active-by-proof-not-by-token`](packaging.md#packaging-an-account-stays-active-by-proof-not-by-token)), or has
+  no verified notification channel ([`packaging/an-owner-is-notified-without-email`](packaging.md#packaging-an-owner-is-notified-without-email)).
 
-**Not on disk.** The tree has no package system and no `nvs publish`.
+A publish that passes is recorded in the transparency log
+([`packaging/the-registry-keeps-an-append-only-log`](packaging.md#packaging-the-registry-keeps-an-append-only-log)) **before** it is downloadable, together with
+the manifest's requested capabilities, so that `nvs pkg add` shows them before a person grants
+anything ([`security/package-authority-is-granted-one-line-at-a-time`](security.md#security-package-authority-is-granted-one-line-at-a-time)). A release by token alone
+then waits seven days unless an owner confirms it
+([`packaging/a-release-waits-seven-days-unless-an-owner-confirms`](packaging.md#packaging-a-release-waits-seven-days-unless-an-owner-confirms)).
 
-<sub>See also [`packaging/the-registry-keeps-an-append-only-log`](packaging.md#packaging-the-registry-keeps-an-append-only-log), [`packaging/a-git-dependency-is-root-only`](packaging.md#packaging-a-git-dependency-is-root-only), [`packaging/a-package-cannot-reach-its-host`](packaging.md#packaging-a-package-cannot-reach-its-host), [`security/package-authority-is-granted-one-line-at-a-time`](security.md#security-package-authority-is-granted-one-line-at-a-time).</sub>
+An immutable version is what makes a digest in a lockfile mean the same thing next year, and what
+lets a mirror or a `vendor/` copy be checked against the log instead of trusted.
+
+**Declined:**
+- **Overwriting a version to fix a broken release.** Every lockfile that holds the old digest stops
+  building, and a registry that may change bytes under a name has made the log's promise false.
+
+**Not on disk.** The tree has no package system and no `nvs pkg publish`.
+
+<sub>See also [`packaging/the-registry-builds-the-archive-from-git`](packaging.md#packaging-the-registry-builds-the-archive-from-git), [`packaging/a-publish-token-is-scoped-and-expires`](packaging.md#packaging-a-publish-token-is-scoped-and-expires), [`packaging/the-registry-keeps-an-append-only-log`](packaging.md#packaging-the-registry-keeps-an-append-only-log), [`packaging/only-a-major-may-break-the-api`](packaging.md#packaging-only-a-major-may-break-the-api), [`packaging/a-git-dependency-is-root-only`](packaging.md#packaging-a-git-dependency-is-root-only), [`packaging/a-package-cannot-reach-its-host`](packaging.md#packaging-a-package-cannot-reach-its-host), [`security/package-authority-is-granted-one-line-at-a-time`](security.md#security-package-authority-is-granted-one-line-at-a-time).</sub>
+
+<a id="packaging-a-release-waits-seven-days-unless-an-owner-confirms"></a>
+
+## A release published with a token alone is pending for seven fixed days, fetchable by exact version and never selected, unless an owner confirms it with a passkey  *(designed — owned by goal registry-service)*
+
+`rule:packaging/a-release-waits-seven-days-unless-an-owner-confirms`
+
+A release published with a token alone is **pending for seven days**, and an owner's passkey
+confirmation on the website releases it at once. The seven days are fixed and have no setting.
+
+- A pending version is **fetchable at once by its exact version** — `nvs pkg add acme/http@1.4.0` — and
+  `nvs pkg add` and `nvs pkg update` never select it on their own until the seven days pass
+  ([`packaging/resolution-takes-the-highest-minimum`](packaging.md#packaging-resolution-takes-the-highest-minimum)).
+- **A passkey confirmation** by any owner of the vendor releases it immediately, which is how a hotfix
+  ships the same day. The confirmation is a log entry
+  ([`packaging/the-registry-keeps-an-append-only-log`](packaging.md#packaging-the-registry-keeps-an-append-only-log)).
+- **A release whose dependency is still pending** waits until that dependency is released.
+- **A retraction or an advisory sent with a token alone** waits the same seven days, and one confirmed
+  with a passkey is immediate ([`packaging/a-known-bad-version-is-retracted-not-deleted`](packaging.md#packaging-a-known-bad-version-is-retracted-not-deleted)).
+- **The first release at `0.1.0` or higher** waits for a one-time passkey confirmation that shows the
+  exact API being frozen and says that from then on only a major may break it
+  ([`packaging/only-a-major-may-break-the-api`](packaging.md#packaging-only-a-major-may-break-the-api)). Seven days do not release it.
+
+**A public feed lists every pending release**, so anyone can scan them, and every owner is notified of
+each one ([`packaging/an-owner-is-notified-without-email`](packaging.md#packaging-an-owner-is-notified-without-email)). `nvs pkg publish` and `nvs pkg whoami`
+print the pending releases the caller did not confirm.
+
+A token is the credential most likely to leak: it sits in CI and on disk. The window turns a stolen
+token from a silent release into a public, announced one that every owner sees and anyone can inspect
+before a single `nvs pkg update` picks it up. A passkey cannot be copied out of a CI log, so a
+confirmation with one is what shortens the window.
+
+**Declined:**
+- **A waiting period the owner can set.** Every publisher would set it to zero, and a stolen token's
+  release would reach every `update` within the hour.
+- **Hiding a pending release until it is released.** A pending release has to be fetchable by exact
+  version so it can be tested, and it has to be listed so anybody can check it.
+
+**Not on disk.** There is no registry.
+
+<sub>See also [`packaging/resolution-takes-the-highest-minimum`](packaging.md#packaging-resolution-takes-the-highest-minimum), [`packaging/only-a-major-may-break-the-api`](packaging.md#packaging-only-a-major-may-break-the-api), [`packaging/a-known-bad-version-is-retracted-not-deleted`](packaging.md#packaging-a-known-bad-version-is-retracted-not-deleted), [`packaging/an-owner-is-notified-without-email`](packaging.md#packaging-an-owner-is-notified-without-email), [`packaging/a-publish-token-is-scoped-and-expires`](packaging.md#packaging-a-publish-token-is-scoped-and-expires).</sub>
+
+<a id="packaging-the-registry-keeps-an-append-only-log"></a>
+
+## The registry keeps an append-only C2SP transparency log of every event it acts on, and a client verifies inclusion and consistency before using an archive  *(designed — owned by goal registry-log)*
+
+`rule:packaging/the-registry-keeps-an-append-only-log`
+
+The registry keeps an **append-only transparency log** in the C2SP formats — tlog-tiles, with
+checkpoints as signed notes under an Ed25519 key — and a client verifies an archive's inclusion and the
+log's consistency with the newest checkpoint it saw before it uses the archive.
+
+**What the log records** is a closed list of entry kinds, one per event the registry acts on:
+
+- a publish: name, version, digest, repository and commit;
+- an ownership change;
+- a token created or revoked;
+- a repository binding changed;
+- an unlist and its reversal;
+- a retraction, and an advisory;
+- a withhold;
+- a release confirmed before its seven days end;
+- a stable API confirmed.
+
+Each entry is canonical JSON with a schema version, and the log is the only record of order.
+
+**The client keeps one checkpoint per registry** in the data folder, under the ownership check the
+artifact cache uses ([`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary)). A new checkpoint must come with a
+consistency proof from the stored one. An archive absent from the log is refused. An inconsistent
+checkpoint is a hard error that names the registry and says the log was forked, never a network error,
+and nothing is fetched. `nvs pkg audit` also compares the checkpoint with a second published copy
+of it.
+
+A registry that serves one client different bytes than another must therefore fork the log, which the
+next client that checks consistency detects, or sign a statement that contradicts one it already made.
+Compromising the registry stops being silent, and the lockfile
+([`packaging/the-lockfile-holds-every-digest`](packaging.md#packaging-the-lockfile-holds-every-digest)) then holds the digest so a client need not trust the
+registry twice. The log is also why a registry, and not git URLs alone, is the transitive source:
+retraction, the advisory feed and `nvs pkg audit` need an authority that cannot quietly rewrite
+what it said.
+
+**Outside witnesses can co-sign checkpoints later with no format change**, and none are required now.
+The C2SP formats are what make that true, and they are what other transparency logs already speak.
+
+The byte work is `nvs registry log append` and `nvs registry log verify`, the commands the service calls
+([`packaging/the-registry-is-a-novis-program`](packaging.md#packaging-the-registry-is-a-novis-program)).
+
+**Memory:** a stored checkpoint is a few hundred bytes per registry. A fetch holds one inclusion proof
+per archive and one consistency proof per checkpoint while it runs.
+
+**Declined:**
+- **A log format of the registry's own.** It would work, and it would shut out every witness and
+  verifier that already reads C2SP.
+- **Witnesses required from the start.** The format leaves room for them; requiring them now would
+  make the registry depend on parties that do not exist yet.
+
+**Not on disk.** There is no registry and no log.
+
+<sub>See also [`packaging/the-lockfile-holds-every-digest`](packaging.md#packaging-the-lockfile-holds-every-digest), [`packaging/a-known-bad-version-is-retracted-not-deleted`](packaging.md#packaging-a-known-bad-version-is-retracted-not-deleted), [`packaging/publishing-never-overwrites`](packaging.md#packaging-publishing-never-overwrites), [`packaging/the-registry-is-a-novis-program`](packaging.md#packaging-the-registry-is-a-novis-program), [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary).</sub>
+
+<a id="packaging-an-owner-may-unlist"></a>
+
+## An owner may unlist a package or a version with a passkey, which hides it from search and keeps it fetchable, logged and reversible  *(designed — owned by goal registry-service)*
+
+`rule:packaging/an-owner-may-unlist`
+
+An owner may **unlist** a package or one version with a passkey: it is hidden from search and listings,
+its page says it is unlisted, and it stays fetchable. Unlisting is a log entry
+([`packaging/the-registry-keeps-an-append-only-log`](packaging.md#packaging-the-registry-keeps-an-append-only-log)), every owner is notified of it, and an owner
+may reverse it.
+
+A lockfile that names an unlisted version keeps building, and resolution still selects it when a
+minimum asks for it. Unlisting is not an advisory, so `nvs pkg audit` does not report it
+([`packaging/a-known-bad-version-is-retracted-not-deleted`](packaging.md#packaging-a-known-bad-version-is-retracted-not-deleted)).
+
+Unlisting is the owner's way to say "do not start using this" — an abandoned package, a name published
+by mistake — without breaking anyone who already depends on it. A broken or dangerous version is
+retracted instead, which is what tells the people who already use it.
+
+**Declined:**
+- **Deletion by the owner.** It breaks every lockfile that holds the digest, and a deleted name would
+  invite somebody to publish different code under it.
+
+**Not on disk.** There is no registry.
+
+<sub>See also [`packaging/a-known-bad-version-is-retracted-not-deleted`](packaging.md#packaging-a-known-bad-version-is-retracted-not-deleted), [`packaging/the-operator-only-withholds`](packaging.md#packaging-the-operator-only-withholds), [`packaging/the-registry-keeps-an-append-only-log`](packaging.md#packaging-the-registry-keeps-an-append-only-log).</sub>
 
 <a id="packaging-a-known-bad-version-is-retracted-not-deleted"></a>
 
-## A known-bad version is retracted, never deleted, and `nvs audit` names the minimum bump that clears it  *(designed — owned by M15)*
+## A known-bad version is retracted, never deleted, a token-sent retraction waits seven days, and `nvs pkg audit` names the minimum bump that clears it  *(designed — owned by goal package-audit)*
 
 `rule:packaging/a-known-bad-version-is-retracted-not-deleted`
 
-A publisher marks a version **retracted** with a reason and a fixed-in version. Resolution refuses to
-*select* a retracted version and names the fix, while the bytes remain fetchable forever, so an
+An owner marks a known-bad version **retracted** with a reason and a fixed-in version, and the bytes
+stay fetchable forever. Resolution refuses to *select* a retracted version and names the fix, while an
 existing lockfile still builds. Deletion is not offered.
 
-**`nvs audit`** reads the registry's signed advisory feed, reports the minimum bump that clears each
-advisory, and exits non-zero for CI. Retraction plus audit is the answer to minimal version
-selection's one real weakness — that a patch nobody asked for does not arrive on its own
-([`packaging/resolution-takes-the-highest-minimum`](packaging.md#packaging-resolution-takes-the-highest-minimum)) — and it covers the one case a version
-range expresses that a minimum cannot: "not 2.3.1, it is broken".
+**A retraction or an advisory sent with a token alone waits seven days**, the same fixed period a
+token-only release waits ([`packaging/a-release-waits-seven-days-unless-an-owner-confirms`](packaging.md#packaging-a-release-waits-seven-days-unless-an-owner-confirms)). One
+confirmed with an owner's passkey on the website takes effect at once. A stolen token can therefore not
+retract a good release, or announce a false advisory, before every owner has been notified
+([`packaging/an-owner-is-notified-without-email`](packaging.md#packaging-an-owner-is-notified-without-email)) and has had time to answer.
 
-If audit proves insufficient in practice and users sit on known-vulnerable versions, the thing to
-argue is a narrowly scoped automatic patch floor, not a general range system.
+**`nvs pkg audit`** reads the lock, never the network's idea of the graph, and checks it against
+the registry's signed advisory feed. The feed has one entry per retraction and per withhold, signed
+with the log's key, and every entry is also a log entry
+([`packaging/the-registry-keeps-an-append-only-log`](packaging.md#packaging-the-registry-keeps-an-append-only-log)), so a feed that hides an advisory disagrees
+with the log. For each locked version under an advisory, audit prints the advisory, its reason and the
+smallest version that clears it, and exits non-zero while any remain, for CI. A withheld version
+([`packaging/the-operator-only-withholds`](packaging.md#packaging-the-operator-only-withholds)) is reported the same way. An unlisted version
+([`packaging/an-owner-may-unlist`](packaging.md#packaging-an-owner-may-unlist)) is not an advisory and is not reported.
 
-**Not on disk.** The tree has no package system.
+Retraction plus audit is the answer to minimal version selection's one real weakness, that a patch
+nobody asked for does not arrive on its own ([`packaging/resolution-takes-the-highest-minimum`](packaging.md#packaging-resolution-takes-the-highest-minimum)),
+and it covers the one case a version range expresses that a minimum cannot: "not 2.3.1, it is broken".
+If audit proves insufficient and users sit on known-vulnerable versions, the thing to argue is a
+narrowly scoped automatic patch floor, not a general range system.
 
-<sub>See also [`packaging/resolution-takes-the-highest-minimum`](packaging.md#packaging-resolution-takes-the-highest-minimum), [`packaging/the-registry-keeps-an-append-only-log`](packaging.md#packaging-the-registry-keeps-an-append-only-log).</sub>
-
-<a id="packaging-a-breaking-release-is-a-new-name"></a>
-
-## A package that breaks its API publishes under a new name carrying `supersedes`  *(designed — owned by M15)*
-
-`rule:packaging/a-breaking-release-is-a-new-name`
-
-A package that breaks its API **publishes under a new name** — conventionally the old name with a
-numeric suffix, `acme/http` → `acme/http2` — carrying `supersedes = "acme/http"` so that
-`nvs outdated` and `nvs audit` can point at it. The two coexist in one graph without conflict,
-because they are two packages.
-
-This is what keeps [`packaging/resolution-takes-the-highest-minimum`](packaging.md#packaging-resolution-takes-the-highest-minimum) sound: a minimum is never a
-ceiling, so a higher version of one name must always be acceptable, and a version that is not
-acceptable is therefore not a version of that name. It is the real cost of having no solver, and it
-is paid by the publisher rather than by every consumer. The absorb-don't-forward discipline
-([`packaging/a-dependency-break-is-absorbed-never-forwarded`](packaging.md#packaging-a-dependency-break-is-absorbed-never-forwarded)) — Novis's own rule for its Rust
-dependencies — is what makes a rename rare enough to live with.
-
-The rule is watched rather than enforced: if library authors route around it by shipping breaks
-under the same name, either an API-diff check at publish or a ceiling mechanism becomes necessary.
+**Declined:**
+- **Deleting a bad version.** Every lockfile that holds its digest stops building, and the log would
+  record a name whose bytes no longer exist.
+- **A token-sent retraction taking effect at once.** A stolen token could then pull a good release out
+  of every fresh resolution before any owner saw it.
 
 **Not on disk.** The tree has no package system.
 
-<sub>See also [`packaging/resolution-takes-the-highest-minimum`](packaging.md#packaging-resolution-takes-the-highest-minimum), [`packaging/a-dependency-break-is-absorbed-never-forwarded`](packaging.md#packaging-a-dependency-break-is-absorbed-never-forwarded), [`packaging/a-known-bad-version-is-retracted-not-deleted`](packaging.md#packaging-a-known-bad-version-is-retracted-not-deleted).</sub>
+<sub>See also [`packaging/resolution-takes-the-highest-minimum`](packaging.md#packaging-resolution-takes-the-highest-minimum), [`packaging/a-release-waits-seven-days-unless-an-owner-confirms`](packaging.md#packaging-a-release-waits-seven-days-unless-an-owner-confirms), [`packaging/the-operator-only-withholds`](packaging.md#packaging-the-operator-only-withholds), [`packaging/an-owner-may-unlist`](packaging.md#packaging-an-owner-may-unlist), [`packaging/the-registry-keeps-an-append-only-log`](packaging.md#packaging-the-registry-keeps-an-append-only-log).</sub>
+
+<a id="packaging-the-operator-only-withholds"></a>
+
+## The registry's operator may only withhold a version's bytes, for malware or a legal order, as a signed and logged advisory, and never deletes, edits or reassigns  *(designed — owned by goal registry-service)*
+
+`rule:packaging/the-operator-only-withholds`
+
+The registry's operator may only **withhold** a version's bytes, for malware or a legal order, and
+always as a signed, logged advisory that states its reason. The operator never deletes, never edits,
+never reassigns a name, and runs no review queue.
+
+- **A withheld version** keeps its name, its version and its digest in the index and the log; only its
+  bytes stop being served. `nvs pkg audit` reports it as it reports a retraction
+  ([`packaging/a-known-bad-version-is-retracted-not-deleted`](packaging.md#packaging-a-known-bad-version-is-retracted-not-deleted)), and resolution does not select it.
+- **The advisory** is signed with the log's key and is a log entry
+  ([`packaging/the-registry-keeps-an-append-only-log`](packaging.md#packaging-the-registry-keeps-an-append-only-log)), so a withhold cannot be silent.
+- **A short published policy page** states this, in words an end user reads.
+
+An operator who can delete, edit or reassign is a second way to change what a name means, and a
+compromised operator account would be the most powerful credential in the registry. Withholding is the
+one power malware and a court order need, and making it public and signed means every use of it can be
+checked. A review queue would make the operator responsible for every package's content, which no
+registry can carry.
+
+**Declined:**
+- **Deletion by the operator.** Every lockfile that holds the digest would stop building with no
+  record of why.
+- **Reassigning a name after a dispute.** A name that changes hands changes what every existing
+  dependency on it means ([`packaging/a-package-name-is-vendor-slash-name`](packaging.md#packaging-a-package-name-is-vendor-slash-name)).
+- **A review queue before publication.** It delays every release and implies a safety promise no
+  reviewer can keep.
+
+**Not on disk.** There is no registry.
+
+<sub>See also [`packaging/a-known-bad-version-is-retracted-not-deleted`](packaging.md#packaging-a-known-bad-version-is-retracted-not-deleted), [`packaging/the-registry-keeps-an-append-only-log`](packaging.md#packaging-the-registry-keeps-an-append-only-log), [`packaging/an-owner-may-unlist`](packaging.md#packaging-an-owner-may-unlist), [`packaging/a-package-name-is-vendor-slash-name`](packaging.md#packaging-a-package-name-is-vendor-slash-name).</sub>
+
+<a id="packaging-search-sorts-by-the-readers-choice"></a>
+
+## Registry search sorts by the reader's choice, ranks only on facts the registry witnessed and on downloads, and counts downloads without storing an address  *(designed — owned by goal registry-website)*
+
+`rule:packaging/search-sorts-by-the-readers-choice`
+
+The registry's search matches text, then sorts by an order the reader chooses: by default a mix of
+witnessed work and downloads, and also by date, by activity, by downloads or by name.
+
+**Witnessed work is only what the registry saw with its own clock or measured in the code it built:**
+age on the registry, months with at least one release, time since the last release, public API size
+(from `nvs pkg api`), doc-comment coverage, and retractions that name a fixed-in version. Git history,
+such as the first commit date or the commit count, is shown as "from the repository, not checked" and
+never ranks, because anybody can write it.
+
+**The formula is one file in the repository**, `apps/registry/src/Ranking.nvs`, whose doc comment states
+it in words. Every package page shows every fact the formula reads and links to that file. The aim is
+real packages, not one-function helpers, so the facts favour a maintained API over a count of names.
+
+**A package page shows** each version with its state (pending, unlisted, retracted or withheld), the
+capabilities each version requests and what changed from the version before, the API diff per version,
+the commit each version was built from, the owners and their history, advisories, `supersedes`, and the
+facts behind the ranking.
+
+**Downloads are counted without storing an address.** The service serves archives itself and counts
+per version per day. One count per address per day goes through a hash with a daily salt, and the salt
+is deleted when the day ends, so no address and no lasting hash of one is kept. Copies from mirrors and
+from `vendor/` are not counted.
+
+A ranking a publisher can write into a repository is a ranking a publisher can fake. Facts the registry
+observed itself cannot be backdated, and showing every one of them lets a reader judge the default
+order instead of trusting it.
+
+**Memory:** a download count is one row per version per day. The day's salt and its set of hashes are
+the only per-address data, and both are deleted when the day ends.
+
+**Declined:**
+- **Ranking without downloads.** Downloads are the one signal of what people actually use, and the
+  reader can still choose a sort without them.
+- **Ranking by git history.** A commit date and a commit count are whatever the repository says.
+- **A secret or unpublished formula.** A reader cannot judge an order whose inputs are hidden.
+- **Storing addresses to count downloads.** An address is personal data, and a daily salt counts
+  unique fetches as well.
+
+**Not on disk.** There is no registry.
+
+<sub>See also [`packaging/the-registry-is-a-novis-program`](packaging.md#packaging-the-registry-is-a-novis-program), [`packaging/only-a-major-may-break-the-api`](packaging.md#packaging-only-a-major-may-break-the-api).</sub>
 
 <a id="packaging-the-version-contract-starts-at-0-1-0"></a>
 
@@ -1424,7 +2046,7 @@ forces the ladder is a design problem, not an update problem; the hold dates are
 - **Never breaking the surface at all.** A security fix can force a break, so the promise would be
   dishonest. Shipping the break is the last of seven steps, taken with the user.
 
-<sub>See also [`packaging/who-can-see-it-decides-the-release-slot`](packaging.md#packaging-who-can-see-it-decides-the-release-slot), [`packaging/a-forced-break-is-announced-before-it-lands`](packaging.md#packaging-a-forced-break-is-announced-before-it-lands), [`packaging/a-breaking-release-is-a-new-name`](packaging.md#packaging-a-breaking-release-is-a-new-name), [`packaging/the-sweep-is-fired-by-a-human`](packaging.md#packaging-the-sweep-is-fired-by-a-human), [`security/no-ffi`](security.md#security-no-ffi), [`packaging/a-c-dependency-answers-two-questions`](packaging.md#packaging-a-c-dependency-answers-two-questions), [`packaging/the-third-party-notice-is-generated-never-written-by-hand`](packaging.md#packaging-the-third-party-notice-is-generated-never-written-by-hand).</sub>
+<sub>See also [`packaging/who-can-see-it-decides-the-release-slot`](packaging.md#packaging-who-can-see-it-decides-the-release-slot), [`packaging/a-forced-break-is-announced-before-it-lands`](packaging.md#packaging-a-forced-break-is-announced-before-it-lands), [`packaging/only-a-major-may-break-the-api`](packaging.md#packaging-only-a-major-may-break-the-api), [`packaging/the-sweep-is-fired-by-a-human`](packaging.md#packaging-the-sweep-is-fired-by-a-human), [`security/no-ffi`](security.md#security-no-ffi), [`packaging/a-c-dependency-answers-two-questions`](packaging.md#packaging-a-c-dependency-answers-two-questions), [`packaging/the-third-party-notice-is-generated-never-written-by-hand`](packaging.md#packaging-the-third-party-notice-is-generated-never-written-by-hand).</sub>
 
 <a id="packaging-a-forced-break-is-announced-before-it-lands"></a>
 

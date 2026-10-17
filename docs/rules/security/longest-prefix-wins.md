@@ -1,7 +1,7 @@
 Lookup reuses the resolution rule a developer already learned. A bare prefix grants **that namespace's
 own declarations only**; a subtree is spelled with an explicit wildcard and grants every depth below
 it. The **longest matching key wins**, an exact key beats a subtree key at equal length, and two keys
-that would match identically is an error at boot naming both.
+that would match identically is an error naming both when the table is read.
 
 **The subtree form is spelled out because it is the dangerous one.** A subtree grant reaches code that
 does not exist yet: granting a vendor's whole subtree means a module introduced by an upgrade eight
