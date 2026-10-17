@@ -2838,9 +2838,10 @@ fn field_of(line: &str, member: &str) -> Result<(String, String), Fault> {
 /// Only a `Transfer-Encoding` whose last coding is `chunked` frames the body in
 /// chunks. Any other one leaves the body ending with the connection, as RFC
 /// 9112 § 6.3 reads a reply. A `Content-Length` must be one run of digits on
-/// one line, and it may not stand beside a `Transfer-Encoding`: two lengths, or
-/// a length and an encoding, are two answers to where the body ends, and
-/// `rule:errors/http-message-defects` refuses both on a reply.
+/// one line, and it may not stand beside a `Transfer-Encoding` field, even one
+/// that names no coding: two lengths, or a length and an encoding, are two
+/// answers to where the body ends, and `rule:errors/http-message-defects`
+/// refuses both on a reply.
 fn frame_of(headers: &[(String, String)], member: &str) -> Result<Frame, Fault> {
     let mut lengths = headers
         .iter()
@@ -2850,14 +2851,18 @@ fn frame_of(headers: &[(String, String)], member: &str) -> Result<Frame, Fault> 
     if lengths.next().is_some() {
         return Err(malformed(member, "it carries `Content-Length` twice"));
     }
-    let codings: Vec<&str> = headers
+    let encodings: Vec<&str> = headers
         .iter()
         .filter(|(name, _)| name == "transfer-encoding")
-        .flat_map(|(_, value)| value.split(','))
-        .map(str::trim)
-        .filter(|coding| !coding.is_empty())
+        .map(|(_, value)| value.as_str())
         .collect();
-    if !codings.is_empty() {
+    if !encodings.is_empty() {
+        let codings: Vec<&str> = encodings
+            .iter()
+            .flat_map(|value| value.split(','))
+            .map(str::trim)
+            .filter(|coding| !coding.is_empty())
+            .collect();
         if length.is_some() {
             return Err(malformed(
                 member,
@@ -4300,7 +4305,7 @@ pub(crate) mod tests {
     /// a value, and a final coding other than `chunked`.
     #[test]
     fn a_reply_with_a_defect_in_its_head_is_refused() {
-        let refused: [(&[u8], &str); 9] = [
+        let refused: [(&[u8], &str); 10] = [
             (
                 b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\n Content-Length: 4\r\n\r\nok",
                 "continues the one above it",
@@ -4335,6 +4340,10 @@ pub(crate) mod tests {
             ),
             (
                 b"HTTP/1.1 200 OK\r\nContent-Length: 7\r\nTransfer-Encoding: chunked\r\n\r\n2\r\nok\r\n0\r\n\r\n",
+                "both `Content-Length` and `Transfer-Encoding`",
+            ),
+            (
+                b"HTTP/1.1 200 OK\r\nTransfer-Encoding: \t\r\nContent-Length: 2\r\n\r\nok",
                 "both `Content-Length` and `Transfer-Encoding`",
             ),
         ];
