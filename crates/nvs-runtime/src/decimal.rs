@@ -34,8 +34,8 @@
 //! # What throws
 //!
 //! Every fallible operation here returns `None`, which the helper layer turns
-//! into `rule:types/arithmetic`'s `ArithmeticError`. That covers both overflow kinds the
-//! ADR names — a mantissa wider than 96 bits *and* a scale that would exceed
+//! into `rule:types/arithmetic`'s `ArithmeticError`. That covers both overflow kinds that
+//! rule names — a mantissa wider than 96 bits *and* a scale that would exceed
 //! 28 — plus division by zero, and a conversion whose value does not fit.
 //! Division is the one operation that may round: half to even, at the maximum
 //! scale the result admits, fixed in the language and not configurable.

@@ -70,9 +70,9 @@
 //! every `rate()` over it. A missing series is a hole in a dashboard; a
 //! recreated one is a wrong number on it, and § 7 chose the hole.
 //!
-//! **§ 1's declared series are seeded past the bound rather than counted through
-//! it.** They are what the ADR promises exists "the moment an exporter is
-//! configured", so a `max_series` small enough to refuse them would quietly turn
+//! **`rule:observability/default-series`'s declared series are seeded past the
+//! bound rather than counted through it.** They are what that rule promises is
+//! present "the moment an exporter is configured", so a `max_series` small enough to refuse them would quietly turn
 //! that promise into a different configuration; the bound applies to everything
 //! registered afterwards, which is the entire population it exists to hold down.
 //!

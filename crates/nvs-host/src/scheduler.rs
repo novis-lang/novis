@@ -47,9 +47,8 @@
 //! `rule:concurrency/a-child-belongs-to-the-calling-task`'s
 //! "each is a child of the calling task" is a property of the call rather than
 //! of a caller's diligence. A task spawned from the worker itself
-//! ([`Scheduler::spawn`], with nothing running) is a root. No ADR slot is free
-//! for the rest of it, so the decisions below are recorded here, which is the
-//! module they are held or lost in.
+//! ([`Scheduler::spawn`], with nothing running) is a root. The decisions
+//! below are recorded here, which is the module they are held or lost in.
 //!
 //! **A running task cannot reach the `&mut Scheduler` that is resuming it**, so
 //! [`spawn_child`] issues the child's [`TaskId`], links it into the tree, and
@@ -2665,8 +2664,9 @@ mod tests {
 
     #[test]
     fn a_cancelled_tasks_arena_is_released() {
-        // The same teardown seen from the memory side, which is the half ADR
-        // 0004 cares about: what a cancelled task was holding is released at the
+        // The same teardown seen from the memory side, where
+        // `rule:concurrency/cancellation-runs-no-user-code` drops the arena:
+        // what a cancelled task was holding is released at the
         // moment it dies, not at the end of the worker. An `Rc` stands in for
         // the arena because it is the one holder a test can count.
         let arena = Rc::new(vec![0_u8; 64]);

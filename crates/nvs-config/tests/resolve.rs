@@ -15,7 +15,7 @@ use nvs_config::trust::Untrusted;
 use nvs_config::{Apply, DIRECTIVES, Setting, tree};
 use nvs_diagnostics::{Diagnostic, SourceMap, code};
 
-/// A path written the way an ADR writes one, as a path the host spells its own way.
+/// A path written with `/` separators, the way a rule writes one, as a path the host spells its own way.
 fn p(path: &str) -> PathBuf {
     path.split('/').collect()
 }
@@ -1727,7 +1727,8 @@ fn a_cache_shared_database_index_is_read_beside_the_url() {
 /// `rule:config/a-missed-fire-is-skipped-and-a-dst-edge-fires-once`: `overlap` has a default, and a word that is not one of its three still refuses the
 /// boot. Asserted with the default and both named modes beside the refusal, because a check that
 /// only refused would pass just as well if the key were refused whenever it was written at all —
-/// and `queue` and `kill` are configurations the ADR states, so refusing them would be the same
+/// and `queue` and `kill` are configurations `rule:config/overlap-is-skip-queue-or-kill` states,
+/// so refusing them would be the same
 /// silent failure in the other direction.
 #[test]
 fn an_overlap_that_is_none_of_the_three_refuses_the_boot() {

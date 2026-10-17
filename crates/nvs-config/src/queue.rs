@@ -62,9 +62,9 @@ pub struct QueueBounds {
 }
 
 impl QueueBounds {
-    /// § 2's own example, which is this module's default set. The ADR writes the numbers out, so
-    /// they are transcribed here rather than chosen; `connection` has no default because § 2's
-    /// whole point is that an operator names the database.
+    /// This module's default set: `workers = 4`, `max_attempts = 5` and `visibility = "5m"`.
+    /// `connection` has no default, because an operator names the database
+    /// (`rule:core-classes/queue-storage-is-a-table`).
     const DEFAULTS: (u32, u32, Duration) = (
         crate::defaults::QUEUE_WORKERS,
         crate::defaults::QUEUE_MAX_ATTEMPTS,

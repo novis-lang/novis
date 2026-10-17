@@ -318,11 +318,11 @@ pub struct Route {
 /// `rule:security/csrf-is-on-by-default`'s four verbs — the ones a CSRF check covers — spelled as the
 /// `Core\Http\Method` cases a row's [`Route::verb`] is written in.
 ///
-/// A second reading of that section's list; `nvs_types::routes::UNSAFE_VERBS`
+/// A second reading of that rule's list; `nvs_types::routes::UNSAFE_VERBS`
 /// is the compiler's, for the diagnostic that refuses a pointless opt-out. The
 /// two crates do not meet — nothing below this one depends on the checker — and
-/// they are asking different questions of the same rule, whose one home is the
-/// ADR. What crosses between them is [`Route::csrf`]'s answer and not this
+/// they are asking different questions of the same rule, whose one home is its
+/// fragment. What crosses between them is [`Route::csrf`]'s answer and not this
 /// list.
 const UNSAFE_VERBS: [&str; 4] = ["Post", "Put", "Patch", "Delete"];
 

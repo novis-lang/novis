@@ -531,8 +531,9 @@ impl Ctx {
 ///
 /// Deliberately the same *shape* as [`nvs_safepoint`]: one cached load and one
 /// predicted-not-taken branch at the site, everything else out of line. It
-/// differs in returning nothing — coverage bookkeeping cannot fail, and ADR
-/// 0018 puts a debugger break at a safepoint, not at a probe — so a compiled
+/// differs in returning nothing — coverage bookkeeping cannot fail, and a
+/// debugger stops at its own stop sites, not at a probe
+/// (`rule:testing/a-debugged-program-is-compiled-with-a-debug-switch`) — so a compiled
 /// probe site has no status to check and no error edge to emit.
 ///
 /// Only [`DebugFlags::COVERAGE`] and [`DebugFlags::COUNT`] act here.

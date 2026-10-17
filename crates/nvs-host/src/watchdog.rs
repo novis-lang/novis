@@ -24,7 +24,7 @@
 //!
 //! # Report and shed, never kill
 //!
-//! Firing writes one record to `rule:errors/engine-floor`'s floor — [`Watchdog::new`]'s sink is `stderr`, which is that ADR's
+//! Firing writes one record to `rule:errors/engine-floor`'s floor — [`Watchdog::new`]'s sink is `stderr`, which is that rule's
 //! default target — and does nothing else to the core. A thread cannot be
 //! safely killed in-process and `rule:http-server/the-residue-is-one-named-fault-class` declines the process boundary
 //! that would make it possible, so detection is the whole of what happens here.

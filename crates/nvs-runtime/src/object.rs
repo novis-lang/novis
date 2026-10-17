@@ -1649,7 +1649,7 @@ impl ClassDesc {
     /// belongs to the same [`ClassTable`] as this descriptor and so outlives
     /// it by that field's own invariant.
     ///
-    /// Its caller is [`crate::Ctx::pending_conforms_to`], and through it ADR
+    /// Its caller is [`crate::Ctx::pending_conforms_to`], and through it
     /// `rule:testing/assertions-are-typed`'s `Core\Test::assertThrows`, whose expectation arrives as
     /// `ParseError::class`'s folded `string` constant — the same spelling this
     /// table names a class with.
@@ -1735,7 +1735,8 @@ impl ClassDesc {
     /// class carrying no `#[Json\Derive]`.
     ///
     /// Declaration order is the encode order, which is what makes an encoded
-    /// document byte-deterministic across runs and machines (that ADR § 2).
+    /// document byte-deterministic across runs and machines
+    /// (`rule:core-classes/derive-field-list`).
     #[must_use]
     pub fn codec(&self) -> &[CodecField] {
         &self.codec
@@ -3065,7 +3066,7 @@ pub(crate) fn collect(list: &LiveList) -> usize {
 ///
 /// # Why this is not simply "everything still on the list"
 ///
-/// That reading is the one the ADR's sentence invites, and it frees memory
+/// That reading is the obvious one, and it frees memory
 /// somebody is still holding. A `Value` **does** leave a context: `crate::abi`'s
 /// `call` answers one to its Rust caller, and a `Core` member that builds an
 /// instance answers one to the helper that asked for it. Neither has released
@@ -3113,7 +3114,7 @@ pub(crate) fn collect(list: &LiveList) -> usize {
 /// tally would have turned a survivor into garbage rather than the reverse.
 ///
 /// **At teardown no user code runs**, which is what makes the order within a
-/// dead cycle unobservable there, as the ADR says: a suspended generator's
+/// dead cycle unobservable there: a suspended generator's
 /// unwind entry point reaches its context through
 /// [`crate::ctx::with_current`], and at a context's own teardown there is
 /// none. In flight there is, and walk 5 runs it — the same entry point the

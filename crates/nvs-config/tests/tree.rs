@@ -66,7 +66,7 @@ const BLOCKS: &[(&str, &str)] = &[
     ("[opcache]", "[opcache]\nvalidate = \"mtime\"\nrevalidate_freq = \"2s\"\nsettle = \"1s\"\nfile_cache = true\nfile_cache_dir = \"/var/cache/nvs\"\nfile_cache_max_size = \"1G\"\nfile_cache_gc_probability = 1\nfile_cache_gc_divisor = 100\n"),
 ];
 
-/// Every block an ADR writes out parses, asserted by counting rather than by reading one off a
+/// Every block a rule writes out parses, asserted by counting rather than by reading one off a
 /// line: a roster is only as good as its worst entry, and a sweep that stopped at the first failure
 /// would report one missing block per run.
 #[test]
@@ -242,8 +242,7 @@ fn the_two_spellings_of_a_dotted_capability_agree() {
 }
 
 /// `rule:config/three-changeability-classes`: `[limits.hard] memory = false` removes the ceiling entirely, and `rule:config/the-file-is-nvs-toml-and-it-is-toml` chose
-/// TOML partly because "off" is a boolean there. A field typed `String` refuses the ADR's own
-/// example, so the bound is asserted on both sides — the size *and* the `false`.
+/// TOML partly because "off" is a boolean there. A field typed `String` refuses that `false`, so the bound is asserted on both sides — the size *and* the `false`.
 #[test]
 fn a_ceiling_is_a_size_or_the_boolean_that_removes_it() {
     let sized = tree("[limits.hard]\nmemory = \"2G\"\n");

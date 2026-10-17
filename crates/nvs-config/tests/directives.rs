@@ -19,7 +19,7 @@ fn governing(key: &str) -> &'static Directive {
 /// `rule:config/reloadability-is-its-own-field`: reloadability answers *what applying a change requires* and the changeability
 /// class answers *who may set it*. The two are independent, and the failure this pins is a registry
 /// that reads one off the other — which typechecks, looks right row by row, and re-creates the very
-/// reading ("`System` means read once at boot") that ADR refuses.
+/// reading ("`System` means read once at boot") that rule refuses.
 #[test]
 fn reloadability_is_a_field_of_its_own_and_not_the_changeability_class() {
     let census = |class: Class, apply: Apply| {

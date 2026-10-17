@@ -6,7 +6,7 @@
 //! field) and `rule:config/the-file-is-nvs-toml-and-it-is-toml` (the file format).
 //! Nothing in this crate restates them.
 //!
-//! [`mod@file`] reads one file of it and [`mod@tree`] is what it reads into: every block an ADR
+//! [`mod@file`] reads one file of it and [`mod@tree`] is what it reads into: every block a rule
 //! states, with its own fields and an unknown key refused, which is `rule:config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`'s second refusal
 //! made real. The two are separable on purpose — `file::parse` stays generic over the tree type, so
 //! a caller that wants the untyped `toml::Table` for a `nvs config dump --origin` still has it.

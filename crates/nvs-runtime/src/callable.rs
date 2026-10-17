@@ -868,7 +868,7 @@ pub(crate) fn check_param_tags(callee: &str, word: u64, args: &mut [Value]) -> R
         if given != required {
             // `rule:types/conversion`'s one implicit conversion, and there is no second:
             // an `int` or `uint` arriving at a `float` parameter widens under
-            // that ADR's 2^53 rule instead of being refused. It is applied
+            // that rule's 2^53 row instead of being refused. It is applied
             // here because no checker saw this call site to insert it — a
             // `callable` has no parameter list (`rule:types/anonymous-function`) — and out of
             // `crate::helpers`'s own row, so the boundary is the same one a

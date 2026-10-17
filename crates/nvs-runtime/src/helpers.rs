@@ -869,7 +869,7 @@ impl ArithRow {
 ///   only. `%` is left out on purpose: `nvs-codegen` lowers no `float` `%`
 ///   either, so refusing here is the answer that *agrees* with the statically
 ///   typed end, and inventing PHP's integer-modulo reading behind a `mixed`
-///   would put a rule in this file that no ADR states.
+///   would put a rule in this file that no rule fragment states.
 fn value_arith(op: ArithRow, left: Value, right: Value) -> Result<Value, Fault> {
     match (left.tag(), right.tag()) {
         (Some(Tag::Int), Some(Tag::Int)) => signed_arith(
@@ -1474,8 +1474,8 @@ fn numeric_does_not_fit(what: &str, target: &str) -> Fault {
 /// whose representation is `nvs_ir::ty::Ty::Tagged` reaches instead. Each of
 /// those is read twice — once throwing, once answering `null` for
 /// `rule:expressions/nullable-conversion`'s
-/// `expr as ?T`. That ADR's "one implementation now exists because there is one
-/// operation" is what this split makes true rather than promised — the throwing
+/// `expr as ?T`. That rule's "there is one definition" is what this split makes
+/// true rather than promised — the throwing
 /// and the nullable form cannot drift apart, because there is one row.
 mod row {
     /// The magnitude past which an `f64` no longer represents every integer —
@@ -1928,7 +1928,7 @@ pub fn value_to_string(value: Value) -> Result<Value, Fault> {
         // a *semantic* reason rather than a missing one: `rule:types/conversion` makes
         // `bytes as string` a checked conversion that validates UTF-8, so
         // letting an implicit `.` or `echo` do it silently would be exactly
-        // the substitution that ADR exists to remove.
+        // the substitution that rule exists to remove.
         Some(Tag::Bytes) => Err(refused("a `bytes` value")),
         // `rule:security/capture-answers-the-carrier`'s carrier is the one object that renders, and it renders
         // as exactly the bytes it carries: they have *already* been through the
@@ -2131,7 +2131,7 @@ crate::nvs_helper! {
 ///
 /// The buffer is validated as well-formed UTF-8 and either produces the
 /// `string` or throws. It is never replaced, dropped or truncated — `iconv`'s
-/// `//IGNORE` and `//TRANSLIT` are exactly the silent substitution that ADR
+/// `//IGNORE` and `//TRANSLIT` are exactly the silent substitution that rule
 /// exists to remove, so the failure names the offset rather than repairing it.
 ///
 /// **Validation is the whole cost.** A `string` and a `bytes` are one heap
@@ -2201,7 +2201,7 @@ crate::nvs_helper! {
 /// `string` and from nothing else, so an `int`, an array or an object has no
 /// answer here rather than a lossy one. Rendering one through
 /// [`value_to_string`] on the way would be exactly the implicit conversion that
-/// ADR exists to remove.
+/// rule exists to remove.
 fn to_bytes(value: Value) -> Option<Value> {
     let ptr = match value.tag() {
         Some(Tag::Str | Tag::Bytes) => value.buffer_ptr()?,

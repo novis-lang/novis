@@ -1,7 +1,8 @@
 //! `rule:http-server/a-path-is-never-derived-from-a-url` and `rule:http-server/a-mount-table-expands-at-boot`'s mount table: `[[server.mount]]` blocks read into the literal set of entry
 //! files a server may execute, with every glob already expanded against the disk.
 //!
-//! § 2 is the rule the rest of the ADR is built to keep — a request **selects** an entry point from
+//! `rule:http-server/a-path-is-never-derived-from-a-url` is the rule the mount table is built to
+//! keep — a request **selects** an entry point from
 //! a set enumerated before it arrived, and never **constructs** one. That is what this module is:
 //! the one place a `*` in a `scan` meets a directory listing. It runs at boot ([`expand`]) and
 //! again off the request path whenever a running server sees a scanned directory change

@@ -19,7 +19,7 @@ use nvs_config::trust::Untrusted;
 use nvs_config::{Setting, tree};
 use nvs_diagnostics::SourceMap;
 
-/// A path written the way an ADR writes one, as a path the host spells its own way.
+/// A path written with `/` separators, the way a rule writes one, as a path the host spells its own way.
 fn p(path: &str) -> PathBuf {
     path.split('/').collect()
 }

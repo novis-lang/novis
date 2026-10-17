@@ -16,7 +16,7 @@ use nvs_config::secret::MAX_SECRET_BYTES;
 use nvs_config::trust::Untrusted;
 use nvs_diagnostics::{Diagnostic, SourceMap, code};
 
-/// A path written the way an ADR writes one, as a path the host spells its own way.
+/// A path written with `/` separators, the way a rule writes one, as a path the host spells its own way.
 fn p(path: &str) -> PathBuf {
     path.split('/').collect()
 }

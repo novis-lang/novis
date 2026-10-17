@@ -858,7 +858,7 @@ fn drop_empty_tables(table: &mut toml::Table) {
 /// an array of tables — rather than from a list of the `[[block]]` spellings `rule:config/a-value-array-replaces-and-a-table-appends` names. That is
 /// the same distinction TOML itself draws, which is `rule:config/a-value-array-replaces-and-a-table-appends`'s own argument for the split: appending is
 /// what two `[[schedule]]` blocks already mean inside one file, so a further such block added by a
-/// later ADR gets the right behaviour with nothing here to update. An empty array is ambiguous
+/// later rule gets the right behaviour with nothing here to update. An empty array is ambiguous
 /// under that rule and does not need to be: appending nothing and replacing with nothing agree.
 pub(crate) fn merge_table(
     dest: &mut toml::Table,

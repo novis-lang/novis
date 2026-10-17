@@ -2413,7 +2413,7 @@ pub(crate) fn start_statement<'a, S: Read + Write>(
 /// command cannot be made to continue. And a set that answers with rows — a
 /// `CALL` — is not something the command takes, while nothing here can route
 /// one to this loop in advance, a prepare reporting `0` columns for any
-/// statement whose result set depends on the data ([`Prepared`] says so). ADR
+/// statement whose result set depends on the data ([`Prepared`] says so).
 /// `rule:core-classes/db-statement-members` owns that decision and names what would reopen it.
 ///
 /// A wire failure is the one thing that does end it: a poisoned connection is

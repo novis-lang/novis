@@ -44,7 +44,7 @@
 //! `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect` has no version of: its
 //! headline is that there is no way to say "wait forever", and a `[server]` wait is the inbound
 //! half of it. Reading `false` as "keep the default" would be worse than refusing, because an
-//! operator who wrote it asked for the one thing the ADR does not offer and would be told nothing.
+//! operator who wrote it asked for the one thing that rule does not offer and would be told nothing.
 //!
 //! **A `listen` entry beginning with a path separator is a Unix socket**, which is § 5's own
 //! overload and is unambiguous because no `host:port` can be spelled that way. A `host:port` is
@@ -70,9 +70,10 @@
 //! block would make the core count something the file cannot state. Only `0` is refused, under
 //! `E0636`.
 //!
-//! **`health_path` is off by default, and an empty string is that same off** — § 5 writes the key
-//! out as `""`, so the state where no URL is reserved has to be reachable both by leaving the key
-//! out and by transcribing the ADR's own example. What is written there is taken from every mount
+//! **`health_path` is off by default, and an empty string is that same off** —
+//! `rule:http-server/the-server-block-is-boot-class` writes the key out as `""`, so the state
+//! where no URL is reserved has to be reachable both by leaving the key out and by copying that
+//! rule's example. What is written there is taken from every mount
 //! this server answers, which is why a spelling no request could carry — a relative path, a query
 //! or a fragment, a literal space — is refused under `E0623` rather than reserved and then never
 //! reached: a probe that never matches leaves the server looking configured while nothing answers.
@@ -130,9 +131,9 @@ pub struct Waits {
 }
 
 impl Default for Waits {
-    /// § 5's own example, transcribed rather than chosen — the ADR writes every number out. The
-    /// drain period is `rule:concurrency/a-drain-closes-a-connection-cleanly`'s, written out the same
-    /// way, and sized so that a stop finishing in `drain` plus one response's write stays inside
+    /// The four waits `rule:http-server/four-idle-waits-all-finite` states: `10s`, `30s`, `30s`
+    /// and `75s`. The drain period is `rule:concurrency/a-drain-closes-a-connection-cleanly`'s,
+    /// and it is sized so that a stop finishing in `drain` plus one response's write stays inside
     /// systemd's own default with room for a distribution that lowered it.
     fn default() -> Self {
         Self {
@@ -500,9 +501,10 @@ pub enum Listen {
 
 /// The sockets the tree's `[server] listen` asks for, in the order written.
 ///
-/// A tree with no `[server]` block, and one that leaves the key out, are both § 5's default —
-/// `127.0.0.1:8000` — for [`waits_for`]'s reason: an unconfigured server is the deployment the ADR
-/// describes rather than an absence to be filled in later.
+/// A tree with no `[server]` block, and one that leaves the key out, are both the default
+/// `rule:http-server/the-server-block-is-boot-class` states — `127.0.0.1:8000` — for
+/// [`waits_for`]'s reason: an unconfigured server is the deployment that rule describes rather
+/// than an absence to be filled in later.
 ///
 /// # Errors
 ///
@@ -794,7 +796,7 @@ pub fn switches_for(config: &Config) -> Switches {
     }
 }
 
-/// § 5's own number, transcribed rather than chosen — the ADR writes it out.
+/// `10000`, the number `rule:http-server/max-in-flight-refuses-before-allocating` states.
 const DEFAULT_MAX_IN_FLIGHT: u64 = crate::defaults::SERVER_MAX_IN_FLIGHT;
 
 /// The numbers `rule:http-server/admission-is-arithmetic-not-a-number`'s admission reads: what the
@@ -1363,8 +1365,9 @@ mod tests {
         }
     }
 
-    /// § 5's "off by default, so no URL is silently reserved", asserted through every spelling
-    /// of off — no block, a block without the key, and the ADR's own `""` — because a reading that
+    /// `rule:http-server/health-path-is-off-and-checks-nothing`'s "off by default, so no URL is
+    /// silently reserved", asserted through every spelling of off — no block, a block without the
+    /// key, and the `""` `rule:http-server/the-server-block-is-boot-class` writes — because a reading that
     /// answered `Some("")` for the last one would reserve the empty path from every mount while
     /// looking like the example it was copied from.
     #[test]

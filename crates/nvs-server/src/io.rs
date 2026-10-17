@@ -7,7 +7,7 @@
 //! is this module's specification. The whole of the adapter is one sentence:
 //! **try the syscall, and on `WouldBlock` arm the reactor and answer
 //! `Pending`** — never suspend, because a suspend inside a `poll` is that
-//! ADR's rejected alternative and the deadlock it names. The coroutine would
+//! rule's declined alternative and the deadlock it names. The coroutine would
 //! park with the connection future's borrow held and the drive that owns the
 //! waker never reached, so the readiness that ends the park would resume a
 //! stack standing in the middle of `hyper` rather than in the loop that

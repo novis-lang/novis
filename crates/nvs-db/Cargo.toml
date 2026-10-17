@@ -22,7 +22,7 @@ doctest = false
 # this crate turns the workspace into a cycle, which is why the rule is stated
 # on both manifests rather than only on the one that adds the edge.
 [dependencies]
-# Values, `Ctx` and faults. A driver answers with `nvs-runtime`'s values for ADR
+# Values, `Ctx` and faults. A driver answers with `nvs-runtime`'s values for
 # `rule:core-classes/db-column-types`'s scalar rows, and with parsed components of its own — `PgScalar` —
 # for the structured ones, since a `Core\Time` or `Core\Uuid` instance needs
 # `nvs-stdlib`'s class descriptors and that edge is the cycle above. A protocol
