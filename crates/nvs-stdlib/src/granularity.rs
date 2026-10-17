@@ -2,7 +2,7 @@
 //! indexing and slicing count in.
 //!
 //! `rule:types/string-is-utf8` is settled
-//! here — [`DEFAULT`] is the answer, and that ADR's own body states the rule.
+//! here — [`DEFAULT`] is the answer, and that rule states it.
 //! Every `Core\Str` member that has a unit at all reaches for [`DEFAULT`]
 //! rather than choosing one, so there is exactly one place a granularity is
 //! decided and no two members can disagree about it.

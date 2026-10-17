@@ -51,12 +51,12 @@
 //! URL the program itself authored — goes through the same questions [`pin`] asks for
 //! `allowUrl`, so there is one implementation of the policy and not two.
 //!
-//! **`retry` is three flat options rather than the nested shape § 5 first wrote.** A bag flattens
+//! **`retry` is three flat options, not a nested shape.** A bag flattens
 //! to one ABI argument per option ([`crate::registry::CoreTy::Options`]), so a bag nested inside one
 //! has nothing to flatten into — the registry refuses it outright. The three keys are therefore
 //! `retryAttempts`, `retryBackoff` and `retryIdempotencyKey`, which keeps the grouping legible at a
-//! call site and costs seven characters at each of them; § 5's own type block is amended to say so,
-//! because the ADR's body is the home of the rule and an overlay a reader has to apply is not.
+//! call site and costs seven characters at each of them.
+//! `rule:http-server/retry-is-opt-in-jittered-and-closed` writes its keys in the same flat form.
 //!
 //! **§ 7's refusal is a diagnostic, and so it is not in this module.** A `post` that asks for
 //! retries needs [`RETRY_KEY_OPTION`], and both halves of that question are written at the call

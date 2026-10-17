@@ -7,7 +7,7 @@
 //! sanitizing half of `filter_var` is not here, and
 //! `rule:security/tainted-qualifier`
 //! is why: a member that half-escapes produces exactly the false confidence
-//! that ADR exists to prevent, so no member in this module ever returns its
+//! that rule exists to prevent, so no member in this module ever returns its
 //! subject.
 //!
 //! # No dependency, and that is the decision rather than the default

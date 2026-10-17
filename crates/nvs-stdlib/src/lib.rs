@@ -114,7 +114,7 @@
 //!
 //! `tests/spec_registry_coverage.rs` walks `docs/spec/01-core-library.md` and
 //! asks this registry for a row, in each shape the spec writes one: §§ 1–12's
-//! `| Member | Signature | … |` tables, § 13's `| Class | Owns | ADR |` rows,
+//! `| Member | Signature | … |` tables, § 13's `| Class | Owns | Rule |` rows,
 //! and §§ 14–19's bullets and tables. Every walk carries a checked-in
 //! outstanding-members file — `spec-members-outstanding.txt`,
 //! `spec-members-compiler-facing-outstanding.txt`,

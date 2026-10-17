@@ -122,10 +122,10 @@
 /// # How a `secret` parameter is spelled
 ///
 /// **With a mark, not with a type: [`Self::Reveal`]**, and only
-/// `rule:core-classes/secret-reveal`'s `Core\Secret` members write it. That ADR spells the member's signature
+/// `rule:core-classes/secret-reveal`'s `Core\Secret` members write it. That rule spells the member's signature
 /// `reveal(secret string, string $reason): string` and leaves open how a row
-/// says so; this is that decision, and it is recorded here rather than in an
-/// ADR because what it decides is how a *row* is written.
+/// says so; this is that decision, and it is recorded here rather than in a
+/// rule because what it decides is how a *row* is written.
 ///
 /// * **Not a [`CoreTy`].** That type is documented as what the spec wrote and
 ///   not what the checker interns — `nvs_types::core_lib` lowers
@@ -1781,7 +1781,7 @@ pub const CLASSES: &[CoreClass] = &[
     // Beside `Core\Math` because it is the other half of one question: § 3's
     // rounding is over `float`, and `rule:types/arithmetic`'s two named-rounding members
     // are the same decision made exactly. No spec § of its own — the spec's
-    // own roster table points at that ADR for the non-operator members of the
+    // own roster table points at that rule for the non-operator members of the
     // `decimal` scalar.
     crate::decimal::CLASS,
     // And the other half of `rule:types/decimal`: the exact scalar above is the
@@ -1933,8 +1933,8 @@ pub const CLASSES: &[CoreClass] = &[
     // `nvs_runtime::commands` owns why the compiled rows cross into the runtime.
     crate::command::CLASS,
     // `rule:config/ini-set-is-core-config-set`, and no spec § of its own: `ini_get`'s family are free
-    // functions in PHP, so what replaces them is decided by the configuration
-    // format's ADR rather than by the library spec. [`crate::config`] owns why
+    // functions in PHP, so what replaces them is decided by that rule rather
+    // than by the library spec. [`crate::config`] owns why
     // every member of it is four lines long.
     crate::config::CLASS,
     // § 15's environment half — `rule:statements/no-host-populated-variables`'s replacement for `$_ENV` and
@@ -2028,12 +2028,11 @@ pub const CLASSES: &[CoreClass] = &[
     // than a second question about validity.
     crate::session::CLASS,
     // `rule:concurrency/a-connection-is-a-root-isolate` and `rule:concurrency/an-upgrade-is-spawn-shaped`, and no spec § of its own: the spec's roster has no
-    // `Core\Socket` row, so that ADR is the whole specification. Last of the
+    // `Core\Socket` row, so those two rules are the whole specification. Last of the
     // request-facing group because it is where a request stops being one — §
     // 1 makes the connection a *root* isolate, so the request that upgraded it
     // ends normally and shares nothing onward. [`crate::socket`] owns why the
-    // member answers `void` where the ADR writes a returned response, and why
-    // three of § 2's four options are absent rather than accepted.
+    // member answers `void` and which options it accepts.
     crate::socket::CLASS,
     // `rule:concurrency/a-connection-is-a-loop`'s message, immediately after the class whose `receive`
     // is the only thing that produces one.
@@ -2057,9 +2056,9 @@ pub const CLASSES: &[CoreClass] = &[
     // that took no socket. [`crate::sse`]'s own doc owns why it is two readers
     // rather than the four beside it and why it is a class of its own.
     crate::sse::MESSAGE,
-    // `rule:errors/on-limit`, and no spec § of its own: the escalation ladder's ADR is
-    // where this member is specified, because what it registers is a rung of
-    // that ladder rather than a library facility. [`crate::fatal`] owns why the
+    // `rule:errors/on-limit`, and no spec § of its own: that rule is where this
+    // member is specified, because what it registers is a rung of the
+    // escalation ladder rather than a library facility. [`crate::fatal`] owns why the
     // callable is held by the request's context and not by the module.
     crate::fatal::CLASS,
     // `rule:errors/log-write`, and beside `Core\Fatal` because the two are one ladder:
@@ -2076,7 +2075,7 @@ pub const CLASSES: &[CoreClass] = &[
     // one writes [`Qual::Launder`] and names no single sink.
     crate::taint::CLASS,
     // `rule:core-classes/secret-reveal`, and no spec § of its own: what this class is for is decided
-    // by the qualifier's ADR, because a member that removes `secret` is a rung
+    // by that rule, because a member that removes `secret` is a rung
     // of that mechanism rather than a library facility. The only class that may
     // write [`Qual::Reveal`] — see that variant's own docs — and
     // [`crate::secret`] owns why the `bytes` half is a second name.
@@ -2404,8 +2403,9 @@ pub const CLASSES: &[CoreClass] = &[
     // `forObject` twin — the name is the only door, and what it opens onto is
     // the shape the compiler carried down.
     crate::reflect::ENUM_INFO,
-    // § 3's other half of the same ADR: the compiler's own parser, reached at
-    // run time. One member, because parsing is one question.
+    // The other half of `rule:tooling/reflection-and-source-parsing-are-core-features`:
+    // the compiler's own parser, reached at run time. One member, because
+    // parsing is one question.
     crate::ast::CLASS,
     // The tree `parse` answers with — a kind and the nodes under it, and
     // nothing that reaches back into execution, which is what makes § 3's
@@ -3122,8 +3122,8 @@ impl CoreEnum {
 ///
 /// The same rules as [`MethodDoc`]: inline markdown, one or two sentences a
 /// field, **an empty string or an empty slice means "not written yet"**, and
-/// `nvs meta --json` omits such a field. Spends the same kind of memory —
-/// static strings, per process — which the ADR's *Consequences* prices.
+/// `nvs meta --json` omits such a field. Spends the same kind of memory as
+/// [`MethodDoc`]: static strings, per process.
 #[derive(Clone, Copy, Debug)]
 pub struct EnumDoc {
     /// What the enum chooses between, in one or two sentences.
@@ -3605,7 +3605,7 @@ pub const WRITTEN_CLASS_MEMBERS: &[(&str, &str)] = &[
 /// checker holds, and that is the whole reason the mark is on the type instead
 /// of being a `(class, member)` pair like [`WRITTEN_CLASS_MEMBERS`]: a member
 /// that opens an isolate gets the rule in the edit that writes its signature,
-/// so `Core\Sse`'s row cannot land accepting a `callable` the ADR refuses
+/// so `Core\Sse`'s row cannot land accepting a `callable` that rule refuses
 /// because a second table was not updated. There is no roster to forget.
 ///
 /// `None` for a member with no entry parameter, which is every member but the
@@ -5926,7 +5926,7 @@ mod tests {
     /// Novis, and it ships **raw** through `nvs meta --json`: `bun nv
     /// reference` rewrites citations on its way to the website, but that
     /// consumer never sees the rewrite, so "throws as `rule:core-classes/regex-two-tiers`'s two engines
-    /// require" reaches a reader who has no ADR tree and cannot follow it.
+    /// require" reaches a reader who has no copy of the rules and cannot follow it.
     /// The rule is therefore on the card itself rather than on any renderer —
     /// say *what is true*, and leave the reason to the Rust doc comment
     /// directly above the card, which is where a contributor looks.

@@ -5,7 +5,7 @@
 //! 's first constraint puts the poll in `nvs_runtime::bounded_loop` rather
 //! than in each helper that remembers to ask, and `Core\Arr::map` is the first
 //! member to adopt it: a callback per entry, over an array a request supplied,
-//! is the definition of the shape that ADR exists for. What is pinned here is
+//! is the definition of the shape that rule exists for. What is pinned here is
 //! the part the combinator's own unit tests cannot see — that the member
 //! actually goes through it, and that a fired poll is `FATAL` rather than
 //! something a `catch` could swallow (`rule:concurrency/cancellation-runs-no-user-code`).

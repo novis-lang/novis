@@ -452,7 +452,7 @@ mod tests {
     }
 
     /// `rule:security/db-pool-reset-is-a-boundary`'s bounds for a connection a *program* described, which is
-    /// the half the ADR left to be found: `connect` looks its block up by the
+    /// the half that rule does not spell out: `connect` looks its block up by the
     /// name an operator wrote, and `open` has only § 2's settings hash.
     ///
     /// The claim is asserted **on both sides**, because a body that read the

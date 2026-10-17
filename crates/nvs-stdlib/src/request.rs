@@ -33,8 +33,8 @@
 //!
 //! Every member refuses when the context is answering no request —
 //! `rule:security/request-state-throws-in-an-isolate`'s rule, which that
-//! ADR argues over a *spawned isolate* and which reaches the same conclusion
-//! one step wider. A CLI program, a scheduled script, a job worker and a
+//! rule states for a *spawned isolate* and this module applies one step
+//! wider. A CLI program, a scheduled script, a job worker and a
 //! `#[Test]` method are all running with nothing inbound, and an empty string
 //! would say the request arrived and sent nothing. Those are different facts,
 //! and collapsing them is the silent-wrong-answer failure mode
@@ -103,8 +103,7 @@
 //! array<array<tainted string>>` answers all of them. Both read
 //! [`nvs_runtime::Inbound`]'s list of field lines, which holds one entry per
 //! *line* — a name the peer sent twice is two entries there and neither is lost,
-//! which is the decision that ADR's carrier states and this module is the reader
-//! of.
+//! and this module only reads that list.
 //!
 //! **A name matches without regard to case**, RFC 9110 § 5.1 making a field name
 //! case-insensitive, so `header("Content-Type")` and `header("content-type")` are
@@ -1057,7 +1056,8 @@ const CAPTURE_SEGMENTS: CoreTy = CoreTy::Array(&CoreTy::TaintedStr);
 /// alternative was a return-position shape, which is a type-system feature
 /// bought for one member. `Core\Router\Match` is the same pair of answers six
 /// sections earlier and is already a class, so this costs a reader nothing new
-/// to learn; § 7's body spells this class now, so the ADR and the row agree.
+/// to learn; `rule:routing/a-request-reads-its-mount` names this class, so the
+/// rule and the row agree.
 ///
 /// # The prefix is the deployment's, the captures are read as the peer's
 ///
@@ -4004,7 +4004,7 @@ nvs_runtime::nvs_helper! {
     /// The two rules § 4 gives that member — `overwrite` defaulting to `false`,
     /// and a failure removing the partial file — are therefore this member's
     /// too without being restated anywhere: they are one implementation with
-    /// two doors, which is the ADR's own argument for writing it that way.
+    /// two doors, which is `rule:core-classes/io-write-stream`'s own argument for writing it that way.
     ///
     /// **The identity check happens before the file is created.**
     /// [`part_parse`] refuses a part the walk has moved past, and it runs first

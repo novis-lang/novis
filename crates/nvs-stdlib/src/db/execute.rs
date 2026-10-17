@@ -156,8 +156,8 @@ pub(super) fn settled<T>(
 /// rollback does not owe — but they answer the same four questions, and
 /// `transaction` asks them at five points around a callable it does not control.
 /// An enum here rather than a trait in `nvs-db`: which commands a backend sends
-/// is exactly what this goal's ADR slot refuses to flatten, and what this needs
-/// is the *call sites* flattened rather than the drivers.
+/// is exactly what differs between drivers and stays inside each one, and what
+/// this needs is the *call sites* flattened rather than the drivers.
 ///
 /// The key and the block are passed to [`transacting`] rather than a
 /// [`Statement`] or a [`Batch`], because they are the only two fields it reads

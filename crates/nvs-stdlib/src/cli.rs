@@ -2,7 +2,7 @@
 //! `Core\Cli\Text`, the carrier of the terminal sink.
 //!
 //! `rule:tooling/the-terminal-profile-resolves-once` is
-//! this module's half of that ADR: which of the three standard streams is a
+//! this module's half of that rule: which of the three standard streams is a
 //! terminal, how wide and how tall it is, and how much colour it can show.
 //! `rule:tooling/echo-always-has-a-sink`
 //! 's table pairs every context with a sink and every sink with a *carrier*:

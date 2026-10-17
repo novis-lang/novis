@@ -150,7 +150,8 @@ const PENDING: i16 = 0;
 ///
 /// A **label** rather than a table name, because a dialect may build a table's indexes as statements
 /// of their own, and the question an operator reading `nvs queue migrate` has is which of § 2's
-/// *two* tables a statement belongs to. So the label is that table's role in the ADR — `jobs` or
+/// *two* tables a statement belongs to. So the label is that table's role in
+/// `rule:core-classes/queue-storage-is-a-table` — `jobs` or
 /// `dead_letter` — and what those tables are actually called stays [`JOBS_TABLE`]'s and
 /// [`DEAD_TABLE`]'s business for the reason those two constants give.
 ///
@@ -619,7 +620,7 @@ pub const CLAIM_POSTGRES: &str = "with pending as (\
 ///
 /// **§ 2's block names no roster and this module does not invent one.** `connection`, `workers`,
 /// `max_attempts` and `visibility` are the whole of what an operator writes, so a worker's queues
-/// cannot come from configuration without adding a fifth key that ADR would then have to mean. The
+/// cannot come from configuration without adding a fifth key that rule would then have to mean. The
 /// honest reading of a block that says nothing is *every queue*, and a queue exists exactly when a
 /// row names it: `push` writes the name as a column value and no queue is declared anywhere else,
 /// which is what makes the table the only place the roster could be read from.

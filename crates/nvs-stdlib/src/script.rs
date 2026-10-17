@@ -960,8 +960,8 @@ nvs_runtime::nvs_helper! {
 ///
 /// Judged on the **parent's** map rather than on the child's copy, because the
 /// two hold the same keys — `rule:classes/two-copy-depths`'s graph copy preserves them — and only
-/// this side still has a frame for the ADR's "reported … at the spawn" to
-/// happen in. A spawn that writes its map as a literal is compared at compile
+/// this side still has the spawn's frame for a mismatch to be reported in. A
+/// spawn that writes its map as a literal is compared at compile
 /// time too, by `nvs_types::expr::isolate`'s `check_literal_args`, with the same
 /// two questions.
 ///
@@ -1033,8 +1033,9 @@ nvs_runtime::nvs_helper! {
     /// **`args:` binds by name**, which is that binding in two halves and two
     /// places. [`entry_names_agree`] judges the names *here*, before anything
     /// crosses, because a map naming a parameter the entry does not declare —
-    /// or omitting one it does — is the ordinary named-argument error the ADR
-    /// says it is, and this frame is the spawn it names as where to report it.
+    /// or omitting one it does — is the ordinary named-argument error
+    /// `rule:security/isolate-shares-nothing` says it is, and this frame is the
+    /// spawn, so the error is reported here.
     /// [`bound_arguments`] then reads the values out in declaration order
     /// inside the child, where the copy is, and `nvs_runtime::call_static_bound`
     /// judges each against the slot it is about to fill. The map still crosses

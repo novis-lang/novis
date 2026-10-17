@@ -192,7 +192,7 @@ const SALT_LEN: usize = 16;
 /// `rule:security/bcrypt-read-roster`'s read roster, second entry: the three tags PHP writes a bcrypt
 /// hash under, all one algorithm. `$2x$` is deliberately absent — the module
 /// doc's *read roster* section is why — and the list grows by amending that
-/// ADR section, never by accepting what a parser happens to read.
+/// rule, never by accepting what a parser happens to read.
 const BCRYPT_TAGS: [&str; 3] = ["$2y$", "$2a$", "$2b$"];
 
 /// The largest bcrypt cost [`nvs_core_password_verify`] will run — `rule:security/bcrypt-cost-ceiling`

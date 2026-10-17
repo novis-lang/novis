@@ -6,7 +6,7 @@
 //!
 //! # A shape, not a class
 //!
-//! That is what the ADR writes, and it is the cheaper of the two: a shape needs
+//! That is what `rule:core-classes/derive-reports-every-field` writes, and it is the cheaper of the two: a shape needs
 //! no registry row, no member table and no name a program has to import, and
 //! `rule:types/shape-type` already
 //! makes `{path: string, message: string}` a type the checker compares

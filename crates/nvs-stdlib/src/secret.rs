@@ -14,7 +14,7 @@
 //! `bytes` overload". The registry has no overloading — one row per member name
 //! — and the two alternatives to a second name are both worse. A union
 //! parameter would have to answer `string|bytes`, so every call site would pay
-//! a cast to get back the type it handed in, at the one call site the ADR wants
+//! a cast to get back the type it handed in, at the one call site that rule wants
 //! to read as a single conspicuous line. A type variable would bind to the
 //! argument's *qualified* type and hand `secret string` straight back, which
 //! compiles and reveals nothing — a silent no-op is the one failure mode this

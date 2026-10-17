@@ -3059,7 +3059,7 @@ nvs_runtime::nvs_helper! {
 /// member it never named.
 const WRITE_STREAM: &str = "Core\\IO::writeStream";
 
-/// `rule:core-classes/io-write-stream`'s member: the door, the drive, and the two rules the ADR gives
+/// `rule:core-classes/io-write-stream`'s member: the door, the drive, and the two rules that rule gives
 /// this member of its own.
 ///
 /// A plain function rather than the helper's body so that this module's own
@@ -3073,7 +3073,7 @@ const WRITE_STREAM: &str = "Core\\IO::writeStream";
 /// the whole difference from [`nvs_core_io_write`], which already has every
 /// byte before it starts.
 ///
-/// **A failure removes the partial file**, which the ADR asks for because a
+/// **A failure removes the partial file**, which `rule:core-classes/io-write-stream` asks for because a
 /// truncated file the application believes it wrote is worse than a throw: the
 /// caller learns from the error rather than from a later reader. The removal
 /// is best effort and its own failure is swallowed — the fault that reaches
@@ -3092,7 +3092,7 @@ const WRITE_STREAM: &str = "Core\\IO::writeStream";
 /// **`what` is the member the *program* called** — [`WRITE_STREAM`] here, and
 /// `Core\Request\Part::saveTo` where `rule:core-classes/io-write-stream`'s delegation drives it. Every
 /// refusal below quotes it, so the delegation is as invisible in a message as
-/// the ADR makes it in the language.
+/// that rule makes it in the language.
 ///
 /// **`src` is borrowed, not consumed.** `for_each` retains the cursor it drives
 /// and releases that reference itself, so the reference the caller handed in is
@@ -3552,7 +3552,7 @@ nvs_runtime::nvs_helper! {
     /// this is not, which is why the row's parameter is a sink and its answer
     /// is an ordinary `string` rather than `rule:security/launderers-are-sink-named`'s plain one. Reaching
     /// for this member when the question was containment is the mistake that
-    /// ADR exists to prevent, and the two rows sit next to each other in the
+    /// rule exists to prevent, and the two rows sit next to each other in the
     /// registry so that the difference is read rather than remembered.
     ///
     /// The door is [`nvs_runtime::capability::resolve_existing`] rather than
