@@ -1,6 +1,0 @@
-{
-  "module": "crates/nvs-ir/src/ir.rs",
-  "title": "An array literal that mixes explicit integer keys with positional elements overwrites and loses values.",
-  "text": "A positional element after an explicit `int` or `uint` key numbers from how many positional elements came before it, not from the highest integer key so far (`crates/nvs-ir/src/ir.rs:1693-1698`, `crates/nvs-ir/src/ty.rs:154-162`). So `[1 => 'a', 'b', 'c']` encodes as `{\"1\":\"c\",\"0\":\"b\"}`: `'a'` is lost, and an append after it gives `{\"1\":\"a\",\"2\":\"b\",\"3\":\"c\"}` for the same values. `rule:types/arrays` gives a literal one key order. Closing it means a positional element takes the next key after the highest integer key used so far, from the same counter `$a[]` uses, and the doc comments that call this a known gap are rewritten.",
-  "goal": "completeness-holes"
-}

@@ -5850,14 +5850,11 @@ impl<'a> Lowering<'a> {
     /// staged as this frame's temporary and released on whichever edge the
     /// copy takes, rather than transferred the way a written-out element is.
     ///
-    /// A keyless element of a literal that contains a spread is an
-    /// [`InstKind::ArrayAppend`] rather than a lowering-time index: after a
-    /// spread there is no index this pass can compute, since how many entries
-    /// arrived is the subject's own run-time length. That is PHP's real rule
-    /// — "the next free integer key" — and it is why a literal with a spread
-    /// does *not* share the one deliberate divergence the keyed shape still
-    /// has, where a positional element's numbering ignores an explicit
-    /// `int`-looking key elsewhere in the same literal.
+    /// **A keyless element of the element-at-a-time shape is an
+    /// [`InstKind::ArrayAppend`]**, so it takes the array's own next integer
+    /// key: one past the highest integer key so far, whether an explicit key
+    /// or a spread put it there (`rule:types/arrays`). `[1 => "a", "b"]` is
+    /// `[1 => "a", 2 => "b"]`, the same array `$a[] = "b"` builds.
     ///
     /// The array under construction is itself staged as an owned temporary
     /// while it is being filled, and re-pointed after every write. Both an
@@ -5903,7 +5900,6 @@ impl<'a> Lowering<'a> {
                     entries: Vec::new(),
                 },
             );
-            let mut next_index = 0usize;
             // Each write yields the array the next one writes into —
             // the same pointer every time here, since a literal under
             // construction is solely owned, but threaded rather than
@@ -5933,24 +5929,14 @@ impl<'a> Lowering<'a> {
                     self.release_temporaries_since(mark, *cur);
                     continue;
                 }
-                let key_v = match &item.key {
-                    Some(key) => {
-                        let (key_v, _key_ty, key_aliasing) = self.lower_array_key(key, env, cur);
-                        if key_aliasing {
-                            self.emit_retain(*cur, key_v);
-                        }
-                        Some(key_v)
+                // A positional element has no key and appends.
+                let key_v = item.key.as_ref().map(|key| {
+                    let (key_v, _key_ty, key_aliasing) = self.lower_array_key(key, env, cur);
+                    if key_aliasing {
+                        self.emit_retain(*cur, key_v);
                     }
-                    // The append the doc comment above explains: a spread's
-                    // length is not a lowering-time fact.
-                    None if spread => None,
-                    None => {
-                        let key_str = next_index.to_string();
-                        next_index += 1;
-                        let (kv, _) = self.emit(*cur, Ty::Str, InstKind::ConstStr(key_str));
-                        Some(kv)
-                    }
-                };
+                    key_v
+                });
                 let (v, ty) = self.lower_array_element(&item.value, env, cur);
                 if ty.is_refcounted() && self.aliasing_read(&item.value) {
                     self.emit_retain(*cur, v);

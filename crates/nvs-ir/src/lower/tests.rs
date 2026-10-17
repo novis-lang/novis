@@ -1691,14 +1691,11 @@ fn a_dynamic_string_keyed_array_element_retains_the_key() {
     assert_snapshot!(print_function(&f, map.file(file)));
 }
 
-/// `[1, "k" => 2, 3]` — a positional element mixed with an explicit key
-/// still numbers from "how many positional elements came before it" —
-/// `"0"`, then `"1"` for the trailing `3` — not PHP's real "continues
-/// from the highest int key used so far" rule (see
-/// `ir::InstKind::ArrayNew`'s own doc comment for why that's a
-/// deliberate, documented simplification rather than a bug).
+/// `[1, "k" => 2, 3]` — in a literal with an explicit key, each positional
+/// element is an `InstKind::ArrayAppend`, so it takes the array's next
+/// integer key at run time rather than a key this pass computes.
 #[test]
-fn a_positional_element_after_an_explicit_key_keeps_its_own_position_counter() {
+fn a_positional_element_after_an_explicit_key_appends() {
     let (f, map, file) = lower_first_method(
         "<?nvs\nclass T {\n  function m(): void {\n    array $a = [1, \"k\" => 2, 3];\n  }\n}\n",
     );
@@ -1721,8 +1718,7 @@ fn a_spread_array_element_lowers() {
 /// `[0, ...$a, 2]` — a keyless element of a literal that contains a
 /// spread is an `InstKind::ArrayAppend`, not a lowering-time index: how
 /// many entries the spread contributed is the subject's own run-time
-/// length. The fixture two above is the contrast — with no spread in the
-/// literal, that counter is still this pass's.
+/// length.
 #[test]
 fn a_keyless_element_beside_a_spread_appends_instead_of_numbering() {
     let (f, map, file) = lower_first_method(
