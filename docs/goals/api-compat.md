@@ -43,8 +43,6 @@ checks:
     run: [bun, nv, owners, --closes, api-compat]
     reach: true
     floor: false
-extra:
-  milestone: M15
 ---
 
 # `nvs` extracts a package's public API and finds every break between two versions

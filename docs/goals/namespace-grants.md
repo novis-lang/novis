@@ -54,8 +54,6 @@ checks:
     run: [bun, nv, owners, --closes, namespace-grants]
     reach: true
     floor: false
-extra:
-  milestone: M15
 ---
 
 # A namespace holds only what the application grants it

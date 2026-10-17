@@ -26,7 +26,7 @@ and the multiplier each gets:
 - **Spec-driven and self-verifiable — 20–25×.** A written spec, a machine-checkable gate, no external
   system. A written rule plus a conformance case that pins it is the best case this loop has.
 - **Integration-bound — 15–18×.** Real servers, real wire protocols, a dependency that has to be stood
-  up before it can be debugged. M15's registry client.
+  up before it can be debugged. The package registry's client.
 - **Human-in-the-loop — 12–15×.** Anything whose acceptance is a person looking at it: the editor
   surfaces.
 - **Nondeterministic or wall-clock-bound — 10×.** Races, schedulers, soak runs. Fuzz and valgrind
@@ -49,7 +49,7 @@ In the order the risk is real:
 3. **Depth costing more than breadth.** A depth case pins one claim where a breadth case covered a
    member, so cases a day fall while commits a day hold. If that decay turns out to be intrinsic, the
    spec-driven multiplier is the first figure that slips.
-4. **A calendar floor no multiplier touches.** M15 has to stand up a registry: hosting, key management, a
+4. **A calendar floor no multiplier touches.** The registry has to be stood up: hosting, key management, a
    threat model somebody signs. The code compresses; that does not.
 
 **Nothing enforces any of this.** It is a projection to weigh when scheduling, re-measured from `git log`
