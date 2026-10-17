@@ -2640,6 +2640,43 @@ mod tests {
         drop(fs::remove_dir_all(&dir));
     }
 
+    /// `rule:http-server/a-jit-page-is-never-writable-and-executable-at-once`'s loaded arm, read
+    /// back from the OS: the pages a payload was relocated into are executable and not writable.
+    /// `crates/nvs-codegen/tests/code_pages.rs` holds the compiled arm.
+    #[test]
+    // A warm hit is a loaded host's; see `a_payload_is_a_miss_elsewhere`.
+    #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
+    fn a_loaded_payload_runs_from_pages_that_are_not_writable() {
+        let dir = scratch("code-pages");
+        let source = dir.join("program.nvs");
+        fs::write(&source, "<?nvs\necho \"hi\";\n")
+            .expect("a scratch directory of this test's own is writable");
+
+        let (payload, descriptors) = unit_of(&source);
+        let cache = Cache::new(dir.join("cache"), env()).expect("a directory of this test's own");
+        let key = artifact_key(content_hash(&payload), cache.env());
+        cache.store(key, &payload).expect("writable");
+        let loaded = cache
+            .load(key)
+            .expect("a published artifact verifies")
+            .relocate(&this_process(&descriptors))
+            .expect("every symbol the payload leaves undefined has an address here");
+
+        let entry = loaded.pages.as_ptr().wrapping_add(loaded.entry);
+        let page = region::query(entry).expect("the entry is inside this process's mapping");
+        let protection = page.protection();
+        assert!(
+            protection.contains(region::Protection::EXECUTE),
+            "the loaded page is not executable ({protection:?})"
+        );
+        assert!(
+            !protection.contains(region::Protection::WRITE),
+            "the loaded page is writable and executable at once ({protection:?})"
+        );
+
+        drop(fs::remove_dir_all(&dir));
+    }
+
     /// § 3's end state, as the *type* the rest of the CLI takes: a warm hit hands back a
     /// `nvs_codegen::Unit`, and it answers everything a cold compile's does.
     ///

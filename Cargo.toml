@@ -472,6 +472,11 @@ memmap2 = "0.9"
 # Upstream marks it internal to wasmtime and unsupported elsewhere; the pin is
 # what answers that, and `nvs_codegen::make_executable` is the one call site.
 wasmtime-internal-jit-icache-coherence = "49"
+# Dev-only: asks the OS for a code page's protection, so `nvs-codegen`'s and
+# `nvs-cli`'s tests check that a page Novis made executable is not writable
+# (`rule:http-server/a-jit-page-is-never-writable-and-executable-at-once`).
+# `cranelift-jit` already depends on it, so naming it here adds no crate.
+region = "3"
 
 # --- Unicode text segmentation (`rule:types/string-is-utf8`'s grapheme granularity) ---
 # UAX #29 extended grapheme cluster boundaries, which `string`'s default
