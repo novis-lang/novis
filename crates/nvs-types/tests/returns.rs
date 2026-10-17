@@ -41,7 +41,7 @@ fn a_never_body_that_reaches_its_end_is_refused() {
 /// member, which the walk counts as leaving the frame.
 #[test]
 fn a_never_body_that_throws_or_calls_a_never_member_is_accepted() {
-    let thrown = check_src(&method("): never", "throw new Core\\Error(\"x\");"));
+    let thrown = check_src(&method("): never", "throw new RuntimeError(\"x\");"));
     assert!(!refuses(&thrown), "{thrown:?}");
     let called = check_src(&with_fail("): never", "$this->fail();"));
     assert!(!called.has_errors(), "{called:?}");
@@ -218,7 +218,7 @@ fn a_void_method_and_a_constructor_are_not_asked_for_a_value() {
 /// A body that throws on every path produces no value and owes none.
 #[test]
 fn a_body_that_always_throws_is_an_exit() {
-    let diags = check_src(&method("): int", "throw new Core\\Error(\"no\");"));
+    let diags = check_src(&method("): int", "throw new RuntimeError(\"no\");"));
     assert!(!refuses(&diags), "{diags:?}");
 }
 
@@ -291,7 +291,7 @@ fn a_switch_without_a_default_leaves_a_path_uncovered() {
 fn a_finally_covers_no_path_because_it_never_returns() {
     let diags = check_src(&method(
         "): int",
-        "try {\n      return 1;\n    } catch (Core\\Error $e) {\n      return 0;\n    } \
+        "try {\n      return 1;\n    } catch (RuntimeError $e) {\n      return 0;\n    } \
          finally {\n      echo \"x\";\n    }",
     ));
     assert!(!diags.has_errors(), "{diags:?}");
@@ -308,7 +308,7 @@ fn a_finally_covers_no_path_because_it_never_returns() {
 fn a_try_exits_when_its_body_and_every_catch_do() {
     let diags = check_src(&method(
         "): int",
-        "try {\n      return 1;\n    } catch (Core\\Error $e) {\n      return 0;\n    }",
+        "try {\n      return 1;\n    } catch (RuntimeError $e) {\n      return 0;\n    }",
     ));
     assert!(!diags.has_errors(), "{diags:?}");
 }
@@ -317,7 +317,7 @@ fn a_try_exits_when_its_body_and_every_catch_do() {
 fn a_catch_that_falls_through_is_a_path_to_the_end() {
     let diags = check_src(&method(
         "): int",
-        "try {\n      return 1;\n    } catch (Core\\Error $e) {\n      echo \"x\";\n    }",
+        "try {\n      return 1;\n    } catch (RuntimeError $e) {\n      echo \"x\";\n    }",
     ));
     assert!(refuses(&diags), "{diags:?}");
 }

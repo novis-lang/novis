@@ -76,7 +76,7 @@ stages:
         rules: [errors/engine-floor, ide/completion-offers-only-what-the-compiler-derived]
   - id: 11
     title: the checker reports what it accepts today
-    status: open
+    status: done
     context: [crates/nvs-types/src/lower.rs, crates/nvs-types/src/expr/isolate.rs, crates/nvs-hir/src/qname.rs, crates/nvs-types/src/lateinit.rs, crates/nvs-types/src/derive.rs, crates/nvs-types/src/defaults.rs, crates/nvs-types/src/error_lib.rs, data/gaps/nvs-types/a-throwable-property-is-writable.json]
     extra:
       context:
@@ -307,7 +307,11 @@ filtered by visibility.
   - [x] `check_literal_args` compares a method entry's parameters with a literal map's string keys, as `entry_names_agree` does at the spawn.
   - [x] An unknown key is E0486 at the key, and a parameter with no entry is E0402.
   - [x] A reject case, the runtime fixture's map moved into a variable, and the record deleted.
-- [ ] `use Core\Nope;` is an unknown class. `crates/nvs-hir/src/qname.rs:146`
+- [x] `use Core\Nope;` is an unknown class. `crates/nvs-hir/src/qname.rs:146`
+  - [x] `nvs_types::core_lib::importable` lists every class, interface, enum, `Core` exception and attribute.
+  - [x] `CoreRoster::Names` carries it as `imports`, and a `use` naming nothing on it, nor a namespace above one, is E0306.
+  - [x] A type annotation naming a `Core` name not on it is E0303.
+  - [x] A reject case, the rule's sentence, and the record deleted.
 - [x] An inherited `lateinit` read gets E0428. `crates/nvs-types/src/lateinit.rs:48`
   - [x] `lateinit_in_reach` adds each ancestor's non-private `lateinit` property not declared again nearer.
   - [x] Unit cases for a grandparent, a parent constructor call, a private and a redeclared property, and the record deleted.
@@ -351,19 +355,17 @@ work cannot live only in prose again.
 
 ### State
 
-Stages 1 to 4 and 8 to 10 are done. Stage 11 has six of its seven items. This session landed one:
+Stages 1 to 4 and 8 to 11 are done. This session landed two slices:
 
-- A literal `args:` map on a method-entry `spawn script` is compared with the entry's parameters at
-  compile time (`check_literal_args` in `crates/nvs-types/src/expr/isolate.rs`). A key the entry
-  does not declare is E0486 at the key. A parameter with no entry is E0402, and a spawn with no
-  `args:` passes no keys. It asks exactly what `nvs_stdlib::script`'s `entry_names_agree` asks at the
-  spawn, so a map built in a variable is still reported there. Trade-offs: none at run time.
-
-`use Core\Nope;` is bigger than its record says. No list of every name under `Core` exists. Even
-`Core\Nope $x` as a type annotation is not reported today. `CoreRoster::Names` holds only
-`nvs_stdlib::registry::link_targets`. A `use` can also import an enum, a `Core` exception
-(`Core\Db\DbError`), an attribute (`Core\Test\TestWith`, `Core\Json\Field`) or a shape alias
-(`Core\Db\Plan\Step`), so a check over `type_names()` alone would refuse real programs.
+- The `tools:config/values-and-units` attack's `nvs.toml` holds the largest value each unit parses
+  to. A malformed `[limits]` value stops the boot as E0601, so the old file never started and the
+  floor's proof ran red.
+- A `Core` name is checked where it is imported and where it is written as a type.
+  `nvs_types::core_lib::importable` lists every class, interface, enum, `Core` exception and
+  attribute. `CoreRoster::Names` carries it as `imports`, so `use Core\Nope;` is E0306 and a
+  namespace above a listed name (`use Core\Db;`) still resolves. `lower.rs` reports a `Core` type
+  not on the list as E0303. `Core` has no named shape aliases: `Core\Db\Plan\Step` is a class.
+  Trade-offs: none at run time; the checker reads one list built once per process.
 
 Stage 6's two items are on disk. Its remainder is
 `data/gaps/nvs-ext/a-workbook-never-finished-is-neither-logged-nor-cut-off.json`: no Novis member
@@ -381,12 +383,12 @@ pushes.
 
 ### Next
 
-**Stage 11's last checker item, over `crates/nvs-hir/src/`, `crates/nvs-stdlib/src/registry.rs` and
-`crates/nvs-cli/src/main.rs`, with a case for the diagnostic.**
+**Stage 12, error messages and code coverage, over `crates/nvs-cli/src/main.rs`,
+`crates/nvs-ir/src/lower/convert.rs` and `crates/nvs-diagnostics/src/lib.rs`.**
 
-- [ ] One roster of every importable `Core` name: `type_names()`, the `Core` rows of `nvs_hir::errors::TREE`, `nvs_types::derive::ATTRIBUTES` and the `Core` shape aliases (`rule:core-api/reserved-namespace`). `crates/nvs-stdlib/src/registry.rs:3354`
-- [ ] `use Core\Nope;` is an unknown class, checked against that roster where `CoreRoster::Names` is built. `crates/nvs-hir/src/qname.rs:146`, `crates/nvs-cli/src/main.rs:2450`
-- [ ] An unknown `Core\X` written as a type annotation is reported from the same roster. `crates/nvs-types/src/lower.rs:68`
+- [ ] The empty `FATAL: ` path raises the usual limit report (`rule:errors/engine-floor`, `data/gaps/nvs-cli/a-limit-hit-in-runtime-bookkeeping-prints-an-empty-fatal.json`). `crates/nvs-cli/src/main.rs:3796`
+- [ ] The `class<T>` conversion error names the operand (`rule:types/class-reference`, `data/gaps/nvs-ir/a-failed-class-conversion-omits-the-class-name.json`). `crates/nvs-ir/src/lower/convert.rs:699`
+- [ ] A check over `code::ALL`, and tests for E0001, E0004, E0005, E0217 and E0768 (`data/gaps/nvs-diagnostics/no-check-that-every-diagnostic-code-is-raised-by-a-test.json`). `crates/nvs-diagnostics/src/lib.rs:77`
 
 ### Backlog
 

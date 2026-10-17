@@ -335,6 +335,7 @@ pub(crate) fn check_program_module(
     assert!(!diags.has_errors(), "fixture failed to parse: {diags:?}");
     let core = nvs_stdlib::registry::link_targets();
     let closed = nvs_stdlib::registry::closed_interfaces();
+    let imports = nvs_types::core_lib::importable();
     let (module, loaded, _autoload) = nvs_hir::resolve_program(
         entry,
         stmts,
@@ -342,6 +343,7 @@ pub(crate) fn check_program_module(
         nvs_hir::CoreRoster::Names {
             links: &core,
             closed: &closed,
+            imports: &imports,
         },
         &mut diags,
     );
