@@ -1,6 +1,0 @@
-{
-  "module": "crates/nvs-types/src/error_lib.rs",
-  "title": "A `Throwable`'s four properties are writable after construction, though the spec and the seed call them readonly.",
-  "text": "Spec § 10 (`docs/spec/01-core-library.md:714`) says a `Throwable`'s members are readonly properties, and `rule:classes/readonly-is-written-once` says nothing writes a `readonly` property after construction, refused as `E0782`. `$e->message = \"b\";` on a caught `RuntimeError` compiles, and `$e->message` then reads `b`. The seed's doc calls the four properties readonly (`crates/nvs-types/src/error_lib.rs:229`), but `seed` hands `seed_class` the property types alone (`crates/nvs-types/src/error_lib.rs:106`), so `property_is_readonly` finds no name in the class's readonly set (`crates/nvs-types/src/signatures.rs:1696`) and the write check passes it (`crates/nvs-types/src/expr/assign.rs:1174`). `tests/conformance/error/a-throwable-reports-where-it-was-thrown.nvst` calls `location` readonly and does not try a write. Closing it means the seed marks `message`, `previous`, `backtrace` and `location`, and `ParseError`'s `issues`, readonly, so a write outside the constructor is `E0782` and a write through `mixed` throws as the rule says, with a case for each.",
-  "goal": "completeness-holes"
-}
