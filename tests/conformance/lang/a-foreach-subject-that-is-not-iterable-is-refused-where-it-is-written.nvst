@@ -1,5 +1,5 @@
 --TEST--
-`foreach` refuses every subject `rule:iteration/foreach-subjects`'s closed list does not name, a `void` call among them, and defers only a `mixed` — `rule:iteration/foreach-subjects`, `rule:types/conversion`
+`foreach` refuses every subject `rule:iteration/foreach-subjects`'s closed list does not name, a `void` call and a `mixed` among them — `rule:iteration/foreach-subjects`
 --FILE--
 <?nvs
 // `rule:iteration/foreach-subjects`'s list is closed — an `array<T>`, an `Iterable<T>` or an
@@ -38,10 +38,8 @@ foreach ($optional as string $f) { echo $f; }
 // `Iterable`/`Iterator` the only two, so there is no other way in.
 foreach ($o as int $g) { echo $g; }
 
-// The one subject that is *not* refused, and is deliberately last: `mixed` is
-// `rule:types/conversion`'s one unchecked position, so it defers whether there is an
-// array behind the handle at all rather than answering now. A line that
-// started refusing it would add a seventh error below.
+// A `mixed` does not say which of the three loops to run, so it is refused
+// too; `($m as array<mixed>)` is the subject that loops over it.
 mixed $m = [1, 2];
 foreach ($m as int $h) { echo $h; }
 --EXPECT--
@@ -59,5 +57,7 @@ error[E0443]: `foreach` cannot iterate a `string|null`
 %A
 error[E0443]: `foreach` cannot iterate a `Plain`
 %A
-error: aborting due to 6 errors
+error[E0443]: `foreach` cannot iterate a `mixed`
+%A
+error: aborting due to 7 errors
 To read what a code means and how to fix it, run `nvs agent show <code>`.

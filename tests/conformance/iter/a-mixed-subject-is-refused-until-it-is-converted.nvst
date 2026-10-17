@@ -1,0 +1,16 @@
+--TEST--
+A `mixed` `foreach` subject does not compile, because it does not say which loop to run — `rule:iteration/foreach-subjects`
+--FILE--
+<?nvs
+mixed $m = ["a" => 1, "b" => 2];
+foreach ($m as tainted string $k => mixed $v) {
+    echo $k, "\n";
+}
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0443]: `foreach` cannot iterate a `mixed`
+  --> case.nvs:3:10
+%A
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

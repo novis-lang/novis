@@ -1,0 +1,11 @@
+--TEST--
+A `mixed` value converted with `as array<mixed>` is a `foreach` subject, and its keys are `tainted string` — `rule:iteration/foreach-subjects`
+--FILE--
+<?nvs
+mixed $m = ["a" => 1, "b" => 2];
+foreach (($m as array<mixed>) as tainted string $k => mixed $v) {
+    echo $k, "=", $v as string, ";";
+}
+echo "\n";
+--EXPECT--
+a=1;b=2;
