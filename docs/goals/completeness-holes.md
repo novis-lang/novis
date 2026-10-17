@@ -253,7 +253,7 @@ the client sees a failed download.
 `debug.trace` grant.
 
 - [ ] A directive row for `[debug] mode`, read into the request's `DebugFlags`. `crates/nvs-config/src/tree.rs:514`
-- [ ] The grant gates the span's render on the sampled and unsampled paths. `crates/nvs-db/src/span.rs:63`
+- [ ] The grant gates the span's render on the sampled and unsampled paths. `crates/nvs-stdlib/src/db/span.rs:51`
 
 ### 8. compiled code does what the checker accepted
 
@@ -353,23 +353,37 @@ view's read prints garbage. **This is a question for the user:** make a shape's 
 invariant in the checker, carry a declared type per anonymous object at run time, or refuse a
 write through a view wider than the value's own. The record stays open until they choose.
 
+**Stage 7 is two questions for the user**, and no code of it is on disk. Each record now states its
+choices and its mechanical half.
+`data/gaps/nvs-config/debug-mode-is-read-by-nothing.json`: `trace` armed on a served request
+pushes two `String` events per compiled call with no ceiling, and nothing reads them
+(`crates/nvs-runtime/src/ctx/trace.rs:305`). The choices are to arm the file's bits only off the
+server, to add a cap on `call` events (a new limit), or to refuse `trace` and `profile` in a
+server's `[debug] mode`. `data/gaps/nvs-db/span-renders-on-a-flag-no.json`: gating a *sampled*
+query span on `debug.trace` would remove query spans from every exported trace without a debug
+grant, and no rule names the grant for that path.
+
 The nightly still tests an old commit (`cb7021a24`, checked this session with `gh run view`), and
 GitHub's `main` is far behind the local one. The earlier triage of its failures stands until the
 user pushes.
 
 ### Next
 
-**Stage 7, `[debug] mode` arms the probes, and the grant gates a query span.** Slices over
-`crates/nvs-config/src/tree.rs` and `crates/nvs-db/src/span.rs`
-(`rule:testing/debug-mode-directive`, `rule:observability/a-query-is-a-trace-event`).
+**Stage 8, compiled code does what the checker accepted.** Slices over `crates/nvs-ir/src/`
+lowering, each item specified by its record under `data/gaps/nvs-ir/`
+(`an-array-literal-mixing-int-keys-and-positions-loses-values.json`,
+`foreach-over-a-mixed-subject-panics-the-compiler.json`,
+`a-mixed-converted-to-a-nullable-shape-panics-the-compiler.json`).
 
-- [ ] A directive row for `[debug] mode`, read into the request's `DebugFlags`. `crates/nvs-config/src/tree.rs:517`
-- [ ] The grant gates the span's render on the sampled and unsampled paths. `crates/nvs-db/src/span.rs:44`
+- [ ] A positional element after an integer key takes the next key after the highest. `crates/nvs-ir/src/ir.rs:1693`
+- [ ] `foreach` over `mixed` lowers or is refused by the checker. `crates/nvs-ir/src/lower/control.rs:992`
+- [ ] `as ?{...}` from `mixed` lowers or is refused by the checker. `crates/nvs-ir/src/lower/convert.rs:443`
 
 ### Backlog
 
 - Stage 6's last item: a download workbook a program returns without finishing is logged and cut off. It needs a way for Novis code to abort a response body, such as an `abort` method on `Core\Response\Stream`, which is a new method and states its trade-offs first (`data/gaps/nvs-ext/a-workbook-never-finished-is-neither-logged-nor-cut-off.json`).
 
+- Stage 7 waits on the user's two answers above (`data/gaps/nvs-config/debug-mode-is-read-by-nothing.json`, `data/gaps/nvs-db/span-renders-on-a-flag-no.json`).
 - Three wait on the user's choice: the wider-shape-view hole (`data/gaps/nvs-runtime/a-wider-shape-view-writes-an-object-of-the-wrong-class.json`), stage 5's typed path and full-size image arms (`data/gaps/nvs-ext/bytes-cross-one-val-per-byte.json`), and `Markup + Markup` in place (`docs/perf/performance-pass.md:257`).
 - `test_request_dispatches_in_process_through_the_compiled_route_table` once returned an empty body under the full verify's load and passed alone; the cause is not found (`crates/nvs-cli/src/runner.rs:3410`).
 - Many module docs still carry numbered or prose "known gap" text with no record; stage 14's scan finds them (`tools/nv/cmd/owners.ts:225`).
