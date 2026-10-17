@@ -32,8 +32,8 @@ export interface CoreParamDoc {
 
 /**
  * Registry-carried documentation (`rule:core-api/reference-card`): present only for members the
- * `nvs` binary documents via `nvs meta --json`. Every field is optional; a
- * field the registry lacks falls back to the spec-derived default.
+ * `nvs` binary documents via `nvs meta --json`. Every field is optional, and a
+ * page leaves out what the registry lacks.
  */
 export interface CoreMemberDoc {
   shortHtml?: string
@@ -52,23 +52,17 @@ export interface CoreMember {
   params: CoreParam[]
   options: CoreOption[]
   returnType: string
-  notes: string
-  qualifier: string
-  section: string
-  implemented: boolean
   slug: string
   url: string
   /** The member's feature path in the proofs roster, which is its directory under `docs/examples/`. */
   examples: string
-  fromOverride?: boolean
-  notesHtml?: string
   doc?: CoreMemberDoc
 }
 
 /**
  * An enum's registry card (`rule:core-api/reference-card`): its short description and, when any
- * case is documented, one entry per spec-declared case in spec order with the
- * registry's description or '' for a case not written yet.
+ * case is documented, one entry per case in the registry's order with its
+ * description or '' for a case not written yet.
  */
 export interface CoreEnumDoc {
   shortHtml?: string
@@ -78,16 +72,15 @@ export interface CoreEnumDoc {
 export interface CoreClass {
   id: string
   name: string
-  section: string
+  /** The class card's one sentence, as Markdown. */
   summary: string
-  surface: string
+  /** The summary and the class's introduction under `docs/reference/`, as HTML. */
+  summaryHtml: string
   enums: { name: string; cases: string[]; raw: string; doc?: CoreEnumDoc }[]
   /** The shape types the class declares, by the name its signatures use: `Info` and `{format: Format, …}`. */
   types: { name: string; type: string }[]
   constants: { name: string; descHtml: string }[]
   members: CoreMember[]
-  unparsed: { memberCell: string; signatureCell: string; section: string }[]
-  implemented: boolean
   slug: string
   url: string
 }
@@ -95,7 +88,7 @@ export interface CoreClass {
 export const classes = (data as { classes: CoreClass[] }).classes
 
 // The generated data holds root-absolute URLs — as `url`/`slug` fields and
-// inside pre-rendered HTML (`summary`, `descHtml`, `notesHtml`, …). The
+// inside pre-rendered HTML (`summaryHtml`, `descHtml`, …). The
 // site's `base` path is prefixed once here so everything downstream
 // (indexes included) uses the deployed URL verbatim. Attribute values in the
 // HTML strings are unescaped, while code samples inside them are escaped
@@ -153,7 +146,7 @@ export function findMember(id: string): { cls: CoreClass; member: CoreMember } |
  * `Core\Regex\Match`, and `Time\Date` in a Core class is `Core\Time\Date`.
  *
  * A class goes to its page, an enum, exception or interface to its Types
- * page, and a shape type to its own heading on its class page. A spec enum
+ * page, and a shape type to its own heading on its class page. An enum
  * with no Types page goes to its class page's `#enums` section. A name that is
  * the last segment of exactly one of these is the last resort, and a built-in
  * scalar goes to the Syntax page. A name in `NO_PAGE` has no link, and any
@@ -200,7 +193,7 @@ function candidates(name: string, owner: string | undefined): string[] {
 const lookup = (name: string, owner: string | undefined) =>
   candidates(name, owner).map((full) => pageOf.get(full)).find((url) => url !== undefined)
 
-// A spec enum the class page lists, which has no Types page of its own.
+// An enum the class page lists, which has no Types page of its own.
 for (const cls of classes) {
   for (const e of cls.enums) if (!lookup(e.name, cls.name)) pageOf.set(`${cls.name}::${e.name}`, `${cls.url}#enums`)
 }
@@ -230,10 +223,16 @@ function declaredNearby(name: string, owner: string | undefined): string | undef
 
 /**
  * Names a signature uses that have no page anywhere, so they are shown without
- * a link. Each is stated only in the spec's prose, and the binary does not
- * list it. A name is added here only when there is nothing to link it to.
+ * a link, because the binary does not list them. A name is added here only
+ * when there is nothing to link it to.
  */
 const NO_PAGE = new Set(['Db\\Settings', 'StrongDigest', 'Sink', 'method'])
+
+/**
+ * One type name in a signature, split out of the text around it with `split`: `int`, `Time\Date`,
+ * `Core\Arr::Order` or the enum case `Core\Hash::Digest::Sha256`.
+ */
+export const TYPE_NAME = /([A-Za-z_][A-Za-z0-9_\\]*(?:::[A-Za-z_][A-Za-z0-9_]*)*)/
 
 /**
  * The page a type name in a signature of `owner` links to; `null` for a
@@ -244,6 +243,9 @@ export function typeLink(name: string, owner?: string): string | null {
   if (/^[A-Z]$/.test(name)) return null
   const found = lookup(name, owner) ?? declaredNearby(name, owner)
   if (found) return found
+  // An enum case, `Core\Hash::Digest::Sha256`, links to its enum's page.
+  const enumCase = /^(.+::[A-Za-z_][A-Za-z0-9_]*)::[A-Za-z_][A-Za-z0-9_]*$/.exec(name)
+  if (enumCase) return typeLink(enumCase[1]!, owner)
   if (BUILTIN_TYPES.has(name)) return `${SYNTAX_PAGE}#${name}`
   const language = LANGUAGE_TYPES.get(name)
   if (language) return language

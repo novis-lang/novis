@@ -2,12 +2,11 @@ import { afterEach, describe, expect, test } from "bun:test";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { ROOT } from "../lib/paths.ts";
-import { apply, fill, lf, markdown, MARKER, orphans, removeOrphans, type Output } from "../lib/render.ts";
-import { coreMembers, specTables } from "../renderers/spec-tables.ts";
+import { apply, fill, lf, markdown, MARKER, orphans, removeOrphans } from "../lib/render.ts";
 import { recordFiles, SCHEMA_DIR } from "../lib/store.ts";
 import { recordSchemas, renderRecordSchemas } from "../renderers/record-schemas.ts";
 import { RECORDS } from "../schema/index.ts";
-import { addRegistryMembers, parseSignature } from "../renderers/website-core.ts";
+import { blocksHtml, parseSignature, registryClasses } from "../renderers/website-core.ts";
 import { referenceData } from "../renderers/website-reference.ts";
 import type { Entry } from "../proofs/roster.ts";
 import { renderWebsiteCompare } from "../renderers/website-compare.ts";
@@ -135,8 +134,8 @@ describe("render", () => {
   });
 
 
-  test("a spec signature reads its receiver, its parameters and its options bag", () => {
-    const sig = parseSignature("`$d->plus(Duration $by, ?int ...$rest = null, {utc?: bool}): DateTime — note`")!;
+  test("a registry signature reads its receiver, its parameters and its options bag", () => {
+    const sig = parseSignature("$d->plus(Duration $by, ?int ...$rest = null, {utc?: bool}): DateTime")!;
     expect(sig.receiver).toBe("d");
     expect(sig.params.map((p) => [p.name, p.type, p.variadic, p.optional])).toEqual([
       ["by", "Duration", false, false],
@@ -147,7 +146,7 @@ describe("render", () => {
     expect(parseSignature("not a signature")).toBeNull();
   });
 
-  test("a class the spec does not name takes its members, shape types and owned enums from the registry", () => {
+  test("a class takes its members, shape types, constants and owned enums from the registry", () => {
     const reg = {
       classes: [
         {
@@ -155,6 +154,7 @@ describe("render", () => {
           short: "A PDF document.",
           members: [{ name: "standard", kind: "instance", signature: "standard(Standard $standard): Document" }],
           types: [{ name: "Asset", type: "{path: string, bytes: bytes}" }],
+          constants: ["VERSION"],
         },
       ],
       enums: [
@@ -162,9 +162,11 @@ describe("render", () => {
         { name: "Novis\\Image\\Format", cases: ["Png"] },
       ],
     };
-    const [cls] = addRegistryMembers([], reg, {});
+    const [cls] = registryClasses(reg);
+    expect(cls!.summary).toBe("A PDF document.");
     expect(cls!.members.map((m) => m.signature)).toEqual(["standard(Standard $standard): Document"]);
     expect(cls!.types).toEqual([{ name: "Asset", type: "{path: string, bytes: bytes}" }]);
+    expect(cls!.constants).toEqual([{ name: "VERSION", descHtml: "" }]);
     // A namespace's own enum has no class to sit on, so it is a Types page alone.
     expect(cls!.enums).toEqual([{ name: "Standard", cases: ["PdfA2b", "PdfUa1"], raw: "Standard { PdfA2b, PdfUa1 }" }]);
   });
@@ -204,44 +206,16 @@ describe("render", () => {
     expect(() => apply([{ path: "x", text: "" }, { path: "x", text: "" }], { check: true })).toThrow("two renderers");
   });
 
-  test("a core table keeps its heading path and escaped cells, and a fenced table is not read", () => {
-    tmp = scratch();
-    tmp.put(
-      "docs/spec/01-core-library.md",
-      [
-        "# Spec",
-        "",
-        "| Mark | Meaning |",
-        "|---|---|",
-        "| Q | quick |",
-        "",
-        "# Part I",
-        "## 1. `Core\\Str`",
-        "### Inspection",
-        "",
-        "| Member | Signature |",
-        "|---|---|",
-        "| `length` | `(string $s): int\\|null` |",
-        "",
-        "```",
-        "| not | a table |",
-        "|---|---|",
-        "```",
-      ].join("\n"),
+  test("a class introduction's paragraphs, tables and fences become HTML, and a novis.md anchor is plain text", () => {
+    const html = blocksHtml(
+      ["See [testing](#lang-testing) and `a<b`.", "", "| A | B |", "|---|---|", "| `x` | y |", "", "```nvs", "echo 1;", "```", "", "```output", "1", "```"].join("\n"),
     );
-    expect(coreMembers(tmp.root)).toEqual({
-      tables: [
-        { section: ["Spec"], columns: ["Mark", "Meaning"], rows: [["Q", "quick"]] },
-        { section: ["Part I", "1. `Core\\Str`", "Inspection"], columns: ["Member", "Signature"], rows: [["`length`", "`(string $s): int\\|null`"]] },
-      ],
-    });
-    const outputs = specTables.render(tmp.root) as Output[];
-    expect(outputs.map((o) => o.path)).toEqual(["data/spec/core-members.json"]);
-  });
-
-  test("a spec row with the wrong cell count fails the render naming the line", () => {
-    tmp = scratch();
-    tmp.put("docs/spec/01-core-library.md", "| A | B |\n|---|---|\n| `at` | `(a)` | extra |\n");
-    expect(() => coreMembers(tmp.root)).toThrow("docs/spec/01-core-library.md:3 has 3 cell(s) under 2 column(s)");
+    expect(html.split("\n")).toEqual([
+      "<p>See testing and <code>a&lt;b</code>.</p>",
+      "<table><thead><tr><th>A</th><th>B</th></tr></thead><tbody><tr><td><code>x</code></td><td>y</td></tr></tbody></table>",
+      '<pre><code class="language-nvs">echo 1;</code></pre>',
+      '<pre class="output"><code>1</code></pre>',
+    ]);
+    expect(() => blocksHtml("```nvs\necho 1;\n")).toThrow("never closes");
   });
 });

@@ -10,11 +10,11 @@
  * `rule:tooling/fmt-a-list-is-one-line-or-one-item-per-line` shows (one
  * parameter per line, trailing comma), so the block stays valid Novis either
  * way. A shape type of up to `SHAPE_INLINE_MAX` keys is written inline;
- * a longer one is `{…}`, linked to the row that lists its keys. Below the
- * block, when the member has one, the spec note. All rendered from
- * src/data/core.json, so it stays current without touching the page's prose.
+ * a longer one is `{…}`, linked to the row that lists its keys. All rendered
+ * from src/data/core.json, so it stays current without touching the page's
+ * prose.
  */
-import { findMember, typeLink } from '~/lib/core'
+import { findMember, TYPE_NAME, typeLink } from '~/lib/core'
 
 interface Props {
   id: string
@@ -33,8 +33,6 @@ const SHAPE_INLINE_MAX = 3
 const escape = (s: string) =>
   s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 
-/** Inline-code markdown (`x`) to HTML. */
-const ticks = (s: string) => escape(s).replace(/`([^`]+)`/g, '<code>$1</code>')
 
 /** The characters a reader sees in a piece of rendered HTML. */
 const visibleLength = (html: string) => html.replace(/<[^>]+>/g, '').replace(/&[a-z]+;/g, 'x').length
@@ -60,7 +58,7 @@ function nameHtml(name: string): string {
 
 /** A type expression, every name in it linked; punctuation left as it is. */
 function typeHtml(type: string): string {
-  const parts = (type || 'mixed').split(/([A-Za-z_][A-Za-z0-9_\\]*)/)
+  const parts = (type || 'mixed').split(TYPE_NAME)
   return parts
     .map((part, i) => {
       if (part === '') return ''
@@ -138,10 +136,3 @@ const bucket = Math.max(40, Math.ceil(oneLineLength / 8) * 8)
 <div class:list={['method-signature', 'method-sig', 'not-content', { [`one-line-${bucket}`]: showOneLine && multiLine }]}>
   <pre class="method-sig-decl">{showOneLine && <code class="method-sig-one" set:html={oneLine} />}{multiLine && <code class="method-sig-multi" set:html={multiLine} />}</pre>
 </div>
-{
-  member.notes && (
-    <p class="method-sig-note">
-      <strong>Spec note:</strong> <Fragment set:html={ticks(member.notes)} />
-    </p>
-  )
-}

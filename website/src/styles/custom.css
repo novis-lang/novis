@@ -1314,11 +1314,7 @@ a.nv-card:hover {
     display: none;
   }
 }
-.method-sig-note {
-  margin-top: var(--nv-space-3);
-  font-size: var(--sl-text-sm);
-  color: var(--sl-color-gray-2);
-}
+
 /* A class's shape type in `nvs fmt`'s multi-line layout, one key per line. */
 .method-signature-decl {
   margin: 0;

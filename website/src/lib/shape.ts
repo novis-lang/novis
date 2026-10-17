@@ -6,7 +6,7 @@
  * name links through `typeLink`, so the block reads like the method signatures
  * above it on the same page.
  */
-import { typeLink } from './core'
+import { TYPE_NAME, typeLink } from './core'
 
 const WIDTH = 72
 const INDENT = '    '
@@ -78,7 +78,7 @@ function layout(type: string, depth: number, lead: number): string[] {
 /** One line of type text with each type name linked and each shape key and punctuation marked. */
 function lineHtml(line: string, owner: string): string {
   const indent = /^ */.exec(line)![0]
-  const parts = line.slice(indent.length).split(/([A-Za-z_][A-Za-z0-9_\\]*)/)
+  const parts = line.slice(indent.length).split(TYPE_NAME)
   return (
     indent +
     parts
