@@ -66,6 +66,16 @@ test("a bench whose cost per operation rises as its batches double fails its per
   expect(rising.findings[0]).toContain("its cost per operation rises as its batches double");
 });
 
+test("a count that rises on one run and not on the next does not fail the bench", async () => {
+  // The first ramp rises, as a set-up that draws a random key can move a total by a few units; the
+  // second counting run of the same batches is flat, so the rise is noise and the bench passes.
+  let runs = 0;
+  const once = fake((n) => (runs++ < 4 ? n * n : 5 * n)).measure;
+  const noisy = await growthOf(bench("noisy", "constant"), opts(false), true, once);
+  expect(noisy.findings).toEqual([]);
+  expect(noisy.ramps[0]!.notes.join("\n")).toContain("did not repeat on a second run");
+});
+
 test("a bench that grows faster than its declared complexity fails its perf proof", async () => {
   bench("linear", "linear");
   sibling("linear");
