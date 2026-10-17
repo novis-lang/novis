@@ -69,8 +69,8 @@ stages:
         rules: [config/an-edit-reaches-the-next-request-without-a-restart, testing/debug-probes]
   - id: 10
     title: "syslog is a log target, and completion offers what the class reaches"
-    status: open
-    context: [crates/nvs-runtime/src/ctx/output.rs, crates/nvs-config/src/log.rs, crates/nvs-lsp/src/completion.rs, crates/nvs-lsp/tests/completion.rs, data/gaps/nvs-lsp/three-positions-are-answered-as-the-one-around-them.json]
+    status: done
+    context: [crates/nvs-runtime/src/ctx/output.rs, crates/nvs-config/src/log.rs, crates/nvs-lsp/src/completion.rs, crates/nvs-lsp/tests/completion.rs]
     extra:
       context:
         rules: [errors/engine-floor, ide/completion-offers-only-what-the-compiler-derived]
@@ -290,7 +290,10 @@ filtered by visibility.
   - [x] Reuse `nvs_hir::ClassGraph`'s edges and `nvs_types::signatures::is_visible_from`.
   - [x] Walk parents and interfaces nearest first, so an override hides what it overrides.
   - [x] One `.lspt` case per visibility, and one for inheritance.
-- [ ] The receiver half, a written type and a string literal each get their own list. `crates/nvs-lsp/src/completion.rs:56`
+- [x] The receiver half, a written type and a string literal each get their own list. `crates/nvs-lsp/src/completion.rs:56`
+  - [x] A cursor in the receiver half offers the variables in scope, pinned by a case.
+  - [x] Inside a string literal only the variables in scope are offered, and nothing in a single-quoted one.
+  - [x] A property's type and a type argument offer types, and the record is deleted.
 
 ### 11. the checker reports what it accepts today
 
@@ -333,15 +336,18 @@ work cannot live only in prose again.
 
 ### State
 
-Stages 1 to 4, 8 and 9 are done. Stage 10's syslog item and its member-resolution item are done.
-Completion after `->` and `::` walks the class's parents and interfaces nearest first through
-`nvs_hir::ClassGraph` (`crates/nvs-lsp/src/completion.rs`'s `lineage`). It filters each member with
-the checker's own `nvs_types::signatures::is_visible_from`, from the class the cursor is written in.
-Four `.lspt` cases pin it. `self::` now offers the parent's static half too. Trade-offs: one graph
-walk per completion request and nothing at run time, and the editor offers what the checker accepts.
-The record's other half moved to
-`data/gaps/nvs-lsp/three-positions-are-answered-as-the-one-around-them.json`, which is stage 10's
-last item, so stage 10 stays open on it.
+Stages 1 to 4 and 8 to 10 are done. Stage 10's last item landed: inside a double-quoted string or a
+heredoc, completion offers only the variables in scope, and a single-quoted one offers nothing. A
+`<` after a type's name, and a `,` between its arguments, offer types only. In a class body a
+modifier is followed by the member words not yet written and the types, and `?`, `|` or `&` by
+types only (`crates/nvs-lsp/src/completion.rs`'s `member`, `interpolates`, `opens_type_arguments`).
+The receiver half already offered the variables in scope, and a case now pins it. Trade-offs: one
+tokenize per class-body request, and nothing at run time.
+
+`bun nv scaling` now fails a count over its bound only when a second counting run of the same
+batches agrees (`tools/nv/cmd/scaling.ts`'s `rampAt`). `Core\Test::tlsSession` makes fresh keys,
+and their signatures vary in length, so `benches/members/core/Http-TlsInfo/version.nvs` moved its
+`bytes` by a few units between runs and read as growth.
 
 Stage 6's two items are on disk. Its remainder is
 `data/gaps/nvs-ext/a-workbook-never-finished-is-neither-logged-nor-cut-off.json`: a program that
@@ -364,18 +370,15 @@ cap on `call` events, or refuse `trace` and `profile` in a server's `[debug] mod
 `data/gaps/nvs-db/span-renders-on-a-flag-no.json` (no rule names the grant for a sampled span).
 
 The nightly still tests `cb7021a24` (checked this session with `gh run view 38869457440`). The local
-`main` is 168 commits ahead and not pushed, so its failures are the old tree's until the user pushes.
+`main` is 170 commits ahead and not pushed, so its failures are the old tree's until the user pushes.
 
 ### Next
 
-**Stage 10's last item, over `crates/nvs-lsp/src/completion.rs` and `tests/lsp/completion/`**
-(`data/gaps/nvs-lsp/three-positions-are-answered-as-the-one-around-them.json`,
-`rule:ide/completion-offers-only-what-the-compiler-derived`).
+**Stage 11's checker items, over `crates/nvs-types/src/` and `tests/` cases for each diagnostic.**
 
-- [ ] A cursor in an access's receiver half offers the variables in scope. `crates/nvs-lsp/src/completion.rs:56`
-- [ ] Inside a string literal, only the variables an interpolation takes are offered, and no statement keyword. `tests/lsp/completion/a-string-literal-is-a-statement-position.lspt:1`
-- [ ] A property's type and a type argument between `<` and `>` offer types only. `tests/lsp/completion/a-parameters-type-offers-types-and-nothing-else.lspt:1`
-- [ ] Delete the record, and mark stage 10 done. `crates/nvs-lsp/src/completion.rs:1`
+- [ ] A recursive alias gets one diagnostic at the alias (`rule:types/type-alias`). `crates/nvs-types/src/lower.rs:68`
+- [ ] An inherited `lateinit` read gets E0428 (`rule:classes/lateinit-read-before-write`). `crates/nvs-types/src/lateinit.rs:48`
+- [ ] A `decimal` property default is accepted (`rule:types/decimal`). `crates/nvs-types/src/defaults.rs:79`
 
 ### Backlog
 
