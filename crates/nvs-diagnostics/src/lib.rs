@@ -4193,18 +4193,20 @@ pub mod code {
          that says who may call the method.",
     );
 
-    /// A `csrf: false` beside a method whose every `#[Route]` names a safe verb.
+    /// A `csrf: false` beside a method whose every `#[Route]` names a verb with
+    /// no check.
     ///
-    /// `rule:security/csrf-is-on-by-default`'s opt-out, held to the thing it opts out of: CSRF is on by
-    /// default for `Post`, `Put`, `Patch` and `Delete` and for no other verb, so
-    /// beside a method declaring none of those the field turns nothing off.
+    /// `rule:security/csrf-is-on-by-default`'s opt-out, held to the thing it opts out of: the write
+    /// check covers `Post`, `Put`, `Patch` and `Delete`, and the upgrade's origin
+    /// check covers `Get`, so beside a method declaring none of those the field
+    /// turns nothing off.
     /// Refused rather than ignored because a field that reads as a security
     /// decision and has no effect is exactly how one ends up pasted onto routes
     /// that never needed it — and a reader auditing those routes then has to
     /// re-derive which of them the runtime was ever going to check.
     pub const E_CSRF_WITHOUT_UNSAFE_VERB: Code = Code::new("E0764").card(
-        "`csrf: false` has no effect here, because no `#[Route]` on this method uses `Post`, \
-         `Put`, `Patch` or `Delete`. Only those HTTP methods have a CSRF check. Delete \
+        "`csrf: false` has no effect here, because no `#[Route]` on this method uses `Get`, \
+         `Post`, `Put`, `Patch` or `Delete`. Only those HTTP methods have a CSRF check. Delete \
          `csrf: false`.",
     );
 

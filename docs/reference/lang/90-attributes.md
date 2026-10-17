@@ -474,7 +474,8 @@ without `allow:` is refused. The requirement runs both ways: an `#[Access]` on a
 carries no `#[Route]` is refused too (`E0788`), because the route table is the only thing that ever
 reads a decision, so one written away from a route guards nothing and never will.
 `csrf: false` opts the method out of the CSRF check that covers
-`Post`, `Put`, `Patch` and `Delete`, and is refused on a method whose routes are all safe verbs.
+`Post`, `Put`, `Patch` and `Delete`, and out of the origin check on a WebSocket upgrade, which
+arrives as a `Get`. It is refused on a method whose routes use none of those five verbs.
 
 ```nvs error
 <?nvs

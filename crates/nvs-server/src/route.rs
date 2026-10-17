@@ -47,6 +47,14 @@
 //! origin says, because it proves the request came from a page this application
 //! rendered.
 //!
+//! **An upgrade is checked on any verb, by its origin alone.** A browser opens
+//! a WebSocket with a `GET` that carries the visitor's cookies, so a page on
+//! another origin could otherwise hold a socket in the visitor's name. A request
+//! with an `Upgrade` header that matched a row is refused when its `Origin` is
+//! another origin, whatever the key says, because the handshake has no way to
+//! carry a token. The row's `csrf: false` turns this off as it turns off the
+//! write check, and a request with no `Origin` passes, as it does there.
+//!
 //! **What a deployment that names no key gets, stated as the bound:** the origin
 //! half and not the token half. A request with no `Origin` header at all — every
 //! non-browser client, and so every API caller and every health check — is
@@ -125,6 +133,23 @@ pub fn csrf_required(inbound: &Inbound) -> bool {
         .is_some_and(|matched| matched.route().csrf())
 }
 
+/// Whether this request asks to upgrade the connection over a row that did not
+/// write `csrf: false` — the cross-site WebSocket a browser opens with the
+/// visitor's cookies, which no verb check covers because the handshake is a
+/// `GET`.
+///
+/// Any `Upgrade` header counts, whatever protocol it names: `hyper` frames an
+/// upgrade for every one of them, and reading the value would be a second parser
+/// of a question already answered. A request that matched nothing is not
+/// covered, for [`csrf_required`]'s reason: the opt-out is written on a route,
+/// and a program with no table has nowhere to write it.
+fn upgrade_checked(inbound: &Inbound) -> bool {
+    header(inbound, UPGRADE_HEADER).is_some()
+        && inbound
+            .route()
+            .is_some_and(|matched| matched.route().upgrade_checked())
+}
+
 /// Where the door looks for a presented token.
 ///
 /// A header and not a form field, because the body is the one part of a request
@@ -141,6 +166,9 @@ const COOKIE_HEADER: &str = "cookie";
 
 /// The header naming where a checked request says it came from.
 const ORIGIN_HEADER: &str = "origin";
+
+/// The header a request asks to take the connection over with.
+const UPGRADE_HEADER: &str = "upgrade";
 
 /// What the door decided about a request's cross-origin write —
 /// `rule:security/csrf-is-on-by-default`'s refusal, as a verdict.
@@ -173,8 +201,17 @@ pub enum Csrf {
 /// a request whose `Origin` is not where it arrived is refused; and, where a key
 /// is named, a request with no such token is refused even same-origin, because a
 /// deployment that named a key asked for its unsafe verbs to carry one.
+///
+/// An upgrade is asked [`upgrade_checked`]'s question before any of that, and
+/// only the origin half of it: a browser's WebSocket handshake cannot carry a
+/// token header, so a key that refused one without a token would refuse every
+/// socket. The verb's own check still follows, so an upgrade header on a checked
+/// write takes nothing off the token it owes.
 #[must_use]
 pub fn csrf(inbound: &Inbound, key: Option<&[u8]>, session_cookie: &str) -> Csrf {
+    if upgrade_checked(inbound) && cross_origin(inbound) {
+        return Csrf::Refused;
+    }
     if !csrf_required(inbound) {
         return Csrf::Passed;
     }
@@ -233,7 +270,7 @@ fn cross_origin(inbound: &Inbound) -> bool {
 /// The first value of the header `name`, matched without regard to case.
 ///
 /// A walk of the carrier's lines rather than a map: a request holds few of them,
-/// the door asks for at most three, and `nvs_runtime::Inbound` keeps headers in
+/// the door asks for at most five, and `nvs_runtime::Inbound` keeps headers in
 /// the spelling and the order the peer sent them on purpose.
 fn header<'a>(inbound: &'a Inbound, name: &str) -> Option<&'a [u8]> {
     inbound
@@ -547,6 +584,70 @@ mod tests {
         assert_eq!(door(&arrived(&[host, own, riding])), Csrf::Refused);
         assert_eq!(
             door(&arrived(&[host, own, riding, ("x-csrf-token", "sid-ada")])),
+            Csrf::Refused
+        );
+    }
+
+    /// The upgrade half: a `GET` that asks to upgrade is refused from another
+    /// origin and passes from its own or with no `Origin`, a row that wrote
+    /// `csrf: false` is not checked, and a key does not make a token owed —
+    /// while an upgrade header on a checked write still owes its token.
+    #[test]
+    fn a_cross_origin_upgrade_is_refused_unless_its_route_opted_out() {
+        let routes = Routes::new(vec![
+            Route::new("Get", "/chat", None, "App\\Chat::open", None, vec![]),
+            Route::new("Get", "/feed", None, "App\\Feed::open", None, vec![]).without_csrf(),
+            Route::new("Post", "/orders", None, "App\\Orders::create", None, vec![]),
+        ]);
+        let arrived = |verb: &str, path: &str, headers: &[(&str, &str)]| {
+            let mut inbound = Inbound::new(verb, path, "");
+            for (name, value) in headers {
+                inbound.push_header(name, value.as_bytes());
+            }
+            super::take(&routes, &mut inbound);
+            inbound
+        };
+        let key = [4_u8; nvs_runtime::csrf::KEY_LEN];
+        let unkeyed = |inbound: &Inbound| super::csrf(inbound, None, "nvsid");
+        let keyed = |inbound: &Inbound| super::csrf(inbound, Some(key.as_slice()), "nvsid");
+
+        let host = ("host", "app.example.com");
+        let upgrade = ("Upgrade", "websocket");
+        let elsewhere = ("origin", "http://evil.example.com");
+        let own = ("origin", "http://app.example.com");
+
+        for door in [&unkeyed as &dyn Fn(&Inbound) -> Csrf, &keyed] {
+            assert_eq!(
+                door(&arrived("GET", "/chat", &[host, upgrade, elsewhere])),
+                Csrf::Refused
+            );
+            assert_eq!(
+                door(&arrived("GET", "/chat", &[host, upgrade, own])),
+                Csrf::Passed
+            );
+            assert_eq!(
+                door(&arrived("GET", "/chat", &[host, upgrade])),
+                Csrf::Passed
+            );
+            // The opt-out, and the same request with no upgrade header, which
+            // is an ordinary `GET` the door does not cover.
+            assert_eq!(
+                door(&arrived("GET", "/feed", &[host, upgrade, elsewhere])),
+                Csrf::Passed
+            );
+            assert_eq!(
+                door(&arrived("GET", "/chat", &[host, elsewhere])),
+                Csrf::Passed
+            );
+            // Nothing matched, so there is no route to have opted out.
+            assert_eq!(
+                door(&arrived("GET", "/elsewhere", &[host, upgrade, elsewhere])),
+                Csrf::Passed
+            );
+        }
+        // An upgrade header on a checked write takes nothing off its token.
+        assert_eq!(
+            keyed(&arrived("POST", "/orders", &[host, upgrade, own])),
             Csrf::Refused
         );
     }

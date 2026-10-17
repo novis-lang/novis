@@ -46,7 +46,8 @@ not compile. So a public route always says that it is public.
 - One `#[Core\Access]` covers every route on the method. `#[Core\Access]` on a method without a
   route does not compile.
 - `Post`, `Put`, `Patch` and `Delete` requests are checked for CSRF (a request sent from another
-  site). `csrf: false` turns that check off for one method.
+  site). A `Get` request that opens a WebSocket from another site is refused. `csrf: false` turns
+  both checks off for one method.
 
 ## Handling a request
 
