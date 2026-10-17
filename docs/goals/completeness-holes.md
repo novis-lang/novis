@@ -62,8 +62,8 @@ stages:
         rules: [types/arrays, expressions/method-reference, iteration/foreach-subjects, expressions/nullable-conversion, types/anonymous-object]
   - id: 9
     title: "JIT pages are freed, and every call site has its probe"
-    status: open
-    context: [crates/nvs-codegen/src/lib.rs, crates/nvs-codegen/src/emit.rs, crates/nvs-runtime/src/callable.rs, crates/nvs-cli/src/script.rs, data/gaps/nvs-codegen/jit-pages-leak-on-every-recompile.json]
+    status: done
+    context: [crates/nvs-codegen/src/lib.rs, crates/nvs-codegen/src/emit.rs, crates/nvs-runtime/src/callable.rs, crates/nvs-cli/src/script.rs]
     extra:
       context:
         rules: [config/an-edit-reaches-the-next-request-without-a-restart, testing/debug-probes]
@@ -271,7 +271,10 @@ result is the shape it is typed as, and the two compiler panics on accepted code
 **Does:** a recompile under `nvs serve` frees the old unit's pages once nothing runs in them, and a
 callable or `Core` call passes the call probes.
 
-- [ ] A dropped compiled unit frees its pages behind the no-live-frame proof. `crates/nvs-codegen/src/lib.rs:362`, `crates/nvs-cli/src/script.rs:1263`
+- [x] A dropped compiled unit frees its pages behind the no-live-frame proof. `crates/nvs-codegen/src/lib.rs:362`, `crates/nvs-cli/src/script.rs:1263`
+  - [x] The proof: the pages are owned by the unit's class table, which the unit and every `ErrorClass` a context holds share (`nvs_runtime::ClassTable::keep_code`).
+  - [x] `JitPages`'s `Drop` calls `JITModule::free_memory`, and the `Unit` doc says so.
+  - [x] `tests/jit_pages.rs` holds `mapped_jit_units` steady over a recompile loop, and the record is deleted.
 - [x] The probe pair around `nvs_call_callable` and `CoreCall`, with a label for a call that has no compile-time callee name. `crates/nvs-codegen/src/emit.rs:627`
   - [x] A `Core` call is labelled `Core\Class::member` (`nvs_stdlib::registry::member_label`), and a callable call `Class::invoke`.
   - [x] Codegen emits the pair around a `CoreCall`; `call_callable` makes it around every callable call, a `Core` member's callback included.
@@ -326,13 +329,12 @@ work cannot live only in prose again.
 
 ### State
 
-Stages 1 to 4 and 8 are done. Stage 9's probe item landed this session and its record is deleted.
-Codegen puts the call probes around every `CoreCall` whose symbol a member row names, labelled
-`Core\Class::member` (`crates/nvs-stdlib/src/registry.rs`'s `member_label`). A call through a
-`callable` is probed inside `crates/nvs-runtime/src/callable.rs`'s `call_callable_with`, labelled
-`Class::invoke`, so a `Core` member's callbacks are traced and counted too. `nvs run --count` now
-counts both kinds, so every bench's recorded `calls` that goes through either moves; the loop's hook
-re-records them (`bun nv benches` is refused in a session).
+Stages 1 to 4, 8 and 9 are done. Stage 9's JIT-pages item landed this session and its record is
+deleted. A unit's pages, JIT or placed, are owned by its class table
+(`nvs_runtime::ClassTable::keep_code`), so they unmap when the last handle to the table drops: the
+`Unit`'s and any `ErrorClass` a context still holds. `JitPages`'s `Drop` calls
+`JITModule::free_memory` (`crates/nvs-codegen/src/lib.rs`), and `nvs_codegen::mapped_jit_units`
+counts what is still mapped, which `crates/nvs-codegen/tests/jit_pages.rs` holds steady.
 
 Stage 6's two items are on disk. Its remainder is
 `data/gaps/nvs-ext/a-workbook-never-finished-is-neither-logged-nor-cut-off.json`: a program that
@@ -359,13 +361,13 @@ behind the local `main`. Its failures are the old tree's until the user pushes.
 
 ### Next
 
-**Stage 9's JIT-pages item, over `crates/nvs-codegen/src/lib.rs` and `crates/nvs-cli/src/script.rs`**
-(`data/gaps/nvs-codegen/jit-pages-leak-on-every-recompile.json`,
-`rule:config/an-edit-reaches-the-next-request-without-a-restart`).
+**Stage 10's syslog item, over `crates/nvs-runtime/src/ctx/output.rs` and `crates/nvs-config/src/log.rs`**
+(`data/gaps/nvs-runtime/log-target-syslog-is-not-transported.json`, `rule:errors/engine-floor`).
+The completion item is a second group, over `crates/nvs-lsp/src/completion.rs`.
 
-- [ ] Find what proves no compiled frame of a retired unit is live: the generation `keep` list a publish takes. `crates/nvs-cli/src/script.rs:1263`
-- [ ] Free a `Code::Jit` unit's pages with `JITModule::free_memory` when its last holder drops, behind that proof, and rewrite the `Code` doc. `crates/nvs-codegen/src/lib.rs:243`, `crates/nvs-codegen/src/lib.rs:346`
-- [ ] A test that a recompile loop holds the process's mapped code steady, then delete the record. `crates/nvs-cli/src/script.rs:1266`
+- [ ] Decide between a syslog sink and dropping `syslog` from the rule and the parser; a sink is a new transport, so state its trade-offs first. `crates/nvs-runtime/src/ctx/output.rs:1044`
+- [ ] Build the choice, with a test that `[log] target = "syslog"` does what the rule says. `crates/nvs-config/src/log.rs:1`
+- [ ] Delete the record and rewrite the module prose that described it. `crates/nvs-runtime/src/ctx/output.rs:1044`
 
 ### Backlog
 
