@@ -1,6 +1,0 @@
-{
-  "module": "crates/nvs-cli/src/reload.rs",
-  "title": "No test proves that a request under hot reload makes no `stat` call.",
-  "text": "`rule:config/an-edit-reaches-the-next-request-without-a-restart` says no request looks at the file: the background check makes one `stat` per configuration file per interval (`crates/nvs-cli/src/reload.rs:80-82`). `revalidation_is_lazy_and_rate_capped` (`crates/nvs-cli/src/script.rs:3202`) checks what a resolve returns, and does not count `stat` calls. Closing it means a test that serves many requests between two checks and counts the file-system calls they made.",
-  "goal": "completeness-holes"
-}

@@ -3216,9 +3216,8 @@ mod tests {
         // `rule:config/an-edit-reaches-the-next-request-without-a-restart`: no
         // request looks at the file, and the background check is what does.
         // What a resolve hands back is what the last look observed, so an edit
-        // between two resolves says whether the second one looked. Nothing
-        // here asserts a syscall count directly, because a count would pin the
-        // implementation rather than the rule.
+        // between two resolves says whether the second one looked.
+        // `many_resolves_between_two_checks_look_at_no_file` counts the looks.
         //
         // `revalidate_freq` is zero, which is the setting that made every
         // resolve look while the check ran inside it.
@@ -3247,6 +3246,44 @@ mod tests {
             .expect("the edited entry resolves");
         assert_eq!(said(checked), "two\n", "the check did not swap the edit in");
         assert_eq!(compiler.compiles.load(Ordering::Relaxed), 2);
+    }
+
+    #[test]
+    fn many_resolves_between_two_checks_look_at_no_file() {
+        // `rule:config/an-edit-reaches-the-next-request-without-a-restart`: no
+        // request makes a file-system call to revalidate. Every look this
+        // resolver takes at the disk writes a footprint line, a `stat` through
+        // `stamp_of` and a read through `observe` and `unmoved`, and
+        // `nvs_footprint::capture` keeps each line each time it is written.
+        // So the lines are the count of file-system calls.
+        //
+        // `mtime` with `revalidate_freq` zero is the setting under which a
+        // resolve that checked would check the most often.
+        let path = a_file_saying("no-stat-per-request", "one");
+        let compiler = checking("mtime", "0s");
+        let entry = path.to_string_lossy().into_owned();
+        let (_, _) = compiler.compiled(&entry).expect("the entry compiles");
+
+        let ((), resolving) = nvs_footprint::capture(|| {
+            for _ in 0..1000 {
+                let (_, _) = compiler.compiled(&entry).expect("the entry resolves again");
+            }
+        });
+        assert_eq!(
+            resolving,
+            Vec::<String>::new(),
+            "a resolve looked at the disk"
+        );
+
+        // The check is what looks: one `stat` of the program's one file.
+        let (_, checking) = nvs_footprint::capture(|| compiler.revalidate());
+        let named = nvs_footprint::shown(&path);
+        let looks = checking
+            .iter()
+            .filter(|line| line.ends_with(&named))
+            .count();
+        assert_eq!(looks, 1, "the check's looks: {checking:?}");
+        assert_eq!(compiler.compiles.load(Ordering::Relaxed), 1);
     }
 
     #[test]
