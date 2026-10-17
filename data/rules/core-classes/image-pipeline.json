@@ -1,6 +1,6 @@
 {
   "title": "An image is an immutable value carrying a plan, and nothing decodes until a terminal runs it",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "core-classes/image-pixel-model",
     "core-classes/image-pixel-cap",
@@ -9,6 +9,5 @@
   "guardedBy": [
     "crates/nvs-stdlib/tests/ext_world.rs",
     "crates/nvs-ext/tests/image_pipeline.rs"
-  ],
-  "goal": "completeness-holes"
+  ]
 }

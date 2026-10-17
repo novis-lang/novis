@@ -8,9 +8,9 @@ In-guest compute is measured against the same crate built native in
 `crates/nvs-ext/tests/image_guest.rs` holds to byte-identical output on both arms. On a full HD frame,
 a whole call that returns the pixels takes about twice as long in the guest as native, and returning
 the pixels adds little to returning the size header alone. That holds because the image world is
-called typed (`crates/nvs-ext/src/typed.rs`), so its byte lists cross in one copy each way. An export
-called on the dynamic path still crosses a byte list as one wasmtime `Val` per byte, which costs more
-than the compute (`data/gaps/nvs-ext/bytes-cross-one-val-per-byte.json`).
+called typed (`crates/nvs-ext/src/typed.rs`), so its byte lists cross in one copy each way, as every
+built-in world's do. A third-party export is called on the dynamic path, which crosses a byte list as
+one wasmtime `Val` per byte and costs more than the compute (`crates/nvs-ext/src/convert.rs:53`).
 
 That is noise for coarse-grained work — image codecs, compression, crypto, document parsing — and
 decisive for fine-grained work, which is why primitives are Tier 0 and performance-critical first-party

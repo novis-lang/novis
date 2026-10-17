@@ -3,7 +3,7 @@
 
 # Packaging
 
-*16 of 79 rules below are **designed** rather than shipped, and are marked where they appear.*
+*15 of 79 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="packaging-an-artifact-is-one-immutable-content-addressed-file"></a>
 
@@ -1971,7 +1971,7 @@ as an object whose one slot is the request's number for it (`nvs_types::ext_lib`
 
 <a id="packaging-values-cross-as-handles"></a>
 
-## A value crosses the guest boundary as a bounds-checked handle, never as a pointer  *(designed — owned by goal completeness-holes)*
+## A value crosses the guest boundary as a bounds-checked handle, never as a pointer
 
 `rule:packaging/values-cross-as-handles`
 
@@ -2002,9 +2002,9 @@ serves each `range` the guest reads from the program's own copy between two poll
 ([`core-classes/spreadsheet-reads-as-a-stream`](core-classes.md#core-classes-spreadsheet-reads-as-a-stream)). `as-bytes` and `range` are typed host
 functions that return a `list<u8>` whole, so a block a guest reads through a handle is one bulk copy
 (`crates/nvs-ext/src/handle.rs:262-285`). A `bytes` parameter or result of an export does not
-go through a handle. The image component's exports are called typed (`crates/nvs-ext/src/typed.rs`),
-so their bytes cross in one copy each way. Every other export's cross as one wasmtime `Val` per byte
-(`data/gaps/nvs-ext/bytes-cross-one-val-per-byte.json`).
+go through a handle. Every built-in component's exports are called typed (`crates/nvs-ext/src/typed.rs`),
+so their bytes cross in one copy each way. A third-party export's cross as one wasmtime `Val` per byte,
+because its types are known only at run time (`crates/nvs-ext/src/convert.rs:53`).
 
 <sub>See also [`packaging/the-boundary-is-the-cost`](packaging.md#packaging-the-boundary-is-the-cost), [`core-api/a-lifetime-is-an-object`](core-api.md#core-api-a-lifetime-is-an-object).</sub>
 
@@ -2275,9 +2275,9 @@ In-guest compute is measured against the same crate built native in
 `crates/nvs-ext/tests/image_guest.rs` holds to byte-identical output on both arms. On a full HD frame,
 a whole call that returns the pixels takes about twice as long in the guest as native, and returning
 the pixels adds little to returning the size header alone. That holds because the image world is
-called typed (`crates/nvs-ext/src/typed.rs`), so its byte lists cross in one copy each way. An export
-called on the dynamic path still crosses a byte list as one wasmtime `Val` per byte, which costs more
-than the compute (`data/gaps/nvs-ext/bytes-cross-one-val-per-byte.json`).
+called typed (`crates/nvs-ext/src/typed.rs`), so its byte lists cross in one copy each way, as every
+built-in world's do. A third-party export is called on the dynamic path, which crosses a byte list as
+one wasmtime `Val` per byte and costs more than the compute (`crates/nvs-ext/src/convert.rs:53`).
 
 That is noise for coarse-grained work — image codecs, compression, crypto, document parsing — and
 decisive for fine-grained work, which is why primitives are Tier 0 and performance-critical first-party

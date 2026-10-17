@@ -242,6 +242,79 @@ fn a_built_in_call_charges_its_bytes_once_and_not_one_val_per_byte() {
     }
 }
 
+/// The spreadsheet world is called typed too, with its resources and its `mixed` sources crossing
+/// as handles. No export takes `bytes` alone, so an image part carries them: a writer is opened,
+/// and its `writerPart` gets an image of zeros, which is no image format.
+#[test]
+fn a_spreadsheet_call_charges_its_bytes_once_with_a_resource_beside_them() {
+    let host = Host::new(4, |_| Ok(())).expect("the host starts");
+    let builtins = Loader::new(host.engine())
+        .builtins()
+        .expect("the built-in components load");
+    let extension = builtins
+        .iter()
+        .find(|builtin| builtin.manifest().class == SPREADSHEET_CLASS)
+        .expect("the spreadsheet component is built in")
+        .extension()
+        .expect("the spreadsheet component compiles and checks");
+    let shape = |fields: Vec<(&str, Value)>| {
+        Value::Array(
+            fields
+                .into_iter()
+                .map(|(name, value)| (Key::String(name.to_owned()), value))
+                .collect(),
+        )
+    };
+    let nulls = |names: &[&str]| shape(names.iter().map(|name| (*name, Value::Null)).collect());
+    let options = shape(vec![
+        (
+            "properties",
+            nulls(&[
+                "title", "subject", "author", "company", "keywords", "created",
+            ]),
+        ),
+        ("target", Value::String("memory".to_owned())),
+    ]);
+    let data = vec![0_u8; 4 << 20];
+    let part = |data: Vec<u8>| {
+        let Value::Array(mut fields) = nulls(&["width", "height", "offsetX", "offsetY"]) else {
+            unreachable!("a shape is an array");
+        };
+        fields.push((Key::String("at".to_owned()), Value::String("A1".to_owned())));
+        fields.push((Key::String("image".to_owned()), Value::Bytes(data)));
+        Value::Array(fields)
+    };
+    let write = |request: &nvs_ext::call::Request, data: Vec<u8>| {
+        let writer = block_on(request.call_values(extension, "writerOpen", vec![options.clone()]))
+            .expect("a writer opens")
+            .expect("`writerOpen` returns a writer");
+        assert!(
+            matches!(writer, Value::Resource { ref name, .. } if name == "Writer"),
+            "the request keeps the writer: {writer:?}"
+        );
+        block_on(request.call_values(extension, "writerPart", vec![writer, part(data)]))
+    };
+
+    let unbounded = Arc::new(Meter::new(Duration::from_secs(30), None));
+    let request = host.request(unbounded.clone());
+    let out = write(&request, data.clone());
+    assert!(
+        matches!(out, Err(Failure::Error(Error::Invalid(_)))),
+        "zeros are no image: {out:?}"
+    );
+    let instance = unbounded.charged();
+    block_on(request.end()).expect("the request ends");
+
+    let budget = instance + data.len() as u64 + (1 << 20);
+    let request = host.request(Arc::new(Meter::new(Duration::from_secs(30), Some(budget))));
+    let out = write(&request, data);
+    assert!(
+        matches!(out, Err(Failure::Error(Error::Invalid(_)))),
+        "the image part fits in {budget} bytes: {out:?}"
+    );
+    block_on(request.end()).expect("the request ends");
+}
+
 #[test]
 fn a_built_in_component_needs_no_extension_entry_and_no_pin() {
     let builtins = Loader::new(&Engine::default())

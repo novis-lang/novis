@@ -15,15 +15,21 @@
 //! A field, a case and a method are matched by name in kebab-case, so a generated `has_alpha` is
 //! the manifest's `hasAlpha`. The conversion back writes what `crate::convert::from_wit` writes.
 //!
+//! **Handles cross as [`ResourceAny`].** A `mixed` value is lent and a resource the request keeps
+//! is passed back by the call's [`Crossing`], and a resource the guest returns is kept by it, as on
+//! the dynamic path. So the arguments are converted in the instance's store, once the call has
+//! one, and the result is converted there too. wasmtime checks a [`ResourceAny`] against the
+//! export's resource type when it lowers it.
+//!
 //! What it costs: a `bytes` value moves into its generated `Vec<u8>` and out of it again, so the
 //! host copies no byte. wasmtime copies it once into the guest and once out of it. A call checks
 //! the export's type against the generated one each time it runs.
 
-use wasmtime::component::Func;
+use wasmtime::component::{Func, ResourceAny, Val};
 use wasmtime::{AsContextMut, Store};
 
 use crate::call::{Error, Guest};
-use crate::convert::{self, Key, Value};
+use crate::convert::{self, Crossing, Key, Value};
 use crate::types::{Field, NovisType};
 
 /// A built-in world whose exports this module calls typed, by the interface its manifest maps.
@@ -35,6 +41,8 @@ pub(crate) enum World {
     Pdf,
     /// `nvs:intl/icu`.
     Intl,
+    /// `nvs:spreadsheet/engine`.
+    Spreadsheet,
 }
 
 impl World {
@@ -44,25 +52,38 @@ impl World {
             "nvs:image/codec" => Some(Self::Image),
             "nvs:pdf/engine" => Some(Self::Pdf),
             "nvs:intl/icu" => Some(Self::Intl),
+            "nvs:spreadsheet/engine" => Some(Self::Spreadsheet),
             _ => None,
         }
     }
 
-    /// The typed arguments of `method`, converted from `args` by `params`. `Err` gives `args`
-    /// back where the world has no such method, so the call takes the dynamic path.
+    /// Whether the world calls `method` typed. A method it does not takes the dynamic path.
+    pub(crate) fn has(self, method: &str) -> bool {
+        match self {
+            Self::Image => image::Args::has(method),
+            Self::Pdf => pdf::Args::has(method),
+            Self::Intl => intl::Args::has(method),
+            Self::Spreadsheet => spreadsheet::Args::has(method),
+        }
+    }
+
+    /// The typed arguments of `method`, converted from `args` by `params`, with `call` lending
+    /// and passing the handles among them.
     pub(crate) fn lower(
         self,
         method: &str,
         params: &[NovisType],
         args: Vec<Value>,
-    ) -> Result<Result<Args, String>, Vec<Value>> {
-        match self {
-            Self::Image => {
-                image::Args::lower(method, params, args).map(|args| args.map(Args::Image))
+        call: &mut dyn Crossing,
+    ) -> Result<Args, String> {
+        Ok(match self {
+            Self::Image => Args::Image(image::Args::lower(method, params, args, call)?),
+            Self::Pdf => Args::Pdf(pdf::Args::lower(method, params, args, call)?),
+            Self::Intl => Args::Intl(intl::Args::lower(method, params, args, call)?),
+            Self::Spreadsheet => {
+                Args::Spreadsheet(spreadsheet::Args::lower(method, params, args, call)?)
             }
-            Self::Pdf => pdf::Args::lower(method, params, args).map(|args| args.map(Args::Pdf)),
-            Self::Intl => intl::Args::lower(method, params, args).map(|args| args.map(Args::Intl)),
-        }
+        })
     }
 }
 
@@ -74,6 +95,8 @@ pub(crate) enum Args {
     Pdf(pdf::Args),
     /// A call to the intl world.
     Intl(intl::Args),
+    /// A call to the spreadsheet world.
+    Spreadsheet(spreadsheet::Args),
 }
 
 /// What one typed call returned.
@@ -84,6 +107,8 @@ pub(crate) enum Out {
     Pdf(pdf::Out),
     /// A result of the intl world.
     Intl(intl::Out),
+    /// A result of the spreadsheet world.
+    Spreadsheet(spreadsheet::Out),
 }
 
 impl Args {
@@ -93,6 +118,7 @@ impl Args {
             Self::Image(args) => args.heap(),
             Self::Pdf(args) => args.heap(),
             Self::Intl(args) => args.heap(),
+            Self::Spreadsheet(args) => args.heap(),
         }
     }
 
@@ -107,6 +133,7 @@ impl Args {
             Self::Image(args) => Ok(args.call(store, func).await?.map(Out::Image)),
             Self::Pdf(args) => Ok(args.call(store, func).await?.map(Out::Pdf)),
             Self::Intl(args) => Ok(args.call(store, func).await?.map(Out::Intl)),
+            Self::Spreadsheet(args) => Ok(args.call(store, func).await?.map(Out::Spreadsheet)),
         }
     }
 }
@@ -118,23 +145,31 @@ impl Out {
             Self::Image(out) => out.heap(),
             Self::Pdf(out) => out.heap(),
             Self::Intl(out) => out.heap(),
+            Self::Spreadsheet(out) => out.heap(),
         }
     }
 
-    /// The Novis value the result is, where the manifest's return type is `ty`.
-    pub(crate) fn into_value(self, ty: &NovisType) -> Result<Value, String> {
+    /// The Novis value the result is, where the manifest's return type is `ty`, with `call`
+    /// keeping a resource the guest returned.
+    pub(crate) fn into_value(
+        self,
+        ty: &NovisType,
+        call: &mut dyn Crossing,
+    ) -> Result<Value, String> {
         match self {
-            Self::Image(out) => out.into_value(ty),
-            Self::Pdf(out) => out.into_value(ty),
-            Self::Intl(out) => out.into_value(ty),
+            Self::Image(out) => out.into_value(ty, call),
+            Self::Pdf(out) => out.into_value(ty, call),
+            Self::Intl(out) => out.into_value(ty, call),
+            Self::Spreadsheet(out) => out.into_value(ty, call),
         }
     }
 }
 
-/// A generated type a Novis value converts to.
+/// A generated type a Novis value converts to. `call` lends a `mixed` value and passes a resource
+/// back, as `crate::convert::to_wit_with` does.
 pub(crate) trait FromValue: Sized {
     /// The value `value` is, where the manifest's type is `ty`.
-    fn from_value(ty: &NovisType, value: Value) -> Result<Self, String>;
+    fn from_value(ty: &NovisType, value: Value, call: &mut dyn Crossing) -> Result<Self, String>;
 
     /// What an optional shape field that is absent converts to. Only an `Option` has a value here.
     fn absent() -> Option<Self> {
@@ -143,7 +178,13 @@ pub(crate) trait FromValue: Sized {
 
     /// The entry of a keyed array, where the manifest's types are `key` and `value`. Only a pair
     /// is one.
-    fn from_entry(_: &NovisType, _: &NovisType, key: Key, _: Value) -> Result<Self, String> {
+    fn from_entry(
+        _: &NovisType,
+        _: &NovisType,
+        key: Key,
+        _: Value,
+        _: &mut dyn Crossing,
+    ) -> Result<Self, String> {
         Err(format!(
             "the array entry {key:?} is not a pair of a keyed array"
         ))
@@ -155,10 +196,11 @@ pub(crate) trait FromValue: Sized {
     }
 }
 
-/// A generated type that converts back to a Novis value.
+/// A generated type that converts back to a Novis value. `call` keeps a resource the guest
+/// returned, as `crate::convert::from_wit_with` does.
 pub(crate) trait IntoValue: Sized {
     /// The Novis value `self` is, where the manifest's type is `ty`.
-    fn into_value(self, ty: &NovisType) -> Result<Value, String>;
+    fn into_value(self, ty: &NovisType, call: &mut dyn Crossing) -> Result<Value, String>;
 
     /// Whether an optional shape field of this value is left out of the array: an `Option` that
     /// is `None`.
@@ -167,7 +209,12 @@ pub(crate) trait IntoValue: Sized {
     }
 
     /// The key and the value of a keyed array's entry. Only a pair is one.
-    fn into_entry(self, _: &NovisType, _: &NovisType) -> Result<(Key, Value), String> {
+    fn into_entry(
+        self,
+        _: &NovisType,
+        _: &NovisType,
+        _: &mut dyn Crossing,
+    ) -> Result<(Key, Value), String> {
         Err("only a pair is an entry of a keyed array".to_owned())
     }
 
@@ -186,22 +233,30 @@ pub(crate) trait Heap {
 /// A generated record, which is a Novis shape.
 pub(crate) trait Shape: Sized {
     /// The record the array of `entries` is, where the shape is `fields`.
-    fn from_shape(fields: &[Field], entries: Vec<(Key, Value)>) -> Result<Self, String>;
+    fn from_shape(
+        fields: &[Field],
+        entries: Vec<(Key, Value)>,
+        call: &mut dyn Crossing,
+    ) -> Result<Self, String>;
 
     /// The array the record is, where the shape is `fields`.
-    fn into_shape(self, fields: &[Field]) -> Result<Value, String>;
+    fn into_shape(self, fields: &[Field], call: &mut dyn Crossing) -> Result<Value, String>;
 }
 
 /// The arguments of one method: a tuple of generated types, converted from the call's values.
 pub(crate) trait Params: Sized {
     /// The arguments `args` are, where the parameters' types are `params`.
-    fn from_values(params: &[NovisType], args: Vec<Value>) -> Result<Self, String>;
+    fn from_values(
+        params: &[NovisType],
+        args: Vec<Value>,
+        call: &mut dyn Crossing,
+    ) -> Result<Self, String>;
 }
 
 macro_rules! scalars {
     ($($rust:ty: $novis:ident $value:ident;)*) => {$(
         impl FromValue for $rust {
-            fn from_value(ty: &NovisType, value: Value) -> Result<Self, String> {
+            fn from_value(ty: &NovisType, value: Value, _: &mut dyn Crossing) -> Result<Self, String> {
                 match (ty, value) {
                     (NovisType::$novis, Value::$value(v)) => Ok(v),
                     (ty, value) => Err(mismatch(ty, &value)),
@@ -210,7 +265,7 @@ macro_rules! scalars {
         }
 
         impl IntoValue for $rust {
-            fn into_value(self, ty: &NovisType) -> Result<Value, String> {
+            fn into_value(self, ty: &NovisType, _: &mut dyn Crossing) -> Result<Value, String> {
                 match ty {
                     NovisType::$novis => Ok(Value::$value(self)),
                     ty => Err(back(ty, stringify!($rust))),
@@ -233,7 +288,7 @@ scalars! {
 }
 
 impl FromValue for u64 {
-    fn from_value(ty: &NovisType, value: Value) -> Result<Self, String> {
+    fn from_value(ty: &NovisType, value: Value, _: &mut dyn Crossing) -> Result<Self, String> {
         match (ty, value) {
             (NovisType::Uint, Value::Uint(n)) => Ok(n),
             (NovisType::Uint, Value::Int(n)) if let Ok(n) = u64::try_from(n) => Ok(n),
@@ -243,7 +298,7 @@ impl FromValue for u64 {
 }
 
 impl IntoValue for u64 {
-    fn into_value(self, ty: &NovisType) -> Result<Value, String> {
+    fn into_value(self, ty: &NovisType, _: &mut dyn Crossing) -> Result<Value, String> {
         match ty {
             NovisType::Uint => Ok(Value::Uint(self)),
             ty => Err(back(ty, "u64")),
@@ -258,7 +313,7 @@ impl Heap for u64 {
 }
 
 impl FromValue for String {
-    fn from_value(ty: &NovisType, value: Value) -> Result<Self, String> {
+    fn from_value(ty: &NovisType, value: Value, _: &mut dyn Crossing) -> Result<Self, String> {
         match (ty, value) {
             (NovisType::String, Value::String(s)) => Ok(s),
             (ty, value) => Err(mismatch(ty, &value)),
@@ -267,7 +322,7 @@ impl FromValue for String {
 }
 
 impl IntoValue for String {
-    fn into_value(self, ty: &NovisType) -> Result<Value, String> {
+    fn into_value(self, ty: &NovisType, _: &mut dyn Crossing) -> Result<Value, String> {
         match ty {
             NovisType::String => Ok(Value::String(self)),
             ty => Err(back(ty, "String")),
@@ -282,7 +337,7 @@ impl Heap for String {
 }
 
 impl FromValue for u8 {
-    fn from_value(ty: &NovisType, value: Value) -> Result<Self, String> {
+    fn from_value(ty: &NovisType, value: Value, _: &mut dyn Crossing) -> Result<Self, String> {
         Err(mismatch(ty, &value))
     }
 
@@ -292,7 +347,7 @@ impl FromValue for u8 {
 }
 
 impl IntoValue for u8 {
-    fn into_value(self, ty: &NovisType) -> Result<Value, String> {
+    fn into_value(self, ty: &NovisType, _: &mut dyn Crossing) -> Result<Value, String> {
         Err(back(ty, "u8"))
     }
 
@@ -308,18 +363,18 @@ impl Heap for u8 {
 }
 
 impl<T: FromValue> FromValue for Vec<T> {
-    fn from_value(ty: &NovisType, value: Value) -> Result<Self, String> {
+    fn from_value(ty: &NovisType, value: Value, call: &mut dyn Crossing) -> Result<Self, String> {
         match (ty, value) {
             (NovisType::Bytes, Value::Bytes(bytes)) => {
                 T::list_from_bytes(bytes).ok_or_else(|| back(ty, "a list that is not bytes"))
             }
             (NovisType::List(item), Value::Array(entries)) => entries
                 .into_iter()
-                .map(|(_, value)| T::from_value(item, value))
+                .map(|(_, value)| T::from_value(item, value, call))
                 .collect(),
             (NovisType::Keyed(key, value), Value::Array(entries)) => entries
                 .into_iter()
-                .map(|(k, v)| T::from_entry(key, value, k, v))
+                .map(|(k, v)| T::from_entry(key, value, k, v, call))
                 .collect(),
             (ty, value) => Err(mismatch(ty, &value)),
         }
@@ -327,7 +382,7 @@ impl<T: FromValue> FromValue for Vec<T> {
 }
 
 impl<T: IntoValue> IntoValue for Vec<T> {
-    fn into_value(self, ty: &NovisType) -> Result<Value, String> {
+    fn into_value(self, ty: &NovisType, call: &mut dyn Crossing) -> Result<Value, String> {
         match ty {
             NovisType::Bytes => T::list_into_bytes(self)
                 .map(Value::Bytes)
@@ -335,12 +390,12 @@ impl<T: IntoValue> IntoValue for Vec<T> {
             NovisType::List(item) => Ok(Value::Array(
                 (0_i64..)
                     .zip(self)
-                    .map(|(at, value)| Ok((Key::Int(at), value.into_value(item)?)))
+                    .map(|(at, value)| Ok((Key::Int(at), value.into_value(item, call)?)))
                     .collect::<Result<_, String>>()?,
             )),
             NovisType::Keyed(key, value) => Ok(Value::Array(
                 self.into_iter()
-                    .map(|entry| entry.into_entry(key, value))
+                    .map(|entry| entry.into_entry(key, value, call))
                     .collect::<Result<_, String>>()?,
             )),
             ty => Err(back(ty, "a list")),
@@ -357,14 +412,14 @@ impl<T: Heap> Heap for Vec<T> {
 /// An `Option` is a `?T` or an optional shape field, so its type is the `?T`'s inner one or, for a
 /// field, the field's own.
 impl<T: FromValue> FromValue for Option<T> {
-    fn from_value(ty: &NovisType, value: Value) -> Result<Self, String> {
+    fn from_value(ty: &NovisType, value: Value, call: &mut dyn Crossing) -> Result<Self, String> {
         let inner = match ty {
             NovisType::Optional(inner) => inner,
             ty => ty,
         };
         match value {
             Value::Null => Ok(None),
-            value => T::from_value(inner, value).map(Some),
+            value => T::from_value(inner, value, call).map(Some),
         }
     }
 
@@ -374,14 +429,14 @@ impl<T: FromValue> FromValue for Option<T> {
 }
 
 impl<T: IntoValue> IntoValue for Option<T> {
-    fn into_value(self, ty: &NovisType) -> Result<Value, String> {
+    fn into_value(self, ty: &NovisType, call: &mut dyn Crossing) -> Result<Value, String> {
         let inner = match ty {
             NovisType::Optional(inner) => inner,
             ty => ty,
         };
         match self {
             None => Ok(Value::Null),
-            Some(value) => value.into_value(inner),
+            Some(value) => value.into_value(inner, call),
         }
     }
 
@@ -399,27 +454,38 @@ impl<T: Heap> Heap for Option<T> {
 /// A pair is one entry of a keyed array. A key the runtime stored as an `int` is its decimal text
 /// where the key type is `string`, as `crate::convert` crosses it.
 impl<K: FromValue, V: FromValue> FromValue for (K, V) {
-    fn from_value(ty: &NovisType, value: Value) -> Result<Self, String> {
+    fn from_value(ty: &NovisType, value: Value, _: &mut dyn Crossing) -> Result<Self, String> {
         Err(mismatch(ty, &value))
     }
 
-    fn from_entry(key: &NovisType, value: &NovisType, k: Key, v: Value) -> Result<Self, String> {
+    fn from_entry(
+        key: &NovisType,
+        value: &NovisType,
+        k: Key,
+        v: Value,
+        call: &mut dyn Crossing,
+    ) -> Result<Self, String> {
         let k = match (key, k) {
             (NovisType::String, Key::Int(n)) => Value::String(n.to_string()),
             (_, Key::Int(n)) => Value::Int(n),
             (_, Key::String(s)) => Value::String(s),
         };
-        Ok((K::from_value(key, k)?, V::from_value(value, v)?))
+        Ok((K::from_value(key, k, call)?, V::from_value(value, v, call)?))
     }
 }
 
 impl<K: IntoValue, V: IntoValue> IntoValue for (K, V) {
-    fn into_value(self, ty: &NovisType) -> Result<Value, String> {
+    fn into_value(self, ty: &NovisType, _: &mut dyn Crossing) -> Result<Value, String> {
         Err(back(ty, "a pair"))
     }
 
-    fn into_entry(self, key: &NovisType, value: &NovisType) -> Result<(Key, Value), String> {
-        let k = match self.0.into_value(key)? {
+    fn into_entry(
+        self,
+        key: &NovisType,
+        value: &NovisType,
+        call: &mut dyn Crossing,
+    ) -> Result<(Key, Value), String> {
+        let k = match self.0.into_value(key, call)? {
             Value::Int(n) => Key::Int(n),
             Value::String(s) => Key::String(s),
             other => {
@@ -428,14 +494,66 @@ impl<K: IntoValue, V: IntoValue> IntoValue for (K, V) {
                 ));
             }
         };
-        Ok((k, self.1.into_value(value)?))
+        Ok((k, self.1.into_value(value, call)?))
+    }
+}
+
+/// A handle: a `mixed` value the call lends, or a resource the request keeps, which the call
+/// passes back. Either crosses as the `ResourceAny` the dynamic path would have sent, so wasmtime
+/// checks it against the export's own resource type when it lowers it.
+impl FromValue for ResourceAny {
+    fn from_value(ty: &NovisType, value: Value, call: &mut dyn Crossing) -> Result<Self, String> {
+        let val = match (ty, value) {
+            (NovisType::Mixed, value) => call.lend(value)?,
+            (NovisType::Resource(name), Value::Resource { name: of, id }) if *name == of => {
+                call.pass(name, id)?
+            }
+            (ty, value) => return Err(mismatch(ty, &value)),
+        };
+        match val {
+            Val::Resource(resource) => Ok(resource),
+            val => Err(format!("the call crossed {val:?}, which is not a handle")),
+        }
+    }
+}
+
+/// A resource the guest returned as an `own`, which the request keeps until it ends.
+impl IntoValue for ResourceAny {
+    fn into_value(self, ty: &NovisType, call: &mut dyn Crossing) -> Result<Value, String> {
+        match ty {
+            NovisType::Resource(name) if self.owned() => call.keep(name, self),
+            ty => Err(back(ty, "resource")),
+        }
+    }
+}
+
+impl Heap for ResourceAny {
+    fn heap(&self) -> u64 {
+        0
+    }
+}
+
+/// The `ok` side of a `result<_, error>`, which a `void` method returns.
+impl IntoValue for () {
+    fn into_value(self, _: &NovisType, _: &mut dyn Crossing) -> Result<Value, String> {
+        Ok(Value::Null)
+    }
+}
+
+impl Heap for () {
+    fn heap(&self) -> u64 {
+        0
     }
 }
 
 macro_rules! params {
     ($($n:literal: $($t:ident),*;)*) => {$(
         impl<$($t: FromValue + Heap),*> Params for ($($t,)*) {
-            fn from_values(params: &[NovisType], args: Vec<Value>) -> Result<Self, String> {
+            fn from_values(
+                params: &[NovisType],
+                args: Vec<Value>,
+                call: &mut dyn Crossing,
+            ) -> Result<Self, String> {
                 if params.len() != $n || args.len() != $n {
                     return Err(format!(
                         "the method takes {} arguments, and the call passed {}",
@@ -445,7 +563,7 @@ macro_rules! params {
                 }
                 let mut params = params.iter();
                 let mut args = args.into_iter();
-                Ok(($(next::<$t>(&mut params, &mut args)?,)*))
+                Ok(($(next::<$t>(&mut params, &mut args, call)?,)*))
             }
         }
 
@@ -463,15 +581,17 @@ params! {
     1: A;
     2: A, B;
     3: A, B, C;
+    4: A, B, C, D;
 }
 
 /// The next argument, converted by the next parameter's type.
 fn next<T: FromValue>(
     params: &mut std::slice::Iter<'_, NovisType>,
     args: &mut std::vec::IntoIter<Value>,
+    call: &mut dyn Crossing,
 ) -> Result<T, String> {
     match (params.next(), args.next()) {
-        (Some(ty), Some(value)) => T::from_value(ty, value),
+        (Some(ty), Some(value)) => T::from_value(ty, value, call),
         _ => Err("the call passed fewer arguments than the method takes".to_owned()),
     }
 }
@@ -482,6 +602,7 @@ pub(crate) fn field<T: FromValue>(
     field: Option<&Field>,
     entries: &mut Vec<(Key, Value)>,
     rust: &str,
+    call: &mut dyn Crossing,
 ) -> Result<T, String> {
     let (name, optional, ty) = shape_field(field, rust)?;
     let found = entries
@@ -489,7 +610,7 @@ pub(crate) fn field<T: FromValue>(
         .position(|(key, _)| matches!(key, Key::String(k) if k == name))
         .map(|at| entries.swap_remove(at).1);
     match found {
-        Some(value) => T::from_value(ty, value),
+        Some(value) => T::from_value(ty, value, call),
         None if *optional => {
             T::absent().ok_or_else(|| format!("the optional field `{name}` cannot be absent"))
         }
@@ -506,12 +627,13 @@ pub(crate) fn put<T: IntoValue>(
     entries: &mut Vec<(Key, Value)>,
     rust: &str,
     value: T,
+    call: &mut dyn Crossing,
 ) -> Result<(), String> {
     let (name, optional, ty) = shape_field(field, rust)?;
     if *optional && value.omitted() {
         return Ok(());
     }
-    entries.push((Key::String(name.clone()), value.into_value(ty)?));
+    entries.push((Key::String(name.clone()), value.into_value(ty, call)?));
     Ok(())
 }
 
@@ -535,10 +657,11 @@ pub(crate) fn core_field<T: FromValue>(
     class: &str,
     fields: &mut Vec<(String, Value)>,
     rust: &str,
+    call: &mut dyn Crossing,
 ) -> Result<T, String> {
     let (name, ty) = core_record_field(field, rust)?;
     match fields.iter().position(|(n, _)| n == name) {
-        Some(at) => T::from_value(ty, fields.swap_remove(at).1),
+        Some(at) => T::from_value(ty, fields.swap_remove(at).1, call),
         None => Err(format!("the `{class}` has no field `{name}`")),
     }
 }
@@ -549,9 +672,10 @@ pub(crate) fn core_put<T: IntoValue>(
     field: Option<&(&'static str, NovisType)>,
     rust: &str,
     value: T,
+    call: &mut dyn Crossing,
 ) -> Result<(String, Value), String> {
     let (name, ty) = core_record_field(field, rust)?;
-    Ok(((*name).to_owned(), value.into_value(ty)?))
+    Ok(((*name).to_owned(), value.into_value(ty, call)?))
 }
 
 /// The record's field `field`, checked to be the generated field `rust`.
@@ -673,17 +797,24 @@ macro_rules! records {
             fn from_shape(
                 fields: &[$crate::types::Field],
                 mut entries: Vec<($crate::convert::Key, $crate::convert::Value)>,
+                call: &mut dyn $crate::convert::Crossing,
             ) -> Result<Self, String> {
                 let mut at = fields.iter();
                 Ok(Self {
-                    $($field: $crate::typed::field(at.next(), &mut entries, stringify!($field))?,)*
+                    $($field: $crate::typed::field(
+                        at.next(), &mut entries, stringify!($field), call,
+                    )?,)*
                 })
             }
 
-            fn into_shape(self, fields: &[$crate::types::Field]) -> Result<$crate::convert::Value, String> {
+            fn into_shape(
+                self,
+                fields: &[$crate::types::Field],
+                call: &mut dyn $crate::convert::Crossing,
+            ) -> Result<$crate::convert::Value, String> {
                 let mut at = fields.iter();
                 let mut entries = Vec::with_capacity(fields.len());
-                $($crate::typed::put(at.next(), &mut entries, stringify!($field), self.$field)?;)*
+                $($crate::typed::put(at.next(), &mut entries, stringify!($field), self.$field, call)?;)*
                 Ok($crate::convert::Value::Array(entries))
             }
         }
@@ -692,10 +823,11 @@ macro_rules! records {
             fn from_value(
                 ty: &$crate::types::NovisType,
                 value: $crate::convert::Value,
+                call: &mut dyn $crate::convert::Crossing,
             ) -> Result<Self, String> {
                 match (ty, value) {
                     ($crate::types::NovisType::Shape(fields), $crate::convert::Value::Array(entries)) => {
-                        $crate::typed::Shape::from_shape(fields, entries)
+                        $crate::typed::Shape::from_shape(fields, entries, call)
                     }
                     (ty, value) => Err($crate::typed::mismatch(ty, &value)),
                 }
@@ -703,9 +835,15 @@ macro_rules! records {
         }
 
         impl $crate::typed::IntoValue for $ty {
-            fn into_value(self, ty: &$crate::types::NovisType) -> Result<$crate::convert::Value, String> {
+            fn into_value(
+                self,
+                ty: &$crate::types::NovisType,
+                call: &mut dyn $crate::convert::Crossing,
+            ) -> Result<$crate::convert::Value, String> {
                 match ty {
-                    $crate::types::NovisType::Shape(fields) => $crate::typed::Shape::into_shape(self, fields),
+                    $crate::types::NovisType::Shape(fields) => {
+                        $crate::typed::Shape::into_shape(self, fields, call)
+                    }
                     ty => Err($crate::typed::back(ty, stringify!($ty))),
                 }
             }
@@ -726,6 +864,7 @@ macro_rules! enums {
             fn from_value(
                 ty: &$crate::types::NovisType,
                 value: $crate::convert::Value,
+                _: &mut dyn $crate::convert::Crossing,
             ) -> Result<Self, String> {
                 let case = $crate::typed::enum_case(ty, &value)?;
                 $(if $crate::typed::same_name(case, stringify!($case)) {
@@ -736,7 +875,11 @@ macro_rules! enums {
         }
 
         impl $crate::typed::IntoValue for $ty {
-            fn into_value(self, ty: &$crate::types::NovisType) -> Result<$crate::convert::Value, String> {
+            fn into_value(
+                self,
+                ty: &$crate::types::NovisType,
+                _: &mut dyn $crate::convert::Crossing,
+            ) -> Result<$crate::convert::Value, String> {
                 $crate::typed::enum_value(ty, match self {
                     $(Self::$case => stringify!($case),)*
                 })
@@ -759,6 +902,7 @@ macro_rules! variants {
             fn from_value(
                 ty: &$crate::types::NovisType,
                 value: $crate::convert::Value,
+                call: &mut dyn $crate::convert::Crossing,
             ) -> Result<Self, String> {
                 let entries = match value {
                     $crate::convert::Value::Array(entries) => entries,
@@ -766,18 +910,23 @@ macro_rules! variants {
                 };
                 let (case, fields) = $crate::typed::union_case(ty, &entries)?;
                 $(if $crate::typed::same_name(case, stringify!($case)) {
-                    return Ok(Self::$case($crate::typed::Shape::from_shape(fields, entries)?));
+                    return Ok(Self::$case($crate::typed::Shape::from_shape(fields, entries, call)?));
                 })*
                 Err(format!("`{case}` is not a case of the record's variant"))
             }
         }
 
         impl $crate::typed::IntoValue for $ty {
-            fn into_value(self, ty: &$crate::types::NovisType) -> Result<$crate::convert::Value, String> {
+            fn into_value(
+                self,
+                ty: &$crate::types::NovisType,
+                call: &mut dyn $crate::convert::Crossing,
+            ) -> Result<$crate::convert::Value, String> {
                 match self {
                     $(Self::$case(payload) => $crate::typed::Shape::into_shape(
                         payload,
                         $crate::typed::union_shape(ty, stringify!($case))?,
+                        call,
                     ),)*
                 }
             }
@@ -801,6 +950,7 @@ macro_rules! cores {
             fn from_value(
                 ty: &$crate::types::NovisType,
                 value: $crate::convert::Value,
+                call: &mut dyn $crate::convert::Crossing,
             ) -> Result<Self, String> {
                 match (ty, value) {
                     (
@@ -810,7 +960,7 @@ macro_rules! cores {
                         let mut at = core.fields.iter();
                         Ok(Self {
                             $($field: $crate::typed::core_field(
-                                at.next(), &class, &mut fields, stringify!($field),
+                                at.next(), &class, &mut fields, stringify!($field), call,
                             )?,)*
                         })
                     }
@@ -820,13 +970,19 @@ macro_rules! cores {
         }
 
         impl $crate::typed::IntoValue for $ty {
-            fn into_value(self, ty: &$crate::types::NovisType) -> Result<$crate::convert::Value, String> {
+            fn into_value(
+                self,
+                ty: &$crate::types::NovisType,
+                call: &mut dyn $crate::convert::Crossing,
+            ) -> Result<$crate::convert::Value, String> {
                 let $crate::types::NovisType::Core(core) = ty else {
                     return Err($crate::typed::back(ty, stringify!($ty)));
                 };
                 let mut at = core.fields.iter();
                 let mut fields = Vec::with_capacity(core.fields.len());
-                $(fields.push($crate::typed::core_put(at.next(), stringify!($field), self.$field)?);)*
+                $(fields.push($crate::typed::core_put(
+                    at.next(), stringify!($field), self.$field, call,
+                )?);)*
                 Ok($crate::convert::Value::Core { class: core.class.to_owned(), fields })
             }
         }
@@ -857,18 +1013,24 @@ macro_rules! world {
         }
 
         impl Args {
-            /// The typed arguments of `method`, converted from `args` by `params`. `Err` gives
-            /// `args` back where the world has no such method.
+            /// Whether the world calls `method` typed.
+            pub(crate) fn has(method: &str) -> bool {
+                false $(|| $crate::typed::same_name(method, stringify!($method)))*
+            }
+
+            /// The typed arguments of `method`, converted from `args` by `params`, with `call`
+            /// lending and passing the handles among them.
             pub(crate) fn lower(
                 method: &str,
                 params: &[$crate::types::NovisType],
                 args: Vec<$crate::convert::Value>,
-            ) -> Result<Result<Self, String>, Vec<$crate::convert::Value>> {
+                call: &mut dyn $crate::convert::Crossing,
+            ) -> Result<Self, String> {
                 $(if $crate::typed::same_name(method, stringify!($method)) {
-                    return Ok(<($($param,)*) as $crate::typed::Params>::from_values(params, args)
-                        .map(Self::$method));
+                    return <($($param,)*) as $crate::typed::Params>::from_values(params, args, call)
+                        .map(Self::$method);
                 })*
-                Err(args)
+                Err(format!("the world calls no method `{method}` typed"))
             }
 
             /// The host bytes the arguments hold on the heap.
@@ -904,13 +1066,15 @@ macro_rules! world {
                 }
             }
 
-            /// The Novis value the result is, where the manifest's return type is `ty`.
+            /// The Novis value the result is, where the manifest's return type is `ty`, with
+            /// `call` keeping a resource the guest returned.
             pub(crate) fn into_value(
                 self,
                 ty: &$crate::types::NovisType,
+                call: &mut dyn $crate::convert::Crossing,
             ) -> Result<$crate::convert::Value, String> {
                 match self {
-                    $(Self::$method(out) => $crate::typed::IntoValue::into_value(out, ty),)*
+                    $(Self::$method(out) => $crate::typed::IntoValue::into_value(out, ty, call),)*
                 }
             }
         }
@@ -920,3 +1084,4 @@ macro_rules! world {
 mod image;
 mod intl;
 mod pdf;
+mod spreadsheet;

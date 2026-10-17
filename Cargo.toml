@@ -1150,6 +1150,14 @@ overflow-checks = true
 opt-level = 2
 debug = 0
 
+# `nvs-ext` calls a built-in component's exports through the types `bindgen!` writes, so wasmtime's
+# generic code that lowers and lifts each value is compiled in this crate and not with the
+# dependencies above. Unoptimised, that code makes a spreadsheet read of many rows slower than the
+# dynamic path, whose wasmtime code is optimised. The crate's debug assertions, overflow checks and
+# line tables stay as `[profile.dev]` sets them.
+[profile.dev.package.nvs-ext]
+opt-level = 2
+
 [profile.bench]
 inherits = "release"
 debug = true
