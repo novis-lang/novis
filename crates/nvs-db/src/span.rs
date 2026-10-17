@@ -40,9 +40,9 @@
 //! rows have ended, and what crosses is [`QuerySpan`]'s `Display` — `nvs-db`
 //! depends on `nvs-runtime`, so the alternative is this field set written a
 //! second time in that crate, and `Ctx::record_query` is where that is argued.
-//! The gate that rendering waits on is `nvs_runtime::Ctx::records_spans` — this
-//! request's trace is recorded, or `DebugFlags::TRACE` is on — and gap 1 is what
-//! stands between that flag and § 11's grant.
+//! The gate that rendering waits on is `Core\Db`'s `QueryWatch::named`: this
+//! request's trace is recorded, which needs no grant, or `DebugFlags::TRACE` is
+//! on and the `debug.trace` grant is held (`rule:testing/debug-mode-directive`).
 //!
 //! § 11's other half reads the same span: the `slow_query` threshold a
 //! `[db.<name>]` block writes turns one of these into a `Core\Log` record, and
@@ -59,10 +59,6 @@
 //! other way: [`crate::PgConn::begin`] *answers* with the span, because which
 //! command a nesting depth gets is the connection's answer and its caller has
 //! no way to spell the text.
-//!
-//! # Known gaps
-//!
-//! Each gap is a record, and `bun nv gaps --module crates/nvs-db/src/span.rs` lists them.
 
 use std::time::{Duration, Instant};
 

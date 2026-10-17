@@ -48,9 +48,24 @@ impl QueryWatch {
     /// [`crate::queue`] is that caller: its connection is named by `rule:core-classes/queue-storage-is-a-table`'s `[queue] connection` and reached by key, so there is no `Value` to
     /// read a name out of. `None` is § 2's unnamed `open` and means the same
     /// thing here as there — nothing to look a threshold up under.
+    ///
+    /// A span is traced when the request is sampled, which needs no grant, or
+    /// when `DebugFlags::TRACE` is on and the `debug.trace` grant is held
+    /// (`rule:testing/debug-mode-directive`). The grant costs one
+    /// configuration read per statement, on a run with that bit on only.
     pub(crate) fn named(ctx: &nvs_runtime::Ctx, block: Option<&str>) -> QueryWatch {
+        let traced = if ctx.debug_flags().contains(nvs_runtime::DebugFlags::TRACE) {
+            ctx.trace_context().sampled()
+                || nvs_runtime::capability::granted(
+                    ctx,
+                    nvs_config::capability::Cap::DebugTrace,
+                    nvs_config::capability::Scope::Unscoped,
+                )
+        } else {
+            ctx.records_spans()
+        };
         QueryWatch {
-            traced: ctx.records_spans(),
+            traced,
             slow: block.and_then(|name| slow_query_of(ctx, name)),
         }
     }
@@ -186,5 +201,40 @@ impl NamesConnection for nvs_db::MySqlRows<'_> {
 impl NamesConnection for nvs_db::tds::TdsRows<'_> {
     fn name_connection(&mut self, connection: &str) {
         nvs_db::tds::TdsRows::name_connection(self, connection);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::QueryWatch;
+
+    fn configured(written: &str) -> nvs_runtime::Ctx {
+        let table: toml::Table = written.parse().expect("the case writes valid TOML");
+        let snapshot = nvs_config::Snapshot {
+            config: table
+                .clone()
+                .try_into()
+                .expect("the case writes a block this tree has"),
+            table,
+            ..nvs_config::Snapshot::default()
+        };
+        let mut ctx = nvs_runtime::Ctx::buffered();
+        ctx.set_config(std::sync::Arc::new(snapshot));
+        ctx.set_debug_flags(nvs_runtime::DebugFlags::TRACE);
+        ctx
+    }
+
+    #[test]
+    fn a_traced_run_renders_a_query_span_only_under_the_debug_trace_grant() {
+        let refused = configured("");
+        assert!(!QueryWatch::named(&refused, None).traced);
+        let granted = configured("[capabilities.debug]\ntrace = true\n");
+        assert!(QueryWatch::named(&granted, None).traced);
+        let mut off = configured("[capabilities.debug]\ntrace = true\n");
+        off.set_debug_flags(nvs_runtime::DebugFlags::empty());
+        assert!(
+            !QueryWatch::named(&off, None).traced,
+            "an unsampled run renders none"
+        );
     }
 }
