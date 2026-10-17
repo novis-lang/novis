@@ -54,9 +54,10 @@
 //! [`Error::Invalid`]: it throws `LogicError` and keeps the instance. A result that does not convert
 //! is the extension's fault, a [`Failure::Trap`]. When the call returns, the borrows it was lent
 //! are dropped and every handle it made stops being valid, whatever the outcome. It parses the
-//! method's types on every call. A built-in component whose world `crate::typed` has bindings for
-//! is called typed instead: its values convert to the generated types, and the same charges are
-//! made at those types' host size.
+//! method's types on every call. A built-in component is called typed instead, through the
+//! bindings `crate::typed` has for its world: its values convert to the generated types in the
+//! instance's store, its handles lent, passed and kept as here, and the same charges are made at
+//! those types' host size.
 //!
 //! **A resource lives until the request ends** (`rule:packaging/a-value-crosses-as-its-wit-type`).
 //! One a call returns is kept in the store of the instance that made it, under a number the
@@ -900,22 +901,11 @@ impl Request {
         let world = manifest
             .builtin
             .as_ref()
-            .and_then(|_| typed::World::of(&manifest.interface));
-        let args = match world {
-            Some(world) => {
-                let params = declared
-                    .params
-                    .iter()
-                    .map(|param| manifest.novis_type(&param.ty))
-                    .collect::<Result<Vec<_>, _>>()
-                    .map_err(invalid)?;
-                match world.lower(&declared.name, &params, args) {
-                    Ok(lowered) => return self.call_typed(extension, declared, lowered).await,
-                    Err(args) => args,
-                }
-            }
-            None => args,
-        };
+            .and_then(|_| typed::World::of(&manifest.interface))
+            .filter(|world| world.has(&declared.name));
+        if let Some(world) = world {
+            return self.call_typed(extension, declared, world, args).await;
+        }
         let lower = |store: &mut Store<Guest>, _: At<'_>| {
             let mut call = Call {
                 store,
@@ -960,17 +950,34 @@ impl Request {
         self.run(extension, declared, lower, lift).await
     }
 
-    /// Calls `declared` of a built-in `extension` with the typed arguments `lowered`, and converts
-    /// its result back by the type the manifest declares.
+    /// Calls `declared` of a built-in `extension` typed, through `world`'s bindings: converts
+    /// `args` to its generated types and its result back by the type the manifest declares.
     async fn call_typed(
         &self,
         extension: &Extension,
         declared: &Method,
-        lowered: Result<typed::Args, String>,
+        world: typed::World,
+        args: Vec<Value>,
     ) -> Result<Option<Value>, Failure> {
-        let lowered = lowered.map_err(|err| Failure::Error(Error::Invalid(err)))?;
         let manifest = &extension.manifest;
-        let lift = |_: &mut Store<Guest>, results: Got, at: At<'_>| {
+        let invalid = |err: String| Failure::Error(Error::Invalid(err));
+        let params = declared
+            .params
+            .iter()
+            .map(|param| manifest.novis_type(&param.ty))
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(invalid)?;
+        let lower = |store: &mut Store<Guest>, _: At<'_>| {
+            let mut call = Call {
+                store,
+                ids: &self.ids,
+            };
+            world
+                .lower(&declared.name, &params, args, &mut call)
+                .map(|args| Sent::Typed(Box::new(args)))
+                .map_err(invalid)
+        };
+        let lift = |store: &mut Store<Guest>, results: Got, at: At<'_>| {
             let Got::Typed(out) = results else {
                 return Err(at.crash("a typed call returned dynamic results"));
             };
@@ -980,10 +987,15 @@ impl Request {
             let ty = manifest
                 .novis_type(&declared.returns)
                 .map_err(|err| at.crash(err))?;
-            out.into_value(&ty).map(Some).map_err(|err| at.crash(err))
+            let mut call = Call {
+                store,
+                ids: &self.ids,
+            };
+            out.into_value(&ty, &mut call)
+                .map(Some)
+                .map_err(|err| at.crash(err))
         };
-        self.run(extension, declared, |_, _| Ok(Sent::Typed(lowered)), lift)
-            .await
+        self.run(extension, declared, lower, lift).await
     }
 
     /// Runs one call of `declared` on this request's instance of `extension`: `args` makes the
@@ -1218,7 +1230,7 @@ impl Live {
         let args = match args {
             Sent::Dynamic(args) => args,
             Sent::Typed(args) => {
-                return match args.call(&mut self.store, func).await {
+                return match (*args).call(&mut self.store, func).await {
                     Ok(Ok(out)) => Ok(Got::Typed(out)),
                     Ok(Err(err)) => Err(Failure::Error(err)),
                     Err(err) => Err(failure(&self.store, &err, at)),
@@ -1253,10 +1265,11 @@ impl Live {
 }
 
 /// One call's arguments: the dynamic `Val`s of any export, or the typed arguments of a built-in
-/// world's (`crate::typed`).
+/// world's (`crate::typed`). The typed arguments are boxed, because the widest world's are a few
+/// hundred bytes and a dynamic call's are a `Vec`.
 enum Sent {
     Dynamic(Vec<Val>),
-    Typed(typed::Args),
+    Typed(Box<typed::Args>),
 }
 
 impl Sent {
