@@ -2292,7 +2292,7 @@ fn exchange(
     let (status, headers) = head_of(&raw[..end], call.member)?;
     call.span.borrow_mut().answered(status);
     let rest = raw.split_off(end + 4);
-    let frame = frame_of(&headers);
+    let frame = frame_of(&headers, call.member)?;
     let (idle, until) = match bounds {
         Bounds::Whole => (
             call.deadline.saturating_duration_since(Instant::now()),
@@ -2797,28 +2797,92 @@ fn head_of(head: &[u8], member: &str) -> Result<(i64, Vec<(String, String)>), Fa
         .and_then(|code| code.parse().ok())
         .ok_or_else(|| malformed(member, "its status line carries no status code"))?;
 
-    let headers: Vec<(String, String)> = lines
-        .filter_map(|line| line.split_once(':'))
-        .map(|(name, value)| (name.trim().to_ascii_lowercase(), value.trim().to_owned()))
-        .collect();
+    let mut headers: Vec<(String, String)> = Vec::new();
+    for line in lines {
+        headers.push(field_of(line, member)?);
+    }
     Ok((status, headers))
+}
+
+/// One header line of a reply, as its lower-cased name and its trimmed value.
+///
+/// `rule:errors/http-message-defects`'s rows for a line, each refused whole: a
+/// line that starts with whitespace continues the one above it (`obs-fold`), a
+/// line with no colon names no header, and a control byte in a name or a value
+/// makes where the line ends depend on the reader. A tab is the one control
+/// byte a value may carry, because it is whitespace there.
+fn field_of(line: &str, member: &str) -> Result<(String, String), Fault> {
+    if line.starts_with([' ', '\t']) {
+        return Err(malformed(
+            member,
+            "a header line continues the one above it",
+        ));
+    }
+    let Some((name, value)) = line.split_once(':') else {
+        return Err(malformed(member, "a header line has no colon"));
+    };
+    if name.bytes().any(|byte| byte.is_ascii_control()) {
+        return Err(malformed(member, "a header name carries a control byte"));
+    }
+    if value
+        .bytes()
+        .any(|byte| byte.is_ascii_control() && byte != b'\t')
+    {
+        return Err(malformed(member, "a header value carries a control byte"));
+    }
+    Ok((name.trim().to_ascii_lowercase(), value.trim().to_owned()))
 }
 
 /// What the head says delimits the body under it.
 ///
-/// The order is RFC 9112 § 6.3's: a `Transfer-Encoding` settles the framing and
-/// a `Content-Length` beside it says nothing, which is the reading that makes
-/// request smuggling a parse disagreement rather than a choice.
-fn frame_of(headers: &[(String, String)]) -> Frame {
-    if header(headers, "transfer-encoding")
-        .is_some_and(|value| value.to_ascii_lowercase().contains("chunked"))
-    {
-        return Frame::Chunked;
+/// Only a `Transfer-Encoding` whose last coding is `chunked` frames the body in
+/// chunks. Any other one leaves the body ending with the connection, as RFC
+/// 9112 § 6.3 reads a reply. A `Content-Length` must be one run of digits on
+/// one line, and it may not stand beside a `Transfer-Encoding`: two lengths, or
+/// a length and an encoding, are two answers to where the body ends, and
+/// `rule:errors/http-message-defects` refuses both on a reply.
+fn frame_of(headers: &[(String, String)], member: &str) -> Result<Frame, Fault> {
+    let mut lengths = headers
+        .iter()
+        .filter(|(name, _)| name == "content-length")
+        .map(|(_, value)| value.as_str());
+    let length = lengths.next();
+    if lengths.next().is_some() {
+        return Err(malformed(member, "it carries `Content-Length` twice"));
     }
-    match header(headers, "content-length").and_then(|value| value.trim().parse::<u64>().ok()) {
-        Some(length) => Frame::Sized(length),
-        None => Frame::UntilClose,
+    let codings: Vec<&str> = headers
+        .iter()
+        .filter(|(name, _)| name == "transfer-encoding")
+        .flat_map(|(_, value)| value.split(','))
+        .map(str::trim)
+        .filter(|coding| !coding.is_empty())
+        .collect();
+    if !codings.is_empty() {
+        if length.is_some() {
+            return Err(malformed(
+                member,
+                "it carries both `Content-Length` and `Transfer-Encoding`",
+            ));
+        }
+        let chunked = codings
+            .last()
+            .is_some_and(|last| last.eq_ignore_ascii_case("chunked"));
+        return Ok(if chunked {
+            Frame::Chunked
+        } else {
+            Frame::UntilClose
+        });
     }
+    let Some(length) = length else {
+        return Ok(Frame::UntilClose);
+    };
+    if length.is_empty() || !length.bytes().all(|byte| byte.is_ascii_digit()) {
+        return Err(malformed(member, "its `Content-Length` is not a number"));
+    }
+    length
+        .parse::<u64>()
+        .map(Frame::Sized)
+        .map_err(|_| malformed(member, "its `Content-Length` is too large"))
 }
 
 /// Where `needle` starts in `haystack`.
@@ -2831,8 +2895,8 @@ fn find(haystack: &[u8], needle: &[u8]) -> Option<usize> {
 #[cfg(test)]
 pub(crate) mod tests {
     use super::{
-        Call, HttpSpan, Incoming, Reply, Streamed, WebSocket, WebSocketConfig, backoff, send,
-        send_streamed, upgrade,
+        Call, HttpSpan, Incoming, Reply, Streamed, WebSocket, WebSocketConfig, backoff, header,
+        send, send_streamed, upgrade,
     };
     use crate::compress::{Bound, Codec, compress_to};
     use nvs_host::reactor::{Reactor, install, run_until_idle, with_current};
@@ -3875,7 +3939,7 @@ pub(crate) mod tests {
         let mut body = Incoming::over(
             Box::new(std::io::Cursor::new(Vec::new())),
             raw[end + 4..].to_vec(),
-            super::frame_of(&headers),
+            super::frame_of(&headers, "test")?,
             Duration::from_secs(1),
             Instant::now() + Duration::from_secs(10),
             "test",
@@ -4228,6 +4292,75 @@ pub(crate) mod tests {
                     2\r\nok\r\n3\r\n ay\r\n0\r\n\r\n";
         let (_, body) = parsed(raw).expect("a chunked reply");
         assert_eq!(body, b"ok ay");
+    }
+
+    /// Every row of `rule:errors/http-message-defects` that a reply can carry
+    /// is refused whole, and each refusal says which row it was. The control
+    /// rows are what a reply may say instead: an underscore in a name, a tab in
+    /// a value, and a final coding other than `chunked`.
+    #[test]
+    fn a_reply_with_a_defect_in_its_head_is_refused() {
+        let refused: [(&[u8], &str); 9] = [
+            (
+                b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\n Content-Length: 4\r\n\r\nok",
+                "continues the one above it",
+            ),
+            (
+                b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\nno colon here\r\n\r\nok",
+                "has no colon",
+            ),
+            (
+                b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\nX-A\x00: 1\r\n\r\nok",
+                "name carries a control byte",
+            ),
+            (
+                b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\nX-A: 1\nX-B: 2\r\n\r\nok",
+                "value carries a control byte",
+            ),
+            (
+                b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\nX-A: 1\r2\r\n\r\nok",
+                "value carries a control byte",
+            ),
+            (
+                b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\nContent-Length: 2\r\n\r\nok",
+                "`Content-Length` twice",
+            ),
+            (
+                b"HTTP/1.1 200 OK\r\nContent-Length: +2\r\n\r\nok",
+                "is not a number",
+            ),
+            (
+                b"HTTP/1.1 200 OK\r\nContent-Length: 2, 2\r\n\r\nok",
+                "is not a number",
+            ),
+            (
+                b"HTTP/1.1 200 OK\r\nContent-Length: 7\r\nTransfer-Encoding: chunked\r\n\r\n2\r\nok\r\n0\r\n\r\n",
+                "both `Content-Length` and `Transfer-Encoding`",
+            ),
+        ];
+        for (raw, row) in refused {
+            let Err(fault) = parsed(raw) else {
+                panic!(
+                    "a reply carrying `{row}` was read: {:?}",
+                    String::from_utf8_lossy(raw)
+                );
+            };
+            assert!(
+                format!("{fault:?}").contains(row),
+                "the refusal does not name its row `{row}`: {fault:?}"
+            );
+        }
+
+        let (reply, body) =
+            parsed(b"HTTP/1.1 200 OK\r\nX_Odd: a\tb\r\nContent-Length: 2\r\n\r\nok")
+                .expect("an unusual reply is still a reply");
+        assert_eq!(body, b"ok");
+        assert_eq!(header(&reply.headers, "x_odd"), Some("a\tb"));
+
+        let (_, body) =
+            parsed(b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked, gzip\r\n\r\n2\r\nok")
+                .expect("a coding after `chunked` frames nothing");
+        assert_eq!(body, b"2\r\nok", "the body ends with the connection");
     }
 
     /// A body that is not UTF-8 arrives whole and is not repaired here —
