@@ -807,9 +807,9 @@ fn a_literal_duration_is_validated_while_checking() {
         "a count with no unit after it: {unfinished:?}"
     );
 
-    // § 3's range, which is a refusal about the *value* rather than the
-    // shape — a folded literal wider than `Duration` holds is the compile
-    // error that ADR names, not a wrap.
+    // `rule:types/duration`'s range, which is a refusal about the *value* rather
+    // than the shape — a folded literal wider than `Duration` holds is the
+    // compile error that rule names, not a wrap.
     let wide = check_call(
         "    Core\\Time\\Duration $d = Core\\Time\\Duration::parse(\"99999999999w\");\n",
     );

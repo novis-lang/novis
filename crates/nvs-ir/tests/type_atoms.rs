@@ -29,7 +29,7 @@
 //! interesting:
 //!
 //! *   **Diagnosed** — the front end refused it. A pass: the goal's own rule is
-//!     that a numbered diagnostic naming its ADR closes a shape as surely as
+//!     that a numbered diagnostic naming its rule closes a shape as surely as
 //!     lowering it does.
 //! *   **Lowered** — it reached IR. A pass.
 //! *   **Panicked** — it type-checked and then died. A fail, unless the shape

@@ -487,8 +487,7 @@ pub const FIELD: &str = r"Core\Json\Field";
 /// of the same table. It generates `Core\Db\Codec`'s `fromRow` and nothing
 /// else: `rule:core-classes/derive-generates-what-is-missing` makes this format one-directional, because a write is
 /// `rule:core-classes/db-one-api`'s explicit statement plus
-/// bound parameters and a generated `INSERT` is the ORM that ADR settled
-/// against.
+/// bound parameters and a generated `INSERT` is the ORM that rule declines.
 pub const DB_DERIVE: &str = r"Core\Db\Derive";
 
 /// `#[Db\Field(name?: string, skip?: bool)]` — `rule:core-classes/derive-field-list`'s per-field
@@ -514,8 +513,8 @@ pub const FIXTURE: &str = r"Core\Test\Fixture";
 
 /// `#[TestWith(...)]` — `rule:testing/data-rows`'s data row, on a `#[Test]` method. It
 /// sits in the `Core\Test` namespace beside [`FIXTURE`] and for that entry's
-/// reason exactly, and it keeps the ADR's own spelling rather than the
-/// shorter `With` a namespace would allow: `#[TestWith]` is what § 9 writes,
+/// reason exactly, and it keeps that rule's own spelling rather than the
+/// shorter `With` a namespace would allow: `#[TestWith]` is what the rule writes,
 /// and a file that spells it bare places it with `use Core\Test\TestWith;`.
 ///
 /// It is on this roster rather than being an `rule:attributes/attach-sites-and-forms` shape alias because

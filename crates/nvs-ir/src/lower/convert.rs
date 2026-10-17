@@ -1035,7 +1035,7 @@ impl<'a> Lowering<'a> {
     /// `Dog::class as class<Animal>` where it stands — the checker having
     /// already refused the pair that is not a widening — so it folds to the one
     /// [`InstKind::ClassDescConst`] `Foo::bar()` already bakes, and the factory
-    /// shape the ADR calls the common case pays nothing at all.
+    /// shape that rule calls the common case pays nothing at all.
     ///
     /// Everything else is [`InstKind::ClassDescIn`], whose own doc comment owns
     /// how the two dynamic rows are answered and what they cost. This function
@@ -2014,8 +2014,8 @@ impl<'a> Lowering<'a> {
     ///
     /// `rule:enums/no-class-machinery` makes
     /// a case a compile-time integer constant, and [`Ty::Enum`] is a zero-byte
-    /// tag over it — so this is the free [`InstKind::Reinterpret`] row 1 of
-    /// that ADR's *5* already uses for `$m as int`, emitting no machine
+    /// tag over it — so this is the free [`InstKind::Reinterpret`] that
+    /// `rule:types/conversion`'s enum-to-backing row already uses for `$m as int`, emitting no machine
     /// instruction at all. Every comparison over an enum goes through it,
     /// because `nvs-codegen`'s `BinOp` table is `Ty::Int`/`Ty::Uint`/`Ty::Bool`
     /// and carries no `Ty::Enum` row: `rule:types/single-value-types`'s membership chain, and

@@ -3354,7 +3354,7 @@ impl<'a> Lowering<'a> {
                 Vec::new()
             }
         };
-        // `new static()` — ADR-free by construction: the class comes
+        // `new static()` is correct by construction: the class comes
         // from this frame's called class rather than from the label
         // `nvs_types` resolved, which is the enclosing class and so
         // would allocate the *base* through two levels of

@@ -19,7 +19,7 @@ fn refuses(diags: &Diagnostics) -> bool {
         .any(|d| d.code == Some(code::E_DISJOINT_EQUALITY))
 }
 
-/// The ADR's own worked example: the compiler already knows `"1" == 1` is
+/// The plainest disjoint pair: the compiler already knows `"1" == 1` is
 /// false, so the author did not mean to write it.
 #[test]
 fn a_disjoint_equality_does_not_compile() {

@@ -376,7 +376,7 @@
 //! 7. **`decimal` lowers, and so does `<=>`.** `rule:types/decimal`'s scalar
 //!    has a representation — [`ty::Ty::Decimal`], the same register pair
 //!    [`ty::Ty::Tagged`] travels in, whose own doc comment owns the decision —
-//!    and every row of that ADR's §§ 3-4 is an [`ir::Helper`]: the
+//!    and every operator and conversion that rule specifies is an [`ir::Helper`]: the
 //!    arithmetic operators, negation, the comparisons that
 //!    [`lower::Lowering::lower_decimal_binary`] rewrites into the rest,
 //!    truthiness, and both directions of every conversion. The spaceship

@@ -32,10 +32,10 @@
 //!   every reason this pass can read — a corpus case traded for an earlier
 //!   answer to a question nobody is waiting on. This pass is about where a
 //!   reason **is**, not about what it says.
-//! * **The roster is closed and each row owes an ADR section.** One row today.
+//! * **The roster is closed and each row owes a rule.** One row today.
 //!   `Core\Taint::assertTrusted` and `Core\Secret::reveal` are the obvious
 //!   neighbours and are deliberately *not* added on the strength of the
-//!   resemblance: each is its own ADR's decision to make, and widening this to
+//!   resemblance: each is its own rule's decision to make, and widening this to
 //!   "every parameter named `$reason`" is the open extension point `rule:expressions/intrinsic-list-is-closed`
 //!   refuses for the sibling table.
 //! * **The reason is found through the parameter it fills**, which

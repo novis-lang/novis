@@ -63,7 +63,7 @@ use crate::expr_table::{GuardCalls, ObserverCalls};
 /// `crate::expr::literals` states in full;
 /// `Core\Math::PI` is `rule:classes/no-free-functions-or-constants`'s class constant, recovered as the declared type
 /// of the `nvs_stdlib::registry::CoreConst` row; and `Limits::MAX` on a
-/// user-declared class is the same ADR's constant, recovered as the declared
+/// user-declared class is `rule:types/class-constant`'s constant, recovered as the declared
 /// type `crate::signatures::ConstSig` recorded for it.
 /// `nvs_hir::members` has already checked that every one of the three exists,
 /// so this only recovers the type — and, for all three, records the *value*,
@@ -2229,8 +2229,8 @@ pub(crate) fn check_property_member(
 ///
 /// - A **declared property**, instance or static, is refused as
 ///   `E0413` ([`report_unset_on_property`]) — `rule:classes/definite-property-initialization` guarantees such a
-///   property is definitely initialized for good, and there is no honouring
-///   both ADRs at once. The nullsafe spelling is passed through to
+///   property is definitely initialized for good, and an `unset` that removed
+///   it would break that guarantee. The nullsafe spelling is passed through to
 ///   [`check_property_access`] so the refusal fires on `unset($a?->b)` too,
 ///   rather than silently resolving to nothing because the receiver's type
 ///   still carried `null`.

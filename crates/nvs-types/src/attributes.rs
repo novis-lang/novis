@@ -8,8 +8,8 @@
 //! case's backing integer and a class constant already use — so there is no
 //! moment at which a variable could be read, a call made or a `new`
 //! constructed. PHP's attributes do have that moment (a real object is built
-//! the first time `ReflectionAttribute::newInstance()` is called) and this
-//! ADR deliberately does not, so the refusal here is what keeps the two
+//! the first time `ReflectionAttribute::newInstance()` is called) and Novis's
+//! deliberately do not, so the refusal here is what keeps the two
 //! halves of that decision from disagreeing.
 //!
 //! § 1's rule is what makes the named form sugar rather than a second

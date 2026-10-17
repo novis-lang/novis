@@ -42,7 +42,8 @@ fn refused(diags: &Diagnostics) -> bool {
 
 #[test]
 fn mixing_echo_with_a_typed_body_member_is_a_compile_error() {
-    // § 4's sixth row, in the order the ADR's own sentence writes it: the
+    // `rule:security/response-body-is-one-typed-member`'s sixth row, in the
+    // order that rule's own sentence writes it: the
     // handler has echoed a prelude and then declared the body a JSON document.
     let diags = check_src(&handler(
         "    echo \"prelude\";\n    Core\\Response::json(1);\n",

@@ -11,7 +11,7 @@
 //! because `mixed` no longer satisfies an `await` (`rule:types/unions-and-mixed`) — which is
 //! itself one of the claims here.
 //!
-//! The last four are the same ADR's *operand* rule at `rule:concurrency/an-upgrade-is-spawn-shaped`'s second
+//! The last four are `rule:security/isolate-shares-nothing`'s *operand* rule at `rule:concurrency/an-upgrade-is-spawn-shaped`'s second
 //! site, `Core\Socket::upgrade`, which is one rule and not two: a `Core` row
 //! marks its entry parameter and `nvs_types::expr::isolate` applies exactly
 //! what a `spawn script` gets. They live here for that reason rather than

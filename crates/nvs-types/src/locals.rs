@@ -14,13 +14,13 @@
 //! on that one set, taken back off it, and joined in again, so a branch costs
 //! what it assigns (`crate::live` owns how).
 //!
-//! **A deliberate, ADR-underspecified judgment call:** a second plain
-//! `LocalDecl` for a live name is always a diagnostic (the ADR's own
-//! example). A `foreach` key/value binding, a destructuring leaf, or a
+//! **A deliberate judgment call `rule:types/declaration` leaves open:** a
+//! second plain `LocalDecl` for a live name is always a diagnostic (that
+//! rule says so outright). A `foreach` key/value binding, a destructuring leaf, or a
 //! `catch` variable is *not* held to that same strictness: reusing the same
 //! name with the *same* declared type (the ordinary "loop index `$i` used in
 //! two separate loops" case) is accepted as reuse rather than a fresh
-//! declaration, since the ADR's text doesn't address this directly and
+//! declaration, since that rule does not address these bindings directly and
 //! rejecting it would make an extremely common pattern a compile error.
 //! Reusing a name with a *different* type still conflicts — that really is
 //! "a second declared type for one storage location," which `rule:types/declaration`

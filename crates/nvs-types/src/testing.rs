@@ -15,7 +15,7 @@
 //! db?: string, server?: bool, retries?: int, because?: string}` — **every**
 //! field optional. That cannot be a [`crate::ty::Ty::Shape`] target: `rule:types/shape-type`'s width subtyping requires every field the target names to be present
 //! in the literal, so a shape of seven fields would refuse the bare `#[Test]`
-//! the ADR's own example writes. It is `rule:core-api/shape-rules` R2's options-bag rule
+//! that rule's own example writes. It is `rule:core-api/shape-rules` R2's options-bag rule
 //! instead, which is the one this shape actually wants: a field the roster
 //! does not name is refused (`E_UNKNOWN_OPTION`), a field it does name is
 //! checked against that option's own type, one written twice is refused, and

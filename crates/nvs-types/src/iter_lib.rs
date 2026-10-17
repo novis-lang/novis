@@ -30,7 +30,7 @@
 //! `rule:classes/comparable` writes the
 //! member as `compareTo(self $other): int`, and `self` in the declaration
 //! this seeds *is* `Comparable` — an implementation narrows it to its own
-//! class, exactly as the ADR's variance paragraph says. Nothing is lost by
+//! class. Nothing is lost by
 //! the wider seeded spelling: the rule that two operands of an ordering
 //! operator must be the *same* class is enforced at the operator instead
 //! ([`crate::expr::operators`]), where both operands' static types are in
@@ -251,7 +251,7 @@ fn elem_var(interface: &str, interner: &mut TypeInterner) -> TypeId {
 /// three bits it differs in, which keeps the fields nothing varies in — the
 /// visibility, the empty `param_quals`, the absent defaults — written once.
 ///
-/// `names` is the parameter list the interface's own ADR writes, one per
+/// `names` is the parameter list the rule declaring the interface writes, one per
 /// entry of `params`: being callable by name is `rule:core-api/shape-rules` R2's rule for
 /// `Core` but the *language's* rule for everything (`rule:types/arrays`), so a
 /// reserved interface is not the one surface a `name:` cannot reach.
@@ -267,7 +267,7 @@ pub(crate) fn bodiless(names: &[&str], params: Vec<TypeId>, return_ty: TypeId) -
     );
     MethodSig {
         inout: vec![false; params.len()],
-        // A reserved interface is declared by its own ADR, not by a registry
+        // A reserved interface is declared by its own rule, not by a registry
         // row, so nothing classified it — see `MethodSig::param_quals`.
         param_quals: Vec::new(),
         param_text: Vec::new(),

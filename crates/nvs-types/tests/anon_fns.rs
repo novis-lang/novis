@@ -72,9 +72,9 @@ fn an_expression_bodied_anon_fn_needs_no_declared_return_type() {
     assert!(!diags.has_errors(), "{diags:?}");
 }
 
-/// A block body would need whole-body return-type inference, which ADR
-/// 0007 does not ask the compiler to grow — so it must say what it
-/// returns.
+/// A block body would need whole-body return-type inference, which
+/// `rule:types/anonymous-function` does not ask the compiler to grow — so it
+/// must say what it returns.
 #[test]
 fn a_block_bodied_anon_fn_without_a_declared_return_type_is_diagnosed() {
     let diags = check_src("<?nvs\nvar $f = fn(int $n) => { return $n + 1; };\n");

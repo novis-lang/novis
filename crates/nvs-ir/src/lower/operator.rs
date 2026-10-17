@@ -461,7 +461,7 @@ impl<'a> Lowering<'a> {
         // `rule:types/arithmetic`'s overflow throw reaches the unary row too, and for the
         // same reason the additive ones take it: `-i64::MIN` has no `int` and
         // `-$u` no `uint` for any non-zero `$u`, so `ineg` would answer with a
-        // wrapped value rather than with the `ArithmeticError` the ADR names.
+        // wrapped value rather than with the `ArithmeticError` that rule names.
         // `nvs-codegen`'s `emit_checked_int_arith` raises it inline, so this
         // needs `rule:errors/propagation`'s error edge exactly as `%` and `/` do — and, because
         // the raise is this instruction's own rather than a callee's, the site

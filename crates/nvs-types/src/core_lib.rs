@@ -657,7 +657,7 @@ fn lower(ty: &CoreTy, interner: &mut TypeInterner) -> TypeId {
         // launder, and the only way to say that of a *result* is to type the
         // result. A `Qual::Contagious` parameter would have made the claims
         // tainted exactly when the token already was, which is the property
-        // that ADR reads like an oversight for not having.
+        // that rule reads like an oversight for not having.
         CoreTy::TaintedStr => interner.tainted_string(),
         // The same arm on the octet axis, and it interns qualified for the same
         // reason: `Core\Request::bodyStream` hands back the bytes of the body

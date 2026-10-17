@@ -429,7 +429,7 @@ pub(crate) fn report_unwritten_property_key(
 /// place the table is real and the roster is already walked.
 ///
 /// Siting it at the conversion loses nothing, because **`as` is this type's
-/// only source** — `rule:types/property-key`, and the ADR's own title. A `property<T>`
+/// only source** — `rule:types/property-key`, and that rule's own title. A `property<T>`
 /// annotation over an empty `T` that no conversion ever feeds declares a
 /// variable no value can reach, and every spelling that would reach one is
 /// refused here, with the annotation's own span underlined.
@@ -590,7 +590,7 @@ pub(crate) fn binary_result(
 /// `rule:expressions/disjoint-comparison-refused`: a comparison whose two static types are **disjoint** — no single value
 /// inhabits both — is a compile error, because the compiler already knows the
 /// answer and the author did not mean to write it. Reported for `==`/`!=` from
-/// [`binary_result`] and, per that ADR's § 6, for a `switch` label and a
+/// [`binary_result`] and, per `rule:expressions/switch-match-equality`, for a `switch` label and a
 /// `match` arm against their subject ([`crate::locals`]'s `Switch` arm and
 /// [`super::infer`]'s `Match`), which are the same comparison written without
 /// the operator.
@@ -833,11 +833,10 @@ fn is_declared_class(qname: &QName, env: &Env<'_>) -> bool {
 /// class and that class to (transitively) implement the reserved global
 /// `Comparable` interface — returns `None` when either operand isn't a class
 /// at all, leaving [`binary_result`]'s ordinary scalar/`mixed` fallback in
-/// place untouched, since this ADR only amends `rule:types/arithmetic`'s table with a
+/// place untouched, since these rules only amend `rule:types/arithmetic`'s table with a
 /// new object-operand row rather than replacing it. An enum operand
-/// (`Ty::Enum`) is deliberately not treated as an object here either — ADR
-/// 0010's own item (still unimplemented) is what would say whether an enum
-/// can ever be `Comparable`.
+/// (`Ty::Enum`) is deliberately not treated as an object here either,
+/// because no rule says an enum can be `Comparable`.
 pub(crate) fn object_comparison_result(
     op: BinaryOp,
     lhs: TypeId,
@@ -1526,7 +1525,7 @@ pub(crate) fn division_result(lhs: TypeId, rhs: TypeId, span: Span, env: &mut En
     match (env.interner.get(lhs).clone(), env.interner.get(rhs).clone()) {
         // `rule:types/arithmetic`'s deliberate divergence from `int / int`: a decimal
         // quotient is always `decimal`, never a union with `float`. Division is
-        // the one place the result may be inexact, and the ADR fixes its
+        // the one place the result may be inexact, and that rule fixes its
         // rounding in the language rather than in a union the caller unpacks.
         (Ty::Decimal, Ty::Decimal | Ty::Int | Ty::Uint) | (Ty::Int | Ty::Uint, Ty::Decimal) => {
             env.interner.decimal()
@@ -1675,7 +1674,7 @@ pub(crate) fn reject_decimal_float_operands(
 /// `Core\Decimal::pow` names the rounding instead. A decimal *exponent* is
 /// refused by the same diagnostic: the row does not define `int ** decimal`
 /// either, and letting it fall through to [`arithmetic_result`]'s decimal row
-/// would invent a fractional exponentiation the ADR never granted.
+/// would invent a fractional exponentiation that rule never grants.
 pub(crate) fn power_result(lhs: TypeId, rhs: TypeId, span: Span, env: &mut Env<'_>) -> TypeId {
     if matches!(env.interner.get(lhs), Ty::Decimal) || matches!(env.interner.get(rhs), Ty::Decimal)
     {
@@ -1722,7 +1721,7 @@ pub(crate) fn report_int_uint(span: Span, env: &mut Env<'_>) {
 /// there is no arithmetic an object can take part in — and the first place a
 /// program reaches for one is
 /// `rule:types/duration`'s `-7d`, which
-/// that ADR refuses outright in favour of `->minus(7d)`. Left unchecked it
+/// that rule refuses outright in favour of `->minus(7d)`. Left unchecked it
 /// reaches `nvs-codegen`, which panics naming the representation; a
 /// diagnostic naming the operator is what the author needs.
 ///
@@ -1860,20 +1859,17 @@ pub(crate) fn reject_increment_on_non_numeric(ty: TypeId, span: Span, env: &mut 
 /// class row, which is **absolute**: `as` converts between the types `rule:types/conversion` tabulates and `rule:types/single-value-types`'s literal and enum-case types, and none of those
 /// is a class. `$obj as ?SomeClass` asks class membership, which `is`
 /// plus `rule:types/unions-and-mixed`'s narrowing already answers; `$s as ?Core\Uri` asks for a
-/// parse, which is that class's own `tryParse` (§ 3a).
+/// parse, which is that class's own `tryParse` (`rule:expressions/try-parse`).
 ///
-/// That second half is a **reversal**. § 3 first admitted a closed two-class
-/// *parse roster* — `Core\Uri` and `Core\Uuid` — and this function recorded an
-/// `ExprInfo` for it that `nvs-ir` lowered to one non-member `CoreCall`. The
-/// ADR withdrew it: `as?` spells a downcast everywhere a reader has met it, so
-/// spelling a parse that way inverted the syntax's one intuition for exactly
-/// two memorized names, and it never removed the second spelling it was
-/// justified by removing. So there is no roster to consult here any more, and
-/// nothing to record — a class target is one diagnostic, always.
+/// There is **no parse roster** of blessed class names. `as?` spells a
+/// downcast everywhere a reader has met it, so spelling a parse that way
+/// would invert the syntax's one intuition for a few memorized names, and
+/// `Core\Uri::parse($s)` exists either way. So there is no roster to consult
+/// here and nothing to record — a class target is one diagnostic, always.
 ///
-/// Keyed on the **written `?T` sugar**, not on the interned target: § 1
-/// deliberately leaves the `Core\Uri|null` union spelling out of the form, so
-/// a target reached any other way is not this ADR's and is left alone. A
+/// Keyed on the **written `?T` sugar**, not on the interned target: the
+/// `Core\Uri|null` union spelling is not this form, so a target reached any
+/// other way is not this rule's and is left alone. A
 /// plain `as SomeClass` is left alone too, and goes to
 /// [`reject_unconvertible`] instead — that is `rule:types/conversion`'s table having no
 /// row for a class type, which is a different sentence reaching a different
@@ -2095,7 +2091,7 @@ fn is_closed_value_target(to: TypeId, env: &Env<'_>) -> bool {
 ///
 /// The rows are that table's own, plus the three it delegates to: `rule:types/conversion`
 /// for `string` ↔ `bytes`, `rule:types/conversion` for `decimal`, and `rule:types/conversion` for an
-/// enum and its backing type. Two are not in any ADR's table and are here
+/// enum and its backing type. Two are not in any rule's table and are here
 /// because they are true of every type — `rule:expressions/truthy-positions`'s `as bool`, which is the
 /// condition's own test said out loud, and the widening into a target that
 /// admits more than one runtime shape.
@@ -2494,9 +2490,9 @@ fn array_source_kind(from: TypeId, interner: &TypeInterner) -> ConvKind {
     }
 }
 
-/// The table itself, one arm per ADR row. Read [`reject_unconvertible`]'s doc
-/// comment first: everything here is a row of `rule:types/conversion` or of one of the
-/// three ADRs it delegates to, and `false` is the absence of a row rather than
+/// The table itself, one arm per table row. Read [`reject_unconvertible`]'s doc
+/// comment first: everything here is a row of `rule:types/conversion`'s table,
+/// including the three it delegates to, and `false` is the absence of a row rather than
 /// a judgement of its own.
 fn conversion_row_exists(from: ConvKind, to: ConvKind) -> bool {
     use ConvKind::{

@@ -38,8 +38,8 @@ use super::*;
 /// the other direction"); otherwise `from` must equal `to`, or `to` must be
 /// a union `from` is (or, if `from` is itself a union, every member is) a
 /// member of. `rule:types/object-top` amends this with real `object` subtyping (every
-/// class or shape is `<: object`), and § 3 with a shape target's structural
-/// check (see [`shape_satisfied`]) — the two amendments this ADR makes to
+/// class or shape is `<: object`), and `rule:types/shape-type` with a shape target's structural
+/// check (see [`shape_satisfied`]) — two amendments to
 /// `rule:types/unions-and-mixed`'s table, needing `graph`/`signatures` only to resolve a
 /// class receiver's own property types against a shape target. `rule:security/taint-propagation`
 /// and `rule:security/secret-propagation` add one more: a same-base `string`/`bytes` value widens
@@ -204,7 +204,7 @@ fn assignable(
     // A *union* source is checked member-wise against a non-union target for
     // this row's sake rather than as a rule of its own — `rule:types/arithmetic`'s
     // `int|float` quotient reaching a declared `float` is the one shape that
-    // needs it, and it is the ADR's own worked example (`float $avg = $sum /
+    // needs it, and it is that rule's own worked example (`float $avg = $sum /
     // $n;`). Written as a general member-wise check because that is what the
     // relation means, and because narrowing the rule to the quotient's exact
     // two unions would make `is_assignable` name an operator.

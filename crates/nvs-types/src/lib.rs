@@ -47,7 +47,7 @@
 //!   definite-property-initialization check, a second flow-analysis pass
 //!   over each class's own constructor (or, absent one, over its required
 //!   properties' own declarations directly) — extending [`locals`]'s
-//!   definite-assignment idea to a second binding kind, as that ADR's own
+//!   definite-assignment idea to a second binding kind, as that rule's own
 //!   framing asks for, rather than reusing `locals`'s code directly (the two
 //!   passes track different per-path state and don't share a walker).
 //! - [`expr_table`] — [`expr_table::ExprTypeTable`]: the typed-expression
@@ -97,7 +97,7 @@
 //!   refuse them, the concatenation and interpolation that poison a result on
 //!   each axis independently, and the conversions that launder — a checked
 //!   `as uint`/`int`/`float`/`bool`/enum-backing-type conversion clears both
-//!   (a known, ADR-accepted gap for `secret`, per
+//!   (a known, accepted gap for `secret`, per
 //!   `rule:security/secret-propagation`), while `bytes`/`string` keep both
 //!   across either direction, the identity-shaped `as string` included.
 //!   `rule:security/secret-comparison-is-constant-time` is the one part that
