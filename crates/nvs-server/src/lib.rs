@@ -138,6 +138,7 @@ pub mod cors;
 pub mod csp;
 pub mod debug_style;
 pub mod forwarded;
+pub mod heads;
 pub mod io;
 pub mod metrics;
 pub mod mount;

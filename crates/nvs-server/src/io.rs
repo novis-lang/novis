@@ -108,6 +108,7 @@ use nvs_host::NvsConnection;
 use nvs_runtime::DrainWake;
 
 use crate::Draining;
+use crate::heads::{Heads, Scanner};
 
 /// The scratch buffer one read borrows from the coroutine's stack.
 ///
@@ -232,6 +233,9 @@ pub struct ConnectionIo {
     /// and a wake is only a hint, so the poll it provokes is where the drain is
     /// read ([`nvs_host::wake_at_drain`]).
     woken_at_drain: Option<DrainWake>,
+    /// The reader of every request byte on its way into `hyper`
+    /// ([`crate::heads`]).
+    scanner: Scanner,
 }
 
 impl ConnectionIo {
@@ -248,7 +252,18 @@ impl ConnectionIo {
             response_ends: None,
             draining: None,
             woken_at_drain: None,
+            scanner: Scanner::default(),
         }
+    }
+
+    /// What [`crate::heads`] found in this connection's request heads, for
+    /// the service that answers its requests.
+    ///
+    /// Shared for [`ConnectionIo::phase`]'s reason: this value is `hyper`'s by
+    /// the time there is a request to ask about.
+    #[must_use]
+    pub fn heads(&self) -> Rc<Heads> {
+        self.scanner.heads()
     }
 
     /// Bounds this connection's head, response and keep-alive waits by the
@@ -439,6 +454,7 @@ impl Read for ConnectionIo {
                     }
                     self.arm(true);
                 }
+                self.scanner.feed(&scratch[..read]);
                 cursor.put_slice(&scratch[..read]);
                 Poll::Ready(Ok(()))
             }
