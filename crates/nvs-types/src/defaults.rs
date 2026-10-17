@@ -81,10 +81,6 @@
 //! [`decimal_literal_parts`], so `decimal $vat = 0.19` is exactly `0.19`. A
 //! property's becomes `nvs_runtime::FieldDefault::Decimal`, written into every
 //! fresh instance's slot.
-//!
-//! ## Known gap
-//!
-//! Each gap is a record, and `bun nv gaps --module crates/nvs-types/src/defaults.rs` lists them.
 
 use nvs_diagnostics::{Diagnostic, Span, code};
 use nvs_syntax::ast::{ArrayItem, Expr, ExprKind, UnaryOp};

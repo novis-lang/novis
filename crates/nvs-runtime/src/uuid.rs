@@ -8,19 +8,17 @@
 //! the question [`crate::routes`] asks:
 //! `rule:routing/a-capture-narrows-to-a-closed-set`
 //! lets a route capture declare `Core\Uuid`, and a capture is accepted or
-//! refused in this crate, one *below* the one that owns the type. That module's
-//! gap 2 states the choice: the sixteen-byte parse sits down here, or a
-//! declared narrowing goes unenforced. It sits here,
-//! for the reason [`crate::decimal`] does — a matcher that cannot
+//! refused in this crate, one *below* the one that owns the type. So the
+//! sixteen-byte parse sits down here, because a parse one crate up would leave
+//! a declared narrowing unenforced. It sits here for the reason [`crate::decimal`] does — a matcher that cannot
 //! perform a conversion matches a segment the declared type would have
 //! refused, and a route table that admits what its own signature rejects is
 //! § 5's narrowing stated and not kept.
 //!
 //! **One reader, not two.** `nvs_stdlib::uuid`'s own `parse`
 //! reads through [`read`], so a segment a route accepts and a string a program
-//! parses are one grammar with one home — which is the rule [`crate::routes`]'
-//! gap 4 keeps for percent-decoding and this module's own arm keeps for
-//! `decimal`.
+//! parses are one grammar with one home — the rule [`crate::routes`] follows
+//! for percent-decoding and [`crate::decimal`] follows for `decimal`.
 //!
 //! **What it spends:** nothing per request beyond the sixteen bytes a matched
 //! capture holds, which are smaller than the 36-character text they replace.

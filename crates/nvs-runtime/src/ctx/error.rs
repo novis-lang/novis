@@ -774,17 +774,11 @@ impl Ctx {
     /// how many entries a test produced, and a ledger holding only failures
     /// cannot answer it.
     ///
-    /// # Known gap
-    ///
-    /// Nothing truncates the ledger outside a test. A `#[Test]` method owns
-    /// an isolate that ends with it, so there the vector is O(assertions in
-    /// that test); under `nvs run` a `Core\Test` assertion in a loop grows
-    /// it for the life of the program, at one entry per call —
-    /// `benches/members/lang/testing/assertions.nvs` declares that
-    /// allocation. It is bounded by the memory ceiling rather than
-    /// unbounded, and `docs/reference/lang/95-testing.md` § *Assertions*
-    /// says an assertion outside a test has "no ledger to record it",
-    /// which is true of the verdict and not of the storage.
+    /// A `#[Test]` method owns an isolate that ends with it, so the vector is
+    /// O(assertions in that test). Outside a test it grows by one entry per
+    /// assertion, which the record
+    /// `data/gaps/nvs-runtime/an-assertion-outside-a-test-grows-the-ledger.json`
+    /// keeps.
     pub fn record_assertion(&mut self, member: &'static str, failure: Option<String>) {
         self.assertions.push(AssertionOutcome { member, failure });
     }

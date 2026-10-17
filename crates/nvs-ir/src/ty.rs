@@ -219,16 +219,12 @@ pub enum Ty {
     /// scope-exit lifecycle, a call argument, a return value, a property
     /// read) therefore needs no tagged-specific insertion point.
     ///
-    /// # Known gap
-    ///
-    /// Reading a tagged value in a way that needs its *actual* type without a
-    /// checker-proven narrowing still panics naming the case, everywhere but
-    /// one: rendering it — `.`, `echo` and `as string` — goes through
-    /// [`crate::ir::Helper::TaggedToString`]. Arithmetic on a `mixed`,
-    /// `rule:expressions/truthy-positions`'s truthy table and an array access through a `mixed`-erased
-    /// base are the ones left, and each closes the same way, by
-    /// adding a [`crate::ir::Helper`] variant that dispatches on the tag
-    /// rather than a second representation.
+    /// A read that needs a tagged value's *actual* type without a
+    /// checker-proven narrowing goes through a [`crate::ir::Helper`] variant
+    /// that dispatches on the tag, never a second representation: rendering
+    /// it — `.`, `echo` and `as string` — through
+    /// [`crate::ir::Helper::TaggedToString`], and a conversion to a number
+    /// through [`crate::ir::Helper::TaggedToInt`] and its two siblings.
     Tagged,
     /// An enum value — `rule:enums/closed-integer-type`'s
     /// closed, named integer type.

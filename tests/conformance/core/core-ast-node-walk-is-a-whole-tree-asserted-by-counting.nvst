@@ -23,9 +23,8 @@ int $withoutChildren = 0;
 int $edges = Core\Arr::count($tree->children()) as int;
 Core\ObjectSet<Core\Ast\Node> $once = new Core\ObjectSet<Core\Ast\Node>();
 foreach ($nodes as Core\Ast\Node $node) {
-    // `kind` names a production, so there is no node the walk reaches that it
-    // cannot say anything about — known gap 1 is that the name is all a node
-    // carries, not that some node carries nothing.
+    // `kind` names a production, so every node the walk reaches has a
+    // non-empty name.
     if (Core\Str::length($node->kind()) > 0) {
         $named = $named + 1;
     }

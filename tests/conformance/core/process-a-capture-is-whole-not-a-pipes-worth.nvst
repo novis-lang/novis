@@ -28,10 +28,10 @@
 //
 // The child writes its **stderr** half first, on both platforms. That is the
 // order a drain of one stream at a time cannot survive at all, rather than the
-// one where it merely truncates. There is no size at which a capture is
-// supposed to stop instead: this module's known gap 1 records that
-// `[limits] max_output` bounds nothing today, so 262,100 octets is a capture
-// and not a refusal, and this case pins that reading rather than assuming it.
+// one where it merely truncates. The one ceiling on a capture is
+// `[limits] max_output`, and this case runs under its default, which every
+// size in the sweep stays under. So 262,100 octets is a capture and not a
+// refusal.
 //
 // The two candidates are the platform shells named absolutely, for the reason
 // `process-a-completed-run-answers-the-status-the-child-chose.nvst` states:

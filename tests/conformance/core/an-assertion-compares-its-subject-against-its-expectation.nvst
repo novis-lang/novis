@@ -62,9 +62,9 @@ try { Core\Test::assertEquals($one, $two, {message: "a fresh counter is one"}); 
 // The deep walk reports *where*, in the spelling a program subscripts with.
 try { Core\Test::assertEqualsDeep($xs, $zs); } catch (Throwable $e) { $refused = $refused + 1; echo $e->message, "\n"; }
 
-// A non-`Comparable` object names the member that walks it. `rule:testing/assertions-are-typed`
-// refuses this where it is written; until `nvs_types` makes that refusal it is
-// this throw -- `nvs_stdlib::test`'s own known gap 1.
+// A non-`Comparable` object names the member that walks it. The refusal is a
+// catchable throw made when the comparison runs, not a compile error where it
+// is written -- `nvs_stdlib::test`'s module doc says why.
 Plain $p = new Plain(1);
 Plain $q = new Plain(1);
 try { Core\Test::assertEquals($p, $q); } catch (Throwable $e) { $refused = $refused + 1; echo $e->message, "\n"; }

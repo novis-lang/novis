@@ -278,14 +278,12 @@ pub(crate) const CLASS: CoreClass = CoreClass {
 /// it was opened by, which is what a refusal can name without reaching for the
 /// connection it is refusing about.
 ///
-/// **`query`, `execute`, `executeMany` and `transaction` are
-/// `Core\Db\Queryable`'s landed members, `queryAs` is declared with its body
-/// owed (this module's gap 4), and `stream` and `streamAs` are owed whole.**
-/// Beyond the interface, § 18's own three rows land here: `close`, `driver`
-/// and `isOpen`, the second and third of which are the two readonly properties
-/// a connection can answer without a round trip. `serverVersion` is the third
-/// and is owed, because no driver keeps the server's own version string —
-/// this module's gap 3 is the inventory.
+/// **`query`, `queryAs`, `execute`, `executeMany`, `stream`, `streamAs` and
+/// `transaction` are `Core\Db\Queryable`'s members, and every one is declared
+/// here.** Beyond the interface, § 18's own four rows land here too: `close`,
+/// `driver`, `serverVersion` and `isOpen`. The last three answer without a
+/// round trip: `nvs_db::Connection::server_version` reads a string the
+/// connection already has.
 ///
 /// **`close` is the only one of these on this class alone.** A
 /// [`TRANSACTION`] delegates `Core\Db\Queryable` to its connection and nothing

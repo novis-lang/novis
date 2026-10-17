@@ -3162,7 +3162,7 @@ unsafe fn decode_field<'a>(
         // A class field is optional exactly when its parameter declares a
         // default, and this is reached when that default arrived as no
         // constant: a position a `skip: true` left with no field to carry a
-        // constant on (the module's own gap 1), or a descriptor built by hand
+        // constant on, or a descriptor built by hand
         // rather than by `nvs_types::derive`.
         return issue(
             "optional field missing, and its constructor parameter carries no constant \
@@ -3525,8 +3525,8 @@ unsafe fn scalar(
                 .map(Value::decimal),
             _ => None,
         },
-        // `Core\Time\Instant`'s wire form, fixed at RFC 3339 text by this
-        // module's gap 1: the type is a point on the timeline and the string is
+        // `Core\Time\Instant`'s wire form is RFC 3339 text: the type is a point
+        // on the timeline and the string is
         // what every other reader of the document already agrees that is. The
         // instance it builds owns the one reference it was made with, so that
         // arm returns rather than reaching the retain below; an `Instant` the

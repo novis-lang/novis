@@ -41,17 +41,14 @@
 //! until it is deleted — so a shape cannot be fixed and left on the list, and a
 //! new one cannot be added to make a run go green.
 //!
-//! # What it does not cover yet
+//! # The positions it walks
 //!
-//! The **local-declaration** position *per atom*, which reaches
-//! `lower_decl_type` rather than `erase_checked_ty` — the other of item 25's
-//! two sites. Building one needs a *value* of each type as well as the
-//! annotation, which is a fixture per atom rather than a table row; the
-//! expression roster below declares locals of a dozen types and so reaches
-//! that site, but it is not the atom table walking through it. The two
-//! positions here share `erase_checked_ty`, so they already cover what both
-//! catch-alls receive; a session adding the third position should say so here
-//! and delete this paragraph.
+//! The atom table walks two positions, and both reach `erase_checked_ty`, so
+//! they cover what each of its catch-alls receives. The **local-declaration**
+//! position reaches `lower_decl_type` instead, and a row there would need a
+//! *value* of each type as well as the annotation, a fixture per atom. The
+//! expression roster below declares locals of a dozen types, and that is what
+//! reaches `lower_decl_type`.
 
 use std::panic::{AssertUnwindSafe, catch_unwind};
 

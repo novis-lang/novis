@@ -80,10 +80,6 @@
 //! that hold at O(in-flight). The check is one thread per process, asleep
 //! between passes, and one `stat` per configuration file per [`CHECK`]. No
 //! request makes one.
-//!
-//! # Known gaps
-//!
-//! Each gap is a record, and `bun nv gaps --module crates/nvs-cli/src/reload.rs` lists them.
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};

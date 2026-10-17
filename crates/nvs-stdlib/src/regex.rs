@@ -977,8 +977,9 @@ fn effective(pattern: &str, flags: u8) -> Cow<'_, str> {
 ///
 /// A `Fault::thrown` naming the pattern when **neither** engine can compile
 /// it, which is `rule:core-classes/regex-syntax`'s "a construct neither engine supports is
-/// diagnosed, never silently ignored" — at run time today, since gap 1 above
-/// owns the compile-time half. The message carries the backtracking engine's
+/// diagnosed, never silently ignored" for a pattern built at run time. A
+/// literal pattern is diagnosed while compiling, through [`validate`]. The
+/// message carries the backtracking engine's
 /// own complaint, because it is the more permissive of the two: a pattern the
 /// linear engine merely could not *express* has already been handed on by the
 /// time this fails, and it quotes the text the program wrote rather than
@@ -1214,9 +1215,10 @@ fn backtracking(pattern: &str, spelled: &str, budget: usize) -> Result<Compiled,
 /// The [`Tier`] is sound for the same reason and not merely the refusal: a
 /// wrapper the linear engine can express cannot move a pattern the linear
 /// engine refused, nor the other way round, so the tier a flagged call lands
-/// in is the tier reported here. What *is* flag-sensitive is gap 2's `[regex]
-/// backtracking = "deny"`, which refuses the second tier outright rather than
-/// re-routing anything into it, and which this fold does not read.
+/// in is the tier reported here. The one setting that would be
+/// flag-sensitive is `rule:core-classes/regex-compile-time-tiering`'s
+/// `[regex] backtracking = "deny"`, which refuses the second tier outright.
+/// There is no `[regex]` block, so this fold has nothing of it to read.
 pub fn validate(pattern: &str) -> Result<Tier, String> {
     // The shipped budget and not a configured one: a fold runs while checking,
     // where there is no request whose `[limits]` to read, and the budget cannot

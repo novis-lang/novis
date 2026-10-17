@@ -54,10 +54,9 @@ try {
 }
 
 // `rule:classes/comparable`'s `compareTo` answers an ordering, and `assertEquals` reads it as
-// one. A class whose own `compareTo` answers something else is a program the
-// ADR refuses where it is written — this module's known gap 1 — so what is
-// left at run time is the uncatchable backstop below, and the ordinary row
-// first to show the call itself is fine.
+// one. A class whose own `compareTo` answers something else compiles, and
+// `assertEquals` meets it at run time as the uncatchable backstop below. The
+// ordinary row comes first to show the call itself is fine.
 final class Weight {
     public function constructor(public int $grams) {}
     public function compareTo(mixed $other): int {

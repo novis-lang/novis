@@ -977,9 +977,9 @@ fn attribute(out: &mut Vec<u8>, field: u32, key: &str, value: &str) {
 
 /// One `Span`, as the OTLP message.
 ///
-/// `at` is both ends of it, which is known gap 2 in the module doc rather than
-/// a reading of the specification: what a span's window would be measured
-/// against is not derived yet.
+/// `at` is both ends of it. That is the record
+/// `data/gaps/nvs-server/span-has-no-window.json`, not a reading of the
+/// specification.
 fn encoded(out: &mut Vec<u8>, span: &Span, at: u64) {
     raw(out, 1, &span.trace_id);
     raw(out, 2, &span.span_id);

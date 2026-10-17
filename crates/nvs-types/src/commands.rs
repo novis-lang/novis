@@ -15,8 +15,7 @@
 //!
 //! This module declares what is checked behind those roster entries: a
 //! name on that closed list with nothing checking its payload would admit
-//! `#[Command(nmae: "deploy")]` silently, which is the whole argument
-//! [`crate::derive`]'s own gap 3 makes for keeping the list short.
+//! `#[Command(nmae: "deploy")]` silently.
 //!
 //! # What is checked here, and which pass asks it
 //!

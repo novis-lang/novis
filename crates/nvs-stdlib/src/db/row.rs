@@ -494,14 +494,11 @@ pub(super) fn converted(
                 ))
             }
         }
-        // `nvs_types::derive` erases an inline shape to this, and its own gap 1
-        // owns the erasure. `check_row_sites` says this as `E0806` while
-        // compiling; what is left here is the backstop for a class built by
-        // hand, which no call site named.
         // An inline shape is not a column type at all
-        // (`rule:core-classes/db-column-types`), which `nvs_types::derive`'s
-        // reachable set refuses at the declaration, so both of these are the
-        // backstop for a class built by hand and named by no call site.
+        // (`rule:core-classes/db-column-types`). `nvs_types::derive` erases one
+        // to these arms, and its `check_row_sites` refuses the call site as
+        // `E0806` while compiling, so both arms are the backstop for a class
+        // built by hand and named by no call site.
         CodecTy::Opaque | CodecTy::Shape => Err(
             "this field's declared type is one no column reads back — an inline \
                                 shape"

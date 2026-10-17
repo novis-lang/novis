@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-runtime/src/ctx/error.rs",
+  "title": "A `Core\\Test` assertion outside a test grows the assertion ledger for the life of the program.",
+  "text": "`Ctx::record_assertion` appends one entry per assertion, passing or failing, and nothing truncates the ledger outside a test. A `#[Test]` method owns an isolate that ends with it, so there the ledger is O(assertions in that test). Under `nvs run`, a `Core\\Test` assertion in a loop adds one entry per call for as long as the program runs; `benches/members/lang/testing/assertions.nvs` declares that allocation. It is bounded by the memory ceiling, and `docs/reference/lang/95-testing.md` § *Assertions* says an assertion outside a test has no ledger to record it, which is true of the verdict and not of the storage. Closing it is recording nothing when no test owns the context, then a bench that ramps the assertion count under `nvs run` and pins a flat allocation.",
+  "goal": "test-surface"
+}

@@ -923,7 +923,7 @@ pub fn shape_class_label(sorted_fields: &[String]) -> String {
 /// [`DB_COLUMN_CLASSES`] that are not an `Instant` erase to [`CodecTy::Class`]
 /// and are told from a codec-carrying class by their label alone, which is what
 /// `nvs_stdlib::db::row` reads. `rule:core-classes/derive-field-list`'s compile-time refusal of a genuinely
-/// unreachable type is this module's gap 1.
+/// unreachable type is [`resolve_field_types`]'s.
 /// An inline shape keeps **both** halves of what it loses — the class a decode
 /// constructs and the contract holding its field types — because a class label
 /// is keyed on the field names alone and cannot carry the second

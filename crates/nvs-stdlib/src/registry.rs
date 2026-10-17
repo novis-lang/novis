@@ -1762,8 +1762,8 @@ impl CoreClass {
 
 /// Every `Core` class the compiler knows.
 ///
-/// The single home for "does `Core\X::y` exist" — see [`crate`]'s own known
-/// gap 1 for how much of the spec is here so far.
+/// The single home for "does `Core\X::y` exist": a class not listed here is
+/// not a class the compiler resolves.
 ///
 /// **One line per class, never one per member.** Each domain module declares
 /// its own `CLASS` const beside the implementations it registers, so adding a

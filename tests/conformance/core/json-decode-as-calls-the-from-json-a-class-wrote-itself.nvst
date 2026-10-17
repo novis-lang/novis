@@ -77,9 +77,9 @@ echo "nested=", $manifest->head->text, " rest=", $tail, "\n";
 // `decodeAs` asks and answering it with the same dispatch.
 echo "values=", Core\Arr::shapeAs<Version>(["n" => 1])->text, "\n";
 
-// One written half is one direction. The encoding half is not consulted yet —
-// `nvs_stdlib::json`'s own gap 1 — and this class carries no attribute for a
-// derived encoder either, so writing one is still refused.
+// One written half is one direction. This class wrote `fromJson` and no
+// `toJson`, and it carries no attribute for a derived encoder, so writing one
+// is refused.
 bool $encodes = true;
 try {
     Core\Json::encode(new Version("x"));
