@@ -27,14 +27,14 @@ stages:
         rules: [security/net-address-policy, security/csrf-is-on-by-default, concurrency/an-upgrade-is-spawn-shaped]
   - id: 4
     title: the process and file doors hold on every spelling
-    status: open
+    status: done
     context: [crates/nvs-runtime/src/capability.rs, crates/nvs-runtime/src/beneath.rs, docs/rules/core-classes/process-refuses-a-shell-target.md, docs/rules/core-classes/process-options.md, docs/rules/security/writes-open-beneath-a-handle.md]
     extra:
       context:
         rules: [core-classes/process-refuses-a-shell-target, core-classes/process-options, security/writes-open-beneath-a-handle, security/path-scope-canonicalise-then-prefix]
   - id: 5
     title: "JSON refuses a repeated key, and the conversion rule says what `parse` accepts"
-    status: open
+    status: done
     context: [crates/nvs-stdlib/src/json.rs, crates/nvs-runtime/src/helpers.rs, docs/rules/types/conversion.md]
     extra:
       context:
@@ -164,7 +164,10 @@ environment unless the program gives one, and a read is opened beneath a handle 
   - [x] `exec_with` clears the environment and copies `BASE_ENV`.
   - [x] The options test proves a variable outside the set is not passed on.
   - [x] The rule, the `env` help text and the stdlib docs say so.
-- [ ] `open_read` opens beneath a handle, so the check and the open are one step. `crates/nvs-runtime/src/capability.rs:552`, `crates/nvs-runtime/src/beneath.rs:9`
+- [x] `open_read` opens beneath a handle, so the check and the open are one step. `crates/nvs-runtime/src/capability.rs:552`, `crates/nvs-runtime/src/beneath.rs:9`
+  - [x] `beneath::Mode::Read` opens what is there and creates nothing.
+  - [x] `open_read`, `open`'s reading modes and `copy`'s source check the grant on one resolution and open it beneath a handle.
+  - [x] A test reads through a planted link and is refused, and the rule names the read doors.
 - [x] A test proves `CON`, `NUL`, `COM1` and `CONIN$`, with an extension or a trailing dot, are refused by a file grant and by static serving.
   - [x] One `is_reserved_device` in `nvs_config::capability`, which the mount capture, static serving and the file doors share.
   - [x] Every file door refuses a device component before the grant is read.
@@ -175,9 +178,13 @@ environment unless the program gives one, and a read is opened beneath a handle 
 **Does:** `Core\Json::decode` throws on a repeated key and names it, and the conversion rule says
 that `string` to `int` accepts a leading `+` and leading zeros.
 
-- [ ] A repeated key throws, naming the key. The module doc's refusal list says so. `crates/nvs-stdlib/src/json.rs:1820`
-- [ ] A conformance case and an attack case for a repeated key.
-- [ ] The conversion rule's `string` row says what the code accepts. `docs/rules/types/conversion.md:13`, `crates/nvs-runtime/src/helpers.rs:1536`
+- [x] A repeated key throws, naming the key. The module doc's refusal list says so. `crates/nvs-stdlib/src/json.rs:1820`
+  - [x] `NvsArray::replace` reports a displaced key, and `visit_map` throws on it.
+  - [x] The module doc, both `ParseError` help texts and `rule:errors/ambiguous-input-refused`'s list say so.
+- [x] A conformance case and an attack case for a repeated key.
+- [x] The conversion rule's `string` row says what the code accepts. `docs/rules/types/conversion.md:13`, `crates/nvs-runtime/src/helpers.rs:1536`
+  - [x] The row names the sign, leading zeros, fraction and exponent, and what throws.
+  - [x] A conformance case pins each spelling.
 
 ### 6. every parser that reads outside bytes has a fuzz target, and the smuggling payloads are tests
 
@@ -250,36 +257,29 @@ is `BLOCKED` and names the call.
 
 ### State
 
-Stages 1 to 3 are done. Stage 4 has three of its four items done:
+Stages 1 to 5 are done.
 
-- `shell_target` reads a name as Windows opens it. It cuts an alternate stream, then trailing dots
-  and spaces, so `say.bat.`, `say.bat ` and `say.bat::$DATA` are refused as `.bat`
-  (`crates/nvs-runtime/src/capability.rs:1557`).
-- A child with no `env` gets `BASE_ENV` alone: `PATH`, `HOME` or `USERPROFILE`, `TEMP`, `TMP`,
-  `LANG`, and `SYSTEMROOT` on Windows (`crates/nvs-runtime/src/capability.rs:1424`). The rule, the
-  `env` help text and `docs/novis.md` say so. A coverage build's child without `env` loses
-  `LLVM_PROFILE_FILE`, and `bun nv disk` already cleans the stray counter files that leaves.
-- `nvs_config::capability::is_reserved_device` is the one device-name test. It adds `CONIN$`,
-  `CONOUT$` and `COM¹`–`LPT³`, and reads the stem before the first `.` or `:` without trailing
-  spaces. Every file door refuses a path with a device component before reading the grant
-  (`device_refusal`, `crates/nvs-runtime/src/capability.rs:148`). Static serving declines such a
-  segment (`crates/nvs-server/src/mount.rs:583`), and a mount capture is a boot error as before.
+- Every opening door checks its grant on one resolution and opens it beneath a handle:
+  `open_read`, every mode of `open` and both ends of `copy` go through `resolve`
+  (`crates/nvs-runtime/src/capability.rs:705`) and `beneath::open_file`. `Mode::Read` creates
+  nothing. A read-write handle checks `fs.read` and `fs.write` on that one resolution. The rule's
+  title and text name the read doors, and its `IOError` sentence no longer says "write".
+- `Core\Json::decode` and every decoder on `json::read` throw a `ParseError` naming a key one
+  object writes twice (`crates/nvs-stdlib/src/json.rs:1820`). `NvsArray::replace` gives the
+  answer from the insert's own lookup. `rule:errors/ambiguous-input-refused`'s closed list names it.
+- `rule:types/conversion`'s `string` row says what `parse` accepts, pinned by
+  `tests/conformance/lang/a-string-converts-to-a-number-with-a-sign-and-leading-zeros.nvst`.
 
-`rule:errors/path-component-refusals` names `Core\IO::within` as the launderer that refuses
-trailing dots, spaces, colons and 8.3 names. `within` (`crates/nvs-stdlib/src/io.rs:3657`) does
-not check those yet. Device names reach it through the `canonicalize` door only if that door calls
-`require`, which is not checked.
-
-`looper verify` is green on this group. The nightly ran on the pushed `main`, which is behind the
-local one. Its `docs`, `five-driver matrix` and `test / windows-x86_64` failures are fixed locally,
-and the `proofs` and `cost guards` failures are in the backlog.
+The nightly ran on the pushed `main`, which is behind the local one. Its `docs`, `five-driver
+matrix` and `test / windows-x86_64` failures are fixed locally, and the `proofs` and `cost guards`
+failures are in the backlog.
 
 ### Next
 
-Stage 4's last item, on `crates/nvs-runtime/src/capability.rs` and `crates/nvs-runtime/src/beneath.rs` (`rule:security/writes-open-beneath-a-handle`):
-- [ ] `open_read` and `open`'s `Access::Read` open beneath a handle, so the check and the open are one step. The grant is asked with `allows_resolved` on the one resolution, as `resolve_write` does. `crates/nvs-runtime/src/capability.rs:583`, `crates/nvs-runtime/src/beneath.rs:9`
-- [ ] The rule names the read doors beside the write doors, and a test plants a link after the check. `docs/rules/security/writes-open-beneath-a-handle.md:1`
-- [ ] Then stage 5: a repeated JSON key throws, naming it (`rule:types/conversion`). `crates/nvs-stdlib/src/json.rs:1820`
+Stage 6, on `fuzz/Cargo.toml`, `fuzz/fuzz_targets/` and `.github/workflows/ci.yml` (`rule:testing/the-deep-lane`):
+- [ ] A fuzz target for JSON (`crate::json::read`) and one for `Core\Serialize::decode`, each registered as a `[[bin]]` and in the fuzz job's matrix. `fuzz/Cargo.toml:23`, `.github/workflows/ci.yml:1037`, `crates/nvs-stdlib/src/json.rs:1851`
+- [ ] Targets for the request head and body, multipart and cookies. `crates/nvs-server/src/serve.rs:9153`
+- [ ] Targets for the outbound reply parser, XML, regex compile and decompression. `crates/nvs-stdlib/src/xml.rs:1`, `crates/nvs-stdlib/src/regex.rs:1`, `crates/nvs-stdlib/src/compress.rs:1`
 
 ### Backlog
 

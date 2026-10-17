@@ -77,6 +77,10 @@
 //!   private map token and is a workspace-wide switch, or a `RawValue`
 //!   pre-pass — neither worth a whole document's re-scan for a band that starts
 //!   at 1.8e19.
+//! * **A key written twice in one object throws**, naming the key
+//!   (`rule:errors/ambiguous-input-refused`). Two readers keep different
+//!   copies of a repeated key, so the document says two things at once. The
+//!   insert's own lookup reports the repeat, so the check costs nothing.
 //! * **A non-finite `float` refuses to encode.** JSON has no `NaN` and no
 //!   `Infinity`; PHP's `json_encode` fails too, but only if
 //!   `JSON_PARTIAL_OUTPUT_ON_ERROR` was not passed, and there is no such flag
@@ -431,9 +435,9 @@ const DECODE_DOC: MethodDoc = MethodDoc {
     errors: &[
         ErrorDoc {
             error: "ParseError",
-            desc: "`$json` is not a valid JSON document, nests deeper than `maxDepth`, or contains \
-                   a whole number too large for `int`; the one issue it carries has an empty \
-                   path.",
+            desc: "`$json` is not a valid JSON document, nests deeper than `maxDepth`, has an \
+                   object with the same key twice, or contains a whole number too large for \
+                   `int`. The one issue it carries has an empty path.",
         },
         ErrorDoc {
             error: "LogicError",
@@ -467,7 +471,8 @@ const DECODE_AS_DOC: MethodDoc = MethodDoc {
     errors: &[
         ErrorDoc {
             error: "ParseError",
-            desc: "`$json` is not a valid JSON document, nests deeper than `maxDepth`, contains \
+            desc: "`$json` is not a valid JSON document, nests deeper than `maxDepth`, has an \
+                   object with the same key twice, contains \
                    a whole number too large for `int`, is not an object at the top level (an \
                    array, for an `array<C>`), or has fields that are missing or of the wrong \
                    type — every failed field is one issue on the error, at its own path, and the \
@@ -1819,9 +1824,11 @@ impl<'de> Visitor<'de> for Decode {
         let mut array = NvsArray::new();
         while let Some(key) = map.next_key::<String>()? {
             let value = map.next_value_seed(self.child())?;
-            // A repeated key overwrites, exactly as `json_decode` into an
-            // associative array does.
-            array.set(NvsStr::new(key.as_bytes()), value);
+            if array.replace(NvsStr::new(key.as_bytes()), value) {
+                return Err(serde::de::Error::custom(format!(
+                    "the key {key:?} appears twice in one object"
+                )));
+            }
         }
         Ok(Value::array(array))
     }
@@ -3878,6 +3885,27 @@ mod tests {
     /// text of a decode.
     fn decoded(text: &str, max: u32) -> Result<Value, String> {
         read(text, max).map_err(|why| why.to_string())
+    }
+
+    /// A key written twice in one object throws and names the key, at any
+    /// depth, and the same key in two different objects is not a repeat.
+    // covers: Core\Json::decode
+    #[test]
+    fn a_repeated_key_is_refused_and_named() {
+        let why = decoded(r#"{"a":1,"a":2}"#, DEFAULT_MAX_DEPTH_U32).expect_err("a repeat");
+        assert!(
+            why.contains(r#"the key "a" appears twice in one object"#),
+            "{why}"
+        );
+        let why = decoded(r#"{"x":[{"id":1,"id":1}]}"#, DEFAULT_MAX_DEPTH_U32)
+            .expect_err("a repeat with the same value, one level down");
+        assert!(why.contains(r#"the key "id" appears twice"#), "{why}");
+        let value = decoded(r#"{"a":1,"b":{"a":2}}"#, DEFAULT_MAX_DEPTH_U32)
+            .expect("one `a` in each object");
+        #[expect(unsafe_code, reason = "this frame holds the only reference")]
+        unsafe {
+            value.release();
+        }
     }
 
     /// `levels` arrays in JSON text, the innermost holding `1`.

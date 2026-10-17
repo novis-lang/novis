@@ -1,5 +1,5 @@
 --TEST--
-Core\Json::encode is decode's inverse over every canonical document, isValid agrees with decode on every spelling, and the four places a re-encoding is deliberately not the input — spec § 6
+Core\Json::encode is decode's inverse over every canonical document, isValid agrees with decode on every spelling, the three places a re-encoding is deliberately not the input, and a repeated key, which does not decode — spec § 6
 --FILE--
 <?nvs
 // The sibling case pins § 6's members row by row. This one pins the property
@@ -63,10 +63,13 @@ echo Core\Json::encode(Core\Json::decode("{}")), "|", Core\Json::encode(Core\Jso
 // is why the sweep above round-trips `9223372036854775807` exactly.
 echo Core\Json::encode(Core\Json::decode("1e2")), "|", Core\Json::encode(Core\Json::decode("-0")), "|", Core\Json::encode(Core\Json::decode("1.0")), "|\n";
 
-// A repeated key is the last one, because the document decodes into one array
-// and a second write to a key replaces it — PHP's json_decode answers the
-// same, and RFC 8259 leaves it to the implementation.
-echo Core\Json::encode(Core\Json::decode("{\"a\":1,\"a\":2}")), "|\n";
+// A repeated key never re-encodes: two readers keep different copies of it,
+// so the decode throws (`rule:errors/ambiguous-input-refused`).
+try {
+    Core\Json::decode("{\"a\":1,\"a\":2}");
+} catch (ParseError $repeated) {
+    echo "refused|\n";
+}
 
 // An escape is decoded, not preserved: `\u00e9` is the character é, and
 // re-encoding writes it as itself unless {escapeUnicode: true} asks otherwise
@@ -82,6 +85,6 @@ agree 16 valid 12 of 16
 round trip 12 of 12
 []|[]|
 100.0|-0.0|1.0|
-{"a":2}|
+refused|
 "é"|"\ud83d\ude00"|
 "a\tb"|"a/b"|

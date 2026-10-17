@@ -1,0 +1,16 @@
+--TEST--
+`Core\Json::decode` throws a `ParseError` naming a key that one object writes twice, and the same key in two objects is not a repeat `rule:errors/ambiguous-input-refused`
+--FILE--
+<?nvs
+try {
+    Core\Json::decode('{"role":"user","role":"admin"}');
+    echo "not reached\n";
+} catch (ParseError $e) {
+    echo Core\Str::contains($e->message, 'the key "role" appears twice in one object') ? "named\n" : $e->message;
+}
+
+var $nested = Core\Json::decode('{"role":"user","next":{"role":"admin"}}') as array<mixed>;
+echo Core\Arr::count($nested), "\n";
+--EXPECT--
+named
+2
