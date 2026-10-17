@@ -1300,6 +1300,13 @@ pub enum ExprInfo {
         /// one variant would make the only reading of that grammar answer a
         /// second question. [`crate::links`]' `spellings` is where they meet.
         spellings: Vec<EnumSpelling>,
+        /// The written position of the argument that fills `$params`. A
+        /// `name:` may write the arguments in any order, and lowering reads
+        /// each one here.
+        params_at: usize,
+        /// The written position of the argument that fills `urlSigned`'s
+        /// signing settings, and `None` for the two members that sign nothing.
+        settings_at: Option<usize>,
     },
     /// A `rule:types/anonymous-function` `fn` anonymous function, keyed by its
     /// own span.
@@ -1858,8 +1865,8 @@ impl ExprTypeTable {
     /// it carries no `#[Db\Derive]` — [`Self::codec`]'s counterpart, keyed the
     /// same way and for the same reason.
     ///
-    /// Nothing generates `fromRow` from it yet; `crate::derive`'s gap 2 owns
-    /// that half.
+    /// `nvs_ir::lower` joins it to the slot order as `Class::db_codec`, which
+    /// is what the generated `fromRow` reads.
     #[must_use]
     pub fn db_codec(&self, label: &str) -> Option<&crate::derive::DerivedCodec> {
         self.db_codecs.get(label)

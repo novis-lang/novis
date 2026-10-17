@@ -371,12 +371,18 @@ impl<'a> Lowering<'a> {
                     absolute,
                     signed,
                     spellings,
+                    params_at,
+                    settings_at,
                 }) = self.exprs.lookup(expr.span)
                 {
                     let prepared = nvs_types::UrlPiece::prepared(pieces, spellings);
-                    let absolute = *absolute;
-                    let signed = signed.clone();
-                    return self.lower_route_link(&prepared, absolute, signed, args, env, cur);
+                    let link = RouteLink {
+                        absolute: *absolute,
+                        signed: signed.clone(),
+                        params_at: *params_at,
+                        settings_at: *settings_at,
+                    };
+                    return self.lower_route_link(&prepared, link, args, env, cur);
                 }
                 self.lower_static_call(class, args, expr, env, cur)
             }
@@ -2791,9 +2797,9 @@ impl<'a> Lowering<'a> {
     /// things.
     ///
     /// § 3 also wants no allocation at all: a constant-pool entry with
-    /// an immortal header, which is exactly what a string literal is
-    /// owed by `nvs-runtime`'s own gap 3. Both close together; until
-    /// then this is one call on a constant.
+    /// an immortal header. This arm emits one call on a constant, and the
+    /// record `data/gaps/nvs-ir/a-written-duration-is-built-at.json` owns
+    /// the constant-pool half.
     fn lower_duration(&mut self, span: Span, env: &mut Env, cur: &mut BlockId) -> (ValueId, Ty) {
         let text = span_text(self.src, span);
         let nanos = nvs_syntax::duration::parse(text).unwrap_or_else(|err| {
@@ -3995,12 +4001,17 @@ impl<'a> Lowering<'a> {
     fn lower_route_link(
         &mut self,
         prepared: &str,
-        absolute: bool,
-        signed: Option<String>,
+        link: RouteLink,
         args: &CallArgs,
         env: &mut Env,
         cur: &mut BlockId,
     ) -> (ValueId, Ty) {
+        let RouteLink {
+            absolute,
+            signed,
+            params_at,
+            settings_at,
+        } = link;
         let mark = self.temporaries_mark();
         let (template, _) = self.emit(*cur, Ty::Str, InstKind::ConstStr(prepared.to_owned()));
         // Not an aliasing read of anything: the prepared path is this frame's
@@ -4009,9 +4020,10 @@ impl<'a> Lowering<'a> {
         // argument is accounted for, and an exception is what the next hand-
         // rolled argument list would copy.
         self.account_for_arg(template, Ty::Str, ArgOwnership::Borrowed, false, *cur);
-        // The arity is the member's own and was checked in `nvs_types`, and a
-        // site is only recorded when both arguments are written positionally —
-        // `nvs_types::links`' gap 2.
+        // The arity is the member's own and was checked in `nvs_types`, which
+        // also recorded where `$params` and the signing settings were written.
+        // A `name:` may write them in either order. They are evaluated in
+        // written order and passed in parameter order.
         let CallArgs::List(list) = args else {
             panic!("nvs-ir: a resolved route link has a written argument list")
         };
@@ -4021,13 +4033,19 @@ impl<'a> Lowering<'a> {
             self.account_for_arg(name, Ty::Str, ArgOwnership::Borrowed, false, *cur);
             lowered.push(name);
         }
-        let (params, params_ty) = self.lower_expr(&list[1].value, None, env, cur);
-        let aliasing = self.aliasing_read(&list[1].value);
+        let mut settings = Vec::new();
+        let settings_first = settings_at.filter(|at| *at < params_at);
+        if let Some(at) = settings_first {
+            self.lower_signing_settings(&list[at].value, env, cur, &mut settings);
+        }
+        let (params, params_ty) = self.lower_expr(&list[params_at].value, None, env, cur);
+        let aliasing = self.aliasing_read(&list[params_at].value);
         self.account_for_arg(params, params_ty, ArgOwnership::Borrowed, aliasing, *cur);
         lowered.push(params);
-        if signed.is_some() {
-            self.lower_signing_settings(&list[2].value, env, cur, &mut lowered);
+        if let Some(at) = settings_at.filter(|at| *at > params_at) {
+            self.lower_signing_settings(&list[at].value, env, cur, &mut settings);
         }
+        lowered.extend(settings);
         let symbol = match (signed.is_some(), absolute) {
             (true, _) => nvs_types::CORE_ROUTE_LINK_SIGNED,
             (false, true) => nvs_types::CORE_ROUTE_LINK_ABSOLUTE,
@@ -6966,6 +6984,21 @@ pub(crate) enum ReceiverProof {
     /// travels to [`InstKind::SlotGet`], which checks the tag where it
     /// already checks the name (`rule:types/erased-member-access`).
     Erased,
+}
+
+/// What [`Lowering::lower_route_link`] reads off a resolved link besides its
+/// path: the facts of `nvs_types::ExprInfo::RouteLink`, copied out so the
+/// record is not borrowed while lowering runs.
+struct RouteLink {
+    /// `true` for `urlAbsolute`.
+    absolute: bool,
+    /// The route's name, for `urlSigned` alone.
+    signed: Option<String>,
+    /// The written position of the argument that fills `$params`.
+    params_at: usize,
+    /// The written position of the argument that fills `urlSigned`'s signing
+    /// settings.
+    settings_at: Option<usize>,
 }
 
 /// The one value every member of an [`TestShape::Any`]/[`TestShape::All`] chain
