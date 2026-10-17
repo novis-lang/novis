@@ -3,7 +3,7 @@
 //
 // It does two things the parent cannot do for itself. It abandons a cycle
 // inside an isolate, so that the sweep runs at an isolate's teardown and not
-// only at the program's; and it holds an object that crossed the boundary as a
+// only at the program's; and it holds an array that crossed the boundary as a
 // pointer handoff, then hands it back — so the parent reads, after this context
 // is gone, an allocation this context was holding.
 
@@ -25,7 +25,7 @@ var $right = new Holder();
 $left->held = $right;
 $right->held = $left;
 
-// The object the parent spawned this child with. It crossed at refcount one,
+// The array the parent spawned this child with. It crossed at refcount one,
 // which makes it the same allocation rather than a rebuild — `graph.rs`'s third
 // decision — and handing it back is what makes the parent's read below a read
 // of memory this isolate's teardown ran over.

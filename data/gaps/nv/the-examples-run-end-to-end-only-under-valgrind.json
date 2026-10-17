@@ -1,6 +1,0 @@
-{
-  "module": "examples",
-  "title": "The programs under `examples/` run end to end only in the WSL valgrind sweep.",
-  "text": "Nothing in `bun nv verify` or the CI lanes runs each program under `examples/` and checks that it exits cleanly; the WSL valgrind sweep (`rule:testing/valgrind-on-wsl`) is the one place they run, and it runs by hand. A broken example is found only there. Closing it means a test that runs every `examples/*.nvs` with `nvs run` and fails on a non-zero exit, reached by any change to the compiler or the runtime.",
-  "goal": "completeness-holes"
-}
