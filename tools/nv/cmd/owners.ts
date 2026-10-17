@@ -30,9 +30,8 @@
 // that goal, because a designed rule is reached when it ships.
 //
 // `--registers` counts every place owed work is written down: the gap records, the refusal runs in
-// `docs/agent/carried-refusals.md`, the keys in `crates/nvs-stdlib/tests/*-outstanding.txt`, the
-// guard names in `docs/agent/guard-name-debt.md`, and the playbook bullets whose `until` names a state
-// of the tree. It takes their counts and nothing else, since each has a gate over its own discipline.
+// `docs/agent/carried-refusals.md`, the guard names in `docs/agent/guard-name-debt.md`, and the
+// playbook bullets whose `until` names a state of the tree. It takes their counts and nothing else, since each has a gate over its own discipline.
 // The prose scan finds every gap that lives only in prose: a module doc heading that words owed work
 // outside a gap block, a `Known gaps` block that is not the one pointer line to its module's records,
 // and a numbered `gap N` reference. It reads Rust sources and tests, crate manifests and conformance
@@ -69,7 +68,6 @@ const PLAYBOOK = "docs/agent/playbook";
 const CARRIED_GAPS = "docs/agent/carried-gaps.md";
 const CARRIED_REFUSALS = "docs/agent/carried-refusals.md";
 const GUARD_DEBT = "docs/agent/guard-name-debt.md";
-const RATCHETS = "crates/nvs-stdlib/tests/*-outstanding.txt";
 /** What the prose scan reads: every Rust source and test, every crate manifest, every conformance case. */
 const PROSE_SOURCES = ["crates/*/src/**/*.rs", "crates/*/tests/**/*.rs", "crates/*/Cargo.toml", "tests/**/*.nvst"];
 
@@ -293,18 +291,6 @@ function entryLines(path: string, pattern: RegExp): string[] {
   return readFileSync(join(ROOT, path), "utf8").split("\n").filter((l) => pattern.test(l)).map(() => "");
 }
 
-/** Every outstanding key in the ratchets, as the owner its `#` column names. */
-function ratchetOwners(): string[] {
-  const out: string[] = [];
-  for (const file of [...new Bun.Glob(RATCHETS).scanSync({ cwd: ROOT })].sort()) {
-    for (const line of readFileSync(join(ROOT, file), "utf8").split("\n")) {
-      const text = line.trim();
-      if (!text || text.startsWith("#")) continue;
-      out.push(/^[^#]+?\s*(?:#\s*(\S+))?\s*$/.exec(text)?.[1] ?? "");
-    }
-  }
-  return out;
-}
 
 /** Every place owed work is written down, in the order a gap is most often written. */
 export function registers(found: Gap[]): Register[] {
@@ -313,8 +299,6 @@ export function registers(found: Gap[]): Register[] {
       what: "a gap record, naming the goal that owns it" },
     { name: "carried-refusals.md", where: CARRIED_REFUSALS, read: () => entryLines(CARRIED_REFUSALS, /^9\d\d\. /),
       what: "a run of `nvs-ir` refusal sites, numbered from 900" },
-    { name: "outstanding keys", where: RATCHETS, read: ratchetOwners,
-      what: "a spec or migration member `registry::CLASSES` does not declare yet, each key naming its owner in a `#` column" },
     { name: "guard-name-debt.md", where: GUARD_DEBT, read: () => entryLines(GUARD_DEBT, /^- \[/),
       what: "a guard test a goal record's check names and the tree does not hold yet" },
     { name: "playbook until", where: `${PLAYBOOK}/`, read: playbookBullets,
@@ -397,8 +381,8 @@ function report(kinds: Kinds, found: Gap[], regs: Register[], sections: ReturnTy
   reportRegisters(regs);
 }
 
-/** The gap records' half of the gate. It reads no other register: a new playbook bullet or
- * outstanding key cannot change it, and `--registers` is where their counts are printed. */
+/** The gap records' half of the gate. It reads no other register: a new playbook bullet cannot
+ * change it, and `--registers` is where the counts are printed. */
 function runCheck(kinds: Kinds): number {
   const bad = REFUSED.flatMap((kind) => kinds[kind].map((g) => ({ ...g, why: g.why ?? WHY[kind]! })))
     .sort((a, b) => cmp(a.module, b.module) || cmp(a.slug, b.slug));

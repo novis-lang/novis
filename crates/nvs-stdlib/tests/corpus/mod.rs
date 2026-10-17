@@ -2,14 +2,8 @@
 //! under `tests/conformance/`, and the one rule that says which members a case
 //! asks of which classes.
 //!
-//! This is a module rather than a section of one of the two test files because
-//! Cargo compiles every `tests/*.rs` as its own crate, and both of them ask the
-//! corpus the same question from opposite ends —
 //! `conformance_coverage.rs` walks [`registry::CLASSES`] and asks the
-//! repository for a case, `spec_registry_coverage.rs` walks the spec and asks
-//! it for the same thing. A rule that lived in one of them would have to be
-//! restated in the other, and two gates that disagree about what "a case calls
-//! this member" means are worse than one gate.
+//! repository for a case, and reads the corpus through this module.
 //!
 //! [`Attribution::asked`] is that rule's only home. Everything about *why* a
 //! case is attributed to a class it never names is in `tools/nv/cmd/gaps.ts`'s

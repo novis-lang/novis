@@ -34,8 +34,7 @@
 //! fifty-seven that were neither.
 //!
 //! **How the corpus is read is not in this file.** `tests/corpus/mod.rs` holds
-//! it, because `spec_registry_coverage.rs` asks the same corpus the same
-//! question from the spec's end and Cargo compiles the two as separate crates.
+//! it, with the rule that says which members a case asks of which classes.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
