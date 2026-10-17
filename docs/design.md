@@ -1,5 +1,5 @@
 # Design
 
-Novis's design has two homes. [docs/plan/design.md](plan/design.md) is the frozen architecture, and
-the rule fragments under [docs/rules/](rules/) are what is true now. When the two disagree, the
-fragment wins. A crate's module doc says how that crate works.
+Novis's design has two homes. The rule fragments under [docs/rules/](rules/) are what a program can
+observe and why, and a crate's module doc says how that crate is built. This file holds neither: it is
+the entry looper's managed block in `AGENTS.md` links.

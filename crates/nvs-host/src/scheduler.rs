@@ -8,9 +8,16 @@
 //!
 //! # Why a task never leaves the thread it started on
 //!
-//! `docs/plan/design.md` § *Thread-per-core, shared-nothing runtime* is the one
-//! home for that decision; what matters here is that this module is where it is
-//! either held or lost. A [`Scheduler`] is `!Send` and `!Sync` — structurally,
+//! The runtime is thread-per-core and shared-nothing, and this module is the
+//! home of that decision. One single-threaded scheduler runs pinned on each CPU
+//! core, connections are balanced across the cores, and a request never
+//! migrates between them. Parallelism across cores is that many independent
+//! schedulers: `spawn worker` hands its work to another core and deep-copies the
+//! value that crosses (`rule:classes/two-copy-depths`). Compiled units are
+//! immutable, and they are the one thing the cores share, through an `Arc`.
+//!
+//! This module is where that decision is either held or lost. A [`Scheduler`]
+//! is `!Send` and `!Sync` — structurally,
 //! not by convention — so there is no safe way to hand a run queue, or anything
 //! sitting in it, to a second thread. That is what buys the non-atomic
 //! refcount in `nvs-runtime`: a `Value`'s refcount is incremented without a

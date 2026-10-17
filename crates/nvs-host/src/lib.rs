@@ -9,8 +9,8 @@
 //!
 //! # The one rule this crate exists to hold
 //!
-//! **The runtime is ours and it is not `async`.** `docs/plan/design.md`
-//! § *Thread-per-core, shared-nothing runtime* is that decision's only home,
+//! **The runtime is ours and it is not `async`.** `rule:concurrency/one-scheduler`
+//! is that decision, [`scheduler`]'s module doc is why a task stays on its core,
 //! and `rule:http-server/a-core-is-never-blocked-on-a-syscall`
 //! is what it buys: a core is never blocked on a syscall, because a task
 //! that would wait suspends its own stack and hands the core back. A helper

@@ -55,8 +55,7 @@ Coming from PHP? [How Novis is different, and how to port a program](docs/refere
 - The extension system, with the built-in image, intl, PDF and spreadsheet components.
 - The language server and the VS Code extension.
 
-**Planned** ([docs/goals/](docs/goals/README.md) lists the work in the order it is done, and
-[docs/implementation-plan.md](docs/implementation-plan.md) the milestones that come after it):
+**Planned** ([docs/goals/](docs/goals/README.md) lists the work in the order it is done):
 
 - Developer tooling: the debugger, the profiler, property tests and the rest of the editor features.
 - Packages, the registry and the supply chain.

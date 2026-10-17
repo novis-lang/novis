@@ -688,8 +688,8 @@ fn a_coroutine_round_trip_stays_cheap() {
     let _quiet = serialised();
 
     // A suspend and resume through JIT frames, which
-    // `rule:packaging/a-guest-call-yields-on-its-core` and `docs/plan/design.md`
-    // § Thread-per-core price as the cost of "no async colouring".
+    // `rule:packaging/a-guest-call-yields-on-its-core` and `rule:concurrency/one-scheduler`
+    // price as the cost of "no async colouring".
     //
     // The proof is counted, so it holds on any machine however loaded. A
     // suspend and the resume after it switch between two stacks that both

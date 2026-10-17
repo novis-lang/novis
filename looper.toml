@@ -1,5 +1,5 @@
 # looper's configuration for this repository. docs/agent/coordinator.md is what is specific to Novis, and
-# the key names are looper's own, from its docs/design.md.
+# the key names are looper's own, from its design document.
 
 [project]
 name = "mwl"

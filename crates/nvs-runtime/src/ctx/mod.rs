@@ -13,7 +13,7 @@
 //!
 //! * [`SAFEPOINT_OFFSET`] — the *address* of the word the safepoint poll
 //!   `nvs-codegen` emits at every function entry and loop back edge reads
-//!   (`docs/plan/design.md` § *Safepoints*). The address is loaded
+//!   (`nvs-codegen`'s module doc). The address is loaded
 //!   once in the ABI entry block, which dominates every block below it, so the
 //!   poll itself is a load of the word, a test, and a predicted-not-taken
 //!   branch to the [`nvs_safepoint`] slow path. The word is out of line
@@ -1398,8 +1398,8 @@ pub struct Ctx {
     /// reaches the yielder through the context it was already handed rather
     /// than through its own signature, so no caller up the chain is marked
     /// `async` and Novis needs no such marker at all
-    /// (`rule:http-server/a-core-is-never-blocked-on-a-syscall`
-    /// , `docs/plan/design.md` § *Thread-per-core, shared-nothing runtime*).
+    /// (`rule:http-server/a-core-is-never-blocked-on-a-syscall`,
+    /// `rule:concurrency/one-scheduler`).
     ///
     /// **Opaque on purpose.** It is a `*const ()` rather than a
     /// `*const corosensei::Yielder<…>` so that the coroutine crate stays out

@@ -185,9 +185,7 @@ data/               the JSON records `bun nv` reads and writes: gaps, rules, pro
 docs/
   setup.md          what a development machine installs, and what a clone does not carry
   novis.md          the one-file reference to everything Novis has (generated)
-  implementation-plan.md   the milestone index, and the status block a session overwrites
   agent/            how agents work here: the loop, conventions, commands and the playbook
-  plan/             one file per open milestone, plus the frozen design
   spec/             the normative language reference
   reference/        the chapters `bun nv reference` generates `docs/novis.md` from
   perf/             recorded benchmark figures
@@ -234,9 +232,8 @@ the premise the calling convention exists for.
 | Serving | built-in HTTP/1.1 with exactly two deployments — a development server, and a proxied production origin that replaces FastCGI. No TLS listener, no h2c, no compression: a proxy does each earlier and better. A filesystem path is never derived from a URL at request time (`rule:http-server/two-deployments-and-nothing-a-proxy-owns`, `rule:http-server/a-path-is-never-derived-from-a-url`) |
 | Extensions | built-in, sandboxed wasm (`.nvsx`), or statically linked native — never `dlopen` ([`packaging/an-extension-is-a-sandboxed-wasm-component`](docs/rules/packaging.md#packaging-an-extension-is-a-sandboxed-wasm-component)) |
 
-This is the short form. The fuller decision table is in [docs/plan/design.md](docs/plan/design.md); the
-reasoning behind each choice is in its rule, and [docs/ground-rules.md](docs/ground-rules.md) lists
-every rule.
+This is the short form. The reasoning behind each choice is in its rule, and
+[docs/ground-rules.md](docs/ground-rules.md) lists every rule.
 
 ### Making a change
 

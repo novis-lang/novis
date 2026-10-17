@@ -2,7 +2,7 @@
 
 Novis is built by a long series of unattended work sessions. This file describes how that loop is driven
 and why it is shaped the way it is. The loop itself is looper, an external tool: `looper.toml` at the root
-is this repository's configuration, and looper's own `docs/design.md` is how it works. This file holds only
+is this repository's configuration, and looper's own design document is how it works. This file holds only
 what is specific to Novis.
 
 ## The rule that determines the design
@@ -15,8 +15,7 @@ No prompt wording fixes this; a conversation cannot forget.
 
 So **the loop does not live in a conversation.** looper starts one *fresh* `claude` session per
 iteration. Context resets to zero every time, so session 400 costs exactly what session 1 did. The loop's
-memory lives on disk: git history, the live goal's file under `docs/goals/` with its `## Handoff`, and
-`docs/implementation-plan.md`.
+memory lives on disk: git history, and the live goal's file under `docs/goals/` with its `## Handoff`.
 
 Four things follow, and they are the whole design:
 

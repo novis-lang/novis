@@ -20,7 +20,7 @@ overturn a decision. **One call orients you**, and which one depends on why you 
 |---|---|
 | A session of the unattended loop | Nothing — looper ran `looper orient` and piped the pack in ahead of your prompt: the live goal, its stage, its handoff and the traps, narrowed to the goal's `context` list. Run it yourself only if it is genuinely absent. |
 | Working interactively, on anything | `looper orient --full` — the same pack with no narrowing |
-| Looking for the file that owns a topic | `bun nv brief --where <keyword>` — a search over the rulebook: the chapters under [docs/rules/](docs/rules/) and every rule's title, plus the homes that are not rules — the plan, the tools, the benches, the perf notes. With no keyword, the chapter list |
+| Looking for the file that owns a topic | `bun nv brief --where <keyword>` — a search over the rulebook: the chapters under [docs/rules/](docs/rules/) and every rule's title, plus the homes that are not rules — the goals, the tools, the benches, the perf notes. With no keyword, the chapter list |
 
 Those three route to everything else. The five files behind them, none of which is read in full by default:
 
@@ -40,8 +40,8 @@ Those three route to everything else. The five files behind them, none of which 
 
 **A rule's fragment under `docs/rules/` is the rule, and it is always currently true.**
 There are no decision records. A rule holds its reasons and its Declined list, and a new decision becomes
-a goal or goes into the plan. `git log` is the only history, and `bun nv rules --check` fails on a record
-or a citation of one.
+a goal. `git log` is the only history, and `bun nv rules --check` fails on a record, a citation of one
+or a citation of a deleted doc.
 
 ## The priority ordering
 
@@ -378,7 +378,7 @@ What a loop session owes on top of § *Session workflow*:
 - **Unsafe code is forbidden in every crate but the unsafe ones.** The workspace `Cargo.toml` sets
   `unsafe_code = "forbid"`. Each crate on `bun nv lints`'s `UNSAFE_CRATES` restates the table with
   `deny` and allows each audited block with a reason. The workspace `Cargo.toml`'s lint comment is
-  the home, and [docs/plan/design.md](docs/plan/design.md) § *Unsafe policy* the reasoning.
+  the home, and the header of `tools/nv/cmd/lints.ts` the reasoning.
 - **`package.json` takes its dependencies at caret ranges,** and the committed `bun.lock` pins each one.
 
 <!-- looper:begin agents v2 -->

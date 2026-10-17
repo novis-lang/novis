@@ -27,8 +27,8 @@ The docs are optimised for an agent that reads one file and starts working. Keep
 - **Front-load.** Decision first, reasoning below it. Assume the reader stops after the first screen.
 - A choice that would be expensive to reverse is a rule: what is true, why, and what was declined go
   into its fragment under [docs/rules/](../rules/), and why a crate is built that way goes into the
-  crate's module doc. [docs/plan/design.md](../plan/design.md) keeps the project-wide architecture, and [docs/ground-rules.md](../ground-rules.md) — one line per rule — is
-  generated from it by `bun nv rules --render`, never written.
+  crate's module doc. [docs/ground-rules.md](../ground-rules.md), one line per rule, is generated
+  from the fragments by `bun nv rules --render`, never written.
 - **Name a goal by its slug, never by its number.** Goal `<slug>`, never `goal 21` — here, in a `//!`
   header, in a commit message, in a test's owner column, and in a line a tool prints to a console.
   A goal's number is its **position** on the chain, so inserting anything in front of it renumbers
