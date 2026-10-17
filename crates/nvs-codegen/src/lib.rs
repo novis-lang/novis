@@ -87,7 +87,12 @@
 //!   edge taken, to [`nvs_runtime::nvs_probe_edge`]) and twice at every call
 //!   site, before and
 //!   after (branching to [`nvs_runtime::nvs_probe_call_enter`] and
-//!   [`nvs_runtime::nvs_probe_call_exit`]).
+//!   [`nvs_runtime::nvs_probe_call_exit`]). A call site is a call to a
+//!   compiled method, labelled with its resolved target, or a `Core` member's
+//!   call, labelled `Core\Class::member`. A call through a `callable` is
+//!   probed inside `nvs_runtime::call_callable` instead, labelled
+//!   `Class::invoke` for the callable's class, because a `Core` member calls a
+//!   callback on that same path.
 //!
 //! None is behind a flag or a build configuration: `rule:testing/debug-probes`'s whole
 //! argument is that a request already running must be able to have coverage

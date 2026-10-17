@@ -227,6 +227,51 @@ fn turning_tracing_on_records_an_entry_and_an_exit_per_call() {
     );
 }
 
+#[test]
+fn a_trace_records_a_core_call_and_every_callback_it_makes() {
+    // `rule:testing/debug-probes` puts the pair at every call site. A `Core`
+    // member's call is labelled with its written name, and each call through
+    // a `callable` with the name its body is compiled under, whether the
+    // program or the member made it. Counting sees the same calls.
+    let source = "<?nvs\n\
+                  var $double = fn(int $n): int => $n * 2;\n\
+                  array<int> $all = Core\\Arr::map([1, 2, 3], $double);\n\
+                  echo $double(4);\n";
+    let mut ctx = Ctx::buffered();
+    ctx.set_debug_flags(DebugFlags::TRACE | DebugFlags::COUNT);
+    run_with(&mut ctx, source).expect("the script ran");
+    assert_eq!(ctx.take_buffered_output().as_deref(), Some(&b"8"[..]));
+
+    let events: Vec<(&str, Option<i32>)> = ctx
+        .trace()
+        .iter()
+        .map(|e| {
+            let callee = if e.callee.ends_with("::invoke") {
+                "{callable}"
+            } else {
+                e.callee.as_str()
+            };
+            (callee, e.status)
+        })
+        .collect();
+    assert_eq!(
+        events,
+        [
+            (r"Core\Arr::map", None),
+            ("{callable}", None),
+            ("{callable}", Some(OK)),
+            ("{callable}", None),
+            ("{callable}", Some(OK)),
+            ("{callable}", None),
+            ("{callable}", Some(OK)),
+            (r"Core\Arr::map", Some(OK)),
+            ("{callable}", None),
+            ("{callable}", Some(OK)),
+        ]
+    );
+    assert_eq!(ctx.counted().calls, 5, "one map and four callback calls");
+}
+
 // A *non-`OK`* traced exit has no fixture here, and deliberately not: the only
 // stop reachable without a `throw` is a pending safepoint, which fires at the
 // script frame's own entry poll before any call is reached. `nvs_probe_call_

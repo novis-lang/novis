@@ -634,15 +634,19 @@ impl Emitter<'_, '_> {
                     Helper::CallCallable | Helper::CallCallableProven => RuntimeSig::HelperVariadic,
                     _ => RuntimeSig::Helper,
                 };
-                return self.emit_helper(cur, inst, symbol, args, sig);
+                return self.emit_helper(cur, inst, symbol, args, sig, None);
             }
             // A `Core` member is native Rust behind the same `rule:errors/propagation` helper
             // entry point every runtime helper uses, so it needs no path of
             // its own here beyond naming a symbol `nvs-stdlib` registered
             // instead of one this crate's own `Helper` table does. See
-            // `nvs_ir::ir::InstKind::CoreCall`.
+            // `nvs_ir::ir::InstKind::CoreCall`. It is a call site, so it has
+            // `rule:testing/debug-probes`'s probe pair, labelled with the
+            // member's written name; a symbol no member row names is a helper
+            // the compiler called on its own, and has none.
             InstKind::CoreCall { symbol, args } => {
-                return self.emit_helper(cur, inst, symbol, args, RuntimeSig::Helper);
+                let label = nvs_stdlib::registry::member_label(symbol);
+                return self.emit_helper(cur, inst, symbol, args, RuntimeSig::Helper, label);
             }
             InstKind::ExtensionCall {
                 class,
@@ -973,7 +977,14 @@ impl Emitter<'_, '_> {
                     AbsentKey::Throws => "nvs_array_required_get",
                     AbsentKey::Null => "nvs_array_optional_get",
                 };
-                return self.emit_helper(cur, inst, symbol, &[*array, *key], RuntimeSig::Helper);
+                return self.emit_helper(
+                    cur,
+                    inst,
+                    symbol,
+                    &[*array, *key],
+                    RuntimeSig::Helper,
+                    None,
+                );
             }
             InstKind::ArraySet { array, key, value } => {
                 // The key operand's own representation picks the primitive,
@@ -2314,6 +2325,13 @@ impl Emitter<'_, '_> {
     /// argument **count** passed beside the slot, which a helper needs when
     /// its arity is a property of the call site rather than of its own
     /// declaration — see `nvs_ir::Helper::CallCallable`.
+    ///
+    /// `label` is `Some` for a `Core` member's call, and puts
+    /// `rule:testing/debug-probes`'s entry and exit probes around the call, as
+    /// [`Self::emit_invoke_at`] does. A runtime helper is not a call the program
+    /// wrote, so it passes `None`. A call through a `callable` is probed inside
+    /// `nvs_runtime::call_callable`, because a `Core` member calls a callback
+    /// on that same path.
     fn emit_helper(
         &mut self,
         cur: Block,
@@ -2321,7 +2339,16 @@ impl Emitter<'_, '_> {
         symbol: &'static str,
         args: &[ValueId],
         sig: RuntimeSig,
+        label: Option<&str>,
     ) -> Result<Block, CodegenError> {
+        let label = match label {
+            Some(label) => {
+                let label = self.emit_bytes(label.as_bytes())?;
+                self.emit_call_probe("nvs_probe_call_enter", RuntimeSig::ProbeCall, label, None)?;
+                Some(label)
+            }
+            None => None,
+        };
         let count =
             i32::try_from(args.len()).map_err(|_| internal("a helper call past i32 args"))?;
         let args_p = if args.is_empty() {
@@ -2363,6 +2390,14 @@ impl Emitter<'_, '_> {
             _ => self.b.ins().call(callee, &[self.ctx_p, args_p, out_p]),
         };
         let status = self.b.inst_results(call)[0];
+        if let Some(label) = label {
+            self.emit_call_probe(
+                "nvs_probe_call_exit",
+                RuntimeSig::ProbeCallExit,
+                label,
+                Some(status),
+            )?;
+        }
         let cont = self.emit_status_check(status, inst.on_error)?;
 
         // `Ty::Void` is filtered out for [`Self::emit_call`]'s reason: a helper
