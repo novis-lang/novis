@@ -2427,7 +2427,7 @@ fn field_overrides(
 ) -> Overrides {
     let mut out = Overrides::default();
     let attribute = format.field_attribute();
-    for field in attribute_fields(groups, format.field(), ctx, env) {
+    for field in attribute_fields(groups, format, ctx, env) {
         match (span_text(env.src, field.name), &field.value.kind) {
             ("name", ExprKind::Str(span)) => {
                 out.name = Some(crate::string_lit::cook_string_literal(env.src, *span));
@@ -2475,22 +2475,40 @@ pub(crate) fn attribute_is(attr: &Attribute, want: &str, ctx: &Ctx<'_>, env: &En
             .is_some_and(|name| resolves_to(span_text(env.src, name.span), want, ctx))
 }
 
-/// Every field written on the *first* `want`-named attribute in `groups`.
+/// Every field written on the first of `format`'s field attributes in `groups`.
 ///
-/// The first: a second `#[Json\Field]` on one property is a mistake this pass
-/// does not yet report, and reading both would silently merge two overrides.
+/// A property's overrides are one attribute (`rule:core-classes/derive-field-list`), so every
+/// later one is an `E_DERIVE_FIELD_ATTRIBUTE` at itself, naming the first. Reading both would
+/// merge two sets of overrides, and choosing one in silence would drop the other.
 fn attribute_fields<'a>(
     groups: &'a [AttributeGroup],
-    want: &str,
+    format: Format,
     ctx: &Ctx<'_>,
-    env: &Env<'_>,
+    env: &mut Env<'_>,
 ) -> &'a [AnonObjectField] {
-    groups
-        .iter()
-        .flat_map(|group| &group.attributes)
-        .find(|attr| attribute_is(attr, want, ctx, env))
-        .map(|attr| attr.fields.as_slice())
-        .unwrap_or_default()
+    let mut first: Option<&'a Attribute> = None;
+    for attr in groups.iter().flat_map(|group| &group.attributes) {
+        if !attribute_is(attr, format.field(), ctx, env) {
+            continue;
+        }
+        let Some(declared) = first else {
+            first = Some(attr);
+            continue;
+        };
+        let attribute = format.field_attribute();
+        env.diags.report(
+            Diagnostic::error(
+                code::E_DERIVE_FIELD_ATTRIBUTE,
+                format!("this property has more than one `{attribute}`"),
+            )
+            .with_primary(attr.span, format!("a second `{attribute}`"))
+            .with_secondary(declared.span, "the attribute this property already has")
+            .with_help(format!(
+                "write every option for this property in one `{attribute}`, and delete the other"
+            )),
+        );
+    }
+    first.map(|attr| attr.fields.as_slice()).unwrap_or_default()
 }
 
 /// `rule:core-classes/derive-attribute`'s nominal match: `text`, resolved against the active namespace

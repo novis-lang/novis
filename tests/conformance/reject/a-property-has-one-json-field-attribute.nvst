@@ -1,0 +1,23 @@
+--TEST--
+A property's `#[Json\Field]` overrides are one attribute, and a second is reported at itself — `rule:core-classes/derive-field-list`
+--FILE--
+<?nvs
+#[Core\Json\Derive]
+class User {
+    #[Core\Json\Field(name: "user_name")]
+    #[Core\Json\Field(skip: true)]
+    public string $name;
+
+    public function constructor(string $name) {
+        $this->name = $name;
+    }
+}
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0464]: this property has more than one `#[Json\Field]`
+  --> case.nvs:4:7
+%A
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.
