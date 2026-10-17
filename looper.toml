@@ -39,6 +39,7 @@ heavy = [
 exclusive = [
   "bun nv bench",
   "bun nv benches",
+  "bun nv debt",
   "bun nv bench-load",
   "bun nv bench-proxied",
   "bun nv bench-compare",
@@ -52,13 +53,13 @@ timeout = 1800           # the acceptance runner's own
 # the `(pass)` lines, so every check runs with it empty.
 env = { CLAUDECODE = "" }
 
-# `tools/nv/cmd/sweep.ts`: it pays owed and red atoms for its DEBT_BUDGET_MS, sweeps the disk and reads the
-# nightly CI run back. No atom starts once the budget is spent, so the timeout covers the budget, one atom
-# that started just before the end and runs on, the warm release and covws builds the benches and the
-# owed atoms need, and the disk sweep. The command exits 0 whatever it finds, so only a timeout or a crash
-# fails it, and that pauses the loop. It is attached, so the next session starts once it has ended.
+# `tools/nv/cmd/sweep.ts`: it sweeps the disk, the build only when the disk is low, and reads the nightly
+# CI run back. It runs no check and pays no floor debt, which the floor check `floor-debt` pays once per
+# goal. The timeout covers the cargo queries a low disk's sweep asks for the live set. The command exits 0
+# whatever it finds, so only a timeout or a crash fails it, and that pauses the loop. It is attached, so
+# the next session starts once it has ended.
 [hooks]
-after_session = [{ run = ["bun", "nv", "sweep"], timeout = 3600, on_fail = "pause" }]
+after_session = [{ run = ["bun", "nv", "sweep"], timeout = 900, on_fail = "pause" }]
 # `tools/nv/cmd/side.ts`: in a side loop's lane, it installs the tools' packages, copies in the git-ignored
 # files and seeds the selection store, each only when it is missing; in any other loop it does nothing.
 # The timeout covers its own 600-second cap on `bun install` and the copies.

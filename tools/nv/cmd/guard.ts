@@ -396,7 +396,7 @@ export const RULES: Rule[] = [
         return (
           `${why}. \`bun nv affected\` names what your change reaches, and \`bun nv affected --run\` runs exactly ` +
           `that; \`--since <rev>\` names a committed change. To look into one test, name it: \`cargo test --test <name>\` ` +
-          `or \`cargo test --lib <filter>\`. The owed floor is paid by the loop, and at a push by the person pushing.`
+          `or \`cargo test --lib <filter>\`. The owed floor is paid at each goal's end by \`bun nv debt\`, and at a push by the person pushing.`
         );
       }
       return null;
@@ -454,8 +454,9 @@ function heavyRun(all: string[], cwd: string): string | null {
   const nv = nvArgs(words);
   if (nv !== null) {
     const [cmd, ...rest] = nv;
-    if (cmd === "sweep" && !rest.some((w) => w === "--help" || w === "-h")) return "`bun nv sweep` is the hook looper runs after each session: it pays owed and red atoms for a fixed time, whatever your change reaches";
-    if (cmd === "benches") return "`bun nv benches` judges every bench the selection picks on the release build, whatever your change reaches; the loop's hook after each session pays owed and red benches";
+    if (cmd === "sweep" && !rest.some((w) => w === "--help" || w === "-h")) return "`bun nv sweep` is the hook looper runs after each session: it sweeps the disk, which can break a build another session is running";
+    if (cmd === "debt" && !rest.some((w) => w === "--help" || w === "-h")) return "`bun nv debt` pays every owed and red atom, whatever your change reaches; looper runs it once at each goal's end";
+    if (cmd === "benches") return "`bun nv benches` judges every bench the selection picks on the release build, whatever your change reaches; `bun nv debt` pays owed and red benches at each goal's end";
     if (cmd === "proofs" && rest.some((w) => w === "--verify" || w === "--run") && !rest.some((w) => /^--(?:id|only|group)(?:=|$)/.test(w))) {
       return "`bun nv proofs` over every feature runs each one's examples and attacks, whatever your change reaches";
     }

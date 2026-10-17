@@ -5,9 +5,11 @@
 //     bun nv disk --clean -n    say what --clean would delete; delete nothing
 //     bun nv disk --deep        also size the places outside this repository
 //
-// Nothing here runs on the session path. `bun nv sweep` runs `clean`, the whole of `--clean`, after its
-// acceptance sweep, which is a moment nothing is building. A person runs the same `--clean` by hand, and
-// runs it only when no session is building, since sweeping `target/` under a live build can break it.
+// Nothing here runs on the session path. `bun nv sweep` runs `clean` after each session, a moment
+// nothing is building, and sweeps `target/deps` and `target/incremental` only when the disk is below
+// `MIN_FREE_GB`: the next session's build stays warm while there is room. A person runs the whole of
+// `--clean` by hand, and runs it only when no session is building, since sweeping `target/` under a live
+// build can break it.
 //
 // Cargo never garbage-collects `target/`. A crate's artifacts are named `<name>-<metadata-hash>`, and
 // the hash covers the dependency graph, so every `Cargo.toml` or `Cargo.lock` edit mints a fresh
@@ -786,17 +788,22 @@ export interface CleanOptions {
   keepIncremental?: number;
   graceHours?: number;
   dryRun?: boolean;
+  /** Whether `target/deps` and `target/incremental` are swept; true unless named. Without them cargo is
+   * not asked for the live set, and the result has neither part. */
+  build?: boolean;
 }
 
 /**
  * The whole of `--clean`, as the bytes freed per part. `target/deps` is null when cargo could not name
  * the live set, and `deps/` was then left alone. The command a person types and `bun nv sweep` run
- * this one function under the same policy.
+ * this one function under the same policy; the sweep sets `build` only when the disk is below
+ * `MIN_FREE_GB`, so the next session's build stays warm.
  */
 export async function clean(opts: CleanOptions = {}): Promise<Record<string, number | null>> {
   const dryRun = opts.dryRun ?? false;
   const grace = opts.graceHours ?? GRACE_HOURS;
-  const live = await liveSet();
+  const build = opts.build ?? true;
+  const live = build ? await liveSet() : null;
   const logs = await pruneLogs(opts.keepRuns ?? KEEP_RUNS, dryRun);
   const scratch = await pruneScratch(opts.scratchDays ?? SCRATCH_DAYS, dryRun);
   let deps: number | null = null;
@@ -807,7 +814,7 @@ export async function clean(opts: CleanOptions = {}): Promise<Record<string, num
   let leftovers = 0;
   for (const p of retiredCovwsProof()) leftovers += await rm(p, dryRun);
   let incremental = 0;
-  for (const p of staleIncremental(opts.keepIncremental ?? KEEP_INCREMENTAL, grace)) incremental += await rm(p, dryRun);
+  if (build) for (const p of staleIncremental(opts.keepIncremental ?? KEEP_INCREMENTAL, grace)) incremental += await rm(p, dryRun);
   let optimized = 0;
   for (const p of staleOptimized()) optimized += await rm(p, dryRun);
   let extensions = 0;
@@ -819,8 +826,7 @@ export async function clean(opts: CleanOptions = {}): Promise<Record<string, num
   return {
     ".loop/logs": logs,
     ".agent-tmp": scratch,
-    "target/deps": deps,
-    "target/incremental": incremental,
+    ...(build && { "target/deps": deps, "target/incremental": incremental }),
     "target/optimized": optimized,
     "extensions/*/target": extensions,
     "coverage maps": maps,
@@ -833,7 +839,8 @@ export function total(freed: Record<string, number | null>): number {
   return Object.values(freed).reduce<number>((sum, n) => sum + (n ?? 0), 0);
 }
 
-/** One line per part of a `clean` result, printed alike by `--clean` and by `bun nv sweep`. */
+/** One line per part of a `clean` result, printed alike by `--clean` and by `bun nv sweep`. A part the
+ * sweep left alone is not in the result, so it has no line. */
 export function freedLines(freed: Record<string, number | null>, verb = "freed"): string[] {
   return Object.entries(freed).map(([name, n]) =>
     n === null

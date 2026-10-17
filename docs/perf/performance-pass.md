@@ -335,8 +335,8 @@ counts the statements every bench runs at its own count:
 bench runs. A later change reruns only the benches that run the changed code. It also skips a bench
 when two other benches already ran the same changed code with no change in their growth. If one of
 them shows a change in growth, every bench that runs that code runs again. A bench that a loop
-session's `bun nv verify` reached is owed, and the loop's hook after each session pays owed benches,
-oldest first, for a fixed time.
+session's `bun nv verify` reached is owed, and `bun nv debt` pays owed benches, oldest first, at the
+end of each goal.
 
 One real change, a one-line edit to `value_identical` in
 [`crates/nvs-runtime/src/identity.rs`](../../crates/nvs-runtime/src/identity.rs), reached 27 of the

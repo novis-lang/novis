@@ -22,15 +22,15 @@
 // a key in its footprint or changed its own files, or a file every atom depends on (`reachedByChange` in
 // `select/select.ts`). `--run` judges each one's growth on the release build and records its footprint
 // after verify (`runBenches` in `proofs/select.ts`). A bench selected only for being owed, red or never
-// recorded from before the change is counted, not judged: it stays as it is, and `bun nv sweep`, looper's
-// hook after each session, pays it as floor debt.
+// recorded from before the change is counted, not judged: it stays as it is, and `bun nv debt`, the floor
+// check at each goal's end, pays it as floor debt.
 //
 // **The acceptance half** is the plan's checks the change reaches (`select/checks.ts`): the checks
 // of the live plan, or of the side goal `NOVIS_SIDE_GOAL` names. A check reached through a key the change
 // moved, or through its own record changing, is due, less the heavy ones: a check that builds or
 // measures the release profile, fuzz, TSan, the database matrix, the two Linux legs and a check that is
 // never memoized. Those are named as deferred: looper's sweep after the session runs the goal's checks,
-// and `bun nv sweep` (`cmd/sweep.ts`) runs a Linux leg that is owed. A check whose atoms
+// and `bun nv debt` (`cmd/debt.ts`) runs a Linux leg that is owed at the goal's end. A check whose atoms
 // were all picked only for being owed, red or never recorded before the change, none of them reached by
 // the change itself, was red before the change and stays so until the goal is reached, so it is not due.
 //
@@ -100,7 +100,7 @@ export interface Plan {
   /** The benches the change itself reaches, which `--run` judges and records after verify. */
   benches: VerifyAtom[];
   /** How many benches are selected only for being owed, red or never recorded from before the change:
-   * `bun nv sweep` pays them as floor debt. */
+   * `bun nv debt` pays them as floor debt. */
   benchesBefore: number;
   acceptance: { checks: ReachedCheck[]; legs: Reached[] };
 }
@@ -172,7 +172,7 @@ export function reasons(atoms: string[], picked: Map<string, Selected>, touched:
 
 /** The selected benches split in two: the ones the change itself reaches, which `--run` judges, and how
  * many are selected only for being owed, red or never recorded from before the change, which `bun nv
- * sweep` pays as floor debt. */
+ * debt` pays as floor debt. */
 export function splitBenches(picked: Iterable<Selected>, touched: (id: string) => boolean): { judged: VerifyAtom[]; before: number } {
   const judged: VerifyAtom[] = [];
   let before = 0;
@@ -282,14 +282,14 @@ function print(p: Plan, asked: string[] | undefined): void {
   console.log(`\nbenches -- \`bun nv affected --run\` judges the growth of ${p.benches.length} bench(es) and records each:`);
   for (const b of p.benches.slice(0, 8)) console.log(`  ${b.id.slice(b.id.indexOf(":") + 1)}  <- ${b.why}`);
   if (p.benches.length > 8) console.log(`  +${p.benches.length - 8} more`);
-  if (p.benchesBefore > 0) console.log(`  ${p.benchesBefore} bench(es) owed, red or never recorded from before the change wait for the loop: its hook after each session pays owed and red benches for a fixed time, oldest first`);
+  if (p.benchesBefore > 0) console.log(`  ${p.benchesBefore} bench(es) owed, red or never recorded from before the change wait for the goal's end: \`bun nv debt\` pays owed and red benches there, oldest first`);
 
   const run = due(p);
   const deferred = p.acceptance.checks.filter((x) => x.deferred).length + p.acceptance.legs.length;
   console.log(`\nacceptance -- \`bun nv affected --run\` runs ${run.length} check(s):`);
   for (const x of run.slice(0, 20)) console.log(`  ${x.name}${from(x.by)}`);
   if (run.length > 20) console.log(`  +${run.length - 20} more`);
-  if (deferred > 0) console.log(`  ${deferred} reached heavy check(s) and leg(s) wait for the loop: looper's sweep runs the release profile, fuzz, TSan and the database matrix, and its hook after each session an owed Linux leg`);
+  if (deferred > 0) console.log(`  ${deferred} reached heavy check(s) and leg(s) wait for the loop: looper's sweep runs the release profile, fuzz, TSan and the database matrix, and \`bun nv debt\` an owed Linux leg at the goal's end`);
 
 
   if (owes(p)) console.log(`\nrun it: \`bun nv affected --run${c.why === "uncommitted changes" || c.why === "the loop's session base" ? "" : ` ${c.why}`}\``);
