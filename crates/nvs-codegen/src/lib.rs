@@ -237,12 +237,13 @@ pub enum CodegenError {
     UnsupportedHost(String),
 }
 
-/// One compiled compilation unit: the native code, plus the module that owns
-/// the pages it lives on.
+/// One compiled compilation unit: the addresses of its native code, and the
+/// class table that keeps the pages that code lives on mapped.
 ///
-/// Holding the [`JITModule`] is what keeps the code mapped. Nothing unmaps a
-/// compiled unit's pages when it drops
-/// (`data/gaps/nvs-codegen/jit-pages-leak-on-every-recompile.json`).
+/// The pages belong to the class table ([`nvs_runtime::ClassTable::keep_code`]),
+/// so they are unmapped when the last handle to the table drops: the unit's
+/// own, and any [`nvs_runtime::ErrorClass`] a context still holds. A recompile
+/// therefore frees the old unit's code once the last request using it ends.
 ///
 /// # Calling into a unit from Rust
 ///
@@ -273,9 +274,8 @@ pub enum CodegenError {
 /// else means writing the receiver slot by hand, which is the thing this list
 /// exists to stop.
 pub struct Unit {
-    /// Kept alive for its pages; never read again after the unit is built.
-    _code: Code,
-    /// Kept alive for its *descriptors*: the compiled code holds each one's
+    /// Kept alive for its *descriptors* and for the pages it owns: every
+    /// address in [`Unit::entries`] points into those pages. The compiled code holds each one's
     /// address as a baked-in constant (see [`Classes`]), so the table must
     /// outlive every instance and every frame that can allocate one. Moving
     /// the table here is safe because each descriptor is individually boxed —
@@ -322,32 +322,68 @@ pub struct Unit {
     statics: std::sync::Arc<[Option<nvs_runtime::FieldDefault>]>,
 }
 
-/// Whatever keeps a [`Unit`]'s code mapped for as long as the unit lives.
+/// The pages of a unit this process compiled: `cranelift-jit`'s own mapping,
+/// unmapped when this drops.
 ///
 /// A [`Unit`]'s addresses are raw pointers into pages somebody owns, and there
-/// are two somebodies: [`compile`]'s own `JITModule`, and — since `rule:packaging/an-artifact-is-verified-whole-before-a-page-is-executable`
-/// — a loader holding the private mapping it placed a cached payload into.
-/// The unit is the same type either way, because everything above this field
-/// reads an address and never asks where it came from. Only the drop differs:
-/// a loaded unit's owner unmaps its mapping, and a compiled unit's
-/// `JITModule` frees nothing
-/// (`data/gaps/nvs-codegen/jit-pages-leak-on-every-recompile.json`).
-#[expect(
-    dead_code,
-    reason = "both arms are held for their `Drop` and read by nothing: the addresses in \
-              `Unit::entries` point into whichever mapping this owns, so what the field does \
-              is outlive them"
-)]
-enum Code {
-    /// A unit this process compiled: `cranelift-jit`'s own mapping.
-    /// Boxed only to keep the two arms the same size: a `JITModule` is a few
-    /// hundred bytes and a loader's owner is one pointer, and a `Unit` is moved
-    /// more often than this is dropped.
-    Jit(Box<JITModule>),
-    /// A unit this process loaded, owned by whoever placed it — `nvs-cli`'s
-    /// `cache::Loaded` is the only one, and it is in another crate, which is
-    /// why this is a trait object rather than a named type.
-    Placed(Box<dyn Placed>),
+/// are two somebodies: this, and a [`Placed`] loader holding the private
+/// mapping it placed a cached payload into
+/// (`rule:packaging/an-artifact-is-verified-whole-before-a-page-is-executable`).
+/// Either is handed to the unit's class table, which drops it with its last
+/// handle, so both unmap at the same moment. A loader's mapping unmaps by its
+/// own `Drop`. A `JITModule`'s does not, which is why this type exists.
+///
+/// The `Mutex` is never locked. It is there because a `JITModule` is `Send` and
+/// not `Sync`, and the table's owner must be both. `Drop` reaches the module
+/// through `get_mut`, which takes no lock.
+///
+/// **What it spends:** one atomic increment per compile and one decrement per
+/// free, for [`mapped_jit_units`].
+struct JitPages(Mutex<Option<JITModule>>);
+
+/// How many units this process compiled whose pages are still mapped.
+static MAPPED_JIT_UNITS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
+/// How many units this process compiled with the JIT still have their code
+/// mapped. A program that is recompiled again and again holds this steady once
+/// the requests using each old unit end.
+#[must_use]
+pub fn mapped_jit_units() -> usize {
+    MAPPED_JIT_UNITS.load(std::sync::atomic::Ordering::Relaxed)
+}
+
+impl JitPages {
+    fn new(module: JITModule) -> Self {
+        MAPPED_JIT_UNITS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        Self(Mutex::new(Some(module)))
+    }
+}
+
+impl Drop for JitPages {
+    fn drop(&mut self) {
+        let module = self
+            .0
+            .get_mut()
+            .unwrap_or_else(PoisonError::into_inner)
+            .take();
+        if let Some(module) = module {
+            #[expect(
+                unsafe_code,
+                reason = "unmapping a JIT module's pages invalidates every address taken from it; \
+                          the owner is dropped only with the last handle to the class table, which \
+                          every unit, error class and running frame of this code holds"
+            )]
+            // SAFETY: this owner lives inside the unit's `ClassTable`, which
+            // the `Unit` and every `ErrorClass` handed to a context share. A
+            // frame of this code runs only while its `Unit` is held, and a
+            // method row is reached only through the table, so no frame is
+            // executing and no address is called once the last handle drops.
+            unsafe {
+                module.free_memory();
+            }
+            MAPPED_JIT_UNITS.fetch_sub(1, std::sync::atomic::Ordering::Relaxed);
+        }
+    }
 }
 
 /// A placed payload, read by the symbol names `nvs-codegen` emitted it under.
@@ -427,37 +463,29 @@ pub fn make_executable(pages: MmapMut) -> std::io::Result<Mmap> {
 /// compiled code": `nvs-cli`'s compiled-unit cache publishes one
 /// [`std::sync::Arc<Unit>`](std::sync::Arc) and every core resolving a request
 /// against that file reads it, rather than each core compiling the file for
-/// itself. Two auto traits stand between that and the type, and each has one
-/// reason it does not hold on its own:
-///
-/// - **[`Unit::entries`] holds `*const u8`**, and a raw pointer is neither.
-///   Each is a function address inside pages [`Unit::_code`] owns, so it is
-///   valid for exactly as long as the unit is, on whichever core reads it.
-///   Moving the address is not the operation that needs a contract — calling
-///   through it is, and [`Unit::call_static`] carries that `unsafe` itself.
-/// - **[`Code::Jit`] holds a `JITModule`, which is `!Sync`** for the
-///   `RefCell<HashMap<..>>` its symbol lookup memoizes into. Nothing here can
-///   reach it: the field is private, is written by exactly the two constructors
-///   below, and is read by *nothing* — its `#[expect(dead_code)]` is that fact
-///   in the compiler's own words. It exists to be dropped, once, when the last
-///   handle goes, and a `JITModule` is `Send`, so that drop is sound on any
-///   core. [`Code::Placed`] needs no such argument: [`Placed`] states the bound.
+/// itself. One field stands between that and the type:
+/// **[`Unit::entries`] holds `*const u8`**, and a raw pointer is neither
+/// `Send` nor `Sync`. Each is a function address inside pages the unit's class
+/// table keeps mapped, so it is valid for at least as long as the unit is, on
+/// whichever core reads it. Moving the address is not the operation that needs
+/// a contract — calling through it is, and [`Unit::call_static`] carries that
+/// `unsafe` itself.
 ///
 /// Everything else the unit holds already crosses on its own terms —
-/// [`nvs_runtime::ClassTable`] carries its own argument, `MethodShape` and
-/// [`nvs_runtime::FieldDefault`] are plain data.
+/// [`nvs_runtime::ClassTable`] carries its own argument, and its pages' owner
+/// is `Send + Sync` by the bound [`nvs_runtime::ClassTable::keep_code`] states;
+/// `MethodShape` and [`nvs_runtime::FieldDefault`] are plain data.
 ///
 /// **What this does not say is that a unit is mutable from two cores.** It has
 /// no `&mut self` method at all: everything that writes one belongs to
 /// [`UnitBuilder`] or [`Descriptors`], both of which are consumed to produce it.
 #[expect(
     unsafe_code,
-    reason = "the two auto traits are blocked by a pointer whose pages the unit \
-              owns and by a field nothing reads; the bullets above are the argument"
+    reason = "the two auto traits are blocked only by addresses into pages the unit's \
+              class table keeps mapped; the paragraph above is the argument"
 )]
 // SAFETY: see the doc comment above — every address in `entries` points into
-// pages `_code` keeps mapped for the unit's whole life, and `_code` itself is
-// unreachable through `&Unit`.
+// pages the `classes` table keeps mapped for at least the unit's whole life.
 unsafe impl Send for Unit {}
 
 #[expect(
@@ -465,8 +493,7 @@ unsafe impl Send for Unit {}
     reason = "shared reads of a unit with no `&mut self` method, on `Send`'s \
               argument above"
 )]
-// SAFETY: as `Send` above. `&Unit` exposes reads only, and the one `!Sync`
-// field is private and read by nothing.
+// SAFETY: as `Send` above. `&Unit` exposes reads only.
 unsafe impl Sync for Unit {}
 
 impl std::fmt::Debug for Unit {
@@ -1106,8 +1133,8 @@ impl Descriptors {
             .iter()
             .map(|(label, (_, shape))| (label.clone(), *shape))
             .collect();
+        self.classes.table.keep_code(Arc::new(code));
         Unit {
-            _code: Code::Placed(code),
             classes: std::sync::Arc::new(self.classes.table),
             entries,
             shapes,
@@ -2322,8 +2349,10 @@ impl UnitBuilder<JITModule> {
             .iter()
             .map(|(name, id)| (name.clone(), self.module.get_finalized_function(*id)))
             .collect();
+        self.classes
+            .table
+            .keep_code(Arc::new(JitPages::new(self.module)));
         Ok(Unit {
-            _code: Code::Jit(Box::new(self.module)),
             classes: std::sync::Arc::new(self.classes.table),
             entries,
             shapes: self.shapes,

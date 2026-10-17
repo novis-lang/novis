@@ -1867,6 +1867,26 @@ pub struct ClassTable {
     /// enum, so compiled code never reaches this at all. The one reader is `Core\Reflect\EnumInfo::of`,
     /// which arrives by name.
     enums: Vec<EnumDesc>,
+    /// Whatever keeps the code every [`MethodRow::code`] address points into
+    /// mapped, handed over by [`Self::keep_code`]. The pages go when the last
+    /// handle to this table goes, so they live exactly as long as the
+    /// descriptors, which every instance and every frame already needs.
+    code: Option<CodeOwner>,
+}
+
+/// The owner of a unit's executable pages, held for its `Drop` alone.
+struct CodeOwner(
+    #[expect(
+        dead_code,
+        reason = "held for its `Drop`: the method rows point into the pages it owns"
+    )]
+    std::sync::Arc<dyn std::any::Any + Send + Sync>,
+);
+
+impl fmt::Debug for CodeOwner {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("CodeOwner")
+    }
 }
 
 /// A table is `Send` and `Sync` because a compiled unit is read by every core.
@@ -1896,10 +1916,11 @@ pub struct ClassTable {
 ///   doc is the home of that invariant) and each box is individually allocated,
 ///   so the address a reader follows is alive for exactly as long as the handle
 ///   it followed it from.
-/// - **A [`MethodRow::code`] address is executable pages the same unit keeps
-///   mapped**, and moving the address between threads is not the operation that
-///   needs a contract — calling through it is, and every caller already carries
-///   that `unsafe` itself.
+/// - **A [`MethodRow::code`] address is in executable pages this table keeps
+///   mapped** through the `Send + Sync` owner [`Self::keep_code`] took, and
+///   moving the address between threads is not the operation that needs a
+///   contract — calling through it is, and every caller already carries that
+///   `unsafe` itself.
 ///
 /// What this does **not** say is that a `ClassDesc` may cross on its own: a bare
 /// `*const ClassDesc` is still `!Send`, and the table is the unit of sharing
@@ -1927,6 +1948,13 @@ impl ClassTable {
     #[must_use]
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Keeps `owner` alive for as long as this table, so the pages it owns stay
+    /// mapped while any handle to the table can still reach a method address.
+    /// `nvs-codegen` gives it the unit's code before the table is shared.
+    pub fn keep_code(&mut self, owner: std::sync::Arc<dyn std::any::Any + Send + Sync>) {
+        self.code = Some(CodeOwner(owner));
     }
 
     /// Defines a class or interface.
