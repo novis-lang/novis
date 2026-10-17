@@ -303,7 +303,10 @@ filtered by visibility.
   - [x] Alias resolution walks shape fields and the `property<T>`, `propertyPath<T>` and `string<K>` arguments, so a self-naming shape is E0310 once.
   - [x] The bare-class check runs in alias resolution, so an alias of an alias is no E0307.
   - [x] The depth message names no kind of type, and the record and the playbook bullet are deleted.
-- [ ] A literal `args:` map is checked at compile time. `crates/nvs-types/src/expr/isolate.rs:229`
+- [x] A literal `args:` map is checked at compile time. `crates/nvs-types/src/expr/isolate.rs:229`
+  - [x] `check_literal_args` compares a method entry's parameters with a literal map's string keys, as `entry_names_agree` does at the spawn.
+  - [x] An unknown key is E0486 at the key, and a parameter with no entry is E0402.
+  - [x] A reject case, the runtime fixture's map moved into a variable, and the record deleted.
 - [ ] `use Core\Nope;` is an unknown class. `crates/nvs-hir/src/qname.rs:146`
 - [x] An inherited `lateinit` read gets E0428. `crates/nvs-types/src/lateinit.rs:48`
   - [x] `lateinit_in_reach` adds each ancestor's non-private `lateinit` property not declared again nearer.
@@ -348,16 +351,13 @@ work cannot live only in prose again.
 
 ### State
 
-Stages 1 to 4 and 8 to 10 are done. Stage 11 has five of its seven items. This session landed two:
+Stages 1 to 4 and 8 to 10 are done. Stage 11 has six of its seven items. This session landed one:
 
-- A second `#[Json\Field]` or `#[Db\Field]` on one property is E0464 at the second, naming the first
-  (`crates/nvs-types/src/derive.rs`'s `attribute_fields`). `rule:core-classes/derive-field-list` and
-  E0464's card say one per property.
-- A `Throwable`'s properties are readonly. A write after construction is E0782, and a write through
-  `mixed` throws `cannot modify readonly property` (`SignatureTable::seed_readonly`, called from
-  `crates/nvs-types/src/error_lib.rs`'s `seed`, and the tree's slots in
-  `crates/nvs-types/src/layout.rs`'s `build_class_layouts`). Trade-offs: none at run time. Each
-  error class's descriptor carries a readonly bit per slot.
+- A literal `args:` map on a method-entry `spawn script` is compared with the entry's parameters at
+  compile time (`check_literal_args` in `crates/nvs-types/src/expr/isolate.rs`). A key the entry
+  does not declare is E0486 at the key. A parameter with no entry is E0402, and a spawn with no
+  `args:` passes no keys. It asks exactly what `nvs_stdlib::script`'s `entry_names_agree` asks at the
+  spawn, so a map built in a variable is still reported there. Trade-offs: none at run time.
 
 `use Core\Nope;` is bigger than its record says. No list of every name under `Core` exists. Even
 `Core\Nope $x` as a type annotation is not reported today. `CoreRoster::Names` holds only
@@ -376,21 +376,23 @@ two questions for the user: `data/gaps/nvs-config/debug-mode-is-read-by-nothing.
 `data/gaps/nvs-db/span-renders-on-a-flag-no.json`.
 
 The nightly still tests `cb7021a24` (checked this session with `gh run view 38869457440`). The local
-`main` is 177 commits ahead and not pushed, so its failures are the old tree's until the user pushes.
+`main` is about 180 commits ahead and not pushed, so its failures are the old tree's until the user
+pushes.
 
 ### Next
 
-**Stage 11's last two checker items, over `crates/nvs-types/src/` and `crates/nvs-hir/src/`, with a
-case for each diagnostic.**
+**Stage 11's last checker item, over `crates/nvs-hir/src/`, `crates/nvs-stdlib/src/registry.rs` and
+`crates/nvs-cli/src/main.rs`, with a case for the diagnostic.**
 
-- [ ] A literal `args:` map is checked at compile time (`rule:security/isolate-shares-nothing`). `crates/nvs-types/src/expr/isolate.rs:229`
-- [ ] `use Core\Nope;` is an unknown class (`rule:core-api/reserved-namespace`). First build one roster of every importable `Core` name: `type_names()`, the `Core` rows of `nvs_hir::errors::TREE`, `nvs_types::derive::ATTRIBUTES` and the `Core` shape aliases. Then check a `use` against it. `crates/nvs-hir/src/qname.rs:146`, `crates/nvs-stdlib/src/registry.rs:3354`, `crates/nvs-cli/src/main.rs:2450`
+- [ ] One roster of every importable `Core` name: `type_names()`, the `Core` rows of `nvs_hir::errors::TREE`, `nvs_types::derive::ATTRIBUTES` and the `Core` shape aliases (`rule:core-api/reserved-namespace`). `crates/nvs-stdlib/src/registry.rs:3354`
+- [ ] `use Core\Nope;` is an unknown class, checked against that roster where `CoreRoster::Names` is built. `crates/nvs-hir/src/qname.rs:146`, `crates/nvs-cli/src/main.rs:2450`
+- [ ] An unknown `Core\X` written as a type annotation is reported from the same roster. `crates/nvs-types/src/lower.rs:68`
 
 ### Backlog
 
 - Stage 6's last item needs a way for Novis code to abort a response body, such as an `abort` method on `Core\Response\Stream`, a new method that states its trade-offs first (`data/gaps/nvs-ext/a-workbook-never-finished-is-neither-logged-nor-cut-off.json`).
 - Four wait on the user: stage 7's two records, the wider-shape-view hole, and stage 5's typed path with its full-size image arms (each record above), plus `Markup + Markup` in place (`docs/perf/performance-pass.md:257`).
-- An unknown `Core\X` written as a type annotation is not reported either; it may share the `use` item's roster (`crates/nvs-types/src/lower.rs:68`).
+- `rule:security/isolate-shares-nothing` says a *required* parameter `args:` omits is the error, but `entry_names_agree` and `check_literal_args` need every parameter, defaults included. Decide which is right and make the two agree (`crates/nvs-stdlib/src/script.rs:970`).
 - `test_request_dispatches_in_process_through_the_compiled_route_table` once returned an empty body under the full verify's load and passed alone; the cause is not found (`crates/nvs-cli/src/runner.rs:3410`).
 - Proof debt fails CI's `proofs` jobs: stale perf records (`bun nv benches --owed`) and the `Core\Test\Outcome`/`Summary` proofs (`bun nv proofs --owed`) (`.github/workflows/ci.yml:1`).
 - A per-connection child refused a stack is dropped unrun, so its client likely sees the socket close and no `503`; not checked (`crates/nvs-server/src/serve.rs:95`).
