@@ -365,7 +365,11 @@ the class, and a check fails for a diagnostic code no test raises.
 **Does:** `bun nv owners --check` fails on a module-doc "known gap" that names no record, so owed
 work cannot live only in prose again.
 
-- [ ] The scan reads "known gap" headings and numbered gap references, not only the "owed" wording. `tools/nv/cmd/owners.ts:225`
+- [x] The scan reads "known gap" headings and numbered gap references, not only the "owed" wording. `tools/nv/cmd/owners.ts:225`
+  - [x] A `Known gaps` block is a finding unless its first line is the pointer to its own file and a record names that file.
+  - [x] `gap N` on any line of a source, test, manifest or conformance case is a finding.
+  - [x] `bun nv owners --prose` lists them by kind and exits 1 while any remains; the roster lists them too.
+- [ ] `bun nv owners --check` fails on a prose gap, once `--prose` is empty. `tools/nv/cmd/owners.ts:610`
 - [ ] Every module the scan names gets a record or loses the prose: about 40 numbered "gap N" references remain (`rg -n 'gap [0-9]+' crates tests`), and the prose gaps at `crates/nvs-runtime/src/ctx/error.rs:777` and `crates/nvs-ir/src/ty.rs:224`. `tools/nv/cmd/gaps.ts:30`
 - [ ] No comment cites a decision record: the ~270 "ADR" citations cite the rule that holds the decision, or go (`rg -n '\bADR\b' crates`). `crates/nvs-types/src/lib.rs:1`
 
@@ -373,20 +377,20 @@ work cannot live only in prose again.
 
 ### State
 
-Stages 1 to 4 and 8 to 13 are done. This session closed stage 13's examples record:
+Stages 1 to 4 and 8 to 13 are done. Stage 14's scan is on disk: `bun nv owners --prose` lists every
+gap that lives only in prose, by kind, and exits 1 while any remains (`tools/nv/cmd/owners.ts`'s
+`outsideBlocks`). It names 47 today: one owed heading, five `Known gaps` blocks (three are pointer
+lines whose module no record names any more: `reload.rs`, `server/src/io.rs`, `types/src/defaults.rs`)
+and 41 numbered `gap N` references. `--check` does not read it yet, so the gate stays green until
+the list is empty.
 
-- `crates/nvs-cli/tests/examples.rs` runs every `examples/*.nvs` from `examples/` under the root
-  `nvs.toml` (or a `.toml` beside the example), with `--request` for a `.nvsr` beside it and this
-  build in `NVS_BIN`. It checks each status: `limits` and `uncaught` end with 1, and every other
-  example ends with 0. It serves `examples/http.nvs`'s origin on `127.0.0.1:8099` when the port is
-  free, and runs `nvs queue migrate --including-risky` before the three queue examples. An example
-  whose compose server does not answer is left out and named on stderr. Eight at a time, about 12s.
-  Its recorded footprint (`bun nv select --explain "test:nvs-cli test examples"`) holds functions
-  of `nvs-ir`'s lowering, `nvs-codegen`'s emitter and `nvs-runtime`, and `tree:examples` and
-  `tree:nvs.toml`, so a compiler or runtime change selects it.
-- The test found `examples/cycles.nvs` broken. Since stage 3, an instance of a user class does not
-  cross into a script isolate (`crates/nvs-runtime/src/graph.rs:470`). The crossing now sends an
-  array, and the comment says why.
+The nightly run the sweep reported (`39013536848`) tested `e110c9c0b`, which is `origin/main`, 203
+commits behind local `main`. On the local tree: `bun nv check` (the `docs` job) is clean, and the
+`five-driver matrix`'s queue arity failures do not reproduce (mysql, mssql and postgres TCP legs
+pass; the socket legs cannot run on Windows). The `proofs` jobs are the proof debt in the Backlog.
+`cost guards / windows-x86_64` is real: on Windows the warm start's work is 12-13 ms against the
+6 ms budget, here and on the runner, and `nvs check` of a 3-line file takes about 10 ms more than
+`nvs ast` (Backlog).
 
 `bun nv rules --render` also rewrites `core-api.md`, `core-classes.md`, `errors.md` and
 `iteration.md`, and `bun nv render` drops `done` from `data/schema/milestone.schema.json`. That drift
@@ -396,21 +400,18 @@ Stage 6's remainder is `data/gaps/nvs-ext/a-workbook-never-finished-is-neither-l
 no Novis member can abort a response. Stage 5's typed path, stage 1's second hole and stage 7's two
 records are questions for the user, each in its record (Backlog).
 
-The nightly run the sweep reported (`gh run view 38869457440`) tested `cb7021a24`, 916 commits behind
-the local `main`. Its failures belong to that old tree until the user pushes.
-
 ### Next
 
-**Stage 14, the tooling stage. Files: `tools/nv/cmd/owners.ts`, `tools/nv/cmd/gaps.ts` and the module docs the scan names.**
+**Stage 1's second hole, now decided. Files: `crates/nvs-types/src/expr/assign.rs`, the rule, conformance cases.** Five gap records carry the user's decisions as uncommitted edits in the working tree (`git diff data/gaps`), written while the last session ran. Commit each with the slice that closes it. Security and correctness first, so stage 1, then 7, 6 and 5.
 
-- [ ] The scan reads "known gap" headings and numbered gap references, as well as the "owed" wording (`rule:tooling/a-repository-fact-is-one-json-record`). `tools/nv/cmd/owners.ts:225`
-- [ ] Each module the scan names gets a record or loses the prose, starting with `crates/nvs-runtime/src/ctx/error.rs:777` and `crates/nvs-ir/src/ty.rs:224` (`rule:tooling/a-repository-fact-is-one-json-record`). `tools/nv/cmd/gaps.ts:30`
+- [ ] A shape's field types are invariant in the checker, as `array<T>` is: `{pet: Dog}` is not assignable to `{pet: Animal}` (`rule:types/shape-type`). `crates/nvs-types/src/expr/assign.rs:474`
+- [ ] Close `data/gaps/nvs-runtime/a-wider-shape-view-writes-an-object-of-the-wrong-class.json` with a case that does not compile, and rewrite the rule (`rule:types/shape-type`). `crates/nvs-runtime/src/graph.rs:470`
 
 ### Backlog
 
-- Stage 6's last item needs a way for Novis code to abort a response body, such as an `abort` method on `Core\Response\Stream`, a new method that states its trade-offs first (`data/gaps/nvs-ext/a-workbook-never-finished-is-neither-logged-nor-cut-off.json`).
-- Four wait on the user: `data/gaps/nvs-config/debug-mode-is-read-by-nothing.json`, `data/gaps/nvs-db/span-renders-on-a-flag-no.json`, `data/gaps/nvs-runtime/a-wider-shape-view-writes-an-object-of-the-wrong-class.json` and stage 5's typed path in `data/gaps/nvs-ext/bytes-cross-one-val-per-byte.json`, plus `Markup + Markup` in place (`docs/perf/performance-pass.md:257`).
+- Stage 14's prose: `bun nv owners --prose` names 47 sites. Delete the three pointer blocks, make `crates/nvs-runtime/src/ctx/error.rs:777` and `crates/nvs-ir/src/ty.rs:222` records, rewrite each `gap N`, split by crate across subagents, then let `--check` run the scan (`tools/nv/cmd/owners.ts:610`).
+- Stages 7, 6 and 5 follow their records' decisions: `data/gaps/nvs-config/debug-mode-is-read-by-nothing.json`, `data/gaps/nvs-db/span-renders-on-a-flag-no.json`, `data/gaps/nvs-ext/a-workbook-never-finished-is-neither-logged-nor-cut-off.json` and `data/gaps/nvs-ext/bytes-cross-one-val-per-byte.json`, plus `Markup + Markup` in place (`docs/perf/performance-pass.md:257`).
 - `rule:security/isolate-shares-nothing` says a *required* parameter `args:` omits is the error, but `entry_names_agree` and `check_literal_args` need every parameter, defaults included. Decide which is right and make the two agree (`crates/nvs-stdlib/src/script.rs:970`).
 - Tests that fail under the full verify's load and pass alone, causes not found: `test_request_dispatches_in_process_through_the_compiled_route_table` (`crates/nvs-cli/src/runner.rs:3410`) and two `live_edit` swaps (`crates/nvs-cli/tests/live_edit.rs:1010`), and five `ldap` tests against the Samba server, which reach their 30s deadline (`crates/nvs-stdlib/tests/ldap.rs:102`).
-- Proof debt fails CI's `proofs` jobs: stale perf records (`bun nv benches --owed`) and the `Core\Test\Outcome`/`Summary` proofs (`bun nv proofs --owed`) (`.github/workflows/ci.yml:1`).
+- CI's Windows warm-start budget fails: `nvs check` costs about 10 ms more on Windows than on Linux or macOS. Find where it goes before touching the 6 ms budget (`tools/nv/cmd/bench.ts:132`). Proof debt fails CI's `proofs` jobs: stale perf records (`bun nv benches --owed`) and the `Core\Test\Outcome`/`Summary` proofs (`bun nv proofs --owed`) (`.github/workflows/ci.yml:1`).
 - A per-connection child refused a stack is dropped unrun, so its client likely sees the socket close and no `503`; not checked (`crates/nvs-server/src/serve.rs:95`).
