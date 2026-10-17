@@ -135,8 +135,8 @@ show each feature's examples.
 **Does:** no plan index, milestone, status block or frozen design remains, and what only they said
 is in its home.
 
-- [ ] The unique facts of `docs/plan/design.md` move to their homes: the premise table to `benches/abi-probe/src/lib.rs`'s module doc; the execution tiers, the safepoint list and the SIMD stance to `crates/nvs-codegen/src/lib.rs`; the value tags to `crates/nvs-runtime/src/value.rs`; the unsafe policy paragraphs to `tools/nv/cmd/lints.ts`'s header. The two rows that are false today are dropped. `docs/plan/design.md:1`, `benches/abi-probe/src/lib.rs:4`, `crates/nvs-runtime/src/value.rs:3`, `tools/nv/cmd/lints.ts:20`
-- [ ] The plan's Toolchain field moves into `docs/setup.md`, and `dependency-update.md` names that as its home. `docs/implementation-plan.md:1`, `docs/setup.md:33`, `docs/agent/dependency-update.md:48`
+- [x] The unique facts of `docs/plan/design.md` move to their homes: the premise table to `benches/abi-probe/src/lib.rs`'s module doc; the execution tiers, the safepoint list and the SIMD stance to `crates/nvs-codegen/src/lib.rs`; the value tags to `crates/nvs-runtime/src/value.rs`; the unsafe policy paragraphs to `tools/nv/cmd/lints.ts`'s header. The two rows that are false today are dropped. `docs/plan/design.md:1`, `benches/abi-probe/src/lib.rs:4`, `crates/nvs-runtime/src/value.rs:3`, `tools/nv/cmd/lints.ts:20`
+- [x] The plan's Toolchain field moves into `docs/setup.md`, and `dependency-update.md` names that as its home. `docs/implementation-plan.md:1`, `docs/setup.md:33`, `docs/agent/dependency-update.md:48`
 - [ ] `docs/plan/`, `docs/implementation-plan.md`, `docs/design.md`, `docs/future-ideas.md` and `data/plan/status.json` are deleted. `nv plan` and its tests, `schema/milestone.ts` and its foreign keys, `owners.ts`'s milestone kind, `pack.ts`'s milestones, `wrap.ts`'s `PLAN_KINDS`, CI's `plan --check` and the settings entry go with them. `tools/nv/cmd/plan.ts:200`, `tools/nv/schema/milestone.ts:1`, `tools/nv/schema/gap.ts:18`, `tools/nv/schema/rule.ts:22`, `tools/nv/lib/wrap.ts:19`, `.github/workflows/ci.yml:978`, `.claude/settings.json:60`
 - [ ] Every citation of those files is rewritten to the new home or removed, including the ones already wrong today (`Cargo.toml`'s "Unsafe policy", `crates/nvs-host/src/scheduler.rs:11`). `rules.ts`'s `RECORD_CITE` refuses a new citation of a deleted doc. `tools/nv/cmd/rules.ts:83`
 - [ ] AGENTS.md, CONTRIBUTING.md, `commands.md`, `conventions.md` and `doc-style.md` lose the plan step, the status block and the milestone text. `AGENTS.md:336`, `CONTRIBUTING.md:128`, `docs/agent/conventions.md:535`, `docs/agent/doc-style.md:75`
@@ -205,16 +205,24 @@ none of their text.
 
 ### State
 
-The goal is new. The audit behind it is in § Why, and its file-by-file findings are the stage items.
-`lean-loop` gave up its stage 3 and its plan item to this goal. The main loop may be running
-`lean-loop` on `main` while this goal runs in its lane.
+Stage 1's first two items are on disk. `docs/plan/design.md`'s unique facts now live in
+`benches/abi-probe/src/lib.rs` (§ *The premises*), `crates/nvs-codegen/src/lib.rs` (§ *One tier,
+and scalar code*), `crates/nvs-runtime/src/value.rs`'s module doc and `tools/nv/cmd/lints.ts`'s
+header. The Toolchain field's versions are `docs/setup.md` § *Versions no manifest pins*. The
+design's "explicit escaping, not auto" and "macOS x86_64" rows were not carried.
+`spec_registry_coverage.rs` no longer accepts a milestone as an owner: it read
+`data/plan/milestones/`, which git cannot carry empty, so a fresh worktree failed it. Nothing is deleted
+yet: about 100 files still name the plan, design.md or a milestone (`git grep -l -E
+"implementation-plan|docs/plan|milestone"`). The main loop may be running `lean-loop` on `main`.
 
 ### Next
 
-Stage 1, the plan and the design files, on `docs/plan/design.md`, `tools/nv/cmd/plan.ts` and the
-module docs that take its facts:
-- [ ] The unique facts move to their homes. `docs/plan/design.md:1`
-- [ ] The Toolchain field moves into `docs/setup.md`. `docs/setup.md:33`
-- [ ] The plan files and the milestone machinery are deleted. `tools/nv/cmd/plan.ts:200`
+Stage 1, the plan machinery, on `tools/nv/cmd/plan.ts`, `tools/nv/schema/` and the tools that read
+them. Each is about one session:
+- [ ] `nv plan`, `plan.test.ts`, `plan-apply.test.ts`, `schema/milestone.ts`, `schema/plan-status.ts`, their JSON schemas and `data/plan/` are deleted, with `main.ts`'s entry, the `milestone` foreign keys in `schema/gap.ts` and `schema/rule.ts`, `owners.ts`'s milestone kind, `pack.ts`'s milestones, `wrap.ts`'s `PLAN_KINDS`, `chain.ts`, `brief.ts`, `links.ts`, `layout.ts`, `verify.ts`, `ci-changes.ts`, CI's `plan --check` and the settings entry. `tools/nv/cmd/plan.ts:200`, `tools/nv/schema/milestone.ts:1`, `tools/nv/schema/gap.ts:18`, `tools/nv/schema/rule.ts:22`, `tools/nv/lib/wrap.ts:19`, `.github/workflows/ci.yml:978`, `.claude/settings.json:60`
+- [ ] `docs/plan/`, `docs/implementation-plan.md`, `docs/design.md` and `docs/future-ideas.md` are deleted, every citation in `crates/`, `data/rules/`, `docs/rules/`, `editors/vscode/` and `Cargo.toml` is rewritten, and `rules.ts`'s `RECORD_CITE` refuses them. `tools/nv/cmd/rules.ts:83`, `crates/nvs-host/src/scheduler.rs:11`
+- [ ] AGENTS.md, CONTRIBUTING.md, `commands.md`, `conventions.md` and `doc-style.md` lose the plan step. `AGENTS.md:336`, `CONTRIBUTING.md:128`, `docs/agent/conventions.md:535`, `docs/agent/doc-style.md:75`
 
 ### Backlog
+
+- Stages 6 and 7 make each language feature's `about.md` the one source for its syntax page and its chapter section. `docs/goals/docs-cleanup.md:188`
