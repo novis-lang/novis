@@ -1,0 +1,25 @@
+--TEST--
+`Core\Response\Stream::end` ends the body, a second `end` does nothing, and a write after it throws and sends nothing — `rule:core-classes/spreadsheet-writes-as-a-stream`
+--FILE--
+<?nvs
+// covers: Core\Response\Stream::end
+// A stream started with `$mustEnd` and then ended is not reported, so the run
+// prints only what the program wrote and exits with 0.
+var $body = Core\Response::stream("text/csv", null, null, "orders.csv");
+$body->write("id,name\n");
+$body->end();
+$body->end();
+try {
+    $body->write("too late\n");
+} catch (LogicError $error) {
+    echo $error->message, "\n";
+}
+
+// A stream started without `$mustEnd` can be ended too.
+var $plain = Core\Response::stream("text/plain; charset=utf-8");
+$plain->end();
+echo "done\n";
+--EXPECT--
+id,name
+Core\Response\Stream::write(): the stream has ended, because `end()` was called. Nothing was sent.
+done

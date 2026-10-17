@@ -1,0 +1,32 @@
+<?nvs
+// Attack: a program ends a body and then tries to write more to it. Each write after
+// `end()` should throw an error and send nothing, and the program should run to its end.
+
+// The name for `$mustEnd` comes from the visitor, with line breaks and quotes in it.
+tainted string $name = Core\Request::query('name') ?? "a\r\n\"level\":\"info\"";
+Core\Response\Stream $body = Core\Response::stream('text/plain; charset=utf-8', null, null, $name);
+$body->write("first\n");
+
+// 1. Ends the body twice. The second `end()` does nothing.
+$body->end();
+$body->end();
+
+// 2. Writes after `end()`, many times. Each write throws a `LogicError`, which is caught.
+uint $tries = 0;
+while ($tries < 10000) {
+    try {
+        $body->write("late\n");
+    } catch (LogicError $error) {
+    }
+    $tries = $tries + 1;
+}
+
+// 3. Writes an empty part and `bytes` after `end()`. Both throw, and both are caught.
+try {
+    $body->write('');
+} catch (LogicError $error) {
+}
+try {
+    $body->write('late' as bytes);
+} catch (LogicError $error) {
+}

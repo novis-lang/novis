@@ -1,0 +1,21 @@
+<?nvs
+// Ends a body that is sent in parts, as a download does after its last part.
+// bench: iterations 2048
+// bench: complexity constant
+
+class Bench {
+    public static function run(Core\Response\Stream $body, uint $rounds): uint {
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            $body->end();
+            $total = $total + ($total % 3) + 1;   // chained: the next round depends on this one
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+Core\Response\Stream $download = Core\Response::stream("text/csv", null, null, "orders.csv");
+$download->write("id,total\n");
+Core\Log::write(Core\Log::Level::Info, "ended", ["rounds" => Bench::run($download, 2048)]);

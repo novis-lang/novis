@@ -1,0 +1,16 @@
+<?nvs
+// Shows that the program can go on running after `end()`.
+
+Core\Response\Stream $body = Core\Response::stream("text/plain; charset=utf-8");
+$body->write("Your report is ready.\n");
+
+// The client receives the end of the body now and does not wait for the work below.
+$body->end();
+
+// This work runs after the client has the whole body.
+array<int> $values = [3, 4, 5];
+int $total = 0;
+foreach ($values as int $value) {
+    $total = $total + $value;
+}
+Core\Log::write(Core\Log::Level::Info, "report sent", ["total" => $total]);

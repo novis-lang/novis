@@ -1,0 +1,24 @@
+--TEST--
+`Core\Response\Stream::end` on a stream with a length ends it before the length is reached, and every later write throws, an empty one included — `rule:core-classes/spreadsheet-writes-as-a-stream`
+--FILE--
+<?nvs
+// covers: Core\Response\Stream::end
+// Two of the five bytes are written, and then the body is ended. The window still
+// says five, and a write of the rest throws because the stream has ended.
+var $body = Core\Response::stream("text/plain; charset=utf-8", 5);
+$body->write("He");
+$body->end();
+array<string> $rests = ["llo", ""];
+foreach ($rests as string $rest) {
+    try {
+        $body->write($rest);
+    } catch (LogicError $error) {
+        echo "\n", $error->message;
+    }
+}
+echo "\n", $body->length(), "\n";
+--EXPECT--
+He
+Core\Response\Stream::write(): the stream has ended, because `end()` was called. Nothing was sent.
+Core\Response\Stream::write(): the stream has ended, because `end()` was called. Nothing was sent.
+5

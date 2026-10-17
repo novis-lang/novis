@@ -47,10 +47,16 @@ repeated.
 
 **`finish()`** writes the sheet-end parts, `styles.xml`, `workbook.xml`, the content types and the zip
 directory, sends the last bytes, and returns a `Written`: the row count per sheet, the size in bytes,
-and the bytes for `createInMemory`. **A workbook never finished** is logged as an error naming its
-target when the request ends, and a download is cut off, so the browser reports a failed download and
-not a broken file. A CSV workbook writes each batch through `Core\Csv::format`, ignores styles, widths
-and every sheet-end part, and throws naming the format when a second sheet is opened.
+and the bytes for `createInMemory`. **A download never finished is cut off and logged.**
+`createForDownload` opens its stream with `Core\Response::stream`'s `$mustEnd` set to the download's
+name, and `finish()` calls the stream's `end()`. When the program stops, however it stops, a stream
+opened with `$mustEnd` and not ended has its body aborted, so the browser reports a failed download
+and not a broken file, and one error record carrying the name as its `stream` field is written
+(`nvs_runtime::Ctx::end_unfinished_stream`). No user code runs then
+(`rule:concurrency/cancellation-runs-no-user-code`). It costs one pointer per request, and the name's
+bytes for a request that streams a download. A workbook written to a file or to memory and never
+finished is not reported. A CSV workbook writes each batch through `Core\Csv::format`, ignores styles,
+widths and every sheet-end part, and throws naming the format when a second sheet is opened.
 
 The tradeoffs. **Performance:** one guest call per batch, not per cell, and a download starts before
 the first row is written. **Usability:** an export is one line, and a stream from a query is a
@@ -66,15 +72,14 @@ paragraphs, written down once.
 `sheet`, `finish`, `Written`, `Sheet`'s `add` and `addAll` in batches of 1,000 rows, `fromRows` and
 `Export` (`extensions/spreadsheet/nvs/Workbook.nvs`, `Sheet.nvs`, `Export.nvs`), with every sheet
 option above, the sheet-name rules, the row options `height`, `hidden`, `level` and `style`,
-`define` and CSV.
-
-A download whose program throws, meets a limit or is cancelled is cut off.
-
-**Not shipped.** The error logged for a workbook never finished, and the cut-off download for a
-program that returns without finishing it
-(`data/gaps/nvs-ext/a-workbook-never-finished-is-neither-logged-nor-cut-off.json`).
+`define` and CSV, and the cut-off and logged download that was never finished
+(`Core\Response::stream`'s `$mustEnd` and `Core\Response\Stream::end`,
+`crates/nvs-stdlib/src/response.rs`).
 
 **Declined:**
+- **A request-end hook that calls `Stream::abort()`.** It runs user code after the handler returned,
+  which cancellation forbids.
+- **Dropping the promise.** The browser would save a broken file and nothing would say so.
 - **An in-memory editable mode beside the stream.** Two ways to write is two sets of rules, and the
   editable one holds the whole sheet, which is the memory an export of user data must not cost.
 - **`rust_xlsxwriter` as the writer.** Its constant-memory mode writes each sheet through a

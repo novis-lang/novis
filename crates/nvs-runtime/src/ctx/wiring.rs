@@ -191,6 +191,8 @@ impl Ctx {
             file_body: None,
             body_stream: None,
             stream_window: None,
+            stream_must_end: None,
+            stream_ended: false,
             event_stream: None,
             status: None,
             headers: DeclaredHeaders::default(),

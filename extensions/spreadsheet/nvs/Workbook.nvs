@@ -52,11 +52,12 @@ final class Workbook
 
     /// `Workbook::createForDownload` sends the file to the browser as a download named `$name`.
     /// The response headers are sent at once, and each part of the file is sent when it is ready.
+    /// If the program stops before `finish`, the download is cut off and the error log names `$name`.
     public static function createForDownload(string $name, Options $options = null): Workbook
     {
         var $book = self::start($name, $name, $options);
         Core\Response::setHeader("Content-Disposition", self::disposition($name));
-        $book->response = Core\Response::stream($book->csv ? "text/csv; charset=utf-8" : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+        $book->response = Core\Response::stream($book->csv ? "text/csv; charset=utf-8" : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", null, null, $name);
         return $book;
     }
 
@@ -214,7 +215,7 @@ final class Workbook
     }
 
     /// `finish` writes the end of the file and sends the last part. Call it once, after the last row.
-    /// A workbook that is never finished is not a valid file, and the program logs an error for it.
+    /// A workbook that is never finished is not a valid file. A download that is never finished is cut off.
     public function finish(): Written
     {
         $this->checkOpen();
@@ -222,6 +223,7 @@ final class Workbook
         $this->finished = true;
         var $last = Engine::writerFinish($this->writer);
         $this->send($last->data);
+        $this->response?->end();
         if ($this->closeFile) {
             $this->file?->close();
         }

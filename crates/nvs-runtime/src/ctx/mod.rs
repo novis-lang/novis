@@ -1243,6 +1243,18 @@ pub struct Ctx {
     /// The window a stream with a stated length writes, and `None` for every
     /// other body ([`crate::stream::Window`]).
     stream_window: Option<crate::stream::Window>,
+    /// The label of a stream the program said it will end with
+    /// `Core\Response\Stream::end`, while it has not ended it, and `None` for
+    /// every other body. [`Self::end_unfinished_stream`] reads it when the
+    /// program stops: `rule:core-classes/spreadsheet-writes-as-a-stream`'s
+    /// workbook that was never finished.
+    ///
+    /// **What it spends:** one pointer per request, and the label's bytes for a
+    /// request that marked its stream.
+    stream_must_end: Option<Box<str>>,
+    /// `Core\Response\Stream::end` was called on this request's stream, so a
+    /// later write throws.
+    stream_ended: bool,
     /// Which door opened the **event stream** this context writes, and `None`
     /// for a program that opened neither — the one thing `Core\Sse::current()`
     /// separates from every other program.
@@ -1702,6 +1714,10 @@ impl Drop for Ctx {
         // `Ctx::end_abandoned_children` owns why.
         self.end_abandoned_children();
         drop(std::mem::take(&mut self.spawned_children));
+        // A stream the program said it would end and did not is reported and
+        // cut off, for a context no finish path reached first.
+        // `Ctx::end_unfinished_stream` owns why.
+        self.end_unfinished_stream();
         crate::sweep::at_script_end(self);
         // A failure that ended the request still owns its exception object,
         // and `Thrown`'s own `Drop` is what releases it. Taken here rather
