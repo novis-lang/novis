@@ -1,0 +1,29 @@
+--TEST--
+a shape alias whose field names the alias itself is one `E0310` at the alias, and an alias cycle is one `E0310` with no `E0307` beside it — `rule:types/type-alias`
+--FILE--
+<?nvs
+// `rule:types/type-alias`: a cycle is a diagnostic. A shape field is a type
+// position like any other, so `Node` naming itself in `next` is a cycle of
+// one, reported once where `Node` is declared.
+type Node = {value: int, next: ?Node};
+
+// `A` and `B` name each other and no class, so the cycle is the one error.
+type A = B;
+type B = A;
+
+// An alias naming another alias is accepted.
+type Id = int|string;
+type Key = Id;
+
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0310]: type alias cycle: Node -> Node never bottoms out in a concrete type
+  --> case.nvs:5:6
+%A
+error[E0310]: type alias cycle: A -> B -> A never bottoms out in a concrete type
+  --> case.nvs:8:6
+%A
+error: aborting due to 2 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

@@ -440,6 +440,7 @@ impl AliasResolver {
             diags,
         };
         for key in &self.order {
+            check_alias_is_not_a_bare_class(&self.pending[key], &mut ctx);
             resolve_one(key, &mut ctx);
         }
         let resolved = ctx.resolved;
@@ -478,8 +479,19 @@ fn record_names(ty: &Type, src: &SourceFile, out: &mut FxHashMap<Span, String>) 
                 record_names(item, src, out);
             }
         }
-        TypeKind::Atom(TypeAtom::Array(Some(inner)) | TypeAtom::ClassRef(inner)) => {
+        TypeKind::Atom(
+            TypeAtom::Array(Some(inner))
+            | TypeAtom::ClassRef(inner)
+            | TypeAtom::PropertyKey(inner)
+            | TypeAtom::PropertyPath(inner)
+            | TypeAtom::StringHoles { key: inner, .. },
+        ) => {
             record_names(inner, src, out);
+        }
+        TypeKind::Atom(TypeAtom::Shape(fields)) => {
+            for field in fields {
+                record_names(&field.ty, src, out);
+            }
         }
         TypeKind::Atom(TypeAtom::CallableSig { params, ret }) => {
             for param in params {
@@ -563,7 +575,8 @@ fn resolve_one(key: &AliasKey, ctx: &mut ResolveCtx<'_>) -> Type {
                     chain.join(" -> ")
                 ),
             )
-            .with_primary(pending.decl_span, "part of this cycle"),
+            .with_primary(pending.decl_span, "part of this cycle")
+            .with_help("a type that contains itself must be a class"),
         );
         // Every name in the cycle, `qname` included, resolves to `mixed` from
         // here on — none of them ever bottoms out in a concrete type, so
@@ -593,6 +606,48 @@ fn resolve_one(key: &AliasKey, ctx: &mut ResolveCtx<'_>) -> Type {
     }
     ctx.resolved.insert(key.clone(), substituted.clone());
     substituted
+}
+
+/// `rule:types/alias-is-never-a-bare-class`: a `type` alias may not be nothing
+/// but one bare class, interface or enum atom — that shape is `use … as …`
+/// wearing the type grammar as a disguise. `?SomeClass`, a union, an
+/// intersection and an `array<...>` wrapper are all still fine; only the fully
+/// bare atom, with no wrapping construct at all, is refused.
+///
+/// A bare name that is another alias names no class, so `type A = B;` over an
+/// alias `B` is accepted here, and `B` answers for its own right-hand side.
+/// That is why the check is made here, where every alias of the program is
+/// known, rather than where the declaration is collected.
+fn check_alias_is_not_a_bare_class(pending: &PendingAlias, ctx: &mut ResolveCtx<'_>) {
+    let TypeKind::Atom(atom) = &pending.ty.kind else {
+        return;
+    };
+    let refused = match atom {
+        TypeAtom::SelfTy | TypeAtom::StaticTy | TypeAtom::Parent => true,
+        TypeAtom::Name(name, args) => {
+            let scope = Scope {
+                namespace: &pending.namespace,
+                imports: &pending.imports,
+                owner: pending.owner.as_ref(),
+            };
+            let text = ctx.names.get(&name.span).map(String::as_str).unwrap_or("");
+            !args.is_empty() || bare_name_key(text, scope, ctx).is_none()
+        }
+        _ => false,
+    };
+    if refused {
+        ctx.diags.report(
+            Diagnostic::error(
+                code::E_TYPE_ALIAS_ALIASES_CLASS,
+                "a `type` alias may not name a single class, interface or enum on its own",
+            )
+            .with_primary(pending.ty.span, "aliases exactly one class-shaped atom")
+            .with_help(
+                "give a shape a name instead — a union, an intersection, or an `array<...>` \
+                 wrapper (`rule:types/alias-is-never-a-bare-class`); a class already has its own name",
+            ),
+        );
+    }
 }
 
 /// Records `key` as part of a cycle and caches its expansion as `mixed`,
@@ -650,6 +705,42 @@ fn substitute(ty: &Type, scope: Scope<'_>, ctx: &mut ResolveCtx<'_>) -> Type {
         // inside it exactly as it does inside `array<T>`.
         TypeKind::Atom(TypeAtom::ClassRef(inner)) => Type {
             kind: TypeKind::Atom(TypeAtom::ClassRef(Box::new(substitute(inner, scope, ctx)))),
+            span: ty.span,
+        },
+        TypeKind::Atom(TypeAtom::PropertyKey(inner)) => Type {
+            kind: TypeKind::Atom(TypeAtom::PropertyKey(Box::new(substitute(
+                inner, scope, ctx,
+            )))),
+            span: ty.span,
+        },
+        TypeKind::Atom(TypeAtom::PropertyPath(inner)) => Type {
+            kind: TypeKind::Atom(TypeAtom::PropertyPath(Box::new(substitute(
+                inner, scope, ctx,
+            )))),
+            span: ty.span,
+        },
+        TypeKind::Atom(TypeAtom::StringHoles { key, tainted }) => Type {
+            kind: TypeKind::Atom(TypeAtom::StringHoles {
+                key: Box::new(substitute(key, scope, ctx)),
+                tainted: *tainted,
+            }),
+            span: ty.span,
+        },
+        // `rule:types/shape-type`: a field's type is an ordinary type
+        // position, so an alias expands there too, and a shape alias that
+        // names itself in a field is a cycle like any other.
+        TypeKind::Atom(TypeAtom::Shape(fields)) => Type {
+            kind: TypeKind::Atom(TypeAtom::Shape(
+                fields
+                    .iter()
+                    .map(|field| nvs_syntax::ast::ShapeField {
+                        name: field.name,
+                        ty: substitute(&field.ty, scope, ctx),
+                        required: field.required,
+                        span: field.span,
+                    })
+                    .collect(),
+            )),
             span: ty.span,
         },
         // `rule:types/callable-signature`: a parameter and a return type are
@@ -919,13 +1010,87 @@ mod tests {
     }
 
     #[test]
-    fn a_direct_two_alias_cycle_is_diagnosed() {
-        let (_table, diags) = resolve("<?nvs\ntype A = B;\ntype B = A;\n");
+    fn aliasing_a_single_bare_class_is_rejected() {
+        let (_table, diags) = resolve("<?nvs\nclass Foo {}\ntype Id = Foo;\n");
         assert!(
             diags
                 .iter()
-                .any(|d| d.code == Some(code::E_TYPE_ALIAS_CYCLE))
+                .any(|d| d.code == Some(code::E_TYPE_ALIAS_ALIASES_CLASS))
         );
+    }
+
+    /// The refusal is the declaration's, not the site's, so a member is held to
+    /// it exactly as a file-scope alias is — `rule:types/alias-is-never-a-bare-class`
+    /// has one form and a body does not get a second.
+    #[test]
+    fn a_class_scoped_alias_of_a_bare_class_is_refused() {
+        let (_table, diags) =
+            resolve("<?nvs\nclass Foo {}\nclass Order { type Id = Foo; type Ids = array<Foo>; }\n");
+        assert_eq!(
+            diags
+                .iter()
+                .filter(|d| d.code == Some(code::E_TYPE_ALIAS_ALIASES_CLASS))
+                .count(),
+            1,
+            "the bare member is refused and the wrapped one is not: {diags:?}"
+        );
+    }
+
+    #[test]
+    fn aliasing_a_shape_around_a_class_is_accepted() {
+        let (_table, diags) =
+            resolve("<?nvs\nclass Foo {}\ntype MaybeFoo = ?Foo;\ntype Ids = array<Foo>;\n");
+        assert!(
+            !diags
+                .iter()
+                .any(|d| d.code == Some(code::E_TYPE_ALIAS_ALIASES_CLASS))
+        );
+    }
+
+    /// An alias names no class, so one alias standing for another is no
+    /// bare-class alias, at file scope or in a body.
+    #[test]
+    fn an_alias_of_another_alias_is_accepted() {
+        let (table, diags) = resolve(
+            "<?nvs\ntype Id = int|string;\ntype Key = Id;\nclass Order { type Ref = Key; }\n",
+        );
+        assert!(diags.is_empty(), "{diags:?}");
+        let ty = table.get(&QName::parse("Key")).unwrap();
+        assert!(matches!(ty.kind, TypeKind::Union(_)));
+    }
+
+    /// One cycle is one diagnostic: the members of a cycle name no class, so
+    /// none of them is also refused as a bare-class alias.
+    #[test]
+    fn a_direct_two_alias_cycle_is_diagnosed() {
+        let (_table, diags) = resolve("<?nvs\ntype A = B;\ntype B = A;\n");
+        let codes: Vec<_> = diags.iter().map(|d| d.code).collect();
+        assert_eq!(codes, [Some(code::E_TYPE_ALIAS_CYCLE)], "{diags:?}");
+    }
+
+    /// `rule:types/type-alias`: a shape alias whose field names the alias
+    /// itself is a cycle, reported once at the alias.
+    #[test]
+    fn a_shape_alias_naming_itself_in_a_field_is_a_cycle() {
+        let (table, diags) = resolve("<?nvs\ntype Node = {value: int, next: ?Node};\n");
+        let codes: Vec<_> = diags.iter().map(|d| d.code).collect();
+        assert_eq!(codes, [Some(code::E_TYPE_ALIAS_CYCLE)], "{diags:?}");
+        let ty = table.get(&QName::parse("Node")).unwrap();
+        assert!(is_atom(ty, &TypeAtom::Mixed));
+    }
+
+    /// An alias inside a shape field, a property key or a string's holes
+    /// expands where it is written, as one inside `array<T>` does.
+    #[test]
+    fn an_alias_expands_inside_a_shape_field() {
+        let (table, diags) =
+            resolve("<?nvs\ntype Id = int|string;\ntype Row = {id: Id, ids: array<Id>};\n");
+        assert!(diags.is_empty(), "{diags:?}");
+        let ty = table.get(&QName::parse("Row")).unwrap();
+        let TypeKind::Atom(TypeAtom::Shape(fields)) = &ty.kind else {
+            panic!("a shape: {ty:?}");
+        };
+        assert!(matches!(fields[0].ty.kind, TypeKind::Union(_)));
     }
 
     #[test]

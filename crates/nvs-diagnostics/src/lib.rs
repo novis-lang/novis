@@ -1265,10 +1265,11 @@ pub mod code {
         "Arithmetic between an `int` and a `uint` is not allowed, because no type can hold every \
          result. Convert one side first with `as int` or `as uint`.",
     );
-    /// An `array<...>` type nests past `rule:types/arrays`'s depth-32 bound.
+    /// A type nests past `rule:types/arrays`'s depth-32 bound.
     pub const E_ARRAY_TYPE_TOO_DEEP: Code = Code::new("E0408").card(
-        "An `array<...>` type is nested more than 32 levels deep, which is the limit. Use a class \
-         for some of the inner levels.",
+        "A type is nested more than 32 levels deep, which is the limit. An `array<...>`, a shape \
+         and a `callable(...)` signature each add one level. Use a class for some of the inner \
+         levels.",
     );
     /// A non-nullable, no-default property a class declares (itself, or
     /// through a used trait) is not definitely assigned on some path out of
