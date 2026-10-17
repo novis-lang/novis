@@ -299,12 +299,19 @@ filtered by visibility.
 
 **Does:** seven programs the checker accepts or misreports get the right diagnostic, each with a test.
 
-- [ ] A recursive alias gets one diagnostic at the alias. `crates/nvs-types/src/lower.rs:68`
+- [x] A recursive alias gets one diagnostic at the alias. `crates/nvs-types/src/lower.rs:68`
+  - [x] Alias resolution walks shape fields and the `property<T>`, `propertyPath<T>` and `string<K>` arguments, so a self-naming shape is E0310 once.
+  - [x] The bare-class check runs in alias resolution, so an alias of an alias is no E0307.
+  - [x] The depth message names no kind of type, and the record and the playbook bullet are deleted.
 - [ ] A literal `args:` map is checked at compile time. `crates/nvs-types/src/expr/isolate.rs:229`
 - [ ] `use Core\Nope;` is an unknown class. `crates/nvs-hir/src/qname.rs:146`
-- [ ] An inherited `lateinit` read gets E0428. `crates/nvs-types/src/lateinit.rs:48`
+- [x] An inherited `lateinit` read gets E0428. `crates/nvs-types/src/lateinit.rs:48`
+  - [x] `lateinit_in_reach` adds each ancestor's non-private `lateinit` property not declared again nearer.
+  - [x] Unit cases for a grandparent, a parent constructor call, a private and a redeclared property, and the record deleted.
 - [ ] A second `#[Json\Field]` is reported. `crates/nvs-types/src/derive.rs:2478`
-- [ ] A `decimal` property default is accepted. `crates/nvs-types/src/defaults.rs:79`
+- [x] A `decimal` property default is accepted. `crates/nvs-types/src/defaults.rs:79`
+  - [x] `FieldDefault::Decimal`, made by `FieldDefault::decimal` from the literal's parts.
+  - [x] The refusal is gone, and an accept case replaces the reject case, and the record is deleted.
 - [ ] A write to a `Throwable` property after construction is E0782. `crates/nvs-types/src/error_lib.rs:106`, `crates/nvs-types/src/signatures.rs:1696`
 
 ### 12. every error message names its cause, and every code is tested
@@ -336,18 +343,18 @@ work cannot live only in prose again.
 
 ### State
 
-Stages 1 to 4 and 8 to 10 are done. Stage 10's last item landed: inside a double-quoted string or a
-heredoc, completion offers only the variables in scope, and a single-quoted one offers nothing. A
-`<` after a type's name, and a `,` between its arguments, offer types only. In a class body a
-modifier is followed by the member words not yet written and the types, and `?`, `|` or `&` by
-types only (`crates/nvs-lsp/src/completion.rs`'s `member`, `interpolates`, `opens_type_arguments`).
-The receiver half already offered the variables in scope, and a case now pins it. Trade-offs: one
-tokenize per class-body request, and nothing at run time.
+Stages 1 to 4 and 8 to 10 are done. Stage 11 has three of its seven items:
 
-`bun nv scaling` now fails a count over its bound only when a second counting run of the same
-batches agrees (`tools/nv/cmd/scaling.ts`'s `rampAt`). `Core\Test::tlsSession` makes fresh keys,
-and their signatures vary in length, so `benches/members/core/Http-TlsInfo/version.nvs` moved its
-`bytes` by a few units between runs and read as growth.
+- A shape alias naming itself in a field is one E0310 at the alias, with a help that says to use a
+  class. `crates/nvs-hir/src/aliases.rs`'s `substitute` and `record_names` now walk shape fields and
+  the `property<T>`, `propertyPath<T>` and `string<K>` arguments. E0307 moved there too
+  (`check_alias_is_not_a_bare_class`), so `type A = B;` over an alias `B` is accepted and a cycle no
+  longer adds two E0307s. E0408's message and card name no kind of type.
+- A parent's non-private `lateinit` property read in a subclass method is E0428
+  (`crates/nvs-types/src/lateinit.rs`'s `lateinit_in_reach`). A nearer redeclaration replaces it.
+- `public decimal $rate = 0.19;` compiles, and every instance starts at exactly `0.19`
+  (`nvs_runtime::FieldDefault::Decimal`). Trade-offs: none at run time; a `decimal` default is one
+  16-byte value per instance, as the constructor assignment it replaces was.
 
 Stage 6's two items are on disk. Its remainder is
 `data/gaps/nvs-ext/a-workbook-never-finished-is-neither-logged-nor-cut-off.json`: a program that
@@ -370,15 +377,17 @@ cap on `call` events, or refuse `trace` and `profile` in a server's `[debug] mod
 `data/gaps/nvs-db/span-renders-on-a-flag-no.json` (no rule names the grant for a sampled span).
 
 The nightly still tests `cb7021a24` (checked this session with `gh run view 38869457440`). The local
-`main` is 170 commits ahead and not pushed, so its failures are the old tree's until the user pushes.
+`main` is 173 commits ahead and not pushed, so its failures are the old tree's until the user pushes.
 
 ### Next
 
-**Stage 11's checker items, over `crates/nvs-types/src/` and `tests/` cases for each diagnostic.**
+**Stage 11's remaining checker items, over `crates/nvs-types/src/` and `crates/nvs-hir/src/`, with a
+case for each diagnostic.** Each has its record under `data/gaps/nvs-types/` or `data/gaps/nvs-hir/`.
 
-- [ ] A recursive alias gets one diagnostic at the alias (`rule:types/type-alias`). `crates/nvs-types/src/lower.rs:68`
-- [ ] An inherited `lateinit` read gets E0428 (`rule:classes/lateinit-read-before-write`). `crates/nvs-types/src/lateinit.rs:48`
-- [ ] A `decimal` property default is accepted (`rule:types/decimal`). `crates/nvs-types/src/defaults.rs:79`
+- [ ] A second `#[Json\Field]` is reported (`rule:core-classes/derive-attribute`). `crates/nvs-types/src/derive.rs:2478`
+- [ ] A write to a `Throwable` property after construction is E0782 (`rule:classes/readonly-is-written-once`). `crates/nvs-types/src/error_lib.rs:106`, `crates/nvs-types/src/signatures.rs:1696`
+- [ ] A literal `args:` map is checked at compile time (`rule:security/isolate-shares-nothing`). `crates/nvs-types/src/expr/isolate.rs:229`
+- [ ] `use Core\Nope;` is an unknown class (`rule:core-api/reserved-namespace`). `crates/nvs-hir/src/qname.rs:146`
 
 ### Backlog
 
