@@ -371,8 +371,8 @@ forms.**
 
 | Where you are writing | The form | Why |
 |---|---|---|
-| a `.md` file | relative to the file — `](../plan/m12.md)` | GitHub and the website render it, and both resolve against the file's own location |
-| a `.rs`, `.nvs` or `.nvst` file | absolute from the repository root — `](/docs/plan/m12.md)` | nothing renders it, so the readers are people, agents and `grep` |
+| a `.md` file | relative to the file — `](../plan/m10.md)` | GitHub and the website render it, and both resolve against the file's own location |
+| a `.rs`, `.nvs` or `.nvst` file | absolute from the repository root — `](/docs/plan/m10.md)` | nothing renders it, so the readers are people, agents and `grep` |
 
 A source file's link had a `../` prefix until it was measured: 465 of 1,640 were dead — 442 with the
 wrong number of `../`, 23 naming a filename the target no longer had. A prefix encodes the **citing**

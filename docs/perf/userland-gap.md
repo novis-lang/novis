@@ -396,9 +396,6 @@ vtable layout pass that puts an overridden method at the same index in a subclas
 in its base, and a decision about where `rule:classes/no-traits`'s
 default methods sit in it.
 
-**This is not M12's inline cache.** [M12](../plan/m12.md) speculates monomorphic → polymorphic →
-megamorphic over a baseline; a slot index is the baseline it speculates *from*, and M12 gets
-cheaper for it existing.
 
 Beside it and unrelated to the layout question: `call_callable` and `call_at` each `Vec::with_capacity`
 per call, which is a heap allocation on every call through a callable and every native-to-object dispatch.
@@ -489,7 +486,7 @@ ever reads zero passes just as well when it is broken.
   and its natural gate is `rule:config/two-modes-and-the-default-is-production`'s production mode,
   which would need a change to that rule.
 - **Cranelift emits redundant register moves and does not clean up the block chains.** That is the
-  baseline tier's ceiling and [M12](../plan/m12.md) is where it is raised. Nothing above is a
-  codegen-quality item; every one of them is a representation or an ABI.
+  baseline tier's ceiling, and nothing plans to raise it. Nothing above is a codegen-quality item;
+  every one of them is a representation or an ABI.
 - **`Core\Str::length` is O(n) where `strlen` is O(1).** `rule:types/bytes` makes the grapheme the default
   unit; item E removes two of its three passes and no item removes the third.

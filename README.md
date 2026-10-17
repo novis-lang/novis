@@ -61,7 +61,6 @@ deliverables and how it is verified):
 | | Milestone |
 |---|---|
 | M10 | Developer tooling: the debugger, the profiler, property tests and the rest of the editor features |
-| M12 | Optimising JIT tier |
 | M15 | Packages, the registry and the supply chain |
 | M17 | The image component's second wave |
 
