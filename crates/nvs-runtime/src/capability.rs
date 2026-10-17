@@ -98,6 +98,7 @@ pub fn require_as(
 ) -> Result<(), Fault> {
     if let Scope::Path(path) = scope {
         relative_refusal(path, member)?;
+        device_refusal(path, member)?;
     }
     match refusal(ctx, cap, scope, member) {
         Some(message) => Err(Fault::thrown_as(class, message)),
@@ -127,6 +128,36 @@ pub fn require_as(
 fn relative_refusal(path: &Path, member: &str) -> Result<(), Fault> {
     match relative(path, member) {
         Some(message) => Err(Fault::thrown(message)),
+        None => Ok(()),
+    }
+}
+
+/// `rule:errors/path-component-refusals`' device names, refused in every path a door is asked
+/// about, before any grant is read and on every platform.
+///
+/// On Windows `C:\data\CON.txt` opens the console and `NUL.` opens the null device, from any
+/// folder, so a granted folder does not contain the file the name opens. A read of `CONIN$` waits
+/// for a key that never comes. Each component of the path as given is tested with
+/// [`nvs_config::capability::is_reserved_device`]; a drive or a root is not a component.
+///
+/// **Cost:** one scan of the path's components per door call.
+///
+/// # Errors
+///
+/// A catchable `RuntimeError` naming `member`, the path and the component.
+fn device_refusal(path: &Path, member: &str) -> Result<(), Fault> {
+    let device = path.components().find_map(|component| match component {
+        Component::Normal(name) => name
+            .to_str()
+            .filter(|name| nvs_config::capability::is_reserved_device(name)),
+        _ => None,
+    });
+    match device {
+        Some(name) => Err(Fault::thrown(format!(
+            "{member} cannot use the path {}: `{name}` is a Windows device name. A path may not \
+             contain one on any platform.",
+            path.display()
+        ))),
         None => Ok(()),
     }
 }
@@ -663,6 +694,7 @@ pub fn create(ctx: &Ctx, path: &Path, overwrite: bool, member: &str) -> Result<F
 /// `IOError` when it does, because then there is nothing to open.
 fn resolve_write(ctx: &Ctx, path: &Path, member: &str) -> Result<PathBuf, Fault> {
     relative_refusal(path, member)?;
+    device_refusal(path, member)?;
     let at = nvs_config::capability::resolved(path, &nvs_config::resolve::Disk);
     allow_write(ctx, path, at, member)
 }
@@ -679,6 +711,7 @@ fn resolve_write(ctx: &Ctx, path: &Path, member: &str) -> Result<PathBuf, Fault>
 /// [`resolve_write`]'s.
 fn resolve_name(ctx: &Ctx, path: &Path, member: &str) -> Result<PathBuf, Fault> {
     relative_refusal(path, member)?;
+    device_refusal(path, member)?;
     let at = match (path.parent(), path.file_name()) {
         (Some(parent), Some(name)) => {
             nvs_config::capability::resolved(parent, &nvs_config::resolve::Disk)
@@ -1380,17 +1413,30 @@ pub fn exec(ctx: &mut Ctx, program: &Path, argv: &[&str], member: &str) -> Resul
     exec_with(ctx, program, argv, &Launch::default(), member)
 }
 
+/// The variables a child [`exec_with`] starts with no `env` takes from this process, and the only
+/// ones: `rule:core-classes/process-options`' base set.
+///
+/// They are what an ordinary program needs to find other programs, its user's folder, a temporary
+/// folder and its language. Everything else in this process's environment, such as a database
+/// password or a cloud key, stays here. Windows also needs `SYSTEMROOT`, without which a child
+/// cannot open a socket. A variable this process does not have is not set.
+#[cfg(windows)]
+const BASE_ENV: &[&str] = &["PATH", "USERPROFILE", "TEMP", "TMP", "SYSTEMROOT", "LANG"];
+/// See the Windows list.
+#[cfg(not(windows))]
+const BASE_ENV: &[&str] = &["PATH", "HOME", "TEMP", "TMP", "LANG"];
+
 /// Where a child [`exec_with`] starts runs, and what environment it sees —
 /// `rule:core-classes/process-options`' two fields that reach the operating system. The default
-/// is the parent's folder and the parent's environment.
+/// is the parent's folder and [`BASE_ENV`] from the parent's environment.
 #[derive(Debug, Default)]
 pub struct Launch<'a> {
     /// The folder the child starts in. It must start at a root, for [`relative_refusal`]'s
     /// reason: a folder resolved against the server's own working directory names a different
     /// place depending on how the server was started.
     pub dir: Option<&'a Path>,
-    /// The child's whole environment, name and value. `Some` **replaces** the parent's, so
-    /// `Some(&[])` starts a child with no variables at all.
+    /// The child's whole environment, name and value. `Some(&[])` starts a child with no
+    /// variables at all, and `None` with [`BASE_ENV`] alone.
     pub env: Option<&'a [(String, String)]>,
 }
 
@@ -1449,9 +1495,18 @@ pub fn exec_with(
         }
         None => Command::new(&*target),
     };
-    if let Some(env) = launch.env {
-        command.env_clear();
-        command.envs(env.iter().map(|(name, value)| (name, value)));
+    command.env_clear();
+    match launch.env {
+        Some(env) => {
+            command.envs(env.iter().map(|(name, value)| (name, value)));
+        }
+        None => {
+            command.envs(
+                BASE_ENV
+                    .iter()
+                    .filter_map(|&name| std::env::var_os(name).map(|value| (name, value))),
+            );
+        }
     }
     command
         .args(argv)
@@ -1494,8 +1549,16 @@ fn spawn_target(program: &Path) -> Cow<'_, Path> {
 /// program the operating system hands the command line to, and that is decided by the name alone —
 /// so this answers the same way for a file that is not there, which is what lets the refusal be
 /// about the kind of target rather than about the filesystem.
+///
+/// The name is read the way Windows reads it before it opens the file: everything from the first
+/// `:` is an alternate stream and goes, and then every trailing dot and space goes. `say.bat.`,
+/// `say.bat ` and `say.bat::$DATA` all start `say.bat`, so all three are refused, on every platform
+/// for the rule's reason.
 fn shell_target(program: &Path) -> Option<String> {
-    let extension = program.extension()?.to_str()?.to_ascii_lowercase();
+    let name = program.file_name()?.to_str()?;
+    let name = name.split(':').next().unwrap_or(name);
+    let name = name.trim_end_matches(['.', ' ']);
+    let extension = Path::new(name).extension()?.to_str()?.to_ascii_lowercase();
     matches!(extension.as_str(), "bat" | "cmd" | "ps1").then_some(extension)
 }
 
@@ -1530,9 +1593,9 @@ mod tests {
     use std::net::{IpAddr, Ipv4Addr};
 
     use super::{
-        Cap, Ctx, Fault, PINNED_ADDRESSES, Path, Scope, ThrownClass, exec, granted,
-        install_resolver, pin_host, pin_host_addresses, require, shell_target, spawn_target,
-        temp_dir, working_dir,
+        Cap, Ctx, Fault, PINNED_ADDRESSES, Path, Scope, ThrownClass, create, exec, granted,
+        install_resolver, open_read, pin_host, pin_host_addresses, rename, require, shell_target,
+        spawn_target, temp_dir, working_dir, write,
     };
 
     /// The member a case refuses on behalf of. `run` and not `spawn` for no reason beyond being the
@@ -1960,6 +2023,75 @@ mod tests {
         }
     }
 
+    /// The same rule on the spellings Windows cuts before it opens a file: a trailing dot, a
+    /// trailing space and an alternate stream all start the batch file, so each one is refused.
+    #[test]
+    fn a_shell_target_is_refused_however_its_name_is_spelled() {
+        for (target, named) in [
+            ("/srv/say.bat.", "bat"),
+            ("/srv/say.bat...", "bat"),
+            ("/srv/say.bat ", "bat"),
+            ("/srv/say.CMD . .", "cmd"),
+            ("/srv/say.bat::$DATA", "bat"),
+            ("/srv/say.ps1:stream", "ps1"),
+            ("/srv/say.bat. :x", "bat"),
+        ] {
+            assert_eq!(
+                shell_target(Path::new(target)).as_deref(),
+                Some(named),
+                "`{target}` starts a `.{named}` file on Windows"
+            );
+        }
+    }
+
+    /// `rule:errors/path-component-refusals`' device names at the file doors: refused under a grant
+    /// that covers everything, with an extension, a trailing dot or a trailing space, on every
+    /// platform, and before the filesystem is asked anything.
+    #[test]
+    fn a_device_name_is_refused_by_every_file_door_however_wide_the_grant_is() {
+        let mut ctx = Ctx::buffered();
+        ctx.set_config(snapshot_of(
+            "[capabilities.fs]\nread = true\nwrite = true\n",
+        ));
+        for target in [
+            "/srv/data/CON",
+            "/srv/data/nul.txt",
+            "/srv/data/COM1.",
+            "/srv/data/com1.log.",
+            "/srv/data/CONIN$",
+            "/srv/data/conout$.txt",
+            "/srv/data/CON .log",
+            "/srv/NUL/inside.txt",
+            "/srv/data/LPT²",
+        ] {
+            let path = Path::new(target);
+            let refusals = [
+                open_read(&ctx, path, MEMBER).map(drop),
+                write(&ctx, path, b"x", MEMBER),
+                create(&ctx, path, true, MEMBER).map(drop),
+                rename(&ctx, Path::new("/srv/data/a.txt"), path, MEMBER),
+            ];
+            for refused in refusals {
+                let Err(Fault::Thrown(class, message)) = refused else {
+                    panic!("`{target}` names a device, so the door refuses it");
+                };
+                assert_eq!(class, ThrownClass::Runtime, "for `{target}`");
+                assert!(
+                    message.contains("Windows device name") && message.contains(MEMBER),
+                    "the refusal names the reason and the member: {message}"
+                );
+            }
+        }
+        // A name that only contains a device name is a name: the door reaches the filesystem,
+        // which has no such file.
+        let Err(Fault::Thrown(class, message)) =
+            open_read(&ctx, Path::new("/srv/data/console.txt"), MEMBER)
+        else {
+            panic!("there is no `/srv/data/console.txt` to open");
+        };
+        assert_eq!(class, ThrownClass::Io, "{message}");
+    }
+
     /// The other half of the same rule, which the cases above cannot show: every other target kind
     /// reaches the spawn, including the shebang script Unix runs through `execve` itself.
     #[test]
@@ -1970,6 +2102,8 @@ mod tests {
             "tools/deploy.sh",
             "batch",
             "archive.bat.gz",
+            "say.bat.gz.",
+            "notes:say.bat",
         ] {
             assert!(
                 shell_target(Path::new(allowed)).is_none(),

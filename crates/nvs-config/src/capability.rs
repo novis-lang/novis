@@ -1060,6 +1060,36 @@ pub fn resolved(path: &Path, files: &dyn Files) -> Option<PathBuf> {
     })
 }
 
+/// Whether one path component is a Windows device name, read the way Windows reads it:
+/// `rule:errors/path-component-refusals`'s list, on every platform.
+///
+/// Windows reads only the part before the first `.` or `:`, without its trailing spaces, so
+/// `CON`, `con.txt`, `NUL.` and `COM1 .log` all name a device in every folder. `CONIN$` and
+/// `CONOUT$` are the console's two ends, and `COM¹` to `LPT³` are devices as `COM1` is. A name that
+/// only contains one of these, such as `console`, is a name.
+///
+/// The file doors (`nvs_runtime::capability`), a mount's captured segment and a static file's
+/// segment all ask this, so the three cannot disagree about which names are devices.
+#[must_use]
+pub fn is_reserved_device(name: &str) -> bool {
+    let stem = name.split(['.', ':']).next().unwrap_or(name);
+    let stem = stem.trim_end_matches(' ').to_ascii_uppercase();
+    if matches!(
+        stem.as_str(),
+        "CON" | "PRN" | "AUX" | "NUL" | "CONIN$" | "CONOUT$"
+    ) {
+        return true;
+    }
+    stem.strip_prefix("COM")
+        .or_else(|| stem.strip_prefix("LPT"))
+        .is_some_and(|digit| {
+            matches!(
+                digit,
+                "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" | "¹" | "²" | "³"
+            )
+        })
+}
+
 /// The empty parent, spelled as the current directory; every other parent unchanged.
 ///
 /// `Path::new("copy.txt").parent()` is `Some("")`, and an empty path canonicalizes on no platform —
