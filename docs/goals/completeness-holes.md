@@ -48,8 +48,8 @@ stages:
         rules: [core-classes/spreadsheet-writes-as-a-stream]
   - id: 7
     title: "`[debug] mode` arms the probes, and the grant gates a query span"
-    status: open
-    context: [crates/nvs-config/src/tree.rs, crates/nvs-db/src/span.rs, data/gaps/nvs-config/debug-mode-is-read-by-nothing.json, data/gaps/nvs-db/span-renders-on-a-flag-no.json]
+    status: done
+    context: [crates/nvs-config/src/debug.rs, crates/nvs-runtime/src/ctx/wiring.rs, crates/nvs-stdlib/src/db/span.rs]
     extra:
       context:
         rules: [testing/debug-mode-directive, testing/debug-probes, observability/a-query-is-a-trace-event]
@@ -257,8 +257,13 @@ the client sees a failed download.
 **Does:** a `[debug] mode` value turns its probe bits on, and a query span renders only under the
 `debug.trace` grant.
 
-- [ ] A directive row for `[debug] mode`, read into the request's `DebugFlags`. `crates/nvs-config/src/tree.rs:514`
-- [ ] The grant gates the span's render on the sampled and unsampled paths. `crates/nvs-stdlib/src/db/span.rs:51`
+- [x] A directive row for `[debug] mode`, read into the request's `DebugFlags`. `crates/nvs-config/src/tree.rs:514`
+  - [x] The `debug.mode` row, and a name outside the four refused at boot (`crate::debug::validate`).
+  - [x] `Ctx::set_config` arms the named bits off server work, and drops the bits the replaced configuration armed.
+  - [x] A server refuses any named probe at boot and at reload (`crate::debug::refuse_serving`).
+- [x] The grant gates the span's render on the traced path; a sampled span needs none. `crates/nvs-stdlib/src/db/span.rs:51`
+  - [x] `QueryWatch::named` asks `debug.trace` when `DebugFlags::TRACE` is on and the request is not sampled.
+  - [x] A unit test pins the refused, granted and untraced cases.
 
 ### 8. compiled code does what the checker accepted
 
@@ -382,51 +387,44 @@ work cannot live only in prose again.
 
 ### State
 
-Stages 2 to 4 and 8 to 13 are done. Stage 14's scan is on disk: `bun nv owners --prose` lists every
-gap that lives only in prose, by kind, and exits 1 while any remains (`tools/nv/cmd/owners.ts`'s
-`outsideBlocks`). It names 47 today: one owed heading, five `Known gaps` blocks (three are pointer
-lines whose module no record names any more: `reload.rs`, `server/src/io.rs`, `types/src/defaults.rs`)
-and 41 numbered `gap N` references. `--check` does not read it yet, so the gate stays green until
-the list is empty.
+Stages 1 to 4, 7 and 8 to 13 are done. Stage 7: `[debug] mode` has a `RuntimeTighten`/`Reload`
+directive row, and a name outside `coverage`, `branch`, `trace`, `profile` is refused at boot
+(`crates/nvs-config/src/debug.rs`). `nvs_runtime::Ctx::set_config` arms the named bits on a context
+that is not server work and drops the bits the replaced configuration armed
+(`crates/nvs-runtime/src/ctx/wiring.rs`'s `armed_by`). `nvs serve` refuses any named probe at boot
+and `crates/nvs-cli/src/reload.rs` at reload. A query span rendered because `DebugFlags::TRACE` is on
+needs the `debug.trace` grant unless the request is sampled (`crates/nvs-stdlib/src/db/span.rs`'s
+`QueryWatch::named`). Both records are deleted, and `rule:testing/debug-mode-directive` states the
+served case, the grant and the declined options. Under `nvs run` a `coverage` bit with no
+`StmtHits` table counts nothing; only the test runner installs one (`crates/nvs-cli/src/runner.rs:399`).
 
-The nightly run the sweep reported (`39013536848`) tested `e110c9c0b`, which is `origin/main`, 203
-commits behind local `main`. On the local tree: `bun nv check` (the `docs` job) is clean, and the
-`five-driver matrix`'s queue arity failures do not reproduce (mysql, mssql and postgres TCP legs
-pass; the socket legs cannot run on Windows). The `proofs` jobs are the proof debt in the Backlog.
-`cost guards / windows-x86_64` is real: on Windows the warm start's work is 12-13 ms against the
-6 ms budget, here and on the runner, and `nvs check` of a 3-line file takes about 10 ms more than
-`nvs ast` (Backlog).
+Stage 14's scan: `bun nv owners --prose` lists every gap that lives only in prose and exits 1 while
+any remains (`tools/nv/cmd/owners.ts`'s `outsideBlocks`). It named 47 before this session, and the
+`crates/nvs-db/src/span.rs` pointer block is now gone. `--check` does not read it yet.
+
+The nightly run the sweep reported (`39013536848`) tested `e110c9c0b`, which is `origin/main` and
+far behind local `main`; the last session checked each job against the local tree, and nothing
+here changes that verdict. `cost guards / windows-x86_64` and the `proofs` jobs are in the Backlog.
 
 `bun nv rules --render` also rewrites `core-api.md`, `core-classes.md`, `errors.md` and
 `iteration.md`, and `bun nv render` drops `done` from `data/schema/milestone.schema.json`. That drift
 predates these sessions and is not committed.
 
-Stage 1 is done. An erased write into an anonymous object's slot is checked against the slot's
-current value (`same_shape`, `crates/nvs-runtime/src/object.rs`): same exact tag, a conforming
-class, nested anonymous objects field by field, and each array element against some current
-element. Only a receiver whose static type does not list the field pays it: the checker's
-`ShapeProperty` carries an `erased` bit through `InstKind::SlotSet` into `nvs_object_slot_set`. It
-spends nothing per object. It refuses a write into a `null` or absent field and a
-non-empty array into an empty one, which `rule:types/erased-member-access` states. The case is
-`tests/conformance/lang/a-property-write-through-an-erased-receiver-keeps-an-anonymous-objects-field-shape.nvst`.
-A refused message now says "an int", not "a int". A `null` written over an object still reports
-the internal label `$shape{…}` from the older tag check, which no rule names yet.
-
-Stage 5's typed path, stage 6's unfinished workbook and stage 7's two records are decided, and none
-is built yet.
+Stage 5's typed path and stage 6's unfinished workbook are decided, and neither is built.
 
 ### Next
 
-**Stage 7, as its two records decide. Files: `crates/nvs-config/src/tree.rs`, `crates/nvs-runtime/src/ctx/`, `crates/nvs-stdlib/src/db/span.rs`, `docs/rules/testing/debug-mode-directive.md`.**
+**Stage 6's last item, as its record decides. Files: `crates/nvs-stdlib/src/response.rs`, `crates/nvs-runtime/src/stream.rs`, `crates/nvs-host/src/isolate.rs`, `extensions/spreadsheet/nvs/Workbook.nvs`.**
 
-- [ ] A directive row for `[debug] mode`, a boot refusal of a name outside the four, and `nvs_runtime::Ctx::set_config` arming the named bits under `nvs run` and `nvs test`. A server whose `[debug] mode` names any bit fails its boot and says why (`rule:testing/debug-mode-directive`, `data/gaps/nvs-config/debug-mode-is-read-by-nothing.json`). `crates/nvs-config/src/tree.rs:514`
-- [ ] A span rendered because `DebugFlags::TRACE` is on needs the `debug.trace` grant, and a sampled span needs none (`rule:observability/a-query-is-a-trace-event`, `data/gaps/nvs-db/span-renders-on-a-flag-no.json`). `crates/nvs-stdlib/src/db/span.rs:51`
+- [ ] `Core\Response::stream` takes an option that marks the stream as one that must be finished, with a label for the log, and `Core\Response\Stream` gets `end()` (`rule:core-classes/spreadsheet-writes-as-a-stream`, `data/gaps/nvs-ext/a-workbook-never-finished-is-neither-logged-nor-cut-off.json`). `crates/nvs-stdlib/src/response.rs:2021`
+- [ ] At the request's end the host logs a marked stream that was not ended as an error naming its label, and cuts its body off through `Emit::abort`; no user code runs (`rule:concurrency/cancellation-runs-no-user-code`). `crates/nvs-runtime/src/stream.rs:274`
+- [ ] `Workbook::createForDownload` marks its stream with the download's name, and `finish` ends it. `extensions/spreadsheet/nvs/Workbook.nvs:218`
 
 ### Backlog
 
-- Stage 14's prose: `bun nv owners --prose` names 47 sites. Delete the three pointer blocks, make `crates/nvs-runtime/src/ctx/error.rs:777` and `crates/nvs-ir/src/ty.rs:222` records, rewrite each `gap N`, split by crate across subagents, then let `--check` run the scan (`tools/nv/cmd/owners.ts:610`).
-- Stages 7, 6 and 5 follow their records' decisions: `data/gaps/nvs-config/debug-mode-is-read-by-nothing.json`, `data/gaps/nvs-db/span-renders-on-a-flag-no.json`, `data/gaps/nvs-ext/a-workbook-never-finished-is-neither-logged-nor-cut-off.json` and `data/gaps/nvs-ext/bytes-cross-one-val-per-byte.json`, plus `Markup + Markup` in place (`docs/perf/performance-pass.md:257`).
+- Stage 14's prose: `bun nv owners --prose`. Delete the pointer blocks whose module no record names, make `crates/nvs-runtime/src/ctx/error.rs:777` and `crates/nvs-ir/src/ty.rs:222` records, rewrite each `gap N`, split by crate across subagents, then let `--check` run the scan (`tools/nv/cmd/owners.ts:610`).
+- Stage 5 follows `data/gaps/nvs-ext/bytes-cross-one-val-per-byte.json`: generated bindings per first-party world, then the image arms at full size, plus `Markup + Markup` in place (`docs/perf/performance-pass.md:257`).
 - `rule:security/isolate-shares-nothing` says a *required* parameter `args:` omits is the error, but `entry_names_agree` and `check_literal_args` need every parameter, defaults included. Decide which is right and make the two agree (`crates/nvs-stdlib/src/script.rs:970`).
-- Tests that fail under the full verify's load and pass alone, causes not found: `test_request_dispatches_in_process_through_the_compiled_route_table` (`crates/nvs-cli/src/runner.rs:3410`) and two `live_edit` swaps (`crates/nvs-cli/tests/live_edit.rs:1010`), and five `ldap` tests against the Samba server, which reach their 30s deadline (`crates/nvs-stdlib/tests/ldap.rs:102`).
-- CI's Windows warm-start budget fails: `nvs run`'s work is 12-13 ms against 6. A profile found about 4.7 ms in `nvs_ext::section::read`, whose `parse_all` walks every nested module of the built-in components. Walking only the outer component, skipping each nested section's range, measured 5.4 to 0.8 ms. Resolving the tree once per `run` and not three times saves about 1.5 ms more (not built) (`crates/nvs-ext/src/section.rs:35`). Proof debt fails CI's `proofs` jobs: stale perf records (`bun nv benches --owed`) and the `Core\Test\Outcome`/`Summary` proofs (`bun nv proofs --owed`) (`.github/workflows/ci.yml:1`).
+- Tests that fail under the full verify's load and pass alone, causes not found: `test_request_dispatches_in_process_through_the_compiled_route_table` (`crates/nvs-cli/src/runner.rs:3410`), two `live_edit` swaps (`crates/nvs-cli/tests/live_edit.rs:1010`), and five `ldap` tests against the Samba server (`crates/nvs-stdlib/tests/ldap.rs:102`).
+- CI's Windows warm-start budget fails: `nvs run`'s work is 12-13 ms against 6. About 4.7 ms is `nvs_ext::section::read`'s `parse_all` over every nested module; walking only the outer component measured 5.4 to 0.8 ms (not built) (`crates/nvs-ext/src/section.rs:35`). Proof debt fails CI's `proofs` jobs: `bun nv benches --owed` and `bun nv proofs --owed` (`.github/workflows/ci.yml:1`).
 - A per-connection child refused a stack is dropped unrun, so its client likely sees the socket close and no `503`; not checked (`crates/nvs-server/src/serve.rs:95`).
