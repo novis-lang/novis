@@ -55,7 +55,8 @@
 // or a rare set-up allocation, settles. A count's slope is `1 + log2(d3 / d1) / 2`.
 //
 // The bounds. A count whose slope is above `COUNT_BOUND` fails: each operation leaves something behind
-// that the next one pays for. The clock's slope is read the same way, from the clock's increments, and
+// that the next one pays for. It fails only when a second counting run of the same batches puts it over
+// too, because a program whose set-up draws random numbers moves its totals by a few units between runs. The clock's slope is read the same way, from the clock's increments, and
 // is reported. Above `CLOCK_BOUND` it counts only when a second run of the same batches agrees, because
 // the clock is the second signal and never the first. Even then it does not fail a bench whose counts
 // settled within their bound: the second run shares the first one's machine load, so callgrind
@@ -966,6 +967,24 @@ async function rampAt(judged: Judged, source: string, literal: number, sizes: nu
   judged.sizes = batches.map((b) => b.size);
   if (measure.keys.length && batches.length >= 2) judged.perOp = Object.fromEntries(measure.keys.map((k) => [k, increments(batches, (b) => b.counts[k]!).at(-1)!]));
   const { slopes, over } = judgeCounts(batches, measure.keys, bounds.count);
+  if (over.length) {
+    // A count never fails on one run either: a program that draws random numbers in its set-up, such as
+    // a fresh key whose signature's length varies, moves its totals between two runs of one batch. The
+    // same batches are counted again, and a count fails only when both runs put it over its bound.
+    const again: Batch[] = [];
+    for (const b of batches) {
+      write(b.size);
+      again.push({ size: b.size, ...(await measure.take(copy, bench, opts, b.size)) });
+    }
+    const second = judgeCounts(again, measure.keys, bounds.count);
+    const kept = measure.keys.filter((k) => over.some((o) => o.startsWith(`${k} `)) && second.over.some((o) => o.startsWith(`${k} `)));
+    for (const o of [...over]) {
+      const k = o.slice(0, o.indexOf(" "));
+      if (kept.includes(k)) continue;
+      over.splice(over.indexOf(o), 1);
+      judged.notes.push(`${o}, which did not repeat on a second run`);
+    }
+  }
   const own = measure.judge?.(batches);
   if (own) over.push(own);
   judged.slopes = slopes;
