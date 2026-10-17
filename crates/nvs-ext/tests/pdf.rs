@@ -625,9 +625,10 @@ fn report(rows: usize) -> String {
     )
 }
 
-/// The render of `report(8400)` in a request of `memory` bytes. Its PDF is about 4 MiB, and its
-/// guest grows to about 150 MiB.
-fn render_report(memory: u64) -> Result<(Vec<u8>, u64), Failure> {
+/// The render of `report(8400)` in a request of `memory` bytes, or of no limit for `None`, and the
+/// bytes its request is charged once the call has returned. Its PDF is about 4 MiB, and its guest
+/// grows to about 150 MiB.
+fn render_report(memory: Option<u64>) -> (Result<(Vec<u8>, u64), Failure>, u64) {
     let host = Host::new(4, |_| Ok(())).expect("the host starts");
     let builtins = Loader::new(host.engine())
         .builtins()
@@ -635,21 +636,26 @@ fn render_report(memory: u64) -> Result<(Vec<u8>, u64), Failure> {
     let extension = pdf(&builtins)
         .extension()
         .expect("the PDF component compiles and checks");
-    let request = host.request(Arc::new(Meter::new(Duration::from_secs(120), Some(memory))));
-    render(&request, extension, &report(8400), &[])
+    let meter = Arc::new(Meter::new(Duration::from_secs(120), memory));
+    let request = host.request(meter.clone());
+    let out = render(&request, extension, &report(8400), &[]);
+    (out, meter.charged())
 }
 
 #[test]
 fn a_200_page_report_crosses_under_the_requests_memory() {
-    let (data, pages) = render_report(1 << 30).expect("it renders");
+    let (data, pages) = render_report(Some(1 << 30)).0.expect("it renders");
     assert!(pages >= 200, "the report has {pages} pages");
     assert!(data.len() > 3 << 20, "the PDF is {} bytes", data.len());
 }
 
 #[test]
 fn a_result_the_request_cannot_afford_reaches_the_memory_limit() {
-    // The guest fits in 192 MiB, and lifting its 4 MiB result does not.
-    match render_report(192 << 20) {
+    // The guest and the HTML fit in this budget, and the result's 4 MiB do not.
+    let (out, guest) = render_report(None);
+    let (data, _) = out.expect("it renders");
+    let budget = guest + report(8400).len() as u64 + data.len() as u64 / 2;
+    match render_report(Some(budget)).0 {
         Err(Failure::Limit(Limit::Memory)) => {}
         other => panic!("the render did not reach the memory limit: {other:?}"),
     }

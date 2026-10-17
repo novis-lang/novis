@@ -31,6 +31,10 @@ use crate::types::{Field, NovisType};
 pub(crate) enum World {
     /// `nvs:image/codec`.
     Image,
+    /// `nvs:pdf/engine`.
+    Pdf,
+    /// `nvs:intl/icu`.
+    Intl,
 }
 
 impl World {
@@ -38,6 +42,8 @@ impl World {
     pub(crate) fn of(interface: &str) -> Option<Self> {
         match interface {
             "nvs:image/codec" => Some(Self::Image),
+            "nvs:pdf/engine" => Some(Self::Pdf),
+            "nvs:intl/icu" => Some(Self::Intl),
             _ => None,
         }
     }
@@ -54,6 +60,8 @@ impl World {
             Self::Image => {
                 image::Args::lower(method, params, args).map(|args| args.map(Args::Image))
             }
+            Self::Pdf => pdf::Args::lower(method, params, args).map(|args| args.map(Args::Pdf)),
+            Self::Intl => intl::Args::lower(method, params, args).map(|args| args.map(Args::Intl)),
         }
     }
 }
@@ -62,12 +70,20 @@ impl World {
 pub(crate) enum Args {
     /// A call to the image world.
     Image(image::Args),
+    /// A call to the PDF world.
+    Pdf(pdf::Args),
+    /// A call to the intl world.
+    Intl(intl::Args),
 }
 
 /// What one typed call returned.
 pub(crate) enum Out {
     /// A result of the image world.
     Image(image::Out),
+    /// A result of the PDF world.
+    Pdf(pdf::Out),
+    /// A result of the intl world.
+    Intl(intl::Out),
 }
 
 impl Args {
@@ -75,6 +91,8 @@ impl Args {
     pub(crate) fn heap(&self) -> u64 {
         match self {
             Self::Image(args) => args.heap(),
+            Self::Pdf(args) => args.heap(),
+            Self::Intl(args) => args.heap(),
         }
     }
 
@@ -87,6 +105,8 @@ impl Args {
     ) -> wasmtime::Result<Result<Out, Error>> {
         match self {
             Self::Image(args) => Ok(args.call(store, func).await?.map(Out::Image)),
+            Self::Pdf(args) => Ok(args.call(store, func).await?.map(Out::Pdf)),
+            Self::Intl(args) => Ok(args.call(store, func).await?.map(Out::Intl)),
         }
     }
 }
@@ -96,6 +116,8 @@ impl Out {
     pub(crate) fn heap(&self) -> u64 {
         match self {
             Self::Image(out) => out.heap(),
+            Self::Pdf(out) => out.heap(),
+            Self::Intl(out) => out.heap(),
         }
     }
 
@@ -103,6 +125,8 @@ impl Out {
     pub(crate) fn into_value(self, ty: &NovisType) -> Result<Value, String> {
         match self {
             Self::Image(out) => out.into_value(ty),
+            Self::Pdf(out) => out.into_value(ty),
+            Self::Intl(out) => out.into_value(ty),
         }
     }
 }
@@ -504,6 +528,47 @@ fn shape_field<'f>(field: Option<&'f Field>, rust: &str) -> Result<&'f Field, St
     }
 }
 
+/// The value of the next field of a `Core` value class's record, where `field` is the record's
+/// field at the same position and `rust` the generated field's name.
+pub(crate) fn core_field<T: FromValue>(
+    field: Option<&(&'static str, NovisType)>,
+    class: &str,
+    fields: &mut Vec<(String, Value)>,
+    rust: &str,
+) -> Result<T, String> {
+    let (name, ty) = core_record_field(field, rust)?;
+    match fields.iter().position(|(n, _)| n == name) {
+        Some(at) => T::from_value(ty, fields.swap_remove(at).1),
+        None => Err(format!("the `{class}` has no field `{name}`")),
+    }
+}
+
+/// The named field of a `Core` value class the generated field `value` is, where `field` is the
+/// record's field at the same position and `rust` the generated field's name.
+pub(crate) fn core_put<T: IntoValue>(
+    field: Option<&(&'static str, NovisType)>,
+    rust: &str,
+    value: T,
+) -> Result<(String, Value), String> {
+    let (name, ty) = core_record_field(field, rust)?;
+    Ok(((*name).to_owned(), value.into_value(ty)?))
+}
+
+/// The record's field `field`, checked to be the generated field `rust`.
+fn core_record_field<'f>(
+    field: Option<&'f (&'static str, NovisType)>,
+    rust: &str,
+) -> Result<&'f (&'static str, NovisType), String> {
+    let rust = rust.trim_end_matches('_');
+    match field {
+        Some(field) if same_name(field.0, rust) => Ok(field),
+        Some((name, _)) => Err(format!(
+            "the class's field `{name}` is where the record has `{rust}`"
+        )),
+        None => Err(format!("the class has no field for the record's `{rust}`")),
+    }
+}
+
 /// The Novis case of the enum `ty` that `value` is: a case by its name, or by its number.
 pub(crate) fn enum_case<'t>(ty: &'t NovisType, value: &Value) -> Result<&'t str, String> {
     let NovisType::Enum { name, cases } = ty else {
@@ -728,6 +793,52 @@ macro_rules! variants {
     )*};
 }
 
+/// Converts the generated records of `nvs:ext/types`, each written with its fields in the WIT's
+/// order, to and from the `Core` value class that crosses as it.
+macro_rules! cores {
+    ($($ty:ident { $($field:ident),* $(,)? })*) => {$(
+        impl $crate::typed::FromValue for $ty {
+            fn from_value(
+                ty: &$crate::types::NovisType,
+                value: $crate::convert::Value,
+            ) -> Result<Self, String> {
+                match (ty, value) {
+                    (
+                        $crate::types::NovisType::Core(core),
+                        $crate::convert::Value::Core { class, mut fields },
+                    ) if class == core.class => {
+                        let mut at = core.fields.iter();
+                        Ok(Self {
+                            $($field: $crate::typed::core_field(
+                                at.next(), &class, &mut fields, stringify!($field),
+                            )?,)*
+                        })
+                    }
+                    (ty, value) => Err($crate::typed::mismatch(ty, &value)),
+                }
+            }
+        }
+
+        impl $crate::typed::IntoValue for $ty {
+            fn into_value(self, ty: &$crate::types::NovisType) -> Result<$crate::convert::Value, String> {
+                let $crate::types::NovisType::Core(core) = ty else {
+                    return Err($crate::typed::back(ty, stringify!($ty)));
+                };
+                let mut at = core.fields.iter();
+                let mut fields = Vec::with_capacity(core.fields.len());
+                $(fields.push($crate::typed::core_put(at.next(), stringify!($field), self.$field)?);)*
+                Ok($crate::convert::Value::Core { class: core.class.to_owned(), fields })
+            }
+        }
+
+        impl $crate::typed::Heap for $ty {
+            fn heap(&self) -> u64 {
+                0 $(+ $crate::typed::Heap::heap(&self.$field))*
+            }
+        }
+    )*};
+}
+
 /// A world's typed calls: [`Args`] and [`Out`] with one case per method, named as the method is,
 /// each with its generated parameter types and its `ok` type. `error` is the world's generated
 /// `error` variant, which converts to [`Error`].
@@ -807,3 +918,5 @@ macro_rules! world {
 }
 
 mod image;
+mod intl;
+mod pdf;
