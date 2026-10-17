@@ -1,6 +1,0 @@
-{
-  "module": "crates/nvs-types/src/expr/isolate.rs",
-  "title": "A literal `args:` map on `spawn` is checked against the entry's parameters only when the spawn runs.",
-  "text": "`rule:security/isolate-shares-nothing` reports a name `args:` holds that the entry does not declare, or a parameter it omits, at compile time when `args:` is a literal and at the spawn otherwise. Only the spawn half exists: the spawn raises the named-argument error for either mismatch, and a literal map is not compared against the signature (`crates/nvs-types/src/expr/isolate.rs:229-234`). The error arrives late, never not at all. Closing it means `check_entry` compares a literal map's keys with the entry's parameter names and reports each mismatch where it is written.",
-  "goal": "completeness-holes"
-}

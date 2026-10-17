@@ -1,0 +1,32 @@
+--TEST--
+`rule:security/isolate-shares-nothing`: a literal `args:` map is compared against the method entry's parameters at compile time, with the ordinary named-argument errors
+--FILE--
+<?nvs
+class Reports {
+    public static function span(int $months, string $from): int {
+        return $months;
+    }
+}
+
+// A key the entry does not declare. `moths` is not a parameter.
+var $typo = spawn script Reports::span(...) with(args: ["moths" => 3, "from" => "may"]);
+
+// A parameter the map leaves out. `from` has no entry.
+var $short = spawn script Reports::span(...) with(args: ["months" => 3]);
+
+// No `args:` at all, so neither parameter has an entry.
+var $none = spawn script Reports::span(...);
+
+// Every parameter has an entry, so this spawn compiles.
+var $ok = spawn script Reports::span(...) with(args: ["months" => 3, "from" => "may"]);
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0486]: `Reports::span` has no parameter named `moths`
+%A
+error[E0402]: `args:` has no entry for the parameter(s) `from`
+%A
+error[E0402]: `args:` has no entry for the parameter(s) `months`, `from`
+%A
+error: aborting due to 3 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

@@ -171,9 +171,9 @@ fn failing_run(fixture: &str) -> String {
 /// frame, where the ADR says a non-literal map's mismatch is reported, so
 /// nothing is started and no `ScriptResult` carries it.
 ///
-/// `nvs_stdlib::script`'s `entry_names_agree` is the rule's home; the compile-
-/// time half for a literal map is the known gap `nvs_types::expr::isolate`
-/// records.
+/// `nvs_stdlib::script`'s `entry_names_agree` is the rule's home. The fixture
+/// builds its map in a variable, because a literal map is compared at compile
+/// time by `nvs_types::expr::isolate`'s `check_literal_args`.
 #[test]
 fn a_method_entrys_args_map_must_name_its_parameters() {
     let stderr = failing_run("method-entry-args-mismatch.nvs");
