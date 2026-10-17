@@ -463,13 +463,21 @@ pub(crate) fn class_satisfied(
 }
 
 /// `rule:types/shape-type`'s structural check for a shape target: `from` must have at
-/// least every field `to_fields` names, each satisfying the field's declared
-/// type by [`field_fits`] — [`is_assignable`] without the `int` → `float`
-/// row, because `from` is shared and its fields are not converted (width
-/// subtyping — an extra field on `from` is never a problem). A class receiver's field types come
+/// least every field `to_fields` names (width subtyping, so an extra field on
+/// `from` is never a problem). Each field is compared by [`field_fits`], which
+/// is [`is_assignable`] without the `int` → `float` row, because `from` is
+/// shared and its fields are not converted.
+///
+/// **A shape source's field types are invariant**: each must fit the target's
+/// field in both directions. A shape value is aliased, and an anonymous
+/// object's slot carries a tag and no declared type, so a write through a wider
+/// view would store a value the narrower view reads at the wrong type. `{pet:
+/// Dog}` therefore does not satisfy `{pet: Animal}`, and `{a: int}` does not
+/// satisfy `{a: ?int}`. A class source stays covariant: its field types come
 /// from [`resolve_property`], the same ancestor walk an ordinary `$obj->prop`
-/// access already uses; any other `from` (a scalar, `object`, a mismatched
-/// shape) never satisfies a shape target.
+/// access uses, and a write through the view is checked at run time against
+/// the class's own declared type. Any other `from` (a scalar, `object`, a
+/// mismatched shape) never satisfies a shape target.
 ///
 /// A field the target marks optional ([`ShapeField::required`] false) relaxes
 /// exactly one half of that: the key may be **absent** from `from`. When it is
@@ -495,6 +503,7 @@ pub(crate) fn shape_satisfied(
                 Some(from) => {
                     (from.required || !to_field.required)
                         && field_fits(from.ty, to_field.ty, interner, graph, signatures)
+                        && field_fits(to_field.ty, from.ty, interner, graph, signatures)
                 }
                 None => !to_field.required,
             }
@@ -525,6 +534,43 @@ pub(crate) fn field_fits(
     signatures: &SignatureTable,
 ) -> bool {
     assignable(from, to, Widening::InPlace, interner, graph, signatures)
+}
+
+/// Whether an attribute payload of type `from` fits a shape `to`. The payload
+/// is folded into a new constant at each place that reads it, so nothing else
+/// holds it, and a write through `to` cannot reach a narrower view. So a
+/// shape's field types are compared covariantly here, at every depth of nested
+/// shapes, where [`shape_satisfied`] compares them invariantly. Every other
+/// field type is compared by [`field_fits`], because the fold stores each
+/// value as it is written and converts none of them.
+pub(crate) fn built_fits(
+    from: TypeId,
+    to: TypeId,
+    interner: &mut TypeInterner,
+    graph: &ClassGraph,
+    signatures: &SignatureTable,
+) -> bool {
+    let (Ty::Shape(from_fields), Ty::Shape(to_fields)) =
+        (interner.get(from).clone(), interner.get(to).clone())
+    else {
+        if let Ty::Union(members) = interner.get(to).clone()
+            && matches!(interner.get(from), Ty::Shape(_))
+        {
+            return members
+                .into_iter()
+                .any(|member| built_fits(from, member, interner, graph, signatures));
+        }
+        return field_fits(from, to, interner, graph, signatures);
+    };
+    to_fields.iter().all(|to_field| {
+        match from_fields.iter().find(|from| from.name == to_field.name) {
+            Some(from) => {
+                (from.required || !to_field.required)
+                    && built_fits(from.ty, to_field.ty, interner, graph, signatures)
+            }
+            None => !to_field.required,
+        }
+    })
 }
 
 pub(crate) fn report_mismatch(span: Span, expected: TypeId, actual: TypeId, env: &mut Env<'_>) {

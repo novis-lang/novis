@@ -16,8 +16,9 @@
 //! namespace: `Name` is never a class, never a new kind of attribute and
 //! never anything to instantiate — it is a pre-existing `type` alias whose
 //! right-hand side is a shape, and the payload is then checked against it by
-//! the very rule an ordinary shape-typed binding is checked by
-//! ([`crate::expr::is_assignable`], `rule:types/shape-type`'s width subtyping). So an
+//! `rule:types/shape-type`'s width subtyping, the rule an ordinary shape-typed binding is
+//! checked by. A payload is folded into a new value wherever it is read, so its
+//! field types are compared covariantly ([`crate::expr::built_fits`]). So an
 //! attribute's name resolves in the ordinary namespace/`use` scope, and an
 //! unresolvable one is the ordinary `E0303` rather than a refusal of its own.
 //! The member form `Owner::Name` names an alias declared in `Owner`'s body and
@@ -35,7 +36,7 @@ use nvs_syntax::ast::{
     Expr, ExprKind, Name, Param, Type, TypeAtom, TypeKind, UnaryOp,
 };
 
-use crate::expr::{check_anon_object, check_expr, is_assignable, report_mismatch};
+use crate::expr::{built_fits, check_anon_object, check_expr, report_mismatch};
 use crate::locals::{Live, LocalScope};
 use crate::ty::{Ty, TypeId};
 use crate::{Ctx, Env, span_text};
@@ -170,7 +171,7 @@ fn check_attribute(attr: &Attribute, ctx: &Ctx<'_>, env: &mut Env<'_>) {
     let mut live = Live::default();
     let scope = LocalScope::new();
     let actual = check_anon_object(&attr.fields, None, &mut live, &scope, ctx, env);
-    if !is_assignable(actual, shape, env.interner, env.graph, env.signatures) {
+    if !built_fits(actual, shape, env.interner, env.graph, env.signatures) {
         report_mismatch(attr.payload, shape, actual, env);
     }
 }

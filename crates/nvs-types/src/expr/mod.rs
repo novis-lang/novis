@@ -82,7 +82,10 @@ use self::{
 // the split: the same names, at the same path, whichever module now holds
 // them.
 pub(crate) use self::{
-    assign::{check_return, field_fits, is_assignable, note_float_widening_at, report_mismatch},
+    assign::{
+        built_fits, check_return, field_fits, is_assignable, note_float_widening_at,
+        report_mismatch,
+    },
     iteration::{
         check_foreach_inout, check_foreach_key, check_foreach_value, foreach_key_ty, foreach_source,
     },

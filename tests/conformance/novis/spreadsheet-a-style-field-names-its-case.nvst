@@ -33,15 +33,15 @@ echo Core\Str::contains($styles, "<bottom style=\"double\">") ? "double is writt
 echo Core\Str::contains($styles, "<u/>") ? "single underline is written" : "single underline is missing", "\n";
 echo Core\Str::contains($styles, "<alignment horizontal=\"justify\" vertical=\"center\"/>") ? "alignment is written" : "alignment is missing", "\n";
 
-array<{border?: string, underline?: string, align?: string, valign?: string}> $wrong = [
-    {border: "wavy"},
-    {underline: "triple"},
-    {align: "middle"},
-    {valign: "middle"},
+array<callable(): Style> $wrong = [
+    fn(): Style => Style::of({border: "wavy"}),
+    fn(): Style => Style::of({underline: "triple"}),
+    fn(): Style => Style::of({align: "middle"}),
+    fn(): Style => Style::of({valign: "middle"}),
 ];
-foreach ($wrong as var $asked) {
+foreach ($wrong as var $make) {
     try {
-        Style::of($asked);
+        $make();
         echo "not reached\n";
     } catch (LogicError $e) {
         echo $e->message, "\n";

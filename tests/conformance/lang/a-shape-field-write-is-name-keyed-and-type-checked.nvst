@@ -4,6 +4,10 @@ A shape field write lands on the field it names and is checked against the concr
 <?nvs
 // `rule:types/erased-member-access`'s write half, mirroring the read: a shape has no declaring
 // class, so the write is keyed on the *name* rather than on a fixed offset.
+class Count {
+    public int $n = 1;
+}
+
 class Move {
     // `{y: int}` lays `y` at slot 0; the `{x: int, y: int}` value lays it at
     // slot 1, because a shape's slots are its field names sorted.
@@ -18,11 +22,9 @@ class Move {
         $t->label = "right";
     }
 
-    // § 3 compares a shape's field types by ordinary assignability, so
-    // `{n: int}` satisfies `{n: int|string}` — and a shape value is aliased
-    // rather than copied. A write through the wider view is therefore checked
-    // against what the concrete value declares, and throws rather than
-    // leaving a `string` in a slot the narrow view loads as an `int`.
+    // A class instance satisfies a shape whose field types are wider than its
+    // properties, so `Count` satisfies `{n: int|string}`. A write through that
+    // view is checked against the property's declared type, and it throws.
     public static function widen({n: int|string} $p): string {
         try {
             $p->n = "s";
@@ -48,10 +50,9 @@ var $tagged = {alpha: "a", label: "left"};
 Move::relabel($tagged);
 echo $tagged->alpha, " ", $tagged->label, "\n";
 
-var $whole = {n: 1};
-echo Move::widen($whole), "\n";
+echo Move::widen(new Count()), "\n";
 --EXPECT--
 5 2
 5 9
 a right
-`$shape{n}` declares field `n` as int, so a string cannot be written to it
+`Count` declares field `n` as int, so a string cannot be written to it

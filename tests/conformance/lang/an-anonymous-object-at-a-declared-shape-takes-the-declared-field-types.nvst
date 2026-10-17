@@ -60,11 +60,6 @@ Amount $either = {n: 2};
 echo $either->n, "\n";
 $either->n = 2.5;
 echo $either->n, "\n";
-
-// An existing `{n: int}` value is an `int|float` value, and reads back as `2`.
-var $whole = {n: 2};
-Amount $view = $whole;
-echo $view->n, "\n";
 --EXPECT--
 2 2.5
 2.5 2.5
@@ -75,4 +70,3 @@ echo $view->n, "\n";
 2.5
 2
 2.5
-2

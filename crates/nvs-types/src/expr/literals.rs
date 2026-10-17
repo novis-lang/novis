@@ -1019,8 +1019,12 @@ pub(crate) fn check_anon_object(
 ) -> TypeId {
     // The declared shape, when the position names one: a `?{…}` position
     // declares the shape and `null` is the other thing it may hold, and a union
-    // with exactly one shape member declares that member.
-    let expected = expected.and_then(|id| declared_shape(id, env));
+    // declares the one shape member whose keys the literal writes.
+    let written: Vec<&str> = fields
+        .iter()
+        .map(|field| span_text(env.src, field.name))
+        .collect();
+    let expected = expected.and_then(|id| declared_shape(id, &written, env));
     let mut out: Vec<ShapeField> = Vec::with_capacity(fields.len());
     for field in fields {
         let name = span_text(env.src, field.name).to_owned();
@@ -1032,13 +1036,13 @@ pub(crate) fn check_anon_object(
         // the value where the literal stores it, at the slot type
         // `nvs_ir::lower` reads back from the field name's span. A value that
         // does not fit keeps its own type, and the assignment that follows
-        // reports it. So does a value with a `secret` or `tainted` qualifier the
-        // declared type does not carry, so the qualifier stays visible.
+        // reports it. A `secret` or `tainted` value fits a declared type
+        // without the qualifier only when that type is `mixed`, and the
+        // `secret` refusal below reads the value's own inferred type.
         let inferred = infer(&field.value, declared, live, scope, ctx, env);
         let field_ty = match declared {
             Some(declared)
-                if is_assignable(inferred, declared, env.interner, env.graph, env.signatures)
-                    && !drops_qualifier(inferred, declared, env) =>
+                if is_assignable(inferred, declared, env.interner, env.graph, env.signatures) =>
             {
                 env.exprs.record_type(field.name, declared);
                 note_float_widening(&field.value, inferred, declared, env);
@@ -1075,18 +1079,42 @@ pub(crate) fn check_anon_object(
 }
 
 /// The shape an anonymous object's position declares: `expected` itself when it
-/// is a shape, the shape inside a `?{…}`, or the one shape member of a union.
-/// `None` for anything else, including a union with two shape members, where
-/// the literal keeps the types its own fields infer.
-fn declared_shape(expected: TypeId, env: &mut Env<'_>) -> Option<TypeId> {
+/// is a shape, the shape inside a `?{…}`, or the one shape member of a union
+/// that has every required key the literal writes and no key it does not
+/// declare. A union with one shape member declares that member whatever its
+/// keys, so the assignment that follows reports a missing key against it.
+/// `None` for anything else, including a union where two shape members match,
+/// where the literal keeps the types its own fields infer.
+///
+/// A shape source's field types are invariant
+/// ([`super::assign::shape_satisfied`]), so a literal at a union of shapes
+/// needs this: `{n: null}` infers `{n: null}`, which fits no `{n: ?float}`
+/// member, while the same literal placed at that member is a `{n: ?float}`.
+fn declared_shape(expected: TypeId, written: &[&str], env: &mut Env<'_>) -> Option<TypeId> {
     let expected = env.interner.without_null(expected);
     match env.interner.get(expected) {
         Ty::Shape(_) => Some(expected),
         Ty::Union(members) => {
-            let mut shapes = members
+            let shapes: Vec<TypeId> = members
                 .iter()
                 .copied()
-                .filter(|member| matches!(env.interner.get(*member), Ty::Shape(_)));
+                .filter(|member| matches!(env.interner.get(*member), Ty::Shape(_)))
+                .collect();
+            if let [only] = shapes[..] {
+                return Some(only);
+            }
+            let keys_match = |member: &TypeId| {
+                let Ty::Shape(declared) = env.interner.get(*member) else {
+                    return false;
+                };
+                written
+                    .iter()
+                    .all(|name| declared.iter().any(|field| field.name == *name))
+                    && declared
+                        .iter()
+                        .all(|field| !field.required || written.contains(&field.name.as_str()))
+            };
+            let mut shapes = shapes.into_iter().filter(keys_match);
             match (shapes.next(), shapes.next()) {
                 (Some(only), None) => Some(only),
                 _ => None,
@@ -1094,14 +1122,6 @@ fn declared_shape(expected: TypeId, env: &mut Env<'_>) -> Option<TypeId> {
         }
         _ => None,
     }
-}
-
-/// Whether a field value of type `inferred` loses a `secret` or `tainted`
-/// qualifier when its field takes the type `declared`.
-fn drops_qualifier(inferred: TypeId, declared: TypeId, env: &Env<'_>) -> bool {
-    let interner = &*env.interner;
-    (contains_secret(inferred, interner) && !contains_secret(declared, interner))
-        || (carries_tainted(inferred, interner) && !carries_tainted(declared, interner))
 }
 
 /// The type a *declared* shape gives the field named `name`, where the

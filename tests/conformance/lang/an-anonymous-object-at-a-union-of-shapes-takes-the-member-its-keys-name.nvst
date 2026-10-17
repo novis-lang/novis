@@ -1,0 +1,38 @@
+--TEST--
+An anonymous object written where a union of shapes is declared takes the field types of the one member whose keys it writes, and a class instance still satisfies a shape whose field types are wider than its properties — `rule:types/shape-type`
+--FILE--
+<?nvs
+// covers: lang:types/callable-classes-object-shapes
+
+type Value = {text: string}|{formula: string, cached: ?float};
+
+class Sheet
+{
+    public static function count(array<Value> $values): uint
+    {
+        return Core\Arr::count($values);
+    }
+
+    public static function empty(): Value
+    {
+        // These keys are the second member's, so `cached` is a `?float` field.
+        return {formula: "A1", cached: null};
+    }
+}
+
+class Counter
+{
+    public int $n = 1;
+}
+
+// Each literal is a `Value`, because its keys name one member of the union.
+Value $empty = Sheet::empty();
+echo Sheet::count([$empty, {formula: "A2", cached: 2.5}, {text: "Tea"}]), "\n";
+
+// A class instance satisfies `{n: ?int}`. A write through that view is checked
+// against the property's own type, `int`.
+({n: ?int}) $view = new Counter();
+echo $view->n, "\n";
+--EXPECT--
+3
+1

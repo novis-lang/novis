@@ -8,7 +8,7 @@ use LogicError;
 final class Template
 {
     type Options = ?{zone?: string};
-    type Value = {text: string}|{number: float}|{integer: int}|{decimal: string}|{boolean: bool}|{date: Core\Time\Date}|{time: Core\Time\TimeOfDay}|{duration: Core\Time\Duration}|{day: Core\Time\Date, clock: Core\Time\TimeOfDay}|{formula: string, cachedText: ?string, cachedNumber: ?float};
+    type Value = {text: string}|{number: float}|{integer: int}|{decimal: string}|{boolean: bool}|{date: Core\Time\Date}|{time: Core\Time\TimeOfDay}|{duration: Core\Time\Duration}|{day: Core\Time\Date, clock: Core\Time\TimeOfDay}|{formula: string, cachedText: ?string, cachedNumber: ?float}|{runs: array<{text: string, style: ?uint}>};
     type Placeholder = {path: string, value: ?Value};
 
     private bool $filled = false;

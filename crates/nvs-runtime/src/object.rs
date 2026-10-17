@@ -146,11 +146,11 @@
 //!
 //! `rule:types/erased-member-access` requires a
 //! write through an erased or widened view to check the incoming value against
-//! the field's *real, concrete declared type*, because § 3 compares a shape's
-//! field types by ordinary assignability — so `{n: int}` satisfies a
-//! `{n: int|string}` binding, and a shape value is aliased rather than copied.
-//! Without the check, a write through the wider view would leave a `string` in
-//! a slot the narrow view still loads as an `int`.
+//! the field's *real, concrete declared type*. A class instance's property
+//! types are covariant under `rule:types/shape-type`, so a class with an `int $n`
+//! property satisfies a `{n: int|string}` binding, and the object is aliased
+//! rather than copied. Without the check, a write through the wider view would
+//! leave a `string` in a slot the class still loads as an `int`.
 //!
 //! A **declared** class's slot is checked against its whole declared type, in
 //! three parts, each carried on the [`ClassDesc`] once per process:
@@ -183,8 +183,12 @@
 //! with no layout of its own, a callable's environment or a generator's state,
 //! carries no tags either, because nothing declares its slots in source.
 //!
-//! What an anonymous object's tag does not check is a gap record, and
-//! `bun nv gaps --module crates/nvs-runtime/src/object.rs` lists it.
+//! A tag does not tell one class from another, or an `array<Dog>` from an
+//! `array<Animal>`. The checker allows no wider *shape* view of an anonymous
+//! object: `rule:types/shape-type` makes a shape value's field types invariant
+//! (`nvs_types::expr::assign::shape_satisfied`). An erased write through
+//! `object` or `mixed` is still checked by tag alone, which is a gap record,
+//! and `bun nv gaps --module crates/nvs-runtime/src/object.rs` lists it.
 //!
 //! # Decision: every object is on its context's live list
 //!
