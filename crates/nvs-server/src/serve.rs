@@ -1704,14 +1704,14 @@ where
         let published = serving.current.published();
         let snapshot = Arc::clone(published.host());
         let policy = serving.policy(&snapshot);
-        // `rule:errors/http-message-defects`'s two rows `hyper` accepts: a
-        // repeated `Content-Length` and a bare LF in the head. First, so a head
-        // two readers frame differently reaches nothing else, and closing,
-        // because whatever followed it on this connection was framed by that
-        // head.
+        // `rule:errors/http-message-defects`'s three rows `hyper` accepts: a
+        // repeated `Content-Length` and a bare LF in the head, and a path with
+        // a dot-segment or an encoded separator. First, so a head two readers
+        // read differently reaches nothing else, and closing, because whatever
+        // followed it on this connection was read by a proxy that disagreed.
         let index = asked.get();
         asked.set(index + 1);
-        if heads.refused(index) {
+        if heads.refused(index) || crate::mount::path_is_refused(request.uri().path()) {
             phase.set(Phase::Write);
             let mut refused = malformed_head();
             policy.secure.fill(refused.headers_mut(), Scheme::Http);
@@ -9217,6 +9217,53 @@ pub(crate) mod tests {
             );
         }
 
+        // Ambiguous in the path, and refused at the door: a proxy that
+        // normalises it routes by a different path than a mount is selected
+        // by. The answer closes the connection, so the request behind it is
+        // never read.
+        let paths: [(&str, &[u8]); 5] = [
+            (
+                "a dot-dot segment",
+                b"GET /blog/../admin HTTP/1.1\r\nHost: localhost\r\n\r\nGET /smuggled HTTP/1.1\r\nHost: localhost\r\n\r\n",
+            ),
+            (
+                "a single-dot segment",
+                b"GET /./admin HTTP/1.1\r\nHost: localhost\r\n\r\nGET /smuggled HTTP/1.1\r\nHost: localhost\r\n\r\n",
+            ),
+            (
+                "a dot-dot segment percent-encoded",
+                b"GET /blog/%2E%2e/admin HTTP/1.1\r\nHost: localhost\r\n\r\nGET /smuggled HTTP/1.1\r\nHost: localhost\r\n\r\n",
+            ),
+            (
+                "an encoded slash",
+                b"GET /blog%2Fadmin HTTP/1.1\r\nHost: localhost\r\n\r\nGET /smuggled HTTP/1.1\r\nHost: localhost\r\n\r\n",
+            ),
+            (
+                "an encoded backslash",
+                b"GET /blog%5cadmin HTTP/1.1\r\nHost: localhost\r\n\r\nGET /smuggled HTTP/1.1\r\nHost: localhost\r\n\r\n",
+            ),
+        ];
+        for (technique, payload) in paths {
+            let answer = read_back(payload);
+            assert_eq!(
+                responses(&answer),
+                1,
+                "{technique}: the peer got more than the one refusal it is owed: {answer:?}"
+            );
+            assert!(
+                answer.starts_with("HTTP/1.1 400 "),
+                "{technique}: an ambiguous path was not refused: {answer:?}"
+            );
+            assert!(
+                answer.to_ascii_lowercase().contains("connection: close"),
+                "{technique}: the door kept the connection open: {answer:?}"
+            );
+            assert!(
+                !answer.contains("hello "),
+                "{technique}: a refused path reached the handler: {answer:?}"
+            );
+        }
+
         // Two framings at once, which is the pair every published technique is
         // built on. RFC 9112 *disambiguates* this one rather than refusing it —
         // the chunked encoding wins and the length is ignored — and `hyper`
@@ -9283,7 +9330,7 @@ pub(crate) mod tests {
         // The control, and the reason the counting above is worth anything: two
         // requests the peer really did make, down one connection, are answered
         // twice. A door that answered nothing after the first response would
-        // pass all ten rows above and fail here.
+        // pass every row above and fail here.
         let pipelined = read_back(
             b"GET /first HTTP/1.1\r\nHost: localhost\r\n\r\nGET /second HTTP/1.1\r\nHost: localhost\r\n\r\n",
         );
@@ -9295,6 +9342,23 @@ pub(crate) mod tests {
         assert!(
             pipelined.contains("hello /first") && pipelined.contains("hello /second"),
             "a pipelined pair was answered out of its own bodies: {pipelined:?}"
+        );
+
+        // The control for the path rows: a path that is unusual but means the
+        // same to every reader reaches the handler as it was written, and the
+        // connection stays open for the request after it.
+        let unusual = read_back(
+            b"GET /a..b/.hidden/...%252e%2e%2e%2e HTTP/1.1\r\nHost: localhost\r\n\r\nGET /second HTTP/1.1\r\nHost: localhost\r\n\r\n",
+        );
+        assert_eq!(
+            responses(&unusual),
+            2,
+            "an unusual path closed the connection: {unusual:?}"
+        );
+        assert!(
+            unusual.contains("hello /a..b/.hidden/...%252e%2e%2e%2e")
+                && unusual.contains("hello /second"),
+            "an unusual path was not answered as it was written: {unusual:?}"
         );
 
         // The same control behind each body framing, because the head check

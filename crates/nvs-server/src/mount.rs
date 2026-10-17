@@ -46,17 +46,28 @@
 //!
 //! # What a remainder may be
 //!
-//! A URL path segment is percent-decoded first and then has to *spell a name*:
-//! empty, `.`, `..` and anything holding a separator, a NUL or a `:` are refused
-//! outright rather than repaired, which is
-//! `rule:errors/ambiguous-input-refused`'s
-//! direction applied to the one string in this crate that comes from the peer.
-//! Refused means the *step* does not apply, so the request falls through to step
-//! 5 and the mount's entry answers it — a traversal attempt reaches the
-//! application as a path it can 404 by itself, and reaches the filesystem not at
-//! all. The decode runs before the check, so `%2e%2e%2f` is the same refusal
-//! `../` is; a `%` that is not two hex digits is refused rather than taken
-//! literally.
+//! Two refusals stand in front of the table, and one inside it.
+//!
+//! **At the door, a path with a dot-segment or an encoded separator is a `400`
+//! that closes the connection** ([`path_is_refused`], asked by
+//! [`crate::serve`] before anything else reads the request). That is
+//! `rule:errors/http-message-defects`'s path row: a proxy that normalises
+//! `/a/../b` routes by one path while this table would select by another, so
+//! the request reaches no mount and no application. `%2e%2e` is the same
+//! dot-segment `..` is, and `%2F` and `%5C` are refused wherever they stand.
+//!
+//! **Inside the table, a segment is percent-decoded and then has to *spell a
+//! name***: empty, `.`, `..` and anything holding a separator, a NUL or a `:`
+//! decline the step rather than being repaired ([`under`]), which is
+//! `rule:errors/ambiguous-input-refused`'s direction applied to the one string
+//! in this crate that comes from the peer. A declined step falls through to
+//! step 5 and the mount's entry answers, so what reaches here past the door —
+//! `/style.css%00.txt`, `/..;/x`, a raw backslash, a double encoding — meets
+//! the application as a path it can 404 by itself, and the filesystem not at
+//! all. The table keeps the dot and separator checks too, so a caller that
+//! hands [`Table::resolve`] a path the door never saw is held to the same
+//! answer. A `%` that is not two hex digits declines the step rather than being
+//! taken literally.
 //!
 //! Step 3 has one addition to that, and it is lexical too: a remainder ending in
 //! `/` names a directory below the mount root, and § 4's **sole default
@@ -426,6 +437,56 @@ pub fn host_is_refused<B>(request: &Request<B>) -> bool {
         Host::Absent => request.version() == Version::HTTP_11,
         Host::Named(_) => false,
     }
+}
+
+/// Whether the door answers `400` for this request path: a segment that is a
+/// dot-segment, or a segment holding an encoded separator.
+///
+/// `rule:errors/http-message-defects`'s path row. A dot-segment is `.` or `..`
+/// with each dot written plainly or as `%2E`, and an encoded separator is `%2F`
+/// or `%5C`, in either case. A proxy that normalises the path selects its
+/// route by one path and this table would select a mount by another, so the
+/// request is refused before either is chosen. Everything else a segment may
+/// spell goes on to the table, where [`under`] decides what a step may join.
+///
+/// Costs one pass over the path's bytes and allocates nothing.
+#[must_use]
+pub fn path_is_refused(path: &str) -> bool {
+    path.split('/').any(|segment| {
+        let raw = segment.as_bytes();
+        let escapes = || {
+            raw.windows(3)
+                .filter(|window| window[0] == b'%')
+                .map(|window| {
+                    [
+                        window[1].to_ascii_lowercase(),
+                        window[2].to_ascii_lowercase(),
+                    ]
+                })
+        };
+        escapes().any(|hex| hex == *b"2f" || hex == *b"5c") || is_dot_segment(raw)
+    })
+}
+
+/// Whether one segment is `.` or `..`, each dot written plainly or as `%2E`.
+fn is_dot_segment(raw: &[u8]) -> bool {
+    let mut dots = 0;
+    let mut at = 0;
+    while at < raw.len() {
+        if raw[at] == b'.' {
+            at += 1;
+        } else if raw[at..].len() >= 3
+            && raw[at] == b'%'
+            && raw[at + 1] == b'2'
+            && raw[at + 2].eq_ignore_ascii_case(&b'e')
+        {
+            at += 3;
+        } else {
+            return false;
+        }
+        dots += 1;
+    }
+    (1..=2).contains(&dots)
 }
 
 /// One authority as a [`Host`]: the port stripped, then one trailing dot,
@@ -1508,6 +1569,49 @@ mod tests {
             What::Static(p("/www/public/style.css")),
             "and through the prefix the rows above tried to escape from"
         );
+    }
+
+    /// `rule:errors/http-message-defects`'s path row, as the door reads it: a
+    /// dot-segment or an encoded separator is refused, and an unusual path that
+    /// is neither goes on to the table.
+    #[test]
+    fn a_dot_segment_or_an_encoded_separator_is_refused_at_the_door() {
+        for path in [
+            "/..",
+            "/../private/secrets.env",
+            "/assets/./logo.png",
+            "/blog/../../etc/passwd",
+            "/%2e%2e/private/secrets.env",
+            "/%2E%2E/private/secrets.env",
+            "/.%2e/private/secrets.env",
+            "/%2e/style.css",
+            "/%2e%2e%2fprivate/secrets.env",
+            "/..%2f..%2fetc/passwd",
+            "/%2fetc%2fpasswd",
+            "/a%2Fb",
+            "/..%5cprivate%5csecrets.env",
+            "/a%5Cb",
+        ] {
+            assert!(path_is_refused(path), "{path:?} reached the table");
+        }
+        for path in [
+            "/",
+            "/style.css",
+            "/blog/",
+            "//style.css",
+            "/...",
+            "/....//private/secrets.env",
+            "/..;/private/secrets.env",
+            "/a..b/.hidden/..notes",
+            "/%252e%252e/private/secrets.env",
+            "/%2e%2e%2e",
+            "/caf%C3%A9/100%25",
+            "/style.css%00.txt",
+            "/..\\private",
+            "/%2",
+        ] {
+            assert!(!path_is_refused(path), "{path:?} was refused at the door");
+        }
     }
 
     /// A request built with the `Host` lines given, and `target` as its target.

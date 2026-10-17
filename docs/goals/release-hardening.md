@@ -13,7 +13,7 @@ stages:
         rules: [classes/serialize-is-a-closed-format, types/erased-member-access, types/string-is-utf8]
   - id: 2
     title: HTTP framing is refused both ways where the rule says so
-    status: open
+    status: done
     context: [crates/nvs-stdlib/src/http/transport.rs, crates/nvs-server/src/io.rs, crates/nvs-server/src/serve.rs, crates/nvs-server/src/mount.rs, docs/rules/errors/http-message-defects.md]
     extra:
       context:
@@ -138,8 +138,8 @@ an encoded separator, each with a 400 that closes the connection.
 - [x] `frame_of` takes only a final `chunked` as chunked, refuses a repeated or unreadable `Content-Length`, and refuses one beside `Transfer-Encoding`. `crates/nvs-stdlib/src/http/transport.rs:2812`
 - [x] The server refuses a repeated `Content-Length`, even with equal values, which hyper merges. `crates/nvs-server/src/serve.rs:2308`, `crates/nvs-server/src/io.rs:309`
 - [x] The server refuses a bare LF anywhere in the head, which httparse accepts. `crates/nvs-server/src/io.rs:309`
-- [ ] A dot-segment or encoded-separator path is a 400 at the door and never reaches the app. The module doc's fall-through paragraph is rewritten. `crates/nvs-server/src/mount.rs:47`
-- [ ] A test per row, inbound beside the smuggling suite and outbound beside the transport tests. `crates/nvs-server/src/serve.rs:9031`
+- [x] A dot-segment or encoded-separator path is a 400 at the door and never reaches the app. The module doc's fall-through paragraph is rewritten. `crates/nvs-server/src/mount.rs:47`
+- [x] A test per row, inbound beside the smuggling suite and outbound beside the transport tests. `crates/nvs-server/src/serve.rs:9031`
 
 ### 3. the address table denies every non-global address, and an upgrade checks its `Origin`
 
@@ -242,28 +242,32 @@ is `BLOCKED` and names the call.
 
 ### State
 
-Stage 1 is done. Stage 2's outbound half is done: `head_of` refuses each line defect through
-`field_of`, and `frame_of` returns a `Result` and refuses a repeated, unreadable or
-`Transfer-Encoding`-paired `Content-Length` (`crates/nvs-stdlib/src/http/transport.rs:2785`).
+Stages 1 and 2 are done. The door refuses a request path with a dot-segment or an encoded
+separator through `crate::mount::path_is_refused`, asked beside `Heads::refused` and answered with
+the same closing `400` (`crates/nvs-server/src/serve.rs:1714`). The table keeps its own lexical
+check for a caller that hands `Table::resolve` a path directly. The smuggling suite has a `paths`
+table and an unusual-path control row.
 
-The inbound repeated `Content-Length` and bare LF are refused by `crate::heads`, a scanner fed every
-byte in `ConnectionIo::poll_read` (`crates/nvs-server/src/io.rs:457`). It follows each body's framing
-to find the next head, and the service checks `Heads::refused` by request index before anything else
-and answers `400` with `Connection: close` (`crates/nvs-server/src/serve.rs:1616`). Its module doc
-says what it spends.
+The floor's owed atom `tests/hostile/novis/Image-Font/fromBytes/01-bytes-that-pretend-to-be-a-font.nvs`
+is still red. Since the image world is called typed, step 4 no longer runs out of memory: it throws
+`16000004 bytes are not a TrueType or OpenType font`, so the case's `// hostile: ends-early 4 FATAL`
+fails on a clean run. The fix is to drop that marker, the `echo "step 4\n"` line and the memory
+sentence. The loop's permission classifier refused that edit as removing a security test, so the
+user has to make it or allow it.
 
 The nightly ran on the pushed `main`, far behind the local one. Its `docs`, `five-driver matrix`
 and `test / windows-x86_64` failures are fixed locally. Two remain, listed in the backlog.
 
 ### Next
 
-Stage 2's last row, on `crates/nvs-server/src/mount.rs` and `crates/nvs-server/src/serve.rs`
-(`rule:errors/http-message-defects`, `rule:errors/path-component-refusals`):
-- [ ] A dot-segment or encoded-separator request path is a `400` at the door and never reaches the app; rewrite the module doc's fall-through paragraph. `crates/nvs-server/src/mount.rs:54`, `crates/nvs-server/src/mount.rs:508`
-- [ ] Its rows in the smuggling suite's `refused` table, a control row for an unusual but well-formed path, and stage 2 set to `done`. `crates/nvs-server/src/serve.rs:9121`
+Stage 3's address half, on `crates/nvs-config/src/capability.rs` (`rule:security/net-address-policy`):
+- [ ] The table denies the IANA special-purpose ranges: 100.64/10, 192.0.0/24, 198.18/15, multicast, 240/4 and broadcast. `crates/nvs-config/src/capability.rs:262`
+- [ ] 6to4 (2002::/16) and Teredo (2001::/32) are unwrapped to the IPv4 address inside them, as a mapped address is. `crates/nvs-config/src/capability.rs:298`
+- [ ] The rule names what is denied. `docs/rules/security/net-address-policy.md:1`
 
 ### Backlog
 
+- The Font attack above waits on the user's edit or permission (`tests/hostile/novis/Image-Font/fromBytes/01-bytes-that-pretend-to-be-a-font.nvs:3`).
 - CI's Windows warm-start budget still fails. `section::read` now skips nested modules, and a warm `nvs run` is 8.1 ms of work on this host against 6. Resolving the extension tree once per `run`, not three times, is the next cut (`crates/nvs-ext/src/load.rs:567`, `tools/nv/cmd/bench.ts:132`).
 - CI's `proofs` jobs fail on proof debt: stale perf records (`bun nv benches --owed`) and owed proofs (`bun nv proofs --owed`). Stage 10 owns it (`.github/workflows/ci.yml:1`).
 - A forged payload can put an enum case with a backing value the enum does not declare into an enum-typed property, because the tag names no enum (`rule:enums/representation`). Whether a typed read of it is safe is not checked (`crates/nvs-runtime/src/object.rs:5629`).
