@@ -70,8 +70,6 @@ being sorted like one. Nothing is ever renumbered, because a number that moves b
 
 | goals `diagnostic-records`, `formatter-complete`, `cli-housekeeping`, `editor-refactors`, `editor-fixes`, `api-document`, `test-surface`, `mutation-testing`, `trace-timeline`, `bench-counters`, `debugger-core`, `debugger-adapter`, `debug-service`, `debug-viewer`, `request-aware-editor`, `tools-website` | [M10](plan/m10.md) | Developer tooling and IDE integration (~14 weeks; scope shifted by `rule:ide/every-feature-is-staged-behind-its-dependency`, net change undetermined) | ~8 |
 | backlog 4 | [M15](plan/m15.md) | Packages, the registry and the supply chain (~8 weeks) | ~3 + a calendar floor |
-| ongoing | [M17](plan/m17.md) | The image component's second wave (not yet sized) | not estimated |
-
 **One milestone is not one block of schedule, which is why the cell holds a list.** A milestone's work
 can spread across several goals, and a goal may carry no milestone at all. A single number per milestone
 could say none of that, and a chain number could say it only until something was inserted ahead of it.

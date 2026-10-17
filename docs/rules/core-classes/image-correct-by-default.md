@@ -21,7 +21,7 @@ metadata unless a `metadata` step keeps the EXIF block, which an AVIF never carr
 (`extensions/image/src/decode.rs`, `extensions/image/src/encode.rs`,
 `crates/nvs-ext/tests/image_pipeline.rs`). The `Novis\Image` builder's `open` turns both on unless
 its options say `false`. AVIF and JPEG XL inputs are neither oriented nor converted
-(`extensions/image/src/decode.rs:21`); M17's image second wave builds both (`docs/plan/m17.md`).
+(`extensions/image/src/decode.rs:21`); goal `image-second-wave` builds both.
 
 **Declined:**
 - **Keep metadata by default, strip on request.** It is the least surprising default to someone who

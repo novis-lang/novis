@@ -125,7 +125,7 @@ runtime's packaging is a reason to place a candidate.
 
 <a id="core-api-tier-roster"></a>
 
-## Every subsystem's tier is recorded once in the roster, including the ones no milestone has built  *(designed — owned by M17)*
+## Every subsystem's tier is recorded once in the roster, including the ones no milestone has built  *(designed — owned by goal image-second-wave)*
 
 `rule:core-api/tier-roster`
 
@@ -170,7 +170,7 @@ The placements the tests produce, outside the `Core` classes the spec lists:
 tier-boundary guard in `crates/nvs-stdlib/tests/tier_boundary.rs` holds the rule for what is
 registered. The four first-party components are on disk: `extensions/image/`, `extensions/intl/`,
 `extensions/pdf/` and `extensions/spreadsheet/`. The image component has no EXIF reader
-([`core-classes/image-pixel-model`](core-classes.md#core-classes-image-pixel-model)); it is M17's (`docs/plan/m17.md`).
+([`core-classes/image-pixel-model`](core-classes.md#core-classes-image-pixel-model)); it is goal `image-second-wave`'s.
 
 **Declined**, each named so it is not re-proposed:
 - **The procedural `mysqli`, `pgsql` and `sqlite3` APIs.** One database API ([`core-classes/db-one-api`](core-classes.md#core-classes-db-one-api)).

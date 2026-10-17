@@ -3186,7 +3186,7 @@ boundary in one copy each way, and their host bytes are charged to the request a
 
 <a id="core-classes-image-pixel-model"></a>
 
-## Pixels are RGBA8 and nothing else, which retires gd's palettes, mode flags and drawing primitives  *(designed — owned by M17)*
+## Pixels are RGBA8 and nothing else, which retires gd's palettes, mode flags and drawing primitives  *(designed — owned by goal image-second-wave)*
 
 `rule:core-classes/image-pixel-model`
 
@@ -3223,14 +3223,14 @@ What a gd program becomes, one row per concept:
 
 **Partly on disk.** The component works on RGBA8 frames throughout, and a pixel source and the `raw`
 output are RGBA8 rows (`extensions/image/src/lib.rs`). `Image::info` returns `exif` as `null`,
-because the component has no EXIF reader (`extensions/image/src/info.rs:5`); M17's image second
-wave fills it (`docs/plan/m17.md`).
+because the component has no EXIF reader (`extensions/image/src/info.rs:5`); goal
+`image-second-wave` fills it.
 
 <sub>See also [`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline), [`core-classes/image-format-roster`](core-classes.md#core-classes-image-format-roster).</sub>
 
 <a id="core-classes-image-format-roster"></a>
 
-## The format roster is a closed table of decoders and encoders, each naming what implements it  *(designed — owned by M17)*
+## The format roster is a closed table of decoders and encoders, each naming what implements it  *(designed — owned by goal image-second-wave)*
 
 `rule:core-classes/image-format-roster`
 
@@ -3257,8 +3257,8 @@ through `rav1d` on one thread (`extensions/image/src/avif.rs`). JPEG, PNG, WebP,
 encode (`extensions/image/src/encode.rs`, `crates/nvs-ext/tests/image_pipeline.rs`): lossy WebP
 through the libwebp that `extensions/image/build.rs` links, and AVIF through `ravif` on one thread.
 Only the first frame of an animated input is decoded, so `Image::info`'s `frames` is always `1`
-(`extensions/image/src/decode.rs:16`), and APNG is not encoded. M17's image second wave decodes every
-frame of APNG and the other animated formats and reports the real count (`docs/plan/m17.md`). SVG
+(`extensions/image/src/decode.rs:16`), and APNG is not encoded. Goal `image-second-wave` decodes
+every frame of APNG and the other animated formats and reports the real count. SVG
 decodes through `resvg` with an image
 resolver that reads only `data:` URIs and throws `RuntimeError` naming any other `href`
 (`extensions/image/src/svg.rs`); its `<text>` is drawn with the twelve Liberation faces and never a
@@ -3308,7 +3308,7 @@ option of `Image::open` lowers the cap and never raises it
 
 <a id="core-classes-image-correct-by-default"></a>
 
-## `open` orients and converts to sRGB, and `encode` strips metadata unless the plan kept it  *(designed — owned by M17)*
+## `open` orients and converts to sRGB, and `encode` strips metadata unless the plan kept it  *(designed — owned by goal image-second-wave)*
 
 `rule:core-classes/image-correct-by-default`
 
@@ -3335,7 +3335,7 @@ metadata unless a `metadata` step keeps the EXIF block, which an AVIF never carr
 (`extensions/image/src/decode.rs`, `extensions/image/src/encode.rs`,
 `crates/nvs-ext/tests/image_pipeline.rs`). The `Novis\Image` builder's `open` turns both on unless
 its options say `false`. AVIF and JPEG XL inputs are neither oriented nor converted
-(`extensions/image/src/decode.rs:21`); M17's image second wave builds both (`docs/plan/m17.md`).
+(`extensions/image/src/decode.rs:21`); goal `image-second-wave` builds both.
 
 **Declined:**
 - **Keep metadata by default, strip on request.** It is the least surprising default to someone who
