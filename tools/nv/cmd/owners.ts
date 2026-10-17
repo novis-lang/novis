@@ -2,7 +2,7 @@
 // `data/gaps/<crate>/<slug>.json`, and a designed rule is a rule record, `data/rules/<topic>/<slug>.json`,
 // whose `status` is `designed`. Each names one owner: a goal by slug, or a milestone by id. This command
 // classifies each owner against the chain, the goal files and the plan, and `--check` is the gate over
-// both classifications.
+// both classifications and over the prose scan below.
 //
 // The kinds a gap's owner falls into, and what `--check` does with each:
 //
@@ -38,13 +38,14 @@
 // `docs/agent/carried-refusals.md`, the keys in `crates/nvs-stdlib/tests/*-outstanding.txt`, the
 // guard names in `docs/agent/guard-name-debt.md`, and the playbook bullets whose `until` names a state
 // of the tree. It takes their counts and nothing else, since each has a gate over its own discipline.
-// The roster also lists, as a warning, every gap that lives only in prose: a module doc heading that
-// words owed work outside a gap block, a `Known gaps` block that is not the one pointer line to its
-// module's records, and a numbered `gap N` reference. `--prose` lists them alone and exits 1 while
-// any remains; the scan reads Rust sources and tests, crate manifests and conformance cases.
+// The prose scan finds every gap that lives only in prose: a module doc heading that words owed work
+// outside a gap block, a `Known gaps` block that is not the one pointer line to its module's records,
+// and a numbered `gap N` reference. It reads Rust sources and tests, crate manifests and conformance
+// cases. The roster lists its findings, `--prose` lists them alone, and both `--prose` and `--check`
+// exit 1 while any remains, because no owner tag reaches a gap written only in prose.
 //
 //   bun nv owners                 the roster, by kind, gaps and then designed rules
-//   bun nv owners --check         the gate; exit 1 with a line per refused gap or designed rule
+//   bun nv owners --check         the gate; exit 1 with a line per refused gap, designed rule or prose gap
 //   bun nv owners --closes SLUG   exit 1 while any gap or designed rule names that goal, each listed
 //   bun nv owners --deferrals     each milestone owner against its plan file's scope
 //   bun nv owners --registers     one line per register, and how many items each holds
@@ -421,8 +422,8 @@ function report(kinds: Kinds, found: Gap[], regs: Register[], sections: ReturnTy
   reportRegisters(regs);
 }
 
-/** The gate. Its verdict is the gap records' alone, so it reads no other register: a new playbook
- * bullet or outstanding key cannot change it, and `--registers` is where their counts are printed. */
+/** The gap records' half of the gate. It reads no other register: a new playbook bullet or
+ * outstanding key cannot change it, and `--registers` is where their counts are printed. */
 function runCheck(kinds: Kinds): number {
   const bad = REFUSED.flatMap((kind) => kinds[kind].map((g) => ({ ...g, why: g.why ?? WHY[kind]! })))
     .sort((a, b) => cmp(a.module, b.module) || cmp(a.slug, b.slug));
@@ -609,7 +610,8 @@ export async function run(args: string[]): Promise<number> {
   if (has("--prose")) return runProse(found);
   if (has("--check")) {
     const gaps = runCheck(kinds);
-    return Math.max(gaps, ruleVerdict(runRuleCheck(classifyRules(collectRules()))));
+    const rules = ruleVerdict(runRuleCheck(classifyRules(collectRules())));
+    return Math.max(gaps, rules, runProse(found));
   }
   if (has("--untagged")) {
     for (const g of kinds.untagged) console.log(lineOf(g));
