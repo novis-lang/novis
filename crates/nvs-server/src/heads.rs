@@ -33,7 +33,8 @@ use std::rc::Rc;
 
 /// The bytes of one header line the scanner keeps: enough for every
 /// `Content-Length` and `Transfer-Encoding` line a client sends. A longer line
-/// of either is one the scanner cannot read, and stops on.
+/// of either is one the scanner cannot read, and stops on, except that a comma
+/// anywhere in a `Content-Length` line is seen whether it was kept or not.
 const LINE: usize = 64;
 
 /// What the scanner has found on one connection, shared with the service that
@@ -122,6 +123,8 @@ pub struct Scanner {
     len: usize,
     /// Whether the line being read is longer than [`LINE`].
     long: bool,
+    /// Whether the line being read has a comma in it, kept or not.
+    comma: bool,
     framing: Framing,
 }
 
@@ -135,6 +138,7 @@ impl Default for Scanner {
             line: [0; LINE],
             len: 0,
             long: false,
+            comma: false,
             framing: Framing::default(),
         }
     }
@@ -255,6 +259,7 @@ impl Scanner {
 
     /// One more byte of the line being read.
     fn keep(&mut self, byte: u8) {
+        self.comma |= byte == b',';
         if self.len < LINE {
             self.line[self.len] = byte;
             self.len += 1;
@@ -275,6 +280,7 @@ impl Scanner {
         }
         self.len = 0;
         self.long = false;
+        self.comma = false;
     }
 
     /// A header line, read for the two framing headers and nothing else.
@@ -286,9 +292,11 @@ impl Scanner {
         let (name, value) = (&line[..colon], line[colon + 1..].trim_ascii());
         if name.eq_ignore_ascii_case(b"content-length") {
             self.framing.lengths += 1;
-            if value.contains(&b',') {
+            if self.comma {
                 // One line carrying two lengths is the same defect as two
-                // lines carrying one each.
+                // lines carrying one each. The comma is looked for on the
+                // whole line, so a second length past the kept bytes is seen
+                // too.
                 self.framing.lengths += 1;
             }
             let digits = !self.long && !value.is_empty() && value.iter().all(u8::is_ascii_digit);
@@ -375,7 +383,7 @@ mod tests {
 
     #[test]
     fn a_repeated_length_and_a_bare_line_feed_are_refused_in_their_own_request() {
-        let rows: [(&str, &[u8], Vec<bool>); 9] = [
+        let rows: [(&str, &[u8], Vec<bool>); 10] = [
             (
                 "a plain request",
                 b"GET / HTTP/1.1\r\nHost: a\r\n\r\n",
@@ -389,6 +397,11 @@ mod tests {
             (
                 "two equal lengths on one line",
                 b"POST / HTTP/1.1\r\nContent-Length: 2, 2\r\n\r\nok",
+                vec![true],
+            ),
+            (
+                "two equal lengths on one line, the second past the bytes the scanner keeps",
+                b"POST / HTTP/1.1\r\nContent-Length: 2                                                  , 2\r\n\r\nok",
                 vec![true],
             ),
             (
