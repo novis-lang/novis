@@ -856,6 +856,12 @@ impl Ctx {
     /// Promotes a bare [`Pending::Message`] rather than returning `None` for
     /// one: a helper-raised `THROWN` is as catchable as Novis's own, it just has
     /// no backtrace to show.
+    ///
+    /// The promotion is built inside [`crate::budget::Reporting`]. A `FATAL`
+    /// for the memory ceiling can leave the request holding more than its
+    /// ceiling, as a `Core` member's own bookkeeping does when it grows past
+    /// it, and the pre-check in front of the message's string would refuse it.
+    /// The report would then be an object with an empty message.
     #[must_use]
     pub fn take_thrown(&mut self) -> Thrown {
         self.pending_fatal = false;
@@ -865,6 +871,7 @@ impl Ctx {
         let desc = pending
             .class()
             .map_or(std::ptr::null(), |class| self.error_desc(class));
+        let _report = crate::budget::Reporting::begin();
         #[expect(
             unsafe_code,
             reason = "`set_runtime_error_class`'s own contract makes the \
