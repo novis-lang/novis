@@ -383,31 +383,31 @@ work cannot live only in prose again.
   - [x] A `Known gaps` block is a finding unless its first line is the pointer to its own file and a record names that file.
   - [x] `gap N` on any line of a source, test, manifest or conformance case is a finding.
   - [x] `bun nv owners --prose` lists them by kind and exits 1 while any remains; the roster lists them too.
-- [ ] `bun nv owners --check` fails on a prose gap, once `--prose` is empty. `tools/nv/cmd/owners.ts:610`
-- [ ] Every module the scan names gets a record or loses the prose: about 40 numbered "gap N" references remain (`rg -n 'gap [0-9]+' crates tests`), and the prose gaps at `crates/nvs-runtime/src/ctx/error.rs:777` and `crates/nvs-ir/src/ty.rs:224`. `tools/nv/cmd/gaps.ts:30`
+- [x] `bun nv owners --check` fails on a prose gap, once `--prose` is empty. `tools/nv/cmd/owners.ts:610`
+- [x] Every module the scan names gets a record or loses the prose: about 40 numbered "gap N" references remain (`rg -n 'gap [0-9]+' crates tests`), and the prose gaps at `crates/nvs-runtime/src/ctx/error.rs:777` and `crates/nvs-ir/src/ty.rs:224`. `tools/nv/cmd/gaps.ts:30`
 - [ ] No comment cites a decision record: the ~270 "ADR" citations cite the rule that holds the decision, or go (`rg -n '\bADR\b' crates`). `crates/nvs-types/src/lib.rs:1`
 
 ## Handoff
 
 ### State
 
-Stages 1 to 4 and 6 to 13 are done. Stage 6's last item: `Core\Response::stream` takes a fourth
-argument, `?string $mustEnd`, and `Core\Response\Stream::end()` ends the body; a write after it
-throws `LogicError`. `Ctx::end_unfinished_stream` aborts an unended marked stream and writes one error
-record with a `stream` field, from the isolate's finish (`crates/nvs-host/src/isolate.rs`), `nvs run`
-(exit 1) and the context's `Drop`. `Workbook::createForDownload` passes the download's name and
-`finish` calls `end()`. The record is deleted, and `rule:core-classes/spreadsheet-writes-as-a-stream`
-states it. A workbook written to a file or to memory and never finished is not reported; the rule says so.
+Stages 1 to 4 and 6 to 13 are done. Stage 14's first three items are done: `bun nv owners --check` runs
+the prose scan and exits 1 on a finding (`tools/nv/cmd/owners.ts:611`), and the scan is empty. Every
+numbered `gap N` reference is now present-tense prose or cites its record. The assertion-ledger gap is
+`data/gaps/nvs-runtime/an-assertion-outside-a-test-grows-the-ledger.json`, owned by `test-surface`. The
+`Ty::Tagged` known gap was stale: arithmetic, truthiness and an array read through `mixed` all run, and
+the doc says so.
 
-Tree-wide perf drift, not from this change: a `Core` member call now counts as one `calls` per op, so
-every bench declaring `calls 0` fails `--record-perf` (`Core\Str::at` measured `calls 2.000`). The
-`Core\Response\Stream` `length` and `offset` benches fail on it now.
+Found while checking the rewrites: `Core\Router::url(params: …, name: …)` type-checked and then died
+with a FATAL, because lowering read the arguments by position. `ExprInfo::RouteLink` now records
+`params_at` and `settings_at`, lowering evaluates them in written order, and
+`tests/conformance/core/a-route-table-answers-a-url-for-every-route-it-holds.nvst` pins it.
 
-Stage 14's scan: `bun nv owners --prose` lists every gap that lives only in prose and exits 1 while
-any remains (`tools/nv/cmd/owners.ts`'s `outsideBlocks`). `--check` does not read it yet.
+Tree-wide perf drift, not from this goal: a `Core` member call counts as one `calls` per op, so every
+bench declaring `calls 0` fails `--record-perf`.
 
 The nightly run the sweep reports (`39013536848`) tested `e110c9c0b`, which is `origin/main` and far
-behind local `main`; nothing here changes the last session's verdict on each job.
+behind local `main`.
 
 `bun nv rules --render` also rewrites `core-api.md`, `errors.md` and `iteration.md`, and `bun nv render`
 drops `done` from `data/schema/milestone.schema.json`. That drift predates these sessions and is not
@@ -415,11 +415,13 @@ committed.
 
 ### Next
 
-**Stage 14's prose, split by crate across subagents. Files: `tools/nv/cmd/owners.ts`, the module docs `bun nv owners --prose` names.**
+**Stage 14's last item: no comment cites a decision record. About 250 `ADR` citations in about 140 files
+(`rg -n '\bADR\b' crates tests`), split by crate across subagents that run one after another.**
 
-- [ ] Delete each `Known gaps` pointer block whose module no record names, and rewrite each numbered `gap N` reference as present-tense prose or a record (`rule:testing/feature-proofs`'s gap discipline, `tools/nv/cmd/owners.ts:610`).
-- [ ] Make `crates/nvs-runtime/src/ctx/error.rs:777` and `crates/nvs-ir/src/ty.rs:222` records under `data/gaps/`, each naming its owner.
-- [ ] Let `--check` run the prose scan and fail on a finding (`tools/nv/cmd/owners.ts:610`).
+- [ ] `crates/nvs-types` and `crates/nvs-ir`: each `ADR` citation cites the rule that holds the decision (`bun nv peek rule:<id>` to check the id), or is rewritten as present tense. Start at `crates/nvs-types/src/expr/operators.rs:1` (`rule:testing/feature-proofs`, `tools/nv/cmd/rules.ts:1`).
+- [ ] `crates/nvs-stdlib`: the same. Start at `crates/nvs-stdlib/src/registry.rs:1`.
+- [ ] `crates/nvs-config`, `nvs-runtime`, `nvs-server`, `nvs-host`, `nvs-db`, `nvs-cli`, `nvs-diagnostics`, `nvs-codegen`, `nvs-render` and `tests/conformance`: the same. Start at `crates/nvs-diagnostics/src/lib.rs:1`.
+- [ ] Make a check fail on a new `ADR` citation, beside the prose scan (`tools/nv/cmd/owners.ts:242`'s `outsideBlocks`, or `bun nv rules --check`).
 
 ### Backlog
 
