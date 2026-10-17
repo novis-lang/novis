@@ -1,0 +1,29 @@
+--TEST--
+`Core\Serialize::encode` takes no `inout` argument, and the value of an `inout` parameter is encoded as a copy — `rule:security/isolate-values-cross-by-copy`
+--FILE--
+<?nvs
+// An `inout` argument is an alias to the caller's variable. Bytes outlive the
+// call, so the alias cannot be written into them. Reading the parameter gives
+// its value, and the value is encoded.
+class Job {
+    public static function save(inout array<int> $a): void {
+        bytes $b = Core\Serialize::encode($a);
+        echo Core\Bytes::length($b) > 0 ? "encoded" : "empty", "\n";
+    }
+}
+
+// The accepted side: the value of `$a` is encoded.
+array<int> $list = [1, 2];
+Job::save(inout $list);
+
+// Passing the variable itself as `inout` does not compile.
+int $n = 1;
+bytes $refused = Core\Serialize::encode(inout $n);
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0714]: `inout` here names a by-value parameter
+   --> case.nvs:18:41
+%A
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

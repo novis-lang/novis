@@ -1,0 +1,35 @@
+--TEST--
+An anonymous function made in a method that does not use `$this` captures no object, so `bindTo`, `bind` and `call` accept any object or `null` and the call returns the same result — `rule:statements/an-anonymous-function-captures-this-only-where-it-uses-it`, `rule:types/callable-is-the-only-function-type`
+--FILE--
+<?nvs
+// `adder` makes its function inside a method, but the body never reads
+// `$this`. So the function has no `$this`, and binding it changes nothing.
+class Counter {
+    public int $n = 1;
+
+    public function adder(int $base): callable(int): int {
+        return fn (int $x): int => $base + $x;
+    }
+}
+
+class Other {
+    public int $n = 99;
+}
+
+Counter $one = new Counter();
+callable(int): int $add = $one->adder(10);
+echo $add(1), "\n";
+
+// An object of an unrelated class and `null` are both accepted.
+echo $add->bindTo(new Other())(2), "\n";
+echo $add->bindTo(null)(3), "\n";
+echo $add->bind(new Counter())(4), "\n";
+echo $add->call(new Other(), 5), "\n";
+echo $add->call(null, 6), "\n";
+--EXPECT--
+11
+12
+13
+14
+15
+16

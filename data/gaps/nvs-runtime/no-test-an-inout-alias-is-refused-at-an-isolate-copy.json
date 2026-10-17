@@ -1,6 +1,0 @@
-{
-  "module": "crates/nvs-runtime/src/graph.rs",
-  "title": "No test proves an `inout` binding is refused where a value is copied into an isolate.",
-  "text": "`rule:security/isolate-values-cross-by-copy` refuses three things at the boundary, and the third, an `inout` binding, is a frame alias the checker refuses at the copy site (`crates/nvs-runtime/src/graph.rs:62-63`). No Rust test and no `.nvst` case passes an `inout` parameter to `spawn` or to a serialize call and asserts the refusal. Closing it means one conformance case per copy site, each asserting the diagnostic by its code.",
-  "goal": "completeness-holes"
-}
