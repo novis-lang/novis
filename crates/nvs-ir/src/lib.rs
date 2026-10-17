@@ -257,7 +257,9 @@
 //!    table's completeness check applied to the `T` inside the sugar. The other direction —
 //!    a row § 3 calls **available** — has its `?` helper: `$m as ?array<U>` is
 //!    [`ir::Helper::ToArrayOfOrNull`], the same element walk the checked
-//!    spelling runs, answering `null` where that one throws. The text
+//!    spelling runs, answering `null` where that one throws. `$m as ?Shape`
+//!    runs the checked shape row's field walk with a `null` miss arm
+//!    (`lower::Lowering`'s `lower_nullable_shape_conversion`). The text
 //!    targets have theirs:
 //!    [`ir::Helper::ToStringOrNull`] is [`ir::Helper::TaggedAsString`]'s twin
 //!    over one implementation of `rule:types/conversion`'s rows, `bytes`

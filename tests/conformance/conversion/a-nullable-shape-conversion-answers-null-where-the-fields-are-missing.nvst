@@ -1,0 +1,26 @@
+--TEST--
+`as ?Shape` returns the value where it has the shape's fields, and `null` where it does not — `rule:types/conversion`, `rule:expressions/nullable-conversion`
+--FILE--
+<?nvs
+type P = {x: int};
+class Box { public int $y = 2; }
+class T {
+    public static function make(): mixed { return {x: 5}; }
+}
+mixed $m = {x: 1};
+?P $s = $m as ?P;
+echo $s == null ? "null" : $s->x as string, "\n";
+mixed $n = 3;
+echo $n as ?P == null ? "null" : "shape", "\n";
+mixed $w = {x: "no"};
+echo $w as ?P == null ? "null" : "shape", "\n";
+?P $f = T::make() as ?P;
+echo $f == null ? "null" : $f->x as string, "\n";
+object $o = new Box();
+echo $o as ?P == null ? "null" : "shape", "\n";
+--EXPECT--
+1
+null
+null
+5
+null
