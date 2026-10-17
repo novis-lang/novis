@@ -1912,12 +1912,12 @@ struct Signatures {
     /// no `ctx` to raise through and no `out` to write a value to. See
     /// `nvs_ir::ir::InstKind::SlotProbe`.
     slot_probe: Signature,
-    /// `nvs_object_slot_set(ctx, receiver, name, len, hint, value, out) -> status`
-    /// — `rule:types/erased-member-access`'s name-keyed shape *write*. One parameter wider than
-    /// [`Self::slot_get`], because the value travels through a caller-owned
-    /// 16-byte slot the way [`Self::array_value_at`]'s result does *and* the helper
-    /// ABI still writes an (ignored) result of its own; see
-    /// `nvs_ir::ir::InstKind::SlotSet`.
+    /// `nvs_object_slot_set(ctx, receiver, name, len, hint, erased, value, out) -> status`
+    /// — `rule:types/erased-member-access`'s name-keyed shape *write*. Wider than
+    /// [`Self::slot_get`] by the value, which travels through a caller-owned
+    /// 16-byte slot the way [`Self::array_value_at`]'s result does while the helper
+    /// ABI still writes an (ignored) result of its own, and by the `erased` byte;
+    /// see `nvs_ir::ir::InstKind::SlotSet`.
     slot_set: Signature,
     /// `nvs_object_key_get(ctx, receiver, key, out) -> status` — `rule:types/property-key-access`'s
     /// keyed read, which is [`Self::slot_get`]'s helper with the name arriving
@@ -2549,6 +2549,7 @@ impl Signatures {
         slot_set.params.push(AbiParam::new(ptr)); // field name bytes
         slot_set.params.push(AbiParam::new(ptr)); // field name length
         slot_set.params.push(AbiParam::new(types::I64)); // slot hint
+        slot_set.params.push(AbiParam::new(types::I8)); // erased
         slot_set.params.push(AbiParam::new(ptr)); // value
         slot_set.params.push(AbiParam::new(ptr)); // out
         slot_set.returns.push(AbiParam::new(types::I32));

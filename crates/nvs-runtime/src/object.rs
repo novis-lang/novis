@@ -187,8 +187,11 @@
 //! `array<Animal>`. The checker allows no wider *shape* view of an anonymous
 //! object: `rule:types/shape-type` makes a shape value's field types invariant
 //! (`nvs_types::expr::assign::shape_satisfied`). An erased write through
-//! `object` or `mixed` is still checked by tag alone, which is a gap record,
-//! and `bun nv gaps --module crates/nvs-runtime/src/object.rs` lists it.
+//! `object` or `mixed` checks the written value against the slot's current
+//! value instead (`same_shape`), since that value is known to fit the type
+//! every typed read of the slot uses. The check spends nothing per object, and
+//! it refuses some writes the declared type allows, as
+//! `rule:types/erased-member-access` states.
 //!
 //! # Decision: every object is on its context's live list
 //!
@@ -4807,6 +4810,7 @@ pub unsafe extern "C" fn nvs_object_slot_set(
     name: *const u8,
     len: usize,
     hint: usize,
+    erased: bool,
     value: *const Value,
     out: *mut Value,
 ) -> i32 {
@@ -4824,7 +4828,7 @@ pub unsafe extern "C" fn nvs_object_slot_set(
             reason = "the caller guarantees each points at one initialized value"
         )]
         let (receiver, value) = unsafe { (*receiver, *value) };
-        write_erased_property(ctx, receiver, name, hint, value)
+        write_erased_property(ctx, receiver, name, hint, erased, value)
     };
     #[expect(
         unsafe_code,
@@ -4929,7 +4933,7 @@ pub unsafe extern "C" fn nvs_object_key_set(
         )]
         let (receiver, key, value) = unsafe { (*receiver, *key, *value) };
         let name = key_name(&key)?;
-        write_erased_property(ctx, receiver, name, 0, value)
+        write_erased_property(ctx, receiver, name, 0, true, value)
     };
     #[expect(
         unsafe_code,
@@ -5305,6 +5309,7 @@ pub fn write_erased_property(
     receiver: Value,
     name: &str,
     hint: usize,
+    erased: bool,
     value: Value,
 ) -> Result<Value, Fault> {
     let Some(ptr) = receiver.obj_ptr() else {
@@ -5404,6 +5409,30 @@ pub fn write_erased_property(
             "`{}` declares field `{name}` as `{declared}`, so {written} cannot be written to it",
             desc.name()
         )));
+    }
+    // An anonymous object's class is named for its field names alone, so no
+    // declared type belongs to its slots. The value the slot has now is the one
+    // thing known to fit the type every typed read of it uses, so the written
+    // value must have that value's shape. A write through a shape view that
+    // lists the field needs no check, because a shape's field types are
+    // invariant (`rule:types/shape-type`).
+    if erased && desc.is_shape() {
+        #[expect(
+            unsafe_code,
+            reason = "the slot came out of this object's own descriptor, so it is \
+                      inside the allocation and was initialized by `new`"
+        )]
+        let current = unsafe { *field_ptr(ptr, slot) };
+        if let Err(written) = same_shape(current, value, &mut Vec::new()) {
+            let held = if current.tag() == Some(Tag::Unset) {
+                "is not set".to_owned()
+            } else {
+                format!("is {}", describe_written(current))
+            };
+            return Err(Fault::thrown(format!(
+                "field `{name}` of an anonymous object {held}, so {written} cannot be written to it"
+            )));
+        }
     }
     #[expect(
         unsafe_code,
@@ -5538,7 +5567,7 @@ fn check_admitted_class(
             }
             format!("an object of class `{}`", class.name())
         }
-        _ => format!("a {}", value.tag().map_or("malformed value", Tag::describe)),
+        _ => describe_written(value),
     };
     let declared = desc
         .field_type(slot)
@@ -5682,12 +5711,109 @@ fn with_class<R>(value: Value, read: impl FnOnce(&ClassDesc) -> R) -> Option<R> 
     Some(read(unsafe { &*NvsObj::class_of(ptr) }))
 }
 
+/// `Ok` when `value` has `current`'s shape, which is [`write_erased_property`]'s
+/// check for an anonymous object's slot. Otherwise the error describes the
+/// part of `value` that differs, worded as [`SlotCheck::admits`]' is.
+///
+/// The two have one exact tag, and an unset `current` admits nothing. An
+/// object's class conforms to `current`'s class, and when that class is an
+/// anonymous object's, each of its fields has the shape of `current`'s field
+/// of that name. Each element of an array has the shape of some element of
+/// `current`, so an empty `current` admits only an empty array.
+///
+/// `seen` holds the pairs of objects already being compared, so a cycle
+/// through anonymous objects ends. A pair is assumed to match while its own
+/// comparison runs, and a failed attempt at one array element takes back what
+/// it pushed.
+fn same_shape(current: Value, value: Value, seen: &mut Vec<(usize, usize)>) -> Result<(), String> {
+    let tag = current.exact_tag();
+    if tag != value.exact_tag() || tag == Some(Tag::Unset) {
+        return Err(describe_written(value));
+    }
+    if let (Some(held), Some(written)) = (current.as_array(), value.as_array()) {
+        let mut from = 0;
+        while let Some(slot) = written.next_slot(from) {
+            if let Some(item) = written.value_at(slot) {
+                let mut found = Err(describe_written(item));
+                let mut at = 0;
+                while let Some(other) = held.next_slot(at) {
+                    let pushed = seen.len();
+                    found = held
+                        .value_at(other)
+                        .map_or(Ok(()), |model| same_shape(model, item, seen));
+                    if found.is_ok() {
+                        break;
+                    }
+                    seen.truncate(pushed);
+                    at = other + 1;
+                }
+                found.map_err(|inner| format!("an array holding {inner}"))?;
+            }
+            from = slot + 1;
+        }
+        return Ok(());
+    }
+    let held = current.obj_ptr().filter(|ptr| !ptr.is_null());
+    let written = value.obj_ptr().filter(|ptr| !ptr.is_null());
+    let (Some(held), Some(written)) = (held, written) else {
+        return Ok(());
+    };
+    let pair = (held as usize, written as usize);
+    if held == written || seen.contains(&pair) {
+        return Ok(());
+    }
+    #[expect(
+        unsafe_code,
+        reason = "the slot owns a reference to `current` and the caller one to \
+                  `value`, so both objects are live, and a descriptor outlives \
+                  every instance of it"
+    )]
+    let (held_class, written_class) =
+        unsafe { (&*NvsObj::class_of(held), &*NvsObj::class_of(written)) };
+    if !written_class.conforms_to_name(held_class.name()) {
+        return Err(describe_written(value));
+    }
+    if !held_class.is_shape() {
+        return Ok(());
+    }
+    seen.push(pair);
+    for index in 0..held_class.field_count() {
+        let Some(name) = held_class.field_name(index) else {
+            continue;
+        };
+        let Some(other) = written_class.field_slot(name, index) else {
+            return Err(format!("an object with no field `{name}`"));
+        };
+        #[expect(
+            unsafe_code,
+            reason = "each slot came out of its own object's descriptor, so it is \
+                      inside that live allocation and was initialized by `new`"
+        )]
+        let (model, item) = unsafe { (*field_ptr(held, index), *field_ptr(written, other)) };
+        if item.tag() == Some(Tag::Unset) {
+            return Err(format!("an object with no field `{name}`"));
+        }
+        same_shape(model, item, seen)
+            .map_err(|inner| format!("an object whose `{name}` is {inner}"))?;
+    }
+    Ok(())
+}
+
 /// "an object of class `Animal`" or "a string": what a refused write names.
 fn describe_written(value: Value) -> String {
     with_class(value, |class| {
         format!("an object of class `{}`", class.name())
     })
-    .unwrap_or_else(|| format!("a {}", value.tag().map_or("malformed value", Tag::describe)))
+    .unwrap_or_else(|| {
+        let tag = value.tag().map_or("malformed value", Tag::describe);
+        if tag.starts_with("an ") {
+            tag.to_owned()
+        } else if tag.starts_with(['a', 'e', 'i', 'o', 'u']) {
+            format!("an {tag}")
+        } else {
+            format!("a {tag}")
+        }
+    })
 }
 
 /// Overwrites field slot `index` on the object at `ptr`, releasing whatever it

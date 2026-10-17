@@ -2024,6 +2024,7 @@ pub(crate) fn check_property_member(
                         fields[slot].required,
                     ))
                 });
+            let erased = resolved.is_none();
             let (slot, ty, required) = resolved.unwrap_or_else(|| (0, env.interner.mixed(), false));
             let guarded = !required && env.coalesce_guarded.contains(&access_span);
             env.exprs.record(
@@ -2033,6 +2034,7 @@ pub(crate) fn check_property_member(
                     slot,
                     ty,
                     guarded,
+                    erased,
                 },
             );
             if guarded {
@@ -2056,6 +2058,7 @@ pub(crate) fn check_property_member(
                     slot: 0,
                     ty,
                     guarded,
+                    erased: true,
                 },
             );
             return ty;

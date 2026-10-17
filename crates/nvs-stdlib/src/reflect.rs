@@ -2941,7 +2941,7 @@ nvs_runtime::nvs_helper! {
                 class_name_of(subject)
             )));
         }
-        nvs_runtime::write_erased_property(ctx, args[1], name, 0, args[3])
+        nvs_runtime::write_erased_property(ctx, args[1], name, 0, true, args[3])
     }
 }
 
@@ -3519,6 +3519,7 @@ mod tests {
                 name.as_ptr(),
                 name.len(),
                 0,
+                true,
                 std::ptr::from_ref(&value),
                 std::ptr::from_mut(&mut out),
             )

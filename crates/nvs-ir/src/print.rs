@@ -276,10 +276,12 @@ fn print_inst(out: &mut String, inst: &Inst, f: &Function, src: &SourceFile) {
             field,
             slot,
             value,
+            erased,
         } => format!(
-            "slot.set v{}, {field} @{slot}, v{}",
+            "slot.set v{}, {field} @{slot}, v{}{}",
             object.index(),
-            value.index()
+            value.index(),
+            if *erased { ", erased" } else { "" }
         ),
         InstKind::KeyGet { object, key } => {
             format!("key.get v{}, v{}", object.index(), key.index())

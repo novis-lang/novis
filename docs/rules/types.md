@@ -2443,7 +2443,13 @@ For all three:
   catchable throw.
 - **Write:** the same missing-name throw, plus a check of the incoming value against the field's
   *real*, concrete declared type, throwing on a mismatch. A write through an erased view can **never
-  create a field**.
+  create a field**. An anonymous object has no declared class, and its slot carries no declared
+  type, so its write is checked against the value the field has now: the new value has the same
+  exact type, an object's class is the current one's or a subclass of it, a nested anonymous object
+  passes the same check field by field, and each array element has the shape of some current element.
+  This refuses some writes the declared type allows: a `{pet: ?Dog}` field that is `null` takes only
+  `null`, an empty array takes only an empty array, and an absent optional field takes nothing. It
+  spends nothing per object, which a declared type carried by each anonymous object would.
 - **Call:** only `mixed` defers a call. A call through `mixed` is dispatched on the value's own
   descriptor when it runs; a call through a plain `object` or a shape is `E0477`, as the paragraphs
   below say. What cannot be deferred is refused: taking a *method reference* off an erased receiver
