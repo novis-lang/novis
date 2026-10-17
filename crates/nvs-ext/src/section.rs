@@ -5,7 +5,7 @@
 //! made at load. A custom section inside a nested module or component is not the extension's, so
 //! only the outermost component's count.
 
-use wasmparser::{Encoding, Parser, Payload};
+use wasmparser::{Chunk, Encoding, Parser, Payload};
 
 use crate::{Malformed, malformed};
 
@@ -27,25 +27,53 @@ pub struct Sections<'a> {
 
 /// The two sections of the component `bytes`. A core module, bytes that are not WebAssembly, and a
 /// section written twice are refused.
+///
+/// Only the outer component is walked. A nested module or component is skipped by its length and
+/// never parsed: its sections are not the extension's, and the built-in components nest large
+/// ones that every `nvs run` would otherwise read at start.
 pub fn read(bytes: &[u8]) -> Result<Sections<'_>, Malformed> {
     let mut sections = Sections::default();
-    // `parse_all` descends into nested modules and components; each opens with a `Version` and
-    // closes with an `End`, so the depth says whose section a payload is.
-    let mut depth = 0usize;
-    for payload in Parser::new(0).parse_all(bytes) {
-        let payload =
-            payload.map_err(|err| malformed(format!("the file is not WebAssembly: {err}")))?;
-        match payload {
-            Payload::Version { encoding, .. } => {
-                if depth == 0 && encoding == Encoding::Module {
-                    return Err(malformed(
-                        "the file is a WebAssembly module, not a component",
-                    ));
-                }
-                depth += 1;
+    let mut parser = Parser::new(0);
+    let mut rest = bytes;
+    loop {
+        let (payload, consumed) = match parser
+            .parse(rest, true)
+            .map_err(|err| malformed(format!("the file is not WebAssembly: {err}")))?
+        {
+            Chunk::Parsed { payload, consumed } => (payload, consumed),
+            Chunk::NeedMoreData(_) => {
+                return Err(malformed(
+                    "the file is not WebAssembly: it ends inside a section",
+                ));
             }
-            Payload::End(_) => depth = depth.saturating_sub(1),
-            Payload::CustomSection(custom) if depth == 1 => {
+        };
+        rest = &rest[consumed..];
+        match payload {
+            Payload::Version {
+                encoding: Encoding::Module,
+                ..
+            } => {
+                return Err(malformed(
+                    "the file is a WebAssembly module, not a component",
+                ));
+            }
+            // The outer parser has already counted these bytes, so they are stepped over here.
+            Payload::ModuleSection {
+                unchecked_range, ..
+            }
+            | Payload::ComponentSection {
+                unchecked_range, ..
+            } => {
+                let len = usize::try_from(unchecked_range.end - unchecked_range.start)
+                    .ok()
+                    .filter(|len| *len <= rest.len())
+                    .ok_or_else(|| {
+                        malformed("the file is not WebAssembly: a nested module runs past its end")
+                    })?;
+                rest = &rest[len..];
+            }
+            Payload::End(_) => return Ok(sections),
+            Payload::CustomSection(custom) => {
                 let slot = match custom.name() {
                     MANIFEST => &mut sections.manifest,
                     SOURCE => &mut sections.source,
@@ -62,5 +90,4 @@ pub fn read(bytes: &[u8]) -> Result<Sections<'_>, Malformed> {
             _ => {}
         }
     }
-    Ok(sections)
 }
