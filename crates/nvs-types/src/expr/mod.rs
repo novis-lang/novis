@@ -95,10 +95,7 @@ pub(crate) use self::{
         resolve_class_expr,
     },
     operators::{reject_carrier_as_text, reject_disjoint_equality, require_stringable},
-    quals::{
-        reject_secret_attribute_constant, reject_secret_output,
-        reject_untainted_text_from_unchecked,
-    },
+    quals::{reject_secret_attribute_constant, reject_secret_output},
 };
 
 /// Public because `nvs-ir` asks the same roster this crate does: a `Core` class

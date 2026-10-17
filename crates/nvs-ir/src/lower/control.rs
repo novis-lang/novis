@@ -990,9 +990,9 @@ impl<'a> Lowering<'a> {
         // `nvs_types::ExprTypeTable::foreach_drive`.
         let drive = self.exprs.foreach_drive(subject.span).unwrap_or_else(|| {
             panic!(
-                "nvs-ir: the `foreach` subject at {:?} has no recorded `ForeachDrive` — either \
-                 it erased to `mixed` (unsupported, see the crate docs' known gaps) or this \
-                 program did not pass nvs_types::check_program with the same table",
+                "nvs-ir: the `foreach` subject at {:?} has no recorded `ForeachDrive`, so this \
+                 program did not pass nvs_types::check_program with the same table: the checker \
+                 refuses every other subject, `mixed` and `iterable` included, as E0443",
                 subject.span
             )
         });

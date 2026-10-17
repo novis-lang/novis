@@ -1568,7 +1568,8 @@ pub mod code {
     /// from being another implicit-dispatch site.
     pub const E_FOREACH_SUBJECT_NOT_ITERABLE: Code = Code::new("E0443").card(
         "`foreach` can loop over an `array`, an `Iterable` or an `Iterator`, and this value is \
-         none of them. Loop over an array, or make the class implement `Iterable` or `Iterator`.",
+         none of them. Loop over an array, or make the class implement `Iterable` or `Iterator`. \
+         Convert a `mixed` value first: write `$value as array<mixed>`.",
     );
     /// A `foreach ($x as $k => $v)` key binding over an `Iterable`/`Iterator`
     /// subject. `rule:iteration/two-interfaces` gives a cursor exactly `advance()` and

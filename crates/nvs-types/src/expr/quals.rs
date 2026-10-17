@@ -233,10 +233,8 @@ fn untainted_shape_text(ty: TypeId, interner: &TypeInterner) -> bool {
 
 /// `rule:security/taint-propagation`'s one refusal: text out of `mixed` is
 /// `tainted`, and where it would land in a type the program wrote, the
-/// program writes the qualifier. `target` is that type — a shape converted
-/// or tested into from `from`, or a `foreach` binding over a `from` subject
-/// (`binding` is then `true`, and every text atom counts, not only a shape's).
-/// Returns whether it reported.
+/// program writes the qualifier. `target` is that type: a shape converted or
+/// tested into from `from`. Returns whether it reported.
 ///
 /// The bit is never added to a written shape for the program
 /// (`rule:security/tainted-qualifier`): a declaration that understates the
@@ -245,32 +243,21 @@ fn untainted_shape_text(ty: TypeId, interner: &TypeInterner) -> bool {
 pub(crate) fn reject_untainted_text_from_unchecked(
     from: TypeId,
     target: TypeId,
-    binding: bool,
     span: Span,
     env: &mut Env<'_>,
 ) -> bool {
-    let unchecked = if binding {
-        matches!(env.interner.get(from), Ty::Mixed | Ty::Iterable)
-    } else {
-        fields_unchecked(from, env.interner) || untainted_field_from_outside(from, target, env)
-    };
+    let unchecked =
+        fields_unchecked(from, env.interner) || untainted_field_from_outside(from, target, env);
     let shape = untainted_shape_text(target, env.interner);
-    let text = shape || (binding && crate::derive::unqualified_text(target, env.interner));
-    if !unchecked || !text {
+    if !unchecked || !shape {
         return false;
     }
     let source = env.interner.describe(from);
     let written = env.interner.describe(target);
-    let fix = if shape {
-        "tainted {…}".to_owned()
-    } else {
-        let tainted = tainted_result(target, env.interner);
-        env.interner.describe(tainted)
-    };
     env.diags.report(
         Diagnostic::error(
             code::E_UNCHECKED_TEXT_NOT_TAINTED,
-            format!("`{written}` gets its text from `{source}`, so it must be `{fix}`"),
+            format!("`{written}` gets its text from `{source}`, so it must be `tainted {{…}}`"),
         )
         .with_primary(span, format!("this is `{written}`"))
         .with_help(

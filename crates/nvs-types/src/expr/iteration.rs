@@ -122,9 +122,9 @@ pub(crate) enum ForeachSource {
         /// already.
         via_iterable: bool,
     },
-    /// `mixed`, or a subject already diagnosed as something else — check
-    /// nothing further and let the written binding types stand, so one
-    /// mistake produces one diagnostic.
+    /// A subject that is diagnosed: none of the three shapes, `mixed` or
+    /// `iterable` included. Check nothing further and let the written
+    /// binding types stand, so one mistake produces one diagnostic.
     Unchecked,
 }
 
@@ -169,10 +169,12 @@ pub(crate) fn classify_foreach_source(
 ) -> ForeachSource {
     match env.interner.get(subject_ty).clone() {
         Ty::Array(elem) => ForeachSource::Array { value: elem },
-        // `mixed` is the one unchecked position (`rule:types/declaration`) and `iterable`
-        // is a keyword `rule:iteration/two-interfaces` leaves untouched — neither is a mistake, and
-        // neither carries an element type to check a binding against.
-        Ty::Mixed | Ty::Iterable => ForeachSource::Unchecked,
+        // Neither `mixed` nor `iterable` says which of the three loops to
+        // run, so the subject is converted where it is written.
+        Ty::Mixed | Ty::Iterable => {
+            report_unchecked_subject(subject_ty, span, env);
+            ForeachSource::Unchecked
+        }
         Ty::Class(qname, args) => {
             if qname.is_reserved_global_interface()
                 && let Some(&value) = args.first()
@@ -221,6 +223,24 @@ pub(crate) fn report_not_iterable(subject_ty: TypeId, span: Span, env: &mut Env<
             "`rule:iteration/foreach-subjects`: `foreach` accepts an `array<T>`, an `Iterable<T>` or an \
              `Iterator<T>`, and nothing else",
         ),
+    );
+}
+
+/// A `mixed` or `iterable` subject: `rule:iteration/foreach-subjects` refuses it, and the help
+/// names the conversion that makes it an array.
+fn report_unchecked_subject(subject_ty: TypeId, span: Span, env: &mut Env<'_>) {
+    let got = env.interner.describe(subject_ty);
+    env.diags.report(
+        Diagnostic::error(
+            code::E_FOREACH_SUBJECT_NOT_ITERABLE,
+            format!("`foreach` cannot iterate a `{got}`"),
+        )
+        .with_primary(span, format!("this is `{got}`"))
+        .with_help(format!(
+            "`foreach` needs an array, an `Iterable<T>` or an `Iterator<T>`. Convert the value \
+             first: `foreach (($value as array<mixed>) as ...)`. The conversion throws a \
+             `RuntimeError` if the `{got}` is not an array"
+        )),
     );
 }
 
@@ -381,6 +401,10 @@ pub(crate) fn check_foreach_key(
     binding: &ForeachBinding,
     env: &mut Env<'_>,
 ) {
+    // The subject is already diagnosed, so its key is not a second mistake.
+    if matches!(source, ForeachSource::Unchecked) {
+        return;
+    }
     let string = env.interner.string();
     if declared == string && given != string {
         report_untainted_outside_key(declared, binding.span, env);

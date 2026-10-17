@@ -121,7 +121,7 @@ fn infer_against_type(
     let tested = lower_type(ty, ctx, env);
     let subject = check_expr(inner, None, live, scope, ctx, env);
     if reject_unanswerable_target(tested, subject, expr.span, env)
-        || reject_untainted_text_from_unchecked(subject, tested, false, expr.span, env)
+        || reject_untainted_text_from_unchecked(subject, tested, expr.span, env)
     {
         return env.interner.bool_ty();
     }
@@ -168,7 +168,7 @@ pub(crate) fn accept_shape_conversion(
     if !matches!(env.interner.get(to), Ty::Shape(_)) || qualified_atom(to, true, env).is_some() {
         return false;
     }
-    if reject_untainted_text_from_unchecked(from, to, false, span, env) {
+    if reject_untainted_text_from_unchecked(from, to, span, env) {
         return true;
     }
     if always_holds(from, to, env) {
@@ -332,7 +332,7 @@ fn qualified_atom(tested: TypeId, secret_only: bool, env: &Env<'_>) -> Option<Ty
 /// converting, and `is` asks for the tag it does not carry. Unions are
 /// decomposed here rather than left to [`is_assignable`] so that the exception
 /// is reached at every atom, not only at the top.
-fn always_holds(subject: TypeId, tested: TypeId, env: &mut Env<'_>) -> bool {
+pub(crate) fn always_holds(subject: TypeId, tested: TypeId, env: &mut Env<'_>) -> bool {
     if matches!(env.interner.get(tested), Ty::Mixed) {
         return true;
     }

@@ -1,11 +1,11 @@
 --TEST--
-a `foreach` key over `mixed`, or over an array whose values are tainted or `mixed`, can come from outside the program, so it binds as `tainted string` and a plain `string` key is refused — `rule:security/taint-propagation`, `rule:iteration/foreach-subjects`
+a `foreach` key over an array whose values are tainted or `mixed` can come from outside the program, so it binds as `tainted string` and a plain `string` key is refused — `rule:security/taint-propagation`, `rule:iteration/foreach-subjects`
 --FILE--
 <?nvs
 var $db = Core\Db::connect("main");
 
 // A plain `string` key over each kind of outside key is refused.
-foreach (Core\Request::json() as string $field => mixed $v) {
+foreach ((Core\Request::json() as array<mixed>) as string $field => mixed $v) {
 }
 foreach (Core\Request::queryArray("filter") as string $name => tainted string $w) {
 }
@@ -39,7 +39,7 @@ path = ":memory:"
 
 --EXPECTF-ERROR--
 error[E0851]: this key can come from outside the program, so it must be `tainted string`
-  --> case.nvs:5:34
+  --> case.nvs:5:52
 %A
 error[E0851]: this key can come from outside the program, so it must be `tainted string`
   --> case.nvs:7:48

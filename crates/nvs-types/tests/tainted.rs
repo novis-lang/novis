@@ -513,8 +513,6 @@ fn a_shape_or_binding_receiving_text_out_of_mixed_must_be_written_tainted() {
         ("$p = ($m as {n: int})->n;", false),
         ("if ($m is {n: string}) {}", true),
         ("if ($m is tainted {n: string}) {}", false),
-        ("foreach ($m as string $v) {}", true),
-        ("foreach ($m as tainted string $v) {}", false),
     ] {
         let diags = check_in_method(&format!("mixed $m = 1;\n{line}\n"));
         let got = diags
@@ -527,8 +525,10 @@ fn a_shape_or_binding_receiving_text_out_of_mixed_must_be_written_tainted() {
 #[test]
 fn a_foreach_key_from_outside_the_program_must_be_written_tainted() {
     for (line, refused) in [
-        ("foreach ($m as string $k => mixed $v) {}", true),
-        ("foreach ($m as tainted string $k => mixed $v) {}", false),
+        (
+            "foreach (($m as array<mixed>) as string $k => mixed $v) {}",
+            true,
+        ),
         ("foreach ($am as string $k => mixed $v) {}", true),
         ("foreach ($ts as string $k => tainted string $v) {}", true),
         (

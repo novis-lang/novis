@@ -133,12 +133,13 @@ fn yield_from_and_a_keyed_yield_are_both_refused() {
     }
 }
 
-/// `mixed` is the one unchecked position (`rule:types/declaration`), so it neither
-/// yields an element type nor is refused as a subject. Its text is `tainted`
-/// (`rule:security/taint-propagation`), so a text binding says so.
+/// A `mixed` subject does not say which of the three loops to run, so
+/// `rule:iteration/foreach-subjects` refuses it where it is written, and the
+/// same value converted to `array<mixed>` is accepted. Its keys are `tainted`
+/// (`rule:security/taint-propagation`), so the key binding says so.
 #[test]
-fn a_mixed_subject_is_neither_checked_nor_refused() {
-    let diags = check_src(
+fn a_mixed_subject_is_refused_and_its_conversion_is_not() {
+    let refused = check_src(
         "<?nvs\n\
          class T {\n\
          \x20 function m(mixed $x): void {\n\
@@ -146,5 +147,15 @@ fn a_mixed_subject_is_neither_checked_nor_refused() {
          \x20 }\n\
          }\n",
     );
-    assert!(!diags.has_errors(), "{diags:?}");
+    let codes: Vec<_> = refused.iter().filter_map(|d| d.code).collect();
+    assert_eq!(codes, [code::E_FOREACH_SUBJECT_NOT_ITERABLE], "{refused:?}");
+    let converted = check_src(
+        "<?nvs\n\
+         class T {\n\
+         \x20 function m(mixed $x): void {\n\
+         \x20\x20 foreach (($x as array<mixed>) as tainted string $k => mixed $v) { echo $k; }\n\
+         \x20 }\n\
+         }\n",
+    );
+    assert!(!converted.has_errors(), "{converted:?}");
 }

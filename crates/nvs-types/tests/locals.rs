@@ -338,12 +338,18 @@ fn foreach_var_keeps_the_element_types_qualifiers() {
     assert_eq!(codes, [code::E_TYPE_MISMATCH]);
 }
 
-/// What a `var` local over a `mixed` initializer gets.
+/// What a `var` binding over the elements of an `array<mixed>` gets.
 #[test]
-fn foreach_var_over_a_mixed_subject_is_mixed() {
-    let accepts = codes_in("mixed $m", "foreach ($m as var $x) { $x = 'a'; $x = 1; }\n");
+fn foreach_var_over_mixed_elements_is_mixed() {
+    let accepts = codes_in(
+        "mixed $m",
+        "foreach (($m as array<mixed>) as var $x) { $x = 'a'; $x = 1; }\n",
+    );
     assert!(accepts.is_empty(), "{accepts:?}");
-    let narrows = codes_in("mixed $m", "foreach ($m as var $x) { string $s = $x; }\n");
+    let narrows = codes_in(
+        "mixed $m",
+        "foreach (($m as array<mixed>) as var $x) { string $s = $x; }\n",
+    );
     assert_eq!(narrows, [code::E_TYPE_MISMATCH]);
 }
 

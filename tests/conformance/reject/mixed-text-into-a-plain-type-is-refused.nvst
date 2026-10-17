@@ -28,9 +28,6 @@ if ($m is {name: string}) {
 }
 object $o = {name: "x"};
 echo ($o as {name: string})->name, "\n";
-foreach ($m as string $v) {
-    echo $v;
-}
 --FILE nvs.toml--
 [capabilities.db]
 connect = ["main"]
@@ -74,8 +71,5 @@ error[E0851]: `{name: string}` gets its text from `mixed`, so it must be `tainte
 error[E0851]: `{name: string}` gets its text from `object`, so it must be `tainted {…}`
    --> case.nvs:27:7
 %A
-error[E0851]: `string` gets its text from `mixed`, so it must be `tainted string`
-   --> case.nvs:28:16
-%A
-error: aborting due to 12 errors
+error: aborting due to 11 errors
 To read what a code means and how to fix it, run `nvs agent show <code>`.
