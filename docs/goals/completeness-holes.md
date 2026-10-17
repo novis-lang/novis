@@ -348,6 +348,11 @@ the class, and a check fails for a diagnostic code no test raises.
 **Does:** each `no-test-*` record and the examples record is closed by the test it names.
 
 - [ ] Each record under `data/gaps/` whose slug starts `no-test-` gets its test, and the record is deleted. `crates/nvs-db/src/pg.rs:6081`
+  - [x] An `inout` alias at both copy sites: E0793 for a spawn entry, E0714 at `Core\Serialize::encode`.
+  - [x] `bindTo`, `bind` and `call` on a function a method made without `$this`.
+  - [x] A derived decoder reporting four bad fields, and a revealed secret crossing spawn, worker and serialize.
+  - [ ] A failed pool reset destroys the connection for MySQL, SQL Server and SQLite.
+  - [ ] The four `nvs-cli`, `nvs-codegen` and `nvs-stdlib` records.
 - [ ] `examples/*.nvs` run in a test the compiler and runtime reach. `data/gaps/nv/the-examples-run-end-to-end-only-under-valgrind.json:1`
 
 ### 14. a prose known gap without a record fails a check
@@ -363,47 +368,45 @@ work cannot live only in prose again.
 
 ### State
 
-Stages 1 to 4 and 8 to 12 are done. This session closed stage 12's last item in one slice:
+Stages 1 to 4 and 8 to 12 are done. This session closed four of stage 13's ten `no-test-*` records
+in two slices, with no change to the compiler or runtime:
 
-- `crates/nvs-diagnostics/tests/every_code_is_tested.rs` fails for a code in `code::ALL` that no test
-  names as `[E…]`, `"E…"` or `code::NAME`. It walks `crates/` and `tests/`, and skips
-  `nvs-diagnostics/src`, whose renderer tests use codes as examples.
-- E0104, W1001 and W1004 were declared and raised by nothing. They are retired like W1002, and the
-  rule fragment that named W1004 no longer does. An unclosed bracket is E0101 `expected }`.
-- New tests: reject cases for E0001, E0004 and E0005 under `tests/conformance/reject/`, E0641 in
-  `crates/nvs-cli/tests/run_command.rs`, and W1013 to W1019 in `crates/nvs-lsp/tests/completion_files.rs`.
-  E0004's card now says what the lexer checks: only a broken `\u{...}` escape.
+- `tests/conformance/reject/a-spawn-entry-cannot-declare-an-inout-parameter.nvst` (E0793) and
+  `tests/conformance/reject/serialize-encode-takes-no-inout-argument.nvst` (E0714) pin the `inout`
+  refusal at both copy sites. Each also compiles an `inout` parameter read as a value at that site.
+- `tests/conformance/callables/an-anonymous-function-made-in-a-method-without-this-binds-to-any-object.nvst`
+  binds such a function to an unrelated object and to `null`.
+- `tests/conformance/core/a-derived-decoder-reports-four-bad-fields-in-one-parse-error.nvst` and
+  `tests/conformance/isolate/a-revealed-secret-crosses-a-spawn-a-worker-and-serialize.nvst`, and
+  `crates/nvs-types/tests/secret.rs`'s accepted half now calls `Core\Secret::reveal` for real.
+
+`bun nv try` writes its snippet under `.agent-tmp/` alone, so a probe with a `--FILE x--` section
+runs through `target/debug/nvs.exe test <case>` instead.
 
 `bun nv rules --render` also rewrites `core-api.md`, `core-classes.md`, `errors.md` and
 `iteration.md`, and `bun nv render` drops `done` from `data/schema/milestone.schema.json`. That drift
-predates this session and is not committed here.
+predates these sessions and is not committed.
 
-Stage 6's two items are on disk. Its remainder is
-`data/gaps/nvs-ext/a-workbook-never-finished-is-neither-logged-nor-cut-off.json`: no Novis member
-can abort a response.
+Stage 6's remainder is `data/gaps/nvs-ext/a-workbook-never-finished-is-neither-logged-nor-cut-off.json`:
+no Novis member can abort a response. Stage 5's typed path, stage 1's second hole and stage 7's two
+records are questions for the user, each in its record (Backlog).
 
-Stage 5's typed path is a question for the user, with its three choices in
-`data/gaps/nvs-ext/bytes-cross-one-val-per-byte.json`. Stage 1's second hole is a question for the
-user: `data/gaps/nvs-runtime/a-wider-shape-view-writes-an-object-of-the-wrong-class.json`. Stage 7 is
-two questions for the user: `data/gaps/nvs-config/debug-mode-is-read-by-nothing.json` and
-`data/gaps/nvs-db/span-renders-on-a-flag-no.json`.
-
-The nightly still tests `cb7021a24` (`gh run view 38869457440`). The local `main` is about 190
-commits ahead and not pushed, so its failures are the old tree's until the user pushes.
+The nightly still tests `cb7021a24` (`gh run view 38869457440`). The local `main` is far ahead and
+not pushed, so its failures are the old tree's until the user pushes.
 
 ### Next
 
-**Stage 13: the ten `data/gaps/*/no-test-*.json` records, starting with the three in `nvs-runtime` and `nvs-types`.**
+**Stage 13: the pool-reset record, then the `nvs-stdlib` one. Files: `crates/nvs-db/src/{mysql,sqlite}.rs`, `crates/nvs-db/src/tds/`.**
 
-- [ ] `no-test-an-inout-alias-is-refused-at-an-isolate-copy` and `no-test-bindto-on-a-method-closure-that-does-not-name-this` get their tests, and the records are deleted (`rule:testing/feature-proofs`). `data/gaps/nvs-runtime/no-test-an-inout-alias-is-refused-at-an-isolate-copy.json:1`
-- [ ] `no-test-a-derive-error-listing-four-fields` and `no-test-a-revealed-secret-crossing-spawn-and-serialize` get their cases (`rule:testing/feature-proofs`). `data/gaps/nvs-types/no-test-a-derive-error-listing-four-fields.json:1`
-- [ ] `no-test-a-failed-pool-reset-destroys-the-connection-outside-postgres` (`rule:testing/feature-proofs`). `crates/nvs-db/src/pg.rs:6081`
+- [ ] `no-test-a-failed-pool-reset-destroys-the-connection-outside-postgres`: the PostgreSQL test's two halves (a by-value signature coercion, and the goodbye after a refused `reset_session`) for MySQL, SQL Server and SQLite (`rule:security/db-pool-reset-is-a-boundary`). `crates/nvs-db/src/pg.rs:6081`, `crates/nvs-db/src/mysql.rs:2003`, `crates/nvs-db/src/sqlite.rs:1327`
+- [ ] `no-test-core-server-request-members-in-a-spawned-child`: one case per request member, called in a spawned child (`rule:security/request-state-throws-in-an-isolate`). `data/gaps/nvs-stdlib/no-test-core-server-request-members-in-a-spawned-child.json:1`
+- [ ] The three `nvs-cli` records and the `nvs-codegen` one, each its own slice (`rule:testing/feature-proofs`). `data/gaps/nvs-cli/no-test-hot-reload-makes-no-stat-per-request.json:1`
 
 ### Backlog
 
 - Stage 6's last item needs a way for Novis code to abort a response body, such as an `abort` method on `Core\Response\Stream`, a new method that states its trade-offs first (`data/gaps/nvs-ext/a-workbook-never-finished-is-neither-logged-nor-cut-off.json`).
-- Four wait on the user: stage 7's two records, the wider-shape-view hole, and stage 5's typed path with its full-size image arms (each record above), plus `Markup + Markup` in place (`docs/perf/performance-pass.md:257`).
+- Four wait on the user: `data/gaps/nvs-config/debug-mode-is-read-by-nothing.json`, `data/gaps/nvs-db/span-renders-on-a-flag-no.json`, `data/gaps/nvs-runtime/a-wider-shape-view-writes-an-object-of-the-wrong-class.json` and stage 5's typed path in `data/gaps/nvs-ext/bytes-cross-one-val-per-byte.json`, plus `Markup + Markup` in place (`docs/perf/performance-pass.md:257`).
 - `rule:security/isolate-shares-nothing` says a *required* parameter `args:` omits is the error, but `entry_names_agree` and `check_literal_args` need every parameter, defaults included. Decide which is right and make the two agree (`crates/nvs-stdlib/src/script.rs:970`).
-- Two tests fail under the full verify's load and pass alone, causes not found: `test_request_dispatches_in_process_through_the_compiled_route_table` returned an empty body (`crates/nvs-cli/src/runner.rs:3410`), and `live_edit`'s `a_file_that_changes_during_a_compile_discards_that_compile` and `a_link_switch_during_a_compile_never_builds_a_program_from_both_releases` saw no swap within 30s (`crates/nvs-cli/tests/live_edit.rs:1010`).
+- Tests that fail under the full verify's load and pass alone, causes not found: `test_request_dispatches_in_process_through_the_compiled_route_table` (`crates/nvs-cli/src/runner.rs:3410`) and two `live_edit` swaps (`crates/nvs-cli/tests/live_edit.rs:1010`).
 - Proof debt fails CI's `proofs` jobs: stale perf records (`bun nv benches --owed`) and the `Core\Test\Outcome`/`Summary` proofs (`bun nv proofs --owed`) (`.github/workflows/ci.yml:1`).
 - A per-connection child refused a stack is dropped unrun, so its client likely sees the socket close and no `503`; not checked (`crates/nvs-server/src/serve.rs:95`).
