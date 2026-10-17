@@ -1569,7 +1569,7 @@ pub fn lower_property_hook(
 /// Who enters a script frame — which is the whole of what a file that runs
 /// out of statements answers with.
 ///
-/// The two ADRs disagree here on purpose, and neither value is derivable
+/// The two rules cited below disagree here on purpose, and neither value is derivable
 /// from the other at run time: by the time a `spawn script` child's answer
 /// reaches `nvs_host::Isolate`'s join it is one `Value`, and an explicit
 /// `return 1` is indistinguishable from a fall-through. So the difference is
@@ -1643,11 +1643,11 @@ pub fn lower_script(
     if !low.is_terminated(cur) {
         low.release_all_locals(cur, &env, None);
         // Whoever entered the frame decides what running out of statements
-        // means, and the two ADRs disagree on purpose — see [`ScriptRole`].
+        // means, and the two rules disagree on purpose — see [`ScriptRole`].
         // Either way the seal is a value rather than the
         // `Terminator::Return(None)` `lower_method` uses: a `Ty::Tagged`
         // frame always hands a value back, and the one place that would
-        // otherwise be free is exactly the one those ADRs pin.
+        // otherwise be free is exactly the one those rules pin.
         let (raw, raw_ty) = match role {
             ScriptRole::Required => (low.emit(cur, Ty::Int, InstKind::ConstInt(1)).0, Ty::Int),
             ScriptRole::Entry => (low.emit(cur, Ty::Null, InstKind::ConstNull).0, Ty::Null),

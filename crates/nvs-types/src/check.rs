@@ -5,7 +5,7 @@
 //! body is a function, so its variables are locals". That frame is threaded
 //! across `namespace { ... }` blocks, since a namespace scopes names rather
 //! than storage, and it is entirely separate from every method's own frame:
-//! a file-scope local is unreachable from a function, exactly as that ADR's
+//! a file-scope local is unreachable from a function, exactly as that rule's
 //! storage-class table says.
 //!
 //! Mirrors [`nvs_hir::members`]'s own walk shape: [`check_stmts`] tracks

@@ -10,7 +10,8 @@
 //! something else lets the written binding types stand rather than reporting
 //! twice.
 //!
-//! `yield`'s rules are the same ADR's § 1 and § 5: there is no key half
+//! `yield`'s rules are `rule:iteration/generators` and
+//! `rule:iteration/one-way-only`: there is no key half
 //! (`Iterator<T>` has exactly `advance()` and `current()`), a bare `yield`
 //! with no value has no `T` to produce, and `yield from` does not exist —
 //! `foreach ($inner as T $v) { yield $v; }` is what it was a second spelling

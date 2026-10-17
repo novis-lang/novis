@@ -26,7 +26,7 @@
 //! also fire for the same expression); [`report_call_on_non_callable`] refuses
 //! `$obj(...)` for any `$obj` whose static type is a resolved class — Novis has
 //! no `__invoke`, so no class ever makes `()` mean anything else.
-//! [`check_anon_fn`] is the other half of the same ADR pair: an anonymous
+//! [`check_anon_fn`] is the other half of `rule:types/callable-values`: an anonymous
 //! function's body is checked like any other body, and it owns `rule:types/anonymous-function`'s
 //! capture rule and the one shape it refuses (a block body with no declared
 //! return type).
@@ -480,7 +480,7 @@ pub(crate) fn infer_static_call(
         // whole value. See [`reject_secret_encoded_argument`].
         reject_secret_encoded_argument(owner, name, args, &arg_types, env);
         // `rule:security/secret-sinks-refuse`'s log sink, the fourth — and the one whose open type is
-        // that ADR's own decision rather than a member's convenience, which is
+        // that rule's own decision rather than a member's convenience, which is
         // why it takes the `scope` the others do not: `fields` stays
         // `array<mixed>`, so an element that names a binding is asked about by
         // name. See [`reject_secret_logged_argument`].
@@ -1527,7 +1527,7 @@ fn never_a_callable(ty: TypeId, interner: &crate::ty::TypeInterner) -> bool {
 /// parameter tags in the value itself (`nvs_runtime::callable`), so building
 /// one here would mean reading a method row off a receiver for a value that
 /// outlives the site and may be called anywhere. That is a mechanism rather
-/// than a lowering, and no ADR asks for it — so the spelling is refused where
+/// than a lowering, and no rule asks for it — so the spelling is refused where
 /// it is written, and the two fixes that exist are what the help names.
 fn report_method_ref_on_erased_receiver(span: Span, name: &str, env: &mut Env<'_>) {
     env.diags.report(
@@ -2241,8 +2241,8 @@ pub(crate) fn check_new_target(
 ///
 /// **A block body must declare its return type.** An expression body is its
 /// own answer, so it needs no annotation; inferring one for a block would
-/// mean whole-body return-type inference, which is a larger thing than ADR
-/// 0037's one-initializer rule and is not something `rule:types/declaration` asks for. A
+/// mean whole-body return-type inference, which is a larger thing than
+/// `rule:types/var-inference`'s one-initializer rule and is not something `rule:types/declaration` asks for. A
 /// block body with none reports `E0450` and is checked against `void`.
 ///
 /// **`yield` is not a generator here.** The inner [`Ctx`] clears

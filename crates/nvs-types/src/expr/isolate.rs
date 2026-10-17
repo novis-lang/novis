@@ -310,7 +310,7 @@ fn check_literal_args(path: &Expr, map: Option<&Expr>, env: &mut Env<'_>) {
 /// first names a function the compiler can see, and the second names a value
 /// whose provenance — and therefore whether it captures — is not knowable here.
 /// A rule phrased over types could not tell them apart, and the qualifier that
-/// would let it is the one the ADR declines to add.
+/// would let it is the one that rule declines to add.
 ///
 /// So there are three outcomes and each reports at most one diagnostic:
 ///
@@ -322,7 +322,7 @@ fn check_literal_args(path: &Expr, map: Option<&Expr>, env: &mut Env<'_>) {
 ///   otherwise be reported as an ordinary mismatch, which describes half the
 ///   rule.
 /// - **An `fn` literal or a `callable` value**, refused under
-///   [`code::E_SPAWN_ENTRY_NOT_A_PATH_OR_METHOD`] with the way out the ADR
+///   [`code::E_SPAWN_ENTRY_NOT_A_PATH_OR_METHOD`] with the way out that rule
 ///   names.
 /// - **A method reference**, which is the specified form and has nothing left
 ///   to refuse: it lowers to its own `Core` symbol (`nvs_ir::lower`'s
@@ -495,7 +495,8 @@ fn check_upgrade_placement(value: &Expr, form: &str, env: &mut Env<'_>) {
     check_placement(value, env);
 }
 
-/// Whether the operand is `Class::method(...)` — the reference the ADR accepts,
+/// Whether the operand is `Class::method(...)` — the reference
+/// `rule:security/isolate-shares-nothing` accepts,
 /// and not a call.
 ///
 /// [`CallArgs::MethodRef`] is the parser's mark for the literal `(...)`
@@ -517,7 +518,7 @@ fn is_method_reference(path: &Expr) -> bool {
 /// which differ only in whether there is a mechanical way out.
 ///
 /// An `fn` literal has one — name it — and the diagnostic says so, because the
-/// ADR's reason for refusing it is that `fn() => …` one keyword away in `spawn
+/// rule's reason for refusing it is that `fn() => …` one keyword away in `spawn
 /// worker` *does* capture, and one spelling with two meanings is what the
 /// refusal exists to prevent. A variable has none to offer: what it holds is
 /// not visible here, so the help can only name the two forms that are.

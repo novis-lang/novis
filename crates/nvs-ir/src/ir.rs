@@ -633,8 +633,8 @@ pub enum InstKind {
     /// contrasts its own, denser probe grid against. `nvs-codegen` lowers it
     /// to one load of the context's safepoint word and a predicted-not-taken
     /// branch, and the **function-entry** one — the first in the entry
-    /// block — also carries `rule:errors/on-limit`'s call-stack compare, which is why
-    /// that ADR calls the site "not a new pass and not a new emit site".
+    /// block — also carries `rule:errors/on-limit`'s call-stack compare, so that
+    /// check needs no new pass and no new emit site.
     /// Reserving the shape ahead of any of that is the point: inserting it
     /// after the fact means re-walking every already-lowered
     /// function, the same "cheap now, expensive to retrofit" reason
@@ -1114,9 +1114,9 @@ pub enum InstKind {
     /// *static* shape need not be the concrete value's own: `rule:types/shape-type`'s
     /// width subtyping lets a `{x: int, y: int}` reach a `{y: int}`
     /// parameter, where the two lay their slots out differently. So this is
-    /// § 4's **name-keyed fetch**, `nvs_runtime::nvs_object_slot_get`, and not
-    /// a fixed offset; § 4 says so outright, and defers the per-call-site
-    /// specialization that would make it one to that ADR's *Revisiting*.
+    /// a **name-keyed fetch**, `nvs_runtime::nvs_object_slot_get`, and not a
+    /// fixed offset, as `rule:types/erased-member-access` says outright. No
+    /// per-call-site specialization turns it into one.
     ///
     /// [`Self::SlotGet::slot`] is carried anyway, as a *hint*: the receiver's own
     /// shape is the overwhelmingly common case, and where it holds, the
@@ -2158,8 +2158,8 @@ pub enum AbsentKey {
 /// array subscript that cannot travel unrendered, and `IntToString` by
 /// `crate::lower::Lowering::lower_rendered_array_key` for the one caller
 /// that needs a `Ty::Str` key (`rule:types/arrays`) — and a
-/// scalar-or-`Ty::Array`-to-[`crate::ty::Ty::Bool`] truthiness test, ADR
-/// 0035's table, used by `crate::lower::Lowering::lower_truthy_cond` for an
+/// scalar-or-`Ty::Array`-to-[`crate::ty::Ty::Bool`] truthiness test,
+/// `rule:expressions/truthy-table`'s table, used by `crate::lower::Lowering::lower_truthy_cond` for an
 /// `if`/`while` condition whose static type isn't already `bool` (a
 /// `Ty::Object` condition needs none of these: `rule:enums/truthiness` makes it always
 /// truthy with nothing to inspect at runtime, so that case lowers straight to
@@ -2796,9 +2796,9 @@ pub enum Helper {
     ///   `crate::lower::Lowering::coerce` absorbs it into a declared type by
     ///   the same rows.
     /// * **Every one carries [`Inst::on_error`]**, and for more reasons than
-    ///   the ordering family has: § 4's table is closed, so a pair it names
+    ///   the ordering family has: that rule's table is closed, so a pair it names
     ///   no row for throws; *and* the rows it does name throw on overflow,
-    ///   which is the divergence from PHP the ADR is least willing to trade;
+    ///   which is the divergence from PHP that rule is least willing to trade;
     ///   *and* `int ⊕ uint` has no representable common type,
     ///   so `E0407`'s refusal arrives here as a throw when only the tags know.
     /// * **A `decimal` operand is a row of this table, not of

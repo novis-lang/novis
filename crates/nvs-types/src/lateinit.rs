@@ -7,7 +7,7 @@
 //! only constructors), and a call anywhere immediately marks *every* tracked
 //! property "assumed written" rather than leaving it to per-property
 //! tracking, since the analysis can never know which properties a callee
-//! wrote and the ADR's own design mandate is to stay silent rather than risk
+//! wrote and `rule:classes/lateinit-read-before-write` mandates silence rather than risking
 //! a false positive.
 //!
 //! [`check_class_lateinit_reads`] runs, for every method `decl` declares

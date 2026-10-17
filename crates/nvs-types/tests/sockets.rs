@@ -76,7 +76,7 @@ fn a_received_frames_payload_is_tainted_until_laundered() {
 /// so a member that grew a neutral parameter of its own would still look right
 /// on its own row. What carries it is `Qual::Sink` on each row, which reports
 /// the ordinary mismatch a sink does — `rule:security/sink-predicate`'s classification, not a
-/// rule of this ADR's own.
+/// check of `rule:core-classes/topic`'s own.
 #[test]
 fn a_tainted_topic_name_fails_to_compile() {
     let each = ["subscribe($t)", "publish($t, 1)", "unsubscribe($t)"];

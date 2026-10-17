@@ -181,10 +181,11 @@ fn a_mixed_numeric_comparison_widens_the_same_way() {
 }
 
 /// `rule:types/arithmetic`: `int / int` is the union `int|float` — PHP-exact, `6/3`
-/// being an integer and `7/2` a float — and § 2's one implicit conversion is
-/// what absorbs it, **at the binding**, never at the operator. So the
-/// quotient lands in a declared `float` and is a diagnostic at a declared
-/// `int`, which is the ADR's own worked example both ways round.
+/// being an integer and `7/2` a float — and `rule:types/implicit-widening`'s one
+/// implicit conversion is what absorbs it, **at the binding**, never at the
+/// operator. So the quotient lands in a declared `float` and is a diagnostic
+/// at a declared `int`, which is `rule:types/arithmetic`'s own worked example
+/// both ways round.
 #[test]
 fn an_integer_division_is_a_union_widened_at_its_binding() {
     let widened = check_in_method(

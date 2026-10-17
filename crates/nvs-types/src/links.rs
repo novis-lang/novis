@@ -2,7 +2,7 @@
 //! `Core\Router::url`, `::urlAbsolute` and `::urlSigned` over a **literal**
 //! route name, resolved against § 5's finished table while compiling.
 //!
-//! Two of the four refusals here are that ADR's — an unknown name, and a
+//! Two of the four refusals here are that rule's — an unknown name, and a
 //! capture no key supplies. The other two are
 //! `rule:routing/the-servers-match-dispatches-nothing`'s,
 //! and they are the two halves of one `$params` entry. § 6's is about the

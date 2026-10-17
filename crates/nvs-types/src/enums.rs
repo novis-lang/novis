@@ -23,7 +23,7 @@
 //!
 //! A case with no explicit value takes the previous case's plus one, starting
 //! at `0`; an explicit value resets the counter for whatever follows it
-//! (`rule:enums/declaration`). Two cases may share a value — that ADR says so outright,
+//! (`rule:enums/declaration`). Two cases may share a value — that rule says so outright,
 //! because equality is value equality and there is no identity to collide — so
 //! this table deliberately reports nothing for a duplicate.
 //!

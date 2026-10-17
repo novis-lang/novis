@@ -13,7 +13,7 @@ use nvs_diagnostics::code;
 #[test]
 fn a_plain_string_is_assignable_into_a_tainted_typed_target() {
     // `rule:security/taint-propagation`: a trusted value is always a safe over-approximation
-    // of "may be tainted" — the one-directional widening this ADR adds,
+    // of "may be tainted" — the one-directional widening that rule adds,
     // mirrored from `mixed`'s own one-directional rule.
     let diags = check_in_method(r#"tainted string $t = "literal";"#);
     assert!(!diags.has_errors(), "{diags:?}");
@@ -65,7 +65,7 @@ fn a_checked_conversion_launders_a_tainted_source() {
 
 #[test]
 fn as_string_does_not_launder_a_tainted_source() {
-    // The identity-shaped conversion this ADR must not treat as
+    // The identity-shaped conversion `rule:security/taint-propagation` must not treat as
     // laundering — otherwise `$tainted as string` would be a silent
     // bypass of the whole mechanism.
     let diags = check_in_method(
@@ -239,7 +239,7 @@ fn markup_is_not_stringable_and_has_no_concat_row() {
     assert!(!diags.has_errors(), "{diags:?}");
 
     // And `+` refuses the mixed pair rather than escaping the plain half. An
-    // operator that escaped silently would be the surprise this ADR removes.
+    // operator that escaped silently would be the surprise `rule:security/launderer-answers-a-carrier` removes.
     let diags = check_in_method(
         "Core\\Html\\Markup $m = \"<b>\" as Core\\Html\\Markup;\n\
          Core\\Html\\Markup $bad = $m + \"x\";\n",

@@ -172,9 +172,10 @@ fn an_option_on_a_parameter_with_no_conversion_from_string_is_a_diagnostic() {
     ));
     assert!(diags.has_errors());
 
-    // `float` is refused where `decimal` is admitted — § 3 names one and not
-    // the other, and this is the pair that says the roster is the ADR's rather
-    // than "anything numeric".
+    // `float` is refused where `decimal` is admitted — the roster names one and
+    // not the other, and this is the pair that says the roster is
+    // `rule:security/route-capture-is-laundered-by-its-type`'s rather than
+    // "anything numeric".
     let diags = check_src(&command_src(
         "  #[Command(name: \"deploy\")]\n  public static function deploy(\n    \
          #[Option] float $ratio,\n  ): void {}\n",

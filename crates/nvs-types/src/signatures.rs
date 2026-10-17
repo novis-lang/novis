@@ -65,7 +65,7 @@ pub struct MethodSig {
     /// why: a `Core` row's names come from
     /// `nvs_stdlib::registry::CoreMethod::names` through [`crate::core_lib`],
     /// the synthesized `Throwable` constructor's from [`crate::error_lib`],
-    /// and a reserved interface's from the ADR that declares it
+    /// and a reserved interface's from the rule that declares it
     /// ([`crate::iter_lib`]). So a `name:` that reaches no parameter is one
     /// refusal — `E_UNKNOWN_ARG_NAME` — wherever it is written, and a member
     /// taking no parameters names an empty list rather than nothing at all.

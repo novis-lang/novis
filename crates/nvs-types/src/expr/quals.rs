@@ -10,7 +10,7 @@
 //! [`apply_qualifier_conversion_rule`] is the conversion half: a checked
 //! conversion to `uint`/`int`/`float`/`bool`/an enum's backing type launders
 //! both qualifiers for free, since none of those targets carry either to begin
-//! with (a known, ADR-accepted gap for `secret`: unlike `tainted`,
+//! with (a known, accepted gap for `secret`: unlike `tainted`,
 //! "shape-proof implies safe" doesn't actually transfer — see `rule:security/secret-propagation`'s
 //! own *Alternatives rejected*), while `bytes`/`string` (including the
 //! identity-shaped `tainted string as string`/`secret string as string`, which
@@ -659,7 +659,7 @@ pub(crate) fn apply_qualifier_conversion_rule(
 /// `rule:security/secret-sinks-refuse`: a `secret`-qualified value converted `as Core\Html\Markup`
 /// is refused with a diagnostic naming the qualifier specifically, ahead of
 /// [`reject_computed_markup_conversion`]'s generic "must be written in the
-/// code" one — escaping (this ADR's whole reason for diverging from `tainted`'s
+/// code" one — escaping (that rule's whole reason for diverging from `tainted`'s
 /// auto-escape default) neutralizes injection risk, not exposure, so it is
 /// the wrong tool here regardless of how the value was produced. In
 /// practice a `secret` value is never a literal token to begin with (nothing
@@ -1518,10 +1518,11 @@ pub(crate) fn reject_secret_output(
 /// `rule:security/secret-sinks-refuse`'s cross-boundary sink: a `secret`-qualified value handed to
 /// `rule:classes/graph-copy`'s graph copy.
 ///
-/// **One check for both carriers**, which is how § 4 states the rule: the
-/// bullet refuses the value "at the one recursive graph-copy operation ADR
-/// 0023 already defines, for both its callers alike, rather than drawing a new
-/// distinction between crossing to a live isolate and externalizing to bytes."
+/// **One check for both carriers**, which is how `rule:security/secret-sinks-refuse`
+/// states the rule: it refuses the value at the one recursive graph-copy
+/// operation `rule:classes/graph-copy` defines, for both its callers alike,
+/// and draws no distinction between crossing to a live isolate and
+/// externalizing to bytes.
 /// `Core\Serialize::encode` is this function's caller; `spawn script`'s `args:`
 /// is the other carrier and it reaches the same refusal through
 /// [`reject_secret_crossing`], from `super::isolate::check_spawn_script`, rather

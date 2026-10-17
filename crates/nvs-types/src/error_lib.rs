@@ -214,7 +214,7 @@ const LDAP_ERROR_KIND: &str = r"Core\Ldap\LdapError::Kind";
 /// `type Core\Issue = {path: string, message: string}` —
 /// `rule:core-classes/derive-reports-every-field`'s one shape.
 ///
-/// An `rule:types/object-top` shape rather than a class, which is what that ADR writes and
+/// An `rule:types/object-top` shape rather than a class, which is what that rule writes and
 /// what lets a decoder build one with no declaration anywhere: the value is an
 /// anonymous methodless instance, and `nvs_stdlib::issue` is what builds it.
 /// [`TypeInterner::shape`] canonicalizes the field order, so the runtime slot
