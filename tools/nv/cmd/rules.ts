@@ -24,7 +24,8 @@
 //
 // There are no decision records: a rule holds its reasons and its Declined list. Every run fails while
 // a record directory exists, and on each line of a tracked text file outside `vendor/` that cites a
-// record by its number, its path or a bare section mark; a clean run says so in one line. A file that
+// record by its name, its number, its path or a bare section mark; a clean run says so in one line.
+// A test named for a record's number is a citation too. A file that
 // shows those forms, as a test of this check does, carries the marker `nv-rules:record-examples`.
 //
 // A generated file is written with LF endings. `--render --check` compares text, so a checkout with
@@ -74,12 +75,14 @@ const EXAMPLES_ONLY = "rules-py:examples";
 /** The directories a decision record lived in. */
 export const RECORD_DIRS = ["docs/decisions", "data/decisions", "docs/adr"];
 /**
- * A decision record cited by its number, by its path, by a bare section mark or by the old record
- * directory. A record number leads with a zero, so an RFC's section mark is not one.
+ * A decision record cited by its name, with or without a number, by a test named for its number, by
+ * its path, by a bare section mark or by the old record directory. The name is a whole word, so an
+ * `R_AARCH64_ADR_*` relocation is not one. A record number leads with a zero, so an RFC's section
+ * mark is not one.
  */
-export const RECORD_CITE = /\bADRs? \d{4}\b|decisions\/\d{4}|(?<![\w.])0\d{3} §|docs\/adr\//;
+export const RECORD_CITE = /\bADRs?\b|adrs?_\d{4}|decisions\/\d{4}|(?<![\w.])0\d{3} §|docs\/adr\//;
 /** The same forms, wider, for `git grep` to pick the files `RECORD_CITE` then reads. */
-const RECORD_GREP = "ADRs? [0-9]{4}|decisions/[0-9]{4}|0[0-9]{3} §|docs/adr[/]";
+const RECORD_GREP = "ADR|adrs?_[0-9]{4}|decisions/[0-9]{4}|0[0-9]{3} §|docs/adr[/]";
 /** A file that shows the record forms rather than using them carries this marker. */
 const RECORD_EXAMPLES = "nv-rules:record-examples";
 

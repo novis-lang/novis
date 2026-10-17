@@ -5920,7 +5920,7 @@ mod tests {
         );
     }
 
-    /// A card states the fact, never the decision's file name.
+    /// A card states the fact, never the rule that decided it.
     ///
     /// `rule:core-api/reference-card`'s card is reference documentation for someone writing
     /// Novis, and it ships **raw** through `nvs meta --json`: `bun nv
@@ -5931,11 +5931,11 @@ mod tests {
     /// say *what is true*, and leave the reason to the Rust doc comment
     /// directly above the card, which is where a contributor looks.
     #[test]
-    fn no_registry_card_cites_an_adr() {
-        /// The citation as it is written in prose: the bare word, or the
-        /// possessive/section forms a card reaches for.
+    fn no_registry_card_cites_a_rule() {
+        /// A rule citation, which is its token in backticks. The bare words
+        /// `rule:` also end a sentence such as "under `stream`'s own rule:".
         fn cites(text: &str) -> bool {
-            text.contains("ADR")
+            text.contains("`rule:")
         }
 
         nvs_footprint::every_card();
@@ -5974,8 +5974,8 @@ mod tests {
         }
         assert!(
             cited.is_empty(),
-            "{} card field(s) cite an ADR, which `nvs meta --json` ships verbatim \
-             to a reader who has no ADR tree — state the fact instead:\n  {}",
+            "{} card field(s) cite a rule, which `nvs meta --json` ships verbatim \
+             to a reader who has no copy of the rules — state the fact instead:\n  {}",
             cited.len(),
             cited.join("\n  ")
         );

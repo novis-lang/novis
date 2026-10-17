@@ -5171,7 +5171,7 @@ mod tests {
     /// card on disk describing it.
     // covers: Core\Command::Shell
     #[test]
-    fn the_shell_roster_is_the_four_adr_0086_names_and_is_registered() {
+    fn the_shell_roster_is_the_four_named_shells_and_is_registered() {
         let names: Vec<&str> = SHELL.cases.iter().map(|(name, _)| *name).collect();
         assert_eq!(names, ["Bash", "Zsh", "Fish", "Pwsh"]);
         for (ordinal, (name, declared)) in SHELL.cases.iter().enumerate() {

@@ -1133,7 +1133,7 @@ mod tests {
     /// An integral `decimal` reaches `%d` unchanged, and any `decimal` renders
     /// through `%s` at its own scale — `rule:types/conversion`'s two rows, side by side.
     #[test]
-    fn a_decimal_follows_adr_0054s_conversion_rows() {
+    fn a_decimal_follows_the_conversion_rows() {
         same(
             "%d|%s|",
             vec![

@@ -17765,7 +17765,7 @@ Runs `$body` with the test's clock advanced by `$settings.within`, and asserts t
 | `$settings` | `{within: Core\Time\Duration}` | The time budget. You must always give it, because no default duration fits every caller. Keys: `within` (Core\Time\Duration) How far the virtual clock moves before `$body` runs, so a retry, a backoff or a timeout inside it elapses at once. `Core\Test::advance` moves the same clock, and the move is permanent: the test reads the advanced clock from here on. |
 | `{message: …}` | `string` (default `null`, neutral) | Prefixed to the failure, as on every other assertion. |
 
-**Returns** `void` — Nothing. A `$body` that returned having left a task of its own still running throws, naming the budget it overran — `rule:testing/task-tree-and-virtual-clock`, read at the one moment it means anything.
+**Returns** `void` — Nothing. A `$body` that returned having left a task of its own still running throws, naming the budget it overran. The check runs when `$body` returns.
 
 **Throws** `Core\Test\Failure` — `$body` returned with work of its own still running. The message names how many tasks and the `within` they were given.; `LogicError` — The test declared no `at:`, so there is no fixed clock to spend the budget against — `Core\Test::advance`'s refusal, for its reason.; `RuntimeError` — The advanced clock lies outside the range an `Instant` can hold, as on `Core\Test::advance`.
 
@@ -23280,7 +23280,7 @@ $decompressor->finish(): tainted bytes
 
 Closes the stream and answers everything `add` fed it, decompressed — the same octets `Core\Compress::decompress` answers over the concatenation, under the same bound.
 
-**Returns** `tainted bytes` — The decompressed octets as `tainted bytes`, never a truncation; the stream is finished afterwards and its chunks released. Tainted because a frame's contents are whatever it said they were, which is `rule:security/tainted-sources`' reading for every other reader of untrusted octets.
+**Returns** `tainted bytes` — The decompressed octets as `tainted bytes`, never a truncation; the stream is finished afterwards and its chunks released. The bytes are `tainted` because they come from input the program does not control.
 
 **Throws** `ParseError` — The chunks are not a well-formed frame of the stream's codec, or the output would pass either half of the bound the stream was opened under. The bound is the whole stream's: every chunk is charged against one ceiling.; `RuntimeError` — The stream has already been finished — including by a `finish` that refused, since a refused frame is over.
 

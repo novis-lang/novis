@@ -5887,7 +5887,7 @@ nvs_runtime::nvs_helper! {
 /// [`nvs_core_arr_average`] accumulate into — spec § 2's
 /// `int|float|decimal` as the three shapes an accumulator can be in.
 ///
-/// The promotion rules are `rule:types/arithmetic`'s and `rule:types/arithmetic`'s, applied
+/// The promotion rules are `rule:types/arithmetic`'s, applied
 /// entry by entry rather than to a pair of static types:
 ///
 /// * `int` with `int` stays `int` and **throws** on overflow — no wrap and no

@@ -97,7 +97,7 @@ stages:
         rules: [testing/feature-proofs]
   - id: 14
     title: a prose known gap without a record fails a check
-    status: open
+    status: done
     context: [tools/nv/cmd/owners.ts, tools/nv/cmd/gaps.ts]
     extra:
       context:
@@ -385,29 +385,25 @@ work cannot live only in prose again.
   - [x] `bun nv owners --prose` lists them by kind and exits 1 while any remains; the roster lists them too.
 - [x] `bun nv owners --check` fails on a prose gap, once `--prose` is empty. `tools/nv/cmd/owners.ts:610`
 - [x] Every module the scan names gets a record or loses the prose: about 40 numbered "gap N" references remain (`rg -n 'gap [0-9]+' crates tests`), and the prose gaps at `crates/nvs-runtime/src/ctx/error.rs:777` and `crates/nvs-ir/src/ty.rs:224`. `tools/nv/cmd/gaps.ts:30`
-- [ ] No comment cites a decision record: the ~270 "ADR" citations cite the rule that holds the decision, or go (`rg -n '\bADR\b' crates`). `crates/nvs-types/src/lib.rs:1`
+- [x] No comment cites a decision record: each citation cites the rule that holds the decision, or goes, and `bun nv rules --check` fails on a new one. `tools/nv/cmd/rules.ts:80`
 
 ## Handoff
 
 ### State
 
-Stages 1 to 4 and 6 to 13 are done. Stage 14's first three items are done: `bun nv owners --check` runs
-the prose scan and exits 1 on a finding (`tools/nv/cmd/owners.ts:611`), and the scan is empty. Every
-numbered `gap N` reference is now present-tense prose or cites its record. The assertion-ledger gap is
-`data/gaps/nvs-runtime/an-assertion-outside-a-test-grows-the-ledger.json`, owned by `test-surface`. The
-`Ty::Tagged` known gap was stale: arithmetic, truthiness and an array read through `mixed` all run, and
-the doc says so.
+Every stage but 5 is done. Stage 14 closed: `bun nv owners --check` fails on a prose gap, and
+`bun nv rules --check` fails on a decision record named in any tracked file, by its name alone or by
+a test named for its number (`tools/nv/cmd/rules.ts:80`). Every such citation in the tree now cites
+the rule that holds the decision or says what the code does. `no_registry_card_cites_a_rule`
+(`crates/nvs-stdlib/src/registry.rs:5934`) now looks for a `rule:` token on a card.
 
-Found while checking the rewrites: `Core\Router::url(params: …, name: …)` type-checked and then died
-with a FATAL, because lowering read the arguments by position. `ExprInfo::RouteLink` now records
-`params_at` and `settings_at`, lowering evaluates them in written order, and
-`tests/conformance/core/a-route-table-answers-a-url-for-every-route-it-holds.nvst` pins it.
+The goal's last open record is `data/gaps/nvs-ext/bytes-cross-one-val-per-byte.json`, so
+`owners --closes completeness-holes` fails until stage 5 lands.
 
-Tree-wide perf drift, not from this goal: a `Core` member call counts as one `calls` per op, so every
-bench declaring `calls 0` fails `--record-perf`.
-
-The nightly run the sweep reports (`39013536848`) tested `e110c9c0b`, which is `origin/main` and far
-behind local `main`.
+The nightly run the sweep reports (`39013536848`) tested `e110c9c0b`, which is `origin/main`, more
+than 220 commits behind local `main`. Its `docs` failure (a shipped rule naming an owner) is already
+fixed locally: `bun nv check` is clean. Its five-driver failures (mysql, mariadb, postgres, mssql)
+need the database servers and were not reproduced here.
 
 `bun nv rules --render` also rewrites `core-api.md`, `errors.md` and `iteration.md`, and `bun nv render`
 drops `done` from `data/schema/milestone.schema.json`. That drift predates these sessions and is not
@@ -415,17 +411,17 @@ committed.
 
 ### Next
 
-**Stage 14's last item: no comment cites a decision record. About 250 `ADR` citations in about 140 files
-(`rg -n '\bADR\b' crates tests`), split by crate across subagents that run one after another.**
+**Stage 5: bytes cross the extension boundary in one copy each way. Files: `crates/nvs-ext/src/call.rs`,
+`crates/nvs-ext/src/convert.rs`, `wit/*.wit`.** The decided design is in the gap record above, and
+`rule:packaging/a-value-crosses-as-its-wit-type` holds the table.
 
-- [ ] `crates/nvs-types` and `crates/nvs-ir`: each `ADR` citation cites the rule that holds the decision (`bun nv peek rule:<id>` to check the id), or is rewritten as present tense. Start at `crates/nvs-types/src/expr/operators.rs:1` (`rule:testing/feature-proofs`, `tools/nv/cmd/rules.ts:1`).
-- [ ] `crates/nvs-stdlib`: the same. Start at `crates/nvs-stdlib/src/registry.rs:1`.
-- [ ] `crates/nvs-config`, `nvs-runtime`, `nvs-server`, `nvs-host`, `nvs-db`, `nvs-cli`, `nvs-diagnostics`, `nvs-codegen`, `nvs-render` and `tests/conformance`: the same. Start at `crates/nvs-diagnostics/src/lib.rs:1`.
-- [ ] Make a check fail on a new `ADR` citation, beside the prose scan (`tools/nv/cmd/owners.ts:242`'s `outsideBlocks`, or `bun nv rules --check`).
+- [ ] Generate typed bindings for one first-party world first (`wit/image.wit`) with `bindgen!`, as `crates/nvs-ext/src/wasi.rs:67` does for the host side, and a conversion from `Value` to the generated types. The call site is the dynamic `func.call_async` at `crates/nvs-ext/src/call.rs:1165`.
+- [ ] Route an export of a first-party world through its typed call, keep a third-party export on the dynamic path, and keep the argument charge (`crates/nvs-ext/src/call.rs:954`).
+- [ ] The other three worlds (`pdf`, `intl`, `spreadsheet`), then the image arms at full size and `benches/results/image-guest.json` recorded again (`crates/nvs-ext/tests/support/image_arms.rs:23`); delete the gap record and rewrite `crates/nvs-ext/src/convert.rs`'s cost paragraph. `Markup + Markup` in place goes with it (`docs/perf/performance-pass.md:257`).
 
 ### Backlog
 
-- Stage 5 follows `data/gaps/nvs-ext/bytes-cross-one-val-per-byte.json`: generated bindings per first-party world, then the image arms at full size, plus `Markup + Markup` in place (`docs/perf/performance-pass.md:257`).
+- Many `§ N` marks in crate comments still point at a section of a decision record that no longer exists, for example `crates/nvs-types/src/links.rs:3` and `crates/nvs-server/src/bounds.rs:155`. The check only catches a zero-led number before `§` (`tools/nv/cmd/rules.ts:80`).
 - A `Core` member call counts as a Novis call in the perf counters, so every `calls 0` bench fails `--record-perf`: find the commit, then fix the count or the declarations (`tools/nv/proofs/collect.ts`, `benches/members/core/Response-Stream/length.nvs:5`).
 - `rule:security/isolate-shares-nothing` says a *required* parameter `args:` omits is the error, but `entry_names_agree` and `check_literal_args` need every parameter, defaults included. Decide which is right and make the two agree (`crates/nvs-stdlib/src/script.rs:970`).
 - Tests that fail under the full verify's load and pass alone, causes not found: `test_request_dispatches_in_process_through_the_compiled_route_table` (`crates/nvs-cli/src/runner.rs:3410`), two `live_edit` swaps (`crates/nvs-cli/tests/live_edit.rs:1010`), and five `ldap` tests against the Samba server (`crates/nvs-stdlib/tests/ldap.rs:102`).

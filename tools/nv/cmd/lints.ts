@@ -49,7 +49,7 @@ const USAGE = "usage: nv lints [-h] [--check]";
 type Tables = Record<string, Record<string, unknown>>;
 
 /** The manifests that may override the workspace table, and why each must. A crate joins it only
- *  with an ADR, per `docs/plan/design.md` § *Unsafe policy*. */
+ *  with a rule that says why, per `docs/plan/design.md` § *Unsafe policy*. */
 export const UNSAFE_CRATES: Record<string, string> = {
   "crates/nvs-runtime":
     "the helper ABI's `extern \"C\"` entry points, the request arena and the tagged-value representation decode raw pointers",

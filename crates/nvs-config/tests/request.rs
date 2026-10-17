@@ -482,7 +482,7 @@ read = [\"nvs.toml\"]
 /// that away silently, and every other case here would still pass. Asserting the key set — rather
 /// than the count — also fails a row renamed to a directive nobody spelled.
 #[test]
-fn the_mode_table_is_exactly_the_five_directives_the_adr_lists() {
+fn the_mode_table_is_exactly_the_five_directives_the_rule_lists() {
     let keys: Vec<&str> = nvs_config::mode::DERIVED
         .iter()
         .map(|row| row.key)
