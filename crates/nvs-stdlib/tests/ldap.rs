@@ -27,6 +27,13 @@ const ADMIN: &str = "CN=Administrator,CN=Users,DC=example,DC=test";
 const PASSWORD: &str = "Novis-test-1";
 const LDAPS_PORT: u16 = 16636;
 
+/// `name` with this process's id after it. Every test run in every worktree
+/// writes to the one `samba-ad` directory, so each entry a case adds under
+/// `BASE` carries a name that no other process running at the same time uses.
+fn own(name: &str) -> String {
+    format!("{name}-{}", std::process::id())
+}
+
 /// The anchor, when the server is up and the anchor is on disk.
 #[allow(
     clippy::print_stderr,
@@ -1433,7 +1440,7 @@ fn typed_values_round_trip_through_a_write() {
     let Some(ca) = samba() else { return };
     let mut ctx = ctx_over(&corp(&ca));
     let key = ldap::connect(&mut ctx, "corp").expect("the block opens");
-    let dn = "OU=Example,DC=example,DC=test";
+    let dn = &format!("OU={},{BASE}", own("Example"));
     ldap::delete(&mut ctx, key, dn).ok();
     ldap::add(
         &mut ctx,
@@ -1466,10 +1473,12 @@ fn typed_values_round_trip_through_a_write() {
     ldap::delete(&mut ctx, key, dn).expect("the entry is deleted");
 }
 
-/// A new, disabled user account `CN=<cn>,OU=<cn>` in an OU of its own, after
-/// deleting both where a run that stopped half-way left them behind. Not
-/// `CN=Users`, because other cases count the entries there.
+/// A new, disabled user account `CN=<cn>,OU=<cn>` in an OU of its own, both
+/// named by [`own`], after deleting both where a run of this process's id that
+/// stopped half-way left them behind. Not `CN=Users`, because other cases
+/// count the entries there.
 fn user(ctx: &mut nvs_runtime::Ctx, key: u64, cn: &str) -> String {
+    let cn = &own(cn);
     let dn = format!("CN={cn},OU={cn},{BASE}");
     ldap::delete(ctx, key, &dn).ok();
     ldap::delete(ctx, key, &format!("OU={cn},{BASE}")).ok();
@@ -1504,6 +1513,7 @@ fn user(ctx: &mut nvs_runtime::Ctx, key: u64, cn: &str) -> String {
 
 /// Deletes what [`user`] added.
 fn delete_user(ctx: &mut nvs_runtime::Ctx, key: u64, cn: &str) {
+    let cn = &own(cn);
     ldap::delete(ctx, key, &format!("CN={cn},OU={cn},{BASE}")).expect("the user is deleted");
     ldap::delete(ctx, key, &format!("OU={cn},{BASE}")).expect("the OU is deleted");
 }
@@ -2029,7 +2039,7 @@ fn sort_and_a_vlv_window_return_the_requested_slice() {
     let Some(ca) = samba() else { return };
     let mut ctx = ctx_over(&corp(&ca));
     let key = ldap::connect(&mut ctx, "corp").expect("the block opens");
-    let base = format!("OU=Archive,{BASE}");
+    let base = format!("OU={},{BASE}", own("Archive"));
     let names = ["Delta", "Alpha", "Echo", "Charlie", "Bravo"];
     for name in names {
         ldap::delete(&mut ctx, key, &format!("OU={name},{base}")).ok();
@@ -2125,7 +2135,7 @@ fn show_deleted_finds_a_deleted_entry() {
     let Some(ca) = samba() else { return };
     let mut ctx = ctx_over(&corp(&ca));
     let key = ldap::connect(&mut ctx, "corp").expect("the block opens");
-    let dn = format!("OU=Museum,{BASE}");
+    let dn = format!("OU={},{BASE}", own("Museum"));
     ldap::delete(&mut ctx, key, &dn).ok();
     ldap::add(
         &mut ctx,
@@ -2176,7 +2186,10 @@ fn rename_moves_an_entry_under_a_new_parent_and_refuses_text_that_is_not_a_dn() 
     let Some(ca) = samba() else { return };
     let mut ctx = ctx_over(&corp(&ca));
     let key = ldap::connect(&mut ctx, "corp").expect("the block opens");
-    let (first, second) = (format!("OU=Atlas,{BASE}"), format!("OU=Harbor,{BASE}"));
+    let (first, second) = (
+        format!("OU={},{BASE}", own("Atlas")),
+        format!("OU={},{BASE}", own("Harbor")),
+    );
     let (from, to) = (format!("OU=Desk,{first}"), format!("OU=Counter,{second}"));
     for dn in [&from, &to, &first, &second] {
         ldap::delete(&mut ctx, key, dn).ok();
@@ -2210,7 +2223,7 @@ fn delete_removes_a_leaf_and_refuses_an_entry_with_one_below_it() {
     let Some(ca) = samba() else { return };
     let mut ctx = ctx_over(&corp(&ca));
     let key = ldap::connect(&mut ctx, "corp").expect("the block opens");
-    let parent = format!("OU=Quay,{BASE}");
+    let parent = format!("OU={},{BASE}", own("Quay"));
     let child = format!("OU=Shed,{parent}");
     for dn in [&child, &parent] {
         ldap::delete(&mut ctx, key, dn).ok();
@@ -2267,7 +2280,7 @@ fn dirsync_returns_only_what_changed_since_its_cookie() {
     let Some(ca) = samba() else { return };
     let mut ctx = ctx_over(&corp(&ca));
     let key = ldap::connect(&mut ctx, "corp").expect("the block opens");
-    let dn = format!("OU=Lantern,{BASE}");
+    let dn = format!("OU={},{BASE}", own("Lantern"));
     let unchanged = format!("OU=Domain Controllers,{BASE}");
     ldap::delete(&mut ctx, key, &dn).ok();
 
