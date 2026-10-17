@@ -10,21 +10,32 @@ satisfying the shape's declared type by ordinary assignability. No new compariso
 
 - **Width subtyping**: a source with extra fields still satisfies the shape, so an already-shaped
   value never needs re-wrapping because a caller cares about two of its five fields.
-- **Field types** are ordinary assignability with one exception, and a shape gets no variance rule
-  of its own. The exception is the `int`/`uint` → `float` widening (`rule:types/implicit-widening`):
-  it does not reach a field of a value that already exists, at any depth of the field type. Such a
-  value is shared, not copied, so its field cannot be converted. `{w: int}` does not satisfy
-  `{w: float}` or `{w: ?float}`, `{w: array<int>}` does not satisfy `{w: array<float>}`, and a class
-  with an `int $w` property does not satisfy `{w: float}` either; `{w: int|float}` accepts both,
-  because `int` is one of its members.
+- **A shape value's field types are invariant.** A shape value satisfies another shape only when
+  each field type the target names fits in both directions, so `{pet: Dog}` does not satisfy
+  `{pet: Animal}`, and `{n: int}` satisfies neither `{n: ?int}` nor `{n: int|string}`. A shape value
+  is shared, not copied, and an anonymous object's slot carries a tag and no declared type. A write
+  through a wider view would store a value the narrower view then reads at the wrong type, and an
+  object of the wrong class read as a `Dog` is a memory-safety hole. The check is in the checker
+  alone, so nothing is spent at run time, per object or per write.
+- **A class instance's property types are covariant.** A class with a `Dog $pet` property satisfies
+  `{pet: Animal}`, because a write through that view is checked at run time against the property's
+  own declared type (`rule:types/erased-member-access`). The `int`/`uint` → `float` widening
+  (`rule:types/implicit-widening`) reaches no field of a value that already exists, at any depth of
+  the field type, because its field cannot be converted: a class with an `int $w` property does not
+  satisfy `{w: float}`, and `{w: int|float}` accepts it.
 - **An anonymous object placed at a declared shape** takes each field the declaration names at the
   declared type, when its value fits it: `{w: 2}` and `{w: $count}` at `{w: float}` are `{w: float}`,
   and the literal stores `2.0`. An array literal in a field is placed the same way, so `{xs: [1, 2]}`
   at `{xs: array<float>}` stores two floats (`rule:types/arrays`). A field the declaration does not
   name keeps the type of its value. So does a value that does not fit, which the assignment then
-  reports, and a value with a `secret` or `tainted` qualifier the declared type lacks, so the
-  qualifier stays visible. A `?{…}` position declares its shape, and so does a union with exactly
-  one shape member; a union with two or more shape members declares none.
+  reports. A `?{…}` position declares its shape, and so does a union with exactly one shape member.
+  A union with two or more shape members declares the one member that has every key the literal
+  writes and every key it requires is written, so `{formula: "A1", cached: null}` at
+  `{text: string}|{formula: string, cached: ?float}` is the second member. Where no member or two
+  members match, it declares none.
+- **An attribute payload's field types are covariant** (`rule:attributes/structural-retrieval`),
+  where it is attached and where it is retrieved. A payload is folded into a new value at each
+  retrieval, so no other view of it exists.
 - **The refusal stays `E0401`.** When the only reason a field fails is the missing widening of an
   `int` or `uint`, the help line names the field and says to build a new value, such as
   `{w: $value->w}`. A field built that way is converted where the new value stores it, so its slot
@@ -88,3 +99,7 @@ one map entry per declared field at check time, and at run time only the convers
   so a conversion would change what every other reference to it reads.
 - **Copying an existing value at the widening.** It breaks the same sharing, and it makes a shape
   assignment cost a copy.
+- **Covariant field types, with a declared type carried by each anonymous object.** A write through
+  a wider view would then be checked at run time, as a class's is. It costs memory per object and a
+  check per write on the request path, to admit an assignment a new value written at the wider
+  shape already gives.

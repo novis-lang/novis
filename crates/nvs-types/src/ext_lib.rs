@@ -23,8 +23,8 @@
 //! - A parameter with `"sink": true` is [`Qual::Sink`], which refuses a `tainted` argument. Every
 //!   other parameter is [`Qual::Contagious`] (`rule:security/extension-contagion`): a `tainted`
 //!   argument is accepted, and the result is `tainted`.
-//! - A method with `"source": true` returns its type made `tainted`, so its result is `tainted`
-//!   whatever its arguments are.
+//! - A method with `"source": true` returns its type made `tainted`, the fields of a shape
+//!   included, so its result is `tainted` whatever its arguments are.
 //! - A `secret` argument is refused at every parameter, sink or not, because neither mark is
 //!   [`Qual::Reveal`] (`rule:security/secret-does-not-cross-an-extension`). The code is the one a
 //!   `Core` parameter that refuses `secret` gives.
@@ -67,7 +67,7 @@ use rustc_hash::{FxHashMap, FxHashSet};
 use crate::defaults::ConstArg;
 use crate::enums::{EnumBacking, EnumInfo, EnumTable, EnumValue};
 use crate::signatures::{ConstSig, MethodSig, SignatureTable};
-use crate::ty::{ShapeField, TypeId, TypeInterner};
+use crate::ty::{ShapeField, Ty, TypeId, TypeInterner};
 
 /// The classes of `manifests` as name resolution reads them: each class's name, the methods and
 /// constants [`seed`] gives it a signature for, and on the manifest's class the source files its
@@ -323,7 +323,7 @@ fn method_sig(
         type_params: Vec::new(),
         type_bounds: Vec::new(),
         return_ty: if method.source {
-            crate::expr::quals::tainted_result(returns, interner)
+            source_result(returns, interner)
         } else {
             returns
         },
@@ -385,4 +385,40 @@ fn lower_shape(manifest: &Manifest, fields: &[Field], interner: &mut TypeInterne
         })
         .collect();
     interner.shape(fields)
+}
+
+/// A `"source": true` method's return type: `returns` with `tainted` set on
+/// every `string` and `bytes` in it, the fields of a shape included.
+///
+/// [`crate::expr::quals::tainted_result`] stops at a shape's fields, because
+/// the fields of a value that already exists are qualified where they are
+/// written. An extension's result is a new value the call builds, so every
+/// field of it is the extension's output, and a shape's field types are
+/// invariant ([`crate::expr::assign::shape_satisfied`]): a result typed
+/// `{name: string}` could not be returned at `{name: tainted string}`.
+fn source_result(returns: TypeId, interner: &mut TypeInterner) -> TypeId {
+    match interner.get(returns).clone() {
+        Ty::Shape(fields) => {
+            let fields = fields
+                .into_iter()
+                .map(|field| ShapeField {
+                    ty: source_result(field.ty, interner),
+                    ..field
+                })
+                .collect();
+            interner.shape(fields)
+        }
+        Ty::Array(elem) => {
+            let elem = source_result(elem, interner);
+            interner.array(elem)
+        }
+        Ty::Union(members) => {
+            let members: Vec<TypeId> = members
+                .iter()
+                .map(|&member| source_result(member, interner))
+                .collect();
+            interner.make_union(members)
+        }
+        _ => crate::expr::quals::tainted_result(returns, interner),
+    }
 }

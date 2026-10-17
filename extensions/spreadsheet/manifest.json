@@ -102,6 +102,7 @@
         {"name": "source", "type": "mixed"}
       ],
       "returns": "array<{name: string, position: uint, visibility: Visibility, rows: uint, columns: uint, kind: SheetKind}>",
+      "source": true,
       "help": "Returns each sheet of the workbook in tab order. `rows` and `columns` are the size the file gives for the sheet, or 0 when it gives none."
     },
     {
@@ -131,6 +132,7 @@
         {"name": "sheet", "type": "string"}
       ],
       "returns": "array<{anchor: string, target: string, text: ?string, tooltip: ?string, external: bool}>",
+      "source": true,
       "help": "Returns the hyperlinks of the sheet `sheet`. `external` is `true` for a link to a URL or a file. Nothing opens the link."
     },
     {
@@ -141,6 +143,7 @@
         {"name": "sheet", "type": "string"}
       ],
       "returns": "array<{noted: string, note: string, author: ?string}>",
+      "source": true,
       "help": "Returns the notes of the sheet `sheet`, each with its cell, its text and its author."
     },
     {
@@ -150,6 +153,7 @@
         {"name": "source", "type": "mixed"}
       ],
       "returns": "array<{name: string, reference: string, sheet: ?string}>",
+      "source": true,
       "help": "Returns the defined names of the workbook, each with its reference as text. `sheet` is the sheet a local name belongs to."
     },
     {
@@ -160,6 +164,7 @@
         {"name": "sheet", "type": "string"}
       ],
       "returns": "array<{table: string, name: string, sheet: string}>",
+      "source": true,
       "help": "Returns the Excel tables of the sheet `sheet`, each with its range, such as `A1:C10`, and its name."
     },
     {
@@ -170,6 +175,7 @@
         {"name": "sheet", "type": "string"}
       ],
       "returns": "array<{at: string, image: bytes, format: string, link: ?string}>",
+      "source": true,
       "help": "Returns the pictures of the sheet `sheet`, each with its top-left cell, its bytes and its format. A linked picture has no bytes, and `link` is its target. Nothing fetches it."
     },
     {

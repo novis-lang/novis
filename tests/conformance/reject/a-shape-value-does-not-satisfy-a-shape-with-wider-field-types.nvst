@@ -1,0 +1,62 @@
+--TEST--
+A shape value that already exists satisfies another shape only when each field type is the same in both, because a write through the wider shape would store a value the narrower one reads at the wrong type: `{pet: Dog}` is not a `{pet: Animal}` — `rule:types/shape-type`
+--FILE--
+<?nvs
+// covers: lang:types/callable-classes-object-shapes
+
+class Animal
+{
+    public int $legs = 4;
+}
+
+class Dog extends Animal
+{
+    public string $name = "Rex";
+}
+
+type Narrow = {pet: Dog};
+type Wide = {pet: Animal};
+
+// A `{pet: Dog}` value is not a `{pet: Animal}` value. Through `$w`, the
+// program could write an `Animal` that `$n` then reads as a `Dog`.
+Narrow $n = {pet: new Dog()};
+Wide $w = $n;
+
+// A field that may be `null` is a wider type, and so is a union.
+var $count = {n: 1};
+({n: ?int}) $maybe = $count;
+({n: int|string}) $either = $count;
+
+// A `tainted` field is a wider type than a plain one.
+var $label = {text: "plain"};
+({text: tainted string}) $marked = $label;
+
+// The same holds for an array field and for a shape inside a field.
+array<Dog> $dogs = [new Dog()];
+var $pack = {pets: $dogs};
+({pets: array<Animal>}) $animals = $pack;
+({inner: Wide}) $outer = {inner: $n};
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `{pet: Animal}`, found `{pet: Dog}`
+   --> case.nvs:20:11
+%A
+error[E0401]: expected `{n: int|null}`, found `{n: int}`
+   --> case.nvs:24:22
+%A
+error[E0401]: expected `{n: string|int}`, found `{n: int}`
+   --> case.nvs:25:29
+%A
+error[E0401]: expected `{text: tainted string}`, found `{text: string}`
+   --> case.nvs:29:36
+%A
+error[E0401]: expected `{pets: array<Animal>}`, found `{pets: array<Dog>}`
+   --> case.nvs:34:36
+%A
+error[E0401]: expected `{inner: {pet: Animal}}`, found `{inner: {pet: Dog}}`
+   --> case.nvs:35:26
+%A
+error: aborting due to 6 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

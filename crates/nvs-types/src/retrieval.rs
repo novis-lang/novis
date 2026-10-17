@@ -17,8 +17,9 @@
 //!
 //! § 4's rule is that retrieval matches on *shape*: an attribute's payload object is an
 //! answer to `get<T>` exactly when it satisfies `T` under
-//! [`crate::expr::is_assignable`] — `rule:types/shape-type`'s width subtyping, the same
-//! test a shape-typed binding goes through — regardless of whether it was
+//! [`crate::expr::built_fits`]: `rule:types/shape-type`'s width subtyping, with field
+//! types compared covariantly because the payload is folded into a new value at
+//! each retrieval. That holds regardless of whether it was
 //! written bare or under a name, and regardless of what that name was. An
 //! attribute's optional name exists to check the literal where it is
 //! *written* ([`crate::attributes`]), and is never part of how a caller asks
@@ -81,7 +82,7 @@ use nvs_syntax::ast::{
 use rustc_hash::FxHashMap;
 
 use crate::defaults::ConstArg;
-use crate::expr::{check_anon_object, check_expr, field_fits, is_assignable, resolve_class_expr};
+use crate::expr::{built_fits, check_anon_object, check_expr, field_fits, resolve_class_expr};
 use crate::expr_table::ExprInfo;
 use crate::locals::{Live, LocalScope};
 use crate::signatures::{resolve_method, resolve_property};
@@ -592,7 +593,7 @@ pub(crate) fn matching<'a>(sites: &[Site<'a>], want: TypeId, env: &mut Env<'a>) 
             &written,
             env,
         );
-        if is_assignable(actual, want, env.interner, env.graph, env.signatures) {
+        if built_fits(actual, want, env.interner, env.graph, env.signatures) {
             matched.push(*site);
         }
     }
