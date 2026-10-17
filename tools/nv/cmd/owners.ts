@@ -38,13 +38,17 @@
 // `docs/agent/carried-refusals.md`, the keys in `crates/nvs-stdlib/tests/*-outstanding.txt`, the
 // guard names in `docs/agent/guard-name-debt.md`, and the playbook bullets whose `until` names a state
 // of the tree. It takes their counts and nothing else, since each has a gate over its own discipline.
-// A module doc heading that words owed work outside a gap block is listed too, as a warning.
+// The roster also lists, as a warning, every gap that lives only in prose: a module doc heading that
+// words owed work outside a gap block, a `Known gaps` block that is not the one pointer line to its
+// module's records, and a numbered `gap N` reference. `--prose` lists them alone and exits 1 while
+// any remains; the scan reads Rust sources and tests, crate manifests and conformance cases.
 //
 //   bun nv owners                 the roster, by kind, gaps and then designed rules
 //   bun nv owners --check         the gate; exit 1 with a line per refused gap or designed rule
 //   bun nv owners --closes SLUG   exit 1 while any gap or designed rule names that goal, each listed
 //   bun nv owners --deferrals     each milestone owner against its plan file's scope
 //   bun nv owners --registers     one line per register, and how many items each holds
+//   bun nv owners --prose         every gap that lives only in prose; exit 1 while any remains
 //   bun nv owners --untagged | --unowned   only the gaps of that kind
 //   bun nv owners --json          every kind, the designed rules by kind, and every register with its
 //                                 owners
@@ -72,7 +76,8 @@ const CARRIED_GAPS = "docs/agent/carried-gaps.md";
 const CARRIED_REFUSALS = "docs/agent/carried-refusals.md";
 const GUARD_DEBT = "docs/agent/guard-name-debt.md";
 const RATCHETS = "crates/nvs-stdlib/tests/*-outstanding.txt";
-const SOURCES = "crates/*/src/**/*.rs";
+/** What the prose scan reads: every Rust source and test, every crate manifest, every conformance case. */
+const PROSE_SOURCES = ["crates/*/src/**/*.rs", "crates/*/tests/**/*.rs", "crates/*/Cargo.toml", "tests/**/*.nvst"];
 
 export interface Gap {
   slug: string;
@@ -215,23 +220,71 @@ export function classifyRules(found: DesignedRule[], root: string = ROOT): RuleK
   return out;
 }
 
-/** Every module doc heading that words owed work while opening no gap block. */
-function outsideBlocks(): { file: string; line: number; lead: string }[] {
-  const DOC = /^\s*\/\/!(?: ?(.*))?$/;
+/** Where a gap can still live only in prose: one of the three kinds `outsideBlocks` reports. */
+type ProseKind = "heading" | "block" | "numbered";
+interface Prose { file: string; line: number; kind: ProseKind; lead: string }
+
+/** What each kind of prose gap is, and the edit that clears it. */
+const PROSE_WHY: Record<ProseKind, string> = {
+  heading: "a doc heading words owed work outside a gap block: make it a record, or rewrite the heading to say what the module does",
+  block: "a `Known gaps` block is not the one pointer line to its own module's records, or no record names the module: move its prose into records, or delete the block",
+  numbered: "a numbered gap reference: cite the record's slug, or say what the code does without it",
+};
+
+/** Every place a gap is written down in prose with no record behind it. Three kinds:
+ *
+ *  - `heading`: a module doc heading that words owed work while opening no gap block.
+ *  - `block`: a `# Known gap(s)` heading in a `//!` or `///` doc comment whose first line is not
+ *    `Each gap is a record, and \`bun nv gaps --module <this file>\` lists them.`, or whose file no
+ *    record's `module` names.
+ *  - `numbered`: `gap N` on any line of a source, test, manifest or conformance case, which cites a
+ *    numbered list a record does not keep. */
+function outsideBlocks(found: Gap[]): Prose[] {
+  const DOC = /^\s*\/\/[!/](?: ?(.*))?$/;
   const HEADING = /^#{1,6}\s+(\S.*?)\s*$/;
   const GAPS = /^Known gaps?\b/i;
   // Word-bounded, because `lowers` and `borrowed` both contain `owe`.
   const OWED = /\b(?:not(?:\s+\w+){0,3}\s+yet|owe[sd]?|owing|still missing|not armed|gaps?)\b/i;
-  const found = [];
-  for (const file of [...new Bun.Glob(SOURCES).scanSync({ cwd: ROOT })].map((f) => f.replaceAll("\\", "/")).sort()) {
+  const NUMBERED = /\bgap\s+\d+\b/i;
+  const recorded = new Set(found.map((g) => g.module));
+  const pointer = (file: string) => `Each gap is a record, and \`bun nv gaps --module ${file}\` lists them.`;
+  const out: Prose[] = [];
+  const files = PROSE_SOURCES.flatMap((glob) => [...new Bun.Glob(glob).scanSync({ cwd: ROOT })])
+    .map((f) => f.replaceAll("\\", "/"));
+  for (const file of [...new Set(files)].sort()) {
     const lines = readFileSync(join(ROOT, file), "utf8").split("\n");
+    const rust = file.endsWith(".rs");
     for (let n = 0; n < lines.length; n++) {
-      const doc = DOC.exec(lines[n]!);
+      const text = lines[n]!;
+      if (NUMBERED.test(text)) out.push({ file, line: n + 1, kind: "numbered", lead: oneLine(text.replace(/^\s*(?:\/\/[!/]?|#)\s?/, "")) });
+      const doc = rust ? DOC.exec(text) : null;
       const h = doc ? HEADING.exec(doc[1] ?? "") : null;
-      if (h && !GAPS.test(h[1]!) && OWED.test(h[1]!)) found.push({ file, line: n + 1, lead: oneLine(h[1]!) });
+      if (!h) continue;
+      if (!GAPS.test(h[1]!)) {
+        if (text.trimStart().startsWith("//!") && OWED.test(h[1]!)) out.push({ file, line: n + 1, kind: "heading", lead: oneLine(h[1]!) });
+        continue;
+      }
+      let next = n + 1;
+      while (next < lines.length && (DOC.exec(lines[next]!)?.[1] ?? "").trim() === "" && DOC.test(lines[next]!)) next++;
+      const first = (DOC.exec(lines[next] ?? "")?.[1] ?? "").trim();
+      if (first !== pointer(file) || !recorded.has(file)) out.push({ file, line: n + 1, kind: "block", lead: first === "" ? h[1]! : oneLine(first) });
     }
   }
-  return found;
+  return out;
+}
+
+/** `--prose`: every prose gap, one line each, and exit 1 while there is any. */
+function runProse(found: Gap[]): number {
+  const prose = outsideBlocks(found);
+  for (const kind of Object.keys(PROSE_WHY) as ProseKind[]) {
+    const of = prose.filter((p) => p.kind === kind);
+    if (of.length === 0) continue;
+    console.log(`== ${kind}: ${PROSE_WHY[kind]}`);
+    for (const p of of) console.log(`  ${p.file}:${p.line}  ${cut(p.lead, 90)}`);
+    console.log("");
+  }
+  console.log(prose.length === 0 ? "== no gap lives only in prose" : `== ${prose.length} prose gap(s) with no record behind them`);
+  return prose.length > 0 ? 1 : 0;
 }
 
 function oneLine(text: string): string {
@@ -357,14 +410,13 @@ function report(kinds: Kinds, found: Gap[], regs: Register[], sections: ReturnTy
   for (const g of kinds.unowned) out.push(lineOf(g), `      ${g.why}`);
   if (kinds.unowned.length === 0) out.push("  none");
   if (sections.length > 0) {
-    out.push("", "== OWED WORK UNDER A HEADING OF ITS OWN, WHERE NO OWNER TAG REACHES IT");
-    for (const s of sections) out.push(`  ${s.file}:${s.line}  ${cut(s.lead, 78)}`);
-    out.push("  make each one a gap record under `data/gaps/` naming its owner, and rewrite the heading " +
-      "to say what the module does");
+    out.push("", "== GAPS THAT LIVE ONLY IN PROSE, WHERE NO OWNER TAG REACHES THEM");
+    for (const s of sections) out.push(`  ${s.file}:${s.line}  ${s.kind}  ${cut(s.lead, 70)}`);
+    out.push("  `bun nv owners --prose` says what clears each kind");
   }
   const modules = new Set(found.map((g) => g.module)).size;
   out.push("", `== ${found.length} item(s) across ${modules} module(s)`, ...countLines(kinds));
-  out.push(`  sections outside Known gaps: ${sections.length}`, "");
+  out.push(`  prose gaps with no record: ${sections.length}`, "");
   console.log(out.join("\n"));
   reportRegisters(regs);
 }
@@ -525,7 +577,7 @@ function runDeferrals(kinds: Kinds): number {
 }
 
 export async function run(args: string[]): Promise<number> {
-  const known = new Set(["--check", "--registers", "--deferrals", "--untagged", "--unowned", "--json",
+  const known = new Set(["--check", "--registers", "--deferrals", "--prose", "--untagged", "--unowned", "--json",
     "--untagged-is-an-error", "--reasons"]);
   const at = args.indexOf("--closes");
   const slug = at >= 0 ? args[at + 1] : undefined;
@@ -542,7 +594,7 @@ export async function run(args: string[]): Promise<number> {
   if (has("--json")) {
     const counts = Object.fromEntries(registers(found).map((r) => [r.name, { items: r.owners.length, owners: tally(r.owners) }]));
     const rules = classifyRules(collectRules());
-    console.log(JSON.stringify({ ...kinds, designed_rules: rules, registers: counts, sections: outsideBlocks() }, null, 2));
+    console.log(JSON.stringify({ ...kinds, designed_rules: rules, registers: counts, sections: outsideBlocks(found) }, null, 2));
     return 0;
   }
   if (has("--registers")) {
@@ -554,6 +606,7 @@ export async function run(args: string[]): Promise<number> {
     return Math.max(gaps, ruleVerdict(runRuleCloses(collectRules(), slug)));
   }
   if (has("--deferrals")) return runDeferrals(kinds);
+  if (has("--prose")) return runProse(found);
   if (has("--check")) {
     const gaps = runCheck(kinds);
     return Math.max(gaps, ruleVerdict(runRuleCheck(classifyRules(collectRules()))));
@@ -568,7 +621,7 @@ export async function run(args: string[]): Promise<number> {
     console.log(`\n  ${kinds.unowned.length} item(s) still tagged \`unowned\`, which is no longer an owner kind`);
     return 0;
   }
-  report(kinds, found, registers(found), outsideBlocks());
+  report(kinds, found, registers(found), outsideBlocks(found));
   const rules = collectRules();
   reportRules(classifyRules(rules), rules);
   return 0;
