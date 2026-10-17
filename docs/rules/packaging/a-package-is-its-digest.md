@@ -16,6 +16,5 @@ subsystem of the standard library is never a package.
 Compiled artifacts are never published: a compiled unit is unreviewable, and source distribution is
 what makes "the digest is the identity" a statement about code a human could read.
 
-**Not on disk.** There is no `nvs add`, `fetch`, `update`, `outdated`, `vendor`, `audit` or `publish`
-subcommand, no `package.toml` or `package.lock` reader, and nothing in the tree digests a package
-archive.
+**Not on disk.** There is no `nvs pkg` command, no `package.toml` or `package.lock` reader, and
+nothing in the tree digests a package archive.

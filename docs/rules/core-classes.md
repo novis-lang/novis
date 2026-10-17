@@ -3,7 +3,7 @@
 
 # The Core classes
 
-*3 of 116 rules below are **designed** rather than shipped, and are marked where they appear.*
+*5 of 118 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="core-classes-cli-arguments"></a>
 
@@ -2924,6 +2924,119 @@ signed-cookie case, where the plaintext was the application's own when it went i
 payload" is not a property the checker can see, so it is not one the return type may assume.
 
 <sub>See also [`core-classes/router-signed-url`](core-classes.md#core-classes-router-signed-url), [`core-classes/uri-removable-components`](core-classes.md#core-classes-uri-removable-components), [`core-classes/secret-reveal`](core-classes.md#core-classes-secret-reveal).</sub>
+
+<a id="core-classes-passkey-verifies-a-webauthn-ceremony"></a>
+
+## `Core\Passkey` creates WebAuthn options and verifies registration and sign-in for ES256 and Ed25519, with a single-use challenge, no attestation check, and the credential stored by the application  *(designed — owned by goal core-passkey)*
+
+`rule:core-classes/passkey-verifies-a-webauthn-ceremony`
+
+`Core\Passkey` creates the options for a WebAuthn registration or sign-in and verifies what the browser
+returns, for ES256 and Ed25519 credentials, without verifying attestation, and the application stores
+the credential it returns.
+
+| Member | Does |
+|---|---|
+| `registerOptions(string $rpId, string $rpName, bytes $userId, string $userName, array<Passkey\Credential> $existing = []): string` | the JSON for `navigator.credentials.create()`, with a fresh challenge saved in the session |
+| `verifyRegistration(tainted string $response, string $rpId, string $origin): Passkey\Credential` | checks the browser's answer and returns the new credential |
+| `signInOptions(string $rpId, array<Passkey\Credential> $allowed = []): string` | the JSON for `navigator.credentials.get()`, with a fresh challenge saved in the session |
+| `credentialId(tainted string $response): tainted bytes` | the credential id the browser claims, to look up the stored credential |
+| `verifySignIn(tainted string $response, Passkey\Credential $stored, string $rpId, string $origin): Passkey\Credential` | checks the signature against the stored credential and returns it with its sign counter updated |
+
+`Passkey\Credential` is a value with `id` (`bytes`), `publicKey` (`bytes`, the COSE key), `algorithm`
+(`Passkey\Algorithm::ES256` or `Ed25519`) and `signCount` (`int`). `Core\Passkey` reads and writes no
+storage of its own: the application saves the credential wherever it keeps users.
+
+**What verification checks:** the client data's type, challenge and origin; the authenticator data's
+relying-party id hash, the user-present flag and the user-verified flag, which the options always ask
+for; and, for a sign-in, the signature over both, verified by the code `Core\Crypto` already uses. A
+credential whose algorithm is neither ES256 nor Ed25519 is refused at registration. A sign counter that
+does not increase, when either value is not zero, throws.
+
+**The challenge is single-use.** It comes from the system random source and is saved in the started
+session ([`core-classes/session-is-started-explicitly`](core-classes.md#core-classes-session-is-started-explicitly)). Verification takes it out of the session
+before it checks anything, so a second verification of one challenge, a replayed response, throws.
+The origin and relying-party id are the values the application passes, never anything the browser sent.
+
+**What the browser sent is `tainted`**, and the credential a successful verification returns is not.
+The CBOR and COSE parsing comes from an existing crate
+([`packaging/somebody-elses-specification-is-a-crate`](packaging.md#packaging-somebody-elses-specification-is-a-crate)).
+
+`Core\Passkey` is admitted to the protocol roster ([`security/protocol-roster`](security.md#security-protocol-roster)). Its usual failure
+is a silent library bug — an unchecked origin, a skipped flag, a challenge accepted twice returns a
+signed-in user — and every web application that signs people in needs it. The registry signs owners
+in with it ([`packaging/a-registry-account-is-a-passkey`](packaging.md#packaging-a-registry-account-is-a-passkey)).
+
+**Memory:** one challenge per ceremony, in the session, until it is verified.
+
+**Declined:**
+- **Attestation verification.** It needs a vendor certificate list that changes over time, and a
+  registry or web application has no use for knowing the authenticator's maker.
+- **Every COSE algorithm.** ES256 and Ed25519 cover current authenticators, and each further algorithm
+  is more parsing to get wrong.
+- **Credential storage inside `Core`.** Where users are kept is the application's choice, and a `Core`
+  table would be a second user store beside it.
+- **A challenge the application creates and passes back in.** Nothing could then stop one challenge
+  from verifying twice.
+
+**Not on disk.** There is no `Core\Passkey`.
+
+<sub>See also [`security/protocol-roster`](security.md#security-protocol-roster), [`security/protocol-admission-test`](security.md#security-protocol-admission-test), [`core-classes/session-is-started-explicitly`](core-classes.md#core-classes-session-is-started-explicitly), [`packaging/somebody-elses-specification-is-a-crate`](packaging.md#packaging-somebody-elses-specification-is-a-crate), [`packaging/a-registry-account-is-a-passkey`](packaging.md#packaging-a-registry-account-is-a-passkey).</sub>
+
+<a id="core-classes-web-push-sends-an-encrypted-message"></a>
+
+## `Core\WebPush::send` encrypts a payload as RFC 8291 `aes128gcm` with the nonce derived inside, signs a VAPID token, and sends under `net.connect`  *(designed — owned by goal core-web-push)*
+
+`rule:core-classes/web-push-sends-an-encrypted-message`
+
+`Core\WebPush::send` encrypts one payload for a browser's push subscription as RFC 8291's `aes128gcm`
+encoding, with the nonce derived inside and never a parameter, signs a VAPID token with the
+application's P-256 key as RFC 8292 says, and sends the message through `Core`'s HTTP client under the
+ordinary `net.connect` grant.
+
+| Member | Does |
+|---|---|
+| `subscription(tainted string $json): WebPush\Subscription` | reads the browser's `PushSubscription.toJSON()`: the endpoint URL and its `p256dh` and `auth` values |
+| `applicationServerKey(Crypto\KeyPair $vapid): string` | the public key, base64url, that the browser's `pushManager.subscribe()` needs |
+| `send(WebPush\Subscription $to, bytes $payload, Crypto\KeyPair $vapid, string $subject, int $ttl = 86400): WebPush\Sent` | encrypts, signs and sends one message, and returns the push service's answer |
+
+`WebPush\Sent` has the push service's `status` and `gone`, which is `true` for a subscription the
+service no longer knows, so the application can drop it. The VAPID key is a `Core\Crypto\KeyPair` of
+kind `P256` and stays `secret`; it never appears in a message or an error. The token is signed by the
+code `Core\Jwt` already uses for ES256.
+
+**The encryption is fixed.** Each message draws a fresh salt and a fresh P-256 key pair from the system
+random source, agrees a secret with the subscription's `p256dh`, and derives the content key and the
+nonce with HKDF and the `auth` secret, as RFC 8291 says. A payload larger than one record, 3993 bytes,
+throws. A `p256dh` value not on the curve, an `auth` value of the wrong length and an endpoint that is
+not `https:` each throw.
+
+**AES-128-GCM is internal to `Core\WebPush`.** No `Core` cipher takes a caller-chosen nonce, and this
+class adds none: AES-128-GCM is not a new case of `Core\Crypto\Cipher`, so the cipher roster of
+[`core-classes/crypto-interop-tier`](core-classes.md#core-classes-crypto-interop-tier) does not change.
+
+**The endpoint came from a browser, so it is `tainted`**, and the HTTP client's outbound address table
+refuses an internal host for it as for any request ([`security/net-address-policy`](security.md#security-net-address-policy)). A subscription
+cannot make the server reach its own network.
+
+`Core\WebPush` is admitted to the protocol roster ([`security/protocol-roster`](security.md#security-protocol-roster)). Its usual failure is
+a silent library bug — a reused nonce or a wrong key derivation still produces bytes that look
+encrypted — and a web application that notifies its users needs it. The registry notifies owners with
+it ([`packaging/an-owner-is-notified-without-email`](packaging.md#packaging-an-owner-is-notified-without-email)).
+
+**Memory:** one encrypted message per call, freed when `send` returns.
+
+**Declined:**
+- **AES-128-GCM as a public cipher in `Core\Crypto`.** Its only caller needs a nonce derived by the
+  protocol, and a public cipher would need a caller-chosen one.
+- **A caller-chosen nonce, salt or record size.** Each is a way to break the encryption, and RFC 8291
+  fixes all three.
+- **Encryption only, with the sending left to the application.** The application would then build the
+  VAPID header itself, which is the part most often wrong.
+
+**Not on disk.** There is no `Core\WebPush`.
+
+<sub>See also [`core-classes/crypto-interop-tier`](core-classes.md#core-classes-crypto-interop-tier), [`security/protocol-roster`](security.md#security-protocol-roster), [`security/protocol-admission-test`](security.md#security-protocol-admission-test), [`security/net-address-policy`](security.md#security-net-address-policy), [`packaging/an-owner-is-notified-without-email`](packaging.md#packaging-an-owner-is-notified-without-email).</sub>
 
 <a id="core-classes-router-signed-url"></a>
 

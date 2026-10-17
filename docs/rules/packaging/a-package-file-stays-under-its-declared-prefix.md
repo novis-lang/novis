@@ -1,23 +1,27 @@
+Every file in a package declares the package's namespace, `Vendor\Package`, or one under it, and a
+file that declares anything else is a **compile error** naming the file, the namespace it declared and
+the package it had to stay inside.
+
+A file belongs to a package when it was reached through an autoload root inside a directory that holds
+a `package.toml`, and that manifest gives the package's name
+(`rule:packaging/a-package-name-is-vendor-slash-name`). The check needs nothing more: the package comes
+from the layout, its name from the manifest, and the declaration is in the file. It needs no package
+manager either, so a package copied in by hand with its manifest is checked exactly as a fetched one is.
+
 Authority is looked up by the enclosing namespace alone
-(`rule:security/authority-is-the-enclosing-namespace`), and keying on a self-declared attribute would
-be worthless if a package could declare any attribute it liked. Two checks close that.
+(`rule:security/authority-is-the-enclosing-namespace`), which would be worthless if a package could
+declare any namespace it liked. This check is separate from the lookup: it makes the namespace the
+lookup trusts one the package was not free to choose. A package file that declares `namespace App;` to
+reach the application's grants does not compile.
 
-**A package declares its namespace prefix in its manifest, and two packages claiming one prefix is
-an error at fetch time naming both.** The collision is caught when the graph is assembled, not as a
-redeclaration during compilation.
+**No fetch-time clash check exists.** A package's prefix is its name, a resolved graph holds one source
+per name, and each vendor resolves from one registry
+(`rule:packaging/a-vendor-resolves-from-one-registry`), so two packages in one graph cannot claim one
+prefix.
 
-**Every file in a fetched package must declare a namespace under that package's declared prefix.**
-This is a compile-time check needing no new information: the file's package is known from the
-fetched layout, the prefix from the manifest, and the declaration is in the file. A package whose
-file declares `namespace App;` in order to reach the application's grants fails to compile, naming
-the file, the namespace it declared and the prefix it was required to stay inside.
+Hand-copied code with no manifest has no package and so no file check. It has the grant check, a person
+writing the `autoload` line that names its prefix, and the audit warning
+`rule:security/an-unmatched-namespace-holds-the-application` describes.
 
-The second check is *not* how authority is looked up — the lookup reads the namespace alone. It is a
-separate integrity check that the fetched layout and the declared namespaces agree, so the attribute
-the lookup trusts is one the package was not free to choose. Hand-vendored code has no manifest and
-so no such check; what it has instead is a human writing the `autoload` line that names its prefix,
-and the audit warning `rule:security/an-unmatched-namespace-holds-the-application` describes if they
-did not think about it.
-
-**Not on disk.** Nothing checks a package file's path against its prefix. The check's diagnostic
-takes the next free code in its band.
+**Not on disk.** Nothing checks a package file's namespace against its package. The diagnostic takes
+the next free code in its band.

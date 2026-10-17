@@ -1,0 +1,12 @@
+{
+  "title": "The registry builds each archive itself from a public git commit as a deterministic uncompressed tar, and `nvs pkg publish` uploads no file",
+  "status": "designed",
+  "seeAlso": [
+    "packaging/a-package-is-its-digest",
+    "packaging/publishing-never-overwrites",
+    "packaging/the-registry-is-a-novis-program",
+    "packaging/a-git-dependency-is-root-only"
+  ],
+  "guardedBy": [],
+  "goal": "registry-service"
+}

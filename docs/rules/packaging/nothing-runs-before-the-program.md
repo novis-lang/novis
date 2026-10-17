@@ -13,7 +13,7 @@ where a human reviews the output and the digest covers it. The generated file is
 other.
 
 A package containing a top-level statement with an observable effect produces no effect from
-`nvs fetch`, `nvs build` or `nvs vendor` — only from a call. There is no legitimate exception: in a
+`nvs pkg fetch`, `nvs build` or `nvs pkg vendor` — only from a call. There is no legitimate exception: in a
 language with no FFI and no native compilation step available to userland, an allowance for
 "packages that genuinely need it" would exist only to be abused, and if such a need ever appears
 the rule is re-argued from scratch rather than amended.

@@ -1,0 +1,13 @@
+{
+  "title": "A release published with a token alone is pending for seven fixed days, fetchable by exact version and never selected, unless an owner confirms it with a passkey",
+  "status": "designed",
+  "seeAlso": [
+    "packaging/resolution-takes-the-highest-minimum",
+    "packaging/only-a-major-may-break-the-api",
+    "packaging/a-known-bad-version-is-retracted-not-deleted",
+    "packaging/an-owner-is-notified-without-email",
+    "packaging/a-publish-token-is-scoped-and-expires"
+  ],
+  "guardedBy": [],
+  "goal": "registry-service"
+}

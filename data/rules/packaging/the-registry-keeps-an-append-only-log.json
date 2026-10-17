@@ -1,11 +1,13 @@
 {
-  "title": "The registry publishes an append-only transparency log, and a client verifies inclusion and consistency before using an artifact",
+  "title": "The registry keeps an append-only C2SP transparency log of every event it acts on, and a client verifies inclusion and consistency before using an archive",
   "status": "designed",
   "seeAlso": [
     "packaging/the-lockfile-holds-every-digest",
     "packaging/a-known-bad-version-is-retracted-not-deleted",
-    "packaging/publishing-never-overwrites"
+    "packaging/publishing-never-overwrites",
+    "packaging/the-registry-is-a-novis-program",
+    "config/ownership-is-the-trust-boundary"
   ],
   "guardedBy": [],
-  "milestone": "M15"
+  "goal": "registry-log"
 }

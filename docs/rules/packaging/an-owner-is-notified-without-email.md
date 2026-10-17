@@ -1,0 +1,42 @@
+Every owner is notified of each publish, new token, owner change, unlist and retraction through the
+channels that owner set up — **Web Push** and **webhooks** — and an account with no verified channel
+cannot publish and cannot be added as an owner.
+
+**The channels an owner sets up:**
+
+- **Web Push**, one click in the browser. Each message is sent through `Core\WebPush`
+  (`rule:core-classes/web-push-sends-an-encrypted-message`), encrypted to the device and signed with the
+  registry's VAPID key. An owner may register any number of devices. A device is added only while signed
+  in with a passkey, and adding or removing one notifies every other device and webhook of that account.
+  A subscription the push service reports gone is dropped, and the account page lists each device with
+  the date it last answered.
+- **Webhooks**: a signed POST to a URL the owner gives, such as ntfy, Matrix, Discord or the owner's own
+  server. It is sent through the outbound address table, so an internal host is refused, and it is
+  retried. Each message also carries a one-time "I am here" link
+  (`rule:packaging/an-account-stays-active-by-proof-not-by-token`).
+
+**Always present, whatever the owner set up:** a signed feed per vendor, the inbox on the website, and
+`nvs pkg publish` and `nvs pkg whoami` printing the pending releases the caller did not confirm. A
+public feed lists every pending release (`rule:packaging/a-release-waits-seven-days-unless-an-owner-confirms`).
+`nvs pkg publish` warns when no owner of the vendor has a working channel.
+
+**A verified channel is mandatory.** A push device is verified by the action on a test push, which
+sends back the one-time code inside the encrypted payload. A webhook is verified by a one-time code the
+registry sends to it, which the owner returns on the website or through the link in the message. **A
+channel that stops working stops counting**: the push service reports it gone, or a webhook still fails
+after its retries. An account whose last channel fails cannot publish until it verifies one again.
+
+The seven-day window protects a vendor only if somebody hears about the release inside it, so a channel
+that reaches a person is part of the right to publish. Adding a device needs a passkey, and every other
+channel hears about it, so an attacker cannot quietly add a device of their own to receive the codes.
+
+**Memory:** the service holds one message per send while it encrypts and posts it; subscriptions and
+webhooks are rows on disk.
+
+**Declined:**
+- **Email.** The registry holds no address (`rule:packaging/a-registry-account-is-a-passkey`), and a
+  mailbox is a takeover path.
+- **Notification as an option an owner may skip.** An owner nobody can reach makes the pending window
+  worthless for that vendor.
+
+**Not on disk.** There is no registry.

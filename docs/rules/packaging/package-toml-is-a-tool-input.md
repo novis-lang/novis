@@ -1,22 +1,53 @@
+`package.toml` is read by the `nvs pkg` commands, and the compiler reads **one table of the
+application's file, `[grants]`**, and nothing else of it. Neither the runtime nor name resolution ever
+reads `package.toml`.
+
+**Every package and registry command a user types is a subcommand of `nvs pkg`**: `add`, `fetch`,
+`update`, `outdated`, `vendor`, `audit`, `publish`, `retract`, `unlist`, `login`, `whoami`, `api`,
+`diff` and `pack`. That is the one spelling, short as `nvs ext` is
+(`rule:packaging/the-cli-surface-is-novis-own`): there is no `nvs package` alias and no flat `nvs add`
+or `nvs update`, so a package verb never collides with a toolchain command such as `nvs update-check`.
+The files keep their full names, `package.toml` and `package.lock`. The registry service's own byte work is `nvs registry`
+(`rule:packaging/the-registry-is-a-novis-program`), which is operator surface.
+
 The rejection of "a manifest file found by walking up from the entry file"
 (`rule:programs/no-runtime-autoload`) stands, and so does
-`rule:config/nvs-toml-is-not-a-project-manifest`. `package.toml` is neither, because the distinction
-both draw is about *who reads the file*.
+`rule:config/nvs-toml-is-not-a-project-manifest`. Both are about where a declaration is found, and no
+declaration is in `package.toml`: a program whose `vendor/` is populated resolves every name the same
+way whether the file is present, absent or malformed. A fetched package reaches the program as an
+ordinary `autoload` line (`rule:packaging/a-fetched-package-is-an-autoload-line`).
 
-**Neither the runtime nor name resolution ever reads `package.toml`.** Program semantics do not
-depend on it, no compiled unit's cache key includes it, and a program whose `vendor/` is already
-populated resolves every name identically whether the file is present, absent or malformed. That is
-a statement about *name resolution*, not about the build as a whole: the manifest's
-`required`/`optional` split (`rule:security/optional-capability-degrades`) and its declared
-namespace prefix are compiler inputs, reached through the fetched layout, so a malformed manifest
-still fails a build.
+**`[grants]` is the application's grant table** (`rule:security/grants-are-keyed-on-a-namespace`).
+`nvs pkg add` and `nvs pkg fetch` write one line per package in the resolved graph, an empty one
+included, and never rewrite a line a person already edited. A person reviews and edits the lines. The
+operator's `nvs.toml` can only narrow what they grant. A package's own `package.toml` declares its name,
+version, dependencies and the capabilities it requests, split into `required` and `optional`
+(`rule:security/optional-capability-degrades`); the compiler reads that name and that split for a file
+inside the package, and nothing else of a package's file.
 
-It is read by the **`nvs` CLI** — `add`, `fetch`, `update`, `vendor`, `audit`, `publish` — which may
-find it by walking up from the working directory the way `git` finds `.git`, because a tool locating
-its own project is a different question from a language locating a declaration.
+**Only the grants fold into the cache key.** Every compiled unit's key carries the grant table and the
+capability declarations it is intersected with, the way it carries the extension set
+(`rule:config/the-extension-set-is-in-every-unit-key`), so an edited grant line is an ordinary cache
+miss. A changed version, dependency or comment changes no key, because none of them changes what
+compiles.
 
-It is TOML with unknown fields refused (`rule:config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`),
-and its integration with the program is the generated file
-`rule:packaging/a-fetched-package-is-an-autoload-line` describes.
+`nvs check`, the editor and every `nvs pkg` command find the file by walking up from the working
+directory, the way `git` finds `.git`: a tool locating its own project is a different question from a
+language locating a declaration. The file is TOML with unknown fields refused
+(`rule:config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`).
 
-**Not on disk.** The tree has no package system and reads no `package.toml`.
+**Memory:** the grant table is compile-time input, and nothing of it is held per request.
+
+**Declined:**
+- **The grant table in `nvs.toml`.** That file is the operator's and deployment-scoped
+  (`rule:config/nvs-toml-is-not-a-project-manifest`). A grant is the application author's decision
+  about a dependency, and it changes in the same commit as the dependency graph. The operator keeps the
+  ceiling through the intersection.
+- **The whole file in the cache key.** A version bump or a comment would invalidate every unit, while
+  only the grants change what compiles.
+- **Flat package verbs, `nvs add` and `nvs publish`.** They spread one workflow across the toolchain's
+  top level, and `nvs update` would sit beside `nvs update-check` meaning something else.
+- **`nvs package` as a second spelling of `nvs pkg`.** Two spellings of one command are two things to
+  document, complete and search for.
+
+**Not on disk.** The tree reads no `package.toml` and has no `nvs pkg` command.

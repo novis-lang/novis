@@ -13,5 +13,5 @@
     "packaging/an-artifact-is-one-immutable-content-addressed-file"
   ],
   "guardedBy": [],
-  "milestone": "M15"
+  "goal": "package-client"
 }

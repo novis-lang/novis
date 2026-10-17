@@ -4,10 +4,15 @@ the application uses it. **The failure is silent** — a wrong implementation re
 rather than an error. **The need is near-universal** for the kind of program Novis exists to run.
 
 One structural boundary decides the edge: **the operation is stateless over a key.** A protocol
-requiring network round trips, a redirect dance, or stored per-flow state is a *flow*, not a token
-operation. The major delegated-authentication and hardware-credential protocols are all flows: they
-need clients, discovery documents, nonce storage and expiry policy, and their designs vary per
-provider. They are out permanently, and are ordinary userland or package code built on this roster.
+requiring a redirect dance, discovery documents, or per-flow state that `Core` would have to store is a
+*flow*, not a token operation. The delegated-authentication protocols are all flows: they need clients,
+discovery documents, nonce storage and expiry policy, and their designs vary per provider. They are out
+permanently, and are ordinary userland or package code built on this roster.
+
+WebAuthn's server half is inside the line: each verification is a signature check over a public key
+the application stores, against a challenge the started session keeps. Its attestation part, which
+needs vendor certificate lists, stays out. Sending one encrypted push message is inside it too: one
+request out, with nothing stored and nothing to come back for.
 
 The closed list will be argued with, and this test is the answer — recording the boundary is what
 makes it a decision rather than a negotiation.

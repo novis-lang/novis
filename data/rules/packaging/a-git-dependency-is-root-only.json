@@ -4,8 +4,9 @@
   "seeAlso": [
     "packaging/a-package-is-its-digest",
     "packaging/the-lockfile-holds-every-digest",
+    "packaging/a-vendor-resolves-from-one-registry",
     "packaging/publishing-never-overwrites"
   ],
   "guardedBy": [],
-  "milestone": "M15"
+  "goal": "package-client"
 }

@@ -1,18 +1,35 @@
-`nvs publish` uploads a source archive built from a **clean checkout**. The registry requires a
-verified account with a second factor, and then:
+`nvs pkg publish` names a repository, a commit and a version, and the registry never overwrites a
+published `name@version`. A version, once published, is immutable; a bad one is retracted
+(`rule:packaging/a-known-bad-version-is-retracted-not-deleted`).
 
-- **refuses to overwrite a published `name@version` under any circumstance** — a version, once
-  published, is immutable; a bad one is retracted
-  (`rule:packaging/a-known-bad-version-is-retracted-not-deleted`);
-- refuses an archive containing an `nvs.toml` (`rule:packaging/a-package-cannot-reach-its-host`) or
-  a git dependency (`rule:packaging/a-git-dependency-is-root-only`);
-- records the artifact in the transparency log
-  (`rule:packaging/the-registry-keeps-an-append-only-log`) **before** it is downloadable;
-- records the manifest's requested capabilities, so that `nvs add` can show them before a human
-  grants anything (`rule:security/package-authority-is-granted-one-line-at-a-time`).
+The caller authenticates with a publish token (`rule:packaging/a-publish-token-is-scoped-and-expires`),
+and the registry builds the archive itself from that commit
+(`rule:packaging/the-registry-builds-the-archive-from-git`). **It refuses the publish when:**
 
-Operating the registry — index, artifact store, log, advisory feed, accounts, moderation, uptime —
-is a real and permanent responsibility; the protocol is static signed files so that the serving side
-is cheap and mirrorable, but the responsibility is the main cost of having a package system at all.
+- a file declares a namespace outside the package's name
+  (`rule:packaging/a-package-file-stays-under-its-declared-prefix`), or the name differs only by case
+  from one already taken (`rule:packaging/a-package-name-is-vendor-slash-name`);
+- the archive holds an `nvs.toml` (`rule:packaging/a-package-cannot-reach-its-host`);
+- the manifest names a git dependency (`rule:packaging/a-git-dependency-is-root-only`);
+- the repository is over the size limit;
+- a minor or patch breaks the API of the release before it
+  (`rule:packaging/only-a-major-may-break-the-api`);
+- the version was published before, under any circumstance;
+- the account is not active (`rule:packaging/an-account-stays-active-by-proof-not-by-token`), or has
+  no verified notification channel (`rule:packaging/an-owner-is-notified-without-email`).
 
-**Not on disk.** The tree has no package system and no `nvs publish`.
+A publish that passes is recorded in the transparency log
+(`rule:packaging/the-registry-keeps-an-append-only-log`) **before** it is downloadable, together with
+the manifest's requested capabilities, so that `nvs pkg add` shows them before a person grants
+anything (`rule:security/package-authority-is-granted-one-line-at-a-time`). A release by token alone
+then waits seven days unless an owner confirms it
+(`rule:packaging/a-release-waits-seven-days-unless-an-owner-confirms`).
+
+An immutable version is what makes a digest in a lockfile mean the same thing next year, and what
+lets a mirror or a `vendor/` copy be checked against the log instead of trusted.
+
+**Declined:**
+- **Overwriting a version to fix a broken release.** Every lockfile that holds the old digest stops
+  building, and a registry that may change bytes under a name has made the log's promise false.
+
+**Not on disk.** The tree has no package system and no `nvs pkg publish`.

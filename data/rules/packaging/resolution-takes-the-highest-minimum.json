@@ -1,11 +1,12 @@
 {
-  "title": "Resolution selects the highest minimum any package asked for, and nothing upgrades itself",
+  "title": "Resolution selects the highest minimum any package asked for, across majors, never a pending version, and nothing upgrades itself",
   "status": "designed",
   "seeAlso": [
-    "packaging/a-breaking-release-is-a-new-name",
+    "packaging/only-a-major-may-break-the-api",
+    "packaging/a-release-waits-seven-days-unless-an-owner-confirms",
     "packaging/a-known-bad-version-is-retracted-not-deleted",
     "packaging/the-lockfile-holds-every-digest"
   ],
   "guardedBy": [],
-  "milestone": "M15"
+  "goal": "package-client"
 }

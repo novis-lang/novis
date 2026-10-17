@@ -1,0 +1,13 @@
+{
+  "title": "From `0.1.0` on, a minor or patch release never breaks the public API of the release before it, and `nvs` checks that at publish without running code",
+  "status": "designed",
+  "seeAlso": [
+    "packaging/resolution-takes-the-highest-minimum",
+    "packaging/a-release-waits-seven-days-unless-an-owner-confirms",
+    "packaging/below-1-0-the-breaking-slot-moves-left",
+    "packaging/a-dependency-break-is-absorbed-never-forwarded",
+    "routing/api-diff-fails-a-breaking-change"
+  ],
+  "guardedBy": [],
+  "goal": "api-compat"
+}
