@@ -1,0 +1,62 @@
+--TEST--
+A property write through an `object` or `mixed` receiver into an anonymous object stores only a value with the shape of the field's current value, so a typed read never sees an object of the wrong class — `rule:types/erased-member-access`
+--FILE--
+<?nvs
+// An anonymous object has no declared class. Each write below goes through an
+// `object` or a `mixed` variable, so the program checks the value when it runs.
+// The new value must have the type of the value the field has now.
+class Animal { public string $name = "tom"; }
+class Dog extends Animal { public int $legs = 4; }
+class Puppy extends Dog {}
+
+type Narrow = {pet: Dog, pets: array<Dog>, home: {pet: Dog}, tag: ?string};
+
+class Write {
+    public static function throughObject(object $o, mixed $value): string {
+        try {
+            $o->pet = $value;
+            return "written";
+        } catch (RuntimeError $e) {
+            return $e->message;
+        }
+    }
+
+    public static function throughMixed(mixed $m, string $field, mixed $value): string {
+        try {
+            if ($field == "pet") { $m->pet = $value; }
+            if ($field == "pets") { $m->pets = $value; }
+            if ($field == "home") { $m->home = $value; }
+            if ($field == "tag") { $m->tag = $value; }
+            return "written";
+        } catch (RuntimeError $e) {
+            return $e->message;
+        }
+    }
+}
+
+Narrow $n = {pet: new Dog(), pets: [new Dog()], home: {pet: new Dog()}, tag: null};
+echo Write::throughObject($n, new Puppy()), "\n";
+echo Write::throughObject($n, new Animal()), "\n";
+echo Write::throughMixed($n, "pet", new Animal()), "\n";
+echo Write::throughMixed($n, "pet", null), "\n";
+echo Write::throughMixed($n, "pets", [new Dog(), new Puppy()]), "\n";
+echo Write::throughMixed($n, "pets", [new Animal()]), "\n";
+echo Write::throughMixed($n, "home", {pet: new Puppy()}), "\n";
+echo Write::throughMixed($n, "home", {pet: new Animal()}), "\n";
+echo Write::throughMixed($n, "tag", null), "\n";
+echo Write::throughMixed($n, "tag", "a"), "\n";
+
+// The refused writes stored nothing, so every typed read finds a `Dog`.
+echo $n->pet->legs, " ", $n->pets[1]->legs, " ", $n->home->pet->legs, "\n";
+--EXPECT--
+written
+field `pet` of an anonymous object is an object of class `Puppy`, so an object of class `Animal` cannot be written to it
+field `pet` of an anonymous object is an object of class `Puppy`, so an object of class `Animal` cannot be written to it
+`$shape{home,pet,pets,tag}` declares field `pet` as object, so a null cannot be written to it
+written
+field `pets` of an anonymous object is an array, so an array holding an object of class `Animal` cannot be written to it
+written
+field `home` of an anonymous object is an object of class `$shape{pet}`, so an object whose `pet` is an object of class `Animal` cannot be written to it
+written
+field `tag` of an anonymous object is a null, so a string cannot be written to it
+4 4 4

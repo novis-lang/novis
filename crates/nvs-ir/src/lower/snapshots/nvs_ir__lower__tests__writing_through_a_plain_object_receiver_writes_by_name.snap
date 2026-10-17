@@ -1,5 +1,5 @@
 ---
-source: crates/nvs-ir/src/lower/mod.rs
+source: crates/nvs-ir/src/lower/tests.rs
 expression: "print_function(&f, map.file(file))"
 ---
 fn m(object, object) -> void {
@@ -10,7 +10,7 @@ fn m(object, object) -> void {
     ; stmt s0 @4:5-4:15
     v2 = const.int 1  ; int
     v3 = tag v2  ; tagged
-    v4 = slot.set v1, x @0, v3 ! bb1  ; void
+    v4 = slot.set v1, x @0, v3, erased ! bb1  ; void
     release v3
     release v1
     release v0

@@ -27,6 +27,9 @@ pub(crate) struct ShapeField {
     pub(crate) slot: u32,
     /// Its declared type, still in `nvs_types`' interner.
     pub(crate) ty: TypeId,
+    /// Whether the receiver's static type does not list the field, which
+    /// `nvs_types::expr_table::ExprInfo::ShapeProperty::erased` owns.
+    pub(crate) erased: bool,
 }
 
 impl<'a> Lowering<'a> {
@@ -5082,6 +5085,7 @@ impl<'a> Lowering<'a> {
             slot,
             ty,
             guarded,
+            erased,
         }) = self.exprs.lookup(expr.span)
         {
             let absent = if self.read_is_guarded(*guarded, expr.span) {
@@ -5093,6 +5097,7 @@ impl<'a> Lowering<'a> {
                 name: name.clone(),
                 slot: *slot,
                 ty: *ty,
+                erased: *erased,
             };
             return self.lower_shape_property_access(object, &field, absent, nullsafe, env, cur);
         }
@@ -5858,6 +5863,7 @@ impl<'a> Lowering<'a> {
                 field: field.name.clone(),
                 slot: field.slot,
                 value: v,
+                erased: field.erased,
             },
             env,
         );

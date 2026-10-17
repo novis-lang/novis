@@ -1214,13 +1214,19 @@ impl<'a> Lowering<'a> {
                 // throw on this side whatever the read side was written
                 // under, which is `nvs_runtime::nvs_object_slot_set`'s own
                 // "never creates a field" half.
-                if let Some(ExprInfo::ShapeProperty { name, slot, ty, .. }) =
-                    self.exprs.lookup(target.span)
+                if let Some(ExprInfo::ShapeProperty {
+                    name,
+                    slot,
+                    ty,
+                    erased,
+                    ..
+                }) = self.exprs.lookup(target.span)
                 {
                     let field = super::expr::ShapeField {
                         name: name.clone(),
                         slot: *slot,
                         ty: *ty,
+                        erased: *erased,
                     };
                     return self.lower_shape_property_assign(
                         object,

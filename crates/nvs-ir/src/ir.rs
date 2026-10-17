@@ -1255,6 +1255,10 @@ pub enum InstKind {
         /// The value to store, already coerced to the field's static
         /// representation. Borrowed; see this variant's own docs.
         value: ValueId,
+        /// Whether the receiver's static type does not list the field, so the
+        /// runtime checks an anonymous object's slot against its current
+        /// value (`nvs_runtime::write_erased_property`).
+        erased: bool,
     },
     /// `$obj->$key` —
     /// `rule:types/property-key-access`'s keyed read, and [`InstKind::SlotGet`] with the name arriving as a

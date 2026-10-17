@@ -787,6 +787,13 @@ pub enum ExprInfo {
         /// absence for the mark to answer for and `$p->b ?? 0` on one is the
         /// short-circuit it already was.
         guarded: bool,
+        /// Whether the receiver's static type does not list the field: a plain
+        /// `object`, a `mixed`, or a shape asked for a name it does not have.
+        /// A listed field's write needs no check of the value it stores,
+        /// because a shape's field types are invariant
+        /// (`rule:types/shape-type`). An erased write into an anonymous object
+        /// does (`nvs_runtime::write_erased_property`).
+        erased: bool,
     },
     /// A resolved array-element access (`$arr[$expr]`, read or write) whose
     /// base statically resolved to a known `Ty::Array` element type, **or**

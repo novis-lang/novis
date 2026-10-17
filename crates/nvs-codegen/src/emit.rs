@@ -766,8 +766,9 @@ impl Emitter<'_, '_> {
                 field,
                 slot,
                 value,
+                erased,
             } => {
-                return self.emit_slot_set(inst, *object, field, *slot, *value);
+                return self.emit_slot_set(inst, *object, field, *slot, *value, *erased);
             }
             InstKind::KeyGet { object, key } => {
                 return self.emit_key_get(inst, *object, *key);
@@ -3073,9 +3074,11 @@ impl Emitter<'_, '_> {
         field: &str,
         slot: u32,
         value: ValueId,
+        erased: bool,
     ) -> Result<Block, CodegenError> {
         let (name, len) = self.emit_bytes(field.as_bytes())?;
         let hint = self.b.ins().iconst(types::I64, i64::from(slot));
+        let erased = self.b.ins().iconst(types::I8, i64::from(erased));
         let recv_p = self.materialize_receiver(object)?;
         let (value, value_ty) = self.value(value)?;
 
@@ -3095,10 +3098,10 @@ impl Emitter<'_, '_> {
         let out_p = self.b.ins().stack_addr(types::I64, out_slot, 0);
 
         let callee = self.runtime_ref("nvs_object_slot_set", RuntimeSig::SlotSet)?;
-        let call = self
-            .b
-            .ins()
-            .call(callee, &[self.ctx_p, recv_p, name, len, hint, in_p, out_p]);
+        let call = self.b.ins().call(
+            callee,
+            &[self.ctx_p, recv_p, name, len, hint, erased, in_p, out_p],
+        );
         let status = self.b.inst_results(call)[0];
         self.emit_status_check(status, inst.on_error)
     }
