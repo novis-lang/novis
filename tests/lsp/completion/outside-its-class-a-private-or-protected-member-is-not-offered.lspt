@@ -1,0 +1,20 @@
+--TEST--
+outside every class only the public members are offered, because the checker refuses a private or protected one there — `rule:ide/completion-offers-only-what-the-compiler-derived`
+--FILE--
+<?nvs
+class Account {
+    public int $id = 1;
+    protected int $limit = 5;
+    private int $secret = 9;
+    public function open(): void {}
+    protected function audit(): void {}
+    private function wipe(): void {}
+}
+var $a = new Account();
+$a-><|>
+if (true) {
+--REQUEST--
+completion
+--EXPECT--
+id      property  int
+open()  method    void

@@ -1,0 +1,20 @@
+--TEST--
+inside a subclass the parent's public and protected members are offered and its private ones are not — `rule:ide/completion-offers-only-what-the-compiler-derived`
+--FILE--
+<?nvs
+class Account {
+    public int $id = 1;
+    protected int $limit = 5;
+    private int $secret = 9;
+}
+class Savings extends Account {
+    public function check(): void {
+        $this-><|>
+    }
+}
+--REQUEST--
+completion
+--EXPECT--
+check() method    void
+id      property  int
+limit   property  int

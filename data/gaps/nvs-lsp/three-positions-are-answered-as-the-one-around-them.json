@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-lsp/src/completion.rs",
+  "title": "Completion answers three positions as the position around them.",
+  "text": "Three cursor positions get the list of the position that contains them, which `rule:ide/completion-offers-only-what-the-compiler-derived` does not allow. The receiver half of an access is one: `$u<|>->name` is writing a variable, and the variables in scope are not offered (`tests/lsp/completion/a-cursor-in-the-receiver-half-is-not-asking-for-members.lspt`). A written type that the tokens do not give away is another: a property's type, and a type argument between `<` and `>`. The inside of a string literal is the third, where the statement keywords are offered beside the variables an interpolation takes (`tests/lsp/completion/a-string-literal-is-a-statement-position.lspt`).",
+  "goal": "completeness-holes"
+}

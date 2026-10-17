@@ -1,0 +1,19 @@
+--TEST--
+a receiver offers the members its class inherits from a parent class and an interface, and a method the class overrides is offered once, as the class wrote it — `rule:ide/completion-offers-only-what-the-compiler-derived`
+--FILE--
+<?nvs
+interface Named { public function name(): string; }
+class Animal { public int $legs = 4; public function sound(): ?string { return null; } }
+class Dog extends Animal implements Named {
+    public function sound(): string { return "woof"; }
+    public function name(): string { return "Rex"; }
+}
+var $d = new Dog();
+$d-><|>
+if (true) {
+--REQUEST--
+completion
+--EXPECT--
+legs    property  int
+name()  method    string
+sound() method    string
