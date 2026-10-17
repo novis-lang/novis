@@ -8,8 +8,9 @@
 //! neither `"worker"` nor `"here"` (`E0818`), a `limits:` key that is not a
 //! sub-cap a program may narrow (`E0454`), and an operand that is neither a
 //! path nor a static method (`E0802`). [`check_entry`] owns the operand rule
-//! itself, and the one thing it does not yet ask; [`check_spawn_script`] owns
-//! what each option is typed as.
+//! itself, [`check_spawn_script`] owns what each option is typed as, and
+//! [`check_literal_args`] compares a literal `args:` map against a method
+//! entry's parameters.
 //!
 //! **The operand rule has a second site and no second implementation.**
 //! `rule:concurrency/an-upgrade-is-spawn-shaped` opens a persistent connection with `spawn script`'s operand, so a `Core`
@@ -109,7 +110,7 @@ use nvs_diagnostics::{Diagnostic, Span, code};
 use nvs_hir::QName;
 use nvs_syntax::ast::{CallArgs, Expr, ExprKind, SpawnOption, SpawnOptionKey};
 
-use crate::expr_table::ArgSlot;
+use crate::expr_table::{ArgSlot, ExprInfo};
 use crate::locals::{Live, LocalScope};
 use crate::ty::{ShapeField, Ty, TypeId};
 use crate::{Ctx, Env};
@@ -194,7 +195,109 @@ pub(crate) fn check_spawn_script(
             SpawnOptionKey::Grants | SpawnOptionKey::Output => {}
         }
     }
+    let args = options
+        .iter()
+        .find(|opt| matches!(opt.key, SpawnOptionKey::Args))
+        .map(|opt| &opt.value);
+    check_literal_args(path, args, env);
     script_handle(env)
+}
+
+/// `rule:security/isolate-shares-nothing`'s named-argument agreement, at compile time, between a
+/// method entry and the `args:` map its spawn writes as a literal.
+///
+/// It asks what `nvs_stdlib::script`'s `entry_names_agree` asks at the spawn, and gets the same
+/// answer: every parameter the entry declares is a key of the map, and the map has no key the
+/// entry does not declare. A spawn with no `args:` passes no keys at all. A map is compared only
+/// when every entry is `"name" => value`. A positional entry, a spread or a computed key leaves the
+/// question to the spawn, which reports either mismatch when it runs.
+///
+/// One mistake is one diagnostic, as at a call: a key the entry does not declare is `E0486` at the
+/// key, and only a map with none of those reports the parameters it leaves out, as `E0402`.
+fn check_literal_args(path: &Expr, map: Option<&Expr>, env: &mut Env<'_>) {
+    if !is_method_reference(path) {
+        return;
+    }
+    let Some(ExprInfo::CallableRef(call)) = env.exprs.lookup(path.span) else {
+        return;
+    };
+    let entry = format!("{}::{}", call.class, call.method);
+    let params = call.param_names.clone();
+    let mut keys = Vec::new();
+    if let Some(map) = map {
+        let ExprKind::ArrayLiteral(items) = &map.kind else {
+            return;
+        };
+        for item in items {
+            let Some(key) = item.key.as_ref().filter(|_| !item.spread) else {
+                return;
+            };
+            let ExprKind::Str(text) = key.kind else {
+                return;
+            };
+            keys.push((
+                crate::string_lit::cook_string_literal(env.src, text),
+                key.span,
+            ));
+        }
+    }
+    let mut unknown = false;
+    for (key, span) in &keys {
+        if params.contains(key) {
+            continue;
+        }
+        unknown = true;
+        let declared = match params.as_slice() {
+            [] => "It declares no parameters.".to_owned(),
+            names => format!(
+                "Its parameters are: {}.",
+                names
+                    .iter()
+                    .map(|name| format!("`{name}`"))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
+        };
+        env.diags.report(
+            Diagnostic::error(
+                code::E_UNKNOWN_ARG_NAME,
+                format!("`{entry}` has no parameter named `{key}`"),
+            )
+            .with_primary(*span, "no such parameter")
+            .with_help(format!(
+                "`args:` gives each entry to the parameter with the same name. {declared}"
+            )),
+        );
+    }
+    if unknown {
+        return;
+    }
+    let missing: Vec<String> = params
+        .iter()
+        .filter(|name| !keys.iter().any(|(key, _)| key == *name))
+        .map(|name| format!("`{name}`"))
+        .collect();
+    if missing.is_empty() {
+        return;
+    }
+    let (span, label) = match map {
+        Some(map) => (map.span, "this map has no entry for it"),
+        None => (path.span, "this spawn has no `args:`"),
+    };
+    env.diags.report(
+        Diagnostic::error(
+            code::E_ARITY_MISMATCH,
+            format!(
+                "`args:` has no entry for the parameter(s) {}",
+                missing.join(", ")
+            ),
+        )
+        .with_primary(span, label)
+        .with_help(format!(
+            "`{entry}` gets each argument from the `args:` entry with its name. \
+             Add one entry for each parameter."
+        )),
+    );
 }
 
 /// `rule:security/isolate-shares-nothing`'s operand rule: the entry is a path **or** a static
@@ -224,14 +327,8 @@ pub(crate) fn check_spawn_script(
 /// - **A method reference**, which is the specified form and has nothing left
 ///   to refuse: it lowers to its own `Core` symbol (`nvs_ir::lower`'s
 ///   `lower_spawn_script`), carrying the entry's parameter names, and
-///   `nvs_stdlib::script` binds `args:`'s entries to them by name.
-///
-/// **Known gap.** `rule:security/isolate-shares-nothing` reports a name `args:` holds that the
-/// entry does not declare, or a parameter it omits, *at compile time when
-/// `args:` is a literal* and at the spawn otherwise. Only the second half is
-/// asked: the spawn raises the named-argument error for either mismatch, and a
-/// literal map is not compared against the signature here yet. What that costs
-/// is when the error arrives, never whether it does.
+///   `nvs_stdlib::script` binds `args:`'s entries to them by name. A literal
+///   `args:` map is compared against those names by [`check_literal_args`].
 fn check_entry(path: &Expr, live: &mut Live, scope: &LocalScope, ctx: &Ctx<'_>, env: &mut Env<'_>) {
     // Checked first and on every path: a typo *inside* the operand is worth
     // reporting whichever of the three it turns out to be, and with no expected

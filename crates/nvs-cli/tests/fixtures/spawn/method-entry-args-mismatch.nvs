@@ -1,8 +1,8 @@
 <?nvs
 // `rule:security/isolate-shares-nothing`: a name `args:` holds that the entry does not declare,
-// or a parameter it omits, is the ordinary named-argument error — reported at
-// the spawn when the map is not a literal the compiler compared. Nothing is
-// started, so this program dies where the spawn is written.
+// or a parameter it omits, is the ordinary named-argument error. The map is built
+// in a variable, so the compiler does not compare it and the spawn reports it.
+// Nothing is started, so this program dies where the spawn is written.
 class Reports
 {
     public static function monthly(int $month): int {
@@ -10,7 +10,8 @@ class Reports
     }
 }
 
-var $job = spawn script Reports::monthly(...) with(args: ["moth" => 7]);
+var $args = ["moth" => 7];
+var $job = spawn script Reports::monthly(...) with(args: $args);
 var $result = await $job;
 
 echo "unreachable\n";

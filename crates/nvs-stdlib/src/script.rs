@@ -961,8 +961,9 @@ nvs_runtime::nvs_helper! {
 /// Judged on the **parent's** map rather than on the child's copy, because the
 /// two hold the same keys — `rule:classes/two-copy-depths`'s graph copy preserves them — and only
 /// this side still has a frame for the ADR's "reported … at the spawn" to
-/// happen in. The other half of that sentence, reporting a *literal* map's
-/// mismatch at compile time, is `nvs_types::expr::isolate`'s one known gap.
+/// happen in. A spawn that writes its map as a literal is compared at compile
+/// time too, by `nvs_types::expr::isolate`'s `check_literal_args`, with the same
+/// two questions.
 ///
 /// A value that is not an array at all names no parameter, so it reads here as
 /// a map with no keys: `null` is what a spawn with no `args:` passes, and
