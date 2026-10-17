@@ -248,6 +248,7 @@ pub mod sse;
 pub mod stream;
 mod string;
 pub mod sweep;
+pub mod syslog;
 pub mod terminal;
 pub mod throwable;
 pub mod trace_context;

@@ -264,6 +264,7 @@
 #handler_reserve_memory = "16M"       # default
 #handler_reserve_time = "5s"          # default
 # Tier 4, the floor that is always there: `stderr`, `file:<path>` or `syslog`.
+# `syslog` works on Linux, macOS and other Unix systems. Windows does not have it.
 # When this is not set, a service writes to `logs/nvs.log` in its data folder.
 #target = "stderr"                    # default
 # When a `file:` log reaches this size, Novis renames it to `<file>.1` and starts a new file.

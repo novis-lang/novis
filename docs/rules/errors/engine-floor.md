@@ -1,6 +1,8 @@
 Hardcoded in Rust, with no script execution — there is nothing left here that could throw, panic or
 need a further tier, because this is the floor. It writes to an operator-owned sink named by `[log]
-target`: `stderr`, `file:<path>` or `syslog`. With no target in any file it is `stderr`, except in a
+target`: `stderr`, `file:<path>` or `syslog`. `syslog` sends each record as one datagram to the local
+daemon's socket, at the `user` facility and the record's `rule:errors/log-level` severity; only a Unix
+host has that socket, so on Windows the boot refuses it. With no target in any file it is `stderr`, except in a
 process a service manager started, where it is `file:` the data folder's `logs/nvs.log`; a service with
 no usable data folder keeps `stderr`. The check reads where the key was written, so a `stderr` an
 operator wrote is kept. A service has no terminal, and its `stderr` is the journal or the Event Log,

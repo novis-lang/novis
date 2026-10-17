@@ -147,11 +147,14 @@ pub(super) enum LogTarget {
     /// returns here at [`Ctx::set_config`], so the read happens after the
     /// configuration is in place and never twice.
     Unread,
-    /// Read, and the configuration names no destination this build can open.
+    /// Read, and the configuration names no target.
     /// Each writer keeps [`LogChannel`]'s own channel.
     Unnamed,
     /// Read: both writers land here.
     Named(OutputSink),
+    /// Read, and `syslog`: both writers land in the local daemon, through
+    /// [`crate::syslog`], which needs the record's level as well as its line.
+    Syslog,
 }
 
 /// [`Ctx::write_log_record`]'s routing, for a writer that holds no request: the
@@ -175,17 +178,17 @@ pub(super) enum LogTarget {
 /// collapses to the engine's own channel, which is where the floor already puts
 /// a record about a program that is not running.
 ///
-/// **What it spends** (`rule:programs/memory-priority`): one resolved sink per
+/// **What it spends** (`rule:programs/memory-priority`): one resolved target per
 /// writer — a handle to the one shared file where the target is a file —
 /// and one `String` per record written. Nothing is O(records), and a process
 /// that never writes one holds a discriminant.
 #[derive(Debug)]
 pub struct LogWriter {
     /// What `[log] target` named, or [`OutputSink::Stderr`] where it named
-    /// nothing this build opens. Held for the life of the writer, because a
-    /// rotation bound counted against a handle needs the handle to outlive the
-    /// record.
-    sink: OutputSink,
+    /// nothing. Never [`LogTarget::Unread`] or [`LogTarget::Unnamed`]. Held for
+    /// the life of the writer, because a rotation bound counted against a
+    /// handle needs the handle to outlive the record.
+    target: LogTarget,
     /// The quietest level `[log] level` writes — records below it are dropped
     /// before they are rendered.
     minimum: Level,
@@ -200,9 +203,9 @@ impl LogWriter {
     #[must_use]
     pub fn resolve(config: Option<&nvs_config::Request>) -> Self {
         Self {
-            sink: match log_target(config) {
-                LogTarget::Named(sink) => sink,
-                LogTarget::Unread | LogTarget::Unnamed => OutputSink::Stderr,
+            target: match log_target(config) {
+                LogTarget::Unread | LogTarget::Unnamed => LogTarget::Named(OutputSink::Stderr),
+                named => named,
             },
             minimum: log_minimum(config),
             format: log_format(config),
@@ -232,7 +235,11 @@ impl LogWriter {
         let Some(line) = self.render(record) else {
             return Ok(());
         };
-        write_to(&mut self.sink, line.as_bytes())
+        match &mut self.target {
+            LogTarget::Named(sink) => write_to(sink, line.as_bytes()),
+            LogTarget::Syslog => crate::syslog::send(record.envelope.level, &line),
+            LogTarget::Unread | LogTarget::Unnamed => io::stderr().write_all(line.as_bytes()),
+        }
     }
 }
 
@@ -371,8 +378,10 @@ impl Ctx {
         }
         let rendered = rendered(self.log_format, record);
         let line = rendered.as_bytes();
-        if let LogTarget::Named(sink) = &mut self.log {
-            return write_to(sink, line);
+        match &mut self.log {
+            LogTarget::Named(sink) => return write_to(sink, line),
+            LogTarget::Syslog => return crate::syslog::send(record.envelope.level, &rendered),
+            LogTarget::Unread | LogTarget::Unnamed => {}
         }
         match unconfigured {
             LogChannel::Output => self.write_output(line),
@@ -1046,20 +1055,15 @@ impl DeclaredHeaders {
 ///
 /// [`nvs_config::log::Target`] is that grammar and it has two readers:
 /// this one, and the boot check that refuses a tree naming a target § 4
-/// does not spell. So a value that reached here is one the grammar spells,
-/// and [`LogTarget::Unnamed`] covers two facts rather than one:
+/// does not spell, or `syslog` on a host with no syslog socket. So a value
+/// that reached here is one this host opens. `syslog` is
+/// [`LogTarget::Syslog`] rather than a sink, because its datagram carries
+/// the record's severity and the byte-oriented sinks take bytes alone.
 ///
-/// - **`syslog` is spelled and not yet transported.** A syslog sink is a
-///   datagram to a platform endpoint carrying `rule:errors/log-level`'s severity in a
-///   priority field — a transport, a framing and an argument the
-///   byte-oriented sinks here do not take. Routing it to `stderr` instead
-///   would be this module claiming a destination it does not reach, so it
-///   routes nowhere new and each writer's own channel still carries the
-///   record.
-/// - **A target nobody spelled** never boots, so reaching it here means a
-///   caller was configured by something other than a resolved tree — a
-///   test, in practice. It is not a diagnostic at the one moment the
-///   engine has a failure to report; it is the unconfigured routing.
+/// **A target nobody spelled** never boots, so reaching it here means a
+/// caller was configured by something other than a resolved tree — a test,
+/// in practice. It is not a diagnostic at the one moment the engine has a
+/// failure to report; it is [`LogTarget::Unnamed`], the unconfigured routing.
 fn log_target(config: Option<&nvs_config::Request>) -> LogTarget {
     let Some((config, written)) =
         config.and_then(|config| Some((config, config.get("log.target")?)))
@@ -1079,7 +1083,8 @@ fn log_target(config: Option<&nvs_config::Request>) -> LogTarget {
                 keep,
             )))
         }
-        Some(nvs_config::log::Target::Syslog) | None => LogTarget::Unnamed,
+        Some(nvs_config::log::Target::Syslog) => LogTarget::Syslog,
+        None => LogTarget::Unnamed,
     }
 }
 
@@ -1344,34 +1349,62 @@ mod tests {
     /// from the typed tree — the boot path deserializes, so a case that built
     /// the struct could pin a value no configuration file can express.
     fn configured(written: &str) -> nvs_config::Request {
+        nvs_config::Request::new(snapshot(written))
+    }
+
+    /// [`configured`]'s snapshot, for a context that takes it whole.
+    fn snapshot(written: &str) -> std::sync::Arc<nvs_config::Snapshot> {
         let table: toml::Table = written.parse().expect("the case writes valid TOML");
-        nvs_config::Request::new(std::sync::Arc::new(nvs_config::Snapshot {
+        std::sync::Arc::new(nvs_config::Snapshot {
             config: table
                 .clone()
                 .try_into()
                 .expect("the case writes a block this tree has"),
             table,
             ..nvs_config::Snapshot::default()
-        }))
+        })
     }
 
     /// [`LogWriter`]'s own decision: with no request underneath it, a record
     /// the configuration named no target for goes to the engine's channel.
     /// [`LogChannel::Output`] is not a second answer this writer could give —
     /// there is no program whose output it would be — so a tree that named
-    /// nothing and one that named a target this build does not transport both
-    /// land on stderr.
+    /// nothing lands on stderr, and one that named `syslog` lands in the daemon.
     #[test]
     fn a_writer_holding_no_request_sends_an_unconfigured_record_to_the_engines_channel() {
         assert!(
-            matches!(LogWriter::resolve(None).sink, OutputSink::Stderr),
+            matches!(
+                LogWriter::resolve(None).target,
+                LogTarget::Named(OutputSink::Stderr)
+            ),
             "a writer with no configuration under it routed somewhere other than the engine's own \
              channel"
         );
         let syslog = configured("[log]\ntarget = \"syslog\"\n");
         assert!(
-            matches!(LogWriter::resolve(Some(&syslog)).sink, OutputSink::Stderr),
-            "a target this build does not transport reached a sink instead of the engine's channel"
+            matches!(LogWriter::resolve(Some(&syslog)).target, LogTarget::Syslog),
+            "`syslog` resolved to something other than the syslog transport"
+        );
+    }
+
+    /// A context reads `syslog` to the same transport the writer does, so
+    /// both of § 6's writers send a record there and neither keeps its own
+    /// channel.
+    #[test]
+    fn a_context_sends_both_writers_to_syslog_when_the_target_names_it() {
+        let mut ctx = Ctx::new(OutputSink::Buffer(Vec::new()));
+        ctx.set_config(snapshot("[log]\ntarget = \"syslog\"\n"));
+        assert!(ctx.log_writes(Level::Critical));
+        assert!(
+            matches!(ctx.log, LogTarget::Syslog),
+            "a context named `syslog` resolved {:?}",
+            ctx.log
+        );
+        let _ = ctx.write_log_record(&Record::at(Level::Critical), LogChannel::Output);
+        assert_eq!(
+            ctx.take_buffered_output().unwrap_or_default(),
+            b"",
+            "a syslog record was also written to the program's own output"
         );
     }
 
@@ -1385,7 +1418,7 @@ mod tests {
             configured("[log]\ntarget = \"file:nvs.log\"\nlevel = \"warn\"\nformat = \"text\"\n");
         let writer = LogWriter::resolve(Some(&config));
         assert!(
-            matches!(writer.sink, OutputSink::File(_)),
+            matches!(writer.target, LogTarget::Named(OutputSink::File(_))),
             "`file:` named a rotating file and the writer resolved something else"
         );
         assert!(

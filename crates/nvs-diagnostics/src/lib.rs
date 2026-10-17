@@ -2337,7 +2337,8 @@ pub mod code {
 
     /// A `[log] target` that is none of `rule:errors/engine-floor`'s destinations —
     /// `stderr`, `file:<path>` or `syslog` — including a `file:` with no path
-    /// behind it. Refused at the boot that reads the tree rather than at the
+    /// behind it, and `syslog` on a host with no syslog socket, which is Windows.
+    /// Refused at the boot that reads the tree rather than at the
     /// first record written through it, because the one moment the engine
     /// cannot report a configuration mistake is the moment it is already
     /// reporting a failure: tier 4 is the floor, and a diagnostic raised there
@@ -2347,7 +2348,8 @@ pub mod code {
     /// spelling accepted here is a destination that opens.
     pub const E_UNSPELLED_LOG_TARGET: Code = Code::new("E0613").card(
         "`[log] target` must be `stderr`, `syslog`, or `file:` followed by a path, such as \
-         `file:/var/log/app.log`.",
+         `file:/var/log/app.log`. Windows has no syslog, so `syslog` works only on Linux, macOS \
+         and other Unix systems.",
     );
 
     /// A `[log] level` that is none of `rule:errors/log-level`'s levels — refused at the

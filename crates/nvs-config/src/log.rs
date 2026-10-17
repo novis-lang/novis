@@ -146,8 +146,8 @@ pub enum Target<'a> {
     Stderr,
     /// `file:<path>` — a rotating file under `rule:http-server/the-floor-cannot-fill-the-disk`'s bound, carrying the path as written.
     File(&'a str),
-    /// `syslog` — spelled by § 4 and not yet transported;
-    /// `nvs_runtime::Ctx::write_log_record`'s own doc owns what that means for a record.
+    /// `syslog` — the local syslog daemon's datagram socket, which only a Unix host has, so
+    /// [`validate`] refuses it on any other ([`SYSLOG`]). `nvs_runtime::syslog` is the transport.
     Syslog,
 }
 
@@ -287,7 +287,7 @@ fn anchor_block(
 /// Both spelled values of one `[log]` block, under the prefix it was merged as.
 fn block(log: &Log, prefix: &str, origins: &BTreeMap<String, Origin>) -> Result<(), Diagnostic> {
     if let Some(written) = log.target.as_deref() {
-        spelled(written, &format!("{prefix}.target"), origins)?;
+        spelled(written, &format!("{prefix}.target"), origins, SYSLOG)?;
     }
     if let Some(written) = log.level.as_deref() {
         levelled(written, &format!("{prefix}.level"), origins)?;
@@ -358,10 +358,32 @@ fn kept(
     .with_help("write a whole number, such as `keep = 5`".to_owned()))
 }
 
-/// [`validate`]'s refusal for one written value, under the key it was merged as.
-fn spelled(written: &str, key: &str, origins: &BTreeMap<String, Origin>) -> Result<(), Diagnostic> {
-    if Target::of(written).is_some() {
-        return Ok(());
+/// Whether this build's host has the syslog socket [`Target::Syslog`] writes to: every Unix does,
+/// and Windows has no syslog daemon at all.
+pub const SYSLOG: bool = cfg!(unix);
+
+/// [`validate`]'s refusal for one written value, under the key it was merged as, on a host that
+/// has a syslog socket iff `syslog` holds — a parameter so both answers are tested on either host.
+fn spelled(
+    written: &str,
+    key: &str,
+    origins: &BTreeMap<String, Origin>,
+    syslog: bool,
+) -> Result<(), Diagnostic> {
+    match Target::of(written) {
+        Some(Target::Syslog) if !syslog => {
+            return Err(Diagnostic::error(
+                code::E_UNSPELLED_LOG_TARGET,
+                "`[log] target = \"syslog\"` is not available on this system".to_owned(),
+            )
+            .with_note(format!(
+                "Windows has no syslog service, so this setting{} cannot work",
+                origin_note(origins.get(key))
+            ))
+            .with_help("write `target = \"stderr\"` or `target = \"file:<path>\"`".to_owned()));
+        }
+        Some(_) => return Ok(()),
+        None => {}
     }
     let help = if written == "file:" {
         "a file target names the file: `target = \"file:/var/log/nvs.log\"`"
@@ -478,6 +500,24 @@ mod tests {
         );
         validate(&global("file:/var/log/nvs.log"), &BTreeMap::new())
             .expect("a spelled target boots");
+    }
+
+    /// `syslog` boots where the host has the socket and is refused where it does not, both
+    /// answers asked on whichever host runs the test.
+    #[test]
+    fn syslog_boots_only_on_a_host_that_has_the_socket() {
+        let origins = BTreeMap::new();
+        spelled("syslog", "log.target", &origins, true).expect("a Unix host has syslog");
+        let refused = spelled("syslog", "log.target", &origins, false)
+            .expect_err("a host with no syslog socket booted a syslog target");
+        assert_eq!(refused.code, Some(code::E_UNSPELLED_LOG_TARGET));
+        assert!(
+            refused.message.contains("syslog"),
+            "the refusal names the target: {}",
+            refused.message
+        );
+        spelled("stderr", "log.target", &origins, false).expect("every host has stderr");
+        assert_eq!(validate(&global("syslog"), &origins).is_ok(), SYSLOG);
     }
 
     /// A tree whose global `[log]` block names `target` and nothing else.
