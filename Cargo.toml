@@ -566,11 +566,14 @@ jiff = "0.2"
 # `raw_value` is what lets a `decimal` (`rule:types/decimal`) be written as an exact JSON
 # number rather than a lossy `f64`, and `unbounded_depth` is what lets section
 # 6 of docs/spec/01-core-library.md have its own `maxDepth` be the bound
-# rather than the crate's fixed 128.
+# rather than the crate's fixed 128. `float_roundtrip` makes every float parse
+# to the nearest `f64`: without it a number like `8888888388888831.0` decodes
+# one step off, so `encode` and `decode` do not give back the value they were
+# given. It costs about twice the time per float parsed, and nothing else.
 # `crates/nvs-stdlib/src/json.rs` owns why this crate and not another, and what
 # keeps an unbounded depth safe.
 serde = { version = "1", features = ["derive"] }
-serde_json = { version = "1", features = ["raw_value", "unbounded_depth"] }
+serde_json = { version = "1", features = ["float_roundtrip", "raw_value", "unbounded_depth"] }
 
 # --- configuration (`rule:config/the-file-is-nvs-toml-and-it-is-toml`) ---
 # Pure Rust, and both refusals of
