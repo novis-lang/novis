@@ -8,7 +8,7 @@ fuzzing — is [docs/agent/commands.md](agent/commands.md).
 **On Windows, WSL is not optional.** That is the step a new machine gets wrong. The rest is a Rust toolchain that installs itself.
 
 **Moving development to another machine is this file and nothing else.** Everything that decides what
-happens next is committed — the plan, the chain and its live goal, the goal's handoff record — so a clone plus the steps
+happens next is committed — the chain and its live goal, the goal's handoff record — so a clone plus the steps
 below lands the new machine where the old one stopped. § *What a clone does not carry* is the part that is
 not an install; § *Picking up where the last machine left off* is the order to do it all in.
 
@@ -30,7 +30,7 @@ run over the slow 9p mount: it syncs its own copy of the tree onto the distro's 
 | Rust, the version pinned in [rust-toolchain.toml](../rust-toolchain.toml) | `rustup` installs it on the first `cargo` command inside the tree — nothing to do by hand. Never a different channel: the pin is what makes three platforms the same compiler. | `cargo --version` |
 | Python 3.11+ — **optional, for `bun nv bench` only** | The Python engine of the cross-language bench: `bun nv bench` runs the `.py` twin of every case under [benches/userland/](../benches/userland/). Nothing else in the tree runs Python. No third-party package is ever required. | `python --version` |
 | The `claude` CLI on `PATH` — **the unattended loop only** | The loop's driver, looper, runs one `claude -p` per session. **An IDE extension does not count.** The VS Code extension carries its own `claude` binary inside its versioned extension directory and never puts it on `PATH`, so a machine that runs Claude Code all day can still have none; `claude install stable`, runnable from that bundled binary, lands one in `~/.local/bin` (`%USERPROFILE%\.local\bin` on Windows) that updates itself independently of the editor. Nothing in the tree itself spawns a session: `nv verify` never does. | `bun -e "console.log(Bun.which('claude'))"` — the CLI's own `--version` can pass on a shell alias that a spawned process cannot see |
-| PHP on `PATH`, at the version in [the plan](implementation-plan.md)'s status block § *Toolchain* — **optional, for the PHP benchmarks only** | The PHP engine of the cross-language bench: `bun nv bench` runs the `.php` twin of every case under [benches/userland/](../benches/userland/), and `bun nv bench --serve-vs-fpm` measures `nvs serve` against PHP with opcache. No test and no check runs PHP. | `php -v` |
+| PHP on `PATH`, at the version § *Versions no manifest pins* names — **optional, for the PHP benchmarks only** | The PHP engine of the cross-language bench: `bun nv bench` runs the `.php` twin of every case under [benches/userland/](../benches/userland/), and `bun nv bench --serve-vs-fpm` measures `nvs serve` against PHP with opcache. No test and no check runs PHP. | `php -v` |
 | Node.js 20 LTS or newer, with `npm` | `editors/vscode` is TypeScript, and its headless tests — the TextMate grammar snapshots and the LSP protocol round-trip against the real `nvs lsp` binary — are acceptance checks. Without Node they do not fail, they cannot run. Only the machine's native side needs it: those checks run once, not once per leg, so the WSL distro does not. | `node --version`, `npm --version` |
 | Bun, at the version `package.json`'s `engines` pins | It runs the repository's tools: `bun nv <command>`, from `tools/nv/`. Run `bun install` once after a clone and again whenever `bun.lock` changes. It installs `typescript`, `@types/bun` and `smol-toml` into the git-ignored `node_modules/`. `nv verify`'s `nv` step runs `bun nv selftest`, so a machine without Bun fails the gate. It is also the fourth engine in [benches/userland/](../benches/userland/), which runs the `.ts` twin of every case (`rule:tooling/bench-engine-list-is-data`). Its Windows installer does not always land on `PATH`; `bun nv bench --bun <path>` takes the executable explicitly. | `bun --version`, then `bun nv selftest` |
 | Docker, with Compose — Docker Desktop on Windows and macOS | The floor's database matrix, `bun nv db-matrix --all`, runs each database server in a container, and a goal whose record names `env.docker` stops before its first session when `docker` is not on `PATH` or its daemon does not answer (`tools/nv/cmd/services.ts`). `bun nv bench-proxied` is containers too. `--driver sqlite` needs no container. | `docker compose version` |
@@ -39,6 +39,19 @@ run over the slow 9p mount: it syncs its own copy of the tree onto the distro's 
 Novis generates native code, so "it compiles here" is a weaker claim in this repository than in most. CI
 builds all three supported targets — `x86_64-pc-windows-msvc`, `x86_64-unknown-linux-gnu`,
 `aarch64-apple-darwin` — and a developer machine is expected to cover two of them (see below).
+
+## Versions no manifest pins
+
+Rust is pinned in `rust-toolchain.toml`, every crate in a `Cargo.toml`, every npm package and Bun in a
+`package.json`, and CI's tools in its workflows. The rest have a version only here, which is this list's
+one home and the row of [dependency-update.md](agent/dependency-update.md) that `bun nv deps` does not read:
+
+| Tool | Version | Used by |
+|---|---|---|
+| MSVC build tools, with the Windows SDK | 14.50, SDK 10.0.26100 | linking on Windows |
+| PHP | 8.5.11 | the PHP benchmarks only |
+| `cargo-fuzz` | 0.13.2, on a nightly toolchain | fuzzing, inside WSL on Windows |
+| `valgrind` | the distro's package | the leak sweep and callgrind, inside WSL on Windows |
 
 ## Claude Code needs the pointer file
 
