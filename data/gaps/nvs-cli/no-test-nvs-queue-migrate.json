@@ -1,6 +1,0 @@
-{
-  "module": "crates/nvs-cli/src/queue.rs",
-  "title": "No test runs `nvs queue migrate`.",
-  "text": "`nvs queue migrate` creates the queue's tables, and no test runs the command against a database and reads back what it made, or runs it twice. Closing it means an end-to-end test on SQLite at least, and on each server database the CI lanes start.",
-  "goal": "completeness-holes"
-}
