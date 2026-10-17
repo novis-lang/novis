@@ -22,7 +22,9 @@ narrower door, because a column is a single value: `rule:core-classes/db-column-
 nested document, so `#[Db\Derive]` refuses a list of lists and a list of shapes at the declaration.
 
 Two per-field overrides exist and no more: `name` renames one key or column, and `skip: true` removes
-the field from the codec entirely. A skipped property is exempt from the constructor-parameter rule
+the field from the codec entirely. A property's overrides for one format are one attribute, so a second
+`#[Json\Field]` or `#[Db\Field]` on it is a compile error at the second, naming the first: merging the
+two would let one option silently win. A skipped property is exempt from the constructor-parameter rule
 above, and a class keeping it as a parameter anyway stays well formed — it still encodes, and the
 program can still build one itself. What such a class cannot do is be **decoded**: the contract names
 no key for that position, and a default carried on a field cannot be read for a position that has no

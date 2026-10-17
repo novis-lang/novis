@@ -1748,11 +1748,13 @@ pub mod code {
          `#[Json\\Field(...)]` or `#[Db\\Field(...)]` attribute to leave it out.",
     );
     /// A `#[Json\Field(...)]` argument that is not one of `rule:core-classes/derive-field-list`'s
-    /// options, or whose value is not a literal of that option's type.
+    /// options, a value that is not a literal of that option's type, or a second field attribute
+    /// of one format on one property.
     pub const E_DERIVE_FIELD_ATTRIBUTE: Code = Code::new("E0464").card(
         "`#[Json\\Field(...)]` and `#[Db\\Field(...)]` accept only the options `name` and `skip`, \
          and each value must be written directly in the code. For example, write `#[Json\\Field(name: 'user_id')]` \
-         or `#[Json\\Field(skip: true)]`.",
+         or `#[Json\\Field(skip: true)]`. A property can have only one `#[Json\\Field]` and one \
+         `#[Db\\Field]`. Write all its options in that one attribute.",
     );
     /// A type argument written where the member needs a *class* rather than
     /// any type — `Core\Json::decodeAs<int>`. The members that do are
