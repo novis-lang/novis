@@ -347,14 +347,14 @@ the class, and a check fails for a diagnostic code no test raises.
 
 **Does:** each `no-test-*` record and the examples record is closed by the test it names.
 
-- [ ] Each record under `data/gaps/` whose slug starts `no-test-` gets its test, and the record is deleted. `crates/nvs-db/src/pg.rs:6081`
+- [x] Each record under `data/gaps/` whose slug starts `no-test-` gets its test, and the record is deleted. `crates/nvs-db/src/pg.rs:6081`
   - [x] An `inout` alias at both copy sites: E0793 for a spawn entry, E0714 at `Core\Serialize::encode`.
   - [x] `bindTo`, `bind` and `call` on a function a method made without `$this`.
   - [x] A derived decoder reporting four bad fields, and a revealed secret crossing spawn, worker and serialize.
   - [x] A failed pool reset destroys the connection for MySQL, SQL Server and SQLite.
   - [x] `Core\Server::traceId` throws in a spawned child, the one request member of that class.
   - [x] The three `nvs-cli` records: no `stat` per resolve, `nvs queue migrate` twice, `nvs run --dump-asm`.
-  - [ ] The `nvs-codegen` one: a JIT page is not writable after the flip.
+  - [x] The `nvs-codegen` one: a JIT page is not writable after the flip.
 - [ ] `examples/*.nvs` run in a test the compiler and runtime reach. `data/gaps/nv/the-examples-run-end-to-end-only-under-valgrind.json:1`
 
 ### 14. a prose known gap without a record fails a check
@@ -370,19 +370,17 @@ work cannot live only in prose again.
 
 ### State
 
-Stages 1 to 4 and 8 to 12 are done. Stage 13 has closed nine of its ten `no-test-*` records. This
-session closed the three `nvs-cli` ones, with no change to the compiler or runtime:
+Stages 1 to 4 and 8 to 12 are done. Stage 13 has closed every `no-test-*` record, and its examples
+record is the last item. This session closed the `nvs-codegen` one with tests only:
 
-- `many_resolves_between_two_checks_look_at_no_file` (`crates/nvs-cli/src/script.rs`) counts the
-  footprint lines `nvs_footprint::capture` keeps, one per `stat` or read: a thousand resolves make
-  none, and one check makes one. The configuration half needs no test: `reload.rs`'s `stamp` is
-  private, and `check`'s thread is its only caller.
-- `crates/nvs-cli/tests/queue_migrate.rs` runs `nvs queue migrate` twice and reads both tables back
-  with `nvs schema dump`. It runs on a scratch SQLite file, and `bun nv db-matrix` now runs it on
-  every server leg too (`tools/nv/cmd/db-matrix.ts`'s `SUITES`). No server leg has run it yet.
-- `dump_asm_prints_a_listing_per_function_and_does_not_run_the_program`
-  (`crates/nvs-cli/tests/run_command.rs`). The record said the program still runs. The help text
-  and `docs/reference/tools/10-cli.md` say it does not, and the test pins that.
+- `crates/nvs-codegen/tests/code_pages.rs` asks the OS (through `region::query`) for the page under
+  the script frame and a method of a compiled unit, and under a page `make_executable` published:
+  each is executable and not writable.
+- `a_loaded_payload_runs_from_pages_that_are_not_writable` (`crates/nvs-cli/src/cache.rs`) does the
+  same for a payload the loader relocated. `region` is a new dev-dependency of both crates, already
+  in the tree through `cranelift-jit` (`Cargo.toml`'s comment above it).
+
+No `no-test-*` record remains under `data/gaps/`, and nothing outside this file cites the one deleted.
 
 `bun nv rules --render` also rewrites `core-api.md`, `core-classes.md`, `errors.md` and
 `iteration.md`, and `bun nv render` drops `done` from `data/schema/milestone.schema.json`. That drift
@@ -392,22 +390,21 @@ Stage 6's remainder is `data/gaps/nvs-ext/a-workbook-never-finished-is-neither-l
 no Novis member can abort a response. Stage 5's typed path, stage 1's second hole and stage 7's two
 records are questions for the user, each in its record (Backlog).
 
-The nightly run the sweep reported (`gh run view 38869457440`) tested `cb7021a24`, 910 commits behind
-the local `main`, which is 195 commits ahead of `origin/main`. Its failures are the old tree's until
-the user pushes.
+The nightly run the sweep reported (`gh run view 38869457440`) tested `cb7021a24`, 914 commits behind
+the local `main`. Its failures are the old tree's until the user pushes.
 
 ### Next
 
-**Stage 13's last two records, each alone in its session. Files: `crates/nvs-codegen/src/lib.rs`, then `examples/` and a test that runs them.**
+**Stage 13's last record, alone in its session. Files: `examples/`, `crates/nvs-cli/tests/run_command.rs` and the record.**
 
-- [ ] `no-test-a-jit-page-is-not-writable-after-the-flip`: compile a unit, take an address in it, and ask the OS for that page's protection, for the compiled and the loaded arm (`rule:http-server/a-jit-page-is-never-writable-and-executable-at-once`). `crates/nvs-codegen/src/lib.rs:443`, `crates/nvs-codegen/src/lib.rs:2339`
-- [ ] `the-examples-run-end-to-end-only-under-valgrind`: a test that runs every `examples/*.nvs` with `nvs run` and fails on a non-zero exit (`rule:testing/valgrind-on-wsl`). `data/gaps/nv/the-examples-run-end-to-end-only-under-valgrind.json:1`
+- [ ] `the-examples-run-end-to-end-only-under-valgrind`: a test that runs every `examples/*.nvs` with `nvs run` and fails on a non-zero exit, then delete the record (`rule:testing/valgrind-on-wsl`). `data/gaps/nv/the-examples-run-end-to-end-only-under-valgrind.json:1`, `crates/nvs-cli/tests/run_command.rs:1`
+- [ ] Check that `bun nv affected` reaches that test from a compiler or runtime change, as the record asks (`rule:testing/valgrind-on-wsl`). `tools/nv/cmd/affected.ts:1`
 
 ### Backlog
 
 - Stage 6's last item needs a way for Novis code to abort a response body, such as an `abort` method on `Core\Response\Stream`, a new method that states its trade-offs first (`data/gaps/nvs-ext/a-workbook-never-finished-is-neither-logged-nor-cut-off.json`).
 - Four wait on the user: `data/gaps/nvs-config/debug-mode-is-read-by-nothing.json`, `data/gaps/nvs-db/span-renders-on-a-flag-no.json`, `data/gaps/nvs-runtime/a-wider-shape-view-writes-an-object-of-the-wrong-class.json` and stage 5's typed path in `data/gaps/nvs-ext/bytes-cross-one-val-per-byte.json`, plus `Markup + Markup` in place (`docs/perf/performance-pass.md:257`).
 - `rule:security/isolate-shares-nothing` says a *required* parameter `args:` omits is the error, but `entry_names_agree` and `check_literal_args` need every parameter, defaults included. Decide which is right and make the two agree (`crates/nvs-stdlib/src/script.rs:970`).
-- Tests that fail under the full verify's load and pass alone, causes not found: `test_request_dispatches_in_process_through_the_compiled_route_table` (`crates/nvs-cli/src/runner.rs:3410`) and two `live_edit` swaps (`crates/nvs-cli/tests/live_edit.rs:1010`).
+- Tests that fail under the full verify's load and pass alone, causes not found: `test_request_dispatches_in_process_through_the_compiled_route_table` (`crates/nvs-cli/src/runner.rs:3410`) and two `live_edit` swaps (`crates/nvs-cli/tests/live_edit.rs:1010`), and five `ldap` tests against the Samba server, which reach their 30s deadline (`crates/nvs-stdlib/tests/ldap.rs:102`).
 - Proof debt fails CI's `proofs` jobs: stale perf records (`bun nv benches --owed`) and the `Core\Test\Outcome`/`Summary` proofs (`bun nv proofs --owed`) (`.github/workflows/ci.yml:1`).
 - A per-connection child refused a stack is dropped unrun, so its client likely sees the socket close and no `503`; not checked (`crates/nvs-server/src/serve.rs:95`).
