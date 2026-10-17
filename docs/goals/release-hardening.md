@@ -192,13 +192,16 @@ that `string` to `int` accepts a leading `+` and leading zeros.
 multipart, JSON, XML, `Serialize::decode`, cookies, regex compile and decompression, and they run
 in the nightly fuzz job. The published request-smuggling payloads are fixed server tests.
 
-- [ ] One target per parser above, registered in the fuzz crate and in the fuzz job's matrix. `fuzz/Cargo.toml:23`, `.github/workflows/ci.yml:1038`
+- [x] One target per parser above, registered in the fuzz crate and in the fuzz job's matrix. `fuzz/Cargo.toml:23`, `.github/workflows/ci.yml:1038`
   - [x] JSON and `Serialize::decode`.
   - [x] A fuzzing seam for the crate-private parsers.
   - [x] Multipart and cookies.
   - [x] The outbound reply parser, XML, regex compile and decompression.
-  - [ ] The request head and body.
-- [ ] The "funky chunks" payloads and the 0.CL and Expect desync shapes are tests in the smuggling suite. `crates/nvs-server/src/serve.rs:9031`
+  - [x] The request head and body.
+- [x] The "funky chunks" payloads and the 0.CL and Expect desync shapes are tests in the smuggling suite. `crates/nvs-server/src/serve.rs:9031`
+  - [x] An empty inbound `Transfer-Encoding` beside a `Content-Length` is a refused row.
+  - [x] The chunk-line payloads are rows of the broken-body table.
+  - [x] The 0.CL and Expect shapes are a table of their own, counting final responses.
 - [ ] HTTP Garden runs once against `nvs serve`, and each finding becomes a test. The handoff records the run.
 
 ### 7. compiled code is checked against its unoptimised twin, and aarch64 Linux runs the tests
@@ -262,29 +265,30 @@ is `BLOCKED` and names the call.
 
 ### State
 
-Stages 1 to 5 are done. Stage 6 is live.
+Stages 1 to 5 are done. Stage 6 is live, and only HTTP Garden is left in it.
 
-- Every `nvs-stdlib` parser the stage names has a target. `crates/nvs-stdlib/src/fuzz.rs` is the
-  one `#[doc(hidden)] pub mod fuzz` wrapping the private readers. The new targets are `cookie`,
-  `decompress`, `multipart`, `regex`, `reply_head` and `xml`, beside `json` and `serialize`, all
-  `[[bin]]`s in `fuzz/Cargo.toml` and in the `fuzz-smoke` matrix (`.github/workflows/ci.yml:1038`).
-  `multipart` asserts that chunking a body never changes what it reads.
-- Each new target ran 60 s clean in WSL, from a shallow clone at `/var/tmp/nvs-fuzz-src`, because
-  the accept mirror was stale. `reply_head` found that a reply whose `Transfer-Encoding` names no
-  coding beside a `Content-Length` was read by its length. `frame_of` now refuses it
-  (`crates/nvs-stdlib/src/http/transport.rs:2844`), pinned by a row in the refused-replies test,
-  and the target then ran 120 s clean.
+- Every parser the stage names has a target. `request_head` (`fuzz/fuzz_targets/request_head.rs`)
+  feeds `nvs_server::heads::Scanner` whole, split in two and a byte at a time, and asserts the same
+  verdicts. Where `httparse` reads a complete first head with a bare LF or two lengths, it asserts
+  that head is refused. Its CRLF tokens are a dictionary, `fuzz/dicts/request_head.dict`, which the
+  `fuzz-smoke` step now passes to any target that has one. It ran 180 s clean in WSL from the
+  accept mirror, reaching complete heads, lengths and chunked bodies.
+- `hyper` refuses an empty inbound `Transfer-Encoding`, and any comma in a request's
+  `Content-Length` (`from_digits`). The scanner now sees a comma past the 64 bytes it keeps
+  (`crates/nvs-server/src/heads.rs:262`), so it refuses that row without relying on `hyper`.
+- The smuggling suite has the funky-chunks rows, the 0.CL row and two Expect rows
+  (`crates/nvs-server/src/serve.rs:9153`). All passed on the first run, so none found a bug.
 - The nightly failures the sweep listed are still the `e110c9c0b` run the last handoff triaged.
 
 ### Next
 
-Stage 6, the server side, on `fuzz/Cargo.toml` and `crates/nvs-server/` (`rule:testing/the-deep-lane`, `rule:errors/http-message-defects`):
-- [ ] The request head and body target: `nvs-server` in `fuzz/Cargo.toml`, feeding `heads::Scanner` and asserting a refused head is never answered. Check whether an empty inbound `Transfer-Encoding` beside a `Content-Length` is refused, as the reply side now is. `crates/nvs-server/src/heads.rs:152`
-- [ ] The "funky chunks" payloads and the 0.CL and Expect desync shapes as smuggling-suite tests. `crates/nvs-server/src/serve.rs:9031`
-- [ ] HTTP Garden once against `nvs serve`, each finding a test, and the run recorded here. `crates/nvs-server/src/serve.rs:1`
+Stage 6's last item, then stage 7, on `crates/nvs-server/` and `crates/nvs-codegen/` (`rule:testing/the-deep-lane`, `rule:errors/http-message-defects`):
+- [ ] HTTP Garden once against `nvs serve`, in WSL with Docker, each finding a test in the smuggling suite, and the run recorded here. `crates/nvs-server/src/serve.rs:9153`
+- [ ] A way to compile with `opt_level` `none`, used only by the differential check. `crates/nvs-codegen/src/lib.rs:1973`
 
 ### Backlog
 
+- `bun nv verify` stops at `crates/nvs-stdlib/tests/spec_registry_coverage.rs:433`: `3a833d02d` deleted the last milestone record, so `data/plan/milestones/` no longer exists, and two tests refuse an empty directory on purpose. The session that retired the milestones decides what replaces them (`tools/nv/cmd/owners.ts:127`).
 - `Core\IO::within` does not refuse what `rule:errors/path-component-refusals` lists, beyond device names (`crates/nvs-stdlib/src/io.rs:3657`).
 - The Font attack waits on the user's edit or permission: drop `// hostile: ends-early 4 FATAL`, the `echo "step 4\n"` line and the memory sentence (`tests/hostile/novis/Image-Font/fromBytes/01-bytes-that-pretend-to-be-a-font.nvs:3`).
 - CI's Windows warm-start budget still fails: a warm `nvs run` is 8.1 ms of work on this host against 6. Resolving the extension tree once per `run`, not three times, is the next cut (`crates/nvs-ext/src/load.rs:567`, `tools/nv/cmd/bench.ts:132`).
