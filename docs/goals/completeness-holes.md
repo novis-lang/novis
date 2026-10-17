@@ -285,7 +285,7 @@ callable or `Core` call passes the call probes.
 **Does:** `[log] target = "syslog"` sends records to syslog, and completion offers inherited members
 filtered by visibility.
 
-- [ ] A syslog sink, or `syslog` dropped from the rule and the parser. `crates/nvs-runtime/src/ctx/output.rs:1044`
+- [x] A syslog sink, or `syslog` dropped from the rule and the parser. `crates/nvs-runtime/src/ctx/output.rs:1044`
 - [ ] `declared_members` walks the class graph and filters by visibility. `crates/nvs-lsp/src/completion.rs:2918`
 
 ### 11. the checker reports what it accepts today
@@ -329,12 +329,14 @@ work cannot live only in prose again.
 
 ### State
 
-Stages 1 to 4, 8 and 9 are done. Stage 9's JIT-pages item landed this session and its record is
-deleted. A unit's pages, JIT or placed, are owned by its class table
-(`nvs_runtime::ClassTable::keep_code`), so they unmap when the last handle to the table drops: the
-`Unit`'s and any `ErrorClass` a context still holds. `JitPages`'s `Drop` calls
-`JITModule::free_memory` (`crates/nvs-codegen/src/lib.rs`), and `nvs_codegen::mapped_jit_units`
-counts what is still mapped, which `crates/nvs-codegen/tests/jit_pages.rs` holds steady.
+Stages 1 to 4, 8 and 9 are done. Stage 10's syslog item landed this session and its record is
+deleted. `[log] target = "syslog"` sends each record as one datagram to the local daemon's socket
+(`crates/nvs-runtime/src/syslog.rs`, `/dev/log`, or `/var/run/syslog` on macOS), framed
+`<PRI>nvs: <line>` at the `user` facility and the level's severity. Both writers reach it through
+`LogTarget::Syslog` (`crates/nvs-runtime/src/ctx/output.rs`). On Windows the boot refuses it with
+`E0613` (`nvs_config::log::SYSLOG`). Trade-offs: one descriptor per process and one send per record,
+nothing per request; Windows loses a target that never delivered anything there. The Unix send path
+is not exercised by a test, because a test host need not run a daemon; `frame` is tested.
 
 Stage 6's two items are on disk. Its remainder is
 `data/gaps/nvs-ext/a-workbook-never-finished-is-neither-logged-nor-cut-off.json`: a program that
@@ -361,13 +363,12 @@ behind the local `main`. Its failures are the old tree's until the user pushes.
 
 ### Next
 
-**Stage 10's syslog item, over `crates/nvs-runtime/src/ctx/output.rs` and `crates/nvs-config/src/log.rs`**
-(`data/gaps/nvs-runtime/log-target-syslog-is-not-transported.json`, `rule:errors/engine-floor`).
-The completion item is a second group, over `crates/nvs-lsp/src/completion.rs`.
+**Stage 10's completion item, over `crates/nvs-lsp/src/completion.rs`**
+(`data/gaps/nvs-lsp/two-of-them-are-the-class.json`).
 
-- [ ] Decide between a syslog sink and dropping `syslog` from the rule and the parser; a sink is a new transport, so state its trade-offs first. `crates/nvs-runtime/src/ctx/output.rs:1044`
-- [ ] Build the choice, with a test that `[log] target = "syslog"` does what the rule says. `crates/nvs-config/src/log.rs:1`
-- [ ] Delete the record and rewrite the module prose that described it. `crates/nvs-runtime/src/ctx/output.rs:1044`
+- [ ] Read the record and `declared_members`, and name the class-graph walk the checker already has to reuse. `crates/nvs-lsp/src/completion.rs:2918`
+- [ ] Walk parents and traits, filtering each member by visibility from the cursor's class, with a test per visibility. `crates/nvs-lsp/src/completion.rs:2918`
+- [ ] Delete the record and rewrite the module prose that described it, then mark stage 10 done. `crates/nvs-lsp/src/completion.rs:1`
 
 ### Backlog
 
