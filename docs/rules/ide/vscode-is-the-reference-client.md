@@ -21,5 +21,8 @@ contribution roster — setting and command identifiers — is frozen by
 `rule:ide/contributions-are-frozen-and-only-ever-added`; this is the shape.
 
 **Declined:**
+- **A PhpStorm plugin** bridging JetBrains' LSP client to the same `nvs lsp` and `nvs fmt`. It is a
+  second editor toolchain (Kotlin, Gradle and the IntelliJ Platform SDK) with its own CI job, and every
+  editing aid a client owns would be written twice. VS Code is the one editor client.
 - **Formatting a selection.** `nvs fmt` lays out a whole file and has no range form, so a range
   formatter would be a second layout implementation in the client or the server.

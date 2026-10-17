@@ -53,8 +53,6 @@ checks:
     run: [bun, nv, owners, --closes, test-surface]
     reach: true
     floor: false
-extra:
-  milestone: M10
 ---
 
 # Tests stay out of builds, and the test runner has the features a team expects

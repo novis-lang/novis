@@ -44,8 +44,8 @@
 //! one tab is the class another tab resolves against
 //! (`rule:ide/an-open-document-is-its-own-entry-point`). [`Documents`] is that
 //! store and [`analyse`] is the walk. Diagnostics are published only for what
-//! is open, which is what keeps this a document server rather than M10's
-//! workspace index.
+//! is open. A pass over files nobody opened is `nvs check`'s
+//! (`rule:ide/check-scope-defaults-to-the-workspace`).
 //!
 //! # The `.lspt` case format
 //!

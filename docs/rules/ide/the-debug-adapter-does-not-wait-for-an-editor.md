@@ -33,9 +33,6 @@ JIT-compiled code with correct variable values, through the descriptor factory a
 (`rule:ide/the-extension-builds-no-ui-the-editor-already-has`). How deep that UI goes is the adapter's
 capability set, not the extension's.
 
-PhpStorm's `XDebugger` UI wired to a DAP backend stays deferred (`rule:ide/phpstorm-bridges-to-the-same-server`).
-The two clients are deliberately asymmetric here; a future PhpStorm-depth pass has to address or
-explicitly accept that.
 
 - **Memory:** the adapter's own state is one entry per breakpoint and one per stopped thread's
   variable references, freed on each resume. What the debugged program holds is the switch's
@@ -45,8 +42,8 @@ explicitly accept that.
 and is cleared without acting while no adapter exists.
 
 **Declined:**
-- **The adapter ships together with both editors' debugger UI.** PhpStorm's `XDebugger` wiring is the
-  larger job, and it would hold back an adapter that VS Code and a CLI-driven client can already use.
+- **The adapter ships together with an editor's debugger UI.** A stalled editor integration would hold
+  back an adapter that a CLI-driven client can already use.
 - **`attach` to a running server.** It needs a listener in every process that might be debugged, with
   its own authentication, and a production process with that listener is one misconfiguration from
   handing out its memory. Launching gives the same view of a development server with no listener.

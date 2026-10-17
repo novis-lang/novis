@@ -3,8 +3,7 @@
   "status": "shipped",
   "seeAlso": [
     "ide/one-crate-and-one-extension-grow-in-place",
-    "ide/vscode-is-the-reference-client",
-    "ide/phpstorm-bridges-to-the-same-server"
+    "ide/vscode-is-the-reference-client"
   ],
   "guardedBy": [
     "tools/nv/test/runner-env.test.ts"

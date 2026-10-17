@@ -1,7 +1,7 @@
 ---
 looper: 1
 title: Every planned quick fix, the narrowing action and the open editor gaps
-summary: "Every quick fix and editor action M10 planned is offered, every editor gap record is closed and deleted, every designed rule this goal owns is shipped, and the checks below pass."
+summary: "Every planned quick fix and editor action is offered, every editor gap record is closed and deleted, every designed rule this goal owns is shipped, and the checks below pass."
 context: [crates/nvs-lsp/src/actions.rs, docs/rules/ide/the-request-set-is-closed.md, docs/rules/ide/an-lsp-answer-is-frozen-as-an-lspt-case.md]
 stages:
   - id: 1
@@ -53,8 +53,6 @@ checks:
     run: [bun, nv, owners, --closes, editor-fixes]
     reach: true
     floor: false
-extra:
-  milestone: M10
 ---
 
 # Every planned quick fix, the narrowing action and the open editor gaps
@@ -166,4 +164,5 @@ and the checker modules that raise each diagnostic:
 
 ### Backlog
 
+- The copy half of the import-carrying paste has no proof in a real editor, because nothing makes the editor fire a real copy (`editors/vscode/src/imports.ts`, § *Known gaps*).
 - `semanticTokenScopes` needs no new entry: every token type is in LSP's standard legend, and only the two modifiers are mapped (`docs/rules/ide/novis-ships-names-not-colours.md`).

@@ -74,7 +74,6 @@
     "ide/the-test-tree-is-discovered-and-run-through-the-cli",
     "ide/the-ast-panel-shells-out-to-the-cli",
     "ide/the-lockfile-is-committed-and-build-output-is-not",
-    "ide/phpstorm-bridges-to-the-same-server",
     "ide/the-debug-adapter-does-not-wait-for-an-editor",
     "ide/the-debugger-ui-is-as-deep-as-the-adapter",
     "ide/stdout-belongs-to-the-protocol",

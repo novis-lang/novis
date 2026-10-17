@@ -44,7 +44,7 @@ enough that a client asking for it gets this action alone, and the server advert
 **Declined:**
 
 - **A command in the VS Code extension that rewrites the text itself.** It would need its own copy of
-  the lexer's escape and hole rules, and PhpStorm would need a third.
+  the lexer's escape and hole rules.
 - **Converting only the string under the cursor inside a chain.** The result is a `Core\Html\Markup`
   concatenated with a string, which is not what anybody converting a chain wants.
 - **Re-encoding each string from its cooked value.** It is simpler, and it turns every `\n` into a

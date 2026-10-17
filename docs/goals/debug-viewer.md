@@ -60,8 +60,6 @@ checks:
     run: [bun, nv, owners, --closes, debug-viewer]
     reach: true
     floor: false
-extra:
-  milestone: M10
 ---
 
 # The debug viewer shows every request, its timeline, its logs and its exceptions, and is the tool a developer keeps open

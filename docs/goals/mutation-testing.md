@@ -32,8 +32,6 @@ checks:
     run: [bun, nv, owners, --closes, mutation-testing]
     reach: true
     floor: false
-extra:
-  milestone: M10
 ---
 
 # nvs test --mutate measures whether the tests would notice a wrong line

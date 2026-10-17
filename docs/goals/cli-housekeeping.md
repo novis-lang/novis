@@ -39,8 +39,6 @@ checks:
     run: [bun, nv, owners, --closes, cli-housekeeping]
     reach: true
     floor: false
-extra:
-  milestone: M10
 ---
 
 # The cache commands, the update check and telemetry exist
@@ -59,7 +57,7 @@ directory.
 **The update check reads GitHub's Releases API, and telemetry ships with no default upload URL.**
 The user decided this. `nvs telemetry on` records locally and says that nothing is uploaded until a
 collector exists. The upload code is built and tested in full against a local listener through
-`NVS_TELEMETRY_URL`. A collector is not M10 work.
+`NVS_TELEMETRY_URL`. A collector is not this goal's work.
 `rule:config/telemetry-and-update-endpoints-are-configuration` holds it.
 
 **Open points are settled in the rule before the code.** The planning session's call. Stage 1
@@ -133,5 +131,5 @@ Stage 1, the cache commands, on `crates/nvs-cli/src/cache.rs` and `crates/nvs-cl
 
 ### Backlog
 
-- A telemetry collector and its default upload URL are not M10 work (`docs/rules/config/telemetry-and-update-endpoints-are-configuration.md`).
-- `nvs dap` and `nvs debug` do not exist yet. Stage 4's serving check names them so the goals that build them inherit it (`docs/plan/m10.md`).
+- A telemetry collector and its default upload URL are not this goal's work (`docs/rules/config/telemetry-and-update-endpoints-are-configuration.md`).
+- `nvs dap` and `nvs debug` do not exist yet. Stage 4's serving check names them so the goals that build them inherit it (`docs/goals/debugger-adapter.md`, `docs/goals/debug-service.md`).

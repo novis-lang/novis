@@ -3,7 +3,7 @@
 
 # The editor
 
-*19 of 85 rules below are **designed** rather than shipped, and are marked where they appear.*
+*17 of 84 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="ide-one-grammar-one-tree"></a>
 
@@ -591,7 +591,7 @@ has no `.lspt` vocabulary, and `crates/nvs-lsp/tests/autoload.rs` holds it.
 
 <a id="ide-every-feature-is-staged-behind-its-dependency"></a>
 
-## The VS Code client goes as deep as the editor allows, and each feature waits for the language or runtime piece it needs rather than shipping as a stub  *(designed — owned by M10)*
+## The VS Code client goes as deep as the editor allows, and each feature waits for the language or runtime piece it needs rather than shipping as a stub  *(designed — owned by goal debugger-adapter)*
 
 `rule:ide/every-feature-is-staged-behind-its-dependency`
 
@@ -771,8 +771,7 @@ so a fix that fired only on a clean parse would never fire on the file that need
 They are off by default and composable with format-on-save. The extension registers them under
 `source.fixAll.nvs`, which VS Code runs through `editor.codeActionsOnSave` independently of
 `editor.formatOnSave`, so a developer who opts in gets layout and fixes on one keystroke while `nvs fmt`
-itself stays layout-only and `nvs fmt --check` fails for exactly one reason. PhpStorm's Reformat Code
-dialog, with its per-action checkboxes, is the same composition through a different client.
+itself stays layout-only and `nvs fmt --check` fails for exactly one reason.
 
 A suggestion marked as an **alternative**, one of several edits a person chooses between, is offered
 as a quick fix and never under `source.fixAll.nvs`, since a save that applied every alternative would
@@ -853,7 +852,7 @@ enough that a client asking for it gets this action alone, and the server advert
 **Declined:**
 
 - **A command in the VS Code extension that rewrites the text itself.** It would need its own copy of
-  the lexer's escape and hole rules, and PhpStorm would need a third.
+  the lexer's escape and hole rules.
 - **Converting only the string under the cursor inside a chain.** The result is a `Core\Html\Markup`
   concatenated with a string, which is not what anybody converting a chain wants.
 - **Re-encoding each string from its cooked value.** It is simpler, and it turns every `\n` into a
@@ -2312,27 +2311,24 @@ the formatter, translates its own editor's events into LSP requests, and renders
 ([`tooling/nvs-code-answers-about-the-project`](tooling.md#tooling-nvs-code-answers-about-the-project)).
 
 The reason is the same one that gives every fact one home in the documentation, applied to executable
-behaviour: two implementations of the formatting rules drift the first time one editor's plugin fixes a
-bug the other's has not, and the verification that both editors produce byte-identical diagnostics and
-formatted output for one file only holds while there is one implementation to agree with. A command
-line that answered "who calls this" with a walk of its own would drift from the editor's references the
-same way.
+behaviour: a client with a formatting or resolution rule of its own drifts from `nvs-lsp` and
+`nvs-fmt` the first time one of them fixes a bug the other has not. A command line that answered "who
+calls this" with a walk of its own would drift from the editor's references the same way.
 
 **Markup is the one exception, and it belongs to the editor rather than to the client.** Inside an
 inline-HTML region the services and the formatter are the editor's own HTML ones
 ([`ide/a-template-region-gets-the-editors-services-and-formatter`](ide.md#ide-a-template-region-gets-the-editors-services-and-formatter)): the client forwards to them on
-boundaries the server reports and implements neither. So byte-identical formatted output across the two
-editors holds for the Novis bytes of a file; its markup bytes are each editor's HTML formatter's. The
+boundaries the server reports and implements neither. So `nvs fmt` decides the Novis bytes of a
+formatted file, and its markup bytes are the editor's HTML formatter's. The
 client's format pass is its most intricate code, chunks, stand-ins, the base column and refusing an edit
 that reaches a hole, and all of it is over text the server delimited and none of it is language logic.
 
-The VS Code extension ([`ide/vscode-is-the-reference-client`](ide.md#ide-vscode-is-the-reference-client)) is the editor client on disk, the
-PhpStorm plugin ([`ide/phpstorm-bridges-to-the-same-server`](ide.md#ide-phpstorm-bridges-to-the-same-server)) is the second, and `nvs code` is a
-client in the `nvs` binary. A dependency-allowlist test on the extension
+The VS Code extension ([`ide/vscode-is-the-reference-client`](ide.md#ide-vscode-is-the-reference-client)) is the one editor client, and
+`nvs code` is a client in the `nvs` binary. A dependency-allowlist test on the extension
 (`editors/vscode/test/contributions/contributions.test.ts`) is what enforces "holds no language logic"
 for an editor client rather than review.
 
-<sub>See also [`ide/vscode-is-the-reference-client`](ide.md#ide-vscode-is-the-reference-client), [`ide/phpstorm-bridges-to-the-same-server`](ide.md#ide-phpstorm-bridges-to-the-same-server), [`ide/one-crate-and-one-extension-grow-in-place`](ide.md#ide-one-crate-and-one-extension-grow-in-place), [`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server), [`tooling/fmt-is-one-canonical-style`](tooling.md#tooling-fmt-is-one-canonical-style), [`ide/contributions-are-frozen-and-only-ever-added`](ide.md#ide-contributions-are-frozen-and-only-ever-added).</sub>
+<sub>See also [`ide/vscode-is-the-reference-client`](ide.md#ide-vscode-is-the-reference-client), [`ide/one-crate-and-one-extension-grow-in-place`](ide.md#ide-one-crate-and-one-extension-grow-in-place), [`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server), [`tooling/fmt-is-one-canonical-style`](tooling.md#tooling-fmt-is-one-canonical-style), [`ide/contributions-are-frozen-and-only-ever-added`](ide.md#ide-contributions-are-frozen-and-only-ever-added).</sub>
 
 <a id="ide-editor-clients-live-under-editors"></a>
 
@@ -2340,26 +2336,23 @@ for an editor client rather than review.
 
 `rule:ide/editor-clients-live-under-editors`
 
-The editor clients sit at the repository root, beside `crates/` and outside the Rust workspace:
+The editor client sits at the repository root, beside `crates/` and outside the Rust workspace:
 
 ```
 editors/
   vscode/      TextMate grammar, language-configuration.json, LSP client extension
-  phpstorm/    file-type registration, LSP-bridge plugin (Kotlin/Gradle)
 ```
 
-Neither is a Cargo crate — the VS Code extension is TypeScript and Node tooling, the PhpStorm plugin is
-Kotlin, Gradle and the IntelliJ Platform SDK — so neither is governed by the workspace `Cargo.toml`, and
-each brings a build toolchain (`npm`/`vsce`, Gradle) that is a genuinely new kind of CI job next to
-everything `cargo` builds. `nv verify` runs the extension's headless suites last, for that reason,
+It is not a Cargo crate. The VS Code extension is TypeScript and Node tooling, so the workspace
+`Cargo.toml` does not govern it, and it brings a build toolchain (`npm`/`vsce`) that is a genuinely new
+kind of CI job next to everything `cargo` builds. `nv verify` runs the extension's headless suites last, for that reason,
 and treats the directory being absent as a real state rather than an error.
 
 A directory is created when the work that fills it starts, never scaffolded empty ahead of it — the rule
-every crate already follows. `editors/vscode/` exists; `editors/phpstorm/` does not, and is created with
-the plugin ([`ide/phpstorm-bridges-to-the-same-server`](ide.md#ide-phpstorm-bridges-to-the-same-server)). The VS Code package and the server crate
+every crate already follows. The VS Code package and the server crate
 that back it are the only ones there are ([`ide/one-crate-and-one-extension-grow-in-place`](ide.md#ide-one-crate-and-one-extension-grow-in-place)).
 
-<sub>See also [`ide/one-crate-and-one-extension-grow-in-place`](ide.md#ide-one-crate-and-one-extension-grow-in-place), [`ide/vscode-is-the-reference-client`](ide.md#ide-vscode-is-the-reference-client), [`ide/phpstorm-bridges-to-the-same-server`](ide.md#ide-phpstorm-bridges-to-the-same-server).</sub>
+<sub>See also [`ide/one-crate-and-one-extension-grow-in-place`](ide.md#ide-one-crate-and-one-extension-grow-in-place), [`ide/vscode-is-the-reference-client`](ide.md#ide-vscode-is-the-reference-client).</sub>
 
 <a id="ide-vscode-is-the-reference-client"></a>
 
@@ -2390,6 +2383,9 @@ contribution roster — setting and command identifiers — is frozen by
 [`ide/contributions-are-frozen-and-only-ever-added`](ide.md#ide-contributions-are-frozen-and-only-ever-added); this is the shape.
 
 **Declined:**
+- **A PhpStorm plugin** bridging JetBrains' LSP client to the same `nvs lsp` and `nvs fmt`. It is a
+  second editor toolchain (Kotlin, Gradle and the IntelliJ Platform SDK) with its own CI job, and every
+  editing aid a client owns would be written twice. VS Code is the one editor client.
 - **Formatting a selection.** `nvs fmt` lays out a whole file and has no range form, so a range
   formatter would be a second layout implementation in the client or the server.
 
@@ -2397,31 +2393,28 @@ contribution roster — setting and command identifiers — is frozen by
 
 <a id="ide-nvs-is-its-own-file-type"></a>
 
-## `.nvs` is registered as its own language in every editor, activates nothing on `.php`, and is never handed to a PHP plugin  *(designed — owned by M10)*
+## `.nvs` is registered as its own language in every editor, activates nothing on `.php`, and is never handed to a PHP plugin
 
 `rule:ide/nvs-is-its-own-file-type`
 
 Every editor client registers `.nvs` as its own file type and language, distinct from whatever PHP
 support the editor bundles, and activates on nothing else — the VS Code extension does not activate on
-`.php`, and the PhpStorm plugin does not let PhpStorm's PHP plugin or a generic-text fallback claim a
-`.nvs` file.
+`.php`, and no PHP extension or generic-text fallback claims a `.nvs` file.
 
-The registration is not polish. Without it PhpStorm's own PHP plugin may take the file, or a plain-text
-fallback will, and either failure looks to the user like "the plugin does not work" with no diagnostic
-pointing at the real cause. The verification for both clients is the same: opening a `.nvs` file
-invokes Novis's client and never the editor's PHP support.
+The registration is not polish. Without it the editor's own PHP support may take the file, or a
+plain-text fallback will, and either failure looks to the user like "the extension does not work" with
+no diagnostic pointing at the real cause. The verification is that opening a `.nvs` file invokes
+Novis's client and never the editor's PHP support.
 
 A Novis file is not a PHP file to the editor for the same reason it is not one to the compiler
 ([`statements/nvs-is-the-only-open-tag`](statements.md#statements-nvs-is-the-only-open-tag)): the grammar, the type syntax and the diagnostics are
 different enough that a PHP tool over the file would colour valid Novis as an error and valid PHP that
 Novis rejects as fine.
 
-**Built:** the VS Code half. `editors/vscode/package.json` registers `nvs` for `.nvs` and claims no PHP
-file type, and `editors/vscode/test/contributions/contributions.test.ts` asserts both. **Missing:** the
-PhpStorm half, because no plugin exists under `editors/`
-([`ide/phpstorm-bridges-to-the-same-server`](ide.md#ide-phpstorm-bridges-to-the-same-server)).
+**Built:** `editors/vscode/package.json` registers `nvs` for `.nvs` and claims no PHP file type, and
+`editors/vscode/test/contributions/contributions.test.ts` asserts both.
 
-<sub>See also [`ide/vscode-is-the-reference-client`](ide.md#ide-vscode-is-the-reference-client), [`ide/phpstorm-bridges-to-the-same-server`](ide.md#ide-phpstorm-bridges-to-the-same-server), [`statements/nvs-is-the-only-open-tag`](statements.md#statements-nvs-is-the-only-open-tag).</sub>
+<sub>See also [`ide/vscode-is-the-reference-client`](ide.md#ide-vscode-is-the-reference-client), [`statements/nvs-is-the-only-open-tag`](statements.md#statements-nvs-is-the-only-open-tag).</sub>
 
 <a id="ide-the-extension-claims-nvs-only"></a>
 
@@ -2493,7 +2486,7 @@ own terms. Prefixing lines with a marker is not language logic, so
 inside a doc comment is the first thing here that would have to answer it.
 
 Each client owns its own copy ([`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients)): these are editing affordances,
-not server answers, so the PhpStorm plugin writes both again or goes without.
+not server answers, so another editor client would write both again or go without.
 
 No rule guesses where a doc comment ends. The continuation over-runs by one line until the author deletes
 it, the familiar nuisance of every `///` language, and a heuristic would guess wrong in the other
@@ -2829,52 +2822,9 @@ platforms, and `extension-host` on Linux — and `ci.yml` is the count of those.
 
 <sub>See also [`ide/headless-gates-the-loop-the-host-run-gates-the-milestone`](ide.md#ide-headless-gates-the-loop-the-host-run-gates-the-milestone), [`ide/the-extension-runs-where-the-binary-is`](ide.md#ide-the-extension-runs-where-the-binary-is).</sub>
 
-<a id="ide-phpstorm-bridges-to-the-same-server"></a>
-
-## PhpStorm drives the same `nvs lsp` and `nvs fmt` through JetBrains' LSP client, and builds no PSI tree, native refactoring or debugger UI until a later decision says so  *(designed — owned by M10)*
-
-`rule:ide/phpstorm-bridges-to-the-same-server`
-
-The PhpStorm plugin drives the same `nvs lsp` binary the VS Code extension does, through JetBrains
-Platform's LSP client support — falling back to the community LSP4IJ plugin if the bundled API lacks a
-needed feature; which of the two is left to a concrete evaluation when the work starts. Completion,
-hover, diagnostics, rename and go-to-definition route through that bridge, and so does formatting:
-"Reformat Code" runs `nvs fmt`, and PhpStorm's native Formatter framework and Code Style settings page
-do not apply to `.nvs` files. That is the price of not forking the formatter into a second
-implementation ([`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients)), named up front.
-
-The plugin registers `.nvs` as its own file type ([`ide/nvs-is-its-own-file-type`](ide.md#ide-nvs-is-its-own-file-type)) and ships a
-TextMate-or-equivalent baseline grammar for the same instant-colour reason VS Code does.
-
-It conceals `secret` literals as VS Code does. The ranges are the answer to `nvs/redactions` from the
-same server ([`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server)), so that half is shared. The drawing is
-not: an editor-side decoration is per-editor work with no common half, and the plugin writes its own.
-
-It explicitly does not build a native PSI tree, PhpStorm-grade refactoring beyond what the LSP `rename`
-request gives, structural search and replace, intention actions backed by its own inspector, or
-PhpStorm's native debugger UI ([`ide/the-debug-adapter-does-not-wait-for-an-editor`](ide.md#ide-the-debug-adapter-does-not-wait-for-an-editor)). Those are the
-real quality gap between an LSP bridge and PhpStorm's PHP support, and a full native plugin is a later,
-explicit decision if usage justifies it — kept open, not silently skipped, and not scheduled.
-
-**Missing:** the plugin. No `editors/phpstorm/` exists, so PhpStorm opens a `.nvs` file with no Novis
-support and conceals nothing.
-
-**Declined:**
-- **A full native PhpStorm plugin from the start**, with its own lexer, parser and PSI mirroring
-  `nvs-syntax`'s grammar. It is a second front end, a project on the scale of a language plugin, and it
-  would be built before anyone has used Novis in PhpStorm.
-- **The LSP bridge as the permanent answer.** Ruling the native plugin out for good forecloses it in
-  the case where real PhpStorm adoption makes the refactoring and debugger gap worth paying down.
-- **A PhpStorm-native formatter**, so the Code Style settings page applies. Two formatters drift the
-  first time either one's rules change ([`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients)).
-- **VS Code only, with PhpStorm out of scope.** PhpStorm is the editor many PHP developers already work
-  in, and leaving it out gives them no Novis support at all.
-
-<sub>See also [`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients), [`ide/nvs-is-its-own-file-type`](ide.md#ide-nvs-is-its-own-file-type), [`ide/the-debug-adapter-does-not-wait-for-an-editor`](ide.md#ide-the-debug-adapter-does-not-wait-for-an-editor), [`ide/editor-clients-live-under-editors`](ide.md#ide-editor-clients-live-under-editors), [`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server), [`ide/redaction-covers-bytes-only`](ide.md#ide-redaction-covers-bytes-only), [`ide/the-request-set-is-closed`](ide.md#ide-the-request-set-is-closed).</sub>
-
 <a id="ide-the-debug-adapter-does-not-wait-for-an-editor"></a>
 
-## `nvs dap` launches `nvs run`, `nvs test` or a development `nvs serve` over stdio and never attaches; it is complete without any editor's debugger UI, VS Code's wiring is a descriptor factory and a `launch.json` schema, and PhpStorm's stays deferred  *(designed — owned by goal debugger-adapter)*
+## `nvs dap` launches `nvs run`, `nvs test` or a development `nvs serve` over stdio and never attaches; it is complete without any editor's debugger UI, and VS Code's wiring is a descriptor factory and a `launch.json` schema  *(designed — owned by goal debugger-adapter)*
 
 `rule:ide/the-debug-adapter-does-not-wait-for-an-editor`
 
@@ -2913,9 +2863,6 @@ JIT-compiled code with correct variable values, through the descriptor factory a
 ([`ide/the-extension-builds-no-ui-the-editor-already-has`](ide.md#ide-the-extension-builds-no-ui-the-editor-already-has)). How deep that UI goes is the adapter's
 capability set, not the extension's.
 
-PhpStorm's `XDebugger` UI wired to a DAP backend stays deferred ([`ide/phpstorm-bridges-to-the-same-server`](ide.md#ide-phpstorm-bridges-to-the-same-server)).
-The two clients are deliberately asymmetric here; a future PhpStorm-depth pass has to address or
-explicitly accept that.
 
 - **Memory:** the adapter's own state is one entry per breakpoint and one per stopped thread's
   variable references, freed on each resume. What the debugged program holds is the switch's
@@ -2925,15 +2872,15 @@ explicitly accept that.
 and is cleared without acting while no adapter exists.
 
 **Declined:**
-- **The adapter ships together with both editors' debugger UI.** PhpStorm's `XDebugger` wiring is the
-  larger job, and it would hold back an adapter that VS Code and a CLI-driven client can already use.
+- **The adapter ships together with an editor's debugger UI.** A stalled editor integration would hold
+  back an adapter that a CLI-driven client can already use.
 - **`attach` to a running server.** It needs a listener in every process that might be debugged, with
   its own authentication, and a production process with that listener is one misconfiguration from
   handing out its memory. Launching gives the same view of a development server with no listener.
 - **Running the program as a child process of the adapter.** The adapter would need a second protocol
   to the child to reach its stops, and in one process the controller is a Rust call.
 
-<sub>See also [`ide/the-extension-builds-no-ui-the-editor-already-has`](ide.md#ide-the-extension-builds-no-ui-the-editor-already-has), [`ide/phpstorm-bridges-to-the-same-server`](ide.md#ide-phpstorm-bridges-to-the-same-server), [`testing/debug-probes`](testing.md#testing-debug-probes), [`ide/the-debugger-ui-is-as-deep-as-the-adapter`](ide.md#ide-the-debugger-ui-is-as-deep-as-the-adapter), [`testing/a-debugged-program-is-compiled-with-a-debug-switch`](testing.md#testing-a-debugged-program-is-compiled-with-a-debug-switch), [`testing/a-stop-pauses-the-whole-task-tree`](testing.md#testing-a-stop-pauses-the-whole-task-tree), [`ide/stdout-belongs-to-the-protocol`](ide.md#ide-stdout-belongs-to-the-protocol).</sub>
+<sub>See also [`ide/the-extension-builds-no-ui-the-editor-already-has`](ide.md#ide-the-extension-builds-no-ui-the-editor-already-has), [`testing/debug-probes`](testing.md#testing-debug-probes), [`ide/the-debugger-ui-is-as-deep-as-the-adapter`](ide.md#ide-the-debugger-ui-is-as-deep-as-the-adapter), [`testing/a-debugged-program-is-compiled-with-a-debug-switch`](testing.md#testing-a-debugged-program-is-compiled-with-a-debug-switch), [`testing/a-stop-pauses-the-whole-task-tree`](testing.md#testing-a-stop-pauses-the-whole-task-tree), [`ide/stdout-belongs-to-the-protocol`](ide.md#ide-stdout-belongs-to-the-protocol).</sub>
 
 <a id="ide-the-debugger-ui-is-as-deep-as-the-adapter"></a>
 

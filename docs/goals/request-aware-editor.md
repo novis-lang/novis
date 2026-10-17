@@ -60,8 +60,6 @@ checks:
     run: [bun, nv, owners, --closes, request-aware-editor]
     reach: true
     floor: false
-extra:
-  milestone: M10
 ---
 
 # The editor reads what the program and its recorded requests did

@@ -39,8 +39,6 @@ checks:
     run: [bun, nv, owners, --closes, debugger-core]
     reach: true
     floor: false
-extra:
-  milestone: M10
 ---
 
 # A debugged program stops at a statement and shows its tasks, frames and variables

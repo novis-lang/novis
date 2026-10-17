@@ -67,17 +67,16 @@ being sorted like one. Nothing is ever renumbered, because a number that moves b
 
 | Carried by | Milestone | What it builds | Loop-days |
 |---|---|---|---|
-
-| goals `diagnostic-records`, `formatter-complete`, `cli-housekeeping`, `editor-refactors`, `editor-fixes`, `api-document`, `test-surface`, `mutation-testing`, `trace-timeline`, `bench-counters`, `debugger-core`, `debugger-adapter`, `debug-service`, `debug-viewer`, `request-aware-editor`, `tools-website` | [M10](plan/m10.md) | Developer tooling and IDE integration (~14 weeks; scope shifted by `rule:ide/every-feature-is-staged-behind-its-dependency`, net change undetermined) | ~8 |
 | backlog 4 | [M15](plan/m15.md) | Packages, the registry and the supply chain (~8 weeks) | ~3 + a calendar floor |
+
 **One milestone is not one block of schedule, which is why the cell holds a list.** A milestone's work
 can spread across several goals, and a goal may carry no milestone at all. A single number per milestone
 could say none of that, and a chain number could say it only until something was inserted ahead of it.
 **So the goal is the unit of schedule and the milestone the unit of identity: say "goal `<slug>`", never
-"in M10".** A cell naming a goal means that milestone has work scheduled.
+"in M15".** A cell naming a goal means that milestone has work scheduled.
 
-Each row is a file under [docs/plan/](plan/). `bun nv plan --show M10` prints one
-without you needing to know that, and `--show M10:verify` prints only its acceptance paragraph.
+Each row is a file under [docs/plan/](plan/). `bun nv plan --show M15` prints one
+without you needing to know that, and `--show M15:verify` prints only its acceptance paragraph.
 The decisions those milestones sit inside, the architecture and the verification strategy are
 [docs/plan/design.md](plan/design.md).
 
