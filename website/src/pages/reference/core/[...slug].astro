@@ -52,7 +52,7 @@ if (member) {
   const about = aboutFor(member)
   title = `${cls.name}::${member.name}`
   description = about?.summary || member.doc?.shortHtml?.replace(/<[^>]+>/g, '') || description
-  body = about ? about.blocks : [member.doc?.shortHtml || member.notesHtml || ''].filter(Boolean)
+  body = about ? about.blocks : [member.doc?.shortHtml || ''].filter(Boolean)
   related = about?.related ?? []
   // The order of the calls is the order of the page, which the table of contents follows.
   show = {
@@ -74,7 +74,6 @@ if (!member) {
   section('types', 'Shape types', cls.types.length > 0)
   section('constants', 'Constants', cls.constants.length > 0)
   section('example-apps', 'Example apps', apps.length > 0)
-  section('further-members', 'Stated in the spec, not yet extracted', cls.unparsed.length > 0)
 }
 ---
 

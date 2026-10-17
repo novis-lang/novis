@@ -1,7 +1,7 @@
 ---
 /**
- * The tool-owned body of a Core class page: what the spec says about the
- * class, the member table, enums, shape types and constants. Renders from
+ * The tool-owned body of a Core class page: the class's summary and
+ * introduction, the member table, enums, shape types and constants. Renders from
  * src/data/core.json, which holds implemented members only. An enum with a
  * Types page links to it. `apps` are the example app pages that show the
  * class (src/lib/example-apps.ts), listed under "Example apps".
@@ -19,7 +19,6 @@ const { id, apps } = Astro.props
 const cls = findClass(id)
 if (!cls) throw new Error(`ClassOverview: unknown class id "${id}" — run \`npm run sync:render\`?`)
 
-const clsExtra = cls as typeof cls & { summaryHtml?: string; surfaceHtml?: string }
 
 /** The enum's own Types page, or `null` when this page's `#enums` section is all there is. */
 const enumPage = (name: string) => {
@@ -29,8 +28,7 @@ const enumPage = (name: string) => {
 ---
 
 <div class="class-overview">
-  {clsExtra.summaryHtml && <div class="class-summary" set:html={clsExtra.summaryHtml} />}
-  {!clsExtra.summaryHtml && clsExtra.surfaceHtml && <p class="class-summary" set:html={clsExtra.surfaceHtml} />}
+  {cls.summaryHtml && <div class="class-summary" set:html={cls.summaryHtml} />}
 
   {
     cls.members.length > 0 && (
@@ -152,21 +150,6 @@ const enumPage = (name: string) => {
           {apps.map((app) => (
             <li>
               <a href={app.url}>{app.title}</a>: {app.description}
-            </li>
-          ))}
-        </ul>
-      </>
-    )
-  }
-
-  {
-    cls.unparsed.length > 0 && (
-      <>
-        <h2 id="further-members">Stated in the spec, not yet extracted</h2>
-        <ul>
-          {cls.unparsed.map((u) => (
-            <li>
-              <code>{u.memberCell}</code> — {u.signatureCell}
             </li>
           ))}
         </ul>

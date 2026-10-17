@@ -20,7 +20,7 @@ npx astro build --base /novis/ # build with a custom base
 | `npm run build` | production build into `dist/` |
 | `npm run preview` | serve the built site locally |
 | `npm run sync` | the render, under the name a human types |
-| `npm run sync:render` | `bun nv render --website`: publish the spec + registry → `src/data/core.json` |
+| `npm run sync:render` | `bun nv render --website`: publish the registry and the class introductions → `src/data/core.json` |
 
 ## Who owns which file
 
@@ -39,7 +39,6 @@ renders them all at build time, and a member's prose is its `about.md`.
 | `src/data/numbers.json` | tool | the counts the front page and *How Novis is written* print, rounded down, from `../tools/nv/renderers/website-numbers.ts`, which says what each one counts. Its `--check` passes while every figure is still at most the real count |
 | `src/pages/reference/[area]/[...slug].astro` | human | the one route that renders every Configuration and CLI page and both landing pages |
 | `../docs/examples/**` | the proofs sweep | each member's `about.md` and examples, read in place by `src/lib/feature.ts`; the site holds no copy. `bun nv proofs --run` runs each example and diffs it against its `.out` file |
-| `config/spec-overrides.mjs` | human | corrections for spec table rows the renderer cannot read — every fix goes here, never into the renderer |
 | `config/site.mjs` | human | **all placeholder URLs live here** — swap them once to go live. It also holds `AREAS`, the four areas the header, the footer, the sidebars and `llms.txt` are built from, and `SPONSOR_CHANNELS`, the ways to give money |
 | `src/data/sponsors.json` | human | the sponsor tiers, the sponsors who asked to be named (`name`, `tier`, optional `url` and `logo` under `public/`, and `amount` with `per` — `month` or `once` — only when they asked for that too), the count of those who did not (`unnamed`), and the quarterly reports (`period`, `donors`, `income` after fees, `costs`). Nothing about a sponsor is published without their request: `src/content/docs/datenschutz.mdx` § *Donations and sponsors* is the promise. `src/components/Sponsors.astro` renders it |
 | `config/external-links.mjs` | human | the rule that a link off the site opens in a new tab with `rel="noopener noreferrer nofollow"` — except the project's own repository and Discord links, which open in a new tab with no `rel`: an integration decorates content links at build time, and a component spreads `externalLinkAttrs(href)` onto any anchor it writes itself |
@@ -49,22 +48,21 @@ renders them all at build time, and a member's prose is its `about.md`.
 
 `bun nv render --website` writes it (`../tools/nv/renderers/website-core.ts`).
 
-1. The member tables of `../docs/spec/01-core-library.md` — the file the repo declares
-   authoritative for the designed surface — are the `../data/spec/core-members.json`
-   record. Well-formed member rows become full member records (signature, parameters,
-   options, return type, PHP "Replaces" list, taint classification). The chapter's
-   prose gives each class its summary, enums and constants. A row the renderer cannot
-   read is a **render warning**, fixed in `config/spec-overrides.mjs`.
-2. The built `nvs` binary's registry (`nvs meta --json`, `rule:tooling/meta-json`) says what is
-   implemented, and **every registered member is published, and nothing else**: a
-   member the registry does not hold gets no page, and a class with no registered member
-   does not appear at all. A registered class or member the spec's tables do not name is
-   built from the registry's own signature, so the published set is the proofs roster's
-   Core features. With no binary built, the render stops.
-3. The same registry carries each member's card: short description,
-   parameter/shape-key/return/error descriptions, authored next to the Rust
-   implementation. Precedence is **field-wise**: a doc field the registry carries wins,
-   one it lacks falls back to the spec, so documentation moves member by member.
+1. The built `nvs` binary's registry (`nvs meta --json`, `rule:tooling/meta-json`) is the
+   only source of what `Core` has. **Every registered class and member is published, and
+   nothing else.** Each member's signature, parameters, options and return type come
+   from the registry's signature, and each class's shape types, constants and the enums
+   named under it (`Core\Arr::Order`) come from the registry too. An enum named under a
+   namespace (`Core\Charset`) has its Types page only. With no binary built, the render
+   stops.
+2. The same registry carries each card: a class's, a member's, an enum's and a
+   constant's descriptions, authored next to the Rust implementation. A field the card
+   lacks is left out of the page.
+3. A class's summary is its card's one sentence, then its introduction:
+   `../docs/reference/core/<Class>.md` (`Time-Date.md` for `Core\Time\Date`), or
+   `../docs/reference/novis/` for a built-in component's class. The front matter is not
+   shown. `bun nv reference` reads the same files into `docs/novis.md` and runs every
+   example in them.
 4. `src/pages/reference/core/[...slug].astro` renders a page per published class and
    member. A member page is its signature, its `about.md` (or the card's short
    description when it has none), then Parameters, Options, Return value, Errors,
@@ -208,8 +206,8 @@ GitHub Pages as an artifact. Nothing built is ever committed: `dist/` is gitigno
 The workflow runs `npm ci && npm run build` — **not** `npm run sync`. Sync rewrites tracked files
 and reads the built `nvs` binary for registry docs, so a deploy that ran it would publish less than
 your local sync does and would decide page ownership with nobody looking. The site therefore
-follows the repository only as far as the last committed sync: after landing spec or
-registry changes, run `npm run sync` and commit what it wrote.
+follows the repository only as far as the last committed sync: after landing registry or
+class introduction changes, run `npm run sync` and commit what it wrote.
 
 The same workflow builds on pull requests without deploying, so a build that no longer compiles
 fails there rather than on `main`.
