@@ -1,14 +1,14 @@
-# Each limit below except `memory` has a value that is far too large, or is not in its unit.
+# Each limit below except `memory` has the largest value its unit can hold.
 # Novis should start the program anyway, and must not crash while it reads them.
 [limits]
 memory = "64M"
-wall_time = "99999999999999999d"
-cpu_time = "18446744073709551616ns"
-max_tasks = "99999999999999999999"
-max_output = "16777216T"
-max_regex_steps = "1e9"
-max_decompression_ratio = "-1"
+wall_time = "213503d"
+cpu_time = "18446744073709551615ns"
+max_tasks = "18446744073709551615"
+max_output = "16777215T"
+max_regex_steps = "18446744073709551615"
+max_decompression_ratio = "18446744073709551615"
 
 [limits.hard]
-wall_time = "1m30s"
+wall_time = "18446744073709551615ns"
 max_tasks = false

@@ -1,6 +1,7 @@
 <?nvs
-// Attack: `nvs.toml` gives the limits values that are far too large or in the wrong unit.
-// Then the program sets more of them. Novis should run the program, and nothing should crash.
+// Attack: `nvs.toml` gives each limit the largest value its unit can hold.
+// Then the program sets values that are too large or not written correctly.
+// Novis should run the program, and nothing should crash.
 
 // 1. Read each value from the file. Each one prints as it is written in the file.
 array<string> $keys = [
