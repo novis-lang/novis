@@ -70,7 +70,7 @@ stages:
   - id: 10
     title: "syslog is a log target, and completion offers what the class reaches"
     status: open
-    context: [crates/nvs-runtime/src/ctx/output.rs, crates/nvs-config/src/log.rs, crates/nvs-lsp/src/completion.rs, data/gaps/nvs-runtime/log-target-syslog-is-not-transported.json, data/gaps/nvs-lsp/two-of-them-are-the-class.json]
+    context: [crates/nvs-runtime/src/ctx/output.rs, crates/nvs-config/src/log.rs, crates/nvs-lsp/src/completion.rs, crates/nvs-lsp/tests/completion.rs, data/gaps/nvs-lsp/three-positions-are-answered-as-the-one-around-them.json]
     extra:
       context:
         rules: [errors/engine-floor, ide/completion-offers-only-what-the-compiler-derived]
@@ -286,7 +286,11 @@ callable or `Core` call passes the call probes.
 filtered by visibility.
 
 - [x] A syslog sink, or `syslog` dropped from the rule and the parser. `crates/nvs-runtime/src/ctx/output.rs:1044`
-- [ ] `declared_members` walks the class graph and filters by visibility. `crates/nvs-lsp/src/completion.rs:2918`
+- [x] `declared_members` walks the class graph and filters by visibility. `crates/nvs-lsp/src/completion.rs:2928`
+  - [x] Reuse `nvs_hir::ClassGraph`'s edges and `nvs_types::signatures::is_visible_from`.
+  - [x] Walk parents and interfaces nearest first, so an override hides what it overrides.
+  - [x] One `.lspt` case per visibility, and one for inheritance.
+- [ ] The receiver half, a written type and a string literal each get their own list. `crates/nvs-lsp/src/completion.rs:56`
 
 ### 11. the checker reports what it accepts today
 
@@ -329,14 +333,15 @@ work cannot live only in prose again.
 
 ### State
 
-Stages 1 to 4, 8 and 9 are done. Stage 10's syslog item landed this session and its record is
-deleted. `[log] target = "syslog"` sends each record as one datagram to the local daemon's socket
-(`crates/nvs-runtime/src/syslog.rs`, `/dev/log`, or `/var/run/syslog` on macOS), framed
-`<PRI>nvs: <line>` at the `user` facility and the level's severity. Both writers reach it through
-`LogTarget::Syslog` (`crates/nvs-runtime/src/ctx/output.rs`). On Windows the boot refuses it with
-`E0613` (`nvs_config::log::SYSLOG`). Trade-offs: one descriptor per process and one send per record,
-nothing per request; Windows loses a target that never delivered anything there. The Unix send path
-is not exercised by a test, because a test host need not run a daemon; `frame` is tested.
+Stages 1 to 4, 8 and 9 are done. Stage 10's syslog item and its member-resolution item are done.
+Completion after `->` and `::` walks the class's parents and interfaces nearest first through
+`nvs_hir::ClassGraph` (`crates/nvs-lsp/src/completion.rs`'s `lineage`). It filters each member with
+the checker's own `nvs_types::signatures::is_visible_from`, from the class the cursor is written in.
+Four `.lspt` cases pin it. `self::` now offers the parent's static half too. Trade-offs: one graph
+walk per completion request and nothing at run time, and the editor offers what the checker accepts.
+The record's other half moved to
+`data/gaps/nvs-lsp/three-positions-are-answered-as-the-one-around-them.json`, which is stage 10's
+last item, so stage 10 stays open on it.
 
 Stage 6's two items are on disk. Its remainder is
 `data/gaps/nvs-ext/a-workbook-never-finished-is-neither-logged-nor-cut-off.json`: a program that
@@ -358,17 +363,19 @@ a wider view).
 cap on `call` events, or refuse `trace` and `profile` in a server's `[debug] mode`) and
 `data/gaps/nvs-db/span-renders-on-a-flag-no.json` (no rule names the grant for a sampled span).
 
-The nightly still tests `cb7021a24` (checked this session with `gh run view 38869457440`), far
-behind the local `main`. Its failures are the old tree's until the user pushes.
+The nightly still tests `cb7021a24` (checked this session with `gh run view 38869457440`). The local
+`main` is 168 commits ahead and not pushed, so its failures are the old tree's until the user pushes.
 
 ### Next
 
-**Stage 10's completion item, over `crates/nvs-lsp/src/completion.rs`**
-(`data/gaps/nvs-lsp/two-of-them-are-the-class.json`).
+**Stage 10's last item, over `crates/nvs-lsp/src/completion.rs` and `tests/lsp/completion/`**
+(`data/gaps/nvs-lsp/three-positions-are-answered-as-the-one-around-them.json`,
+`rule:ide/completion-offers-only-what-the-compiler-derived`).
 
-- [ ] Read the record and `declared_members`, and name the class-graph walk the checker already has to reuse. `crates/nvs-lsp/src/completion.rs:2918`
-- [ ] Walk parents and traits, filtering each member by visibility from the cursor's class, with a test per visibility. `crates/nvs-lsp/src/completion.rs:2918`
-- [ ] Delete the record and rewrite the module prose that described it, then mark stage 10 done. `crates/nvs-lsp/src/completion.rs:1`
+- [ ] A cursor in an access's receiver half offers the variables in scope. `crates/nvs-lsp/src/completion.rs:56`
+- [ ] Inside a string literal, only the variables an interpolation takes are offered, and no statement keyword. `tests/lsp/completion/a-string-literal-is-a-statement-position.lspt:1`
+- [ ] A property's type and a type argument between `<` and `>` offer types only. `tests/lsp/completion/a-parameters-type-offers-types-and-nothing-else.lspt:1`
+- [ ] Delete the record, and mark stage 10 done. `crates/nvs-lsp/src/completion.rs:1`
 
 ### Backlog
 
