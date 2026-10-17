@@ -125,7 +125,6 @@ this file is checked by them and by nothing else:
 bun nv links             # every markdown link resolves, with matching case
 bun nv layout            # the layout listing below still describes the tree
 bun nv rules --check     # every rule fragment is well formed, and every `rule:` citation resolves
-bun nv plan --check      # every milestone row agrees with the file it names
 ```
 
 [docs/agent/commands.md](docs/agent/commands.md) is the full set of tools this repo is driven by.
@@ -136,9 +135,9 @@ bun nv plan --check      # every milestone row agrees with the file it names
 true: it fails if a row names something that is not there, if a crate or a tracked top-level directory
 has no row, or if an `[audited unsafe]` marker disagrees with the crate's own lint policy — that marker
 means the crate overrides the workspace's `unsafe_code = "forbid"` with its own audited `deny`. What the
-workspace has *not* built yet, such as the package manager, is scheduled in
-[docs/implementation-plan.md](docs/implementation-plan.md) and named nowhere else, because a second copy
-of a schedule goes stale.
+workspace has *not* built yet, such as the package manager, is a goal under
+[docs/goals/](docs/goals/README.md) and named nowhere else, because a second copy of a schedule goes
+stale.
 
 <!-- layout:begin  bun nv layout --check gates this listing; see tools/nv/cmd/layout.ts -->
 ```
@@ -182,7 +181,7 @@ docker/             the container image
 website/            the Astro site
 editors/            the VS Code extension, and where a second editor's would sit
 tools/              how this repository is driven; docs/agent/commands.md is the full set
-data/               the JSON records `bun nv` reads and writes: gaps, rules, plan, proofs, reference, spec
+data/               the JSON records `bun nv` reads and writes: gaps, rules, proofs, reference, spec
 docs/
   setup.md          what a development machine installs, and what a clone does not carry
   novis.md          the one-file reference to everything Novis has (generated)
@@ -201,9 +200,7 @@ docs/
 `docs/agent/` holds how work is driven here: the [work-loop design](docs/agent/coordinator.md) and
 the rules a session follows. The loop itself is looper, an external tool configured by `looper.toml`. A
 goal is one file under [docs/goals/](docs/goals/README.md), and its `## Handoff` is live state,
-overwritten by each session. The schedule is the goal chain, the front matter of `docs/goals/README.md`,
-not the milestone table: a milestone is an identity tag one or more goals carry, so "goal `<slug>`" says
-what is happening and a milestone number does not.
+overwritten by each session. The schedule is the goal chain, the front matter of `docs/goals/README.md`.
 
 The editor clients sit outside the Cargo workspace. The VS Code extension under `editors/vscode` is
 TypeScript/Node tooling, and a PhpStorm plugin would be Kotlin/Gradle/IntelliJ Platform tooling. Each is

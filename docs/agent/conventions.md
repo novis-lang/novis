@@ -417,9 +417,8 @@ The record, `data/rules/core-classes/schema-plan.json`:
 - **`status` is `shipped` or `designed`**, and `designed` is the honest answer for a rule the tree does
   not hold yet. `docs/novis.md` filters to `shipped` so every line in it runs; the rulebook carries both,
   and the pack marks a designed rule where it prints one.
-- **A `designed` rule names the one owner that ships it**, as a gap does: `goal`, the slug of any goal
-  file under `docs/goals/`, or `milestone`, a milestone that is not done. Never both,
-  and a `shipped` rule names neither. The chapter prints the owner beside the title, and
+- **A `designed` rule names the goal that ships it**, as a gap does: `goal`, the slug of any goal
+  file under `docs/goals/`. A `shipped` rule names none. The chapter prints the owner beside the title, and
   `bun nv owners` lists every designed rule by its owner.
 - **`guardedBy` is what holds the rule** — a test path, not a description. It is how a reader gets from
   the rule to the thing that fails when it is broken, and the pack samples it rather than printing it all.
@@ -531,17 +530,6 @@ up — one or two are cheaper as plain `Edit` calls, and [commands.md](commands.
 one command* has the measurement. **A patch cannot carry a patch**: a block whose text contains the
 markers themselves ends at the first `=======` inside it, so an edit to prose *about* this format is one
 the `Edit` tool has to make.
-
-## A status-block field
-
-```
-bun nv plan --check              # field names and sizes
-bun nv plan --get "Open now"     # its current text
-```
-
-A field is written by `bun nv plan --apply <file>`, never by hand: a `## plan: <Field>` section in the
-wrap file replaces it whole, and `## plan-edit: <Field>` replaces one fragment of it. The field set is
-fixed, and `--apply` refuses a name that is not already there.
 
 ## A playbook bullet
 
