@@ -66,9 +66,8 @@ string values is offered those values.
   the checker's table for the length of the analysis. Nothing at run time.
 
 What it refuses has no subject rather than being declined: ORM columns (a codec's fields are declared
-properties, already reached as members), service-container and facade resolution (constructor injection
-is resolved while compiling, so go-to-definition already goes there), and view-name completion
-(`rule:programs/first-party-framework` makes the view layer the language). A vendor annotation dialect is
+properties, already reached as members), and service-container, facade and view-name resolution (`Core`
+has no container and no view layer, `rule:programs/no-first-party-framework`). A vendor annotation dialect is
 refused outright as a second, unchecked description of the program's shape — the failure
 `rule:routing/api-document-is-generated-from-the-route-table` refuses for API documents. A completion
 file is not one: it describes values the compiler never holds, such as the keys of a dataset or the

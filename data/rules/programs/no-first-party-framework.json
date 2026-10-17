@@ -1,0 +1,10 @@
+{
+  "title": "Novis ships no framework: `Core` holds what needs privilege, and an opinionated layer is a package anyone may write",
+  "status": "shipped",
+  "seeAlso": [
+    "programs/framework-core-half",
+    "core-api/tier-placement",
+    "core-classes/html-template"
+  ],
+  "guardedBy": []
+}

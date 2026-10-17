@@ -43,8 +43,9 @@ own. The PHP-shaped syntax is an **on-ramp, never a compatibility promise**, and
 document from implying otherwise.
 
 Intended outcome: a self-hosted toolchain (`nvs` binary) that runs `.nvs` files on the CLI, serves them
-over HTTP from one process, ships a working framework and a supply-chain-safe package system
-(`rule:programs/first-party-framework`, `rule:packaging/a-package-is-its-digest`).
+over HTTP from one process, holds in `Core` every privileged primitive a framework needs, and ships a
+supply-chain-safe package system (`rule:programs/no-first-party-framework`,
+`rule:packaging/a-package-is-its-digest`).
 
 ---
 
@@ -82,7 +83,7 @@ spellings declined, and the reasoning. Do not restate that detail here when addi
 | Tooling | LSP + formatter, test runner, debugger + profiler, package manager |
 | Audience | Web applications of every kind; the pitch is isolation and qualifiers, and PHP syntax is an on-ramp rather than a compatibility promise (`rule:programs/audience`) |
 | Packages | Content-addressed source archives from a first-party registry or (root-only) a git URL, resolved by minimal version selection, with no package code running before the program and capabilities granted per package (`rule:packaging/a-package-is-its-digest`) |
-| Framework | First-party and split by `rule:core-api/tier-placement`'s six tests: privileged halves in `Core`, the opinionated layer as the `nvs/web` package; no ORM, no runtime container, the language is the view layer (`rule:programs/first-party-framework`) |
+| Framework | None first-party: `Core` holds the privileged primitives, placed by `rule:core-api/tier-placement`'s six tests, and an opinionated layer is a package anyone may write; the language is the view layer (`rule:programs/no-first-party-framework`) |
 | Real-time | WebSocket and SSE connections are root isolates opened the way a script is spawned; fan-out is a bounded `Core\Topic` (`rule:concurrency/a-connection-is-a-root-isolate`) |
 | Background work | A durable job is a row in a `Core\Db` table, enqueued inside the caller's transaction and run as an isolate (`rule:concurrency/enqueue-commits-with-your-write`) |
 | API contracts | OpenAPI 3.1 generated while compiling from the route table and derived codecs, with `nvs api diff` as a breaking-change gate (`rule:routing/api-document-is-generated-from-the-route-table`) |

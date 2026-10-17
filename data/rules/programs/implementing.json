@@ -4,7 +4,6 @@
   "seeAlso": [
     "programs/no-runtime-autoload",
     "programs/autoload",
-    "programs/framework-refusals",
     "programs/constructors"
   ],
   "guardedBy": [

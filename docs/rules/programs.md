@@ -3,8 +3,6 @@
 
 # Programs
 
-*5 of 22 rules below are **designed** rather than shipped, and are marked where they appear.*
-
 <a id="programs-audience"></a>
 
 ## Novis is built for web applications of every kind, with command-line tooling second
@@ -34,9 +32,10 @@ already has working tools.
 
 **The safety properties are how Novis is built, not who it is built for.** They are also why this does
 not end where a typed, incompatible dialect of an existing language ended before: that one's value depended on a package
-compatibility it could not hold, and Novis depends on that compatibility at no point, ships the
-framework rather than waiting for an ecosystem to appear, and differentiates on properties an
-incumbent cannot acquire in a minor release.
+compatibility it could not hold, and Novis depends on that compatibility at no point, puts every
+primitive a framework needs in `Core` so a framework is a package anyone can write
+([`programs/no-first-party-framework`](programs.md#programs-no-first-party-framework)), and differentiates on properties an incumbent cannot
+acquire in a minor release.
 
 **No audience is deliberately second among web teams.** A PHP team modernising and a greenfield
 backend choosing between Go and Node are served by the same language and the same three claims. What
@@ -54,10 +53,10 @@ team can pick Novis, not *which* teams it is for.
   language's ordinary behaviour, and tells every other team the language is not for them. That
   segment is where the properties pay most, and it stays named as that.
 - **No named audience at all.** It ranks slices silently by what is interesting rather than by what
-  is blocking, and produces a language with no dependency story and no framework, the two things
-  every user meets first ([`programs/slice-ranking`](programs.md#programs-slice-ranking)).
+  is blocking, and produces a language with no dependency story, the thing every user meets first
+  ([`programs/slice-ranking`](programs.md#programs-slice-ranking)).
 
-<sub>See also [`programs/three-claims`](programs.md#programs-three-claims), [`programs/no-compatibility-promise`](programs.md#programs-no-compatibility-promise), [`programs/slice-ranking`](programs.md#programs-slice-ranking), [`programs/first-party-framework`](programs.md#programs-first-party-framework).</sub>
+<sub>See also [`programs/three-claims`](programs.md#programs-three-claims), [`programs/no-compatibility-promise`](programs.md#programs-no-compatibility-promise), [`programs/slice-ranking`](programs.md#programs-slice-ranking), [`programs/no-first-party-framework`](programs.md#programs-no-first-party-framework).</sub>
 
 <a id="programs-three-claims"></a>
 
@@ -152,8 +151,8 @@ whose file name mentions PHP keep their names.
 When two slices compete for a session, the one that gets a working web application sooner wins. This
 binds the plan, in this order:
 
-- **The framework and the dependency story are milestones, not conveniences** — they are the two
-  things a new user hits before reaching a language feature. They do **not** outrank language and
+- **The dependency story is a milestone, not a convenience** — it is the thing a new user hits
+  before reaching a language feature. It does **not** outrank language and
   library completeness, because a user arrives at a language that runs their program, and a package
   registry in front of a runtime that cannot serve a request or talk to a database ships an excellent
   way to install nothing. This bullet binds wherever the competing slice is `Core` **breadth** —
@@ -168,7 +167,7 @@ binds the plan, in this order:
   than an optimisation. The single-application case loses nothing by it, which is what makes this a
   tie-break rather than a priority.
 
-<sub>See also [`programs/audience`](programs.md#programs-audience), [`programs/first-party-framework`](programs.md#programs-first-party-framework), [`programs/memory-priority`](programs.md#programs-memory-priority).</sub>
+<sub>See also [`programs/audience`](programs.md#programs-audience), [`programs/no-first-party-framework`](programs.md#programs-no-first-party-framework), [`programs/memory-priority`](programs.md#programs-memory-priority).</sub>
 
 <a id="programs-memory-priority"></a>
 
@@ -296,7 +295,7 @@ never checked past its declaration and never reaches codegen.
 - **A hierarchy reader on `Core\Reflect\ClassInfo`** (`parent`, `interfaces`, `isAbstract`). It lets a
   program filter a list it still cannot obtain without a scan.
 
-<sub>See also [`programs/no-runtime-autoload`](programs.md#programs-no-runtime-autoload), [`programs/autoload`](programs.md#programs-autoload), [`programs/framework-refusals`](programs.md#programs-framework-refusals), [`programs/constructors`](programs.md#programs-constructors).</sub>
+<sub>See also [`programs/no-runtime-autoload`](programs.md#programs-no-runtime-autoload), [`programs/autoload`](programs.md#programs-autoload), [`programs/constructors`](programs.md#programs-constructors).</sub>
 
 <a id="programs-implementing-with"></a>
 
@@ -804,71 +803,63 @@ itself a bundle.
 
 <sub>See also [`programs/compile-target`](programs.md#programs-compile-target), [`programs/audience`](programs.md#programs-audience).</sub>
 
-<a id="programs-first-party-framework"></a>
+<a id="programs-no-first-party-framework"></a>
 
-## Novis ships the framework, split by the standard-library placement tests  *(designed — owned by M16)*
+## Novis ships no framework: `Core` holds what needs privilege, and an opinionated layer is a package anyone may write
 
-`rule:programs/first-party-framework`
+`rule:programs/no-first-party-framework`
 
-Novis ships a working web framework. A good language beside an empty registry is the position every
-language that lost this fight occupied, and a language arriving without a framework asks a team to
-build one as their first project — a cost no team accepts for a runtime they have not yet trusted.
+Novis ships no web framework and no `nvs new` scaffold. `Core` holds every primitive a framework needs
+that needs runtime privilege, removes a qualifier, or waits on the outside world
+([`programs/framework-core-half`](programs.md#programs-framework-core-half)). A framework is composition over that surface: a package
+anyone may write, fetched, locked and granted under the same rules as every other package.
 
-It is split in two, and **no new placement rule decides the split**: the standard-library tier tests
-answer it unchanged, so a framework capability is placed by the same ordered questions a stdlib
-candidate is, and there is no second authority over one question. Anything needing runtime privilege,
-laundering a qualifier, or waiting on the outside world is [`programs/framework-core-half`](programs.md#programs-framework-core-half).
-Everything that survives all six tests — pure composition over privileged primitives — is
-[`programs/framework-web-package`](programs.md#programs-framework-web-package).
+**The line is the standard-library tier tests, unchanged** ([`core-api/tier-placement`](core-api.md#core-api-tier-placement)). A
+capability that fails one of them is `Core`. One that survives all six — controllers, middleware, login
+flows, form binding, pagination, mail composition, a migration runner — is an opinion, and opinions are
+userland. No placement rule specific to framework components exists, so there is no second authority
+over one question.
 
-The line exists because the two halves have genuinely different clock speeds. A language's surface must
-be stable for years; a framework's opinions need to move. Putting the whole framework in the binary
-would lock its cadence to the runtime's, and putting all of it in a package would push privileged
-operations across a boundary they cannot cross.
+**Opinions belong to the teams that hold them.** A framework's choices must move faster than a
+language's surface, and they differ between teams. Owning one would be a second compatibility surface,
+a second stream of security reports and a second release cadence, carried permanently, and a
+first-party one crowds out the ones teams write for themselves.
 
-The project owns that framework permanently: its own compatibility surface, its own security reports
-and its own release cadence. That is the largest ongoing cost the project carries, and it is carried
-because the alternative is the failure mode above. The `Core` half grows the API surface, which is
-the expensive resource the tier tests guard, so each entry there is justified by the test that placed
-it and none by convenience. The framework is also the registry's heaviest user, so every rough edge
-in the package system is felt first-party, first.
+**The guarantees do not depend on who writes the framework.** Only a `Core` member removes a qualifier,
+so a userland framework computes over `tainted` data and never declares it safe, and its authority is
+what the application grants it ([`security/authority-is-the-enclosing-namespace`](security.md#security-authority-is-the-enclosing-namespace)). There is no view
+layer to ship either: inline HTML and the html template ([`core-classes/html-template`](core-classes.md#core-classes-html-template)) are the
+language's own, and the HTML sink escapes by default.
 
-A team arriving from an active-record framework will look for the ORM and the container
-([`programs/framework-refusals`](programs.md#programs-framework-refusals)). Those frameworks provide them through reflection and run-time
-magic; Novis provides the same things while compiling, and cannot provide them any other way without
-giving up the guarantees it exists for. That answer belongs on the documentation's first screen.
+**What a new user reads first is the website.** Its examples are complete programs, one per feature, each
+run and checked, so a scaffold would be a second copy of them that has to pick the opinions this rule
+leaves to packages.
 
-If the boundary between the halves is crossed repeatedly, by a package member that keeps needing a
-privileged escape hatch, the tier tests are applied to that member again; no escape hatch is added.
-
-**Partly on disk.** The `Core` half is built ([`programs/framework-core-half`](programs.md#programs-framework-core-half)). There is no
-`nvs/web` package.
+If a framework package keeps needing a privileged escape hatch, the tier tests are applied to that member
+again. No escape hatch is added.
 
 **Declined:**
-- **Primitives only: router, session and validation in `Core`, the rest left to the ecosystem.** It
-  keeps the API surface minimal, and it is precisely the position that leaves a good language beside an
-  empty registry. The ecosystem that would fill it does not exist and has no reason to appear first.
-- **The entire framework in the binary.** One download and the best first run, but a framework's
-  opinions must move faster than a language's surface, and every framework fix would become a runtime
-  release.
-- **The entire framework as a package, privileged parts included.** Sessions, validation, queues and
-  persistent connections fail the privilege, sink and waiting tests: a package cannot launder a
-  qualifier or hold state across requests, so the privileged pieces would end in `Core` anyway, behind
-  a worse boundary.
-- **A placement rule specific to framework components.** It would be a second authority over the same
-  question, and the tier tests answered every case without amendment
-  ([`core-api/tier-placement`](core-api.md#core-api-tier-placement)).
+- **A first-party framework, `nvs/web`, beside `Core`.** It gives a new team a working application on
+  the first day, at the cost above: a permanent second product whose opinions the project would own. The
+  website's examples carry the first day instead.
+- **`nvs new`, a scaffold that runs before it is edited.** It needs a framework to scaffold, and it
+  repeats what the examples already show.
+- **The entire framework in the binary.** One download and the best first run, but every framework fix
+  would become a runtime release.
+- **A migration runner in `Core`.** Schema convergence is the model `Core` holds
+  ([`core-classes/schema-converges`](core-classes.md#core-classes-schema-converges)), and a versioned migrator's ordering, locking and history are
+  a package's to decide.
 
-<sub>See also [`programs/framework-core-half`](programs.md#programs-framework-core-half), [`programs/framework-web-package`](programs.md#programs-framework-web-package), [`programs/framework-refusals`](programs.md#programs-framework-refusals), [`programs/nvs-new`](programs.md#programs-nvs-new).</sub>
+<sub>See also [`programs/framework-core-half`](programs.md#programs-framework-core-half), [`core-api/tier-placement`](core-api.md#core-api-tier-placement), [`core-classes/html-template`](core-classes.md#core-classes-html-template).</sub>
 
 <a id="programs-framework-core-half"></a>
 
-## The privileged half of the framework is `Core`, compiled into the binary
+## The privileged primitives a web framework needs are `Core`, each placed by a tier test
 
 `rule:programs/framework-core-half`
 
-The privileged half is compiled into the binary, and every entry is placed by a standard-library tier
-test rather than by convenience:
+The primitives a web framework builds on are compiled into the binary, and every entry is placed by a
+standard-library tier test rather than by convenience:
 
 | Member | Placed by | Notes |
 |---|---|---|
@@ -878,128 +869,16 @@ test rather than by convenience:
 | `Core\Password` | privilege, sink | Argon2id hash and constant-time verify over a `secret`, a crypto primitive rather than an application-security protocol |
 | `Core\Queue` | privilege | enqueue, claim, retry, dead-letter |
 | `Core\Socket` / `Core\Sse` | privilege, waits | persistent connections as isolates |
-| `Core\Mail` | waits | **transport only** — an SMTP endpoint the operator names in root-owned configuration under a `mail.send` capability; composition belongs to the package half |
+| `Core\Mail` | waits | **transport only** — an SMTP endpoint the operator names in root-owned configuration under a `mail.send` capability; composition belongs to the program or a package |
 | `Core\Storage` | waits | local-filesystem object storage over the existing `fs.*` capabilities; remote backends are a package or an extension, never `Core` |
 | `Core\Cldr::pluralCategory` | data nothing else carries | the cardinal plural categories and, beside them, the ordinal forms a place takes, over a **closed** roster of languages — one outside it is refused rather than given another language's rules ([`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused)) |
 
-`Core\Cache`, `Core\RateLimit`, `Core\Metrics`, `Core\Task`, `Core\Db` and `Core\Test` are already
-`Core`, and the framework consumes them unchanged.
+`Core\Cache`, `Core\RateLimit`, `Core\Metrics`, `Core\Task`, `Core\Db` and `Core\Test` are `Core` on
+their own account, and a framework package builds on them unchanged.
 
 Because only a `Core` member may remove a qualifier, **every validator is `Core` by construction**: a
-third-party framework can be written over this public surface, but it can compute over `tainted` data
-and never declare it safe. A member added to this half later carries the test that placed it; one
-arriving with no test is a bug in the roster.
+framework written over this public surface can compute over `tainted` data and never declare it safe
+([`programs/no-first-party-framework`](programs.md#programs-no-first-party-framework)). A member added to this roster later carries the test that
+placed it; one arriving with no test is a bug in the roster.
 
-<sub>See also [`programs/first-party-framework`](programs.md#programs-first-party-framework), [`programs/framework-web-package`](programs.md#programs-framework-web-package), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused).</sub>
-
-<a id="programs-framework-web-package"></a>
-
-## The opinionated half is `nvs/web`, a first-party package providing the `Web` namespace  *(designed — owned by M16)*
-
-`rule:programs/framework-web-package`
-
-The opinionated half is `nvs/web`, a first-party package fetched, locked, logged and granted exactly
-like any other, and bound by every package rule — including the one that makes a breaking release a new
-package name. Its cadence is deliberately slow. The `Core` half versions with the binary and carries
-every compatibility rule `Core` already carries.
-
-It provides the `Web` namespace, and holds what an application needs and a language should not fix:
-`Web\Middleware`, a pipeline a `Core\Router\Gate` runs, since dispatch itself is `Core`'s
-`Core\Router::dispatch` ([`routing/a-gate-answers-around-every-handler`](routing.md#routing-a-gate-answers-around-every-handler)); `Web\Response`, with
-`view`, `json`, `redirect`, `file` and `stream` constructors over the safe HTTP defaults; `Web\Auth`,
-a gate whose `allows` interprets `#[Access]`, holding login, logout, remember-me, password reset,
-policies and role checks; `Web\Validation`, named rule sets
-and form binding over `Core\Validate` — the ergonomics, never the laundering; and `Web\Mail`,
-`Web\I18n`, `Web\Storage`, `Web\Pagination`, `Web\Filter`, `Web\Migration`
-([`programs/no-migration-runner`](programs.md#programs-no-migration-runner)), `Web\Job`, `Web\Api` and the scaffolding templates.
-
-**There is no view layer, because the language is one.** Inline HTML with `<?nvs` and `<?=` is already
-the template engine and the HTML sink already auto-escapes by default, so a second templating language
-would be a second spelling of one job. `Web\Response::view` renders a `.nvs` file and nothing more.
-
-**Not on disk.** There is no `nvs/web` package and no `Web` namespace.
-
-<sub>See also [`programs/first-party-framework`](programs.md#programs-first-party-framework), [`programs/framework-core-half`](programs.md#programs-framework-core-half), [`programs/no-migration-runner`](programs.md#programs-no-migration-runner), [`routing/a-gate-answers-around-every-handler`](routing.md#routing-a-gate-answers-around-every-handler).</sub>
-
-<a id="programs-framework-refusals"></a>
-
-## The framework has no ORM, no runtime container, and no second way to do anything  *(designed — owned by M16)*
-
-`rule:programs/framework-refusals`
-
-- **No ORM.** Data access is prepared statements plus derived codecs — a data mapper, where a row
-  becomes a declared class, and that is the framework's default. A property loaded later is declared:
-  a `lateinit` property in a class implementing `LateInit`
-  ([`classes/late-init-initializes-on-the-first-read`](classes.md#classes-late-init-initializes-on-the-first-read)), or a `get` hook. Active record is not
-  merely absent, it is unrepresentable: it needs a property-read fallback for names the class never
-  declared and a shape decided at run time, and both are already refused elsewhere
-  ([`classes/no-dynamic-properties`](classes.md#classes-no-dynamic-properties)).
-- **No runtime service container, and no facades.** Wiring is constructor injection resolved **while
-  compiling**: [`programs/implementing`](programs.md#programs-implementing) finds the one implementation of an interface, and a missing
-  or ambiguous binding is a compile error naming the interface and the constructor parameter, rather
-  than a container exception in production. A container that resolves a class by string name is the
-  mechanism behind facades, and nothing it would need still exists.
-- **No plugin auto-discovery beyond what exists.** [`programs/implementing`](programs.md#programs-implementing)'s scan is the only
-  discovery; there is no scan of a vendor directory for service providers.
-- **No configuration cache, no route cache, no autoload dump.** Every one of those exists in an
-  interpreted framework to move compile-time work off the request path, and every one of them is work Novis
-  already does while compiling.
-- **No second way to do anything the language does.** The framework ships no collections of its own, no
-  date type, no string helpers and no error hierarchy.
-
-**Not on disk.** There is no `nvs/web` package for these refusals to hold.
-
-<sub>See also [`programs/first-party-framework`](programs.md#programs-first-party-framework), [`programs/implementing`](programs.md#programs-implementing).</sub>
-
-<a id="programs-no-migration-runner"></a>
-
-## No migration runner ships until migration semantics are decided  *(designed — owned by M16)*
-
-`rule:programs/no-migration-runner`
-
-`Web\Migration` has a place in the package roster and **no semantics**. Each of these is undecided:
-ordering and dependency between migrations; transactional DDL where the backend supports it, and what
-happens on the backends that do not; locking, so two instances of a fleet cannot run the same migration
-twice; what "reversible" means, and whether a down-migration exists at all; and how any of it is safe
-against a live multi-tenant database.
-
-Every one of those interacts with taint tracking — DDL is a sink — with the database API, and with
-root-owned configuration, and none of them is obvious.
-
-**This is a known gap, not an oversight.** Until it is closed by a decision of its own, nothing in
-`nvs/web` may ship a migration runner, and one appearing in the package without that decision is a
-review failure.
-
-**Not on disk.** There is no `nvs/web` package, so there is no `Web\Migration` either.
-
-<sub>See also [`programs/framework-web-package`](programs.md#programs-framework-web-package), [`programs/first-party-framework`](programs.md#programs-first-party-framework).</sub>
-
-<a id="programs-nvs-new"></a>
-
-## `nvs new` writes an application that runs before it is edited  *(designed — owned by M16)*
-
-`rule:programs/nvs-new`
-
-`nvs new <name>` writes an application that **runs before it is edited**: a manifest depending on
-`nvs/web` alone with its generated lockfile, one `#[Route]` controller returning a view, one
-`#[Route]` returning JSON from a derived codec, a session-backed login, a `Core\Db` connection reading
-from a sample schema, an example configuration file an operator would edit, and one `#[Test]` that
-passes.
-
-Two constraints bind the template:
-
-- **It demonstrates a qualifier doing its job.** The first code a new user reads shows `tainted` input
-  laundered by `Core\Validate` before it reaches a sink, and deleting that call makes the scaffold fail
-  to compile — which is what makes the demonstration real rather than decorative. A scaffold that leads
-  with routing looks like every other framework.
-- **It fetches nothing but `nvs/web`.** A scaffold whose first act is to resolve thirty transitive
-  packages teaches exactly the habit per-package capabilities exist to discourage, and a fresh
-  scaffold's lockfile names one package and nothing else.
-
-The scaffold is a load-bearing artifact. It is the first experience, so it is held to the compiler's
-own standard: tested on Windows, Linux and macOS as a first-class CI job, and a change that breaks it
-is a regression.
-
-**Not on disk.** `nvs` has no `new` command.
-
-<sub>See also [`programs/first-party-framework`](programs.md#programs-first-party-framework), [`programs/framework-web-package`](programs.md#programs-framework-web-package), [`programs/audience`](programs.md#programs-audience).</sub>
+<sub>See also [`programs/no-first-party-framework`](programs.md#programs-no-first-party-framework), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused).</sub>

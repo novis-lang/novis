@@ -98,9 +98,9 @@ write into: ``html`<a href="{$url}">` `` lets a `javascript:` URL through exactl
 - **A bare string literal lifted implicitly in a sink position.** `echo '<b>' . $x` and
   `echo '<b>', $x` would produce different documents with nothing visible to say why, and `+` would
   stay as it was.
-- **No template form, leaving fragments to the framework's template files.** `Web\Response::view`
-  renders a page (`rule:programs/first-party-framework`); a function returning a table row or a
-  component is expression position, which is where the ceremony was.
+- **No template form, leaving fragments to inline-HTML files.** A `.nvs` file renders a page; a
+  function returning a table row or a component is expression position, which is where the ceremony
+  was.
 - **A ``text`…` `` form for `Core\Cli\Text`, for symmetry.** It fails the predicate above.
 - **`{Name::…}` opening a brace hole.** It covers a constant and a static call and nothing else, so
   `{new App()}` and `{1 + 2}` stay text, and it adds a clause to the string grammar that a string

@@ -220,7 +220,7 @@ class uses an enum when its code names it, and the manifest's own class is not c
 signatures name every enum the source classes pass through to it.
 
 A published program — an example, an attack, a bench, a website snippet, a reference chapter's
-listing, a template `nvs new` writes — places its enums the same way. An enum two classes share stays
+listing — places its enums the same way. An enum two classes share stays
 at file scope, and the program says so in one line where it is declared. `tests/conformance/` is the
 exception: its cases pin enum behaviour at file scope and stay there.
 

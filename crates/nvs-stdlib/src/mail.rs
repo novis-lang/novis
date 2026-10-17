@@ -74,10 +74,10 @@
 //!
 //! # Attachments and inline parts are composition, and composition is § 3's
 //!
-//! `rule:programs/framework-core-half` splits this class at exactly that line. Two body parts are here because the
+//! `rule:programs/framework-core-half` puts this class's line exactly there. Two body parts are here because the
 //! transport has to choose a `Content-Type` regardless and a mail with no plain-text alternative is
 //! a mail half its readers cannot read; anything richer — templates, files, `multipart/related` —
-//! belongs to the `nvs/web` package, which composes *into* these arguments.
+//! belongs to the program or a package, which composes *into* these arguments.
 
 use std::io::{Read, Write};
 use std::net::{SocketAddr, ToSocketAddrs as _};

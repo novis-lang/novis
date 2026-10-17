@@ -678,9 +678,9 @@ write into: ``html`<a href="{$url}">` `` lets a `javascript:` URL through exactl
 - **A bare string literal lifted implicitly in a sink position.** `echo '<b>' . $x` and
   `echo '<b>', $x` would produce different documents with nothing visible to say why, and `+` would
   stay as it was.
-- **No template form, leaving fragments to the framework's template files.** `Web\Response::view`
-  renders a page ([`programs/first-party-framework`](programs.md#programs-first-party-framework)); a function returning a table row or a
-  component is expression position, which is where the ceremony was.
+- **No template form, leaving fragments to inline-HTML files.** A `.nvs` file renders a page; a
+  function returning a table row or a component is expression position, which is where the ceremony
+  was.
 - **A ``text`…` `` form for `Core\Cli\Text`, for symmetry.** It fails the predicate above.
 - **`{Name::…}` opening a brace hole.** It covers a constant and a static call and nothing else, so
   `{new App()}` and `{1 + 2}` stay text, and it adds a clause to the string grammar that a string
@@ -2053,10 +2053,9 @@ a database this tool has never seen — the three situations in which a history 
 because it records what a tool believes rather than what is true.
 
 **`Core` therefore holds no notion of a migration.** Ordering, reversibility, dependency between
-changes and fleet locking stay a blocked gap in the first-party framework
-([`programs/no-migration-runner`](programs.md#programs-no-migration-runner)), and this is the layer such a runner would one day sit on. It
-stops there deliberately: every one of those open questions is a question convergence does not have
-to answer.
+changes and fleet locking are a versioned migrator's questions, and a migrator is a package's to write
+on this layer ([`programs/no-first-party-framework`](programs.md#programs-no-first-party-framework)). `Core` stops there deliberately: every one of
+those questions is a question convergence does not have to answer.
 
 Planning is not on the request path in any expected deployment: it is an operator's act, issuing a
 handful of catalog queries rather than one per table.
@@ -2071,7 +2070,7 @@ failure convergence exists to remove.
   a source of truth inside the target database, and they are wrong after any change the history table did
   not record. Convergence needs none of it and is correct against a database it has never seen.
 
-<sub>See also [`core-classes/schema-plan`](core-classes.md#core-classes-schema-plan), [`core-classes/schema-introspection`](core-classes.md#core-classes-schema-introspection), [`core-classes/schema-absence-never-destroys`](core-classes.md#core-classes-schema-absence-never-destroys), [`programs/no-migration-runner`](programs.md#programs-no-migration-runner).</sub>
+<sub>See also [`core-classes/schema-plan`](core-classes.md#core-classes-schema-plan), [`core-classes/schema-introspection`](core-classes.md#core-classes-schema-introspection), [`core-classes/schema-absence-never-destroys`](core-classes.md#core-classes-schema-absence-never-destroys), [`programs/no-first-party-framework`](programs.md#programs-no-first-party-framework).</sub>
 
 <a id="core-classes-schema-introspection"></a>
 

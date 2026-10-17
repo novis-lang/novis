@@ -5,7 +5,7 @@
     "programs/three-claims",
     "programs/no-compatibility-promise",
     "programs/slice-ranking",
-    "programs/first-party-framework"
+    "programs/no-first-party-framework"
   ],
   "guardedBy": []
 }

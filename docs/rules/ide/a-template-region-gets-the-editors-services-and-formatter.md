@@ -1,7 +1,7 @@
 The extension forwards requests inside an inline-HTML region to VS Code's built-in HTML, CSS and
 JavaScript language services, so the half of a `.nvs` file that is markup gets what those services
 answer as providers: completion, hover, the colour picker and the linked ranges that rename a tag.
-Since `rule:programs/first-party-framework` makes inline HTML the template engine, that region is where
+Since inline HTML is the template engine (`rule:programs/no-first-party-framework`), that region is where
 a web application's markup is written, not an edge case.
 
 **Emmet expansion and HTML validation are not among them.** Neither is a provider a request can be

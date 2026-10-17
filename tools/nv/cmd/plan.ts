@@ -30,7 +30,7 @@ export const summary = "the plan: nv plan --show M10[:lead|:verify] | --get <Fie
 
 export const PLAN = "docs/implementation-plan.md";
 
-/** A milestone file's H1: `# M16 — `nvs/web`, `nvs new`, and the framework (~12 weeks)`. */
+/** A milestone file's H1: `# M15 — Packages, the registry and the supply chain (~8 weeks)`. */
 export const H1 = /^#\s+(M\d+[A-Z]?)\s*—\s*(.*)$/;
 
 /** The status block's field names as the plan writes them, and each one's key in the record. */
