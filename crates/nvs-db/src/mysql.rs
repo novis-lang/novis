@@ -5021,6 +5021,38 @@ mod tests {
         );
     }
 
+    /// `rule:security/db-pool-reset-is-a-boundary`'s "a connection that cannot
+    /// be proven clean is closed", in [`crate::pg`]'s two halves.
+    ///
+    /// The type: `MySqlConn::reset` takes `self` by value and names a
+    /// `MySqlConn` only inside its `Ok`, so a refused reset leaves the caller
+    /// nothing to pool. The write: the `?` in `reset` drops `self`, and
+    /// dropping it is [`super::say_goodbye`], so the last flush is one
+    /// `COM_QUIT` and no `SET time_zone` follows the refused reset. A
+    /// `Wire<MyStream>` needs a socket, so the two are asserted apart.
+    #[test]
+    fn a_failed_reset_destroys_the_connection_rather_than_returning_it() {
+        let _: fn(super::MySqlConn) -> io::Result<super::MySqlConn> = super::MySqlConn::reset;
+
+        let mut wire = Wire::new(Peer::new(|sent: &[u8]| match sent.get(4) {
+            Some(0x1F) => packet(1, &error_packet(1227, "42000", "Access denied")),
+            Some(0x01) => Vec::new(),
+            other => panic!("the driver sent command {other:?}"),
+        }));
+        let mut cache = sized_cache(2);
+
+        let failed = super::reset_session(&mut wire, CLIENT_CAPABILITIES, 0, &mut cache)
+            .expect_err("a refused reset passed");
+        assert!(failed.to_string().contains("Access denied"), "{failed}");
+        super::say_goodbye(&mut wire);
+
+        assert_eq!(
+            commands(&wire.peer().sent),
+            [Some(0x1F), Some(0x01)],
+            "a destroyed connection wrote something other than its goodbye"
+        );
+    }
+
     /// The command byte of every message the driver flushed, which is how the
     /// cases above assert a round trip count rather than a payload.
     fn commands(sent: &[Vec<u8>]) -> Vec<Option<u8>> {
