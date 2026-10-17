@@ -1,6 +1,0 @@
-{
-  "module": "crates/nvs-runtime/src/callable.rs",
-  "title": "No test calls `bindTo` on an anonymous function made in a method that does not use `$this`.",
-  "text": "`rule:statements/an-anonymous-function-captures-this-only-where-it-uses-it` says a function made in a method captures `$this` only when its body uses it. No test makes such a function without `$this`, calls `bindTo` on it with an object, and asserts what the bound call sees. Closing it means one conformance case for that sequence.",
-  "goal": "completeness-holes"
-}

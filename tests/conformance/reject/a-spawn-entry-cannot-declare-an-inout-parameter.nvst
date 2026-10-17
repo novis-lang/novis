@@ -1,0 +1,36 @@
+--TEST--
+A spawn entry that declares an `inout` parameter does not compile, and the value of an `inout` parameter crosses `args:` as a copy — `rule:security/isolate-values-cross-by-copy`
+--FILE child.nvs--
+<?nvs
+return 1;
+--FILE--
+<?nvs
+// An `inout` parameter is an alias to the caller's variable. The child runs in
+// a heap of its own, where that variable does not exist, so the alias cannot
+// cross. Reading the parameter gives its value, and the value crosses as a copy.
+class Job {
+    public static function bump(inout int $x): int {
+        $x = $x + 1;
+        return $x;
+    }
+
+    public static function pass(inout int $x): void {
+        var $handle = spawn script "child.nvs" with(args: $x);
+        echo (await $handle)->ok ? "ok" : "failed", "\n";
+    }
+}
+
+// The accepted side: the value of `$x` is copied into the child.
+int $n = 1;
+Job::pass(inout $n);
+
+// An entry with an `inout` parameter does not compile.
+var $refused = spawn script Job::bump(...) with(args: ["x" => 1]);
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0793]: `Job::bump` cannot be used as a method reference
+   --> case.nvs:22:29
+%A
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.
