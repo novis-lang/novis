@@ -3,10 +3,7 @@
 //! See the crate's module docs for where this sits beside the other resolvers.
 
 use nvs_diagnostics::{Diagnostic, Diagnostics, SourceFile, Span, code};
-use nvs_syntax::ast::{
-    ClassMember, ClassMemberKind, Name, NamespaceDecl, Stmt, StmtKind, TypeAliasDecl, TypeAtom,
-    TypeKind,
-};
+use nvs_syntax::ast::{ClassMember, ClassMemberKind, Name, NamespaceDecl, Stmt, StmtKind};
 use rustc_hash::FxHashMap;
 
 use crate::qname::QName;
@@ -150,21 +147,17 @@ impl Resolver {
                 }
                 StmtKind::ClassDecl(decl) => {
                     self.declare(SymbolKind::Class, &current_ns, &decl.name, src, diags);
-                    check_body_aliases(&decl.members, diags);
                     self.declare_owned_enums(&current_ns, &decl.name, &decl.members, src, diags);
                 }
                 StmtKind::InterfaceDecl(decl) => {
                     self.declare(SymbolKind::Interface, &current_ns, &decl.name, src, diags);
-                    check_body_aliases(&decl.members, diags);
                     self.declare_owned_enums(&current_ns, &decl.name, &decl.members, src, diags);
                 }
                 StmtKind::EnumDecl(decl) => {
                     self.declare(SymbolKind::Enum, &current_ns, &decl.name, src, diags);
-                    check_body_aliases(&decl.members, diags);
                 }
                 StmtKind::TypeAliasDecl(decl) => {
                     self.declare(SymbolKind::TypeAlias, &current_ns, &decl.name, src, diags);
-                    check_alias_is_not_a_bare_class(decl, diags);
                 }
                 _ => {}
             }
@@ -188,7 +181,6 @@ impl Resolver {
             if let ClassMemberKind::Enum(decl) = &member.kind {
                 let qname = QName::member(&owner, name_text(src, &decl.name));
                 self.declare_qname(SymbolKind::Enum, qname, &decl.name, diags);
-                check_body_aliases(&decl.members, diags);
             }
         }
     }
@@ -332,45 +324,6 @@ pub fn owned_enum_in_scope(
         return None;
     }
     owned_enum(owner, text, symbols)
-}
-
-/// The aliases a body owns are not file-scope names, so nothing declares them
-/// in the symbol table — [`crate::aliases`] keys them by their owner instead.
-/// What is asked of them here is what is asked of the file-scope form: the
-/// declaration itself gets one answer at both sites it is written.
-fn check_body_aliases(members: &[ClassMember], diags: &mut Diagnostics) {
-    for member in members {
-        if let ClassMemberKind::TypeAlias(alias) = &member.kind {
-            check_alias_is_not_a_bare_class(alias, diags);
-        }
-    }
-}
-
-/// `rule:types/alias-is-never-a-bare-class`: a `type` alias may not be nothing but one bare class,
-/// interface or enum atom — that shape is `use … as …` wearing the type
-/// grammar as a disguise. `?SomeClass`, a union, an intersection, and an
-/// `array<...>` wrapper are all still fine; only the fully bare atom, with no
-/// wrapping construct at all, is refused.
-fn check_alias_is_not_a_bare_class(decl: &TypeAliasDecl, diags: &mut Diagnostics) {
-    let TypeKind::Atom(atom) = &decl.ty.kind else {
-        return;
-    };
-    if matches!(
-        atom,
-        TypeAtom::Name(..) | TypeAtom::SelfTy | TypeAtom::StaticTy | TypeAtom::Parent
-    ) {
-        diags.report(
-            Diagnostic::error(
-                code::E_TYPE_ALIAS_ALIASES_CLASS,
-                "a `type` alias may not name a single class, interface or enum on its own",
-            )
-            .with_primary(decl.ty.span, "aliases exactly one class-shaped atom")
-            .with_help(
-                "give a shape a name instead — a union, an intersection, or an `array<...>` \
-                 wrapper (`rule:types/alias-is-never-a-bare-class`); a class already has its own name",
-            ),
-        );
-    }
 }
 
 pub(crate) fn name_text<'a>(src: &'a SourceFile, name: &Name) -> &'a str {
@@ -608,44 +561,6 @@ mod tests {
         assert!(
             !diags.has_errors(),
             "each file gets a fresh use scope: {diags:?}"
-        );
-    }
-
-    #[test]
-    fn aliasing_a_single_bare_class_is_rejected() {
-        let (_module, diags) = resolve("<?nvs\nclass Foo {}\ntype Id = Foo;\n");
-        assert!(
-            diags
-                .iter()
-                .any(|d| d.code == Some(code::E_TYPE_ALIAS_ALIASES_CLASS))
-        );
-    }
-
-    /// The refusal is the declaration's, not the site's, so a member is held to
-    /// it exactly as a file-scope alias is — `rule:types/alias-is-never-a-bare-class`
-    /// has one form and a body does not get a second.
-    #[test]
-    fn a_class_scoped_alias_of_a_bare_class_is_refused() {
-        let (_module, diags) =
-            resolve("<?nvs\nclass Foo {}\nclass Order { type Id = Foo; type Ids = array<Foo>; }\n");
-        assert!(
-            diags
-                .iter()
-                .filter(|d| d.code == Some(code::E_TYPE_ALIAS_ALIASES_CLASS))
-                .count()
-                == 1,
-            "the bare member is refused and the wrapped one is not: {diags:?}"
-        );
-    }
-
-    #[test]
-    fn aliasing_a_shape_around_a_class_is_accepted() {
-        let (_module, diags) =
-            resolve("<?nvs\nclass Foo {}\ntype MaybeFoo = ?Foo;\ntype Ids = array<Foo>;\n");
-        assert!(
-            !diags
-                .iter()
-                .any(|d| d.code == Some(code::E_TYPE_ALIAS_ALIASES_CLASS))
         );
     }
 

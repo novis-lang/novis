@@ -20,9 +20,11 @@
 //! reference or one of [`nvs_hir::errors`]' exception classes
 //! ([`nvs_hir::QName::is_reserved_global_class`]), is `E_UNDEFINED_CLASS`.
 //!
-//! `array<...>` nesting is bounded at depth 32 (`rule:types/arrays`) — past that,
-//! lowering stops and reports `E_ARRAY_TYPE_TOO_DEEP` rather than recursing
-//! further, so a pathological type cannot make lowering superlinear.
+//! Nesting is bounded at depth 32 (`rule:types/arrays`) — past that, lowering
+//! stops and reports `E_ARRAY_TYPE_TOO_DEEP` rather than recursing further, so
+//! a pathological type cannot make lowering superlinear. Every position that
+//! holds a type inside another adds a level: an `array<T>` element, a shape
+//! field, a signature's parameter and return, and a type argument.
 
 use nvs_diagnostics::{Diagnostic, Span, code};
 use nvs_hir::SymbolKind;
@@ -63,17 +65,10 @@ pub(crate) fn lower_optional_type(ty: Option<&Type>, ctx: &Ctx<'_>, env: &mut En
 }
 
 /// Lowers one declared type, bounded at [`MAX_ARRAY_DEPTH`] so that no
-/// annotation can make checking superlinear (`rule:types/arrays`).
-///
-/// # Known gaps
-///
-/// 1. The bound's message names an `array type` whatever the type actually
-///    was, so a shape past the depth is refused with a sentence about arrays.
-///    A `type` alias naming itself is the easiest way to reach it — the alias
-///    expands until the depth stops it, and each of the shape's fields reports
-///    — and a self-referential alias has no diagnostic of its own. That is a
-///    cycle check in alias resolution; this wording is a separate, smaller
-///    fix.
+/// annotation can make checking superlinear (`rule:types/arrays`). The bound's
+/// message names no kind of type, because every kind that nests counts toward
+/// it. An alias that names itself never reaches it: `nvs_hir::aliases` reports
+/// the cycle once at the alias and expands it to `mixed`.
 fn lower_type_at_depth(ty: &Type, depth: u32, ctx: &Ctx<'_>, env: &mut Env<'_>) -> TypeId {
     let aliases = env.aliases;
     if let Some(site) = aliases.site(ty.span) {
@@ -128,7 +123,7 @@ fn lower_node(ty: &Type, depth: u32, ctx: &Ctx<'_>, env: &mut Env<'_>) -> TypeId
         env.diags.report(
             Diagnostic::error(
                 code::E_ARRAY_TYPE_TOO_DEEP,
-                format!("array type nests past depth {MAX_ARRAY_DEPTH}"),
+                format!("type is nested more than {MAX_ARRAY_DEPTH} levels deep"),
             )
             .with_primary(ty.span, "too deeply nested"),
         );
