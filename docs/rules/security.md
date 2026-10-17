@@ -806,20 +806,25 @@ argument wherever a directory above it is a symlink, as `/tmp` and `/var` are on
 
 <a id="security-writes-open-beneath-a-handle"></a>
 
-## A write opens its resolved path one level at a time from the root, following no link, so the grant it checked is the path it writes
+## A read or a write opens its resolved path one level at a time from the root, following no link, so the grant it checked is the path it opens
 
 `rule:security/writes-open-beneath-a-handle`
 
-A write door resolves its path once, checks the grant on that resolved path as it is written, and
-opens it one level at a time from the root, each level from the handle of the one above it, following
-no link. Checking a path and then opening it by name resolves it twice, and a folder replaced by a link
-between the two is followed outside the grant. A resolved path names no link, so a link the walk meets
-was planted after the check, and the write fails with an `IOError` and touches nothing beneath it.
+A door that opens a file resolves its path once, checks the grant on that resolved path as it is
+written, and opens it one level at a time from the root, each level from the handle of the one above
+it, following no link. Checking a path and then opening it by name resolves it twice, and a folder
+replaced by a link between the two is followed outside the grant. A resolved path names no link, so a
+link the walk meets was planted after the check, and the call fails with an `IOError` and touches
+nothing beneath it.
 
-The doors are `capability::create`, `capability::write`, `capability::create_dir`, the writing
+The write doors are `capability::create`, `capability::write`, `capability::create_dir`, the writing
 modes of `capability::open`, the destination of `capability::copy` and both ends of
 `capability::rename`, and `Core\IO`'s writes, `Core\Storage::put` and `Core\Zip::extract` reach the
-filesystem through them. A rename resolves the folder above each end and keeps the last name as
+filesystem through them. The read doors are `capability::open_read`, the reading mode of
+`capability::open` and the source of `capability::copy`, and `Core\IO`'s reads, `Core\Storage::get`,
+`Core\Response::sendFile` and a multipart file part sent by `Core\Http` reach the filesystem through
+them. A
+read creates nothing, and a read-write handle checks `fs.read` and `fs.write` on the one resolution. A rename resolves the folder above each end and keeps the last name as
 written, because it moves or replaces that name: a link there is the entry renamed, never its target,
 and the grant is checked on the entry. A missing folder is created by the same walk, one level at a time. On Unix a level is `openat` or
 `mkdirat` with `O_NOFOLLOW`; on Windows it is `NtCreateFile` with the folder above as its root, and a

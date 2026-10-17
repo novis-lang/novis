@@ -1,8 +1,8 @@
 //! `rule:security/writes-open-beneath-a-handle`'s walk: a resolved path opened one level at a time,
 //! each level from the handle of the one above it, following no link on the way.
 //!
-//! The write doors in [`crate::capability`] resolve a path once, check the grant on that resolved
-//! path, and hand it here. A resolved path names no link, so a link met on the walk is one that was
+//! The read and write doors in [`crate::capability`] resolve a path once, check the grant on that
+//! resolved path, and hand it here. A resolved path names no link, so a link met on the walk is one that was
 //! planted after the check, and it fails the call with [`link_refused`]. Nothing is opened by its
 //! whole path a second time, which is the window a check-then-open pair leaves.
 //!
@@ -27,13 +27,17 @@ use std::path::{Component, Path};
 
 /// The error a link on the walk fails with, the same sentence on every platform.
 fn link_refused() -> io::Error {
-    io::Error::other("a folder in this path was replaced by a link, and a write follows no link")
+    io::Error::other(
+        "a part of this path was replaced by a link after the path was checked, so it was not opened",
+    )
 }
 
-/// How [`open_file`] opens the file at the end of the walk. Every mode creates the file when it is
-/// not there.
+/// How [`open_file`] opens the file at the end of the walk. Every mode but [`Mode::Read`] creates
+/// the file when it is not there.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Mode {
+    /// Reading only, and the file must be there.
+    Read,
     /// Writing only, and the file must not be there yet.
     New,
     /// Writing only, emptying what was there.
@@ -53,7 +57,8 @@ pub(crate) enum Mode {
 /// # Errors
 ///
 /// [`link_refused`] when a level of `path`, the file included, is a link. Otherwise the operating
-/// system's error, which is `AlreadyExists` for [`Mode::New`] on a name already there.
+/// system's error, which is `AlreadyExists` for [`Mode::New`] on a name already there and
+/// `NotFound` for [`Mode::Read`] on a name that is not.
 pub(crate) fn open_file(path: &Path, mode: Mode) -> io::Result<File> {
     let (Some(parent), Some(name)) = (path.parent(), path.file_name()) else {
         return Err(io::Error::from(io::ErrorKind::InvalidInput));
@@ -176,13 +181,14 @@ mod sys {
     pub(super) fn open_at_end(dir: &Dir, name: &OsStr, mode: super::Mode) -> io::Result<File> {
         let name = c_name(name)?;
         let mode = match mode {
-            super::Mode::New => libc::O_WRONLY | libc::O_EXCL,
-            super::Mode::Truncate => libc::O_WRONLY | libc::O_TRUNC,
-            super::Mode::Write => libc::O_WRONLY,
-            super::Mode::Append => libc::O_WRONLY | libc::O_APPEND,
-            super::Mode::ReadWrite => libc::O_RDWR,
+            super::Mode::Read => libc::O_RDONLY,
+            super::Mode::New => libc::O_CREAT | libc::O_WRONLY | libc::O_EXCL,
+            super::Mode::Truncate => libc::O_CREAT | libc::O_WRONLY | libc::O_TRUNC,
+            super::Mode::Write => libc::O_CREAT | libc::O_WRONLY,
+            super::Mode::Append => libc::O_CREAT | libc::O_WRONLY | libc::O_APPEND,
+            super::Mode::ReadWrite => libc::O_CREAT | libc::O_RDWR,
         };
-        let flags = libc::O_CREAT | libc::O_NOFOLLOW | libc::O_CLOEXEC | mode;
+        let flags = libc::O_NOFOLLOW | libc::O_CLOEXEC | mode;
         open_at(dir.as_raw_fd(), &name, flags, 0o666)
             .map(File::from)
             .map_err(|err| explain(dir, &name, err))
@@ -361,8 +367,9 @@ mod sys {
         // `FILE_CREATE` fails on any name already there, a link included. Every other mode opens
         // what is there without emptying it, so a link is refused before it loses anything, and a
         // truncate empties the file afterwards. A handle without `FILE_WRITE_DATA` writes only at
-        // the end, which is how `std` appends too.
+        // the end, which is how `std` appends too. A read creates nothing.
         let (access, disposition) = match mode {
+            super::Mode::Read => (FILE_GENERIC_READ, FILE_OPEN),
             super::Mode::New => (FILE_GENERIC_WRITE, FILE_CREATE),
             super::Mode::Truncate | super::Mode::Write => (FILE_GENERIC_WRITE, FILE_OPEN_IF),
             super::Mode::Append => (FILE_GENERIC_WRITE & !FILE_WRITE_DATA, FILE_OPEN_IF),
@@ -660,6 +667,24 @@ mod tests {
         assert!(create_file(&root.join("f").join("g"), true).is_err());
     }
 
+    /// A read opens what is there and creates nothing.
+    #[test]
+    fn a_read_opens_what_is_there_and_creates_nothing() {
+        use std::io::Read;
+        let (_dir, root) = scratch("read");
+        std::fs::create_dir(root.join("d")).expect("folder");
+        std::fs::write(root.join("d").join("r.txt"), b"there").expect("file");
+        let mut text = String::new();
+        open_file(&root.join("d").join("r.txt"), Mode::Read)
+            .expect("a read")
+            .read_to_string(&mut text)
+            .expect("the bytes");
+        assert_eq!(text, "there");
+        let err = open_file(&root.join("d").join("none.txt"), Mode::Read).expect_err("missing");
+        assert_eq!(err.kind(), io::ErrorKind::NotFound);
+        assert!(!root.join("d").join("none.txt").exists());
+    }
+
     /// A link to `target` at `at`. On Windows a symbolic link needs a right most accounts lack, and
     /// a junction, which needs none, is planted in its place.
     fn plant_dir_link(target: &Path, at: &Path) -> bool {
@@ -692,6 +717,11 @@ mod tests {
             // The copy door's destination.
             let err = open_file(&root.join("d").join("c.txt"), Mode::Write)
                 .expect_err("a copy through a link");
+            assert_eq!(err.to_string(), link_refused().to_string());
+            // The read doors, on a file that is there beyond the link.
+            std::fs::write(outside.join("r.txt"), b"secret").expect("outside file");
+            let err = open_file(&root.join("d").join("r.txt"), Mode::Read)
+                .expect_err("a read through a link");
             assert_eq!(err.to_string(), link_refused().to_string());
             // The rename door, with the link above either end.
             std::fs::write(root.join("m.txt"), b"move").expect("source");

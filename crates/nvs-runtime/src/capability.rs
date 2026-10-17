@@ -580,10 +580,13 @@ pub fn pinned_address(ctx: &Ctx, host: &str, member: &str) -> Result<std::net::I
 /// `path`, or [`io_failure`]'s `IOError` when the open itself fails. The order is the point: a path
 /// outside the grant is refused as a capability whether or not it exists, so a program cannot use
 /// the difference between the two messages to probe a directory it was never allowed to read.
+/// The open is [`resolve`]'s path through [`crate::beneath`], so a link planted after the check
+/// fails it.
 pub fn open_read(ctx: &Ctx, path: &Path, member: &str) -> Result<File, Fault> {
-    require(ctx, Cap::FsRead, Scope::Path(path), member)?;
+    let at = resolve(ctx, path, &[Cap::FsRead], member)?;
     nvs_footprint::file(path);
-    File::open(path).map_err(|err| io_failure(member, path, &err))
+    crate::beneath::open_file(&at, crate::beneath::Mode::Read)
+        .map_err(|err| io_failure(member, path, &err))
 }
 
 /// What a program asked an open handle for, and so which capability [`open`] has to show.
@@ -614,9 +617,8 @@ pub enum Access {
 /// deliberate: `open_read` is the whole-file read every `Core\IO` reader shares, and this is the one
 /// a `Core\IO\File` handle comes out of. A writing open **creates** the path it names, which
 /// [`write()`]'s own doc calls a reason to keep the create on the door's side — it is on this side
-/// too, because the check below runs before anything is opened. A writing access opens the path
-/// [`resolve_write`] checked, through [`crate::beneath`], so no link planted after the check is
-/// followed.
+/// too, because the check below runs before anything is opened. Every access opens the path
+/// [`resolve`] checked, through [`crate::beneath`], so no link planted after the check is followed.
 ///
 /// A descriptor this answers with is a descriptor already checked: nothing downstream asks the
 /// capability question again, which is why `Core\IO\File`'s own members declare no capability of
@@ -630,24 +632,23 @@ pub enum Access {
 /// checked before either is used, so a path granted for reading and not for writing refuses as a
 /// capability rather than as a failed open.
 pub fn open(ctx: &Ctx, path: &Path, access: Access, member: &str) -> Result<File, Fault> {
+    let caps: &[Cap] = match access {
+        Access::Read => &[Cap::FsRead],
+        Access::Write | Access::Append => &[Cap::FsWrite],
+        Access::ReadWrite => &[Cap::FsRead, Cap::FsWrite],
+    };
+    let at = resolve(ctx, path, caps, member)?;
     if matches!(access, Access::Read | Access::ReadWrite) {
-        require(ctx, Cap::FsRead, Scope::Path(path), member)?;
-    }
-    if access == Access::Read {
-        nvs_footprint::file(path);
-        return std::fs::File::open(path).map_err(|err| io_failure(member, path, &err));
-    }
-    let at = resolve_write(ctx, path, member)?;
-    if access == Access::ReadWrite {
         nvs_footprint::file(path);
     }
     let mode = match access {
+        Access::Read => crate::beneath::Mode::Read,
         Access::Write => crate::beneath::Mode::Truncate,
         Access::Append => crate::beneath::Mode::Append,
         // No truncate: a read-write handle that emptied the file before its
         // holder had read a byte is `fopen`'s `w+`, and the mode a program
         // reaches for when it wants both is the one that keeps what is there.
-        Access::Read | Access::ReadWrite => crate::beneath::Mode::ReadWrite,
+        Access::ReadWrite => crate::beneath::Mode::ReadWrite,
     };
     crate::beneath::open_file(&at, mode).map_err(|err| io_failure(member, path, &err))
 }
@@ -677,7 +678,16 @@ pub fn create(ctx: &Ctx, path: &Path, overwrite: bool, member: &str) -> Result<F
     crate::beneath::create_file(&at, overwrite).map_err(|err| io_failure(member, path, &err))
 }
 
-/// The write doors' check: `path` resolved once, and [`Cap::FsWrite`] asked about that resolved
+/// The write doors' check: [`resolve`] for [`Cap::FsWrite`].
+///
+/// # Errors
+///
+/// [`resolve`]'s.
+fn resolve_write(ctx: &Ctx, path: &Path, member: &str) -> Result<PathBuf, Fault> {
+    resolve(ctx, path, &[Cap::FsWrite], member)
+}
+
+/// The opening doors' check: `path` resolved once, and each of `caps` asked about that resolved
 /// path as it is written, which is the path the caller then opens with [`crate::beneath`].
 ///
 /// **One resolution, and the open follows no link** (`rule:security/writes-open-beneath-a-handle`).
@@ -692,11 +702,11 @@ pub fn create(ctx: &Ctx, path: &Path, overwrite: bool, member: &str) -> Result<F
 /// when the grant does not cover the resolved path. When no ancestor of `path` resolves at all,
 /// [`require`]'s answer on `path` decides: its denial when the grant does not cover it, or an
 /// `IOError` when it does, because then there is nothing to open.
-fn resolve_write(ctx: &Ctx, path: &Path, member: &str) -> Result<PathBuf, Fault> {
+fn resolve(ctx: &Ctx, path: &Path, caps: &[Cap], member: &str) -> Result<PathBuf, Fault> {
     relative_refusal(path, member)?;
     device_refusal(path, member)?;
     let at = nvs_config::capability::resolved(path, &nvs_config::resolve::Disk);
-    allow_write(ctx, path, at, member)
+    allow(ctx, path, at, caps, member)
 }
 
 /// [`resolve_write`] for a door that changes the name itself rather than the file it names: the
@@ -708,7 +718,7 @@ fn resolve_write(ctx: &Ctx, path: &Path, member: &str) -> Result<PathBuf, Fault>
 ///
 /// # Errors
 ///
-/// [`resolve_write`]'s.
+/// [`resolve`]'s.
 fn resolve_name(ctx: &Ctx, path: &Path, member: &str) -> Result<PathBuf, Fault> {
     relative_refusal(path, member)?;
     device_refusal(path, member)?;
@@ -719,40 +729,42 @@ fn resolve_name(ctx: &Ctx, path: &Path, member: &str) -> Result<PathBuf, Fault> 
         }
         _ => None,
     };
-    allow_write(ctx, path, at, member)
+    allow(ctx, path, at, &[Cap::FsWrite], member)
 }
 
-/// The grant check [`resolve_write`] and [`resolve_name`] share, on `at`, the resolved spelling of
-/// `path`, or `None` when it did not resolve.
-fn allow_write(
+/// The grant check [`resolve`] and [`resolve_name`] share: each of `caps` on `at`, the resolved
+/// spelling of `path`, or `None` when it did not resolve. The first capability not granted is the
+/// one the denial names.
+fn allow(
     ctx: &Ctx,
     path: &Path,
     at: Option<PathBuf>,
+    caps: &[Cap],
     member: &str,
 ) -> Result<PathBuf, Fault> {
     let Some(at) = at else {
-        require(ctx, Cap::FsWrite, Scope::Path(path), member)?;
+        for &cap in caps {
+            require(ctx, cap, Scope::Path(path), member)?;
+        }
         let err = std::io::Error::new(
             std::io::ErrorKind::NotFound,
             "no ancestor of this path could be resolved",
         );
         return Err(io_failure(member, path, &err));
     };
-    let allowed = ctx.grants_allow(Cap::FsWrite)
-        && ctx.config().is_some_and(|config| {
-            config
-                .snapshot()
-                .config
-                .capabilities
-                .as_ref()
-                .is_some_and(|caps| caps.allows_resolved(Cap::FsWrite, &at))
-        });
-    if !allowed {
-        return Err(Fault::thrown(denial(
-            Cap::FsWrite,
-            Scope::Path(path),
-            member,
-        )));
+    for &cap in caps {
+        let allowed = ctx.grants_allow(cap)
+            && ctx.config().is_some_and(|config| {
+                config
+                    .snapshot()
+                    .config
+                    .capabilities
+                    .as_ref()
+                    .is_some_and(|grants| grants.allows_resolved(cap, &at))
+            });
+        if !allowed {
+            return Err(Fault::thrown(denial(cap, Scope::Path(path), member)));
+        }
     }
     Ok(at)
 }
@@ -789,8 +801,8 @@ pub fn write(ctx: &Ctx, path: &Path, bytes: &[u8], member: &str) -> Result<(), F
 /// usually a name a client supplied, and this one is a name the program wrote beside a source it
 /// already holds.
 ///
-/// The destination is opened as [`write()`] opens one (`rule:security/writes-open-beneath-a-handle`),
-/// and the source's permissions are copied onto it after its bytes. The byte count is not returned,
+/// The source is opened as [`open_read`] opens one, and the destination as [`write()`] opens one
+/// (`rule:security/writes-open-beneath-a-handle`), and the source's permissions are copied onto it after its bytes. The byte count is not returned,
 /// because `Core\IO::copy` has nothing to say about it.
 ///
 /// **A destination that is the source itself is refused**, under any spelling and through a hard
@@ -804,11 +816,12 @@ pub fn write(ctx: &Ctx, path: &Path, bytes: &[u8], member: &str) -> Result<(), F
 /// two paths name one file, or the copy itself fails. The message names [`pair`]'s both-ends
 /// spelling, because either end can be the one at fault.
 pub fn copy(ctx: &Ctx, from: &Path, to: &Path, member: &str) -> Result<(), Fault> {
-    require(ctx, Cap::FsRead, Scope::Path(from), member)?;
+    let from_at = resolve(ctx, from, &[Cap::FsRead], member)?;
     let at = resolve_write(ctx, to, member)?;
     let fail = |err: &std::io::Error| io_failure(member, &pair(from, to), err);
     let refuse = |why: &str| fail(&std::io::Error::new(std::io::ErrorKind::InvalidInput, why));
-    let mut source = File::open(from).map_err(|err| fail(&err))?;
+    let mut source = crate::beneath::open_file(&from_at, crate::beneath::Mode::Read)
+        .map_err(|err| fail(&err))?;
     let permissions = source.metadata().map_err(|err| fail(&err))?;
     if !permissions.is_file() {
         return Err(refuse("the source is not a file"));
