@@ -7,7 +7,7 @@ import { mkdirSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import type { Check } from "../accept/accept.ts";
 import type { LegName } from "../accept/legs.ts";
-import { type DebtAtom, type DebtKind, type DebtSeams, type DebtTurn, type DebtVoice, debt, debtOf, debtTurns, legsTurn, payDebt } from "../cmd/debt.ts";
+import { type DebtAtom, type DebtKind, type DebtSeams, type DebtTurn, type DebtVoice, debt, debtOf, debtTurns, legsTurn, legsWait, payDebt } from "../cmd/debt.ts";
 import type { LegsCmdSeams } from "../cmd/legs.ts";
 import type { Goal } from "../lib/chain.ts";
 import { ROOT } from "../lib/paths.ts";
@@ -27,8 +27,8 @@ interface Run extends DebtSeams {
 }
 
 /** Seams whose store holds `owed`, where every atom a turn pays takes `cost` milliseconds on the clock,
- * and an atom in `red` is red when it ran. */
-function seams(owed: DebtAtom[], o: { cost?: number; red?: string[] } = {}): Run {
+ * and an atom in `red` is red when it ran. `wait` is why the legs have nothing to run, "" by default. */
+function seams(owed: DebtAtom[], o: { cost?: number; red?: string[]; wait?: string } = {}): Run {
   const store = new Map(owed.map((a) => [a.id, a]));
   const turns: DebtTurn[] = [];
   const clock = { at: 1_000_000 };
@@ -39,6 +39,7 @@ function seams(owed: DebtAtom[], o: { cost?: number; red?: string[] } = {}): Run
     voice: SILENT,
     now: () => clock.at,
     debt: () => [...store.values()],
+    legsWait: () => o.wait ?? "",
     pay: async (turn) => {
       turns.push(turn);
       const red: string[] = [];
@@ -138,6 +139,24 @@ describe("bun nv debt", () => {
     const none = linux([]);
     await payDebt("demo", withLegs(seams([atom("proof:a.nvs", 1)]), none));
     expect(none.lines).toEqual([]);
+  });
+
+  test("a goal that names no fixture leaves an owed leg in the store, runs no leg and is not red for it", async () => {
+    const s = seams([atom("proof:a.nvs", 1), atom("heavy:wsl leg", 2), atom("heavy:valgrind sweep", 3)], { wait: "`demo` names no fixture" });
+    const steps: string[] = [];
+    const out = await payDebt("demo", { ...s, pay: async (turn) => (s.turns.push(turn), turn.ids.forEach((id) => s.store.delete(id)), ""), voice: { step: (l) => steps.push(l), note() {} } });
+    expect(s.turns.map((t) => t.runner)).toEqual(["full"]);
+    expect(out.left).toEqual([]);
+    expect(s.store.has("heavy:wsl leg")).toBe(true);
+    expect(steps[0]).toBe("floor debt: 2 leg(s) wait in the store for a goal that names a fixture -- `demo` names no fixture");
+    expect(await debt(["--goal", "demo"], seams([atom("heavy:wsl leg", 1)], { wait: "`demo` names no fixture" }))).toBe(0);
+  });
+
+  test("the legs wait only over a goal that names no fixture", () => {
+    const over = (goal: Goal | null) => () => (goal === null ? null : { slug: "demo", goal });
+    expect(legsWait("demo", over(LEGS_GOAL))).toBe("");
+    expect(legsWait("demo", over({ ...LEGS_GOAL, checks: [{ id: "lint", kind: "command", stage: 1, argv: ["looper", "lint"] }] } as unknown as Goal))).toBe("`demo` names no fixture");
+    expect(legsWait("gone", over(null))).toBe("");
   });
 
   test("it exits 0 when the debt is paid green, 1 on a red or debt left, and 2 on a bad argument", async () => {

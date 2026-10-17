@@ -6,7 +6,7 @@ context: [AGENTS.md, looper.toml, tools/nv/cmd/sweep.ts, tools/nv/cmd/verify.ts]
 stages:
   - id: 1
     title: no debt run sits between two sessions
-    status: open
+    status: done
     context: [tools/nv/cmd/disk.ts, tools/nv/select/record.ts, docs/goals/README.md]
   - id: 2
     title: verify is red only for a real fault
@@ -114,7 +114,9 @@ is swept only when it is low.
   - [x] The per-turn lines of `.loop/checks/floor-debt.log` give the time by atom kind.
   - [x] The figures go into `tools/nv/cmd/debt.ts`'s module doc; past two hours, the owed benches move to the release gate.
 - [x] `looper.toml`'s hook comment and the `[jobs]` lists say what runs now. `looper.toml:55`
-- [ ] A Linux leg the debt cannot run, because its goal names no fixture, does not keep `floor-debt` red. `tools/nv/cmd/debt.ts:244`, `tools/nv/accept/legs.ts:331`
+- [x] A Linux leg the debt cannot run, because its goal names no fixture, does not keep `floor-debt` red. `tools/nv/cmd/debt.ts:244`, `tools/nv/accept/legs.ts:331`
+  - [x] `legsWait` gives why a goal's legs have nothing to run, and `payDebt` leaves those legs in the store, neither paid nor left.
+  - [x] `tools/nv/test/debt.test.ts` pins both, and the module doc says why the leg is not recorded green.
 
 ### 2. verify is red only for a real fault
 
@@ -174,17 +176,21 @@ has the figures. Other projects' loops were running during the measurement.
 
 What the store holds now: 689 proof programs owed and 2054 red, 2046 of them red since one hour on
 2026-10-15, so that is likely one broken run and not 2046 faults (not checked). The next `floor-debt`
-pays them, about 50 minutes at the measured rate. Both Linux legs stay owed: the run skipped them
-because `lean-loop` names no fixture, so `floor-debt` stays red with "2 left" until stage 1's new item.
+pays them, about 50 minutes at the measured rate.
+
+Stage 1 is done. An owed or red leg over a goal that names no fixture, such as `lean-loop`, now waits
+in the store and is neither paid nor left, so it no longer keeps `floor-debt` red
+(`tools/nv/cmd/debt.ts` `legsWait`). It is not recorded green, because that would lose a change to
+code only Linux compiles; the first goal with a fixture pays it.
 
 The nightly run 39013536848 is still the newest, and nothing in it is new since the last handoff.
 
 ### Next
 
-Stage 1's new item, then stage 2, on `tools/nv/cmd/debt.ts`, `tools/nv/cmd/legs.ts` and the two test binaries:
-- [ ] A leg skipped for reaching no fixture does not stay debt for that goal. `tools/nv/accept/legs.ts:331`, `tools/nv/cmd/debt.ts:244`
-- [ ] The `ldap` socket deadlines, found and fixed at their cause, run under load. `crates/nvs-stdlib/tests/ldap.rs:277`
+Stage 2, on the two test binaries, each a session of its own since each needs runs under load:
+- [ ] The `ldap` socket deadlines, found and fixed at their cause, run under load. `crates/nvs-stdlib/tests/ldap.rs:277`, `crates/nvs-stdlib/tests/ldap.rs:1485`
 - [ ] The `live_edit` 30-second swap, found and fixed at its cause. `crates/nvs-cli/tests/live_edit.rs:1010`
+- [ ] `verify.ts`'s module doc no longer lists either as a load failure. `tools/nv/cmd/verify.ts:1`
 
 ### Backlog
 
