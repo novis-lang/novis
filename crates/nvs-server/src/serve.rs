@@ -229,6 +229,9 @@ pub enum BodyCut {
     /// A stream whose length was stated ended before it had written that many
     /// bytes, because the program ended or threw.
     StreamEndedEarly,
+    /// The program writing a stream threw, met a limit or was cancelled
+    /// before it finished the body (`nvs_runtime::stream::Emit::abort`).
+    ProgramStopped,
 }
 
 impl std::fmt::Display for BodyCut {
@@ -237,6 +240,7 @@ impl std::fmt::Display for BodyCut {
             Self::DrainPeriodEnded => "the drain period ended while the response was being written",
             Self::FileEndedEarly => "the file ended before the length the response stated",
             Self::StreamEndedEarly => "the stream ended before the length the response stated",
+            Self::ProgramStopped => "the program stopped before it finished the response",
         })
     }
 }
@@ -472,6 +476,12 @@ impl Body for Answer {
                             return Poll::Ready(Some(Err(BodyCut::StreamEndedEarly)));
                         }
                         Poll::Ready(None)
+                    }
+                    stream::Drained::Aborted => {
+                        if let Some(alive) = alive {
+                            alive.ended();
+                        }
+                        Poll::Ready(Some(Err(BodyCut::ProgramStopped)))
                     }
                 }
             }
@@ -12306,6 +12316,34 @@ pub(crate) mod tests {
         assert!(
             answer.ends_with("9\r\nover time\r\n0\r\n\r\n"),
             "the chunk the writer sent was not framed as one: {answer}"
+        );
+    }
+
+    /// A stream whose program stopped before it finished ends in
+    /// [`BodyCut::ProgramStopped`], so `hyper` never writes the terminating
+    /// chunk and the client reads a failed response rather than a complete one.
+    #[test]
+    fn an_aborted_stream_is_cut_off_without_its_terminating_chunk() {
+        let (mut emit, mut body) = Answer::stream(&crate::bounds::Connection::default());
+        emit.abort();
+        let mut cx = std::task::Context::from_waker(std::task::Waker::noop());
+        assert!(
+            matches!(
+                Pin::new(&mut body).poll_frame(&mut cx),
+                Poll::Ready(Some(Err(BodyCut::ProgramStopped)))
+            ),
+            "an aborted stream did not end in an error frame"
+        );
+
+        let (mut emit, body) = Answer::stream(&crate::bounds::Connection::default());
+        emit.abort();
+        // On the wire the cut is an aborted connection, which may discard the
+        // head `hyper` still held, so all a client can be sure of is that it
+        // never reads the end of a body.
+        let answer = answered_with("/stream", body);
+        assert!(
+            !answer.ends_with("0\r\n\r\n"),
+            "an aborted stream was framed as a finished body: {answer}"
         );
     }
 
