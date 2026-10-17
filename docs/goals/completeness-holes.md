@@ -41,8 +41,8 @@ stages:
         rules: [packaging/values-cross-as-handles, packaging/the-boundary-is-the-cost, core-classes/image-pipeline]
   - id: 6
     title: a streamed body that ends early is cut off
-    status: open
-    context: [crates/nvs-runtime/src/stream.rs, crates/nvs-server/src/serve.rs, data/gaps/nvs-ext/a-workbook-never-finished-is-neither-logged-nor-cut-off.json]
+    status: done
+    context: [crates/nvs-runtime/src/stream.rs, crates/nvs-server/src/serve.rs, crates/nvs-stdlib/src/response.rs]
     extra:
       context:
         rules: [core-classes/spreadsheet-writes-as-a-stream]
@@ -250,7 +250,11 @@ the client sees a failed download.
   - [x] The isolate's `finish` aborts the body when its program threw, met a limit or was cancelled.
 - [x] The streaming body turns the abort into an error frame. `crates/nvs-server/src/serve.rs:466`
   - [x] `Drained::Aborted` ends in `BodyCut::ProgramStopped`, and the wire has no terminating chunk.
-- [ ] A download workbook a program never finishes is logged and cut off. `extensions/spreadsheet/nvs/Workbook.nvs:218`
+- [x] A download workbook a program never finishes is logged and cut off. `extensions/spreadsheet/nvs/Workbook.nvs:218`
+  - [x] `Core\Response::stream`'s `$mustEnd` labels a stream that must be ended, and `Core\Response\Stream::end` ends it; a write after it throws.
+  - [x] `Ctx::end_unfinished_stream` aborts and logs an unended one, from the isolate's finish, `nvs run` and the context's `Drop`.
+  - [x] `createForDownload` passes the name, `finish` calls `end()`, and `.nvst` cases pin both.
+  - [x] `end`'s proofs, the rule rewritten, and the record deleted.
 
 ### 7. `[debug] mode` arms the probes, and the grant gates a query span
 
@@ -387,44 +391,41 @@ work cannot live only in prose again.
 
 ### State
 
-Stages 1 to 4, 7 and 8 to 13 are done. Stage 7: `[debug] mode` has a `RuntimeTighten`/`Reload`
-directive row, and a name outside `coverage`, `branch`, `trace`, `profile` is refused at boot
-(`crates/nvs-config/src/debug.rs`). `nvs_runtime::Ctx::set_config` arms the named bits on a context
-that is not server work and drops the bits the replaced configuration armed
-(`crates/nvs-runtime/src/ctx/wiring.rs`'s `armed_by`). `nvs serve` refuses any named probe at boot
-and `crates/nvs-cli/src/reload.rs` at reload. A query span rendered because `DebugFlags::TRACE` is on
-needs the `debug.trace` grant unless the request is sampled (`crates/nvs-stdlib/src/db/span.rs`'s
-`QueryWatch::named`). Both records are deleted, and `rule:testing/debug-mode-directive` states the
-served case, the grant and the declined options. Under `nvs run` a `coverage` bit with no
-`StmtHits` table counts nothing; only the test runner installs one (`crates/nvs-cli/src/runner.rs:399`).
+Stages 1 to 4 and 6 to 13 are done. Stage 6's last item: `Core\Response::stream` takes a fourth
+argument, `?string $mustEnd`, and `Core\Response\Stream::end()` ends the body; a write after it
+throws `LogicError`. `Ctx::end_unfinished_stream` aborts an unended marked stream and writes one error
+record with a `stream` field, from the isolate's finish (`crates/nvs-host/src/isolate.rs`), `nvs run`
+(exit 1) and the context's `Drop`. `Workbook::createForDownload` passes the download's name and
+`finish` calls `end()`. The record is deleted, and `rule:core-classes/spreadsheet-writes-as-a-stream`
+states it. A workbook written to a file or to memory and never finished is not reported; the rule says so.
+
+Tree-wide perf drift, not from this change: a `Core` member call now counts as one `calls` per op, so
+every bench declaring `calls 0` fails `--record-perf` (`Core\Str::at` measured `calls 2.000`). The
+`Core\Response\Stream` `length` and `offset` benches fail on it now.
 
 Stage 14's scan: `bun nv owners --prose` lists every gap that lives only in prose and exits 1 while
-any remains (`tools/nv/cmd/owners.ts`'s `outsideBlocks`). It named 47 before this session, and the
-`crates/nvs-db/src/span.rs` pointer block is now gone. `--check` does not read it yet.
+any remains (`tools/nv/cmd/owners.ts`'s `outsideBlocks`). `--check` does not read it yet.
 
-The nightly run the sweep reported (`39013536848`) tested `e110c9c0b`, which is `origin/main` and
-far behind local `main`; the last session checked each job against the local tree, and nothing
-here changes that verdict. `cost guards / windows-x86_64` and the `proofs` jobs are in the Backlog.
+The nightly run the sweep reports (`39013536848`) tested `e110c9c0b`, which is `origin/main` and far
+behind local `main`; nothing here changes the last session's verdict on each job.
 
-`bun nv rules --render` also rewrites `core-api.md`, `core-classes.md`, `errors.md` and
-`iteration.md`, and `bun nv render` drops `done` from `data/schema/milestone.schema.json`. That drift
-predates these sessions and is not committed.
-
-Stage 5's typed path and stage 6's unfinished workbook are decided, and neither is built.
+`bun nv rules --render` also rewrites `core-api.md`, `errors.md` and `iteration.md`, and `bun nv render`
+drops `done` from `data/schema/milestone.schema.json`. That drift predates these sessions and is not
+committed.
 
 ### Next
 
-**Stage 6's last item, as its record decides. Files: `crates/nvs-stdlib/src/response.rs`, `crates/nvs-runtime/src/stream.rs`, `crates/nvs-host/src/isolate.rs`, `extensions/spreadsheet/nvs/Workbook.nvs`.**
+**Stage 14's prose, split by crate across subagents. Files: `tools/nv/cmd/owners.ts`, the module docs `bun nv owners --prose` names.**
 
-- [ ] `Core\Response::stream` takes an option that marks the stream as one that must be finished, with a label for the log, and `Core\Response\Stream` gets `end()` (`rule:core-classes/spreadsheet-writes-as-a-stream`, `data/gaps/nvs-ext/a-workbook-never-finished-is-neither-logged-nor-cut-off.json`). `crates/nvs-stdlib/src/response.rs:2021`
-- [ ] At the request's end the host logs a marked stream that was not ended as an error naming its label, and cuts its body off through `Emit::abort`; no user code runs (`rule:concurrency/cancellation-runs-no-user-code`). `crates/nvs-runtime/src/stream.rs:274`
-- [ ] `Workbook::createForDownload` marks its stream with the download's name, and `finish` ends it. `extensions/spreadsheet/nvs/Workbook.nvs:218`
+- [ ] Delete each `Known gaps` pointer block whose module no record names, and rewrite each numbered `gap N` reference as present-tense prose or a record (`rule:testing/feature-proofs`'s gap discipline, `tools/nv/cmd/owners.ts:610`).
+- [ ] Make `crates/nvs-runtime/src/ctx/error.rs:777` and `crates/nvs-ir/src/ty.rs:222` records under `data/gaps/`, each naming its owner.
+- [ ] Let `--check` run the prose scan and fail on a finding (`tools/nv/cmd/owners.ts:610`).
 
 ### Backlog
 
-- Stage 14's prose: `bun nv owners --prose`. Delete the pointer blocks whose module no record names, make `crates/nvs-runtime/src/ctx/error.rs:777` and `crates/nvs-ir/src/ty.rs:222` records, rewrite each `gap N`, split by crate across subagents, then let `--check` run the scan (`tools/nv/cmd/owners.ts:610`).
 - Stage 5 follows `data/gaps/nvs-ext/bytes-cross-one-val-per-byte.json`: generated bindings per first-party world, then the image arms at full size, plus `Markup + Markup` in place (`docs/perf/performance-pass.md:257`).
+- A `Core` member call counts as a Novis call in the perf counters, so every `calls 0` bench fails `--record-perf`: find the commit, then fix the count or the declarations (`tools/nv/proofs/collect.ts`, `benches/members/core/Response-Stream/length.nvs:5`).
 - `rule:security/isolate-shares-nothing` says a *required* parameter `args:` omits is the error, but `entry_names_agree` and `check_literal_args` need every parameter, defaults included. Decide which is right and make the two agree (`crates/nvs-stdlib/src/script.rs:970`).
 - Tests that fail under the full verify's load and pass alone, causes not found: `test_request_dispatches_in_process_through_the_compiled_route_table` (`crates/nvs-cli/src/runner.rs:3410`), two `live_edit` swaps (`crates/nvs-cli/tests/live_edit.rs:1010`), and five `ldap` tests against the Samba server (`crates/nvs-stdlib/tests/ldap.rs:102`).
-- CI's Windows warm-start budget fails: `nvs run`'s work is 12-13 ms against 6. About 4.7 ms is `nvs_ext::section::read`'s `parse_all` over every nested module; walking only the outer component measured 5.4 to 0.8 ms (not built) (`crates/nvs-ext/src/section.rs:35`). Proof debt fails CI's `proofs` jobs: `bun nv benches --owed` and `bun nv proofs --owed` (`.github/workflows/ci.yml:1`).
+- CI's Windows warm-start budget fails: `nvs run`'s work is 12-13 ms against 6, about 4.7 ms of it `nvs_ext::section::read`'s `parse_all` (`crates/nvs-ext/src/section.rs:35`). Proof debt fails CI's `proofs` jobs: `bun nv benches --owed` and `bun nv proofs --owed` (`.github/workflows/ci.yml:1`).
 - A per-connection child refused a stack is dropped unrun, so its client likely sees the socket close and no `503`; not checked (`crates/nvs-server/src/serve.rs:95`).

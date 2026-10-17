@@ -1,0 +1,1 @@
+- **A served `.nvs` proof whose output has a log line diverges on every run.** A served run's log record carries `ts` and `request_id`, so `bun nv proofs --run` reports `diverged` at that line and a hostile or example never settles. A proof with a `.nvsr` beside it prints only body text, as `tests/hostile/core/Response-Stream/end/01-write-after-end.nvs` does.
