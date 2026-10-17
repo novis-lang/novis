@@ -25,8 +25,9 @@
 // There are no decision records: a rule holds its reasons and its Declined list. Every run fails while
 // a record directory exists, and on each line of a tracked text file outside `vendor/` that cites a
 // record by its name, its number, its path or a bare section mark; a clean run says so in one line.
-// A test named for a record's number is a citation too. A file that
-// shows those forms, as a test of this check does, carries the marker `nv-rules:record-examples`.
+// A test named for a record's number is a citation too. A run fails the same way on a line that cites
+// one of the deleted plan and design docs, outside the goal files that delete them. A file that shows
+// those forms, as a test of this check does, carries the marker `nv-rules:record-examples`.
 //
 // A generated file is written with LF endings. `--render --check` compares text, so a checkout with
 // CRLF endings is not stale.
@@ -98,13 +99,47 @@ export function recordFindings(present: string[], files: Iterable<[string, strin
   return out;
 }
 
-/** `recordFindings` over this tree: the record directories on disk and every tracked text file. */
-async function recordGuard(): Promise<Finding[]> {
-  const present = RECORD_DIRS.filter((dir) => existsSync(join(ROOT, dir)));
-  const grep = await runProgram(["git", "grep", "-l", "-z", "-I", "-E", RECORD_GREP, "--", ".", ":!vendor"], { cwd: ROOT });
+/**
+ * A citation of a deleted doc: the plan directory, the plan index and the ideas note, by their
+ * repository path or by a relative Markdown link. Their facts moved to rules, module docs and goals,
+ * so a citation of one points at nothing.
+ */
+export const DELETED_DOC_CITE =
+  /\bdocs\/(?:plan\/|implementation-plan\.md|future-ideas\.md)|\]\((?:\.\.\/)*(?:plan\/[\w.-]+\.md|implementation-plan\.md|future-ideas\.md)/;
+/** The same forms, wider, for `git grep` to pick the files `DELETED_DOC_CITE` then reads. */
+const DELETED_DOC_GREP = "docs/(plan/|implementation-plan[.]md|future-ideas[.]md)|plan/[a-z0-9-]+[.]md|implementation-plan[.]md|future-ideas[.]md";
+
+/** What `--check` says about citations of a deleted doc: a finding for each citing line. */
+export function deletedDocFindings(files: Iterable<[string, string]>): Finding[] {
+  const out: Finding[] = [];
+  for (const [path, text] of files) {
+    if (text.includes(RECORD_EXAMPLES)) continue;
+    splitlines(text).forEach((line, i) => {
+      if (DELETED_DOC_CITE.test(line)) out.push({ where: `${path}:${i + 1}`, what: "cites a deleted doc" });
+    });
+  }
+  return out;
+}
+
+/** The tracked text files outside `vendor/` and `exclude` that `pattern` matches, read. */
+async function grepFiles(pattern: string, exclude: string[] = []): Promise<[string, string][]> {
+  const spec = ["--", ".", ":!vendor", ...exclude.map((p) => `:!${p}`)];
+  const grep = await runProgram(["git", "grep", "-l", "-z", "-I", "-E", pattern, ...spec], { cwd: ROOT });
   if (grep.code > 1) throw new Error(failLine(grep.stderr, grep.code, "git grep"));
   const paths = grep.stdout.split("\0").filter((p) => p !== "");
-  return recordFindings(present, paths.map((p): [string, string] => [p, readText(join(ROOT, p))]));
+  return paths.map((p): [string, string] => [p, readText(join(ROOT, p))]);
+}
+
+/**
+ * `recordFindings` and `deletedDocFindings` over this tree. A goal file names the docs it deletes,
+ * so `docs/goals/` is not read for the second.
+ */
+async function recordGuard(): Promise<Finding[]> {
+  const present = RECORD_DIRS.filter((dir) => existsSync(join(ROOT, dir)));
+  return [
+    ...recordFindings(present, await grepFiles(RECORD_GREP)),
+    ...deletedDocFindings(await grepFiles(DELETED_DOC_GREP, ["docs/goals"])),
+  ];
 }
 
 interface Rule {
@@ -524,7 +559,7 @@ export async function run(args: string[]): Promise<number> {
     return 1;
   }
 
-  console.log("no decision record and no citation of one");
+  console.log("no decision record, no citation of one and no citation of a deleted doc");
   if (!flags.has("--check")) {
     if (book.topics.length === 0) console.log("the rulebook does not exist yet -- migration unit B1 creates it");
     else console.log(`clean: ${book.topics.length} topics, ${book.topics.reduce((n, t) => n + t.rules.length, 0)} rules`);
