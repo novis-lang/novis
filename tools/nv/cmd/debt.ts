@@ -15,7 +15,10 @@
 // atoms: `select/full.ts` `fullRun` with `only` for every kind but the legs, and `cmd/legs.ts`
 // `legsOver` for the legs. The legs run
 // over `--goal`'s goal, else the one `LOOPER_GOAL` names, else the current one (`lib/chain.ts`
-// `namedPlan`). Each atom's run is recorded the moment it ends, so a run the check's timeout kills loses
+// `namedPlan`). A goal that names no fixture gives the legs nothing to run, so an owed or red leg is not
+// that goal's debt: it stays in the store as it is, and the first goal with a fixture pays it (`legsWait`).
+// Recording it green would lose a change to code only Linux compiles. Each atom's run is recorded the
+// moment it ends, so a run the check's timeout kills loses
 // only the atoms still running. It prints each turn with the time it took, and then what it paid and what
 // debt is left, by kind.
 //
@@ -37,6 +40,7 @@
 // It exits 0 when every turn was green and no debt is left, 1 when a turn found a red or debt is left,
 // and 2 on a usage error.
 
+import { PROGRAM_KINDS } from "../accept/accept.ts";
 import { namedPlan } from "../lib/chain.ts";
 import { type EndFields, ev } from "../lib/events.ts";
 import { LEGS, legId } from "../select/checks.ts";
@@ -85,6 +89,8 @@ export interface DebtSeams {
   now(): number;
   /** The floor debt the store holds now. */
   debt(): DebtAtom[];
+  /** Why the legs have nothing to run over `slug`'s goal, or "" when they have. */
+  legsWait(slug: string | undefined): string;
   /** Runs one turn: a red line, or "". `slug` is the goal the legs run over, `namedPlan`'s when unset.
    * `onStart` is told of each atom as the runner starts it. */
   pay(turn: DebtTurn, slug: string | undefined, note: (line: string) => void, onStart?: (id: string) => void): Promise<string>;
@@ -156,9 +162,15 @@ function minutes(ms: number): string {
   return `${Math.floor(s / 60)}m${String(s % 60).padStart(2, "0")}s`;
 }
 
-/** Pays every atom of the floor debt, a turn per runner, and says what each turn took. */
+/** Pays every atom of the floor debt, a turn per runner, and says what each turn took. A leg waits, and
+ * is neither paid nor left, when `legsWait` gives a reason. */
 export async function payDebt(slug: string | undefined, s: DebtSeams): Promise<DebtOutcome> {
-  const before = s.debt();
+  const wait = s.legsWait(slug);
+  const ours = (debt: DebtAtom[]) => (wait === "" ? debt : debt.filter((a) => a.kind !== "leg"));
+  const all = s.debt();
+  const before = ours(all);
+  const waiting = all.length - before.length;
+  if (waiting > 0) s.voice.step(`floor debt: ${waiting} leg(s) wait in the store for a goal that names a fixture -- ${wait}`);
   const started = s.now();
   const reds: string[] = [];
   const turns = debtTurns(before);
@@ -193,7 +205,7 @@ export async function payDebt(slug: string | undefined, s: DebtSeams): Promise<D
   } finally {
     onRecorded(null);
   }
-  const left = before.length === 0 ? [] : s.debt();
+  const left = before.length === 0 ? [] : ours(s.debt());
   const paid = paidOf(before, left);
   if (before.length > 0) {
     s.voice.step(`floor debt: paid ${paid.length}${paid.length > 0 ? ` (${byKind(paid)})` : ""} in ${minutes(s.now() - started)}; left ${left.length}${left.length > 0 ? ` (${byKind(left)})` : ""}`);
@@ -237,6 +249,16 @@ async function fullTurn(ids: string[], note: (line: string) => void, onStart: (i
 }
 
 /**
+ * Why the Linux legs have nothing to run over `namedPlan`'s goal: "" when it names a fixture, and when no
+ * goal is found, since `legsTurn` reports that as red.
+ */
+export function legsWait(slug: string | undefined, plan: typeof namedPlan = namedPlan): string {
+  const found = plan(slug);
+  if (found === null) return "";
+  return (found.goal.checks as { kind: string }[]).some((c) => PROGRAM_KINDS.has(c.kind)) ? "" : `\`${found.slug}\` names no fixture`;
+}
+
+/**
  * The Linux legs over `namedPlan`'s goal, or a red line saying no goal is there to read them from. With
  * `full`, both legs run whatever changed; without it, a leg runs when the store selects it, owed or red
  * among the reasons. `over` replaces what `legsOver` reads or starts, under test.
@@ -259,6 +281,7 @@ async function payTurn(turn: DebtTurn, slug: string | undefined, note: (line: st
 const REAL: DebtSeams = {
   now: () => Date.now(),
   debt: storeDebt,
+  legsWait: (slug) => legsWait(slug),
   pay: payTurn,
   voice: { step: (l) => console.log(l), note: (l) => console.log(`   ${l}`) },
 };
