@@ -1,0 +1,31 @@
+--TEST--
+`rule:types/decimal`: a property declared `decimal` takes a number literal as its default, with its scale and sign kept, and every new instance, a subclass's included, starts with that exact value
+--FILE--
+<?nvs
+class Basket {
+    public decimal $rate = 0.19;
+    public decimal $discount = -1.50;
+    public static decimal $fee = 0.1234567890123456789012345678;
+
+    public function gross(decimal $net): decimal {
+        return $net + $net * $this->rate;
+    }
+}
+
+class GiftBasket extends Basket {}
+
+// The default rate is exactly `0.19`, so the result has no rounding error.
+Basket $basket = new Basket();
+echo $basket->gross(100.00), "\n";
+
+// The trailing zero, the sign and all 28 digits after the point are kept.
+echo $basket->discount, " ", Basket::$fee, "\n";
+
+// A subclass starts with the same default, and each instance has its own copy.
+GiftBasket $gift = new GiftBasket();
+$gift->rate = 0.07;
+echo $gift->rate, " ", $basket->rate, " ", (new GiftBasket())->rate, "\n";
+--EXPECT--
+119.0000
+-1.50 0.1234567890123456789012345678
+0.07 0.19 0.19

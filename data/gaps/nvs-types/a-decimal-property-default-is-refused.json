@@ -1,6 +1,0 @@
-{
-  "module": "crates/nvs-types/src/defaults.rs",
-  "title": "`public decimal $rate = 0.19;` is refused with \"a property default must be a `decimal` constant\".",
-  "text": "A `decimal` literal folds to `ConstArg::Decimal` at a parameter default and a class constant, but a property default of that type is refused with E0472, because `nvs_runtime::FieldDefault` has no `decimal` recipe for the slot (`crates/nvs-types/src/defaults.rs:79-83`). The message says the value must be a `decimal` constant, and it is one. `rule:types/decimal` gives a `decimal` literal the same meaning everywhere. Closing it means a `FieldDefault` recipe for `decimal`, so the default is accepted and written into every fresh instance.",
-  "goal": "completeness-holes"
-}

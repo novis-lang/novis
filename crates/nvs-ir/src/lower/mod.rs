@@ -356,13 +356,15 @@ fn field_default(value: &nvs_types::ConstArg) -> Option<nvs_types::FieldDefault>
         ConstArg::EnumInt(v) => Some(FieldDefault::EnumInt(*v)),
         ConstArg::EnumUint(v) => Some(FieldDefault::EnumUint(*v)),
         ConstArg::Float(v) => Some(FieldDefault::Float(*v)),
+        ConstArg::Decimal {
+            negative,
+            mantissa,
+            scale,
+        } => FieldDefault::decimal(*negative, *mantissa, *scale),
         ConstArg::Str(s) => Some(FieldDefault::Str(s.clone())),
         ConstArg::EmptyArray => Some(FieldDefault::EmptyArray),
         ConstArg::Null => Some(FieldDefault::Null),
         ConstArg::Bytes(_)
-        // `nvs_types::defaults::eval_property_default` refuses a `decimal`
-        // default, since this recipe set has no member for one.
-        | ConstArg::Decimal { .. }
         // Not a value at all, and a `Core` bag's omission fill besides — a
         // property slot already starts in this state without a default.
         | ConstArg::NeverWritten
