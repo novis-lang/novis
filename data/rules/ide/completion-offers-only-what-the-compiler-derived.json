@@ -7,7 +7,7 @@
     "routing/link-name-and-params-are-checked",
     "config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one",
     "routing/api-document-is-generated-from-the-route-table",
-    "programs/first-party-framework"
+    "programs/no-first-party-framework"
   ],
   "guardedBy": [
     "crates/nvs-lsp/tests/completion.rs",

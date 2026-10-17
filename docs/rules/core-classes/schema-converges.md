@@ -9,10 +9,9 @@ a database this tool has never seen — the three situations in which a history 
 because it records what a tool believes rather than what is true.
 
 **`Core` therefore holds no notion of a migration.** Ordering, reversibility, dependency between
-changes and fleet locking stay a blocked gap in the first-party framework
-(`rule:programs/no-migration-runner`), and this is the layer such a runner would one day sit on. It
-stops there deliberately: every one of those open questions is a question convergence does not have
-to answer.
+changes and fleet locking are a versioned migrator's questions, and a migrator is a package's to write
+on this layer (`rule:programs/no-first-party-framework`). `Core` stops there deliberately: every one of
+those questions is a question convergence does not have to answer.
 
 Planning is not on the request path in any expected deployment: it is an operator's act, issuing a
 handful of catalog queries rather than one per table.

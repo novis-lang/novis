@@ -18,11 +18,7 @@
     "programs/relative-paths-resolve-from-their-file",
     "programs/program-id",
     "programs/bundle-trust-domain",
-    "programs/first-party-framework",
-    "programs/framework-core-half",
-    "programs/framework-web-package",
-    "programs/framework-refusals",
-    "programs/no-migration-runner",
-    "programs/nvs-new"
+    "programs/no-first-party-framework",
+    "programs/framework-core-half"
   ]
 }

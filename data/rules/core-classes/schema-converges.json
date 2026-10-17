@@ -5,7 +5,7 @@
     "core-classes/schema-plan",
     "core-classes/schema-introspection",
     "core-classes/schema-absence-never-destroys",
-    "programs/no-migration-runner"
+    "programs/no-first-party-framework"
   ],
   "guardedBy": [
     "tests/conformance/core/db-schema-plans-every-difference-and-apply-safe-closes-them.nvst"

@@ -26,7 +26,7 @@ and the multiplier each gets:
 - **Spec-driven and self-verifiable — 20–25×.** A written spec, a machine-checkable gate, no external
   system. A written rule plus a conformance case that pins it is the best case this loop has.
 - **Integration-bound — 15–18×.** Real servers, real wire protocols, a dependency that has to be stood
-  up before it can be debugged. M15's registry client, M16's scaffold on three platforms.
+  up before it can be debugged. M15's registry client.
 - **Human-in-the-loop — 12–15×.** Anything whose acceptance is a person looking at it: M10's editor
   surfaces.
 - **Nondeterministic or wall-clock-bound — 10×.** Races, schedulers, soak runs. Fuzz and valgrind

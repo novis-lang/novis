@@ -216,7 +216,10 @@ Because the roster is compiled into the binary rather than resolved at run time,
 and constant lists are closed while compiling**. A misspelled member or constant is named at the call site,
 with the real ones offered, instead of reaching a run-time undefined-function fatal. That is also what lets
 the checker seed its signature table from the registry and put a `Core` call through the same arity and
-assignability checks a user-declared static call takes, with no second code path.
+assignability checks a user-declared static call takes, with no second code path. The **names** are
+closed too: a `use` of a `Core` name that is neither a class, interface, enum, exception or attribute nor
+a namespace one of them is under is `E0306`, and a type naming one is `E0303`, as a program's own
+undeclared name is.
 
 The array domain class is spelled `Core\Arr` rather than `Core\Array`, because `array` is a type atom
 ([`types/grammar`](types.md#types-grammar)) and a class of that name would collide with it exactly where a type is expected.

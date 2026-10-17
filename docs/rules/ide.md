@@ -598,7 +598,7 @@ has no `.lspt` vocabulary, and `crates/nvs-lsp/tests/autoload.rs` holds it.
 VS Code is the reference client and gets real depth, not an LSP passthrough with a grammar file:
 inspections and quick fixes, refactorings, signature help and workspace symbol search, inlay hints, a
 native Test Explorer with coverage, an AST panel, a profiler view, debugger wiring, HTML/CSS/JS services
-inside an inline-HTML region (the template, given [`programs/first-party-framework`](programs.md#programs-first-party-framework)), and the four
+inside an inline-HTML region (the template, given [`programs/no-first-party-framework`](programs.md#programs-no-first-party-framework)), and the four
 "write" actions that implement a member, override a method, declare the function just called, or narrow
 an `array<mixed>` annotation to its literal.
 
@@ -626,7 +626,7 @@ per-framework module enters `nvs-lsp`.
 - **Diagnostic severity configurable per file**, through `.editorconfig`, settings globs or tags in the
   source. It is the door [`core-api/casing-has-no-suppression`](core-api.md#core-api-casing-has-no-suppression) keeps closed.
 
-<sub>See also [`ide/the-request-set-is-closed`](ide.md#ide-the-request-set-is-closed), [`ide/a-quick-fix-is-a-diagnostics-own-suggestion`](ide.md#ide-a-quick-fix-is-a-diagnostics-own-suggestion), [`ide/no-refactoring-introduces-an-alias`](ide.md#ide-no-refactoring-introduces-an-alias), [`ide/the-ast-panel-shells-out-to-the-cli`](ide.md#ide-the-ast-panel-shells-out-to-the-cli), [`ide/the-extension-builds-no-ui-the-editor-already-has`](ide.md#ide-the-extension-builds-no-ui-the-editor-already-has), [`ide/the-debug-adapter-does-not-wait-for-an-editor`](ide.md#ide-the-debug-adapter-does-not-wait-for-an-editor), [`programs/first-party-framework`](programs.md#programs-first-party-framework), [`tooling/fmt-is-one-canonical-style`](tooling.md#tooling-fmt-is-one-canonical-style), [`ide/five-features-are-one-reference-index`](ide.md#ide-five-features-are-one-reference-index), [`ide/completion-offers-only-what-the-compiler-derived`](ide.md#ide-completion-offers-only-what-the-compiler-derived), [`ide/a-template-region-gets-the-editors-services-and-formatter`](ide.md#ide-a-template-region-gets-the-editors-services-and-formatter), [`ide/ast-json-schema-is-frozen`](ide.md#ide-ast-json-schema-is-frozen).</sub>
+<sub>See also [`ide/the-request-set-is-closed`](ide.md#ide-the-request-set-is-closed), [`ide/a-quick-fix-is-a-diagnostics-own-suggestion`](ide.md#ide-a-quick-fix-is-a-diagnostics-own-suggestion), [`ide/no-refactoring-introduces-an-alias`](ide.md#ide-no-refactoring-introduces-an-alias), [`ide/the-ast-panel-shells-out-to-the-cli`](ide.md#ide-the-ast-panel-shells-out-to-the-cli), [`ide/the-extension-builds-no-ui-the-editor-already-has`](ide.md#ide-the-extension-builds-no-ui-the-editor-already-has), [`ide/the-debug-adapter-does-not-wait-for-an-editor`](ide.md#ide-the-debug-adapter-does-not-wait-for-an-editor), [`programs/no-first-party-framework`](programs.md#programs-no-first-party-framework), [`tooling/fmt-is-one-canonical-style`](tooling.md#tooling-fmt-is-one-canonical-style), [`ide/five-features-are-one-reference-index`](ide.md#ide-five-features-are-one-reference-index), [`ide/completion-offers-only-what-the-compiler-derived`](ide.md#ide-completion-offers-only-what-the-compiler-derived), [`ide/a-template-region-gets-the-editors-services-and-formatter`](ide.md#ide-a-template-region-gets-the-editors-services-and-formatter), [`ide/ast-json-schema-is-frozen`](ide.md#ide-ast-json-schema-is-frozen).</sub>
 
 <a id="ide-diagnostics-are-phase-gated"></a>
 
@@ -1581,9 +1581,8 @@ string values is offered those values.
   the checker's table for the length of the analysis. Nothing at run time.
 
 What it refuses has no subject rather than being declined: ORM columns (a codec's fields are declared
-properties, already reached as members), service-container and facade resolution (constructor injection
-is resolved while compiling, so go-to-definition already goes there), and view-name completion
-([`programs/first-party-framework`](programs.md#programs-first-party-framework) makes the view layer the language). A vendor annotation dialect is
+properties, already reached as members), and service-container, facade and view-name resolution (`Core`
+has no container and no view layer, [`programs/no-first-party-framework`](programs.md#programs-no-first-party-framework)). A vendor annotation dialect is
 refused outright as a second, unchecked description of the program's shape — the failure
 [`routing/api-document-is-generated-from-the-route-table`](routing.md#routing-api-document-is-generated-from-the-route-table) refuses for API documents. A completion
 file is not one: it describes values the compiler never holds, such as the keys of a dataset or the
@@ -1636,7 +1635,7 @@ a running program, which is why no completion source fetches anything.
 - **A bound in the class-name mark, so `assertThrows` would carry `Throwable` in the registry.** One
   member needs it, and a new mark field would be read by nothing but the editor.
 
-<sub>See also [`ide/completion-files-offer-values-at-named-parameters`](ide.md#ide-completion-files-offer-values-at-named-parameters), [`routing/routes-are-compiled-not-registered`](routing.md#routing-routes-are-compiled-not-registered), [`routing/link-name-and-params-are-checked`](routing.md#routing-link-name-and-params-are-checked), [`config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`](config.md#config-a-duplicate-key-is-an-error-and-so-is-an-unknown-one), [`routing/api-document-is-generated-from-the-route-table`](routing.md#routing-api-document-is-generated-from-the-route-table), [`programs/first-party-framework`](programs.md#programs-first-party-framework).</sub>
+<sub>See also [`ide/completion-files-offer-values-at-named-parameters`](ide.md#ide-completion-files-offer-values-at-named-parameters), [`routing/routes-are-compiled-not-registered`](routing.md#routing-routes-are-compiled-not-registered), [`routing/link-name-and-params-are-checked`](routing.md#routing-link-name-and-params-are-checked), [`config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`](config.md#config-a-duplicate-key-is-an-error-and-so-is-an-unknown-one), [`routing/api-document-is-generated-from-the-route-table`](routing.md#routing-api-document-is-generated-from-the-route-table), [`programs/no-first-party-framework`](programs.md#programs-no-first-party-framework).</sub>
 
 <a id="ide-completion-files-offer-values-at-named-parameters"></a>
 
@@ -2057,7 +2056,7 @@ there.
 The extension forwards requests inside an inline-HTML region to VS Code's built-in HTML, CSS and
 JavaScript language services, so the half of a `.nvs` file that is markup gets what those services
 answer as providers: completion, hover, the colour picker and the linked ranges that rename a tag.
-Since [`programs/first-party-framework`](programs.md#programs-first-party-framework) makes inline HTML the template engine, that region is where
+Since inline HTML is the template engine ([`programs/no-first-party-framework`](programs.md#programs-no-first-party-framework)), that region is where
 a web application's markup is written, not an edge case.
 
 **Emmet expansion and HTML validation are not among them.** Neither is a provider a request can be
@@ -2122,7 +2121,7 @@ with nothing.
   lexer the server's region list prevents; the second is a flag that is not an I/O mode
   ([`tooling/fmt-is-one-canonical-style`](tooling.md#tooling-fmt-is-one-canonical-style)).
 
-<sub>See also [`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server), [`programs/first-party-framework`](programs.md#programs-first-party-framework), [`tooling/fmt-is-never-a-diagnostic`](tooling.md#tooling-fmt-is-never-a-diagnostic), [`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients), [`ide/contributions-are-frozen-and-only-ever-added`](ide.md#ide-contributions-are-frozen-and-only-ever-added).</sub>
+<sub>See also [`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server), [`programs/no-first-party-framework`](programs.md#programs-no-first-party-framework), [`tooling/fmt-is-never-a-diagnostic`](tooling.md#tooling-fmt-is-never-a-diagnostic), [`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients), [`ide/contributions-are-frozen-and-only-ever-added`](ide.md#ide-contributions-are-frozen-and-only-ever-added).</sub>
 
 <a id="ide-case-files-have-their-own-grammar"></a>
 

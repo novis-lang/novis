@@ -21,9 +21,10 @@ already has working tools.
 
 **The safety properties are how Novis is built, not who it is built for.** They are also why this does
 not end where a typed, incompatible dialect of an existing language ended before: that one's value depended on a package
-compatibility it could not hold, and Novis depends on that compatibility at no point, ships the
-framework rather than waiting for an ecosystem to appear, and differentiates on properties an
-incumbent cannot acquire in a minor release.
+compatibility it could not hold, and Novis depends on that compatibility at no point, puts every
+primitive a framework needs in `Core` so a framework is a package anyone can write
+(`rule:programs/no-first-party-framework`), and differentiates on properties an incumbent cannot
+acquire in a minor release.
 
 **No audience is deliberately second among web teams.** A PHP team modernising and a greenfield
 backend choosing between Go and Node are served by the same language and the same three claims. What
@@ -41,5 +42,5 @@ team can pick Novis, not *which* teams it is for.
   language's ordinary behaviour, and tells every other team the language is not for them. That
   segment is where the properties pay most, and it stays named as that.
 - **No named audience at all.** It ranks slices silently by what is interesting rather than by what
-  is blocking, and produces a language with no dependency story and no framework, the two things
-  every user meets first (`rule:programs/slice-ranking`).
+  is blocking, and produces a language with no dependency story, the thing every user meets first
+  (`rule:programs/slice-ranking`).

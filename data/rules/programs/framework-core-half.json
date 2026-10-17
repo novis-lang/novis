@@ -1,9 +1,8 @@
 {
-  "title": "The privileged half of the framework is `Core`, compiled into the binary",
+  "title": "The privileged primitives a web framework needs are `Core`, each placed by a tier test",
   "status": "shipped",
   "seeAlso": [
-    "programs/first-party-framework",
-    "programs/framework-web-package",
+    "programs/no-first-party-framework",
     "errors/ambiguous-input-refused"
   ],
   "guardedBy": [
