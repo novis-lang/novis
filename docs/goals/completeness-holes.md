@@ -431,7 +431,6 @@ alone, then `world!`, `records!`, `enums!`, `variants!` and `cores!` in WIT orde
 
 ### Backlog
 
-- `Markup + Markup` copies both sides on every append, which is quadratic in a loop; the fix is new `unsafe` code and waits for a decision (`docs/perf/performance-pass.md:257`).
 - Many `§ N` marks in crate comments still point at a section of a decision record that no longer exists, for example `crates/nvs-types/src/links.rs:3` and `crates/nvs-server/src/bounds.rs:155` (`tools/nv/cmd/rules.ts:80`).
 - A `Core` member call counts as a Novis call in the perf counters, so every `calls 0` bench fails `--record-perf` (`tools/nv/proofs/collect.ts`, `benches/members/core/Response-Stream/length.nvs:5`).
 - `rule:security/isolate-shares-nothing` says a *required* parameter `args:` omits is the error, but `entry_names_agree` and `check_literal_args` need every parameter (`crates/nvs-stdlib/src/script.rs:970`).

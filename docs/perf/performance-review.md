@@ -143,8 +143,8 @@ and `remove_dot_segments` are linear.
 **Read:** HTML and text escaping, value dumps, html template lowering, `echo`, and `Markup`
 composition.
 
-**Found:** `Markup + Markup` copies both sides, so a page built row by row is quadratic. The fix
-is new `unsafe` code, so it is recorded in [performance-pass.md](performance-pass.md) *Decisions for you*.
+**Found:** `Markup + Markup` copies both sides, so a page built row by row is quadratic. Goal
+`fewer-allocations` makes it linear, and [performance-pass.md](performance-pass.md) *Decided* has the design.
 
 **Fine:** an html template is lowered once at compile time into one concat and one escape per hole.
 Escaping reads its input at most three times. Dump recursion is bounded by the model's depth cap.
@@ -232,8 +232,8 @@ A scheduler turn scans all parked tasks, and a finished child scans its siblings
 [*What got better*](performance-pass.md#what-got-better), guarded by ladders `scheduler/fan-out.nvs`
 and `scheduler/parked.nvs`).
 The 1.05 MB per task that *What we found* reports matches the 1 MiB stack every task reserves
-(recorded,
-[performance-pass.md § *Decisions for you*](performance-pass.md#decisions-for-you)).
+(decided,
+[performance-pass.md § *Decided*](performance-pass.md#decided)).
 
 **Fine:** timers are a `BTreeSet` with a map beside it. The bus publishes in O(cores).
 

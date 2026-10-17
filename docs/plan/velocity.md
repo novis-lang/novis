@@ -35,9 +35,6 @@ and the multiplier each gets:
 **Then add 35% for rework**, applied to the total rather than to a row. A decision that lands after the
 work it touches reopens that work, and the cost grows with surface area.
 
-M12 gets no projection. It is measurement-bound — the ledger is
-[docs/perf/userland-gap.md](../perf/userland-gap.md), and closing a gap there is benchmark iterations, not
-code volume.
 
 ## What would break the projection
 

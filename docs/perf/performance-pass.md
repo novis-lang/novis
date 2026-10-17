@@ -252,9 +252,8 @@ next change to any of them.
 `rule:concurrency/a-task-stack-is-reserved-wide-and-pooled` charges the reservation because it is what an
 admission decision can count ahead of time, and bounds resident growth by the recursion limit.
 
-## Decisions for you
-
-**Should `Markup + Markup` append into the left operand when nothing else holds it?**
+**`Markup + Markup` appends into the left operand when nothing else holds it.** The user accepted the
+new `unsafe` code it needs, and goal `fewer-allocations` builds it.
 `nvs_core_html_markup_concat` (`crates/nvs-stdlib/src/html.rs:817-830`) copies both sides into a new
 string, so `$page = $page + html`<tr>…</tr>`` over n rows copies the page so far on every row. A probe
 of that loop, best of three on a release build with the 9 ms start-up floor taken off, ran 8000 rows
@@ -263,8 +262,8 @@ in 44 ms and 32000 rows in 856 ms: 19 times the time for 4 times the rows, which
 `nvs_str_concat_n`, which writes in place at a refcount of one. The `Markup` fix needs the same two
 pieces for a `CoreCall`, whose arguments are borrowed today: a lowering that hands over the left
 operand's reference only where its holder is re-pointed at the result, and a helper that appends into
-the carrier's text slot when both the object and its string have one reference. Both are new `unsafe`
-code, so it is recorded rather than built. `Core\Html::join` is the linear form now. The gain is the
+the carrier's text slot when both the object and its string have one reference. Until it lands,
+`Core\Html::join` is the linear form. The gain is the
 whole quadratic term, and it spends no memory beyond the doubling a string `.` already spends.
 
 ## Benches to look at

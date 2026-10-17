@@ -2,5 +2,5 @@
   "module": "crates/nvs-codegen/src/lib.rs",
   "title": "`Terminator::Switch` lowers to a compare chain, not a jump table.",
   "text": "A compare chain is correct for any case set, and the IR does not require a dense or sorted one (`crates/nvs-codegen/src/emit.rs:3817-3822`). Its one producer is `rule:iteration/generators`'s generator resumption, one arm per `yield` plus the entry and exhausted arms, so a generator with many `yield`s pays a compare per arm on every resume. A Novis `switch` statement never reaches this terminator: it lowers to a `Branch` chain, because a label is any expression of the subject's type. Closing it means a `br_table` over a dense case set, and `nvs_ir::lower::Lowering::lower_switch` recognising a dense all-integer `switch` and reaching for it.",
-  "milestone": "M12"
+  "goal": "fewer-allocations"
 }
