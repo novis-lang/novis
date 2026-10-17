@@ -86,7 +86,7 @@ unicode-width.workspace = true
 # where a segment is accepted or refused — one crate below `nvs-stdlib`, which
 # owns the class and cannot be depended on from here. So the canonical parse
 # lives in `src/uuid.rs` and `Core\Uuid::parse` reads through it: one grammar
-# with one home, which is the rule `routes.rs`' gap 4 keeps for percent-decoding.
+# with one home, the same rule `routes.rs` follows for percent-decoding.
 # No new crate reaches the tree — `nvs-stdlib` already depends on this one and
 # on `uuid`.
 uuid.workspace = true

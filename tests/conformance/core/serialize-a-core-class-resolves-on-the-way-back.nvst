@@ -13,9 +13,8 @@ var $back = Core\Serialize::decode(Core\Serialize::encode($day));
 
 // The class name and every slot, which together are what "resolved" means
 // here: a refusal would have thrown a `ParseError` naming the class instead.
-// `Core\Debug::render` is how the value is read rather than a member call,
-// because a program cannot yet narrow a `mixed` to a `Core` class —
-// `nvs_runtime::graph`'s known gap 2 owns that half.
+// `Core\Debug::render` reads the value, and it prints the class name and every
+// slot at once.
 echo Core\Debug::render($back), "\n";
 --EXPECT--
 Core\Time\Date#1 (3) {

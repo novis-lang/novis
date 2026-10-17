@@ -1370,9 +1370,9 @@ mod tests {
             "`pair`'s `sqlite_autoindex_…` was reported beside its primary key"
         );
         // The unique constraint is an autoindex whose name SQLite minted, and
-        // the plain index kept the name the schema gave it — gap 5 of
-        // `crate::ddl`'s own doc, and `rule:core-classes/schema-is-a-value`'s to normalise rather than this
-        // module's to hide.
+        // the plain index kept the name the schema gave it. The read reports
+        // both names as SQLite stores them: normalising one is
+        // `rule:core-classes/schema-is-a-value`'s concern, not this module's.
         let unique: Vec<_> = keys
             .iter()
             .filter(|row| !row.primary && row.unique)
@@ -1611,7 +1611,8 @@ mod tests {
             Some(ScalarType::Instant)
         );
         // A parameter in the middle of the name, and one the vocabulary has no
-        // room for: gap 2 of this module's doc, in the read direction.
+        // room for: the read drops the fractional-second precision, so both
+        // come back as a plain `DateTime`.
         assert_eq!(
             scalar_type("timestamp(3) without time zone", Dialect::PostgreSql),
             Some(ScalarType::DateTime)
@@ -2396,7 +2397,7 @@ mod tests {
                 .name()
                 .to_string()
                 .starts_with("sqlite_autoindex_"),
-            "SQLite mints the name of an inline UNIQUE — `crate::ddl`'s gap 5"
+            "SQLite mints the name of an inline UNIQUE, and the read reports it unchanged"
         );
         assert_eq!(
             wide.columns()[0].ty(),

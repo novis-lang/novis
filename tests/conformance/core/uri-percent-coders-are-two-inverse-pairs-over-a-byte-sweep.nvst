@@ -74,9 +74,8 @@ echo Core\Uri::encodeComponent(Core\Str::fromCodePoint(128512)), "\n";
 echo "[", (Core\Uri::decodeComponent(Core\Uri::encodeFormValue(" ")) as string), "]\n";
 
 // The sweep stops at `U+007F` because past it a *lone* octet is not text: the
-// decoders answer `string`, so `%FF` throws rather than answering (the
-// module's gap 2 — the honest signature is `: bytes`, and the throw is what
-// `rule:types/conversion`'s checked `bytes as string` row would do one line later). An
+// decoders answer `bytes`, and `%FF` decodes to one octet that is not UTF-8,
+// so `rule:types/conversion`'s checked `bytes as string` row throws. An
 // octet sequence that *is* UTF-8 decodes, which is the other side of the same
 // bound.
 try {

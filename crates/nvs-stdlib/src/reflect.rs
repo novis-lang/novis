@@ -4961,8 +4961,8 @@ mod tests {
     }
 
     /// The `*Info` classes of `rule:core-classes/reflect`'s roster that this
-    /// module has not built, and the whole of what the module doc's gap 1 owns
-    /// in prose.
+    /// module has not built. It is empty: every class on the roster is
+    /// registered.
     ///
     /// **This list may only shrink**, and the test below is two-sided so that
     /// it cannot go stale in either direction: a name here that *is* registered
@@ -5019,8 +5019,8 @@ mod tests {
         assert!(
             missing.is_empty(),
             "`rule:core-classes/reflect` names {} class(es) that `registry::CLASSES` does not hold and \
-             `NOT_YET_BUILT` does not own: {}. Register the class, or add it there with the \
-             descriptor data it waits on written into this module's gap 1.",
+             `NOT_YET_BUILT` does not own: {}. Register the class, or add it there and record \
+             the descriptor data it waits on as a gap under `data/gaps/nvs-stdlib/`.",
             missing.len(),
             missing.join(", ")
         );

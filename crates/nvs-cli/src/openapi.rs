@@ -179,8 +179,9 @@ fn operation(row: &Route, id: &str) -> Value {
 ///
 /// An error response carries its class as the `description` and no `content`.
 /// The class is what the row knows about that response, and a *schema* for one
-/// is gap 1 above — a class's fields are `rule:core-classes/derive-attribute`'s codec, which does not reach
-/// this module for an error type any more than it does for a success type.
+/// is the record `data/gaps/nvs-cli/response-body-that-is-an-object.json` — a class's fields are
+/// `rule:core-classes/derive-attribute`'s codec, which does not reach this module for an error type
+/// any more than it does for a success type.
 ///
 /// `description` is required of every response object in 3.1, and `success` is
 /// what a generated one can honestly say: the *prose* about an operation is its

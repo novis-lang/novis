@@ -2078,10 +2078,7 @@ pub(crate) struct ArgSig {
     /// typed, so the same declaration there is not lowerable at all, and
     /// [`Lowering::lower_call_args`] keeps panicking for it.
     ///
-    /// The asymmetry is only in *parameter* position. A `Core` member that
-    /// *returned* a union would need the caller to hold a value of a
-    /// representation [`Ty::Tagged`]'s own doc comment records as still open,
-    /// so the registry has none.
+    /// The asymmetry is only in *parameter* position.
     helper: bool,
 }
 

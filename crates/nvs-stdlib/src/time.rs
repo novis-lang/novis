@@ -49,12 +49,11 @@
 //! full ±9999-year range rather than the ~1677-2262 one a single `i64` of
 //! nanoseconds would; a `DateTime` holds three, an `Instant`'s two plus a
 //! `Zone`'s one, and [`DATETIME`] owns why that rather than seven civil
-//! fields. A duration written in the source spends an allocation too: `rule:types/duration`'s constant-pool folding wants an *immortal* value with no allocation at
-//! all, which is the same thing `nvs_runtime`'s own gap 3 owes a string
-//! literal, so both close together rather than one growing a mechanism the
-//! other does not use. Until then `30s` is one
-//! [`nvs_core_time_duration_nanoseconds`] call on a folded constant, which is
-//! already the whole grammar resolved at compile time.
+//! fields. A duration written in the source spends an allocation too: `30s` is
+//! one [`nvs_core_time_duration_nanoseconds`] call on a folded constant, so the
+//! whole grammar is resolved at compile time and only the instance is built at
+//! run time, one `Duration` object per evaluation, as `rule:types/duration`'s
+//! *Memory* paragraph states.
 //!
 //! # There is no `Core\Month`, and there is not going to be one
 //!
@@ -852,11 +851,9 @@ nvs_runtime::nvs_helper! {
     /// run-time entry point into the *same* grammar the lexer reads, so
     /// `Duration::parse("1h30m")` and the written duration `1h30m` are one value.
     ///
-    /// Throws on anything it does not accept, which is what makes it an
-    /// `rule:security/tainted-qualifier`
-    /// launderer for a `tainted` config string — the qualifier half of that is
-    /// still owed, and `crate::regex`'s gap 2 owns why nothing in
-    /// [`crate::registry`] can state it yet.
+    /// Throws on anything it does not accept. Its registry row declares the
+    /// argument `Qual::Neutral`, so the row does not make it a
+    /// `rule:security/tainted-qualifier` launderer for a `tainted` string.
     fn nvs_core_time_duration_parse(_ctx, args: [1]) {
         let text = text_of(args, 0, "Core\\Time\\Duration::parse")?;
         match duration::parse(text) {

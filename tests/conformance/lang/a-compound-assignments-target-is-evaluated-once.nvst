@@ -57,9 +57,8 @@ echo $a["k"], "\n";
 
 // The roots that need no staging at all: a local through parentheses, a
 // nested element, a static property, a property of a local. An element write
-// whose root is a property of a *temporary* is deliberately absent — it
-// lowers, but re-lowers its holder's receiver, which is `nvs-ir`'s own known
-// gap 16 rather than something to freeze here.
+// whose root is a property of a *temporary* is deliberately absent, and this
+// case does not pin how many times its holder's receiver runs.
 ($a)["k"] += 1;
 echo $a["k"], "\n";
 

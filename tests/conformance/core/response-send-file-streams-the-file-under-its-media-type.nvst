@@ -7,8 +7,7 @@
 // policy's media-type table, which is where the range and the conditional
 // already live, so nothing is ever read whole into memory. Off a request there
 // is no response to declare onto, and then the bytes land in this program's own
-// output instead -- `nvs_stdlib::response`'s gap 1 -- which is what makes them
-// assertable from a case at all. The media type the policy gives them is
+// output instead, which is what makes them assertable from a case at all. The media type the policy gives them is
 // asserted where the policy is, in `crates/nvs-server`.
 Core\Response::sendFile("page.html");
 

@@ -696,8 +696,8 @@ mod tests {
     /// as a balanced `(?ims:…)` wrapper, which moves no pattern across the
     /// accept boundary but does move what the second engine's own error quotes.
     /// And `Core\Time::parse` refuses a zonal field a well-formed pattern may
-    /// carry, which is a rule about that member rather than about the grammar
-    /// (`nvs_types::intrinsics`' gap 3), so civil patterns are what the
+    /// carry, which is a rule about that member rather than about the grammar,
+    /// so civil patterns are what the
     /// accepted half offers it.
     #[test]
     fn every_intrinsic_argument_written_in_the_code_prepares_the_artifact_the_runtime_builds() {

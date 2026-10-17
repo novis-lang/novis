@@ -11,8 +11,7 @@
 //!
 //! **The enumerable set is what is registered, not what the spec owes.**
 //! [docs/spec/01-core-library.md](/docs/spec/01-core-library.md) §§ 1-12
-//! is the work list and `nvs-stdlib`'s known gap 1 tracks how much of it is on
-//! disk; a member the registry does not hold is not yet a member, and the
+//! is the work list. A member the registry does not hold is not a member, and the
 //! compiler refuses to resolve a call to one, so there is nothing here to
 //! check. What this forbids is the other order: registering a member, then
 //! never writing the case.

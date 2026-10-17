@@ -77,9 +77,8 @@ const PROBE: &str = "select 1";
 /// `None` because no harness pointed it anywhere.
 ///
 /// Two shapes of `None` and neither is a failure: no harness at all, and a leg
-/// published on a Unix-domain socket, which is `nvs_db::matrix`'s known gap 1 —
-/// the transport is asked for and nothing publishes it, so a case reaching for
-/// one would be asserting about a leg that never runs.
+/// published on a Unix-domain socket. This file opens no connection over a
+/// socket, so a socket leg runs none of its cases.
 fn leg() -> Option<Connection> {
     let endpoint = matrix::endpoint()?;
     match endpoint.location {

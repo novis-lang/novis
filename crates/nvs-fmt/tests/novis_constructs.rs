@@ -222,7 +222,7 @@ fn a_class_scoped_type_alias_has_one_layout() {
     // position is outside the one-space rule the anonymous object below is
     // inside, which is the crate's own known gap `nvs-fmt/comma-separated-list-whose-closing-delimiter` and is the same at file
     // scope. The blank line each author left is theirs, here as everywhere
-    // (known gap 1).
+    // (the record `data/gaps/nvs-fmt/rules-written-into-the-printer-are.json`).
     let mangled = "\
 <?nvs
 class Order
