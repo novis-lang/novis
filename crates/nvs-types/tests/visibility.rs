@@ -230,7 +230,7 @@ fn a_private_constructor_refuses_new_from_outside_and_allows_it_inside() {
 }
 
 #[test]
-fn a_private_interface_method_is_refused_once_by_the_adr_0043_diagnostic() {
+fn a_private_interface_method_is_refused_once_by_its_own_diagnostic() {
     // The two rules overlap exactly on this shape — see
     // `expr::members::check_method_visibility` for why only the more specific
     // one is reported.

@@ -499,15 +499,15 @@ const DECOMPRESSOR_ADD_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `$decompressor->finish`'s reference card — `rule:core-api/reference-card`.
+/// `$decompressor->finish`'s reference card — `rule:core-api/reference-card`. The result is
+/// `tainted` as `rule:security/tainted-sources` reads every other source of untrusted octets.
 const DECOMPRESSOR_FINISH_DOC: MethodDoc = MethodDoc {
     short: "Closes the stream and answers everything `add` fed it, decompressed — the same octets \
             `Core\\Compress::decompress` answers over the concatenation, under the same bound.",
     params: &[],
     ret: "The decompressed octets as `tainted bytes`, never a truncation; the stream is finished \
-          afterwards and its chunks released. Tainted because a frame's contents are whatever it \
-          said they were, which is `rule:security/tainted-sources`' reading for every other reader \
-          of untrusted octets.",
+          afterwards and its chunks released. The bytes are `tainted` because they come from \
+          input the program does not control.",
     errors: &[
         ErrorDoc {
             error: "ParseError",

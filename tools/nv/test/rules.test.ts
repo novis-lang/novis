@@ -15,6 +15,12 @@ describe("nv rules --check, decision records", () => {
     expect(one("ADRs 0012 and 0013")).toHaveLength(1);
   });
 
+  test("a record cited by its name alone, or by a test named for its number, is a finding", () => {
+    expect(one("as the ADR says")).toHaveLength(1);
+    expect(one("fn the_codes_adr_0098_still_belong() {")).toHaveLength(1);
+    expect(one("object::elf::R_AARCH64_ADR_PREL_PG_HI21 => None,")).toEqual([]);
+  });
+
   test("a record cited by its path is a finding", () => {
     expect(one("first\nsee docs/decisions/0199.md")).toEqual([{ where: "docs/x.md:2", what: "cites a decision record" }]);
     expect(one("`data/decisions/0001.json`")).toHaveLength(1);

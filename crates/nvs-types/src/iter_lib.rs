@@ -331,7 +331,7 @@ mod tests {
     }
 
     #[test]
-    fn the_cursor_declares_adr_0053_s_two_members() {
+    fn the_cursor_declares_its_two_members() {
         let (table, interner) = seeded();
         let graph = ClassGraph::default();
         let (owner, advance) =
@@ -359,7 +359,7 @@ mod tests {
     /// `Comparable` — see this module's docs for why the wider spelling costs
     /// nothing.
     #[test]
-    fn comparable_declares_adr_0013_s_ordering_member() {
+    fn comparable_declares_its_ordering_member() {
         let (table, interner) = seeded();
         let graph = ClassGraph::default();
         let (owner, sig) = resolve_method(&QName::parse(COMPARABLE), "compareTo", &table, &graph)

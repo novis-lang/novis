@@ -70,7 +70,7 @@ const BLOCKS: &[(&str, &str)] = &[
 /// line: a roster is only as good as its worst entry, and a sweep that stopped at the first failure
 /// would report one missing block per run.
 #[test]
-fn every_block_an_adr_writes_out_is_in_the_tree() {
+fn every_block_a_rule_writes_out_is_in_the_tree() {
     let refused: Vec<&str> = BLOCKS
         .iter()
         .filter(|(_, text)| {

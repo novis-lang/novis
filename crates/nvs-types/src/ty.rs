@@ -1236,7 +1236,7 @@ mod tests {
     /// `rule:types/single-value-types`: a diagnostic names the accepted set by printing the type
     /// itself, so each atom has to render as the source spelling it came from.
     #[test]
-    fn describe_renders_adr_0047s_three_atoms() {
+    fn describe_renders_the_three_atoms() {
         let mut i = TypeInterner::new();
         let s = i.single_value_string("a");
         assert_eq!(i.describe(s), "\"a\"");

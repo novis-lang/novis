@@ -262,7 +262,7 @@ impl ScalarType {
     /// Total, injective, and never [`ColumnType::Other`] — that case is every
     /// type with no Novis type of its own, and the vocabulary contains none of
     /// them by construction.
-    /// `the_column_type_vocabulary_is_adr_0067_section_9s_map_in_the_write_direction`
+    /// `the_column_type_vocabulary_is_the_read_map_in_the_write_direction`
     /// holds all three properties.
     #[must_use]
     pub fn describes(&self) -> ColumnType {
@@ -1297,7 +1297,7 @@ mod tests {
     /// from the type it was written as, which is `rule:core-classes/schema-is-a-value`'s empty-plan property
     /// failing at the first `dump`.
     #[test]
-    fn the_column_type_vocabulary_is_adr_0067_section_9s_map_in_the_write_direction() {
+    fn the_column_type_vocabulary_is_the_read_map_in_the_write_direction() {
         let written = [
             ScalarType::Int(IntWidth::Small),
             ScalarType::Uint(IntWidth::Big),

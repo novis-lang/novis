@@ -1666,7 +1666,8 @@ const ASSERT_NEVER_CALLED_DOC: MethodDoc = MethodDoc {
     ],
 };
 
-/// `Core\Test::assertCompletes`'s reference card — `rule:core-api/reference-card`.
+/// `Core\Test::assertCompletes`'s reference card — `rule:core-api/reference-card`. The budget
+/// is `rule:testing/task-tree-and-virtual-clock`'s.
 const ASSERT_COMPLETES_DOC: MethodDoc = MethodDoc {
     short: "Runs `$body` with the test's clock advanced by `$settings.within`, and asserts that it \
             left nothing still running. Wall-clock time is never read, so a budget written in \
@@ -1698,8 +1699,7 @@ const ASSERT_COMPLETES_DOC: MethodDoc = MethodDoc {
         },
     ],
     ret: "Nothing. A `$body` that returned having left a task of its own still running throws, \
-          naming the budget it overran — `rule:testing/task-tree-and-virtual-clock`, read at the \
-          one moment it means anything.",
+          naming the budget it overran. The check runs when `$body` returns.",
     errors: &[
         ErrorDoc {
             error: "Core\\Test\\Failure",

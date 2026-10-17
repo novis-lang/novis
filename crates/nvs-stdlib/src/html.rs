@@ -2796,7 +2796,7 @@ mod tests {
     /// missed: a symbol with no [`address`] arm links and then panics naming
     /// itself the first time a program calls the member.
     #[test]
-    fn sanitize_is_an_adr_0024_launderer_beside_escape() {
+    fn sanitize_is_a_launderer_beside_escape() {
         nvs_footprint::card(CLASS.name);
         let sanitize = CLASS
             .members()

@@ -5970,7 +5970,7 @@ mod tests {
     }
 
     #[test]
-    fn the_codes_adr_0098_originally_named_still_belong_to_their_owners() {
+    fn the_for_and_catch_codes_still_belong_to_their_owners() {
         assert_eq!(code::E_FOR_INIT_MIXES_DECL_AND_EXPR.as_str(), "E0124");
         assert_eq!(code::E_FOR_INIT_TWO_DECLARATIONS.as_str(), "E0125");
         assert_eq!(code::E_CATCH_ARM_NOT_AN_EXPRESSION.as_str(), "E0126");
