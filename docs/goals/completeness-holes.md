@@ -55,8 +55,8 @@ stages:
         rules: [testing/debug-mode-directive, testing/debug-probes, observability/a-query-is-a-trace-event]
   - id: 8
     title: compiled code does what the checker accepted
-    status: open
-    context: [crates/nvs-ir/src/ir.rs, crates/nvs-types/src/expr_table.rs, crates/nvs-ir/src/lower/control.rs, crates/nvs-ir/src/lower/convert.rs, crates/nvs-stdlib/src/instance.rs, data/gaps/nvs-stdlib/an-await-result-is-a-named-class-not-a-shape.json]
+    status: done
+    context: [crates/nvs-ir/src/ir.rs, crates/nvs-types/src/expr_table.rs, crates/nvs-ir/src/lower/control.rs, crates/nvs-ir/src/lower/convert.rs, crates/nvs-stdlib/src/instance.rs]
     extra:
       context:
         rules: [types/arrays, expressions/method-reference, iteration/foreach-subjects, expressions/nullable-conversion, types/anonymous-object]
@@ -261,10 +261,10 @@ the client sees a failed download.
 result is the shape it is typed as, and the two compiler panics on accepted code are gone.
 
 - [x] A positional element after an integer key takes the next key after the highest. `crates/nvs-ir/src/ir.rs:1693`
-- [ ] `$cls::f(...)` resolves through the class `$cls` holds. `crates/nvs-types/src/expr_table.rs:612`
+- [x] `$cls::f(...)` resolves through the class `$cls` holds. `crates/nvs-types/src/expr_table.rs:612`
 - [x] `foreach` over `mixed` lowers or is refused by the checker. `crates/nvs-ir/src/lower/control.rs:992`
 - [x] `as ?{...}` from `mixed` lowers or is refused by the checker. `crates/nvs-ir/src/lower/convert.rs:443`
-- [ ] The `Core` shape descriptors take the `$shape{...}` label, so an `await` result renders and encodes as a shape. `crates/nvs-stdlib/src/instance.rs:652`, `crates/nvs-stdlib/src/script.rs:476`
+- [x] The `Core` shape descriptors take the `$shape{...}` label, so an `await` result renders and encodes as a shape. `crates/nvs-stdlib/src/instance.rs:652`, `crates/nvs-stdlib/src/script.rs:476`
 
 ### 9. JIT pages are freed, and every call site has its probe
 
@@ -323,16 +323,13 @@ work cannot live only in prose again.
 
 ### State
 
-Stages 1 to 4 are done. Stage 8 has three of its five items on disk. A positional element of an
-array literal with an explicit key or a spread is an `ArrayAppend`, so it takes one past the highest
-integer key (`crates/nvs-ir/src/lower/expr.rs`'s `lower_array_literal`). A `mixed` or `iterable`
-`foreach` subject is `E0443` where it is written, and the help names `($m as array<mixed>)`
-(`crates/nvs-types/src/expr/iteration.rs`'s `report_unchecked_subject`). The trade-off is one
-written conversion over a `mixed` such as `Core\Request::json()`, and no run-time cost: the shape
-compiled to a lowering panic before, so no working program changes. `$x as ?Shape` runs the
-checked shape row's field walk with a `null` miss arm (`crates/nvs-ir/src/lower/convert.rs`'s
-`lower_nullable_shape_conversion`), and the checker no longer calls `object as ?Shape` a conversion
-that cannot fail. The three `data/gaps/nvs-ir/` records are deleted.
+Stages 1 to 4 and 8 are done. Stage 8's last two items landed this session. `$cls::f(...)` over a
+`class<T>` stores the descriptor `$cls` holds in the callable's `fcc#desc` field, and its thunk
+makes the same `CallVirtual` the direct `$cls::f()` makes (`crates/nvs-ir/src/lower/expr.rs`'s
+`lower_method_ref_on_a_class_reference`, `crates/nvs-ir/src/lower/anon_fn.rs`'s `lower_callable`).
+It costs one word per such callable object. The three `Core`-built shape descriptors are named by
+their `$shape{…}` labels (`crates/nvs-stdlib/src/instance.rs`'s `SHAPE_ROSTER`), so an `await`
+record and a `Core\Issue` render and encode as shapes. Both records are deleted.
 
 Stage 6's two items are on disk. Its remainder is
 `data/gaps/nvs-ext/a-workbook-never-finished-is-neither-logged-nor-cut-off.json`: a program that
@@ -359,10 +356,13 @@ behind the local `main`. Its failures are the old tree's until the user pushes.
 
 ### Next
 
-**Stage 8's last two items, over `crates/nvs-types/src/expr_table.rs` and `crates/nvs-stdlib/src/instance.rs`.**
+**Stage 9's probe item, over `crates/nvs-codegen/src/emit.rs` and `crates/nvs-runtime/src/callable.rs`.**
+The JIT-pages item is a session of its own after it, over `crates/nvs-codegen/src/lib.rs:362` and
+`crates/nvs-cli/src/script.rs:1263` (`data/gaps/nvs-codegen/jit-pages-leak-on-every-recompile.json`).
 
-- [ ] `$cls::f(...)` resolves through the class `$cls` holds, as the direct call does (`rule:expressions/method-reference`, `data/gaps/nvs-types/a-method-reference-through-a-class-variable-binds-the-declared-method.json`). `crates/nvs-types/src/expr_table.rs:612`
-- [ ] The `Core` shape descriptors take the `$shape{...}` label, so an `await` result renders and encodes as a shape (`rule:types/anonymous-object`, `data/gaps/nvs-stdlib/an-await-result-is-a-named-class-not-a-shape.json`). `crates/nvs-stdlib/src/instance.rs:652`, `crates/nvs-stdlib/src/script.rs:476`
+- [ ] Choose the label a call with no compile-time callee name reports, from what `rule:testing/debug-probes` already says, and name it in the record's module doc (`data/gaps/nvs-runtime/callable-call-passes-no-call-probe.json`). `crates/nvs-runtime/src/callable.rs:283`
+- [ ] Emit the probe pair around `nvs_call_callable` and `InstKind::CoreCall` (`rule:testing/debug-probes`). `crates/nvs-codegen/src/emit.rs:627`, `crates/nvs-codegen/src/emit.rs:2317`
+- [ ] A case that a trace counts a callback's calls, then re-record the benches that call through a callable (`bun nv benches --owed`). `crates/nvs-runtime/src/ctx/trace.rs:744`
 
 ### Backlog
 
