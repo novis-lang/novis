@@ -10,5 +10,5 @@
     "crates/nvs-stdlib/tests/tier_boundary.rs",
     "crates/nvs-stdlib/src/registry.rs"
   ],
-  "milestone": "M17"
+  "goal": "image-second-wave"
 }

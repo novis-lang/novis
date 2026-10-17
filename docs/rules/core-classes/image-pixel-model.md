@@ -31,5 +31,5 @@ What a gd program becomes, one row per concept:
 
 **Partly on disk.** The component works on RGBA8 frames throughout, and a pixel source and the `raw`
 output are RGBA8 rows (`extensions/image/src/lib.rs`). `Image::info` returns `exif` as `null`,
-because the component has no EXIF reader (`extensions/image/src/info.rs:5`); M17's image second
-wave fills it (`docs/plan/m17.md`).
+because the component has no EXIF reader (`extensions/image/src/info.rs:5`); goal
+`image-second-wave` fills it.

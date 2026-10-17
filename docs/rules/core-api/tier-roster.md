@@ -39,7 +39,7 @@ The placements the tests produce, outside the `Core` classes the spec lists:
 tier-boundary guard in `crates/nvs-stdlib/tests/tier_boundary.rs` holds the rule for what is
 registered. The four first-party components are on disk: `extensions/image/`, `extensions/intl/`,
 `extensions/pdf/` and `extensions/spreadsheet/`. The image component has no EXIF reader
-(`rule:core-classes/image-pixel-model`); it is M17's (`docs/plan/m17.md`).
+(`rule:core-classes/image-pixel-model`); it is goal `image-second-wave`'s.
 
 **Declined**, each named so it is not re-proposed:
 - **The procedural `mysqli`, `pgsql` and `sqlite3` APIs.** One database API (`rule:core-classes/db-one-api`).

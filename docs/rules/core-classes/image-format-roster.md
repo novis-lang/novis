@@ -21,8 +21,8 @@ through `rav1d` on one thread (`extensions/image/src/avif.rs`). JPEG, PNG, WebP,
 encode (`extensions/image/src/encode.rs`, `crates/nvs-ext/tests/image_pipeline.rs`): lossy WebP
 through the libwebp that `extensions/image/build.rs` links, and AVIF through `ravif` on one thread.
 Only the first frame of an animated input is decoded, so `Image::info`'s `frames` is always `1`
-(`extensions/image/src/decode.rs:16`), and APNG is not encoded. M17's image second wave decodes every
-frame of APNG and the other animated formats and reports the real count (`docs/plan/m17.md`). SVG
+(`extensions/image/src/decode.rs:16`), and APNG is not encoded. Goal `image-second-wave` decodes
+every frame of APNG and the other animated formats and reports the real count. SVG
 decodes through `resvg` with an image
 resolver that reads only `data:` URIs and throws `RuntimeError` naming any other `href`
 (`extensions/image/src/svg.rs`); its `<text>` is drawn with the twelve Liberation faces and never a
