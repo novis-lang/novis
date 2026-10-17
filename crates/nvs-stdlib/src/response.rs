@@ -369,7 +369,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "stream",
-            names: &["contentType", "length", "etag"],
+            names: &["contentType", "length", "etag", "mustEnd"],
             // `bytes`' second mark, for `bytes`' reason and no other: this is
             // the other member that cannot know the media type, so it is told
             // one, and a media type is the one string here that becomes an
@@ -377,13 +377,15 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             // (`rule:security/sink-predicate`). The tag is a header too, and
             // the peer sends it back to choose which bytes it gets, so it is
             // marked the same way. What the chunks carry is [`STREAM`]'s
-            // question and is marked there.
+            // question and is marked there. The label only reaches the log,
+            // which escapes what it writes, so it is not a sink.
             params: &[
                 CoreTy::Text(Qual::Sink),
                 CoreTy::Nullable(&CoreTy::Int),
                 CoreTy::Nullable(&CoreTy::Text(Qual::Sink)),
+                CoreTy::Nullable(&CoreTy::Text(Qual::Neutral)),
             ],
-            defaults: &[Const::Null, Const::Null],
+            defaults: &[Const::Null, Const::Null, Const::Null],
             return_ty: CoreTy::Instance(STREAM_NAME),
             symbol: STREAM_SYMBOL,
             doc: Some(&STREAM_DOC),
@@ -536,11 +538,14 @@ const STREAM_WRITE_SYMBOL: &str = "nvs_core_response_stream_write";
 const STREAM_OFFSET_SYMBOL: &str = "nvs_core_response_stream_offset";
 /// See [`STREAM_SYMBOL`].
 const STREAM_LENGTH_SYMBOL: &str = "nvs_core_response_stream_length";
+/// See [`STREAM_SYMBOL`].
+const STREAM_END_SYMBOL: &str = "nvs_core_response_stream_end";
 
 /// `Core\Response\Stream`'s class card — `rule:core-api/reference-card`.
 const STREAM_CARD: ClassDoc = ClassDoc {
     short: "A response body that your program sends in parts. `Core\\Response::stream()` returns \
-            it, and its `write()` method sends each part. The body ends when the program ends.",
+            it, and its `write()` method sends each part. The body ends when the program ends, \
+            or when your program calls `end()`.",
 };
 
 /// `rule:concurrency/a-stream-that-outlives-its-request-is-a-connection`'s
@@ -557,13 +562,16 @@ const STREAM_CARD: ClassDoc = ClassDoc {
 /// `a_class_with_slots_has_instance_members_and_the_reverse` is where the two
 /// are listed.
 ///
-/// **The body ends when the isolate does**, and that is the whole lifetime
-/// rule: there is no `close` member, because `nvs_runtime::stream::Emit`'s own
-/// `Drop` ends the body when the request's context goes, and a member that
-/// ended it early would be a second answer to when a response is over. A client
-/// reading one with `EventSource` reconnects at that point; that is a property
-/// of a request-scoped stream rather than a fault, and the reader for it is
-/// `fetch` or a progress UI that closes itself.
+/// **The body ends when the isolate does, or at `end`.** The isolate's finish
+/// path ends a body nothing ended, and `nvs_runtime::stream::Emit`'s own `Drop`
+/// is the floor under it. `end` is there for a stream opened with `$mustEnd`:
+/// such a body is complete only once the program says so, and one the program
+/// never ended is cut off and logged when it stops
+/// (`nvs_runtime::Ctx::end_unfinished_stream`), so a client never takes a body
+/// cut short by a returning program for a whole one. A client reading one with
+/// `EventSource` reconnects when the body ends; that is a property of a
+/// request-scoped stream rather than a fault, and the reader for it is `fetch`
+/// or a progress UI that closes itself.
 pub(crate) const STREAM: CoreClass = CoreClass {
     name: STREAM_NAME,
     doc: Some(&STREAM_CARD),
@@ -606,6 +614,15 @@ pub(crate) const STREAM: CoreClass = CoreClass {
             symbol: STREAM_LENGTH_SYMBOL,
             doc: Some(&STREAM_LENGTH_DOC),
         },
+        CoreMethod {
+            name: "end",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Void,
+            symbol: STREAM_END_SYMBOL,
+            doc: Some(&STREAM_END_DOC),
+        },
     ],
     slots: &[],
     constants: &[],
@@ -615,7 +632,8 @@ pub(crate) const STREAM: CoreClass = CoreClass {
 const STREAM_DOC: MethodDoc = MethodDoc {
     short: "Starts a response body that your program sends in parts, and sets the header \
             `Content-Type` to `$contentType`. The status and the headers are sent when this is \
-            called, and the body ends when the program ends.",
+            called. The body ends when the program ends, or when your program calls `end()` on \
+            the stream.",
     params: &[
         ParamDoc {
             name: "contentType",
@@ -639,6 +657,14 @@ const STREAM_DOC: MethodDoc = MethodDoc {
                    a new name when the bytes change. A browser that resumes a download sends the \
                    name back, and gets the whole body if the name is old. It becomes a header, so \
                    a `tainted` value does not compile.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "mustEnd",
+            desc: "A name for the body, such as the name of a download, or `null`. With a name, \
+                   the body is complete only after your program calls `end()` on the stream. If \
+                   the program stops before that, the body is cut off. The browser then shows a \
+                   failed download, and the error log names the body.",
             shape: &[],
         },
     ],
@@ -683,6 +709,16 @@ const STREAM_LENGTH_DOC: MethodDoc = MethodDoc {
     }],
 };
 
+/// `Core\Response\Stream::end`'s reference card — `rule:core-api/reference-card`.
+const STREAM_END_DOC: MethodDoc = MethodDoc {
+    short: "Ends the body. The client receives the end of the body at once, and your program can \
+            go on running. Calling `end()` a second time does nothing.",
+    params: &[],
+    ret: "Nothing. A stream started with `$mustEnd` needs this call, or the body is cut off when \
+          the program stops. A `write()` after `end()` throws an error.",
+    errors: &[],
+};
+
 /// `Core\Response\Stream::write`'s reference card — `rule:core-api/reference-card`.
 const STREAM_WRITE_DOC: MethodDoc = MethodDoc {
     short: "Sends one part of the body. If the client has not finished reading the last part, \
@@ -707,7 +743,8 @@ const STREAM_WRITE_DOC: MethodDoc = MethodDoc {
         ErrorDoc {
             error: "LogicError",
             desc: "The stream was started with a `$length`, and this part goes past the end of \
-                   `length()`. Nothing is sent.",
+                   `length()`. Nothing is sent. It is also thrown when `end()` was already \
+                   called on the stream.",
         },
     ],
 };
@@ -1096,6 +1133,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         STREAM_WRITE_SYMBOL => (nvs_core_response_stream_write as *const ()).cast(),
         STREAM_OFFSET_SYMBOL => (nvs_core_response_stream_offset as *const ()).cast(),
         STREAM_LENGTH_SYMBOL => (nvs_core_response_stream_length as *const ()).cast(),
+        STREAM_END_SYMBOL => (nvs_core_response_stream_end as *const ()).cast(),
         "nvs_core_response_set_status" => (nvs_core_response_set_status as *const ()).cast(),
         "nvs_core_response_slotted" => (nvs_core_response_slotted as *const ()).cast(),
         "nvs_core_response_set_header" => (nvs_core_response_set_header as *const ()).cast(),
@@ -1983,7 +2021,7 @@ nvs_runtime::nvs_helper! {
 
 nvs_runtime::nvs_helper! {
     /// `Core\Response::stream(string $contentType, ?int $length = null,
-    /// ?string $etag = null): Core\Response\Stream` —
+    /// ?string $etag = null, ?string $mustEnd = null): Core\Response\Stream` —
     /// `rule:concurrency/a-stream-that-outlives-its-request-is-a-connection`'s
     /// stream that ends with its response, as the member that opens one.
     ///
@@ -2017,7 +2055,11 @@ nvs_runtime::nvs_helper! {
     /// Where there is no cell there is nothing that refusal could be about, and
     /// the later declaration simply wins — `Ctx::declare_content_type`'s own
     /// rule for every body member written twice.
-    fn nvs_core_response_stream(ctx, args: [3]) {
+    ///
+    /// **`$mustEnd` is put on the context too**, on a connection and off one:
+    /// the finish path reads it to cut off and log a body the program never
+    /// ended (`nvs_runtime::Ctx::end_unfinished_stream`).
+    fn nvs_core_response_stream(ctx, args: [4]) {
         head_open(ctx, "Core\\Response::stream")?;
         // Unreachable from source: the row's parameter is a `CoreTy::Text`, so
         // `E0401` refuses anything that is not a `string` before this runs — and
@@ -2042,6 +2084,7 @@ nvs_runtime::nvs_helper! {
         }
         let length = stated_length(&args[1])?;
         let etag = stated_etag(&args[2])?;
+        let must_end = stated_label(&args[3])?;
         // Cloned rather than borrowed, for `Core\Sse::upgrade`'s reason: the
         // cell is a shared handle by construction, so a clone is one refcount
         // and no borrow of the carrier held across the write below.
@@ -2090,9 +2133,25 @@ nvs_runtime::nvs_helper! {
         } else {
             ctx.set_stream_window(length.map(|total| nvs_runtime::stream::Window::new(0, total)));
         }
+        ctx.set_stream_must_end(must_end);
         ctx.declare_content_type(media_type);
         Ok(crate::instance::build(&STREAM, []))
     }
+}
+
+/// `Core\Response::stream`'s `$mustEnd`, and `None` where it was not given.
+fn stated_label(value: &Value) -> Result<Option<Box<str>>, Fault> {
+    if matches!(value.tag(), Some(Tag::Null | Tag::Unset)) {
+        return Ok(None);
+    }
+    // Unreachable from source: the row's parameter is a `?string`.
+    let label = value.as_text().ok_or_else(|| {
+        Fault::fatal(format!(
+            "Core\\Response::stream expected a `string` for `$mustEnd`, got tag {}",
+            value.tag_byte()
+        ))
+    })?;
+    Ok(Some(label.into()))
 }
 
 /// `Core\Response::stream`'s `$length`, and `None` where it was not given.
@@ -2179,6 +2238,16 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
+    /// `Core\Response\Stream::end(): void` — ends the body now, which a stream
+    /// opened with `$mustEnd` needs before the program stops.
+    fn nvs_core_response_stream_end(ctx, args: [1]) {
+        crate::instance::receiver(args[0], &STREAM, "end")?;
+        ctx.end_body_stream();
+        Ok(Value::null())
+    }
+}
+
+nvs_runtime::nvs_helper! {
     /// `Core\Response\Stream::write(string|bytes $chunk): void` — one chunk of a
     /// body being written over time.
     ///
@@ -2215,6 +2284,13 @@ nvs_runtime::nvs_helper! {
                     args[1].tag_byte()
                 ))
             })?;
+        if ctx.stream_ended() {
+            return Err(Fault::thrown_as(
+                nvs_runtime::ThrownClass::Logic,
+                "Core\\Response\\Stream::write(): the stream has ended, because `end()` was \
+                 called. Nothing was sent.",
+            ));
+        }
         // The count is the program's, so a write past the window throws before
         // any of it is sent, on a connection and off one alike.
         ctx.claim_stream_bytes(chunk.len()).map_err(|past| {
@@ -2558,10 +2634,10 @@ mod tests {
         ctx
     }
 
-    /// `Core\Response::stream`'s three arguments for `media_type`, with no
-    /// length and no tag.
-    fn unsized_stream(media_type: Value) -> [Value; 3] {
-        [media_type, Value::null(), Value::null()]
+    /// `Core\Response::stream`'s four arguments for `media_type`, with no
+    /// length, no tag and no `$mustEnd`.
+    fn unsized_stream(media_type: Value) -> [Value; 4] {
+        [media_type, Value::null(), Value::null(), Value::null()]
     }
 
     /// `Core\Response::stream` with a length: the decision runs over the
@@ -2587,7 +2663,7 @@ mod tests {
         let handle = call(
             super::nvs_core_response_stream,
             &mut ctx,
-            &[media_type, Value::int(10), etag],
+            &[media_type, Value::int(10), etag, Value::null()],
         )
         .expect("an offered cell takes the stream");
         let offset = call(super::nvs_core_response_stream_offset, &mut ctx, &[handle])
@@ -2638,7 +2714,7 @@ mod tests {
         let whole = call(
             super::nvs_core_response_stream,
             &mut off,
-            &[media_type, Value::int(3), Value::null()],
+            &[media_type, Value::int(3), Value::null(), Value::null()],
         )
         .expect("a stream off a connection opens");
         let length = call(super::nvs_core_response_stream_length, &mut off, &[whole])
@@ -2648,8 +2724,8 @@ mod tests {
         let mut refused = Ctx::buffered();
         let bad_tag = Value::str(NvsStr::new(b"v\"1"));
         for args in [
-            [media_type, Value::int(-1), Value::null()],
-            [media_type, Value::int(1), bad_tag],
+            [media_type, Value::int(-1), Value::null(), Value::null()],
+            [media_type, Value::int(1), bad_tag, Value::null()],
         ] {
             call(super::nvs_core_response_stream, &mut refused, &args)
                 .expect_err("a negative length and a tag with a quote throw");
@@ -2723,6 +2799,95 @@ mod tests {
         dropped(media_type);
         dropped(chunk);
         dropped(handle);
+    }
+
+    /// A stream opened with `$mustEnd` is complete only after `end()`. Ended,
+    /// the connection reads the end of the body, a later write throws, and the
+    /// finish path has nothing to report. Not ended, the finish path cuts the
+    /// body off and reports it — `rule:core-classes/spreadsheet-writes-as-a-stream`.
+    /// A stream opened without one is never reported.
+    // covers: Core\Response::stream
+    // covers: Core\Response\Stream::end
+    // covers: Core\Response\Stream::write
+    #[test]
+    fn a_stream_that_must_end_is_cut_off_unless_the_program_ends_it() {
+        let media_type = Value::str(NvsStr::new(b"text/csv"));
+        let label = Value::str(NvsStr::new(b"orders.csv"));
+        let marked = [media_type, Value::null(), Value::null(), label];
+
+        let slot = offered_cell();
+        let mut ended = framing(&slot);
+        let handle = call(super::nvs_core_response_stream, &mut ended, &marked)
+            .expect("an offered cell takes the stream");
+        let chunk = Value::str(NvsStr::new(b"id\n"));
+        call(
+            super::nvs_core_response_stream_write,
+            &mut ended,
+            &[handle, chunk],
+        )
+        .expect("a write before `end()` is sent");
+        call(super::nvs_core_response_stream_end, &mut ended, &[handle])
+            .expect("`end()` ends the body");
+        call(super::nvs_core_response_stream_end, &mut ended, &[handle])
+            .expect("a second `end()` does nothing");
+        call(
+            super::nvs_core_response_stream_write,
+            &mut ended,
+            &[handle, chunk],
+        )
+        .expect_err("a write after `end()` throws");
+        assert!(
+            ended
+                .take_pending()
+                .is_some_and(|message| message.contains("`end()` was called"))
+        );
+        assert!(
+            !ended.end_unfinished_stream(),
+            "an ended stream is reported"
+        );
+        let mut head = slot
+            .take(std::task::Waker::noop())
+            .expect("the member filled the cell");
+        assert!(matches!(
+            head.drain.next_chunk(std::task::Waker::noop()),
+            nvs_runtime::stream::Drained::Chunk(_)
+        ));
+        assert!(matches!(
+            head.drain.next_chunk(std::task::Waker::noop()),
+            nvs_runtime::stream::Drained::Ended
+        ));
+
+        let slot = offered_cell();
+        let mut unended = framing(&slot);
+        let forgotten = call(super::nvs_core_response_stream, &mut unended, &marked)
+            .expect("an offered cell takes the stream");
+        assert!(
+            unended.end_unfinished_stream(),
+            "the unended stream was not reported"
+        );
+        let mut head = slot
+            .take(std::task::Waker::noop())
+            .expect("the member filled the cell");
+        assert!(matches!(
+            head.drain.next_chunk(std::task::Waker::noop()),
+            nvs_runtime::stream::Drained::Aborted
+        ));
+
+        let mut plain = Ctx::buffered();
+        let unmarked = call(
+            super::nvs_core_response_stream,
+            &mut plain,
+            &unsized_stream(media_type),
+        )
+        .expect("a stream off a connection opens");
+        assert!(
+            !plain.end_unfinished_stream(),
+            "an unmarked stream was reported"
+        );
+
+        for value in [media_type, label, handle, chunk, forgotten, unmarked] {
+            dropped(value);
+        }
     }
 
     /// The cell's refusal reaching a program: a response has one body, so the

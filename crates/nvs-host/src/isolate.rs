@@ -1358,7 +1358,11 @@ fn finish(isolate_ctx: &mut Ctx, answer: Value, receiving: Option<&ErrorClass>) 
     // client sees a failed response rather than a complete one
     // (`rule:core-classes/spreadsheet-writes-as-a-stream`'s cut-off download).
     // Beside the three takes above because it is the same act: what is left on
-    // the context once the program has stopped running belongs to nobody.
+    // the context once the program has stopped running belongs to nobody. A
+    // stream the program said it would end with `end()` and did not is cut off
+    // and logged first, however the program stopped
+    // (`Ctx::end_unfinished_stream`).
+    isolate_ctx.end_unfinished_stream();
     if let Some(mut body) = isolate_ctx.take_body_stream()
         && (cancelled || failed || isolate_ctx.ending() == Err(nvs_runtime::FATAL))
     {

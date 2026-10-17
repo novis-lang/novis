@@ -3,8 +3,8 @@ Sends one part of a response body that `Core\Response::stream` started. The part
 
 If the client has not finished reading the last part, `write` waits until it has. So only one part
 waits in memory at a time, even when the client reads slowly. If the client closes the connection,
-or stops reading for longer than the server's send timeout, `write` throws a `RuntimeError`. The
-stream is then closed.
+or stops reading for longer than the server's send timeout, `write` returns at once and the part is
+not sent. Your program still runs to its end. After `end()`, `write` throws a `LogicError`.
 
 The client gets one body. It does not see where one part ends and the next part starts.
 

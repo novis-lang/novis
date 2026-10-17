@@ -1,0 +1,14 @@
+--TEST--
+A stream `Core\Response::stream` started with `$mustEnd` and never ended is an error on standard error that names it and fails the run — `rule:core-classes/spreadsheet-writes-as-a-stream`
+--FILE--
+<?nvs
+// covers: Core\Response::stream
+// The program writes a part and returns without `end()`. Nothing catches the
+// error: the program has already ended, so it is reported the way an uncaught
+// throw is, after everything the program printed, and the run exits with 1.
+var $body = Core\Response::stream("text/csv", null, null, "orders.csv");
+$body->write("id,name\n");
+--EXPECT--
+id,name
+--EXPECT-ERROR--
+{"level":"error","msg":"A response stream started with `$mustEnd` was not ended, so its body is cut off. Call `end()` on the stream before the program ends.","fields":{"stream":"orders.csv"}}

@@ -1,0 +1,8 @@
+--METHOD--
+GET
+--PATH--
+/export
+--QUERY--
+name=a%0D%0A%22level%22%3A%22info%22%2C%22msg%22%3A%22ok%22%0D%0A
+--HEADERS--
+host: example.com

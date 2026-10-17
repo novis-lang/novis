@@ -1,0 +1,23 @@
+--TEST--
+A `Workbook` download the program never finishes is an error on standard error that names the download and fails the run, and one it finishes is not: rule:core-classes/spreadsheet-writes-as-a-stream
+--FILE--
+<?nvs
+// covers: Novis\Spreadsheet\Workbook::createForDownload
+// covers: Novis\Spreadsheet\Workbook::finish
+// The first download is finished, so `finish` ends its stream and nothing is
+// reported. The second is never finished. The program has already ended when
+// that is found, so it is reported after everything the program printed, and the
+// run exits with 1.
+use Novis\Spreadsheet\Workbook;
+
+var $done = Workbook::createForDownload("people.csv");
+$done->sheet("People")->add(["name" => "Ada"]);
+$done->finish();
+
+var $left = Workbook::createForDownload("orders.csv");
+$left->sheet("Orders")->add(["id" => 1]);
+--EXPECT--
+name
+Ada
+--EXPECT-ERROR--
+{"level":"error","msg":"A response stream started with `$mustEnd` was not ended, so its body is cut off. Call `end()` on the stream before the program ends.","fields":{"stream":"orders.csv"}}

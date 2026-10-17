@@ -1,0 +1,19 @@
+--TEST--
+Off a connection a later `Core\Response::stream` is a new stream: `end` on the first does not end it, and a `$mustEnd` stream ended inside a capture is not reported — `rule:core-classes/spreadsheet-writes-as-a-stream`
+--FILE--
+<?nvs
+// covers: Core\Response\Stream::end
+// The first stream is ended inside a capture. The second stream starts open, so
+// its write is sent, and the run reports nothing because both were ended.
+var $first = Core\Out::capture(fn (): void => {
+    var $body = Core\Response::stream("text/csv", null, null, "first.csv");
+    $body->write("a\n");
+    $body->end();
+});
+echo $first;
+var $second = Core\Response::stream("text/csv", null, null, "second.csv");
+$second->write("b\n");
+$second->end();
+--EXPECT--
+a
+b

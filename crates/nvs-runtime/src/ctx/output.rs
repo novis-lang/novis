@@ -761,6 +761,67 @@ impl Ctx {
         self.stream_window
     }
 
+    /// Records what `Core\Response::stream` was told about how its body ends:
+    /// `Some(label)` for a stream the program must end with
+    /// `Core\Response\Stream::end`, and `None` for one that ends when the
+    /// program does. Called on every stream the member opens, so a later stream
+    /// off a connection never keeps an earlier one's label or its ended state.
+    pub fn set_stream_must_end(&mut self, label: Option<Box<str>>) {
+        self.stream_must_end = label;
+        self.stream_ended = false;
+    }
+
+    /// Ends this request's streamed body now: the connection frames the end of
+    /// the body, and a later write throws. Off a connection there is no body
+    /// to end, and only the second half applies. A second call does nothing.
+    pub fn end_body_stream(&mut self) {
+        if let Some(mut emit) = self.body_stream.take() {
+            emit.finish();
+        }
+        self.stream_must_end = None;
+        self.stream_ended = true;
+    }
+
+    /// Whether [`Self::end_body_stream`] ended this request's stream.
+    #[must_use]
+    pub fn stream_ended(&self) -> bool {
+        self.stream_ended
+    }
+
+    /// Cuts off a stream the program said it would end and did not, reports it
+    /// as an error naming its label, and answers whether there was one —
+    /// `rule:core-classes/spreadsheet-writes-as-a-stream`'s workbook that was
+    /// never finished.
+    ///
+    /// The body is aborted through [`crate::stream::Emit::abort`], so the
+    /// client sees a failed response and not a complete one, and no user code
+    /// runs (`rule:concurrency/cancellation-runs-no-user-code`). Off a
+    /// connection there is no body, and only the report is made. The record
+    /// goes through [`crate::floor::report`], as
+    /// [`Self::end_abandoned_children`]'s does, so it reaches standard error for
+    /// `nvs run` and the request's log for a served request. The isolate's
+    /// finish path and `nvs run` call this when the program stops, and the
+    /// context's `Drop` calls it for every other context.
+    pub fn end_unfinished_stream(&mut self) -> bool {
+        let Some(label) = self.stream_must_end.take() else {
+            return false;
+        };
+        if let Some(mut emit) = self.body_stream.take() {
+            emit.abort();
+        }
+        let mut record = crate::floor::note(
+            nvs_render::Level::Error,
+            "A response stream started with `$mustEnd` was not ended, so its body is cut off. \
+             Call `end()` on the stream before the program ends.",
+        );
+        record
+            .envelope
+            .fields
+            .push(("stream".to_owned(), crate::floor::text(&label)));
+        crate::floor::report(self, &record);
+        true
+    }
+
     /// Counts `len` more bytes of a streamed body against its window, before
     /// any of them is sent.
     ///

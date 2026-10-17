@@ -3801,8 +3801,11 @@ fn run_run(
     // running without a `wait()` or a `kill()` is stopped here and reported as
     // an error. After the report of how the script ended, so an uncaught throw
     // or a `FATAL` comes first, and here rather than in the context's `Drop` so
-    // the run exits with `1`, as it does for an uncaught throw.
-    if ctx.end_abandoned_children() {
+    // the run exits with `1`, as it does for an uncaught throw. A stream the
+    // script said it would end with `end()` and did not is reported the same
+    // way (`rule:core-classes/spreadsheet-writes-as-a-stream`).
+    let abandoned = ctx.end_abandoned_children();
+    if ctx.end_unfinished_stream() || abandoned {
         return ExitCode::FAILURE;
     }
     code
