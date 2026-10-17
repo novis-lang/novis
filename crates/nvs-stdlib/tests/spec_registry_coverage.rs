@@ -56,21 +56,17 @@
 //! # An outstanding key names its owner, in a column
 //!
 //! Every key in every one of these files carries `# <owner>` after it: the goal
-//! from [the goals directory](/docs/goals/) that will strike the line, or
-//! a milestone still ahead whose own plan carries the work.
+//! from [the goals directory](/docs/goals/) that will strike the line.
 //! [`every_outstanding_key_names_an_owner`] is what makes that a field rather
-//! than a note — it reads the chain and the milestone records under
-//! `data/plan/milestones/` and fails on an owner
-//! neither of them answers for, so a goal renamed or dropped cannot leave a key
-//! pointing at nothing. [`owner_problem`] is where the two kinds are decided,
-//! and `tools/nv/cmd/owners.ts`'s module doc states the same kinds for a gap
-//! record.
+//! than a note — it reads the chain and fails on an owner the chain does not
+//! hold, so a goal renamed or dropped cannot leave a key pointing at nothing.
+//! [`owner_problem`] is where that is decided.
 //!
 //! **The word `unowned` is refused by name**, and
 //! [`unowned_is_no_longer_an_owner_for_a_key`] is what holds it refused. A key
 //! whose owner is a scheduling question puts that question to the user, and
-//! what comes back is a goal on the chain or a milestone whose plan states the
-//! scope; a word standing for "nobody has decided" is the one owner a reader
+//! what comes back is a goal on the chain; a word standing for "nobody has
+//! decided" is the one owner a reader
 //! cannot act on. `tools/nv/cmd/owners.ts` refuses the same word as the owner
 //! of a gap record under `data/gaps/`, and this file is the ratchet-file half
 //! of that rule.
@@ -423,50 +419,11 @@ fn chain_live() -> String {
         .unwrap_or_else(|| panic!("docs/goals/README.md: the chain is empty"))
 }
 
-/// The ids of the milestones still ahead: one record each under
-/// `data/plan/milestones/`, named `<id>.json`.
-///
-/// A finished milestone's record is deleted with its plan file, so a record on
-/// disk is the whole of "still ahead". `tools/nv/cmd/owners.ts`'s
-/// `milestonePlan` reads the same directory for the gap records.
-fn plan_milestones() -> BTreeSet<String> {
-    let dir = nvs_repo::path("data/plan/milestones");
-    fs::read_dir(&dir)
-        .unwrap_or_else(|err| panic!("{}: {err}", dir.display()))
-        .map(|entry| {
-            entry
-                .unwrap_or_else(|err| panic!("{}: {err}", dir.display()))
-                .path()
-        })
-        .filter(|path| path.extension().is_some_and(|ext| ext == "json"))
-        .filter_map(|path| path.file_stem().and_then(|s| s.to_str()).map(str::to_owned))
-        .collect()
-}
-
-/// Whether an owner is written as a milestone id: `M`, digits, and at most one
-/// upper-case suffix letter. The shape is `tools/nv/cmd/owners.ts`'s
-/// `MILESTONE`, and a goal slug cannot collide with it: a slug is lower case
-/// throughout.
-fn is_milestone_tag(owner: &str) -> bool {
-    let Some(rest) = owner.strip_prefix('M') else {
-        return false;
-    };
-    let digits = rest
-        .strip_suffix(|c: char| c.is_ascii_uppercase())
-        .unwrap_or(rest);
-    !digits.is_empty() && digits.bytes().all(|b| b.is_ascii_digit())
-}
-
 /// What is wrong with one key's owner column, or `None` if nothing is.
 ///
-/// Two kinds pass here: a goal the chain still holds, named by its slug, and a
-/// milestone tag with a record under `data/plan/milestones/`. A milestone owns a
-/// key the way it owns a gap: the work is scheduled rather than missing. A tag
-/// with no record is a milestone that finished and was deleted, or one that
-/// never existed, so nothing is left to carry the key. That is the same test
-/// `tools/nv/cmd/owners.ts:@resolve` makes.
+/// One kind passes here: a goal the chain still holds, named by its slug.
 ///
-/// `unowned` is asked about ahead of both and refused with a sentence of its
+/// `unowned` is asked about first and refused with a sentence of its
 /// own, because "this owner kind is retired" is the edit a reader has to make,
 /// where the generic refusal would send them looking for a typo in a word that
 /// is spelled correctly.
@@ -475,32 +432,19 @@ fn is_milestone_tag(owner: &str) -> bool {
 /// [`an_owner_that_is_not_a_live_chain_entry_fails`] can ask it about an owner
 /// no file on disk writes: a refusal nothing ever exercises is a refusal that
 /// can stop refusing without anything going red.
-fn owner_problem(
-    owner: Option<&String>,
-    goals: &BTreeSet<String>,
-    plan: &BTreeSet<String>,
-) -> Option<String> {
+fn owner_problem(owner: Option<&String>, goals: &BTreeSet<String>) -> Option<String> {
     let Some(owner) = owner else {
         return Some("names no owner".to_owned());
     };
     if owner == "unowned" {
         return Some(
             "names `unowned`, which is a retired owner kind — a key is owned by a live goal on \
-             the chain or by a milestone whose plan states the scope"
+             the chain"
                 .to_owned(),
         );
     }
     if goals.contains(owner.as_str()) {
         return None;
-    }
-    if is_milestone_tag(owner) {
-        if plan.contains(owner.as_str()) {
-            return None;
-        }
-        return Some(format!(
-            "names milestone {owner}, which has no record under data/plan/milestones/ — it \
-             finished and was deleted, or never existed"
-        ));
     }
     Some(format!(
         "names goal `{owner}`, which is not on the chain in docs/goals/README.md"
@@ -508,37 +452,24 @@ fn owner_problem(
 }
 
 /// Every key in every [`RATCHETS`] file names an owner a reader can act on: a
-/// goal the chain in [docs/goals/](/docs/goals/) still holds, named by its slug,
-/// or a milestone ahead of the program.
+/// goal the chain in [docs/goals/](/docs/goals/) still holds, named by its slug.
 ///
-/// [`owner_problem`] owns which two those are, and the module doc owns why the
-/// owner is a column rather than a header sentence.
+/// [`owner_problem`] owns that test, and the module doc owns why the owner is a
+/// column rather than a header sentence.
 #[test]
 fn every_outstanding_key_names_an_owner() {
     let goals = chain_goals();
-    let plan = plan_milestones();
     assert!(
         !goals.is_empty(),
         "docs/goals/README.md yielded no goal — the chain's shape has changed under this walk, and \
          every owner below is being checked against nothing"
-    );
-    assert!(
-        !plan.is_empty(),
-        "data/plan/milestones/ yielded no record — the directory has moved under \
-         `plan_milestones`, and every milestone owner below is being refused for the wrong reason"
-    );
-    let misnamed: Vec<&String> = plan.iter().filter(|id| !is_milestone_tag(id)).collect();
-    assert!(
-        misnamed.is_empty(),
-        "data/plan/milestones/ holds records whose file name is not a milestone id: {misnamed:?} — \
-         the naming has moved under `plan_milestones`, and an owner naming one could never match"
     );
 
     let mut wrong = Vec::new();
     for name in RATCHETS {
         let ratchet = outstanding_file(name);
         for key in &ratchet.keys {
-            if let Some(problem) = owner_problem(ratchet.owners.get(key), &goals, &plan) {
+            if let Some(problem) = owner_problem(ratchet.owners.get(key), &goals) {
                 wrong.push(format!("{name}: `{key}` {problem}"));
             }
         }
@@ -547,8 +478,7 @@ fn every_outstanding_key_names_an_owner() {
     assert!(
         wrong.is_empty(),
         "{} outstanding key(s) name an owner nobody can act on:\n  {}\n\
-         Write `# <goal-slug>` after the key, taking the slug from docs/goals/, or \
-         `# M<n>` naming a milestone with a record under data/plan/milestones/. An owner that went \
+         Write `# <goal-slug>` after the key, taking the slug from docs/goals/. An owner that went \
          green without striking its key is struck, not renamed.",
         wrong.len(),
         wrong.join("\n  ")
@@ -578,16 +508,13 @@ fn every_outstanding_key_names_an_owner() {
 
 /// The refusal [`every_outstanding_key_names_an_owner`] is written around, asked
 /// of the columns no file on disk writes: a goal the chain does not list, a
-/// milestone no record names, and no column at all.
-/// [`a_milestone_with_a_record_owns_a_key_and_a_deleted_one_does_not`] is the
-/// half that reads the real records.
+/// milestone tag, and no column at all.
 #[test]
 fn an_owner_that_is_not_a_live_chain_entry_fails() {
     let goals = chain_goals();
-    let plan = plan_milestones();
     let live = chain_live();
     let orphan = "no-such-goal".to_owned();
-    let unplanned = "M99".to_owned();
+    let milestone = "M9".to_owned();
 
     assert!(
         !goals.contains(orphan.as_str()),
@@ -595,25 +522,19 @@ fn an_owner_that_is_not_a_live_chain_entry_fails() {
          file uses"
     );
 
+    assert_eq!(owner_problem(Some(&live), &goals), None);
     assert!(
-        !plan.contains(unplanned.as_str()),
-        "data/plan/milestones/ now holds {unplanned}, so this case is asserting nothing — take a \
-         tag no record names"
-    );
-
-    assert_eq!(owner_problem(Some(&live), &goals, &plan), None);
-    assert!(
-        owner_problem(Some(&orphan), &goals, &plan).is_some(),
+        owner_problem(Some(&orphan), &goals).is_some(),
         "an owner naming goal `{orphan}`, which the chain does not hold, was accepted — a key can \
          point at nothing again"
     );
     assert!(
-        owner_problem(Some(&unplanned), &goals, &plan).is_some(),
-        "an owner naming milestone {unplanned}, which no record names, was accepted — a key can \
-         be deferred to a milestone nobody has planned"
+        owner_problem(Some(&milestone), &goals).is_some(),
+        "an owner naming milestone {milestone} was accepted — there are no milestones, so a key \
+         can be deferred to nothing"
     );
     assert!(
-        owner_problem(None, &goals, &plan).is_some(),
+        owner_problem(None, &goals).is_some(),
         "a key with no owner column at all was accepted"
     );
 }
@@ -628,7 +549,6 @@ fn an_owner_that_is_not_a_live_chain_entry_fails() {
 #[test]
 fn unowned_is_no_longer_an_owner_for_a_key() {
     let goals = chain_goals();
-    let plan = plan_milestones();
     let unowned = "unowned".to_owned();
 
     assert!(
@@ -637,50 +557,12 @@ fn unowned_is_no_longer_an_owner_for_a_key() {
          thing — rename the goal"
     );
 
-    let problem = owner_problem(Some(&unowned), &goals, &plan)
+    let problem = owner_problem(Some(&unowned), &goals)
         .expect("`unowned` was accepted as an owner — the retired kind owns keys again");
     assert!(
         problem.contains("retired"),
         "`unowned` is refused as a goal the chain does not hold rather than as a retired kind, \
          so the message reads as a typo to fix: {problem}"
-    );
-}
-
-/// A key deferred to a milestone still ahead is scheduled work, and one
-/// deferred to a milestone that finished is not.
-///
-/// Both tags are read from the real records, because the claim is about the
-/// plan as it stands. The ahead tag is any record under `data/plan/milestones/`.
-/// The finished tag is `M9`, whose record was deleted when it closed. The
-/// `milestone` and `broken` kinds in `tools/nv/cmd/owners.ts`'s module doc are
-/// the same rule over the gap records.
-#[test]
-fn a_milestone_with_a_record_owns_a_key_and_a_deleted_one_does_not() {
-    let goals = chain_goals();
-    let plan = plan_milestones();
-    let ahead = plan
-        .iter()
-        .next()
-        .cloned()
-        .unwrap_or_else(|| panic!("data/plan/milestones/ holds no record"));
-    let finished = "M9".to_owned();
-
-    assert!(
-        !plan.contains(finished.as_str()),
-        "data/plan/milestones/ holds {finished} again, so this case is asserting nothing about a \
-         finished milestone — take a tag whose record was deleted"
-    );
-
-    assert_eq!(
-        owner_problem(Some(&ahead), &goals, &plan),
-        None,
-        "a key deferred to {ahead}, which has a record, was refused — a milestone still ahead \
-         owns a key the way it owns a gap"
-    );
-    assert!(
-        owner_problem(Some(&finished), &goals, &plan).is_some(),
-        "a key deferred to {finished} was accepted — its record is deleted, so the tag names a \
-         carrier that has been and gone"
     );
 }
 
