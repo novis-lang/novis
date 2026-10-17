@@ -117,17 +117,19 @@ const TEST_TIMEOUT_S = 900;
  * them. `rule:core-classes/db-streaming`'s promises are `Core\Db\Connection::stream`'s rather than any one
  * driver's, and `crates/nvs-stdlib/tests/db_stream.rs` asserts them on whichever driver the leg names.
  * `nvs queue work` opens its own connection, so the block a worker reads as a dialect is `crates/nvs-cli`'s
- * to answer for, and the last entry is the unit test that opens one.
+ * to answer for, and so is `nvs queue migrate`: the unit test that opens a worker's block, and
+ * `crates/nvs-cli/tests/queue_migrate.rs`, which runs the command twice against the leg's database.
  *
- * Every entry is narrowed to the targets that ask a server something. The last names no `-p`: a `--bin`
- * already names one target in one package, and a `-p` would resolve features over that package alone
- * and rebuild the workspace beside itself.
+ * Every entry is narrowed to the targets that ask a server something. The last two name no `-p`: a
+ * `--bin` or a `--test` already names one target, and a `-p` would resolve features over that package
+ * alone and rebuild the workspace beside itself.
  */
 const SUITES: string[][] = [
   ["-p", "nvs-db"],
   ["-p", "nvs-stdlib", "--test", "queue"],
   ["-p", "nvs-stdlib", "--test", "db_stream"],
   ["--bin", "nvs", "worker::"],
+  ["--test", "queue_migrate"],
 ];
 
 /**
