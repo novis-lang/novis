@@ -33,9 +33,13 @@ stages:
     status: open
     context: [crates/nvs-ir/src/lower/expr.rs, crates/nvs-codegen/src/emit.rs]
   - id: 8
-    title: "what waits for a measured wall is a stated bound, and the userland ledger is gone"
+    title: "Core\\BigInt converts text in sub-quadratic time, or caps its digits"
     status: open
-    context: [docs/perf/userland-gap.md]
+    context: [crates/nvs-stdlib/src/bigint.rs]
+  - id: 9
+    title: "what waits for a measured wall is a stated bound, and the cross-engine suite is gone"
+    status: open
+    context: [docs/perf/userland-gap.md, tools/nv/cmd/bench.ts, docs/rules/testing/userland-benchmarks.md, docs/rules/tooling/bench-engine-list-is-data.md]
 checks: []
 ---
 
@@ -59,7 +63,7 @@ and no stage is judged by one.
 
 **Small and medium work only.** A slice that turns out to need a change to the helper ABI, the object
 layout, the codegen backend or the calling convention every `Core` member shares stops there. Its record
-becomes a stated bound in stage 8, naming what it costs and what would close it. Big work waits until a
+becomes a stated bound in stage 9, naming what it costs and what would close it. Big work waits until a
 measured program hits it.
 
 **`Markup + Markup` gets its new `unsafe` code.** The user decided it. The two pieces are the ones
@@ -142,15 +146,28 @@ and takes `docs/perf/userland-gap.md` § I's next shape.
 - [ ] Two identical string literals in one unit share one data object. `crates/nvs-codegen/src/emit.rs:1318`, `crates/nvs-codegen/src/emit.rs:1420`
 - [ ] A literal `Core\Str::format` template with `%0Nd` compiles without a call.
 
-### 8. what waits for a measured wall is a stated bound, and the userland ledger is gone
+### 8. Core\BigInt converts text in sub-quadratic time, or caps its digits
 
-**Does:** every record this goal owns and did not build is a stated bound in its module doc, and
-`docs/perf/userland-gap.md` is deleted.
+**Does:** closes `bigint-division-and-decimal-text-grow-quadratically` for the members that read or
+write decimal text. `parse` often reads text a request sent, so a quadratic `parse` is a
+denial-of-service question first and a speed question second.
 
-- [ ] `virtual-dispatch-resolves-by-name-not`, `nothing-inlines`, `a-switch-terminator-lowers-to-a-compare-chain` and `bigint-division-and-decimal-text-grow-quadratically` are stated bounds, each naming its cost and what closes it. So is any record an earlier stage stopped on.
-- [ ] `docs/perf/userland-gap.md`'s items G and J are stated bounds in `crates/nvs-runtime/src/object.rs` and `crates/nvs-stdlib/src/arr.rs`.
-- [ ] Its *ruled out* and *not on this list* facts move to the module docs they describe, without the cross-engine figures.
-- [ ] The file is deleted, and nothing links to it.
+- [ ] `parse`, `toString` and `format` convert by divide and conquer, so their cost is sub-quadratic in the number's length. Not checked: whether `num-bigint` (`Cargo.toml:452`) already has such a path. `crates/nvs-stdlib/src/bigint.rs:949`, `crates/nvs-stdlib/src/bigint.rs:1214`, `crates/nvs-stdlib/src/bigint.rs:1224`
+- [ ] Only if no sub-quadratic conversion fits a medium slice: `parse` and the text members throw past a fixed digit count, as Python does with its 4300-digit default. The user decided that order. The cap is a rule fragment with its own conformance case, and its message follows the prose rules.
+- [ ] Each converting member's bench has a `.scale.nvs` sibling that declares the class it reaches.
+- [ ] `div`, `mod`, `gcd`, `lcm`, `sqrt` and `powMod` get a sub-quadratic algorithm only where the same slice reaches it. The rest is a stated bound in the module doc, and the record is deleted.
+
+### 9. what waits for a measured wall is a stated bound, and the cross-engine suite is gone
+
+**Does:** every record this goal owns and did not build is a stated bound in its module doc.
+`benches/userland/`, its ledger and its rules are deleted. The website's comparison, `bun nv
+bench-compare` over `benches/compare/`, is a separate suite and stays.
+
+- [ ] `virtual-dispatch-resolves-by-name-not`, `nothing-inlines` and `a-switch-terminator-lowers-to-a-compare-chain` are stated bounds, each naming its cost and what closes it. So is any record an earlier stage stopped on.
+- [ ] `docs/perf/userland-gap.md`'s items G and J are stated bounds in `crates/nvs-runtime/src/object.rs` and `crates/nvs-stdlib/src/arr.rs`. Its *ruled out* and *not on this list* facts move to the module docs they describe, without the cross-engine figures. Then the file is deleted.
+- [ ] `benches/userland/` and `docs/perf/userland.ndjson` are deleted. `bun nv bench` keeps `--warm-start` alone, which CI runs (`.github/workflows/ci.yml:310`). `--serve-vs-fpm` and `benches/serve/hello.php` go with the suite, and `benches/serve/echo.nvs` stays for `bun nv bench-load`. `tools/nv/cmd/bench.ts:1`
+- [ ] `rule:testing/userland-benchmarks` and `rule:tooling/bench-engine-list-is-data` are retired, and nothing cites them.
+- [ ] Every other mention is rewritten or removed: `Cargo.toml:4`, `tools/nv/cmd/audit.ts:174`, `tools/nv/proofs/perf.ts:388`, `docs/setup.md:31`, `docs/agent/commands.md:513`, `docs/examples/README.md:10`, `benches/members/README.md:6`, `benches/serve/hello.nvs:6`, and the crate comments `grep -rn userland crates benches/abi-probe tests` names. A comment that cited a cross-engine figure as its evidence cites its guard test instead.
 
 ## Handoff
 
