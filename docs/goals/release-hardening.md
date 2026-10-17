@@ -26,7 +26,7 @@ stages:
       context:
         rules: [security/net-address-policy, security/csrf-is-on-by-default, concurrency/an-upgrade-is-spawn-shaped]
   - id: 4
-    title: "the process and file doors hold on every spelling"
+    title: the process and file doors hold on every spelling
     status: open
     context: [crates/nvs-runtime/src/capability.rs, crates/nvs-runtime/src/beneath.rs, docs/rules/core-classes/process-refuses-a-shell-target.md, docs/rules/core-classes/process-options.md, docs/rules/security/writes-open-beneath-a-handle.md]
     extra:
@@ -40,14 +40,14 @@ stages:
       context:
         rules: [types/conversion, http-server/engine-depth-is-bounded-per-decoder]
   - id: 6
-    title: every parser that reads outside bytes has a fuzz target, and the smuggling payloads are tests
+    title: "every parser that reads outside bytes has a fuzz target, and the smuggling payloads are tests"
     status: open
     context: [fuzz/Cargo.toml, .github/workflows/ci.yml, crates/nvs-server/src/serve.rs, docs/rules/testing/the-deep-lane.md]
     extra:
       context:
         rules: [testing/the-deep-lane]
   - id: 7
-    title: compiled code is checked against its unoptimised twin, and aarch64 Linux runs the tests
+    title: "compiled code is checked against its unoptimised twin, and aarch64 Linux runs the tests"
     status: open
     context: [crates/nvs-codegen/src/lib.rs, .github/workflows/ci.yml]
     extra:
@@ -146,8 +146,8 @@ an encoded separator, each with a 400 that closes the connection.
 **Does:** the default table denies every address that is not globally routable, and a WebSocket
 upgrade from another origin is refused unless its route opted out.
 
-- [ ] The table denies the IANA special-purpose ranges, among them 100.64/10, 192.0.0/24, 198.18/15, multicast, 240/4 and broadcast. `crates/nvs-config/src/capability.rs:262`
-- [ ] 6to4 (2002::/16) and Teredo (2001::/32) are unwrapped to the IPv4 address inside them, as a mapped address already is. `crates/nvs-config/src/capability.rs:298`
+- [x] The table denies the IANA special-purpose ranges, among them 100.64/10, 192.0.0/24, 198.18/15, multicast, 240/4 and broadcast. `crates/nvs-config/src/capability.rs:262`
+- [x] 6to4 (2002::/16) and Teredo (2001::/32) are unwrapped to the IPv4 address inside them, as a mapped address already is. `crates/nvs-config/src/capability.rs:298`
 - [ ] An upgrade whose `Origin` is another origin is refused, and a request with no `Origin` passes, as for a CSRF-checked write. `crates/nvs-server/src/route.rs:214`, `crates/nvs-server/src/socket.rs:86`
 - [ ] The route's `csrf: false` turns the upgrade check off too. `crates/nvs-server/src/route.rs:122`
 - [ ] The two rules say what is denied and what an upgrade checks. `docs/rules/security/net-address-policy.md:1`, `docs/rules/security/csrf-is-on-by-default.md:1`
@@ -242,33 +242,33 @@ is `BLOCKED` and names the call.
 
 ### State
 
-Stages 1 and 2 are done. The door refuses a request path with a dot-segment or an encoded
-separator through `crate::mount::path_is_refused`, asked beside `Heads::refused` and answered with
-the same closing `400` (`crates/nvs-server/src/serve.rs:1714`). The table keeps its own lexical
-check for a caller that hands `Table::resolve` a path directly. The smuggling suite has a `paths`
-table and an unusual-path control row.
+Stages 1 and 2 are done. Stage 3's address half is on disk: `denied_by_default` denies 100.64/10,
+192.0.0/24, 198.18/15, IPv4 and IPv6 multicast, 240/4 and broadcast, and `embedded` unwraps 6to4
+and Teredo to the IPv4 address inside them (`crates/nvs-config/src/capability.rs:262`). The
+documentation ranges stay allowed, because tests across the tree use 203.0.113/24 as a public
+address and nothing routes them. `rule:security/net-address-policy` names every denied range.
 
 The floor's owed atom `tests/hostile/novis/Image-Font/fromBytes/01-bytes-that-pretend-to-be-a-font.nvs`
-is still red. Since the image world is called typed, step 4 no longer runs out of memory: it throws
-`16000004 bytes are not a TrueType or OpenType font`, so the case's `// hostile: ends-early 4 FATAL`
-fails on a clean run. The fix is to drop that marker, the `echo "step 4\n"` line and the memory
-sentence. The loop's permission classifier refused that edit as removing a security test, so the
-user has to make it or allow it.
+is still red. Step 4 now throws `16000004 bytes are not a TrueType or OpenType font`, so the case's
+`// hostile: ends-early 4 FATAL` fails on a clean run. The fix is to drop that marker, the
+`echo "step 4\n"` line and the memory sentence. The loop's permission classifier refused that edit
+as removing a security test, so the user has to make it or allow it.
 
 The nightly ran on the pushed `main`, far behind the local one. Its `docs`, `five-driver matrix`
-and `test / windows-x86_64` failures are fixed locally. Two remain, listed in the backlog.
+and `test / windows-x86_64` failures are fixed locally. The `proofs` and `cost guards` failures
+remain, listed in the backlog.
 
 ### Next
 
-Stage 3's address half, on `crates/nvs-config/src/capability.rs` (`rule:security/net-address-policy`):
-- [ ] The table denies the IANA special-purpose ranges: 100.64/10, 192.0.0/24, 198.18/15, multicast, 240/4 and broadcast. `crates/nvs-config/src/capability.rs:262`
-- [ ] 6to4 (2002::/16) and Teredo (2001::/32) are unwrapped to the IPv4 address inside them, as a mapped address is. `crates/nvs-config/src/capability.rs:298`
-- [ ] The rule names what is denied. `docs/rules/security/net-address-policy.md:1`
+Stage 3's upgrade half, on `crates/nvs-server/src/route.rs` and `crates/nvs-server/src/serve.rs` (`rule:security/csrf-is-on-by-default`):
+- [ ] An upgrade whose `Origin` is another origin is refused, and one with no `Origin` passes, as for a CSRF-checked write. `crates/nvs-server/src/serve.rs:2717`, `crates/nvs-server/src/route.rs:177`
+- [ ] The route's `csrf: false` turns the upgrade check off too. `crates/nvs-server/src/route.rs:122`
+- [ ] The rule says what an upgrade checks. `docs/rules/security/csrf-is-on-by-default.md:1`
 
 ### Backlog
 
 - The Font attack above waits on the user's edit or permission (`tests/hostile/novis/Image-Font/fromBytes/01-bytes-that-pretend-to-be-a-font.nvs:3`).
-- CI's Windows warm-start budget still fails. `section::read` now skips nested modules, and a warm `nvs run` is 8.1 ms of work on this host against 6. Resolving the extension tree once per `run`, not three times, is the next cut (`crates/nvs-ext/src/load.rs:567`, `tools/nv/cmd/bench.ts:132`).
+- CI's Windows warm-start budget still fails: a warm `nvs run` is 8.1 ms of work on this host against 6. Resolving the extension tree once per `run`, not three times, is the next cut (`crates/nvs-ext/src/load.rs:567`, `tools/nv/cmd/bench.ts:132`).
 - CI's `proofs` jobs fail on proof debt: stale perf records (`bun nv benches --owed`) and owed proofs (`bun nv proofs --owed`). Stage 10 owns it (`.github/workflows/ci.yml:1`).
 - A forged payload can put an enum case with a backing value the enum does not declare into an enum-typed property, because the tag names no enum (`rule:enums/representation`). Whether a typed read of it is safe is not checked (`crates/nvs-runtime/src/object.rs:5629`).
 - The nightly tests GitHub's `main`, which is behind the local one, so its `supply chain` failure says nothing about the current lock until the user pushes (`.github/workflows/ci.yml:838`).
