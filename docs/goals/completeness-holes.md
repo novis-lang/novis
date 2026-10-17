@@ -90,7 +90,7 @@ stages:
         rules: [errors/on-limit, types/conversion, tooling/a-diagnostic-code-carries-its-card]
   - id: 13
     title: every shipped promise the audit named has its test
-    status: open
+    status: done
     context: [docs/rules/testing/feature-proofs.md]
     extra:
       context:
@@ -355,7 +355,10 @@ the class, and a check fails for a diagnostic code no test raises.
   - [x] `Core\Server::traceId` throws in a spawned child, the one request member of that class.
   - [x] The three `nvs-cli` records: no `stat` per resolve, `nvs queue migrate` twice, `nvs run --dump-asm`.
   - [x] The `nvs-codegen` one: a JIT page is not writable after the flip.
-- [ ] `examples/*.nvs` run in a test the compiler and runtime reach. `data/gaps/nv/the-examples-run-end-to-end-only-under-valgrind.json:1`
+- [x] `examples/*.nvs` run in a test the compiler and runtime reach. `crates/nvs-cli/tests/examples.rs:1`
+  - [x] `crates/nvs-cli/tests/examples.rs` runs every example and checks its status.
+  - [x] `examples/cycles.nvs`, which the test found broken, runs again.
+  - [x] The record is deleted.
 
 ### 14. a prose known gap without a record fails a check
 
@@ -370,17 +373,20 @@ work cannot live only in prose again.
 
 ### State
 
-Stages 1 to 4 and 8 to 12 are done. Stage 13 has closed every `no-test-*` record, and its examples
-record is the last item. This session closed the `nvs-codegen` one with tests only:
+Stages 1 to 4 and 8 to 13 are done. This session closed stage 13's examples record:
 
-- `crates/nvs-codegen/tests/code_pages.rs` asks the OS (through `region::query`) for the page under
-  the script frame and a method of a compiled unit, and under a page `make_executable` published:
-  each is executable and not writable.
-- `a_loaded_payload_runs_from_pages_that_are_not_writable` (`crates/nvs-cli/src/cache.rs`) does the
-  same for a payload the loader relocated. `region` is a new dev-dependency of both crates, already
-  in the tree through `cranelift-jit` (`Cargo.toml`'s comment above it).
-
-No `no-test-*` record remains under `data/gaps/`, and nothing outside this file cites the one deleted.
+- `crates/nvs-cli/tests/examples.rs` runs every `examples/*.nvs` from `examples/` under the root
+  `nvs.toml` (or a `.toml` beside the example), with `--request` for a `.nvsr` beside it and this
+  build in `NVS_BIN`. It checks each status: `limits` and `uncaught` end with 1, and every other
+  example ends with 0. It serves `examples/http.nvs`'s origin on `127.0.0.1:8099` when the port is
+  free, and runs `nvs queue migrate --including-risky` before the three queue examples. An example
+  whose compose server does not answer is left out and named on stderr. Eight at a time, about 12s.
+  Its recorded footprint (`bun nv select --explain "test:nvs-cli test examples"`) holds functions
+  of `nvs-ir`'s lowering, `nvs-codegen`'s emitter and `nvs-runtime`, and `tree:examples` and
+  `tree:nvs.toml`, so a compiler or runtime change selects it.
+- The test found `examples/cycles.nvs` broken. Since stage 3, an instance of a user class does not
+  cross into a script isolate (`crates/nvs-runtime/src/graph.rs:470`). The crossing now sends an
+  array, and the comment says why.
 
 `bun nv rules --render` also rewrites `core-api.md`, `core-classes.md`, `errors.md` and
 `iteration.md`, and `bun nv render` drops `done` from `data/schema/milestone.schema.json`. That drift
@@ -390,15 +396,15 @@ Stage 6's remainder is `data/gaps/nvs-ext/a-workbook-never-finished-is-neither-l
 no Novis member can abort a response. Stage 5's typed path, stage 1's second hole and stage 7's two
 records are questions for the user, each in its record (Backlog).
 
-The nightly run the sweep reported (`gh run view 38869457440`) tested `cb7021a24`, 914 commits behind
-the local `main`. Its failures are the old tree's until the user pushes.
+The nightly run the sweep reported (`gh run view 38869457440`) tested `cb7021a24`, 916 commits behind
+the local `main`. Its failures belong to that old tree until the user pushes.
 
 ### Next
 
-**Stage 13's last record, alone in its session. Files: `examples/`, `crates/nvs-cli/tests/run_command.rs` and the record.**
+**Stage 14, the tooling stage. Files: `tools/nv/cmd/owners.ts`, `tools/nv/cmd/gaps.ts` and the module docs the scan names.**
 
-- [ ] `the-examples-run-end-to-end-only-under-valgrind`: a test that runs every `examples/*.nvs` with `nvs run` and fails on a non-zero exit, then delete the record (`rule:testing/valgrind-on-wsl`). `data/gaps/nv/the-examples-run-end-to-end-only-under-valgrind.json:1`, `crates/nvs-cli/tests/run_command.rs:1`
-- [ ] Check that `bun nv affected` reaches that test from a compiler or runtime change, as the record asks (`rule:testing/valgrind-on-wsl`). `tools/nv/cmd/affected.ts:1`
+- [ ] The scan reads "known gap" headings and numbered gap references, as well as the "owed" wording (`rule:tooling/a-repository-fact-is-one-json-record`). `tools/nv/cmd/owners.ts:225`
+- [ ] Each module the scan names gets a record or loses the prose, starting with `crates/nvs-runtime/src/ctx/error.rs:777` and `crates/nvs-ir/src/ty.rs:224` (`rule:tooling/a-repository-fact-is-one-json-record`). `tools/nv/cmd/gaps.ts:30`
 
 ### Backlog
 
