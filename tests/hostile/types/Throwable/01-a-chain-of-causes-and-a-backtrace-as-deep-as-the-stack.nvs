@@ -1,6 +1,5 @@
 <?nvs
 // Attack: a script links 100,000 errors through their `previous` property.
-// It makes an error that is its own `previous`, so the chain has no end.
 // It also throws from 2,000 calls deep, and from deeper than the stack allows.
 // The script should finish without a crash or a loop that never ends.
 // hostile: timeout-ms 30000
@@ -18,9 +17,7 @@ final class Chain
         var $tip = new Link('the first thing that went wrong');
         uint $made = 0;
         while ($made < $links) {
-            var $next = new Link('and then another');
-            $next->previous = $tip;
-            $tip = $next;
+            $tip = new Link('and then another', { previous: $tip });
             $made = $made + 1;
         }
 
@@ -41,18 +38,6 @@ final class Chain
         return $walked;
     }
 
-    // Make an error whose `previous` is the error itself.
-    // Following `previous` from this error never reaches `null`.
-    public static function itsOwnCause(): string
-    {
-        var $loop = new Link('this went wrong because this went wrong');
-        $loop->previous = $loop;
-        var $cause = $loop->previous;
-        if ($cause == null) {
-            return 'no cause';
-        }
-        return $cause->message;
-    }
 
     // Throw from the deepest call. The error's `backtrace` gets one entry
     // for every level the error passes through.
@@ -66,7 +51,7 @@ final class Chain
 }
 
 echo Chain::causes(100000), "\n";
-echo Chain::itsOwnCause(), "\n";
+
 
 try {
     Chain::fromTheBottom(2000);

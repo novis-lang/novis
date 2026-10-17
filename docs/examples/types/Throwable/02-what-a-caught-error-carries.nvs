@@ -13,9 +13,7 @@ final class Report {
             var $figures = Core\Json::decode("{\"rows\": 3,");
             return "built";
         } catch (Throwable $cause) {
-            var $wrapped = new ReportFailed("the monthly report could not be built");
-            $wrapped->previous = $cause;
-            throw $wrapped;
+            throw new ReportFailed("the monthly report could not be built", {previous: $cause});
         }
     }
 }
