@@ -123,6 +123,9 @@ is swept only when it is low.
 **Does:** `ldap` and `live_edit` pass under the load of a full `bun nv verify`, as they do alone.
 
 - [ ] The `ldap` socket deadlines are found and fixed at their cause. `crates/nvs-stdlib/tests/ldap.rs:277`, `crates/nvs-stdlib/tests/ldap.rs:1485`
+  - [x] Two processes of the binary at once, as two worktrees' verify runs are, no longer clash on fixed entry names in the one Samba (`own`).
+  - [ ] The `Timeout` that is left, seen only with two processes and every core busy, is found at its cause.
+  - [ ] The 2-second floor of every Samba case is explained, and removed if it is a fallback in the connect.
 - [ ] The `live_edit` 30-second swap is found and fixed at its cause. `crates/nvs-cli/tests/live_edit.rs:1010`
 - [ ] `verify.ts`'s module doc no longer lists either as a load failure. `tools/nv/cmd/verify.ts:1`
 
@@ -168,29 +171,37 @@ edits no shared table by hand.
 
 ### State
 
-One `floor-debt` run was measured. It paid 1093 benches in 70m29s, then 2763 proof programs in
-about 49 minutes, and the session's two-hour background limit stopped it there. So the benches left
-the debt, as the user decided: `bun nv debt` pays every owed atom but the benches, and every red
-proof program and leg, and `bun nv benches --owed` pays the benches before a release. Its module doc
-has the figures. Other projects' loops were running during the measurement.
+Stage 1 is done. Stage 2's `ldap` item is half done.
 
-What the store holds now: 689 proof programs owed and 2054 red, 2046 of them red since one hour on
-2026-10-15, so that is likely one broken run and not 2046 faults (not checked). The next `floor-debt`
-pays them, about 50 minutes at the measured rate.
+The red `ldap` runs in looper's verify logs (`var/verify/mwl/*/progress.log`) came from lane worktrees,
+whose verify runs share the one `samba-ad` with main's. Two copies of the binary started at once
+reproduced the clash: `AlreadyExists` on an OU, `NoSuchObject` on a delete, `InvalidCredentials` on a
+login. Each entry a Samba case adds now carries the process id (`own`,
+`crates/nvs-stdlib/tests/ldap.rs:33`), and two copies at once no longer clash.
 
-Stage 1 is done. An owed or red leg over a goal that names no fixture, such as `lean-loop`, now waits
-in the store and is neither paid nor left, so it no longer keeps `floor-debt` red
-(`tools/nv/cmd/debt.ts` `legsWait`). It is not recorded green, because that would lose a change to
-code only Linux compiles; the first goal with a fixture pays it.
+The `Timeout`s are not explained yet. What the probes showed:
+- Alone: green in 9.6 s. With 24 `yes` busy loops on 16 cores: green in 102 s.
+- Two copies and the busy loops together: one `Timeout`. It was the 30-second read of
+  `CN=Administrators` at `crates/nvs-stdlib/tests/ldap.rs:1222`.
+- Samba runs `prefork children = 4`, so four single-threaded workers serve every connection of
+  every process. A slow search on one worker holds up every connection that worker serves (not checked).
+- Every Samba case takes at least 2.0 s alone, and so does the case that dials a closed port. That
+  looks like a refused first address of `localhost`, maybe `::1`, which Windows retries for 2 s
+  before it moves on (not checked).
+
+The 20 `.nvst` cases that write to Samba have the same fixed names, so two worktrees' trees can
+still clash.
 
 The nightly run 39013536848 is still the newest, and nothing in it is new since the last handoff.
 
 ### Next
 
-Stage 2, on the two test binaries, each a session of its own since each needs runs under load:
-- [ ] The `ldap` socket deadlines, found and fixed at their cause, run under load. `crates/nvs-stdlib/tests/ldap.rs:277`, `crates/nvs-stdlib/tests/ldap.rs:1485`
-- [ ] The `live_edit` 30-second swap, found and fixed at its cause. `crates/nvs-cli/tests/live_edit.rs:1010`
-- [ ] `verify.ts`'s module doc no longer lists either as a load failure. `tools/nv/cmd/verify.ts:1`
+Stage 2, `ldap`, on `crates/nvs-stdlib/tests/ldap.rs` and `crates/nvs-stdlib/src/ldap/mod.rs`:
+- [ ] The 2-second floor: time one `connect` to `ldaps://localhost:16636` against `127.0.0.1`. If `::1` costs the 2 s, the test blocks use `127.0.0.1`. `crates/nvs-stdlib/tests/ldap.rs:103`, `crates/nvs-stdlib/src/ldap/mod.rs:358`
+- [ ] The `Timeout` left: rerun two copies with the busy loops and `--report-time`, and find which wait passes 30 s, Samba's four workers or the Docker port proxy. `crates/nvs-stdlib/tests/ldap.rs:1222`
+- [ ] The `.nvst` cases that write to Samba name their entries so two trees at once do not clash. `tests/conformance/core/ldap-add-modify-delete-rename.nvst:23`
+
+Then `live_edit`, a session of its own: `crates/nvs-cli/tests/live_edit.rs:1010`, and `verify.ts`'s module doc, `tools/nv/cmd/verify.ts:1`.
 
 ### Backlog
 
