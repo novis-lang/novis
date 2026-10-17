@@ -77,10 +77,10 @@
 //! here even though the literal `= 18446744073709551615` is accepted.
 //!
 //! **A `decimal` literal folds to [`ConstArg::Decimal`]** at a parameter
-//! default and a class constant, read from its digits by
+//! default, a property default and a class constant, read from its digits by
 //! [`decimal_literal_parts`], so `decimal $vat = 0.19` is exactly `0.19`. A
-//! *property* default of that type is still refused, because
-//! `nvs_runtime::FieldDefault` has no `decimal` recipe for the slot.
+//! property's becomes `nvs_runtime::FieldDefault::Decimal`, written into every
+//! fresh instance's slot.
 //!
 //! ## Known gap
 //!
@@ -367,10 +367,7 @@ pub(crate) fn eval_property_default(
         const_reference_default(expr, declared, ctx, Some(&mut reported), env)
     } else {
         literal_default(expr, declared, env)
-    }
-    // A slot's default is a `nvs_runtime::FieldDefault` recipe, and that set
-    // has no `decimal` member, so the module doc's refusal is applied here.
-    .filter(|value| !matches!(value, ConstArg::Decimal { .. }));
+    };
     if value.is_none() && !reported {
         let want = env.interner.describe(declared);
         env.diags.report(
@@ -381,7 +378,7 @@ pub(crate) fn eval_property_default(
             .with_primary(expr.span, "not a constant of the declared type")
             .with_help(
                 "a property default is evaluated once, at compile time, and written into \
-                 every fresh instance's slot — write a `bool`/`int`/`uint`/`float`/`string` \
+                 every fresh instance's slot — write a `bool`/`int`/`uint`/`float`/`decimal`/`string` \
                  value directly in the code, optionally negated, `[]`, an enum case or another class's `const`; \
                  anything else belongs in `constructor`",
             ),

@@ -825,6 +825,9 @@ pub enum FieldDefault {
     EnumUint(u64),
     /// `float`
     Float(f64),
+    /// `decimal`, made by [`Self::decimal`] from the literal's parts, so a
+    /// recipe never holds a value outside the type's range.
+    Decimal(crate::Decimal),
     /// `string`, already cooked — the octets the slot's fresh
     /// [`crate::NvsStr`] holds.
     Str(String),
@@ -851,6 +854,13 @@ pub enum FieldDefault {
 }
 
 impl FieldDefault {
+    /// A `decimal` default from its sign, mantissa and scale, or `None` when
+    /// the parts are no `decimal` (`crate::Decimal::new`'s bounds).
+    #[must_use]
+    pub fn decimal(negative: bool, mantissa: u128, scale: u8) -> Option<Self> {
+        crate::Decimal::new(negative, mantissa, scale).map(Self::Decimal)
+    }
+
     /// A fresh [`Value`] for this default, owning one reference to whatever it
     /// allocated.
     ///
@@ -867,6 +877,7 @@ impl FieldDefault {
             Self::EnumInt(v) => Value::enum_int(*v),
             Self::EnumUint(v) => Value::enum_uint(*v),
             Self::Float(v) => Value::float(*v),
+            Self::Decimal(v) => Value::decimal(*v),
             Self::Str(s) => Value::str(crate::NvsStr::new(s.as_bytes())),
             Self::EmptyArray => Value::array(crate::NvsArray::new()),
             Self::Null => Value::null(),
