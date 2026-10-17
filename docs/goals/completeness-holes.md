@@ -6,11 +6,11 @@ context: [tools/nv/cmd/owners.ts, data/schema/gap.schema.json, docs/rules/progra
 stages:
   - id: 1
     title: "a write through `mixed` checks the declared type"
-    status: done
-    context: [crates/nvs-runtime/src/object.rs, docs/rules/types/erased-member-access.md, data/gaps/nvs-runtime/a-wider-shape-view-writes-an-object-of-the-wrong-class.json]
+    status: open
+    context: [crates/nvs-runtime/src/object.rs, crates/nvs-types/src/expr/assign.rs, docs/rules/types/erased-member-access.md, docs/rules/types/shape-type.md, data/gaps/nvs-runtime/a-wider-shape-view-writes-an-object-of-the-wrong-class.json]
     extra:
       context:
-        rules: [types/erased-member-access]
+        rules: [types/erased-member-access, types/shape-type]
   - id: 2
     title: a request head has one deadline for the whole head
     status: done
@@ -174,6 +174,7 @@ against the declared type before it stores, so no typed read can see an object o
 - [x] `write_erased_property` checks the element type of an `array<T>` slot, the field classes of a shape slot and every class arm of a union. `crates/nvs-runtime/src/object.rs:5224`
 - [x] A conformance case per shape of write, with `Kennel`/`Dog`/`Animal`, asserting the throw. `docs/rules/types/erased-member-access.md:1`
 - [x] The module doc's "what a tag does not catch" list is rewritten from what is left, without the false "no memory-safety edge" sentence. `crates/nvs-runtime/src/object.rs:168`
+- [ ] A shape's field types are invariant in the checker, as the user decided, so a write through a wider view does not compile. `crates/nvs-types/src/expr/assign.rs:474`
 
 ### 2. a request head has one deadline for the whole head
 
@@ -377,7 +378,7 @@ work cannot live only in prose again.
 
 ### State
 
-Stages 1 to 4 and 8 to 13 are done. Stage 14's scan is on disk: `bun nv owners --prose` lists every
+Stages 2 to 4 and 8 to 13 are done. Stage 14's scan is on disk: `bun nv owners --prose` lists every
 gap that lives only in prose, by kind, and exits 1 while any remains (`tools/nv/cmd/owners.ts`'s
 `outsideBlocks`). It names 47 today: one owed heading, five `Known gaps` blocks (three are pointer
 lines whose module no record names any more: `reload.rs`, `server/src/io.rs`, `types/src/defaults.rs`)
@@ -396,13 +397,13 @@ pass; the socket legs cannot run on Windows). The `proofs` jobs are the proof de
 `iteration.md`, and `bun nv render` drops `done` from `data/schema/milestone.schema.json`. That drift
 predates these sessions and is not committed.
 
-Stage 6's remainder is `data/gaps/nvs-ext/a-workbook-never-finished-is-neither-logged-nor-cut-off.json`:
-no Novis member can abort a response. Stage 5's typed path, stage 1's second hole and stage 7's two
-records are questions for the user, each in its record (Backlog).
+Stage 1's second hole, stage 5's typed path, stage 6's unfinished workbook and stage 7's two records
+are decided. Each record states the user's decision and the options declined, and none is built yet
+(Next, Backlog).
 
 ### Next
 
-**Stage 1's second hole, now decided. Files: `crates/nvs-types/src/expr/assign.rs`, the rule, conformance cases.** Five gap records carry the user's decisions as uncommitted edits in the working tree (`git diff data/gaps`), written while the last session ran. Commit each with the slice that closes it. Security and correctness first, so stage 1, then 7, 6 and 5.
+**Stage 1's second hole, now decided. Files: `crates/nvs-types/src/expr/assign.rs`, the rule, conformance cases.** Five gap records carry the user's decisions, committed. Security and correctness first, so stage 1, then 7, 6 and 5.
 
 - [ ] A shape's field types are invariant in the checker, as `array<T>` is: `{pet: Dog}` is not assignable to `{pet: Animal}` (`rule:types/shape-type`). `crates/nvs-types/src/expr/assign.rs:474`
 - [ ] Close `data/gaps/nvs-runtime/a-wider-shape-view-writes-an-object-of-the-wrong-class.json` with a case that does not compile, and rewrite the rule (`rule:types/shape-type`). `crates/nvs-runtime/src/graph.rs:470`
