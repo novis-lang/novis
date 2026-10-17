@@ -1,7 +1,7 @@
 ---
 looper: 1
 title: "A session pays only for its own work, and parallel work does not conflict"
-summary: "No debt run sits between two sessions, verify is red only for a real fault, AGENTS.md is one document, the dead tooling and the plan's status block are gone, a diagnostic code is never raced, a generated file never conflicts in a merge, the central tables are split per item, and the checks below pass."
+summary: "No debt run sits between two sessions, verify is red only for a real fault, the dead tooling is gone, a diagnostic code is never raced, a generated file never conflicts in a merge, the central tables are split per item, and the checks below pass."
 context: [AGENTS.md, looper.toml, tools/nv/cmd/sweep.ts, tools/nv/cmd/verify.ts]
 stages:
   - id: 1
@@ -12,14 +12,10 @@ stages:
     title: verify is red only for a real fault
     status: open
     context: [crates/nvs-stdlib/tests/ldap.rs, crates/nvs-cli/tests/live_edit.rs]
-  - id: 3
-    title: AGENTS.md is one document, and the pack fits the stage
-    status: open
-    context: [docs/agent/commands.md, docs/agent/conventions.md, docs/agent/playbook.md]
   - id: 4
-    title: the dead tooling, the stale state and the plan's status block are gone
+    title: the dead tooling and the stale state are gone
     status: open
-    context: [tools/nv/main.ts, .claude/settings.json, tools/nv/cmd/guard.ts, docs/implementation-plan.md, .github/workflows/ci.yml]
+    context: [tools/nv/main.ts, .claude/settings.json, tools/nv/cmd/guard.ts, .github/workflows/ci.yml]
   - id: 5
     title: a diagnostic code is never raced
     status: open
@@ -34,13 +30,9 @@ stages:
     context: [.gitattributes, tools/nv/cmd/render.ts]
 checks:
   - id: lint
-    stage: 3
+    stage: 4
     name: goals, chain, README and playbook lint clean
     run: [looper, lint]
-  - id: playbook-retired
-    stage: 3
-    name: no playbook bullet is past its until condition
-    run: [looper, playbook, retire, --check]
   - id: doctor
     stage: 4
     name: looper finds no drift in the project's config
@@ -77,8 +69,8 @@ conflicted. The last stage waits for looper's goal `landing-fixes`. This goal co
   paying them at the goal end turns out to take hours, the owed benches move to the release gate,
   and the session says so in the handoff.
 - **Generated files stay committed** and are rendered again on a merge, never merged by hand.
-- **The plan's status block is deleted.** Goals are the schedule. The milestone files stay, for work
-  that is not on the chain.
+- **Side goal `docs-cleanup` carries what was this goal's stage 3 and the plan's deletion**, with the
+  decisions about AGENTS.md and the playbook. The whole plan goes, its milestone machinery too.
 - **Looper gets two fixes now**: a landing pauses only the loops in the root checkout, and a
   catch-up renders the generated files it would conflict on. Both are looper's goal
   `landing-fixes`. A chain planned as a graph, with lanes opened for it automatically, waits until
@@ -87,19 +79,10 @@ conflicted. The last stage waits for looper's goal `landing-fixes`. This goal co
 **These calls were the agent's, from the audit:**
 - The flaky tests are fixed at their cause, never retried. A test that is red under load and green
   alone has a wrong deadline or a shared resource, and the stage finds which.
-- AGENTS.md takes looper's own shape: the project's text outside the markers holds only what the
-  managed block does not say. That is the priority ordering, text an end user reads, neutral names,
-  the cargo `-p` rule, feature proofs and where Novis departs from the stack files. Where the two
-  halves contradict each other, the managed block wins unless a Novis rule decided otherwise, and a
-  Novis rule that wins moves into a rule fragment or `docs/agent/` and is named from the block's
-  table.
-- The playbook keeps a bullet only while its trap can still happen. A bullet about a removed tool,
-  a bullet that tells a story, and a bullet that contradicts a rule are deleted, never reworded.
-  `[orient] traps` drops from looper's default of 20 to 8.
 - A diagnostic code range is reserved per area, so two sessions can add codes in two areas without a
   race.
-- `docs/perf/members.ndjson` merges with git's built-in `union` driver, because it is an append-only
-  ledger.
+- The perf ledger `members.ndjson` merges with git's built-in `union` driver, because it is an
+  append-only ledger. Goal `docs-cleanup` moves it from `docs/perf/` to `data/perf/`.
 - `.claude/settings.json` loses only the second guard hook and entries that a wider entry already
   allows. If the permission classifier refuses that edit in the loop, the session names it in the
   handoff for the user to make, and goes on with the next item.
@@ -112,7 +95,7 @@ stage. Stage 6 moves code between files and changes no signature.
   goal, usually under a day, and the nightly CI run still finds it.
 - Stage 2 costs nothing at run time. The two test binaries may take longer, if a fix waits on a
   real event in place of a timer.
-- Stages 3 and 4 remove text and code. Every session reads several thousand fewer tokens.
+- Stage 4 removes code. Every session reads fewer tokens.
 - Stages 5 to 7 make central files smaller and add no memory. A per-item file is more files to list,
   and a generated file is rendered once more after every merge.
 
@@ -137,18 +120,7 @@ is swept only when it is low.
 - [ ] The `live_edit` 30-second swap is found and fixed at its cause. `crates/nvs-cli/tests/live_edit.rs:1010`
 - [ ] `verify.ts`'s module doc no longer lists either as a load failure. `tools/nv/cmd/verify.ts:1`
 
-### 3. AGENTS.md is one document, and the pack fits the stage
-
-**Does:** AGENTS.md says each thing once, a session checks each slice before the full gate, and the
-pack's traps are few and on the stage's files.
-
-- [ ] AGENTS.md outside the markers holds only what the managed block lacks, and no rule number, step count or budget contradicts it. `AGENTS.md:1`, `AGENTS.md:392`
-- [ ] The text names the mid-work check, `bun nv verify --fast -p <crate>` after each slice, and the shell shapes the guard refuses, each with the call to make instead. `AGENTS.md:1`
-- [ ] The playbook loses every bullet about a removed tool, every story and every bullet that contradicts a rule, such as the one that recommends `git stash`. `docs/agent/playbook/running-things/a-before-after-measurement-is-worth-a-git-stash-and-the-base.md:1`
-- [ ] `[orient] traps = 8` in `looper.toml`. `looper.toml:1`
-- [ ] `coordinator.md`, `carried-refusals.md` and `guard-name-debt.md` lose their history and their stale numbers, or are deleted where nothing is left. `docs/agent/coordinator.md:19`
-
-### 4. the dead tooling, the stale state and the plan's status block are gone
+### 4. the dead tooling and the stale state are gone
 
 **Does:** no command, hook, file or doc block remains that nothing reads, and local verify runs the
 doc checks CI runs.
@@ -156,7 +128,6 @@ doc checks CI runs.
 - [ ] `nv pack`, `nv allow`, `nv audit`, `nv query` and `nv class-cards` are deleted with their tests and allowlist entries. `tools/nv/main.ts:23`
 - [ ] `bun nv guard`'s `proof-loop` rule moves into `looper.toml`'s `[[guard.deny]]`, and its hook and command are deleted. `.claude/settings.json:10`, `tools/nv/cmd/guard.ts:296`
 - [ ] `nv links` and `nv layout` give way to `looper links` and `looper layout` in CI. Of `nv proofs --comments` and `looper prose`, the one that judges both Markdown and `.nvs` comments stays. `.github/workflows/ci.yml:974`
-- [ ] The plan's status block, `nv plan --apply`'s status writes, AGENTS.md's plan step, CI's `plan --check` of it and `velocity.md` are gone, and the plan keeps its milestone files. `docs/implementation-plan.md:3`, `tools/nv/cmd/plan.ts:242`, `.github/workflows/ci.yml:978`
 - [ ] CI's `docs` job checks run in `bun nv verify`, each only when what it reads changed. `.github/workflows/ci.yml:945`, `tools/nv/cmd/verify.ts:1`
 - [ ] The stale references go: the `docs/decisions/README.md` sync skip, the owner-gate wording, the dead hooks in `commands.md`, and the settings entries a wider entry already allows. `looper.toml:79`, `tools/nv/cmd/owners.ts:14`, `docs/agent/commands.md:630`, `.claude/settings.json:130`
 - [ ] The old driver's files under `.loop/` that nothing reads, and `tools/__pycache__/`, are deleted from the main checkout. `looper.toml:1`
@@ -183,7 +154,7 @@ edits no shared table by hand.
 
 **Does:** every file a tool writes is declared generated, and a merge renders it again.
 
-- [ ] `.gitattributes` marks every rendered file generated, and `docs/perf/members.ndjson` as `merge=union`. `.gitattributes:43`
+- [ ] `.gitattributes` marks every rendered file generated, and the perf ledger `members.ndjson` as `merge=union`. `.gitattributes:43`
 - [ ] `commands.md` says how a person resolves a merge conflict in a generated file: take either side, then render. `docs/agent/commands.md:1`
 - [ ] Once looper's goal `landing-fixes` is reached, `looper.toml`'s `[merge]` table names every rendered file and the commands that render them. If it is not reached when this item comes up, the session writes `BLOCKED looper's goal landing-fixes is not reached`, because only the user starts looper's loop. `looper.toml:1`
 
@@ -205,5 +176,4 @@ Stage 2 follows, on the two test binaries.
 
 ### Backlog
 
-- `docs/spec/01-core-library.md` restates the `Core` signatures `registry.rs` holds. Generating it is a later goal's. `crates/nvs-stdlib/src/registry.rs`
 - `looper guard` matched a commit in looper's own checkout against a claim on mwl's `docs/goals/README.md`, because the claim check compares paths without their tree. Looper's `crates/looper-core/src/claims.rs` owns it.
