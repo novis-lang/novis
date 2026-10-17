@@ -9,7 +9,7 @@
 //! table is the only place a level is turned into a number.
 //!
 //! **One socket for the process.** The first record opens an unbound datagram socket and every
-//! writer after it sends through the same one, addressed to [`ENDPOINT`] each time, so a daemon
+//! writer after it sends through the same one, addressed to `ENDPOINT` each time, so a daemon
 //! that restarts is reached again at its next record with nothing to reconnect. A send that fails —
 //! no daemon listening, a record larger than the socket takes — is the caller's to swallow, which
 //! is the floor's answer to every failed write.
