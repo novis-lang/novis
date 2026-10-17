@@ -308,6 +308,7 @@ pub struct Route {
     handler: String,
     access: Option<String>,
     csrf: bool,
+    opted_out: bool,
     slotted: bool,
     static_handler: bool,
     captures: Vec<Capture>,
@@ -360,6 +361,7 @@ impl Route {
             handler: handler.into(),
             access,
             csrf,
+            opted_out: false,
             slotted: false,
             static_handler: false,
             captures,
@@ -369,7 +371,8 @@ impl Route {
     }
 
     /// The same row with `rule:attributes/access-payload`'s opt-out recorded — the `csrf: false`
-    /// its `#[Access]` wrote — so a request that matches it is not checked.
+    /// its `#[Access]` wrote — so a request that matches it is not checked,
+    /// neither as a write nor as an upgrade.
     ///
     /// A builder rather than another parameter to [`Self::new`], because the
     /// answer it changes is one every other row takes from its verb: a
@@ -378,7 +381,19 @@ impl Route {
     #[must_use]
     pub fn without_csrf(mut self) -> Self {
         self.csrf = false;
+        self.opted_out = true;
         self
+    }
+
+    /// `rule:security/csrf-is-on-by-default`'s upgrade half for this row:
+    /// whether an upgrade that matched it has its `Origin` checked.
+    ///
+    /// Every row but an opted-out one, whatever its verb, because the upgrade
+    /// a browser sends is a `GET` and the verb half would cover none of them.
+    /// `nvs_server::route::csrf` is the door's reader and the only one.
+    #[must_use]
+    pub fn upgrade_checked(&self) -> bool {
+        !self.opted_out
     }
 
     /// `rule:security/csrf-is-on-by-default`'s answer for this row: whether a request that matched it is

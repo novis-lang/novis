@@ -20,7 +20,7 @@ stages:
         rules: [errors/http-message-defects, errors/ambiguous-input-refused]
   - id: 3
     title: "the address table denies every non-global address, and an upgrade checks its `Origin`"
-    status: open
+    status: done
     context: [crates/nvs-config/src/capability.rs, crates/nvs-server/src/route.rs, crates/nvs-server/src/socket.rs, docs/rules/security/net-address-policy.md, docs/rules/security/csrf-is-on-by-default.md]
     extra:
       context:
@@ -148,9 +148,9 @@ upgrade from another origin is refused unless its route opted out.
 
 - [x] The table denies the IANA special-purpose ranges, among them 100.64/10, 192.0.0/24, 198.18/15, multicast, 240/4 and broadcast. `crates/nvs-config/src/capability.rs:262`
 - [x] 6to4 (2002::/16) and Teredo (2001::/32) are unwrapped to the IPv4 address inside them, as a mapped address already is. `crates/nvs-config/src/capability.rs:298`
-- [ ] An upgrade whose `Origin` is another origin is refused, and a request with no `Origin` passes, as for a CSRF-checked write. `crates/nvs-server/src/route.rs:214`, `crates/nvs-server/src/socket.rs:86`
-- [ ] The route's `csrf: false` turns the upgrade check off too. `crates/nvs-server/src/route.rs:122`
-- [ ] The two rules say what is denied and what an upgrade checks. `docs/rules/security/net-address-policy.md:1`, `docs/rules/security/csrf-is-on-by-default.md:1`
+- [x] An upgrade whose `Origin` is another origin is refused, and a request with no `Origin` passes, as for a CSRF-checked write. `crates/nvs-server/src/route.rs:214`, `crates/nvs-server/src/socket.rs:86`
+- [x] The route's `csrf: false` turns the upgrade check off too. `crates/nvs-server/src/route.rs:122`
+- [x] The two rules say what is denied and what an upgrade checks. `docs/rules/security/net-address-policy.md:1`, `docs/rules/security/csrf-is-on-by-default.md:1`
 
 ### 4. the process and file doors hold on every spelling
 
@@ -242,11 +242,17 @@ is `BLOCKED` and names the call.
 
 ### State
 
-Stages 1 and 2 are done. Stage 3's address half is on disk: `denied_by_default` denies 100.64/10,
-192.0.0/24, 198.18/15, IPv4 and IPv6 multicast, 240/4 and broadcast, and `embedded` unwraps 6to4
-and Teredo to the IPv4 address inside them (`crates/nvs-config/src/capability.rs:262`). The
-documentation ranges stay allowed, because tests across the tree use 203.0.113/24 as a public
-address and nothing routes them. `rule:security/net-address-policy` names every denied range.
+Stages 1 to 3 are done. A request with an `Upgrade` header that matched a route is refused at the
+door when its `Origin` is another origin, on any verb and whatever `[http] csrf_key` says, because a
+browser's handshake cannot carry a token (`crates/nvs-server/src/route.rs:211`). `csrf: false`
+turns it off (`Route::upgrade_checked`, `crates/nvs-runtime/src/routes.rs:395`), so `E0764` now
+accepts the opt-out on a `Get` route. An unmatched upgrade is not checked, for the same opt-in
+reason an unmatched `POST` is not. `rule:security/csrf-is-on-by-default` says all of it.
+
+`looper verify` failed at `owners` on another session's uncommitted work: it deletes
+`data/plan/milestones/M10.json` and the `ide` rules, which 22 gaps and many citations still name.
+This slice was verified by hand instead: `cargo test --lib --test routes`, clippy, fmt and the
+route and CSRF conformance cases, all green.
 
 The floor's owed atom `tests/hostile/novis/Image-Font/fromBytes/01-bytes-that-pretend-to-be-a-font.nvs`
 is still red. Step 4 now throws `16000004 bytes are not a TrueType or OpenType font`, so the case's
@@ -260,10 +266,10 @@ remain, listed in the backlog.
 
 ### Next
 
-Stage 3's upgrade half, on `crates/nvs-server/src/route.rs` and `crates/nvs-server/src/serve.rs` (`rule:security/csrf-is-on-by-default`):
-- [ ] An upgrade whose `Origin` is another origin is refused, and one with no `Origin` passes, as for a CSRF-checked write. `crates/nvs-server/src/serve.rs:2717`, `crates/nvs-server/src/route.rs:177`
-- [ ] The route's `csrf: false` turns the upgrade check off too. `crates/nvs-server/src/route.rs:122`
-- [ ] The rule says what an upgrade checks. `docs/rules/security/csrf-is-on-by-default.md:1`
+Stage 4's file-door half, on `crates/nvs-runtime/src/capability.rs` (`rule:security/path-scope-canonicalise-then-prefix`):
+- [ ] Trailing dots and spaces and a `:` stream suffix are cut before the extension check, on every platform, with a test per spelling. `crates/nvs-runtime/src/capability.rs:1497`
+- [ ] `CON`, `NUL`, `COM1` and `CONIN$`, with an extension or a trailing dot, are refused by a file grant and by static serving. `crates/nvs-config/src/mount.rs:641`
+- [ ] A child with no `env` gets only the named base variables (`rule:core-classes/process-options`). `crates/nvs-runtime/src/capability.rs:1384`
 
 ### Backlog
 

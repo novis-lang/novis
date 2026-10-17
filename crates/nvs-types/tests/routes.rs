@@ -987,12 +987,12 @@ fn an_access_decision_is_required_and_is_a_name() {
 }
 
 #[test]
-fn csrf_false_on_a_route_whose_every_verb_is_safe_does_not_compile() {
-    // §§ 1a and 4: CSRF is on for the four unsafe verbs and for no other, so
-    // beside a `Get` the opt-out turns nothing off and is refused rather than
-    // ignored.
+fn csrf_false_on_a_route_with_nothing_to_opt_out_of_does_not_compile() {
+    // §§ 1a and 4: the write check covers the four unsafe verbs and the upgrade
+    // check covers `Get`, so beside a `Head` the opt-out turns nothing off and
+    // is refused rather than ignored.
     let safe = "<?nvs\nclass Users {\n  \
-                #[Core\\Route(path: \"/users\", method: Core\\Http\\Method::Get)]\n  \
+                #[Core\\Route(path: \"/users\", method: Core\\Http\\Method::Head)]\n  \
                 #[Core\\Access(allow: Core\\Audience::Public, csrf: false)]\n  \
                 public function index(): string { return \"\"; }\n}\n";
     let diags = check_src(safe);
@@ -1005,6 +1005,11 @@ fn csrf_false_on_a_route_whose_every_verb_is_safe_does_not_compile() {
     // The same payload over an unsafe verb is § 4's whole point — `access_src`
     // writes `Post` for exactly this reason.
     let diags = check_src(&access_src("allow: Role::Admin, csrf: false"));
+    assert!(!diags.has_errors(), "{diags:?}");
+
+    // A `Get` is where a browser's WebSocket upgrade arrives, so the opt-out
+    // turns the upgrade's origin check off and compiles.
+    let diags = check_src(&safe.replace("Method::Head", "Method::Get"));
     assert!(!diags.has_errors(), "{diags:?}");
 
     // Only `false` is refused: `csrf: true` on a safe route restates the

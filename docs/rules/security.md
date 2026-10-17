@@ -1046,9 +1046,15 @@ directory no grant named.
 hardcoded hostname can resolve into a private range and because deployment configuration supplies most
 real endpoint URLs.
 
-Denied by default: loopback, the private ranges, **link-local**, unspecified, and every IPv6 form that
-carries one of them in its low 32 bits — IPv4-mapped (`::ffff:0:0/96`), IPv4-compatible (`::/96`) and
-the NAT64 well-known prefix (`64:ff9b::/96`), each of which reaches the address it carries. An operator grants an exception as an **IP address written out** beside the connect
+Denied by default: every address that is not globally routable. That is loopback, the private ranges,
+**link-local**, unspecified, shared address space (`100.64.0.0/10`), protocol assignments
+(`192.0.0.0/24`), benchmarking (`198.18.0.0/15`), multicast (`224.0.0.0/4`, `ff00::/8`), reserved
+(`240.0.0.0/4`) and broadcast. It is also every IPv6 form that carries one of those IPv4 addresses,
+each of which reaches the address it carries: IPv4-mapped (`::ffff:0:0/96`), IPv4-compatible
+(`::/96`), the NAT64 well-known prefix (`64:ff9b::/96`), 6to4 (`2002::/16`, the 32 bits after the
+prefix) and Teredo (`2001::/32`, the inverted low 32 bits). The documentation ranges (`192.0.2.0/24`,
+`198.51.100.0/24`, `203.0.113.0/24`, `2001:db8::/32`) are not denied: nothing routes them, so a
+connection to one fails on its own. An operator grants an exception as an **IP address written out** beside the connect
 grant. Three things it is not, each a widening this refuses: not a hostname, because the policy is
 asked of a resolved address and a name would except whatever it resolved to afterwards; not a range,
 because an operator writing a whole `/8` hands back most of the table without naming a host; and not
@@ -2860,6 +2866,12 @@ csrf_key` names the key that says what a valid token is; until it does, there is
 any request to be missing. A valid token passes whatever the origin says, because it proves the page
 the request came from was this application's.
 
+**An upgrade is checked by its origin, on any verb.** A browser opens a WebSocket with a `GET` that
+carries the visitor's cookies, so a request asking to upgrade that matched a route is refused when its
+`Origin` names somewhere other than where it arrived, and passes with no `Origin`, as a write does. The
+token half does not apply to it, key or no key, because a browser's handshake cannot carry the token
+header; the write check a verb owes still follows, so an upgrade header takes nothing off it.
+
 What a deployment that names no key therefore does **not** refuse is a covered request that sent no
 `Origin` — every non-browser client, and so every API caller. Naming the key is what covers it. A key
 written so the door cannot read it is refused at boot rather than left unarmed, because a deployment
@@ -2868,7 +2880,8 @@ fail.
 
 A route that legitimately needs no token — a webhook authenticated by signature, an API authenticated
 by a bearer token — says so **in its own declaration**, per route, in the attribute that route already
-carries: never a group and never a configuration key. Writing it on the route is what keeps the
+carries: never a group and never a configuration key. The same `csrf: false` turns off the upgrade
+check, for a socket other sites are meant to open. Writing it on the route is what keeps the
 exemption reviewable next to the handler it exempts.
 
 **The refusal is the door's, and a program may only answer it.** In a program that calls

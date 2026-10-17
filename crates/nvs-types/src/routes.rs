@@ -379,8 +379,8 @@ pub struct Route {
     /// a row can ask of [`Self::verb`] and which the runtime's own row derives
     /// once at boot. Splitting it that way is what keeps the two independent —
     /// [`check_csrf_opt_out`] refuses the field where there is nothing to opt
-    /// out of, so a `false` under four safe verbs belongs to a program that did
-    /// not compile and never reaches a table.
+    /// out of, so a `false` under safe verbs other than `Get` belongs to a
+    /// program that did not compile and never reaches a table.
     pub csrf: bool,
     /// `rule:core-classes/html-later`'s `slotted`: `true` only where the
     /// attribute wrote `slotted: true`, so the response sends its shell when
@@ -874,8 +874,9 @@ fn csrf_of(access: Option<&Attribute>, env: &mut Env<'_>) -> bool {
 }
 
 /// `rule:security/csrf-is-on-by-default`'s opt-out, held to the thing it opts out of: `csrf: false`
-/// beside a method whose every `#[Route]` names one of the verbs outside
-/// [`UNSAFE_VERBS`].
+/// beside a method whose every `#[Route]` names a verb outside [`UNSAFE_VERBS`]
+/// other than `Get`, which is the verb a WebSocket upgrade arrives on and so
+/// has the upgrade's origin check to opt out of.
 ///
 /// The verbs are the *method's* rather than the row's, which is why this is
 /// asked here and not in [`collect_route`]: § 1a gives a method one `#[Access]`
@@ -911,7 +912,7 @@ fn check_csrf_opt_out(access: &Attribute, m: &MethodMember, ctx: &Ctx<'_>, env: 
             .any(|attr| {
                 crate::derive::attribute_is(attr, crate::derive::ROUTE, ctx, env)
                     && match verb_of(attr, ctx, env) {
-                        Some(verb) => UNSAFE_VERBS.contains(&verb.as_str()),
+                        Some(verb) => verb == "Get" || UNSAFE_VERBS.contains(&verb.as_str()),
                         None => true,
                     }
             });
@@ -923,10 +924,13 @@ fn check_csrf_opt_out(access: &Attribute, m: &MethodMember, ctx: &Ctx<'_>, env: 
             code::E_CSRF_WITHOUT_UNSAFE_VERB,
             "this route has no CSRF check to opt out of",
         )
-        .with_primary(span, "every `#[Route]` on this method names a safe verb")
+        .with_primary(
+            span,
+            "no `#[Route]` on this method uses `Get`, `Post`, `Put`, `Patch` or `Delete`",
+        )
         .with_help(
-            "`rule:security/csrf-is-on-by-default` turns CSRF on for `Post`, `Put`, `Patch` and `Delete` and for no other \
-             verb — delete the field, or write it on the route that is actually unsafe",
+            "Only those HTTP methods have a CSRF check. Delete `csrf: false`, or write it on the \
+             route that has the check.",
         ),
     );
 }

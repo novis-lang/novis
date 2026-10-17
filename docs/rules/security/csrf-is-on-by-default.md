@@ -11,6 +11,12 @@ csrf_key` names the key that says what a valid token is; until it does, there is
 any request to be missing. A valid token passes whatever the origin says, because it proves the page
 the request came from was this application's.
 
+**An upgrade is checked by its origin, on any verb.** A browser opens a WebSocket with a `GET` that
+carries the visitor's cookies, so a request asking to upgrade that matched a route is refused when its
+`Origin` names somewhere other than where it arrived, and passes with no `Origin`, as a write does. The
+token half does not apply to it, key or no key, because a browser's handshake cannot carry the token
+header; the write check a verb owes still follows, so an upgrade header takes nothing off it.
+
 What a deployment that names no key therefore does **not** refuse is a covered request that sent no
 `Origin` — every non-browser client, and so every API caller. Naming the key is what covers it. A key
 written so the door cannot read it is refused at boot rather than left unarmed, because a deployment
@@ -19,7 +25,8 @@ fail.
 
 A route that legitimately needs no token — a webhook authenticated by signature, an API authenticated
 by a bearer token — says so **in its own declaration**, per route, in the attribute that route already
-carries: never a group and never a configuration key. Writing it on the route is what keeps the
+carries: never a group and never a configuration key. The same `csrf: false` turns off the upgrade
+check, for a socket other sites are meant to open. Writing it on the route is what keeps the
 exemption reviewable next to the handler it exempts.
 
 **The refusal is the door's, and a program may only answer it.** In a program that calls
