@@ -429,6 +429,11 @@ const APPLY_PROOFS: &[(&str, &str, &str)] = &[
         "every_request_read_directive_takes_the_reloaded_value_in_the_next_request",
     ),
     (
+        "debug.mode",
+        LIVE,
+        "a_reload_that_names_a_debug_probe_is_refused_and_the_running_tree_keeps_serving",
+    ),
+    (
         "queue.max_attempts",
         LIVE,
         "a_queue_job_runs_under_the_configuration_in_force_when_it_is_claimed",
@@ -2363,10 +2368,17 @@ fn no_key_with_a_reader_still_claims_to_be_unread() {
     let source = workspace_source();
     let marked = keys_marked_unimplemented();
     assert!(
-        !source.is_empty() && !marked.is_empty(),
-        "the walk found {} file(s) and {} marked key(s), so this case is asserting nothing",
-        source.len(),
-        marked.len(),
+        !source.is_empty(),
+        "the walk found no file, so this case is asserting nothing"
+    );
+    // No marked key is the state this case exists to reach, so an empty roster passes only when
+    // the default file carries no note the roster could have missed.
+    assert_eq!(
+        marked.is_empty(),
+        !include_str!("../src/default.toml")
+            .lines()
+            .any(|line| line.starts_with("# NOT IMPLEMENTED")),
+        "the default file's `NOT IMPLEMENTED` notes and the marked keys {marked:?} disagree",
     );
 
     for dotted in &marked {

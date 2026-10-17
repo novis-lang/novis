@@ -653,6 +653,33 @@ fn a_changed_http_headers_block_reaches_the_next_response() {
     });
 }
 
+/// `[debug] mode` reloads, and a server refuses every value that names a probe
+/// (`rule:testing/debug-mode-directive`): the reload is refused whole, says
+/// why, and the running tree keeps answering.
+#[test]
+fn a_reload_that_names_a_debug_probe_is_refused_and_the_running_tree_keeps_serving() {
+    let server = Server::start(
+        "debug",
+        "[debug]\nmode = []\n",
+        &[("app.nvs", &saying("one"))],
+    );
+    server.awaits("/", "the boot's program", |answer| {
+        answer.status == 200 && answer.body == "one"
+    });
+
+    let said = server.refused("[debug]\nmode = [\"coverage\"]\n");
+    assert!(
+        said.contains("cannot be used by a server"),
+        "a reload naming a probe was not refused for it: {said}"
+    );
+    let answer = server.get("/");
+    assert_eq!(
+        (answer.status, answer.body.as_str()),
+        (200, "one"),
+        "the running tree stopped serving after a refused reload"
+    );
+}
+
 /// `[http.cors]` reloads: a server that booted closed grants an origin a reload
 /// named, and takes the grant away again when a second reload removes it.
 #[test]

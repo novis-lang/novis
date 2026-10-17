@@ -511,10 +511,10 @@ pub struct Grants {
 #[derive(Clone, Debug, Default, Deserialize, PartialEq)]
 #[serde(default, deny_unknown_fields)]
 pub struct Debug {
-    /// `[]` is off; any subset of `coverage`, `branch`, `trace`, `profile`. `RuntimeTighten`, so a
-    /// request may narrow this and can never turn a bit on.
-    ///
-    /// [unread: the probes are compiled into every unit and `nvs_runtime`'s `DebugFlags` arms them, but nothing turns a bit on from the file and the directive registry carries no row for this key, so a value written here starts no coverage run and narrows nothing. owner: rule:testing/debug-mode-directive]
+    /// `[]` is off; any subset of `coverage`, `branch`, `trace`, `profile`, and any other name is
+    /// refused at boot (`crate::debug`). `nvs run` and `nvs test` arm the named probes, through
+    /// `nvs_runtime::Ctx::set_config`, and a server whose tree names any fails its boot and its
+    /// reload.
     pub mode: Option<Vec<String>>,
     /// `rule:errors/debug-dump` — `true` and a `Core\Debug::dump` made while a request writes an
     /// HTML body is appended to that body as a collapsible block as well as written as a record;

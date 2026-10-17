@@ -409,6 +409,11 @@ impl Ctx {
     /// kind of run, or the configuration it replaces — because that decides
     /// the CPU ceiling an unwritten `[limits] cpu_time` gives
     /// ([`nvs_config::Request::serves`]).
+    ///
+    /// The same answer decides the probes (`rule:testing/debug-mode-directive`). A context that is
+    /// not server work arms the [`DebugFlags`] `[debug] mode` names, and drops the ones the
+    /// configuration it replaces armed; a bit its host turned on itself stays on. Server work arms
+    /// none, because a server refuses a tree that names any (`nvs_config::debug`).
     pub fn set_config(&mut self, snapshot: std::sync::Arc<nvs_config::Snapshot>) {
         let serving = self.run_kind().is_server_work()
             || self
@@ -419,6 +424,8 @@ impl Ctx {
         if serving {
             config.serve();
         }
+        let replaced = self.config.as_ref().map_or(DebugFlags::empty(), armed_by);
+        self.debug = (self.debug - replaced) | armed_by(&config);
         self.config = Some(config);
         self.refresh_limits();
         // The log target is read out of the snapshot that just arrived, not out
@@ -688,9 +695,58 @@ impl Ctx {
     }
 }
 
+/// The probes `config`'s `[debug] mode` arms: each name `nvs_config::debug::NAMES` accepts, as its
+/// bit, and none for a configuration that serves.
+fn armed_by(config: &nvs_config::Request) -> DebugFlags {
+    if config.serves() {
+        return DebugFlags::empty();
+    }
+    nvs_config::debug::named(&config.snapshot().config)
+        .iter()
+        .map(|name| match name.as_str() {
+            "coverage" => DebugFlags::COVERAGE,
+            "branch" => DebugFlags::BRANCH,
+            "trace" => DebugFlags::TRACE,
+            "profile" => DebugFlags::PROFILE,
+            _ => DebugFlags::empty(),
+        })
+        .fold(DebugFlags::empty(), |armed, bit| armed | bit)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn written(names: &[&str]) -> std::sync::Arc<nvs_config::Snapshot> {
+        let mut snapshot = nvs_config::Snapshot::default();
+        snapshot.config.debug = Some(nvs_config::tree::Debug {
+            mode: Some(names.iter().map(ToString::to_string).collect()),
+            ..nvs_config::tree::Debug::default()
+        });
+        std::sync::Arc::new(snapshot)
+    }
+
+    #[test]
+    fn a_command_line_run_arms_the_probes_its_configuration_names() {
+        let mut ctx = Ctx::buffered();
+        ctx.set_debug_flags(DebugFlags::COUNT);
+        ctx.set_config(written(&["coverage", "trace"]));
+        assert_eq!(
+            ctx.debug_flags(),
+            DebugFlags::COUNT | DebugFlags::COVERAGE | DebugFlags::TRACE
+        );
+        // A later configuration drops what the first armed, and keeps the host's own bit.
+        ctx.set_config(written(&["profile"]));
+        assert_eq!(ctx.debug_flags(), DebugFlags::COUNT | DebugFlags::PROFILE);
+    }
+
+    #[test]
+    fn server_work_arms_no_probe_whatever_its_configuration_names() {
+        let mut ctx = Ctx::buffered();
+        ctx.set_run_kind(RunKind::Job);
+        ctx.set_config(written(&["coverage", "branch", "trace", "profile"]));
+        assert!(ctx.debug_flags().is_empty());
+    }
 
     /// `rule:programs/no-runtime-autoload`'s id is host-written like everything else in this file: a
     /// context nobody handed one to has none, and one that was handed one

@@ -7,6 +7,8 @@
   ],
   "guardedBy": [
     "crates/nvs-config/tests/tree.rs",
-    "crates/nvs-config/src/tree.rs"
+    "crates/nvs-config/src/tree.rs",
+    "crates/nvs-config/src/debug.rs",
+    "crates/nvs-runtime/src/ctx/wiring.rs"
   ]
 }
