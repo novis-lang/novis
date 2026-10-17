@@ -9154,7 +9154,7 @@ pub(crate) mod tests {
         // Ambiguous in the head, and refused there: one framing spelled twice
         // and disagreeing with itself, or a spelling only one of two parsers
         // would see at all.
-        let refused: [(&str, &[u8]); 10] = [
+        let refused: [(&str, &[u8]); 13] = [
             (
                 "two lengths that agree",
                 b"POST /outer HTTP/1.1\r\nHost: localhost\r\nContent-Length: 0\r\nContent-Length: 0\r\n\r\nGET /smuggled HTTP/1.1\r\nHost: localhost\r\n\r\n",
@@ -9194,6 +9194,18 @@ pub(crate) mod tests {
             (
                 "a fold hiding a second length",
                 b"POST /outer HTTP/1.1\r\nHost: localhost\r\nContent-Length: 0\r\n\tContent-Length: 46\r\n\r\nGET /smuggled HTTP/1.1\r\nHost: localhost\r\n\r\n",
+            ),
+            (
+                "a fold that starts with a space",
+                b"POST /outer HTTP/1.1\r\nHost: localhost\r\nContent-Length: 0\r\n Content-Length: 43\r\n\r\nGET /smuggled HTTP/1.1\r\nHost: localhost\r\n\r\n",
+            ),
+            (
+                "one length header carrying the same value twice, far apart",
+                b"POST /outer HTTP/1.1\r\nHost: localhost\r\nContent-Length: 0                                                            , 0\r\n\r\nGET /smuggled HTTP/1.1\r\nHost: localhost\r\n\r\n",
+            ),
+            (
+                "an empty encoding beside a length",
+                b"POST /outer HTTP/1.1\r\nHost: localhost\r\nTransfer-Encoding: \r\nContent-Length: 43\r\n\r\nGET /smuggled HTTP/1.1\r\nHost: localhost\r\n\r\n",
             ),
         ];
         for (technique, payload) in refused {
@@ -9303,8 +9315,10 @@ pub(crate) mod tests {
 
         // Unambiguous in the head and broken behind it: the outer request is
         // owed an answer by the time those bytes are read, so what is asserted
-        // is only that they never become a request of their own.
-        let broken: [(&str, &[u8]); 2] = [
+        // is only that they never become a request of their own. The rows after
+        // the first two are the published chunk-framing payloads, each a
+        // chunk line a proxy may read differently.
+        let broken: [(&str, &[u8]); 8] = [
             (
                 "a chunk size that is not hexadecimal",
                 b"POST /outer HTTP/1.1\r\nHost: localhost\r\nTransfer-Encoding: chunked\r\n\r\n0x2c\r\nGET /smuggled HTTP/1.1\r\nHost: localhost\r\n\r\n",
@@ -9313,6 +9327,30 @@ pub(crate) mod tests {
                 "a chunked terminator ended with a bare LF",
                 b"POST /outer HTTP/1.1\r\nHost: localhost\r\nTransfer-Encoding: chunked\r\n\r\n0\n\nGET /smuggled HTTP/1.1\r\nHost: localhost\r\n\r\n",
             ),
+            (
+                "a bare LF inside a chunk extension",
+                b"POST /outer HTTP/1.1\r\nHost: localhost\r\nTransfer-Encoding: chunked\r\n\r\n2;\nxx\r\n0\r\n\r\nGET /smuggled HTTP/1.1\r\nHost: localhost\r\n\r\n",
+            ),
+            (
+                "a bare CR inside a chunk extension",
+                b"POST /outer HTTP/1.1\r\nHost: localhost\r\nTransfer-Encoding: chunked\r\n\r\n2;\rxx\r\n0\r\n\r\nGET /smuggled HTTP/1.1\r\nHost: localhost\r\n\r\n",
+            ),
+            (
+                "a chunk size line ended with a bare LF",
+                b"POST /outer HTTP/1.1\r\nHost: localhost\r\nTransfer-Encoding: chunked\r\n\r\n2\nxx\r\n0\r\n\r\nGET /smuggled HTTP/1.1\r\nHost: localhost\r\n\r\n",
+            ),
+            (
+                "chunk data longer than its size",
+                b"POST /outer HTTP/1.1\r\nHost: localhost\r\nTransfer-Encoding: chunked\r\n\r\n2\r\nxxyy\r\n0\r\n\r\nGET /smuggled HTTP/1.1\r\nHost: localhost\r\n\r\n",
+            ),
+            (
+                "a chunk size past 64 bits",
+                b"POST /outer HTTP/1.1\r\nHost: localhost\r\nTransfer-Encoding: chunked\r\n\r\n10000000000000002\r\nxx\r\n0\r\n\r\nGET /smuggled HTTP/1.1\r\nHost: localhost\r\n\r\n",
+            ),
+            (
+                "a trailer line ended with a bare LF",
+                b"POST /outer HTTP/1.1\r\nHost: localhost\r\nTransfer-Encoding: chunked\r\n\r\n0\r\nX: y\n\r\nGET /smuggled HTTP/1.1\r\nHost: localhost\r\n\r\n",
+            ),
         ];
         for (technique, payload) in broken {
             let answer = read_back(payload);
@@ -9320,6 +9358,42 @@ pub(crate) mod tests {
                 responses(&answer),
                 1,
                 "{technique}: the peer got a second response: {answer:?}"
+            );
+            assert!(
+                !answer.contains("hello /smuggled"),
+                "{technique}: the hidden request was answered: {answer:?}"
+            );
+        }
+
+        // A body a server could answer without reading: on a `GET`, and behind
+        // an `Expect`, with the hidden request as the whole body. The body is
+        // read by its length all the same, so the peer gets one final response.
+        // A `100 Continue` is not counted, because it is not an answer.
+        let bodies: [(&str, &[u8]); 3] = [
+            (
+                "a length on a GET",
+                b"GET /outer HTTP/1.1\r\nHost: localhost\r\nContent-Length: 43\r\n\r\nGET /smuggled HTTP/1.1\r\nHost: localhost\r\n\r\n",
+            ),
+            (
+                "a body sent at once behind an Expect",
+                b"POST /outer HTTP/1.1\r\nHost: localhost\r\nExpect: 100-continue\r\nContent-Length: 43\r\n\r\nGET /smuggled HTTP/1.1\r\nHost: localhost\r\n\r\n",
+            ),
+            (
+                "an Expect value no server knows",
+                b"POST /outer HTTP/1.1\r\nHost: localhost\r\nExpect: y 100-continue\r\nContent-Length: 43\r\n\r\nGET /smuggled HTTP/1.1\r\nHost: localhost\r\n\r\n",
+            ),
+        ];
+        for (technique, payload) in bodies {
+            let answer = read_back(payload);
+            let interim = answer.matches("HTTP/1.1 100 ").count();
+            assert_eq!(
+                responses(&answer) - interim,
+                1,
+                "{technique}: the peer got a second response: {answer:?}"
+            );
+            assert!(
+                answer.contains("hello /outer"),
+                "{technique}: the request the peer made was not answered: {answer:?}"
             );
             assert!(
                 !answer.contains("hello /smuggled"),
