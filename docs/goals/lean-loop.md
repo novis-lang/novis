@@ -109,11 +109,12 @@ is swept only when it is low.
 - [x] The debt run and its budget leave `bun nv sweep`, which keeps the nightly read and a disk sweep. `tools/nv/cmd/sweep.ts:68`
 - [x] The disk sweep deletes `target/deps` and `target/incremental` only below `nv disk`'s free-space line. `tools/nv/cmd/disk.ts:796`
 - [x] The owed atoms run as one check that every goal shares, judged last, such as a floor check with `reach: true`. `docs/goals/README.md:1`
-- [ ] One run of that check is measured, and its time by atom kind is written into the debt command's module doc. `tools/nv/cmd/debt.ts:1`
-  - [ ] `looper check --name floor-debt` runs once, in the background, with nothing else building.
-  - [ ] The per-turn lines of `.loop/checks/floor-debt.log` give the time by atom kind.
-  - [ ] The figures go into `tools/nv/cmd/debt.ts`'s module doc; past two hours, the owed benches move to the release gate.
+- [x] One run of that check is measured, and its time by atom kind is written into the debt command's module doc. `tools/nv/cmd/debt.ts:1`
+  - [x] `looper check --name floor-debt` runs once, in the background, with nothing else building.
+  - [x] The per-turn lines of `.loop/checks/floor-debt.log` give the time by atom kind.
+  - [x] The figures go into `tools/nv/cmd/debt.ts`'s module doc; past two hours, the owed benches move to the release gate.
 - [x] `looper.toml`'s hook comment and the `[jobs]` lists say what runs now. `looper.toml:55`
+- [ ] A Linux leg the debt cannot run, because its goal names no fixture, does not keep `floor-debt` red. `tools/nv/cmd/debt.ts:244`, `tools/nv/accept/legs.ts:331`
 
 ### 2. verify is red only for a real fault
 
@@ -165,26 +166,29 @@ edits no shared table by hand.
 
 ### State
 
-Stage 1 is built but for one measurement. `bun nv sweep` reads the nightly run and sweeps the disk, its
-build only below `MIN_FREE_GB`. The debt moved to `bun nv debt` (`tools/nv/cmd/debt.ts`), which pays
-all of it with no budget and is the floor check `floor-debt` in `docs/goals/README.md`, `reach: true`,
-with a four-hour timeout. Nobody has run it yet: `bun nv proofs --owed` listed 419 features at HEAD.
+One `floor-debt` run was measured. It paid 1093 benches in 70m29s, then 2763 proof programs in
+about 49 minutes, and the session's two-hour background limit stopped it there. So the benches left
+the debt, as the user decided: `bun nv debt` pays every owed atom but the benches, and every red
+proof program and leg, and `bun nv benches --owed` pays the benches before a release. Its module doc
+has the figures. Other projects' loops were running during the measurement.
 
-The nightly run 39013536848 was 268 commits behind HEAD. Its `docs` job (`nv check`) is green at HEAD,
-the five-driver matrix was fixed by 460a68396, and the Windows test job hit the 60-minute limit that
-3b4e222db raised. The three `proofs` jobs fail on stale perf records, which is the owed debt. The
-Windows warm-start guard read 13.1 ms of work over a 6 ms budget on a quiet 5.3 ms floor; locally the
-box was busy and it read "not measured".
+What the store holds now: 689 proof programs owed and 2054 red, 2046 of them red since one hour on
+2026-10-15, so that is likely one broken run and not 2046 faults (not checked). The next `floor-debt`
+pays them, about 50 minutes at the measured rate. Both Linux legs stay owed: the run skipped them
+because `lean-loop` names no fixture, so `floor-debt` stays red with "2 left" until stage 1's new item.
+
+The nightly run 39013536848 is still the newest, and nothing in it is new since the last handoff.
 
 ### Next
 
-Stage 1's last item, then stage 2, on `tools/nv/cmd/debt.ts` and the two test binaries:
-- [ ] Measure one `floor-debt` run and write its time by atom kind. `tools/nv/cmd/debt.ts:1`
-- [ ] The `ldap` socket deadlines, found and fixed at their cause. `crates/nvs-stdlib/tests/ldap.rs:277`
+Stage 1's new item, then stage 2, on `tools/nv/cmd/debt.ts`, `tools/nv/cmd/legs.ts` and the two test binaries:
+- [ ] A leg skipped for reaching no fixture does not stay debt for that goal. `tools/nv/accept/legs.ts:331`, `tools/nv/cmd/debt.ts:244`
+- [ ] The `ldap` socket deadlines, found and fixed at their cause, run under load. `crates/nvs-stdlib/tests/ldap.rs:277`
 - [ ] The `live_edit` 30-second swap, found and fixed at its cause. `crates/nvs-cli/tests/live_edit.rs:1010`
 
 ### Backlog
 
 - The Windows warm-start budget: 13 ms of work on a quiet hosted runner against 6 ms. A regression or the runner's file scanning; `tools/nv/cmd/bench.ts` § *The warm-start figure* owns it.
-- `fullRun` and `runBenches` still take a `deadline` that no caller passes since the debt run lost its budget. `tools/nv/select/full.ts:63`, `tools/nv/proofs/select.ts:265`
+- `fullRun` and `runBenches` still take a `deadline` that no caller passes, and `runBenches` an `order` and `onStart` that only the debt passed. `tools/nv/select/full.ts:63`, `tools/nv/proofs/select.ts:265`
+- The debt's progress items for the legs show `running` from the start of the run to its end, though their turn took 2 seconds. `tools/nv/cmd/debt.ts:250`
 - `looper guard` matched a commit in looper's own checkout against a claim on mwl's `docs/goals/README.md`, because the claim check compares paths without their tree. Looper's `crates/looper-core/src/claims.rs` owns it.
