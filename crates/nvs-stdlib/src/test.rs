@@ -36,8 +36,8 @@
 //! * `assertEqualsDeep` replaces it with the structural walk below.
 //!
 //! Writing them as one comparison rather than three is what keeps the scalar,
-//! `string` and `array<T>` rows from drifting: those are `rule:expressions/one-equality-operator`'s, not this
-//! ADR's, and a second reading of them here would be a second set of
+//! `string` and `array<T>` rows from drifting: those are `rule:expressions/one-equality-operator`'s, not
+//! `rule:testing/assertions-are-typed`'s, and a second reading of them here would be a second set of
 //! PHP-divergence decisions nothing keeps in step.
 //!
 //! **The object row's refusal is made when the comparison runs, not where it is
@@ -58,7 +58,7 @@
 //! the choice is this module's:
 //!
 //! * `assertTrue` takes a **`bool`**, not a `mixed` resolved through `rule:expressions/truthy-positions`'s
-//!   truthy table. That ADR makes a *condition* the one place a value is tested
+//!   truthy table. That rule makes a *condition* the one place a value is tested
 //!   without `as`, and an argument is not one.
 //! * `assertNull` takes a **`mixed`**, `rule:types/conversion`'s one position that admits
 //!   every type — a `?T` would refuse the non-`null` half of the union the
@@ -3401,7 +3401,7 @@ nvs_runtime::nvs_helper! {
     /// rather than a [`CoreTy::Var`].
     ///
     /// A `mixed` subject resolved through `rule:expressions/truthy-positions`'s truthy table would have
-    /// been the PHPUnit reading, and it is the wrong one here: that ADR makes a
+    /// been the PHPUnit reading, and it is the wrong one here: that rule makes a
     /// **condition** the one place a value is tested without `as`, and an
     /// argument is not one. So `assertTrue($rows)` is refused where it is
     /// written, exactly as `if` would accept it and `bool $b = $rows;` would
@@ -3453,7 +3453,7 @@ nvs_runtime::nvs_helper! {
 nvs_runtime::nvs_helper! {
     /// `Core\Test::assertCount(array<T> $actual, uint $expected, {message?: string}): void`
     /// — `rule:testing/assertions-are-typed`'s third predicate row, and the one whose subject row had to be
-    /// decided rather than read off the ADR.
+    /// decided rather than read off that rule.
     ///
     /// The subject is an `array<T>` and nothing else, and the count is a
     /// `uint`, which is `Core\Arr::count`'s own signature: a length is a

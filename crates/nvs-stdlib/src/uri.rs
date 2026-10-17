@@ -113,7 +113,7 @@
 //!
 //! **`==` is still identity.** `rule:expressions/object-identity-equality` makes `$a == $b` on two objects ask whether they are the same object
 //! and closes the door on a per-class equality hook, so `compareTo` is the
-//! named spelling that ADR itself points at for content equality — the same
+//! named spelling that rule itself points at for content equality — the same
 //! answer [`crate::time`] gives for an `Instant`. Two references are the same
 //! URI when `$a->compareTo($b) == 0`.
 //!
@@ -322,10 +322,10 @@
 //! answer `rule:types/bytes`'s `bytes` rather than
 //! a `string`: `decodeComponent("%FF")` has an answer, and `%ff%fe%fd` is the
 //! three octets it spells rather than a refusal. A caller who wants text
-//! writes `as string`, which is that ADR § 3's checked row and throws in
-//! exactly the place these members used to throw, one line later — so no
-//! program is denied an answer it could have used, and the one place this
-//! module diverged from PHP, whose strings are byte strings, is closed.
+//! writes `as string`, which is `rule:types/conversion`'s checked row: it
+//! throws when the octets are not well-formed UTF-8, so no program is denied
+//! an answer it could have used. PHP's strings are byte strings, and these
+//! members agree with it.
 //!
 //! The two encoders are untouched. They take text and answer text, and they
 //! are this class's two [`Qual::Launder`] rows; a decoder answering octets

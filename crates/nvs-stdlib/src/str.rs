@@ -68,7 +68,7 @@
 //!
 //! `length`, `at` and `padStart`/`padEnd`'s `$length` all count in
 //! [`crate::granularity::DEFAULT`] — `rule:types/string-is-utf8`'s answer, stated in that
-//! module and in that ADR, never restated here. Every other member is
+//! module and in that rule, never restated here. Every other member is
 //! granularity-independent.
 //!
 //! # Case conversion is Unicode's, not PHP's
@@ -1888,8 +1888,7 @@ nvs_runtime::nvs_helper! {
     ///
     /// The unit is [`crate::granularity::DEFAULT`], which is `rule:types/string-is-utf8`'s
     /// decision and is stated there and nowhere else. What that means for a
-    /// PHP program being ported is the divergence row in that ADR's
-    /// *Consequences*: `strlen("café")` is 5 and this is 4.
+    /// PHP program being ported: `strlen("café")` is 5 and this is 4.
     ///
     /// **One** pass over the string's bytes, which is the floor the unit sets
     /// rather than a number worth improving: reading the argument is a tag

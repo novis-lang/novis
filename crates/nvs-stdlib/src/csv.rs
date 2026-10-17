@@ -25,7 +25,7 @@
 //!
 //! `rule:packaging/a-c-dependency-answers-two-questions`'s first
 //! question is **yes** — an uploaded spreadsheet is attacker-controlled text
-//! reaching this member directly — so under that ADR a C dependency here would
+//! reaching this member directly — so under that rule a C dependency here would
 //! need question 2's exceptional verification record and would not have one.
 //! It does not arise: `csv-core` is pure Rust, `no_std`, has no build script,
 //! and its one dependency is `memchr`, which this tree already carries under

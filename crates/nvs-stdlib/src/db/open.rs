@@ -1743,7 +1743,7 @@ mod tests {
         );
     }
 
-    /// A block that writes no `port` reaches **its own** driver's port — ADR
+    /// A block that writes no `port` reaches **its own** driver's port —
     /// `rule:core-classes/db-connection-is-named`, where the `driver` field is what the rest of the block is read
     /// against.
     ///

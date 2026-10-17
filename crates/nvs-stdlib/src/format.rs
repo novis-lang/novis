@@ -45,7 +45,7 @@
 //! The spec makes `format` an
 //! `rule:expressions/intrinsic-constant-arguments`
 //! intrinsic: a **literal** template has its placeholder count and types
-//! checked while compiling. That ADR's § 4 is why the checker does not get a
+//! checked while compiling. That rule is why the checker does not get a
 //! parser of its own — [`Pieces`] is the one walk over the grammar, [`format`]
 //! drives it to render and [`placeholders`] drives it to describe, so a
 //! template the compiler accepts is exactly one the runtime accepts and a
@@ -749,7 +749,7 @@ fn rendered(argument: &Value) -> Result<String, Fault> {
 ///
 /// A `float` truncates toward zero, as PHP's own `%d` does. A `decimal`
 /// follows `rule:types/conversion` instead: integral and in range, or a throw naming the
-/// rounding member, because silent rounding is what that ADR removed.
+/// rounding member, because that rule allows no silent rounding.
 #[expect(
     clippy::cast_possible_truncation,
     reason = "truncating toward zero is what `%d` over a float means"

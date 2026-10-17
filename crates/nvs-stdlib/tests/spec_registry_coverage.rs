@@ -11,7 +11,7 @@
 //! checked where the signatures cannot be.
 //!
 //! [`every_compiler_facing_spec_member_is_registered`] asks it of § 13, whose
-//! `| Class | Owns | ADR |` rows put a class's roster and a paragraph about it
+//! `| Class | Owns | Rule |` rows put a class's roster and a paragraph about it
 //! in one cell. [`compiler_facing_members`] owns the rule that tells the two
 //! apart — a span is a member when it writes a signature or a generic, or when
 //! commas and slashes alone join it to one that does — and
@@ -734,7 +734,7 @@ fn every_part_one_spec_member_is_registered() {
     for line in text.lines() {
         if let Some(number) = section_number(line) {
             // § 13 is Part I's compiler-facing tail, whose table has no Member
-            // column at all — it writes `| Class | Owns | ADR |` and names the
+            // column at all — it writes `| Class | Owns | Rule |` and names the
             // members inside an English Owns cell — and §§ 14-19 are Part II,
             // walked by [`every_part_two_spec_member_is_registered`] below.
             section = (1..=12).contains(&number).then_some(number);
@@ -1035,7 +1035,7 @@ struct PartTwoMember {
 /// rather than one. § 19 carries an ordinary `| Member | Signature | … |`
 /// table, read exactly as §§ 1-12's are. Everything else states a class and its
 /// members in a bullet — `` - `Core\Session`: `get`, `set`, … `` — because the
-/// semantics live in each subsystem's own ADR and this file fixes only the
+/// semantics live in each subsystem's own rules and this file fixes only the
 /// roster. So the walk reads both, and [`member_list`] owns where a bullet
 /// stops being a roster.
 ///
@@ -1046,8 +1046,9 @@ struct PartTwoMember {
 /// all three own a `get`. The loose reading would let `Core\Env::get` strike
 /// two members nobody has written.
 ///
-/// **§§ 16 and 17 are out of scope.** Both write `| Class | Surface | ADR |` —
-/// one row per class, its members inside an English cell beside the prose about
+/// **§§ 16 and 17 are out of scope.** § 16 writes `| Class | Surface | Rule |`
+/// and § 17 `| Class | Surface | Note |` — in both, one row per class, its
+/// members inside an English cell beside the prose about
 /// them — and a "Replaces `fsockopen`" clause sits in that cell with no dash or
 /// column separating it, where § 13's otherwise identical shape puts its roster
 /// in one run of commas and slashes that [`compiler_facing_members`] can find an
@@ -1462,7 +1463,7 @@ struct CompilerFacingMember {
 /// Every member [docs/spec/01-core-library.md](/docs/spec/01-core-library.md)
 /// § 13 names, resolved to the classes the row naming it is about.
 ///
-/// § 13 is a third shape again: `| Class | Owns | ADR |`, one row per class,
+/// § 13 is a third shape again: `| Class | Owns | Rule |`, one row per class,
 /// with that class's roster and a paragraph about it sharing the *Owns* cell.
 /// That is the shape §§ 16-17 are excluded on, and reading it off position
 /// alone is what a naive walk gets wrong — `Core\Decimal`'s cell says "the

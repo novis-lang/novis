@@ -1458,7 +1458,7 @@ nvs_runtime::nvs_helper! {
     /// exactly as `Core\Str::format`'s template still owes; and it is a
     /// **sink**
     /// (`rule:security/sink-predicate`),
-    /// which is that ADR's registry-wide item — no member row anywhere carries
+    /// which is that rule's registry-wide item — no member row anywhere carries
     /// a qualifier classification yet, so half of one here would be a lie
     /// about what is enforced.
     fn nvs_core_bytes_pack(_ctx, args: [2]) {

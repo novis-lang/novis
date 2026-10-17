@@ -5455,7 +5455,7 @@ nvs_runtime::nvs_helper! {
     /// `rule:types/array-combination`'s right-wins combination, replacing PHP's `array_replace` exactly
     /// and its `array_merge` over maps.
     ///
-    /// **Every key is treated the same way**, which is the whole of that ADR:
+    /// **Every key is treated the same way**, which is the whole of that rule:
     /// PHP's `array_merge` renumbers integer keys and keeps string ones, so
     /// the same call is a replace or an append depending on data the call site
     /// cannot see. Here an existing key replaces in place and a new one is
@@ -5891,7 +5891,7 @@ nvs_runtime::nvs_helper! {
 /// entry by entry rather than to a pair of static types:
 ///
 /// * `int` with `int` stays `int` and **throws** on overflow — no wrap and no
-///   promotion to `float`, which is that ADR's row verbatim and a deliberate
+///   promotion to `float`, which is `rule:types/arithmetic`'s row verbatim and a deliberate
 ///   divergence from `array_sum`, which silently becomes a `float`.
 /// * a `float` anywhere makes the total a `float`, exactly as `int ⊕ float`
 ///   does.

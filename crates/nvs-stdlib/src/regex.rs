@@ -2,7 +2,7 @@
 //! § 5, over `rule:core-classes/regex-two-tiers`'s
 //! two engines.
 //!
-//! That ADR's body is the rule and this module is its implementation; nothing
+//! That rule is the specification and this module is its implementation; nothing
 //! about *why* the tiers exist is restated here.
 //!
 //! # The two crates, and why these two
@@ -817,7 +817,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
 /// `fancy-regex`'s own default, kept rather than lowered: it is the figure
 /// that crate's adversarial-pattern tests are written against, and picking a
 /// different one here would be a number with no measurement behind it. What
-/// matters for the ADR is that exhausting it *throws*, which
+/// matters for that rule is that exhausting it *throws*, which
 /// [`budget_exhausted`] is.
 ///
 /// This is what a request **starts with** and not a ceiling: the directive is
@@ -1089,7 +1089,7 @@ fn compiled_prepared(
 ///   so an unknown variant is treated the same way. Re-tiering there would
 ///   make a pattern's exposure to backtracking a function of how large its
 ///   automaton happens to be, which is exactly the silent, size-dependent
-///   move this ADR exists to prevent: the pattern is refused instead, and the
+///   move `rule:core-classes/regex-two-tiers` exists to prevent: the pattern is refused instead, and the
 ///   program is told which engine ran out of room.
 ///
 /// # Errors

@@ -2667,7 +2667,7 @@ mod tests {
     /// `rule:types/decimal` keeps the two
     /// apart.
     ///
-    /// This is the ADR's own § *Context* defect at the hydration boundary. PDO
+    /// This is the defect `rule:core-classes/db-column-types` exists to close, at the hydration boundary. PDO
     /// hands a `DECIMAL` back as a string on every driver it has, and the PHP
     /// code that follows compares a price with `==` and gets away with it until
     /// a value stops surviving the `float` it is silently coerced through. So
@@ -2731,7 +2731,7 @@ mod tests {
     /// declared non-nullable throws **naming every offending column, not the
     /// first**.
     ///
-    /// The three conditions are named in one sentence of the ADR and they reach
+    /// The three conditions are named in one sentence of that rule and they reach
     /// [`hydrate`] by three different routes — a value the field's declared type
     /// refuses, a key the row has no entry for at all, and a `Tag::Null` that
     /// only a `?T` field takes — so a codec that accumulated on one route and

@@ -91,8 +91,9 @@
 //! refuses an `echo` beside one of the five body members and `setStatus` is not
 //! one of them — `nvs_types::response`'s roster is the five names — so a
 //! handler that sets a status and then `echo`es is the ordinary spelling rather
-//! than a mixture of two writers. Two body members would still be a question
-//! that ADR is owed; a status beside either is not.
+//! than a mixture of two writers. Two body members are still
+//! `rule:security/response-body-is-one-typed-member`'s question; a status
+//! beside either is not.
 //!
 //! **A request that failed answers `500` whatever it declared**, because
 //! `nvs_server`'s `answer` reaches its failure path before it reads the field.
@@ -119,8 +120,9 @@
 //! The reverse order would leave it with no effect on exactly the headers it
 //! exists to change.
 //!
-//! **`Content-Type` is refused here**, and that is this module's call rather
-//! than something either ADR states. § 4's whole argument is that a body
+//! **`Content-Type` is refused here**, and that is this module's call: neither
+//! that rule nor `rule:security/response-body-is-one-typed-member` states it.
+//! § 4's whole argument is that a body
 //! member owns one shape *and* its media type, so that no call site names that
 //! header; admitting it here would let a handler answer `json` and then
 //! relabel it `text/html`, which is the mislabelling § 4 exists to make
@@ -171,7 +173,8 @@
 //! `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect` is why
 //! it may be: `X-Content-Type-Options: nosniff` is on with nothing configured,
 //! so a `text/plain` body is not re-parsed as HTML. Removing that default is
-//! visibly a change to two ADRs.
+//! visibly a change to two rules: that one and
+//! `rule:security/response-body-is-one-typed-member`.
 //!
 //! The registry spelling of that row is nonetheless
 //! [`Qual::Neutral`](crate::registry::Qual::Neutral), because the two
