@@ -25,13 +25,17 @@ stages:
     status: open
     context: [docs/agent/commands.md, docs/agent/conventions.md, docs/agent/playbook.md, looper.toml]
   - id: 6
-    title: "the syntax pages show each feature's about.md and examples"
+    title: "each language feature's facts are in its about.md, its details.md and its examples, once"
     status: open
-    context: [website/src/lib/feature.ts, tools/nv/cmd/site.ts, website/src/content/docs/syntax/control-flow/loops.mdx]
+    context: [docs/reference/lang/40-statements.md, docs/examples/lang/statements/break-and-continue/about.md, website/src/content/docs/syntax/control-flow/break-continue-return.mdx, tools/nv/proofs/roster.ts]
   - id: 7
-    title: "the chapters under docs/reference/lang are generated from the about.md files"
+    title: "the syntax pages show each feature's about.md, details and examples"
     status: open
-    context: [tools/nv/proofs/roster.ts, crates/nvs-cli/src/agent.rs, docs/reference/lang/40-statements.md]
+    context: [website/src/lib/feature.ts, tools/nv/cmd/site.ts, website/src/content/docs/syntax/control-flow/break-continue-return.mdx]
+  - id: 8
+    title: "the chapters under docs/reference/lang are generated from about.md and details.md"
+    status: open
+    context: [tools/nv/proofs/roster.ts, crates/nvs-cli/src/agent.rs, tools/nv/cmd/reference.ts]
 checks:
   - id: rules
     stage: 1
@@ -79,11 +83,24 @@ by tools, so each deletion takes its tooling with it.
   time. Nothing is committed under `docs/` for it. The proof that every chapter example runs stays.
 - **`docs/reference/` stays as the source it is** (the binary, the roster, the lock). Only its
   public-only pieces move to the website.
-- **Each language feature is written once** (stages 6 and 7). Today it is written three times by
-  hand: the chapter under `docs/reference/lang/` (built into the binary for `nvs agent`), the syntax
-  page, and the feature's `about.md`, which the website never shows
+- **Each fact about a language feature is written once** (stages 6 to 8). Today each feature is
+  written three times by hand, at three depths: the chapter under `docs/reference/lang/` (dense,
+  every edge case, built into the binary for `nvs agent`), the syntax page (a plain manual with its
+  own snippets), and the feature's `about.md` with its examples, which the website never shows
   (`website/src/lib/feature.ts:33` reads every area of `docs/examples/` but `lang`). The site lock
-  only reports that one copy changed.
+  only reports that one copy changed. The user chose the full version:
+  - **`about.md`** is the plain explanation, up to 200 words, as for every feature.
+  - **A new `details.md`** beside it holds the exact rules and edge cases the chapter has and
+    `about.md` does not. Each fact is in exactly one of the two.
+  - **The examples under `docs/examples/lang/`** are the only code. A chapter code block that shows
+    something no example shows becomes an example, and the website snippets for these features are
+    deleted.
+  - **A syntax page** keeps its title, its order, the links between features, *Use this when* and
+    *Do and don't*. For each feature it covers, it shows the `about.md`, the examples and the
+    details, through the component the `Core` pages use.
+  - **A chapter is generated** from its features' `about.md` and `details.md` in roster order, so
+    `nvs agent`, the hover text and `/llms-full.txt` read the same words as the website. The
+    chapter's `#` headings stay the roster's feature ids.
 - **`rule:testing/perf-history-file` and `rule:testing/perf-secondary-figures` are retired**, with
   `docs/perf/history.ndjson`. Nothing writes that file, and its PHP ratio conflicts with measuring
   Novis against itself only.
@@ -100,16 +117,15 @@ by tools, so each deletion takes its tooling with it.
   bullet that tells a story, and a bullet that contradicts a rule are deleted, never reworded.
   `[orient] traps` drops from 20 to 8.
 
-**The agent proposed for stages 6 and 7, and the first session on them confirms against the code
-before building:**
-- A feature's `about.md` is the one text. A syntax page keeps its own order, headings and the links
-  between features, and shows each covered feature's `about.md` and examples through the component
-  the `Core` pages use.
-- A chapter's sections are rendered from the `about.md` files in roster order, so `nvs agent` and
-  the hover text read the same words as the website. The chapter's `#` headings stay the roster's
-  feature ids.
-- Where a syntax page and an `about.md` disagree, the page's text is the newer one, because the
-  site's writers checked it against the binary. The commit says which text it took.
+**The agent's calls for stages 6 to 8:**
+- `details.md` is held to AGENTS.md § *Text an end user reads*, like `about.md`, because the website
+  shows it. It has no word limit. A feature whose chapter section adds nothing has no `details.md`.
+- Where two texts disagree on a fact, the binary decides: the session runs the case and writes what
+  it does. The commit names each disagreement it found.
+- An example that shows a compile error needs the examples tree to accept one. Whether it does is
+  not checked; if it does not, stage 6 adds that first.
+- Stage 6 is content and runs one chapter at a time, before the website and the generator change,
+  so every slice leaves all three texts consistent.
 
 **The method is [doc-cleanup.md](../agent/doc-cleanup.md).** A rule id is never renamed. A unique
 fact that is still true moves to its home before its file is deleted: a rule fragment, a module's
@@ -122,9 +138,13 @@ show each feature's examples.
 
 **Trade-offs.**
 - Every session reads fewer tokens, and no tool reads a file that only repeats another.
-- The website build gains one step for `/llms-full.txt` and reads 133 more `about.md` files, a few
-  seconds, with no runtime cost. The binary embeds the same chapters, only generated.
-- A writer edits one file per language feature in place of three.
+- The website build gains one step for `/llms-full.txt` and reads the 133 language features' files,
+  a few seconds, with no runtime cost. The binary embeds the same chapters, only generated.
+- A syntax page gets longer: about three examples per feature, where most show one snippet today,
+  and the details under each feature. `nvs agent` reads in the plain style, with nothing lost.
+- Stage 6 is the largest stage of the goal, roughly 15 to 20 sessions. That figure is a guess from
+  the size of the chapters (7,617 lines), not a measurement.
+- After it, a change to a language feature is one edit in one place, and no copy can drift.
 - The spec's coverage test goes, because the registry becomes the only source for a signature.
   Nothing in the spec designed a member the registry lacks: every "outstanding" ratchet is empty.
 
@@ -185,21 +205,31 @@ the playbook holds only traps that can still happen.
 - [ ] The playbook loses every bullet about a removed tool, every story, every bullet that contradicts a rule (such as the `git stash` one) and every duplicate, and `[orient] traps = 8`. `docs/agent/playbook/running-things/a-before-after-measurement-is-worth-a-git-stash-and-the-base.md:1`, `looper.toml:8`
 - [ ] `how-novis-is-written.mdx`'s count of notes comes from `numbers.json` or goes. `website/src/content/docs/in-depth/how-novis-is-written.mdx:62`
 
-### 6. the syntax pages show each feature's about.md and examples
+### 6. each language feature's facts are in its about.md, its details.md and its examples, once
 
-**Does:** every syntax page shows the `about.md` and examples of each feature it covers, and repeats
-none of their text.
+**Does:** for every language feature, every fact its chapter section, its syntax page and its
+`about.md` state is in exactly one of `about.md`, `details.md` or an example, and the binary agrees
+with each.
 
-- [ ] `feature.ts` reads `lang` like the other areas. `website/src/lib/feature.ts:33`
-- [ ] Each syntax page renders its covered features, and its own text is cut to what joins them. `website/src/content/docs/syntax/control-flow/loops.mdx:3`
-- [ ] The site lock hashes the `about.md` alone for a `lang` feature. `tools/nv/cmd/site.ts:306`
+- [ ] The proofs tooling knows `details.md`: optional, under the feature's examples folder, and held to the comment bounds. Whether an example can show a compile error is checked, and added if it cannot. `tools/nv/proofs/roster.ts:27`
+- [ ] `40-statements` is done first, as the pattern: each feature's facts sorted into its three homes, the chapter's unique code blocks made examples. `docs/reference/lang/40-statements.md:244`, `docs/examples/lang/statements/break-and-continue/about.md:1`
+- [ ] The other ten chapters, one per slice: `10-programs`, `20-types`, `30-expressions`, `50-classes`, `55-enums`, `60-iteration`, `70-errors`, `80-concurrency`, `90-attributes`, `95-testing`. `docs/reference/lang/10-programs.md:1`
 
-### 7. the chapters under docs/reference/lang are generated from the about.md files
+### 7. the syntax pages show each feature's about.md, details and examples
+
+**Does:** every syntax page shows the `about.md`, details and examples of each feature it covers, and
+repeats none of their text.
+
+- [ ] `feature.ts` reads `lang` like the other areas, and the component the `Core` pages use renders a `details.md`. `website/src/lib/feature.ts:33`
+- [ ] Each syntax page renders its covered features, keeps its own frame, *Use this when* and *Do and don't*, and loses its snippets for those features. `website/src/content/docs/syntax/control-flow/break-continue-return.mdx:1`
+- [ ] The site lock hashes a `lang` feature's `about.md`, `details.md` and examples. `tools/nv/cmd/site.ts:306`
+
+### 8. the chapters under docs/reference/lang are generated from about.md and details.md
 
 **Does:** no chapter section is hand-written, and `nvs agent` prints the same text the website does.
 
-- [ ] A renderer writes each chapter from its features' `about.md` files, and a `--check` refuses a hand edit. `tools/nv/proofs/roster.ts:28`
-- [ ] `nvs agent primer` and `show` read the generated chapters, and their tests pass unchanged in shape. `crates/nvs-cli/src/agent.rs:187`
+- [ ] A renderer writes each chapter from its features' `about.md` and `details.md` in roster order, and a `--check` refuses a hand edit. `tools/nv/proofs/roster.ts:28`
+- [ ] `nvs agent primer` and `show`, and `/llms-full.txt`, read the generated chapters, and their tests pass unchanged in shape. `crates/nvs-cli/src/agent.rs:187`
 
 ## Handoff
 
@@ -225,4 +255,4 @@ them. Each is about one session:
 
 ### Backlog
 
-- Stages 6 and 7 make each language feature's `about.md` the one source for its syntax page and its chapter section. `docs/goals/docs-cleanup.md:188`
+- Stages 6 to 8 put each fact about a language feature in one place: its `about.md`, a new `details.md` or an example. The syntax pages and the chapters are built from them. `docs/goals/docs-cleanup.md:210`
