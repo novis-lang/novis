@@ -1,7 +1,7 @@
 ---
 looper: 1
 title: "docs/ holds only what the project's own work needs, and says each thing once"
-summary: "docs/plan, docs/spec, docs/perf, docs/design.md, docs/future-ideas.md and docs/implementation-plan.md are gone with the tooling that read them, every public page is on the website alone, AGENTS.md is one document, docs/agent says each thing once, and the checks below pass."
+summary: "docs/plan, docs/spec, docs/perf, docs/design.md, docs/future-ideas.md and docs/implementation-plan.md are gone with the tooling that read them, every public page is on the website alone, AGENTS.md is one document, docs/agent says each thing once, each language feature's about.md is the one text for its syntax page and its chapter section, and the checks below pass."
 context: [AGENTS.md, docs/agent/doc-cleanup.md, website/README.md, tools/nv/cmd/rules.ts]
 stages:
   - id: 1
@@ -24,6 +24,14 @@ stages:
     title: AGENTS.md is one document, and docs/agent says each thing once
     status: open
     context: [docs/agent/commands.md, docs/agent/conventions.md, docs/agent/playbook.md, looper.toml]
+  - id: 6
+    title: "the syntax pages show each feature's about.md and examples"
+    status: open
+    context: [website/src/lib/feature.ts, tools/nv/cmd/site.ts, website/src/content/docs/syntax/control-flow/loops.mdx]
+  - id: 7
+    title: "the chapters under docs/reference/lang are generated from the about.md files"
+    status: open
+    context: [tools/nv/proofs/roster.ts, crates/nvs-cli/src/agent.rs, docs/reference/lang/40-statements.md]
 checks:
   - id: rules
     stage: 1
@@ -70,7 +78,12 @@ by tools, so each deletion takes its tooling with it.
 - **`docs/novis.md` becomes the website's `/llms-full.txt`**, made by the same generator at build
   time. Nothing is committed under `docs/` for it. The proof that every chapter example runs stays.
 - **`docs/reference/` stays as the source it is** (the binary, the roster, the lock). Only its
-  public-only pieces move to the website. Its three-copies problem is goal `one-language-prose`.
+  public-only pieces move to the website.
+- **Each language feature is written once** (stages 6 and 7). Today it is written three times by
+  hand: the chapter under `docs/reference/lang/` (built into the binary for `nvs agent`), the syntax
+  page, and the feature's `about.md`, which the website never shows
+  (`website/src/lib/feature.ts:33` reads every area of `docs/examples/` but `lang`). The site lock
+  only reports that one copy changed.
 - **`rule:testing/perf-history-file` and `rule:testing/perf-secondary-figures` are retired**, with
   `docs/perf/history.ndjson`. Nothing writes that file, and its PHP ratio conflicts with measuring
   Novis against itself only.
@@ -87,17 +100,31 @@ by tools, so each deletion takes its tooling with it.
   bullet that tells a story, and a bullet that contradicts a rule are deleted, never reworded.
   `[orient] traps` drops from 20 to 8.
 
+**The agent proposed for stages 6 and 7, and the first session on them confirms against the code
+before building:**
+- A feature's `about.md` is the one text. A syntax page keeps its own order, headings and the links
+  between features, and shows each covered feature's `about.md` and examples through the component
+  the `Core` pages use.
+- A chapter's sections are rendered from the `about.md` files in roster order, so `nvs agent` and
+  the hover text read the same words as the website. The chapter's `#` headings stay the roster's
+  feature ids.
+- Where a syntax page and an `about.md` disagree, the page's text is the newer one, because the
+  site's writers checked it against the binary. The commit says which text it took.
+
 **The method is [doc-cleanup.md](../agent/doc-cleanup.md).** A rule id is never renamed. A unique
 fact that is still true moves to its home before its file is deleted: a rule fragment, a module's
 `//!` doc, a gap record under `data/gaps/`, a goal, or a website page. A historical fact, a finished
 pass and a measured figure the code does not enforce are dropped. `git log` is the history.
 
 **No product behaviour changes,** except the website: its `Core` pages gain the summaries and
-constants the spec hid, and it gains `/llms-full.txt` and the pages stage 4 moves.
+constants the spec hid, it gains `/llms-full.txt` and the pages stage 4 moves, and its syntax pages
+show each feature's examples.
 
 **Trade-offs.**
 - Every session reads fewer tokens, and no tool reads a file that only repeats another.
-- The website build gains one step for `/llms-full.txt`, a few seconds, with no runtime cost.
+- The website build gains one step for `/llms-full.txt` and reads 133 more `about.md` files, a few
+  seconds, with no runtime cost. The binary embeds the same chapters, only generated.
+- A writer edits one file per language feature in place of three.
 - The spec's coverage test goes, because the registry becomes the only source for a signature.
   Nothing in the spec designed a member the registry lacks: every "outstanding" ratchet is empty.
 
@@ -158,6 +185,22 @@ the playbook holds only traps that can still happen.
 - [ ] The playbook loses every bullet about a removed tool, every story, every bullet that contradicts a rule (such as the `git stash` one) and every duplicate, and `[orient] traps = 8`. `docs/agent/playbook/running-things/a-before-after-measurement-is-worth-a-git-stash-and-the-base.md:1`, `looper.toml:8`
 - [ ] `how-novis-is-written.mdx`'s count of notes comes from `numbers.json` or goes. `website/src/content/docs/in-depth/how-novis-is-written.mdx:62`
 
+### 6. the syntax pages show each feature's about.md and examples
+
+**Does:** every syntax page shows the `about.md` and examples of each feature it covers, and repeats
+none of their text.
+
+- [ ] `feature.ts` reads `lang` like the other areas. `website/src/lib/feature.ts:33`
+- [ ] Each syntax page renders its covered features, and its own text is cut to what joins them. `website/src/content/docs/syntax/control-flow/loops.mdx:3`
+- [ ] The site lock hashes the `about.md` alone for a `lang` feature. `tools/nv/cmd/site.ts:306`
+
+### 7. the chapters under docs/reference/lang are generated from the about.md files
+
+**Does:** no chapter section is hand-written, and `nvs agent` prints the same text the website does.
+
+- [ ] A renderer writes each chapter from its features' `about.md` files, and a `--check` refuses a hand edit. `tools/nv/proofs/roster.ts:28`
+- [ ] `nvs agent primer` and `show` read the generated chapters, and their tests pass unchanged in shape. `crates/nvs-cli/src/agent.rs:187`
+
 ## Handoff
 
 ### State
@@ -175,5 +218,3 @@ module docs that take its facts:
 - [ ] The plan files and the milestone machinery are deleted. `tools/nv/cmd/plan.ts:200`
 
 ### Backlog
-
-- Goal `one-language-prose` makes each language feature's `about.md` the one source for its chapter section and its syntax page. `docs/goals/one-language-prose.md`
