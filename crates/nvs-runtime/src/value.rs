@@ -1,14 +1,22 @@
 //! The 16-byte tagged value every helper takes and returns.
 //!
-//! `docs/implementation-plan.md`'s § *Value representation* owns the decision;
-//! this module is its implementation. Two things about it are load-bearing and
-//! easy to mistake for accidents:
+//! A value is `{ tag: u8, _pad: [u8; 7], bits: u64 }`, and [`Tag`] is the
+//! whole roster of what it can be. This module is the home of that decision.
+//! Four things about it are load-bearing and easy to mistake for accidents:
 //!
 //! * **It is not NaN-boxed.** An `int` is the full `i64` range, which does not
 //!   fit alongside a tag in 64 bits. Sixteen bytes instead of eight is memory
 //!   footprint spent so that `int` is what `rule:types/arithmetic` says it is,
 //!   not an oversight.
 //! * **`uint` is a tag, not a wider slot.** `rule:types/arithmetic`'s separate unsigned type therefore costs nothing here.
+//! * **There is no `callable` and no `resource` tag.** A callable is an
+//!   ordinary object (`rule:types/callable-values`), and an engine-owned handle
+//!   is a `Core` class carrying a key into its own context's table, so neither
+//!   buys a second heap shape or a second release path. The two enum tags are
+//!   `rule:enums/representation`'s.
+//! * **`decimal` is the one tag that uses the padding.** Its 96-bit mantissa
+//!   does not fit the payload alone, so it spends all sixteen bytes, and
+//!   [`crate::decimal`]'s module doc owns that layout.
 //!
 //! # Where a `Value` actually appears
 //!
@@ -29,8 +37,8 @@ use crate::string::{NvsStr, StrHeader};
 
 /// Which of the runtime's representations a [`Value`]'s payload is.
 ///
-/// The roster is the plan's § *Value representation*, and every entry on it
-/// has a representation behind it. A discriminant never moves:
+/// The roster is the module doc's, and every entry on it has a representation
+/// behind it. A discriminant never moves:
 /// `nvs_ir::lower::param_tag_nibble` writes these numbers down in a crate that
 /// cannot name this type, and compiled code embeds them, so a discriminant
 /// that moves moves in two crates at once and in every artifact already built

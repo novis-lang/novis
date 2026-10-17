@@ -1,9 +1,27 @@
 //! Architecture invariants and cost baselines for Novis's execution model.
 //!
-//! This crate is not part of the compiler. It exists because the rules and
-//! `docs/plan/design.md` rest on how Cranelift, `corosensei` and Wasmtime actually behave
-//! on the host platform, and those are properties of our dependencies rather
-//! than of our code. A dependency bump can silently invalidate them.
+//! This crate is not part of the compiler. It exists because the rules rest on
+//! how Cranelift, `corosensei` and Wasmtime actually behave on the host
+//! platform, and those are properties of our dependencies rather than of our
+//! code. A dependency bump can silently invalidate them. The tests own the
+//! numbers, and nothing else restates them.
+//!
+//! # The premises
+//!
+//! | premise | guarded by | argued in |
+//! |---|---|---|
+//! | native unwinding through JIT frames is unavailable on every platform, the premise the calling convention exists for | `tests/unwind_unavailable.rs` | `rule:errors/propagation` |
+//! | a throw propagates, and a runtime panic is *contained*, across native frames | `tests/invariants.rs` | `rule:errors/helper-abi` |
+//! | a checked-return frame stays cheap, and throwing costs no more than returning | `a_checked_return_frame_stays_cheap`, `throwing_costs_about_the_same_as_returning` | `rule:errors/throw-is-not-slower` |
+//! | a coroutine can suspend from beneath live JIT frames, cheaply | `a_helper_can_suspend_with_jit_frames_live_above_it`, `a_coroutine_round_trip_stays_cheap` | `rule:concurrency/one-scheduler` |
+//! | a wasm guest cannot read past the host heap or outlive its deadline, and the boundary is affordable | `tests/wasm_sandbox.rs`, `a_host_to_guest_call_stays_cheap`, `per_request_instantiation_stays_affordable` | `rule:packaging/the-boundary-is-the-cost` |
+//! | an OS process costs orders of magnitude more than a task, the cost case for in-process isolation | `an_os_process_costs_orders_of_magnitude_more_than_a_task` | `rule:security/isolate-shares-nothing` |
+//!
+//! The first premise forced the one design change everything else follows:
+//! exceptions propagate by checked return, not by unwinding, and every runtime
+//! helper is `extern "C"` wrapping `catch_unwind`.
+//!
+//! # The probes
 //!
 //! The invariants are checked continuously rather than once:
 //!

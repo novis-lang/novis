@@ -72,8 +72,8 @@
 //! predicted-not-taken branch, and each is emitted unconditionally:
 //!
 //! * the **safepoint poll** at every [`nvs_ir::ir::InstKind::Safepoint`] —
-//!   function entry and loop back edges, the project-start decision's fixed
-//!   sites;
+//!   function entry and loop back edges, the fixed sites § *One tier* below
+//!   argues;
 //! * `rule:errors/on-limit`'s
 //!   **call-stack compare**, riding the *first* of those polls so that it
 //!   lands at function entry and nowhere else — one load, one compare against
@@ -102,6 +102,36 @@
 //! `benches/abi-probe` (`tests/perf_guards.rs`), not asserted here — the
 //! call-stack compare is the one that shows, as a one-time step in
 //! `abi/frame_depth`, which is a benchmark that does nothing but call.
+//!
+//! # One tier, and scalar code
+//!
+//! **There is no interpreter.** Every program is compiled here before it
+//! runs, so the semantics have one implementation to keep correct. This is
+//! the baseline tier: a statically known scalar type gets a native
+//! instruction and everything else a call into a runtime helper, which keeps
+//! it close to an interpreter loop and easy to keep correct. An optimising
+//! tier would sit behind the same [`nvs_ir`] boundary, and the safepoint poll
+//! is where it would deoptimise.
+//!
+//! **The safepoint poll is the one way a running request is stopped.** Every
+//! flag [`nvs_runtime::SafepointFlags`] defines — the CPU-time and wall-clock
+//! limits, cancellation, a collection, a debugger break, shutdown — is acted
+//! on at the next poll. Its sites are function entry and loop back edges from
+//! the first instruction this backend emitted, because adding them to a
+//! backend that lacks them means rewriting it.
+//!
+//! **The emitted code is scalar.** Cranelift has no autovectorizer: its
+//! vector instructions exist to lower wasm's fixed 128-bit SIMD. Little is
+//! lost, because a request's hot path is refcounting, ordered-hash lookups and
+//! tagged dispatch, and vectorizing a `float` reduction would reassociate its
+//! additions and change the result. The Rust crates are built with no
+//! `target-cpu` anywhere, so LLVM vectorizes them at each target's baseline
+//! (SSE2, NEON) and a binary runs on the next machine. Wide SIMD arrives
+//! through a dependency that detects the CPU at run time — `memchr` behind
+//! every `regex` prefilter, `blake3` on the artifact cache — never through
+//! `core::arch` in a crate of ours. A claimed SIMD win is checked twice:
+//! callgrind's instruction counts (`rule:testing/perf-two-mechanisms`) do not
+//! model vector throughput, and they flatter it.
 //!
 //! # What this backend lowers
 //!

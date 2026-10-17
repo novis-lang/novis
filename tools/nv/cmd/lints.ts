@@ -17,8 +17,15 @@
 // the copies copies: one home, mechanically enforced, the same shape as `nv gen-attribution`.
 //
 // `UNSAFE_CRATES` below is the roster of manifests that may override, and the reason each one needs
-// to. It is the one home for that list: `docs/plan/design.md` § *Unsafe policy* points here rather
-// than restating it.
+// to. It is the one home for that list, and with this header the one home of the unsafe policy: a
+// crate off the roster cannot hold an `unsafe` block at all, so the roster is the whole policy. A
+// crate joins it with its reason written beside its name.
+//
+// Inside a roster crate, each `unsafe` block carries its own `#[allow(unsafe_code, reason = "...")]`
+// (or `#[expect]`), a safety-invariant comment, and Miri or ASAN coverage. `unsafe_op_in_unsafe_fn`
+// is edition 2024's warn-by-default, and the `-D warnings` both clippy gates run with promotes it, so
+// no crate sets it. A coroutine switch is `corosensei`'s, which handles Windows SEH and aarch64, never
+// a hand-rolled one.
 //
 // Four properties are worth knowing before changing anything here:
 //
@@ -49,7 +56,7 @@ const USAGE = "usage: nv lints [-h] [--check]";
 type Tables = Record<string, Record<string, unknown>>;
 
 /** The manifests that may override the workspace table, and why each must. A crate joins it only
- *  with a rule that says why, per `docs/plan/design.md` § *Unsafe policy*. */
+ *  with a reason that says why, per this file's header. */
 export const UNSAFE_CRATES: Record<string, string> = {
   "crates/nvs-runtime":
     "the helper ABI's `extern \"C\"` entry points, the request arena and the tagged-value representation decode raw pointers",
