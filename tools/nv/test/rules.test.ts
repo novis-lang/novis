@@ -1,7 +1,7 @@
-// The decision record guard in `bun nv rules --check`. The cases name every record form, so this file
-// carries `nv-rules:record-examples`.
+// The decision record and deleted doc guards in `bun nv rules --check`. The cases name every form they
+// refuse, so this file carries `nv-rules:record-examples`.
 import { describe, expect, test } from "bun:test";
-import { RECORD_DIRS, recordFindings } from "../cmd/rules.ts";
+import { RECORD_DIRS, deletedDocFindings, recordFindings } from "../cmd/rules.ts";
 
 const one = (text: string) => recordFindings([], [["docs/x.md", text]]);
 
@@ -38,5 +38,26 @@ describe("nv rules --check, decision records", () => {
   test("a clean tree has no finding, and a file carrying the marker is skipped", () => {
     expect(one("a rule holds its reasons and its Declined list")).toEqual([]);
     expect(one("ADR 0004\n<!-- nv-rules:record-examples -->")).toEqual([]);
+  });
+});
+
+const doc = (text: string) => deletedDocFindings([["crates/x.rs", text]]);
+
+describe("nv rules --check, deleted docs", () => {
+  test("a deleted doc cited by its repository path is a finding", () => {
+    expect(doc("//! `docs/plan/design.md` § *Safepoints*")).toEqual([{ where: "crates/x.rs:1", what: "cites a deleted doc" }]);
+    expect(doc("# the policy in docs/implementation-plan.md's section")).toHaveLength(1);
+    expect(doc("a note in docs/future-ideas.md")).toHaveLength(1);
+  });
+
+  test("a deleted doc cited by a relative link is a finding", () => {
+    expect(doc("[the frozen design](../plan/design.md)")).toHaveLength(1);
+    expect(doc("[the plan](implementation-plan.md)")).toHaveLength(1);
+  });
+
+  test("a doc that still exists is not a finding, and a file carrying the marker is skipped", () => {
+    expect(doc("[the rules](../rules/types.md) and docs/setup.md")).toEqual([]);
+    expect(doc("see [docs/design.md](docs/design.md)")).toEqual([]);
+    expect(doc("docs/plan/m10.md\n// nv-rules:record-examples")).toEqual([]);
   });
 });
