@@ -8,7 +8,7 @@
 // **A goal's plan is its own front matter and nothing else** (`rule:tooling/the-chain-names-its-live-goal`).
 // No check of another goal is carried into it: the permanent suites and `bun nv verify` protect finished
 // work. `planOf` turns looper's fields back into the shape the commands here read: Novis's own fields
-// (`milestone`, `files`, `env`, the `[context]` lists) sit under `extra`, and a check's kind follows from
+// (`files`, `env`, the `[context]` lists) sit under `extra`, and a check's kind follows from
 // its fields.
 
 import { existsSync, readdirSync, readFileSync } from "node:fs";
@@ -36,15 +36,11 @@ export interface GoalContext {
   rules?: string[];
   shapes?: string[];
   playbook?: string[];
-  plan?: string[];
-  milestones?: string[];
 }
 
 /** A goal's plan: its front matter, in the shape the commands here read. */
 export interface Goal {
   title: string;
-  /** Null for a goal that lands in no milestone. */
-  milestone: string | null;
   /** `last` pins the goal behind every goal not pinned, whatever the chain's order. */
   position?: "last";
   /** `done` sweeps the acceptance list only after a session that reports DONE; unset sweeps after every session. */
@@ -69,7 +65,6 @@ export interface ChainGoal {
   slug: string;
   /** 1-based, its place on the chain. */
   num: number;
-  milestone: string | null;
   /** The goal's file, repo-relative, or null when none is on disk. */
   md: string | null;
 }
@@ -167,7 +162,6 @@ function planOf(slug: string, root: string): Goal | null {
   });
   return {
     title: String(fm.title ?? ""),
-    milestone: typeof extra.milestone === "string" ? extra.milestone : null,
     ...(extra.position === "last" ? { position: "last" as const } : {}),
     ...(extra.sweep === "done" ? { sweep: "done" as const } : {}),
     files: strs(extra.files) ?? [],
@@ -184,7 +178,6 @@ export function chainGoals(root: string = ROOT): ChainGoal[] {
   return chainSlugs(root).map((slug, i) => ({
     slug,
     num: i + 1,
-    milestone: files.has(slug) ? (planOf(slug, root)?.milestone ?? null) : null,
     md: files.get(slug) ?? null,
   }));
 }

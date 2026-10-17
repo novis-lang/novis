@@ -1,35 +1,30 @@
 // `bun nv owners`: every known gap and every designed rule, and who owns each. A gap is a record,
 // `data/gaps/<crate>/<slug>.json`, and a designed rule is a rule record, `data/rules/<topic>/<slug>.json`,
-// whose `status` is `designed`. Each names one owner: a goal by slug, or a milestone by id. This command
-// classifies each owner against the chain, the goal files and the plan, and `--check` is the gate over
-// both classifications and over the prose scan below.
+// whose `status` is `designed`. Each names one owner, a goal by slug. This command classifies each
+// owner against the chain and the goal files, and `--check` is the gate over both classifications and
+// over the prose scan below.
 //
 // The kinds a gap's owner falls into, and what `--check` does with each:
 //
-//   milestone  a milestone with a record under `data/plan/milestones/`. The plan holds only the
-//              milestones still ahead, since a finished one's record and file are deleted, so this is
-//              scheduled work and not an unclosed hole; `--deferrals` holds each one to the scope its own
-//              `docs/plan/<id>.md` states.
 //   live       the goal `docs/goals/README.md`'s chain names live, or the side goal this process runs. Accepted,
 //              because the sweep's owner gate (`--closes`) will not let that goal walk while the gap
 //              names it, so the gap cannot outlive its owner.
 //   goal       a goal further down the chain. Accepted for the same reason: it becomes live before it
 //              is reached, and its `--closes` gate holds the gap then. Deleting its file makes the
 //              owner `broken`, which this gate refuses.
-//   broken     an owner that resolves to no goal or milestone record, or a goal file that is neither on
+//   broken     an owner that resolves to no goal file, or a goal file that is neither on
 //              the chain nor running.
 //   unowned    the retired word `unowned`, refused by name so the reader knows the edit is to choose an
 //              owner rather than to fix a typo.
 //   untagged   no owner at all.
 //
-// A gap leaves the gate one of three ways: built and its record deleted, struck as a stated bound in
-// the module's own prose, or deferred to a milestone whose plan states the scope. `--closes <slug>` is
-// the gate a goal meets at its end: it exits 1 while any gap names that goal, because a tag is not a
-// build.
+// A gap leaves the gate one of two ways: built and its record deleted, or struck as a stated bound in
+// the module's own prose. `--closes <slug>` is the gate a goal meets at its end: it exits 1 while any
+// gap names that goal, because a tag is not a build.
 //
 // A designed rule's owner falls into the same kinds with one difference: any goal whose file is under
 // `docs/goals/`, live or not, is an accepted owner, because deleting that file makes the owner `broken`.
-// So a designed rule is accepted when it names such a goal or a milestone with a record, and refused
+// So a designed rule is accepted when it names such a goal, and refused
 // when it is `broken` or `untagged`. The roster and `--json` report the
 // designed rules, `--check` exits 1 while any is refused, and `--closes <slug>` exits 1 while any names
 // that goal, because a designed rule is reached when it ships.
@@ -47,7 +42,7 @@
 //   bun nv owners                 the roster, by kind, gaps and then designed rules
 //   bun nv owners --check         the gate; exit 1 with a line per refused gap, designed rule or prose gap
 //   bun nv owners --closes SLUG   exit 1 while any gap or designed rule names that goal, each listed
-//   bun nv owners --deferrals     each milestone owner against its plan file's scope
+
 //   bun nv owners --registers     one line per register, and how many items each holds
 //   bun nv owners --prose         every gap that lives only in prose; exit 1 while any remains
 //   bun nv owners --untagged | --unowned   only the gaps of that kind
@@ -63,7 +58,6 @@ import { chainGoals, goalPlan, liveGoal, sideGoal as runningSideGoal } from "../
 import { ROOT } from "../lib/paths.ts";
 import { load } from "../lib/store.ts";
 import { gap as gapType } from "../schema/gap.ts";
-import { milestone as milestoneType } from "../schema/milestone.ts";
 import { rule as ruleType } from "../schema/rule.ts";
 
 export const summary = "who owns each known gap and designed rule, and the gate over it: nv owners [--check | --closes <slug> | --registers | ...]";
@@ -71,7 +65,6 @@ export const summary = "who owns each known gap and designed rule, and the gate 
 const UNOWNED = "unowned";
 /** The playbook's bullets: one file each, under a directory per section. */
 const PLAYBOOK = "docs/agent/playbook";
-const MILESTONE = /^M(\d+)[A-Z]?$/;
 
 const CARRIED_GAPS = "docs/agent/carried-gaps.md";
 const CARRIED_REFUSALS = "docs/agent/carried-refusals.md";
@@ -89,15 +82,15 @@ export interface Gap {
   why?: string;
 }
 
-export type Kind = "live" | "goal" | "milestone" | "unowned" | "untagged" | "broken";
+export type Kind = "live" | "goal" | "unowned" | "untagged" | "broken";
 export type Kinds = Record<Kind, Gap[]>;
 
-/** Every kind `--check` refuses: all but `milestone`, `live` and `goal`. */
+/** Every kind `--check` refuses: all but `live` and `goal`. */
 export const REFUSED: Kind[] = ["broken", "untagged", "unowned"];
 
 /** The label each kind is counted under, one count per line so a `want` of `0` cannot match `10`. */
 const LABELS: [Kind, string][] = [
-  ["live", "live-goal-owned"], ["goal", "goal-owned"], ["milestone", "milestone-owned"],
+  ["live", "live-goal-owned"], ["goal", "goal-owned"],
   ["unowned", "unowned"], ["untagged", "untagged"], ["broken", "broken-tag"],
 ];
 
@@ -112,7 +105,7 @@ export function collect(): Gap[] {
       module: r.value.module,
       title: r.value.title,
       text: r.value.text,
-      owner: r.value.milestone ?? r.value.goal ?? "",
+      owner: r.value.goal ?? "",
     }))
     .sort((a, b) => cmp(a.module, b.module) || cmp(a.slug, b.slug));
 }
@@ -121,50 +114,34 @@ function cmp(a: string, b: string): number {
   return a < b ? -1 : a > b ? 1 : 0;
 }
 
-/** The ids of the milestone records, as an owner is classified against them. */
-type Plan = Set<string>;
-
-function milestonePlan(root: string = ROOT): Plan {
-  return new Set(load(milestoneType, root).map((m) => m.id));
-}
-
 /** The kinds a gap and a designed rule share, and the reason for each that is refused. */
 interface Resolved {
-  kind: "untagged" | "broken" | "milestone" | "goal";
+  kind: "untagged" | "broken" | "goal";
   why?: string;
 }
 
-/**
- * Where `owner` stands: a milestone id against `plan`, anything else as a goal slug that `isGoal` knows.
- * A milestone with no record is finished and deleted, or never existed, so naming it is `broken`.
- */
-function resolve(owner: string, plan: Plan, isGoal: (slug: string) => boolean): Resolved {
+/** Where `owner` stands: a goal slug that `isGoal` knows, or `broken`. */
+function resolve(owner: string, isGoal: (slug: string) => boolean): Resolved {
   if (!owner) return { kind: "untagged", why: "no owner" };
-  if (!MILESTONE.test(owner)) return isGoal(owner) ? { kind: "goal" } : { kind: "broken", why: `no goal \`${owner}\` in docs/goals/` };
-  if (!plan.has(owner)) {
-    return { kind: "broken", why: `no milestone ${owner} under data/plan/milestones/; name a goal or a milestone still ahead` };
-  }
-  return { kind: "milestone" };
+  return isGoal(owner) ? { kind: "goal" } : { kind: "broken", why: `no goal \`${owner}\` in docs/goals/` };
 }
 
 /** Sorts every gap into its kind, with the reason for each kind that has more than one. */
 export function classify(found: Gap[]): Kinds {
   // A side goal owns a gap exactly as a chain goal does, and its end gate asks `--closes` of its slug.
-  const plan = milestonePlan();
   const chain = chainGoals();
   const running = new Set([liveGoal(chain)?.slug, runningSideGoal()].filter((s): s is string => !!s));
   const onChain = new Set(chain.map((g) => g.slug));
-  const out: Kinds = { live: [], goal: [], milestone: [], unowned: [], untagged: [], broken: [] };
+  const out: Kinds = { live: [], goal: [], unowned: [], untagged: [], broken: [] };
   for (const gap of found) {
     if (gap.owner === UNOWNED) {
       out.unowned.push({
         ...gap,
-        why: "`unowned` is a retired owner kind; a gap is owned by a goal on the chain or by a " +
-          "milestone whose plan states the scope",
+        why: "`unowned` is a retired owner kind; a gap is owned by a goal on the chain",
       });
       continue;
     }
-    const r = resolve(gap.owner, plan, (slug) => goalPlan(slug) !== null);
+    const r = resolve(gap.owner, (slug) => goalPlan(slug) !== null);
     if (r.kind === "goal" && !running.has(gap.owner) && !onChain.has(gap.owner)) {
       out.broken.push({
         ...gap,
@@ -179,7 +156,7 @@ export function classify(found: Gap[]): Kinds {
   return out;
 }
 
-/** A rule whose `status` is `designed`, and the owner its record names: a milestone id or a goal slug. */
+/** A rule whose `status` is `designed`, and the goal slug its record names as its owner. */
 export interface DesignedRule {
   id: string;
   title: string;
@@ -190,11 +167,11 @@ export interface DesignedRule {
 export type RuleKind = Resolved["kind"];
 export type RuleKinds = Record<RuleKind, DesignedRule[]>;
 
-/** Every kind the designed rules' gate refuses: all but `goal` and `milestone`. */
+/** Every kind the designed rules' gate refuses: all but `goal`. */
 export const RULE_REFUSED: RuleKind[] = ["broken", "untagged"];
 
 const RULE_LABELS: [RuleKind, string][] = [
-  ["goal", "designed rules owned by a goal file"], ["milestone", "designed rules owned by a milestone"],
+  ["goal", "designed rules owned by a goal file"],
   ["broken", "designed rules with a broken owner"], ["untagged", "designed rules naming no owner"],
 ];
 
@@ -202,7 +179,7 @@ const RULE_LABELS: [RuleKind, string][] = [
 export function collectRules(root: string = ROOT): DesignedRule[] {
   return load(ruleType, root)
     .filter((r) => r.value?.status === "designed")
-    .map((r) => ({ id: r.id, title: r.value.title, owner: r.value.milestone ?? r.value.goal ?? "" }))
+    .map((r) => ({ id: r.id, title: r.value.title, owner: r.value.goal ?? "" }))
     .sort((a, b) => cmp(a.id, b.id));
 }
 
@@ -211,11 +188,10 @@ export function collectRules(root: string = ROOT): DesignedRule[] {
  * whose file is under `docs/goals/` is accepted, because deleting that file makes the owner `broken`.
  */
 export function classifyRules(found: DesignedRule[], root: string = ROOT): RuleKinds {
-  const plan = milestonePlan(root);
   const isGoal = (slug: string) => existsSync(join(root, "docs", "goals", `${slug}.md`));
-  const out: RuleKinds = { goal: [], milestone: [], broken: [], untagged: [] };
+  const out: RuleKinds = { goal: [], broken: [], untagged: [] };
   for (const rule of found) {
-    const r = resolve(rule.owner, plan, isGoal);
+    const r = resolve(rule.owner, isGoal);
     out[r.kind].push(r.why ? { ...rule, why: r.why } : rule);
   }
   return out;
@@ -334,7 +310,7 @@ function ratchetOwners(): string[] {
 export function registers(found: Gap[]): Register[] {
   const all: (Omit<Register, "owners"> & { read: () => string[] })[] = [
     { name: "module docs", where: "data/gaps/", read: () => found.map((g) => g.owner),
-      what: "a gap record, naming the goal or milestone that owns it" },
+      what: "a gap record, naming the goal that owns it" },
     { name: "carried-refusals.md", where: CARRIED_REFUSALS, read: () => entryLines(CARRIED_REFUSALS, /^9\d\d\. /),
       what: "a run of `nvs-ir` refusal sites, numbered from 900" },
     { name: "outstanding keys", where: RATCHETS, read: ratchetOwners,
@@ -388,7 +364,7 @@ function countLines(kinds: Kinds): string[] {
 function report(kinds: Kinds, found: Gap[], regs: Register[], sections: ReturnType<typeof outsideBlocks>): void {
   const out: string[] = ["== ITEMS THAT NAME NOBODY"];
   for (const g of kinds.untagged) out.push(lineOf(g), `      ${g.why}`);
-  if (kinds.untagged.length === 0) out.push("  none -- every recorded gap names a goal or a milestone");
+  if (kinds.untagged.length === 0) out.push("  none -- every recorded gap names a goal");
   const refused: [Kind, string][] = [["broken", "TAGS THAT DO NOT RESOLVE"]];
   for (const [kind, head] of refused) {
     if (kinds[kind].length === 0) continue;
@@ -398,7 +374,6 @@ function report(kinds: Kinds, found: Gap[], regs: Register[], sections: ReturnTy
   const grouped: [Kind, string, (owner: string) => string][] = [
     ["live", "OWNED BY THE GOAL THAT IS RUNNING, WHICH CANNOT WALK WHILE IT OWNS ONE", (o) => `goal \`${o}\``],
     ["goal", "OWNED BY ANOTHER GOAL ON THE CHAIN", (o) => `goal \`${o}\``],
-    ["milestone", "SCHEDULED BY A MILESTONE'S PLAN", (o) => o],
   ];
   for (const [kind, head, name] of grouped) {
     out.push("", `== ${head}`);
@@ -431,15 +406,13 @@ function runCheck(kinds: Kinds): number {
   if (bad.length > 0) {
     console.log(
       `nv owners: ${bad.length} recorded gap(s) name an owner this gate refuses, each for the reason on ` +
-        "its own line. A gap may name a milestone whose plan file states the scope, written as the record's `milestone`, which `bun nv owners --deferrals` holds " +
-        "to that scope; or a goal on the chain or running, which `--closes` holds at its end.",
+        "its own line. A gap names a goal on the chain or running, which `--closes` holds at its end.",
     );
   } else {
-    const tagged = kinds.milestone.length + kinds.live.length + kinds.goal.length;
+    const tagged = kinds.live.length + kinds.goal.length;
     console.log(
-      `nv owners: every one of the ${tagged} tagged gap(s) names an ` +
-        "owner the chain or the plan knows -- a milestone still ahead of the program, or a goal on the " +
-        "chain or running, whose own end gate refuses to reach it while the gap is open",
+      `nv owners: every one of the ${tagged} tagged gap(s) names an owner the chain knows -- a goal on ` +
+        "the chain or running, whose own end gate refuses to reach it while the gap is open",
     );
   }
   console.log(countLines(kinds).join("\n"));
@@ -455,8 +428,7 @@ function runCloses(found: Gap[], slug: string): number {
   for (const g of owned) console.log(lineOf(g));
   console.log(
     `nv owners: goal \`${slug}\` still owns ${owned.length} module-doc gap(s). A goal is reached when ` +
-      "each is built and its record deleted, struck as a stated bound, or deferred to a milestone " +
-      "whose plan states the scope; a tag is not a build.",
+      "each is built and its record deleted, or struck as a stated bound; a tag is not a build.",
   );
   return 1;
 }
@@ -471,19 +443,16 @@ function ruleCountLines(kinds: RuleKinds): string[] {
 
 /** The designed rules' part of the roster: each refused kind with its reasons, then each owner's rules. */
 function reportRules(kinds: RuleKinds, found: DesignedRule[]): void {
-  const out = ["", "== DESIGNED RULES, AND THE GOAL OR MILESTONE THAT SHIPS EACH"];
+  const out = ["", "== DESIGNED RULES, AND THE GOAL THAT SHIPS EACH"];
   for (const kind of RULE_REFUSED) {
     if (kinds[kind].length === 0) continue;
     out.push(`  ${kind} -- ${kinds[kind].length} rule(s)`);
     for (const r of kinds[kind]) out.push(ruleLine(r), `      ${r.why}`);
   }
-  const grouped: [RuleKind, (owner: string) => string][] = [["goal", (o) => `goal \`${o}\``], ["milestone", (o) => o]];
-  for (const [kind, name] of grouped) {
-    const owners = new Map<string, DesignedRule[]>();
-    for (const r of kinds[kind]) owners.set(r.owner, [...(owners.get(r.owner) ?? []), r]);
-    for (const [owner, rules] of [...owners].sort((a, b) => cmp(a[0], b[0]))) {
-      out.push(`  ${name(owner)} -- ${rules.length} rule(s)`, ...rules.map(ruleLine));
-    }
+  const owners = new Map<string, DesignedRule[]>();
+  for (const r of kinds.goal) owners.set(r.owner, [...(owners.get(r.owner) ?? []), r]);
+  for (const [owner, rules] of [...owners].sort((a, b) => cmp(a[0], b[0]))) {
+    out.push(`  goal \`${owner}\` -- ${rules.length} rule(s)`, ...rules.map(ruleLine));
   }
   if (found.length === 0) out.push("  none -- every rule is shipped");
   out.push("", `== ${found.length} designed rule(s)`, ...ruleCountLines(kinds));
@@ -502,10 +471,9 @@ function runRuleCheck(kinds: RuleKinds): number {
   if (bad.length > 0) {
     console.log(
       `nv owners: ${bad.length} designed rule(s) name no owner this gate accepts. A designed rule names ` +
-        "the goal that ships it, as the record's `goal`, whose file is under docs/goals/; or a milestone " +
-        "with a record under data/plan/milestones/, as the record's `milestone`.",
+        "the goal that ships it, as the record's `goal`, whose file is under docs/goals/.",
     );
-  } else console.log(`nv owners: every designed rule names a goal file or a milestone still ahead`);
+  } else console.log(`nv owners: every designed rule names a goal file`);
   console.log(ruleCountLines(kinds).join("\n"));
   return bad.length > 0 ? 1 : 0;
 }
@@ -517,68 +485,13 @@ function runRuleCloses(found: DesignedRule[], slug: string): number {
   for (const r of owned) console.log(ruleLine(r));
   console.log(
     `nv owners: goal \`${slug}\` still owns ${owned.length} designed rule(s). A goal is reached when each ` +
-      "is shipped and its record says so, or names the goal or milestone that ships it instead.",
+      "is shipped and its record says so, or names the goal that ships it instead.",
   );
   return 1;
 }
 
-/** What `--deferrals` reads an item for: a backticked token, or a word long enough to be about it. */
-const KEYWORD = /`([^`\s]{3,})`/g;
-const WORD = /\b([A-Za-z][A-Za-z0-9_]{5,})\b/g;
-const STEM = 6;
-/** Words long enough to pass `WORD` that are this repository's prose vocabulary, not a subsystem. */
-const PROSE = new Set([
-  "because", "instead", "rather", "already", "against", "nothing", "anything", "everything",
-  "itself", "second", "single", "whole", "written", "writes", "reading", "carries",
-  "answers", "entries", "program", "milestone", "repository", "whatever", "however",
-  "therefore", "without", "within", "through", "themselves", "something",
-]);
-
-/** What the milestone's plan says that covers this gap, strongest first, or "" when it says nothing. */
-function covers(text: string, g: Gap): string {
-  const lowered = text.toLowerCase();
-  const body = `${g.title} ${g.text}`;
-  const crate = g.module.split("/")[1] ?? "";
-  for (const path of [g.module, crate, crate.replace(/^nvs-/, "")]) {
-    if (path && lowered.includes(path.toLowerCase())) return path;
-  }
-  for (const m of body.matchAll(KEYWORD)) if (lowered.includes(m[1]!.toLowerCase())) return `\`${m[1]}\``;
-  for (const m of body.matchAll(WORD)) {
-    const w = m[1]!;
-    if (!PROSE.has(w.toLowerCase()) && lowered.includes(w.slice(0, STEM).toLowerCase())) return w;
-  }
-  return "";
-}
-
-function runDeferrals(kinds: Kinds): number {
-  let missed = 0;
-  const out = ["== EVERY GAP DEFERRED TO A MILESTONE AHEAD OF THE PROGRAM"];
-  for (const [owner, gaps] of byOwner(kinds.milestone)) {
-    const path = `docs/plan/${owner.toLowerCase()}.md`;
-    const text = existsSync(join(ROOT, path)) ? readFileSync(join(ROOT, path), "utf8") : "";
-    out.push(`  ${owner} -- ${gaps.length} item(s), against ${path}`);
-    for (const g of gaps) {
-      out.push(lineOf(g));
-      const how = text ? covers(text, g) : "";
-      if (how) out.push(`      scoped there by ${how}`);
-      else {
-        missed++;
-        out.push(text ? `      ${path} states no scope covering this item` : `      ${path} does not exist`);
-      }
-    }
-  }
-  if (kinds.milestone.length === 0) out.push("  none");
-  if (missed > 0) {
-    out.push("", `== ${missed} deferral(s) name a milestone whose plan does not state the scope. Either the ` +
-      "item is owned by a goal on the chain, or the milestone's own file is where the scope belongs -- " +
-      "written there for its own sake, never to make a tag pass.");
-  } else out.push("", "== every deferral names a future milestone whose plan states the scope");
-  console.log(out.join("\n"));
-  return missed > 0 ? 1 : 0;
-}
-
 export async function run(args: string[]): Promise<number> {
-  const known = new Set(["--check", "--registers", "--deferrals", "--prose", "--untagged", "--unowned", "--json",
+  const known = new Set(["--check", "--registers", "--prose", "--untagged", "--unowned", "--json",
     "--untagged-is-an-error", "--reasons"]);
   const at = args.indexOf("--closes");
   const slug = at >= 0 ? args[at + 1] : undefined;
@@ -606,7 +519,6 @@ export async function run(args: string[]): Promise<number> {
     const gaps = runCloses(found, slug);
     return Math.max(gaps, ruleVerdict(runRuleCloses(collectRules(), slug)));
   }
-  if (has("--deferrals")) return runDeferrals(kinds);
   if (has("--prose")) return runProse(found);
   if (has("--check")) {
     const gaps = runCheck(kinds);

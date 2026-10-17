@@ -194,7 +194,7 @@ export class Rulebook {
           status: r.value.status,
           seeAlso: r.value.seeAlso,
           guardedBy: r.value.guardedBy,
-          owner: r.value.milestone ?? (r.value.goal ? `goal ${r.value.goal}` : ""),
+          owner: r.value.goal ? `goal ${r.value.goal}` : "",
           bodyPath: join(RULES_DIR, topic, `${slug}.md`),
         };
         t.rules.push(rule);

@@ -203,7 +203,7 @@ export async function run(args: string[]): Promise<number> {
         "",
         `${findings.length} finding(s) in ${BLOCK}'s *Repository layout* listing.`,
         "The block owns the set of rows; `bun nv layout --rows` drafts the missing ones.",
-        "What the workspace has not built yet belongs to docs/implementation-plan.md, not here.",
+        "What the workspace has not built yet belongs to a goal under docs/goals/, not here.",
       );
     } else if (!args.includes("--check")) {
       const rows = parse(read(BLOCK)) as Row[];

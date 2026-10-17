@@ -1,5 +1,5 @@
 // A known gap: `data/gaps/<crate>/<slug>.json`, something a shipped feature still owes, named by a slug
-// that never changes and owned by exactly one goal or milestone.
+// that never changes and owned by exactly one goal.
 
 import { defineRecord, s } from "../lib/schema.ts";
 
@@ -15,13 +15,11 @@ export const gap = defineRecord({
     text: s.string(),
     /** The slug of a goal file under `docs/goals/`, which `bun nv owners` checks exists. */
     goal: s.optional(s.slug()),
-    milestone: s.optional(s.ref("milestone")),
   }),
   checks: [
     {
       name: "a gap has exactly one owner",
-      sql: `SELECT path, 'names ' || CASE WHEN goal IS NULL THEN 'no owner' ELSE 'both a goal and a milestone' END AS detail
-            FROM gap WHERE (goal IS NULL) = (milestone IS NULL)`,
+      sql: `SELECT path, 'names no owner' AS detail FROM gap WHERE goal IS NULL`,
     },
   ],
 });
