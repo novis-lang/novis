@@ -4575,8 +4575,11 @@ paragraphs, written down once.
 option above, the sheet-name rules, the row options `height`, `hidden`, `level` and `style`,
 `define` and CSV.
 
-**Not shipped.** The cut-off download, which the server cannot do yet
-(`data/gaps/nvs-server/a-streamed-body-cannot-be-cut-off.json`).
+A download whose program throws, meets a limit or is cancelled is cut off.
+
+**Not shipped.** The error logged for a workbook never finished, and the cut-off download for a
+program that returns without finishing it
+(`data/gaps/nvs-ext/a-workbook-never-finished-is-neither-logged-nor-cut-off.json`).
 
 **Declined:**
 - **An in-memory editable mode beside the stream.** Two ways to write is two sets of rules, and the

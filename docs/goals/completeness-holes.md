@@ -42,7 +42,7 @@ stages:
   - id: 6
     title: a streamed body that ends early is cut off
     status: open
-    context: [crates/nvs-runtime/src/stream.rs, crates/nvs-server/src/serve.rs, data/gaps/nvs-server/a-streamed-body-cannot-be-cut-off.json]
+    context: [crates/nvs-runtime/src/stream.rs, crates/nvs-server/src/serve.rs, data/gaps/nvs-ext/a-workbook-never-finished-is-neither-logged-nor-cut-off.json]
     extra:
       context:
         rules: [core-classes/spreadsheet-writes-as-a-stream]
@@ -239,8 +239,13 @@ and the lowered argument bytes are charged to the request.
 **Does:** a throw, a limit stop or a cancel in the middle of a streamed body aborts the response, so
 the client sees a failed download.
 
-- [ ] `Emit` gets an abort ending that `Drain` reports. `crates/nvs-runtime/src/stream.rs:260`
-- [ ] The streaming body turns the abort into an error frame. `crates/nvs-server/src/serve.rs:466`
+- [x] `Emit` gets an abort ending that `Drain` reports. `crates/nvs-runtime/src/stream.rs:260`
+  - [x] `Emit::abort` sets the ending, and a later `finish` or drop does not undo it.
+  - [x] `Drain::next_chunk` reports `Drained::Aborted` and discards a chunk in flight.
+  - [x] The isolate's `finish` aborts the body when its program threw, met a limit or was cancelled.
+- [x] The streaming body turns the abort into an error frame. `crates/nvs-server/src/serve.rs:466`
+  - [x] `Drained::Aborted` ends in `BodyCut::ProgramStopped`, and the wire has no terminating chunk.
+- [ ] A download workbook a program never finishes is logged and cut off. `extensions/spreadsheet/nvs/Workbook.nvs:218`
 
 ### 7. `[debug] mode` arms the probes, and the grant gates a query span
 
@@ -318,10 +323,18 @@ work cannot live only in prose again.
 
 ### State
 
-Stages 1 to 4 are done. In stage 5, a call's lowered arguments are now charged to the request
-until the guest returns (`crates/nvs-ext/src/call.rs`'s `Request::run`), pinned by
-`the_lowered_arguments_are_charged_to_the_request_until_the_guest_returns` in
-`crates/nvs-ext/tests/call.rs`.
+Stages 1 to 4 are done. Stage 6's two items are on disk: a request-scoped stream whose program
+threw, met a limit or was cancelled is aborted at the isolate's end
+(`crates/nvs-host/src/isolate.rs`'s `finish`, `nvs_runtime::stream::Emit::abort`), and the server
+ends it in `BodyCut::ProgramStopped`, so no terminating chunk is written. The connection door of an
+event stream takes the same path. `data/gaps/nvs-server/a-streamed-body-cannot-be-cut-off.json` is
+deleted. Its remainder is a new record owned here,
+`data/gaps/nvs-ext/a-workbook-never-finished-is-neither-logged-nor-cut-off.json`: a program that
+*returns* with its download workbook unfinished still ends the body cleanly, because no Novis member
+can abort a response and `Workbook` runs nothing at the request's end. Stage 6 stays open on it.
+
+Stage 5 charges a call's lowered arguments to the request until the guest returns
+(`crates/nvs-ext/src/call.rs`'s `Request::run`).
 
 **Stage 5's typed path is a question for the user**, recorded in
 `data/gaps/nvs-ext/bytes-cross-one-val-per-byte.json`. wasmtime 49 fixes a typed call's
@@ -340,24 +353,25 @@ view's read prints garbage. **This is a question for the user:** make a shape's 
 invariant in the checker, carry a declared type per anonymous object at run time, or refuse a
 write through a view wider than the value's own. The record stays open until they choose.
 
-The nightly still tests an old commit (`cb7021a24`), and GitHub's `main` is `e110c9c0b`, far
-behind the local one. The earlier triage of its failures stands until the user pushes.
+The nightly still tests an old commit (`cb7021a24`, checked this session with `gh run view`), and
+GitHub's `main` is far behind the local one. The earlier triage of its failures stands until the
+user pushes.
 
 ### Next
 
-**Stage 6, a streamed body that ends early is cut off.** Slices over
-`crates/nvs-runtime/src/stream.rs` and `crates/nvs-server/src/serve.rs`
-(`rule:http-server/a-streamed-reply-is-bounded-by-idle-and-a-lifetime`).
+**Stage 7, `[debug] mode` arms the probes, and the grant gates a query span.** Slices over
+`crates/nvs-config/src/tree.rs` and `crates/nvs-db/src/span.rs`
+(`rule:testing/debug-mode-directive`, `rule:observability/a-query-is-a-trace-event`).
 
-- [ ] `Emit` gets an abort ending that `Drain` reports. `crates/nvs-runtime/src/stream.rs:260`
-- [ ] The streaming body turns the abort into an error frame. `crates/nvs-server/src/serve.rs:466`
+- [ ] A directive row for `[debug] mode`, read into the request's `DebugFlags`. `crates/nvs-config/src/tree.rs:517`
+- [ ] The grant gates the span's render on the sampled and unsampled paths. `crates/nvs-db/src/span.rs:44`
 
 ### Backlog
 
-- The wider-shape-view hole waits on the user's choice (`data/gaps/nvs-runtime/a-wider-shape-view-writes-an-object-of-the-wrong-class.json`).
-- Stage 5's typed path and the full-size image arms wait on the user's choice (`data/gaps/nvs-ext/bytes-cross-one-val-per-byte.json`).
+- Stage 6's last item: a download workbook a program returns without finishing is logged and cut off. It needs a way for Novis code to abort a response body, such as an `abort` method on `Core\Response\Stream`, which is a new method and states its trade-offs first (`data/gaps/nvs-ext/a-workbook-never-finished-is-neither-logged-nor-cut-off.json`).
+
+- Three wait on the user's choice: the wider-shape-view hole (`data/gaps/nvs-runtime/a-wider-shape-view-writes-an-object-of-the-wrong-class.json`), stage 5's typed path and full-size image arms (`data/gaps/nvs-ext/bytes-cross-one-val-per-byte.json`), and `Markup + Markup` in place (`docs/perf/performance-pass.md:257`).
 - `test_request_dispatches_in_process_through_the_compiled_route_table` once returned an empty body under the full verify's load and passed alone; the cause is not found (`crates/nvs-cli/src/runner.rs:3410`).
 - Many module docs still carry numbered or prose "known gap" text with no record; stage 14's scan finds them (`tools/nv/cmd/owners.ts:225`).
 - Proof debt fails CI's `proofs` jobs: stale perf records (`bun nv benches --owed`) and the `Core\Test\Outcome`/`Summary` proofs (`bun nv proofs --owed`). The user pushes `main`, so the nightly tests the current tree (`.github/workflows/ci.yml:1`).
-- `Markup + Markup` in place is a decision for the user (`docs/perf/performance-pass.md:257`).
 - A per-connection child refused a stack is dropped unrun, so its client likely sees the socket close and no `503`; not checked (`crates/nvs-server/src/serve.rs:95`).
