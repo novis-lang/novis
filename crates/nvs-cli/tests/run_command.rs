@@ -450,6 +450,71 @@ echo ($pids ?? "" as bytes) as string, "\n";
 Core\Time::sleep(120s);
 "#;
 
+/// `--dump-asm` prints the machine code of every function the program compiles to, each under a
+/// `; <name>` line, and does not run the program, as `docs/reference/tools/10-cli.md` §
+/// *nvs run* says. The listing is the compile `run` performs, so each section ends in the
+/// target's return instruction, and no section says the target has no disassembler.
+// covers: tools:cli/nvs-run
+#[test]
+fn dump_asm_prints_a_listing_per_function_and_does_not_run_the_program() {
+    let dir = scratch("dump-asm");
+    fs::write(dir.join("main.nvs"), DUMPED).unwrap();
+
+    let ran = run_in(&dir, &["main.nvs"]);
+    assert_eq!(String::from_utf8_lossy(&ran.stdout), "42\nhi there\n");
+
+    let dumped = run_in(&dir, &["--dump-asm", "main.nvs"]);
+    let stderr = String::from_utf8_lossy(&dumped.stderr);
+    assert_eq!(dumped.status.code(), Some(0), "{stderr}");
+    let listing = String::from_utf8_lossy(&dumped.stdout);
+    for line in ["42", "hi there"] {
+        assert!(
+            !listing.lines().any(|printed| printed == line),
+            "the program did not run, so `{line}` is not printed:\n{listing}"
+        );
+    }
+    assert!(
+        !listing.contains("no disassembly available"),
+        "every CI target has a disassembler:\n{listing}"
+    );
+
+    let mut sections = std::collections::BTreeMap::<&str, Vec<&str>>::new();
+    let mut current = None;
+    for line in listing.lines() {
+        if let Some(name) = line.strip_prefix("; ") {
+            current = Some(name);
+            sections.entry(name).or_default();
+        } else if let (Some(name), false) = (current, line.trim().is_empty()) {
+            sections.entry(name).or_default().push(line.trim());
+        }
+    }
+    for function in ["Maths::double", "Maths::greet", "<script>"] {
+        let body = sections
+            .get(function)
+            .unwrap_or_else(|| panic!("`{function}` has a section:\n{listing}"));
+        assert!(
+            body.iter()
+                .any(|instruction| instruction.starts_with("ret")),
+            "`{function}`'s section is its machine code, a return included:\n{listing}"
+        );
+    }
+}
+
+/// [`dump_asm_prints_a_listing_per_function_and_does_not_run_the_program`]'s program: two
+/// methods and the script that calls them.
+const DUMPED: &str = r#"<?nvs
+class Maths {
+    public static function double(int $n): int {
+        return $n * 2;
+    }
+    public static function greet(string $who): string {
+        return "hi " . $who;
+    }
+}
+echo Maths::double(21), "\n";
+echo Maths::greet("there"), "\n";
+"#;
+
 /// When `nvs` is killed, the process its program started ends with it, and what
 /// that process started on its own does not. Neither of them holds `nvs`'s own
 /// standard output. The kill is `TerminateProcess`, so no destructor in `nvs`
