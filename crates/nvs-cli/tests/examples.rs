@@ -41,10 +41,7 @@ const MIGRATE: &[&str] = &["queue-purge.nvs", "queue-sqlite.nvs", "queue.nvs"];
 
 /// `examples/cache-shared-socket.nvs`'s store is the compose file's `redis` reached over a Unix
 /// domain socket, at the path its `.toml` names.
-const SOCKET_EXAMPLE: (&str, &str) = (
-    "cache-shared-socket.nvs",
-    "/mnt/wsl/novis-redis/redis.sock",
-);
+const SOCKET_EXAMPLE: (&str, &str) = ("cache-shared-socket.nvs", "/mnt/wsl/novis-redis/redis.sock");
 
 /// `tools/nv/accept/origin.ts`'s address and hold: long enough that the example's 1ms deadline
 /// always ends its last request first, and far under the default deadline of its first.
@@ -169,6 +166,10 @@ fn run(dir: &Path, config: &Path, name: &str) -> Option<String> {
     ))
 }
 
+// The workspace denies a print because user-facing output belongs in
+// `nvs-cli`'s binary. The one print here is for whoever reads the test run: an
+// example that did not run, told to nobody, reads like one that passed.
+#[allow(clippy::print_stderr)]
 #[test]
 fn every_example_ends_with_the_status_it_is_written_to_end_with() {
     let dir: PathBuf = nvs_repo::path("examples");
