@@ -7,7 +7,7 @@ stages:
   - id: 1
     title: the plan and the design files are gone
     status: open
-    context: [docs/implementation-plan.md, docs/plan/design.md, tools/nv/cmd/plan.ts, tools/nv/schema/milestone.ts]
+    context: [tools/nv/cmd/rules.ts, docs/design.md]
   - id: 2
     title: the Core spec is gone, and the website's Core pages are built from the registry
     status: open
@@ -159,8 +159,11 @@ is in its home.
 - [x] The plan's Toolchain field moves into `docs/setup.md`, and `dependency-update.md` names that as its home. `docs/implementation-plan.md:1`, `docs/setup.md:33`, `docs/agent/dependency-update.md:48`
 - [ ] `docs/plan/`, `docs/implementation-plan.md`, `docs/design.md`, `docs/future-ideas.md` and `data/plan/status.json` are deleted. `nv plan` and its tests, `schema/milestone.ts` and its foreign keys, `owners.ts`'s milestone kind, `pack.ts`'s milestones, `wrap.ts`'s `PLAN_KINDS`, CI's `plan --check` and the settings entry go with them. `tools/nv/cmd/plan.ts:200`, `tools/nv/schema/milestone.ts:1`, `tools/nv/schema/gap.ts:18`, `tools/nv/schema/rule.ts:22`, `tools/nv/lib/wrap.ts:19`, `.github/workflows/ci.yml:978`, `.claude/settings.json:60`
   - [x] the tooling: `nv plan`, `wrap.ts`, both schemas, `data/plan/`, the milestone kind and fields, CI and settings
-  - [ ] the four doc files, `docs/plan/` and their rows in CONTRIBUTING.md's layout listing
-- [ ] Every citation of those files is rewritten to the new home or removed, including the ones already wrong today (`Cargo.toml`'s "Unsafe policy", `crates/nvs-host/src/scheduler.rs:11`). `rules.ts`'s `RECORD_CITE` refuses a new citation of a deleted doc. `tools/nv/cmd/rules.ts:83`
+  - [x] `docs/plan/`, `docs/implementation-plan.md`, `docs/future-ideas.md` and their rows in CONTRIBUTING.md's layout listing
+  - [ ] `docs/design.md`, once looper's managed block in AGENTS.md stops linking it: today it is a five-line pointer to the rules and the module docs, because `looper lint` refuses a hand edit inside the markers
+- [x] Every citation of those files is rewritten to the new home or removed, including the ones already wrong today (`Cargo.toml`'s "Unsafe policy", `crates/nvs-host/src/scheduler.rs:11`). `rules.ts`'s `RECORD_CITE` refuses a new citation of a deleted doc. `tools/nv/cmd/rules.ts:83`
+  - [x] the crates, the manifests, `docs/agent/`, `docs/perf/`, `looper.toml`, the gap record and `first-packages.md`'s context repointed
+  - [x] `rules.ts`'s `deletedDocFindings` refuses a citation by path or relative link outside `docs/goals/`, with cases in `rules.test.ts`
 - [x] AGENTS.md, CONTRIBUTING.md, `commands.md`, `conventions.md` and `doc-style.md` lose the plan step, the status block and the milestone text. `AGENTS.md:336`, `CONTRIBUTING.md:128`, `docs/agent/conventions.md:535`, `docs/agent/doc-style.md:75`
 
 ### 2. the Core spec is gone, and the website's Core pages are built from the registry
@@ -237,23 +240,29 @@ repeats none of their text.
 
 ### State
 
-The plan tooling is gone: `nv plan`, `tools/nv/lib/wrap.ts`, the `milestone` and `plan_status`
-records and their schemas, `data/plan/`, CI's `plan --check` and the settings entry. A gap and a
-designed rule name a goal and nothing else (`tools/nv/cmd/owners.ts`, `tools/nv/schema/rule.ts`), so
-`owners --deferrals` is gone too, and `nv pack` prints no plan or milestone section. The three
-playbook bullets about `nv plan` are deleted. AGENTS.md, CONTRIBUTING.md, `commands.md`,
-`conventions.md`, `doc-style.md` and `user-report.md` no longer name the plan step or the status
-block. The doc files themselves are still on disk: 33 files outside `docs/plan/` and `docs/goals/`
-still cite them (`git grep -l -E "implementation-plan|docs/plan|docs/design\.md|future-ideas"`),
-most in `crates/` module docs. The main loop may be running `lean-loop` on `main`.
+Stage 1 is done but for one file. The plan tooling, `docs/plan/`, `docs/implementation-plan.md` and
+`docs/future-ideas.md` are gone, and every citation of them is rewritten. The thread-per-core
+decision's home is now `crates/nvs-host/src/scheduler.rs`'s module doc with
+`rule:concurrency/one-scheduler`; per-request isolation is `rule:security/arena-is-an-ownership-root`;
+the unsafe policy is `tools/nv/cmd/lints.ts`'s header. `bun nv rules --check` fails on a new
+citation of a deleted doc outside `docs/goals/` (`deletedDocFindings`, `tools/nv/cmd/rules.ts:113`).
+
+**Blocked on looper, not on this repo:** `docs/design.md` stays as a five-line pointer. Looper's
+managed block in AGENTS.md links it (`AGENTS.md:392`), and `looper lint` refuses a hand edit inside
+the markers. It goes once looper's `agents` template stops linking it; then add `design\.md` back to
+`DELETED_DOC_CITE` and tick stage 1's last sub-item. Stage 1 stays `open` until then.
+
+The nightly CI failures the sweep reported are on `main`'s commit, not this branch: `nv check` is
+clean here. The rest (stale member perf, the Windows warm-start budget, the DB matrix) are `main`'s.
 
 ### Next
 
-Stage 1's last item, on the citing files and `tools/nv/cmd/rules.ts`. About one session:
-- [ ] `docs/plan/`, `docs/implementation-plan.md`, `docs/design.md` and `docs/future-ideas.md` are deleted with their rows in CONTRIBUTING.md's layout listing, and every citation in `crates/`, `data/gaps/`, `docs/agent/`, `docs/perf/`, `looper.toml`, `.github/workflows/ci.yml` and `Cargo.toml` is rewritten to the new home or removed. `CONTRIBUTING.md:188`, `crates/nvs-host/src/scheduler.rs:11`
-- [ ] `rules.ts`'s `RECORD_CITE` and `RECORD_GREP` refuse a citation of a deleted doc, with a case in its test. `tools/nv/cmd/rules.ts:83`
-- [ ] Goal files that still name `docs/plan/` (`first-packages.md`'s `context`) are repointed. `docs/goals/first-packages.md:5`
+Stage 2, on `tools/nv/renderers/website-core.ts` and the spec machinery. About two sessions:
+- [ ] `website-core.ts` builds every class from the registry: the summary is the registry's short doc plus the class intro under `docs/reference/core/`, and every registered constant and enum is published. `tools/nv/renderers/website-core.ts:659`, `tools/nv/renderers/website-core.ts:758`
+- [ ] The spec's machinery is deleted: `parseSpec`, the `spec-tables` renderer, the `spec_core_members` record and schema, `website/config/spec-overrides.mjs`, the spec UI, and `spec_registry_coverage.rs`. `tools/nv/renderers/spec-tables.ts:17`, `tools/nv/cmd/gaps.ts:509`, `crates/nvs-stdlib/tests/spec_registry_coverage.rs:725`
+- [ ] `website/README.md` says how the Core reference is built now. `website/README.md:43`
 
 ### Backlog
 
-- Stages 6 to 8 put each fact about a language feature in one place: its `about.md`, a new `details.md` or an example. The syntax pages and the chapters are built from them. `docs/goals/docs-cleanup.md:210`
+- `docs/design.md` is deleted once looper's managed block no longer links it. `docs/goals/docs-cleanup.md:163`
+- Stages 6 to 8 put each fact about a language feature in one place: its `about.md`, a new `details.md` or an example. The syntax pages and the chapters are built from them. `docs/goals/docs-cleanup.md:213`

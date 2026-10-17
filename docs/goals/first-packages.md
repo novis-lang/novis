@@ -2,7 +2,7 @@
 looper: 1
 title: "`Novis\\Rest` is the first package, and a program's version comes from `package.toml`"
 summary: "nvs build --openapi writes package.toml's version as info.version, a Windows bundle carries the program's own version information and icon, Novis\\Rest gives OAuth grants, discovery and DPoP as a package in this repository that passes nvs pkg publish --dry-run, the gap records this goal owns are closed, and the checks below pass."
-context: [docs/plan/m15.md, crates/nvs-cli/src/package/manifest.rs]
+context: [crates/nvs-cli/src/package/manifest.rs]
 stages:
   - id: 1
     title: "`package.toml`'s version is the API document's `info.version`"
