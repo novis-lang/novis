@@ -550,12 +550,15 @@ fn sources() -> Vec<Source> {
 /// `string`, reach that arm the same way: `ExprTypeTable::property_keys`, the
 /// set the checker tests that conversion against.
 ///
+/// A declared class's inherited members are its ancestors' own bodies, read
+/// through `declared_type` for each type `nvs_hir::ClassGraph` puts above it.
+///
 /// The deprecation tag adds no item. It shapes a declared member's item from
 /// `Analysed::deprecated`, the walk the checker raises `W1003` from.
 ///
 /// An extension class's members are read from its manifest, the one the
 /// checker seeded the class's signatures from (`Analysed::extensions`).
-const SOURCED: [(&str, &str); 40] = [
+const SOURCED: [(&str, &str); 41] = [
     ("tagged", "analysed.deprecated"),
     ("named_type", "..item("),
     ("type_row", "..named_type("),
@@ -586,6 +589,7 @@ const SOURCED: [(&str, &str); 40] = [
     ("in_scope", ".bodies_at("),
     ("words", "CompletionItemKind::KEYWORD"),
     ("declared_members", "declared_type("),
+    ("own_members", "declared_type("),
     ("declared_member", "Modifier::Static"),
     ("enum_case", "case.value"),
     ("enum_cases", "Member::Case("),

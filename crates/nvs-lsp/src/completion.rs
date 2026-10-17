@@ -325,7 +325,7 @@ use nvs_stdlib::registry::{
 };
 use nvs_syntax::ast::{
     AutoloadKind, ClassMember, ClassMemberKind, EnumCase, MethodMember, Modifier, PropertyMember,
-    StmtKind,
+    StmtKind, Visibility,
 };
 use nvs_syntax::{IndexNode, Keyword, NodePath, OPEN_TAGS, Token, TokenKind, tokenize};
 use nvs_types::deprecated::Member;
@@ -339,7 +339,7 @@ use crate::definition::{
     supertype_names, text_of, written_class_name,
 };
 use crate::document::Analysed;
-use crate::index::{DeclKind, Declaration, SymbolIndex};
+use crate::index::{DeclKind, Declaration, SymbolIndex, visibility_of};
 use crate::position::range_at;
 use crate::regions::half_written_tag;
 use crate::settings::Client;
@@ -2913,22 +2913,99 @@ fn recorded_ty(info: &ExprInfo) -> Option<TypeId> {
     })
 }
 
-/// Every member a user-declared type writes that `reach` reaches, as it wrote
-/// them.
+/// Every member of a user-declared type that `reach` reaches from the cursor:
+/// the ones the type writes, then the ones each class and interface above it
+/// writes, as each wrote them.
+///
+/// The types above it are `nvs_hir::ClassGraph`'s `extends` and `implements`
+/// edges, the graph the checker resolves an inherited member through. A member
+/// a nearer type also writes is offered once, as the nearer type wrote it, so
+/// an override hides what it overrides. Each member is offered only where
+/// `nvs_types::signatures::is_visible_from` says the class the cursor is
+/// written in may reach it, which is the test the checker refuses an access
+/// with. A `Core` type above it offers its registry rows, all of which are
+/// public.
 fn declared_members(cursor: &Cursor<'_>, class: &QName, reach: Reach) -> Vec<CompletionItem> {
     let Some((stmt, file)) = declared_type(cursor.analysed, class) else {
         return owned_cases(cursor, class, reach);
+    };
+    if let StmtKind::EnumDecl(decl) = &stmt.kind {
+        return enum_cases(cursor, class, file, &decl.cases, reach);
+    }
+    let accessing = class_at(cursor.analysed, cursor.offset);
+    let mut offered: Vec<CompletionItem> = Vec::new();
+    for above in lineage(cursor.analysed, class) {
+        let items = match registry::class(&above.to_string()) {
+            Some(core) => core_members(cursor, core, reach),
+            None => own_members(cursor, &above, accessing.as_ref(), reach),
+        };
+        for item in items {
+            let shadowed = offered
+                .iter()
+                .any(|seen| seen.label == item.label && seen.kind == item.kind);
+            if !shadowed {
+                offered.push(item);
+            }
+        }
+    }
+    offered
+}
+
+/// `class` and every type above it, nearest first and each once: a breadth-first
+/// walk of `nvs_hir::ClassGraph`'s `extends` and then `implements` edges.
+///
+/// The `seen` set is what ends the walk over a cycle, which the checker has
+/// already reported.
+fn lineage(analysed: &Analysed, class: &QName) -> Vec<QName> {
+    let graph = &analysed.module.graph;
+    let mut order = vec![class.clone()];
+    let mut seen: FxHashSet<QName> = FxHashSet::default();
+    seen.insert(class.clone());
+    let mut next = 0;
+    while let Some(current) = order.get(next).cloned() {
+        next += 1;
+        let Some(links) = graph.get(&current) else {
+            continue;
+        };
+        for parent in links.extends.iter().chain(links.implements.iter()) {
+            if seen.insert(parent.clone()) {
+                order.push(parent.clone());
+            }
+        }
+    }
+    order
+}
+
+/// The members `class`'s own body writes that `reach` reaches and that code
+/// written inside `accessing` may see, as it wrote them.
+fn own_members(
+    cursor: &Cursor<'_>,
+    class: &QName,
+    accessing: Option<&QName>,
+    reach: Reach,
+) -> Vec<CompletionItem> {
+    let Some((stmt, file)) = declared_type(cursor.analysed, class) else {
+        return Vec::new();
     };
     let owner = class.to_string();
     let members: &[ClassMember] = match &stmt.kind {
         StmtKind::ClassDecl(decl) => &decl.members,
         StmtKind::InterfaceDecl(decl) => &decl.members,
-        StmtKind::EnumDecl(decl) => return enum_cases(cursor, class, file, &decl.cases, reach),
-        // A type alias has a body of no members.
+        // An enum is never above a class, and a type alias has a body of no
+        // members.
         _ => return Vec::new(),
     };
+    let graph = &cursor.analysed.module.graph;
     members
         .iter()
+        .filter(|member| {
+            nvs_types::signatures::is_visible_from(
+                visibility_of_member(member),
+                class,
+                accessing,
+                graph,
+            )
+        })
         .filter_map(|member| {
             let item = declared_member(cursor, file, &owner, member, reach)?;
             let key = match &member.kind {
@@ -2948,6 +3025,17 @@ fn declared_members(cursor: &Cursor<'_>, class: &QName, reach: Reach) -> Vec<Com
             Some(tagged(cursor, class, key, item))
         })
         .collect()
+}
+
+/// The visibility a member's modifiers write, which is `public` where they
+/// write none. An owned enum has no modifiers and is public.
+fn visibility_of_member(member: &ClassMember) -> Visibility {
+    match &member.kind {
+        ClassMemberKind::Method(method) => visibility_of(&method.modifiers),
+        ClassMemberKind::Property(property) => visibility_of(&property.modifiers),
+        ClassMemberKind::Const(constant) => visibility_of(&constant.modifiers),
+        _ => Visibility::Public,
+    }
 }
 
 /// The cases of the enum a class body declares under the key `class`, and

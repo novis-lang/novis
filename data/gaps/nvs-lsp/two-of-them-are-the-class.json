@@ -1,6 +1,0 @@
-{
-  "module": "crates/nvs-lsp/src/completion.rs",
-  "title": "Completion after `->` and `::` offers only the members the class itself declares, and offers `private` members outside the class.",
-  "text": "`declared_members` reads the members of the resolved class's own body and nothing else (`crates/nvs-lsp/src/completion.rs:2918-2950`), so an inherited member is not offered, and nothing in the file filters by visibility, so a `private` member is offered outside its class and the checker then refuses it where it was written. Walking `nvs_hir::ClassGraph` for the inherited members is the same widening `rule:ide/five-features-are-one-reference-index`'s index does, and `rule:ide/completion-offers-only-what-the-compiler-derived` is the rule both halves break. Three positions are also answered as the position around them: the receiver half of an access (`$u<|>->name` is a variable being written, and the variables in scope are not offered), a written type the tokens do not give away (a property's type, and a type argument between `<` and `>`), and the inside of a string literal, where the statement keywords sit beside the variables an interpolation takes.",
-  "goal": "completeness-holes"
-}

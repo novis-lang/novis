@@ -58,10 +58,9 @@ each one's dependency lands.
 ## Standing decisions
 
 **Member resolution is completeness-holes' stage 10, not this goal's.** The planning session's
-outline put completion through the class graph here. Goal `completeness-holes` already owns that
-record (`data/gaps/nvs-lsp/two-of-them-are-the-class.json`) and runs first on the chain. Stage 4's
-generators read the members that work resolves (`crates/nvs-lsp/src/completion.rs:2918`), and a
-session that finds it not done stops and says so.
+outline put completion through the class graph here. Goal `completeness-holes` built it: completion
+walks a class's parents and interfaces and filters each member by visibility. Stage 4's generators
+read the members that walk resolves (`crates/nvs-lsp/src/completion.rs:2928`).
 
 **The narrowing action is goal `editor-fixes`' work.** The planning session's call.
 `rule:ide/a-code-action-writes-only-what-is-already-determined` names four writing actions. This

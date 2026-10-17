@@ -1114,7 +1114,7 @@ fn member_names(body: &Body<'_>) -> Vec<(Span, DeclKind, Visibility)> {
 /// The plain modifiers only: `private(set)` restricts *writes* and leaves the
 /// member readable wherever its own visibility says, so a reference to it is
 /// still a reference and dimming it would be wrong.
-fn visibility_of(modifiers: &[Modifier]) -> Visibility {
+pub(crate) fn visibility_of(modifiers: &[Modifier]) -> Visibility {
     modifiers
         .iter()
         .find_map(|modifier| match modifier {
