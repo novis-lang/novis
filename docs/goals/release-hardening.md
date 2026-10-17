@@ -194,9 +194,10 @@ in the nightly fuzz job. The published request-smuggling payloads are fixed serv
 
 - [ ] One target per parser above, registered in the fuzz crate and in the fuzz job's matrix. `fuzz/Cargo.toml:23`, `.github/workflows/ci.yml:1038`
   - [x] JSON and `Serialize::decode`.
-  - [ ] A fuzzing seam for the crate-private parsers.
-  - [ ] The request head and body, multipart and cookies.
-  - [ ] The outbound reply parser, XML, regex compile and decompression.
+  - [x] A fuzzing seam for the crate-private parsers.
+  - [x] Multipart and cookies.
+  - [x] The outbound reply parser, XML, regex compile and decompression.
+  - [ ] The request head and body.
 - [ ] The "funky chunks" payloads and the 0.CL and Expect desync shapes are tests in the smuggling suite. `crates/nvs-server/src/serve.rs:9031`
 - [ ] HTTP Garden runs once against `nvs serve`, and each finding becomes a test. The handoff records the run.
 
@@ -263,27 +264,24 @@ is `BLOCKED` and names the call.
 
 Stages 1 to 5 are done. Stage 6 is live.
 
-- `fuzz/fuzz_targets/json.rs` and `fuzz/fuzz_targets/serialize.rs` exist, are `[[bin]]`s in
-  `fuzz/Cargo.toml` and are in the `fuzz-smoke` matrix. `json` asserts one encode-decode round
-  settles the text. `serialize` decodes against a typed `Owner`/`Dog`/`Cat` table and asserts
-  the re-encoded payload is stable. Each ran 120 s clean in WSL after the fix below. The
-  `serialize` corpus reached `Owner` but not yet `Dog` in that time; the nightly's cached corpus
-  carries it further.
-- The `json` target found that `serde_json` parsed some floats one step off
-  (`8888888388888831.0` decoded as `…830.0`). The workspace turns on `float_roundtrip`
-  (`Cargo.toml:576`), about twice the time per float parsed. Pinned by
-  `a_float_decodes_to_the_nearest_f64` (`crates/nvs-stdlib/src/json.rs:3980`).
-- The nightly failures the sweep listed are the same run on the old pushed `main` (`e110c9c0b`)
-  the last handoff triaged: `docs`, `five-driver matrix` and `test / windows-x86_64` are fixed
-  locally, `proofs` and `cost guards` are in the backlog.
+- Every `nvs-stdlib` parser the stage names has a target. `crates/nvs-stdlib/src/fuzz.rs` is the
+  one `#[doc(hidden)] pub mod fuzz` wrapping the private readers. The new targets are `cookie`,
+  `decompress`, `multipart`, `regex`, `reply_head` and `xml`, beside `json` and `serialize`, all
+  `[[bin]]`s in `fuzz/Cargo.toml` and in the `fuzz-smoke` matrix (`.github/workflows/ci.yml:1038`).
+  `multipart` asserts that chunking a body never changes what it reads.
+- Each new target ran 60 s clean in WSL, from a shallow clone at `/var/tmp/nvs-fuzz-src`, because
+  the accept mirror was stale. `reply_head` found that a reply whose `Transfer-Encoding` names no
+  coding beside a `Content-Length` was read by its length. `frame_of` now refuses it
+  (`crates/nvs-stdlib/src/http/transport.rs:2844`), pinned by a row in the refused-replies test,
+  and the target then ran 120 s clean.
+- The nightly failures the sweep listed are still the `e110c9c0b` run the last handoff triaged.
 
 ### Next
 
-Stage 6, the crate-private parsers, on `fuzz/Cargo.toml`, `crates/nvs-stdlib/src/lib.rs` and the parser modules (`rule:testing/the-deep-lane`):
-- [ ] A fuzzing seam: the multipart, cookie and reply-head parsers are `pub(crate)` in a private `mod`. Add one `#[doc(hidden)] pub mod fuzz` in `nvs-stdlib` re-exporting thin wrappers, rather than widening each module. `crates/nvs-stdlib/src/lib.rs:191`
-- [ ] Targets for multipart (`Multipart::new` and `next_part`) and cookies (`cookie_pair`, `cookie_of`). `crates/nvs-stdlib/src/multipart.rs:191`, `crates/nvs-stdlib/src/request.rs:2114`, `crates/nvs-stdlib/src/test.rs:3176`
-- [ ] Targets for the outbound reply head and framing (`head_of`, `frame_of`), XML, regex compile and decompression. `crates/nvs-stdlib/src/http/transport.rs:2785`, `crates/nvs-stdlib/src/xml.rs:1`, `crates/nvs-stdlib/src/regex.rs:1`, `crates/nvs-stdlib/src/compress.rs:1`
-- [ ] The request head and body target, through `nvs-server`'s head scan, which needs `nvs-server` in `fuzz/Cargo.toml`. `crates/nvs-server/src/io.rs:309`
+Stage 6, the server side, on `fuzz/Cargo.toml` and `crates/nvs-server/` (`rule:testing/the-deep-lane`, `rule:errors/http-message-defects`):
+- [ ] The request head and body target: `nvs-server` in `fuzz/Cargo.toml`, feeding `heads::Scanner` and asserting a refused head is never answered. Check whether an empty inbound `Transfer-Encoding` beside a `Content-Length` is refused, as the reply side now is. `crates/nvs-server/src/heads.rs:152`
+- [ ] The "funky chunks" payloads and the 0.CL and Expect desync shapes as smuggling-suite tests. `crates/nvs-server/src/serve.rs:9031`
+- [ ] HTTP Garden once against `nvs serve`, each finding a test, and the run recorded here. `crates/nvs-server/src/serve.rs:1`
 
 ### Backlog
 

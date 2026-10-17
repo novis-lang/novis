@@ -1035,7 +1035,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        target: [ast, image_path, json, lex, parse, prefix, serialize, uri]
+        target: [ast, cookie, decompress, image_path, json, lex, multipart, parse, prefix, regex, reply_head, serialize, uri, xml]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: dtolnay/rust-toolchain@2c76c034f9e32a5d6e2c104dc4df23a22476db04 # nightly branch

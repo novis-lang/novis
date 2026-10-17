@@ -1968,7 +1968,7 @@ impl<'a> Reader<'a> {
 /// One sentence saying what is not well-formed about it. There is no partial
 /// answer: `rule:errors/ambiguous-input-refused` is why a document that does
 /// not parse produces nothing rather than as much of a tree as could be built.
-fn parse(document: &str) -> Result<Parsed, String> {
+pub(crate) fn parse(document: &str) -> Result<Parsed, String> {
     Reader::new(document).document()
 }
 

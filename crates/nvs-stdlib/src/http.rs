@@ -115,7 +115,7 @@ mod pool;
 pub(crate) mod socket;
 mod span;
 pub(crate) mod stream;
-mod transport;
+pub(crate) mod transport;
 
 use std::net::IpAddr;
 use std::time::{Duration, Instant};
