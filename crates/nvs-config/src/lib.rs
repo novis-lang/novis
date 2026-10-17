@@ -74,6 +74,7 @@ pub mod cache;
 pub mod capability;
 pub mod data;
 pub mod db;
+pub mod debug;
 pub mod defaults;
 pub mod directive;
 pub mod errors;

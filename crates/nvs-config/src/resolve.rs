@@ -524,6 +524,9 @@ pub fn resolve(
     // `rule:core-classes/image-pixel-cap`: a cap the size grammar does not read, or one that is no
     // cap, is refused here so the component never decodes under a value it had to guess at.
     crate::image::validate(&resolved.config, &origins)?;
+    // `rule:testing/debug-mode-directive`'s four probe names: a fifth is refused where it is
+    // written, so the runtime never reads a name it cannot arm.
+    crate::debug::validate(&resolved.config, &origins)?;
     // `rule:config/opcache-revalidation-is-system-class`'s `validate`, which has two values: a
     // `never` read as the default would leave a host believing its code is pinned when every
     // change still reaches the next request.

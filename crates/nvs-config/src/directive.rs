@@ -233,6 +233,12 @@ pub const DIRECTIVES: &[Directive] = &[
     // default for a key `lookup` answers `None` for, which is the drift
     // `every_derived_default_names_a_directive_the_registry_holds` stands in the way of.
     Directive { key: "debug.inline", class: Class::RuntimeTighten, apply: Apply::Reload },
+    // `rule:testing/debug-mode-directive`. `RuntimeTighten` because that rule makes the file's value
+    // a ceiling a request may narrow and never widen; no request-side call sets it today, because a
+    // list is not a quantity `Core\Config::set` takes. `Reload` because the next context the
+    // configuration is handed to reads it, and a server refuses any value at boot and at reload
+    // (`crate::debug::refuse_serving`).
+    Directive { key: "debug.mode", class: Class::RuntimeTighten, apply: Apply::Reload },
     // `rule:http-server/the-server-block-is-boot-class`. `System` because every key in the block is
     // the deployment's. The block row is `Reload`, and governs the keys a request reads from the
     // snapshot it cloned (`dispatch`, `static`, `health_path`, `trusted_proxies` and

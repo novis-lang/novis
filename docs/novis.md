@@ -34268,6 +34268,7 @@ the file by itself, or only at its next start. Only `[server] listen`, `socket_m
 | `image.max_pixels` | operator only — a request cannot change it | at reload |
 | `debug.keep_temporary` | operator only — a request cannot change it | at reload |
 | `debug.inline` | a request may only narrow it | at reload |
+| `debug.mode` | a request may only narrow it | at reload |
 | `server` | operator only — a request cannot change it | at reload |
 | `server.listen` | operator only — a request cannot change it | at boot only |
 | `server.socket_mode` | operator only — a request cannot change it | at boot only |

@@ -190,6 +190,11 @@ pub(crate) fn run(
         }
         crate::render_diagnostics(&mut diags, &sources);
     }
+    // `rule:testing/debug-mode-directive`: a server runs no probe, so a tree
+    // naming one stops the boot here and stops a reload in `crate::reload`.
+    if let Err(diagnostic) = nvs_config::debug::refuse_serving(&snapshot.config, &origins) {
+        return report(diagnostic, &sources);
+    }
     // Every `[[extension]]` file, read and verified against its pin before
     // anything listens: one that does not load stops the boot, naming its line.
     match crate::extensions::loaded(&snapshot.config, &origins, &sources) {
