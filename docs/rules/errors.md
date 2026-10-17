@@ -378,7 +378,9 @@ context, so it does not grow with the number of requests served.
 
 Hardcoded in Rust, with no script execution — there is nothing left here that could throw, panic or
 need a further tier, because this is the floor. It writes to an operator-owned sink named by `[log]
-target`: `stderr`, `file:<path>` or `syslog`. With no target in any file it is `stderr`, except in a
+target`: `stderr`, `file:<path>` or `syslog`. `syslog` sends each record as one datagram to the local
+daemon's socket, at the `user` facility and the record's [`errors/log-level`](errors.md#errors-log-level) severity; only a Unix
+host has that socket, so on Windows the boot refuses it. With no target in any file it is `stderr`, except in a
 process a service manager started, where it is `file:` the data folder's `logs/nvs.log`; a service with
 no usable data folder keeps `stderr`. The check reads where the key was written, so a `stderr` an
 operator wrote is kept. A service has no terminal, and its `stderr` is the journal or the Event Log,
@@ -1047,11 +1049,19 @@ application meets the limit exactly where it already met one, because PHP uses t
 `Core\IO::within` — the launderer, and the one place the base directory is known — refuses a
 component that
 
-- is a Windows reserved device name (`CON`, `PRN`, `AUX`, `NUL`, `COM1`–`COM9`, `LPT1`–`LPT9`),
-  with or without an extension;
+- is a Windows reserved device name (`CON`, `PRN`, `AUX`, `NUL`, `CONIN$`, `CONOUT$`,
+  `COM1`–`COM9`, `LPT1`–`LPT9`, and `COM¹`–`COM³` and `LPT¹`–`LPT³`), in any case, with or without
+  an extension, a trailing dot or space, or a stream;
 - ends in a dot or a space;
 - contains a colon;
 - matches the 8.3 short-name pattern (`NAME~digit`).
+
+**A device name is refused in more places than the launderer.** Every file door refuses a path with
+one in any component, with a `RuntimeError` before any grant is read, whatever the grant covers.
+Static serving declines a segment that is one, and a mount's capture that is one is a boot error.
+All of them ask `nvs_config::capability::is_reserved_device`. On Windows such a name opens a device
+in every folder, so a granted folder does not contain what it opens, and a read of `CONIN$` waits
+for a key forever.
 
 **On every platform, not only Windows.** A component's spelling and its resolution come apart on
 Windows by design: `foo.` opens `foo`, `CON` is a device in every directory, `file.txt::$DATA` opens

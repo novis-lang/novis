@@ -634,20 +634,7 @@ fn spells_itself(capture: &str) -> bool {
         && capture
             .chars()
             .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '.' | '_' | '-'))
-        && !is_reserved_device(capture)
-}
-
-/// `rule:errors/path-component-refusals`'s list, with or without an extension and on every platform.
-fn is_reserved_device(name: &str) -> bool {
-    let stem = name.split('.').next().unwrap_or(name).to_ascii_uppercase();
-    if matches!(stem.as_str(), "CON" | "PRN" | "AUX" | "NUL") {
-        return true;
-    }
-    let bytes = stem.as_bytes();
-    bytes.len() == 4
-        && matches!(&stem[..3], "COM" | "LPT")
-        && bytes[3].is_ascii_digit()
-        && bytes[3] != b'0'
+        && !crate::capability::is_reserved_device(capture)
 }
 
 /// Two mounts answering the same request, which § 3 makes a boot error rather than a race.

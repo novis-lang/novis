@@ -9,7 +9,7 @@
 use std::cell::Cell;
 use std::path::{Component, Path, PathBuf};
 
-use nvs_config::capability::{Cap, Scope, resolved};
+use nvs_config::capability::{Cap, Scope, is_reserved_device, resolved};
 use nvs_config::resolve::Files;
 use nvs_config::tree::Capabilities;
 use nvs_config::trust::Untrusted;
@@ -1184,4 +1184,42 @@ fn a_tls_grant_of_true_is_refused() {
     let anywhere = granting("[net]\nconnect = true\n", &disk);
     assert!(anywhere.allows_host(Cap::NetConnect, "partner.example.com"));
     assert!(Cap::NetConnect.takes_true_spelling());
+}
+
+/// `rule:errors/path-component-refusals`' device names, with an extension, a trailing dot, a
+/// trailing space or a stream, in any case. The file doors, a mount's capture and a static file's
+/// segment all ask this one function.
+#[test]
+fn every_spelling_of_a_device_name_is_one() {
+    for device in [
+        "CON",
+        "con",
+        "NUL.",
+        "nul.txt",
+        "AUX.tar.gz",
+        "PRN :x",
+        "COM1",
+        "com9.log",
+        "LPT1.",
+        "CONIN$",
+        "conout$.txt",
+        "COM¹",
+        "lpt³.txt",
+        "NUL::$DATA",
+    ] {
+        assert!(is_reserved_device(device), "`{device}` names a device");
+    }
+    for name in [
+        "console",
+        "nul_",
+        "CONIN",
+        "COM0",
+        "COM10",
+        "LPT",
+        "aux-notes",
+        ".con",
+        "acon",
+    ] {
+        assert!(!is_reserved_device(name), "`{name}` is a name");
+    }
 }

@@ -57,8 +57,10 @@
 //! dot-segment `..` is, and `%2F` and `%5C` are refused wherever they stand.
 //!
 //! **Inside the table, a segment is percent-decoded and then has to *spell a
-//! name***: empty, `.`, `..` and anything holding a separator, a NUL or a `:`
-//! decline the step rather than being repaired ([`under`]), which is
+//! name***: empty, `.`, `..`, anything holding a separator, a NUL or a `:`, and
+//! a Windows device name such as `CON` or `nul.txt`
+//! ([`nvs_config::capability::is_reserved_device`], on every platform) decline
+//! the step rather than being repaired ([`under`]), which is
 //! `rule:errors/ambiguous-input-refused`'s direction applied to the one string
 //! in this crate that comes from the peer. A declined step falls through to
 //! step 5 and the mount's entry answers, so what reaches here past the door —
@@ -574,7 +576,12 @@ fn under(root: &Path, remainder: &str, disk: &dyn Existing) -> Option<PathBuf> {
     // so `/style.css/` and `//style.css` are not other names for `/style.css`.
     for segment in remainder.strip_prefix('/').unwrap_or(remainder).split('/') {
         let name = decode(segment)?;
-        if name.is_empty() || name == "." || name == ".." || name.contains(['/', '\\', ':', '\0']) {
+        if name.is_empty()
+            || name == "."
+            || name == ".."
+            || name.contains(['/', '\\', ':', '\0'])
+            || nvs_config::capability::is_reserved_device(&name)
+        {
             return None;
         }
         path.push(name);
@@ -1568,6 +1575,59 @@ mod tests {
             what("/blog/style.css"),
             What::Static(p("/www/public/style.css")),
             "and through the prefix the rows above tried to escape from"
+        );
+    }
+
+    /// `rule:errors/path-component-refusals`' device names, in a static file's
+    /// segment: each one declines step 3 and the entry answers, on every
+    /// platform, even where the disk holds a file of that name. A name that only
+    /// contains a device name is served.
+    #[test]
+    fn a_device_name_is_never_served_as_a_static_file() {
+        let devices = [
+            "/www/public/CON",
+            "/www/public/nul.txt",
+            "/www/public/NUL.txt",
+            "/www/public/COM1.",
+            "/www/public/conin$",
+            "/www/public/CONOUT$.log",
+            "/www/public/aux/logo.png",
+            "/www/public/console.txt",
+        ];
+        let mut files = vec!["/www/public/index.nvs"];
+        files.extend(devices);
+        let fs = Fake::with(&files);
+        let entry = p("/www/public/index.nvs");
+        let table = Table::new(
+            vec![mount("/", None, "/www/public/index.nvs")],
+            Dispatch::Path,
+            true,
+        );
+        let what = |path: &str| {
+            table
+                .resolve(None, path, &fs)
+                .and_then(Resolved::selection)
+                .expect("the root mount covers every path")
+                .what
+        };
+        for path in [
+            "/CON",
+            "/nul.txt",
+            "/COM1.",
+            "/conin$",
+            "/CONOUT$.log",
+            "/aux/logo.png",
+            "/%4eUL.txt",
+        ] {
+            assert_eq!(
+                what(path),
+                What::Run(entry.clone()),
+                "{path:?} names a device"
+            );
+        }
+        assert_eq!(
+            what("/console.txt"),
+            What::Static(p("/www/public/console.txt"))
         );
     }
 

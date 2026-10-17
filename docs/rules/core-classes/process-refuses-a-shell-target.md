@@ -1,6 +1,8 @@
 A target the platform can only run by handing it to a second command-line parser — `.bat` and `.cmd`
 to `cmd.exe`, `.ps1` to `powershell.exe` — is refused before spawning, with a diagnostic naming the
-extension and the reason.
+extension and the reason. The extension is read from the name as Windows opens it: everything from
+the first `:` is an alternate stream and is cut, and then every trailing dot and space, so
+`say.bat.`, `say.bat ` and `say.bat::$DATA` are each refused as `.bat`.
 
 On Windows a process receives one command-line string, not an argument vector, and each program
 splits it by its own quoting convention. Quoting an argument vector into that string is a solved

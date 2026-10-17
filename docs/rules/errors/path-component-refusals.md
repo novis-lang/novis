@@ -1,11 +1,19 @@
 `Core\IO::within` — the launderer, and the one place the base directory is known — refuses a
 component that
 
-- is a Windows reserved device name (`CON`, `PRN`, `AUX`, `NUL`, `COM1`–`COM9`, `LPT1`–`LPT9`),
-  with or without an extension;
+- is a Windows reserved device name (`CON`, `PRN`, `AUX`, `NUL`, `CONIN$`, `CONOUT$`,
+  `COM1`–`COM9`, `LPT1`–`LPT9`, and `COM¹`–`COM³` and `LPT¹`–`LPT³`), in any case, with or without
+  an extension, a trailing dot or space, or a stream;
 - ends in a dot or a space;
 - contains a colon;
 - matches the 8.3 short-name pattern (`NAME~digit`).
+
+**A device name is refused in more places than the launderer.** Every file door refuses a path with
+one in any component, with a `RuntimeError` before any grant is read, whatever the grant covers.
+Static serving declines a segment that is one, and a mount's capture that is one is a boot error.
+All of them ask `nvs_config::capability::is_reserved_device`. On Windows such a name opens a device
+in every folder, so a granted folder does not contain what it opens, and a read of `CONIN$` waits
+for a key forever.
 
 **On every platform, not only Windows.** A component's spelling and its resolution come apart on
 Windows by design: `foo.` opens `foo`, `CON` is a device in every directory, `file.txt::$DATA` opens
