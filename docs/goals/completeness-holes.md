@@ -34,8 +34,8 @@ stages:
         rules: [statements/inout-is-the-by-reference-spelling, concurrency/a-task-stack-is-reserved-wide-and-pooled]
   - id: 5
     title: bytes cross the extension boundary in one copy each way
-    status: open
-    context: [crates/nvs-ext/src/convert.rs, crates/nvs-ext/src/call.rs, data/gaps/nvs-ext/bytes-cross-one-val-per-byte.json]
+    status: done
+    context: [crates/nvs-ext/src/convert.rs, crates/nvs-ext/src/call.rs, crates/nvs-ext/src/typed.rs]
     extra:
       context:
         rules: [packaging/values-cross-as-handles, packaging/the-boundary-is-the-cost, core-classes/image-pipeline]
@@ -232,12 +232,12 @@ stack the OS refuses fails one request, not the process.
 **Does:** an export with `list<u8>` parameters or results is called through wasmtime's typed calls,
 and the lowered argument bytes are charged to the request.
 
-- [ ] A typed call path for `list<u8>` signatures beside the dynamic one. `crates/nvs-ext/src/call.rs:893`
+- [x] A typed call path for `list<u8>` signatures beside the dynamic one. `crates/nvs-ext/src/call.rs:893`
   - [x] `crates/nvs-ext/src/typed.rs` converts a `Value` to generated types, and `call_values` routes a built-in world through it.
   - [x] The image world (`crates/nvs-ext/src/typed/image.rs`) is called typed, and `tests/builtin.rs` pins its one-copy charge.
   - [x] The pdf world, under `crates/nvs-ext/src/typed/`.
   - [x] The intl world.
-  - [ ] The spreadsheet world, then the gap record deleted.
+  - [x] The spreadsheet world, then the gap record deleted.
 - [x] The lowered argument bytes are charged to the request, as the lifted results are. `crates/nvs-ext/src/call.rs:954`
   - [x] `Request::run` charges the arguments' host bytes before the call and gives them back after it.
   - [x] A call that cannot afford its arguments ends as `Limit::Memory` and gives everything back.
@@ -398,41 +398,36 @@ work cannot live only in prose again.
 
 ### State
 
-Every stage but 5 is done. Stage 5 has one world left. `crates/nvs-ext/src/typed.rs` calls a
-built-in component's exports through wasmtime's typed functions, and the image, pdf and intl
-worlds go through it (`crates/nvs-ext/src/typed/image.rs`, `pdf.rs`, `intl.rs`). The `cores!`
-macro converts a `nvs:ext/types` record to and from its `Core` value class. `tests/builtin.rs`'s
-`a_built_in_call_charges_its_bytes_once_and_not_one_val_per_byte` covers image and pdf and fails
-on the dynamic path. `tests/pdf.rs`'s memory-limit case now takes its budget from a measured
-unbounded run, because the typed result costs its own size.
+Every stage is done, and the goal is reached. All four built-in worlds are called typed
+(`crates/nvs-ext/src/typed/`). The typed path crosses handles as `ResourceAny` through the call's
+`Crossing`, so the spreadsheet world's resources and lent `mixed` sources go through it too.
+`tests/builtin.rs`'s `a_spreadsheet_call_charges_its_bytes_once_with_a_resource_beside_them` fails
+on the dynamic path. `nvs-ext` builds at `opt-level = 2` in the dev profile (`Cargo.toml`), because
+the generated lift and lower code is compiled in it. The gap record is deleted, and
+`rule:core-classes/image-pipeline` and `rule:packaging/values-cross-as-handles` are shipped.
+`bun nv owners --closes completeness-holes` and `bun nv verify --doc` pass.
 
-The goal's last open record is `data/gaps/nvs-ext/bytes-cross-one-val-per-byte.json`, which names
-only the spreadsheet world, so `owners --closes completeness-holes` fails until it lands.
+The nightly run the sweep reports (`39013536848`) tested `origin/main`, far behind local `main`. Its
+`docs` failure was a broken link to the Unix-only `ENDPOINT` in `crates/nvs-runtime/src/syslog.rs`,
+fixed now. Its proofs, cost-guard and five-driver failures were not reproduced here; the
+five-driver ones need the database servers.
 
-The nightly run the sweep reports (`39013536848`) tested `e110c9c0b`, which is `origin/main`, about
-230 commits behind local `main`. Its `docs` failure is fixed locally. Its proofs, cost-guard and
-five-driver failures were not reproduced here; the five-driver ones need the database servers.
-
-`bun nv rules --render` also rewrites `core-api.md`, `errors.md` and `iteration.md`, and `bun nv render`
-drops `done` from `data/schema/milestone.schema.json`. That drift predates these sessions and is not
-committed.
+`bun nv rules --render` also rewrites `errors.md` and `iteration.md`. That drift predates these
+sessions and is not committed.
 
 ### Next
 
-**Stage 5: the spreadsheet world goes typed. Files: `crates/nvs-ext/src/typed.rs`,
-`crates/nvs-ext/src/typed/spreadsheet.rs`, `wit/spreadsheet.wit`, `crates/nvs-ext/tests/builtin.rs`.**
-`rule:packaging/a-value-crosses-as-its-wit-type` holds the table. Shape it as
-`crates/nvs-ext/src/typed/pdf.rs` is: a `bindgen!` of an inline world that exports the interface
-alone, then `world!`, `records!`, `enums!`, `variants!` and `cores!` in WIT order.
+**The goal is reached; the chain's next goal, `release-hardening`, is live once this one retires.**
+Its own file names its stages and files.
 
-- [ ] `wit/spreadsheet.wit:19` as `crates/nvs-ext/src/typed/spreadsheet.rs`, and its arm in `World::of` (`crates/nvs-ext/src/typed.rs:38`). It takes `mixed` (`value`) and resources, which the typed path does not convert, so an export that has one stays out of `world!` and on the dynamic path. A variant case with no payload or a type with more than three parameters needs a macro arm in `typed.rs` first.
-- [ ] Add a spreadsheet write export to the loop in `a_built_in_call_charges_its_bytes_once_and_not_one_val_per_byte` (`crates/nvs-ext/tests/builtin.rs:210`), or a one-copy pin of its own where no export takes bytes alone.
-- [ ] Delete the gap record, and rewrite the per-byte sentence of the cost paragraph at `crates/nvs-ext/src/convert.rs:53` and `docs/rules/packaging/values-cross-as-handles.md`. Then the goal-end gates: `bun nv verify --doc` and `bun nv owners --closes completeness-holes`.
+- [x] The spreadsheet world is called typed (`crates/nvs-ext/src/typed/spreadsheet.rs`).
+- [x] Its one-copy pin (`crates/nvs-ext/tests/builtin.rs`).
+- [x] The gap record deleted, the prose rewritten, and the goal-end gates green.
 
 ### Backlog
 
 - Many `§ N` marks in crate comments still point at a section of a decision record that no longer exists, for example `crates/nvs-types/src/links.rs:3` and `crates/nvs-server/src/bounds.rs:155` (`tools/nv/cmd/rules.ts:80`).
 - A `Core` member call counts as a Novis call in the perf counters, so every `calls 0` bench fails `--record-perf` (`tools/nv/proofs/collect.ts`, `benches/members/core/Response-Stream/length.nvs:5`).
 - `rule:security/isolate-shares-nothing` says a *required* parameter `args:` omits is the error, but `entry_names_agree` and `check_literal_args` need every parameter (`crates/nvs-stdlib/src/script.rs:970`).
-- Tests that fail under the full verify's load and pass alone: `test_request_dispatches_in_process_through_the_compiled_route_table` (`crates/nvs-cli/src/runner.rs:3410`), two `live_edit` swaps (`crates/nvs-cli/tests/live_edit.rs:1010`), and five `ldap` tests (`crates/nvs-stdlib/tests/ldap.rs:102`).
+- Tests that fail under the full verify's load and pass alone: `test_request_dispatches_in_process_through_the_compiled_route_table` (`crates/nvs-cli/src/runner.rs:3410`), two `live_edit` swaps (`crates/nvs-cli/tests/live_edit.rs:1010`), `serve_arms_a_fleet_entry_when_the_shared_tier_can_take_a_lease` (`crates/nvs-cli/src/serve.rs:2989`), and five `ldap` tests (`crates/nvs-stdlib/tests/ldap.rs:102`).
 - CI's Windows warm-start budget and proof debt fail CI (`crates/nvs-ext/src/section.rs:35`, `.github/workflows/ci.yml:1`); a per-connection child refused a stack likely closes with no `503`, not checked (`crates/nvs-server/src/serve.rs:95`).
