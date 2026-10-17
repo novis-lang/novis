@@ -157,10 +157,18 @@ upgrade from another origin is refused unless its route opted out.
 **Does:** a batch target is refused however it is spelled, a child gets only a small fixed
 environment unless the program gives one, and a read is opened beneath a handle as a write is.
 
-- [ ] Trailing dots and spaces and a `:` stream suffix are cut before the extension check, on every platform. A test per spelling. `crates/nvs-runtime/src/capability.rs:1497`
-- [ ] A child with no `env` gets only PATH, HOME or USERPROFILE, TEMP and TMP, SYSTEMROOT on Windows, and LANG. The rule and the `Core\Process` docs say so. `crates/nvs-runtime/src/capability.rs:1384`, `docs/rules/core-classes/process-options.md:1`
+- [x] Trailing dots and spaces and a `:` stream suffix are cut before the extension check, on every platform. A test per spelling. `crates/nvs-runtime/src/capability.rs:1497`
+  - [x] `shell_target` cuts the stream, then trailing dots and spaces.
+  - [x] A test per spelling, and the rule says so.
+- [x] A child with no `env` gets only PATH, HOME or USERPROFILE, TEMP and TMP, SYSTEMROOT on Windows, and LANG. The rule and the `Core\Process` docs say so. `crates/nvs-runtime/src/capability.rs:1384`, `docs/rules/core-classes/process-options.md:1`
+  - [x] `exec_with` clears the environment and copies `BASE_ENV`.
+  - [x] The options test proves a variable outside the set is not passed on.
+  - [x] The rule, the `env` help text and the stdlib docs say so.
 - [ ] `open_read` opens beneath a handle, so the check and the open are one step. `crates/nvs-runtime/src/capability.rs:552`, `crates/nvs-runtime/src/beneath.rs:9`
-- [ ] A test proves `CON`, `NUL`, `COM1` and `CONIN$`, with an extension or a trailing dot, are refused by a file grant and by static serving.
+- [x] A test proves `CON`, `NUL`, `COM1` and `CONIN$`, with an extension or a trailing dot, are refused by a file grant and by static serving.
+  - [x] One `is_reserved_device` in `nvs_config::capability`, which the mount capture, static serving and the file doors share.
+  - [x] Every file door refuses a device component before the grant is read.
+  - [x] A test at the doors, one in static serving, and one on the function.
 
 ### 5. JSON refuses a repeated key, and the conversion rule says what `parse` accepts
 
@@ -242,39 +250,42 @@ is `BLOCKED` and names the call.
 
 ### State
 
-Stages 1 to 3 are done. A request with an `Upgrade` header that matched a route is refused at the
-door when its `Origin` is another origin, on any verb and whatever `[http] csrf_key` says, because a
-browser's handshake cannot carry a token (`crates/nvs-server/src/route.rs:211`). `csrf: false`
-turns it off (`Route::upgrade_checked`, `crates/nvs-runtime/src/routes.rs:395`), so `E0764` now
-accepts the opt-out on a `Get` route. An unmatched upgrade is not checked, for the same opt-in
-reason an unmatched `POST` is not. `rule:security/csrf-is-on-by-default` says all of it.
+Stages 1 to 3 are done. Stage 4 has three of its four items done:
 
-`looper verify` failed at `owners` on another session's uncommitted work: it deletes
-`data/plan/milestones/M10.json` and the `ide` rules, which 22 gaps and many citations still name.
-This slice was verified by hand instead: `cargo test --lib --test routes`, clippy, fmt and the
-route and CSRF conformance cases, all green.
+- `shell_target` reads a name as Windows opens it. It cuts an alternate stream, then trailing dots
+  and spaces, so `say.bat.`, `say.bat ` and `say.bat::$DATA` are refused as `.bat`
+  (`crates/nvs-runtime/src/capability.rs:1557`).
+- A child with no `env` gets `BASE_ENV` alone: `PATH`, `HOME` or `USERPROFILE`, `TEMP`, `TMP`,
+  `LANG`, and `SYSTEMROOT` on Windows (`crates/nvs-runtime/src/capability.rs:1424`). The rule, the
+  `env` help text and `docs/novis.md` say so. A coverage build's child without `env` loses
+  `LLVM_PROFILE_FILE`, and `bun nv disk` already cleans the stray counter files that leaves.
+- `nvs_config::capability::is_reserved_device` is the one device-name test. It adds `CONIN$`,
+  `CONOUT$` and `COM¹`–`LPT³`, and reads the stem before the first `.` or `:` without trailing
+  spaces. Every file door refuses a path with a device component before reading the grant
+  (`device_refusal`, `crates/nvs-runtime/src/capability.rs:148`). Static serving declines such a
+  segment (`crates/nvs-server/src/mount.rs:583`), and a mount capture is a boot error as before.
 
-The floor's owed atom `tests/hostile/novis/Image-Font/fromBytes/01-bytes-that-pretend-to-be-a-font.nvs`
-is still red. Step 4 now throws `16000004 bytes are not a TrueType or OpenType font`, so the case's
-`// hostile: ends-early 4 FATAL` fails on a clean run. The fix is to drop that marker, the
-`echo "step 4\n"` line and the memory sentence. The loop's permission classifier refused that edit
-as removing a security test, so the user has to make it or allow it.
+`rule:errors/path-component-refusals` names `Core\IO::within` as the launderer that refuses
+trailing dots, spaces, colons and 8.3 names. `within` (`crates/nvs-stdlib/src/io.rs:3657`) does
+not check those yet. Device names reach it through the `canonicalize` door only if that door calls
+`require`, which is not checked.
 
-The nightly ran on the pushed `main`, far behind the local one. Its `docs`, `five-driver matrix`
-and `test / windows-x86_64` failures are fixed locally. The `proofs` and `cost guards` failures
-remain, listed in the backlog.
+`looper verify` is green on this group. The nightly ran on the pushed `main`, which is behind the
+local one. Its `docs`, `five-driver matrix` and `test / windows-x86_64` failures are fixed locally,
+and the `proofs` and `cost guards` failures are in the backlog.
 
 ### Next
 
-Stage 4's file-door half, on `crates/nvs-runtime/src/capability.rs` (`rule:security/path-scope-canonicalise-then-prefix`):
-- [ ] Trailing dots and spaces and a `:` stream suffix are cut before the extension check, on every platform, with a test per spelling. `crates/nvs-runtime/src/capability.rs:1497`
-- [ ] `CON`, `NUL`, `COM1` and `CONIN$`, with an extension or a trailing dot, are refused by a file grant and by static serving. `crates/nvs-config/src/mount.rs:641`
-- [ ] A child with no `env` gets only the named base variables (`rule:core-classes/process-options`). `crates/nvs-runtime/src/capability.rs:1384`
+Stage 4's last item, on `crates/nvs-runtime/src/capability.rs` and `crates/nvs-runtime/src/beneath.rs` (`rule:security/writes-open-beneath-a-handle`):
+- [ ] `open_read` and `open`'s `Access::Read` open beneath a handle, so the check and the open are one step. The grant is asked with `allows_resolved` on the one resolution, as `resolve_write` does. `crates/nvs-runtime/src/capability.rs:583`, `crates/nvs-runtime/src/beneath.rs:9`
+- [ ] The rule names the read doors beside the write doors, and a test plants a link after the check. `docs/rules/security/writes-open-beneath-a-handle.md:1`
+- [ ] Then stage 5: a repeated JSON key throws, naming it (`rule:types/conversion`). `crates/nvs-stdlib/src/json.rs:1820`
 
 ### Backlog
 
-- The Font attack above waits on the user's edit or permission (`tests/hostile/novis/Image-Font/fromBytes/01-bytes-that-pretend-to-be-a-font.nvs:3`).
+- `Core\IO::within` does not refuse what `rule:errors/path-component-refusals` lists, beyond device names (`crates/nvs-stdlib/src/io.rs:3657`).
+- The Font attack waits on the user's edit or permission: drop `// hostile: ends-early 4 FATAL`, the `echo "step 4\n"` line and the memory sentence (`tests/hostile/novis/Image-Font/fromBytes/01-bytes-that-pretend-to-be-a-font.nvs:3`).
 - CI's Windows warm-start budget still fails: a warm `nvs run` is 8.1 ms of work on this host against 6. Resolving the extension tree once per `run`, not three times, is the next cut (`crates/nvs-ext/src/load.rs:567`, `tools/nv/cmd/bench.ts:132`).
 - CI's `proofs` jobs fail on proof debt: stale perf records (`bun nv benches --owed`) and owed proofs (`bun nv proofs --owed`). Stage 10 owns it (`.github/workflows/ci.yml:1`).
-- A forged payload can put an enum case with a backing value the enum does not declare into an enum-typed property, because the tag names no enum (`rule:enums/representation`). Whether a typed read of it is safe is not checked (`crates/nvs-runtime/src/object.rs:5629`).
-- The nightly tests GitHub's `main`, which is behind the local one, so its `supply chain` failure says nothing about the current lock until the user pushes (`.github/workflows/ci.yml:838`).
+- A forged payload can put an enum case with a backing value the enum does not declare into an enum-typed property (`rule:enums/representation`). Whether a typed read of it is safe is not checked (`crates/nvs-runtime/src/object.rs:5629`).
+- The nightly tests GitHub's `main`, so its `supply chain` failure says nothing about the current lock until the user pushes (`.github/workflows/ci.yml:838`).
