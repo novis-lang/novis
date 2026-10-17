@@ -1,6 +1,0 @@
-{
-  "module": "crates/nvs-cli/src/main.rs",
-  "title": "A memory ceiling reached inside the runtime's own bookkeeping prints `FATAL: ` with an empty message.",
-  "text": "A program that makes about four million `assertSame` calls under a 128M ceiling stops with the line `FATAL: ` and nothing after it. `nvs run` prints the thrown fault's message (`crates/nvs-cli/src/main.rs:3789`), and the fault raised when an allocation inside runtime bookkeeping is refused carries no message; which allocation that is, is not checked. `rule:errors/an-allocation-past-the-ceiling-is-refused-in-front-of-itself` and `rule:errors/on-limit` say a limit stop names the directive. Closing it means that path raises the same limit report every other refused allocation does.",
-  "goal": "completeness-holes"
-}
