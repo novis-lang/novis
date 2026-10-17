@@ -8,6 +8,6 @@
   ],
   "guardedBy": [
     "tests/conformance/class/an-unknown-method-is-a-compile-error.nvst",
-    "tests/conformance/reject/every-magic-method-name-this-adr-closes-is-unspellable.nvst"
+    "tests/conformance/reject/every-reserved-magic-method-name-is-unspellable.nvst"
   ]
 }

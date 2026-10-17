@@ -1110,8 +1110,8 @@ impl Emitter<'_, '_> {
     /// addresses are real ones, and a request whose bounds were armed from a
     /// low address must not have the compare wrap.
     ///
-    /// Only the **soft** address is compared here. Which of the ADR's two
-    /// tiers a crossing is gets decided in the slow path, which is what makes
+    /// Only the **soft** address is compared here. Which of
+    /// `rule:errors/stack-depth`'s two tiers a crossing is gets decided in the slow path, which is what makes
     /// two tiers cost exactly what one costs at the site.
     fn emit_stack_check(&mut self, _cur: Block) -> Result<Block, CodegenError> {
         let offset = i32::try_from(STACK_LIMIT_OFFSET)
@@ -1907,8 +1907,8 @@ impl Emitter<'_, '_> {
     }
 
     /// Integer `+`, `-` and `*`, which `rule:types/arithmetic` makes **throw
-    /// `ArithmeticError`** rather than wrap — "the divergence from PHP this
-    /// ADR is least willing to trade", because a silent promotion to `float`
+    /// `ArithmeticError`** rather than wrap — the divergence from PHP that
+    /// rule is "least willing to trade", because a silent promotion to `float`
     /// changes a binding's type behind its declaration and a silent wrap is
     /// the classic size-computation bug.
     ///

@@ -5,10 +5,10 @@ a `#[Test]` payload is checked against `rule:testing/test-attribute`'s option sh
 // `rule:testing/test-attribute`: `#[Test]` marks a test method. It is one of `rule:core-classes/derive-attribute`'s
 // compiler-recognized attributes, so it names no `type` alias and `rule:attributes/attach-sites-and-forms`
 // 's shape rule does not apply to it — its payload is checked against the
-// option shape § 1 writes instead: `{skip?: string, at?: string, seed?: int,
+// option shape of its own instead: `{skip?: string, at?: string, seed?: int,
 // db?: string, server?: bool, retries?: int, because?: string}`. Every field
-// is optional, which is why the bare form the ADR's own example writes is
-// the first accepted spelling below.
+// is optional, which is why the bare `#[Test]` of `rule:testing/test-attribute`'s
+// first sentence is the first accepted spelling below.
 use Core\Test;
 
 // The accepted half first, so a position that stops being accepted fails

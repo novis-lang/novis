@@ -59,8 +59,8 @@ function satteriBaseLinks(base) {
         }
       },
     },
-    // Raw HTML embedded in the markdown (e.g. the ADR meta rows the sync
-    // script writes) never reaches the element visitor.
+    // Raw HTML embedded in the markdown (e.g. the HTML the sync script
+    // writes into a page) never reaches the element visitor.
     raw(node, ctx) {
       const value = node.value.replace(rawUrlAttr, (_, attr, url) => `${attr}="${base}${url}"`)
       if (value !== node.value) ctx.replaceNode(node, { type: 'raw', value })

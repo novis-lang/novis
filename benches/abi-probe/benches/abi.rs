@@ -61,7 +61,7 @@ fn throw_cost(c: &mut Criterion) {
 }
 
 fn compile_cost(c: &mut Criterion) {
-    // Not part of any ADR claim, but it bounds how bad cold-start can get:
+    // No rule quotes this cost, but it bounds how bad cold-start can get:
     // Novis compiles on load, so this is the per-function floor before any
     // caching. Tracked so a Cranelift upgrade that halves compile throughput
     // is visible rather than discovered in production.

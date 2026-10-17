@@ -31,7 +31,7 @@ echo Plus::agrees($i as string, (+$i) as string),
 echo +(-$i), ",", -(+$i), "\n";
 
 // The bound is where the two operators part. `rule:types/arithmetic` makes `-i64::MIN`
-// an `ArithmeticError` — there is no `int` to hold it, and the ADR refuses
+// an `ArithmeticError` — there is no `int` to hold it, and that rule refuses
 // to wrap or promote — while `+` over the very same value cannot fail,
 // because it is the identity and emits no instruction to fail in.
 int $min = -9223372036854775807 - 1;

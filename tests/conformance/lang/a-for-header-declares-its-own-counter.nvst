@@ -22,9 +22,8 @@ echo "\n";
 echo $i, " ", $j, "\n";
 
 // `rule:iteration/for-init-clause`: the condition and step clauses are unchanged, and so is
-// the expression form of the init clause — the shape the corpus used
-// before this ADR, and the shape a counter read after its loop still
-// wants. Asserted here so that adding the declaration form cannot
+// the expression form of the init clause, which is the shape a counter
+// read after its loop still wants. Asserted here so that adding the declaration form cannot
 // silently break it.
 int $k = 0;
 for ($k = 5; $k > 3; $k = $k - 1) {

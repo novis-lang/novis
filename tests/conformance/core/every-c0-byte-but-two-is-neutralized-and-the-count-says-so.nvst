@@ -32,7 +32,7 @@ echo $through, " ", $pictured, "\n";
 echo Core\Cli::escape(Core\Str::fromCodePoint(9)) == Core\Str::fromCodePoint(9) ? "tab" : "not tab", "\n";
 echo Core\Cli::escape(Core\Str::fromCodePoint(10)) == Core\Str::fromCodePoint(10) ? "lf" : "not lf", "\n";
 
-// `CR` is the row the ADR calls out by name: bare-`CR` overwriting is the
+// `CR` is the row `rule:tooling/terminal-output-is-a-sink` calls out by name: bare-`CR` overwriting is the
 // oldest text-hiding trick and needs no `ESC` at all, so it is in the table
 // even though it looks like layout beside `LF`.
 echo Core\Cli::escape(Core\Str::fromCodePoint(13)) == Core\Str::fromCodePoint(0x240D) ? "cr pictured" : "cr passed", "\n";

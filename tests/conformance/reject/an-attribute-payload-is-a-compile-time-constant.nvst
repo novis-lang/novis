@@ -8,7 +8,7 @@ an attribute payload's every field value is a literal, a class constant or an en
 // a class constant already use. There is therefore no moment at which a
 // variable could be read, a call made or a `new` constructed, which is exactly
 // the moment PHP's attributes do have (`ReflectionAttribute::newInstance()`
-// builds a real object lazily) and this ADR deliberately does not.
+// builds a real object lazily) and Novis attributes deliberately do not.
 enum Mode: int {
     Read = 1,
     Write = 2,

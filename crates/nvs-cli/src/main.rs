@@ -2731,7 +2731,7 @@ fn survey_root(config: &[std::path::PathBuf]) -> std::path::PathBuf {
 /// The program goes through the same front end `check` does, and the document
 /// is rendered from the route table that front end produced — so a program with
 /// a diagnostic emits nothing at all rather than a partial document. That is
-/// the ADR's whole promise in one line: the document cannot say something the
+/// that rule's whole promise in one line: the document cannot say something the
 /// compiler did not agree to.
 ///
 /// **A program declaring no route emits nothing**, which is § 1's "generates

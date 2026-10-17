@@ -92,7 +92,7 @@ echo "laundered=", $laundered, " signed=", $signed, "\n";
 if ($truth) { echo "bool laundered\n"; } else { echo "BAD\n"; }
 
 // `rule:security/secret-propagation` again: the conversion strips *both* bits at once, which is the
-// known, accepted gap that ADR's own Alternatives-rejected section names.
+// known, accepted gap that rule names.
 secret tainted string $both = "8";
 uint $stripped = $both as uint;
 echo "stripped=", $stripped, "\n";

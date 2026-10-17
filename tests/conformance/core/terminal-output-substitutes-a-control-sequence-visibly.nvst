@@ -7,11 +7,11 @@
 // rule is uniform — no qualifier gates it and no tty test does either — so a
 // plain literal is enough to show it.
 //
-// The sequence is built from code points rather than written as "\e": § 1's
-// second mechanism makes an `ESC` in a string literal a compile error, so a
-// computed sequence is the only path left to run time, and it is also the
-// attack the ADR's *Context* names — a title report, `ESC ] 0 ; … BEL`, which
-// is CVE-2022-46387's shape.
+// The sequence is built from code points rather than written as "\e":
+// `rule:tooling/an-escape-in-source-text-is-a-compile-error` makes an `ESC` in a
+// string literal a compile error, so a computed sequence is the only path left
+// to run time. It is also a real attack: a title report, `ESC ] 0 ; … BEL`,
+// which is CVE-2022-46387's shape.
 string $esc = Core\Str::fromCodePoint(27);
 string $bel = Core\Str::fromCodePoint(7);
 string $attack = $esc . "]0;owned" . $bel;

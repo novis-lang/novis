@@ -10,7 +10,7 @@ echo Core\Json::encode(Core\Arr::flattenDeep($rows)), "\n";
 
 // `rule:types/preserve-keys`: the result is a list, always. Two inner arrays can hold the
 // same key, so there is no rule that keeps both — and "keep the strings,
-// renumber the integers" is the key-type dependence that ADR removes.
+// renumber the integers" is the key-type dependence that rule removes.
 array<array<string>> $keyed = ["x" => ["p" => "a", "q" => "b"], "y" => ["p" => "c"]];
 echo Core\Json::encode(Core\Arr::flatten($keyed)), "\n";
 

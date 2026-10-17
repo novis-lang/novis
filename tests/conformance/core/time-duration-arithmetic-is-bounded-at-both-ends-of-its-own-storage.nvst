@@ -88,7 +88,7 @@ try {
 // fit, a text failed to read. Its sentence is still the same sentence.
 // Behind a binding, because `rule:expressions/intrinsic-list-is-closed` folds this member's literal argument
 // and a text past the ceiling is refused while checking when it is written
-// inline — which is that ADR § 3's rule, and not what this case is asking.
+// inline. That refusal is that rule's to pin, and not what this case is asking.
 string $past = "9223372036854775808ns";
 try {
     echo Core\Time\Duration::parse($past)->toNanoseconds() as string, "|\n";

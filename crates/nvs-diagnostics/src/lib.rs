@@ -2029,7 +2029,7 @@ pub mod code {
     // leaves no such signature — a `Core` row's names are
     // `nvs_stdlib::registry::CoreMethod::names`, the synthesized `Throwable`
     // constructor's are `message` and `options`, and a reserved interface's
-    // are the ones its own ADR writes. A name reaching no parameter is
+    // are the ones its own rule writes. A name reaching no parameter is
     // [`E_UNKNOWN_ARG_NAME`] everywhere.
     /// `name: value` naming no parameter a call can fill by name — either the
     /// callee declares no parameter of that name at all, or the name reaches
@@ -3113,8 +3113,8 @@ pub mod code {
     ///
     /// * a `mixed` or a `?T` — accepting it would put a tag test and a throw
     ///   behind a spelling that reads like a member read. The narrowing that
-    ///   lifts it is the one `->` already requires, and `Core\Reflect` (ADR
-    ///   0019) is the door for a receiver whose type was genuinely erased.
+    ///   lifts it is the one `->` already requires, and `Core\Reflect`
+    ///   (`rule:core-classes/reflect`) is the door for a receiver whose type was genuinely erased.
     /// * a `class<T>` — already a descriptor, so its name is `rule:types/class-reference`'s
     ///   `as string` conversion rather than a member read.
     /// * anything else — a scalar, an `array<T>`, an enum: it never holds an
@@ -3197,9 +3197,8 @@ pub mod code {
          `Core\\Json::encode($a)`.",
     );
     /// An `expr as T` whose operand and target name no row of `rule:types/conversion`'s
-    /// conversion table, nor of the ADRs that table delegates rows to —
-    /// `rule:types/conversion`'s `string` ↔ `bytes` pair, `rule:types/conversion`'s `decimal` ones
-    /// and `rule:types/conversion`'s enum ones.
+    /// conversion table, its `string` ↔ `bytes` pair, its `decimal` rows and its enum
+    /// rows included.
     ///
     /// The table is *closed*: `as` "either produces a value of the target type
     /// or throws", so a pair with no row has nothing to produce and nothing to
@@ -3383,7 +3382,7 @@ pub mod code {
     /// arithmetic operators as a family, but `%` is the one member of it PHP
     /// does not answer that way: PHP converts both operands to an integer and
     /// returns an integer, where the row would return a `float`. The two are
-    /// different answers for `7.5 % 2`, no ADR settles which of them Novis
+    /// different answers for `7.5 % 2`, no rule settles which of them Novis
     /// gives, and `as` is one character away — so the operator is refused at
     /// **both** ends rather than guessed at either. The other end is the
     /// tagged one, `nvs_runtime::helpers::value_arith`, where the same rule
@@ -4264,7 +4263,7 @@ pub mod code {
     /// A literal argument to an `rule:expressions/intrinsic-list-is-closed` intrinsic that its own grammar
     /// refuses.
     ///
-    /// The whole point of that ADR, as one code: the compiler read the
+    /// The whole point of that rule, as one code: the compiler read the
     /// constant with the parser the runtime would have used, so this is the
     /// throw the first request to reach the call would have taken, moved to
     /// `nvs check`. One code across the grammars rather than one per member —
@@ -4283,7 +4282,7 @@ pub mod code {
     /// Separate from [`E_INTRINSIC_LITERAL_MALFORMED`] because the string is
     /// *fine*: the mistake is in the pairing, which is `rule:expressions/intrinsic-list-is-closed`'s own
     /// reason for naming this member's placeholder check separately — it turns
-    /// PHP's `printf` argument-mismatch bug family into a compile error. ADR
+    /// PHP's `printf` argument-mismatch bug family into a compile error.
     /// `rule:core-classes/db-compile-time-query-checking`'s placeholder count and its positional-vs-named consistency
     /// are the same question of a second grammar, so they are the same code:
     /// the message carries the reader's own words, per
@@ -4698,7 +4697,7 @@ pub mod code {
     ///
     /// A property key's values are the names of `T`'s public declared
     /// properties, so the argument has to be something that declares
-    /// properties. An interface is refused with the rest and the ADR says why
+    /// properties. An interface is refused with the rest and the rule says why
     /// it is the conservative row: its implementors satisfy it with storage it
     /// does not itself declare, so the set would name nothing the receiver
     /// certainly has.
@@ -4793,7 +4792,7 @@ pub mod code {
     // entry's parameter names ride on the spawn symbol and
     // `nvs_stdlib::script` binds `args:`'s entries to them by name — so that
     // shape is the shape that runs, and a mismatch is the ordinary
-    // named-argument error the ADR names, raised at the spawn.
+    // named-argument error that rule names, raised at the spawn.
 
     /// A written reason that is not a string literal, at a member whose reason
     /// exists to be read by the next person —
