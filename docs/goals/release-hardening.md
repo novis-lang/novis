@@ -6,7 +6,7 @@ context: [docs/rules/programs/memory-priority.md, docs/rules/errors/ambiguous-in
 stages:
   - id: 1
     title: "`Core\\Serialize::decode` checks every value it builds"
-    status: open
+    status: done
     context: [crates/nvs-runtime/src/graph.rs, crates/nvs-runtime/src/object.rs, crates/nvs-stdlib/src/serialize.rs, docs/rules/classes/serialize-is-a-closed-format.md]
     extra:
       context:
@@ -123,10 +123,10 @@ and the address table. If a session finds it needs `proptest`, it asks first.
 node is not UTF-8, is refused with a decode error. No typed read can see a value of the wrong
 kind, whatever the bytes are. The user chose this over signing payloads.
 
-- [ ] A `STR` node is validated as UTF-8, and a `BYTES` node is not. `crates/nvs-runtime/src/graph.rs:878`
-- [ ] Each field value is checked against the declared type before `set_field`, with the checks an erased write already uses. `crates/nvs-runtime/src/graph.rs:961`, `crates/nvs-runtime/src/object.rs:2343`
-- [ ] A case per shape: a wrong scalar, an object of the wrong class, an array with a wrong element, invalid UTF-8. Each throws.
-- [ ] The rule says the decode checks every value against the declared type. `docs/rules/classes/serialize-is-a-closed-format.md:1`
+- [x] A `STR` node is validated as UTF-8, and a `BYTES` node is not. `crates/nvs-runtime/src/graph.rs:878`
+- [x] Each field value is checked against the declared type before `set_field`, with the checks an erased write already uses. `crates/nvs-runtime/src/graph.rs:961`, `crates/nvs-runtime/src/object.rs:2343`
+- [x] A case per shape: a wrong scalar, an object of the wrong class, an array with a wrong element, invalid UTF-8. Each throws.
+- [x] The rule says the decode checks every value against the declared type. `docs/rules/classes/serialize-is-a-closed-format.md:1`
 
 ### 2. HTTP framing is refused both ways where the rule says so
 
@@ -242,18 +242,26 @@ is `BLOCKED` and names the call.
 
 ### State
 
-The goal is new and runs after `completeness-holes`. Every anchor above was read when the goal
-was written. Stages 1 to 5 change behaviour and each closes a hole the review found in the code.
-Stages 6 to 9 add tests and release gates.
+Stage 1 is done. `ClassDesc::check_slot` is the one declared-type check, shared by the erased write
+and `decode`, which runs it over every object once the whole graph is built
+(`crates/nvs-runtime/src/object.rs:1639`, `crates/nvs-runtime/src/graph.rs:1044`). A `string` node
+and a string array key must be UTF-8.
+
+The nightly ran on the pushed `main` (e110c9c0b), 240 commits behind the local one. Its `docs`,
+`five-driver matrix` and `test / windows-x86_64` failures are already fixed locally (`nv check`
+is clean, 460a68396, 3b4e222db). Two remain on the local tree, listed in the backlog.
 
 ### Next
 
-Stage 1, the decode checks, on `crates/nvs-runtime/src/graph.rs` and `crates/nvs-runtime/src/object.rs`:
-- [ ] UTF-8 on a `STR` node (`rule:classes/serialize-is-a-closed-format`). `crates/nvs-runtime/src/graph.rs:878`
-- [ ] the declared-type check before `set_field` (`rule:types/erased-member-access`). `crates/nvs-runtime/src/graph.rs:961`, `crates/nvs-runtime/src/object.rs:2343`
-
-Stage 2 follows on the HTTP files.
+Stage 2, HTTP framing, on `crates/nvs-stdlib/src/http/transport.rs` and `crates/nvs-server/src/io.rs`
+(`rule:errors/http-message-defects`):
+- [ ] `head_of` refuses a line with no colon, obs-fold, and CTL, NUL, CR or LF in a name or value. `crates/nvs-stdlib/src/http/transport.rs:2785`
+- [ ] `frame_of` takes only a final `chunked` as chunked and refuses a repeated, unreadable or `Transfer-Encoding`-paired `Content-Length`. `crates/nvs-stdlib/src/http/transport.rs:2812`
+- [ ] The server refuses a repeated `Content-Length` and a bare LF in the head. `crates/nvs-server/src/serve.rs:2308`, `crates/nvs-server/src/io.rs:309`
 
 ### Backlog
 
+- CI's Windows warm-start budget still fails. `section::read` now skips nested modules, and a warm `nvs run` is 8.1 ms of work on this host against 6. Resolving the extension tree once per `run`, not three times, is the next cut (`crates/nvs-ext/src/load.rs:567`, `tools/nv/cmd/bench.ts:132`).
+- CI's `proofs` jobs fail on proof debt: stale perf records (`bun nv benches --owed`) and owed proofs (`bun nv proofs --owed`). Stage 10 owns it (`.github/workflows/ci.yml:1`).
+- A forged payload can put an enum case with a backing value the enum does not declare into an enum-typed property, because the tag names no enum (`rule:enums/representation`). Whether a typed read of it is safe is not checked (`crates/nvs-runtime/src/object.rs:5629`).
 - The nightly tests GitHub's `main`, which is behind the local one, so its `supply chain` failure says nothing about the current lock until the user pushes (`.github/workflows/ci.yml:838`).

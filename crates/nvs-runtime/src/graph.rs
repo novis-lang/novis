@@ -867,10 +867,20 @@ impl Reader<'_> {
         Ok(slice.to_vec())
     }
 
+    /// A `string`'s bytes, which must be UTF-8 because every typed read of a
+    /// `string` takes them as text. A `bytes` node is read with [`Self::blob`].
+    fn text(&mut self, what: &str) -> Result<NvsStr, GraphError> {
+        let blob = self.blob()?;
+        if std::str::from_utf8(&blob).is_err() {
+            return Err(GraphError(format!("{what} is not UTF-8")));
+        }
+        Ok(NvsStr::new(&blob))
+    }
+
     fn key(&mut self) -> Result<SlotKey, GraphError> {
         match self.byte()? {
             0 => Ok(SlotKey::Index(i64::from_le_bytes(self.fixed::<8>()?))),
-            1 => Ok(SlotKey::Str(NvsStr::new(&self.blob()?))),
+            1 => Ok(SlotKey::Str(self.text("an array key")?)),
             other => Err(GraphError(format!("{other} is not an array key shape"))),
         }
     }
@@ -896,7 +906,7 @@ impl Reader<'_> {
                     .ok_or_else(|| GraphError("a `decimal` node is malformed".to_owned()))?;
                 Ok(Value::decimal(held))
             }
-            node::STR => Ok(Value::str(NvsStr::new(&self.blob()?))),
+            node::STR => Ok(Value::str(self.text("a `string` node")?)),
             node::BYTES => Ok(Value::bytes(NvsStr::new(&self.blob()?))),
             node::ARRAY => {
                 let count = usize::try_from(self.varint()?).map_err(|_| truncated())?;
@@ -998,10 +1008,10 @@ impl Reader<'_> {
 /// # Errors
 ///
 /// [`GraphError`] for a payload that is not this format, that nests past
-/// [`MAX_DEPTH`], that names a class this program cannot resolve, or whose
-/// recorded property set is not the class's current one. Every one of them is
-/// made before the offending object is filled, so nothing partially built is
-/// ever handed back.
+/// [`MAX_DEPTH`], that names a class this program cannot resolve, whose
+/// recorded property set is not the class's current one, whose `string` node
+/// or array key is not UTF-8, or whose field value does not fit the field's
+/// declared type. Nothing partially built is ever handed back.
 pub fn decode(
     bytes: &[u8],
     resolve: &dyn Fn(&str) -> Option<*const ClassDesc>,
@@ -1024,10 +1034,22 @@ pub fn decode(
         resolve,
     };
     let value = reader.node(0)?;
+    // Each field is checked against its declared type once the whole graph is
+    // built, because a back-reference can reach an object still being filled.
+    // The check is the one an erased write makes, so a typed read never sees a
+    // value of the wrong kind.
+    let fields = reader
+        .objects
+        .iter()
+        .try_for_each(|held| borrow_object(*held).check_fields());
     // Every object the reader registered still holds the reference it was built
     // with; the graph itself holds whatever it needs, so those are surplus.
     for held in std::mem::take(&mut reader.objects) {
         release(held);
+    }
+    if let Err(refused) = fields {
+        release(value);
+        return Err(GraphError(refused));
     }
     if reader.at != bytes.len() {
         release(value);
@@ -1116,7 +1138,7 @@ fn borrow_str(value: Value) -> Option<std::mem::ManuallyDrop<NvsStr>> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::object::{ClassTable, MethodRow};
+    use crate::object::{ClassTable, MethodRow, SlotCheck};
 
     /// A table with one two-field class, `Node { value, next }` — enough to
     /// build sharing and a cycle, which are the two properties § 2 states.
@@ -1462,5 +1484,110 @@ mod tests {
             why.message().contains("`Node`"),
             "the refusal did not name the class: {why}"
         );
+    }
+
+    /// `rule:classes/serialize-is-a-closed-format`: a field value that does not
+    /// fit the field's declared type is refused, whatever the bytes say. Each
+    /// payload is written against a table that declares no types, which is
+    /// what a forged payload looks like to the side that reads it.
+    #[test]
+    fn a_field_value_that_does_not_fit_its_declared_type_is_refused() {
+        fn owners(typed: bool) -> ClassTable {
+            let mut table = ClassTable::new();
+            table.define("Dog", &["name"], &[]);
+            table.define("Cat", &["name"], &[]);
+            let id = table.define("Owner", &["count", "pet", "pets"], &[]);
+            if typed {
+                table.set_field_tags(
+                    id,
+                    vec![Some(Tag::Int), Some(Tag::Object), Some(Tag::Array)],
+                );
+                table.set_field_types(id, vec!["int".into(), "Dog".into(), "array<Dog>".into()]);
+                table.set_field_classes(id, vec![None, Some(vec!["Dog".into()]), None]);
+                table.set_field_checks(
+                    id,
+                    vec![
+                        None,
+                        None,
+                        Some(SlotCheck::Array(Box::new(SlotCheck::Class("Dog".into())))),
+                    ],
+                );
+            }
+            table
+        }
+        let untyped = owners(false);
+        let typed = owners(true);
+        let make = |class: &str| {
+            let id = untyped.id_of(class).expect("the table defines the class");
+            #[expect(unsafe_code, reason = "the table outlives the object")]
+            let object = unsafe { NvsObj::new(untyped.desc(id)) };
+            Value::object(object)
+        };
+        let owner = |count: Value, pet: &str, element: &str| {
+            let held = make("Owner");
+            let mut pets = NvsArray::new();
+            pets.set_index(0, make(element));
+            borrow_object(held).set_field(0, count);
+            borrow_object(held).set_field(1, make(pet));
+            borrow_object(held).set_field(2, Value::array(pets));
+            encode(held).expect("a class with no declared types encodes any value")
+        };
+
+        let fits = owner(Value::int(2), "Dog", "Dog");
+        let back = decode(&fits, &resolver(&typed)).expect("every field fits its type");
+        release(back);
+
+        for (what, payload, named) in [
+            (
+                "a wrong scalar",
+                owner(Value::str(NvsStr::new(b"two")), "Dog", "Dog"),
+                "field `count` as int",
+            ),
+            (
+                "an object of the wrong class",
+                owner(Value::int(2), "Cat", "Dog"),
+                "class `Cat`",
+            ),
+            (
+                "an array with a wrong element",
+                owner(Value::int(2), "Dog", "Cat"),
+                "an array holding",
+            ),
+        ] {
+            let why = decode(&payload, &resolver(&typed)).expect_err(what);
+            assert!(
+                why.message().contains(named),
+                "{what} was refused as: {why}"
+            );
+        }
+    }
+
+    /// A `string` node and a string array key must be UTF-8, because a typed
+    /// read takes them as text. A `bytes` node with the same bytes decodes.
+    #[test]
+    fn a_string_that_is_not_utf8_is_refused_and_bytes_are_not() {
+        let resolve = |_: &str| -> Option<*const ClassDesc> { None };
+        let payload = |body: &[u8]| {
+            let mut bytes = MAGIC.to_vec();
+            bytes.push(VERSION);
+            bytes.extend_from_slice(body);
+            bytes
+        };
+
+        let why = decode(&payload(&[node::STR, 2, 0xff, 0xfe]), &resolve)
+            .expect_err("a `string` node that is not UTF-8");
+        assert!(why.message().contains("not UTF-8"), "refused as: {why}");
+
+        let why = decode(
+            &payload(&[node::ARRAY, 1, 1, 1, 0xff, node::NULL]),
+            &resolve,
+        )
+        .expect_err("an array key that is not UTF-8");
+        assert!(why.message().contains("an array key"), "refused as: {why}");
+
+        let back = decode(&payload(&[node::BYTES, 2, 0xff, 0xfe]), &resolve)
+            .expect("a `bytes` node is not text");
+        assert_eq!(back.exact_tag(), Some(Tag::Bytes));
+        release(back);
     }
 }

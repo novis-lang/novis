@@ -1,0 +1,117 @@
+--TEST--
+`Core\Serialize::decode` checks every value it builds against the declared type of the property it fills, and a `string` node must be UTF-8 — `rule:classes/serialize-is-a-closed-format`
+--FILE--
+<?nvs
+class Dog
+{
+    public string $name = 'Rex';
+}
+
+class Cat
+{
+    public string $name = 'Tom';
+}
+
+// Each pair below has class names of one length and one property name. The
+// bytes of one class, renamed to the other, are a payload whose value does not
+// fit the declared type.
+class Box
+{
+    public int $size = 1;
+}
+
+class Bix
+{
+    public string $size = 'one';
+}
+
+class Home
+{
+    public Dog $pet;
+    public function constructor()
+    {
+        $this->pet = new Dog();
+    }
+}
+
+class Hume
+{
+    public Cat $pet;
+    public function constructor()
+    {
+        $this->pet = new Cat();
+    }
+}
+
+class Pack
+{
+    public array<Dog> $pets;
+    public function constructor()
+    {
+        $this->pets = [new Dog()];
+    }
+}
+
+class Pick
+{
+    public array<Cat> $pets;
+    public function constructor()
+    {
+        $this->pets = [new Cat()];
+    }
+}
+
+class Forge
+{
+    // Returns `$payload` with the bytes at `$at` replaced by `$replacement`.
+    public static function change(bytes $payload, int $at, bytes $replacement): bytes
+    {
+        bytes $before = Core\Bytes::slice($payload, 0, $at);
+        bytes $after = Core\Bytes::slice($payload, $at + Core\Bytes::length($replacement) as int);
+        return Core\Bytes::join([$before, $replacement, $after]);
+    }
+
+    // Decodes `$payload` with the class name `$from` changed to `$to`.
+    public static function renamed(bytes $payload, string $from, string $to): void
+    {
+        ?uint $found = Core\Bytes::indexOf($payload, $from as bytes);
+        if ($found == null) {
+            echo "no `", $from, "` in the payload\n";
+            return;
+        }
+        Forge::decode(Forge::change($payload, $found as int, $to as bytes));
+    }
+
+    public static function decode(bytes $payload): void
+    {
+        try {
+            Core\Serialize::decode($payload);
+            echo "decoded\n";
+        } catch (ParseError $e) {
+            echo $e->message, "\n";
+        }
+    }
+}
+
+// A wrong scalar: a `string` where `Box` declares an `int`.
+Forge::renamed(Core\Serialize::encode(new Bix()), 'Bix', 'Box');
+
+// An object of the wrong class: a `Cat` where `Home` declares a `Dog`.
+Forge::renamed(Core\Serialize::encode(new Hume()), 'Hume', 'Home');
+
+// An array with a wrong element: a `Cat` in the `array<Dog>` of `Pack`.
+Forge::decode(Core\Serialize::encode(new Pack()));
+Forge::renamed(Core\Serialize::encode(new Pick()), 'Pick', 'Pack');
+
+// Invalid UTF-8: the node of a `bytes` value is changed to the node of a
+// `string`. The node is the byte after the four marker bytes and the version.
+bytes $raw = Core\Serialize::encode(Core\Bytes::fill(2, 255));
+Forge::decode($raw);
+Forge::decode(Forge::change($raw, 5, Core\Bytes::fill(1, 6)));
+--EXPECT--
+Core\Serialize::decode(): `Box` declares field `size` as int, so a string cannot be written to it
+Core\Serialize::decode(): `Home` declares field `pet` as `Dog`, so an object of class `Cat` cannot be written to it
+decoded
+Core\Serialize::decode(): `Pack` declares field `pets` as `array<Dog>`, so an array holding an object of class `Cat` cannot be written to it
+decoded
+Core\Serialize::decode(): a `string` node is not UTF-8
