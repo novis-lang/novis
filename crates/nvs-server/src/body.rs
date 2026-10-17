@@ -176,7 +176,8 @@ impl Supply {
     /// `rule:http-server/request-body-and-upload-total-are-two-caps`'s `upload_total` is counted here, because this is the only
     /// thing that sees every byte: a body that crosses it mid-stream ends as an
     /// error at the pull that would have received the offending chunk, which is
-    /// where the ADR puts it for a body that declared no length.
+    /// where `rule:http-server/upload-total-is-enforced-on-the-wire` puts it for a
+    /// body that declared no length.
     ///
     pub fn pump(&mut self, cx: &mut Context<'_>) {
         loop {

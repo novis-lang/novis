@@ -33,7 +33,7 @@
 //! a relative fragment the reader has to resolve by hand.
 //!
 //! **A key that cannot be canonicalized refuses the boot** (`E0605`) rather than never matching.
-//! The ADR does not decide between those, and the reason to refuse is the priority ordering: a
+//! The reason to refuse rather than never match is the priority ordering: a
 //! `[[app]]` block that silently matches nothing hands every application under it the *global*
 //! configuration, so a typo in a `root` that narrows limits or grants a capability is a security
 //! change that reports nothing. A missing directory is a loud refusal instead.

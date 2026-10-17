@@ -1,4 +1,4 @@
-//! The typed block tree one configuration file deserializes into: every block an ADR states, with
+//! The typed block tree one configuration file deserializes into: every block a rule states, with
 //! its own fields, and an unknown key refused.
 //!
 //! This is the type [`crate::file::parse`] is generic over, and its standing where a bare
@@ -10,7 +10,7 @@
 //!
 //! **Every field comes from the rule that owns its block**, and
 //! `rule:config/every-block-is-argued-where-it-is-added` is the table saying which rule that is. Nothing here invents a key, because a key invented in this file becomes a key
-//! the operator may write and no other code reads. Where an ADR states a block but no field set,
+//! the operator may write and no other code reads. Where a rule states a block but no field set,
 //! the gap is recorded in that struct's doc comment rather than filled in.
 //!
 //! **This tree answers which keys exist, not whether a value is usable.** A `memory = "12 bananas"`
@@ -32,7 +32,7 @@ use std::collections::BTreeMap;
 
 use serde::Deserialize;
 
-/// One directive's value, in the shapes the ADRs actually write.
+/// One directive's value, in the shapes the rules actually write.
 ///
 /// Several directives are spelled two ways on purpose and the second spelling is load-bearing:
 /// `[limits.hard] memory = false` removes a ceiling (`rule:config/three-changeability-classes`, and `rule:config/the-file-is-nvs-toml-and-it-is-toml` chose TOML partly
@@ -995,10 +995,9 @@ impl std::ops::DerefMut for Databases {
 /// One `[db.<name>]` block — `rule:core-classes/db-connection-is-named`, where the name and not the settings is the key.
 ///
 /// **Recorded gap: `rule:core-classes/db-one-api` states `Db\Settings` as a language type and never writes the config
-/// block out**, so this roster is every field that ADR names in prose (§ 2's "SQLite takes a `path`
-/// and has no `host`, `port`, `user` or `password`", § 4's `Settings.database` and `.user`,
-/// § 3a's `password_file`, § 1's `statement_cache`, § 9's `time_zone`, § 11's `slow_query`,
-/// § 13's `pool`) plus the
+/// block out**, so this roster is every field the database rules name in prose (SQLite's `path`
+/// with no `host`, `port`, `user` or `password`, `database`, `user`, `password_file`,
+/// `statement_cache`, `time_zone`, `slow_query` and `pool`) plus the
 /// `driver` a discriminated union needs to be discriminated on.
 /// A field the rules turn out to have meant and this list omits is a boot refusal naming the line,
 /// which is loud and one edit to fix; the fix is to add the field here *and* to the rule that
@@ -1049,9 +1048,9 @@ pub struct Database {
     /// How long a statement on this connection may take before it is also written to `Core\Log`
     /// (`rule:observability/a-slow-query-is-logged-past-a-threshold`), as `200ms` or `1s`.
     ///
-    /// Unset is off, and that is the ADR's own default rather than a number: § 11 gives the
+    /// Unset is off, and that is the rule's own default rather than a number: the rule gives the
     /// threshold no value, and a slow-query log every deployment gets without asking would be the
-    /// ungated output that section refuses. A written `0` is legal and logs every statement, which
+    /// ungated output it refuses. A written `0` is legal and logs every statement, which
     /// is the honest reading of "slower than nothing" and the spelling an operator debugging one
     /// request reaches for. `nvs_config::db::slow_query_for` is the reader, and the line itself is
     /// `Core\Db`'s — it carries the span `rule:observability/trace-events-carry-a-kind`'s `query` event carries, which is what `rule:observability/a-slow-query-is-logged-past-a-threshold` means
@@ -1076,8 +1075,8 @@ pub struct Database {
 
 /// `[db.<name>] pool` — `rule:security/db-pool-reset-is-a-boundary`'s switch, or the table of bounds written under the same key.
 ///
-/// § 13 writes `pool = false` to restore connect-per-request and `[db.<name>.pool] max = 16` for the
-/// bounds, and neither spelling can be moved without contradicting the ADR. `true` is the default
+/// That rule writes `pool = false` to restore connect-per-request and `[db.<name>.pool] max = 16`
+/// for the bounds, and neither spelling can be moved without contradicting it. `true` is the default
 /// said out loud rather than a meaning of its own.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Pool {

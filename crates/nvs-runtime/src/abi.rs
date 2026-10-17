@@ -8,13 +8,13 @@
 //! ```
 //!
 //! Nothing unwinds through a JIT frame, because `cranelift-jit` registers no
-//! unwind tables with the OS on any platform — that ADR's *Context* has the
-//! measurement. So a failure travels in the return value and the caller
+//! unwind tables with the OS on any platform — that rule names the canary test
+//! that measures it. So a failure travels in the return value and the caller
 //! branches on it, and every helper wraps its body in `catch_unwind`, which is
 //! what contains a runtime panic to one request instead of the process.
 //!
 //! Both halves are supplied by [`nvs_helper!`] rather than left to a
-//! convention, for the reason that ADR's *Corollary* gives: `extern "C"`
+//! convention, for the reason `rule:errors/helper-abi` gives: `extern "C"`
 //! rather than `extern "C-unwind"` and the `catch_unwind` wrapper are each a
 //! silent, per-helper correctness cliff, and a macro cannot forget either.
 //!
@@ -117,7 +117,7 @@ pub enum Fault {
     /// every reader added later, all to say the same thing with a different
     /// constant in it. The slot index is passed rather than derived from the
     /// class because deriving it would bake "one own property per class" into
-    /// the ABI, which is true of those classes today and of neither ADR.
+    /// the ABI, which is true of those classes and stated by neither rule.
     ///
     /// This variant is the one place a [`Fault`] carries a reference at all: the
     /// values are transferred into those slots the moment the fault is recorded,

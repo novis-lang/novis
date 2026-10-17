@@ -17,7 +17,7 @@ use nvs_config::tree::Config;
 use nvs_config::trust::Untrusted;
 use nvs_diagnostics::{Diagnostic, code};
 
-/// A path written the way an ADR writes one, as a path the host spells its own way.
+/// A path written with `/` separators, the way a rule writes one, as a path the host spells its own way.
 ///
 /// Spelled as a separator substitution rather than as a component collection, because these paths
 /// are compared against ones the tree itself produced through `Path::new("/www")` — and a collected

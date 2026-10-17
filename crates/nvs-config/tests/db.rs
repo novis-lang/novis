@@ -47,8 +47,8 @@ fn refusal(text: &str) -> Diagnostic {
         .unwrap_or_else(|| panic!("{text}\n-- was accepted, and should not have been"))
 }
 
-/// `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`, which § 13 writes its example against: a block that configures no pool at all still has
-/// a finite bound on every side, and they are the ADR's own numbers.
+/// `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`: a block that configures no pool at all still has
+/// a finite bound on every side, and `max` is the 16 `rule:security/db-pool-reset-is-a-boundary` states.
 #[test]
 fn nothing_configured_is_a_finite_pool() {
     let pool = bounds(MAIN);
@@ -196,7 +196,7 @@ fn an_unknown_key_in_the_pool_table_is_refused_by_name() {
 }
 
 /// `rule:observability/a-slow-query-is-logged-past-a-threshold`'s threshold, on both sides of the boundary that matters: unwritten is off, which is
-/// the ADR's own default and the reason a deployment gets no slow-query log it did not ask for, and
+/// that rule's own default and the reason a deployment gets no slow-query log it did not ask for, and
 /// a written `0` is a threshold every statement passes rather than a second spelling of off.
 ///
 /// The spellings are asserted as **agreement** for [`the_spellings_of_one_duration_agree`]'s reason:

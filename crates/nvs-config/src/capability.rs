@@ -34,7 +34,7 @@
 //!   grant is asked of a *name* and then `rule:http-server/allow-url-pins-the-address`
 //!   's door pins the address that name resolved to; a pattern there would widen the set of
 //!   names an attacker-influenced argument may reach without the operator having written any one of
-//!   them down, which is the whole thing that ADR refuses. `db.open`'s targets are program-supplied
+//!   them down, which is the whole thing that rule refuses. `db.open`'s targets are program-supplied
 //!   too, but a tenant-per-subdomain deployment cannot enumerate them, and its blast radius is one
 //!   operator-named zone rather than the internet.
 //! - **A wildcard never crosses a label**, so a suffix match inside a label — the
@@ -183,7 +183,7 @@ pub enum Cap {
     LdapCleartext,
     /// `mail.send` — which `[mail.<name>]` blocks a program may send through (`rule:programs/framework-core-half`).
     ///
-    /// Named by block and never by host, which is [`DbConnect`](Self::DbConnect)'s shape and ADR
+    /// Named by block and never by host, which is [`DbConnect`](Self::DbConnect)'s shape and
     /// `rule:core-classes/db-capabilities`'s reasoning: the endpoint an operator wrote into root-owned configuration carries
     /// the authority that granted this capability, so it is pre-approved and is not additionally
     /// asked about `rule:security/net-address-policy`'s denied ranges — where every ordinary relay lives.

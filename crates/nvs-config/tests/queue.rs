@@ -39,8 +39,9 @@ fn refusal(text: &str) -> Diagnostic {
     }
 }
 
-/// `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`, which § 2's example is written against: a block that configures nothing but the
-/// connection still has finite bounds, and they are the ADR's own numbers.
+/// `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`: a block that configures nothing but the
+/// connection still has finite bounds, and they are `workers = 4`, `max_attempts = 5` and
+/// `visibility = "5m"`.
 #[test]
 fn nothing_configured_is_a_finite_queue() {
     let queue = bounds(&format!("{MAIN}\n[queue]\nconnection = \"main\"\n"));
@@ -51,7 +52,7 @@ fn nothing_configured_is_a_finite_queue() {
     assert_eq!(queue.visibility, Duration::from_secs(5 * 60));
 }
 
-/// § 2's block as the ADR writes it, every key read back. The durations are asserted in two
+/// A `[queue]` block with every key written, every key read back. The durations are asserted in two
 /// spellings because `crate::value` is the parser and `5m` must not be a shape this module knows.
 // covers: directive:queue.visibility
 #[test]

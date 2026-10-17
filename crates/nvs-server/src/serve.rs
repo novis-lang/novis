@@ -7527,7 +7527,8 @@ pub(crate) mod tests {
     /// other, so both are asserted: the peer's status, and a counter only a
     /// program that ran could have moved. A refusal taken *after* dispatch
     /// would answer `413` just the same and would already have allocated the
-    /// isolate the ADR says the client never reaches.
+    /// isolate `rule:http-server/upload-total-is-enforced-on-the-wire` says the
+    /// client never reaches.
     ///
     /// The request carries no body bytes at all, which is the case rather than
     /// a shortcut for a 256 MiB write: the refusal is read off the header, so a
@@ -7855,7 +7856,7 @@ pub(crate) mod tests {
     /// piece of state a child isolate shares by design —
     /// `rule:security/isolate-shares-nothing`'s "spends its
     /// parent's budget" — so a row asserting a fresh reading would fail the
-    /// isolate arm for obeying the ADR. What must not survive is the *finished*
+    /// isolate arm for obeying that rule. What must not survive is the *finished*
     /// run's arena, and that is
     /// [`the_upgrading_requests_arena_is_released_while_the_connection_is_open`]
     /// beside

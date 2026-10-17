@@ -95,9 +95,9 @@
 //!
 //! The Unix-domain sibling is `NvsUnix`, and it is *this* type: [`NvsStream`]
 //! is generic over what it parks on and each family is a type alias over it.
-//! Decided and recorded here rather than in an ADR, under the goal's standing
-//! decisions; what it was chosen over is a second concrete type carrying its
-//! own copy of the four functions that do the waiting.
+//! This module is where that decision is recorded. What it was chosen over is a
+//! second concrete type carrying its own copy of the four functions that do the
+//! waiting.
 //!
 //! [`NvsUdp`] is the third alias and the one that shows what the generic is
 //! actually over: it is not a stream at all, so it carries no `Read` and no

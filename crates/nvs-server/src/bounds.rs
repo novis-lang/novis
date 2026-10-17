@@ -149,14 +149,14 @@ impl Default for Connection {
     /// `nvs_config::server::Waits::write_idle`, since a peer that stopped
     /// reading costs the same thing on either protocol.
     ///
-    /// [`lifetime`](Connection::lifetime) is the one number no ADR writes, and
+    /// [`lifetime`](Connection::lifetime) is the one number no rule states, and
     /// a day is picked rather than derived: it is long enough that no
     /// application notices it and short enough that a process cannot accumulate
     /// connections older than a deploy. § 7's own drain closes them sooner on
     /// any host that reloads, so this bound is what catches the host that never
     /// does.
     ///
-    /// [`drain`](Connection::drain) is the other number no ADR writes, and a
+    /// [`drain`](Connection::drain) is the other number no rule states, and a
     /// second is picked for what the period is *for*: an event stream that is
     /// writing when its server stops has no request to finish — that is what
     /// separates it from the drain
@@ -167,7 +167,7 @@ impl Default for Connection {
     /// going to reconnect to the next instance anyway, and a stream with
     /// nothing to write never waits it out, so the cost of the second is at
     /// most a second of shutdown and nothing else.
-    /// [`reconnect`](Connection::reconnect) is the third number no ADR writes,
+    /// [`reconnect`](Connection::reconnect) is the third number no rule states,
     /// and three seconds is taken from the client rather than picked: it is
     /// what a browser's `EventSource` waits with no `retry:` field at all, so
     /// emitting it changes how a fleet is *spread* without changing how long

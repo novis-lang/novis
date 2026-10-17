@@ -71,7 +71,7 @@
 //! `NBCROW` and `PLP` over [`Wire::read_packet`] with the remainder held across
 //! the packet boundary — the reader the first section says [`Tokens`] cannot be.
 //!
-//! **A statement goes out**: [`sp_prepexec_request`] builds the RPC, ADR
+//! **A statement goes out**: [`sp_prepexec_request`] builds the RPC,
 //! `rule:core-classes/db-one-api`'s cache holds the handle the `RETURNVALUE` came back with,
 //! [`start_statement`] is the sequencing both `query` and `execute` are,
 //! [`execute_many`] is § 4's batch over that same sequencing once per parameter

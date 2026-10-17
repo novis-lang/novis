@@ -352,7 +352,7 @@ mod tests {
     use std::collections::BTreeMap;
     use std::path::PathBuf;
 
-    /// A path written the way an ADR writes one, as the host spells it.
+    /// A path written with `/` separators, the way a rule writes one, as the host spells it.
     fn p(path: &str) -> PathBuf {
         PathBuf::from(path.replace('/', std::path::MAIN_SEPARATOR_STR))
     }

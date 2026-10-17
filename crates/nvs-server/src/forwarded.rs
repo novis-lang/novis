@@ -110,9 +110,10 @@ const NOT_TEXT: &str = "\u{fffd}";
 pub enum Arrival {
     /// A TCP connection from this address.
     Tcp(IpAddr),
-    /// A Unix-domain socket, which § 6 makes **implicitly trusted**: the OS
-    /// enforces who may connect to it. The operator warning that belongs beside
-    /// that is in the ADR — a `0660` socket is trusted by *group membership*.
+    /// A Unix-domain socket, which `rule:http-server/a-unix-socket-listener`
+    /// makes **implicitly trusted**: the OS enforces who may connect to it. The
+    /// operator warning that belongs beside that is in the same rule — a `0660`
+    /// socket is trusted by *group membership*.
     ///
     /// Carries no address, because a Unix-domain socket's is a path or nothing
     /// and never something a forwarded header could be checked against: what
@@ -330,7 +331,8 @@ pub fn walk(arrival: Arrival, trusted: &Trusted, headers: &HeaderMap) -> Result<
     let peer = arrival.address();
     // Both of these answer without reading a header: an empty directive means
     // the headers are not parsed at all, and an untrusted peer's are ignored
-    // silently. The two arms differ in the ADR and not in the code, and that is
+    // silently. The two arms differ in
+    // `rule:http-server/trusted-proxies-is-empty-and-empty-reads-nothing` and not in the code, and that is
     // the point — the second must not become a refusal.
     if trusted.is_empty() || !arrival.may_speak(trusted) {
         return Ok(Origin {

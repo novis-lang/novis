@@ -109,7 +109,8 @@ impl Ctx {
 /// `X-Forwarded-Proto` — § 6's walk is the one thing that decides it, and this
 /// carrier holds its answer rather than re-deriving one.
 ///
-/// Not a boolean, because the two values are named in the ADR and a `bool` at a
+/// Not a boolean, because the two values are named in
+/// `rule:http-server/x-forwarded-proto-sets-the-scheme-and-hsts-only` and a `bool` at a
 /// call site would need a comment saying which way round it goes.
 ///
 /// It lives here, one crate below the door, because two readers a crate apart

@@ -25,7 +25,7 @@ hyper.workspace = true
 # `rule:concurrency/one-future-per-connection` is its specification.
 nvs-host.workspace = true
 # `rule:http-server/four-idle-waits-all-finite`'s four waits, resolved: `nvs_config::server::Waits` is the clock a connection is
-# bounded by, and this crate takes it rather than four `Duration`s so that the ADR's numbers have
+# bounded by, and this crate takes it rather than four `Duration`s so that the rule's numbers have
 # one home and the boot refusal of an unbounded one lives beside the block it reads. Not a new
 # crate in the graph — `nvs-host` and `nvs-runtime` both already rest on it.
 nvs-config.workspace = true

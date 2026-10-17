@@ -247,9 +247,10 @@ pub struct PoolBounds {
 }
 
 impl PoolBounds {
-    /// § 13's own example, which is this crate's default set — finite with nothing configured, per
-    /// `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`. The ADR writes these
-    /// numbers out, so they are transcribed here rather than chosen.
+    /// This crate's default set, finite with nothing configured, per
+    /// `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`: `max = 16`, which
+    /// `rule:security/db-pool-reset-is-a-boundary` states, and `idle = 2`, `lifetime = "30m"` and
+    /// `acquire = "5s"`.
     pub const DEFAULT: PoolBounds = PoolBounds {
         enabled: true,
         max: crate::defaults::DB_POOL_MAX,
@@ -506,8 +507,8 @@ const POOL_HELP: &str = "write a duration, as `30m`, or `pool = false` if the po
                          all";
 
 /// `rule:observability/a-slow-query-is-logged-past-a-threshold`'s `slow_query` threshold for `name`'s block,
-/// or `Ok(None)` for the block that writes none — which is off, and the ADR's own default rather
-/// than a number this crate picks.
+/// or `Ok(None)` for the block that writes none — which is off, the default that rule states
+/// rather than a number this crate picks.
 ///
 /// Not part of [`PoolBounds`] and not read by [`pool_for`], because it is not a bound on the pool:
 /// it is a property of the statements that run on the connection, and § 13's bounds are resolved

@@ -16,7 +16,7 @@ use nvs_config::trust::Untrusted;
 use nvs_config::{Request, Setting};
 use nvs_diagnostics::SourceMap;
 
-/// A path written the way an ADR writes one, as a path the host spells its own way.
+/// A path written with `/` separators, the way a rule writes one, as a path the host spells its own way.
 fn p(path: &str) -> PathBuf {
     path.split('/').collect()
 }
@@ -253,8 +253,9 @@ fn boot_refuses(text: &str) -> bool {
     resolve(&Roots::Files(vec![p("nvs.toml")]), &mut sources, &files).is_err()
 }
 
-/// `rule:http-server/cors-is-closed-until-origins-are-named` and `rule:http-server/cookies-are-secure-httponly-and-lax`, as the **agreement** the ADR's own sentence asks for: each pair is refused "at
-/// boot with the line named and at runtime by `Core\Config::set` returning `false`".
+/// `rule:http-server/cors-is-closed-until-origins-are-named` and `rule:http-server/cookies-are-secure-httponly-and-lax`, as the **agreement**
+/// `rule:http-server/a-wildcard-origin-with-credentials-is-refused` asks for: each pair is refused at
+/// boot with the line named and at runtime by `Core\Config::set` returning `false`.
 ///
 /// This is the case that needs one implementation rather than two. It never asserts what either
 /// mechanism answered — it asserts they answered the **same**, over a table of assignments, so a
@@ -477,7 +478,7 @@ read = [\"nvs.toml\"]
 /// `rule:config/a-mode-is-five-defaults`'s table is **closed**, and this is what makes that word mean something.
 ///
 /// The section's second property is that *what exactly does development mode change?* has a
-/// complete, mechanical answer at any moment; a sixth row added without an ADR amendment would take
+/// complete, mechanical answer at any moment; a sixth row added without changing that rule would take
 /// that away silently, and every other case here would still pass. Asserting the key set — rather
 /// than the count — also fails a row renamed to a directive nobody spelled.
 #[test]

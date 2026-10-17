@@ -14,7 +14,7 @@ use nvs_config::resolve::Files;
 use nvs_config::tree::Capabilities;
 use nvs_config::trust::Untrusted;
 
-/// A path written the way an ADR writes one, as a path the host spells its own way.
+/// A path written with `/` separators, the way a rule writes one, as a path the host spells its own way.
 fn p(path: &str) -> PathBuf {
     lexical(Path::new(path))
 }

@@ -11,7 +11,7 @@
 //!
 //! **A row covers the keys beneath it.** [`lookup`] is longest-prefix on dot boundaries, so the one
 //! `limits` row answers for `limits.memory` and every other key in that block, while the more
-//! specific `limits.hard` row answers for `limits.hard.memory`. That is how the ADRs state the
+//! specific `limits.hard` row answers for `limits.hard.memory`. That is how the rules state the
 //! classes in the first place — "every `[[schedule]]` key" is `System`
 //! (`rule:config/every-schedule-key-is-system`), `[server] listen`
 //! is `Boot` (`rule:config/reloadability-is-its-own-field`) — so the registry holds one row per *stated* rule rather than a row per key invented
@@ -81,7 +81,7 @@ impl Directive {
     }
 }
 
-/// Every directive whose class and reloadability an ADR states. Order is presentation only:
+/// Every directive whose class and reloadability a rule states. Order is presentation only:
 /// [`lookup`] takes the longest matching row, not the first.
 #[rustfmt::skip] // one row per line: the registry is a table and reads as one.
 pub const DIRECTIVES: &[Directive] = &[

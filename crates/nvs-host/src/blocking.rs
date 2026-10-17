@@ -51,7 +51,8 @@
 //! and spends nothing beyond it: it is held for the life of one walk instead of
 //! one call, which is O(walks open at once) and so still O(in-flight).
 //!
-//! A pool is **per worker** and its threads are its own. That is the ADR's word,
+//! A pool is **per worker** and its threads are its own. That is
+//! `rule:http-server/a-core-is-never-blocked-on-a-syscall`'s word,
 //! and it is also what keeps this crate shared-nothing: a queue shared between
 //! cores would be one piece of contended state on the request path, and the
 //! [`RemoteWake`](reactor::RemoteWake) a job carries is already per-core because the reactor it pokes

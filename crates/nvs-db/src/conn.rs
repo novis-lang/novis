@@ -272,7 +272,7 @@ impl Driver {
 /// reading two vocabularies for one file format.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum BlockError<'a> {
-    /// The block names no `driver` at all, so nothing decides which of ADR
+    /// The block names no `driver` at all, so nothing decides which of
     /// `rule:core-classes/db-drivers-are-an-enum`'s backends it is.
     NoDriver,
     /// `driver` names a backend Novis has, and it is not the one that read it.
