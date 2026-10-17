@@ -308,11 +308,16 @@ filtered by visibility.
 - [x] An inherited `lateinit` read gets E0428. `crates/nvs-types/src/lateinit.rs:48`
   - [x] `lateinit_in_reach` adds each ancestor's non-private `lateinit` property not declared again nearer.
   - [x] Unit cases for a grandparent, a parent constructor call, a private and a redeclared property, and the record deleted.
-- [ ] A second `#[Json\Field]` is reported. `crates/nvs-types/src/derive.rs:2478`
+- [x] A second `#[Json\Field]` is reported. `crates/nvs-types/src/derive.rs:2478`
+  - [x] `attribute_fields` reports each later field attribute of the format as E0464, naming the first.
+  - [x] The rule, the card and a reject case say one per property, and the record is deleted.
 - [x] A `decimal` property default is accepted. `crates/nvs-types/src/defaults.rs:79`
   - [x] `FieldDefault::Decimal`, made by `FieldDefault::decimal` from the literal's parts.
   - [x] The refusal is gone, and an accept case replaces the reject case, and the record is deleted.
-- [ ] A write to a `Throwable` property after construction is E0782. `crates/nvs-types/src/error_lib.rs:106`, `crates/nvs-types/src/signatures.rs:1696`
+- [x] A write to a `Throwable` property after construction is E0782. `crates/nvs-types/src/error_lib.rs:106`, `crates/nvs-types/src/signatures.rs:1696`
+  - [x] `error_lib::seed` marks every seeded property readonly (`SignatureTable::seed_readonly`).
+  - [x] The layout marks the tree's slots readonly, so a write through `mixed` throws.
+  - [x] A reject case and a run case, and the record is deleted.
 
 ### 12. every error message names its cause, and every code is tested
 
@@ -343,57 +348,49 @@ work cannot live only in prose again.
 
 ### State
 
-Stages 1 to 4 and 8 to 10 are done. Stage 11 has three of its seven items:
+Stages 1 to 4 and 8 to 10 are done. Stage 11 has five of its seven items. This session landed two:
 
-- A shape alias naming itself in a field is one E0310 at the alias, with a help that says to use a
-  class. `crates/nvs-hir/src/aliases.rs`'s `substitute` and `record_names` now walk shape fields and
-  the `property<T>`, `propertyPath<T>` and `string<K>` arguments. E0307 moved there too
-  (`check_alias_is_not_a_bare_class`), so `type A = B;` over an alias `B` is accepted and a cycle no
-  longer adds two E0307s. E0408's message and card name no kind of type.
-- A parent's non-private `lateinit` property read in a subclass method is E0428
-  (`crates/nvs-types/src/lateinit.rs`'s `lateinit_in_reach`). A nearer redeclaration replaces it.
-- `public decimal $rate = 0.19;` compiles, and every instance starts at exactly `0.19`
-  (`nvs_runtime::FieldDefault::Decimal`). Trade-offs: none at run time; a `decimal` default is one
-  16-byte value per instance, as the constructor assignment it replaces was.
+- A second `#[Json\Field]` or `#[Db\Field]` on one property is E0464 at the second, naming the first
+  (`crates/nvs-types/src/derive.rs`'s `attribute_fields`). `rule:core-classes/derive-field-list` and
+  E0464's card say one per property.
+- A `Throwable`'s properties are readonly. A write after construction is E0782, and a write through
+  `mixed` throws `cannot modify readonly property` (`SignatureTable::seed_readonly`, called from
+  `crates/nvs-types/src/error_lib.rs`'s `seed`, and the tree's slots in
+  `crates/nvs-types/src/layout.rs`'s `build_class_layouts`). Trade-offs: none at run time. Each
+  error class's descriptor carries a readonly bit per slot.
+
+`use Core\Nope;` is bigger than its record says. No list of every name under `Core` exists. Even
+`Core\Nope $x` as a type annotation is not reported today. `CoreRoster::Names` holds only
+`nvs_stdlib::registry::link_targets`. A `use` can also import an enum, a `Core` exception
+(`Core\Db\DbError`), an attribute (`Core\Test\TestWith`, `Core\Json\Field`) or a shape alias
+(`Core\Db\Plan\Step`), so a check over `type_names()` alone would refuse real programs.
 
 Stage 6's two items are on disk. Its remainder is
-`data/gaps/nvs-ext/a-workbook-never-finished-is-neither-logged-nor-cut-off.json`: a program that
-*returns* with its download workbook unfinished still ends the body cleanly, because no Novis member
-can abort a response. Stage 6 stays open on it.
+`data/gaps/nvs-ext/a-workbook-never-finished-is-neither-logged-nor-cut-off.json`: no Novis member
+can abort a response.
 
-Stage 5 charges a call's lowered arguments to the request until the guest returns
-(`crates/nvs-ext/src/call.rs`'s `Request::run`). **Its typed path is a question for the user**,
-recorded with its three choices in `data/gaps/nvs-ext/bytes-cross-one-val-per-byte.json`: wasmtime
-fixes a typed call's layout at compile time, and `image`'s `run` carries its bytes inside records.
-
-**Stage 1's second memory-safety hole is a question for the user**:
-`data/gaps/nvs-runtime/a-wider-shape-view-writes-an-object-of-the-wrong-class.json` (invariant
-mutable shape fields, a declared type per anonymous object at run time, or refusing a write through
-a wider view).
-
-**Stage 7 is two questions for the user**, each record stating its choices:
-`data/gaps/nvs-config/debug-mode-is-read-by-nothing.json` (arm the bits only off the server, a new
-cap on `call` events, or refuse `trace` and `profile` in a server's `[debug] mode`) and
-`data/gaps/nvs-db/span-renders-on-a-flag-no.json` (no rule names the grant for a sampled span).
+Stage 5's typed path is a question for the user, with its three choices in
+`data/gaps/nvs-ext/bytes-cross-one-val-per-byte.json`. Stage 1's second hole is a question for the
+user: `data/gaps/nvs-runtime/a-wider-shape-view-writes-an-object-of-the-wrong-class.json`. Stage 7 is
+two questions for the user: `data/gaps/nvs-config/debug-mode-is-read-by-nothing.json` and
+`data/gaps/nvs-db/span-renders-on-a-flag-no.json`.
 
 The nightly still tests `cb7021a24` (checked this session with `gh run view 38869457440`). The local
-`main` is 173 commits ahead and not pushed, so its failures are the old tree's until the user pushes.
+`main` is 177 commits ahead and not pushed, so its failures are the old tree's until the user pushes.
 
 ### Next
 
-**Stage 11's remaining checker items, over `crates/nvs-types/src/` and `crates/nvs-hir/src/`, with a
-case for each diagnostic.** Each has its record under `data/gaps/nvs-types/` or `data/gaps/nvs-hir/`.
+**Stage 11's last two checker items, over `crates/nvs-types/src/` and `crates/nvs-hir/src/`, with a
+case for each diagnostic.**
 
-- [ ] A second `#[Json\Field]` is reported (`rule:core-classes/derive-attribute`). `crates/nvs-types/src/derive.rs:2478`
-- [ ] A write to a `Throwable` property after construction is E0782 (`rule:classes/readonly-is-written-once`). `crates/nvs-types/src/error_lib.rs:106`, `crates/nvs-types/src/signatures.rs:1696`
 - [ ] A literal `args:` map is checked at compile time (`rule:security/isolate-shares-nothing`). `crates/nvs-types/src/expr/isolate.rs:229`
-- [ ] `use Core\Nope;` is an unknown class (`rule:core-api/reserved-namespace`). `crates/nvs-hir/src/qname.rs:146`
+- [ ] `use Core\Nope;` is an unknown class (`rule:core-api/reserved-namespace`). First build one roster of every importable `Core` name: `type_names()`, the `Core` rows of `nvs_hir::errors::TREE`, `nvs_types::derive::ATTRIBUTES` and the `Core` shape aliases. Then check a `use` against it. `crates/nvs-hir/src/qname.rs:146`, `crates/nvs-stdlib/src/registry.rs:3354`, `crates/nvs-cli/src/main.rs:2450`
 
 ### Backlog
 
 - Stage 6's last item needs a way for Novis code to abort a response body, such as an `abort` method on `Core\Response\Stream`, a new method that states its trade-offs first (`data/gaps/nvs-ext/a-workbook-never-finished-is-neither-logged-nor-cut-off.json`).
 - Four wait on the user: stage 7's two records, the wider-shape-view hole, and stage 5's typed path with its full-size image arms (each record above), plus `Markup + Markup` in place (`docs/perf/performance-pass.md:257`).
+- An unknown `Core\X` written as a type annotation is not reported either; it may share the `use` item's roster (`crates/nvs-types/src/lower.rs:68`).
 - `test_request_dispatches_in_process_through_the_compiled_route_table` once returned an empty body under the full verify's load and passed alone; the cause is not found (`crates/nvs-cli/src/runner.rs:3410`).
-- Many module docs still carry prose "known gap" text with no record; stage 14's scan finds them (`tools/nv/cmd/owners.ts:225`).
 - Proof debt fails CI's `proofs` jobs: stale perf records (`bun nv benches --owed`) and the `Core\Test\Outcome`/`Summary` proofs (`bun nv proofs --owed`) (`.github/workflows/ci.yml:1`).
 - A per-connection child refused a stack is dropped unrun, so its client likely sees the socket close and no `503`; not checked (`crates/nvs-server/src/serve.rs:95`).
