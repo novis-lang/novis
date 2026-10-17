@@ -519,7 +519,7 @@ any other value and redact like any other value.
 **Partly on disk.** `Core\Log::write`, `Core\Debug::dump` and an uncaught `Throwable` build the
 record (`crates/nvs-stdlib/src/log.rs`, `crates/nvs-stdlib/src/debug.rs`,
 `crates/nvs-runtime/src/floor.rs`), and a frame is `nvs_render::Node::Frame`. A test result and a
-compiler diagnostic do not, and are M10's gaps
+compiler diagnostic do not, and are goal `diagnostic-records`'s gaps
 `data/gaps/nvs-render/test-result-is-not-a-producer.json` and
 `data/gaps/nvs-render/compiler-diagnostic-is-not-a-producer.json`.
 
