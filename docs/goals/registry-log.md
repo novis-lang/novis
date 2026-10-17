@@ -40,8 +40,6 @@ checks:
     run: [bun, nv, owners, --closes, registry-log]
     reach: true
     floor: false
-extra:
-  milestone: M15
 ---
 
 # The registry keeps an append-only log, and the client refuses a fork

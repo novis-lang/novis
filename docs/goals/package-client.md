@@ -54,8 +54,6 @@ checks:
     run: [bun, nv, owners, --closes, package-client]
     reach: true
     floor: false
-extra:
-  milestone: M15
 ---
 
 # `nvs` resolves, fetches and locks a program's packages

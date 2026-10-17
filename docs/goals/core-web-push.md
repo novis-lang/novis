@@ -40,8 +40,6 @@ checks:
     run: [bun, nv, owners, --closes, core-web-push]
     reach: true
     floor: false
-extra:
-  milestone: M15
 ---
 
 # `Core\WebPush` sends an encrypted, signed Web Push message

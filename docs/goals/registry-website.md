@@ -44,8 +44,6 @@ checks:
     run: [bun, nv, owners, --closes, registry-website]
     reach: true
     floor: false
-extra:
-  milestone: M15
 ---
 
 # The registry website finds packages by what the registry witnessed

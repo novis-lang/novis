@@ -40,8 +40,6 @@ checks:
     run: [bun, nv, owners, --closes, core-passkey]
     reach: true
     floor: false
-extra:
-  milestone: M15
 ---
 
 # `Core\Passkey` registers and verifies a passkey

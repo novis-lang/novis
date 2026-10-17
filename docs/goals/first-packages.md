@@ -48,8 +48,6 @@ checks:
     run: [bun, nv, owners, --closes, first-packages]
     reach: true
     floor: false
-extra:
-  milestone: M15
 ---
 
 # `Novis\Rest` is the first package, and a program's version comes from `package.toml`

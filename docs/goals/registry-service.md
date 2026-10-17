@@ -61,8 +61,6 @@ checks:
     run: [bun, nv, owners, --closes, registry-service]
     reach: true
     floor: false
-extra:
-  milestone: M15
 ---
 
 # The registry is a Novis application that builds every release from git

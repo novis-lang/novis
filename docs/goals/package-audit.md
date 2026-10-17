@@ -40,8 +40,6 @@ checks:
     run: [bun, nv, owners, --closes, package-audit]
     reach: true
     floor: false
-extra:
-  milestone: M15
 ---
 
 # `nvs pkg audit` names every advisory a program's packages are under, and the bump that clears it
