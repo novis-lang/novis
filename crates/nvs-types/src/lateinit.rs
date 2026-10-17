@@ -13,9 +13,8 @@
 //! [`check_class_lateinit_reads`] runs, for every method `decl` declares
 //! (constructors included — unlike [`crate::ctor_init`], a `lateinit`
 //! property's obligation has nothing to do with construction), a fresh walk
-//! of [`walk_stmts`] starting with none of the class's own `lateinit`
-//! properties ([`crate::signatures::own_lateinit_properties`]) in the
-//! "written" set. [`scan_expr`] threads that set through every expression an
+//! of [`walk_stmts`] starting with none of the `lateinit` properties `$this`
+//! reaches ([`lateinit_in_reach`]) in the "written" set. [`scan_expr`] threads that set through every expression an
 //! expression evaluates ([`nvs_syntax::visit::each_child_expr`], the one match
 //! over the productions [`nvs_syntax::ast::ExprKind`] holds), plus a
 //! `PropertyAccess` arm (a plain read of `$this->prop` — the shape
@@ -45,15 +44,14 @@
 //! which is the sound direction: the anonymous function runs when it is called, so no
 //! walk of the method holding it can say what has been written by then.
 //!
-//! **Only a class's own `lateinit` properties are tracked**, the set
-//! [`crate::signatures::own_lateinit_properties`] returns. A property
-//! declared `lateinit` on a parent and read through `$this` in a *subclass*'s
-//! own method is not checked by this pass: it is checked when its own
-//! declaring class's methods are, which is the same reason
-//! [`crate::signatures::own_required_properties`] excludes `extends` rather
-//! than re-deriving an inherited obligation at every subclass. A read this
-//! pass does not reach falls through to `rule:classes/lateinit`'s runtime
-//! throw, which is what `lateinit` is defined against in any case.
+//! **A class's own `lateinit` properties are tracked, and every one it
+//! inherits through `extends` that it can read**, the set [`lateinit_in_reach`]
+//! returns. An ancestor's `private` property is left out, since `$this` in the
+//! subclass cannot read it, and so is one a nearer class declares again
+//! without `lateinit`. A subclass method starts with none of them written,
+//! as the declaring class's own methods do, and a call to
+//! `parent::constructor(...)` or any other method is a call like the rest:
+//! everything is assumed written after it.
 //!
 //! **A `set`-hooked `lateinit` property is not modeled specially either**,
 //! mirroring [`crate::ctor_init`]'s identical bound for a hooked required
@@ -65,18 +63,17 @@
 use nvs_diagnostics::{Diagnostic, code};
 use nvs_hir::QName;
 use nvs_syntax::ast::{
-    AssignOp, ClassDecl, ClassMemberKind, Expr, ExprKind, MemberName, Stmt, StmtKind,
+    AssignOp, ClassDecl, ClassMemberKind, Expr, ExprKind, MemberName, Stmt, StmtKind, Visibility,
 };
 use nvs_syntax::visit::each_child_expr;
 use rustc_hash::FxHashSet;
 
 use crate::expr::is_this_receiver;
-use crate::signatures::own_lateinit_properties;
 use crate::{Env, span_text, strip_sigil};
 
 /// Runs `rule:classes/lateinit-read-before-write`'s check over every method `decl` declares with a body,
-/// for each of `qname`'s own `lateinit` properties. A class with none of its
-/// own does nothing — there is nothing to track. A class implementing
+/// for each `lateinit` property `$this` reaches in it. A class that reaches
+/// none does nothing — there is nothing to track. A class implementing
 /// `LateInit` does nothing either: there a read before the first write is what
 /// calls `initProperty` (`rule:classes/late-init-initializes-on-the-first-read`).
 pub(crate) fn check_class_lateinit_reads(decl: &ClassDecl, qname: &QName, env: &mut Env<'_>) {
@@ -84,7 +81,7 @@ pub(crate) fn check_class_lateinit_reads(decl: &ClassDecl, qname: &QName, env: &
     if nvs_hir::hierarchy::implements_interface(qname, &late_init, env.graph) {
         return;
     }
-    let tracked = own_lateinit_properties(qname, env.signatures);
+    let tracked = lateinit_in_reach(qname, env);
     if tracked.is_empty() {
         return;
     }
@@ -96,6 +93,40 @@ pub(crate) fn check_class_lateinit_reads(decl: &ClassDecl, qname: &QName, env: &
             walk_stmts(&body.stmts, &mut written, &tracked, env);
         }
     }
+}
+
+/// Every `lateinit` property `$this` can read in `qname`'s own methods: the
+/// class's own, then each one an `extends` ancestor declares, nearest first.
+/// An ancestor's property is left out when a nearer class declares a property
+/// of that name, which is the one `$this` reads, or when the ancestor declares
+/// it `private`.
+fn lateinit_in_reach(qname: &QName, env: &Env<'_>) -> FxHashSet<String> {
+    let mut tracked = FxHashSet::default();
+    let mut declared: FxHashSet<&str> = FxHashSet::default();
+    let mut current = Some(qname.clone());
+    let mut seen: Vec<QName> = Vec::new();
+    while let Some(class) = current.take() {
+        if seen.contains(&class) {
+            break;
+        }
+        if let Some(sig) = env.signatures.get(&class) {
+            let own = class == *qname;
+            for name in &sig.lateinit_properties {
+                let private =
+                    sig.property_visibility.get(name.as_str()) == Some(&Visibility::Private);
+                if !declared.contains(name.as_str()) && (own || !private) {
+                    tracked.insert(name.clone());
+                }
+            }
+            declared.extend(sig.properties.keys().map(String::as_str));
+        }
+        current = env
+            .graph
+            .get(&class)
+            .and_then(|links| links.extends.first().cloned());
+        seen.push(class);
+    }
+    tracked
 }
 
 /// The state true of a path only when it was true on *both* of two branches
@@ -525,6 +556,45 @@ mod tests {
             "<?nvs\nclass Logger {}\nclass Widget {\n  public lateinit Logger $logger;\n  function boom(bool $flag): void {\n    Logger $l = $flag ? ($this->logger = new Logger()) : new Logger();\n    $this->logger;\n  }\n}\n",
         );
         assert!(!diags.has_errors(), "{diags:?}");
+    }
+
+    /// A parent's `lateinit` property is tracked in a subclass's own method,
+    /// through every level of `extends`.
+    #[test]
+    fn an_inherited_lateinit_read_in_a_subclass_is_diagnosed() {
+        let diags = check_src(
+            "<?nvs\nclass Logger {}\nclass Base {\n  protected lateinit Logger $logger;\n}\nclass Middle extends Base {}\nclass Widget extends Middle {\n  function boom(): void {\n    $this->logger;\n  }\n}\n",
+        );
+        let reads = diags
+            .iter()
+            .filter(|d| d.code == Some(code::E_LATEINIT_READ_BEFORE_WRITE_LOCAL))
+            .count();
+        assert_eq!(reads, 1, "{diags:?}");
+    }
+
+    /// A call to the parent's constructor is a call like any other, so the
+    /// read after it is assumed written.
+    #[test]
+    fn an_inherited_lateinit_read_after_a_parent_constructor_call_is_fine() {
+        let diags = check_src(
+            "<?nvs\nclass Logger {}\nclass Base {\n  protected lateinit Logger $logger;\n  function constructor() { $this->logger = new Logger(); }\n}\nclass Widget extends Base {\n  function constructor() {\n    parent::constructor();\n    $this->logger;\n  }\n}\n",
+        );
+        assert!(!diags.has_errors(), "{diags:?}");
+    }
+
+    /// A parent's `private` property is not one `$this` reads in the
+    /// subclass, and a nearer declaration without `lateinit` replaces it.
+    #[test]
+    fn a_private_or_redeclared_inherited_property_is_not_tracked() {
+        let diags = check_src(
+            "<?nvs\nclass Logger {}\nclass Base {\n  private lateinit Logger $hidden;\n  protected lateinit Logger $logger;\n}\nclass Widget extends Base {\n  protected Logger $logger;\n  function constructor() { $this->logger = new Logger(); }\n  function boom(): void {\n    $this->logger;\n  }\n}\n",
+        );
+        assert!(
+            !diags
+                .iter()
+                .any(|d| d.code == Some(code::E_LATEINIT_READ_BEFORE_WRITE_LOCAL)),
+            "{diags:?}"
+        );
     }
 
     #[test]

@@ -555,7 +555,7 @@ pub struct ClassSignature {
     pub required_properties: Vec<(String, Span)>,
     /// This declaration's own properties declared `lateinit` (`rule:classes/lateinit-restrictions`),
     /// by name. Never includes one pulled in from an `extends`/`implements`
-    /// ancestor — [`own_lateinit_properties`] flattens those in.
+    /// ancestor — `crate::lateinit` walks those in.
     pub lateinit_properties: FxHashSet<String>,
     /// This declaration's own properties declared `readonly` (`rule:classes/lateinit-restrictions`),
     /// by name, a promoted constructor parameter's included. Own properties
@@ -2152,26 +2152,6 @@ pub fn own_required_properties(qname: &QName, table: &SignatureTable) -> Vec<(St
     table
         .get(qname)
         .map(|sig| sig.required_properties.clone())
-        .unwrap_or_default()
-}
-
-/// Every `lateinit` property `$this` can read anywhere in `qname`'s own
-/// methods per `rule:classes/lateinit-read-before-write`: exactly `qname`'s own
-/// [`ClassSignature::lateinit_properties`] — an inherited (`extends`)
-/// `lateinit` property is checked when *its own* declaring class's methods
-/// are checked, not re-checked here. See `crate::lateinit`'s module docs for
-/// the resulting known gap (a subclass method reading an inherited
-/// `lateinit` property through `$this` is not covered by this
-/// intraprocedural pass).
-///
-/// `rule:classes/no-traits`
-/// retired this function's former trait-flattening role the same way it did
-/// [`own_required_properties`]'s.
-#[must_use]
-pub fn own_lateinit_properties(qname: &QName, table: &SignatureTable) -> FxHashSet<String> {
-    table
-        .get(qname)
-        .map(|sig| sig.lateinit_properties.clone())
         .unwrap_or_default()
 }
 

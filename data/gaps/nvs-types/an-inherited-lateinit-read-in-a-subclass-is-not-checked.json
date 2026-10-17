@@ -1,6 +1,0 @@
-{
-  "module": "crates/nvs-types/src/lateinit.rs",
-  "title": "A parent's `lateinit` property read through `$this` in a subclass method gets no E0428.",
-  "text": "The read-before-write pass tracks a class's own `lateinit` properties only (`crate::signatures::own_lateinit_properties`, `crates/nvs-types/src/signatures.rs:2172`), so a property declared `lateinit` on a parent and read through `$this` in a subclass's own method is not checked (`crates/nvs-types/src/lateinit.rs:48-54`). `rule:classes/lateinit-read-before-write` says the read is reported. Closing it means the pass for a subclass method includes the inherited `lateinit` properties, with what the parent's constructor writes counted as written.",
-  "goal": "completeness-holes"
-}
