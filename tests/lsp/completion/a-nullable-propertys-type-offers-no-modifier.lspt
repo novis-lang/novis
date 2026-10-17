@@ -1,0 +1,11 @@
+--TEST--
+after the `?` of a property's type only a type may be written, so no modifier is offered there, `rule:ide/completion-offers-only-what-the-compiler-derived`
+--FILE--
+<?nvs
+class Cart {
+    public ?<|>
+}
+--REQUEST--
+completion prefix=r
+--EXPECT--
+none

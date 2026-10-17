@@ -1,0 +1,16 @@
+--TEST--
+a name written after a property's modifier is its type or another modifier, so it is offered the types a bare name reaches beside the member words, and never the modifier already written, `rule:ide/completion-offers-only-what-the-compiler-derived`
+--FILE--
+<?nvs
+namespace Shop;
+
+class Money {}
+
+class Cart {
+    public <|>
+}
+--REQUEST--
+completion prefix=p
+--EXPECT--
+private keyword
+protected keyword

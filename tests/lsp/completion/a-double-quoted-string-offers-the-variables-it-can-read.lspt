@@ -1,0 +1,10 @@
+--TEST--
+a double-quoted string reads a variable written inside it, so the cursor inside one is offered the variables in scope and no reserved word or type, because the text is not a statement, `rule:ide/completion-offers-only-what-the-compiler-derived`
+--FILE--
+<?nvs
+string $name = "world";
+echo "he<|>llo";
+--REQUEST--
+completion
+--EXPECT--
+$name   variable  string

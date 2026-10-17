@@ -1,0 +1,14 @@
+--TEST--
+a name written between the `<` and `>` of a type's arguments is a type, so no variable is offered there, read off the type name in front of the `<` because a `<` after a value compares, `rule:ide/completion-offers-only-what-the-compiler-derived`
+--FILE--
+<?nvs
+namespace Shop;
+
+class Money {}
+var $money = new Money();
+
+array<string, <|>
+--REQUEST--
+completion prefix=$
+--EXPECT--
+none

@@ -1,0 +1,11 @@
+--TEST--
+a cursor still inside the receiver of an access is writing a variable, so it is offered the variables in scope and not the members of the class it stands on, `rule:ide/completion-offers-only-what-the-compiler-derived`
+--FILE--
+<?nvs
+class User { public string $name; }
+var $user = new User();
+echo $<|>u->name;
+--REQUEST--
+completion
+--EXPECT--
+$user   variable  User
