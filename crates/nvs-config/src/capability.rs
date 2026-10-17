@@ -721,7 +721,7 @@ impl Capabilities {
 
     /// [`allows`](Self::allows) for a path that is already resolved, compared as it is written.
     ///
-    /// A write door resolves its path once, asks this about the result, and opens that same result
+    /// A door that opens a file resolves its path once, asks this about the result, and opens that same result
     /// without following a link (`rule:security/writes-open-beneath-a-handle`). Resolving it a
     /// second time here could give a different path than the one the door opens, if a link
     /// changed in between.
