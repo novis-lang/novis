@@ -353,7 +353,8 @@ the class, and a check fails for a diagnostic code no test raises.
   - [x] A derived decoder reporting four bad fields, and a revealed secret crossing spawn, worker and serialize.
   - [x] A failed pool reset destroys the connection for MySQL, SQL Server and SQLite.
   - [x] `Core\Server::traceId` throws in a spawned child, the one request member of that class.
-  - [ ] The three `nvs-cli` records and the `nvs-codegen` one.
+  - [x] The three `nvs-cli` records: no `stat` per resolve, `nvs queue migrate` twice, `nvs run --dump-asm`.
+  - [ ] The `nvs-codegen` one: a JIT page is not writable after the flip.
 - [ ] `examples/*.nvs` run in a test the compiler and runtime reach. `data/gaps/nv/the-examples-run-end-to-end-only-under-valgrind.json:1`
 
 ### 14. a prose known gap without a record fails a check
@@ -369,17 +370,19 @@ work cannot live only in prose again.
 
 ### State
 
-Stages 1 to 4 and 8 to 12 are done. Stage 13 has closed six of its ten `no-test-*` records. This
-session closed two, with no change to the compiler or runtime:
+Stages 1 to 4 and 8 to 12 are done. Stage 13 has closed nine of its ten `no-test-*` records. This
+session closed the three `nvs-cli` ones, with no change to the compiler or runtime:
 
-- `a_failed_reset_destroys_the_connection_rather_than_returning_it` now exists for MySQL
-  (`crates/nvs-db/src/mysql.rs`), SQL Server (`crates/nvs-db/src/tds/plan.rs`) and SQLite
-  (`crates/nvs-db/src/sqlite.rs`) beside PostgreSQL's. Each pins the by-value `reset` signature.
-  MySQL asserts that only `COM_QUIT` follows a refused reset. SQL Server asserts that nothing follows
-  it, isolation restore included, since TDS has no goodbye. SQLite asserts that the refused reset
-  drops the last owner of the database handle.
-- `tests/conformance/isolate/a-child-cannot-read-the-trace-id-of-the-request-that-spawned-it.nvst`:
-  `traceId` is `Core\Server`'s only request member, and `isDraining` was already pinned in a child.
+- `many_resolves_between_two_checks_look_at_no_file` (`crates/nvs-cli/src/script.rs`) counts the
+  footprint lines `nvs_footprint::capture` keeps, one per `stat` or read: a thousand resolves make
+  none, and one check makes one. The configuration half needs no test: `reload.rs`'s `stamp` is
+  private, and `check`'s thread is its only caller.
+- `crates/nvs-cli/tests/queue_migrate.rs` runs `nvs queue migrate` twice and reads both tables back
+  with `nvs schema dump`. It runs on a scratch SQLite file, and `bun nv db-matrix` now runs it on
+  every server leg too (`tools/nv/cmd/db-matrix.ts`'s `SUITES`). No server leg has run it yet.
+- `dump_asm_prints_a_listing_per_function_and_does_not_run_the_program`
+  (`crates/nvs-cli/tests/run_command.rs`). The record said the program still runs. The help text
+  and `docs/reference/tools/10-cli.md` say it does not, and the test pins that.
 
 `bun nv rules --render` also rewrites `core-api.md`, `core-classes.md`, `errors.md` and
 `iteration.md`, and `bun nv render` drops `done` from `data/schema/milestone.schema.json`. That drift
@@ -389,17 +392,16 @@ Stage 6's remainder is `data/gaps/nvs-ext/a-workbook-never-finished-is-neither-l
 no Novis member can abort a response. Stage 5's typed path, stage 1's second hole and stage 7's two
 records are questions for the user, each in its record (Backlog).
 
-The nightly run the sweep reported (`gh run view 38869457440`) tested `cb7021a24`, 907 commits behind
-the local `main`, which is not pushed. Its failures are the old tree's until the user pushes.
+The nightly run the sweep reported (`gh run view 38869457440`) tested `cb7021a24`, 910 commits behind
+the local `main`, which is 195 commits ahead of `origin/main`. Its failures are the old tree's until
+the user pushes.
 
 ### Next
 
-**Stage 13: the three `nvs-cli` records, each its own slice. Files: `crates/nvs-cli/src/{reload,script,queue,main}.rs`, `crates/nvs-cli/tests/`.**
+**Stage 13's last two records, each alone in its session. Files: `crates/nvs-codegen/src/lib.rs`, then `examples/` and a test that runs them.**
 
-- [ ] `no-test-hot-reload-makes-no-stat-per-request`: serve many requests between two background checks and count the file-system calls (`rule:config/an-edit-reaches-the-next-request-without-a-restart`). `crates/nvs-cli/src/reload.rs:80`, `crates/nvs-cli/src/script.rs:3215`
-- [ ] `no-test-nvs-queue-migrate`: run `nvs queue migrate` on SQLite twice and read back the tables (`rule:testing/feature-proofs`). `crates/nvs-cli/src/queue.rs:108`
-- [ ] `no-test-nvs-run-dump-asm-end-to-end`: run the binary with `--dump-asm` and check a listing per function and the program's own output (`rule:testing/feature-proofs`). `crates/nvs-cli/src/main.rs:1663`
-- [ ] Then `no-test-a-jit-page-is-not-writable-after-the-flip`, alone in its session (`rule:http-server/a-jit-page-is-never-writable-and-executable-at-once`). `data/gaps/nvs-codegen/no-test-a-jit-page-is-not-writable-after-the-flip.json:1`
+- [ ] `no-test-a-jit-page-is-not-writable-after-the-flip`: compile a unit, take an address in it, and ask the OS for that page's protection, for the compiled and the loaded arm (`rule:http-server/a-jit-page-is-never-writable-and-executable-at-once`). `crates/nvs-codegen/src/lib.rs:443`, `crates/nvs-codegen/src/lib.rs:2339`
+- [ ] `the-examples-run-end-to-end-only-under-valgrind`: a test that runs every `examples/*.nvs` with `nvs run` and fails on a non-zero exit (`rule:testing/valgrind-on-wsl`). `data/gaps/nv/the-examples-run-end-to-end-only-under-valgrind.json:1`
 
 ### Backlog
 
