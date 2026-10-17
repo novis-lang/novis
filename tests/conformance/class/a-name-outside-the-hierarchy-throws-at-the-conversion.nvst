@@ -36,12 +36,22 @@ try {
     echo $wrong->message, "\n";
 }
 
+// Narrowing a reference names the class the reference holds.
+class<Formatter> $wide = "Formatter" as class<Formatter>;
+try {
+    class<Angled> $narrow = $wide as class<Angled>;
+    echo "unreachable: ", (new $narrow())->render("x"), "\n";
+} catch (RuntimeError $narrowed) {
+    echo $narrowed->message, "\n";
+}
+
 // The same conversion over a name that is in the hierarchy answers instead —
 // the throw is about this program's own class graph and nothing else.
 string $good = "Angled";
 class<Formatter> $ok = $good as class<Formatter>;
 echo (new $ok())->render("done"), "\n";
 --EXPECT--
-cannot convert to `class<Formatter>`: the value does not denote a class that is a `Formatter`
-cannot convert to `class<Formatter>`: the value does not denote a class that is a `Formatter`
+cannot convert `Nothing` to `class<Formatter>`: it does not name a class that is a `Formatter`
+cannot convert `Ledger` to `class<Formatter>`: it does not name a class that is a `Formatter`
+cannot convert `Formatter` to `class<Angled>`: it does not name a class that is a `Angled`
 done

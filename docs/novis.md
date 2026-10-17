@@ -1349,7 +1349,7 @@ try {
 ```
 ```output
 woof a Dog
-cannot convert to `class<Animal>`: the value does not denote a class that is a `Animal`
+cannot convert `Cat` to `class<Animal>`: it does not name a class that is a `Animal`
 ```
 
 The usual pairing is a default written directly in the code, checked while compiling, and a configured name checked while

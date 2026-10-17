@@ -62,6 +62,6 @@ Report <? not code ?> end
 4 4
 3
 a circle circle yes
-caught: cannot convert to `class<Shop\Shape>`: the value does not denote a class that is a `Shop\Shape`
+caught: cannot convert `Shop\Nothing` to `class<Shop\Shape>`: it does not name a class that is a `Shop\Shape`
 case.nvs:50
 Count: 2 items

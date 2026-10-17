@@ -1070,11 +1070,11 @@ impl<'a> Lowering<'a> {
     /// `reject_impossible_class_reference_conversion` — so what folds here is
     /// always a pair that is a widening.
     ///
-    /// # Known gaps
-    ///
-    /// The message names the bound, not the name that failed to resolve; § 2
-    /// asks for the offending class in it, which needs the operand's own string
-    /// concatenated in on the refused edge.
+    /// **The message names what failed and the bound it failed against.** The
+    /// refused edge concatenates the operand into it: a `string` operand as it
+    /// stands, and a narrowed descriptor through [`Helper::ClassDescName`]. Both
+    /// allocations are on the refused edge only, so a conversion that succeeds
+    /// pays nothing for them.
     ///
     /// # Panics
     ///
@@ -1115,7 +1115,7 @@ impl<'a> Lowering<'a> {
             let class = cook_str_literal(self.src, text);
             return self.emit(*cur, Ty::ClassDesc, InstKind::ClassDescConst { class });
         }
-        let (subject, _) = self.lower_expr(inner, None, env, cur);
+        let (subject, subject_ty) = self.lower_expr(inner, None, env, cur);
         let (desc, _) = self.emit(
             *cur,
             Ty::ClassDesc,
@@ -1154,14 +1154,7 @@ impl<'a> Lowering<'a> {
                 else_edge: hit_edge,
             },
         );
-        let (message, _) = self.emit(
-            refused,
-            Ty::Str,
-            InstKind::ConstStr(format!(
-                "cannot convert to `class<{base}>`: the value does not denote a class that is \
-                 a `{base}`"
-            )),
-        );
+        let message = self.class_reference_refusal(refused, subject, subject_ty, &base, env);
         let (absent, _) = self.emit(refused, Ty::Null, InstKind::ConstNull);
         let absent = self.coerce(refused, absent, Ty::Null, Ty::Tagged, env);
         let (exception, _) = self.emit_fallible(
@@ -1186,6 +1179,63 @@ impl<'a> Lowering<'a> {
         );
         *cur = hit;
         (desc, Ty::ClassDesc)
+    }
+
+    /// The message [`Self::lower_class_reference`]'s refused edge throws with,
+    /// emitted into `refused`: "cannot convert `X` to `class<T>`", where `X` is
+    /// the string operand or the narrowed descriptor's class name.
+    ///
+    /// The operand is only read. A `string` operand stays the statement's
+    /// temporary, which the landing block releases, and a descriptor is not
+    /// reference counted. The name a descriptor gives and the closing text are
+    /// fresh, so each is released once [`InstKind::Concat`] has read it.
+    fn class_reference_refusal(
+        &mut self,
+        refused: BlockId,
+        subject: ValueId,
+        subject_ty: Ty,
+        base: &str,
+        env: &mut Env,
+    ) -> ValueId {
+        let (opening, _) = self.emit(
+            refused,
+            Ty::Str,
+            InstKind::ConstStr("cannot convert `".to_owned()),
+        );
+        let (named, fresh) = match subject_ty {
+            Ty::ClassDesc => {
+                let (name, _) = self.emit_fallible(
+                    refused,
+                    Ty::Str,
+                    InstKind::HelperCall {
+                        helper: Helper::ClassDescName,
+                        args: vec![subject],
+                    },
+                    env,
+                );
+                (name, true)
+            }
+            _ => (subject, false),
+        };
+        let (closing, _) = self.emit(
+            refused,
+            Ty::Str,
+            InstKind::ConstStr(format!(
+                "` to `class<{base}>`: it does not name a class that is a `{base}`"
+            )),
+        );
+        let (message, _) = self.emit(
+            refused,
+            Ty::Str,
+            InstKind::Concat {
+                pieces: vec![opening, named, closing],
+            },
+        );
+        if fresh {
+            self.emit_release(refused, named);
+        }
+        self.emit_release(refused, closing);
+        message
     }
 
     /// The class a `class<T>` annotation bounds its descriptors by, as the
