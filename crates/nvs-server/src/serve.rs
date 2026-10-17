@@ -1610,6 +1610,13 @@ where
     let phase = &phase;
     let drain_seen = io.drain_seen();
     let drain_seen = &drain_seen;
+    // What `crate::heads` found in the bytes `hyper` framed, and how many
+    // requests this connection has been given, which is the index each one's
+    // verdict is filed under.
+    let heads = io.heads();
+    let heads = &heads;
+    let asked = Cell::new(0_u64);
+    let asked = &asked;
     let service = service_fn(move |mut request: Request<Incoming>| async move {
         // A head that framed is a head that arrived: what this connection is
         // waiting for from here is the body, and then nothing until the answer
@@ -1697,6 +1704,20 @@ where
         let published = serving.current.published();
         let snapshot = Arc::clone(published.host());
         let policy = serving.policy(&snapshot);
+        // `rule:errors/http-message-defects`'s two rows `hyper` accepts: a
+        // repeated `Content-Length` and a bare LF in the head. First, so a head
+        // two readers frame differently reaches nothing else, and closing,
+        // because whatever followed it on this connection was framed by that
+        // head.
+        let index = asked.get();
+        asked.set(index + 1);
+        if heads.refused(index) {
+            phase.set(Phase::Write);
+            let mut refused = malformed_head();
+            policy.secure.fill(refused.headers_mut(), Scheme::Http);
+            counted(&mut refused, None, None, None, &snapshot);
+            return Ok::<_, Infallible>(refused);
+        }
         // `rule:http-server/trusted-proxies-is-empty-and-empty-reads-nothing`, and it is asked here rather than once per connection
         // because what asserts it is a *header*: one connection carries many
         // requests and a proxy writes the line on each. Before the valve below,
@@ -2668,6 +2689,17 @@ fn overrides(response: &mut Response<Answer>, headers: Vec<nvs_runtime::Declared
 fn unusable_forward() -> Response<Answer> {
     let mut response = Response::new(Answer::empty());
     *response.status_mut() = StatusCode::BAD_REQUEST;
+    response
+}
+
+/// `400` with `Connection: close`, carrying nothing, for a head
+/// [`crate::heads`] refused. Closing, because the bytes after that head were
+/// framed by it.
+fn malformed_head() -> Response<Answer> {
+    let mut response = empty(StatusCode::BAD_REQUEST);
+    response
+        .headers_mut()
+        .insert(header::CONNECTION, HeaderValue::from_static("close"));
     response
 }
 
@@ -9122,7 +9154,23 @@ pub(crate) mod tests {
         // Ambiguous in the head, and refused there: one framing spelled twice
         // and disagreeing with itself, or a spelling only one of two parsers
         // would see at all.
-        let refused: [(&str, &[u8]); 6] = [
+        let refused: [(&str, &[u8]); 10] = [
+            (
+                "two lengths that agree",
+                b"POST /outer HTTP/1.1\r\nHost: localhost\r\nContent-Length: 0\r\nContent-Length: 0\r\n\r\nGET /smuggled HTTP/1.1\r\nHost: localhost\r\n\r\n",
+            ),
+            (
+                "one length header carrying the same value twice",
+                b"POST /outer HTTP/1.1\r\nHost: localhost\r\nContent-Length: 0, 0\r\n\r\nGET /smuggled HTTP/1.1\r\nHost: localhost\r\n\r\n",
+            ),
+            (
+                "a bare LF ending the request line",
+                b"POST /outer HTTP/1.1\nHost: localhost\r\nContent-Length: 0\r\n\r\nGET /smuggled HTTP/1.1\r\nHost: localhost\r\n\r\n",
+            ),
+            (
+                "a bare LF ending a header line",
+                b"POST /outer HTTP/1.1\r\nHost: localhost\nContent-Length: 0\r\n\r\nGET /smuggled HTTP/1.1\r\nHost: localhost\r\n\r\n",
+            ),
             (
                 "two lengths that disagree",
                 b"POST /outer HTTP/1.1\r\nHost: localhost\r\nContent-Length: 0\r\nContent-Length: 46\r\n\r\nGET /smuggled HTTP/1.1\r\nHost: localhost\r\n\r\n",
@@ -9248,6 +9296,30 @@ pub(crate) mod tests {
             pipelined.contains("hello /first") && pipelined.contains("hello /second"),
             "a pipelined pair was answered out of its own bodies: {pipelined:?}"
         );
+
+        // The same control behind each body framing, because the head check
+        // finds the second head by skipping the first one's body.
+        for (framing, payload) in [
+            (
+                "a sized body",
+                &b"POST /first HTTP/1.1\r\nHost: localhost\r\nContent-Length: 5\r\n\r\nhelloGET /second HTTP/1.1\r\nHost: localhost\r\n\r\n"[..],
+            ),
+            (
+                "a chunked body",
+                &b"POST /first HTTP/1.1\r\nHost: localhost\r\nTransfer-Encoding: chunked\r\n\r\n5;x=y\r\nhello\r\n0\r\n\r\nGET /second HTTP/1.1\r\nHost: localhost\r\n\r\n"[..],
+            ),
+        ] {
+            let answer = read_back(payload);
+            assert_eq!(
+                responses(&answer),
+                2,
+                "{framing}: two pipelined requests were not both answered: {answer:?}"
+            );
+            assert!(
+                answer.contains("hello /first") && answer.contains("hello /second"),
+                "{framing}: a pipelined pair was answered out of its own bodies: {answer:?}"
+            );
+        }
     }
 
     /// `rule:concurrency/one-future-per-connection`'s second property, over the wire: **a future is polled only

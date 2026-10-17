@@ -134,10 +134,10 @@ kind, whatever the bytes are. The user chose this over signing payloads.
 server refuses a repeated `Content-Length`, a bare LF in the head, and a path with a dot-segment or
 an encoded separator, each with a 400 that closes the connection.
 
-- [ ] `head_of` refuses a line with no colon, obs-fold, and CTL, NUL, CR or LF in a name or value. `crates/nvs-stdlib/src/http/transport.rs:2785`
-- [ ] `frame_of` takes only a final `chunked` as chunked, refuses a repeated or unreadable `Content-Length`, and refuses one beside `Transfer-Encoding`. `crates/nvs-stdlib/src/http/transport.rs:2812`
-- [ ] The server refuses a repeated `Content-Length`, even with equal values, which hyper merges. `crates/nvs-server/src/serve.rs:2308`, `crates/nvs-server/src/io.rs:309`
-- [ ] The server refuses a bare LF anywhere in the head, which httparse accepts. `crates/nvs-server/src/io.rs:309`
+- [x] `head_of` refuses a line with no colon, obs-fold, and CTL, NUL, CR or LF in a name or value. `crates/nvs-stdlib/src/http/transport.rs:2785`
+- [x] `frame_of` takes only a final `chunked` as chunked, refuses a repeated or unreadable `Content-Length`, and refuses one beside `Transfer-Encoding`. `crates/nvs-stdlib/src/http/transport.rs:2812`
+- [x] The server refuses a repeated `Content-Length`, even with equal values, which hyper merges. `crates/nvs-server/src/serve.rs:2308`, `crates/nvs-server/src/io.rs:309`
+- [x] The server refuses a bare LF anywhere in the head, which httparse accepts. `crates/nvs-server/src/io.rs:309`
 - [ ] A dot-segment or encoded-separator path is a 400 at the door and never reaches the app. The module doc's fall-through paragraph is rewritten. `crates/nvs-server/src/mount.rs:47`
 - [ ] A test per row, inbound beside the smuggling suite and outbound beside the transport tests. `crates/nvs-server/src/serve.rs:9031`
 
@@ -242,22 +242,25 @@ is `BLOCKED` and names the call.
 
 ### State
 
-Stage 1 is done. `ClassDesc::check_slot` is the one declared-type check, shared by the erased write
-and `decode`, which runs it over every object once the whole graph is built
-(`crates/nvs-runtime/src/object.rs:1639`, `crates/nvs-runtime/src/graph.rs:1044`). A `string` node
-and a string array key must be UTF-8.
+Stage 1 is done. Stage 2's outbound half is done: `head_of` refuses each line defect through
+`field_of`, and `frame_of` returns a `Result` and refuses a repeated, unreadable or
+`Transfer-Encoding`-paired `Content-Length` (`crates/nvs-stdlib/src/http/transport.rs:2785`).
 
-The nightly ran on the pushed `main` (e110c9c0b), 240 commits behind the local one. Its `docs`,
-`five-driver matrix` and `test / windows-x86_64` failures are already fixed locally (`nv check`
-is clean, 460a68396, 3b4e222db). Two remain on the local tree, listed in the backlog.
+The inbound repeated `Content-Length` and bare LF are refused by `crate::heads`, a scanner fed every
+byte in `ConnectionIo::poll_read` (`crates/nvs-server/src/io.rs:457`). It follows each body's framing
+to find the next head, and the service checks `Heads::refused` by request index before anything else
+and answers `400` with `Connection: close` (`crates/nvs-server/src/serve.rs:1616`). Its module doc
+says what it spends.
+
+The nightly ran on the pushed `main`, far behind the local one. Its `docs`, `five-driver matrix`
+and `test / windows-x86_64` failures are fixed locally. Two remain, listed in the backlog.
 
 ### Next
 
-Stage 2, HTTP framing, on `crates/nvs-stdlib/src/http/transport.rs` and `crates/nvs-server/src/io.rs`
-(`rule:errors/http-message-defects`):
-- [ ] `head_of` refuses a line with no colon, obs-fold, and CTL, NUL, CR or LF in a name or value. `crates/nvs-stdlib/src/http/transport.rs:2785`
-- [ ] `frame_of` takes only a final `chunked` as chunked and refuses a repeated, unreadable or `Transfer-Encoding`-paired `Content-Length`. `crates/nvs-stdlib/src/http/transport.rs:2812`
-- [ ] The server refuses a repeated `Content-Length` and a bare LF in the head. `crates/nvs-server/src/serve.rs:2308`, `crates/nvs-server/src/io.rs:309`
+Stage 2's last row, on `crates/nvs-server/src/mount.rs` and `crates/nvs-server/src/serve.rs`
+(`rule:errors/http-message-defects`, `rule:errors/path-component-refusals`):
+- [ ] A dot-segment or encoded-separator request path is a `400` at the door and never reaches the app; rewrite the module doc's fall-through paragraph. `crates/nvs-server/src/mount.rs:54`, `crates/nvs-server/src/mount.rs:508`
+- [ ] Its rows in the smuggling suite's `refused` table, a control row for an unusual but well-formed path, and stage 2 set to `done`. `crates/nvs-server/src/serve.rs:9121`
 
 ### Backlog
 
