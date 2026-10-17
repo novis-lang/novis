@@ -1,0 +1,35 @@
+--TEST--
+An issue a failed `Core\Json::decodeAs<T>` reports is a `{path, message}` shape like any anonymous object a program writes: `Core\Debug::render` prints its sorted field names, and `Core\Json::encode` writes it and the list of them as JSON objects — `rule:types/anonymous-object`, `rule:core-classes/derive-reports-every-field`
+--FILE--
+<?nvs
+use Core\Debug;
+use Core\Json;
+
+#[Core\Json\Derive]
+class Point {
+    public function constructor(public int $x, public int $y) {}
+}
+
+try {
+    Json::decodeAs<Point>("{\"x\":\"one\",\"y\":2}");
+    echo "not reached\n";
+} catch (ParseError $bad) {
+    // Each issue renders with the same label a written `{message: …, path: …}` gets.
+    foreach ($bad->issues as {path: string, message: string} $issue) {
+        echo Debug::render($issue), "\n";
+    }
+    echo Json::encode($bad->issues), "\n";
+}
+
+// A written anonymous object with the same fields renders with the same label.
+echo Debug::render({path: "x", message: "m"}), "\n";
+--EXPECT--
+$shape{message,path}#1 (2) {
+  $message => string(28) "expected int, found a string"
+  $path => string(1) "x"
+}
+[{"message":"expected int, found a string","path":"x"}]
+$shape{message,path}#1 (2) {
+  $message => string(1) "m"
+  $path => string(1) "x"
+}

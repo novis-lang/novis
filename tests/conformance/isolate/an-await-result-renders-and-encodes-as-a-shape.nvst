@@ -1,0 +1,51 @@
+--TEST--
+The record `await` answers is a shape like any anonymous object a program writes: `Core\Debug::render` prints its sorted field names, `Core\Json::encode` writes a failed child's `error` record as a JSON object, and the encoder walks into the record's own fields — `rule:types/anonymous-object`, `rule:security/isolate-shares-nothing`
+--FILE nvs.toml--
+[capabilities.script]
+spawn = true
+--FILE adder.nvs--
+<?nvs
+return 3;
+--FILE thrower.nvs--
+<?nvs
+throw new RuntimeError("the child failed");
+--FILE--
+<?nvs
+use Core\Debug;
+use Core\Json;
+
+// A child that ends well. Its record has four fields, and `error` is `null`.
+var $done = await spawn script "adder.nvs" with(output: "capture");
+echo Debug::render($done), "\n";
+
+// A child that throws. Its `error` field is a record with `class` and `message`.
+var $failed = await spawn script "thrower.nvs" with(output: "capture");
+echo Debug::render($failed->error), "\n";
+echo Json::encode($failed->error), "\n";
+
+// The record is an object to the encoder, so it reaches the `output` field.
+// That field is terminal text, which has no JSON form.
+try {
+    echo Json::encode($done), "\n";
+} catch (LogicError $text) {
+    echo $text->message, "\n";
+}
+--EXPECT--
+$shape{error,ok,output,value}#1 (4) {
+  $error => null
+  $ok => bool(true)
+  $output => Core\Cli\Text#2 (2) {
+    $text => string(0) ""
+    $runs => array(2) [
+      0 => string(0) ""
+      1 => null
+    ]
+  }
+  $value => int(3)
+}
+$shape{class,message}#1 (2) {
+  $class => string(12) "RuntimeError"
+  $message => string(16) "the child failed"
+}
+{"class":"RuntimeError","message":"the child failed"}
+Core\Json::encode(): an instance of `Core\Cli\Text` has no JSON encoding — a class participates by carrying `#[Json\Derive]` or by writing `toJson` itself

@@ -339,9 +339,9 @@ its entry says what closed it.
 - [x] **D28** The on-disk compile cache is unwired: `cache.rs` and `[cache] dir` exist, nothing in
       `nvs-cli/src` outside `cache.rs` references it, and `nvs run` compiles fresh every time.
       Closed: `runner.rs`, `script.rs`, `serve.rs` and `reload.rs` all read the artifact cache.
-- [ ] **D29** `await`'s result renders as `Core\Script\Result#1` in `Core\Debug::render`, while
-      `isolate.rs` types it as an anonymous shape. Open as
-      `data/gaps/nvs-stdlib/an-await-result-is-a-named-class-not-a-shape.json`.
+- [x] **D29** `await`'s result renders as `Core\Script\Result#1` in `Core\Debug::render`, while
+      `isolate.rs` types it as an anonymous shape. Closed: every `Core`-built shape is named by its
+      `$shape{…}` label (`nvs_stdlib::instance`'s `SHAPE_ROSTER`).
 - [x] **D30** Diagnostics name classes that are empty or absent in this build: E0211's help says
       `Core\Request`, `Core\Server`, `Core\Cli`; each resolves but has no members and none is in
       `nvs meta --json`. A help text now names a `Core` member only where the registry holds one

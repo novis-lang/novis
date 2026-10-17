@@ -649,6 +649,12 @@ static SHAPES: OnceLock<&'static ClassTable> = OnceLock::new();
 /// canonicalizes `{y: …, x: …}` and `{x: …, y: …}` to one interned type by
 /// sorting, so the runtime layout has to be the same order or a written shape
 /// type and a built value would disagree about which slot is which.
+///
+/// **The descriptor name is the shape's label**, `$shape{x,y}` over those sorted
+/// fields, which is what `nvs_ir::lower::shape_class_label` names a program's
+/// own anonymous object. `nvs_runtime::ClassDesc::is_shape` reads that label, so
+/// a `Core`-built shape renders and encodes as one; the test below holds each
+/// name to its fields.
 const SHAPE_ROSTER: &[(&str, &[&str])] = &[
     (crate::issue::SHAPE, crate::issue::FIELDS),
     (crate::script::RESULT_SHAPE, crate::script::RESULT_FIELDS),
@@ -902,6 +908,24 @@ mod tests {
     /// bytes (`rule:core-classes/html-template`). An address is carried across
     /// as a `usize` because a raw pointer is not `Send`, which is the whole
     /// property under test stated in the type system.
+    /// Each `Core`-built shape is named by the label of its own sorted fields,
+    /// the label `nvs_ir::lower::shape_class_label` mints for a program's
+    /// anonymous object, so `ClassDesc::is_shape` is true of it. The crates
+    /// cannot see each other, so the format is spelled here, and
+    /// `tests/conformance/isolate/an-await-result-renders-and-encodes-as-a-shape.nvst`
+    /// holds the two spellings together.
+    #[test]
+    fn every_core_shape_is_named_by_its_sorted_field_label() {
+        for (name, fields) in SHAPE_ROSTER {
+            assert!(fields.is_sorted(), "{name}'s fields are not sorted");
+            assert_eq!(*name, format!("$shape{{{}}}", fields.join(",")));
+            shape_descriptor(name);
+            let table = SHAPES.get().expect("the table was just built");
+            let desc = table.desc_of(name).expect("the roster row is defined");
+            assert!(desc.is_shape(), "{name} is not a shape");
+        }
+    }
+
     #[test]
     fn every_core_sees_one_descriptor_address() {
         let here = (

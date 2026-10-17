@@ -39,10 +39,11 @@ use nvs_runtime::{NvsArray, NvsStr, Value};
 
 /// The descriptor name `crate::instance`'s shape roster registers this under.
 ///
-/// Cosmetic — a shape value's class descriptor is never resolved by name — but
-/// it is what a dump or a leak report prints, so it is the spelling the ADR
-/// uses.
-pub(crate) const SHAPE: &str = r"Core\Issue";
+/// It is the `$shape{…}` label `nvs_ir::lower::shape_class_label` mints for
+/// [`FIELDS`], because `nvs_runtime::ClassDesc::is_shape` knows a shape by that
+/// label alone: with it, `Core\Debug::render` and `Core\Json::encode` treat an
+/// issue as the shape it is typed as.
+pub(crate) const SHAPE: &str = "$shape{message,path}";
 
 /// The shape's fields **in slot order**, which is sorted field-name order; see
 /// this module's docs.

@@ -1399,7 +1399,8 @@ impl ClassDesc {
     /// The one reader is `nvs_stdlib::json`'s encoder, which spells a shape as
     /// a JSON object; `tests/conformance/core/json-encodes-a-shape-as-an-object.nvst`
     /// is what holds this spelling and the label's together, since the two
-    /// crates cannot see each other.
+    /// crates cannot see each other. A shape a `Core` member builds carries the
+    /// same label (`nvs_stdlib::instance`'s shape roster), so it is a shape here too.
     #[must_use]
     pub fn is_shape(&self) -> bool {
         self.name.starts_with("$shape{")

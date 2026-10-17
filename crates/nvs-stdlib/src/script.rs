@@ -472,13 +472,15 @@ pub const AWAIT_SYMBOL: &str = "nvs_core_script_await";
 /// `rule:security/isolate-shares-nothing`'s `ScriptResult`, as a descriptor name — see
 /// [`crate::instance::SHAPE_ROSTER`], whose fields are in **sorted** order
 /// because that is the slot order `nvs_types::ty::Ty::Shape` canonicalizes to.
-pub(crate) const RESULT_SHAPE: &str = r"Core\Script\Result";
+/// The name is the `$shape{…}` label of those fields, so the value renders and
+/// encodes as the shape it is typed as.
+pub(crate) const RESULT_SHAPE: &str = "$shape{error,ok,output,value}";
 /// [`RESULT_SHAPE`]'s fields, sorted. `crates/nvs-types/src/expr/isolate.rs` is
 /// the one home of what each means and why the set is this one.
 pub(crate) const RESULT_FIELDS: &[&str] = &["error", "ok", "output", "value"];
 
-/// The nested `{class, message}` a failed `ScriptResult` carries.
-pub(crate) const FAILURE_SHAPE: &str = r"Core\Script\Failure";
+/// The nested `{class, message}` a failed `ScriptResult` carries, by its label.
+pub(crate) const FAILURE_SHAPE: &str = "$shape{class,message}";
 /// [`FAILURE_SHAPE`]'s fields, sorted.
 pub(crate) const FAILURE_FIELDS: &[&str] = &["class", "message"];
 
