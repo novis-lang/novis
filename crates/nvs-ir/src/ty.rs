@@ -150,9 +150,8 @@ pub enum Ty {
     /// [`crate::ir::InstKind::ArrayNew`] and applies the same
     /// [`crate::lower::is_aliasing_read`]-keyed retain policy to each element
     /// that [`Self::is_refcounted`] — see that instruction's own doc comment
-    /// for the exact policy and its known gaps (an explicit `key =>` entry, a
-    /// `...spread` element, and a `&value` element are all still
-    /// unsupported). Reading and writing an existing array by a known-type
+    /// for the exact policy and the shape a literal with an explicit
+    /// `key =>` or a `...spread` element takes. Reading and writing an existing array by a known-type
     /// index lower too, to [`crate::ir::InstKind::ArrayGet`]/
     /// [`crate::ir::InstKind::ArraySet`] — see those variants' own doc
     /// comments for the int/uint-to-string key normalization they apply and

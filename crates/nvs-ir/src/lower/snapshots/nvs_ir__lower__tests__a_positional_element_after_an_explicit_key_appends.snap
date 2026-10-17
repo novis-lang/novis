@@ -1,0 +1,29 @@
+---
+source: crates/nvs-ir/src/lower/tests.rs
+expression: "print_function(&f, map.file(file))"
+---
+fn m(object) -> void {
+  bb0:
+    safepoint
+    v0 = param 0  ; object
+    ; stmt s0 @4:5-4:33
+    v1 = array.new []  ; array
+    v2 = const.int 1  ; int
+    v3 = array.append v1, v2 ! bb1  ; array
+    v4 = const.str "k"  ; string
+    v5 = const.int 2  ; int
+    v6 = array.set v3, v4, v5  ; array
+    v7 = const.int 3  ; int
+    v8 = array.append v6, v7 ! bb2  ; array
+    release v8
+    release v0
+    return
+  bb1:
+    release v1
+    release v0
+    propagate "m() at t.nvs:4"
+  bb2:
+    release v6
+    release v0
+    propagate "m() at t.nvs:4"
+}

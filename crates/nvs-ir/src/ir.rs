@@ -1714,19 +1714,13 @@ pub enum InstKind {
     /// *empty* `ArrayNew` (`entries` is `Vec::new()`) followed by a chain of
     /// [`InstKind::ArraySet`]s, one per element in source order, each writing
     /// into the value the last one defined —
-    /// `crate::lower::Lowering::lower_array_key` gives every key (explicit or
-    /// positional alike) a real `ValueId` there, which this fixed-entries
-    /// shape has no field for. See
-    /// `crate::lower::Lowering::lower_expr`'s `ArrayLiteral` arm for exactly
-    /// which of the two shapes a given literal takes, and its own doc comment
-    /// for the one PHP behavior that split deliberately does not reproduce: a
-    /// positional element mixed after an explicit `int`/`uint` key still
-    /// numbers from "how many positional elements came before it," not from
-    /// PHP's real "highest integer key used so far" rule, since that needs
-    /// the same "next available integer key" runtime counter `$a[]` append
-    /// syntax is still waiting on (see the crate docs' known gaps). A
-    /// `...spread` element and a `&value` element are both still unsupported
-    /// either way — lowering panics naming whichever is used.
+    /// `crate::lower::Lowering::lower_array_key` gives every explicit key a
+    /// real `ValueId` there, which this fixed-entries shape has no field for,
+    /// and a positional element is an [`InstKind::ArrayAppend`], so it takes
+    /// the next integer key after the highest one so far. A `...spread`
+    /// element is an [`InstKind::ArraySpread`] in the same chain. See
+    /// `crate::lower::Lowering::lower_array_literal` for which of the two
+    /// shapes a given literal takes.
     ///
     /// The array itself is a fresh value with exactly one natural owner, the
     /// same starting point [`InstKind::New`]/[`InstKind::ConstStr`] already
