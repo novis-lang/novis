@@ -112,28 +112,11 @@
 //!
 //! # What measures the roster
 //!
-//! `tests/spec_registry_coverage.rs` walks `docs/spec/01-core-library.md` and
-//! asks this registry for a row, in each shape the spec writes one: §§ 1–12's
-//! `| Member | Signature | … |` tables, § 13's `| Class | Owns | Rule |` rows,
-//! and §§ 14–19's bullets and tables. Every walk carries a checked-in
-//! outstanding-members file — `spec-members-outstanding.txt`,
-//! `spec-members-compiler-facing-outstanding.txt`,
-//! `spec-members-part-two-outstanding.txt` — which **only ever shrinks**:
-//! registering a member and striking its line are one edit, and the gate fails
-//! on a stale line as loudly as on an unlisted one. A file holding no keys is
-//! this project's definition of *registered whole* for the sections it walks,
-//! and every key that remains names its owner in a column, read against the
-//! chain in `docs/goals/README.md`. `tests/conformance_coverage.rs` keeps the other half
-//! honest: a registered member with no `.nvst` case that calls it fails
+//! The registry is the only source of what `Core` has: the website's Core
+//! reference, `docs/novis.md` and `nvs meta --json` are all built from it.
+//! `tests/conformance_coverage.rs` measures it against the corpus: a
+//! registered member with no `.nvst` case that calls it fails
 //! `cargo test -p nvs-stdlib`.
-//!
-//! **What no walk reads is §§ 16–17's rosters**, which the spec states inside
-//! an English cell rather than as a shape — `compiler_facing_members`' own doc
-//! is where that bound and the reason § 13's otherwise identical table can be
-//! read are written down. Those two sections get a class-level walk instead,
-//! over `spec-classes-part-two-outstanding.txt`, so a class the spec names and
-//! nobody has written is still caught; that a class the registry does hold is
-//! missing a member the prose gives it, nothing checks.
 
 pub mod arr;
 mod ast;

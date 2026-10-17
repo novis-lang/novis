@@ -45,9 +45,8 @@
 //! point: `spawn script` and `await` are *syntax*, so the only thing that may
 //! call either is the lowering of the construct that spells it, and a row would
 //! make both reachable as `Core\Script\Handle::…()` from source. A symbol with
-//! no row is invisible to `spec_registry_coverage.rs` and to
-//! `conformance_coverage.rs` for the same reason, and the construct's own
-//! `.nvst` cases are what cover it instead.
+//! no row is invisible to `conformance_coverage.rs` for the same reason, and
+//! the construct's own `.nvst` cases are what cover it instead.
 //!
 //! # The end of a script, and the two halves it is written in
 //!

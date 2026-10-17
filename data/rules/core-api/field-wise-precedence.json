@@ -6,7 +6,6 @@
     "core-api/tier-roster"
   ],
   "guardedBy": [
-    "crates/nvs-stdlib/tests/spec_registry_coverage.rs",
     "crates/nvs-cli/src/meta.rs"
   ]
 }

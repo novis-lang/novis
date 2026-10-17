@@ -8,7 +8,6 @@
   ],
   "guardedBy": [
     "tests/conformance/reject/a-misspelled-name-at-a-core-member-is-unknown.nvst",
-    "crates/nvs-stdlib/tests/spec_registry_coverage.rs",
     "crates/nvs-types/tests/call_arguments.rs",
     "crates/nvs-stdlib/src/registry.rs"
   ]

@@ -9,7 +9,6 @@
     "core-api/one-paradigm-per-operation"
   ],
   "guardedBy": [
-    "crates/nvs-stdlib/src/registry.rs",
-    "crates/nvs-stdlib/tests/spec_registry_coverage.rs"
+    "crates/nvs-stdlib/src/registry.rs"
   ]
 }

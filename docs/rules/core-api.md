@@ -165,9 +165,7 @@ The placements the tests produce, outside the `Core` classes the spec lists:
   interface keeps that possible.
 
 **Partly on disk.** Every class the roster places at Tier 0 is registered in
-`crates/nvs-stdlib/src/registry.rs`: the four `spec-*-outstanding.txt` ratchets under
-`crates/nvs-stdlib/tests/` are the gates that say so, each holds no keys, and each only shrinks. The
-tier-boundary guard in `crates/nvs-stdlib/tests/tier_boundary.rs` holds the rule for what is
+`crates/nvs-stdlib/src/registry.rs`. The tier-boundary guard in `crates/nvs-stdlib/tests/tier_boundary.rs` holds the rule for what is
 registered. The four first-party components are on disk: `extensions/image/`, `extensions/intl/`,
 `extensions/pdf/` and `extensions/spreadsheet/`. The image component has no EXIF reader
 ([`core-classes/image-pixel-model`](core-classes.md#core-classes-image-pixel-model)); it is goal `image-second-wave`'s.

@@ -167,11 +167,8 @@ use crate::registry::{
 /// and every diagnostic naming the class cannot drift apart.
 pub(crate) const NAME: &str = r"Core\Validate";
 
-/// `Core\Validate`'s registry rows — spec § 12's prose roster, format half.
-///
-/// The section states these as sentences rather than as a table, so there is
-/// no line on `tests/spec-members-outstanding.txt` to strike: the gates that
-/// hold this class are `examples/collect.nvs` and `conformance_coverage.rs`.
+/// `Core\Validate`'s registry rows, the format half. The gates that hold this
+/// class are `examples/collect.nvs` and `conformance_coverage.rs`.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
     doc: Some(&CARD),

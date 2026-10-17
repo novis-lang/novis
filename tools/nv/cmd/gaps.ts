@@ -44,7 +44,6 @@ import { collect as collectGaps, type Gap } from "./owners.ts";
 
 export const summary = "what the corpus does not ask yet, and what a module owes: nv gaps [--coverage | --errors | --member NAME | --module PATH] [--limit N] [--json]";
 
-const SPEC = "docs/spec/01-core-library.md";
 const STDLIB = "crates/nvs-stdlib/src";
 const CONFORMANCE = "tests/conformance";
 /** Where the tree-wide name-const map is read from: the stdlib, and the runtime crate a stdlib file forwards a carrier's name out of. */
@@ -505,11 +504,6 @@ export async function run(args: string[]): Promise<number> {
   }
 
   if (module) return moduleReport(module, flags.has("--json"));
-
-  if (!existsSync(join(ROOT, SPEC))) {
-    console.error(`missing ${SPEC}`);
-    return 2;
-  }
 
   if (member) {
     const found = memberReport(member);

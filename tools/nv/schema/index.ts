@@ -11,7 +11,6 @@ import { gap } from "./gap.ts";
 import { helpBacklog, proofPolicy } from "./proofs.ts";
 import { referenceChapter } from "./reference.ts";
 import { rule } from "./rule.ts";
-import { specCoreMembers } from "./spec.ts";
 import { topic } from "./topic.ts";
 
 export const RECORDS: RecordType<any>[] = [
@@ -19,7 +18,6 @@ export const RECORDS: RecordType<any>[] = [
   rule,
   gap,
   referenceChapter,
-  specCoreMembers,
   proofPolicy,
   helpBacklog,
 ];
