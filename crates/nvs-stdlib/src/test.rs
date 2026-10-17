@@ -3173,7 +3173,7 @@ nvs_runtime::nvs_helper! {
 
 /// The name and value one `Set-Cookie` line sets, or `None` where it sets
 /// nothing — [`nvs_core_test_response_cookies`]' reading of RFC 6265 § 5.2.
-fn cookie_pair(line: &[u8]) -> Option<(&[u8], &[u8])> {
+pub(crate) fn cookie_pair(line: &[u8]) -> Option<(&[u8], &[u8])> {
     let pair = line.split(|byte| *byte == b';').next().unwrap_or_default();
     fn trim(bytes: &[u8]) -> &[u8] {
         let padding = |byte: &u8| *byte == b' ' || *byte == b'\t';

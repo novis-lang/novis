@@ -2890,6 +2890,23 @@ fn frame_of(headers: &[(String, String)], member: &str) -> Result<Frame, Fault> 
         .map_err(|_| malformed(member, "its `Content-Length` is too large"))
 }
 
+/// A reply head read as [`send`] reads one: its status, its headers and its
+/// framing, or `None` where it is refused. [`crate::fuzz::reply_head`]'s body.
+pub(crate) fn reply_head(head: &[u8]) -> Option<crate::fuzz::ReplyHead> {
+    use crate::fuzz::Framing;
+    let (status, headers) = head_of(head, "fuzz").ok()?;
+    let framing = match frame_of(&headers, "fuzz").ok()? {
+        Frame::Chunked => Framing::Chunked,
+        Frame::Sized(length) => Framing::Sized(length),
+        Frame::UntilClose => Framing::UntilClose,
+    };
+    Some(crate::fuzz::ReplyHead {
+        status,
+        headers,
+        framing,
+    })
+}
+
 /// Where `needle` starts in `haystack`.
 fn find(haystack: &[u8], needle: &[u8]) -> Option<usize> {
     haystack

@@ -169,6 +169,8 @@ mod env;
 pub mod ext_record;
 mod fatal;
 pub mod format;
+#[doc(hidden)]
+pub mod fuzz;
 pub mod granularity;
 mod hash;
 mod heap;
