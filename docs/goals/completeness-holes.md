@@ -63,7 +63,7 @@ stages:
   - id: 9
     title: "JIT pages are freed, and every call site has its probe"
     status: open
-    context: [crates/nvs-codegen/src/lib.rs, crates/nvs-codegen/src/emit.rs, crates/nvs-runtime/src/callable.rs, crates/nvs-cli/src/script.rs, data/gaps/nvs-codegen/jit-pages-leak-on-every-recompile.json, data/gaps/nvs-runtime/callable-call-passes-no-call-probe.json]
+    context: [crates/nvs-codegen/src/lib.rs, crates/nvs-codegen/src/emit.rs, crates/nvs-runtime/src/callable.rs, crates/nvs-cli/src/script.rs, data/gaps/nvs-codegen/jit-pages-leak-on-every-recompile.json]
     extra:
       context:
         rules: [config/an-edit-reaches-the-next-request-without-a-restart, testing/debug-probes]
@@ -272,7 +272,10 @@ result is the shape it is typed as, and the two compiler panics on accepted code
 callable or `Core` call passes the call probes.
 
 - [ ] A dropped compiled unit frees its pages behind the no-live-frame proof. `crates/nvs-codegen/src/lib.rs:362`, `crates/nvs-cli/src/script.rs:1263`
-- [ ] The probe pair around `nvs_call_callable` and `CoreCall`, with a label for a call that has no compile-time callee name. `crates/nvs-codegen/src/emit.rs:627`
+- [x] The probe pair around `nvs_call_callable` and `CoreCall`, with a label for a call that has no compile-time callee name. `crates/nvs-codegen/src/emit.rs:627`
+  - [x] A `Core` call is labelled `Core\Class::member` (`nvs_stdlib::registry::member_label`), and a callable call `Class::invoke`.
+  - [x] Codegen emits the pair around a `CoreCall`; `call_callable` makes it around every callable call, a `Core` member's callback included.
+  - [x] `tests/calls.rs`'s `a_trace_records_a_core_call_and_every_callback_it_makes` pins the trace and the count.
 
 ### 10. syslog is a log target, and completion offers what the class reaches
 
@@ -323,13 +326,13 @@ work cannot live only in prose again.
 
 ### State
 
-Stages 1 to 4 and 8 are done. Stage 8's last two items landed this session. `$cls::f(...)` over a
-`class<T>` stores the descriptor `$cls` holds in the callable's `fcc#desc` field, and its thunk
-makes the same `CallVirtual` the direct `$cls::f()` makes (`crates/nvs-ir/src/lower/expr.rs`'s
-`lower_method_ref_on_a_class_reference`, `crates/nvs-ir/src/lower/anon_fn.rs`'s `lower_callable`).
-It costs one word per such callable object. The three `Core`-built shape descriptors are named by
-their `$shape{…}` labels (`crates/nvs-stdlib/src/instance.rs`'s `SHAPE_ROSTER`), so an `await`
-record and a `Core\Issue` render and encode as shapes. Both records are deleted.
+Stages 1 to 4 and 8 are done. Stage 9's probe item landed this session and its record is deleted.
+Codegen puts the call probes around every `CoreCall` whose symbol a member row names, labelled
+`Core\Class::member` (`crates/nvs-stdlib/src/registry.rs`'s `member_label`). A call through a
+`callable` is probed inside `crates/nvs-runtime/src/callable.rs`'s `call_callable_with`, labelled
+`Class::invoke`, so a `Core` member's callbacks are traced and counted too. `nvs run --count` now
+counts both kinds, so every bench's recorded `calls` that goes through either moves; the loop's hook
+re-records them (`bun nv benches` is refused in a session).
 
 Stage 6's two items are on disk. Its remainder is
 `data/gaps/nvs-ext/a-workbook-never-finished-is-neither-logged-nor-cut-off.json`: a program that
@@ -356,13 +359,13 @@ behind the local `main`. Its failures are the old tree's until the user pushes.
 
 ### Next
 
-**Stage 9's probe item, over `crates/nvs-codegen/src/emit.rs` and `crates/nvs-runtime/src/callable.rs`.**
-The JIT-pages item is a session of its own after it, over `crates/nvs-codegen/src/lib.rs:362` and
-`crates/nvs-cli/src/script.rs:1263` (`data/gaps/nvs-codegen/jit-pages-leak-on-every-recompile.json`).
+**Stage 9's JIT-pages item, over `crates/nvs-codegen/src/lib.rs` and `crates/nvs-cli/src/script.rs`**
+(`data/gaps/nvs-codegen/jit-pages-leak-on-every-recompile.json`,
+`rule:config/an-edit-reaches-the-next-request-without-a-restart`).
 
-- [ ] Choose the label a call with no compile-time callee name reports, from what `rule:testing/debug-probes` already says, and name it in the record's module doc (`data/gaps/nvs-runtime/callable-call-passes-no-call-probe.json`). `crates/nvs-runtime/src/callable.rs:283`
-- [ ] Emit the probe pair around `nvs_call_callable` and `InstKind::CoreCall` (`rule:testing/debug-probes`). `crates/nvs-codegen/src/emit.rs:627`, `crates/nvs-codegen/src/emit.rs:2317`
-- [ ] A case that a trace counts a callback's calls, then re-record the benches that call through a callable (`bun nv benches --owed`). `crates/nvs-runtime/src/ctx/trace.rs:744`
+- [ ] Find what proves no compiled frame of a retired unit is live: the generation `keep` list a publish takes. `crates/nvs-cli/src/script.rs:1263`
+- [ ] Free a `Code::Jit` unit's pages with `JITModule::free_memory` when its last holder drops, behind that proof, and rewrite the `Code` doc. `crates/nvs-codegen/src/lib.rs:243`, `crates/nvs-codegen/src/lib.rs:346`
+- [ ] A test that a recompile loop holds the process's mapped code steady, then delete the record. `crates/nvs-cli/src/script.rs:1266`
 
 ### Backlog
 
