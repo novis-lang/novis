@@ -15,7 +15,7 @@ use nvs_ext::builtin::{
     IMAGE, IMAGE_CLASS, IMAGE_SHA256, INTL, INTL_CLASS, PDF, PDF_CLASS, PDF_SHA256, SPREADSHEET,
     SPREADSHEET_CLASS, SPREADSHEET_SHA256,
 };
-use nvs_ext::call::{Host, Meter};
+use nvs_ext::call::{Error, Failure, Host, Meter};
 use nvs_ext::convert::{Key, Value};
 use nvs_ext::load::{Builtin, CacheKey, Entry, Loader, ModuleCache};
 use nvs_ext::pack::append_section;
@@ -200,6 +200,39 @@ fn the_image_component_is_built_in_and_answers_info_with_no_configuration() {
     assert_eq!(field(&info, "width"), &Value::Uint(3));
     assert_eq!(field(&info, "height"), &Value::Uint(2));
     assert_eq!(field(&info, "hasAlpha"), &Value::Bool(true));
+    block_on(request.end()).expect("the request ends");
+}
+
+/// A built-in world is called typed (`nvs_ext::typed`), so its `bytes` are charged to the request
+/// once, at their own size. The dynamic path holds one `Val` per byte, which this budget cannot
+/// afford.
+#[test]
+fn a_built_in_call_charges_its_bytes_once_and_not_one_val_per_byte() {
+    let host = Host::new(4, |_| Ok(())).expect("the host starts");
+    let builtins = Loader::new(host.engine())
+        .builtins()
+        .expect("the built-in components load");
+    let extension = image(&builtins)
+        .extension()
+        .expect("the image component compiles and checks");
+    let data = vec![0_u8; 4 << 20];
+    let unbounded = Arc::new(Meter::new(Duration::from_secs(30), None));
+    let request = host.request(unbounded.clone());
+    let out = block_on(request.call_values(extension, "info", vec![Value::Bytes(data.clone())]));
+    assert!(
+        matches!(out, Err(Failure::Error(Error::Parse(_)))),
+        "zeros are no image: {out:?}"
+    );
+    let instance = unbounded.charged();
+    block_on(request.end()).expect("the request ends");
+
+    let budget = instance + data.len() as u64 + (1 << 20);
+    let request = host.request(Arc::new(Meter::new(Duration::from_secs(30), Some(budget))));
+    let out = block_on(request.call_values(extension, "info", vec![Value::Bytes(data)]));
+    assert!(
+        matches!(out, Err(Failure::Error(Error::Parse(_)))),
+        "the call fits in {budget} bytes: {out:?}"
+    );
     block_on(request.end()).expect("the request ends");
 }
 

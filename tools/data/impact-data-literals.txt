@@ -24,6 +24,8 @@ crates/nvs-hir/src/requires.rs  "../lib.nvs"  --  a `require` target compared as
 crates/nvs-lsp/src/case.rs  "../escape.nvs"  --  a case file's auxiliary path the parser is expected to refuse
 crates/nvs-runtime/src/capability.rs  "../say"  --  a program path compared after `spawn_target`, never started
 crates/nvs-ext/src/wasi.rs  "../../wit/nvs-ext"  --  `bindgen!`'s input, read by the compiler at build time; the binary opens nothing
+crates/nvs-ext/src/typed/image.rs  "../../wit/nvs-ext"  --  `bindgen!`'s input, read by the compiler at build time; the binary opens nothing
+crates/nvs-ext/src/typed/image.rs  "../../wit/image.wit"  --  `bindgen!`'s input, read by the compiler at build time; the binary opens nothing
 crates/nvs-stdlib/src/io.rs  ".."  --  joined onto a scratch directory
 crates/nvs-stdlib/src/io.rs  "../outside.txt"  --  resolved against a scratch base, expected to be refused
 crates/nvs-stdlib/src/io.rs  "sub/../../outside.txt"  --  resolved against a scratch base, expected to be refused

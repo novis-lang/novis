@@ -67,6 +67,8 @@ pub mod manifest;
 pub mod pack;
 pub mod section;
 pub mod source;
+#[cfg(feature = "engine")]
+mod typed;
 pub mod types;
 #[cfg(feature = "engine")]
 pub mod wasi;

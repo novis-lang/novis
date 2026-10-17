@@ -52,7 +52,8 @@
 //!
 //! What it costs: one copy of the value each way, on top of the canonical ABI's own. wasmtime's
 //! dynamic [`Val`] holds one `Val` per element, a byte of `bytes` included, so a `bytes` value costs
-//! one `Val` per byte here until the trampoline lowers it through a typed function.
+//! one `Val` per byte here. A built-in world with generated bindings does not come here:
+//! `crate::typed` calls its exports typed, and a `bytes` value crosses there in one copy each way.
 
 use wasmtime::component::{ResourceAny, Val};
 

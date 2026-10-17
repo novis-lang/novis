@@ -20,11 +20,10 @@ use nvs_ext::load::{Extension, Loader};
 use nvs_image::ops::Resize;
 use nvs_image::{Encoding, Format, Input, Op, Output, Pixels, Plan};
 
-/// The size of the generated frame. Its RGBA8 rows cross the boundary one `Val` per byte, so a
-/// bigger frame costs the arm far more in crossing than in decoding
-/// (`data/gaps/nvs-ext/bytes-cross-one-val-per-byte.json`).
-pub(crate) const WIDTH: u32 = 800;
-pub(crate) const HEIGHT: u32 = 600;
+/// The size of the generated frame: a full HD frame, whose RGBA8 rows cross the boundary in one
+/// copy each way because the image world is called typed.
+pub(crate) const WIDTH: u32 = 1920;
+pub(crate) const HEIGHT: u32 = 1080;
 /// The width the resize job scales the frame to. The height follows the aspect ratio.
 pub(crate) const RESIZED_WIDTH: u64 = 200;
 

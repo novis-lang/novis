@@ -24,6 +24,7 @@ value or an open `Core\IO\File` passed as `mixed` is lent by number and not copi
 serves each `range` the guest reads from the program's own copy between two polls of the call
 (`rule:core-classes/spreadsheet-reads-as-a-stream`). `as-bytes` and `range` are typed host
 functions that return a `list<u8>` whole, so a block a guest reads through a handle is one bulk copy
-(`crates/nvs-ext/src/handle.rs:262-285`). A `bytes` parameter or result of an export, which does not
-go through a handle, still crosses as one wasmtime `Val` per byte
+(`crates/nvs-ext/src/handle.rs:262-285`). A `bytes` parameter or result of an export does not
+go through a handle. The image component's exports are called typed (`crates/nvs-ext/src/typed.rs`),
+so their bytes cross in one copy each way. Every other export's cross as one wasmtime `Val` per byte
 (`data/gaps/nvs-ext/bytes-cross-one-val-per-byte.json`).
