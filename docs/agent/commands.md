@@ -390,8 +390,9 @@ the test binaries a change reaches and every `.nvst` case, and looper's sweep af
 the live goal's acceptance checks, each as often as its `every` says. Nothing is dropped: an atom the
 change reached that a run did not start is `owed` in the store, and stays selected until a run of it is
 green. What no check covers is floor debt, and `bun nv debt` pays all of it once per goal, as the floor
-check `floor-debt` that looper judges last (`tools/nv/cmd/debt.ts`): the red benches first, then the
-owed atoms oldest first. Between two sessions only `bun nv sweep` runs, looper's `after_session` hook
+check `floor-debt` that looper judges last (`tools/nv/cmd/debt.ts`): every owed atom but the benches,
+and every red proof program and leg, oldest first. The benches wait for a release, where `bun nv benches --owed` pays them, because the
+release gate's `proofs` job is red on a stale perf record. Between two sessions only `bun nv sweep` runs, looper's `after_session` hook
 (`tools/nv/cmd/sweep.ts`): it sweeps the disk, the build only when the disk is low, and reads the newest
 nightly CI run back, writing each job it failed into `.loop/last-sweep.md`.
 

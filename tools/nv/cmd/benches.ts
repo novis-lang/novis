@@ -4,12 +4,12 @@
 //
 // Every bench the selection picks, owed, red, new or reached, is judged on the release build and
 // recorded (`runBenches`, `proofs/select.ts`), under the sweep lock, since a bench's growth is read off
-// the cores. It is how a person pays the whole bench debt the sessions' `nv verify` and `bun nv affected
-// --run` leave, which `bun nv debt` pays once per goal, and it resumes a pass that was stopped, since
-// each bench is recorded the moment it is judged. `--owed` narrows it to the benches selected for being
-// owed; a bench never recorded stays unrecorded, and the next pass without `--owed` picks it up.
-// `bun nv debt` calls `benchTurn` in-process with the benches it pays, and `nv guard` refuses this
-// command as a heavy run.
+// the cores. It is the one command that pays the bench debt the sessions' `nv verify` and `bun nv
+// affected --run` leave: `bun nv debt` leaves the benches out, and the release gate's `proofs` job is red
+// while a perf record is stale, so a person runs `--owed` before a release. It resumes a pass that was
+// stopped, since each bench is recorded the moment it is judged. `--owed` narrows it to the benches
+// selected for being owed; a bench never recorded stays unrecorded, and the next pass without `--owed`
+// picks it up. `nv guard` refuses this command as a heavy run.
 //
 // It exits 0 when no bench is red, 1 when one is or the release build failed, and 2 on a usage error.
 
@@ -19,27 +19,17 @@ export const summary = "the bench turn by hand: judges and records every bench t
 
 const USAGE = "usage: bun nv benches [--owed]";
 
-/** The benches `bun nv debt` pays, by `bench:` id in the order they run. */
-export interface BenchDebt {
-  ids: string[];
-  /** Told of each bench as it starts. */
-  onStart?: (id: string) => void;
-}
-
 /**
  * Every bench the selection picks, owed, red, new or reached, judged and recorded by `runBenches`, under
- * the sweep lock. With `owedOnly`, only the benches selected for being owed run. With `debt`, only its
- * benches run, in its order. Returns a red line naming the red
- * benches, or the release build that failed, and "" when there is neither.
+ * the sweep lock. With `owedOnly`, only the benches selected for being owed run. Returns a red line
+ * naming the red benches, or the release build that failed, and "" when there is neither.
  */
-export async function benchTurn(note: (line: string) => void, owedOnly = false, debt?: BenchDebt): Promise<string> {
+export async function benchTurn(note: (line: string) => void, owedOnly = false): Promise<string> {
   const { runBenches } = await import("../proofs/select.ts");
   const lock = await takeSweepLock({ note });
   let got: Awaited<ReturnType<typeof runBenches>>;
   try {
-    got = debt
-      ? await runBenches(note, new Set(debt.ids), { order: debt.ids, ...(debt.onStart && { onStart: debt.onStart }) })
-      : await runBenches(note, owedOnly ? (s) => s.why === "owed" : undefined);
+    got = await runBenches(note, owedOnly ? (s) => s.why === "owed" : undefined);
   } finally {
     lock.release();
   }
