@@ -8,5 +8,5 @@
   "guardedBy": [
     "tests/conformance/core/a-segment-the-class-refuses-never-reaches-the-handler.nvst"
   ],
-  "milestone": "M16"
+  "goal": "query-binding"
 }

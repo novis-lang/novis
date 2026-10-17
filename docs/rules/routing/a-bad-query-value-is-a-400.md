@@ -17,9 +17,9 @@ The divergence is the point rather than an inconsistency, and it is pinned as on
 path capture's `404` and a text-built capture's `400` side by side, so a reader holding two adjacent
 lines of one signature knows they fail two ways.
 
-**The path half is built; the query half is M16's.** The declaration — the marker, its type list, its
+**The path half is built; the query half is goal `query-binding`'s.** The declaration — the marker, its type list, its
 optional bit (`rule:routing/a-query-parameter-is-declared-like-a-capture`) — compiles, and both path
 failures answer as above. Nothing yet binds a query value to a parameter or answers `400` for one: a
-program reads `Core\Request::query()` and converts the value itself. M16 binds each `#[Query]`
+program reads `Core\Request::query()` and converts the value itself. Goal `query-binding` binds each `#[Query]`
 parameter from the query string when a route method is called, and answers `400` for a value that
 does not convert or a required key that is absent.
