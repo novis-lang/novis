@@ -1,0 +1,10 @@
+--TEST--
+a single-quoted string reads no variable written inside it, so the cursor inside one is offered nothing, `rule:ide/completion-offers-only-what-the-compiler-derived`
+--FILE--
+<?nvs
+string $name = "world";
+echo 'he<|>llo';
+--REQUEST--
+completion
+--EXPECT--
+none

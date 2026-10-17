@@ -1,0 +1,13 @@
+--TEST--
+a name written after the `<` of a type's arguments is offered the types a bare name reaches, `rule:ide/completion-offers-only-what-the-compiler-derived`
+--FILE--
+<?nvs
+namespace Shop;
+
+class Money {}
+
+array<Mon<|>
+--REQUEST--
+completion prefix=Mon
+--EXPECT--
+Money [Shop] class

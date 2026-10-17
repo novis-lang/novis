@@ -1,0 +1,15 @@
+--TEST--
+a name written where a property's type goes is offered the types a bare name reaches, read off the modifier in front of it because a written type is no node, `rule:ide/completion-offers-only-what-the-compiler-derived`
+--FILE--
+<?nvs
+namespace Shop;
+
+class Money {}
+
+class Cart {
+    public Mon<|>
+}
+--REQUEST--
+completion prefix=Mon
+--EXPECT--
+Money [Shop] class

@@ -558,7 +558,7 @@ fn sources() -> Vec<Source> {
 ///
 /// An extension class's members are read from its manifest, the one the
 /// checker seeded the class's signatures from (`Analysed::extensions`).
-const SOURCED: [(&str, &str); 41] = [
+const SOURCED: [(&str, &str); 42] = [
     ("tagged", "analysed.deprecated"),
     ("named_type", "..item("),
     ("type_row", "..named_type("),
@@ -580,6 +580,7 @@ const SOURCED: [(&str, &str); 41] = [
     ("value_item", "completion_files::Value"),
     ("values_beside", "file_values(cursor"),
     ("position", "words("),
+    ("member", "MEMBER_WORDS"),
     ("statement_words", "STATEMENT_WORDS"),
     ("followed", "Classes::of(cursor.symbols)"),
     ("scoped", "..offered"),

@@ -148,8 +148,21 @@
 //! written type take types alone, `new` takes the classes it compiles on, the
 //! start of a statement takes every word and the inside of an expression the
 //! words that open one
-//! (`rule:ide/keywords-are-offered-where-the-compiler-accepts-them`). What a
-//! client cannot rank by the match it made itself, [`Tier`] ranks.
+//! (`rule:ide/keywords-are-offered-where-the-compiler-accepts-them`). A `<`
+//! after a type's name opens its arguments, which take types alone, and a `<`
+//! after anything else compares. What a client cannot rank by the match it
+//! made itself, [`Tier`] ranks.
+//!
+//! **A class body reads the same tokens for a property's type.** After a
+//! modifier the list is the member words not yet written and the types, and
+//! after a `?`, a `|` or a `&` it is the types alone ([`member`]). A cursor in
+//! a property's node before its `$` is on the same terms, and after it is a
+//! value position that offers nothing.
+//!
+//! **Inside a string literal the list is the variables in scope, and nothing
+//! else**, because the text is not a statement and a variable is all an
+//! interpolation reads. A single-quoted string and a nowdoc read none, so
+//! they offer nothing ([`interpolates`]).
 //!
 //! # What accepting a type writes after its name
 //!
@@ -1430,8 +1443,8 @@ fn asked(analysed: &Analysed, files: &CompletionFiles, path: &NodePath, offset: 
     // `crate::regions` reports
     // (`rule:ide/a-template-region-gets-the-editors-services-and-formatter`) —
     // which is what makes this an answer rather than a gap, and what separates
-    // markup from the other three spellings in `NOT_CODE`: a cursor in a string
-    // has nothing else to ask.
+    // markup from the strings in `NOT_CODE`, where `position` offers the
+    // variables an interpolation reads.
     //
     // The one thing Novis answers in markup is the tag that leaves it: `<?`
     // is not yet a tag, so the lexer still reads it as markup, and what the
@@ -1896,10 +1909,20 @@ const CASE_WORDS: &[&str] = &["case"];
 /// statement around it from parsing.
 fn position(cursor: &Cursor<'_>) -> Vec<CompletionItem> {
     let path = cursor.path;
-    match path.innermost().map(|node| node.kind) {
-        Some("ClassDecl" | "InterfaceDecl") => words(MEMBER_WORDS),
-        Some("EnumDecl") => words(CASE_WORDS),
-        Some("Property" | "Const" | "EnumCase") => Vec::new(),
+    match path.innermost() {
+        Some(node) if matches!(node.kind, "ClassDecl" | "InterfaceDecl") => member(cursor),
+        Some(node) if node.kind == "EnumDecl" => words(CASE_WORDS),
+        Some(node) if node.kind == "Property" && before_its_variable(cursor, node) => {
+            member(cursor)
+        }
+        Some(node) if matches!(node.kind, "Property" | "Const" | "EnumCase") => Vec::new(),
+        Some(node) if matches!(node.kind, "Str" | "Interpolated") => {
+            if interpolates(cursor, node) {
+                in_scope(cursor)
+            } else {
+                Vec::new()
+            }
+        }
         _ => match written(cursor) {
             Written::Variable => in_scope(cursor),
             Written::Import => in_reach(cursor, Spelled::Qualified),
@@ -1926,6 +1949,82 @@ fn position(cursor: &Cursor<'_>) -> Vec<CompletionItem> {
     }
 }
 
+/// What a cursor where a member of a class or an interface is written may
+/// write: the words that open a member, and a property's type once a modifier
+/// is written.
+///
+/// A modifier may be followed by another modifier, by `function` or `const`,
+/// or by a property's type, so after one the list is the member words not yet
+/// written in this member, and the types. After a `?`, a `|` or a `&` a type
+/// is being written, and the list is the types alone, as it is where
+/// [`written`] reads a type position off the tokens, such as after `extends`
+/// or inside `<` and `>`.
+fn member(cursor: &Cursor<'_>) -> Vec<CompletionItem> {
+    use TokenKind as T;
+    if written(cursor) == Written::TypeName {
+        return in_reach(cursor, Spelled::Shortest);
+    }
+    let before = tokens_before(cursor);
+    match before.last() {
+        Some(T::Question | T::Pipe | T::Amp) => in_reach(cursor, Spelled::Shortest),
+        Some(T::Keyword(word)) if PROPERTY_WORDS.contains(word) => {
+            let modifiers: Vec<&str> = before
+                .iter()
+                .rev()
+                .map_while(|kind| match kind {
+                    T::Keyword(word) if MEMBER_WORDS.contains(&word.name()) => Some(word.name()),
+                    _ => None,
+                })
+                .collect();
+            let unwritten: Vec<&str> = MEMBER_WORDS
+                .iter()
+                .copied()
+                .filter(|word| !modifiers.contains(word))
+                .collect();
+            let mut items = words(&unwritten);
+            items.extend(in_reach(cursor, Spelled::Shortest));
+            items
+        }
+        _ => words(MEMBER_WORDS),
+    }
+}
+
+/// The modifiers a property's type may follow.
+const PROPERTY_WORDS: &[Keyword] = &[
+    Keyword::Lateinit,
+    Keyword::Private,
+    Keyword::Protected,
+    Keyword::Public,
+    Keyword::Readonly,
+    Keyword::Static,
+];
+
+/// Whether the cursor in `property` stands before the property's `$`, which
+/// is where its modifiers and its type are written.
+fn before_its_variable(cursor: &Cursor<'_>, property: IndexNode) -> bool {
+    let text = cursor.analysed.map.file(cursor.analysed.entry).text();
+    text.get(property.span.start as usize..cursor.offset as usize)
+        .is_some_and(|written| !written.contains('$'))
+}
+
+/// Whether the string literal `literal` reads a variable written inside it:
+/// a double-quoted string and a heredoc do, and a single-quoted string and a
+/// nowdoc do not.
+///
+/// Inside one that does, the variables in scope are what may be written, and
+/// no word or type is, because the text is not a statement. Inside one that
+/// does not, nothing is offered.
+fn interpolates(cursor: &Cursor<'_>, literal: IndexNode) -> bool {
+    let text = cursor.analysed.map.file(cursor.analysed.entry).text();
+    let Some(head) = text.get(literal.span.start as usize..) else {
+        return false;
+    };
+    head.starts_with('"')
+        || head
+            .strip_prefix("<<<")
+            .is_some_and(|rest| !rest.trim_start().starts_with('\''))
+}
+
 /// What the tokens before the name being written say may be written there.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Written {
@@ -1937,14 +2036,15 @@ enum Written {
     /// After `new`: a class `new` compiles on.
     Constructed,
     /// Where a type is written: after `extends`, `implements`, `is`, `as` or
-    /// `#[`, in a parameter list, in a `catch`, and after the `:` of a return
-    /// type.
+    /// `#[`, in a parameter list, in a `catch`, after the `:` of a return
+    /// type, and between the `<` and `>` of a type's arguments.
     TypeName,
     /// Where a statement starts, which is also where a typed local does.
     Statement,
     /// Inside an expression, after a token only a value follows.
     Expression,
-    /// After a token that says none of the above — a name, a literal, a `<`.
+    /// After a token that says none of the above — a name, a literal, a `<`
+    /// that compares.
     /// The expression's list, because that is what is usually being written.
     Other,
 }
@@ -1957,19 +2057,23 @@ enum Written {
 fn written(cursor: &Cursor<'_>) -> Written {
     let upto = cursor.upto();
     let name = name_run(upto);
-    let stem = &upto[..upto.len() - name.len()];
-    if stem.ends_with('$') {
+    if upto[..upto.len() - name.len()].ends_with('$') {
         return Written::Variable;
     }
+    placed(&tokens_before(cursor))
+}
+
+/// The lexer's tokens that end at or before the name being written.
+fn tokens_before(cursor: &Cursor<'_>) -> Vec<TokenKind> {
+    let upto = cursor.upto();
+    let stem = upto.len() - name_run(upto).len();
     let file = cursor.analysed.map.file(cursor.analysed.entry);
-    let tokens = tokenize(file, &mut Diagnostics::new());
-    let before: Vec<TokenKind> = tokens
+    tokenize(file, &mut Diagnostics::new())
         .iter()
-        .take_while(|token| token.span.end as usize <= stem.len())
+        .take_while(|token| token.span.end as usize <= stem)
         .map(|token: &Token| token.kind)
         .filter(|kind| *kind != TokenKind::Eof)
-        .collect();
-    placed(&before)
+        .collect()
 }
 
 /// What a name written straight after `before` is.
@@ -1992,6 +2096,8 @@ fn placed(before: &[TokenKind]) -> Written {
         | T::AttributeOpen => Written::TypeName,
         T::LParen if declares(earlier) => Written::TypeName,
         T::Comma if lists_types(earlier) => Written::TypeName,
+        T::Lt if opens_type_arguments(earlier) => Written::TypeName,
+        T::Comma if in_type_arguments(earlier) => Written::TypeName,
         T::Colon if returns(earlier) => Written::TypeName,
         T::Question | T::Pipe | T::Amp => match placed(before_the_type(earlier)) {
             found @ (Written::TypeName | Written::Statement) => found,
@@ -2181,6 +2287,50 @@ fn lists_types(before: &[TokenKind]) -> bool {
         return true;
     }
     enclosing(before).is_some_and(|open| before[open] == T::LParen && declares(&before[..open]))
+}
+
+/// Whether a `<` written straight after `before` opens a type's arguments.
+///
+/// It does where `before` ends in a type's name, and that name is written
+/// where a type or a statement starts, or after `new`. Anywhere else the `<`
+/// compares two values, as in `$count < LIMIT`.
+fn opens_type_arguments(before: &[TokenKind]) -> bool {
+    use TokenKind as T;
+    let named = match before.last() {
+        Some(T::Ident) => true,
+        Some(T::Keyword(word)) => TYPE_WORDS.contains(word),
+        _ => false,
+    };
+    named
+        && matches!(
+            placed(before_the_type(before)),
+            Written::TypeName | Written::Statement | Written::Constructed
+        )
+}
+
+/// Whether a `,` written straight after `before` separates two of a type's
+/// arguments, as in `array<string, `.
+fn in_type_arguments(before: &[TokenKind]) -> bool {
+    use TokenKind as T;
+    let mut closed = 0_usize;
+    for (at, kind) in before.iter().enumerate().rev() {
+        match kind {
+            T::Gt => closed += 1,
+            T::GtGt => closed += 2,
+            T::Lt if closed == 0 => return opens_type_arguments(&before[..at]),
+            T::Lt => closed -= 1,
+            T::Ident
+            | T::Backslash
+            | T::Comma
+            | T::Question
+            | T::Pipe
+            | T::Amp
+            | T::DoubleColon => {}
+            T::Keyword(word) if TYPE_WORDS.contains(word) => {}
+            _ => return false,
+        }
+    }
+    false
 }
 
 /// Where the bracket that is still open at the end of `before` was written.
