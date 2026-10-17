@@ -1,0 +1,2 @@
+- **A typed write through a shape view and an erased write through `object` or `mixed` reach one runtime entry point, `nvs_object_slot_set`.** The checker records both as `ExprInfo::ShapeProperty`, and both carry a `mixed` type where the shape lists no field, so a check added in `write_erased_property` also refuses writes the checker proved. Read the record's `erased` bit, which `crates/nvs-types/src/expr_table.rs` defines.
+  `until: gone crates/nvs-types/src/expr_table.rs:erased: bool`

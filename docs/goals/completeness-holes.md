@@ -6,8 +6,8 @@ context: [tools/nv/cmd/owners.ts, data/schema/gap.schema.json, docs/rules/progra
 stages:
   - id: 1
     title: "a write through `mixed` checks the declared type"
-    status: open
-    context: [crates/nvs-runtime/src/object.rs, crates/nvs-types/src/expr/assign.rs, docs/rules/types/erased-member-access.md, docs/rules/types/shape-type.md, data/gaps/nvs-runtime/an-erased-write-stores-an-object-of-the-wrong-class-in-an-anonymous-object.json]
+    status: done
+    context: [crates/nvs-runtime/src/object.rs, crates/nvs-types/src/expr/assign.rs, docs/rules/types/erased-member-access.md, docs/rules/types/shape-type.md]
     extra:
       context:
         rules: [types/erased-member-access, types/shape-type]
@@ -175,7 +175,10 @@ against the declared type before it stores, so no typed read can see an object o
 - [x] A conformance case per shape of write, with `Kennel`/`Dog`/`Animal`, asserting the throw. `docs/rules/types/erased-member-access.md:1`
 - [x] The module doc's "what a tag does not catch" list is rewritten from what is left, without the false "no memory-safety edge" sentence. `crates/nvs-runtime/src/object.rs:168`
 - [x] A shape's field types are invariant in the checker, as the user decided, so a write through a wider view does not compile. `crates/nvs-types/src/expr/assign.rs:489`
-- [ ] An erased write through `object` or `mixed` into an anonymous object's slot cannot store an object of the wrong class. `crates/nvs-runtime/src/object.rs:5303`
+- [x] An erased write through `object` or `mixed` into an anonymous object's slot cannot store an object of the wrong class. `crates/nvs-runtime/src/object.rs:5303`
+  - [x] `write_erased_property` checks a shape slot against its current value (`same_shape`).
+  - [x] A conformance case per receiver asserts the throw and the typed reads after it.
+  - [x] The rule states the trade-off, the module doc is rewritten and the record is deleted.
 
 ### 2. a request head has one deadline for the whole head
 
@@ -398,29 +401,26 @@ pass; the socket legs cannot run on Windows). The `proofs` jobs are the proof de
 `iteration.md`, and `bun nv render` drops `done` from `data/schema/milestone.schema.json`. That drift
 predates these sessions and is not committed.
 
-Stage 1's shape-view hole is closed: a shape value's field types are invariant
-(`crates/nvs-types/src/expr/assign.rs:489`), a class source stays covariant, a literal at a union of
-shapes takes the member its keys name (`crates/nvs-types/src/expr/literals.rs`'s `declared_shape`),
-an attribute payload compares covariantly (`built_fits`, `crates/nvs-types/src/expr/assign.rs:546`),
-and a `"source": true` extension method taints the fields of its shape result
-(`crates/nvs-types/src/ext_lib.rs`'s `source_result`). The spreadsheet's `reader*` methods are
-sources now.
-
-Stage 1 has one hole left, found while closing this one: an erased write through `object` or
-`mixed` stores an `Animal` in a `{pet: Dog}` anonymous object, and the next typed read panics. The
-record is `data/gaps/nvs-runtime/an-erased-write-stores-an-object-of-the-wrong-class-in-an-anonymous-object.json`,
-and it names a fix that spends nothing per object. The user declined a declared type per object
-for the shape-view half; whether that decline covers this half is not checked with the user.
+Stage 1 is done. An erased write into an anonymous object's slot is checked against the slot's
+current value (`same_shape`, `crates/nvs-runtime/src/object.rs`): same exact tag, a conforming
+class, nested anonymous objects field by field, and each array element against some current
+element. Only a receiver whose static type does not list the field pays it: the checker's
+`ShapeProperty` carries an `erased` bit through `InstKind::SlotSet` into `nvs_object_slot_set`. It
+spends nothing per object. It refuses a write into a `null` or absent field and a
+non-empty array into an empty one, which `rule:types/erased-member-access` states. The case is
+`tests/conformance/lang/a-property-write-through-an-erased-receiver-keeps-an-anonymous-objects-field-shape.nvst`.
+A refused message now says "an int", not "a int". A `null` written over an object still reports
+the internal label `$shape{…}` from the older tag check, which no rule names yet.
 
 Stage 5's typed path, stage 6's unfinished workbook and stage 7's two records are decided, and none
-is built yet (Backlog).
+is built yet.
 
 ### Next
 
-**Stage 1's erased-write hole. Files: `crates/nvs-runtime/src/object.rs`, `docs/rules/types/erased-member-access.md`, conformance cases.**
+**Stage 7, as its two records decide. Files: `crates/nvs-config/src/tree.rs`, `crates/nvs-runtime/src/ctx/`, `crates/nvs-stdlib/src/db/span.rs`, `docs/rules/testing/debug-mode-directive.md`.**
 
-- [ ] An erased write into an anonymous object's slot accepts an object only when its class is the current value's class or a subclass, and an array or union value only when it has the current value's shape; it throws otherwise (`rule:types/erased-member-access`). This refuses some writes the declared type allows, so state that trade-off in the rule. `crates/nvs-runtime/src/object.rs:5303`
-- [ ] A conformance case per receiver (`object`, `mixed`) with `Dog`/`Animal`, asserting the throw, then delete the record and rewrite `crates/nvs-runtime/src/object.rs:174`'s paragraph (`rule:types/shape-type`).
+- [ ] A directive row for `[debug] mode`, a boot refusal of a name outside the four, and `nvs_runtime::Ctx::set_config` arming the named bits under `nvs run` and `nvs test`. A server whose `[debug] mode` names any bit fails its boot and says why (`rule:testing/debug-mode-directive`, `data/gaps/nvs-config/debug-mode-is-read-by-nothing.json`). `crates/nvs-config/src/tree.rs:514`
+- [ ] A span rendered because `DebugFlags::TRACE` is on needs the `debug.trace` grant, and a sampled span needs none (`rule:observability/a-query-is-a-trace-event`, `data/gaps/nvs-db/span-renders-on-a-flag-no.json`). `crates/nvs-stdlib/src/db/span.rs:51`
 
 ### Backlog
 
