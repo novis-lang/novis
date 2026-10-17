@@ -1247,6 +1247,40 @@ mod tests {
         assert_eq!(header_descriptor(body), NO_TRANSACTION);
     }
 
+    /// `rule:security/db-pool-reset-is-a-boundary`'s "a connection that cannot
+    /// be proven clean is closed" on this backend.
+    ///
+    /// The type: `TdsConn::reset` takes `self` by value and names a `TdsConn`
+    /// only inside its `Ok`, so a refused reset leaves the caller nothing to
+    /// pool. TDS has no goodbye message, so destroying the connection is
+    /// closing its socket. What is left to assert on the wire is that nothing
+    /// follows the refused reset: no isolation restore, even where one was
+    /// owed, and no other request.
+    #[test]
+    fn a_failed_reset_destroys_the_connection_rather_than_returning_it() {
+        let _: fn(crate::conn::TdsConn) -> io::Result<crate::conn::TdsConn> =
+            crate::conn::TdsConn::reset;
+
+        let mut refused = message_token(TOKEN_ERROR, 229, 14, "The EXECUTE permission was denied");
+        refused.extend_from_slice(&done_token(DONE_ERROR, 0));
+        let mut wire = answering_each(&[refused]);
+        let state = Cell::new(State::Idle);
+        let mut cache = plans(2);
+        let moved = Cell::new(true);
+
+        let failed = reset_session(&mut wire, &state, &mut cache, &moved)
+            .expect_err("a refused reset passed");
+        assert!(failed.to_string().contains("permission"), "{failed}");
+
+        let sent = flushed(&wire.peer().sent);
+        assert_eq!(
+            sent.len(),
+            1,
+            "a refused reset was followed by another request"
+        );
+        assert!(sent[0].1.contains(Status::RESET_CONNECTION));
+    }
+
     /// § 7's `{isolation}` on the one backend where it is a **session** setting:
     /// it is put back when the outermost transaction ends, and a transaction
     /// that asked for nothing pays for none of it.

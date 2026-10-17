@@ -2733,6 +2733,33 @@ mod tests {
         assert_eq!(refused.kind(), std::io::ErrorKind::InvalidInput);
     }
 
+    /// `rule:security/db-pool-reset-is-a-boundary`'s "a connection that cannot
+    /// be proven clean is closed", in [`crate::pg`]'s two halves.
+    ///
+    /// The type: `SqliteConn::reset` takes `self` by value and names a
+    /// `SqliteConn` only inside its `Ok`. The close: a refused reset drops the
+    /// connection, so the database handle it owned has no owner left but this
+    /// test's own clone, and dropping that clone closes the file.
+    #[test]
+    fn a_failed_reset_destroys_the_connection_rather_than_returning_it() {
+        use std::sync::Arc;
+
+        let _: fn(SqliteConn) -> std::io::Result<SqliteConn> = SqliteConn::reset;
+
+        let conn = connect();
+        let handle = Arc::clone(&conn.handle);
+        conn.state.set(State::Poisoned);
+        assert_eq!(Arc::strong_count(&handle), 2);
+
+        conn.reset()
+            .expect_err("a poisoned connection is not clean");
+        assert_eq!(
+            Arc::strong_count(&handle),
+            1,
+            "a refused reset kept the connection alive somewhere"
+        );
+    }
+
     /// § 9's map on the one backend that has no types to map: every case the
     /// table names, keyed off what the schema declared, and asserted through a
     /// real statement rather than by calling the map on a string — the whole
