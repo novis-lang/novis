@@ -260,10 +260,10 @@ the client sees a failed download.
 **Does:** an array literal keeps every value, a method reference calls the override, an `await`
 result is the shape it is typed as, and the two compiler panics on accepted code are gone.
 
-- [ ] A positional element after an integer key takes the next key after the highest. `crates/nvs-ir/src/ir.rs:1693`
+- [x] A positional element after an integer key takes the next key after the highest. `crates/nvs-ir/src/ir.rs:1693`
 - [ ] `$cls::f(...)` resolves through the class `$cls` holds. `crates/nvs-types/src/expr_table.rs:612`
-- [ ] `foreach` over `mixed` lowers or is refused by the checker. `crates/nvs-ir/src/lower/control.rs:992`
-- [ ] `as ?{...}` from `mixed` lowers or is refused by the checker. `crates/nvs-ir/src/lower/convert.rs:443`
+- [x] `foreach` over `mixed` lowers or is refused by the checker. `crates/nvs-ir/src/lower/control.rs:992`
+- [x] `as ?{...}` from `mixed` lowers or is refused by the checker. `crates/nvs-ir/src/lower/convert.rs:443`
 - [ ] The `Core` shape descriptors take the `$shape{...}` label, so an `await` result renders and encodes as a shape. `crates/nvs-stdlib/src/instance.rs:652`, `crates/nvs-stdlib/src/script.rs:476`
 
 ### 9. JIT pages are freed, and every call site has its probe
@@ -323,69 +323,52 @@ work cannot live only in prose again.
 
 ### State
 
-Stages 1 to 4 are done. Stage 6's two items are on disk: a request-scoped stream whose program
-threw, met a limit or was cancelled is aborted at the isolate's end
-(`crates/nvs-host/src/isolate.rs`'s `finish`, `nvs_runtime::stream::Emit::abort`), and the server
-ends it in `BodyCut::ProgramStopped`, so no terminating chunk is written. The connection door of an
-event stream takes the same path. `data/gaps/nvs-server/a-streamed-body-cannot-be-cut-off.json` is
-deleted. Its remainder is a new record owned here,
+Stages 1 to 4 are done. Stage 8 has three of its five items on disk. A positional element of an
+array literal with an explicit key or a spread is an `ArrayAppend`, so it takes one past the highest
+integer key (`crates/nvs-ir/src/lower/expr.rs`'s `lower_array_literal`). A `mixed` or `iterable`
+`foreach` subject is `E0443` where it is written, and the help names `($m as array<mixed>)`
+(`crates/nvs-types/src/expr/iteration.rs`'s `report_unchecked_subject`). The trade-off is one
+written conversion over a `mixed` such as `Core\Request::json()`, and no run-time cost: the shape
+compiled to a lowering panic before, so no working program changes. `$x as ?Shape` runs the
+checked shape row's field walk with a `null` miss arm (`crates/nvs-ir/src/lower/convert.rs`'s
+`lower_nullable_shape_conversion`), and the checker no longer calls `object as ?Shape` a conversion
+that cannot fail. The three `data/gaps/nvs-ir/` records are deleted.
+
+Stage 6's two items are on disk. Its remainder is
 `data/gaps/nvs-ext/a-workbook-never-finished-is-neither-logged-nor-cut-off.json`: a program that
 *returns* with its download workbook unfinished still ends the body cleanly, because no Novis member
-can abort a response and `Workbook` runs nothing at the request's end. Stage 6 stays open on it.
+can abort a response. Stage 6 stays open on it.
 
 Stage 5 charges a call's lowered arguments to the request until the guest returns
-(`crates/nvs-ext/src/call.rs`'s `Request::run`).
+(`crates/nvs-ext/src/call.rs`'s `Request::run`). **Its typed path is a question for the user**,
+recorded with its three choices in `data/gaps/nvs-ext/bytes-cross-one-val-per-byte.json`: wasmtime
+fixes a typed call's layout at compile time, and `image`'s `run` carries its bytes inside records.
 
-**Stage 5's typed path is a question for the user**, recorded in
-`data/gaps/nvs-ext/bytes-cross-one-val-per-byte.json`. wasmtime 49 fixes a typed call's
-layout at compile time (`ComponentType::ABI` is a `const`, `wasmtime-49.0.3/src/runtime/component/func/typed.rs:517`),
-so no type built from a manifest can be a typed parameter. `image`'s `run(source, plan)` carries
-its bytes inside records and variants (`wit/image.wit:330`). The choices: generated Rust
-bindings per first-party world, with a conversion from `Value` per world; a typed path only for
-exports whose whole signature is scalars, strings, `list<u8>` and `error`, which leaves `run`
-dynamic; or a change to the first-party worlds that puts the bytes in a top-level parameter or a
-lent `value`. Stage 5's other items wait on that choice.
+**Stage 1's second memory-safety hole is a question for the user**:
+`data/gaps/nvs-runtime/a-wider-shape-view-writes-an-object-of-the-wrong-class.json` (invariant
+mutable shape fields, a declared type per anonymous object at run time, or refusing a write through
+a wider view).
 
-Stage 1 found a second memory-safety hole, recorded as
-`data/gaps/nvs-runtime/a-wider-shape-view-writes-an-object-of-the-wrong-class.json`. A statically
-typed `{pet: Animal}` view of a `{pet: Dog}` anonymous object writes an `Animal`, and the narrow
-view's read prints garbage. **This is a question for the user:** make a shape's mutable fields
-invariant in the checker, carry a declared type per anonymous object at run time, or refuse a
-write through a view wider than the value's own. The record stays open until they choose.
+**Stage 7 is two questions for the user**, each record stating its choices:
+`data/gaps/nvs-config/debug-mode-is-read-by-nothing.json` (arm the bits only off the server, a new
+cap on `call` events, or refuse `trace` and `profile` in a server's `[debug] mode`) and
+`data/gaps/nvs-db/span-renders-on-a-flag-no.json` (no rule names the grant for a sampled span).
 
-**Stage 7 is two questions for the user**, and no code of it is on disk. Each record now states its
-choices and its mechanical half.
-`data/gaps/nvs-config/debug-mode-is-read-by-nothing.json`: `trace` armed on a served request
-pushes two `String` events per compiled call with no ceiling, and nothing reads them
-(`crates/nvs-runtime/src/ctx/trace.rs:305`). The choices are to arm the file's bits only off the
-server, to add a cap on `call` events (a new limit), or to refuse `trace` and `profile` in a
-server's `[debug] mode`. `data/gaps/nvs-db/span-renders-on-a-flag-no.json`: gating a *sampled*
-query span on `debug.trace` would remove query spans from every exported trace without a debug
-grant, and no rule names the grant for that path.
-
-The nightly still tests an old commit (`cb7021a24`, checked this session with `gh run view`), and
-GitHub's `main` is far behind the local one. The earlier triage of its failures stands until the
-user pushes.
+The nightly still tests `cb7021a24` (checked this session with `gh run view 38869457440`), far
+behind the local `main`. Its failures are the old tree's until the user pushes.
 
 ### Next
 
-**Stage 8, compiled code does what the checker accepted.** Slices over `crates/nvs-ir/src/`
-lowering, each item specified by its record under `data/gaps/nvs-ir/`
-(`an-array-literal-mixing-int-keys-and-positions-loses-values.json`,
-`foreach-over-a-mixed-subject-panics-the-compiler.json`,
-`a-mixed-converted-to-a-nullable-shape-panics-the-compiler.json`).
+**Stage 8's last two items, over `crates/nvs-types/src/expr_table.rs` and `crates/nvs-stdlib/src/instance.rs`.**
 
-- [ ] A positional element after an integer key takes the next key after the highest. `crates/nvs-ir/src/ir.rs:1693`
-- [ ] `foreach` over `mixed` lowers or is refused by the checker. `crates/nvs-ir/src/lower/control.rs:992`
-- [ ] `as ?{...}` from `mixed` lowers or is refused by the checker. `crates/nvs-ir/src/lower/convert.rs:443`
+- [ ] `$cls::f(...)` resolves through the class `$cls` holds, as the direct call does (`rule:expressions/method-reference`, `data/gaps/nvs-types/a-method-reference-through-a-class-variable-binds-the-declared-method.json`). `crates/nvs-types/src/expr_table.rs:612`
+- [ ] The `Core` shape descriptors take the `$shape{...}` label, so an `await` result renders and encodes as a shape (`rule:types/anonymous-object`, `data/gaps/nvs-stdlib/an-await-result-is-a-named-class-not-a-shape.json`). `crates/nvs-stdlib/src/instance.rs:652`, `crates/nvs-stdlib/src/script.rs:476`
 
 ### Backlog
 
-- Stage 6's last item: a download workbook a program returns without finishing is logged and cut off. It needs a way for Novis code to abort a response body, such as an `abort` method on `Core\Response\Stream`, which is a new method and states its trade-offs first (`data/gaps/nvs-ext/a-workbook-never-finished-is-neither-logged-nor-cut-off.json`).
-
-- Stage 7 waits on the user's two answers above (`data/gaps/nvs-config/debug-mode-is-read-by-nothing.json`, `data/gaps/nvs-db/span-renders-on-a-flag-no.json`).
-- Three wait on the user's choice: the wider-shape-view hole (`data/gaps/nvs-runtime/a-wider-shape-view-writes-an-object-of-the-wrong-class.json`), stage 5's typed path and full-size image arms (`data/gaps/nvs-ext/bytes-cross-one-val-per-byte.json`), and `Markup + Markup` in place (`docs/perf/performance-pass.md:257`).
+- Stage 6's last item needs a way for Novis code to abort a response body, such as an `abort` method on `Core\Response\Stream`, a new method that states its trade-offs first (`data/gaps/nvs-ext/a-workbook-never-finished-is-neither-logged-nor-cut-off.json`).
+- Four wait on the user: stage 7's two records, the wider-shape-view hole, and stage 5's typed path with its full-size image arms (each record above), plus `Markup + Markup` in place (`docs/perf/performance-pass.md:257`).
 - `test_request_dispatches_in_process_through_the_compiled_route_table` once returned an empty body under the full verify's load and passed alone; the cause is not found (`crates/nvs-cli/src/runner.rs:3410`).
-- Many module docs still carry numbered or prose "known gap" text with no record; stage 14's scan finds them (`tools/nv/cmd/owners.ts:225`).
-- Proof debt fails CI's `proofs` jobs: stale perf records (`bun nv benches --owed`) and the `Core\Test\Outcome`/`Summary` proofs (`bun nv proofs --owed`). The user pushes `main`, so the nightly tests the current tree (`.github/workflows/ci.yml:1`).
+- Many module docs still carry prose "known gap" text with no record; stage 14's scan finds them (`tools/nv/cmd/owners.ts:225`).
+- Proof debt fails CI's `proofs` jobs: stale perf records (`bun nv benches --owed`) and the `Core\Test\Outcome`/`Summary` proofs (`bun nv proofs --owed`) (`.github/workflows/ci.yml:1`).
 - A per-connection child refused a stack is dropped unrun, so its client likely sees the socket close and no `503`; not checked (`crates/nvs-server/src/serve.rs:95`).
