@@ -1,6 +1,0 @@
-{
-  "module": "crates/nvs-stdlib/src/server.rs",
-  "title": "No test calls `Core\\Server`'s request members inside a spawned child.",
-  "text": "`rule:security/request-state-throws-in-an-isolate` says request state throws in an isolate. No case calls a `Core\\Server` request member from a spawned child and asserts what happens. Closing it means one conformance case per member that reads request state, run inside a child.",
-  "goal": "completeness-holes"
-}

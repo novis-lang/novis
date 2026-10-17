@@ -1,0 +1,41 @@
+--TEST--
+`Core\Server::traceId` throws a `LogicError` inside a spawned child while its parent is answering a request, and the parent still reads its own id after the child ends — `rule:security/request-state-throws-in-an-isolate`
+--GET--
+page=2
+--FILE nvs.toml--
+# `spawn script` needs `script.spawn`, and a case with no configuration cannot
+# spawn at all. This grants that and nothing else.
+[capabilities.script]
+spawn = true
+--FILE child.nvs--
+<?nvs
+// `traceId` is the one member of `Core\Server` that reads the request. A child
+// answers no request, so the call throws, and the message names the member.
+string $said = "";
+try {
+    echo Core\Server::traceId(), "\n";
+} catch (LogicError $none) {
+    $said = $none->message;
+}
+echo "the child's traceId threw: ",
+    Core\Str::contains($said, "Core\\Server::traceId(): there is no request here") ? "yes" : "no",
+    "\n";
+--FILE--
+<?nvs
+// The parent answers the `--GET--` request above, so it has an id. Without a
+// request the parent would throw too, and the case could not tell the two apart.
+string $before = Core\Server::traceId();
+echo "the parent has an id of ", Core\Str::length($before), " characters\n";
+
+var $child = await spawn script "child.nvs" with(output: "capture");
+echo "ok=", $child->ok ? "true" : "false", "\n";
+echo $child->output;
+
+// The child's refused call changed nothing in the parent's request.
+echo "the parent's id is the same afterwards: ",
+    Core\Server::traceId() == $before ? "yes" : "no", "\n";
+--EXPECT--
+the parent has an id of 32 characters
+ok=true
+the child's traceId threw: yes
+the parent's id is the same afterwards: yes
