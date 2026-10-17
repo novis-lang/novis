@@ -106,11 +106,14 @@ stage. Stage 6 moves code between files and changes no signature.
 **Does:** the after-session hook pays no debt, the owed atoms run once at the goal end, and the disk
 is swept only when it is low.
 
-- [ ] The debt run and its budget leave `bun nv sweep`, which keeps the nightly read and a disk sweep. `tools/nv/cmd/sweep.ts:68`
-- [ ] The disk sweep deletes `target/deps` and `target/incremental` only below `nv disk`'s free-space line. `tools/nv/cmd/disk.ts:796`
-- [ ] The owed atoms run as one check that every goal shares, judged last, such as a floor check with `reach: true`. `docs/goals/README.md:1`
-- [ ] One run of that check is measured, and its time by atom kind is written into the sweep's module doc. `tools/nv/cmd/sweep.ts:1`
-- [ ] `looper.toml`'s hook comment and the `[jobs]` lists say what runs now. `looper.toml:55`
+- [x] The debt run and its budget leave `bun nv sweep`, which keeps the nightly read and a disk sweep. `tools/nv/cmd/sweep.ts:68`
+- [x] The disk sweep deletes `target/deps` and `target/incremental` only below `nv disk`'s free-space line. `tools/nv/cmd/disk.ts:796`
+- [x] The owed atoms run as one check that every goal shares, judged last, such as a floor check with `reach: true`. `docs/goals/README.md:1`
+- [ ] One run of that check is measured, and its time by atom kind is written into the debt command's module doc. `tools/nv/cmd/debt.ts:1`
+  - [ ] `looper check --name floor-debt` runs once, in the background, with nothing else building.
+  - [ ] The per-turn lines of `.loop/checks/floor-debt.log` give the time by atom kind.
+  - [ ] The figures go into `tools/nv/cmd/debt.ts`'s module doc; past two hours, the owed benches move to the release gate.
+- [x] `looper.toml`'s hook comment and the `[jobs]` lists say what runs now. `looper.toml:55`
 
 ### 2. verify is red only for a real fault
 
@@ -162,18 +165,26 @@ edits no shared table by hand.
 
 ### State
 
-The goal is new. The audit behind it read 314 session logs, the git history, the tooling and looper's
-source; its figures are in § Why. Looper's goal `landing-fixes` is first on looper's own chain.
+Stage 1 is built but for one measurement. `bun nv sweep` reads the nightly run and sweeps the disk, its
+build only below `MIN_FREE_GB`. The debt moved to `bun nv debt` (`tools/nv/cmd/debt.ts`), which pays
+all of it with no budget and is the floor check `floor-debt` in `docs/goals/README.md`, `reach: true`,
+with a four-hour timeout. Nobody has run it yet: `bun nv proofs --owed` listed 419 features at HEAD.
+
+The nightly run 39013536848 was 268 commits behind HEAD. Its `docs` job (`nv check`) is green at HEAD,
+the five-driver matrix was fixed by 460a68396, and the Windows test job hit the 60-minute limit that
+3b4e222db raised. The three `proofs` jobs fail on stale perf records, which is the owed debt. The
+Windows warm-start guard read 13.1 ms of work over a 6 ms budget on a quiet 5.3 ms floor; locally the
+box was busy and it read "not measured".
 
 ### Next
 
-Stage 1, the session boundary, on `tools/nv/cmd/sweep.ts`, `tools/nv/cmd/disk.ts` and `looper.toml`:
-- [ ] The debt run leaves the sweep. `tools/nv/cmd/sweep.ts:68`
-- [ ] The disk sweep runs only when the disk is low. `tools/nv/cmd/disk.ts:796`
-- [ ] The goal-end check for the owed atoms, measured once. `docs/goals/README.md:1`
-
-Stage 2 follows, on the two test binaries.
+Stage 1's last item, then stage 2, on `tools/nv/cmd/debt.ts` and the two test binaries:
+- [ ] Measure one `floor-debt` run and write its time by atom kind. `tools/nv/cmd/debt.ts:1`
+- [ ] The `ldap` socket deadlines, found and fixed at their cause. `crates/nvs-stdlib/tests/ldap.rs:277`
+- [ ] The `live_edit` 30-second swap, found and fixed at its cause. `crates/nvs-cli/tests/live_edit.rs:1010`
 
 ### Backlog
 
+- The Windows warm-start budget: 13 ms of work on a quiet hosted runner against 6 ms. A regression or the runner's file scanning; `tools/nv/cmd/bench.ts` § *The warm-start figure* owns it.
+- `fullRun` and `runBenches` still take a `deadline` that no caller passes since the debt run lost its budget. `tools/nv/select/full.ts:63`, `tools/nv/proofs/select.ts:265`
 - `looper guard` matched a commit in looper's own checkout against a claim on mwl's `docs/goals/README.md`, because the claim check compares paths without their tree. Looper's `crates/looper-core/src/claims.rs` owns it.
