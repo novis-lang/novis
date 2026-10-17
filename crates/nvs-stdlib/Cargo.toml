@@ -182,7 +182,7 @@ nvs-ext.workspace = true
 # `rule:errors/helper-abi` helper entry point, so it is an `extern "C"` function decoding raw pointers,
 # which the workspace's `forbid` would make unwritable. `deny` instead, so each
 # genuinely necessary block is allowed individually with a stated reason — the
-# policy in docs/implementation-plan.md's "Unsafe policy" section, which names
+# policy in tools/nv/cmd/lints.ts's header, whose `UNSAFE_CRATES` names
 # this crate. Nothing else here is unsafe: a member's body is ordinary safe
 # Rust over `nvs-runtime`'s own safe handles.
 # ---------------------------------------------------------------------------

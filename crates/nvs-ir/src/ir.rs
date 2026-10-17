@@ -628,8 +628,8 @@ pub enum InstKind {
     /// begin, in program order. Defines no value.
     StmtMarker(StmtId),
     /// A reserved safepoint poll site — function entry (recursion) or a
-    /// loop's back edge, the sites `docs/plan/design.md` § *Safepoints*
-    /// names and that `rule:testing/debug-probes`
+    /// loop's back edge, the sites `nvs-codegen`'s module doc names and that
+    /// `rule:testing/debug-probes`
     /// contrasts its own, denser probe grid against. `nvs-codegen` lowers it
     /// to one load of the context's safepoint word and a predicted-not-taken
     /// branch, and the **function-entry** one — the first in the entry

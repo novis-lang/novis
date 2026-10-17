@@ -87,9 +87,7 @@
 //!
 //! `run` **checks first**: on any diagnostic it reports and exits non-zero
 //! exactly as `check` does, rather than running a program the front end
-//! rejected. The rest of the architecture diagram
-//! (`docs/implementation-plan.md` § Architecture) arrives with the milestones
-//! that need it.
+//! rejected.
 //!
 //! ## What `run` executes
 //!

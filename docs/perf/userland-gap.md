@@ -183,8 +183,8 @@ it lands, and the guard that will hold it.
 ### A — Novis owns its allocator
 
 Every allocation goes to the platform heap: `crates/nvs-runtime/src/lib.rs` registers a
-`#[global_allocator]` only under `cfg(test)`. [docs/plan/design.md](../plan/design.md)
-§ *Per-request isolation* already decided that a request gets its own arena released wholesale at
+`#[global_allocator]` only under `cfg(test)`. `rule:security/arena-is-an-ownership-root`
+already decided that a request gets its own arena released wholesale at
 request end, and `rule:programs/memory-priority`'s *Footprint, not traffic*
 already makes an allocation on a hot path a priority-3 question. **This is not a new decision — it
 is that decision, landing early, in two halves.** The half measured above is a thread-local

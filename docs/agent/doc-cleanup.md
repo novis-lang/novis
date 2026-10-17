@@ -29,7 +29,7 @@ are absent. Duplication, contradiction and bloat are judgment, and the rest of t
 ## The two constraints that decide what a pass may do
 
 **1. A rule id is a public identifier — never rename one in a cleanup pass.** `rule:<topic>/<slug>` is
-cited from `crates/`, `tests/`, `docs/spec/`, `docs/plan/` and the goal files under `docs/goals/`.
+cited from `crates/`, `tests/`, `docs/spec/` and the goal files under `docs/goals/`.
 `bun nv rules --citations` prints every one. A rename repoints all of them, and `bun nv rules --check`
 catches only the ones left dangling. A rule is edited so its body is true now; it is not merged into a
 neighbour to save a file.

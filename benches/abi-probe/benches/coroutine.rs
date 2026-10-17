@@ -5,8 +5,8 @@
 //! rather than a compiler transformation.
 //!
 //! Baselined on x86_64-pc-windows-msvc as a suspend/resume round trip through a
-//! shallow chain of JIT frames. `docs/plan/design.md` § *Thread-per-core,
-//! shared-nothing runtime* owns the decision this prices.
+//! shallow chain of JIT frames. `crates/nvs-host/src/scheduler.rs`'s module doc
+//! owns the decision this prices.
 
 // `criterion_group!` expands to an undocumented public function.
 #![allow(missing_docs)]

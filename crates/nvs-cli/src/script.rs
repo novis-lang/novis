@@ -104,8 +104,7 @@
 //! key under the write guard is the one that compiles it; every caller that
 //! arrives while that runs finds the [`Flight`] it left in the table, waits on
 //! that, and is then answered out of the table like any other hit. This is what
-//! makes single-flight compilation (`docs/plan/design.md` § *Compiled-unit
-//! cache with single-flight compilation*) a claim about the fleet rather than
+//! makes single-flight compilation a claim about the fleet rather than
 //! about one core, and why
 //! [`Compiler::compiles`] counts contents rather than workers.
 //!
@@ -2366,7 +2365,7 @@ mod tests {
     #[test]
     fn ten_thousand_concurrent_cold_requests_for_one_file_compile_it_exactly_once() {
         // The test above's claim, made about the fleet — which is the shape
-        // `docs/plan/design.md` states it in and the only shape a served request
+        // this module's doc states it in and the only shape a served request
         // meets. One core collapses the race by construction: no second resolve
         // of a path runs between an observation and the write that follows it.
         // Here the ten thousand requests are spread over four workers sharing

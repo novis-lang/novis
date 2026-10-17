@@ -2,7 +2,7 @@
 //!
 //! `rule:http-server/a-core-is-never-blocked-on-a-syscall`
 //! wants "one single-threaded scheduler of our own pinned per core", and
-//! `docs/plan/design.md` § *Thread-per-core, shared-nothing runtime* says why:
+//! [`crate::scheduler`]'s module doc says why:
 //! a request never migrates, so a refcount is a non-atomic increment and an
 //! arena is reached without a lock. Pinning is what turns "never migrates
 //! between workers" into "never migrates between CPUs" as well, which is what

@@ -9,8 +9,8 @@
 //! fronting it with a free list is the largest single move on the userland
 //! suite's median that this tree has measured.
 //!
-//! [`docs/plan/design.md`](/docs/plan/design.md) § *Per-request isolation* is
-//! the home of the decision that a request allocates from an arena of its own;
+//! `rule:security/arena-is-an-ownership-root` is the home of the decision
+//! that a request allocates from an arena of its own;
 //! this is the half of it that needs no per-request accounting and no
 //! [`Ctx`](crate::Ctx). The per-request memory ceiling is enforced at
 //! [`affordable`](crate::affordable), not here.

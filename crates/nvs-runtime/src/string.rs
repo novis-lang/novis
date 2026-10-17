@@ -82,7 +82,7 @@
 //! # Why the refcount is a plain `Cell`
 //!
 //! A request shares nothing with any other request but compiled code
-//! (`docs/plan/design.md` § *Thread-per-core, shared-nothing runtime*), and a
+//! (`rule:concurrency/one-scheduler`), and a
 //! value crossing a `spawn`/`spawn worker`/`spawn script` boundary is
 //! deep-copied rather than shared (`rule:classes/two-copy-depths`).
 //! No `NvsStr` a request *allocates* is ever reachable from two threads, so
@@ -103,8 +103,8 @@
 //!
 //! The pin is not an optimization the release path may skip; it is what keeps
 //! the paragraph above sound. A compiled unit **is** shared between requests
-//! (`docs/plan/design.md` § *Thread-per-core, shared-nothing runtime* says
-//! it is the one thing that is), so an immortal header is reachable from two threads and the
+//! (`rule:concurrency/one-scheduler` says it is the one thing that is), so an
+//! immortal header is reachable from two threads and the
 //! sentence "no `NvsStr` is ever reachable from two threads" stops being true
 //! as stated. What the `Cell` actually needs is narrower and does still hold:
 //! **no refcount two threads can reach is ever written.** A word that is only

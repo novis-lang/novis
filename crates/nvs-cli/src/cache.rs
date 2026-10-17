@@ -106,7 +106,7 @@
 //! pair the area exists for.
 //!
 //! **Both architectures, and one place they differ.** [`HOST_ARCH`] names x86-64 and aarch64, which
-//! between them are every row of `docs/plan/design.md`'s platform table, and everything above is
+//! between them are every platform of CI's build matrix, and everything above is
 //! the same for each: the same placement, the same landings, the same one-way protection change.
 //! What differs is only how a resolved value reaches the bytes that hold it, and [`Form`] is that
 //! difference in one type — x86-64 writes a flat little-endian field, while aarch64's fixed-width
@@ -424,7 +424,7 @@ impl Verified {
 /// A payload's architecture is already in `env_hash` and therefore in its path, so this can only
 /// disagree with the file for a hand-placed one — but the check is also what keeps the loader off
 /// a host it has no answer for. `x86-64` and `aarch64` are the two, which between them are every
-/// row of `docs/plan/design.md`'s platform table.
+/// platform of CI's build matrix.
 #[cfg(target_arch = "x86_64")]
 const HOST_ARCH: Architecture = Architecture::X86_64;
 #[cfg(target_arch = "aarch64")]
@@ -2478,7 +2478,7 @@ mod tests {
     /// than a shortfall.
     ///
     /// [`HOST_ARCH`] is where it is spelled, and it names the two architectures
-    /// `docs/plan/design.md`'s platform table does. What a third one costs is one compile per run
+    /// CI's build matrix does. What a third one costs is one compile per run
     /// and nothing a script can observe, which is exactly what every other miss in this file
     /// costs, so the cases that assert a *warm hit* are the ones that carry the gate and this one
     /// carries the claim.

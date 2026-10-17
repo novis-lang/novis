@@ -9,9 +9,9 @@
 //! ownership root, so building one is [`Ctx::isolate`] and releasing one
 //! wholesale is dropping that context.
 //!
-//! `docs/plan/design.md` § *In-process isolated script execution* asks for
-//! **one** `Isolate` type serving both the `spawn script` path and an
-//! inbound HTTP request. This is that type; what differs between the two is the
+//! There is **one** `Isolate` type, serving both the `spawn script` path and an
+//! inbound HTTP request, which is the root isolate of its tree. The two share one
+//! arena setup, one teardown and one place limits are enforced. What differs is the
 //! [`Program`] handed in and the [`Output`] asked for, not the boundary.
 //!
 //! `rule:concurrency/a-connection-is-a-root-isolate`'s
