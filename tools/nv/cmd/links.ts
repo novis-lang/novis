@@ -58,7 +58,7 @@ const MENTION_RE = new RegExp(
     `\\.(?:md|rs|py|toml|json|nvs|nvst|sh|yml|yaml|mjs)(?![\\p{L}\\p{N}_])`,
   "gu",
 );
-/** A mention that is a shape rather than a path: `docs/decisions/NNNN.md`, `docs/plan/mN.md`. */
+/** A mention that is a shape rather than a path: `docs/decisions/NNNN.md`, `crates/<name>/src`. */
 const MENTION_PLACEHOLDER = /NNNN|\bmN\b|<|\{|\*|\?/;
 /** A line carrying one of these names a path that is absent on purpose. See the header. */
 const MENTION_SKIPS = ["check-links:retired", "check-links:written", "check-links:subject"];

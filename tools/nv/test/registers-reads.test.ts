@@ -17,10 +17,6 @@ async function playbookReads(args: string[]): Promise<string[]> {
 }
 
 describe("a register is read only by a command whose answer it can change", () => {
-  test("`plan --check` compares the milestone records with the chain, and reads no playbook bullet", async () => {
-    expect(await playbookReads(["plan", "--check"])).toEqual([]);
-  });
-
   test("the owners gate is the gap records' alone, and reads no playbook bullet", async () => {
     expect(await playbookReads(["owners", "--check"])).toEqual([]);
     expect(await playbookReads(["owners", "--closes", "no-such-goal"])).toEqual([]);

@@ -7,7 +7,6 @@ import { classifyRules, collectRules } from "../cmd/owners.ts";
 import { designedMark } from "../cmd/rules.ts";
 import { Index } from "../lib/index.ts";
 import { write } from "../lib/store.ts";
-import { milestone } from "../schema/milestone.ts";
 import { rule } from "../schema/rule.ts";
 import { topic } from "../schema/topic.ts";
 import { scratch, type Scratch } from "./scratch.ts";
@@ -15,14 +14,11 @@ import { scratch, type Scratch } from "./scratch.ts";
 let tmp: Scratch;
 afterEach(() => tmp?.cleanup());
 
-type Owner = { goal?: string; milestone?: string };
+type Owner = { goal?: string };
 
-/** A scratch tree with milestones M10 (open) and M12 (ongoing), goal file `kept`, and `rules`. */
+/** A scratch tree with goal file `kept`, and `rules`. */
 function seed(rules: Record<string, { status: "shipped" | "designed" } & Owner>): void {
   tmp = scratch();
-  const row = (order: number, state: "ongoing" | "open") => ({ title: "t", order, loopDays: "1", state });
-  write(milestone, "M10", row(10, "open"), tmp.root);
-  write(milestone, "M12", row(12, "ongoing"), tmp.root);
   tmp.put("docs/goals/kept.md", "# kept\n");
   for (const [slug, r] of Object.entries(rules)) {
     write(rule, `x/${slug}`, { title: slug, seeAlso: [], guardedBy: [], ...r }, tmp.root);
@@ -31,7 +27,7 @@ function seed(rules: Record<string, { status: "shipped" | "designed" } & Owner>)
 }
 
 function findings(): string[] {
-  const index = new Index({ root: tmp.root, types: [milestone, rule, topic], prose: [] });
+  const index = new Index({ root: tmp.root, types: [rule, topic], prose: [] });
   index.refresh();
   const out = index.check().map((f) => `${f.path}: ${f.message}`);
   index.close();
@@ -40,21 +36,15 @@ function findings(): string[] {
 
 describe("a rule record's owner", () => {
   test("a designed rule names one owner or none, and a shipped rule names none", () => {
-    seed({ a: { status: "designed", goal: "kept" }, b: { status: "designed", milestone: "M10" }, c: { status: "designed" }, d: { status: "shipped" } });
+    seed({ a: { status: "designed", goal: "kept" }, c: { status: "designed" }, d: { status: "shipped" } });
     expect(findings()).toEqual([]);
   });
 
   test("a shipped rule that names an owner is a finding", () => {
-    seed({ a: { status: "shipped", goal: "kept" }, b: { status: "shipped", milestone: "M10" } });
+    seed({ a: { status: "shipped", goal: "kept" } });
     expect(findings()).toEqual([
       "data/rules/x/a.json: a shipped rule names no owner: x/a is shipped and names goal kept",
-      "data/rules/x/b.json: a shipped rule names no owner: x/b is shipped and names milestone M10",
     ]);
-  });
-
-  test("a rule that names both a goal and a milestone is a finding", () => {
-    seed({ a: { status: "designed", goal: "kept", milestone: "M10" } });
-    expect(findings()).toEqual(["data/rules/x/a.json: a rule names at most one owner: x/a names both a goal and a milestone"]);
   });
 });
 
@@ -63,26 +53,19 @@ describe("nv owners, designed rules", () => {
     seed({
       goal: { status: "designed", goal: "kept" },
       gone: { status: "designed", goal: "gone" },
-      ahead: { status: "designed", milestone: "M10" },
-      ongoing: { status: "designed", milestone: "M12" },
-      finished: { status: "designed", milestone: "M11" },
       none: { status: "designed" },
       shipped: { status: "shipped" },
     });
     const found = collectRules(tmp.root);
-    expect(found.map((r) => r.id)).toEqual(["x/ahead", "x/finished", "x/goal", "x/gone", "x/none", "x/ongoing"]);
+    expect(found.map((r) => r.id)).toEqual(["x/goal", "x/gone", "x/none"]);
     const kinds = classifyRules(found, tmp.root);
     const ids = Object.fromEntries(Object.entries(kinds).map(([k, rs]) => [k, rs.map((r) => r.id)]));
     expect(ids).toEqual({
       goal: ["x/goal"],
-      milestone: ["x/ahead", "x/ongoing"],
-      broken: ["x/finished", "x/gone"],
+      broken: ["x/gone"],
       untagged: ["x/none"],
     });
-    expect(kinds.broken.map((r) => r.why)).toEqual([
-      "no milestone M11 under data/plan/milestones/; name a goal or a milestone still ahead",
-      "no goal `gone` in docs/goals/",
-    ]);
+    expect(kinds.broken.map((r) => r.why)).toEqual(["no goal `gone` in docs/goals/"]);
   });
 
   test("deleting the goal file makes its rule's owner broken", () => {

@@ -15,10 +15,10 @@ export const summary = "route a keyword to the file that owns the topic: nv brie
 
 /** The homes that are not rules: the words that hit one, the home, and what is there. */
 const HOMES: [string, string, string][] = [
-  ["plan milestone schedule goal", "docs/plan/ + docs/implementation-plan.md",
-    "the status block and the milestone table; one file per milestone; the chain is the schedule"],
+  ["plan schedule goal goals chain", "docs/goals/",
+    "one file per goal; the chain in the README's front matter is the schedule"],
   ["tools commands scripts", "docs/agent/commands.md",
-    "how the repo is driven: nv peek, nv verify, nv splice, nv plan, nv disk"],
+    "how the repo is driven: nv peek, nv verify, nv splice, nv disk"],
   ["benches benchmark", "benches/ + docs/perf/",
     "the benchmark programs, and the figures with the methodology that took them"],
   ["perf performance latency throughput", "docs/perf/",
@@ -28,7 +28,7 @@ const HOMES: [string, string, string][] = [
     "a comment says what the code does now: no date, no volatile count, rewritten whole"],
   ["unowned owner owners ownership gap gaps register",
     "bun nv owners",
-    "who owns each gap record under data/gaps/: one goal or one milestone, and nothing else"],
+    "who owns each gap record under data/gaps/: one goal, and nothing else"],
   ["order ordering position band chapters",
     "docs/agent/conventions.md, 'Where a rule sits in the order'",
     "the rulebook reads ground-up, not by date: the five bands, and where a new rule is inserted"],
@@ -44,8 +44,8 @@ function ownershipLine(): string {
   const kinds = classify(collect());
   const refused = REFUSED.reduce((n, k) => n + kinds[k].length, 0);
   const tagged = Object.entries(kinds).reduce((n, [k, v]) => n + (k === "untagged" ? 0 : v.length), 0);
-  return `${kinds.milestone.length} of ${tagged} tagged item(s) name a milestone still ahead today, and ` +
-    `${refused} name an owner the gate refuses; \`bun nv owners --check\` lists those with their anchors`;
+  return `${tagged} recorded gap(s) name an owner, and ${refused} name one the gate refuses; ` +
+    "`bun nv owners --check` lists those with their anchors";
 }
 
 /** A display cap on one answer, not on anything an author writes. */
@@ -93,8 +93,8 @@ function where(terms: string[]): number {
     return 0;
   }
   const needles = terms.map((t) => t.toLowerCase());
-  // A home is hit through its words and its path, never its description: "plan" should not route to
-  // commands.md because that line happens to name `nv plan`.
+  // A home is hit through its words and its path, never its description: "peek" should not route to
+  // commands.md's neighbours because their line happens to name `nv peek`.
   const homes = HOMES.filter(([words, home]) => needles.every((n) => `${words} ${home}`.toLowerCase().includes(n)));
   const hits = all.filter((r) => needles.every((n) => `${r.id} ${r.title}`.toLowerCase().includes(n)));
   if (hits.length === 0 && homes.length === 0) {

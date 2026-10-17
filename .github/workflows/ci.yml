@@ -974,8 +974,6 @@ jobs:
         run: bun nv links
       - name: CONTRIBUTING.md's layout listing still describes the tree
         run: bun nv layout --check
-      - name: Every milestone row parses and agrees with the file it names
-        run: bun nv plan --check
       # The workspace version, the `[workspace.dependencies]` pins that restate it and the newest
       # release tag all agree, and a released version has a changelog section. It runs here
       # because no `nv verify` step runs it: verify runs the steps whose footprint in the
@@ -1022,9 +1020,8 @@ jobs:
   # first-time setup on Windows). Nightly and at release rather than per push,
   # and carrying its corpus between runs: 60s against a corpus that starts empty
   # every time is the same 60s repeated, while 300s starting from everything
-  # every previous night found is coverage that accumulates. Neither is the full
-  # 1h M1 corpus/fuzz verification run, which is a one-time gate recorded in
-  # docs/implementation-plan.md's status block. `rule:testing/the-deep-lane`.
+  # every previous night found is coverage that accumulates.
+  # `rule:testing/the-deep-lane`.
   # ---------------------------------------------------------------------------
   fuzz-smoke:
     name: fuzz smoke / ${{ matrix.target }}

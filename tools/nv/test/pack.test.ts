@@ -6,10 +6,9 @@ import { topic } from "../schema/topic.ts";
 import { pack } from "../cmd/pack.ts";
 import { type Scratch, scratch } from "./scratch.ts";
 
-// A tree with two rules, one shape, a plan with its fields and one milestone. Goal `g` names the first
-// rule, the shape, a plan field and the milestone, and its stage 2 adds the second rule. Goal `bare`
-// names nothing, and it is the live goal, so a pack that ignored the goal it was given prints nothing.
-const STATUS = { status: "s", done: "d", onDisk: "o", toolchain: "t",openNow: "the open work", blocking: "nothing blocks" };
+// A tree with two rules and one shape. Goal `g` names the first rule and the shape, and its stage 2
+// adds the second rule. Goal `bare` names nothing, and it is the live goal, so a pack that ignored the
+// goal it was given prints nothing.
 
 // Goal `g`'s stage 1 is done, so its live stage is 2. A goal file's front matter is written as JSON,
 // which is YAML too.
@@ -33,7 +32,7 @@ let saved: [string | undefined, string | undefined];
 beforeEach(() => {
   s = scratch();
   s.put("docs/goals/README.md", `---\n${JSON.stringify({ looper: 1, chain: ["bare", "g"] })}\n---\n`);
-  s.put("docs/goals/g.md", goalFile({ rules: ["alpha/one"], shapes: ["A commit message"], plan: ["Open now"], milestones: ["M10:verify"] }, { rules: ["alpha/two"] }));
+  s.put("docs/goals/g.md", goalFile({ rules: ["alpha/one"], shapes: ["A commit message"] }, { rules: ["alpha/two"] }));
   s.put("docs/goals/bare.md", goalFile({}));
   write(topic, "alpha", { title: "Alpha", order: 1, rules: ["alpha/one", "alpha/two"] }, s.root);
   write(rule, "alpha/one", { title: "The first rule", status: "shipped", seeAlso: [], guardedBy: [] }, s.root);
@@ -41,9 +40,6 @@ beforeEach(() => {
   s.put("docs/rules/alpha/one.md", "The first rule's fragment.\n");
   s.put("docs/rules/alpha/two.md", "The second rule's fragment.\n");
   s.put("docs/agent/conventions.md", "# Conventions\n\n## A commit message\n\nThe commit shape.\n\n## A code comment\n\nNot asked for.\n");
-  s.put("data/plan/status.json", `${JSON.stringify(STATUS, null, 2)}\n`);
-  s.put("data/plan/milestones/M10.json", `${JSON.stringify({ title: "First", order: 1, loopDays: "1", state: "open" }, null, 2)}\n`);
-  s.put("docs/plan/m10.md", "# M10 — First\n\nThe scope.\n\n**Verify:** the first milestone runs.\n");
   saved = [process.env[LOOPER_GOAL_ENV], process.env[LOOPER_STAGE_ENV]];
   delete process.env[LOOPER_GOAL_ENV];
   delete process.env[LOOPER_STAGE_ENV];
@@ -57,7 +53,7 @@ afterEach(() => {
   s.cleanup();
 });
 
-test("nv pack prints the rules, shapes, plan fields and milestones of the goal and its stage", async () => {
+test("nv pack prints the rules and shapes of the goal and its stage", async () => {
   const r = await pack(["--goal", "g", "--stage", "2"], s.root);
   expect(r.code).toBe(0);
   expect(r.text).toContain("== THE RULES THIS GOAL LIVES INSIDE");
@@ -67,12 +63,8 @@ test("nv pack prints the rules, shapes, plan fields and milestones of the goal a
   expect(r.text).toContain("== THE SHAPES YOU ARE ABOUT TO WRITE");
   expect(r.text).toContain("The commit shape.");
   expect(r.text).not.toContain("Not asked for.");
-  expect(r.text).toContain("Open now: the open work");
-  expect(r.text).not.toContain("nothing blocks");
-  expect(r.text).toContain("-- M10 acceptance (docs/plan/m10.md)");
-  expect(r.text).toContain("the first milestone runs");
   expect(r.text).not.toContain("TRAPS");
-  const order = ["THE RULES", "THE MAP", "THE SHAPES", "THE PLAN", "THE MILESTONES", "THE NEXT FREE DIAGNOSTIC CODE"].map((t) => r.text.indexOf(`== ${t}`));
+  const order = ["THE RULES", "THE MAP", "THE SHAPES", "THE NEXT FREE DIAGNOSTIC CODE"].map((t) => r.text.indexOf(`== ${t}`));
   expect(order.every((at, i) => at >= 0 && (i === 0 || at > order[i - 1]!))).toBe(true);
 
   const stage1 = await pack(["--goal", "g", "--stage", "1"], s.root);

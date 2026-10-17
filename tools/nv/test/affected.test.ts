@@ -16,8 +16,8 @@ describe("nv affected", () => {
     expect(heavy(c({ argv: ["wsl.exe", "--", "bash", "-lc", "cargo +nightly fuzz run prefix"] }))).toBe(true);
     expect(heavy(c({ argv: ["wsl.exe", "--", "bash", "-lc", "bash tools/tsan.sh"] }))).toBe(true);
     expect(heavy(c({ argv: ["bun", "nv", "db-matrix", "--all"] }))).toBe(true);
-    expect(heavy(c({ argv: ["bun", "nv", "plan", "--check"], memoize: false }))).toBe(true);
-    expect(heavy(c({ argv: ["bun", "nv", "plan", "--check"] }))).toBe(false);
+    expect(heavy(c({ argv: ["bun", "nv", "rules", "--check"], memoize: false }))).toBe(true);
+    expect(heavy(c({ argv: ["bun", "nv", "rules", "--check"] }))).toBe(false);
     expect(heavy(c({ argv: ["git", "grep", "-n", "cargo +nightly fuzz run", "--", "docs"] }))).toBe(false);
     expect(heavy(c({ kind: "cargo-named", args: ["test", "-p", "nvs-stdlib"] }))).toBe(false);
   });

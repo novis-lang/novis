@@ -30,11 +30,6 @@
     "goal": {
       "type": "string",
       "pattern": "^[a-z0-9][a-z0-9-]*$"
-    },
-    "milestone": {
-      "type": "string",
-      "minLength": 1,
-      "x-references": "milestone"
     }
   },
   "required": [

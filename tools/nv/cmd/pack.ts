@@ -1,6 +1,6 @@
 // `bun nv pack`: the sections of the orientation pack only Novis has a form for, for one goal and one
-// stage. They are the rules, the scoped map, the convention shapes, the plan fields, the milestones and
-// the next free diagnostic codes, in that order. The traps are `looper orient`'s.
+// stage. They are the rules, the scoped map, the convention shapes and the next free diagnostic codes,
+// in that order. The traps are `looper orient`'s.
 //
 // The goal is `--goal`, else `LOOPER_GOAL_ENV`, else the chain's live goal, read through `lib/chain.ts`.
 // The stage is `--stage`, else `LOOPER_STAGE_ENV`, else the goal's first stage not marked done. The goal's
@@ -21,9 +21,7 @@ import { tracked } from "../lib/git.ts";
 import { ROOT } from "../lib/paths.ts";
 import { fill, pyRepr } from "../lib/py.ts";
 import { load } from "../lib/store.ts";
-import { planStatus } from "../schema/plan-status.ts";
 import { rule as ruleType } from "../schema/rule.ts";
-import { bodyOf, leadParagraph, milestones, verifyParagraph } from "./plan.ts";
 
 export const summary = "the orientation pack's Novis-only sections for one goal and stage: nv pack [--goal <slug>] [--stage <n>]";
 
@@ -41,23 +39,12 @@ const NAMED_FILES_MAX = 40;
 /** How long a summary derived from a file that is not a crate module may be. */
 const SUMMARY_MAX = 200;
 
-/** The plan's status fields as the plan writes them, and each one's key in the record. */
-const PLAN_FIELDS: [string, string][] = [
-  ["Status", "status"],
-  ["Done", "done"],
-  ["On disk", "onDisk"],
-  ["Toolchain", "toolchain"],
-  ["Open now", "openNow"],
-  ["Blocking", "blocking"],
-];
 
 export interface Context {
   modules?: string[];
   rules?: string[];
   shapes?: string[];
   playbook?: string[];
-  plan?: string[];
-  milestones?: string[];
 }
 
 export interface GoalValue {
@@ -214,7 +201,7 @@ export function sectionOpening(text: string, words: string): string | null {
 // ------------------------------------------------------------------------ the manifest
 
 /** The fields a stage's `context` may add to. */
-export const STAGE_FIELDS = ["rules", "shapes", "playbook", "milestones"] as const;
+export const STAGE_FIELDS = ["rules", "shapes", "playbook"] as const;
 
 export interface Manifest {
   present: boolean;
@@ -226,8 +213,6 @@ export interface Manifest {
   rules: string[];
   shapes: string[];
   playbook: string[];
-  plan: string[];
-  milestones: string[];
 }
 
 export function manifest(g: GoalValue, stage: number | null): Manifest {
@@ -249,8 +234,6 @@ export function manifest(g: GoalValue, stage: number | null): Manifest {
     rules: field("rules"),
     shapes: field("shapes"),
     playbook: field("playbook"),
-    plan: ctx.plan ?? ["Open now", "Blocking"],
-    milestones: field("milestones"),
   };
 }
 
@@ -550,53 +533,7 @@ export function runShapes(m: Manifest): void {
   }
 }
 
-// ----------------------------------------------------------- plan, milestones and codes
-
-export function runPlan(m: Manifest): void {
-  const status = load(planStatus, root)[0]?.value as Record<string, string> | undefined;
-  if (!status) return;
-  const picked = PLAN_FIELDS.filter(([label, key]) => m.plan.includes(label) && status[key] !== undefined);
-  if (picked.length === 0) return;
-  section("THE PLAN, THE FIELDS THIS GOAL READS", `docs/implementation-plan.md, ${pyList(m.plan)}`);
-  for (const [label, key] of picked) emit(indentedFill(`${label}: ${stripLinks(status[key]!.trim())}`, "    ", ""));
-  emit();
-  emit(`These fields are rewritten by \`${tool("session")} --wrap\`, never edited by hand.`);
-}
-
-export function runMilestones(m: Manifest): void {
-  if (m.milestones.length === 0) return;
-  const index = milestones(root);
-  section("THE MILESTONES THIS GOAL IS INSIDE", `docs/plan/, filtered to [context] milestones = ${pyList(m.milestones)}`);
-  for (const wanted of m.milestones) {
-    const colon = wanted.indexOf(":");
-    const spec = colon < 0 ? wanted : wanted.slice(0, colon);
-    const part = colon < 0 ? "" : wanted.slice(colon + 1);
-    const entry = index.find((e) => e.id === spec.trim().toUpperCase());
-    if (!entry) {
-      warn(`[context] milestones names ${pyRepr(spec)}, which the plan's table does not list`);
-      continue;
-    }
-    if (!existsSync(join(root, entry.rel))) {
-      warn(`[context] milestones names ${pyRepr(spec)}, whose file ${entry.rel} is missing`);
-      continue;
-    }
-    emit();
-    if (part === "verify") {
-      emit(`-- ${entry.id} acceptance (${entry.rel})`);
-      emit(stripLinks(verifyParagraph(entry, root)));
-    } else if (part === "lead") {
-      emit(`-- ${entry.id} lead (${entry.rel})`);
-      emit(stripLinks(leadParagraph(entry)));
-    } else {
-      emit(`-- ${entry.id} (${entry.rel})`);
-      emit(bodyOf(entry, root));
-    }
-  }
-  emit();
-  emit("`Mn` is the whole milestone; `Mn:lead` and `Mn:verify` are the two paragraphs that");
-  emit(`usually answer the question. A \`## milestone: Mn\` section in \`${tool("session")} --wrap\``);
-  emit("rewrites one.");
-}
+// -------------------------------------------------------------------------------- codes
 
 /** The next free diagnostic code in each band. */
 export function runDiagnosticCodes(): void {
@@ -665,8 +602,6 @@ export async function pack(args: string[], at: string = ROOT): Promise<{ code: n
   runRules(m);
   await runMap(m);
   runShapes(m);
-  runPlan(m);
-  runMilestones(m);
   runDiagnosticCodes();
   closeLedger();
   return { code: 0, text: printed().join("\n").replace(/^\n+/, "") };

@@ -53,7 +53,7 @@ const COMMANDS: Record<string, () => Promise<Command>> = {
   owners: () => import("./cmd/owners.ts"),
   "pdf-custom-data": () => import("./cmd/pdf-custom-data.ts"),
   peek: () => import("./cmd/peek.ts"),
-  plan: () => import("./cmd/plan.ts"),
+
   pack: () => import("./cmd/pack.ts"),
   proofs: () => import("./cmd/proofs.ts"),
   query: () => import("./cmd/query.ts"),
