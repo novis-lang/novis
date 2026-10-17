@@ -212,6 +212,31 @@ fn a_swedish_sort_puts_a_umlaut_after_z_and_a_german_sort_does_not() {
     assert_eq!(words(german), ["a", "ä", "z"]);
 }
 
+/// Both cases of `caseFirst` cross typed and reach the collator. `Lower` is the case whose
+/// generated name is also the `Lower` trait's associated type (`nvs_ext::typed`'s intl world).
+#[test]
+fn case_first_puts_its_case_first() {
+    let input: Vec<String> = ["a", "A"].iter().map(|s| (*s).to_owned()).collect();
+    let first = |case: &str| {
+        let options = Value::Array(vec![(
+            Key::String("caseFirst".to_owned()),
+            Value::Case(case.to_owned()),
+        )]);
+        let args = vec![strings(&input), Value::String("en".to_owned()), options];
+        run(|request, extension| {
+            let order = block_on(request.call_values(extension, "collateOrder", args))
+                .expect("`collateOrder` answers")
+                .expect("it returns a value");
+            match items(order).first() {
+                Some(Value::Uint(index)) => input[usize::try_from(*index).unwrap()].clone(),
+                other => panic!("an index was expected, not {other:?}"),
+            }
+        })
+    };
+    assert_eq!(first("Upper"), "A");
+    assert_eq!(first("Lower"), "a");
+}
+
 fn texts(numbers: &[&str]) -> Vec<String> {
     numbers.iter().map(|n| (*n).to_owned()).collect()
 }

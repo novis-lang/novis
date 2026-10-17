@@ -26,6 +26,10 @@ crates/nvs-runtime/src/capability.rs  "../say"  --  a program path compared afte
 crates/nvs-ext/src/wasi.rs  "../../wit/nvs-ext"  --  `bindgen!`'s input, read by the compiler at build time; the binary opens nothing
 crates/nvs-ext/src/typed/image.rs  "../../wit/nvs-ext"  --  `bindgen!`'s input, read by the compiler at build time; the binary opens nothing
 crates/nvs-ext/src/typed/image.rs  "../../wit/image.wit"  --  `bindgen!`'s input, read by the compiler at build time; the binary opens nothing
+crates/nvs-ext/src/typed/intl.rs  "../../wit/nvs-ext"  --  `bindgen!`'s input, read by the compiler at build time; the binary opens nothing
+crates/nvs-ext/src/typed/intl.rs  "../../wit/intl.wit"  --  `bindgen!`'s input, read by the compiler at build time; the binary opens nothing
+crates/nvs-ext/src/typed/pdf.rs  "../../wit/nvs-ext"  --  `bindgen!`'s input, read by the compiler at build time; the binary opens nothing
+crates/nvs-ext/src/typed/pdf.rs  "../../wit/pdf.wit"  --  `bindgen!`'s input, read by the compiler at build time; the binary opens nothing
 crates/nvs-stdlib/src/io.rs  ".."  --  joined onto a scratch directory
 crates/nvs-stdlib/src/io.rs  "../outside.txt"  --  resolved against a scratch base, expected to be refused
 crates/nvs-stdlib/src/io.rs  "sub/../../outside.txt"  --  resolved against a scratch base, expected to be refused
