@@ -241,10 +241,47 @@ fn call_callable_with(
         }
     }
 
-    crate::abi::call(target, ctx, &slots).map_err(|status| {
+    // `rule:testing/debug-probes`'s probe pair, here rather than at the
+    // compiled call site, because a `Core` member calls a callback through
+    // this function too. The label is the name the callable's body is
+    // compiled under.
+    ctx.enter_runtime_call(|| invoke_label(callable));
+    let result = crate::abi::call(target, ctx, &slots);
+    ctx.exit_runtime_call(
+        || invoke_label(callable),
+        result.as_ref().map_or_else(|status| *status, |_| OK),
+    );
+    result.map_err(|status| {
         debug_assert_ne!(status, OK, "call reports Err only for a non-OK status");
         Fault::Pending(status)
     })
+}
+
+/// `Class::invoke` for the class of `callable`, which is the name its body is
+/// compiled under, or an empty label for a value with no class descriptor.
+///
+/// Called only after [`invoke_address`] accepted the value, while the caller
+/// still owns its reference.
+fn invoke_label(callable: Value) -> String {
+    let Some(ptr) = callable.obj_ptr().filter(|ptr| !ptr.is_null()) else {
+        return String::new();
+    };
+    #[expect(
+        unsafe_code,
+        reason = "the caller owns a reference to this object, so the \
+                  allocation and its descriptor are both live for this read"
+    )]
+    let desc: *const ClassDesc = unsafe { NvsObj::class_of(ptr) };
+    if desc.is_null() {
+        return String::new();
+    }
+    #[expect(
+        unsafe_code,
+        reason = "just checked the descriptor is non-null, and it is owned by \
+                  the compiled unit's class table for that unit's whole life"
+    )]
+    let class = unsafe { &*desc };
+    format!("{}::{CALLABLE_INVOKE}", class.name())
 }
 
 /// `nvs_ir::Helper::CallCallable` — `rule:types/anonymous-function`'s `$fn(...)`, which is compiled

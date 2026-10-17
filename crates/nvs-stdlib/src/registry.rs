@@ -3053,6 +3053,32 @@ pub fn constructor_symbol(class: &str) -> Option<&'static str> {
     constructor_of(class).map(|method| method.symbol)
 }
 
+/// The `Core\Class::member` the member at linker symbol `symbol` is written as,
+/// or `None` for a symbol no row of [`CLASSES`] or [`CONSTRUCTORS`] names: a
+/// construct such as `spawn script`, or a helper the compiler calls on its own.
+///
+/// What `rule:testing/debug-probes`'s call probes report a `Core` call as, so a
+/// trace and a profile name the member the program wrote. The table is built
+/// once per process at the first lookup, and holds one string per member.
+#[must_use]
+pub fn member_label(symbol: &str) -> Option<&'static str> {
+    use std::collections::HashMap;
+    use std::sync::OnceLock;
+
+    static LABELS: OnceLock<HashMap<&'static str, String>> = OnceLock::new();
+    LABELS
+        .get_or_init(|| {
+            CLASSES
+                .iter()
+                .flat_map(|class| class.members().map(move |method| (class.name, method)))
+                .chain(CONSTRUCTORS.iter().map(|(class, method)| (*class, *method)))
+                .map(|(class, method)| (method.symbol, format!("{class}::{}", method.name)))
+                .collect()
+        })
+        .get(symbol)
+        .map(String::as_str)
+}
+
 /// One `Core`-owned enum — `rule:enums/closed-integer-type`'s
 /// closed, named integer type, declared here rather than in Novis source.
 #[derive(Clone, Copy, Debug)]

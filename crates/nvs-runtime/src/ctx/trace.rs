@@ -283,15 +283,39 @@ impl Ctx {
     /// [`nvs_probe_call_enter`]'s whole effect under that bit. Both are zero
     /// for a request that ran with it off throughout.
     ///
-    /// A call is a compiled call site — a Novis method calling a Novis method.
-    /// A `Core` member is a helper and is not a call site, so a bench over one
-    /// counts the loop around it; what the member did inside is visible only to
-    /// the allocator's own counters (`budget::allocations`) and to the clock.
+    /// A call is a call the program made: a compiled call site, a `Core`
+    /// member's call, and every call through a `callable`, a callback a `Core`
+    /// member makes included. A helper the compiler calls on its own is not
+    /// one. What a `Core` member does inside is visible only to the
+    /// allocator's own counters (`budget::allocations`) and to the clock.
     #[must_use]
     pub fn counted(&self) -> Counted {
         Counted {
             statements: self.counted_stmts,
             calls: self.counted_calls,
+        }
+    }
+
+    /// [`nvs_probe_call_enter`]'s effect for a call the runtime makes rather
+    /// than compiled code: a call through a `callable`
+    /// (`crate::callable::call_callable`), whose callee has no name the call
+    /// site could hold. `callee` builds the label, and runs only under
+    /// [`DebugFlags::TRACE`], so a call with every bit off pays one flags test.
+    pub(crate) fn enter_runtime_call(&mut self, callee: impl FnOnce() -> String) {
+        if self.debug.contains(DebugFlags::TRACE) {
+            self.record_trace(&callee(), None);
+        }
+        if self.debug.contains(DebugFlags::COUNT) {
+            self.counted_calls += 1;
+        }
+    }
+
+    /// [`nvs_probe_call_exit`]'s effect for the call
+    /// [`Self::enter_runtime_call`] entered, with the status the callee
+    /// returned.
+    pub(crate) fn exit_runtime_call(&mut self, callee: impl FnOnce() -> String, status: i32) {
+        if self.debug.contains(DebugFlags::TRACE) {
+            self.record_trace(&callee(), Some(status));
         }
     }
 
