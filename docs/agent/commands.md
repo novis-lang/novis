@@ -774,6 +774,10 @@ read-only for the run and the tree it is committed in stays as it was. A panic h
 the site, add the minimized input to `fuzz/seeds/prefix/`, and pin it beside the cuts in
 `crates/nvs-syntax/tests/prefixes.rs`.
 
+A target whose inputs need bytes the LF checkout would rewrite takes a dictionary instead of seeds.
+`request_head` needs CRLF, so it runs with `-dict=fuzz/dicts/request_head.dict` after the `--`, and
+CI passes `fuzz/dicts/<target>.dict` to every target that has one.
+
 CI's `fuzz-smoke` job runs every target for 300s nightly and at release, carrying the corpus between runs
 -- not per push, because 60s against a corpus that starts empty every time is the same 60s repeated
 (`rule:testing/the-deep-lane`).

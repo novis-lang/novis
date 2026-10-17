@@ -14,9 +14,11 @@ cargo-fuzz = true
 [workspace]
 
 [dependencies]
+httparse = "1"
 libfuzzer-sys = "0.4"
 nvs-diagnostics = { path = "../crates/nvs-diagnostics" }
 nvs-runtime = { path = "../crates/nvs-runtime" }
+nvs-server = { path = "../crates/nvs-server" }
 nvs-stdlib = { path = "../crates/nvs-stdlib" }
 nvs-syntax = { path = "../crates/nvs-syntax" }
 
@@ -93,6 +95,13 @@ bench = false
 [[bin]]
 name = "reply_head"
 path = "fuzz_targets/reply_head.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "request_head"
+path = "fuzz_targets/request_head.rs"
 test = false
 doc = false
 bench = false
