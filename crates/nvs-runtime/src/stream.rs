@@ -112,6 +112,10 @@ struct Wire {
     /// dropped [`Emit`] also says, so an isolate that ended never leaves a
     /// response open.
     ended: bool,
+    /// The body was cut off rather than finished: the program that wrote it
+    /// threw, met a limit or was cancelled. Set together with `ended`, and what
+    /// the connection reads it as is a body that must not look complete.
+    aborted: bool,
     /// The consumer is gone or has given up: nothing will take another chunk,
     /// and a write answers [`CLOSED`] rather than parking.
     closed: bool,
@@ -130,6 +134,7 @@ impl fmt::Debug for Wire {
         f.debug_struct("Wire")
             .field("in_flight", &self.chunk.is_some())
             .field("ended", &self.ended)
+            .field("aborted", &self.aborted)
             .field("closed", &self.closed)
             .finish()
     }
@@ -258,9 +263,26 @@ impl Emit {
     /// Ends the body: the connection frames whatever it still holds, then the
     /// end of the stream.
     pub fn finish(&mut self) {
+        self.end(false);
+    }
+
+    /// Cuts the body off: the connection reports [`Drained::Aborted`] instead
+    /// of an end, so the peer sees a failed response rather than a complete
+    /// one. A chunk still in flight is discarded with it. Called where the
+    /// program that wrote the body threw, met a limit or was cancelled; after
+    /// [`Self::finish`] it does nothing, since the end is already given.
+    pub fn abort(&mut self) {
+        self.end(true);
+    }
+
+    fn end(&mut self, aborted: bool) {
+        if self.spent && self.wire.borrow().ended {
+            return;
+        }
         self.spent = true;
         let mut wire = self.wire.borrow_mut();
         wire.ended = true;
+        wire.aborted = aborted;
         if let Some(reader) = wire.reader.take() {
             reader.wake();
         }
@@ -301,6 +323,10 @@ pub enum Drained {
     /// The body is over: the writer finished it, or the isolate holding the
     /// writer ended.
     Ended,
+    /// The body was cut off by [`Emit::abort`]: the program that wrote it
+    /// stopped before it finished, and the connection must not end the
+    /// response as if it were complete.
+    Aborted,
 }
 
 impl Drain {
@@ -311,6 +337,10 @@ impl Drain {
     /// again for the next one, and does not need waking to do it.
     pub fn next_chunk(&mut self, waker: &Waker) -> Drained {
         let mut wire = self.wire.borrow_mut();
+        if wire.aborted {
+            wire.chunk = None;
+            return Drained::Aborted;
+        }
         if let Some(chunk) = wire.chunk.take() {
             if let Some(writer) = wire.writer.take() {
                 writer();
@@ -801,6 +831,31 @@ mod tests {
             "one chunk in flight, and it has been taken"
         );
         emit.finish();
+        assert!(matches!(drain.next_chunk(Waker::noop()), Drained::Ended));
+    }
+
+    #[test]
+    fn an_aborted_body_is_reported_as_aborted_and_not_as_ended() {
+        let (mut emit, mut drain) = open(Duration::from_secs(5), ROOMY);
+        emit.send(b"half".to_vec()).expect("the cell is empty");
+        emit.abort();
+        assert!(emit.is_closed(), "an aborted half writes nothing more");
+        assert!(
+            matches!(drain.next_chunk(Waker::noop()), Drained::Aborted),
+            "the chunk in flight goes with the abort"
+        );
+        drop(emit);
+        assert!(
+            matches!(drain.next_chunk(Waker::noop()), Drained::Aborted),
+            "dropping the aborted half does not turn the abort into an end"
+        );
+    }
+
+    #[test]
+    fn an_abort_after_the_finish_leaves_the_body_ended() {
+        let (mut emit, mut drain) = open(Duration::from_secs(5), ROOMY);
+        emit.finish();
+        emit.abort();
         assert!(matches!(drain.next_chunk(Waker::noop()), Drained::Ended));
     }
 
