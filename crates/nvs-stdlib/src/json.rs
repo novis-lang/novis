@@ -3972,6 +3972,28 @@ mod tests {
         assert!(why.contains("too large for `int`"), "{why}");
     }
 
+    /// A float decodes to the nearest `f64`, so the text `encode` writes for
+    /// it decodes back to the same value. The first number is the one the
+    /// `json` fuzz target found decoding one step low.
+    // covers: Core\Json::decode
+    #[test]
+    fn a_float_decodes_to_the_nearest_f64() {
+        for text in [
+            "8888888388888831.0",
+            "8888888388888830.8008000400",
+            "0.1",
+            "2.2250738585072014e-308",
+        ] {
+            let value = decoded(text, 8).expect("a float");
+            let expected: f64 = text.parse().expect("Rust's parse rounds to nearest");
+            assert_eq!(
+                value.as_float().map(f64::to_bits),
+                Some(expected.to_bits()),
+                "{text}"
+            );
+        }
+    }
+
     /// The member as a program calls it, option bag included: a document
     /// comes back as the value it spells, the `maxDepth` it was handed is the
     /// one applied, and a `maxDepth` outside `1..=DEPTH_CEILING` is refused
