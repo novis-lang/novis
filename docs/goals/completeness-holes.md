@@ -331,8 +331,12 @@ filtered by visibility.
 **Does:** a limit stop in runtime bookkeeping names its directive, a failed class conversion names
 the class, and a check fails for a diagnostic code no test raises.
 
-- [ ] The empty `FATAL: ` path raises the usual limit report. `crates/nvs-cli/src/main.rs:3789`
-- [ ] The `class<T>` conversion error names the operand. `crates/nvs-ir/src/lower/convert.rs:1070`
+- [x] The empty `FATAL: ` path raises the usual limit report. `crates/nvs-runtime/src/ctx/error.rs:860`
+  - [x] `Ctx::take_thrown` builds the promoted error inside `budget::Reporting`.
+  - [x] A conformance case pins the report for a ledger grown past `[limits] memory`, and fails without the fix.
+- [x] The `class<T>` conversion error names the operand. `crates/nvs-ir/src/lower/convert.rs:1083`
+  - [x] The refused edge concatenates the string, or a narrowed descriptor's name.
+  - [x] The conformance case covers a name, an unrelated class and a narrowing, and valgrind finds no leak.
 - [ ] A check over `code::ALL`, and tests for E0001, E0004, E0005, E0217 and E0768. `crates/nvs-diagnostics/src/lib.rs:5871`
 
 ### 13. every shipped promise the audit named has its test
@@ -355,17 +359,20 @@ work cannot live only in prose again.
 
 ### State
 
-Stages 1 to 4 and 8 to 11 are done. This session landed two slices:
+Stages 1 to 4 and 8 to 11 are done, and stage 12 has one item left. This session landed three slices:
 
-- The `tools:config/values-and-units` attack's `nvs.toml` holds the largest value each unit parses
-  to. A malformed `[limits]` value stops the boot as E0601, so the old file never started and the
-  floor's proof ran red.
-- A `Core` name is checked where it is imported and where it is written as a type.
-  `nvs_types::core_lib::importable` lists every class, interface, enum, `Core` exception and
-  attribute. `CoreRoster::Names` carries it as `imports`, so `use Core\Nope;` is E0306 and a
-  namespace above a listed name (`use Core\Db;`) still resolves. `lower.rs` reports a `Core` type
-  not on the list as E0303. `Core` has no named shape aliases: `Core\Db\Plan\Step` is a class.
-  Trade-offs: none at run time; the checker reads one list built once per process.
+- The floor's red proof, `docs/examples/types/Throwable/02-what-a-caught-error-carries.nvs`, wrote
+  `previous` after construction, which E0782 now refuses. It passes `{previous: $cause}` to the
+  constructor. The `Throwable` attack did the same, so it builds its chain through the constructor and
+  drops the step that made an error its own `previous`, which the language no longer allows. The
+  file is renamed to `01-a-chain-of-causes-and-a-backtrace-as-deep-as-the-stack.nvs`.
+- A `FATAL` reached while the request still holds more than its ceiling prints its limit report.
+  `Ctx::take_thrown` builds the promoted error inside `budget::Reporting`, so the message string is
+  not refused. Case: `tests/conformance/core/test-assertions-past-the-memory-ceiling-name-the-ceiling.nvst`.
+- A failed `as class<T>` names what failed: "cannot convert `Nothing` to `class<Formatter>`: it does
+  not name a class that is a `Formatter`". A narrowed descriptor is named through
+  `Helper::ClassDescName`. Valgrind finds no leak. Trade-offs: two allocations on the throwing edge
+  only, none on success.
 
 Stage 6's two items are on disk. Its remainder is
 `data/gaps/nvs-ext/a-workbook-never-finished-is-neither-logged-nor-cut-off.json`: no Novis member
@@ -377,18 +384,15 @@ user: `data/gaps/nvs-runtime/a-wider-shape-view-writes-an-object-of-the-wrong-cl
 two questions for the user: `data/gaps/nvs-config/debug-mode-is-read-by-nothing.json` and
 `data/gaps/nvs-db/span-renders-on-a-flag-no.json`.
 
-The nightly still tests `cb7021a24` (checked this session with `gh run view 38869457440`). The local
-`main` is about 180 commits ahead and not pushed, so its failures are the old tree's until the user
-pushes.
+The nightly still tests `cb7021a24` (`gh run view 38869457440`). The local `main` is about 185
+commits ahead and not pushed, so its failures are the old tree's until the user pushes.
 
 ### Next
 
-**Stage 12, error messages and code coverage, over `crates/nvs-cli/src/main.rs`,
-`crates/nvs-ir/src/lower/convert.rs` and `crates/nvs-diagnostics/src/lib.rs`.**
+**Stage 12's last item, then stage 13, over `crates/nvs-diagnostics/src/lib.rs` and the `.nvst` trees.**
 
-- [ ] The empty `FATAL: ` path raises the usual limit report (`rule:errors/engine-floor`, `data/gaps/nvs-cli/a-limit-hit-in-runtime-bookkeeping-prints-an-empty-fatal.json`). `crates/nvs-cli/src/main.rs:3796`
-- [ ] The `class<T>` conversion error names the operand (`rule:types/class-reference`, `data/gaps/nvs-ir/a-failed-class-conversion-omits-the-class-name.json`). `crates/nvs-ir/src/lower/convert.rs:699`
-- [ ] A check over `code::ALL`, and tests for E0001, E0004, E0005, E0217 and E0768 (`data/gaps/nvs-diagnostics/no-check-that-every-diagnostic-code-is-raised-by-a-test.json`). `crates/nvs-diagnostics/src/lib.rs:77`
+- [ ] A check over `code::ALL` that fails for a code no test asserts by its code, and tests for E0001, E0004, E0005, E0217 and E0768 (`rule:tooling/a-diagnostic-code-carries-its-card`, `data/gaps/nvs-diagnostics/no-check-that-every-diagnostic-code-is-raised-by-a-test.json`). `crates/nvs-diagnostics/src/lib.rs:77`
+- [ ] Each `data/gaps/*/no-test-*.json` record gets its test, and the record is deleted (`rule:testing/feature-proofs`). `crates/nvs-db/src/pg.rs:6081`
 
 ### Backlog
 
