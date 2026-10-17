@@ -1,0 +1,46 @@
+--TEST--
+`$cls::f(...)` over a `class<T>` names the method of the class `$cls` holds, so calling it runs what `$cls::f()` runs: the override where the class has one, and the declaration where it has not — `rule:expressions/method-reference`, `rule:types/class-reference-sites`
+--FILE--
+<?nvs
+class Animal {
+    public static function sound(string $how): string {
+        return $how . " " . static::name();
+    }
+
+    public static function name(): string {
+        return "animal";
+    }
+}
+
+class Dog extends Animal {
+    public static function sound(string $how): string {
+        return $how . " woof";
+    }
+}
+
+// Declares no `sound`, so the reference falls back to `Animal`'s body, and
+// `static` inside it is still `Cat`.
+class Cat extends Animal {
+    public static function name(): string {
+        return "cat";
+    }
+}
+
+class<Animal> $dog = Dog::class as class<Animal>;
+class<Animal> $cat = Cat::class as class<Animal>;
+
+echo $dog::sound("loud"), "\n";
+callable $speak = $dog::sound(...);
+echo $speak("loud"), "\n";
+
+callable $purr = $cat::sound(...);
+echo $purr("soft"), "\n";
+
+// The reference keeps the class `$dog` held when it was made.
+$dog = $cat;
+echo $speak("still"), "\n";
+--EXPECT--
+loud woof
+loud woof
+soft cat
+still woof

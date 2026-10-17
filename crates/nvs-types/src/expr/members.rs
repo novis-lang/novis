@@ -1435,7 +1435,12 @@ pub(crate) fn resolve_class_expr(class_expr: &Expr, ctx: &Ctx<'_>, env: &Env<'_>
 /// `None` for two written spellings as well: `self::` outside any class, and
 /// `parent::` in a class with no `extends`. Both are already diagnosed where
 /// the name is resolved, and a second report here would name the wrong rule.
-pub(crate) fn is_written_class_side(class_expr: &Expr) -> bool {
+///
+/// `nvs-ir` asks it too: a method reference whose class side is not written
+/// is `$cls::f(...)` over a `class<T>`, and its callable dispatches on the
+/// descriptor `$cls` holds.
+#[must_use]
+pub fn is_written_class_side(class_expr: &Expr) -> bool {
     match &class_expr.kind {
         ExprKind::SelfExpr
         | ExprKind::StaticExpr

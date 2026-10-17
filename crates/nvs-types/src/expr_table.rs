@@ -604,11 +604,12 @@ pub enum ExprInfo {
     /// reference has nothing to do with. [`crate::expr::calls`]'s
     /// static-call refusal is where that is reported.
     ///
-    /// Known gap: `$cls::f(...)` written as `rule:types/callable-values`'s method reference
-    /// records [`ExprInfo::CallableRef`] like any other class side, so the
-    /// callable it names is `T`'s method rather than the implementor's. The
-    /// same fallback-versus-override question as above, at a site that has no
-    /// descriptor to dispatch on once the callable has escaped.
+    /// `$cls::f(...)` written as `rule:expressions/method-reference`'s method
+    /// reference records [`ExprInfo::CallableRef`] instead, like any other class
+    /// side, with `T`'s declaration as the same fallback. `nvs-ir` tells it from
+    /// a written class side with [`crate::is_written_class_side`], stores the
+    /// descriptor `$cls` holds in the callable, and dispatches on it when the
+    /// callable runs, so the reference calls what the direct call would.
     ClassRefCall(ResolvedCall),
     /// `$m->method(...)` on a **`mixed`** receiver — the one method call that
     /// resolves to no signature and is not refused where it is written.
