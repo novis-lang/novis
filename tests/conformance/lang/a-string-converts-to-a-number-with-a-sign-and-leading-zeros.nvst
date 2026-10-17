@@ -1,0 +1,23 @@
+--TEST--
+`rule:types/conversion`'s `string` row: an integer target takes a sign and leading zeros, a `float` target also takes a fraction and an exponent, and a space, an `_`, hex, `inf` and `nan` do not convert
+--FILE--
+<?nvs
+echo "+5" as int, "|", "007" as int, "|", "-0" as int, "|", "+5" as uint, "\n";
+echo ".5" as float, "|", "5." as float, "|", "1e3" as float, "|", "+1.5" as float, "\n";
+
+array<string> $ints = [" 5", "5 ", "1_000", "0x10", "5x", "", "+", "-1"];
+foreach ($ints as string $text) {
+    echo $text as ?uint == null ? "null" : "converted", "|";
+}
+echo "\n";
+
+array<string> $floats = ["inf", "nan", "1e400", " 1.5", "1.5 ", "."];
+foreach ($floats as string $text) {
+    echo $text as ?float == null ? "null" : "converted", "|";
+}
+echo "\n";
+--EXPECT--
+5|7|0|5
+0.5|5|1000|1.5
+null|null|null|null|null|null|null|null|
+null|null|null|null|null|null|

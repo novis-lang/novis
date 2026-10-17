@@ -1,0 +1,47 @@
+<?nvs
+// Attack: a client sends an object that has the same key twice. Another program may read the
+// first value and this one the last. Every such document must throw a `ParseError`.
+
+#[Core\Json\Derive]
+class Order
+{
+    public bool $admin;
+
+    public function constructor(bool $admin)
+    {
+        $this->admin = $admin;
+    }
+}
+
+// 1. The key twice, in plain text and with one copy written as a `\u` escape. Both copies
+// are the key `admin`, so each document must throw a `ParseError`.
+array<string> $twice = [
+    '{"admin":false,"admin":true}',
+    "{\"admin\":false,\"\\u0061dmin\":true}",
+    '{"a":[{"admin":false,"admin":true}]}',
+];
+foreach ($twice as string $text) {
+    try {
+        Core\Json::decode($text);
+        throw new LogicError('a repeated key was decoded');
+    } catch (ParseError $repeated) {
+    }
+}
+echo 'step 1: done', "\n";
+
+// 2. The same document decoded into a class. It must throw a `ParseError`, and no `Order` exists.
+try {
+    Core\Json::decodeAs<Order>('{"admin":false,"admin":true}');
+    throw new LogicError('a repeated key filled a class');
+} catch (ParseError $repeated) {
+}
+echo 'step 2: done', "\n";
+
+// 3. One object with the key `k` one hundred thousand times. The first repeat must throw.
+string $flood = '{' . Core\Str::repeat('"k":1,', 99999) . '"k":1}';
+try {
+    Core\Json::decode($flood);
+    throw new LogicError('a flood of one key was decoded');
+} catch (ParseError $repeated) {
+}
+echo 'step 3: done', "\n";

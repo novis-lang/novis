@@ -990,8 +990,16 @@ impl NvsArray {
     /// Writes `value` at `key`, taking over both references and separating
     /// first if this handle is not the only owner.
     pub fn set(&mut self, key: NvsStr, value: Value) {
+        self.replace(key, value);
+    }
+
+    /// [`set`](Self::set), returning whether `key` was already there. The
+    /// write's own lookup gives the answer, so a decoder that refuses a
+    /// repeated key asks nothing twice.
+    pub fn replace(&mut self, key: NvsStr, value: Value) -> bool {
         self.make_unique();
         let displaced = self.header().table.borrow_mut().set(key, value);
+        let was_there = displaced.is_some();
         if let Some(old) = displaced {
             #[expect(
                 unsafe_code,
@@ -1001,6 +1009,7 @@ impl NvsArray {
                 crate::release::release_value(old);
             }
         }
+        was_there
     }
 
     /// The value stored at the integer key `index`, borrowed rather than

@@ -11633,7 +11633,7 @@ Parses the JSON text `$json` into a value. A JSON object becomes a string-keyed 
 
 **Returns** `mixed` — The decoded value: `null`, `bool`, `int`, `float`, `string`, or an array; a JSON object is always a string-keyed array, never an object.
 
-**Throws** `ParseError` — `$json` is not a valid JSON document, nests deeper than `maxDepth`, or contains a whole number too large for `int`; the one issue it carries has an empty path.; `LogicError` — `maxDepth` is `0` or above `1024`.
+**Throws** `ParseError` — `$json` is not a valid JSON document, nests deeper than `maxDepth`, has an object with the same key twice, or contains a whole number too large for `int`. The one issue it carries has an empty path.; `LogicError` — `maxDepth` is `0` or above `1024`.
 
 <a id="core-core-json-decodeas"></a>
 #### `Core\Json::decodeAs`
@@ -11651,7 +11651,7 @@ Parses the JSON object `$json` into an instance of `T`, a class carrying `#[Json
 
 **Returns** `T` — A new `T` built from the document's fields, or — for an `array<C>` — one new `C` per element, in the document's own order.
 
-**Throws** `ParseError` — `$json` is not a valid JSON document, nests deeper than `maxDepth`, contains a whole number too large for `int`, is not an object at the top level (an array, for an `array<C>`), or has fields that are missing or of the wrong type — every failed field is one issue on the error, at its own path, and the message counts them. A list stops at its first bad element, and each of its paths carries that element's position.; `LogicError` — `T` has no JSON codec because it does not carry `#[Json\Derive]`, or `maxDepth` is `0` or above `1024`.; `RecursionError` — The call stack is full when a constructor runs. This happens when the call starts with the stack almost full, or when a constructor recurses deeply. A deep document within `maxDepth` does not throw this error.
+**Throws** `ParseError` — `$json` is not a valid JSON document, nests deeper than `maxDepth`, has an object with the same key twice, contains a whole number too large for `int`, is not an object at the top level (an array, for an `array<C>`), or has fields that are missing or of the wrong type — every failed field is one issue on the error, at its own path, and the message counts them. A list stops at its first bad element, and each of its paths carries that element's position.; `LogicError` — `T` has no JSON codec because it does not carry `#[Json\Derive]`, or `maxDepth` is `0` or above `1024`.; `RecursionError` — The call stack is full when a constructor runs. This happens when the call starts with the stack almost full, or when a constructor recurses deeply. A deep document within `maxDepth` does not throw this error.
 
 <a id="core-core-json-isvalid"></a>
 #### `Core\Json::isValid`

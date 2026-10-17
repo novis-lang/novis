@@ -7,7 +7,9 @@ merely **unusual** when every reader agrees and the spelling is only uncommon.
 
 The ambiguity list is **closed and written down**: `rule:errors/http-message-defects`,
 `rule:errors/cookie-name-bytes`, `rule:errors/multipart-part-count` and
-`rule:errors/path-component-refusals` are all of it. A defect not on the list is accepted; adding
+`rule:errors/path-component-refusals`, and a JSON object that writes one key twice, which
+`Core\Json::decode` and every decoder built on it refuse with a `ParseError` naming the key, are all
+of it. A defect not on the list is accepted; adding
 one is a change to this rule. That is what makes the rule testable and fuzzable, and what stops
 "strict" from growing every time somebody reads a specification more carefully.
 
