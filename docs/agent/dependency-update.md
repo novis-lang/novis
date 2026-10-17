@@ -45,7 +45,7 @@ of what it reads and how it judges a pin. It reads these places, and `cargo upda
 | CI actions, by SHA with the release in a comment, and `cargo install --version` tools | [.github/workflows/](../../.github/workflows/) | the comment form |
 | Container images | `docker/Dockerfile`, the Dockerfiles and compose files under `benches/`, and `tests/db/compose.yaml` | the comment form |
 | wasi-sdk | CI's `WASI_SDK_VERSION`, and [extensions/image/libwebp/SOURCE.json](../../extensions/image/libwebp/SOURCE.json), which `bun nv webp-lib` rebuilds from | the comment form, in the workflow |
-| Everything else that has a version — PHP oracle, `cargo-fuzz`, valgrind, MSVC/SDK | [the plan](../implementation-plan.md)'s status block § *Toolchain*, which is that field's only home | not read by `bun nv deps` |
+| Everything else that has a version — PHP oracle, `cargo-fuzz`, valgrind, MSVC/SDK | [setup.md](../setup.md) § *Versions no manifest pins*, which is their only home | not read by `bun nv deps` |
 
 Any `HOLD` whose date has passed is part of this sweep: retry it, and either drop the hold or give it a new
 date and a reason that is still true.
