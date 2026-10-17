@@ -235,8 +235,8 @@ and the lowered argument bytes are charged to the request.
 - [ ] A typed call path for `list<u8>` signatures beside the dynamic one. `crates/nvs-ext/src/call.rs:893`
   - [x] `crates/nvs-ext/src/typed.rs` converts a `Value` to generated types, and `call_values` routes a built-in world through it.
   - [x] The image world (`crates/nvs-ext/src/typed/image.rs`) is called typed, and `tests/builtin.rs` pins its one-copy charge.
-  - [ ] The pdf world, under `crates/nvs-ext/src/typed/`.
-  - [ ] The intl world.
+  - [x] The pdf world, under `crates/nvs-ext/src/typed/`.
+  - [x] The intl world.
   - [ ] The spreadsheet world, then the gap record deleted.
 - [x] The lowered argument bytes are charged to the request, as the lifted results are. `crates/nvs-ext/src/call.rs:954`
   - [x] `Request::run` charges the arguments' host bytes before the call and gives them back after it.
@@ -398,24 +398,20 @@ work cannot live only in prose again.
 
 ### State
 
-Every stage but 5 is done. Stage 5 is half landed: `crates/nvs-ext/src/typed.rs` calls a built-in
-component's exports through wasmtime's typed functions, and the image world
-(`crates/nvs-ext/src/typed/image.rs`) goes through it. `Request::call_values` routes a call there when
-the manifest is a built-in one and `typed::World::of` knows its interface
-(`crates/nvs-ext/src/call.rs:893`). Every other export stays on the dynamic path. The argument and
-result charges are the same, made at the generated types' host size. `tests/builtin.rs`'s
-`a_built_in_call_charges_its_bytes_once_and_not_one_val_per_byte` fails on the dynamic path and
-passes on the typed one. The image arms now use a 1920x1080 frame, and
-`benches/results/image-guest.json` is recorded again: guest against native is 1.5 to 2 times, where
-it was 13 to 42 times on an 800x600 frame.
+Every stage but 5 is done. Stage 5 has one world left. `crates/nvs-ext/src/typed.rs` calls a
+built-in component's exports through wasmtime's typed functions, and the image, pdf and intl
+worlds go through it (`crates/nvs-ext/src/typed/image.rs`, `pdf.rs`, `intl.rs`). The `cores!`
+macro converts a `nvs:ext/types` record to and from its `Core` value class. `tests/builtin.rs`'s
+`a_built_in_call_charges_its_bytes_once_and_not_one_val_per_byte` covers image and pdf and fails
+on the dynamic path. `tests/pdf.rs`'s memory-limit case now takes its budget from a measured
+unbounded run, because the typed result costs its own size.
 
-The goal's last open record is `data/gaps/nvs-ext/bytes-cross-one-val-per-byte.json`, which now
-names only the pdf, intl and spreadsheet worlds, so `owners --closes completeness-holes` fails until
-they land.
+The goal's last open record is `data/gaps/nvs-ext/bytes-cross-one-val-per-byte.json`, which names
+only the spreadsheet world, so `owners --closes completeness-holes` fails until it lands.
 
-The nightly run the sweep reports (`39013536848`) tested `e110c9c0b`, which is `origin/main`, more
-than 220 commits behind local `main`. Its `docs` failure is already fixed locally, and its
-five-driver failures need the database servers and were not reproduced here.
+The nightly run the sweep reports (`39013536848`) tested `e110c9c0b`, which is `origin/main`, about
+230 commits behind local `main`. Its `docs` failure is fixed locally. Its proofs, cost-guard and
+five-driver failures were not reproduced here; the five-driver ones need the database servers.
 
 `bun nv rules --render` also rewrites `core-api.md`, `errors.md` and `iteration.md`, and `bun nv render`
 drops `done` from `data/schema/milestone.schema.json`. That drift predates these sessions and is not
@@ -423,15 +419,15 @@ committed.
 
 ### Next
 
-**Stage 5: the other three worlds go typed. Files: `crates/nvs-ext/src/typed.rs`,
-`crates/nvs-ext/src/typed/*.rs`, `wit/pdf.wit`, `wit/intl.wit`, `wit/spreadsheet.wit`.**
-`rule:packaging/a-value-crosses-as-its-wit-type` holds the table. Each world is one module shaped
-as `crates/nvs-ext/src/typed/image.rs` is: a `bindgen!` of an inline world that exports the interface
-alone, then `world!`, `records!`, `enums!` and `variants!` listing every type in WIT order.
+**Stage 5: the spreadsheet world goes typed. Files: `crates/nvs-ext/src/typed.rs`,
+`crates/nvs-ext/src/typed/spreadsheet.rs`, `wit/spreadsheet.wit`, `crates/nvs-ext/tests/builtin.rs`.**
+`rule:packaging/a-value-crosses-as-its-wit-type` holds the table. Shape it as
+`crates/nvs-ext/src/typed/pdf.rs` is: a `bindgen!` of an inline world that exports the interface
+alone, then `world!`, `records!`, `enums!`, `variants!` and `cores!` in WIT order.
 
-- [ ] `wit/pdf.wit` as `crates/nvs-ext/src/typed/pdf.rs`, and its arm in `World::of` (`crates/nvs-ext/src/typed.rs:38`). A WIT type the macros do not cover yet, such as a flags type or a variant case with no payload, gets a macro arm in `typed.rs` first.
-- [ ] `wit/intl.wit:13` the same way, as `crates/nvs-ext/src/typed/intl.rs`.
-- [ ] `wit/spreadsheet.wit:19` the same way, as `crates/nvs-ext/src/typed/spreadsheet.rs`. It takes `mixed` and resources, which the typed path does not convert, so an export that has one stays on the dynamic path (`typed::Params` fails it, so leave it out of `world!`). Then delete the gap record and rewrite the per-byte sentence of `crates/nvs-ext/src/convert.rs`'s cost paragraph and `docs/rules/packaging/values-cross-as-handles.md`.
+- [ ] `wit/spreadsheet.wit:19` as `crates/nvs-ext/src/typed/spreadsheet.rs`, and its arm in `World::of` (`crates/nvs-ext/src/typed.rs:38`). It takes `mixed` (`value`) and resources, which the typed path does not convert, so an export that has one stays out of `world!` and on the dynamic path. A variant case with no payload or a type with more than three parameters needs a macro arm in `typed.rs` first.
+- [ ] Add a spreadsheet write export to the loop in `a_built_in_call_charges_its_bytes_once_and_not_one_val_per_byte` (`crates/nvs-ext/tests/builtin.rs:210`), or a one-copy pin of its own where no export takes bytes alone.
+- [ ] Delete the gap record, and rewrite the per-byte sentence of the cost paragraph at `crates/nvs-ext/src/convert.rs:53` and `docs/rules/packaging/values-cross-as-handles.md`. Then the goal-end gates: `bun nv verify --doc` and `bun nv owners --closes completeness-holes`.
 
 ### Backlog
 
