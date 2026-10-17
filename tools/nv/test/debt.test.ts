@@ -19,7 +19,7 @@ const SILENT: DebtVoice = { step() {}, note() {} };
 const MINUTE = 60_000;
 
 interface Run extends DebtSeams {
-  /** The store's atoms, by id; a turn that pays one removes it, or marks a red bench run again. */
+  /** The store's atoms, by id; a turn that pays one removes it. */
   store: Map<string, DebtAtom>;
   /** Each turn that started, in order. */
   turns: DebtTurn[];
@@ -44,12 +44,8 @@ function seams(owed: DebtAtom[], o: { cost?: number; red?: string[] } = {}): Run
       const red: string[] = [];
       for (const id of turn.ids) {
         clock.at += o.cost ?? MINUTE;
-        const a = store.get(id)!;
-        if ((o.red ?? []).includes(id)) {
-          red.push(id);
-          if (a.kind === "bench") store.set(id, { ...a, verdict: "red", lastRun: clock.at });
-          else store.delete(id);
-        } else store.delete(id);
+        if ((o.red ?? []).includes(id)) red.push(id);
+        store.delete(id);
       }
       return red.length === 0 ? "" : `owed atoms: ${red.length} ran red: ${red.join(", ")}`;
     },
@@ -57,7 +53,7 @@ function seams(owed: DebtAtom[], o: { cost?: number; red?: string[] } = {}): Run
 }
 
 /** An atom of the debt; a `heavy:` one is a leg. */
-const atom = (id: string, verdict: "red" | "owed", lastRun: number): DebtAtom => ({ id, kind: id.startsWith("heavy:") ? "leg" : (id.slice(0, id.indexOf(":")) as DebtKind), verdict, lastRun });
+const atom = (id: string, lastRun: number): DebtAtom => ({ id, kind: id.startsWith("heavy:") ? "leg" : (id.slice(0, id.indexOf(":")) as DebtKind), lastRun });
 
 const fixture = (file: string): Check => ({ id: `run-${file.replace(/\W+/g, "-")}`, kind: "exact", stage: 1, file, want: ["ok"] });
 
@@ -93,44 +89,38 @@ function linux(owed: LegName[]) {
 }
 
 describe("bun nv debt", () => {
-  test("a bench owed or red is debt, and of every other kind an owed atom alone", () => {
+  test("an owed atom of any kind but a bench is debt, and a red one only when verify never runs it", () => {
     const got = debtOf([
       { id: "bench:benches/members/a.nvs", kind: "bench", verdict: "red", lastRun: 1 },
       { id: "bench:benches/members/b.nvs", kind: "bench", verdict: "owed", lastRun: 1 },
       { id: "proof:docs/examples/a.nvs", kind: "proof", verdict: "owed", lastRun: 1 },
       { id: "proof:docs/examples/b.nvs", kind: "proof", verdict: "red", lastRun: 1 },
       { id: "case:tests/x/a.nvst", kind: "case", verdict: "green", lastRun: 1 },
+      { id: "test:nvs-cli test a", kind: "test", verdict: "red", lastRun: 1 },
       { id: "heavy:wsl leg", kind: "heavy", verdict: "owed", lastRun: 1 },
+      { id: "heavy:valgrind sweep", kind: "heavy", verdict: "red", lastRun: 1 },
       { id: "heavy:release-guard", kind: "heavy", verdict: "owed", lastRun: 1 },
       { id: "step:nv", kind: "step", verdict: "owed", lastRun: 1 },
     ]);
-    expect(got.map((a) => `${a.kind} ${a.id}`)).toEqual(["bench bench:benches/members/a.nvs", "bench bench:benches/members/b.nvs", "proof proof:docs/examples/a.nvs", "leg heavy:wsl leg"]);
+    expect(got.map((a) => `${a.kind} ${a.id}`)).toEqual(["proof proof:docs/examples/a.nvs", "proof proof:docs/examples/b.nvs", "leg heavy:wsl leg", "leg heavy:valgrind sweep"]);
   });
 
-  test("red atoms go first, then the owed ones by last run, oldest first, one turn per runner", () => {
-    const turns = debtTurns([
-      atom("proof:p.nvs", "owed", 50),
-      atom("case:tests/x/c.nvst", "owed", 10),
-      atom("bench:new.nvs", "owed", 30),
-      atom("bench:red.nvs", "red", 90),
-      atom("heavy:wsl leg", "owed", 20),
-    ]);
+  test("the owed atoms go by last run, oldest first, one turn per runner", () => {
+    const turns = debtTurns([atom("proof:p.nvs", 50), atom("case:tests/x/c.nvst", 10), atom("heavy:wsl leg", 20), atom("test:nvs-cli test a", 30)]);
     expect(turns).toEqual([
-      { runner: "bench", ids: ["bench:red.nvs"] },
-      { runner: "full", ids: ["case:tests/x/c.nvst", "proof:p.nvs"] },
+      { runner: "full", ids: ["case:tests/x/c.nvst", "test:nvs-cli test a", "proof:p.nvs"] },
       { runner: "leg", ids: ["heavy:wsl leg"] },
-      { runner: "bench", ids: ["bench:new.nvs"] },
     ]);
   });
 
   test("every turn runs however long the debt takes, and each turn says its time", async () => {
-    const s = seams([atom("proof:a.nvs", "owed", 1), atom("proof:b.nvs", "owed", 2), atom("bench:red.nvs", "red", 9), atom("heavy:wsl leg", "owed", 3)], { cost: 30 * MINUTE });
+    const s = seams([atom("proof:a.nvs", 1), atom("proof:b.nvs", 2), atom("heavy:wsl leg", 3)], { cost: 30 * MINUTE });
     const steps: string[] = [];
     const out = await payDebt(undefined, { ...s, voice: { step: (l) => steps.push(l), note() {} } });
-    expect(s.turns.map((t) => t.runner)).toEqual(["bench", "full", "leg"]);
+    expect(s.turns.map((t) => t.runner)).toEqual(["full", "leg"]);
     expect(out.left).toEqual([]);
     expect(steps).toContain("floor debt: paid 2 proof in 60m00s, by the full run's runners");
-    expect(steps).toContain("floor debt: paid 4 (2 proof, 1 bench, 1 leg) in 120m00s; left 0");
+    expect(steps).toContain("floor debt: paid 3 (2 proof, 1 leg) in 90m00s; left 0");
   });
 
   test("an owed leg runs the Linux legs the store selects, and no leg debt runs none", async () => {
@@ -140,22 +130,22 @@ describe("bun nv debt", () => {
       pay: (turn, slug, note) => (turn.runner === "leg" ? legsTurn(slug, note, false, machine.legs) : Promise.resolve("")),
     });
     const l = linux(["wsl leg"]);
-    await payDebt("demo", withLegs(seams([atom("heavy:wsl leg", "owed", 1)]), l));
+    await payDebt("demo", withLegs(seams([atom("heavy:wsl leg", 1)]), l));
     expect(l.lines.some((line) => line.includes("cargo build --quiet"))).toBe(true);
     expect(l.green).toEqual(new Set<LegName>(["wsl leg"]));
     expect(l.lines.some((line) => line.includes("valgrind --error-exitcode"))).toBe(false);
 
     const none = linux([]);
-    await payDebt("demo", withLegs(seams([atom("proof:a.nvs", "owed", 1)]), none));
+    await payDebt("demo", withLegs(seams([atom("proof:a.nvs", 1)]), none));
     expect(none.lines).toEqual([]);
   });
 
   test("it exits 0 when the debt is paid green, 1 on a red or debt left, and 2 on a bad argument", async () => {
-    expect(await debt([], seams([atom("proof:a.nvs", "owed", 1)]))).toBe(0);
+    expect(await debt([], seams([atom("proof:a.nvs", 1)]))).toBe(0);
     expect(await debt([], seams([]))).toBe(0);
-    expect(await debt([], seams([atom("proof:a.nvs", "owed", 1)], { red: ["proof:a.nvs"] }))).toBe(1);
-    expect(await debt(["--goal", "demo"], seams([atom("bench:x.nvs", "owed", 1)], { red: ["bench:x.nvs"] }))).toBe(1);
-    const stuck = seams([atom("proof:a.nvs", "owed", 1)]);
+    expect(await debt([], seams([atom("proof:a.nvs", 1)], { red: ["proof:a.nvs"] }))).toBe(1);
+    expect(await debt(["--goal", "demo"], seams([atom("heavy:wsl leg", 1)], { red: ["heavy:wsl leg"] }))).toBe(1);
+    const stuck = seams([atom("proof:a.nvs", 1)]);
     expect(await debt([], { ...stuck, pay: async () => "" })).toBe(1);
     expect(await debt(["--budget", "5"], seams([]))).toBe(2);
     expect(await debt(["--goal"], seams([]))).toBe(2);
@@ -164,7 +154,7 @@ describe("bun nv debt", () => {
   test("under looper, each debt atom is an item, one its runner did not run ends skipped, and the run ends with done", async () => {
     mkdirSync(TMP, { recursive: true });
     const file = join(TMP, "events.ndjson");
-    const s = seams([atom("proof:a.nvs", "owed", 1), atom("proof:b.nvs", "owed", 2)]);
+    const s = seams([atom("proof:a.nvs", 1), atom("proof:b.nvs", 2)]);
     const was = process.env.LOOPER_EVENTS;
     process.env.LOOPER_EVENTS = file;
     try {

@@ -455,8 +455,8 @@ function heavyRun(all: string[], cwd: string): string | null {
   if (nv !== null) {
     const [cmd, ...rest] = nv;
     if (cmd === "sweep" && !rest.some((w) => w === "--help" || w === "-h")) return "`bun nv sweep` is the hook looper runs after each session: it sweeps the disk, which can break a build another session is running";
-    if (cmd === "debt" && !rest.some((w) => w === "--help" || w === "-h")) return "`bun nv debt` pays every owed and red atom, whatever your change reaches; looper runs it once at each goal's end";
-    if (cmd === "benches") return "`bun nv benches` judges every bench the selection picks on the release build, whatever your change reaches; `bun nv debt` pays owed and red benches at each goal's end";
+    if (cmd === "debt" && !rest.some((w) => w === "--help" || w === "-h")) return "`bun nv debt` pays every owed atom but the benches, whatever your change reaches; looper runs it once at each goal's end";
+    if (cmd === "benches") return "`bun nv benches` judges every bench the selection picks on the release build, whatever your change reaches; the person releasing runs `bun nv benches --owed` before a release";
     if (cmd === "proofs" && rest.some((w) => w === "--verify" || w === "--run") && !rest.some((w) => /^--(?:id|only|group)(?:=|$)/.test(w))) {
       return "`bun nv proofs` over every feature runs each one's examples and attacks, whatever your change reaches";
     }

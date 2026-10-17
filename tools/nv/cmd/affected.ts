@@ -22,8 +22,8 @@
 // a key in its footprint or changed its own files, or a file every atom depends on (`reachedByChange` in
 // `select/select.ts`). `--run` judges each one's growth on the release build and records its footprint
 // after verify (`runBenches` in `proofs/select.ts`). A bench selected only for being owed, red or never
-// recorded from before the change is counted, not judged: it stays as it is, and `bun nv debt`, the floor
-// check at each goal's end, pays it as floor debt.
+// recorded from before the change is counted, not judged: it stays as it is, and `bun nv benches
+// --owed` pays it before a release, since the release gate's `proofs` job is red on a stale perf record.
 //
 // **The acceptance half** is the plan's checks the change reaches (`select/checks.ts`): the checks
 // of the live plan, or of the side goal `NOVIS_SIDE_GOAL` names. A check reached through a key the change
@@ -100,7 +100,7 @@ export interface Plan {
   /** The benches the change itself reaches, which `--run` judges and records after verify. */
   benches: VerifyAtom[];
   /** How many benches are selected only for being owed, red or never recorded from before the change:
-   * `bun nv debt` pays them as floor debt. */
+   * `bun nv benches --owed` pays them before a release. */
   benchesBefore: number;
   acceptance: { checks: ReachedCheck[]; legs: Reached[] };
 }
@@ -282,7 +282,7 @@ function print(p: Plan, asked: string[] | undefined): void {
   console.log(`\nbenches -- \`bun nv affected --run\` judges the growth of ${p.benches.length} bench(es) and records each:`);
   for (const b of p.benches.slice(0, 8)) console.log(`  ${b.id.slice(b.id.indexOf(":") + 1)}  <- ${b.why}`);
   if (p.benches.length > 8) console.log(`  +${p.benches.length - 8} more`);
-  if (p.benchesBefore > 0) console.log(`  ${p.benchesBefore} bench(es) owed, red or never recorded from before the change wait for the goal's end: \`bun nv debt\` pays owed and red benches there, oldest first`);
+  if (p.benchesBefore > 0) console.log(`  ${p.benchesBefore} bench(es) owed, red or never recorded from before the change wait for a release: \`bun nv benches --owed\` pays them there`);
 
   const run = due(p);
   const deferred = p.acceptance.checks.filter((x) => x.deferred).length + p.acceptance.legs.length;
