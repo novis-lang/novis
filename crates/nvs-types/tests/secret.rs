@@ -155,13 +155,14 @@ fn a_secret_value_is_refused_at_the_boundary_unless_revealed() {
         "{refused:?}"
     );
 
-    // The "unless" half: the refusal is on the qualifier, not on the copy, so
-    // a plain value crosses with nothing written at the call site. That plain
-    // type is what `Core\Secret::reveal(..., "reason")` — which the diagnostic's
-    // help names and the registry does not carry yet — produces, so this pins
-    // the shape the escape hatch has to land in rather than the call.
+    // The "unless" half: the refusal is on the qualifier, not on the copy.
+    // `Core\Secret::reveal` returns the plain type, so its result crosses with
+    // nothing else written at the call site. The spawn and worker crossings
+    // of the same result are run by
+    // `tests/conformance/isolate/a-revealed-secret-crosses-a-spawn-a-worker-and-serialize.nvst`.
     let allowed = check_in_method(
-        "string $revealed = \"literal\";\n\
+        "secret string $token = \"literal\";\n\
+         string $revealed = Core\\Secret::reveal($token, \"the reason\");\n\
          bytes $b = Core\\Serialize::encode($revealed);\n",
     );
     assert!(!allowed.has_errors(), "{allowed:?}");

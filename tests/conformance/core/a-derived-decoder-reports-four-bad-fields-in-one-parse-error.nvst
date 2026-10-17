@@ -1,0 +1,38 @@
+--TEST--
+A derived decoder reports four bad fields in one `ParseError`, each at its own dotted path, and the constructor does not run — `rule:core-classes/derive-reports-every-field`
+--FILE--
+<?nvs
+// Every field of `Order` is wrong in a different way: a wrong type, a missing
+// key, a bad list element and a bad field of a nested class.
+#[Core\Json\Derive]
+class Address {
+    public function constructor(public string $city) {}
+}
+
+#[Core\Json\Derive]
+class Order {
+    public function constructor(
+        public int $id,
+        public string $name,
+        public array<int> $tags,
+        public Address $address,
+    ) {
+        echo "constructor ran\n";
+    }
+}
+
+try {
+    Core\Json::decodeAs<Order>("{\"id\":\"seven\",\"tags\":[1,\"two\"],\"address\":{\"city\":5}}");
+    echo "not reached\n";
+} catch (ParseError $bad) {
+    echo "issues=", Core\Arr::count($bad->issues) as string, "\n";
+    foreach ($bad->issues as var $issue) {
+        echo $issue->path, ": ", $issue->message, "\n";
+    }
+}
+--EXPECT--
+issues=4
+id: expected int, found a string
+name: required field missing
+tags.1: expected int, found a string
+address.city: expected string, found a number
