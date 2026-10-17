@@ -406,6 +406,116 @@ fn an_ipv6_address_carrying_an_internal_ipv4_address_is_denied() {
     }
 }
 
+/// `rule:security/net-address-policy`'s table denies the special-purpose IPv4 ranges and IPv6
+/// multicast, and keeps answering `None` at the edge of each range.
+// covers: tools:config/network-grants-the-addresses-and-endpoints-they-reach
+#[test]
+fn every_special_purpose_range_is_denied_and_its_neighbours_are_not() {
+    for (address, range) in [
+        ("100.64.0.1", "shared address space (100.64.0.0/10)"),
+        ("100.127.255.254", "shared address space (100.64.0.0/10)"),
+        ("192.0.0.170", "protocol assignments (192.0.0.0/24)"),
+        ("198.18.0.1", "benchmarking (198.18.0.0/15)"),
+        ("198.19.255.254", "benchmarking (198.18.0.0/15)"),
+        ("224.0.0.251", "multicast (224.0.0.0/4)"),
+        ("239.255.255.250", "multicast (224.0.0.0/4)"),
+        ("240.0.0.1", "reserved (240.0.0.0/4)"),
+        ("255.255.255.254", "reserved (240.0.0.0/4)"),
+        ("255.255.255.255", "broadcast (255.255.255.255)"),
+        ("ff02::1", "multicast (ff00::/8)"),
+        ("::ffff:100.64.0.1", "shared address space (100.64.0.0/10)"),
+    ] {
+        assert_eq!(
+            nvs_config::capability::denied_by_default(ip(address)),
+            Some(range),
+            "{address} is in {range}",
+        );
+    }
+    for public in [
+        "100.63.255.255",
+        "100.128.0.0",
+        "192.0.1.1",
+        "198.17.255.255",
+        "198.20.0.0",
+        "223.255.255.255",
+        "fe00::1",
+    ] {
+        assert_eq!(
+            nvs_config::capability::denied_by_default(ip(public)),
+            None,
+            "{public} is outside every denied range",
+        );
+    }
+}
+
+/// `rule:security/net-address-policy`'s table reads a 6to4 or Teredo address as the IPv4 address
+/// it carries, so each spelling of an address gets that address's answer.
+// covers: tools:config/network-grants-the-addresses-and-endpoints-they-reach
+#[test]
+fn a_6to4_or_teredo_address_is_judged_by_the_ipv4_address_inside_it() {
+    use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
+
+    let mut state: u32 = 0x9e37_79b9;
+    let mut samples: Vec<Ipv4Addr> = [
+        "127.0.0.1",
+        "10.0.0.7",
+        "169.254.169.254",
+        "100.64.0.1",
+        "203.0.113.10",
+        "8.8.8.8",
+    ]
+    .iter()
+    .map(|text| text.parse().expect("a literal address"))
+    .collect();
+    for _ in 0..2000 {
+        state ^= state << 13;
+        state ^= state >> 17;
+        state ^= state << 5;
+        samples.push(Ipv4Addr::from(state));
+    }
+
+    for v4 in samples {
+        let [a, b, c, d] = v4.octets();
+        let want = nvs_config::capability::denied_by_default(IpAddr::V4(v4));
+        let six_to_four = Ipv6Addr::new(
+            0x2002,
+            u16::from_be_bytes([a, b]),
+            u16::from_be_bytes([c, d]),
+            0,
+            0,
+            0,
+            0,
+            1,
+        );
+        let teredo = Ipv6Addr::new(
+            0x2001,
+            0,
+            0x4136,
+            0xe378,
+            0x8000,
+            0x63bf,
+            !u16::from_be_bytes([a, b]),
+            !u16::from_be_bytes([c, d]),
+        );
+        for wrapped in [six_to_four, teredo] {
+            assert_eq!(
+                nvs_config::capability::denied_by_default(IpAddr::V6(wrapped)),
+                want,
+                "{wrapped} carries {v4}",
+            );
+        }
+    }
+
+    assert_eq!(
+        nvs_config::capability::denied_by_default(ip("2002:7f00:1::1")),
+        Some("loopback (127.0.0.0/8)")
+    );
+    assert_eq!(
+        nvs_config::capability::denied_by_default(ip("2001:0:4136:e378:8000:63bf:80ff:fffe")),
+        Some("loopback (127.0.0.0/8)")
+    );
+}
+
 /// `rule:security/net-address-policy`'s operator exception excepts the addresses it *names* and widens nothing else — not
 /// a range around one, not the table, and not a name that resolves to one.
 ///

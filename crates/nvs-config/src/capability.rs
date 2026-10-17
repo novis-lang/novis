@@ -274,6 +274,18 @@ pub fn denied_by_default(address: std::net::IpAddr) -> Option<&'static str> {
                 Some("link-local (169.254.0.0/16)")
             } else if v4.is_private() {
                 Some("private (10/8, 172.16/12, 192.168/16)")
+            } else if octets[0] == 100 && octets[1] & 0xc0 == 64 {
+                Some("shared address space (100.64.0.0/10)")
+            } else if octets[..3] == [192, 0, 0] {
+                Some("protocol assignments (192.0.0.0/24)")
+            } else if octets[0] == 198 && octets[1] & 0xfe == 18 {
+                Some("benchmarking (198.18.0.0/15)")
+            } else if v4.is_multicast() {
+                Some("multicast (224.0.0.0/4)")
+            } else if v4.is_broadcast() {
+                Some("broadcast (255.255.255.255)")
+            } else if octets[0] >= 240 {
+                Some("reserved (240.0.0.0/4)")
             } else {
                 None
             }
@@ -288,6 +300,8 @@ pub fn denied_by_default(address: std::net::IpAddr) -> Option<&'static str> {
                 Some("link-local (fe80::/10)")
             } else if first & 0xfe00 == 0xfc00 {
                 Some("private (fc00::/7)")
+            } else if v6.is_multicast() {
+                Some("multicast (ff00::/8)")
             } else {
                 None
             }
@@ -317,11 +331,13 @@ fn unmapped(address: std::net::IpAddr) -> std::net::IpAddr {
 /// An IPv6 address that carries an IPv4 address in its low 32 bits, as that IPv4 address; every
 /// other address as [`unmapped`] reads it.
 ///
-/// The table asks this rather than [`unmapped`] because two more prefixes route to the address they
-/// embed: the IPv4-compatible `::a.b.c.d` (`::/96`, apart from `::` and `::1`, which are addresses of
-/// their own), and the NAT64 well-known prefix `64:ff9b::/96`, which a translating gateway turns
-/// into a connection to the IPv4 address. Either spelling of `127.0.0.1` reaches whatever that
-/// address reaches, so each is denied exactly when the address it carries is.
+/// The table asks this rather than [`unmapped`] because four more prefixes route to an IPv4 address
+/// they embed. The IPv4-compatible `::a.b.c.d` (`::/96`, apart from `::` and `::1`, which are
+/// addresses of their own) and the NAT64 well-known prefix `64:ff9b::/96` carry it in the low 32
+/// bits. 6to4 (`2002::/16`) carries it in the 32 bits after the prefix, and a relay delivers to it.
+/// Teredo (`2001::/32`) carries the client's IPv4 address in the low 32 bits with every bit
+/// inverted. Each spelling of `127.0.0.1` reaches whatever that address reaches, so each is denied
+/// exactly when the address it carries is.
 ///
 /// The exception list and endpoint matching keep [`unmapped`]: an operator's `internal` entry is an
 /// address the operator wrote, and it excepts that address in its two usual spellings and nothing
@@ -334,11 +350,15 @@ fn embedded(address: std::net::IpAddr) -> std::net::IpAddr {
         return address;
     };
     let s = v6.segments();
+    let o = v6.octets();
     let compatible = s[..6] == [0; 6] && !v6.is_loopback() && !v6.is_unspecified();
     let nat64 = s[..6] == [0x64, 0xff9b, 0, 0, 0, 0];
     if compatible || nat64 {
-        let [.., a, b, c, d] = v6.octets();
-        IpAddr::V4(Ipv4Addr::new(a, b, c, d))
+        IpAddr::V4(Ipv4Addr::new(o[12], o[13], o[14], o[15]))
+    } else if s[0] == 0x2002 {
+        IpAddr::V4(Ipv4Addr::new(o[2], o[3], o[4], o[5]))
+    } else if s[..2] == [0x2001, 0] {
+        IpAddr::V4(Ipv4Addr::new(!o[12], !o[13], !o[14], !o[15]))
     } else {
         address
     }
