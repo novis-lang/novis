@@ -6,6 +6,15 @@ payload whose recorded property set does not exactly match the target class's cu
 one added, removed or retyped — is refused, naming the mismatch, never coerced and never filled with a
 default.
 
+Every value the decode builds is checked before the result is returned. A field's value is checked
+against the field's declared type by the same check an erased write makes
+(`rule:types/erased-member-access`): its tag, its class and an array's elements. A `string` node and a
+string array key must be UTF-8, and a `bytes` node is not checked. A payload that fails either check is
+refused, naming the class and the property, so no typed read can see a value of the wrong kind,
+whatever the bytes are. The fields are checked once the whole graph is built, because a
+back-reference can reach an object whose later fields are not filled yet. The cost is one check per
+field on a decode and nothing in memory.
+
 `decode` is a `tainted` sink with no launderer. The rules above close code execution but not type
 confusion: a payload reconstructing a `User` with `isAdmin` set bypasses the constructor while
 satisfying every check. Bytes that arrived from outside are refused at compile time. `encode` is an

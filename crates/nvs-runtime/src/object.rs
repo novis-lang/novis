@@ -1623,6 +1623,51 @@ impl ClassDesc {
         self.field_checks.get(index)?.as_ref()
     }
 
+    /// `Ok` when `value` fits slot `index`'s declared type: its one tag
+    /// ([`Self::field_tag`]), the classes it admits ([`Self::field_classes`])
+    /// and the rest of the type ([`Self::field_check`]). Otherwise the error is
+    /// the sentence that refuses the value, naming this class and the property
+    /// `name`.
+    ///
+    /// The check every store a typed read did not see makes, so that read can
+    /// trust the type: [`write_erased_property`]'s, and [`crate::graph`]'s
+    /// decoder's through [`NvsObj::check_fields`].
+    ///
+    /// # Errors
+    ///
+    /// The sentence above, when `value` does not fit.
+    pub fn check_slot(&self, index: usize, name: &str, value: Value) -> Result<(), String> {
+        if let Some(declared) = self.field_tag(index) {
+            let actual = value.exact_tag();
+            if actual != Some(declared) {
+                return Err(format!(
+                    "`{}` declares field `{name}` as {}, so a {} cannot be written to it",
+                    self.name(),
+                    declared.describe(),
+                    actual.map_or("malformed value", Tag::describe)
+                ));
+            }
+        }
+        // The tag cannot tell one class from another, so a slot declared as
+        // classes also checks the object's own class. Anything else that is not
+        // `null` is refused here too: a `?Node` slot has no single tag to check.
+        if let Some(admitted) = self.field_classes(index) {
+            check_admitted_class(self, index, name, admitted, value)?;
+        }
+        // An array's elements, a shape's fields and a union's arms are not in the
+        // tag at all, and a typed read trusts every one of them.
+        if let Some(check) = self.field_check(index)
+            && let Err(written) = check.admits(value)
+        {
+            let declared = self.field_type(index).unwrap_or("its declared type");
+            return Err(format!(
+                "`{}` declares field `{name}` as `{declared}`, so {written} cannot be written to it",
+                self.name()
+            ));
+        }
+        Ok(())
+    }
+
     /// Whether an instance of this class is also an instance of `other` —
     /// the whole of `$x is C`, and of a typed `catch`'s dispatch.
     ///
@@ -3606,6 +3651,30 @@ impl NvsObj {
         }
     }
 
+    /// `Ok` when every field slot holds a value its declared type admits, by
+    /// [`ClassDesc::check_slot`]; otherwise that check's sentence for the
+    /// first slot that does not.
+    ///
+    /// [`crate::graph`]'s decoder asks this of every object it built, once the
+    /// whole graph is built, because a back-reference reaches an object whose
+    /// later fields are not filled yet.
+    ///
+    /// # Errors
+    ///
+    /// The sentence above.
+    pub fn check_fields(&self) -> Result<(), String> {
+        #[expect(
+            unsafe_code,
+            reason = "an object's descriptor outlives it by `NvsObj::new`'s own \
+                      safety contract"
+        )]
+        let class = unsafe { &*self.class() };
+        for (index, name) in class.fields.iter().enumerate() {
+            class.check_slot(index, name, self.field(index))?;
+        }
+        Ok(())
+    }
+
     /// Reads field slot `index` **without** taking a reference to whatever it
     /// holds — the borrow-shaped read `nvs_ir::InstKind::FieldGet` performs.
     ///
@@ -5383,34 +5452,7 @@ pub fn write_erased_property(
             desc.name()
         )));
     }
-    if let Some(declared) = desc.field_tag(slot) {
-        let actual = value.exact_tag();
-        if actual != Some(declared) {
-            return Err(Fault::thrown(format!(
-                "`{}` declares field `{name}` as {}, so a {} cannot be written to it",
-                desc.name(),
-                declared.describe(),
-                actual.map_or("malformed value", Tag::describe)
-            )));
-        }
-    }
-    // The tag cannot tell one class from another, so a slot declared as
-    // classes also checks the object's own class. Anything else that is not
-    // `null` is refused here too: a `?Node` slot has no single tag to check.
-    if let Some(admitted) = desc.field_classes(slot) {
-        check_admitted_class(desc, slot, name, admitted, value)?;
-    }
-    // An array's elements, a shape's fields and a union's arms are not in the
-    // tag at all, and a typed read trusts every one of them.
-    if let Some(check) = desc.field_check(slot)
-        && let Err(written) = check.admits(value)
-    {
-        let declared = desc.field_type(slot).unwrap_or("its declared type");
-        return Err(Fault::thrown(format!(
-            "`{}` declares field `{name}` as `{declared}`, so {written} cannot be written to it",
-            desc.name()
-        )));
-    }
+    desc.check_slot(slot, name, value).map_err(Fault::thrown)?;
     // An anonymous object's class is named for its field names alone, so no
     // declared type belongs to its slots. The value the slot has now is the one
     // thing known to fit the type every typed read of it uses, so the written
@@ -5541,7 +5583,7 @@ fn guard_erased_write(
 
 /// Refuses `value` for field `name`, at `slot` of `desc`, unless it is `null` or an object
 /// whose class conforms to one of `admitted` — [`ClassDesc::field_classes`]'
-/// check, made by [`write_erased_property`] after the tag check.
+/// check, made by [`ClassDesc::check_slot`] after the tag check.
 ///
 /// `null` passes here because a slot that does not admit it has the single
 /// tag [`Tag::Object`], which the tag check has already compared.
@@ -5551,7 +5593,7 @@ fn check_admitted_class(
     name: &str,
     admitted: &[String],
     value: Value,
-) -> Result<(), Fault> {
+) -> Result<(), String> {
     if value.tag() == Some(Tag::Null) {
         return Ok(());
     }
@@ -5573,10 +5615,10 @@ fn check_admitted_class(
     let declared = desc
         .field_type(slot)
         .map_or_else(|| admitted.join("|"), str::to_owned);
-    Err(Fault::thrown(format!(
+    Err(format!(
         "`{}` declares field `{name}` as `{declared}`, so {written} cannot be written to it",
         desc.name()
-    )))
+    ))
 }
 
 /// A field slot's declared type in run-time terms — [`ClassDesc::field_checks`].
