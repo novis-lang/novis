@@ -14,7 +14,7 @@ stages:
     context: [crates/nvs-stdlib/tests/ldap.rs, crates/nvs-cli/tests/live_edit.rs]
   - id: 4
     title: the dead tooling and the stale state are gone
-    status: open
+    status: done
     context: [tools/nv/main.ts, .claude/settings.json, tools/nv/cmd/guard.ts, .github/workflows/ci.yml]
   - id: 5
     title: a diagnostic code is never raced
@@ -64,7 +64,7 @@ conflicted. The last stage waits for looper's goal `landing-fixes`. This goal co
 
 ## Standing decisions
 
-**The user decided the scope and four calls:**
+**The user decided the scope and these calls:**
 - The owed atoms are paid **at the goal end and by the nightly CI run**, never between sessions. If
   paying them at the goal end turns out to take hours, the owed benches move to the release gate,
   and the session says so in the handoff.
@@ -75,6 +75,11 @@ conflicted. The last stage waits for looper's goal `landing-fixes`. This goal co
   catch-up renders the generated files it would conflict on. Both are looper's goal
   `landing-fixes`. A chain planned as a graph, with lanes opened for it automatically, waits until
   this goal's savings are measured.
+- **The project runs and is developed the same way without looper.** Only a few developers have
+  looper, and CI never does. So every check is written once, in `bun nv`, and looper runs the
+  project's command where it has a check of its own. `nv links` and `nv layout` stay, and stage 4's
+  swap to `looper links` and `looper layout` is dropped. Goal `works-without-looper` closes the
+  gaps where only looper checks today.
 
 **These calls were the agent's, from the audit:**
 - The flaky tests are fixed at their cause, never retried. A test that is red under load and green
@@ -139,7 +144,6 @@ doc checks CI runs.
 
 - [x] `nv pack`, `nv allow`, `nv audit`, `nv query` and `nv class-cards` are deleted with their tests and allowlist entries. `tools/nv/main.ts:23`
 - [x] `bun nv guard`'s `proof-loop` rule moves into `looper.toml`'s `[[guard.deny]]`, and its hook and command are deleted. `.claude/settings.json:10`, `tools/nv/cmd/guard.ts:296`
-- [ ] `nv links` and `nv layout` give way to `looper links` and `looper layout` in CI, once looper's `links` reads `<a id>` anchors and skips generated pages, its `layout` can read CONTRIBUTING.md, and CI installs looper. `.github/workflows/ci.yml:976`
 - [x] `looper prose` judges the Markdown and `nv proofs --comments` the `.nvs` comments, because `looper prose` reads a whole `.nvs` file as prose. `looper.toml:89`
 - [x] CI's `docs` job checks run in `bun nv verify`, each only when what it reads changed. `.github/workflows/ci.yml:945`, `tools/nv/cmd/verify.ts:151`
 - [x] The stale references go: the owner-gate wording, the dead hooks in `commands.md`, and the settings entries for commands that are gone. The `docs/decisions/README.md` sync skip and the `looper …` entries stay, because looper's templates write both. `tools/nv/cmd/owners.ts:13`, `docs/agent/commands.md:620`, `.claude/settings.json:19`
@@ -185,8 +189,9 @@ edits no shared table by hand.
 
 ### State
 
-Stages 1, 2, 5, 6 and 7 are done. Stage 4's one open item is the goal's last, and it waits on
-looper work that no looper goal owns: looper's chain is empty.
+Every stage is done. The user dropped stage 4's last item, the swap to `looper links` and
+`looper layout`, and § *Standing decisions* says why. Goal `works-without-looper`, next on the
+chain, carries what this decision leaves open. The goal-end gates are all that is left here.
 
 - `.gitattributes` marks every file `nv render`, `nv render --website`, `nv rules --render` and
   `nv reference` write as `linguist-generated`, and `docs/perf/members.ndjson` as `merge=union`.
@@ -195,9 +200,6 @@ looper work that no looper goal owns: looper's chain is empty.
   `nv render` and `nv rules --render`. `core.json`, `reference.json` and `docs/novis.md` need a built
   binary, so a conflict in one stays a landing session. `looper doctor` is clean.
 - `commands.md` § *A conflict in a generated file* is how a person resolves one.
-- The swap to `looper links` and `looper layout` still waits: looper's `links` has no option to read
-  `<a id>` or skip `docs/novis.md`, its `layout` reads only README.md and the listing is in
-  CONTRIBUTING.md, and CI has no looper binary.
 - `looper prose` reads a whole `.nvs` file, code included, so `nv proofs --comments` stays for the
   `.nvs` comments.
 
@@ -206,15 +208,15 @@ Nightly run 39108526796 on `1a78b49ef` is still the newest, and every failure it
 
 ### Next
 
-Stage 4's last item, on `.github/workflows/ci.yml` and `tools/nv/cmd/verify.ts`, once the user has
-looper's `links` and `layout` fixed, or decides the item goes.
-- [ ] CI installs looper and runs `looper links` and `looper layout --check` in place of `nv links` and `nv layout --check`. `.github/workflows/ci.yml:976`
-- [ ] `DOC_CHECKS` runs the same two, and `nv links` and `nv layout` are deleted with their tests and allowlist entries. `tools/nv/cmd/verify.ts:151`
-- [ ] Then the goal-end gates: `bun nv verify --doc`, `bun nv owners --closes lean-loop`, and the owed perf atoms. `tools/nv/cmd/owners.ts:13`
+The goal end, on the gates' output. The standing decision on looper needs no move: goal
+`works-without-looper` restates it and writes it into `commands.md` § *Without looper*.
+- [ ] `bun nv verify --doc`, and every broken doc link it names fixed. `tools/nv/cmd/verify.ts:151`
+- [ ] `bun nv owners --closes lean-loop`, and every gap it names closed or given another owner. `tools/nv/cmd/owners.ts:13`
+- [ ] The owed perf atoms, paid as § *Standing decisions* says. Then `DONE`. `tools/nv/cmd/debt.ts:1`
 
 ### Backlog
 
-- Looper's `links` needs `<a id>` anchors and a generated-page skip, and its `layout` a configurable file, before stage 4's first item can land. And `looper guard` matched a commit in looper's own checkout against a claim on mwl's `docs/goals/README.md`. Looper's own goals own both, the second in `crates/looper-core/src/claims.rs`.
+- `looper guard` matched a commit in looper's own checkout against a claim on mwl's `docs/goals/README.md`. No looper goal owns it yet. `crates/looper-core/src/claims.rs` in looper's repository.
 - Two flakes to fix at the cause. `test_request_dispatches_in_process_through_the_compiled_route_table` was red once, also alone, because `Core\Env::context()` was not `Request` (`crates/nvs-cli/src/runner.rs:3410`). And `live_edit`'s two compile-race tests missed their 30 s swap deadline beside the other binaries on a disk 98% full, and passed alone (`crates/nvs-cli/tests/live_edit.rs:1016`).
 - The warm-start budget of 6 ms of work. At `1a78b49ef` Linux measured 7.4 ms and macOS 6.8 ms, where macOS measured 5.6 ms at `e110c9c0b`, and Windows is over it on every run. Find which of the commits between the two adds start-up work. `tools/nv/cmd/bench.ts` § *The warm-start figure* owns it.
 - `bun nv verify` does not run `nv render --website --check`, so the website data goes stale unseen until CI. `tools/nv/cmd/verify.ts:151`
