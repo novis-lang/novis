@@ -1,0 +1,12 @@
+<?nvs
+// Shows that a property's default value must be known before the program runs.
+// `Core\Math::abs(-5)` is a call, so this program does not compile.
+// proof: compile-error
+
+class Retry
+{
+    public int $delay = Core\Math::abs(-5);
+}
+
+Retry $retry = new Retry();
+echo $retry->delay, "\n";

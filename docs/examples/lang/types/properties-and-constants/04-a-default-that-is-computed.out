@@ -1,0 +1,9 @@
+error[E0472]: a property default must be a `int` constant
+  --> 04-a-default-that-is-computed.nvs:8:25
+  |
+8 |     public int $delay = Core\Math::abs(-5);
+  |                         ^^^^^^^^^^^^^^^^^^ not a constant of the declared type
+  = help: a property default is evaluated once, at compile time, and written into every fresh instance's slot — write a `bool`/`int`/`uint`/`float`/`decimal`/`string` value directly in the code, optionally negated, `[]`, an enum case or another class's `const`; anything else belongs in `constructor`
+
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.
