@@ -1,8 +1,7 @@
 # Commands — how this repository is driven
 
-Everything an agent runs, and the two rules about *how* to run it that have cost real sessions real time.
-[AGENTS.md](../../AGENTS.md) points here rather than keeping a copy, and states the short form of the two
-rules in every session.
+Everything an agent runs, and the two rules about *how* to run it. [AGENTS.md](../../AGENTS.md) states
+the short form of the two rules and points here for the rest.
 
 ## A shell never carries file content into the tree
 
@@ -21,33 +20,24 @@ A `grep`/`sed -n` through a shell is allowed where it is genuinely shaped better
 *command's* output, a `wc -l` across a glob — because nothing is being written and a bad quote costs one
 retry rather than a silent wrong edit.
 
-**What you read is the budget, so read a big file in the region you need.** A loop session must finish
-under a fixed **200k** of context, and `looper orient` starts it on a pack scoped to the live goal. One
-`cat` of a 1,100-line module spends a tenth of the remaining budget in a single call. So: whole file when
-it is small (roughly under 400 lines, or when you will touch most of it), otherwise `grep -n` for the
-anchor and read the region around it. This is the one place turn economy and context economy pull against
-each other, and context is the constraint that degrades the work rather than merely slowing it.
-`looper log <session>` prints one session's events, which is where it landed and what it read.
+**What you read is the budget, so read a big file in the region you need.** A session works under the
+context ceiling AGENTS.md § *Session workflow* sets, and one read of a large module spends a real part
+of it. So: whole file when it is small (roughly under 400 lines, or when you will touch most of it),
+otherwise `grep -n` for the anchor and read the region around it. Context is the constraint that degrades
+the work rather than merely slowing it. `looper log <session>` prints one session's events, which is
+where it landed and what it read.
 
 Use a shell for what it is for — `cargo`, `git`, `bun nv`, `wsl.exe`. When one of those
 needs a multi-line argument, put the text in a file with the Write tool and pass the path: `git commit -F
 <file>`, never an inline heredoc or a `-m` string spanning lines.
 
 **An Edit the tool cannot express — and any run of three or more edits — goes through `bun nv
-splice --patch <file>`.** Write one patch file under `.agent-tmp/` (gitignored; create it if it
-is not there) with the Write tool: a `--- <path>` line, then that file's blocks between `<<<<<<< OLD` /
-`=======` / `>>>>>>> NEW` markers, then the next `--- <path>`, for as many files as the edit spans. It
-refuses anything but exactly one match per block, and **the whole patch applies or none of it does**, so a
-stale anchor in the last file cannot leave the first one half-edited. Never reach for a
+splice --patch <file>`**, a patch file under `.agent-tmp/` written with the Write tool. Never reach for a
 `sed`/`python - <<'PY'`/`cat > f <<'EOF'` one-liner instead: a heredoc is a shell string, so it eats the
-backslashes and apostrophes this repository's Rust and prose are full of. The exact format is in
-[conventions.md](conventions.md).
-
-**The count is the point, not the difficulty.** One or two edits are cheaper as plain `Edit` calls — a
-patch costs a Write plus a call, so it only wins from three. Past that it wins by a lot: measured over a
-33-session run, 10.3 turns a session went on `Edit` calls issued **back to back with nothing read between
-them**, in runs of up to 17, and each of those runs was one decision the model had already made, spent one
-round trip at a time. That is the same saving `bun nv peek` takes on the read side, for the same reason.
+backslashes and apostrophes this repository's Rust and prose are full of. The format is
+[conventions.md](conventions.md) § *An edit the Edit tool cannot express*. **The count is the point, not
+the difficulty**: a patch costs a Write plus a call, so it wins from three edits, and a run of `Edit`
+calls with nothing read between them is one decision spent one round trip at a time.
 
 **A playbook bullet is one file under [playbook/](playbook/)**, and Grep over that directory finds one by
 its words. Every bullet ends with an `` `until: <kind> <arg>` `` trailer, whose kinds are looper's
@@ -84,18 +74,13 @@ a `&&` between steps that genuinely depend on each other.
 whose input does not depend on another's result as several tool calls *in the same message*: four greps
 locating a symbol, a Read of two files you already know you need, `git status` beside `cargo --version`.
 They run concurrently and each keeps its own exit status, so nothing about the rule above is weakened.
-This matters more than it looks. A turn's **time-to-first-token is ~80% of its clock and does not depend
-on what the turn does** — median 3.7s, and it climbs with context, 3.4s at 50k to 5.3s at 200k. So a
-session's wall clock is very nearly its turn count times a constant, and merging two calls into one
-message is a saving taken whether or not either call was expensive.
+A turn's fixed cost does not depend on what the turn does, so a session's wall clock follows its turn
+count, and merging two calls into one message saves a turn whether or not either call was expensive.
 
-**But do not rely on remembering to: reach for the tool that batches for you.** Over one measured run of
-39 sessions, **0 of 3,647** tool-call messages carried more than one call — against the rule in the
-paragraph above, which every one of those sessions had in its context, and including runs of 52 and 57
-consecutive `grep`/`sed` calls. A later 33-session run measured the same 1.00 calls per message. A rule
-that loses 3,647 times is not a rule anyone is going to start following, so both sides of the work have a
-tool instead: `bun nv splice` for a run of edits, and `bun nv peek`, which takes as many targets as
-you have questions and answers them in one call:
+**But do not rely on remembering to: reach for the tool that batches for you.** Sessions almost never
+send two calls in one message, whatever the rule above says, so both sides of the work have a tool
+instead: `bun nv splice` for a run of edits, and `bun nv peek`, which takes as many targets as you have
+questions and answers them in one call:
 
 ```sh
 bun nv peek crates/nvs-ir/src/lower/expr.rs:3065-3120 \
@@ -115,21 +100,17 @@ path before the tool sees it. `--locate` is what a handoff's `file.rs:NN` anchor
 **A `rule:` citation is a target on its own** — `rule:types/conversion`, backticks and all if you
 pasted it out of a doc comment — and it answers with that rule's fragment, which is the rule. The
 token is the path (`docs/rules/types/conversion.md`), so nothing is looked up and the miss names
-`bun nv rules --list`. There are about 18,500 of these tokens in the tree, which makes id-to-text the
-most frequent lookup there is here; batch it beside the code you were reading anyway rather than
-translating it by hand.
+`bun nv rules --list`. Id-to-text is the most frequent lookup there is here; batch it beside the code
+you were reading anyway rather than translating it by hand.
 
 **And when you do not know the file yet, read its seams before its lines.** `bun nv peek
 --outline <path>` prints one line per `fn`/`struct`/`enum`/`trait`/`impl`, with where it starts and how
-far it runs; every line of it is a `:@name` target that then lands first time. This is what the re-fetch
-number argues for: **56% of a session's read calls fetch a file the session had already opened** — 24.6
-calls a session across only 20.3 distinct files — and since the two hottest files in this repository are
-5,044 and 5,720 lines, "read it whole" was never the alternative. An outline of `lower/mod.rs` is 2.8 KB
-against the file's 276 KB. `bun nv peek` counts a session's fetches per file and says so once you have
-reached into the same one repeatedly.
+far it runs; every line of it is a `:@name` target that then lands first time. A session that reads the
+same large file again and again is the case it is for, and `bun nv peek` counts a session's fetches per
+file and says so once you have reached into the same one repeatedly.
 
 **The 400-line floor is enforced on both sides.** `bun nv peek` refuses a bare `path` over
-`--max-lines` — 400, which is AGENTS.md rule 3's "whole file under ~400 lines".
+`--max-lines` — 400, AGENTS.md's "read a big file in the region you need".
 The harness's own tools have no such floor, so `bun nv guard` is a `PreToolUse` hook, wired in
 `.claude/settings.json` for `Read` and `Bash`. It denies a raw command where a tool or a rule in this
 file covers it: a whole `Read`, `cat` or `sed -n` of a tracked file over that same 400 lines, and the
@@ -206,7 +187,7 @@ workspace crate downstream takes a new metadata hash, and cargo writes a second 
 beside the first — rlibs, every test binary with its PDB, and one incremental cache per copy.
 `cargo build --bin nvs` does the same to every workspace library through the LTO plan. Nothing
 removes a copy: cargo has no garbage collector on stable, and `bun nv disk` keeps anything younger than
-its grace. When this was found, nine copies of one day's builds held 120 GB of `target/`.
+its grace, so a day of `-p` builds fills the disk.
 
 So a debug build is one of the three shapes, and a narrowing goes on what *runs*. Under `cargo test`
 the target flags do exactly that — `--lib`, `--bin nvs` and `--test <name>` keep every hash:
@@ -261,10 +242,8 @@ and no filter, `bun nv benches`, `bun nv select --full`, `bun nv sweep`, `bun nv
 `--run` over every feature, and `bun nv verify --no-cache`. A person runs them by hand; looper's sweep
 and its hooks are not tool calls, so the guard never sees them. To look into one test, name it: `cargo test --test <name>` or `cargo test --lib <filter>`.
 
-**Two of those are for the run that is not the final one, and both are measured as unused.** Over a
-33-session run there were 108 verifications and **`--fast` was chosen 0 times**, `-p` three times — every
-mid-work check paid the whole gate. Verification is 63.6% of a session's tool-execution time, 41.9s a run
-at 1.9 runs a session, so a mid-work check that only needs to know whether the code compiles and its tests
+**Two of those are for the run that is not the final one.** Verification is most of a session's
+tool-execution time, so a mid-work check that only needs to know whether the code compiles and its tests
 pass should say so: `--fast` for build and test, `-p <crate>` when the change cannot reach further. The
 run at the **end of the group** is always the full one — that is step 3, and it is not negotiable.
 
@@ -298,14 +277,11 @@ whole verdict.
 
 **`cargo doc` is not one of those steps.** It is `--doc`, run alone, when a goal ends. A goal in progress
 may carry broken doc links; the session that writes `DONE` runs `--doc` first and fixes them
-(AGENTS.md § *In the loop*). The whole argument is § *Why `doc` runs when a goal ends rather than as a
-step* in the old `verify` tool's module doc, at tag `pre-overhaul`.
+(AGENTS.md § *In the loop*).
 
-`fmt` is first, and it **formats rather than checks**: a `--check` was the red step in 15 of 39 loop
-sessions, each fixed with `cargo fmt` and a second run, and write mode costs the same two seconds. Its
-summary line names every file it rewrote, and its exit status is held to the end so a parse error is
-still reported by `build`. The measurement is § *Why `fmt` formats, and runs first* in the same
-module doc at tag `pre-overhaul`.
+`fmt` is first, and it **formats rather than checks**: a `--check` that fails is always fixed with
+`cargo fmt` and a second run, and write mode costs the same. Its summary line names every file it
+rewrote, and its exit status is held to the end so a parse error is still reported by `build`.
 
 **A step, a test binary or a case that the change does not reach is not started.** Every build and run
 is the `covws` build, and every run records what it was observed to use in `.cache/select.sqlite`
@@ -463,10 +439,9 @@ verification says nothing about links. It is whole-tree rather than diff-scoped 
 die here is a **rename**: the file moves and every citation of it goes dead, in files the session never
 opened. Run it once before the wrap whenever the session moved or renamed a doc.
 
-Why the tail is one call: measured over a run, the tail of a session — first `nv verify` to last commit
-— was **33 of 98 tool calls**, and since context peaks by then those turns carried **42% of the
-session's whole token bill**. Almost none of it was thinking; it was the plan, re-derived anchors, the
-handoff, the playbook, `git add`, `git commit` and `status.txt`.
+The tail is one call because context peaks by then, so each turn of it costs the most, and almost none
+of it is thinking: the handoff, the playbook, `git add`, `git commit` and the status line.
+`looper wrap` is not loop-only. Steps 4 and 5 are the same steps in an interactive session.
 
 ## Releasing
 
@@ -486,8 +461,6 @@ bun nv release --preview minor     # the exact version and notes a dispatch woul
 `bun nv release --check` is the gate CI's `docs` job runs: the workspace version, the
 `[workspace.dependencies]` pins that restate it, the newest tag and `CHANGELOG.md` all agree.
 
-`looper wrap` is not loop-only. Steps 4 and 5 are the same steps in an interactive session.
-
 ## Benchmarking against PHP
 
 ```sh
@@ -498,7 +471,7 @@ bun nv bench --php-mode default          # PHP as installed, rather than with op
 bun nv bench --json data/perf/userland.ndjson   # append one record per case
 ```
 
-`benches/userland/` holds twenty pieces of ordinary web-and-CLI PHP written twice, `NN-slug.php` beside
+`benches/userland/` holds pieces of ordinary web-and-CLI PHP written twice, `NN-slug.php` beside
 `NN-slug.nvs`. [Its README](../../benches/userland/README.md) owns what a case is and how to add one —
 including the rule that is not obvious, that each iteration's input must depend on the last one's result,
 because PHP's tracing JIT deletes a loop whose input never changes and the deleted loop still prints the
@@ -635,71 +608,17 @@ disk call is a free-space check that refuses to start a loop below `looper.toml`
 min_free_gb`, which matches `MIN_FREE_GB` in `tools/nv/cmd/disk.ts`. That refusal is the point — a run
 that fills the disk dies inside a session with the tree half-edited.
 
-What fills the disk is **build generations**. A crate's artifacts are named `<name>-<metadata-hash>`, and
-that hash covers the dependency graph — so every `Cargo.toml` or `Cargo.lock` edit mints a fresh set for
-every crate downstream and orphans the previous one, forever: cargo has no garbage collector on stable.
-Editing *source* costs nothing, because a source-only rebuild reuses every hash. A goal that adds a
-dependency most sessions therefore adds a whole generation most sessions. One generation of this
-workspace was ~6 GB when this was found, and nine of them were on disk at once.
+What fills the disk is **build generations**, and what `--clean` deletes and keeps is
+`tools/nv/cmd/disk.ts`'s module doc. The debug settings that keep each build small are `Cargo.toml`'s
+`[profile.dev]` comments, and `tools/build/tests_without_pdb.rs` is why an integration test has no PDB
+on windows-msvc (`NVS_TEST_PDB=1` brings one back).
 
-`--clean` never deletes a `deps/` file for being *old*, the way `cargo-sweep` does — cargo never rewrites
-an artifact it considers fresh, so a superseded generation and a live one can carry the same date. It asks
-cargo instead: warm `--message-format=json` runs over `target/covws`, which the pipeline builds, and over
-`target/debug`, which a person builds by hand, name every file the current graphs use. It also deletes
-what nothing reads any more: a stray `default_*.profraw` and the memo files the selection store
-replaced. Age only ever *keeps*: anything written in the last `GRACE_HOURS` survives
-whatever cargo said — a build still in flight, and the `--test <name>` shape the rule above leaves open.
-That grace was a day once, every `-p` copy a session minted was younger than that, and the sweep freed
-nothing. Nothing it does can produce a wrong build —
-cargo re-checks every fingerprint against what is really on disk, so a mistake costs a rebuild and nothing
-else.
-
-`release/deps` and `proof/deps` cannot be asked: naming their live set takes an optimized build of every
-shape that uses them, which is minutes of LTO per sweep, and a shape no check runs any more would be
-built for nothing. They are swept by rank instead (`staleOptimized`): every artifact keeps its newest
-`KEEP_OPTIMIZED` copies and anything written in the last `OPTIMIZED_GRACE_DAYS`. A crate is built only a
-few ways at once in those profiles, and every dependency edit leaves one more copy behind, so the copies
-past the newest few are the orphans. When this was added, release copies of one workspace crate went back
-three weeks, and the rank freed 7 GB of 12. A live copy ranked out costs its own optimized rebuild.
-
-Three more places grow the same way, and `--clean` sweeps each. An extension's `extensions/<name>/target`
-is a workspace of its own, built by a cargo run given its `--manifest-path` or by an editor, and no
-sweep builds it to ask for its live set: every profile there is ranked like `release/deps`
-(`staleExtensions`), and its incremental caches keep the newest per crate. `.cache/select/covmap` holds
-one coverage map per test program, and a program's file name carries the metadata hash, so a
-dependency edit orphans the map of every program it renamed: writing a map deletes the maps of
-programs that are gone, and `--clean` deletes those and any map the index does not name
-(`staleMaps`). Under `.agent-tmp/select-rec` each recorder's directory is judged by its own age,
-because a run that was killed never deletes its own and the shared directory is always new.
-
-Three debug settings are the other half. On windows-msvc the linker copies the debug info of every
-linked object into each binary's PDB, so whatever the workspace carries is written into every test
-binary at once. `[profile.dev.package."*"] debug = 0` took cranelift and wasmtime out of them, and a
-session's own `nv verify` got *faster* (51s → 43s) because there is less to link and to load;
-`[profile.dev] debug = "line-tables-only"` then took the type and variable info of Novis's own crates
-out, which was three quarters of what remained. A panic location and a backtrace still name file and
-line, so every `debug_assert` and the runtime's owner-stamp check report as they did; a session that
-needs to step in a debugger sets `CARGO_PROFILE_DEV_DEBUG=2` for that one build.
-
-The third is `tools/build/tests_without_pdb.rs`, the build script of every crate with a `tests/`
-directory: on windows-msvc it links each integration-test program with `/DEBUG:NONE`, so those programs
-have no PDB at all. With one program per test file, their PDBs were 4.6 GB of `target/debug` and as much
-of `target/covws`, and every worktree builds both again. A failing test still names its file and line,
-because the panic location is compiled into the program, and the covws build's coverage still names
-every function, because counters and names are sections of the program itself. What goes is a
-symbolized Rust backtrace from inside an integration test: set `NVS_TEST_PDB=1` for the build that
-needs one, which reruns the script and rebuilds the crates downstream of it. A profile setting cannot
-do this. `[profile.test]` applies to the libraries a test links as well, so it gives every workspace
-crate a second copy, and `strip` does not touch a PDB.
-
-Five things live outside this repository and `bun nv disk` reports them without ever deleting them — another
-tool's state is not a repo script's to remove. `/var/tmp/nvs-linux` and `/var/tmp/nvs-target-wsl` are the
-valgrind leg's and the WSL leg's own target directories, each a full one, and `/var/tmp/nvs-target-wsl-src`
-holds the WSL leg's copy of each checkout, which the next leg makes again, rebuilding the workspace's own
-crates after it; deleting any frees ext4 space
-but **not** Windows space, because the vhdx never shrinks on its own (`wsl --shutdown`, then compact it,
-if C: is what is short). `~/.claude/projects/` keeps one JSONL per session forever.
-`~/.cargo/registry/src` is re-extracted on demand and safe to delete.
+`bun nv disk --deep` reports the places outside this repository without ever deleting them.
+`/var/tmp/nvs-linux`, `/var/tmp/nvs-target-wsl` and `/var/tmp/nvs-target-wsl-src` are the valgrind
+leg's and the WSL leg's target directories and the WSL leg's copy of each checkout. Deleting any frees
+ext4 space but **not** Windows space, because the vhdx never shrinks on its own (`wsl --shutdown`, then
+compact it, if C: is what is short). `~/.cargo/registry/src` is re-extracted on demand and safe to
+delete.
 
 ## Fuzzing and callgrind on Windows: use WSL
 
@@ -709,24 +628,15 @@ both in WSL. From a Windows shell, `wsl.exe -- bash -lc "<command>"` runs a comm
 distro, which reaches the repo over `/mnt/<drive>/…`. What that distro must have installed — and why PHP goes in
 it as well, at the same version as the Windows one — is [docs/setup.md](../setup.md).
 
-**The WSL leg runs from a copy of the tree on the distro's own disk, not over the `/mnt` mount.** Every
-file operation on that 9p mount is a round trip to Windows. A build barely shows it, since dependencies
-compile out of `~/.cargo` and the target directory is off the mount. A fixture does: `nvs run` from the
-repository root resolves every `[[app]]` root in `nvs.toml` before the program starts, and that took 1.5s
-per fixture over the mount against 0.02s from ext4, and a `tests/conformance/` run reads every case file
-on top. `tools/nv/accept/mirror.ts` keeps the copy at `<env.wsl.targetDir>-src/<checkout>` and brings it
-to the working tree before every WSL build, so a stale copy is not a failure mode. The sync is git's own:
-a tree taken through a scratch index, and a pack of only what changed sent into the distro as one stream,
-so no per-file question crosses the mount. An unchanged tree syncs in about 0.4s and the first sync takes
-a few seconds. rsync is the wrong tool for it: it stats every file over the mount, and a no-change pass
-over the tree ran for minutes. A command you run by hand over `/mnt` still works and pays the per-file
-cost.
+**The WSL leg runs from a copy of the tree on the distro's own disk, not over the `/mnt` mount**, at
+`<env.wsl.targetDir>-src/<checkout>`. `tools/nv/accept/mirror.ts`'s module doc is why and how the copy
+is kept current. A command you run by hand over `/mnt` still works and pays a round trip to Windows for
+every file it opens.
 
 **Both Linux target directories are under `/var/tmp`, and that is not cosmetic.** `D /tmp` in the distro's
 `tmpfiles.d` clears `/tmp` at every boot; WSL stops the VM as soon as the last process exits and boots
 again on the next call, so a target directory in `/tmp` is gone after any idle gap and the leg silently
-pays 32s of cold build instead of 0.31s. Nothing ages `/var/tmp` out — Ubuntu 24.04 ships its
-`q /var/tmp` line commented out.
+pays a cold build. Nothing ages `/var/tmp` out: Ubuntu ships its `q /var/tmp` line commented out.
 
 From the repo root (not `fuzz/` itself — cargo-fuzz expects the parent directory):
 `cargo +nightly fuzz run lex -- -max_total_time=300`, and `parse` likewise.
@@ -768,9 +678,8 @@ For the instruction-count leg: `cargo build --release -p nvs-abi-probe --example
 **A hand-written refcount protocol is where a leak hides, so check one before you commit it.**
 `MSYS_NO_PATHCONV=1 wsl.exe -- bash /mnt/<drive>/<repo>/tools/leak-check.sh <fixture> …` runs
 `valgrind --leak-check=full` over the `.nvs` files you name. Without the variable, Git Bash rewrites the
-`/mnt/…` path before `wsl.exe` sees it. Run it for **any** new refcount edge, against a fixture that actually exercises it —
-this repository's one real leak went unnoticed until a fixture happened to declare a refcounted local
-inside a loop.
+`/mnt/…` path before `wsl.exe` sees it. Run it for **any** new refcount edge, against a fixture that
+actually exercises it: a leak no fixture reaches is a leak no run reports.
 
 That script and the loop's own valgrind sweep both pass `--suppressions=`[tools/valgrind.supp](../../tools/valgrind.supp),
 whose header is the one home for what it hides: two contexts inside `ring`'s AEAD assembly, which memcheck

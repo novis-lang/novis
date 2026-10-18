@@ -1,7 +1,7 @@
 # Conventions — the shapes this repository writes
 
-Every answer here is the same in every session. They were being re-derived with a read of an existing
-example each time, which is why this file exists.
+Every answer here is the same in every session, so it is read here rather than re-derived from an
+existing example.
 
 **It holds skeletons and pointers, never a second copy of a rule.** Each section names a real file that
 CI already runs, because a worked example that is also a passing test cannot go stale the way a pasted
@@ -48,8 +48,7 @@ body with `Fixes #<n>`, which links the fix to the issue and closes it. Nothing 
 from a report — no reporter's name, no quote ([user-report.md](user-report.md)).
 
 Write the message to a file and use `git commit -F <file>` — never `-m` for anything multi-line, per
-[commands.md](commands.md). `git log -1 --format=%B` is not needed to remember this; that is what this
-section is for.
+[commands.md](commands.md).
 
 ## A code comment
 
@@ -82,10 +81,10 @@ These are therefore never in a comment:
   let the list be its own count. A number that is a fixed property of the code — a two-word header, a
   16-byte alignment, a limit the code enforces, an ABI offset — is a fact about the code and stays.
 - **A measurement the code does not enforce** — "takes a minute or two", "cut it by 40%", "eight
-  sessions paid it". A measured number lives with the guard test or the perf note that took it
-  ([doc-style.md](doc-style.md)), and a comment quoting one is a copy that no run ever updates. State
-  the shape of the cost instead — "the release relink dominates this step" — and cite the home when the
-  figure itself is the argument.
+  sessions paid it". A measured number lives with the guard test or the ledger under `data/perf/`
+  that took it ([doc-style.md](doc-style.md)), and a comment quoting one is a copy that no run ever
+  updates. State the shape of the cost instead — "the release relink dominates this step" — and cite
+  the home when the figure itself is the argument.
 
 None of this asks for a comment to be shorter or plainer. A dense paragraph explaining why a lock is
 held across an await is exactly what belongs here; it just gets written as though it had always been
@@ -119,10 +118,9 @@ the exact stdout, byte for byte
   the runner does not know is an error, and that includes PHP comparison sections.
 - A new file under `tests/conformance/` is picked up with no registration.
 
-**The four shapes a depth case takes.** Every pure `Core` class has had a pass, so a new case reaches
-for one of these rather than for a class, and what it adds is the boundary or the invariant the
-member is written around — never another row of the same shape. `bun nv gaps` finds the
-candidates; the playbook owns the spellings that will not compile.
+**The four shapes a depth case takes.** A new case reaches for one of these, and what it adds is the
+boundary or the invariant the member is written around — never another row of the same shape.
+`bun nv gaps` finds the candidates; the playbook owns the spellings that will not compile.
 
 - *Edges* — the answer where the member stops accepting: an empty receiver, a name it cannot read, a
   padding only wide enough to be used. `bun nv gaps --errors` lists the boundaries no case asks about.
@@ -281,8 +279,8 @@ CoreMethod {
 },
 ```
 
-`names` is the published signature's parameter names, one per positional slot and never the `$` (`rule:core-api/shape-rules` R2);
-`every_registry_rows_names_are_the_specs_signature_column` holds the two together.
+`names` is the published signature's parameter names, one per positional slot and never the `$`
+(`rule:core-api/shape-rules` R2).
 
 **2. The card** — `rule:core-api/reference-card`'s reference documentation, a `const` in the block of cards directly after the
 class, in row order. `every_registry_row_carries_a_reference_card` fails `cargo test -p nvs-stdlib`
@@ -305,14 +303,14 @@ const IS_VALID_DOC: MethodDoc = MethodDoc {
 
 A **class** carries a card of its own on the same terms: a `ClassDoc` with one `short` saying what the
 class is for, under the row's `doc` field, and `every_registry_row_carries_a_reference_card` fails a new
-class without one (the classes that landed before the field existed are listed in that test). The field docs on `MethodDoc`, `EnumDoc`, `ClassDoc` and `CoreConst::desc`
+class without one. The field docs on `MethodDoc`, `EnumDoc`, `ClassDoc` and `CoreConst::desc`
 in `registry.rs` are the rule; the three things they do not say are these. `params` is the row's `names` in order, then one entry per
 option of a trailing options bag under the option's own name
 (`a_documented_rows_param_docs_agree_with_its_names`), and `shape` is filled only for a fixed-key
 shape parameter. `errors` is **what the body throws** — every `Fault::thrown_as(ThrownClass::…)` the
 helper reaches, by the class's `catch` name from the `Core\Error` tree (`LogicError`, `ParseError`), one
 entry per class with its conditions in the `desc`, and never an error the body does not raise. Two
-readings that cost the backfill time: a bare `Fault::thrown(…)` is `RuntimeError` (`abi.rs` says so),
+readings are easy to miss: a bare `Fault::thrown(…)` is `RuntimeError` (`abi.rs` says so),
 and a `Fault::fatal` is not a throw at all — no `catch` sees it, so it is never an entry, though `ret`
 may say so where a caller would otherwise expect one. And the card is a condensed reference: one or two sentences a
 field, no examples, no tips — an essay belongs in the website's page, which renders the card above it.
@@ -363,8 +361,8 @@ chapters linkify it on the way out. A rule id is its fragment's path — `types/
 
 **A reason is cited by the rule that holds it.** There are no decision records, so a line that needs a
 reason cites the rule or states the reason in place, and `bun nv brief --where <keyword>` routes a topic
-to the rule that owns it. A new decision becomes a goal or goes into the plan, and when it lands, what
-it decided, why, what it spends and what it declined go into its rule fragment.
+to the rule that owns it. A new decision becomes a goal, and when it lands, what it decided, why, what
+it spends and what it declined go into its rule fragment.
 
 **A link to another document depends on whether a renderer resolves it, and there are exactly two
 forms.**
@@ -374,11 +372,9 @@ forms.**
 | a `.md` file | relative to the file — `](../rules/types.md)` | GitHub and the website render it, and both resolve against the file's own location |
 | a `.rs`, `.nvs` or `.nvst` file | absolute from the repository root — `](/docs/rules/types.md)` | nothing renders it, so the readers are people, agents and `grep` |
 
-A source file's link had a `../` prefix until it was measured: 465 of 1,640 were dead — 442 with the
-wrong number of `../`, 23 naming a filename the target no longer had. A prefix encodes the **citing**
-file's depth, so every split, rename and new directory level silently invalidated every link in the
-half that moved, and nothing looked. The root-absolute form has one spelling per target and survives
-the move, which is the whole reason it is worth two rules instead of one.
+A `../` prefix encodes the **citing** file's depth, so every split, rename and new directory level
+silently breaks every link in the half that moved. The root-absolute form has one spelling per target
+and survives the move, which is the whole reason it is worth two rules instead of one.
 
 `bun nv links` is the gate for both, and CI's `docs` job runs it. Two shapes in a
 source file are not paths and it skips them: a rustdoc intra-doc link naming an item
@@ -388,7 +384,7 @@ prose names, and a `.ts` file not at all: a tool emits markdown, so a link in on
 literals is relative to the *generated* file.
 
 Neither form is what rustdoc follows: a relative link in a doc comment resolves against the generated
-HTML page, where `../../../docs/` has never existed, so `cargo doc` was never a check on any of this.
+HTML page, where `../../../docs/` does not exist, so `cargo doc` is no check on any of this.
 
 ## A rule fragment
 
@@ -491,7 +487,7 @@ reorder is cheap: moving an entry changes no content, and `--render` rewrites th
 
 ## A diagnostic
 
-Next free code per band: `bun nv pack`, under *The next free number*. Bands are by compiler phase and the legend is
+Next free code per band: `bun nv pack`, under *The next free diagnostic code*. Bands are by compiler phase and the legend is
 `crates/nvs-diagnostics/src/lib.rs`'s own table. Declare it there as a `Code::new` constant next to its
 siblings — that file is the whole registry, so a code declared anywhere else does not exist.
 
@@ -523,10 +519,10 @@ or none of it does**, across every file it names — a stale anchor in the last 
 one half-edited. A failed match reports the line where the anchor stopped matching and what the file has
 there instead.
 
-`nv splice <target> --patch <f>` is the older one-file form, whose blocks carry no `--- <path>` line;
+`nv splice <target> --patch <f>` is the one-file form, whose blocks carry no `--- <path>` line;
 naming a target *and* using headers is refused rather than guessed at. Reach for a patch from three edits
-up — one or two are cheaper as plain `Edit` calls, and [commands.md](commands.md) § *One shell call runs
-one command* has the measurement. **A patch cannot carry a patch**: a block whose text contains the
+up — one or two are cheaper as plain `Edit` calls ([commands.md](commands.md) § *A shell never carries
+file content into the tree*). **A patch cannot carry a patch**: a block whose text contains the
 markers themselves ends at the first `=======` inside it, so an edit to prose *about* this format is one
 the `Edit` tool has to make.
 
