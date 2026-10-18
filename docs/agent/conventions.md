@@ -493,11 +493,11 @@ reorder is cheap: moving an entry changes no content, and `--render` rewrites th
 
 ## A diagnostic
 
-Bands are by compiler phase and the legend is `crates/nvs-diagnostics/src/lib.rs`'s own table. Declare it there as a `Code::new` constant next to its
-siblings — that file is the whole registry, so a code declared anywhere else does not exist.
-
-Never reuse a retired number; the next free one is the band's highest plus one, deliberately not the
-lowest hole.
+Each area of the compiler has its own range and its own file under `crates/nvs-diagnostics/src/code/`,
+and that module's head comment is the table of both. Declare a code in its area's file as a `Code::new`
+constant with its card, and take the highest number in that file plus one: never a retired number in
+a hole. A test fails on a code outside its file's range and on a number declared twice. A full range
+continues in a new range and a new file, which the table names.
 
 ## An edit the Edit tool cannot express, or a run of three or more edits
 

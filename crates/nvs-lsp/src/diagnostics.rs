@@ -10,7 +10,7 @@
 //! every keystroke mid-statement teaches a developer to stop reading squiggles.
 //!
 //! **The band is the phase.** Codes are allocated per compiler phase
-//! (`crates/nvs-diagnostics/src/lib.rs` is the legend), so the two digits after
+//! (`crates/nvs-diagnostics/src/code/mod.rs` is the legend), so the two digits after
 //! the `E0` say which phase reported a diagnostic without anything having to
 //! carry a phase tag through the front end. The type phase spans three bands
 //! rather than one — it filled `E04xx` at `E0499` and `E07xx` at `E0799` and

@@ -7,7 +7,7 @@
     "testing/feature-proofs"
   ],
   "guardedBy": [
-    "crates/nvs-diagnostics/src/lib.rs",
+    "crates/nvs-diagnostics/src/code/mod.rs",
     "crates/nvs-diagnostics/src/render.rs"
   ]
 }
