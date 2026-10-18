@@ -1,0 +1,8 @@
+error[E0403]: this method declares `void` but returns `int`
+   --> 04-a-void-method-cannot-return-a-value.nvs:10:16
+   |
+10 |         return 0;
+   |                ^ this is `int`
+
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

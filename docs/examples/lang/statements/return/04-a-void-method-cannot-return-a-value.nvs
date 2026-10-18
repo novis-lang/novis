@@ -1,0 +1,14 @@
+<?nvs
+// Shows that a `void` method cannot return a value. This `return` has a
+// value, so this program does not compile.
+// proof: compile-error
+
+class Counter
+{
+    public static function reset(): void
+    {
+        return 0;
+    }
+}
+
+Counter::reset();
