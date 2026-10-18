@@ -12,3 +12,4 @@ form when the target always has a value.
 
 **The examples below** take these in turn: writing and updating a value, updating what is inside an
 array and an object, and tallying a report with `??+=` first and the same update written out after.
+The last two show every compound operator, and the error for `/=` on an `int`.
