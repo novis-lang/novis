@@ -7,6 +7,15 @@
       {
         "hooks": [
           {
+            "command": "bun nv guard",
+            "type": "command"
+          }
+        ],
+        "matcher": "Read|Bash"
+      },
+      {
+        "hooks": [
+          {
             "command": "looper guard",
             "type": "command"
           }
@@ -33,6 +42,7 @@
       "Bash(bun nv ext-templates:*)",
       "Bash(bun nv gaps:*)",
       "Bash(bun nv gen-attribution:*)",
+      "Bash(bun nv guard:*)",
       "Bash(bun nv holes:*)",
       "Bash(bun nv layout:*)",
       "Bash(bun nv legs:*)",
