@@ -1,0 +1,2 @@
+woof a Dog
+cannot convert `Cat` to `class<Animal>`: it does not name a class that is a `Animal`

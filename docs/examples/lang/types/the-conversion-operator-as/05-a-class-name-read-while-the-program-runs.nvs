@@ -1,0 +1,36 @@
+<?nvs
+// Shows how `as class<T>` turns a class name into a class reference.
+
+class Animal
+{
+    public function speak(): string
+    {
+        return "...";
+    }
+}
+
+class Dog extends Animal
+{
+    public function speak(): string
+    {
+        return "woof";
+    }
+}
+
+// `Dog::class` is checked while the program compiles.
+class<Animal> $folded = Dog::class as class<Animal>;
+
+// A name in a variable is checked while the program runs.
+string $name = "Dog";
+class<Animal> $picked = $name as class<Animal>;
+Animal $pet = new $picked();
+echo $pet->speak(), " ", ($pet is $folded) ? "a Dog" : "not", "\n";
+
+// No class `Cat` exists, so the conversion throws a `RuntimeError`.
+string $missing = "Cat";
+try {
+    class<Animal> $bad = $missing as class<Animal>;
+    echo (new $bad())->speak(), "\n";
+} catch (RuntimeError $e) {
+    echo $e->message, "\n";
+}

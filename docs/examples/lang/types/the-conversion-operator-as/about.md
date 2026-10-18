@@ -13,5 +13,6 @@ reference with `as class<T>`.
 `$b` alone.
 
 **The examples below** read numbers out of text that came from outside the program, then give a
-default or list the answers that are not numbers. Last, they add up an order total and skip a row
-that throws an error.
+default or list the answers that are not numbers. Then they add up an order total and skip a row
+that throws an error. The next examples show which error each conversion throws, and choose a class
+by its name. The last two do not compile.

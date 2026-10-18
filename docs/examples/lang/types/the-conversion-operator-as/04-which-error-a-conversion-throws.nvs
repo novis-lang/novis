@@ -1,0 +1,38 @@
+<?nvs
+// Shows the order in which `as` runs, and which error a failed conversion throws.
+
+// `as` converts only the value directly before it. `7 / 2 as int` is `7 / (2 as int)`.
+echo 7 / 2 as int, " ", (7 / 2) as string, " ", 1 + 2 as float, "\n";
+
+string $digits = "42";
+int $n = $digits as int;
+echo $n + 1, " ", "1e3" as float, " ", 3.0 as int, "\n";
+
+// `true` converts to "1". `false` and `null` convert to an empty string.
+echo true as string, "|", false as string, "|", null as string, "|\n";
+
+float $f = 3.9;
+string $word = "abc";
+int $neg = -1;
+
+// A number that does not fit throws an `ArithmeticError`.
+try {
+    echo $f as int, "\n";
+} catch (ArithmeticError $e) {
+    echo $e->message, "\n";
+}
+try {
+    echo $neg as uint, "\n";
+} catch (ArithmeticError $under) {
+    echo $under->message, "\n";
+}
+
+// Text that is not a number throws a `RuntimeError`.
+try {
+    echo $word as int, "\n";
+} catch (RuntimeError $text) {
+    echo $text->message, "\n";
+}
+
+// `as ?int` gives `null` for each value that `as int` cannot convert.
+echo ($word as ?int) ?? -1, " ", ($f as ?int) ?? -1, " ", ($digits as ?int) ?? -1, "\n";
