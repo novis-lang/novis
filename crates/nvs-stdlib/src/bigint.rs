@@ -124,6 +124,12 @@ const CARD: ClassDoc = ClassDoc {
 ///
 /// The roster is this module's own rather than the spec's: § 13's row names the
 /// class and no member, so each row's reference card is what documents it.
+///
+/// And the other half of `rule:types/decimal`: the exact scalar above is the
+/// human-magnitude answer, and this is the arbitrary one. Spec § 13's row
+/// names the pair together, and `crate::bigint`'s module doc owns why
+/// neither subsumes the other.
+// rank: 60
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
     doc: Some(&CARD),

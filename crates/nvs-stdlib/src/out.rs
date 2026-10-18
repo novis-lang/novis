@@ -57,6 +57,7 @@ const CAPTURE_OPTIONS: &[CoreOption] = &[CoreOption {
 }];
 
 /// Spec § 12's `Core\Out`, which has exactly this one member.
+// rank: 440
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
     doc: Some(&CARD),

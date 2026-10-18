@@ -205,6 +205,15 @@ const CARD: ClassDoc = ClassDoc {
 /// Spec § 16's `Core\Net` —
 /// `rule:core-classes/net-one-api-three-transports`'s five entry points, each
 /// saying in its name what it opens.
+///
+/// § 16's socket half, beside the HTTP client because the two are the same
+/// door at two heights: `rule:core-classes/net-one-api-three-transports`
+/// replaces `socket_*`, `stream_socket_*` and `fsockopen` with one class over
+/// three transports, and `rule:security/net-listen-is-a-separate-grant-from-net-connect`
+/// is why reaching outward and binding are two grants rather than one
+/// widened. Three of the five entry points so far; [`crate::net`]'s module
+/// doc is the home of what each one asks.
+// rank: 1270
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
     doc: Some(&CARD),
@@ -469,6 +478,12 @@ const LISTEN_LOCAL_DOC: MethodDoc = MethodDoc {
 /// Its slot holds a key into the request's own table of open sockets, which
 /// this module's third decision argues for; `Core\IO\File` is the same shape
 /// over a descriptor and landed first.
+///
+/// The connected transport those entry points answer with — a `Read` and a
+/// `Write` shaped like every other stream in the language, whose one slot
+/// holds a key into the request's own table of open sockets. `Core\IO\File`
+/// is the same shape over a descriptor and landed first.
+// rank: 1280
 pub(crate) const STREAM: CoreClass = CoreClass {
     name: STREAM_NAME,
     doc: Some(&STREAM_CARD),
@@ -601,6 +616,11 @@ const STREAM_CLOSE_DOC: MethodDoc = MethodDoc {
 /// The accepting half of `rule:core-classes/net-one-api-three-transports` —
 /// where accepting is a member on the listener rather than a sixth entry point
 /// on `Core\Net`.
+///
+/// The accepting half, and the reason `Core\Net` has five entry points
+/// rather than six: taking the next connection off a socket the program
+/// already holds is a member on that socket, not another way to open one.
+// rank: 1290
 pub(crate) const LISTENER: CoreClass = CoreClass {
     name: LISTENER_NAME,
     doc: Some(&LISTENER_CARD),
@@ -711,6 +731,13 @@ const LISTENER_CLOSE_DOC: MethodDoc = MethodDoc {
 /// sockets — and it is the one handle class here whose members do not all reach
 /// what the bind already granted. See this module's grant section for why
 /// [`nvs_core_net_datagram_send`] asks a second one.
+///
+/// The third transport, which answers neither `Read` nor `Write` because a
+/// datagram socket has no stream to read. It is the one handle class here
+/// whose members do not all reach what its bind already granted:
+/// `rule:security/net-address-policy` asks the outbound grant at the send,
+/// because that is where a datagram's address is named at all.
+// rank: 1300
 pub(crate) const DATAGRAM: CoreClass = CoreClass {
     name: DATAGRAM_NAME,
     doc: Some(&DATAGRAM_CARD),
@@ -896,6 +923,11 @@ const DATAGRAM_CLOSE_DOC: MethodDoc = MethodDoc {
 /// sender could not reply to it, and replying is most of what a datagram socket
 /// is for. Nothing here waits and nothing here reaches anything: the values are
 /// already in hand by the time one of these exists.
+///
+/// And what a receive answers with — the octets and the endpoint they came
+/// from, as one object because Novis has neither out-parameters nor tuples
+/// and `stream_socket_recvfrom`'s row has to be answered by something.
+// rank: 1310
 pub(crate) const MESSAGE: CoreClass = CoreClass {
     name: MESSAGE_NAME,
     doc: Some(&MESSAGE_CARD),

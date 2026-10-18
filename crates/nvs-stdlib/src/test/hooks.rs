@@ -40,6 +40,11 @@ const fn reader(
 
 /// How one attempt at one test came out — `rule:testing/after-each-test`'s
 /// table, one reader per row.
+///
+/// `rule:testing/after-each-test` and `rule:testing/class-hooks`: what the
+/// runner passes to a test hook, beside `Core\Test` for the reason the
+/// response above is.
+// rank: 490
 pub(crate) const OUTCOME: CoreClass = CoreClass {
     name: OUTCOME_NAME,
     doc: Some(&OUTCOME_CARD),
@@ -82,6 +87,7 @@ pub(crate) const OUTCOME: CoreClass = CoreClass {
 
 /// How one test class came out — `rule:testing/class-hooks`'s fields, one
 /// reader each.
+// rank: 500
 pub(crate) const SUMMARY: CoreClass = CoreClass {
     name: SUMMARY_NAME,
     doc: Some(&SUMMARY_CARD),

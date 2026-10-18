@@ -45,6 +45,14 @@ const CARD: ClassDoc = ClassDoc {
 };
 
 /// `Core\Server`'s registry rows — § 15's `isDraining` and `traceId`.
+///
+/// § 15's third class that needs no request — so far. What is registered is
+/// `rule:http-server/the-server-block-is-boot-class`'s `isDraining`, which asks the same kind of question those
+/// two do about the *process* rather than about a request; the rest of
+/// `Core\Server` is the request's own environment and waits on a served
+/// request carrying it. [`crate::server`]'s module doc owns that gap, and
+/// why the bit it reads lives in `nvs-runtime`.
+// rank: 670
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: r"Core\Server",
     doc: Some(&CARD),

@@ -115,6 +115,15 @@ const CARD: ClassDoc = ClassDoc {
 };
 
 /// `rule:security/protocol-roster`'s first roster entry, as two rows.
+///
+/// `rule:security/protocol-roster`'s first roster entry, and beside `Core\Crypto` because it
+/// *is* `Core\Crypto` — [`crate::signed_cookie`] keys the same construction
+/// through the same three helpers, with a key ring over it and a
+/// cookie-safe spelling around it, so there is one AEAD in this crate and
+/// not two. Its own module doc owns which end of the ring is the newest key
+/// and why its `open` is the one verification in the language that removes
+/// `tainted`.
+// rank: 950
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
     doc: Some(&CARD),

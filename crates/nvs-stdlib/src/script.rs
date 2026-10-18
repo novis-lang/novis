@@ -119,6 +119,12 @@ use crate::registry::{
 pub const HANDLE_NAME: &str = r"Core\Script\Handle";
 
 /// The registry row. See [`crate::registry::CLASSES`].
+///
+/// `rule:security/isolate-shares-nothing`'s isolate handle, and no spec § of its own either — the
+/// concurrency *language* surface belongs to `docs/spec/00-overview.md` § 2,
+/// which is where `spawn script`'s grammar already is. The one class here
+/// with no members at all; [`crate::script`] owns why that is the point.
+// rank: 530
 pub(crate) const HANDLE: CoreClass = CoreClass {
     name: HANDLE_NAME,
     doc: Some(&HANDLE_CARD),
@@ -145,6 +151,11 @@ const PENDING: usize = 0;
 /// `Core\Time` sits beside `Core\Time\Instant`: the handle is what a spawn
 /// answers with, and this is what the child asks.
 ///
+///
+/// `rule:core-classes/script-args`'s `Core\Script::args()`, which replaced `rule:security/isolate-shares-nothing`'s `$_ARGS`
+/// — the read half of `spawn script`'s `args:` option, and a class beside
+/// the handle for the same reason `Core\Time` sits beside `Core\Time\Instant`.
+// rank: 540
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: r"Core\Script",
     doc: Some(&CARD),
@@ -303,6 +314,7 @@ const THROWABLE: CoreTy = CoreTy::Instance("Throwable");
 /// reach, so the only thing that builds one is [`report_of`] — which is
 /// downstream of the ending having been decided, and that is § 5's "fixed
 /// before the first hook runs" as structure rather than as a rule.
+// rank: 550
 pub(crate) const EXIT_REPORT: CoreClass = CoreClass {
     name: EXIT_REPORT_NAME,
     doc: Some(&EXIT_REPORT_CARD),

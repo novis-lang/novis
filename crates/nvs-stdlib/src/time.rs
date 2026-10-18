@@ -184,6 +184,7 @@ pub const FROM_NANOS_SYMBOL: &str = "nvs_core_time_duration_nanoseconds";
 /// The eight `Duration::seconds`-shaped constructors are for a **computed**
 /// count; a constant one is a duration written in the source (`rule:types/duration`), and
 /// the two produce the same value through this class's one slot.
+// rank: 270
 pub const DURATION: CoreClass = CoreClass {
     name: DURATION_NAME,
     doc: Some(&DURATION_CARD),
@@ -998,6 +999,7 @@ pub const ZONE_NAME: &str = r"Core\Time\Zone";
 /// identifier begins with a sign — so [`resolve_zone`] tells them apart by the
 /// first byte, and a `Zone` stays a value Novis can hold rather than a native
 /// handle ([`crate::instance`] owns why that matters).
+// rank: 280
 pub const ZONE: CoreClass = CoreClass {
     name: ZONE_NAME,
     doc: Some(&ZONE_CARD),
@@ -1155,6 +1157,7 @@ pub const INSTANT_NAME: &str = r"Core\Time\Instant";
 /// have capped the type at 1677–2262, which is a range a program can reach by
 /// accident (a far-future expiry, a year-9999 sentinel) — this module's docs
 /// own that trade.
+// rank: 230
 pub const INSTANT: CoreClass = CoreClass {
     name: INSTANT_NAME,
     doc: Some(&INSTANT_CARD),
@@ -1610,6 +1613,7 @@ const WITH_OPTIONS: &[CoreOption] = &[
 /// **What it spends:** 48 bytes of slots against 32 for an `Instant`, and one
 /// string reference for the zone id, shared with the `Zone` a conversion was
 /// asked for in.
+// rank: 240
 pub const DATETIME: CoreClass = CoreClass {
     name: DATETIME_NAME,
     doc: Some(&DATETIME_CARD),
@@ -2132,6 +2136,7 @@ pub const TIME_NAME: &str = r"Core\Time";
 
 /// Spec § 4's entry points — the namespace class that produces the values the
 /// classes above are members of.
+// rank: 220
 pub const TIME: CoreClass = CoreClass {
     name: TIME_NAME,
     doc: Some(&TIME_CARD),
@@ -2495,6 +2500,7 @@ const DATE_WITH_OPTIONS: &[CoreOption] = &[
 /// three fields are what every member reads, so a count would be a conversion
 /// on each side of every call to save two words — [AGENTS.md](/AGENTS.md)'s
 /// priority ordering spends memory on simplicity, not the reverse.
+// rank: 250
 pub const DATE: CoreClass = CoreClass {
     name: DATE_NAME,
     doc: Some(&DATE_CARD),
@@ -2799,6 +2805,7 @@ const TIME_OF_DAY_WITH_OPTIONS: &[CoreOption] = &[
 ///
 /// **What it spends:** 64 bytes of slots per value, charged to the request
 /// that produced it.
+// rank: 260
 pub const TIME_OF_DAY: CoreClass = CoreClass {
     name: TIME_OF_DAY_NAME,
     doc: Some(&TIME_OF_DAY_CARD),

@@ -177,6 +177,12 @@ const CARD: ClassDoc = ClassDoc {
 /// rather than another row of the shape below. `live` and `progress` are last
 /// because `rule:tooling/in-place-output-is-a-scoped-live-region` follows the prompts, and they are one region with
 /// two ways of writing a frame rather than two surfaces.
+///
+/// § 13's terminal profile — `rule:tooling/the-terminal-profile-resolves-once`'s four members, which reach the
+/// operating system and need no capability for it: [`crate::cli`]'s module
+/// docs own why a question about a stream the process already holds grants
+/// nothing, and why the rest of § 13 is not here yet.
+// rank: 570
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: CLASS_NAME,
     doc: Some(&CARD),
@@ -785,6 +791,10 @@ const LIVE_CARD: ClassDoc = ClassDoc {
 /// `close` and no `clear` — the scope is the `Core\Cli::live` call, and a
 /// member for ending one early would be the free-form cursor control that
 /// section refuses.
+///
+/// § 13's in-place output — `rule:tooling/in-place-output-is-a-scoped-live-region`'s two handles, which exist because
+/// a region has to have an end for § 8's restoration to be enforceable.
+// rank: 610
 pub(crate) const LIVE: CoreClass = CoreClass {
     name: LIVE_NAME,
     doc: Some(&LIVE_CARD),
@@ -901,6 +911,7 @@ const PROGRESS_CARD: ClassDoc = ClassDoc {
 /// `rule:core-api/one-paradigm-per-operation`, which forbids a procedural twin of a class API and a class
 /// wrapper around a static, and a closed, named behaviour built on a general
 /// one is neither — which is why this class has a counter and no `set`.
+// rank: 620
 pub(crate) const PROGRESS: CoreClass = CoreClass {
     name: PROGRESS_NAME,
     doc: Some(&PROGRESS_CARD),
@@ -1975,6 +1986,10 @@ const TEXT_CARD: ClassDoc = ClassDoc {
 /// Two slots: the rendering standard output takes, which is the one
 /// `nvs_runtime::value_to_string` renders a carrier as, and the [`TEXT_RUNS`]
 /// every other stream is rendered from.
+///
+/// § 13, and here only because § 12's `Core\Out::capture` answers with it —
+/// `rule:security/capture-answers-the-carrier`.
+// rank: 580
 pub(crate) const TEXT: CoreClass = CoreClass {
     name: NAME,
     doc: Some(&TEXT_CARD),
@@ -2409,6 +2424,10 @@ const COLOR_CARD: ClassDoc = ClassDoc {
 /// genuinely different questions — a palette entry is resolved by the
 /// terminal's own theme and a triple is not — and [`sgr_ink`] degrades between
 /// them, which a single encoded number would make an arithmetic puzzle.
+///
+/// § 13's styling half — `rule:tooling/styling-is-a-value-not-a-grammar`'s two value types, which exist so that
+/// the carrier above has something to wear that is not a grammar.
+// rank: 590
 pub(crate) const COLOR: CoreClass = CoreClass {
     name: COLOR_NAME,
     doc: Some(&COLOR_CARD),
@@ -2646,6 +2665,7 @@ const STYLE_CARD: ClassDoc = ClassDoc {
 /// One member, because a style is constructed and then read: `rule:core-api/shape-rules` R5's
 /// `of` for the canonical construction, R2's one trailing shape for the
 /// options, R20's immutability for everything after.
+// rank: 600
 pub(crate) const STYLE: CoreClass = CoreClass {
     name: STYLE_NAME,
     doc: Some(&STYLE_CARD),

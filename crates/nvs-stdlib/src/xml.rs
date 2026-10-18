@@ -187,6 +187,14 @@ pub(crate) const WRITER_NAME: &str = r"Core\Xml\Writer";
 /// They answer the same family and share no operation, which is
 /// `rule:core-classes/xml-tree-and-stream` and the paragraph in the module doc
 /// above.
+///
+/// § 17's document class, next after `Core\Html` because the two are one
+/// subsystem: `rule:core-classes/html-parsing` makes both parsers produce
+/// the node family below, so which door parsed a document does not change
+/// what a program can do with it. The tree half is what is registered —
+/// [`crate::xml`] owns the split and why the streaming half is not a mode of
+/// this one.
+// rank: 1050
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
     doc: Some(&CARD),
@@ -291,6 +299,11 @@ const NAMESPACE_SLOT: usize = 5;
 /// text of its own, both of which are answers rather than errors. The exception
 /// is [`nvs_core_xml_node_source`], which walks the subtree and writes it back
 /// out, and is the one that can refuse.
+///
+/// The node family itself, memberless of statics and produced only by a
+/// parse. Beside its class rather than in spec § order for `Core\Html`'s own
+/// reason: this is the value the section's first two rows both answer with.
+// rank: 1060
 pub(crate) const NODE: CoreClass = CoreClass {
     name: NODE_NAME,
     doc: Some(&NODE_CARD),
@@ -533,6 +546,13 @@ const KIND_ENUM_DOC: EnumDoc = EnumDoc {
 /// disjointness is `rule:core-classes/xml-tree-and-stream` — the family is
 /// shared, the operations are not — and it is why this is a second class rather
 /// than a mode on [`CLASS`].
+///
+/// The other door onto that family: § 17's stream half, beside the tree half
+/// rather than in spec order because the two are one subsystem in two
+/// shapes. `rule:core-classes/xml-tree-and-stream` is why it is a class of
+/// its own and not a mode on the row above — the family is shared and no
+/// operation is, so which shape a program uses is settled at the door.
+// rank: 1070
 pub(crate) const READER: CoreClass = CoreClass {
     name: READER_NAME,
     doc: Some(&READER_CARD),
@@ -652,6 +672,13 @@ const SCOPES_SLOT: usize = 6;
 /// — the document and an element — and **the single call where it cannot** — an
 /// attribute, a comment, a CDATA section, a processing instruction and the
 /// document type declaration.
+///
+/// The stream half's other door, beside the reader for the reason the
+/// reader sits beside the tree: reading a document a node at a time and
+/// building one a node at a time are the two halves of one shape, and
+/// `rule:core-classes/xml-tree-and-stream` is what keeps neither of them
+/// reachable through the other.
+// rank: 1080
 pub(crate) const WRITER: CoreClass = CoreClass {
     name: WRITER_NAME,
     doc: Some(&WRITER_CARD),

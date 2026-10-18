@@ -196,6 +196,11 @@ const STEP_CARD: ClassDoc = ClassDoc {
 
 /// Spec § 18's `Core\Db` — `connect`, `open`, and the two connectionless entry
 /// points, in the spec's own order.
+///
+/// § 18, and `rule:core-classes/db-one-api` for every semantic behind it. `open` is the one entry
+/// point still missing, and [`crate::db`]'s known gaps own why: what it
+/// needs is a `CoreTy` for a shape parameter, not a body.
+// rank: 1490
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
     doc: Some(&CARD),
@@ -315,6 +320,11 @@ const STATEMENT_OPTIONS: &[CoreOption] = &[CoreOption {
     default: Const::Null,
 }];
 
+/// What `connect` answers with, and `Core\Db\Queryable`'s own home: `rule:classes/no-traits`
+/// has `Transaction` delegate the interface to its connection, so the seven
+/// members are declared here once. `query`, `execute`, `executeMany` and
+/// `transaction` are the four that have landed.
+// rank: 1500
 pub(crate) const CONNECTION: CoreClass = CoreClass {
     name: CONNECTION_NAME,
     doc: Some(&CONNECTION_CARD),
@@ -688,6 +698,12 @@ pub(super) const TRANSACTION_ROW: CoreMethod = CoreMethod {
 /// `$tx` keeps nothing alive and cannot outlive the request that opened it;
 /// [`SCOPE_SLOT`] is what makes the escape a `LogicError` rather than a use of
 /// a connection that has moved on.
+///
+/// What `rule:core-classes/db-transactions`'s callable is handed. It carries the same four rows
+/// under the same symbols — which is what the delegation above is at
+/// runtime — plus `rollBack`, the one member of the pair that is a
+/// transaction's alone.
+// rank: 1510
 pub(crate) const TRANSACTION: CoreClass = CoreClass {
     name: TRANSACTION_NAME,
     doc: Some(&TRANSACTION_CARD),
@@ -1284,6 +1300,12 @@ pub(super) const COLUMN_TYPE_DOC: EnumDoc = EnumDoc {
 /// last and because a cursor breaks the commonest loop in web programming on a
 /// connection-busy rule; `stream` is the member for a result set that does not
 /// fit, and it is the one that holds the connection.
+///
+/// What `query` answers with — `rule:core-classes/db-statement-members`'s buffered result set, and all
+/// six of § 18's readers over it. Five read the rows it holds and
+/// `columns()` reads the description beside them, which is why it is
+/// readable before a row is.
+// rank: 1520
 pub(crate) const ROWS: CoreClass = CoreClass {
     name: ROWS_NAME,
     doc: Some(&ROWS_CARD),
@@ -1397,6 +1419,11 @@ pub(crate) const ROWS: CoreClass = CoreClass {
 /// this list is exactly — names no `dateTime`. It is reached through `get`,
 /// which is § 18's universal path and what that roster means by leaving it
 /// out.
+///
+/// One row of that set: § 18's associative reading plus the eleven typed
+/// readers `rule:core-classes/db-column-types` puts in place of PHP's three fetch modes. Four of
+/// the eleven answer only their refusal until § 9's structured columns land.
+// rank: 1540
 pub(crate) const ROW: CoreClass = CoreClass {
     name: ROW_NAME,
     doc: Some(&ROW_CARD),
@@ -1560,6 +1587,12 @@ pub(crate) const ROW: CoreClass = CoreClass {
 /// [`nvs_core_db_connection_execute`], from a stream that has already ended:
 /// both counts are `CommandComplete`'s and neither exists until it has
 /// arrived.
+///
+/// What `execute` answers with: § 4's two counts and the id a `RETURNING`
+/// clause handed back, as the three readers § 18 now writes — for the reason
+/// [`CoreTy::Instance`](crate::registry::CoreTy::Instance) states, that a `Core` instance has no property a
+/// program can reach, which that section's own preamble records.
+// rank: 1550
 pub(crate) const WRITE: CoreClass = CoreClass {
     name: WRITE_NAME,
     doc: Some(&WRITE_CARD),
@@ -1620,6 +1653,12 @@ pub(crate) const WRITE: CoreClass = CoreClass {
 /// round trip per statement — and PHP's own answer for it is an array whose keys
 /// differ per driver, which is the shape `rule:core-api/shape-rules`
 /// R11 removes.
+///
+/// One column of what a statement described — § 18's three readers in place
+/// of `getColumnMeta`'s per-driver array, reached through `Rows::columns`
+/// and produced nowhere else. Its `type()` is what gives `crate::db`'s
+/// `COLUMN_TYPE` a member that answers one.
+// rank: 1560
 pub(crate) const COLUMN: CoreClass = CoreClass {
     name: COLUMN_NAME,
     doc: Some(&COLUMN_CARD),
@@ -1668,6 +1707,11 @@ pub(crate) const COLUMN: CoreClass = CoreClass {
 /// Spec § 18's `Core\Db\InList` — opaque, produced by one member and read by
 /// the bind. No members at all, which is that table's own "accepted only as a
 /// bound parameter".
+///
+/// What `inList` answers with: `rule:core-classes/db-parameters`'s explicit expansion marker,
+/// memberless because § 18's own table accepts it nowhere but a bound
+/// parameter. [`crate::db`] owns why the expansion itself stays in `nvs-db`.
+// rank: 1570
 pub(crate) const IN_LIST: CoreClass = CoreClass {
     name: IN_LIST_NAME,
     doc: Some(&IN_LIST_CARD),
@@ -1687,6 +1731,13 @@ pub(crate) const IN_LIST: CoreClass = CoreClass {
 /// to say what this one already says. `rule:core-classes/schema-apply-capability`'s `planAgainst`, `applySafe` and
 /// `applyIncludingRisky` are the members that do something with the value; they
 /// need a connection and this class needs none.
+///
+/// `rule:core-classes/schema-is-a-value`'s schema value, beside the connection classes because that is
+/// what it is asked about: a schema is compared against a live database and
+/// applied to one. It needs no connection to exist, which is why its two
+/// members here are the array form alone — § 9's three are the ones that take
+/// a `Core\Db\Connection`.
+// rank: 1580
 pub(crate) const SCHEMA: CoreClass = CoreClass {
     name: SCHEMA_NAME,
     doc: Some(&SCHEMA_CARD),
@@ -1861,6 +1912,11 @@ const SCHEMA_APPLY_RISKY_DOC: MethodDoc = MethodDoc {
 /// a surface that has to be kept agreeing with a `foreach` anyone can write.
 /// [`mod@super::plan`]'s module doc owns what a step holds and why it is copied
 /// out rather than computed on demand.
+///
+/// `rule:core-classes/schema-plan`'s plan and its steps, immediately after the schema whose
+/// `planAgainst` answers one: a plan is the value that carries the answer,
+/// and neither class is reachable except through that member.
+// rank: 1590
 pub(crate) const PLAN: CoreClass = CoreClass {
     name: PLAN_NAME,
     doc: Some(&PLAN_CARD),
@@ -1895,6 +1951,7 @@ const PLAN_STEPS_DOC: MethodDoc = MethodDoc {
 /// itself would mean a Novis class per variant — a surface that grows with the
 /// vocabulary and that no caller of this member needs, since what a program
 /// does with a step is read its grade, print its reason, or run its SQL.
+// rank: 1600
 pub(crate) const STEP: CoreClass = CoreClass {
     name: STEP_NAME,
     doc: Some(&STEP_CARD),

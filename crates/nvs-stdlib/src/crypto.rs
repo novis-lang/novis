@@ -671,6 +671,13 @@ const KEY_PAIR_CARD: ClassDoc = ClassDoc {
 };
 
 /// `rule:core-api/tier-roster`'s AEAD-only surface, as registry rows.
+///
+/// `rule:core-api/tier-roster`'s "AEAD only", and beside the two above for their reason:
+/// this is the class whose `secret bytes` key crosses the same boundary
+/// without any member removing the mark, which is what keeps the roster
+/// above closed at two. [`crate::crypto`] owns the construction and why
+/// there is no cipher argument.
+// rank: 920
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
     doc: Some(&CARD),
@@ -1127,6 +1134,13 @@ const VERIFY_DOC: MethodDoc = MethodDoc {
 /// every curve — plus one DER parse per member call. No member here is on a
 /// request's hot path: a program reads a peer's key and then verifies or agrees
 /// with it, and those are the calls that matter.
+///
+/// The public half of an asymmetric key, as the object `rule:core-api/shape-rules` R14 asks
+/// for: a key has a lifetime — it is read once, checked once, and then used
+/// — so it is a class and not a `bytes` every later member would have to
+/// re-validate. Its own doc owns why its slots are a canonical SPKI and a
+/// kind rather than the octets the program was handed.
+// rank: 930
 pub(crate) const PUBLIC_KEY: CoreClass = CoreClass {
     name: PUBLIC_KEY_NAME,
     doc: Some(&PUBLIC_KEY_CARD),
@@ -1275,6 +1289,13 @@ const PUBLIC_KEY_KIND_DOC: MethodDoc = MethodDoc {
 /// little over a kilobyte for RSA at [`MAX_RSA_BITS`] and under a hundred
 /// octets on every curve — plus one PKCS#8 parse per member call that needs the
 /// key. `write` needs none: it answers the slot.
+///
+/// The private half, and a class for the same R14 reason with a second one
+/// beside it: a pair is the only thing in the language a `secret bytes`
+/// leaves rather than enters, and an object is what makes `write` the one
+/// door it leaves through. Its own doc owns why its slots are the PKCS#8 and
+/// the kind, and why there is no cache of parsed keys behind them.
+// rank: 940
 pub(crate) const KEY_PAIR: CoreClass = CoreClass {
     name: KEY_PAIR_NAME,
     doc: Some(&KEY_PAIR_CARD),

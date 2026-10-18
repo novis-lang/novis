@@ -78,6 +78,13 @@ const STREAM_CARD: ClassDoc = ClassDoc {
 /// `stream` and `streamAs` are one walk at two arguments — and
 /// [`crate::instance`]'s dispatch roster is what gives it the three names a
 /// `foreach` reaches.
+///
+/// What `stream` answers with — § 18's `Iterable<Db\Row>`, a name for the
+/// walk with no member on it exactly as `Core\IO\Lines` is. It is the second
+/// `Iterable` in `Core` that is its own iterator rather than a snapshot, and
+/// [`crate::db::stream`] says why: a row of a streamed result set does not
+/// exist until the walk asks the server for it.
+// rank: 1530
 pub(crate) const STREAM: CoreClass = CoreClass {
     name: STREAM_NAME,
     doc: Some(&STREAM_CARD),

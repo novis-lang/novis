@@ -175,6 +175,12 @@ const STREAM_CARD: ClassDoc = ClassDoc {
 
 /// What `Core\Http\Client::stream` answers: the head, and a body no member has
 /// framed yet.
+///
+/// `rule:http-server/a-streamed-reply-is-bounded-by-idle-and-a-lifetime`'s
+/// answer, which is the reply that is read as it arrives: the same head
+/// members over the same map, and four framings of a body that is taken by
+/// the first of them to name it rather than read by all four.
+// rank: 1210
 pub(crate) const STREAM: CoreClass = CoreClass {
     name: STREAM_NAME,
     doc: Some(&STREAM_CARD),
@@ -391,6 +397,9 @@ const SAVE_TO_DOC: MethodDoc = MethodDoc {
 ///
 /// `name` rather than `event` for the field the format calls `event`, because
 /// `Event::event()` reads as the whole event rather than as the field.
+///
+/// One server-sent event, which is what the first of those four frames.
+// rank: 1220
 pub(crate) const EVENT: CoreClass = CoreClass {
     name: EVENT_NAME,
     doc: Some(&EVENT_CARD),
@@ -465,6 +474,13 @@ const ID_DOC: MethodDoc = MethodDoc {
 
 /// `events()`' walk — a class a return type can name, for
 /// [`CoreTy::Iterated`]'s parameter-position-only reason.
+///
+/// The three walks those framings answer with. Three classes rather than one
+/// because `CoreTy::Iterated` is parameter position only, so an
+/// `Iterable<T>` return is a named class and [`ITERABLES`](crate::registry::ITERABLES) is where its `T`
+/// is declared — an event, a line and a chunk are three `T`s over one
+/// implementation.
+// rank: 1230
 pub(crate) const EVENTS: CoreClass = CoreClass {
     name: EVENTS_NAME,
     doc: Some(&EVENTS_CARD),
@@ -481,6 +497,7 @@ const EVENTS_CARD: ClassDoc = ClassDoc {
 };
 
 /// `lines()`' walk. See [`EVENTS`].
+// rank: 1240
 pub(crate) const LINES: CoreClass = CoreClass {
     name: LINES_NAME,
     doc: Some(&LINES_CARD),
@@ -497,6 +514,7 @@ const LINES_CARD: ClassDoc = ClassDoc {
 };
 
 /// `chunks()`' walk. See [`EVENTS`].
+// rank: 1250
 pub(crate) const CHUNKS: CoreClass = CoreClass {
     name: CHUNKS_NAME,
     doc: Some(&CHUNKS_CARD),

@@ -174,6 +174,13 @@ const CLIENT_CARD: ClassDoc = ClassDoc {
 
 /// `Core\Http`: `rule:http-server/allow-url-pins-the-address`'s launderer, and
 /// the wire text of a `Core\Http\Method` case.
+///
+/// `rule:http-server/allow-url-pins-the-address`'s launderer, which is where every outbound URL in the
+/// language has to pass through — and the first `rule:security/tainted-qualifier` launderer whose
+/// answer is a value rather than a plain string. [`crate::http`]'s own
+/// module doc is the home of why that is the whole design, and of which
+/// half of the policy lives in the capability instead.
+// rank: 1140
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
     doc: Some(&CARD),
@@ -257,6 +264,12 @@ pub(crate) const TARGET_NAME: &str = r"Core\Http\Target";
 /// No members, for the reason this module's own docs give — a program names it
 /// and hands it on, and reading the set back out is the operation that would
 /// make pinning decorative.
+///
+/// The value that launderer answers with. No members at all: a program
+/// names it and hands it to the member that connects, and reading the
+/// approved address back out is the one operation that would make pinning
+/// decorative.
+// rank: 1150
 pub(crate) const TARGET: CoreClass = CoreClass {
     name: TARGET_NAME,
     doc: Some(&TARGET_CARD),
@@ -306,6 +319,12 @@ pub(crate) const IDENTITY_FINGERPRINT_SLOT: usize = 2;
 ///
 /// **What it spends:** the chain's PEM, the key's PKCS#8 and 64 octets of hex
 /// per identity, held as long as the value is and released with it.
+///
+/// Who *this* end is, where the target above is who the other end must be:
+/// the certificate chain a call presents when a server asks for one, over
+/// goal `webcrypto`'s key pair. One static and no members, since reading the
+/// key back out is not what an identity is for.
+// rank: 1160
 pub(crate) const IDENTITY: CoreClass = CoreClass {
     name: IDENTITY_NAME,
     doc: Some(&IDENTITY_CARD),
@@ -1219,6 +1238,12 @@ const PART_BYTES_OPTIONS: &[CoreOption] = &[CoreOption {
 /// `filename` is required on `bytes` and optional on `file` because a path
 /// already carries one: an omitted `filename` is the path's last component,
 /// while octets a program composed have no name until it writes one.
+///
+/// `rule:http-server/an-outbound-request-carries-one-body`'s part, which is
+/// the arm of `body` and of a `multipart` field that names a file instead of
+/// holding one. Two constructors and no member, for the reason
+/// [`crate::http::PART`] states.
+// rank: 1260
 pub(crate) const PART: CoreClass = CoreClass {
     name: PART_NAME,
     doc: Some(&PART_CARD),
@@ -1631,6 +1656,13 @@ const DEFAULT_SEND_TIMEOUT: Duration = nvs_config::defaults::HTTP_CLIENT_SOCKET_
 /// call says. Every buffered row takes the same one, and `stream` takes it with
 /// the two bounds a body read as it arrives has of its own
 /// ([`STREAM_OPTIONS`]).
+///
+/// `rule:http-server/no-spelling-for-an-unbounded-wait`'s request members, whose URL parameter is the sink `rule:security/outbound-url-is-a-sink`
+/// makes it and whose one trailing shape has no spelling for an
+/// unbounded wait. Five rows over one bag: the verb is the member's own
+/// name, which is what lets § 7 answer "is this retry idempotent" while
+/// compiling.
+// rank: 1170
 pub(crate) const CLIENT: CoreClass = CoreClass {
     name: CLIENT_NAME,
     doc: Some(&CLIENT_CARD),
@@ -1774,6 +1806,10 @@ pub(crate) const CLIENT: CoreClass = CoreClass {
 /// reply's own rather than a value gone missing: a plain `http` exchange and one
 /// a test's table served had no session to report
 /// (`rule:http-server/a-reply-reports-its-tls-session`).
+///
+/// What those five answer with: the status, one body slot read three ways,
+/// the header pair, and the session the reply arrived over.
+// rank: 1180
 pub(crate) const RESPONSE: CoreClass = CoreClass {
     name: RESPONSE_NAME,
     doc: Some(&RESPONSE_CARD),
@@ -2002,6 +2038,13 @@ const RESPONSE_CARD: ClassDoc = ClassDoc {
 ///
 /// The chain is `tainted` and no timing is here: where a call's time went is the
 /// `http` trace event's (`rule:observability/trace-events-carry-a-kind`).
+///
+/// Which that last member answers with, and the one `Core\Http` reader whose
+/// answer is `null` for an ordinary reply: a plain `http` exchange had no
+/// session to report. `rule:http-server/a-reply-reports-its-tls-session` is
+/// why `verified` is on it at all — a deployment that relaxed trust at one
+/// host has no other way to assert that every other call did not.
+// rank: 1190
 pub(crate) const TLS_INFO: CoreClass = CoreClass {
     name: TLS_INFO_NAME,
     doc: Some(&TLS_INFO_CARD),

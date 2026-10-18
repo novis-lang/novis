@@ -170,6 +170,15 @@ const P2C: u32 = crypto::MIN_ITERATIONS;
 const KEY_TY: CoreTy = CoreTy::Instance(KEY_NAME);
 
 /// `rule:security/jwe-compact-subset`'s two members.
+///
+/// The roster's encryption entry, beside `Core\Jwt` because the two read one
+/// wire format from opposite ends: a JWS proves who wrote a payload and this
+/// hides one. `rule:security/jwe-compact-subset` is the subset — compact
+/// serialization, `A256GCM` and nothing else — and [`crate::jwe`]'s own
+/// module doc is the home of why the key arrives as a named constructor,
+/// what the protected header is allowed to carry, and why a ring holding a
+/// password holds exactly one key.
+// rank: 1000
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
     doc: Some(&CARD),
@@ -290,6 +299,14 @@ const DECRYPT_DOC: MethodDoc = MethodDoc {
 
 /// `rule:security/jwe-compact-subset`'s named constructors — one per
 /// key-management algorithm, and nothing to read a key back out with.
+///
+/// That constructor itself: four statics, no accessor and no way back out,
+/// which is what makes the key-management algorithm a name the caller wrote
+/// rather than an inference off a value's type
+/// (`rule:security/algorithm-comes-from-the-key`). Registered beside its own
+/// class for `Core\Crypto\PublicKey`'s reason — it is the value the class
+/// above takes and nothing else produces one.
+// rank: 1010
 pub(crate) const KEY: CoreClass = CoreClass {
     name: KEY_NAME,
     doc: Some(&KEY_CARD),

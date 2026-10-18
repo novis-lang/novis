@@ -45,6 +45,7 @@ pub(crate) const NEW: CoreMethod = CoreMethod {
 /// **A `foreach` over a set yields its members**, in insertion order — the one
 /// thing a set holds. [`crate::cursor`] owns the mechanism and what the
 /// snapshot spends.
+// rank: 300
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
     doc: Some(&CARD),

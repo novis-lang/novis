@@ -238,6 +238,14 @@ const CARD: ClassDoc = ClassDoc {
 /// that are not identical: identity is `Core\Socket`'s wrong question, since
 /// there is exactly one connection per isolate and no second one to tell it
 /// from.
+///
+/// `rule:concurrency/a-connection-is-a-root-isolate` and `rule:concurrency/an-upgrade-is-spawn-shaped`, and no spec § of its own: the spec's roster has no
+/// `Core\Socket` row, so those two rules are the whole specification. Last of the
+/// request-facing group because it is where a request stops being one — §
+/// 1 makes the connection a *root* isolate, so the request that upgraded it
+/// ends normally and shares nothing onward. [`crate::socket`] owns why the
+/// member answers `void` and which options it accepts.
+// rank: 790
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
     doc: Some(&CARD),
@@ -531,6 +539,10 @@ const MESSAGE_VALUE: usize = 3;
 /// a delivery's value came from another isolate on this side of the wire and
 /// crossed by `rule:classes/graph-copy`'s copy, so it arrives with whatever qualifiers it
 /// already had and this row may not add one.
+///
+/// `rule:concurrency/a-connection-is-a-loop`'s message, immediately after the class whose `receive`
+/// is the only thing that produces one.
+// rank: 800
 pub(crate) const MESSAGE: CoreClass = CoreClass {
     name: MESSAGE_NAME,
     doc: Some(&MESSAGE_CARD),

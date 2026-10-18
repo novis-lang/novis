@@ -314,6 +314,7 @@ const STREAM_CARD: ClassDoc = ClassDoc {
 };
 
 /// `Core\Hash`'s registry rows — § 11's `of`/`hmac`/`equals`.
+// rank: 350
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
     doc: Some(&CARD),
@@ -458,6 +459,7 @@ pub(crate) const STREAM_NAME: &str = r"Core\Hash\Stream";
 /// `update` has been handed, in order; `open` is `false` once `finish` has
 /// answered. This module's own docs say why the state is the chunks rather
 /// than a compression context, and what that spends.
+// rank: 360
 pub(crate) const STREAM: CoreClass = CoreClass {
     name: STREAM_NAME,
     doc: Some(&STREAM_CARD),

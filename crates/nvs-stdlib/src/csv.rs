@@ -217,6 +217,7 @@ const ROWS_CARD: ClassDoc = ClassDoc {
 };
 
 /// `Core\Csv`'s registry rows — spec § 12's second table, whole.
+// rank: 400
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
     doc: Some(&CARD),
@@ -312,6 +313,12 @@ const ROWS_RECORD_AT: usize = 2;
 /// *handle* in the sense `registry`'s
 /// `a_class_with_slots_has_instance_members_and_the_reverse` names, beside
 /// `Core\IO\Lines`: its slots are read, just not through a member of its own.
+///
+/// What `Core\Csv::rows` answers with: § 12's streaming read, as a name a
+/// return type can write. Its own docs say why it carries the iteration trio
+/// itself where `Core\IO\Lines` hands back a cursor — a record that has not
+/// been read yet cannot be in a snapshot.
+// rank: 410
 pub(crate) const ROWS: CoreClass = CoreClass {
     name: ROWS_NAME,
     doc: Some(&ROWS_CARD),

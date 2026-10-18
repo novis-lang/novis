@@ -152,6 +152,12 @@ const OPTIONS: &[CoreOption] = &[
 ];
 
 /// § 1's two members: the coherent one, and the approximate one.
+///
+/// `rule:core-classes/ratelimit-two-members`'s limiter for what only the application knows — per account, per
+/// tenant — with edge and flood limiting left to the proxy that owns them.
+/// Its state is the same shared store `Core\Cache::shared` names, because a
+/// deployment has one.
+// rank: 1360
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
     doc: Some(&CARD),
@@ -326,6 +332,12 @@ const SHED_DOC: MethodDoc = MethodDoc {
 /// rule), so `$d->allowed` would resolve a class, find no member and reach
 /// `nvs-ir` with nothing to call. `Core\Http\Response` is the same shape for
 /// the same reason and its `->status()` is the precedent.
+///
+/// § 3's decision: what was decided, what against, and the exact wait when it
+/// was refused. Four readers rather than four readonly properties, for the
+/// reason [`CoreTy::Instance`](crate::registry::CoreTy::Instance) states — a `Core` instance has no property a
+/// program can reach.
+// rank: 1370
 pub(crate) const DECISION: CoreClass = CoreClass {
     name: DECISION_NAME,
     doc: Some(&DECISION_CARD),
