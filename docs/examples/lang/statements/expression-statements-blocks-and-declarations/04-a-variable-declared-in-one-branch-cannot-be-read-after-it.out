@@ -1,0 +1,8 @@
+error[E0301]: `$x` is read before any assignment reaches it
+   --> 04-a-variable-declared-in-one-branch-cannot-be-read-after-it.nvs:11:6
+   |
+11 | echo $x;
+   |      ^^ not definitely assigned here
+
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.
