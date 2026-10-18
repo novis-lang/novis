@@ -14,3 +14,6 @@ text and then ends with status 0.
 
 `yield $value;` goes inside a method that returns `Iterator<T>`. It sends one value to the loop that
 reads it. A `yield` is a statement, so `$x = yield 1;` does not compile.
+
+**The examples below** show `echo` and `print`, then `unset` on array entries, then a check that
+reads rows with `yield` and stops with `exit`. The last one is an `unset` that does not compile.

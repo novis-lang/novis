@@ -1,0 +1,7 @@
+<?nvs
+// Shows that `unset` only removes array entries. A variable always has a
+// value, so `unset($x)` does not compile.
+// proof: compile-error
+
+int $x = 1;
+unset($x);
