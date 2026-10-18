@@ -1,0 +1,9 @@
+error[E0230]: `list(...)` is not supported
+  --> 06-list-does-not-exist.nvs:7:1
+  |
+7 | list(int $a, int $b) = $pair;
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ use `[...]` instead — it is the only destructuring spelling Novis keeps
+  = help: the element grammar is identical inside either bracket (`rule:expressions/bracket-destructuring`)
+
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

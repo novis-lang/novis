@@ -1,0 +1,27 @@
+<?nvs
+// Shows destructuring: reading the entries of an array into variables.
+
+array<int> $pair = [1, 2];
+[int $a, int $b] = $pair;
+
+// An empty place skips an entry. `$second` is `2`.
+[, int $second] = $pair;
+echo $a, " ", $b, " ", $second, "\n";
+
+// A key on the left reads that key, in any order.
+array<string> $row = ["id" => "7", "name" => "ada"];
+["name" => string $name, "id" => string $id] = $row;
+echo $id, " ", $name, "\n";
+
+// A pattern inside a pattern reads an inner array.
+array<array<int>> $points = [[1, 2], [3, 4]];
+[[int $x1, int $y1], [int $x2, int $y2]] = $points;
+echo $x1, $y1, $x2, $y2, "\n";
+
+// A missing key throws a `RuntimeError`.
+try {
+    [int $one, int $two, int $three] = $pair;
+    echo $three, "\n";
+} catch (RuntimeError $e) {
+    echo $e->message, "\n";
+}

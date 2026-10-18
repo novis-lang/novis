@@ -12,4 +12,5 @@ where a missing key is normal, and `isset($prices["milk"])` to test for one.
 give a copy, so a change on one side is never seen on the other.
 
 **The examples below** build a list and a price table with `var` first and a written type after,
-then read keys that may be missing, then group rows for a small report.
+then read keys that may be missing, then group rows for a small report. Example 04 shows keys,
+spread and nested arrays, and example 05 shows destructuring. Example 06 does not compile.
