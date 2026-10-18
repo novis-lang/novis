@@ -1,0 +1,9 @@
+error[E0307]: a `type` alias may not name a single class, interface or enum on its own
+   --> 05-an-alias-of-one-class.nvs:10:12
+   |
+10 | type Bar = Foo;
+   |            ^^^ aliases exactly one class-shaped atom
+   = help: give a shape a name instead — a union, an intersection, or an `array<...>` wrapper (`rule:types/alias-is-never-a-bare-class`); a class already has its own name
+
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

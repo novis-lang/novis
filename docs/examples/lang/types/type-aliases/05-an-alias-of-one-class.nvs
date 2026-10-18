@@ -1,0 +1,10 @@
+<?nvs
+// Shows that an alias cannot name one class on its own. `Foo` already has a name.
+// This program does not compile.
+// proof: compile-error
+
+class Foo {
+    public int $n = 1;
+}
+
+type Bar = Foo;

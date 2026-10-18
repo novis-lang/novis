@@ -1,0 +1,14 @@
+<?nvs
+// `MaybeUser` is a `User` or `null`. `Id` is an `int` or a `string`.
+
+class User {
+    public int $n = 7;
+}
+
+type Id = int|string;
+type MaybeUser = ?User;
+
+Id $a = 1;
+Id $b = "x";
+MaybeUser $u = new User();
+echo $a, $b, " ", $u?->n, "\n";
