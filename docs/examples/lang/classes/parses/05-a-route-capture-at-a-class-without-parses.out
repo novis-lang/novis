@@ -1,0 +1,12 @@
+error[E0752]: `Tag` is not a type `{tag}` can arrive at
+   --> 05-a-route-capture-at-a-class-without-parses.nvs:11:18
+   |
+11 |     #[Core\Route(path: "/posts/{tag}", method: Core\Http\Method::Get, name: "Posts::show")]
+   |                  -------------------- the capture bound here
+...
+13 |     public function show(Tag $tag): string {
+   |                          ^^^^^^^^ no conversion from a path segment
+   = help: a segment is converted to the parameter's declared type, so a capture binds `string`, `int`, `uint`, `decimal`, an enum, a set of allowed values like `'a'|'b'`, or a class implementing `Parses` — and never a regex (`rule:routing/a-capture-narrows-to-a-closed-set`)
+
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.
