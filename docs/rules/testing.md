@@ -2030,10 +2030,13 @@ rules say under that one codegen, and this bug class lives only where a probe-at
 build of the same program prints something else. The cost is CI wall-clock proportional to the added
 axes, and nothing at all at run time.
 
-**Not on disk.** The codegen tests compile with probes on (`crates/nvs-codegen/tests/probes.rs:276`),
-and CI runs the conformance suite once, with probes off (`.github/workflows/ci.yml:220-221`). The
-coverage flags are refused over a `.nvst` tree (`crates/nvs-cli/src/main.rs:3912`), and Cranelift's
-`opt_level` is fixed at `speed` (`crates/nvs-codegen/src/lib.rs:1973`).
+CI runs the conformance suite on every leg twice, at `opt_level` `speed` and again with
+`NOVIS_NO_OPTIMISE` set, which compiles at `none` and keeps the artifact cache off
+(`nvs_codegen::compile_unoptimised`).
+
+**Not on disk.** The probes half. The codegen tests compile with probes on
+(`crates/nvs-codegen/tests/probes.rs:276`), but the coverage flags are refused over a `.nvst` tree
+(`crates/nvs-cli/src/main.rs:2394`), so no suite run has probes on.
 
 <sub>See also [`testing/debug-probes`](testing.md#testing-debug-probes), [`testing/the-deep-lane`](testing.md#testing-the-deep-lane), [`testing/nvst-is-separate`](testing.md#testing-nvst-is-separate).</sub>
 
