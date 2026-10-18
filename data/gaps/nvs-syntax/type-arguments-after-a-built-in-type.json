@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-syntax/src/parser/ty.rs",
+  "title": "Type arguments after a built-in type name give an unrelated error.",
+  "text": "`public static function g(): iterable<int> { yield 1; }` is `E0786`, \"`G::g` has no body\", and `int<int>` as a return type is the same. As a parameter type, `g(iterable<int> $x): void` is `E0823`, \"declares no return type\". The parser consumes the `<…>` and the body or the rest of the signature is lost, so the error points at the method name and never at the type. `iterable` takes no type argument and `Iterator<int>` is the generic, which nothing says. It closes when a `<` after a built-in type name is an error at the `<` that names the generic types, with a conformance case.",
+  "goal": "release-hardening"
+}
