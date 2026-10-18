@@ -18,7 +18,7 @@ stages:
     context: [tools/nv/proofs/ledger.ts, tools/nv/proofs/perf.ts, tools/nv/cmd/scaling.ts, docs/goals/fewer-allocations.md]
   - id: 4
     title: every public page is on the website alone
-    status: open
+    status: done
     context: [docs/release.md, tools/nv/cmd/release.ts, tools/nv/cmd/reference.ts, website/src/content/docs/install/index.mdx]
   - id: 5
     title: "AGENTS.md is one document, and docs/agent says each thing once"
@@ -212,7 +212,10 @@ record, a module doc or a line in its goal.
 - [x] `docs/docker.md`'s public parts join `guides/production/docker.mdx`: the image and its tags, the variants, Compose, CLI use, stopping, health probes and verifying. The stale "one process on one core" section is dropped. Building locally and *Why not Alpine* go to `docker/README.md`. `release.yml`'s documentation label, the Dockerfile, `smoke.sh` and `.gitignore` are repointed. `.github/workflows/release.yml:588`, `docker/Dockerfile:15`
 - [x] `docs/why-tainted-and-secret.md`'s three readers, its comparison table and its five points become a website page under `in-depth/`. *What not to claim yet* goes to `rule:programs/three-claims`. `README.md:17` is repointed. `website/src/content/docs/in-depth/concepts/tainted-input.mdx:1`
 - [x] `docs/release.md` keeps the procedure. *Verifying a published binary* goes to the install page, the user-facing half of the version scheme goes to the website, and its wrong counts are fixed. `docs/release.md:180`, `tools/nv/cmd/release.ts:88`
-- [ ] `bun nv reference` writes `/llms-full.txt` into the website build, and `docs/novis.md`, its CI `--check` and verify's staleness step are deleted. `tools/nv/cmd/reference.ts:786`, `.github/workflows/ci.yml:892`, `tools/nv/cmd/verify.ts:1047`
+- [x] `bun nv reference` writes `/llms-full.txt` into the website build, and `docs/novis.md`, its CI `--check` and verify's staleness step are deleted. `tools/nv/cmd/reference.ts:786`, `.github/workflows/ci.yml:892`, `tools/nv/cmd/verify.ts:1047`
+  - [x] `nv render --website`'s `website-llms` renderer writes `website/public/llms-full.txt` from `reference.ts`'s `build`, reading the binary `website-core` reads
+  - [x] `nv reference` is the example run alone, in verify and in CI's `reference` job, whose `render --website --check` now covers the file
+  - [x] `docs/novis.md` is deleted, its citations repointed, and its path joins `DELETED_DOC_CITE`
 - [x] `docs/reference/tools/30-php-differences.md` gets a website page, and `README.md:44` is repointed. `docs/reference/findings.md`'s open items become gap records, and the file is deleted with its citations. `tests/conformance/core/arr-sort-orders-decimals.nvst:9`
   - [x] the website's *Coming from PHP* page shows the chapter's three features through `FeatureSection.astro`, and the README links it
   - [x] `findings.md`'s open items (U13, M10 and any the triage still counts) become gap records or rule text
@@ -275,30 +278,26 @@ still-true facts are in module docs: `sort.rs` (where the key sort is slower), `
 Goal `fewer-allocations` states its `Markup`, hash and format designs itself. The measured tables
 and the cross-engine figures were dropped.
 
-Stage 4 is four items in, and one is left: `/llms-full.txt`. `docs/docker.md`,
-`docs/why-tainted-and-secret.md` and `docs/reference/findings.md` are gone, and `bun nv rules
---check` fails on a citation of any of them (`tools/nv/cmd/rules.ts:110`). `docs/release.md` is the
-procedure only. The website has a *Coming from PHP* page, built by
-`website/src/components/FeatureSection.astro`; the chapter stays, because the binary embeds it.
+Stage 4's items are all done. `docs/novis.md` is gone: `bun nv render --website` writes
+`website/public/llms-full.txt` through `tools/nv/renderers/website-llms.ts`, and Astro copies it to
+`/llms-full.txt`. The file is committed beside `core.json`, because `pages.yml` builds without a
+binary, so "at build time" is the sync step and CI's `render --website --check` is its staleness
+check. `bun nv reference` is the example run alone (`--only`, `--primer`, `--agent-walk`); its
+`--check`, `--stale-fails`, `--no-examples` and `--examples-only` are gone. `nv verify` no longer
+regenerates the reference, so a chapter or card edit needs `bun nv render --website` by hand
+(`docs/agent/commands.md` § *Verifying*). Stage 4 is `done`: `bun nv verify --doc` is green.
 
-`findings.md` needed no gap record: both open items were closed already. U13's write is `E0782`,
-pinned by `tests/conformance/reject/a-throwable-property-is-not-written-after-construction.nvst`,
-and M10 is `no_registry_card_cites_a_rule` with no `rule:` left in `nvs meta --json`. Its *Facts
-worth keeping* are each in a chapter already; its escape line was stale (`\v` and `\f` are escapes),
-and the chapter (`docs/reference/lang/20-types.md:427`) is right.
-
-The sweep's CI failures are on remote `main` at `1a78b49e`, not this branch: `docs`, `proofs` on
-three platforms, the cost guards, supply chain, attribution and `docs/novis.md`. None is this
-goal's. `bun nv site --check` also fails on pages this goal has not touched: 813 stale or broken
-question entries, five long paragraphs in `compare.mdx` and `run-as-a-service.mdx`, and the
-`/reference/types/` link.
+The sweep's CI failures are on remote `main` at `1a78b49e`, not this branch, as last session found.
+`bun nv site --check` also fails on pages this goal has not touched: stale question entries, long
+paragraphs in `compare.mdx` and `run-as-a-service.mdx`, and the `/reference/types/` link.
+`looper playbook retire --check` names two `dead_code` bullets under `playbook/writing-novis/`
+that predate this goal; they are stage 5's.
 
 ### Next
 
-Stage 4's last item, on `bun nv reference`, CI and verify: `docs/novis.md` becomes `/llms-full.txt`.
-- [ ] `bun nv reference` writes `/llms-full.txt` into the website build instead of `docs/novis.md`, and keeps running every chapter example. `tools/nv/cmd/reference.ts:45`, `tools/nv/cmd/reference.ts:786`
-- [ ] CI's `docs/novis.md is current` job and verify's `reference --stale-fails` step become the example run alone, and `docs/novis.md` is deleted with its 28 citing files repointed. `.github/workflows/ci.yml:892`, `tools/nv/cmd/verify.ts:1047`
-
+Stage 5, on `docs/agent/commands.md`, `docs/agent/conventions.md` and the playbook.
+- [ ] `commands.md` and `conventions.md` lose every section another home holds, every measured figure and every story; the dead `§ Names` anchor is fixed. `docs/agent/commands.md:24`, `docs/agent/conventions.md:494`, `docs/agent/testing.md:16`
+- [ ] The two bullets `looper playbook retire --check` names are deleted, and the playbook loses each bullet about a removed tool. `docs/agent/playbook/writing-novis/a-helper-landed-ahead-of-its-caller-fails-verify-py-on.md:1`, `looper.toml:8`
 ### Backlog
 
 - `docs/design.md` is deleted once looper's managed block no longer links it. `docs/goals/docs-cleanup.md:163`
