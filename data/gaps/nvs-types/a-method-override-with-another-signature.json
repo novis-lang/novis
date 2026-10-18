@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-types/src/conformance.rs",
+  "title": "A method override with another signature compiles, and a call through the parent reads the wrong type.",
+  "text": "A subclass, or a class that implements an interface or fills in an `abstract` method, may redeclare a method with another return type, other parameter types, more or fewer parameters, a narrower visibility, or `static`, and `nvs check` passes. A call through the parent type is checked against the parent's signature and runs the override: `A::f(): int` overridden by `B::f(): string` makes `int $n = $a->f();` hold the string's address as a number, and `f(int)` overridden by `f(string)` exits 5 with no output. That is a type confusion in safe code. Only `final` (`E0784`) and constructors under `class<T>` (`E0794`) are checked today. It closes when an override that a call through the parent could not use is a diagnostic at the override, with a conformance case for each form.",
+  "goal": "release-hardening"
+}

@@ -1,0 +1,10 @@
+<?nvs
+// Shows that you cannot call an `abstract static` method on the abstract class.
+// `Page::title()` has no body, so this does not compile.
+// proof: compile-error
+
+abstract class Page {
+    public abstract static function title(): string;
+}
+
+echo Page::title(), "\n";

@@ -30,7 +30,7 @@ array<Invoice> $book = [
     new OverdueInvoice("Bo", 3400, 12),
 ];
 
-// Each object answers with its own version of `line`.
+// Each object runs its own version of `line`.
 foreach ($book as Invoice $invoice) {
     echo $invoice->line(), "\n";
 }
