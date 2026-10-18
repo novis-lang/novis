@@ -1,5 +1,5 @@
 <?nvs
-// A `use` import lets you write a long name short. It covers the whole file
+// A `use` import lets you write a long name short. It covers the code below it
 // and introduces one name, under the last part of the path.
 
 namespace App;
