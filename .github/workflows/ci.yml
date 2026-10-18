@@ -931,7 +931,9 @@ jobs:
   # ---------------------------------------------------------------------------
   # The docs have linters of their own. Every command here needs Bun and no
   # Rust toolchain, and they run quickly together, which is why they are one job
-  # rather than steps bolted onto a build.
+  # rather than steps bolted onto a build. `bun nv verify` runs every one of them
+  # locally too, each only when a file it reads changed (`DOC_CHECKS` in
+  # tools/nv/cmd/verify.ts), so a red here is one a session's verify did not reach.
   #
   # Each of these gates on *structure* and never on a length: a stale index row,
   # a table row that does not parse, a layout row naming a crate that is not on
@@ -977,9 +979,8 @@ jobs:
       - name: Every milestone row parses and agrees with the file it names
         run: bun nv plan --check
       # The workspace version, the `[workspace.dependencies]` pins that restate it and the newest
-      # release tag all agree, and a released version has a changelog section. It runs here
-      # because no `nv verify` step runs it: verify runs the steps whose footprint in the
-      # selection store a change reaches, and this check is not one of its steps.
+      # release tag all agree, and a released version has a changelog section. `nv verify` runs
+      # it as well, but selects it on the files it reads, and a new tag is no file of the tree.
       - name: The version is consistent across the manifest, the tags and the changelog
         run: bun nv release --check
 

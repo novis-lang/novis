@@ -11,7 +11,9 @@
 //     bun nv verify --list           the steps in order, running none of them
 //
 // The steps, in order, stopping at the first failure: `cargo fmt`, `bun nv lints --check`,
-// `bun nv directives --check` and `--check-template`, `bun nv owners --check`, `bun nv selftest`,
+// `bun nv directives --check` and `--check-template`, `bun nv owners --check`, the checks of CI's `docs`
+// job (`DOC_CHECKS`: `nv check`, `nv render --check`, `nv rules --check` and `--render --check`,
+// `nv links`, `nv layout --check`, `nv plan --check` and `nv release --check`), `bun nv selftest`,
 // the fuzz workspace's lock brought back in step, `cargo build`, `nvs fmt` over the `.nvs` files this
 // working tree added or changed, `cargo test`, the `.nvst` trees, `bun nv reference --stale-fails`,
 // `cargo clippy --all-targets -- -D warnings`, and the VS Code extension's headless suites. Green prints
@@ -147,8 +149,19 @@ const NEEDS_BINARY = new Set(["nvs-fmt", "test", "conformance", "reference", "ex
 const usesBinary = (name: string) => NEEDS_BINARY.has(name) || BESIDE_BUILD.has(name);
 /** The steps that rewrite source, after which the change is read again. */
 const WRITES = new Set(["fmt", "nvs-fmt"]);
+/** The checks of CI's `docs` job, each a script step: its name, then its `bun nv` arguments. */
+const DOC_CHECKS: [string, string[]][] = [
+  ["records", ["check"]],
+  ["render", ["render", "--check"]],
+  ["rules", ["rules", "--check"]],
+  ["rules-render", ["rules", "--render", "--check"]],
+  ["links", ["links"]],
+  ["layout", ["layout", "--check"]],
+  ["plan", ["plan", "--check"]],
+  ["release", ["release", "--check"]],
+];
 /** The script steps, which run at the same time as `build` when they are listed before it. */
-const BESIDE_BUILD = new Set(["lints", "directives", "template", "owners", "nv", "fuzz-lock"]);
+const BESIDE_BUILD = new Set(["lints", "directives", "template", "owners", ...DOC_CHECKS.map(([n]) => n), "nv", "fuzz-lock"]);
 const NVS_FMT_TREES = ["tests", "examples"];
 const NVS_FMT_SKIPS = "tests/fmt/input/";
 const EXTENSION = join(ROOT, "editors", "vscode");
@@ -159,7 +172,7 @@ const EXE = process.platform === "win32" ? ".exe" : "";
 /** The doc-tests, one atom: rustdoc builds and runs each in a directory it deletes. */
 const DOC_TESTS = "step:doc-tests";
 /** Every step's atom, whether or not this run's options walk it. */
-const STEP_ATOMS = ["fmt", "lints", "directives", "template", "owners", "nv", "fuzz-lock", "build", "reference", "clippy", "extension", "doc"].map((n) => `step:${n}`).concat(DOC_TESTS);
+const STEP_ATOMS = ["fmt", "lints", "directives", "template", "owners", ...DOC_CHECKS.map(([n]) => n), "nv", "fuzz-lock", "build", "reference", "clippy", "extension", "doc"].map((n) => `step:${n}`).concat(DOC_TESTS);
 
 const RESULT_RE = /test result: \w+\. (\d+) passed; (\d+) failed/g;
 const CASES_RE = /(\d+) passed, (\d+) failed, (\d+) skipped/g;
@@ -939,6 +952,35 @@ export const summaries: Record<string, (out: string) => string> = {
     m = /(\d+) recorded gap\(s\) name an owner this gate refuses/.exec(out);
     return m ? `${m[1]} recorded gap(s) name an owner the gate refuses` : NO_SUMMARY;
   },
+  records(out) {
+    const m = /(\d+) findings, in (\d+) record\(s\)/.exec(out);
+    return m ? `${m[2]} record(s), ${m[1]} finding(s)` : NO_SUMMARY;
+  },
+  render(out) {
+    const m = /(\d+) current, (\d+) stale, (\d+) to delete/.exec(out);
+    if (!m) return NO_SUMMARY;
+    return m[2] === "0" && m[3] === "0" ? `${m[1]} rendered file(s) current` : `${m[2]} stale and ${m[3]} to delete -- run \`bun nv render\``;
+  },
+  rules(out) {
+    return out.includes("no decision record and no citation of one") ? "every rule loads and every `rule:` citation resolves" : NO_SUMMARY;
+  },
+  "rules-render"(out) {
+    return out.includes("no decision record and no citation of one") ? "the rulebook pages match their fragments" : NO_SUMMARY;
+  },
+  links(out) {
+    const m = /every link in (\d+) file\(s\) resolves/.exec(out);
+    return m ? `every link in ${m[1]} file(s) resolves` : NO_SUMMARY;
+  },
+  layout() {
+    return "CONTRIBUTING.md's layout listing describes the tree";
+  },
+  plan(out) {
+    return /every cell agreeing/.test(out) ? "every milestone row parses and agrees with its file" : NO_SUMMARY;
+  },
+  release(out) {
+    const m = /version (\S+) is consistent/.exec(out);
+    return m ? `version ${m[1]} is consistent across the manifest, the tags and the changelog` : NO_SUMMARY;
+  },
   nv(out) {
     if (out.includes("nv selftest: every test passes")) {
       const m = /^\s*(\d+) pass$/m.exec(out);
@@ -1008,6 +1050,7 @@ function stepsFor(opts: Opts, r: () => Run, built = existsSync(covwsNvs())): Ste
     steps.push(bunStep(r, "directives", ["nv", "directives", "--check"]));
     steps.push(bunStep(r, "template", ["nv", "directives", "--check-template"]));
     steps.push(bunStep(r, "owners", ["nv", "owners", "--check"]));
+    for (const [name, args] of DOC_CHECKS) steps.push(bunStep(r, name, ["nv", ...args]));
     if (existsSync(join(ROOT, "package.json"))) {
       // `tsc` over every module under `tools/nv`, then each selected `bun test` file on its own. Some of
       // those files run the `covws` `nvs`, so in a tree that has never built it the step runs after
