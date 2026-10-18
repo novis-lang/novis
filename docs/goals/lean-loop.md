@@ -18,8 +18,8 @@ stages:
     context: [tools/nv/main.ts, .claude/settings.json, tools/nv/cmd/guard.ts, .github/workflows/ci.yml]
   - id: 5
     title: a diagnostic code is never raced
-    status: open
-    context: [crates/nvs-diagnostics/src/lib.rs]
+    status: done
+    context: [crates/nvs-diagnostics/src/code/mod.rs]
   - id: 6
     title: the central tables are split per item
     status: open
@@ -143,16 +143,16 @@ doc checks CI runs.
 - [x] `looper prose` judges the Markdown and `nv proofs --comments` the `.nvs` comments, because `looper prose` reads a whole `.nvs` file as prose. `looper.toml:89`
 - [x] CI's `docs` job checks run in `bun nv verify`, each only when what it reads changed. `.github/workflows/ci.yml:945`, `tools/nv/cmd/verify.ts:151`
 - [x] The stale references go: the owner-gate wording, the dead hooks in `commands.md`, and the settings entries for commands that are gone. The `docs/decisions/README.md` sync skip and the `looper …` entries stay, because looper's templates write both. `tools/nv/cmd/owners.ts:13`, `docs/agent/commands.md:620`, `.claude/settings.json:19`
-- [ ] The old driver's files under `.loop/` that nothing reads, and `tools/__pycache__/`, are deleted from the main checkout. `looper.toml:1`
+- [x] The old driver's files under `.loop/` that nothing reads, and `tools/__pycache__/`, are deleted from the main checkout. `looper.toml:1`
 
 ### 5. a diagnostic code is never raced
 
 **Does:** each area's codes live in their own module with a reserved range, and a test refuses a code
 outside its module's range.
 
-- [ ] The code table is split into one module per area, each with its range. `crates/nvs-diagnostics/src/lib.rs:140`
-- [ ] A test refuses a code outside its module's range and a code used twice. `crates/nvs-diagnostics/src/lib.rs:1`
-- [ ] `conventions.md`'s diagnostic shape says how to take the next code in an area. `docs/agent/conventions.md:1`
+- [x] The code table is split into one module per area, each with its range. `crates/nvs-diagnostics/src/code/mod.rs:1`
+- [x] A test refuses a code outside its module's range and a code used twice. `crates/nvs-diagnostics/src/code/mod.rs:146`
+- [x] `conventions.md`'s diagnostic shape says how to take the next code in an area. `docs/agent/conventions.md:494`
 
 ### 6. the central tables are split per item
 
@@ -175,13 +175,15 @@ edits no shared table by hand.
 
 ### State
 
-Stage 4 has one open item that waits on looper, and one left to do.
+Stage 5 is done. Stage 4's one open item waits on looper.
 
-- `bun nv verify` runs the eight checks of CI's `docs` job as script steps (`DOC_CHECKS`,
-  `tools/nv/cmd/verify.ts:151`), each selected on what it was seen to read. `release --check` also
-  reads the tags, which no file key covers, so CI still runs it.
-- `nv render --check` was red on HEAD: `data/schema/milestone.schema.json` still listed the `done`
-  state. It is rendered again, with `website/src/data/numbers.json`.
+- The diagnostic codes are one file per range under `crates/nvs-diagnostics/src/code/`, and
+  `code/mod.rs`'s head comment is the table of ranges and files. `code::E_*`, `code::ALL` (same order)
+  and `code::card` are unchanged. `ir.rs` declares no code, so its `pub use` carries an `#[expect]`
+  that its first code makes fail. `nv holes`, `nv reference`, `every_code_is_tested.rs` and the 66
+  playbook `until: gone` anchors read the area files now.
+- `.loop/` keeps `last-sweep.md`, `machine.json`, `checks/` and `status.txt`, the files `tools/nv` or
+  looper read. The rest of it and `tools/__pycache__/` are deleted. Both are git-ignored.
 - The swap to `looper links` and `looper layout` waits on looper. On this tree `looper links` reports
   9203 problems, nearly all an `<a id>` anchor it does not read, plus `docs/novis.md`, which `nv links`
   skips as generated. `looper layout` reads README.md's `## Layout`, and the listing is in
@@ -196,10 +198,10 @@ here.
 
 ### Next
 
-Stage 4's last item, then stage 5 on `crates/nvs-diagnostics/src/lib.rs`:
-- [ ] Delete the old driver's files under `.loop/` that nothing reads, and `tools/__pycache__/`, from the main checkout. First, grep `tools/nv` and looper's docs for each name, because `last-sweep.md`, `machine.json` and `checks/` are still read. `looper.toml:1`, `tools/nv/cmd/sweep.ts:17`
-- [ ] Split the code table into one module per area, each with its reserved range. `crates/nvs-diagnostics/src/lib.rs:140`
-- [ ] A test refuses a code outside its module's range and a code used twice. `crates/nvs-diagnostics/src/lib.rs:1`
+Stage 6's proof policy, on `data/proofs/` and its two readers:
+- [ ] Split `data/proofs/policy.json` into one file per feature under `data/proofs/policy/`. `data/proofs/policy.json:1`
+- [ ] `collect.ts` and `perf.ts` read the directory, and their tests pass. `tools/nv/proofs/collect.ts:52`, `tools/nv/proofs/perf.ts:38`
+- [ ] Then the `Core` class table, one file per class, as a group of its own. `crates/nvs-stdlib/src/registry.rs:1774`
 
 ### Backlog
 
