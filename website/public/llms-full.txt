@@ -4826,8 +4826,9 @@ an enum declares only cases
 ### A case is its integer
 
 `E::Case as int` (or `as uint`, for a `uint`-backed enum) is the case's value, and is the only
-conversion out of an enum: `as string`, `echo E::Case` and interpolation are refused — convert
-to the backing type first, `($e as int) as string`. A `uint`-backed case converts with `as uint`
+conversion of a case to a number or to text: `as string`, `echo E::Case` and interpolation are
+refused — convert to the backing type first, `($e as int) as string`. `as bool` compiles and is
+always `true`. A `uint`-backed case converts with `as uint`
 only; `as int` on it is refused, and the same the other way round.
 
 ```nvs error

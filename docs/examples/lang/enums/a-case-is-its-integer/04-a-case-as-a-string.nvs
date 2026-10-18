@@ -1,0 +1,7 @@
+<?nvs
+// Shows that `as string` on a case does not compile. Write
+// `(Rank::Silver as int) as string` to get the number as text.
+// proof: compile-error
+
+enum Rank { Bronze, Silver }
+echo Rank::Silver as string, "\n";
