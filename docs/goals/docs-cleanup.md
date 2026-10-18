@@ -300,7 +300,7 @@ with each.
       - [x] `lang:expressions`' perf recorded after the chapter's last edit
     - [ ] `50-classes`, then `lang:classes`' perf recorded after the chapter's last edit
       - [x] `declaring-a-class`, `properties`, `methods-self-static-and-parent` and `constants-and-class`
-      - [ ] `inheritance`, `interfaces`, `property-hooks` and `lateinit`
+      - [x] `inheritance`, `interfaces`, `property-hooks` and `lateinit`
       - [ ] `PropertyGuard` to `Parses`
       - [ ] `objects-are-handles` to `what-a-class-cannot-declare`
       - [ ] `lang:classes`' perf recorded after the chapter's last edit
@@ -722,11 +722,38 @@ parameter types exit 5. That is a type confusion in safe code
 (`data/gaps/nvs-types/a-method-override-with-another-signature.json`). An `abstract` method with a
 body compiles and acts as an ordinary method (`data/gaps/nvs-types/an-abstract-method-with-a-body.json`).
 
+`property-hooks`, `lateinit`, `propertyguard` and `propertyobserver` are done, each fact run on the
+binary. One claim was wrong in three texts: the chapter, the observer's `about.md` and the syntax page
+`syntax/classes/property-hooks.mdx` said a throwing `onPropertySet` fails or stops the write, but the
+value is already stored, as `rule:classes/property-observer-pipeline` says ("an observer's throw
+arrives after the store"). All three now say so (`50-classes.md:1105`). `property-hooks`'
+`details.md` has the block `get`, a `set` with no parameter using `$value`, `E0401`, no default
+(`E0101`), `E0843`, `E0254`, `E0787`, `E0478` in the class's own methods too, hooks running from
+other methods and for `+=` and `++`, `E0413`, inheritance and redeclaring, `isset`, and two `get`
+hooks recursing; example 04 is the chapter's `E0478` block. `lateinit`'s `details.md` has the read
+before a write compiling only with `LateInit` (`E0428` without), `E0449`, `isinit`, `+=`, one call
+setting several properties, a subclass property, the in-call read's message, and a second write in
+`initProperty` running the pipeline; example 04 is the chapter's block, with the "still not
+initialized" message. `propertyguard` and `propertyobserver` need no new example, since examples 01
+and 02 show their chapter blocks; their `details.md` have a default not being a write, `static`,
+`mixed` (`E0401`), nested keys, `+=` and `++`, guard recursion, a throwing unset, `isset` and
+interpolation calling `onPropertyGet`, a `get` hook's order, and the `tainted string`. Probing found
+six gaps, all owned by `release-hardening`, two of them safety bugs. **A hooked property is not
+checked for initialization, and a read of an unwritten object or `string` one exits 5**
+(`data/gaps/nvs-types/a-hooked-property-is-not-checked.json`). **A `set` hook whose parameter type is
+not the property's compiles, and a write exits 5** (`data/gaps/nvs-types/the-parameter-type-of-a-set.json`).
+**A promoted constructor parameter runs no guard and no observer**, so `constructor(public int
+$balance)` passes a guard that always throws (`data/gaps/nvs-ir/a-promoted-constructor-parameter-runs-no.json`).
+A hook on a `static` property never runs (`data/gaps/nvs-types/a-hook-on-a-static-property.json`),
+two `get` hooks stop at `E0901` (`data/gaps/nvs-types/a-property-with-two-get-hooks.json`), and
+`??=` on a property that has a value calls the guard (`data/gaps/nvs-ir/a-coalescing-assignment-to-a-property.json`).
+`initProperty(int $name)` compiles too, which is the override-signature gap already recorded.
+
 ### Next
 
-`50-classes` goes on. The next group is `property-hooks` (`50-classes.md:915`), `lateinit` (`:991`)
-and the features after it in chapter order; take each feature id from `bun nv proofs --json`.
-`lateinit` is the `LateInit` interface; plain `lateinit` is `properties`' fact already. Work each feature the way `break-and-continue` was done: read
+`50-classes` goes on. The next group is `stringable` (`50-classes.md:1133`), `comparable`
+(`:1171`), `parses` (`:1216`) and the features after it in chapter order; take each feature id from
+`bun nv proofs --json`. Work each feature the way `break-and-continue` was done: read
 its chapter section, its `about.md` and its syntax page, probe each fact `about.md` lacks on the
 binary, write `details.md`, and turn each chapter code block no example shows into an example
 (`proof: compile-error` for an `nvs error` fence). Bless with `bun nv proofs --bless <file>...`, then
@@ -736,10 +763,11 @@ A probe that reads a file needs an `nvs.toml` granting `[capabilities.fs] read` 
 probe is a file under `.agent-tmp/` written with Write, since the guard refuses a redirect.
 A probe catching two error types needs two variable names, or it stops at `E0406` before the line
 you meant to test. A probe's method goes in a class: a top-level `function` stops at `E0215`.
-An enum is `enum Suit { Hearts, Spades }`, with no `case`. Many probes at once: a JSON map of name to
+An enum is `enum Suit { Hearts, Spades }`, with no `case`. An array with string keys is still
+`array<int>`: `array<string, int>` is `E0101`. Many probes at once: a JSON map of name to
 body, and a script under `.agent-tmp/` that writes and runs each; the guard refuses a shell loop of
 `nvs run` over `docs/examples/`, so check a new example with `--bless`.
-- [ ] `50-classes` from property hooks, in chapter order. `docs/reference/lang/50-classes.md:915`
+- [ ] `50-classes` from `Stringable`, in chapter order. `docs/reference/lang/50-classes.md:1133`
 - [ ] Once the chapter's last edit lands, `bun nv proofs --record-perf --group lang:classes`, and commit `data/perf/members.ndjson`. `tools/nv/proofs/roster.ts:28`
 
 ### Backlog
