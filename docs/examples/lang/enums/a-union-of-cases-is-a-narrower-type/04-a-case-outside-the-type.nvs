@@ -1,0 +1,14 @@
+<?nvs
+// Shows that a case outside the smaller type does not compile. `Mode::Exec` is
+// not one of the two cases that `Open::file` accepts.
+// proof: compile-error
+
+enum Mode { Read, Write, Exec }
+
+class Open {
+    public static function file(Mode::Read|Mode::Write $mode): int {
+        return $mode as int;
+    }
+}
+
+echo Open::file(Mode::Exec), "\n";

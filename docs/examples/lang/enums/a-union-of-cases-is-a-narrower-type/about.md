@@ -12,5 +12,5 @@ throwing.
 **Good to know:** the smaller type fits everywhere the whole enum is wanted, so you never need a
 conversion in that direction.
 
-**The examples below** show the type on a parameter, the two conversions into it, and a web handler
-that takes only the two requests it is written for.
+**The examples below** show the type on a parameter, the two conversions into it, a web handler that
+takes only the two requests it is written for, and a case outside the type that does not compile.
