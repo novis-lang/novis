@@ -23,6 +23,23 @@ sweep = "every"
 [verify]
 run = [["bun", "nv", "verify"]]
 
+# The generated files `.gitattributes` marks that the two commands below write without a built binary. A
+# catch-up merge takes main's side of each, then renders them again from the merged sources.
+# `website/src/data/core.json`, `reference.json` and `docs/novis.md` need the binary, so a conflict in
+# one is a landing session.
+[merge]
+generated = [
+  "data/schema/*.schema.json",
+  "data/spec/core-members.json",
+  "crates/nvs-stdlib/src/classes.rs",
+  "website/config/novis.tmLanguage.json",
+  "website/src/data/compare.json",
+  "website/src/data/numbers.json",
+  "docs/rules/*.md",
+  "docs/ground-rules.md",
+]
+render = [["bun", "nv", "render"], ["bun", "nv", "rules", "--render"]]
+
 # The Bash calls that take machine-wide heavy-job slots beside looper's built-in cargo and `bun test`. A
 # pattern matches a command's first words, so a flag counts only where it comes first. The measuring
 # commands take every slot, so no build runs beside them and skews what they record.
