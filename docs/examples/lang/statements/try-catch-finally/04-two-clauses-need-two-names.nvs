@@ -1,5 +1,5 @@
 <?nvs
-// Shows that two `catch` clauses in one function need two variable names.
+// Shows that two `catch` clauses for different types need two variable names.
 // Both clauses below use `$e`, so this program does not compile.
 // proof: compile-error
 

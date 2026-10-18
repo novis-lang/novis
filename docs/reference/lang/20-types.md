@@ -34,7 +34,8 @@ n=2 1
   empty array is refused. Write its type instead: `array<int|string> $xs = [1, "a"];`.
 - Locals are function-scoped: a name declared inside an `if` or a loop body is visible after it, and
   the counter a `for` header declares stays visible after the loop. A `catch (T $e)` binding is a
-  declaration too, so two `catch` blocks in one function name two different variables.
+  declaration too: two `catch` blocks in one function may reuse a name only when they catch the same
+  type.
 - A value that does not match the declared type is refused where it is written — `int $i = null;`,
   `uint $u = -1;`, `int $i = 3; string $s = $i;` are all compile errors. The one implicit
   conversion is listed under `Widening without as` below; everything else is spelled `as`.
