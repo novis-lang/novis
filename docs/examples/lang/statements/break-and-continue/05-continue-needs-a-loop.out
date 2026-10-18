@@ -1,0 +1,8 @@
+error[E0475]: `continue` is not inside a loop
+   --> 05-continue-needs-a-loop.nvs:10:9
+   |
+10 |         continue;
+   |         ^^^^^^^^^ no enclosing loop to leave
+
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.
