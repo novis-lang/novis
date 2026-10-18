@@ -91,6 +91,10 @@ fn asserted(text: &str, number: &str, name: &str) -> bool {
 }
 
 #[test]
+#[cfg_attr(
+    miri,
+    ignore = "reads every file under `crates/` and `tests/`, which Miri interprets for longer than CI's miri job may run, and a text scan has no undefined behaviour of its own to find"
+)]
 fn every_code_is_asserted_by_its_code_in_a_test() {
     let crates = nvs_repo::path("crates");
     let own = crates.join("nvs-diagnostics").join("src");
