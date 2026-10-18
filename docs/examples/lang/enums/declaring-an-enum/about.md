@@ -11,4 +11,5 @@ method, a constant or an `implements` clause does not compile. Put the behaviour
 takes the enum.
 
 **The examples below** show an enum with no numbers written, then an enum whose numbers you choose,
-then a set of permissions where each case is one bit of a number.
+then a set of permissions where each case is one bit of a number. Example 04 shows numbers that count
+on from a number you write. Examples 05 to 07 show three enums that do not compile.

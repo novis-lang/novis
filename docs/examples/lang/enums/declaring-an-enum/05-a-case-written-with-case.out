@@ -1,0 +1,16 @@
+error[E0239]: an enum case is not written with `case`
+  --> 05-a-case-written-with-case.nvs:6:13
+  |
+6 | enum Suit { case Hearts; case Spades; }
+  |             ^^^^ remove this keyword
+  = help: an enum body is a comma list of bare `Name = 1,` cases, with no `case` keyword and no `;` (`rule:enums/declaration`)
+
+error[E0239]: an enum case is not written with `case`
+  --> 05-a-case-written-with-case.nvs:6:26
+  |
+6 | enum Suit { case Hearts; case Spades; }
+  |                          ^^^^ remove this keyword
+  = help: an enum body is a comma list of bare `Name = 1,` cases, with no `case` keyword and no `;` (`rule:enums/declaration`)
+
+error: aborting due to 2 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.
