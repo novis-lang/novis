@@ -17,7 +17,7 @@ echo $counter->value, "|", $alias->value, "\n";
 echo ($counter == $alias) as string, "\n";
 
 // A second `new` makes a second object. It has the same value and is still a
-// different object, so `==` is false and `as string` prints an empty text.
+// different object, so `==` is false and `as string` prints an empty string.
 var $other = new Counter();
 $other->value = 5;
 echo ($counter == $other) as string, "|done\n";
