@@ -1,0 +1,7 @@
+<?nvs
+// Shows that a `mixed` value is not passed to a `string` parameter without `as string`.
+// This program does not compile.
+// proof: compile-error
+
+mixed $text = "x";
+echo Core\Str::upper($text), "\n";

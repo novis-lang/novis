@@ -1,0 +1,8 @@
+error[E0401]: expected `string`, found `mixed`
+  --> 05-convert-before-a-typed-parameter.nvs:7:22
+  |
+7 | echo Core\Str::upper($text), "\n";
+  |                      ^^^^^ this is `mixed`
+
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

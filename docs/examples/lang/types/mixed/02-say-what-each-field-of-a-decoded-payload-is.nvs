@@ -1,7 +1,6 @@
 <?nvs
-// A decoded JSON document hands you one `mixed` per field. `is` asks what a
-// value really is without changing it, so a field can be described, logged
-// or routed before anybody decides to convert it.
+// Describes each field of a decoded JSON document. Each field is a `mixed` value.
+// `is` tests the type of a value and does not convert it.
 
 array<mixed> $payload = ["id" => 4102, "name" => "Ada", "paid" => true, "note" => null];
 
