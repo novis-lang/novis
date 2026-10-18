@@ -10,7 +10,7 @@
 //     bun nv scaling --budget [--write]          whether every bench's counted work is within its budget
 //
 // The budget. `--budget` counts the statements each bench runs at its own N and compares each with its
-// share in `docs/perf/bench-budget.json`. A share may only go down. A new bench brings its own share,
+// share in `data/perf/bench-budget.json`. A share may only go down. A new bench brings its own share,
 // and a bench whose `// bench: iterations N` line gives a reason after ` -- ` may rise. A new share is
 // stored by `--write`, so the budget's growth is always an exact number in a diff.
 //
@@ -153,7 +153,7 @@ const PASSED_SIZED = "every bench's iteration count is no larger than its growth
 /** The line `--budget` prints when no bench's share of the budget rose without a reason. */
 const PASSED_BUDGET = "the bench tree's counted work is within its budget";
 /** The statements each bench runs at its N, which `--budget` holds the tree to. */
-const BUDGET = "docs/perf/bench-budget.json";
+const BUDGET = "data/perf/bench-budget.json";
 const CALIBRATION = "_calibration";
 /** How many of the slowest programs a run names at its end. */
 const SLOWEST = 5;

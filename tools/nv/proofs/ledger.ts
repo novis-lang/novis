@@ -1,4 +1,4 @@
-// The perf ledger, `docs/perf/members.ndjson`: one JSON record per line, each naming the feature it
+// The perf ledger, `data/perf/members.ndjson`: one JSON record per line, each naming the feature it
 // measures in `id`. `nv proofs` reads it without recording the file, and names a `perf:#<feature>` key
 // for each feature whose rows it consults (`perfKey`). A reader that uses every row names
 // `LEDGER_WHOLE`. A change to the ledger moves the keys of the features whose rows differ between its
@@ -8,7 +8,7 @@
 
 import { createHash } from "node:crypto";
 
-export const LEDGER = "docs/perf/members.ndjson";
+export const LEDGER = "data/perf/members.ndjson";
 
 /** Every `perf:` key of one feature, as the prefix a selection looks up. */
 export const PERF_ANY = "perf:#";

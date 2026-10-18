@@ -88,7 +88,7 @@ export const LANES: Record<string, string[]> = {
   // Gates `proofs`.
   proofs: [
     "crates/", "benches/", "tests/", "tools/", "Cargo.toml", "Cargo.lock", "rust-toolchain.toml",
-    "docs/examples/", "docs/reference/", "docs/perf/", "data/proofs/", "data/gaps/",
+    "docs/examples/", "docs/reference/", "data/perf/", "data/proofs/", "data/gaps/",
     "website/", ".github/workflows/",
   ],
   // The five-driver matrix against real servers: the harness that points each driver at a container,

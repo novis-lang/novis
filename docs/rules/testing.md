@@ -3,7 +3,7 @@
 
 # Testing
 
-*31 of 81 rules below are **designed** rather than shipped, and are marked where they appear.*
+*31 of 79 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="testing-test-attribute"></a>
 
@@ -2771,47 +2771,7 @@ against itself, never whether Novis got faster in an absolute sense.
 - **Callgrind as the gate on every pull request.** Its emulation is one to two orders of magnitude
   slower, which every pull request would pay, and it runs on only one of the three CI platforms.
 
-<sub>See also [`testing/perf-secondary-figures`](testing.md#testing-perf-secondary-figures), [`testing/perf-history-file`](testing.md#testing-perf-history-file), [`testing/bench-counters`](testing.md#testing-bench-counters), [`testing/member-perf-ledger`](testing.md#testing-member-perf-ledger).</sub>
-
-<a id="testing-perf-secondary-figures"></a>
-
-## Wall-clock and the PHP ratio ride beside the instruction count as same-host figures only
-
-`rule:testing/perf-secondary-figures`
-
-Each history entry carries that same run's wall-clock time and, where a runnable equivalent exists,
-the same-host same-run ratio against the pinned PHP the benchmarks already run. Both are
-**secondary**: useful to whoever operated the runner, and not comparable across machines.
-
-The PHP ratio reuses the engine the benchmarks already keep rather than inventing a second
-reference program, on the reasoning that both runtimes meet identical hardware and OS
-conditions during one measurement — which normalizes machine differences at least as well as an
-unrelated synthetic baseline would, with no new moving part.
-
-An instruction count is a proxy, and it can in principle improve while real latency worsens. These
-two figures exist to catch that divergence, so the dashboard is read together with them and never
-from the count alone.
-
-<sub>See also [`testing/perf-two-mechanisms`](testing.md#testing-perf-two-mechanisms), [`testing/perf-history-file`](testing.md#testing-perf-history-file), [`testing/userland-benchmarks`](testing.md#testing-userland-benchmarks).</sub>
-
-<a id="testing-perf-history-file"></a>
-
-## The performance history is an append-only NDJSON file in the repository
-
-`rule:testing/perf-history-file`
-
-A data point is one JSON object appended to `docs/perf/history.ndjson` — commit, date, workload,
-instruction count, wall clock, PHP ratio. It is committed to the repository and diffable, with no
-dashboard service and no database behind it; a renderer turns it into a trend chart on demand, and
-nothing requires that renderer to exist before the data does.
-
-The determinism the instruction count is chosen for is measured of a bare example binary, not of a
-whole compile-and-run: two consecutive runs of a real workload agree to about six significant
-figures, because the process reads a file and compiles it before any of the workload runs. **The
-lower of the two is what gets recorded.** A trend line reads perfectly well at that resolution; a
-guard asserting equality between two runs would not, so no such guard exists.
-
-<sub>See also [`testing/perf-two-mechanisms`](testing.md#testing-perf-two-mechanisms), [`testing/perf-secondary-figures`](testing.md#testing-perf-secondary-figures), [`testing/valgrind-on-wsl`](testing.md#testing-valgrind-on-wsl).</sub>
+<sub>See also [`testing/bench-counters`](testing.md#testing-bench-counters), [`testing/member-perf-ledger`](testing.md#testing-member-perf-ledger).</sub>
 
 <a id="testing-member-perf-ledger"></a>
 
@@ -2910,7 +2870,7 @@ It changes nothing about the historical dashboard, whose headline metric stays t
 count. Which workloads populate that dashboard is a benchmark-design question rather than a language
 decision, and it grows as real compiled programs exist to measure.
 
-<sub>See also [`testing/perf-secondary-figures`](testing.md#testing-perf-secondary-figures), [`testing/member-perf-ledger`](testing.md#testing-member-perf-ledger), [`testing/perf-two-mechanisms`](testing.md#testing-perf-two-mechanisms).</sub>
+<sub>See also [`testing/member-perf-ledger`](testing.md#testing-member-perf-ledger), [`testing/perf-two-mechanisms`](testing.md#testing-perf-two-mechanisms).</sub>
 
 <a id="testing-valgrind-on-wsl"></a>
 
@@ -2933,7 +2893,7 @@ so no symbol-registration shim exists; callgrind still runs JIT-compiled pages c
 8-frame JIT call chain counts the same instructions on every run
 (`benches/abi-probe/examples/callgrind_spike.rs`).
 
-<sub>See also [`testing/perf-two-mechanisms`](testing.md#testing-perf-two-mechanisms), [`testing/perf-history-file`](testing.md#testing-perf-history-file), [`testing/the-deep-lane`](testing.md#testing-the-deep-lane).</sub>
+<sub>See also [`testing/perf-two-mechanisms`](testing.md#testing-perf-two-mechanisms), [`testing/the-deep-lane`](testing.md#testing-the-deep-lane).</sub>
 
 <a id="testing-ci-lanes"></a>
 

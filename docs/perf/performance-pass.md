@@ -329,7 +329,7 @@ counts the statements every bench runs at its own count:
 | Before | 997 | 1,180,279,719 |
 | After | 997 | 111,779,166 |
 
-`docs/perf/bench-budget.json` stores the after figure. It may only go down.
+`data/perf/bench-budget.json` stores the after figure. It may only go down.
 
 **A change reruns only the benches it reaches.** `bun nv affected --run` records which code each
 bench runs. A later change reruns only the benches that run the changed code. It also skips a bench

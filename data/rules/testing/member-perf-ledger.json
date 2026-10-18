@@ -7,7 +7,7 @@
     "testing/userland-benchmarks"
   ],
   "guardedBy": [
-    "docs/perf/members.ndjson",
+    "data/perf/members.ndjson",
     "benches/members/README.md",
     "tools/nv/proofs/collect.ts",
     "tools/nv/cmd/proofs.ts",

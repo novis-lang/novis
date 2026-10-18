@@ -1867,7 +1867,7 @@ fn a_typed_arithmetic_loop_stays_in_the_native_cost_class() {
 ///
 /// The guard below and the ledger figure read the **same program**, for the
 /// reason `shared/isolate.rs` is shared above: two loops written to be alike
-/// drift apart, and then the number in `docs/perf/members.ndjson` is no longer
+/// drift apart, and then the number in `data/perf/members.ndjson` is no longer
 /// the number this test protects.
 fn compile_decimal_arith() -> nvs_codegen::Unit {
     let path = nvs_repo::path("benches/members/lang/types/numbers-bool-int-uint-float-decimal.nvs");

@@ -508,8 +508,7 @@ Nothing here builds anything: the release binary on disk is the binary that runs
 refused by name, and the harness warns when the binary is older than the newest file under `crates/`. Two
 timings and their baseline-subtracted halves are printed; wall clock is a **same-host, same-minute** ratio
 and is not comparable across machines, which is why the cross-machine history in
-`rule:testing/perf-two-mechanisms` is counted in instructions instead. This
-suite is the PHP-ratio secondary figure of `rule:testing/perf-secondary-figures`, in runnable form.
+`rule:testing/perf-two-mechanisms` is counted in instructions instead.
 
 ## The server's throughput, in three legs that are not one series
 
@@ -564,7 +563,7 @@ bun nv proofs --run --group 'Core\Str' # run every example and attack in scope, 
 bun nv proofs --verify --group G       # the owed gate, then the run, for each scope in one pass
 bun nv proofs --bless <file.nvs>       # write an example's `.out` from what it prints
 bun nv proofs --comments <path>        # judge a program's comments against the plain-comment bounds
-bun nv proofs --record-perf --group G  # measure, append to docs/perf/members.ndjson
+bun nv proofs --record-perf --group G  # measure, append to data/perf/members.ndjson
 bun nv proofs --no-perf …              # any of the above, with the perf proof switched off
 ```
 

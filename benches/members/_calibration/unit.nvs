@@ -1,5 +1,5 @@
 <?nvs
-// The unit every `units` column in docs/perf/members.md is expressed in: a plain integer loop,
+// The unit every `units` column in data/perf/members.md is expressed in: a plain integer loop,
 // chained so nothing can hoist it. One iteration of this is 1.000 units, on any machine.
 //
 // DO NOT EDIT. Every ratio ever recorded is relative to this loop; changing it re-bases the whole

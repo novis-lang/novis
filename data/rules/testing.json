@@ -72,8 +72,6 @@
     "testing/a-recorded-request-becomes-a-test",
     "testing/bench-counters",
     "testing/perf-two-mechanisms",
-    "testing/perf-secondary-figures",
-    "testing/perf-history-file",
     "testing/member-perf-ledger",
     "testing/userland-benchmarks",
     "testing/valgrind-on-wsl",
