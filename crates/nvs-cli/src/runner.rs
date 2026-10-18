@@ -111,12 +111,168 @@
 
 use std::cell::RefCell;
 use std::collections::VecDeque;
+use std::path::PathBuf;
 use std::process::ExitCode;
 use std::rc::Rc;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use nvs_types::defaults::ConstArg;
+
+/// Run a program's `#[Test]` methods, or a tree of `.nvst` conformance
+/// cases.
+///
+/// The path decides which one runs. A `.nvs` file is a program, and its
+/// `#[Test]` methods run. A folder with `.nvs` files is one program made of
+/// every `.nvs` file in it and in its subfolders. Run `nvs test .` in your
+/// project folder to run every test in the project. The entry file is in
+/// that folder, so its `autoload` line loads your classes for every test.
+/// The tests can be under `src/`, or in a `tests/` folder with one
+/// `bootstrap.nvs` that requires the entry file. A file that another file
+/// in the folder requires is loaded once, through that file.
+/// Any other path is a `.nvst` case file or a folder of `.nvst` files. A
+/// folder with both kinds of file is an error, because the two kinds have
+/// different reports.
+///
+/// Exits non-zero if any case or any test failed; a skipped one is not a
+/// failure.
+// `rule:testing/nvst-is-separate` § 1, and
+// `rule:testing/a-directory-of-programs-is-one-test-program` for the directory.
+#[derive(clap::Args)]
+pub(crate) struct Args {
+    /// The program or directory of programs to run, or the case files and
+    /// directories.
+    #[arg(required = true)]
+    paths: Vec<PathBuf>,
+    /// Run only the tests whose name contains this text — a `.nvst` case's
+    /// path, or a `#[Test]` method's `Class::method`.
+    #[arg(long, value_name = "TEXT")]
+    filter: Option<String>,
+    /// How many tests or `.nvst` cases run at once.
+    ///
+    /// The default is the number of hardware threads on this machine.
+    /// `--jobs 1` runs one test at a time. A program that loads an
+    /// extension always runs one test at a time.
+    // `rule:testing/tests-run-across-every-core`.
+    #[arg(long, value_name = "N")]
+    jobs: Option<std::num::NonZeroUsize>,
+    /// Print each test's output as it runs.
+    ///
+    /// Without this flag, the output of a test that passes is not shown.
+    /// The output of a test that fails is printed under its failure. With
+    /// this flag, lines from tests that run at the same time may mix.
+    // `rule:testing/tests-run-across-every-core`.
+    #[arg(long)]
+    show_output: bool,
+    /// How a program's `#[Test]` run is reported.
+    ///
+    /// The default is the human format, and it is what a `.nvst` tree is
+    /// always reported in: a conformance run's report is a summary rather
+    /// than a suite of test methods, and the two share nothing — so naming
+    /// a machine format beside a case tree is refused rather than silently
+    /// ignored.
+    // `rule:testing/report-formats`, and § 23 is what keeps the two reports
+    // from sharing a shape.
+    #[arg(long, value_name = "FORMAT", default_value = "human")]
+    format: Format,
+    /// Rewrite each failed `Core\Test::assertMatchesInline` snapshot in
+    /// the source that wrote it.
+    ///
+    /// This is the only spelling under which `nvs test` writes to a source
+    /// file, and what it writes is the `$expected` literal and nothing
+    /// else: a run without it never touches the program, and a run with it
+    /// never touches a passing snapshot. A `.nvst` tree has no snapshot to
+    /// update, so naming it there is refused rather than ignored.
+    // `rule:testing/inline-snapshots`.
+    #[arg(long)]
+    update: bool,
+    /// Write the run's coverage to this file in the lcov format.
+    ///
+    /// Every line a statement starts on is listed with the number of
+    /// times it ran, `0` for a line no test reached. Every branch is
+    /// listed with the number of times its true side and its false side
+    /// ran. Every function is listed with the number of times it was
+    /// called. A `.nvst` tree has
+    /// no coverage to report, so naming it there is an error.
+    // `rule:testing/debug-probes`; `crate::coverage` owns how the counts are taken.
+    #[arg(long, value_name = "FILE", conflicts_with = "list")]
+    coverage_lcov: Option<PathBuf>,
+    /// Write the run's coverage to this file as Clover XML.
+    ///
+    /// The same lines, branches, functions and counts as
+    /// `--coverage-lcov`, in the Clover format that many CI services
+    /// read.
+    #[arg(long, value_name = "FILE", conflicts_with = "list")]
+    coverage_clover: Option<PathBuf>,
+    /// Write the run's coverage to this file as Cobertura XML.
+    ///
+    /// The same lines, branches and counts as `--coverage-lcov`, in the format
+    /// GitLab and Azure DevOps read. One run can write all three files.
+    #[arg(long, value_name = "FILE", conflicts_with = "list")]
+    coverage_cobertura: Option<PathBuf>,
+    /// Report which `#[Test]` methods the program declares, and where each
+    /// one is written, without running any of them.
+    ///
+    /// This is what an editor's Test Explorer populates its tree from, and
+    /// it is answered from the table the compile already built — so a
+    /// program whose tests fail, hang or `exit` lists exactly as a passing
+    /// one does. It excludes `--update`, which rewrites what a run
+    /// produced, and a `.nvst` tree, which is discovered by walking a
+    /// directory rather than by compiling a program.
+    // `rule:testing/report-formats`, and `rule:ide/every-feature-is-staged-behind-its-dependency`
+    // is why the CLI surface lands before the client that reads it.
+    #[arg(long, conflicts_with = "update")]
+    list: bool,
+    /// Run only the `.nvst` case files this file lists, one path per
+    /// line, out of the trees named.
+    ///
+    /// A case is judged and counted exactly as a whole-tree run judges it,
+    /// and the summary counts the listed cases. A listed path that no named
+    /// tree holds is refused before anything runs.
+    #[arg(long, value_name = "FILE")]
+    cases: Option<PathBuf>,
+    /// Record each `.nvst` case into this directory, which is created
+    /// when it is not there.
+    ///
+    /// Every `nvs` process a case starts writes its coverage counters to
+    /// `<name>-<pid>.profraw` when the binary is built with coverage, and
+    /// the classes and files it used to `<name>.log`, and compiles with
+    /// no artifact cache. `<name>` is the case's path with `/` and `\`
+    /// as `~` and every other character that is not a letter, a digit,
+    /// `.`, `_` or `-` as `@` and two hex digits.
+    #[arg(long, value_name = "DIR")]
+    record: Option<PathBuf>,
+}
+
+impl Args {
+    /// Runs `nvs test` with the arguments clap parsed, the global `--config`
+    /// files and the project's init gate.
+    pub(crate) fn run(self, config: &[PathBuf], init: crate::config::Init) -> ExitCode {
+        crate::run_test(
+            &self.paths,
+            self.filter,
+            self.jobs,
+            self.format,
+            Flags {
+                update: self.update,
+                list: self.list,
+                jobs: self
+                    .jobs
+                    .map_or_else(default_jobs, std::num::NonZeroUsize::get),
+                show_output: self.show_output,
+            },
+            &crate::coverage::Requested {
+                lcov: self.coverage_lcov,
+                clover: self.coverage_clover,
+                cobertura: self.coverage_cobertura,
+            },
+            self.cases,
+            self.record,
+            config,
+            init,
+        )
+    }
+}
 
 /// `rule:testing/report-formats`'s report formats.
 ///
