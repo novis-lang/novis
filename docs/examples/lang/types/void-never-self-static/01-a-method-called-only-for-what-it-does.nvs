@@ -1,7 +1,6 @@
 <?nvs
-// A method that hands nothing back says `void`. The reader of the signature
-// then knows there is no answer to wait for, and the checker makes sure
-// nobody tries to use one.
+// A method that returns no value has the return type `void`.
+// Each call below is a statement of its own.
 
 class Audit {
     public static function note(string $what, uint $count): void {

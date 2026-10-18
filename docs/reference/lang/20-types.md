@@ -333,9 +333,9 @@ expected `iterable`, found `array<int>`
 `void` and `never` are return types only; neither names a parameter or a binding, and `var` is
 refused the type of a call that hands nothing back. A `void` call is not an operand: `echo
 Helper::nothing()` is a compile error. `never` declares a method that does not come back — it throws,
-or it ends the program — and a call to one is not read as an exit, so a caller with another path
-still has to return a value on that one. `self` is the declaring class and `static` the called class,
-in a return position; neither is a value (`return self;` is refused — write `self::member`).
+or it ends the program — and a call to one ends the caller's path, unless a subclass overrides the
+method. `self` is the declaring class and `static` the called class; `self` may also type a
+parameter. Neither is a value (`return self;` is refused — write `self::member`).
 
 ```nvs
 <?nvs
