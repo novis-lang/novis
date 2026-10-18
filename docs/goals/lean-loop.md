@@ -189,35 +189,32 @@ edits no shared table by hand.
 
 ### State
 
-Every stage is done and the goal-end gates are green: `bun nv verify --doc` finds every link
-resolving, `bun nv owners --closes lean-loop` names no gap, and `looper lint` and `looper doctor`
-are clean. The owed perf atoms are the floor check `floor-debt`'s to pay, which looper runs once on
-this `DONE` claim. The backlog moved to goal `works-without-looper`, next on the chain, which also
-carries what stage 4's dropped swap leaves open.
+Every stage is done and the goal-end gates are green. `floor-debt` paid all 5506 owed proof
+programs in 63 minutes, with no bench among them, so the owed benches stay with the release gate.
+Five of them were red, carried as debt since the change that broke each:
 
-- `.gitattributes` marks every file `nv render`, `nv render --website`, `nv rules --render` and
-  `nv reference` write as `linguist-generated`, and `docs/perf/members.ndjson` as `merge=union`.
-  The two website rules lines it had named files `nv site`'s `RETIRED` list deletes, and are gone.
-- `looper.toml`'s `[merge]` names the files the two binary-free commands write, and renders them with
-  `nv render` and `nv rules --render`. `core.json`, `reference.json` and `docs/novis.md` need a built
-  binary, so a conflict in one stays a landing session. `looper doctor` is clean.
-- `commands.md` § *A conflict in a generated file* is how a person resolves one.
-- `looper prose` reads a whole `.nvs` file, code included, so `nv proofs --comments` stays for the
-  `.nvs` comments.
+- `Core\IO::write` wrote a file named like the folder in a path ending with `/`, because the
+  resolved path loses the separator. `capability::resolve_file` now refuses such a path at every
+  file door, and `a_path_ending_with_a_separator_is_refused_by_every_file_door` pins it.
+- The `Core\Out::capture` attack did not compile since capture returns a carrier union. Its step 5
+  casts with `as Core\Cli\Text`.
+- The PDF slots example's `.out` predated the fill moving to its cell's top-left corner.
+- The PDF billion-laughs attack's 20 MB step fits under the limit since the pdf world copies its
+  bytes once. Step 7 is 60 MB, and the render still stops at the limit.
+- **Open:** `tests/hostile/novis/Image-Font/fromBytes/01-bytes-that-pretend-to-be-a-font.nvs`
+  declares `ends-early 4 FATAL`, and step 4 now throws an error under the limit. Font code never
+  reaches the limit, even at 64 MB, so the step cannot be made to. Removing the marker was refused
+  by the loop's permission classifier as removing a security test, so the user decides.
 
-Nightly run 39108526796 on `1a78b49ef` is still the newest, and every failure it shows was fixed by
-`8f8966275` and `b34ff85e5`, or is a perf figure owed until the goal end.
+Nightly run 39108526796 is the newest. `supply chain` failed because cargo-deny's container has no
+1.99.1 toolchain, and `ci.yml` now passes it the channel `rust-toolchain.toml` pins. The rest was
+fixed by `8f8966275` and `b34ff85e5`, or was these five proofs.
 
 ### Next
 
-The goal end, on the gates' output. The standing decision on looper needs no move: goal
-`works-without-looper` restates it and writes it into `commands.md` § *Without looper*.
-- [x] `bun nv verify --doc`, and every broken doc link it names fixed. `tools/nv/cmd/verify.ts:151`
-- [x] `bun nv owners --closes lean-loop`, and every gap it names closed or given another owner. `tools/nv/cmd/owners.ts:13`
-- [x] The owed perf atoms, paid as § *Standing decisions* says. Then `DONE`. `tools/nv/cmd/debt.ts:1`
-
-If `floor-debt` turns out to take hours, the owed benches move to the release gate, as § *Standing
-decisions* says.
+The goal end, once the Font attack is settled.
+- [ ] The user settles the Font attack's step 4. `tests/hostile/novis/Image-Font/fromBytes/01-bytes-that-pretend-to-be-a-font.nvs:4`
+- [ ] `floor-debt` green, then `DONE`. `tools/nv/cmd/debt.ts:1`
 
 ### Backlog
 
