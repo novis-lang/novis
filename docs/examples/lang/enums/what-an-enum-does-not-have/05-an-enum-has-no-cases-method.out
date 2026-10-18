@@ -1,0 +1,8 @@
+error[E0309]: `Level` has no method named `cases`
+  --> 05-an-enum-has-no-cases-method.nvs:8:1
+  |
+8 | Level::cases();
+  | ^^^^^ referenced here
+
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

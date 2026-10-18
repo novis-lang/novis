@@ -1,0 +1,8 @@
+<?nvs
+// Shows that an enum has no `cases()` method. This line does not compile.
+// Write a static method that returns `array<Level>`, as example 02 does.
+// proof: compile-error
+
+enum Level { Debug, Info }
+
+Level::cases();

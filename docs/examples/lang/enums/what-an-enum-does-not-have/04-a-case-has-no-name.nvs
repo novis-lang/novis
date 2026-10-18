@@ -1,0 +1,8 @@
+<?nvs
+// Shows that a case has no `->name`. This line does not compile. Write a
+// `match` in a class of your own instead, as example 01 does.
+// proof: compile-error
+
+enum Level { Debug, Info }
+
+echo Level::Info->name, "\n";
