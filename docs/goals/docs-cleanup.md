@@ -475,6 +475,19 @@ and the shape field conversion. Example 04 is an anonymous object at a shape, 05
 `int` into `uint` block. A local typed with a bare shape is `E0134`, so a probe names the shape
 with `type` first.
 
+`the-conversion-operator-as` is done, each fact run on the binary, and no text disagreed with it.
+Its `details.md` has the two error classes, which text converts to a number (`"+5"` and `".5"` do,
+`"1_000"` and `"inf"` do not), `float` and `"1e3"` to `decimal`, `bool` and the truthiness values,
+`bytes`, enum cases, `E0708` for a pair with no rule, `mixed` giving a `tainted string`, the array
+check (elements are not converted from text: `["1"] as array<int>` throws, which the chapter's table
+row leaves unclear), `E0709`, `E0473`, and `class<T>` at compile and run time, a string always being
+the full name. Examples 04 to 08 are the chapter's five blocks but `(int)$n`, which belongs to
+`what-does-not-exist`'s slice. Example 01's comments were in the essay voice, now rewritten. The
+chapter's `property<T>`, `propertyPath<T>` and shape rows are those features' facts. Probing found
+a third compiler panic: `$c is class<Dog>` passes `nvs check` and panics in lowering, now the gap
+record `data/gaps/nvs-ir/an-is-test-against-a-class-reference.json`, owned by `release-hardening`.
+The chapter did not change in this slice.
+
 `looper lint` failed on a stale managed block, so `looper sync` brought AGENTS.md's `agents` block to
 v3. It adds § *looper only orchestrates* and still links `docs/design.md`.
 
@@ -484,8 +497,9 @@ sessions found, and the red bench `benches/members/core/Ldap-Connection/delete.n
 
 ### Next
 
-`20-types` from `the-conversion-operator-as` (10 features left, and it is the longest section at 176
-lines, so take it alone), one feature per slice, the way `break-and-continue` was done: read
+`20-types` from `property-keys` (9 features left; `property-keys` is 123 lines and `property-paths`
+62, so take them together), one feature per slice. The chapter's `(int)$n` error block
+(`20-types.md:756`) goes to `what-does-not-exist` with its own section. Work each feature the way `break-and-continue` was done: read
 its chapter section, its `about.md` and its syntax page, probe each fact `about.md` lacks on the
 binary, write `details.md`, and turn each chapter code block no example shows into an example
 (`proof: compile-error` for an `nvs error` fence). Bless with `bun nv proofs --bless <file>...`, then
@@ -495,7 +509,7 @@ A probe that reads a file needs an `nvs.toml` granting `[capabilities.fs] read` 
 probe is a file under `.agent-tmp/` written with Write, since the guard refuses a redirect.
 A probe catching two error types needs two variable names, or it stops at `E0406` before the line
 you meant to test. A probe's method goes in a class: a top-level `function` stops at `E0215`.
-- [ ] `20-types` from `the-conversion-operator-as`, in chapter order. `docs/reference/lang/20-types.md:632`
+- [ ] `20-types` from `property-keys`, in chapter order. `docs/reference/lang/20-types.md:808`
 - [ ] Once the chapter's last edit lands, `bun nv proofs --record-perf --group lang:types`, and commit `data/perf/members.ndjson`. `tools/nv/proofs/roster.ts:28`
 
 ### Backlog
