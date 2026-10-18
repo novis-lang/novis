@@ -74,7 +74,8 @@ string $who = "world";
 ```
 
 - `<?= expr ?>` is short for `<?nvs echo expr; ?>` — one expression, written into the output where
-  the tag stands. The `;` before `?>` is optional in both forms.
+  the tag stands. The `;` before `?>` is optional in `<?= ?>`; in `<?nvs ?>` the last statement
+  still needs its `;` (`E0101`).
 - A `?>` followed directly by one newline swallows that newline, so a template line ending in a
   closing tag emits no blank line.
 - There is no short open tag `<?`, so a `<?xml` declaration stays text.
