@@ -11,4 +11,5 @@ holds an expression, so `throw` is allowed there and `return` is not.
 hides every error, including the ones you never thought about.
 
 **The examples below** show a fallback for a row that is missing, then several arms tried in order,
-then a report line whose division is guarded and a low-level error replaced by a clear one.
+then a report line whose division is guarded and a low-level error replaced by a clear one. The last
+two show the type of the result, and a `return` in an arm that does not compile.
