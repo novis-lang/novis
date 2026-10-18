@@ -101,14 +101,14 @@ export function recordFindings(present: string[], files: Iterable<[string, strin
 
 /**
  * A citation of a deleted doc: the plan directory, the plan index, the ideas note and the Core spec,
- * by their repository path or by a relative Markdown link. Their facts moved to rules, module docs,
- * goals and the registry, so a citation of one points at nothing.
+ * by their repository path, by a relative Markdown link, or by `spec § N` in either case. Their facts
+ * moved to rules, module docs, goals and the registry, so a citation of one points at nothing.
  */
 export const DELETED_DOC_CITE =
-  /\bdocs\/(?:plan\/|spec\/|implementation-plan\.md|future-ideas\.md)|\]\((?:\.\.\/)*(?:plan\/[\w.-]+\.md|spec\/[\w.-]+\.md|implementation-plan\.md|future-ideas\.md)/;
+  /\bdocs\/(?:plan\/|spec\/|implementation-plan\.md|future-ideas\.md)|\]\((?:\.\.\/)*(?:plan\/[\w.-]+\.md|spec\/[\w.-]+\.md|implementation-plan\.md|future-ideas\.md)|\b[Ss]pec §/;
 /** The same forms, wider, for `git grep` to pick the files `DELETED_DOC_CITE` then reads. */
 const DELETED_DOC_GREP =
-  "docs/(plan/|spec/|implementation-plan[.]md|future-ideas[.]md)|(plan|spec)/[a-z0-9-]+[.]md|implementation-plan[.]md|future-ideas[.]md";
+  "docs/(plan/|spec/|implementation-plan[.]md|future-ideas[.]md)|(plan|spec)/[a-z0-9-]+[.]md|implementation-plan[.]md|future-ideas[.]md|[Ss]pec §";
 
 /** What `--check` says about citations of a deleted doc: a finding for each citing line. */
 export function deletedDocFindings(files: Iterable<[string, string]>): Finding[] {
