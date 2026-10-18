@@ -1,7 +1,0 @@
-- **A `<!-- primer -->` marker goes in `docs/reference/`, whatever else names `docs/spec/`.**
-  `tools/nv/cmd/reference.ts`'s `SOURCES` is `docs/reference`, and it reads no file under
-  `docs/spec/` — so a marker written into `docs/spec/` is read by nothing and lifts nothing into `nvs agent primer`. Put it on the line
-  above a section heading under `docs/reference/lang/` or `docs/reference/tools/`, and expect the
-  same slice to owe `bun nv reference --no-examples` and `docs/novis.md` in its commit,
-  because every chapter edit makes the generated file stale.
-  `until: gone docs/reference/README.md`

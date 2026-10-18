@@ -80,7 +80,7 @@ export const LANES: Record<string, string[]> = {
   // chapters, so either side moving can make a committed file stale. Gates `reference`.
   refdoc: [
     "crates/", "docs/reference/", "docs/novis.md", "tools/nv/cmd/reference.ts",
-    "docs/spec/", "website/", "tools/nv/renderers/", ".github/workflows/",
+    "website/", "tools/nv/renderers/", ".github/workflows/",
   ],
   // What `bun nv proofs --verify` reads: the binary's inputs, every feature's examples, attacks, benches
   // and chapters, the perf ledger, the proof policy and the gap records a `proof: gap` marker names,

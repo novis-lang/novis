@@ -26,7 +26,7 @@
 // a record directory exists, and on each line of a tracked text file outside `vendor/` that cites a
 // record by its name, its number, its path or a bare section mark; a clean run says so in one line.
 // A test named for a record's number is a citation too. A run fails the same way on a line that cites
-// one of the deleted plan and design docs, outside the goal files that delete them. A file that shows
+// one of the deleted plan docs or the Core spec, outside the goal files that delete them. A file that shows
 // those forms, as a test of this check does, carries the marker `nv-rules:record-examples`.
 //
 // A generated file is written with LF endings. `--render --check` compares text, so a checkout with
@@ -100,14 +100,15 @@ export function recordFindings(present: string[], files: Iterable<[string, strin
 }
 
 /**
- * A citation of a deleted doc: the plan directory, the plan index and the ideas note, by their
- * repository path or by a relative Markdown link. Their facts moved to rules, module docs and goals,
- * so a citation of one points at nothing.
+ * A citation of a deleted doc: the plan directory, the plan index, the ideas note and the Core spec,
+ * by their repository path or by a relative Markdown link. Their facts moved to rules, module docs,
+ * goals and the registry, so a citation of one points at nothing.
  */
 export const DELETED_DOC_CITE =
-  /\bdocs\/(?:plan\/|implementation-plan\.md|future-ideas\.md)|\]\((?:\.\.\/)*(?:plan\/[\w.-]+\.md|implementation-plan\.md|future-ideas\.md)/;
+  /\bdocs\/(?:plan\/|spec\/|implementation-plan\.md|future-ideas\.md)|\]\((?:\.\.\/)*(?:plan\/[\w.-]+\.md|spec\/[\w.-]+\.md|implementation-plan\.md|future-ideas\.md)/;
 /** The same forms, wider, for `git grep` to pick the files `DELETED_DOC_CITE` then reads. */
-const DELETED_DOC_GREP = "docs/(plan/|implementation-plan[.]md|future-ideas[.]md)|plan/[a-z0-9-]+[.]md|implementation-plan[.]md|future-ideas[.]md";
+const DELETED_DOC_GREP =
+  "docs/(plan/|spec/|implementation-plan[.]md|future-ideas[.]md)|(plan|spec)/[a-z0-9-]+[.]md|implementation-plan[.]md|future-ideas[.]md";
 
 /** What `--check` says about citations of a deleted doc: a finding for each citing line. */
 export function deletedDocFindings(files: Iterable<[string, string]>): Finding[] {
