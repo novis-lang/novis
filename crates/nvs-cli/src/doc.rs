@@ -29,6 +29,27 @@ use std::process::ExitCode;
 
 use serde_json::Value;
 
+/// Write this program's declarations as one Markdown page per class.
+///
+/// A renderer over `nvs meta --json`'s document and nothing else, for a
+/// project that does not have a documentation pipeline of its own.
+// `rule:tooling/nvs-doc-renders-and-decides-nothing`.
+#[derive(clap::Args)]
+pub(crate) struct Args {
+    /// The program's entry point.
+    file: PathBuf,
+    /// The directory the pages are written to, created if it is absent.
+    #[arg(long, default_value = "doc")]
+    out: PathBuf,
+}
+
+impl Args {
+    /// Runs `nvs doc` with the arguments clap parsed.
+    pub(crate) fn run(self) -> ExitCode {
+        run(&self.file, &self.out)
+    }
+}
+
 /// Writes one page per class under `out`, and prints each path written.
 ///
 /// The program goes through the same front end `nvs check` does, so a program

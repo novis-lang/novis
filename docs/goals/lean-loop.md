@@ -168,7 +168,7 @@ edits no shared table by hand.
 - [ ] Each `nvs` command registers itself, so a new command edits no central `match`. `crates/nvs-cli/src/main.rs:144`
   - [x] The shape is decided: a module owns a `clap::Args` struct, whose doc comment is the help line, and its `run`. `main.rs` keeps one variant line and one arm line per command, as `conventions.md` § *An `nvs` command* says.
   - [x] `nvs ast` is moved, and all 113 `--help` and `-h` pages print byte for byte what they printed before.
-  - [ ] Every command with no subcommands is moved, and the help pages are compared again.
+  - [x] Every command with no subcommands is moved, and the help pages are compared again.
   - [ ] Every command group, such as `service` and `queue`, moves its `Subcommand` enum into its module, and the help pages are compared again.
   - [ ] `initializes`, `prepares` and the `service run` test still match each variant, and `main.rs` holds no command's fields.
 - [x] `data/proofs/policy.json`'s skips are one file per feature, under `data/proofs/skip/`. `tools/nv/schema/proofs.ts:51`
@@ -185,34 +185,35 @@ edits no shared table by hand.
 
 ### State
 
-Stage 5 is done. Stage 6's proof policy and `Core` class table are done. Its CLI command item has its
-shape and one command moved. Stage 4's one open item waits on looper.
+Stage 5 is done. Stage 6's proof policy and `Core` class table are done. Its CLI command item has
+every command without subcommands moved. Stage 4's one open item waits on looper.
 
-- The command shape is `conventions.md` § *An `nvs` command*, and `crates/nvs-cli/src/ast.rs`'s
-  `Args` is the one command on it. A `clap::Args` struct's doc comment becomes the help line of a
-  newtype variant that has none, so the help pages stay the same. The check is a walk of every
-  `--help` and `-h` page, 113 of them, diffed before and after. The walker was a scratch script, so
-  the next session writes it again: recurse on each page's `Commands:` list, skipping `help`.
+- The command shape is `conventions.md` § *An `nvs` command*. Thirteen commands are on it: `ast`,
+  `check`, `run`, `serve`, `test`, `build`, `init`, `fmt`, `lsp`, `lsp-test`, `info`, `meta`, `doc`
+  and `stubs`. `nvs test`'s `Args` is in `runner.rs`, `nvs build`'s in a new `build.rs`, and `nvs
+  run`'s in a new `run.rs` with `FaultSiteArg`. `check::Deny` moved beside `check::Args`.
+- `run::Args` and `serve::Args` also have `hosted`, which `run_hosted` calls for `nvs service run`.
+  It skips the service-manager check, because `run_hosted` already logs like a service.
+- The bodies `run_check`, `run_run`, `run_test`, `run_build` and `serve_command` stay in `main.rs`,
+  and each `Args::run` calls one. Moving them is not on this item.
+- The check is a walk of every `--help` and `-h` page, 112 of them, diffed before and after. The
+  walker is a scratch script, so the next session writes it again: recurse on each page's
+  `Commands:` list, skipping `help`.
 - The swap to `looper links` and `looper layout` waits on looper: its `links` reads no `<a id>` and
   does not skip `docs/novis.md`, its `layout` reads README.md and the listing is in CONTRIBUTING.md,
   and CI has no looper binary.
 - `looper prose` reads a whole `.nvs` file, code included, so `nv proofs --comments` stays for the
   `.nvs` comments.
 
-Nightly run 39108526796 on `1a78b49ef` is the newest. Its `docs` and website-data failures, its
-yanked `inout` in `supply chain` and its stale `THIRD-PARTY-LICENSES.txt` are all green on this tree,
-fixed by `8f8966275`. The `proofs` jobs fail on perf figures owed until the goal end. `cost guards /
-windows` failed on `serve_throughput_scales_from_one_core_to_four_by_the_margin_this_test_names` at
-1.38 against 1.5, with arms of 20 ms, so the test now takes the best of 10 rounds, not 3. The
-warm-start budget is the Backlog's.
+Nightly run 39108526796 on `1a78b49ef` is still the newest, and every failure it shows was fixed by
+`8f8966275` and `b34ff85e5`, or is a perf figure owed until the goal end.
 
 ### Next
 
 Stage 6's last item, on `crates/nvs-cli/src/main.rs` and the command modules it declares. Its
 checkpoints are under the stage 6 item.
-- [ ] Move every command with no subcommands to `ast.rs`'s shape, a few per commit, and diff the help pages after each. `crates/nvs-cli/src/main.rs:361`, `crates/nvs-cli/src/main.rs:1813`
-- [ ] Move each command group's `Subcommand` enum, such as `ServiceCommand`, into its module. `crates/nvs-cli/src/main.rs:1402`
-- [ ] Leave `main.rs` with no command's fields, and `initializes` and `prepares` matching tuple variants. `crates/nvs-cli/src/main.rs:291`
+- [ ] Move each command group's `Subcommand` enum into its module, as `<name>::Command`, a few groups per commit, and diff the help pages after each: `code` and `agent` `crates/nvs-cli/src/main.rs:493`, `crates/nvs-cli/src/main.rs:560`; `ext`, `api`, `config`, `queue`, `schema` and `tmp` `crates/nvs-cli/src/main.rs:681`; `service` with `ServiceInstall` `crates/nvs-cli/src/main.rs:942`, `crates/nvs-cli/src/main.rs:1074`.
+- [ ] Leave `main.rs` with no command's fields, and `initializes` and `prepares` matching tuple variants. `crates/nvs-cli/src/main.rs:297`, `crates/nvs-cli/src/main.rs:355`
 
 Then stage 7, `.gitattributes` and the merge rule for generated files. `.gitattributes:43`
 

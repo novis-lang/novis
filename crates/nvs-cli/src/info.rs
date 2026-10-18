@@ -45,6 +45,26 @@ const TEXTS_HEADING: &str = "\nLICENSE TEXTS (";
 /// The width the two-column fields are padded to.
 const LABEL: usize = 18;
 
+/// Print build, host and third-party licensing information.
+///
+/// One call answers what this binary is and what is compiled into it,
+/// including the complete third-party attribution Novis's MIT license and
+/// its dependencies' licenses both require to be distributed with it.
+// `rule:packaging/nvs-info-is-the-one-call` is why this is one call rather than several.
+#[derive(clap::Args)]
+pub(crate) struct Args {
+    /// Also print every third-party license text in full.
+    #[arg(long)]
+    licenses: bool,
+}
+
+impl Args {
+    /// Runs `nvs info` with the arguments clap parsed.
+    pub(crate) fn run(self) -> ExitCode {
+        run(self.licenses)
+    }
+}
+
 /// Prints the report and returns success.
 ///
 /// There is nothing here that can fail: every value is either a compile-time

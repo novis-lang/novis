@@ -48,6 +48,86 @@ use nvs_diagnostics::{
 use serde_json::{Map, Value, json};
 use std::cell::RefCell;
 use std::path::PathBuf;
+use std::process::ExitCode;
+
+use crate::config;
+
+/// Parse, resolve and type-check a Novis file, reporting every diagnostic
+/// found.
+#[derive(clap::Args)]
+pub(crate) struct Args {
+    /// The file to check.
+    file: PathBuf,
+    /// Print the diagnostics as the frozen JSON document rather than
+    /// rendering them for a terminal.
+    // Refused beside `--autoload-map` rather than one of them winning:
+    // both write to standard output, and a document with a map printed
+    // after it is not a document.
+    #[arg(long, conflicts_with = "autoload_map")]
+    json: bool,
+    /// Print the resolved `autoload` map instead of `no errors`,
+    /// including what a `discover` glob skipped and what was shadowed.
+    #[arg(long)]
+    autoload_map: bool,
+    /// Also report every public member with no `///` doc comment above it.
+    /// Off by default, in every project.
+    #[arg(long)]
+    strict_docs: bool,
+    /// Print one line on stderr with how much work the compiler did:
+    /// tokens, syntax nodes, names, typed expressions.
+    ///
+    /// The numbers are the same on every machine for the same program.
+    /// Compare them for a small and a large program to see how compile
+    /// time grows.
+    #[arg(long)]
+    count: bool,
+    /// Also print every `// TODO:` comment in the program, one per line,
+    /// as `path:line: text`. With `--json`, the document has them in its
+    /// `todos` array.
+    #[arg(long)]
+    todos: bool,
+    /// Exit with an error when the program has this kind of finding in a
+    /// file that is not in a `vendor` directory. The kinds are
+    /// `deprecated` and `todo`. You can give this option more than once.
+    #[arg(long, value_enum)]
+    deny: Vec<Deny>,
+    /// Apply every safe fix the diagnostics suggest, then check the
+    /// program again, until no fix is left. Files in a `vendor` directory
+    /// are not changed.
+    #[arg(long, conflicts_with = "json")]
+    fix: bool,
+}
+
+impl Args {
+    /// Runs `nvs check` with the arguments clap parsed, the global `--config`
+    /// files and the project's init gate.
+    pub(crate) fn run(self, config: &[PathBuf], init: config::Init) -> ExitCode {
+        crate::run_check(
+            config,
+            &self.file,
+            &crate::CheckFlags {
+                json: self.json,
+                autoload_map: self.autoload_map,
+                strict_docs: self.strict_docs,
+                count: self.count,
+                todos: self.todos,
+                deny: self.deny,
+                fix: self.fix,
+            },
+            init,
+        )
+    }
+}
+
+/// The closed set of kinds `nvs check --deny` takes
+/// (`rule:tooling/a-todo-is-a-comment-the-tools-list`).
+#[derive(Clone, Copy, PartialEq, Eq, Debug, clap::ValueEnum)]
+pub(crate) enum Deny {
+    /// A use of deprecated code: a `W1003` warning.
+    Deprecated,
+    /// A `// TODO:` comment.
+    Todo,
+}
 
 /// The shape below, frozen. It goes up when a field is removed or its meaning
 /// changes; a field added beside the others does not move it, because a
