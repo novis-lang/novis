@@ -1,0 +1,9 @@
+error[E0232]: `===` is not supported
+  --> 04-three-equals-signs-do-not-compile.nvs:6:15
+  |
+6 | if ($quantity === 1) {
+  |               ^^^ Novis keeps exactly one equality operator
+  = help: use `==` — it never converts either operand, so there is nothing for `===` to distinguish
+
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

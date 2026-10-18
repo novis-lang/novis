@@ -1,5 +1,5 @@
-Some operators do not exist in Novis. Writing one is a compile error, and the error names what to
-write instead.
+Some operators do not exist in Novis. Writing one is a compile error, and most of these errors name
+what to write instead.
 
 `&&` and `||` are the only two logical operators that join conditions. `and` and `or` do not exist,
 and `xor` is `!=` between two `bool` values. `==` and `!=` never convert either side, so `===`,
@@ -11,4 +11,5 @@ because a failure is thrown and you catch it. There are no references (`&$x`), n
 **Good to know:** every one of these errors appears when you compile, never while the program runs.
 
 **The examples below** show the replacements you need most often: `&&` and `||` in a condition,
-`==` for equality, and `Core\Arr::underlay` and `Core\Str::at`.
+`==` for equality, and `Core\Arr::underlay` and `Core\Str::at`. The last one shows the error for
+`===`.
