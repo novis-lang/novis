@@ -1,0 +1,35 @@
+<?nvs
+// Shows what a read through a key gives, and what happens when a write or a name is wrong.
+
+class User {
+    public string $email = "ada@example.com";
+    public int $age = 36;
+    private string $password = "secret";
+}
+
+User $user = new User();
+string $field = "age";
+property<User> $key = $field as property<User>;
+$user->$key = 37;
+echo $user->age, " ", $key as string, "\n";
+
+// The key can name `$email` or `$age`, so a read gives `string|int`.
+string|int $value = $user->$key;
+echo $value is int ? "an int" : "a string", "\n";
+
+// "password" is private. `as ?property<User>` gives `null`, and `as property<User>` throws.
+string $hidden = "password";
+?property<User> $none = $hidden as ?property<User>;
+echo $none == null ? "null" : "a key", "\n";
+try {
+    property<User> $bad = $hidden as property<User>;
+} catch (RuntimeError $e) {
+    echo $e->message, "\n";
+}
+
+// The key names `$age`, which is an `int`. Writing a string throws an error.
+try {
+    $user->$key = "old";
+} catch (RuntimeError $e2) {
+    echo $e2->message, "\n";
+}
