@@ -74,20 +74,99 @@ use nvs_ext::manifest::Manifest;
 use nvs_ext::pack::{Inputs, pack};
 use nvs_ext::source::SourceFile;
 
-use crate::ExtCommand;
+/// Create, build, check and pin a Novis extension.
+///
+/// An extension is a `.nvsx` file: a WebAssembly component with a
+/// manifest and Novis source inside it. These commands are the tools an
+/// extension author needs beside the compiler of their own language.
+// `rule:packaging/nvs-ext-is-the-authoring-tool`.
+#[derive(clap::Args)]
+pub(crate) struct Args {
+    #[command(subcommand)]
+    command: Command,
+}
 
-/// Runs one `nvs ext` subcommand. `config` is the run's `--config` list, which only `test` reads.
-pub(crate) fn run(command: ExtCommand, config: &[PathBuf]) -> ExitCode {
-    match command {
-        ExtCommand::New { lang, dir } => answer(new::new(lang, &dir)),
-        ExtCommand::Build { project } => answer(build(&project)),
-        ExtCommand::Inspect { file, source } => answer(inspect(&file, source)),
-        ExtCommand::Test { project } => match test(&project, config) {
-            Ok(code) => code,
-            Err(err) => answer(Err(err)),
-        },
-        ExtCommand::Verify { file } => answer(verify(&file)),
-        ExtCommand::Pin { file } => answer(pin_entry(&file)),
+/// `nvs ext`'s own subcommands, one per row of
+/// `rule:packaging/nvs-ext-is-the-authoring-tool`'s table.
+#[derive(clap::Subcommand)]
+enum Command {
+    /// Create a new extension project in a directory.
+    ///
+    /// The project builds a component for the `nvs:ext` world. It contains
+    /// the world's WIT files, an `nvsx.toml`, the code of one function and a
+    /// test for it. Its README says how to build it.
+    New {
+        /// The language of the project.
+        #[arg(long, value_enum)]
+        lang: Lang,
+        /// The directory to create. It must not exist, or must be empty.
+        dir: PathBuf,
+    },
+    /// Make a `.nvsx` file from the wasm file your toolchain built.
+    ///
+    /// The wasm file may be a core module or a component. The manifest comes
+    /// from the project's `nvsx.toml`. The Novis source files are put inside
+    /// the `.nvsx`. The command then checks that the result loads.
+    Build {
+        /// The project directory (default: the working directory).
+        #[arg(default_value = ".")]
+        project: PathBuf,
+    },
+    /// Print the manifest of a `.nvsx` file and the files and hosts it needs.
+    Inspect {
+        /// The `.nvsx` file.
+        file: PathBuf,
+        /// Print the Novis source files inside the `.nvsx` as well.
+        #[arg(long)]
+        source: bool,
+    },
+    /// Run the project's `.nvs` tests with the built `.nvsx` loaded.
+    ///
+    /// No `nvs.toml` is read, so the extension gets no files and no hosts.
+    /// Use `--config` to name a configuration that gives it some.
+    Test {
+        /// The project directory (default: the working directory).
+        #[arg(default_value = ".")]
+        project: PathBuf,
+    },
+    /// Run every check that loading a `.nvsx` file runs, and report the result.
+    Verify {
+        /// The `.nvsx` file.
+        file: PathBuf,
+    },
+    /// Print the `[[extension]]` entry for a `.nvsx` file, with its `sha256`.
+    ///
+    /// Copy the entry into your `nvs.toml`. It has no `grants`: you add the
+    /// files and hosts you allow yourself.
+    Pin {
+        /// The `.nvsx` file.
+        file: PathBuf,
+    },
+}
+
+/// The languages `nvs ext new` has a template for.
+#[derive(Clone, Copy, PartialEq, Eq, Debug, clap::ValueEnum)]
+enum Lang {
+    /// Rust, built with `cargo` for `wasm32-wasip2`.
+    Rust,
+    /// C, built with wasi-sdk and `wit-bindgen`.
+    C,
+}
+
+impl Args {
+    /// Runs one `nvs ext` subcommand. `config` is the run's `--config` list, which only `test` reads.
+    pub(crate) fn run(self, config: &[PathBuf]) -> ExitCode {
+        match self.command {
+            Command::New { lang, dir } => answer(new::new(lang, &dir)),
+            Command::Build { project } => answer(build(&project)),
+            Command::Inspect { file, source } => answer(inspect(&file, source)),
+            Command::Test { project } => match test(&project, config) {
+                Ok(code) => code,
+                Err(err) => answer(Err(err)),
+            },
+            Command::Verify { file } => answer(verify(&file)),
+            Command::Pin { file } => answer(pin_entry(&file)),
+        }
     }
 }
 

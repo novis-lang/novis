@@ -62,6 +62,74 @@ use nvs_diagnostics::{Diagnostic, Diagnostics, SourceMap};
 use crate::config::{LocalFiles, named_roots, working_directory};
 use crate::render_diagnostics;
 
+/// Build and inspect the durable job queue's own tables.
+///
+/// A namespace of the operator's rather than the program's: the runtime
+/// holds the queue's schema, and the tables are created by an explicit
+/// command — never at boot and never from a request.
+// `rule:core-classes/queue-storage-is-a-table`.
+#[derive(clap::Args)]
+pub(crate) struct Args {
+    #[command(subcommand)]
+    command: Command,
+}
+
+/// `nvs queue`'s own subcommands.
+///
+/// `migrate` is the one `rule:core-classes/queue-storage-is-a-table` names outright. Everything
+/// else an operator might want of a queue — its depth, a job retried by hand —
+/// is a question `Core\Queue::stats` already answers from inside a request, and
+/// a second answer here would need this binary to open a connection for it,
+/// which is the same wall this module's doc describes.
+#[derive(clap::Subcommand)]
+enum Command {
+    /// Create the queue's jobs and dead-letter tables in its database.
+    ///
+    /// The schema is the runtime's own, and this command is what makes issuing
+    /// DDL for it an operator's act rather than a request's. It converges: what
+    /// runs is the difference between that schema and the database.
+    // `rule:core-classes/queue-storage-is-a-table`. The schema value is
+    // `nvs_stdlib::queue::schema`, beside the members that read the columns,
+    // and what this can and cannot do today is this module's doc.
+    Migrate {
+        /// The root files to read, in order — `config check`'s list, read the
+        /// same way.
+        files: Vec<PathBuf>,
+        /// Migrate this `[db.<name>]` block instead of the one `[queue]
+        /// connection` names.
+        #[arg(long)]
+        connection: Option<String>,
+        /// Print the statements without running them, and succeed.
+        #[arg(long)]
+        dry_run: bool,
+        /// Run a step that is not `Safe` — a queue table an older Novis built
+        /// can need one, and `schema apply` takes the same flag for the same
+        /// reason.
+        #[arg(long)]
+        including_risky: bool,
+    },
+}
+
+impl Args {
+    /// Runs the `nvs queue` subcommand clap parsed, over the run's `--config` list.
+    pub(crate) fn run(self, config: &[PathBuf]) -> ExitCode {
+        match self.command {
+            Command::Migrate {
+                files,
+                connection,
+                dry_run,
+                including_risky,
+            } => migrate(
+                config,
+                &files,
+                connection.as_deref(),
+                dry_run,
+                including_risky,
+            ),
+        }
+    }
+}
+
 /// The block's `driver` field as the driver it names, or the refusal an operator sees instead.
 ///
 /// **Separate failures rather than one**, because they are separate mistakes: a block writing no
