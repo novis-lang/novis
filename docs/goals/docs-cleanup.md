@@ -298,12 +298,17 @@ with each.
       - [x] `anonymous-objects`
       - [x] `refused-in-expression-position`
       - [x] `lang:expressions`' perf recorded after the chapter's last edit
-    - [ ] `50-classes`, then `lang:classes`' perf recorded after the chapter's last edit
+    - [x] `50-classes`, then `lang:classes`' perf recorded after the chapter's last edit
       - [x] `declaring-a-class`, `properties`, `methods-self-static-and-parent` and `constants-and-class`
       - [x] `inheritance`, `interfaces`, `property-hooks` and `lateinit`
-      - [ ] `PropertyGuard` to `Parses`
-      - [ ] `objects-are-handles` to `what-a-class-cannot-declare`
-      - [ ] `lang:classes`' perf recorded after the chapter's last edit
+      - [x] `PropertyGuard` to `Parses`
+      - [x] `objects-are-handles` to `what-a-class-cannot-declare`
+      - [x] `lang:classes`' perf recorded after the chapter's last edit
+    - [ ] `55-enums`, then `lang:enums`' perf recorded after the chapter's last edit
+      - [ ] `declaring-an-enum` to `comparing-cases`
+      - [ ] `match-and-switch-over-an-enum` to `an-enum-inside-a-class`
+      - [ ] `what-an-enum-does-not-have` and `core-enums`
+      - [ ] `lang:enums`' perf recorded after the chapter's last edit
   - [ ] `60-iteration`, `70-errors` and `80-concurrency`
   - [ ] `90-attributes` and `95-testing`
 
@@ -769,12 +774,30 @@ owned by `release-hardening`). The override-signature gap now names the built-in
 `toString(): int` stops `echo` with an internal error, and `parse(string $s)` drops the `tainted`
 qualifier.
 
+`50-classes` is done: `nullable-objects-and`, `object-the-top-of-every-class-type` and
+`what-a-class-cannot-declare` closed it, each fact run on the binary, and `lang:classes`' perf is
+recorded. One claim was wrong in three texts: the chapter, `what-a-class-cannot-declare`'s `about.md`
+and the syntax page `syntax/classes/objects.mdx` said an `enum` is the one type a class body may
+declare, but a `type` alias may be declared there too, as `E0233`'s help and
+`declaring-a-class`'s `details.md` say. All three now say so (`50-classes.md:1422`). The nullable
+feature's `details.md` has `E0459`, the `?T` result and `E0401`, each `?->` covering one step (so
+`$b?->inner()->label` is `E0459`), a `void` call and `isset`; the rest of `?->` stays in
+`and-the-ternary`'s `details.md`. `narrowing`'s gained that an assignment narrows nothing. The
+`object` feature's `details.md` has `E0477` (through `?->` too), `E0401` for a non-object, `null` and
+a class-typed parameter, the `mixed` read, and the run-time checks of a write; its `about.md` said
+"knows" and "opens", now rewritten. `Core\Program::implementing` is the attributes feature's fact.
+`what-a-class-cannot-declare`'s has `E0111`, `E0114`, `E0112`, `E0244`, `E0420` and `destructor`
+being an ordinary method; example 03 named PHP twice, now once. The new examples are the chapter's
+two error blocks (`what-a-class-cannot-declare` 04 and 05), `->` on a `?Box` and a method call
+through `object`. Probing found a safety bug: **a `private` or `protected` property is read and
+written from outside its class through an `object` or `mixed` variable**, which breaks every
+class's encapsulation (`data/gaps/nvs-runtime/a-private-or-protected-property-is.json`, owned by
+`release-hardening`).
+
 ### Next
 
-`50-classes` goes on. The next group is `nullable-objects-and` (`50-classes.md:1327`),
-`object-the-top-of-every-class-type` (`:1368`) and `what-a-class-cannot-declare` (`:1413`), which close
-the chapter, then the perf record below and `55-enums`; take each feature id from
-`bun nv proofs --json`. Work each feature the way `break-and-continue` was done: read
+`55-enums` is next, in chapter order from `Declaring an enum` (`55-enums.md:8`), three or four
+features per session; take each feature id from `bun nv proofs --json`. Work each feature the way `break-and-continue` was done: read
 its chapter section, its `about.md` and its syntax page, probe each fact `about.md` lacks on the
 binary, write `details.md`, and turn each chapter code block no example shows into an example
 (`proof: compile-error` for an `nvs error` fence). Bless with `bun nv proofs --bless <file>...`, then
@@ -788,8 +811,8 @@ An enum is `enum Suit { Hearts, Spades }`, with no `case`. An array with string 
 `array<int>`: `array<string, int>` is `E0101`. Many probes at once: a JSON map of name to
 body, and a script under `.agent-tmp/` that writes and runs each; the guard refuses a shell loop of
 `nvs run` over `docs/examples/`, so check a new example with `--bless`.
-- [ ] `50-classes` from `Nullable objects and ?->`, in chapter order. `docs/reference/lang/50-classes.md:1327`
-- [ ] Once the chapter's last edit lands, `bun nv proofs --record-perf --group lang:classes`, and commit `data/perf/members.ndjson`. `tools/nv/proofs/roster.ts:28`
+- [ ] `55-enums` from `Declaring an enum`, in chapter order. `docs/reference/lang/55-enums.md:8`
+- [ ] Once the chapter's last edit lands, `bun nv proofs --record-perf --group lang:enums`, and commit `data/perf/members.ndjson`. `tools/nv/proofs/roster.ts:28`
 
 ### Backlog
 
