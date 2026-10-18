@@ -1,0 +1,11 @@
+<?nvs
+// Shows that `continue` needs a loop around it. A `switch` alone is not
+// enough, so this program does not compile.
+// proof: compile-error
+
+string $command = "skip";
+
+switch ($command) {
+    case "skip":
+        continue;
+}

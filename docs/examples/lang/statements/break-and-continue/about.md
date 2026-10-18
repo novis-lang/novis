@@ -14,4 +14,5 @@ allowed there.
 error you see before the program runs.
 
 **The examples below** take these in turn: a search that stops at the first match, a loop that skips
-the rows it does not want, and an order check that leaves two loops at once.
+the rows it does not want, and an order check that leaves two loops at once. The last two show a
+`switch` inside a loop, and a `continue` that does not compile.

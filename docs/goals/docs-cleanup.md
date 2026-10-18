@@ -250,8 +250,13 @@ the playbook holds only traps that can still happen.
 `about.md` state is in exactly one of `about.md`, `details.md` or an example, and the binary agrees
 with each.
 
-- [ ] The proofs tooling knows `details.md`: optional, under the feature's examples folder, and held to the comment bounds. Whether an example can show a compile error is checked, and added if it cannot. `tools/nv/proofs/roster.ts:27`
+- [x] The proofs tooling knows `details.md`: optional, under the feature's examples folder, and held to the comment bounds. Whether an example can show a compile error is checked, and added if it cannot. `tools/nv/proofs/roster.ts:27`
+  - [x] `roster.ts`'s `DETAILS` and `detailsFile`, and `collect.ts`'s `detailsProblems`, judged by the `comments` proof and `--comments`
+  - [x] checked: an example could end with exit 1, but only its empty stdout was compared, so nothing pinned the diagnostic
+  - [x] `// proof: compile-error` in `run.ts`: exit 1, a diagnostic on stderr, and the `.out` is the diagnostic with the path shortened; documented in `docs/examples/README.md`
 - [ ] `40-statements` is done first, as the pattern: each feature's facts sorted into its three homes, the chapter's unique code blocks made examples. `docs/reference/lang/40-statements.md:244`, `docs/examples/lang/statements/break-and-continue/about.md:1`
+  - [x] `break-and-continue`: `details.md`, the chapter's two code blocks as examples 04 and 05
+  - [ ] the chapter's other features, in its order
 - [ ] The other ten chapters, one per slice: `10-programs`, `20-types`, `30-expressions`, `50-classes`, `55-enums`, `60-iteration`, `70-errors`, `80-concurrency`, `90-attributes`, `95-testing`. `docs/reference/lang/10-programs.md:1`
 
 ### 7. the syntax pages show each feature's about.md, details and examples
@@ -292,20 +297,39 @@ paragraph under § *The loop's hooks*; `conventions.md` § *A handoff*. Every ci
 section or rule number is repointed, including `guard.ts`'s `cargo-p` message, which cited
 "AGENTS.md rule 5" where the block's rule 5 is something else.
 
-The sweep's red items are not this branch's: the CI jobs fail on remote `main`, as earlier sessions
-found, and the red bench `benches/members/core/Ldap-Connection/delete.nvs` belongs to the `ldap` work
-on `main`. `bun nv site --check` also fails on pages this goal has not touched.
+Stage 6's tooling is done. `details.md` is optional beside `about.md`, and the `comments` proof and
+`bun nv proofs --comments` hold it to the sentence and dash bounds, with no heading and no code block
+(`detailsProblems`, `tools/nv/proofs/collect.ts`). An example that declares `// proof: compile-error`
+must end with exit 1 and a diagnostic, and its `.out` is that diagnostic with the path shortened to
+the file name (`exampleOutput`, `tools/nv/proofs/run.ts`). `docs/examples/README.md` documents both.
+
+`break-and-continue` is the pattern: the facts `about.md` lacks went to `details.md`, each checked on
+`target/proof/nvs.exe`, and the chapter's two code blocks became examples 04 (a `switch` in a loop)
+and 05 (a compile error). `about.md`'s closing sentence names the two. The three texts agreed on every
+fact; `continue 1` inside a `switch` in a loop also continues the loop, which no text said. The
+chapter and the syntax page keep their own copies until stages 7 and 8 replace them.
+
+`looper lint` failed on a stale managed block, so `looper sync` brought AGENTS.md's `agents` block to
+v3. It adds § *looper only orchestrates* and still links `docs/design.md`.
+
+The sweep's red items are not this branch's: run 39108526796 ran on `main` at 1a78b49ef, as earlier
+sessions found, and the red bench `benches/members/core/Ldap-Connection/delete.nvs` belongs to the
+`ldap` work on `main`. `bun nv site --check` also fails on pages this goal has not touched.
 
 ### Next
 
-Stage 6's first item, the proofs tooling for `details.md`. The file set is `tools/nv/proofs/`.
-- [ ] The proofs roster knows an optional `details.md` under a feature's examples folder, and holds it to the comment bounds. `tools/nv/proofs/roster.ts:27`
-- [ ] Whether the examples tree accepts an example that shows a compile error is checked, and support is added if it does not. `tools/nv/proofs/roster.ts:27`
-- [ ] Then `40-statements` as the pattern, one feature at a time. `docs/reference/lang/40-statements.md:244`, `docs/examples/lang/statements/break-and-continue/about.md:1`
+The rest of `40-statements`, one feature per slice, the way `break-and-continue` was done: read its
+chapter section, its `about.md` and its syntax page, probe each fact `about.md` lacks on the binary,
+write `details.md`, and turn each chapter code block no example shows into an example
+(`proof: compile-error` for an `nvs error` fence). Bless with `bun nv proofs --bless`, then
+`bun nv proofs --run --only <id>` and `--comments <dir>`.
+- [ ] `return`, the next section. `docs/reference/lang/40-statements.md:288`
+- [ ] Then the chapter's features before `break-and-continue`, from its top. `docs/reference/lang/40-statements.md:1`
 
 ### Backlog
 
-- `docs/design.md` is deleted once looper's managed block no longer links it. `docs/goals/docs-cleanup.md:163`
+- `docs/design.md` is deleted once looper's managed block no longer links it; the v3 block still does. `docs/goals/docs-cleanup.md:163`
+- The v3 block's § *looper only orchestrates* says most of what AGENTS.md § *Novis works without looper* says. That section is the user's and stays; the overlap is looper's template to trim. `AGENTS.md:37`
 - `docs/agent/testing.md` is looper-managed (`looper lint` refuses a hand edit) and links a `§ *Names*` that `conventions.md` lacks; looper's template owns the fix. `docs/agent/testing.md:16`
 - About 4,300 bare `§ N` marks under `crates/` and `tests/conformance/` cite sections of deleted decision records, and `RECORD_CITE` cannot tell them from an RFC's. Rewriting them needs its own goal; no owner yet. `tools/nv/cmd/rules.ts:84`
 - The guard messages and `peek.ts`/`splice.ts` comments cite "AGENTS.md rule 1" and "rule 3" by the block's numbers, which a template change can move; citing `commands.md` sections would not. `tools/nv/cmd/guard.ts:259`

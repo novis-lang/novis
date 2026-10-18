@@ -1,0 +1,21 @@
+<?nvs
+// Shows `break` and `continue` inside a `switch` that is inside a loop.
+// This log printer skips debug lines and marks errors.
+
+array<string> $levels = ["info", "debug", "error", "info"];
+array<string> $messages = ["started", "cache is warm", "disk is full", "stopped"];
+
+for (int $i = 0; $i < 4; $i++) {
+    switch ($levels[$i]) {
+        case "debug":
+            // `continue` starts the next line, so the `echo` below does not run.
+            continue;
+        case "error":
+            echo "!! ";
+            // `break` leaves only the `switch`. The message below is still printed.
+            break;
+        default:
+            echo "   ";
+    }
+    echo $messages[$i], "\n";
+}
