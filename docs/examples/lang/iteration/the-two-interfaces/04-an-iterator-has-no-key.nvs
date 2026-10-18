@@ -1,0 +1,18 @@
+<?nvs
+// Shows that a loop over an `Iterator` cannot get a key. This loop does not
+// compile. Write `as int $v` alone, or count the steps in your own variable.
+// proof: compile-error
+
+class Steps {
+    public static function upTo(int $n): Iterator<int> {
+        int $i = 0;
+        while ($i < $n) {
+            yield $i;
+            $i = $i + 1;
+        }
+    }
+}
+
+foreach (Steps::upTo(3) as string $k => int $v) {
+    echo $k, "=", $v, "\n";
+}

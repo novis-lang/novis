@@ -1,0 +1,31 @@
+<?nvs
+// Shows that a second loop over the same `Iterator` starts where the first
+// loop stopped. A loop over an `Iterable` starts again from the first value.
+
+class Queue implements Iterable<string> {
+    public function iterate(): Iterator<string> {
+        yield "first";
+        yield "second";
+        yield "third";
+    }
+}
+
+Queue $queue = new Queue();
+Iterator<string> $jobs = $queue->iterate();
+
+// The first loop stops after one value. This prints `first`.
+foreach ($jobs as string $job) {
+    echo $job, "\n";
+    break;
+}
+
+// The same iterator gives the values that are left. This prints `second` and `third`.
+foreach ($jobs as string $job) {
+    echo $job, "\n";
+}
+
+// The object calls `iterate()` again for a new loop. This prints `first`.
+foreach ($queue as string $job) {
+    echo $job, "\n";
+    break;
+}
