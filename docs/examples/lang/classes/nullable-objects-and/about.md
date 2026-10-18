@@ -11,4 +11,4 @@ Test the value first. Inside `if ($box != null)` the value is no longer nullable
 works there. This is the better choice when the branch does several things with the value.
 
 **The examples below** show reading a setting that may be missing, testing a value before using it,
-and a chain of accesses where any step may be absent.
+a chain of accesses where any step may be absent, and a `->` that does not compile.

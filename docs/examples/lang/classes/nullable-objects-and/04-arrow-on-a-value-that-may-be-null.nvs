@@ -1,0 +1,11 @@
+<?nvs
+// Shows that `->` does not compile on a value that may be `null`.
+// `$none` is a `?Box`, so the read below is an error.
+// proof: compile-error
+
+class Box {
+    public int $count = 1;
+}
+
+?Box $none = null;
+echo $none->count, "\n";
