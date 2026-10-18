@@ -347,6 +347,15 @@ compile (each variable needs its type, as the chapter says), and a label, `decla
 alternative syntax get a general syntax error that names no replacement. Its `details.md` lists each
 form's code, and example 04 is the chapter's `goto` block.
 
+The first three sections of `40-statements` are done, and no text disagreed with the binary.
+`expression-statements-blocks-and-declarations`'s `details.md` adds `E0406` for a second declaration
+(in a block, or a second `for` loop's variable), a declaration in a loop body running every round,
+and `E0301` for a variable declared in one `if` branch. That last one is the chapter's error block, now
+example 04. `if-elseif-else` and `while-and-do-while` need no `details.md`: `about.md` already has every
+fact, and examples 01 and 02 show the chapter's blocks. The chapter's `if (…): … endif;` error block
+is `statement-forms-that-do-not-parse`'s example 05, since that feature owns the alternative syntax.
+Its `details.md` now names all five `end…` keywords, each checked on the binary.
+
 `looper lint` failed on a stale managed block, so `looper sync` brought AGENTS.md's `agents` block to
 v3. It adds § *looper only orchestrates* and still links `docs/design.md`.
 
@@ -361,8 +370,7 @@ chapter section, its `about.md` and its syntax page, probe each fact `about.md` 
 write `details.md`, and turn each chapter code block no example shows into an example
 (`proof: compile-error` for an `nvs error` fence). Bless with `bun nv proofs --bless`, then
 `bun nv proofs --run --only <id>` and `--comments <dir>`.
-- [ ] `expression-statements-blocks-and-declarations`, then `if-elseif-else` and `while-and-do-while`. `docs/reference/lang/40-statements.md:8`
-- [ ] Then `for`, `foreach` and `switch`, which closes `40-statements`. `docs/reference/lang/40-statements.md:100`
+- [ ] `for`, `foreach` and `switch`, which closes `40-statements`. `docs/reference/lang/40-statements.md:100`
 - [ ] Then `10-programs`, the next chapter. `docs/reference/lang/10-programs.md:1`
 
 ### Backlog

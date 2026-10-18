@@ -1,0 +1,21 @@
+error[E0102]: expected an expression
+  --> 05-the-alternative-syntax-does-not-compile.nvs:7:13
+  |
+7 | if ($n == 2):
+  |             ^ not found here
+
+error[E0101]: expected `;`
+  --> 05-the-alternative-syntax-does-not-compile.nvs:7:13
+  |
+7 | if ($n == 2):
+  |             ^ not found here
+
+error[E0319]: `endif` is not a constant that exists
+  --> 05-the-alternative-syntax-does-not-compile.nvs:9:1
+  |
+9 | endif;
+  | ^^^^^ no global constant has this name
+  = help: `rule:statements/storage-that-outlives-a-call`: a constant always belongs to a class, so there is no global one to fetch — write `Class::NAME`, and a built-in constant is on its `Core` class, such as `Core\Math::PI`
+
+error: aborting due to 3 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.
