@@ -425,6 +425,21 @@ and were rewritten to § *Text an end user reads*. Their `details.md` have `E040
 04 is the chapter's key and copy block. The 20-types chapter changed, so its `lang:types` benches
 are perf-stale until the chapter's last edit, as the playbook says.
 
+The next three `20-types` features are done, each fact run on the binary, and no text disagreed with
+it. `callable-classes-object-shapes`' `details.md` has `E0418`, a property read through `object`
+being `mixed`, `as Cell` throwing and `as ?Cell` being `E0473`, `E0708` and the run-time error for
+`as class<T>`, `E0496` at all three class-reference sites, `E0466`, `E0134` and `E0401` for a shape;
+example 04 is the chapter's `object` lines and 05 the bare shape. Probing found a second compiler
+panic: `echo` or `.` with a `class<T>` variable passes the checker and panics in lowering, now the gap
+record `data/gaps/nvs-ir/a-class-reference-in-echo-or.json`, owned by `release-hardening`. `mixed` and
+`nullable-union-single-value-and-enum-case-types` had `about.md` in the essay voice, now rewritten.
+`mixed`'s `details.md` has what each operation throws on the wrong type (a method call on a
+non-object throws `LogicError`, the rest `RuntimeError`) and `"5" == 5` being false; examples 04 and
+05 are the chapter's two blocks. Nullable's `details.md` has `E0401`, `E0716`, enum numbering, `E0708`
+and `iterable`; examples 04 to 06 are the chapter's three blocks. Arithmetic on an unnarrowed
+`int|string` parameter compiles and gives `mixed`, which no text states and this session did not
+probe further.
+
 `looper lint` failed on a stale managed block, so `looper sync` brought AGENTS.md's `agents` block to
 v3. It adds § *looper only orchestrates* and still links `docs/design.md`.
 
@@ -434,7 +449,7 @@ sessions found, and the red bench `benches/members/core/Ldap-Connection/delete.n
 
 ### Next
 
-`20-types` from `callable-classes-object-shapes` (17 features left), one feature per slice, the way `break-and-continue` was done: read
+`20-types` from `void-never-self-static` (14 features left), one feature per slice, the way `break-and-continue` was done: read
 its chapter section, its `about.md` and its syntax page, probe each fact `about.md` lacks on the
 binary, write `details.md`, and turn each chapter code block no example shows into an example
 (`proof: compile-error` for an `nvs error` fence). Bless with `bun nv proofs --bless <file>...`, then
@@ -444,7 +459,7 @@ A probe that reads a file needs an `nvs.toml` granting `[capabilities.fs] read` 
 probe is a file under `.agent-tmp/` written with Write, since the guard refuses a redirect.
 A probe catching two error types needs two variable names, or it stops at `E0406` before the line
 you meant to test.
-- [ ] `20-types` from `callable-classes-object-shapes`, in chapter order. `docs/reference/lang/20-types.md:187`
+- [ ] `20-types` from `void-never-self-static`, in chapter order. `docs/reference/lang/20-types.md:331`
 - [ ] Once the chapter's last edit lands, `bun nv proofs --record-perf --group lang:types`, and commit `data/perf/members.ndjson`. `tools/nv/proofs/roster.ts:28`
 
 ### Backlog
