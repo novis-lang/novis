@@ -585,7 +585,7 @@ jobs:
           labels: |
             org.opencontainers.image.title=Novis
             org.opencontainers.image.version=${{ needs.plan.outputs.version }}
-            org.opencontainers.image.documentation=${{ github.server_url }}/${{ github.repository }}/blob/${{ needs.plan.outputs.tag }}/docs/docker.md
+            org.opencontainers.image.documentation=${{ github.server_url }}/${{ github.repository }}/blob/${{ needs.plan.outputs.tag }}/website/src/content/docs/guides/production/docker.mdx
 
       - id: tags
         if: ${{ !inputs.dry_run }}

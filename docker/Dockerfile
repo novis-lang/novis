@@ -9,11 +9,12 @@
 #
 # The build context is `docker/`, and `release.yml`'s `stage the release binaries` step is what
 # fills `bin/` in it — `bin/amd64/nvs`, `bin/arm64/nvs` and the notices, unpacked from the
-# release archives. Building this by hand needs the same layout; `docs/docker.md` § *Building an
-# image locally* has the two commands.
+# release archives. Building this by hand needs the same layout; `docker/README.md` § *Building an
+# image locally* has the commands.
 #
-# Two runtime bases, two stages, one binary. `docs/docker.md` § *Which image* owns the choice
-# between them; the short version is that `distroless` is the default because it has no shell to
+# Two runtime bases, two stages, one binary. The website's Docker guide
+# (`website/src/content/docs/guides/production/docker.mdx` § *Two variants*) tells a user which
+# to take: `distroless` is the default because it has no shell to
 # reach if a request ever escapes the runtime, and `debian` exists because sometimes you have to
 # get inside a container to find out what is wrong.
 
@@ -45,7 +46,7 @@ WORKDIR /.nvsdata
 # `cc` rather than `base` or `static`: a `x86_64-unknown-linux-gnu` build is dynamically linked
 # against glibc and unwinds through `libgcc_s`, and `distroless/base` carries neither. The
 # `static` variant is for a musl binary, which this repository builds but marks optional — see
-# `docs/docker.md` § *Why not Alpine or scratch*.
+# `docker/README.md` § *Why not Alpine or scratch*.
 #
 # Three things this image needs that a `scratch` one would not have, all of them already inside
 # `cc-debian13`:
@@ -90,8 +91,8 @@ USER nonroot:nonroot
 
 # `nvs serve` handles `SIGTERM` itself, also as pid 1: it accepts no new connections, finishes
 # the requests that are running, and exits. `[server] drain_timeout` (30s by default) bounds that
-# wait, so give the container a stop timeout a little longer than it. `docs/docker.md`
-# § *Stopping a container* has the settings.
+# wait, so give the container a stop timeout a little longer than it. The website's Docker guide
+# § *Stop a container* has the settings.
 STOPSIGNAL SIGTERM
 
 # One binary, so one entry point, and every subcommand is reachable through it:
@@ -102,8 +103,8 @@ ENTRYPOINT ["nvs"]
 # and an empty `docker run` prints the help and exits 0. `--help` rather than no `CMD`, because a
 # bare `nvs` prints the same text and exits 2, which Compose and CI read as a failure. A `serve`
 # command needs `--listen 0.0.0.0:8000`: `rule:http-server/the-server-block-is-boot-class`'s default is `127.0.0.1:8000`, the
-# container's own loopback, which a published port never reaches. `docs/docker.md` says so in
-# every serve example.
+# container's own loopback, which a published port never reaches. The website's Docker guide says
+# so in every serve example.
 CMD ["--help"]
 
 # ---------------------------------------------------------------------------------------------
