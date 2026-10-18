@@ -50,6 +50,9 @@ agent without looper skips the guard, the prose check and the commit shape check
 **The user decided:**
 - **The project runs and is developed the same way with and without looper.** Every check a change
   must pass runs with `bun nv` alone, and gives the same verdict both ways.
+- **This is a base rule, AGENTS.md § *Novis works without looper*,** for every goal and not this one
+  alone. Nothing is ever moved, replaced or deleted so that the work needs looper, because only a few
+  developers have it and CI never does.
 - **Each check is written once, in `bun nv`, and looper runs the project's command for it.** Looper
   gets the update that lets `looper.toml` name that command. Its own implementation stays for the
   projects that set none. Looper's goal `project-gates` owns that update.
