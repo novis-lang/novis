@@ -1,0 +1,9 @@
+error[E0405]: `Order` has no public property `$totl`
+   --> 04-a-wrong-hole-written-in-the-code.nvs:16:21
+   |
+16 | echo Query::where("{totl} > 10"), "\n";
+   |                     ^^^^ this hole is checked here
+   = help: each hole names a public property of `Order`, which has `$total`
+
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.
