@@ -347,7 +347,8 @@ string $who = "world";
 ```
 
 - `<?= expr ?>` is short for `<?nvs echo expr; ?>` — one expression, written into the output where
-  the tag stands. The `;` before `?>` is optional in both forms.
+  the tag stands. The `;` before `?>` is optional in `<?= ?>`; in `<?nvs ?>` the last statement
+  still needs its `;` (`E0101`).
 - A `?>` followed directly by one newline swallows that newline, so a template line ending in a
   closing tag emits no blank line.
 - There is no short open tag `<?`, so a `<?xml` declaration stays text.
@@ -532,8 +533,9 @@ example.test:8080
 ```
 
 - The path is relative to the requiring file's directory. A path written directly in the code is
-  resolved while compiling, so a missing file is a compile-time error; a computed path is resolved at run time and
-  throws if it cannot be read.
+  resolved while compiling, so a missing file is a compile-time error (`E0311`). Class constants
+  joined with `.` count as written directly. A path built at run time is never loaded: the `require`
+  throws `RuntimeError` when it is reached, even if the file exists.
 - The value of a `require` expression is `mixed` — convert it with `as` to the type the file returns.
 - **Declarations cross and variables do not.** Every class, interface, enum and `type` alias either
   file declares is visible to the other as if it had been pasted in. A local does not cross in either
@@ -568,8 +570,8 @@ autoload 'App\{..}' from '../src';                 // `{..}` is the name of the 
   the one the map found it by, namespace included (`E0317`).
 - A root that does not exist is allowed. `nvs check --autoload-map` lists it under `missing`.
 - The map is built while compiling, from every `autoload` in every file the program reaches;
-  there is no runtime loader and no registration function. A class that cannot be found is a
-  compile error naming the roots that were searched.
+  there is no runtime loader and no registration function. A class that cannot be found is the
+  compile error `E0303`, the same as any undeclared name; `nvs check --autoload-map` shows the roots.
 - The same map answers `Core\Program::implementing<I>()` — every non-abstract class implementing
   an interface, found through the autoload roots even when nothing names it.
 
@@ -593,7 +595,7 @@ class Files {
 Files::load('data/rates.json');            // reads /srv/shop/src/data/rates.json
 
 string $name = 'rates.json';
-Core\IO::read('data/' . $name);            // throws RuntimeError: the path is relative
+Core\IO::read('data/' . $name);            // does not compile (E0840): the path is relative
 ```
 
 - Every `Core` parameter that names a file is a file path parameter: `Core\IO`'s path methods,
@@ -664,7 +666,8 @@ n=2 1
   empty array is refused. Write its type instead: `array<int|string> $xs = [1, "a"];`.
 - Locals are function-scoped: a name declared inside an `if` or a loop body is visible after it, and
   the counter a `for` header declares stays visible after the loop. A `catch (T $e)` binding is a
-  declaration too, so two `catch` blocks in one function name two different variables.
+  declaration too: two `catch` blocks in one function may reuse a name only when they catch the same
+  type.
 - A value that does not match the declared type is refused where it is written — `int $i = null;`,
   `uint $u = -1;`, `int $i = 3; string $s = $i;` are all compile errors. The one implicit
   conversion is listed under `Widening without as` below; everything else is spelled `as`.
@@ -962,9 +965,9 @@ expected `iterable`, found `array<int>`
 `void` and `never` are return types only; neither names a parameter or a binding, and `var` is
 refused the type of a call that hands nothing back. A `void` call is not an operand: `echo
 Helper::nothing()` is a compile error. `never` declares a method that does not come back — it throws,
-or it ends the program — and a call to one is not read as an exit, so a caller with another path
-still has to return a value on that one. `self` is the declaring class and `static` the called class,
-in a return position; neither is a value (`return self;` is refused — write `self::member`).
+or it ends the program — and a call to one ends the caller's path, unless a subclass overrides the
+method. `self` is the declaring class and `static` the called class; `self` may also type a
+parameter. Neither is a value (`return self;` is refused — write `self::member`).
 
 ```nvs
 <?nvs
@@ -1627,7 +1630,7 @@ null
 - `{{` is a `{` and `}}` is a `}`. They are text, not holes.
 - An empty hole `{}`, a `{` with no `}` and a `}` with no `{` do not compile (`E0861`).
 - A string written directly in the code is checked while compiling, one hole at a time. A wrong name
-  does not compile (`E0405`), and the error points at that name.
+  does not compile (`E0405`, or `E0861` for a set of strings), and the error points at that name.
 - A string literal at a parameter typed `string<K>` needs no `as`.
 - Any other string is checked by `as` while the program runs. A wrong hole throws a `RuntimeError`.
   `as ?string<K>` gives `null` instead.
@@ -1850,7 +1853,7 @@ A parameter is `T $name`, with an optional default `= value` written directly in
 `inout T $name` binds the caller's variable rather than a copy, so what the method assigns to
 `$name` is what the caller holds afterwards. The call writes `inout` again in front of the
 argument — `Sum::bump(inout $count)` — so a reader sees at the call site which variable may
-change. Only a local can be passed `inout`: not an array element and not a property. `&` is not a
+change. A local or an instance property can be passed `inout`, but not an array element (`E0439`). `&` is not a
 by-reference marker anywhere. A `foreach` value binding may be `inout` too, and an anonymous function
 has no `inout` parameter.
 
@@ -2543,7 +2546,7 @@ not a class name
 - `Class::m(args)` calls a static method, `$o->m(args)` an instance method; results chain, `Greeter::make()->greet("x")`, and a `new` chains without parentheses.
 - Arguments are positional, or named `name: value` in any order, and a named argument may skip a defaulted parameter in the middle. Evaluation is in written order.
 - `...$array` spreads an `array<T>` into a variadic `T ...$rest` parameter — only into one; the fixed parameters before it are still written out.
-- A parameter declared `inout T $x` is written back to the caller's variable, and the call writes `inout` too: `M::bump(inout $n)`. Only a local can be passed `inout`, not an array element.
+- A parameter declared `inout T $x` is written back to the caller's variable, and the call writes `inout` too: `M::bump(inout $n)`. A local or an instance property can be passed `inout`, not an array element.
 - A `callable` value is called through the variable that holds it, `$f(1)`, an element, `$ops["k"](1)`, or a parenthesised property, `($this->cb)(1)`. The call answers `mixed`, so `int $r = $f(1) as int`. Extra arguments are dropped; too few throw at the call.
 - A call that returns `void` is a statement and no operand.
 

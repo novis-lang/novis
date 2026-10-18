@@ -22,7 +22,7 @@ changes it, the caller's variable changes too.
 <Snippet src="syntax/parameters/02-inout.nvs" />
 
 - The call writes `inout` before the argument: `Counter::bump(inout $count)`.
-- The argument must be a local variable. An array element or a property is not allowed.
+- The argument must be a variable or a property of an object. An array element is not allowed.
 - A `foreach` variable can be `inout`. A change to it changes the array.
 - An anonymous function cannot have an `inout` parameter.
 - `&` does not mean "by reference" anywhere in Novis. Use `inout`.

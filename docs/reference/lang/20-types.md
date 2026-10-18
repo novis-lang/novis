@@ -1224,7 +1224,7 @@ A parameter is `T $name`, with an optional default `= value` written directly in
 `inout T $name` binds the caller's variable rather than a copy, so what the method assigns to
 `$name` is what the caller holds afterwards. The call writes `inout` again in front of the
 argument — `Sum::bump(inout $count)` — so a reader sees at the call site which variable may
-change. Only a local can be passed `inout`: not an array element and not a property. `&` is not a
+change. A local or an instance property can be passed `inout`, but not an array element (`E0439`). `&` is not a
 by-reference marker anywhere. A `foreach` value binding may be `inout` too, and an anonymous function
 has no `inout` parameter.
 

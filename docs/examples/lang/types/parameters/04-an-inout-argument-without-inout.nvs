@@ -1,0 +1,16 @@
+<?nvs
+// Shows that the call must write `inout` before an argument to an `inout` parameter.
+// This call leaves it out, so this program does not compile.
+// proof: compile-error
+
+class Counter
+{
+    public static function bump(inout int $count): void
+    {
+        $count = $count + 1;
+    }
+}
+
+int $visits = 0;
+Counter::bump($visits);
+echo $visits, "\n";

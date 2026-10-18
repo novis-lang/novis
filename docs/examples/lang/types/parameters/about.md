@@ -12,4 +12,5 @@ writes `inout` in front of that argument too, so you can see the change at the c
 **Good to know:** parameter names are part of what a method promises, so a caller may rely on them.
 
 **The examples below** show defaults and a variadic parameter, then named arguments with an enum
-case as a default, then an `inout` stock count.
+case as a default, then an `inout` stock count. The last one leaves out `inout` at the call, so it
+does not compile.
