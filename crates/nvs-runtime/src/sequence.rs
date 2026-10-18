@@ -32,7 +32,7 @@
 //! sequence holds it twice at the moment it builds its result. Handing back a
 //! cursor the caller drives itself would buy that back only for a member that
 //! can consume one element at a time, and `Core\Arr::from`'s whole job is to
-//! materialise. `limit` is the *caller's* bound on that, and the spec's
+//! materialise. `limit` is the *caller's* bound on that, and the published signature's
 //! `{limit?: uint}` is that argument.
 //!
 //! **`[limits] memory` is what bounds a sequence that never ends**, and [`drain`]
@@ -93,8 +93,8 @@ pub const CURRENT: &str = "current";
 /// into at most `limit` elements, in order, each an **owned** reference the
 /// caller must store or release.
 ///
-/// Keys are not returned, for the reason the spec's § 2 gives `Core\Arr::from`
-/// itself: a cursor has none (`rule:iteration/two-interfaces` gives `Iterator<T>` exactly
+/// Keys are not returned, for the reason `Core\Arr::from` returns
+/// none itself: a cursor has none (`rule:iteration/two-interfaces` gives `Iterator<T>` exactly
 /// `advance` and `current`), so a member reading a sequence can only ever
 /// answer with a list.
 ///

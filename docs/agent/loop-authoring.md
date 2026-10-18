@@ -114,9 +114,9 @@ stop condition means the run does not end with nobody watching.
 
 Failure modes worth naming, all of which have happened here:
 
-- **A threshold is not a milestone.** One goal's acceptance list was reached with `Core` at 39 of ~205
-  spec members, because the list checked fixtures rather than coverage. If "complete" means every
-  member, the check must be a test that *reads the spec* and fails naming what is missing. A count of
+- **A threshold is not a milestone.** An acceptance list that checks fixtures rather than coverage is
+  reached long before the work is. If "complete" means every member, the check must be a test that
+  *reads the source of truth* and fails naming what is missing. A count of
   conformance cases is a proxy; a test that enumerates the source of truth is not.
 - **A green suite is not a run guard.** `cargo test` passes on a suite that never ran your new guard, so a
   named test must be checked for having *existed and run*. That is what a check's `tests` list is for,
@@ -189,7 +189,7 @@ earning its place:
 6. **The named guard tests**, then the leak sweep.
 
 **Frozen output, unfrozen source.** A fixture's *expected output* may never be edited to make a check pass;
-its *source* may be corrected freely, because whoever wrote it against the spec could not compile it. Say
+its *source* may be corrected freely, because whoever wrote it ahead of the code could not compile it. Say
 in the commit message why a fixture was corrected. That distinction is what stops "make it pass" from
 quietly becoming the goal.
 

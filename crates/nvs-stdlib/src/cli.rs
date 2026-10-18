@@ -166,9 +166,7 @@ const CARD: ClassDoc = ClassDoc {
 /// `displayWidth` was the last row owed and is here, over the UAX #11 table
 /// `nvs_runtime::terminal` now carries.
 ///
-/// In the spec's own order (§ 15), which is why `arguments` is first, `write`
-/// second and `escape`
-/// third: the words the program was started with come before the effect, and
+/// `arguments` is first, `write` second and `escape` third: the words the program was started with come before the effect, and
 /// the effect before the launderer that performs the same table
 /// as a value, and [`nvs_core_cli_escape`] owns why that launderer could land
 /// ahead of it. `rule:tooling/a-prompt-is-a-core-member`'s five
@@ -1138,8 +1136,8 @@ fn depth_ordinal(depth: ColorDepth) -> i64 {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Cli::arguments(): array<tainted string>` — spec § 15's raw
-    /// argument list, replacing `$argv` and `$argc`.
+    /// `Core\Cli::arguments(): array<tainted string>` — the raw argument
+    /// list, replacing `$argv` and `$argc`.
     ///
     /// **It reads no operating system**, which is the whole of why this member
     /// is three lines. `rule:security/capability-check-at-the-door` keeps `argv` out of this crate, so the
@@ -1969,7 +1967,7 @@ const TEXT_CARD: ClassDoc = ClassDoc {
             `+`. Outside an HTTP request, `Core\\Out::capture` returns the captured output as one.",
 };
 
-/// Spec § 13's `Core\Cli\Text` — `rule:security/capture-answers-the-carrier`'s slot, and `rule:tooling/styling-is-a-value-not-a-grammar`'s first
+/// `Core\Cli\Text` — `rule:security/capture-answers-the-carrier`'s slot, and `rule:tooling/styling-is-a-value-not-a-grammar`'s first
 /// constructor over it.
 ///
 /// Two slots: the rendering standard output takes, which is the one

@@ -1,5 +1,5 @@
-//! `Core\Heap<T>` — docs/spec/01-core-library.md § 9's priority queue, which
-//! replaces `SplPriorityQueue`, `SplMinHeap` and `SplMaxHeap`.
+//! `Core\Heap<T>` — the priority queue, which replaces `SplPriorityQueue`,
+//! `SplMinHeap` and `SplMaxHeap`.
 //!
 //! # Decision: one array, kept as a binary heap
 //!
@@ -20,8 +20,8 @@
 //! heap has anything to say about; the entries array's own order is an
 //! implementation detail of the tree.
 //!
-//! **`peek` and `pop` throw on an empty heap.** § 9's row gives the class an
-//! `isEmpty`, which is the question, and `rule:core-api/shape-rules`
+//! **`peek` and `pop` throw on an empty heap.** The class has an `isEmpty`,
+//! which is the question, and `rule:core-api/shape-rules`
 //! R5 bans the `peekOrNull` twin that a `?T` return would otherwise invite.
 //!
 //! # Decision: two orderings, tried in one fixed order
@@ -85,8 +85,7 @@ pub(crate) const ITERATE_SYMBOL: &str = "nvs_core_heap_iterate";
 ///
 /// A positional optional parameter rather than an options bag: `rule:core-api/shape-rules` R2
 /// puts a bag last for a member with *several* settings, and this class has
-/// exactly one thing to say about itself. The spec's own § 9 prose calls it
-/// "a comparator given at construction", which is this.
+/// exactly one thing to say about itself: a comparator given at construction.
 pub(crate) const NEW: CoreMethod = CoreMethod {
     name: "constructor",
     names: &["comparator"],
@@ -106,7 +105,7 @@ const CARD: ClassDoc = ClassDoc {
             function you give can choose a different order.",
 };
 
-/// `Core\Heap<T>` — docs/spec/01-core-library.md § 9's third row.
+/// `Core\Heap<T>`.
 ///
 /// Five members, all of them instance members: a heap is reached through a
 /// value, and the only static entry point is the constructor, which is not a
@@ -613,7 +612,8 @@ nvs_runtime::nvs_helper! {
     /// Reached as a symbol rather than as a registered `constructor` member:
     /// a `Core` class has no constructor a program could resolve, so `nvs-ir`
     /// lowers `new` on one straight to this helper ([`crate::instance`]'s
-    /// module docs). Unlike § 9's other two, this one takes an argument —
+    /// module docs). Unlike `Core\ObjectMap`'s and `Core\ObjectSet`'s, this one
+    /// takes an argument —
     /// `nvs_stdlib::registry::CONSTRUCTORS` is what gives the checker a
     /// signature to hold it to.
     fn nvs_core_heap_new(_ctx, args: [1]) {
@@ -647,8 +647,8 @@ nvs_runtime::nvs_helper! {
     /// `Core\Heap<T>::push(T $value): void` — adds `$value`, keeping the heap
     /// ordered.
     ///
-    /// Appended at the end and sifted up, which is the O(log n) half of what
-    /// § 9 says these types exist for. A heap holds duplicates: it is a
+    /// Appended at the end and sifted up, which is the O(log n) insert a
+    /// priority queue exists for. A heap holds duplicates: it is a
     /// priority queue, not a set — `Core\ObjectSet` is the one that answers
     /// "already there".
     fn nvs_core_heap_push(ctx, args: [2]) {
@@ -887,7 +887,7 @@ mod tests {
     }
 
     /// A duplicate is held, not folded away: this is a priority queue, and
-    /// `Core\ObjectSet` is the member of § 9 that answers "already there".
+    /// `Core\ObjectSet` is the collection that answers "already there".
     // covers: Core\Heap::count
     #[test]
     fn a_heap_holds_duplicates() {

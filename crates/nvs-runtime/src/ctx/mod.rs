@@ -1153,9 +1153,9 @@ pub struct Ctx {
     /// A **stack**, because a capture is scoped to the callable it runs and therefore
     /// nests by call nesting; PHP's global `ob_*` stack, which can be started
     /// in one function and ended in another, is exactly what
-    /// `docs/spec/01-core-library.md` § 12 removed. While it is non-empty
+    /// `Core\Out` does not have. While it is non-empty
     /// [`Self::write_output`] appends to its last entry and the sink below
-    /// sees nothing, which is that section's "`capture` always swallows".
+    /// sees nothing, which is how `capture` always swallows.
     ///
     /// **What it spends:** nothing until a capture begins — an empty `Vec` is
     /// three words in the [`Ctx`] and no allocation — then one buffer per
@@ -1274,7 +1274,7 @@ pub struct Ctx {
     ///
     /// **What it spends:** one byte per request, and never an allocation.
     event_stream: Option<EventStreamDoor>,
-    /// What this request's response says it *is* — spec § 15's `setStatus`,
+    /// What this request's response says it *is* — `Core\Response::setStatus`,
     /// or `None` where nothing set one and the answer is whatever the server's
     /// own default is.
     ///
@@ -1293,7 +1293,7 @@ pub struct Ctx {
     /// **What it spends:** one half-word per request, and never an allocation.
     status: Option<u16>,
     /// The headers this request's response carries beyond the ones whoever is
-    /// answering wrote for itself — spec § 15's `setHeader` and `addCookie`, in
+    /// answering wrote for itself — `Core\Response`'s `setHeader` and `addCookie`, in
     /// the order they were first declared.
     ///
     /// A **list** where the two fields above are words, because a header is a
@@ -1317,7 +1317,7 @@ pub struct Ctx {
     /// per declared header for one that does, charged to that request's own
     /// budget like every other allocation it makes.
     headers: DeclaredHeaders,
-    /// The request this context is answering, as it arrived — spec § 15's
+    /// The request this context is answering, as it arrived —
     /// `Core\Request`, and `None` in every process that is not serving one.
     ///
     /// The fields above are the response half of the same channel and

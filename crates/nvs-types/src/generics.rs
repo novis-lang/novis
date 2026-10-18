@@ -6,9 +6,8 @@
 //! **compiler-owned**, so exactly two things in the whole compiler produce a
 //! [`Ty::TypeVar`]: [`crate::core_lib`] lowering a `nvs_stdlib::registry`
 //! signature, and [`crate::iter_lib`] writing `rule:iteration/two-interfaces`'s two iteration
-//! interfaces. The spec's own `Core\Arr` section states why they exist at all
-//! — "`T` is a type variable — the stdlib is parametric where user code is
-//! not."
+//! interfaces. They exist at all because the stdlib is parametric where user
+//! code is not.
 //!
 //! The two are bound from different places, and that difference is the only
 //! subtlety here. A `Core` member's variable is bound from its *arguments*
@@ -117,7 +116,7 @@ pub(crate) fn mentions_type_var(id: TypeId, interner: &TypeInterner) -> bool {
 ///
 /// A user class fixes its interface at a concrete type (`rule:iteration/concrete-generic-implements`), so this
 /// is the identity for every class a program declares. `Core`'s
-/// docs/spec/01-core-library.md § 9 collections are what need it: a
+/// collections (`Core\ObjectMap`, `Core\ObjectSet`, `Core\Heap`) are what need it: a
 /// `Core\ObjectMap<K, V>` implements `Iterable<K>` for whatever `K` its
 /// receiver was constructed at, so [`crate::signatures::resolve_interface_args`]
 /// hands the variable back and the receiver is the only thing that can say what

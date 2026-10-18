@@ -1,12 +1,12 @@
-//! `Core\Db` — [docs/spec/01-core-library.md](/docs/spec/01-core-library.md)
-//! § 18's entry points, over [`nvs_db`]'s wire half.
+//! `Core\Db`'s entry points, over [`nvs_db`]'s wire half.
 //!
-//! `rule:core-classes/db-one-api` is authoritative for every
-//! semantic and § 18 for every signature. What belongs here is what this side
-//! of the boundary decides for itself: what an `InList` *is* once it is a value
-//! a program holds, what `quoteIdentifier` can honestly promise from a class
-//! that has no connection in front of it, what bounds a statement's `timeout`,
-//! and which of § 18's options this module declines to declare.
+//! `rule:core-classes/db-one-api` is authoritative for every semantic, and the
+//! registry (`crates/nvs-stdlib/src/registry.rs`, published by `nvs meta --json`) is the
+//! one source of every signature, `rule:core-api/field-wise-precedence`. What belongs here
+//! is what this side of the boundary decides for itself: what an `InList` *is* once it is
+//! a value a program holds, what `quoteIdentifier` can honestly promise from a class that
+//! has no connection in front of it, what bounds a statement's `timeout`, and which
+//! options this module declines to declare.
 //!
 //! # `inList` is a carrier, and the expansion stays on the wire
 //!
@@ -32,7 +32,7 @@
 //!
 //! # `quoteIdentifier` validates, and deliberately adds no delimiter
 //!
-//! § 18 puts this member on `Core\Db`, which means it runs with **no
+//! This member is on `Core\Db`, which means it runs with **no
 //! connection and therefore no dialect**. The five backends do not agree on how
 //! an identifier is delimited — `"name"` on PostgreSQL and SQLite, backticks on
 //! MySQL and MariaDB, `"name"` or `[name]` on SQL Server — so a delimiter
@@ -64,7 +64,7 @@
 //!
 //! **A delimiting quoter belongs on `Connection` if one is ever wanted**, and
 //! not on this class, because a connection is the only place a dialect exists.
-//! § 18 asks for no such member, and the refusal above is why one here could
+//! `Core\Db` has no such member, and the refusal above is why one here could
 //! not be the answer either: `Core\Db` would have to guess the delimiter, and
 //! a wrong one parses as something else.
 //!
@@ -122,9 +122,9 @@
 //!
 //! # `stream` declares no `chunk`, and the portal is why
 //!
-//! **That is a refusal rather than an unlanded option.** § 4's other option is
-//! in the spec signature and deliberately in neither of that member's registry
-//! rows, because there is no read for a size to reach. `nvs_db`'s `open_portal`
+//! **That is a refusal rather than an unlanded option.** A `chunk` option is
+//! deliberately in neither of that member's registry rows, because there is no
+//! read for a size to reach. `nvs_db`'s `open_portal`
 //! writes its `Execute` with a row count of **`0` — every row** — and the walk
 //! then reads one `DataRow` off the wire per `advance()`, which is why that
 //! driver never has to answer a `PortalSuspended` at all. So a streamed result
@@ -228,7 +228,7 @@
 //!
 //! `rule:core-api/shape-arms-are-disjoint`'s *exactly one arm accepts it* **is**
 //! the checker's rule — `nvs_types::expr::args`' `select_arm` — so a `host`
-//! written beside `Driver::Sqlite` is the compile error § 18 says it is, and a
+//! written beside `Driver::Sqlite` is a compile error, and a
 //! key only one arm requires is required of the call that selected that arm.
 //! What reaches [`settings_driver`] is therefore a settings object one arm has already
 //! accepted, which is why it reads the discriminant before it reads anything
@@ -272,8 +272,8 @@
 //! *wire* rather than of the statement stays an `IOError`: § 8's class is the
 //! server's answer, not the socket's.
 //!
-//! **`Db\DbError` sits outside spec § 10's error tree, and that is the bound**:
-//! it declares all five of § 18's values and no `issues`, because `issues` is a
+//! **`Db\DbError` sits outside the `Core\Error` tree, and that is the bound**:
+//! it declares its five properties and no `issues`, because `issues` is a
 //! property of the tree's own classes. So a refusal about a *column* — a cell
 //! the declared type does not fit — is thrown as a `ParseError` naming the
 //! columns, which is the class `crate::json`'s `decodeAs` throws for the same
@@ -512,7 +512,7 @@ const COLUMNS_SLOT: &str = "columns";
 const COLUMNS_AT: usize = 0;
 
 /// `Core\Db\Stream`'s fully-qualified name, as [`CoreTy::Instance`] spells it —
-/// spec § 18's `Iterable<Db\Row>`, which needs a class name because
+/// the `Iterable<Db\Row>` `stream` returns, which needs a class name because
 /// [`CoreTy::Iterated`] is parameter position only.
 ///
 /// `pub(crate)` for `registry`'s handle roster and its `ITERABLES` row, for
@@ -633,7 +633,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
             (nvs_core_db_connection_transaction as *const ()).cast()
         }
         // One arm for both classes' rows again, for the transaction arm's
-        // reason: § 18 puts `stream` and `streamAs` alike on
+        // reason: `stream` and `streamAs` are alike members of
         // `Core\Db\Queryable`.
         "nvs_core_db_connection_stream" => (nvs_core_db_connection_stream as *const ()).cast(),
         "nvs_core_db_connection_stream_as" => {

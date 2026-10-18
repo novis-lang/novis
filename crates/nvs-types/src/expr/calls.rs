@@ -868,7 +868,7 @@ pub(crate) fn infer_new(
         // left to `nvs-codegen`, which would fail with "this unit declares no
         // descriptor for it" — an internal message for an ordinary mistake.
         //
-        // The carve-out is `registry::CONSTRUCTORS`: spec § 9's collections are
+        // The carve-out is `registry::CONSTRUCTORS`: `Core`'s collections are
         // written `new Core\ObjectSet<Tag>()`, and they still declare no
         // `constructor` *member* — what makes them constructible is a native
         // symbol `nvs-ir` lowers straight to, which `nvs_stdlib::instance`'s
@@ -1331,8 +1331,8 @@ fn check_new_type_args(
                 format!("write `new {qname}<{names}>(…)`"),
             )
             .with_help(format!(
-                "`docs/spec/01-core-library.md` § 9 declares `{qname}<{names}>`; the arguments \
-                 are positional, and nothing about a `Core` collection infers them"
+                "`{qname}` is declared as `{qname}<{names}>`. Write the type arguments in that \
+                 order. A `Core` collection does not infer them"
             )),
         );
         return target_ty;
@@ -1809,8 +1809,7 @@ fn report_method_on_erased_receiver(span: Span, name: &str, ty: TypeId, env: &mu
 
 /// `$e->getMessage()` — a PHP accessor on the exception tree, which has none.
 ///
-/// [docs/spec/01-core-library.md](/docs/spec/01-core-library.md)
-/// § 10 gives that tree **properties**, and [`crate::error_lib`] seeds exactly
+/// The `Core\Error` tree has **properties**, and [`crate::error_lib`] seeds exactly
 /// those plus the synthesized constructor, so every PHP accessor resolves to
 /// nothing here. Until this existed the tree was exempt from the unknown-member
 /// refusal above — an exemption that outlived the seeding it was written for —
@@ -1844,8 +1843,8 @@ fn report_exception_accessor(span: Span, qname: &QName, name: &str, env: &mut En
         || format!("the exception tree declares {roster} and no method but its constructor"),
         |property| {
             format!(
-                "the exception tree declares properties rather than accessors — write \
-                 `->{property}`; spec § 10 lists {roster}"
+                "an exception has properties and no accessor methods. Write `->{property}`. \
+                 The properties are {roster}"
             )
         },
     );
@@ -2133,8 +2132,8 @@ pub(crate) fn check_new_target(
                 // Diagnosed rather than erased to `mixed`: `nvs-ir` has no
                 // class to allocate and panics naming the missing table entry,
                 // which is a worse report of the same fact. The spelling this
-                // most often catches is PHP's `new Exception(…)` — spec § 10
-                // has no such class, so the ordinary undeclared-class
+                // most often catches is PHP's `new Exception(…)` — the `Core\Error`
+                // tree has no such class, so the ordinary undeclared-class
                 // diagnostic is exactly the right answer.
                 env.diags.report(nvs_hir::undeclared_name(
                     nvs_hir::Undeclared {

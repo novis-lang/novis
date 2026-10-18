@@ -785,7 +785,7 @@ mod tests {
             );
         }
 
-        // § 18's second table — the rows `Connection` has *beyond* `Queryable`
+        // The rows `Connection` has *beyond* `Queryable`
         // — is the only thing outside the sweep, and it is asserted from both
         // ends here so that naming a row there cannot quietly excuse one from
         // the comparison below. [`BEYOND_QUERYABLE`] owns why the exception is
@@ -1034,8 +1034,8 @@ mod tests {
         deadlocked
     }
 
-    /// Spec § 10's root shape and § 8's `Core\Db\DbError` under it, arriving the one way a
-    /// context takes a table — the playbook's `Ctx::class_desc` bullet.
+    /// The `Core\Error` tree's root shape and § 8's `Core\Db\DbError` under it,
+    /// arriving the one way a context takes a table — the playbook's `Ctx::class_desc` bullet.
     ///
     /// § 8's class has to be *resolvable* for a throw of it to be read back:
     /// `pending_slot` answers `None` for a context with no exception class

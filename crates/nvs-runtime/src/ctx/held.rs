@@ -696,7 +696,7 @@ impl Ctx {
     }
 
     /// Releases the connection `key` names, answering whether it was still
-    /// open — spec § 18's `Core\Db\Connection::close`, which is the one thing
+    /// open — `Core\Db\Connection::close`, which is the one thing
     /// that ends a connection's life before the request's.
     ///
     /// It is the teardown loop in [`Ctx::drop`] for exactly one entry, and

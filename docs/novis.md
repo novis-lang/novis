@@ -6465,6 +6465,9 @@ var $result = await $job;
 - A path written as a string literal starts at the folder of the file that contains it. A
   relative path built while the program runs throws a `RuntimeError`: build it with
   `Core\Path::join` from a full path (§ *File paths: a relative path starts at the folder of its file*).
+- A path is evaluated once, where the spawn is written, before the child starts.
+- `with(…)` takes the same `name: value` arguments as a call, and a trailing comma is allowed.
+- `await`'s operand is a unary expression, so `await $h->handle` awaits the property `handle`.
 - `with(…)` is optional. `output: 'capture'` collects what the child writes into the result;
   `output: 'inherit'` lets the child write straight to the parent's standard output, interleaved
   with the parent's own lines in whatever order the two run — only after `await` is all of it
@@ -12675,7 +12678,7 @@ Returns the size of the file at `$path` in bytes, as the operating system report
 |---|---|---|
 | `$path` | `string` (sink) | The file to measure. A relative path must be a string written directly in the code. It is joined to the folder of the file that contains it. |
 
-**Returns** `uint` — The byte count as a `uint`. For a text file this is bytes and not characters — a `string`'s own length is `Core\Str::length`, which counts what § 1 says it counts.
+**Returns** `uint` — The byte count as a `uint`. For a text file this is bytes and not characters — a `string`'s own length is `Core\Str::length`, which counts graphemes (what a person counts as one character).
 
 **Throws** `RuntimeError` — The configuration does not grant `fs.read` for this path.; `IOError` — The capability allowed it and the operating system did not — there is nothing at the path, or its metadata could not be read. A missing file has no size, so it throws here where `exists` answers `false`.
 
@@ -31846,7 +31849,7 @@ Every enum `Core` declares. A case is written `Core\Arr::Order::Asc` and is an `
 <a id="enum-core-arr-order"></a>
 #### `Core\Arr::Order`
 
-The direction `Core\Arr::sort` and `sortByKey` put elements in — spec § 2's `{order: …}` option, which is `Asc` when omitted.
+The direction `Core\Arr::sort` and `sortByKey` put elements in. It is the `{order: …}` option, and it is `Asc` when you leave it out.
 
 | Case | Meaning |
 |---|---|
@@ -31856,7 +31859,7 @@ The direction `Core\Arr::sort` and `sortByKey` put elements in — spec § 2's `
 <a id="enum-core-arr-seton"></a>
 #### `Core\Arr::SetOn`
 
-Which part of an entry `Core\Arr::diff` and `intersect` compare — spec § 2's `{on: …}` option, which is `Values` when omitted; `by` and `comparator` apply to the part it selects.
+Which part of an entry `Core\Arr::diff` and `intersect` compare. It is the `{on: …}` option, and it is `Values` when you leave it out; `by` and `comparator` apply to the part it selects.
 
 | Case | Meaning |
 |---|---|
@@ -31901,7 +31904,7 @@ The encoding a `Core\Encoding` text conversion reads or writes — one case per 
 <a id="enum-core-unit"></a>
 #### `Core\Unit`
 
-The calendar step a `DateTime`, `Date` or `TimeOfDay` moves by, and the unit `startOf`, `endOf` and `difference` count in — the half of § 4's two arithmetics a DST boundary or a short month can lengthen or shorten, listed smallest first.
+The calendar step a `DateTime`, `Date` or `TimeOfDay` moves by, and the unit `startOf`, `endOf` and `difference` count in. A DST change or a short month can make one step longer or shorter. The cases are listed smallest first.
 
 | Case | Meaning |
 |---|---|

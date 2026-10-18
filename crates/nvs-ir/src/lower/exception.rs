@@ -22,7 +22,7 @@ impl<'a> Lowering<'a> {
     ///
     /// A [`Ty::Tagged`] operand arrives here on purpose. `nvs_types`'
     /// `expr::members::reject_unthrowable` refuses a type that can hold no
-    /// object and a class outside spec § 10's tree, and passes `mixed`,
+    /// object and a class outside the `Core\Error` tree, and passes `mixed`,
     /// `object` and every union — `?Throwable` among them — because the tree
     /// is what `catch` matches on at run time. [`Self::guard_throwable`] asks
     /// the two questions that leaves, where the value is.
@@ -109,14 +109,14 @@ impl<'a> Lowering<'a> {
     /// The two answers a [`Ty::Tagged`] `throw` operand's type did not settle,
     /// asked in front of the raise: whether the tag is an object at all —
     /// [`Self::split_on_object_tag`], shared with `clone`'s own guard — and
-    /// whether that object is inside spec § 10's tree. `cur` is left on the
+    /// whether that object is inside the `Core\Error` tree. `cur` is left on the
     /// block where both hold, and the value handed back is the object itself.
     ///
     /// A [`Ty::Object`] operand is handed straight back. Its class is the
     /// checker's own answer, and `reject_unthrowable` has already refused
     /// every named one outside the tree.
     ///
-    /// **The wording is PHP's, word for word.** The class carrying it is [`LOGIC_ERROR`] — spec § 10's
+    /// **The wording is PHP's, word for word.** The class carrying it is [`LOGIC_ERROR`] — the tree's
     /// "a bug in the program", the entry [`Lowering::lower_match`]'s unmatched
     /// subject already raises — because the closed tree has no `Error` of
     /// PHP's own. A callable takes the second message rather than the first:
@@ -231,7 +231,7 @@ impl<'a> Lowering<'a> {
     /// block on the raise of it.
     ///
     /// Argument 2 is the `{previous}` bag flattened to its own `null` default,
-    /// widened into the [`Ty::Tagged`] slot spec § 10's `Throwable|null`
+    /// widened into the [`Ty::Tagged`] slot the option's `Throwable|null`
     /// erases to — the list [`Lowering::lower_match`]'s own throw builds by
     /// hand, for the same reason. No retain: the instance is built here and
     /// has exactly one owner, which [`Terminator::Throw`] takes.
@@ -899,7 +899,7 @@ pub(crate) const LOCATION_FIELD: &str = "location";
 /// both resolve to.
 pub(crate) const THROWABLE_CTOR: &str = "Throwable::constructor";
 
-/// `LogicError`, spec § 10's class for a caller that broke a contract it could
+/// `LogicError`, the `Core\Error` tree's class for a caller that broke a contract it could
 /// have checked — the one exception this crate raises out of a body it
 /// synthesized itself, from [`lower_generator_current`]'s protocol guard.
 /// Restated here for [`PARSE_ERROR`]'s reason.
@@ -915,7 +915,7 @@ pub(crate) const PARSE_ERROR: &str = "ParseError";
 pub(crate) const ISSUES_FIELD: &str = "issues";
 
 /// `Core\Db\RolledBack`, another class below the root that declares a
-/// property — spec § 18's `reason`, thrown by
+/// property — `reason`, thrown by
 /// `rule:core-classes/db-transactions`'s
 /// `Transaction::rollBack`. Restated here for [`PARSE_ERROR`]'s reason.
 pub(crate) const ROLLED_BACK: &str = "Core\\Db\\RolledBack";
@@ -923,7 +923,7 @@ pub(crate) const ROLLED_BACK: &str = "Core\\Db\\RolledBack";
 /// `Core\Db\RolledBack::$reason`.
 pub(crate) const REASON_FIELD: &str = "reason";
 
-/// `Core\Db\DbError`, another such class — spec § 18's `kind`, written by
+/// `Core\Db\DbError`, another such class — `kind`, written by
 /// every refusal `rule:core-classes/db-error` gives a
 /// normalised kind. Restated here for [`PARSE_ERROR`]'s reason.
 pub(crate) const DB_ERROR: &str = "Core\\Db\\DbError";
@@ -958,7 +958,7 @@ pub(crate) const LDAP_KIND_PROTOCOL: i64 = 20;
 /// placeholder in `location` that `nvs_runtime::nvs_raise` overwrites from the
 /// carrier [`Lowering::throw_source`] hands it at the `throw`.
 ///
-/// Parameter 2 is `Ty::Tagged` because spec § 10 types the option
+/// Parameter 2 is `Ty::Tagged` because `Throwable`'s constructor types the option
 /// `Throwable|null`, and a bag omitted whole flattens to that option's own
 /// `null` default — so the slot is written on every path and `rule:classes/definite-property-initialization`'s
 /// definite assignment holds without a branch here.
@@ -976,7 +976,7 @@ pub(crate) const LDAP_KIND_PROTOCOL: i64 = 20;
 /// raised by hand has no field list to report and
 /// `rule:core-classes/derive-reports-every-field`'s decoder fills
 /// it from native code. `Core\Db\RolledBack::$reason` starts as **the message**,
-/// because spec § 18 gives that class nothing else to carry: the one string a
+/// because that class has nothing else to carry: the one string a
 /// caller passes is the reason, so `new Core\Db\RolledBack("cart is empty")`
 /// and `rule:core-classes/db-transactions`'s `rollBack("cart is empty")` agree without the thrower
 /// having to write a second slot. `Core\Db\DbError::$kind` starts at

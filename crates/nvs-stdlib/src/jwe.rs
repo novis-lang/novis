@@ -86,7 +86,7 @@ use crate::registry::{
     ClassDoc, CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
 };
 
-/// `Core\Jwe`, as the spec's § 16 writes it.
+/// `Core\Jwe`'s fully-qualified name.
 const NAME: &str = r"Core\Jwe";
 
 /// `Core\Jwe\Key`, the class the four named constructors answer.

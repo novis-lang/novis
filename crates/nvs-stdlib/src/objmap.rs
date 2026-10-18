@@ -1,6 +1,5 @@
-//! `Core\ObjectMap<K, V>` — docs/spec/01-core-library.md § 9's identity-keyed
-//! map, which replaces `SplObjectStorage` used as a map and every
-//! `spl_object_id` side table.
+//! `Core\ObjectMap<K, V>`, the identity-keyed map, which replaces `SplObjectStorage` used as a
+//! map and every `spl_object_id` side table.
 //!
 //! # Decision: two stores under one set of chain keys
 //!
@@ -26,6 +25,17 @@
 //!
 //! **What it spends:** two array allocations per map, and two entries per
 //! pair — see [`crate::identity_store`] for the per-entry figure.
+//!
+//! # Why the three collections are mutable
+//!
+//! `ObjectMap`, `ObjectSet` and `Heap` are the only mutable `Core` types: a
+//! persistent structure would give up the O(log n) that is their reason to
+//! exist. A `foreach` over a map yields its *keys*, because a key gives `get`
+//! its value while a value gives nothing back; over a set, its members; over a
+//! heap, its elements in `pop` order. Each walk reads a snapshot taken when it
+//! began, so it is re-iterable and a mutation in the body does not disturb it.
+//! `Heap` is `Iterable` for that reason alone: without it, a heap's contents are
+//! reachable only by emptying it.
 
 use nvs_runtime::{Fault, NvsArray, NvsStr, ObjHeader, Value};
 
@@ -58,9 +68,9 @@ pub(crate) const NEW: CoreMethod = CoreMethod {
     doc: Some(&CONSTRUCTOR_DOC),
 };
 
-/// `Core\ObjectMap<K, V>` — docs/spec/01-core-library.md § 9's first row.
+/// `Core\ObjectMap<K, V>`, the identity-keyed map.
 ///
-/// **`get` returns `?V`, not a throwing read**: § 9 says so outright, because
+/// **`get` returns `?V`, not a throwing read**, because
 /// these types have no subscript (`rule:iteration/two-interfaces`
 /// rejects `ArrayAccess`) and so cannot offer the `$a[$k]` / `$a[$k] ?? $d`
 /// pair that `array<T>` does, while `rule:core-api/shape-rules` R5 bans a `getOrNull` twin.
@@ -389,7 +399,7 @@ nvs_runtime::nvs_helper! {
     /// `Core\ObjectMap<K, V>::get(K $key): ?V` — what `$key` holds, or `null`
     /// where the map holds no key identical to it.
     ///
-    /// `?V` rather than a throwing read: § 9 says so, and [`CLASS`]'s own doc
+    /// `?V` rather than a throwing read: [`CLASS`]'s own doc
     /// comment holds the reasoning. A map that genuinely holds `null` under a
     /// key is therefore indistinguishable from one that holds nothing — the
     /// same ambiguity `$a[$k] ?? $d` has over an array, and `has` is the

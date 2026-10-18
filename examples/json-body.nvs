@@ -60,7 +60,7 @@ if (Core\Json::encode($first) == $raw && Core\Json::encode($second) == $raw) {
     echo "the second read answers the same document\n";
 }
 
-// A document that stops in the middle is a `ParseError`, which spec § 10 puts
+// A document that stops in the middle is a `ParseError`, which the `Core\Error` tree puts
 // under `RuntimeError` as "input did not match a format this code declared" and
 // a handler maps to 400. It is never a `LogicError`: a peer must not be able to
 // make a program report its own defect.

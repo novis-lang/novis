@@ -1,4 +1,4 @@
-//! `Core\Compress` — spec § 17's codec class, and the decompression bound that
+//! `Core\Compress` — the codec class, and the decompression bound that
 //! cannot be switched off (`rule:core-classes/decompression-bound`).
 //!
 //! **Why this is Tier 0 rather than a sandboxed component.** What a compressed
@@ -206,7 +206,7 @@ const DECOMPRESSOR_CARD: ClassDoc = ClassDoc {
             small input cannot fill the server's memory.",
 };
 
-/// `Core\Compress`'s registry rows — § 17's whole-buffer pair.
+/// `Core\Compress`'s registry rows — the whole-buffer pair.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
     doc: Some(&CARD),

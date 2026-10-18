@@ -2510,7 +2510,7 @@ fn answer(mut done: Completion) -> Response<Answer> {
     let content_type =
         HeaderValue::from_str(declared).unwrap_or(HeaderValue::from_static(UNSPELLABLE));
     let mut response = Response::new(Answer::new(done.output));
-    // Spec § 15's status, on the same channel and read the same way: the
+    // `Core\Response`'s status, on the same channel and read the same way: the
     // request said what its answer means, and a request that said nothing
     // means `200`, which is what `Response::new` already built. `from_u16`
     // cannot refuse what `Core\Response::setStatus` admits — it accepts
@@ -2580,7 +2580,7 @@ fn finished(mut done: Completion, asked: &HeaderMap) -> Response<Answer> {
 /// program's `setStatus` was about the response as a whole, and letting it
 /// overwrite a `304` would answer a validated cache with a body it did not ask
 /// for. [`overrides`] applies after, unchanged: `Content-Disposition` is how a
-/// download name is set on a file this member sent, and spec § 15 gives
+/// download name is set on a file this member sent, and `Core\Response` gives
 /// `setHeader` the last word over a policy-owned header either way.
 fn sent(
     mut done: Completion,
@@ -2645,7 +2645,7 @@ fn streamed(head: stream::Opened, cut: DrainCut) -> Response<Answer> {
 
 /// Writes what the program declared onto the response this server built.
 ///
-/// Last, and that ordering is the whole of what `setHeader` means: spec § 15
+/// Last, and that ordering is the whole of what `setHeader` means: it
 /// gives a program an override of a policy-owned header on one response, so
 /// what the program set is written after everything this server wrote for
 /// itself. `rule:http-server/policy-headers-are-runtime-class-and-setheader-wins`
@@ -3487,7 +3487,7 @@ pub(crate) mod tests {
     /// arithmetic. The declared status rides along on both halves, because the
     /// direction that matters is the one where it does **not** win: a `201`
     /// overwriting a `304` would answer a validated cache with a body it did not
-    /// ask for, while the same `201` over the policy's `200` is spec § 15's
+    /// ask for, while the same `201` over the policy's `200` is `Core\Response`'s
     /// `setStatus` doing exactly what it says.
     #[test]
     fn a_declared_file_body_answers_a_range_and_a_conditional_request() {
@@ -3553,7 +3553,7 @@ pub(crate) mod tests {
         );
     }
 
-    /// Spec § 15's status crosses the way the media type does, and a request
+    /// `Core\Response`'s status crosses the way the media type does, and a request
     /// that declared none is `200` — pinned here for [`answer`]'s own reason:
     /// a `.nvst` case can assert a body and never a status line.
     ///
@@ -3586,7 +3586,7 @@ pub(crate) mod tests {
         );
     }
 
-    /// Spec § 15's `setHeader` reaches the response, and a request that failed
+    /// `Core\Response::setHeader` reaches the response, and a request that failed
     /// carries none of what it set — pinned here for the reason the three tests
     /// above are: a `.nvst` case can assert a body and never a header line.
     ///
@@ -3888,7 +3888,7 @@ pub(crate) mod tests {
 
     /// A request reaches the program answering it, end to end: off the socket,
     /// through the handler, into the isolate's own context, and back out as the
-    /// body — spec § 15's request line and headers as `Core\Request` will read
+    /// body — the request line and headers as `Core\Request` will read
     /// them.
     ///
     /// The two `X-Trace` lines are the load-bearing half. `Ctx::push_header`

@@ -1,7 +1,6 @@
 //! The two pieces of CLDR Novis carries, which are one module because they
 //! are one body of data:
-//! [docs/spec/01-core-library.md](/docs/spec/01-core-library.md)
-//! § 4's date pattern grammar — the one `Core\Time\DateTime::format` emits
+//! `Core\Time`'s date pattern grammar — the one `Core\Time\DateTime::format` emits
 //! from and `Core\Time::parse` reads with, in **CLDR** letters
 //! (`yyyy-MM-dd HH:mm:ss`, `EEEE, d MMMM yyyy`) rather than PHP's `date()`
 //! ones — and `rule:programs/framework-core-half`'s `Core\Cldr::pluralCategory`, the cardinal plural rules a message
@@ -11,13 +10,13 @@
 //! # Why this is written here rather than taken from a crate
 //!
 //! [`jiff`] already carries a pattern engine, but it is `strftime`'s — a
-//! *third* letter grammar, neither the one § 4 wrote nor the one PHP wrote. A
+//! *third* letter grammar, neither CLDR's nor the one PHP wrote. A
 //! full CLDR implementation is `icu`, which is a locale-data dependency an
 //! order of magnitude larger than everything else in `Core` put together and
 //! which `rule:packaging/a-c-dependency-answers-two-questions`'s second question ("does it carry weight the language
 //! does not need?") answers for. So what exists here is the **closed subset**
-//! of CLDR field letters § 4's own examples and PHP's `date()` roster between
-//! them reach, and every letter outside it is a diagnostic naming itself
+//! of CLDR field letters that the two example patterns above and PHP's `date()`
+//! roster between them reach, and every letter outside it is a diagnostic naming itself
 //! rather than a silent literal — which is CLDR's own rule for an unquoted
 //! letter, and the opposite of `strftime`'s.
 //!
@@ -27,7 +26,7 @@
 //! nothing selects another. That is the same closed door
 //! `rule:core-api/tier-placement` shuts on
 //! `setlocale`: a process-wide setting that silently changes what a later
-//! `format` answers is exactly the ambient state § 4 removed the default
+//! `format` answers is exactly the ambient state `Core\Time` has no default
 //! timezone for. A program that wants a localized month name has the number,
 //! and localization is an application concern rather than a Tier 0 one.
 //!
@@ -234,6 +233,10 @@
 //! exchange, and why no accounting bracket takes a store shaped this way, are
 //! [`crate::regex`]'s § *What a compiled pattern costs, and where it is held* —
 //! one question about both caches, answered in one place.
+//!
+//! The pattern letters are CLDR's, rather than `strftime`'s or PHP's `date`
+//! letters, because the intl extension needs CLDR anyway: one grammar serves
+//! both, and `Core\Time::parse` and every `format` read the same patterns.
 
 use std::cell::RefCell;
 use std::cmp::Ordering;
@@ -812,7 +815,7 @@ pub(crate) fn compile(pattern: &str) -> Result<Vec<Piece>, String> {
 ///
 /// [`compile`]'s own sentence, unchanged: the fold and the runtime path are
 /// one implementation, so a pattern refused here is exactly one the first call
-/// would have thrown on (§ 4). This is what `nvs-types` reaches rather than
+/// would have thrown on. This is what `nvs-types` reaches rather than
 /// [`compile`] itself, because a caller that discards the pieces should not
 /// make `Piece` and `Field` public API — the same split
 /// [`crate::format::placeholders`] makes beside the renderer it shares a walk
@@ -927,7 +930,7 @@ pub(crate) fn time_fields_only(pieces: &[Piece]) -> Result<(), String> {
 /// *pattern* rather than about the text: that member takes a `Zone` as its own
 /// third argument, so a pattern naming one too would give two answers with no
 /// rule to pick between them. Making it here rather than inside [`read`] is
-/// what decides which spec § 10 class it is — a pattern this call site wrote
+/// what decides which `Core\Error` class it is — a pattern this call site wrote
 /// is a bug in the program (`LogicError`), where text that does not match a
 /// well-formed pattern is the input's failure (`ParseError`), and a refusal
 /// raised while walking the text would have been the second where it is the
@@ -2892,7 +2895,7 @@ fn operands_of_float(value: f64, member: &str) -> Result<Operands, Fault> {
     })
 }
 
-/// Reads argument `slot` as a count of the spec's `int|float|decimal` union
+/// Reads argument `slot` as a count of the `int|float|decimal` union
 /// and derives CLDR's operands from it.
 ///
 /// A `uint` is accepted for [`crate::math`]'s reason: it reaches a union
@@ -3116,8 +3119,8 @@ mod tests {
         CACHE.with_borrow(|cache| assert!(cache.len() <= CACHE_CAPACITY, "{}", cache.len()));
     }
 
-    /// § 4's own two example patterns, which is the shape every other test
-    /// here varies.
+    /// The two example patterns in this module's head, which are the shape
+    /// every other test here varies.
     #[test]
     fn the_two_patterns_the_spec_writes_render() {
         let value = at(2024, 3, 1, 14, 5, 9, 0);

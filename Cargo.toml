@@ -416,7 +416,7 @@ thiserror = "2"
 bitflags = "2"
 rustc-hash = "2"
 # Two consumers, one crate: the on-disk artifact cache keys on it, and
-# spec § 11's `Core\Hash::Digest::Blake3` computes it — the second is what finally put
+# `Core\Hash::Digest::Blake3` computes it — the second is what finally put
 # it in `Cargo.lock`. `pure` and no default features on purpose: blake3 ships
 # hand-written assembly built through `cc` by default, and
 # `rule:packaging/a-c-dependency-answers-two-questions` is not spent on a hash that is already
@@ -542,7 +542,7 @@ regex = "1"
 regex-automata = { version = "0.4", default-features = false, features = ["syntax", "nfa-thompson"] }
 fancy-regex = "0.19"
 
-# --- dates, times and the IANA zone database (spec § 4, named by the user) ---
+# --- dates, times and the IANA zone database (`Core\Time`, named by the user) ---
 # `jiff`'s type set maps almost one-to-one onto that section's
 # `Instant`/`DateTime`/`Duration`/`Zone`, and it is the one Rust date crate
 # that treats a civil time and an absolute one as different types — which is
@@ -551,7 +551,7 @@ fancy-regex = "0.19"
 # `crates/nvs-stdlib/src/time.rs` owns why this crate and not another.
 jiff = "0.2"
 
-# --- JSON (spec § 6) ---
+# --- JSON (`Core\Json`) ---
 # RFC 8259 is an external specification, so it is a dependency rather than a
 # hand-written parser (docs/ground-rules.md § *Implementation invariants*). `serde_json`
 # is the only Rust JSON crate that is simultaneously the ecosystem default,
@@ -564,9 +564,8 @@ jiff = "0.2"
 # attribute on a struct rather than machinery we write, so the macro replaces
 # code here rather than adding any.
 # `raw_value` is what lets a `decimal` (`rule:types/decimal`) be written as an exact JSON
-# number rather than a lossy `f64`, and `unbounded_depth` is what lets section
-# 6 of docs/spec/01-core-library.md have its own `maxDepth` be the bound
-# rather than the crate's fixed 128. `float_roundtrip` makes every float parse
+# number rather than a lossy `f64`, and `unbounded_depth` is what lets
+# `Core\Json`'s own `maxDepth` be the bound rather than the crate's fixed 128. `float_roundtrip` makes every float parse
 # to the nearest `f64`: without it a number like `8888888388888831.0` decodes
 # one step off, so `encode` and `decode` do not give back the value they were
 # given. It costs about twice the time per float parsed, and nothing else.
@@ -583,7 +582,7 @@ serde_json = { version = "1", features = ["float_roundtrip", "raw_value", "unbou
 # one, so neither is machinery `nvs-config` writes or can get wrong.
 toml = "1"
 
-# --- randomness (spec § 11: `Core\Random` is a CSPRNG, always) ---
+# --- randomness (`Core\Random` is a CSPRNG, always) ---
 # That section keeps none of PHP's insecure generators, so there is no tier
 # here that may be fast at the cost of predictable — which makes the choice a
 # generator that is *both*. `rand`'s `ThreadRng` is ChaCha12 seeded from the OS
@@ -599,7 +598,7 @@ toml = "1"
 # alone.
 rand = { version = "0.10", features = ["unbiased"] }
 
-# --- UUIDs (spec § 11's second table) ---
+# --- UUIDs (`Core\Uuid`) ---
 # RFC 9562's version and variant nibbles are an external specification, and
 # `Uuid::parse` is a member attacker-controlled text reaches, so neither the
 # layout nor the reader is hand-written (docs/ground-rules.md
@@ -615,7 +614,7 @@ rand = { version = "0.10", features = ["unbiased"] }
 # layout.
 uuid = { version = "1", default-features = false, features = ["std"] }
 
-# --- digests and MACs (spec § 11's `Core\Hash` and `Core\Hash::Digest`) ---
+# --- digests and MACs (`Core\Hash` and `Core\Hash::Digest`) ---
 # Every one of these is an external specification with published test vectors
 # and a decade of cryptanalysis attached (docs/ground-rules.md
 # § *Implementation invariants*), and `Core\Hash::of` is a member request bodies
@@ -627,7 +626,7 @@ uuid = { version = "1", default-features = false, features = ["std"] }
 # four hashes plus the HMAC construction, so `Core\Hash::Digest` dispatches over one
 # shape rather than four hand-fitted APIs.
 # `crc32fast` is not from that family and not a hash at all — it is the
-# checksum spec § 11 keeps for interop, and that crate is the one the Rust
+# checksum `Core\Hash` keeps for interop, and that crate is the one the Rust
 # ecosystem already reads for it (pure Rust, SIMD chosen at run time).
 # `subtle` is what makes `Core\Hash::equals` constant-time: the comparison is
 # three lines, and the reason it is a dependency rather than three lines here
@@ -798,7 +797,7 @@ pbkdf2 = { version = "0.13", default-features = false, features = ["hmac"] }
 # nothing else here.
 ring = "0.17"
 
-# --- base64 (spec § 7's `Core\Encoding` base64 pair and its URL-safe variant) ---
+# --- base64 (`Core\Encoding`'s base64 pair and its URL-safe variant) ---
 # RFC 4648's alphabets, its padding rules and its URL-safe variant are an
 # external specification, and `fromBase64` is a member attacker-controlled text
 # reaches — so `rule:packaging/a-c-dependency-answers-two-questions`'s first question is "yes" and the second one is what
@@ -807,8 +806,8 @@ ring = "0.17"
 # tree at all: `bcrypt` already uses this version.
 # What it buys over the twenty lines a sextet table would take is the *decoder*:
 # a canonical-padding mode and a trailing-bits check, both of which are the
-# non-obvious half of RFC 4648 § 3.5 and both of which spec § 7's throw-rather-
-# than-substitute rule needs stated exactly.
+# non-obvious half of RFC 4648 § 3.5 and both of which `Core\Encoding`'s
+# throw-rather-than-substitute rule needs stated exactly.
 # `crates/nvs-stdlib/src/encoding.rs` owns why this crate and not another, and
 # which engine each of the four members is.
 #
@@ -822,7 +821,7 @@ ring = "0.17"
 # `simd-unsafe` in the shipped graph.
 base64 = { version = "0.23", default-features = false, features = ["std"] }
 
-# --- base32 (spec § 7's `Core\Encoding` base32 pair, which TOTP needs) ---
+# --- base32 (`Core\Encoding`'s base32 pair, which TOTP needs) ---
 # RFC 4648 § 6, and the same `rule:packaging/a-c-dependency-answers-two-questions` answer base64 gets one block up:
 # attacker-controlled text reaches `fromBase32`, so the decoder is not
 # hand-written. `data-encoding` is the pick over a base32-only crate because it
@@ -836,9 +835,9 @@ base64 = { version = "0.23", default-features = false, features = ["std"] }
 # set to and why.
 data-encoding = "2"
 
-# --- legacy text encodings (spec § 7's `Core\Encoding` text trio) ---
+# --- legacy text encodings (`Core\Encoding`'s text trio) ---
 # `Charset`'s roster is the WHATWG Encoding Standard's index rather than a list
-# the spec curates, and this crate *is* that standard: it is the reference
+# Novis curates, and this crate *is* that standard: it is the reference
 # implementation Firefox ships, so "which encodings exist" and "what each byte
 # means" are a dependency update here rather than a table for Novis to maintain
 # and get wrong. `rule:packaging/a-c-dependency-answers-two-questions`'s second question applies -- a decoder is reached
@@ -849,7 +848,7 @@ data-encoding = "2"
 # *not* decide, and why.
 encoding_rs = "0.8"
 
-# --- csv (spec § 12's `Core\Csv::parse`) ---
+# --- csv (`Core\Csv::parse`) ---
 # RFC 4180 plus the two knobs every real dialect turns is a grammar, and
 # ground-rules.md's "an external specification is a dependency rather than a
 # hand-written parser" applies to the *reader*: quoted fields, doubled quotes,
@@ -866,7 +865,7 @@ encoding_rs = "0.8"
 # dependency and what each of the three options is set to.
 csv-core = "0.1"
 
-# --- uri (spec § 12's `Core\Uri::parse` and the `Uri` instance) ---
+# --- uri (`Core\Uri::parse` and the `Uri` instance) ---
 # RFC 3986 is a grammar with an external specification, so ground-rules.md's
 # "anything with an external specification is a dependency rather than a
 # hand-written parser" settles half the question; what is left is *which*
@@ -930,7 +929,7 @@ fluent-uri = "0.4"
 # a parse.
 html5ever = "0.40"
 
-# --- compression (spec § 17's `Core\Compress`, `rule:core-classes/decompression-bound`) ---
+# --- compression (`Core\Compress`, `rule:core-classes/decompression-bound`) ---
 # Three crates for five codec cases, and `rule:packaging/a-c-dependency-answers-two-questions`'s first
 # question is "yes" for every one of them: a compressed body is attacker-controlled
 # by definition, which is the whole reason the class is Tier 0. So the second

@@ -2,9 +2,8 @@
 //!
 //! `query`, `queryAs`, `execute` and `executeMany` are one shape over five
 //! drivers, so everything that varies is pushed to the bottom of this module:
-//! the `*_rows` and `*_write` pairs are where a driver's own result becomes the
-//! rows and the write [spec § 18](/docs/spec/01-core-library.md)
-//! declares.
+//! the `*_rows` and `*_write` pairs are where a driver's own result becomes a
+//! `Core\Db\Rows` or a `Core\Db\Write`.
 //!
 //! **SQLite is the one that cannot be written like the others.** Its cells
 //! carry a storage class and not a type, so its columns are decoded against
@@ -408,7 +407,7 @@ pub(super) fn queried_rows(
     // Read before the connection is in hand, because the refusal for a
     // nonsensical duration is the caller's mistake and owes no round trip.
     let deadline = statement_deadline(args, named)?;
-    // § 18's `$sql` argument read a second time rather than [`Statement::sql`]:
+    // The `$sql` argument read a second time rather than [`Statement::sql`]:
     // what a refusal names is the text the program wrote, where that field is
     // § 5's rewrite of it. The tag is already known good — `statement_of`
     // refused anything else above — so the `None` arm here is unreachable and
@@ -1380,7 +1379,8 @@ pub(super) fn tds_write(
 
 nvs_runtime::nvs_helper! {
     /// `Core\Db\Connection::queryAs<T>(string $sql, array<mixed> $params):
-    /// Db\Rows<T>` — `rule:core-classes/db-statement-members`'s statement over § 18's hydrating result.
+    /// Db\Rows<T>` — `rule:core-classes/db-statement-members`'s statement over the hydrating
+    /// result.
     ///
     /// **Arguments 0 to 2 are what the call site wrote as its type argument** —
     /// the class, whether it was written as `array<...>` of one, and an inline
@@ -1647,7 +1647,7 @@ mod tests {
     // covers: Core\Db\Connection::execute
     #[test]
     fn a_statement_timeout_reaches_the_socket_and_throws_on_expiry() {
-        // 1. § 18's option becomes the instant the statement must answer by.
+        // 1. The `timeout` option becomes the instant the statement must answer by.
         let named = crate::time::duration_of(50_000_000);
         let asked = [Value::null(), Value::null(), Value::null(), named];
         let deadline = statement_deadline(&asked, QUERY)
@@ -1700,7 +1700,7 @@ mod tests {
         );
 
         // 3. A read past it gives up, and this module's own mapping turns that
-        //    into § 10's `IOError` — the connection was abandoned part way
+        //    into an `IOError` — the connection was abandoned part way
         //    through a message and is spent, which is what that class says.
         let mut buffer = [0_u8; 8];
         let started = std::time::Instant::now();

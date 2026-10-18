@@ -1,6 +1,5 @@
-// `bun nv render [--website] [--check]`: writes every rendered file from the records, writes the spec
-// records from the spec chapters' tables, and deletes a file in a renderer's own directory that it no
-// longer writes. `--website` narrows the run to the website's pages and data. `--check` writes nothing
+// `bun nv render [--website] [--check]`: writes every rendered file from the records, and deletes a
+// file in a renderer's own directory that it no longer writes. `--website` narrows the run to the website's pages and data. `--check` writes nothing
 // and exits 1 naming each rendered file whose text on disk is not what its sources give, and each file
 // that would be deleted.
 

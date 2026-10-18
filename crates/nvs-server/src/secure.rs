@@ -10,7 +10,7 @@
 //!
 //! # Decision: the set *fills*, it does not overwrite, and that is what makes `setHeader` an override
 //!
-//! Spec § 15 gives a program an override of a policy-owned header on one response and
+//! `Core\Response::setHeader` gives a program an override of a policy-owned header on one response and
 //! `rule:http-server/policy-headers-are-runtime-class-and-setheader-wins` is why the policy is not narrowing-only. Written as an insert, that would be
 //! an ordering rule — every policy header applied before the program's, on every path a
 //! response can leave by — and a path that got the order wrong would silently take the

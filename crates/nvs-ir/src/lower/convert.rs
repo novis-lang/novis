@@ -1468,7 +1468,7 @@ impl<'a> Lowering<'a> {
             )),
         );
         // Argument 2 is the `{previous}` bag flattened to its own `null`
-        // default, widened into the `Ty::Tagged` slot spec § 10's
+        // default, widened into the `Ty::Tagged` slot the option's
         // `Throwable|null` erases to — the same list `Self::lower_match`'s
         // unmatched throw builds by hand, and for the same reason.
         let (absent, _) = self.emit(refused, Ty::Null, InstKind::ConstNull);

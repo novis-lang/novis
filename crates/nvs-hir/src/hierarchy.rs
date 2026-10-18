@@ -474,7 +474,7 @@ pub fn seed_exception_tree(graph: &mut ClassGraph) {
         let links = ClassLinks {
             extends: parent.iter().map(|p| QName::parse(p)).collect(),
             implements: Vec::new(),
-            // Every § 10 entry is a class a program throws, so every one of
+            // Every exception-tree entry is a class a program throws, so every one of
             // them is instantiable; the tree holds no abstract shape.
             concrete: true,
         };
@@ -1489,7 +1489,7 @@ mod tests {
 
     #[test]
     fn a_class_extending_the_reserved_global_exception_resolves_with_no_declaration() {
-        // Spec § 10: `Throwable` is a global class with no `nvs-hir`
+        // `Throwable` is a global class with no `nvs-hir`
         // declaration of its own — trusted the same way `Core`'s classes are.
         let (graph, diags) = resolve("<?nvs\nclass MyError extends Throwable {}\n");
         assert!(!diags.has_errors(), "{diags:?}");

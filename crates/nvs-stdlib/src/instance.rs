@@ -1,5 +1,5 @@
 //! The value behind [`registry::CoreTy::Instance`]: what a native member
-//! returns when the spec writes a `Core`-owned object, and how another member
+//! returns when its signature names a `Core`-owned object, and how another member
 //! reads one back.
 //!
 //! # Decision: a `Core` instance is an ordinary Novis object
@@ -32,8 +32,8 @@
 //! # Decision: `new` on a `Core` class lowers to that class's own helper
 //!
 //! Most `Core` instances come from a member that produces one, and those need
-//! nothing here. `docs/spec/01-core-library.md` § 9's collections are the
-//! carve-out — the spec writes `new Core\ObjectSet<Tag>()` — and a `Core`
+//! nothing here. `Core\ObjectMap`, `Core\ObjectSet` and `Core\Heap` are the
+//! carve-out — a program writes `new Core\ObjectSet<Tag>()` — and a `Core`
 //! class still has no `constructor` member for `nvs_types` to resolve, because
 //! its slots are this crate's layout rather than a surface a program fills in.
 //!
@@ -116,7 +116,7 @@ use crate::registry::{self, CoreClass};
 /// `Core`-owned classes with instances that no program can name, and so with
 /// no [`registry::CLASSES`] row: a runtime artifact rather than surface.
 ///
-/// The singletons — the cursor § 9's collections hand a `foreach`, whose own
+/// The singletons — the cursor the `Core` collections hand a `foreach`, whose own
 /// module docs own why it has no row. They are named here beside the
 /// registered classes because a descriptor is a descriptor: everything below
 /// [`ClassDesc`] is the same for both. A row-less *family* is a slice of its
@@ -309,7 +309,7 @@ const DISPATCH_ROSTER: &[(&str, &[(&str, &str)])] = &[
             (sequence::CURRENT, crate::ldap::CHANGES_CURRENT_SYMBOL),
         ],
     ),
-    // And spec § 12's walk over a CSV file's records, which makes the same
+    // And `Core\Csv`'s walk over a CSV file's records, which makes the same
     // argument over a descriptor: a record does not exist until the `advance`
     // that answers it has read that far. `crate::csv`'s `ROWS` docs are where
     // it is made, beside why `Core\IO\Lines` — which holds its lines — hands a
@@ -744,9 +744,9 @@ pub(crate) fn receiver(
 /// Overwrites slot `index` of `receiver`, **releasing** what it held and
 /// taking over `value`'s reference — the write half of [`slot`].
 ///
-/// The one thing that mutates a built instance, and it exists because
-/// `docs/spec/01-core-library.md` § 9's collections are the spec's only
-/// mutable `Core` types: every other class here is built once and read.
+/// The one thing that mutates a built instance. The classes whose state changes
+/// after they are built — the collections, and the streams and cursors that
+/// advance — write through it, and every other class here is built once and read.
 pub(crate) fn set_slot(receiver: *mut ObjHeader, index: usize, value: Value) {
     #[expect(
         unsafe_code,

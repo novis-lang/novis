@@ -1,4 +1,4 @@
-//! `Core\Xml` — spec § 17's one API for documents, and the node family
+//! `Core\Xml` — the one API for documents, and the node family
 //! `rule:core-classes/html-parsing` makes both parsers produce.
 //!
 //! # One node family, and it is closed at five
@@ -23,9 +23,9 @@
 //!
 //! # The tree materialises and the stream does not
 //!
-//! Spec § 17 states the split outright, as "the one place in this file where
-//! two shapes of the same subsystem coexist", so it is not read as an exception
-//! to `rule:core-api/one-paradigm-per-operation`. [`nvs_core_xml_parse`] is the
+//! The split is stated outright as the one place in `Core` where two shapes of
+//! the same subsystem coexist, so it is not read as an exception to
+//! `rule:core-api/one-paradigm-per-operation`. [`nvs_core_xml_parse`] is the
 //! tree half: it reads the whole document and answers a value a program can
 //! walk in any order and any number of times. [`nvs_core_xml_reader`] is the
 //! stream half: it answers a walk that holds one node at a time, so a document
@@ -181,7 +181,7 @@ pub(crate) const READER_NAME: &str = r"Core\Xml\Reader";
 /// position that carries one.
 pub(crate) const WRITER_NAME: &str = r"Core\Xml\Writer";
 
-/// `Core\Xml`'s registry rows — § 17's three front doors, two of them the
+/// `Core\Xml`'s registry rows — its three front doors, two of them the
 /// stream half's: the parse that materialises a whole document, the reader that
 /// walks one a node at a time, and the writer that builds one a node at a time.
 /// They answer the same family and share no operation, which is
@@ -2494,7 +2494,7 @@ enum Step {
     Closed(String),
 }
 
-/// The refusal [`source`] makes for a tree with no XML spelling: spec § 10's
+/// The refusal [`source`] makes for a tree with no XML spelling:
 /// `LogicError`, which is what `Core\Json::encode` already refuses a value it
 /// cannot write with.
 ///
@@ -2875,7 +2875,7 @@ impl Pen {
         Ok(Self { object, member })
     }
 
-    /// The refusal this member makes: spec § 10's `LogicError`, which is the
+    /// The refusal this member makes: `LogicError`, which is the
     /// class for a program that asked for something its own state forbids.
     ///
     /// # Errors
@@ -3172,7 +3172,7 @@ fn start_element(receiver: Value, name: &str) -> Result<Value, Fault> {
 /// [`nvs_core_xml_writer_end_element`]'s body.
 ///
 /// Which of `<a/>` and `<a></a>` an empty element is written as is settled here
-/// rather than by a second closing member, per spec § 17's row: an element
+/// rather than by a second closing member: an element
 /// nothing was written into is the first, and every other one is the second.
 ///
 /// # Errors

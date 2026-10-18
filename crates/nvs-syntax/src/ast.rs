@@ -808,7 +808,7 @@ pub struct AnonClassDecl {
 }
 
 /// The key of one `spawn script … with(…)` option
-/// ([`docs/spec/00-overview.md` § 2](/docs/spec/00-overview.md)).
+/// ([`docs/reference/lang/80-concurrency.md`](/docs/reference/lang/80-concurrency.md)).
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 #[expect(
     missing_docs,
@@ -1013,7 +1013,7 @@ pub enum ExprKind {
         else_: Box<Expr>,
     },
     /// `expr as Type` — the checked conversion operator
-    /// ([`docs/spec/00-overview.md` § 3.4](/docs/spec/00-overview.md)).
+    /// ([`docs/reference/lang/20-types.md`](/docs/reference/lang/20-types.md)).
     Conversion {
         /// The value being converted.
         expr: Box<Expr>,
@@ -1172,23 +1172,20 @@ pub enum ExprKind {
     /// rejected synonym (`rule:statements/exit-is-the-only-termination-keyword`) and never reaches this variant.
     Exit(Option<Box<Expr>>),
     /// `spawn script path with(...)`
-    /// ([`docs/spec/00-overview.md` § 2](/docs/spec/00-overview.md)).
+    /// ([`docs/reference/lang/80-concurrency.md`](/docs/reference/lang/80-concurrency.md)).
     SpawnScript {
         /// The path expression, evaluated once at the spawn site.
         path: Box<Expr>,
         /// The `with(...)` options, if a `with` clause was given.
         options: Vec<SpawnOption>,
     },
-    /// `await expr` — the prefix half of the same grammar
-    /// ([`docs/spec/00-overview.md` § 2](/docs/spec/00-overview.md)):
-    /// the awaitable handle a `spawn script` produced becomes a
-    /// `ScriptResult`. Contextual like `spawn` itself — see
+    /// `await expr` — the prefix half of the same grammar: the awaitable
+    /// handle a `spawn script` produced becomes a `ScriptResult`. Contextual
+    /// like `spawn` itself — see
     /// [`crate::token`]'s module docs — so it is this variant only where an
     /// operand follows, and a bare `await` is still an ordinary name.
     Await(Box<Expr>),
-    /// `require` — an expression, not a statement, per
-    /// [`docs/spec/00-overview.md` § 2](/docs/spec/00-overview.md):
-    /// `$x = require 'a.nvs';` is legal.
+    /// `require` — an expression, not a statement: `$x = require 'a.nvs';` is legal.
     /// `rule:statements/require-is-the-only-inclusion-construct`
     /// is why this is the only same-frame inclusion keyword left — `include`,
     /// `include_once` and `require_once` are rejected at parse time instead
@@ -1442,8 +1439,8 @@ pub enum StmtKind {
     /// [`Self::InlineHtml`]'s doc for why that token, and not this one, is
     /// where the interesting span lives.
     Empty,
-    /// A run of literal HTML/text between two code tags, emitted verbatim —
-    /// spec `00-overview.md` § 1. Unlike [`Self::Echo`], this text is never
+    /// A run of literal HTML/text between two code tags, emitted verbatim
+    /// (`docs/reference/lang/10-programs.md`). Unlike [`Self::Echo`], this text is never
     /// escaped or interpreted: the span points straight at the source bytes.
     /// Reachable anywhere a statement is expected, not just at file scope,
     /// because `?>`/`<?nvs` can appear inside a block
@@ -1943,8 +1940,7 @@ pub struct UseDecl {
 }
 
 /// `autoload 'Prefix' from 'a', 'b';` or `autoload discover 'glob';` — the
-/// two forms of `rule:programs/autoload`, whose grammar [`docs/spec/00-overview.md` § 2](/docs/spec/00-overview.md)
-/// owns.
+/// two forms of `rule:programs/autoload`.
 ///
 /// Every string here is a *span*, not a cooked value, exactly as
 /// [`ExprKind::Str`]'s is: the parser records what was written and

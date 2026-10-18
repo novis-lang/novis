@@ -179,7 +179,7 @@
 //! hands the binary rows to `emit_checked_int_arith` and `emit_unop` takes the
 //! unary one. Each reads Cranelift's `sadd_overflow`/`uadd_overflow` family,
 //! the flag the CPU already sets, so the cost is one predicted branch, and
-//! raises spec § 10's `ArithmeticError` on [`nvs_ir::ir::Inst::on_error`]'s
+//! raises `ArithmeticError` on [`nvs_ir::ir::Inst::on_error`]'s
 //! edge through the shared `raise_arithmetic_error`, which the zero-divisor
 //! guards use too. The signed and unsigned rows are different instructions: a
 //! carry out of bit 63 is not a sign flip, which keeps `uint` exact over
@@ -629,7 +629,7 @@ impl Unit {
     }
 
     /// A handle on the class a runtime helper's bare-message failure is
-    /// promoted to — spec § 10's `RuntimeError`, which is what "the world said
+    /// promoted to — `RuntimeError`, which is what "the world said
     /// no" means.
     ///
     /// `None` only if the unit somehow declares no such class, which the

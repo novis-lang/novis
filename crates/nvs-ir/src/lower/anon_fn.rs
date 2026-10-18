@@ -492,7 +492,7 @@ fn check_param_class(
         )),
     );
     // Argument 2 is the `{previous}` bag flattened to its own `null` default,
-    // widened into the `Ty::Tagged` slot spec § 10's `Throwable|null` erases
+    // widened into the `Ty::Tagged` slot the option's `Throwable|null` erases
     // to — the same list `Lowering::lower_match`'s unmatched throw builds by
     // hand, and for the same reason.
     let (absent, _) = low.emit(refused, Ty::Null, InstKind::ConstNull);

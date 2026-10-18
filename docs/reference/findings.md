@@ -58,7 +58,7 @@ its entry says what closed it.
       reaches the lowerer; the class form's inference is retired with it.
 - [x] **P7** `throw "x";` / `throw 1;` panic ("nvs-ir lowers `throw` only for an exception object")
       instead of a diagnostic. *ref30 `throw_string`* — `E0780` names the operand's type against the
-      § 10 tree, pinned by `tests/conformance/reject/throw-takes-a-throwable.nvst`.
+      `Core\Error` tree, pinned by `tests/conformance/reject/throw-takes-a-throwable.nvst`.
 - [x] **P8** `clone` of an array — `array<int> $b = clone $a;` — panics ("lowers `clone` only for an
       object"). *ref30* — `E0781`, whose help says an `array<T>` is already copied on assignment
       (`rule:classes/clone-is-shallow`); pinned by `tests/conformance/reject/clone-takes-an-object.nvst`.
@@ -198,11 +198,11 @@ its entry says what closed it.
 
 - [x] **D1** The time types do **not** implement `Comparable`: `$i < $j` on two `Core\Time\Instant`,
       `Duration`, `Date` or `TimeOfDay` values is `E0411 … does not implement Comparable`, while the
-      cards say `compareTo` is "as `Comparable` requires" and spec § 4 says `<`/`>` work directly.
+      cards say `compareTo` is "as `Comparable` requires" and say `<`/`>` work directly.
       *coretime-probes `t_instant`, `t_duration_echo`, `t_date`, `t_tod_lt`*
       They order now, and the conformance is read off the `compareTo` row rather than a roster —
       `nvs_stdlib::registry::implements_comparable`, seeded by `nvs_types::core_lib`. `Core\Uri`
-      gains it by the same rule (spec § 12). `crates/nvs-stdlib/src/time.rs`'s module doc owns why a
+      gains it by the same rule. `crates/nvs-stdlib/src/time.rs`'s module doc owns why a
       `Core` class satisfies an interface by member at all.
 - [x] **D2** `Core\Time\Duration ==` is identity: `90m == 1h30m` is false; `compareTo` answers `0`.
       Closed: the binary is `rule:expressions/equality-semantics`'s class row, and `Duration::compareTo`'s card now says so,
@@ -270,7 +270,7 @@ its entry says what closed it.
       this finding: nothing in the tree declares what a named scheme *is*, so the document names schemes
       it does not define.
 - [x] **D11** `spawn script Class::method(...)` as the operand is refused (`E0401: expected string,
-      found callable`); spec § 2 and `rule:security/isolate-shares-nothing` describe it as available. *refp/spawn/method.nvs*
+      found callable`); `rule:security/isolate-shares-nothing` describes it as available. *refp/spawn/method.nvs*
       It compiles and runs now, pinned by the method-operand cases under `tests/conformance/isolate/`.
 - [x] **D12** `spawn script … with(args: …)` is accepted but there is no reader: `Core\Script::args()`
       is E0405, and the parser's own hint (`$_ARGS` → `Core\Script::args()`) names it. *refp/spawn/args.nvs*
@@ -367,7 +367,7 @@ its entry says what closed it.
 
 ## Named in the docs, absent from the registry (M)
 
-- [x] **M1** `Core\Task::afterResponse` (spec § 19) — only `all` and `map` exist. Closed:
+- [x] **M1** `Core\Task::afterResponse` — only `all` and `map` exist. Closed:
       `nvs_stdlib::task`'s third row registers the callable and `nvs_runtime::deferred` runs it once
       the request's own frame has returned, which is `rule:concurrency/after-response-outlives-the-connection`'s "after the response" on a host
       that has no response. Only the request's own task may register — a child's queue would be
@@ -376,10 +376,9 @@ its entry says what closed it.
 - [x] **M2** `Core\Fatal::onUncaughtThrow` (`rule:errors/on-uncaught-throw`) — only `onLimit` exists.
       Closed: the registry holds both.
 - [x] **M3** `rule:testing/test-attribute`'s wider assertion roster (`assertStartsWith`, …). Closed:
-      the roster's one home is [docs/spec/01-core-library.md](../spec/01-core-library.md)'s Part II
-      class table, and `assertStartsWith` is on it nowhere — `rule:testing/assertions-are-typed` names
-      it once as an example of what `nvs-lsp` ranks by subject type. Every member that table gives
-      `Core\Test` is registered in `crates/nvs-stdlib/src/test.rs`: `assertContains`,
+      the roster's one home is the registry, and `assertStartsWith` is on it nowhere —
+      `rule:testing/assertions-are-typed` names it once as an example of what `nvs-lsp` ranks by
+      subject type. `crates/nvs-stdlib/src/test.rs` registers `Core\Test`'s assertions: `assertContains`,
       `assertMatchesInline`, `request`, `double<T>`/`partial<T>`, `assertCalled`/`assertNeverCalled`
       and `assertCompletes` among them.
 - [x] **M4** `Core\Test\Failure` and `RecursionError` appear in no member card's `errors` list, only
@@ -392,8 +391,8 @@ its entry says what closed it.
       call* rather than by a member belongs to every card equally, which is to say to none of them; the
       exception tree is its one home.
 - [x] **M5** `Core\Uuid` has no `version()`; the cards' `errors` never name it. (Calling it is P12.)
-      Closed as *the member is not in the spec's roster*: calling it is now E0405 rather than a panic,
-      and adding a member is a spec question rather than a finding.
+      Closed as *the member is not in the registry*: calling it is now E0405 rather than a panic,
+      and adding a member is a design question rather than a finding.
 - [x] **M6** `Core\Command::run`/`help`/`completions` (`rule:tooling/commands-are-compiled`) do not exist; the command table
       is built and checked, and `Core\Program::implementing` is the only reader. Closed: the registry
       holds all three.

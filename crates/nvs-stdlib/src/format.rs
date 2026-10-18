@@ -1,11 +1,9 @@
-//! `Core\Str::format`'s `printf` grammar —
-//! [docs/spec/01-core-library.md](/docs/spec/01-core-library.md)
-//! § 1's *Transformation* table, and the one `Core` member that reads a
+//! `Core\Str::format`'s `printf` grammar — the one `Core` member that reads a
 //! template rather than an option.
 //!
 //! # Why the grammar is `printf`'s, and why it is written here
 //!
-//! The spec keeps PHP's `printf` grammar deliberately, so this is a *closed*
+//! Novis keeps PHP's `printf` grammar deliberately, so this is a *closed*
 //! conversion list (`%s %d %u %f %e %g %x %X %o %b %%`) with `printf`'s flag,
 //! width, precision and `%1$s` positional syntax, minus everything that reads
 //! ambient state. Nothing outside is accepted: an unknown conversion character
@@ -26,7 +24,7 @@
 //!
 //! `rule:core-api/shape-rules` R4 makes
 //! failure a throw, and PHP's `printf` argument-mismatch bug family is exactly
-//! what the spec wants turned into an error:
+//! what this turns into an error:
 //!
 //! * **Too few arguments** for the placeholders written — PHP 8 throws here
 //!   too, so this is compatibility rather than divergence.
@@ -42,7 +40,7 @@
 //!
 //! # One parse, two entry points
 //!
-//! The spec makes `format` an
+//! `format` is an
 //! `rule:expressions/intrinsic-constant-arguments`
 //! intrinsic: a **literal** template has its placeholder count and types
 //! checked while compiling. That rule is why the checker does not get a
@@ -76,7 +74,7 @@ use crate::granularity::DEFAULT;
 /// A `LogicError` for every refusal this module's own docs list: a malformed
 /// or unknown placeholder, an argument count that does not match the
 /// placeholders, or a value with no reading for the conversion it reached.
-/// Every one is spec § 10's "bug in the program" — the template is the
+/// Every one is a bug in the program — the template is the
 /// program's own grammar and the arguments its own call, never input — which
 /// is the side `Core\Time::parse` puts a bad *pattern* on, as against the
 /// `ParseError` it keeps for text.

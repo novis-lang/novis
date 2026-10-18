@@ -1445,7 +1445,7 @@ crate::nvs_helper! {
 /// fit — `rule:types/conversion`'s "`as` ... either produces a value of the target type or
 /// throws. It never rounds, truncates, or substitutes a default."
 ///
-/// Spec § 10's `RuntimeError` — "the world said no" — for a string that is not
+/// `RuntimeError` — "the world said no" — for a string that is not
 /// a number and for a `mixed` whose tag is not the target's at all. A
 /// *numeric* value the target has no room for is [`numeric_does_not_fit`].
 fn does_not_fit(what: &str, target: &str) -> Fault {

@@ -742,8 +742,8 @@ fn named_and_spread_arguments() {
 
 #[test]
 fn a_keyword_spelled_parameter_name_is_a_named_argument() {
-    // `rule:core-api/shape-rules` R2 makes every parameter callable by the `$name` the spec
-    // writes, and `Core\Arr::map`'s is `$fn` — a spelling the lexer reserves.
+    // `rule:core-api/shape-rules` R2 makes every parameter callable by its published
+    // `$name`, and `Core\Arr::map`'s is `$fn` — a spelling the lexer reserves.
     // The `:` is the whole disambiguation.
     let mut map = SourceMap::new();
     let id = map.add("t.nvs", "<?nvs Core\\Arr::map(fn: $f, array: $xs)");
@@ -887,7 +887,7 @@ fn spawn_and_script_are_still_plain_identifiers_elsewhere() {
 
 #[test]
 fn await_is_a_prefix_expression_over_the_handle() {
-    // `docs/spec/00-overview.md` § 2: the awaitable a `spawn script` produces
+    // The awaitable a `spawn script` produces
     // becomes a `ScriptResult` at a subsequent `await`. The operand is a unary
     // expression, so the postfix chain binds tighter than the keyword does.
     let e = parse_ok("await $handle");

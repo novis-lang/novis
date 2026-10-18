@@ -179,8 +179,14 @@ class intros and the `about.md` files, and no file cites the spec.
   - [x] the renderer, the record, its schema, the overrides, the UI, the tests in `render.test.ts` and the check in `gaps.ts`
   - [x] `spec_registry_coverage.rs`, its four ratchets, `owners.ts`'s ratchet register, the rules' `guardedBy` and the six playbook bullets about them
   - [ ] the spec path in `php-names.test.ts`, which goes with `docs/spec/` itself
-- [ ] The spec's unique conventions become rules: a variadic member takes no options shape (`rule:core-api/options-bag`), a `readonly` property of a `Core` value object is read as `->x()`, and what is a member and what is an operator (`rule:core-api/one-paradigm-per-operation`). `00-overview.md`'s unique facts go to `rule:types/grammar`, the lexer's and the parser's module docs and `rule:security/isolate-shares-nothing`. The fragments that call the spec authoritative are reworded. `docs/rules/core-api/field-wise-precedence.md:1`, `docs/rules/core-api/tier-roster.md:37`, `crates/nvs-syntax/src/lexer.rs:600`
+- [x] The spec's unique conventions become rules: a variadic member takes no options shape (`rule:core-api/options-bag`), a `readonly` property of a `Core` value object is read as `->x()`, and what is a member and what is an operator (`rule:core-api/one-paradigm-per-operation`). `00-overview.md`'s unique facts go to `rule:types/grammar`, the lexer's and the parser's module docs and `rule:security/isolate-shares-nothing`. The fragments that call the spec authoritative are reworded. `docs/rules/core-api/field-wise-precedence.md:1`, `docs/rules/core-api/tier-roster.md:37`, `crates/nvs-syntax/src/lexer.rs:600`
+  - [x] the preamble's conventions: options-bag, one-paradigm-per-operation, a-lifetime-is-an-object; field-wise-precedence, parameters-are-callable-by-name, reference-card and tier-roster reworded
+  - [x] `00-overview.md`'s unique facts: reserved-spellings-are-lower-case, alias-is-never-a-bare-class, `80-concurrency.md`
+  - [x] the sections' unique facts: types/arrays, members-are-full-words, throwable-hierarchy, and the module docs of `str`, `arr`, `math`, `cldr`, `time`, `regex`, `encoding`, `hash`, `objmap`, `validate`
 - [ ] A script rewrites every citation of the spec, about 630 files: `spec § N` becomes the class it names, or is dropped where a `rule:` id stands beside it. `docs/spec/` is deleted and joins `RECORD_CITE`. `tests/conformance/core/`, `crates/nvs-stdlib/src/arr.rs:1`
+  - [x] `crates/`, `Cargo.toml`, `docs/agent/`, `docs/rules/`, `findings.md`, `examples/`, and the cards and diagnostics that named the spec
+  - [ ] `tests/conformance/`, about 515 files
+  - [ ] `docs/spec/` deleted with `php-names.test.ts`'s path, `ci-changes.ts`'s lane and the primer playbook bullet; it joins `DELETED_DOC_CITE`
 - [x] `website/README.md` says how the Core reference is built now. `website/README.md:43`
 
 ### 3. docs/perf is gone, its ledgers are data and its findings have homes
@@ -258,23 +264,25 @@ managed block in AGENTS.md links it (`AGENTS.md:392`), and `looper lint` refuses
 the markers. It goes once looper's `agents` template stops linking it; then add `design\.md` back to
 `DELETED_DOC_CITE` and tick stage 1's last sub-item. Stage 1 stays `open` until then.
 
-Stage 2's website half is done. `website-core.ts` reads only `nvs meta --json` and the class
-introductions under `docs/reference/core/` and `docs/reference/novis/`; `core.json` keeps the same
-205 classes and gains `Core\Response\Stream::end` and 19 constants (`Core\Cli\Color`, `Core\Env`,
-`Core\Time\Zone`). Signatures are the registry's, fully qualified. The four namespace enums the
-spec listed on `Core\Math` and `Core\Time` are on their Types pages only. The spec's member notes
-are gone from the pages: a member's text is its `about.md` and its card. `spec-tables`, the
-`spec_core_members` record, `spec-overrides.mjs` and `spec_registry_coverage.rs` with its ratchets
-are deleted. `docs/spec/` itself is still on disk, and so is `php-names.test.ts`'s path to it.
+Stage 2's website half is done: `website-core.ts` reads only `nvs meta --json` and the class
+introductions, and the spec's machinery is deleted.
 
-The nightly CI failures the sweep reported are on `main`'s commit, not this branch. The rest (stale
-member perf, the Windows warm-start budget, the DB matrix) are `main`'s.
+Stage 2's spec half is most of the way. Every unique fact of both spec files now has a home (the
+goal's stage 2 checkpoints name them), and `rule:core-api/field-wise-precedence` says the registry is
+the only source. No file outside `tests/conformance/`, `docs/spec/` itself, `php-names.test.ts`,
+`ci-changes.ts` and one playbook bullet cites the spec. Four cards and six diagnostics that named
+the spec are reworded, with the two `.nvst` cases that pin those help lines. Three spec claims the
+audit found already contradicted (`Instant`'s `<`, `Task::all`'s callable field, `decodeAs`'s inline
+shape) were not moved anywhere.
+
+The nightly CI failures the sweep reported are on `main`'s commit `e110c9c`, not this branch.
 
 ### Next
 
-Stage 2's spec half, on `docs/spec/` and the rule fragments that cite it. About two sessions:
-- [ ] The spec's unique conventions become rules, and the fragments that call the spec authoritative are reworded; `rule:core-api/field-wise-precedence` now has only the registry to describe. `docs/rules/core-api/field-wise-precedence.md:1`, `docs/rules/core-api/options-bag.md:1`, `crates/nvs-syntax/src/lexer.rs:600`
-- [ ] A script rewrites every citation of the spec, about 630 files. `docs/spec/` is deleted with `php-names.test.ts`'s path to it, and joins `DELETED_DOC_CITE`. `tools/nv/cmd/rules.ts:113`, `tools/nv/test/php-names.test.ts:80`, `crates/nvs-stdlib/src/arr.rs:1`
+Stage 2's last piece, on `tests/conformance/` and `docs/spec/`. One or two sessions:
+- [ ] Every `spec § N`, "the spec" and `docs/spec/` citation under `tests/conformance/` is rewritten, about 515 files with one or two each: name the class the section stood for, or drop the citation where a `rule:` id stands beside it. Split it across writing subagents by directory, one after another. `tests/conformance/core/`, `tests/conformance/array/the-append-counter-s-last-key-is-usable-and-the-one-past-it-is-refused.nvst:33`
+- [ ] `docs/spec/` is deleted, with `php-names.test.ts`'s path, `ci-changes.ts`'s `refdoc` entry and `docs/agent/playbook/tooling/a-primer-marker-goes-in-docs-reference-whatever-else-names.md`. `docs/spec/` joins `DELETED_DOC_CITE` and `DELETED_DOC_GREP`, with a case in `rules.test.ts`. `tools/nv/cmd/rules.ts:107`, `tools/nv/test/php-names.test.ts:80`, `tools/nv/cmd/ci-changes.ts:83`
+- [ ] Bare `§ N` citations under `crates/` that point at no live document (db, http, router, regex, script modules) are checked and fixed. `crates/nvs-stdlib/src/db/mod.rs:1`
 
 ### Backlog
 

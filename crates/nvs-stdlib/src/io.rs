@@ -13,7 +13,7 @@
 //! member needs is declared once in [`crate::registry::CAPABILITIES`], which
 //! nothing consults at run time.
 //!
-//! **A path is a `string` and not a `Core\Path`.** § 8's class is a pure
+//! **A path is a `string` and not a `Core\Path`.** That class is a pure
 //! lexical splitter — it never touches a filesystem — so making it this
 //! signature's type would force every caller to build one for a value they
 //! already have, and would suggest a validation that class does not perform.
@@ -23,14 +23,13 @@
 //! **Every path parameter in this class is a `Qual::Sink`, and `within` is the
 //! one launderer that gets past them.** `rule:security/sink-predicate`'s table classifies a
 //! filesystem path component as an instruction — `..` and the separators
-//! *direct the resolver* — so spec § 14's opening sentence, which calls every
-//! member of this class a path sink, is that predicate applied rather than a
-//! second rule. The whole class carries the mark together: half of it marked
+//! *direct the resolver* — so every member of this class being a path sink is
+//! that predicate applied rather than a second rule. The whole class carries the mark together: half of it marked
 //! would be a class where the refusal a developer met at `read` did not
 //! arrive at `remove`, which teaches the wrong rule more effectively than no
 //! rule at all. `Core\Path` is deliberately *not* marked the same way — its
-//! own module doc says why, and the difference is that nothing in § 8 resolves
-//! anything.
+//! own module doc says why, and the difference is that nothing in `Core\Path`
+//! resolves anything.
 //!
 //! **`read` answers with `string` rather than `bytes`.** Novis text is a byte
 //! string, so the two would carry the same content, and every caller of a
@@ -38,8 +37,8 @@
 //! bounded read, a stream — is [`FILE`], reached through `open`, which is why
 //! `open_read` hands back a handle rather than a `Vec`.
 //!
-//! **An open file is an object, and this class has two of them.** Spec § 14's
-//! R14 is that a `resource` is never exposed, so `open` answers [`FILE`] and
+//! **An open file is an object, and this class has two of them.**
+//! `rule:core-api/shape-rules` R14 is that a `resource` is never exposed, so `open` answers [`FILE`] and
 //! the mode it takes is [`FILE_MODE`] rather than `fopen`'s string (R11). Both
 //! of those constants own their own reasoning; what belongs here is why the
 //! handle members sit in this file at all rather than in one of their own,
@@ -47,7 +46,7 @@
 //! `$file->read($n)` differ in how much they take and in nothing else, and a
 //! second module would be a second place to look for that answer.
 //!
-//! **`readText` is that same read with § 7's exact decode after it**, and not a
+//! **`readText` is that same read with `Core\Encoding`'s exact decode after it**, and not a
 //! second reader: one door, one buffer, one ceiling, and the conversion is
 //! `Core\Encoding`'s own, refusal included. `read` hands back the octets and
 //! asks nothing about them; `readText` is where a caller says what they are and
@@ -134,7 +133,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             // The path is a sink and the chunks are not, exactly as `write`'s
             // pair is and for the same reason: what arrives from outside here
             // is the *content*, which is what this member exists to accept.
-            // `Iterated` is spec § 14's `Iterable<bytes>` — `rule:iteration/foreach-subjects`'s
+            // `Iterated` is the `Iterable<bytes>` — `rule:iteration/foreach-subjects`'s
             // three shapes, so an `array<bytes>` a program already holds is
             // one of them and no caller has to build a generator to write.
             params: &[
@@ -198,7 +197,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[CoreTy::Path(Qual::Sink)],
             defaults: &[],
             // `uint` rather than `int`, like `Core\Arr::count`: a byte count has
-            // no negative half, and the spec's answer for "how big is it" is the
+            // no negative half, and `Core`'s answer for "how big is it" is the
             // same shape wherever it is asked.
             return_ty: CoreTy::Uint,
             symbol: "nvs_core_io_size",
@@ -278,8 +277,8 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             names: &["path"],
             params: &[CoreTy::Path(Qual::Sink)],
             defaults: &[],
-            // `array<string>` and not `array<tainted string>`, which is spec
-            // § 14's own spelling and agrees with `stdin`'s row comment below
+            // `array<string>` and not `array<tainted string>`, which agrees
+            // with `stdin`'s row comment below
             // that standard input is this class's one tainted answer. An entry
             // name is what the operating system reports for a directory this
             // program named and was granted; it did not cross a request
@@ -366,7 +365,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             names: &["path"],
             params: &[CoreTy::Path(Qual::Sink)],
             defaults: &[],
-            // Spec § 14 writes `Iterable<string>`, and a *named class* is how
+            // The return is an `Iterable<string>`, and a *named class* is how
             // the registry spells one: `CoreTy::Iterated` is parameter
             // position only, by its own docs. [`LINES`] is that name, and
             // `crate::registry::ITERABLES` is where its element type is
@@ -726,7 +725,8 @@ const SIZE_DOC: MethodDoc = MethodDoc {
         shape: &[],
     }],
     ret: "The byte count as a `uint`. For a text file this is bytes and not characters — a \
-          `string`'s own length is `Core\\Str::length`, which counts what § 1 says it counts.",
+          `string`'s own length is `Core\\Str::length`, which counts graphemes \
+           (what a person counts as one character).",
     errors: &[
         ErrorDoc {
             error: "RuntimeError",
@@ -1226,7 +1226,8 @@ const STDIN_DOC: MethodDoc = MethodDoc {
 /// [`NAME`] is.
 pub(crate) const FILE_MODE_NAME: &str = r"Core\IO::FileMode";
 
-/// Spec § 14's `FileMode` — R11's "an enum, never a mode string".
+/// `Core\IO::FileMode` — `rule:core-api/shape-rules` R11's "an enum, never a mode
+/// string".
 ///
 /// Four cases where `fopen` has twelve spellings of six things, because the two
 /// axes PHP's grammar crosses are not independent in any way a caller benefits
@@ -1309,8 +1310,8 @@ const FILE_CARD: ClassDoc = ClassDoc {
             handle that is still open is closed when the request ends.",
 };
 
-/// Spec § 14's `File` — R14's "an open file is an object and never a
-/// `resource`".
+/// `Core\IO\File` — `rule:core-api/shape-rules` R14's "an open file is an object and
+/// never a `resource`".
 ///
 /// # Decision: the slot holds a key, and the request holds the descriptor
 ///
@@ -1333,7 +1334,7 @@ const FILE_CARD: ClassDoc = ClassDoc {
 /// open — which is one question, answered in [`open_file`], and is the one thing
 /// a static type genuinely cannot know.
 ///
-/// # § 14's handle roster is complete, and the standard streams are not on it
+/// # The handle roster is complete, and the standard streams are not on it
 ///
 /// `read`, `readLine`, `write`, `seek`, `tell`, `truncate`, `flush`, `lock`
 /// and `close`. `seek` and `tell` arrived when the handle became
@@ -1344,8 +1345,8 @@ const FILE_CARD: ClassDoc = ClassDoc {
 /// the file at all, and [`nvs_core_io_file_lock`] is the home of what it does
 /// and does not promise.
 ///
-/// **No instance of this class is ever a standard stream.** § 14's last line is
-/// [`nvs_core_io_stdin`] alone — a member answering a `tainted string` rather
+/// **No instance of this class is ever a standard stream.** The standard streams
+/// are [`nvs_core_io_stdin`] alone — a member answering a `tainted string` rather
 /// than a handle — and that member's doc comment is the home of why the writing
 /// half does not exist and why the reading half is not one of these.
 pub(crate) const FILE: CoreClass = CoreClass {
@@ -1675,8 +1676,8 @@ const LINES_CARD: ClassDoc = ClassDoc {
             get one line at a time, as a string.",
 };
 
-/// The class `lines` answers with — spec § 14's `Iterable<string>`, given the
-/// name the registry needs to write it.
+/// The class `lines` answers with — its `Iterable<string>`, given the name the
+/// registry needs to write it.
 ///
 /// # Decision: the lines are read and held, not streamed off the open file
 ///
@@ -1698,7 +1699,7 @@ const LINES_CARD: ClassDoc = ClassDoc {
 /// footprint is last, and simplicity is bought with it.
 ///
 /// **The type is still `Iterable<string>` and not `array<string>`**, because
-/// what the spec promises a caller is a forward walk and nothing more — no
+/// what the signature promises a caller is a forward walk and nothing more — no
 /// count, no index, no second meaning for a key. That is the surface a
 /// streaming implementation would land behind unchanged.
 ///
@@ -1734,18 +1735,18 @@ const WALK_CARD: ClassDoc = ClassDoc {
             a `foreach` loop to get each path, relative to the directory you started from.",
 };
 
-/// The class `walk` answers with — spec § 14's second `Iterable<string>`.
+/// The class `walk` answers with — the second `Iterable<string>` in `Core\IO`.
 ///
 /// # Decision: a tree, where `list` is a directory
 ///
-/// Spec § 14 writes `list(string $path): array<string>` and
+/// `Core\IO` has `list(string $path): array<string>` and
 /// `walk(string $path): Iterable<string>` next to each other, and the only
 /// reading of that pair `rule:core-api/shape-rules`
 /// R6 admits is two *questions*: a member that answered the same entries in a
 /// second container would be one operation reachable two ways, which is the
 /// shape that rule closes. So `list` reads one directory and this reads the
 /// whole tree under it — which is also what makes the pair cover everything
-/// § 14's row names, `RecursiveDirectoryIterator` and the rest of the
+/// the pair replaces, `RecursiveDirectoryIterator` and the rest of the
 /// `DirectoryIterator` family included, rather than `scandir` twice.
 ///
 /// **An entry is a path relative to the root, not a bare name.** `list`'s
@@ -1818,7 +1819,7 @@ const METADATA_CARD: ClassDoc = ClassDoc {
             change when the file changes later, so call `stat` again to get new values.",
 };
 
-/// Spec § 14's `stat`, as the value it answers with: one `stat` call's whole
+/// `Core\IO::stat`, as the value it answers with: one `stat` call's whole
 /// answer about one path, frozen at the moment it was asked.
 ///
 /// # Decision: an instance, not a fixed-key shape
@@ -1837,7 +1838,7 @@ const METADATA_CARD: ClassDoc = ClassDoc {
 /// # Decision: it answers the questions the single-question members answer
 ///
 /// `size`, `modifiedAt`, `isFile` and `isDir` are all members of `Core\IO`
-/// too, and spec § 14's metadata bullet names them beside `stat` on purpose.
+/// too, beside `stat` on purpose.
 /// **`rule:core-api/shape-rules` R17/R18 are not what that collides with**: R18 forbids a static
 /// that *mirrors an object's own method* — `Time::format($instant, $fmt)`
 /// beside `$instant->format($fmt)`, where the object is the static's own
@@ -1855,13 +1856,13 @@ const METADATA_CARD: ClassDoc = ClassDoc {
 /// member over `std::fs::Permissions::readonly` would answer the platform's
 /// question rather than the language's, and no `Core` member sets permissions,
 /// so no case could ever pin its `true` side. The question a program actually
-/// asks is answered by § 14's `isReadable` and `isWritable`, which are access
+/// asks is answered by `Core\IO`'s `isReadable` and `isWritable`, which are access
 /// checks over the process, the path and the mount rather than a bit on the
 /// inode.
 ///
 /// **No created or accessed time.** Neither is recorded by every filesystem
 /// Novis runs on, and a member whose answer is "this platform does not know"
-/// is one every caller has to write a branch for. § 14 names `modifiedAt`
+/// is one every caller has to write a branch for. `Core\IO` has `modifiedAt`
 /// alone, and that is the one every filesystem has.
 ///
 /// **What it spends:** two allocations per `stat` — this instance and the
@@ -2057,8 +2058,8 @@ nvs_runtime::nvs_helper! {
     /// replacing `file_get_contents` followed by `mb_convert_encoding`.
     ///
     /// [`slurp`] and then [`crate::encoding::decode_argument`], which is the
-    /// whole member: the door, the buffer and the ceiling are `read`'s, and § 7
-    /// already owns what an exact conversion is. The decode runs *after* the
+    /// whole member: the door, the buffer and the ceiling are `read`'s, and
+    /// `Core\Encoding` already owns what an exact conversion is. The decode runs *after* the
     /// capability check for the ordinary reason — a file this program was never
     /// granted must refuse the same way whatever its bytes are.
     fn nvs_core_io_read_text(ctx, args: [2]) {
@@ -2158,8 +2159,8 @@ fn held_strings(
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\IO::stdin(): tainted string` — spec § 14's standard streams, which
-    /// are one member and not three.
+    /// `Core\IO::stdin(): tainted string` — the standard streams, which are one
+    /// member and not three.
     ///
     /// # Decision: the reading half is a value, and there is no writing half
     ///
@@ -2990,8 +2991,8 @@ nvs_runtime::nvs_helper! {
     /// `Core\IO::move(string $from, string $to): void` — replacing `rename`.
     ///
     /// `move` and not `rename`, because moving is what the caller is doing and
-    /// renaming is how the operating system spells it: spec § 14 names the
-    /// member for the effect, and the same call moves a file across a directory
+    /// renaming is how the operating system spells it: the member is named for
+    /// the effect, and the same call moves a file across a directory
     /// and gives it another name in place.
     fn nvs_core_io_move(ctx, args: [2]) {
         let from = Path::new(text(&args[0], "move", "from")?);
@@ -3189,8 +3190,8 @@ nvs_runtime::nvs_helper! {
     /// One member for a file and a directory alike, where PHP has three
     /// (`file_exists`, `is_file`, `is_dir`) and the difference between them is
     /// the first thing a caller of the wrong one gets wrong. The kind of the
-    /// thing found is a separate question, answered by the members § 14 names
-    /// beside this one, and asking it is never the same as asking whether the
+    /// thing found is a separate question, answered by the members beside this
+    /// one, and asking it is never the same as asking whether the
     /// name resolves at all.
     ///
     /// The door refuses before it looks, so a `false` here means *not there*

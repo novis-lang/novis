@@ -11,7 +11,7 @@
 //!   `namespace Name;` statement both re-namespaces and resets the imported-
 //!   short-name set for the rest of the sequence it appears in), and
 //!   produces a [`Module`].
-//! - [`errors`] — the closed exception tree spec § 10 fixes, as data every
+//! - [`errors`] — the closed `Core\Error` exception tree, as data every
 //!   later crate seeds itself from.
 //! - [`interfaces`] — the closed set of global interfaces the compiler
 //!   declares, with each one's type parameters, on the same

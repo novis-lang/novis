@@ -4,11 +4,11 @@
 //! `rule:core-api/five-placements`
 //! makes this "compiled into the binary, native, direct heap access, no
 //! boundary," and it is meant literally: no part of `Core` is written in
-//! Novis. `rule:core-api/shape-rules`
-//! fixes every member's *shape* and [docs/spec/01-core-library.md](/docs/spec/01-core-library.md)
-//! is authoritative for every *signature* — this crate restates neither. It
-//! holds the two things a signature on paper cannot be: a resolvable entry in
-//! [`registry::CLASSES`], and a callable symbol in [`symbols`].
+//! Novis. `rule:core-api/shape-rules` fixes every member's *shape*, and this
+//! crate holds every *signature*, in two forms: a resolvable entry in
+//! [`registry::CLASSES`], which `nvs meta --json` publishes and which is the one
+//! source of every signature (`rule:core-api/field-wise-precedence`), and a
+//! callable symbol in [`symbols`].
 //!
 //! # One module per domain; adding a class is two lines
 //!
@@ -26,11 +26,11 @@
 //! `Core\Arr::count($a)` resolves through exactly the machinery a user-declared
 //! static call already does.
 //!
-//! The point of the split is collision surface, not file size. Every one of the
-//! ~190 members the spec still owes used to edit the same two places — one flat
-//! table and one flat match — so two sessions adding two different domains
-//! always conflicted. Now **adding a member touches one file**, and adding a
-//! *class* adds one line to [`registry::CLASSES`] and one to [`symbols`].
+//! The point of the split is collision surface, not file size. With one flat
+//! table and one flat match, every new member would edit the same two places,
+//! so two sessions adding two different domains would always conflict. Here
+//! **adding a member touches one file**, and adding a *class* adds one line to
+//! [`registry::CLASSES`] and one to [`symbols`].
 //!
 //! Keeping metadata and implementation in one crate is what makes a member
 //! impossible to half-add: a registry row naming a symbol nothing defines fails
@@ -44,8 +44,9 @@
 //! comparator given, which `Core\Arr::sort`/`min`/`max` and
 //! `Core\Math::min`/`max`/`clamp` would otherwise be free to answer
 //! differently; [`instance`] holds what a value of a `Core`-owned class *is*,
-//! which § 4's time types, § 9's collections and § 12's `Uri` all answer the
-//! same way § 5's `Match` does.
+//! which `Core\Time`'s types, the `Core\ObjectMap`/`ObjectSet`/`Heap`
+//! collections and `Core\Uri` all answer the same way `Core\Regex`'s `Match`
+//! does.
 //!
 //! # A `Core` call is a helper call
 //!
@@ -66,16 +67,15 @@
 //! * **A returned heap value carries one fresh reference**, which the caller
 //!   owns, exactly like `nvs_str_concat`'s result.
 //! * **Failure is a `Fault`**, which becomes `rule:errors/propagation`'s `THROWN` or `FATAL`
-//!   status; nothing unwinds. A `Fault::thrown_as` names which of
-//!   [docs/spec/01-core-library.md](/docs/spec/01-core-library.md)
-//!   § 10's classes a `catch` will see — `Core\Json::decode` answers with
+//!   status; nothing unwinds. A `Fault::thrown_as` names which of the
+//!   `Core\Error` tree's classes a `catch` will see — `Core\Json::decode` answers with
 //!   `ParseError` — and a bare `Fault::thrown` means `RuntimeError`, which is
 //!   what a failure with nothing more specific to say is.
 //!
-//! # Every shape a §§ 1–12 signature writes can be stated
+//! # Every shape a `Core` signature writes can be stated
 //!
-//! [`registry::CoreTy`] spells the whole of what those sections' signature
-//! column writes, and each variant's own doc comment is the home for what it
+//! [`registry::CoreTy`] spells the whole of what a `Core` signature writes,
+//! and each variant's own doc comment is the home for what it
 //! is and what it costs: a union in either direction, a `Core`-owned enum, a
 //! `Core`-owned instance ([`instance`] is the value behind it), a sequence, a
 //! `decimal`, `rule:core-api/shape-rules` R2's options bag, a shape parameter
@@ -87,9 +87,8 @@
 //!
 //! A **named** or `...spread` argument at such a call is spelled too. Every
 //! parameter's name is on the row — [`registry::CoreMethod::names`], one per
-//! positional slot, the trailing bag under [`registry::OPTIONS_NAME`] — taken
-//! from the signature column of `docs/spec/01-core-library.md` and held there
-//! by `every_registry_rows_names_are_the_specs_signature_column`, which is
+//! positional slot, the trailing bag under [`registry::OPTIONS_NAME`] — and
+//! that row is the name `nvs meta --json` publishes. That is
 //! `rule:core-api/shape-rules` R2's "a parameter's name is compatibility
 //! surface, versioned where its type is". `nvs_types::core_lib` reads them
 //! into `MethodSig::param_names`, so a `name:` at a `Core` call site resolves
@@ -99,9 +98,8 @@
 //! [`registry::ParamDoc::name`] is a *key* into that list rather than a second
 //! copy of it.
 //!
-//! So a member the spec writes and this crate has not registered needs its row
-//! and its body, never a spelling — and which members those are is counted
-//! rather than listed here, by the walks below.
+//! So a new member needs its row and its body, and never a new shape in
+//! [`registry::CoreTy`].
 //!
 //! **A type variable is inferred, never declared by user code.**
 //! `rule:types/declaration`'s *Revisiting* section scopes `<T>` to

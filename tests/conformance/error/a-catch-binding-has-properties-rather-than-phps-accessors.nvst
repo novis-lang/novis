@@ -1,9 +1,9 @@
 --TEST--
-A `catch` binding answers through properties, so every PHP accessor is refused where it is written — spec § 10, `rule:errors/propagation`
+A `catch` binding answers through properties, so every PHP accessor is refused where it is written — `rule:errors/propagation`
 --FILE--
 <?nvs
 // covers: lang:errors/properties-not-accessors
-// Spec § 10 gives the exception tree `message`, `previous`, `backtrace` and
+// The exception tree has the properties `message`, `previous`, `backtrace` and
 // `location`, and `nvs_types::error_lib` seeds exactly those plus the
 // synthesized constructor. A ported program writes PHP's accessors on
 // purpose, so each is the ordinary unknown-member refusal with a help naming
@@ -36,19 +36,19 @@ try {
 --EXPECTF-ERROR--
 error[E0405]: `Throwable` has no method named `getMessage`
 %A
-   = help: the exception tree declares properties rather than accessors — write `->message`; spec § 10 lists `message`, `previous`, `backtrace`, `location`
+   = help: an exception has properties and no accessor methods. Write `->message`. The properties are `message`, `previous`, `backtrace`, `location`
 %A
 error[E0405]: `Throwable` has no method named `getPrevious`
 %A
-   = help: the exception tree declares properties rather than accessors — write `->previous`; spec § 10 lists `message`, `previous`, `backtrace`, `location`
+   = help: an exception has properties and no accessor methods. Write `->previous`. The properties are `message`, `previous`, `backtrace`, `location`
 %A
 error[E0405]: `Throwable` has no method named `getTraceAsString`
 %A
-   = help: the exception tree declares properties rather than accessors — write `->backtrace`; spec § 10 lists `message`, `previous`, `backtrace`, `location`
+   = help: an exception has properties and no accessor methods. Write `->backtrace`. The properties are `message`, `previous`, `backtrace`, `location`
 %A
 error[E0405]: `Throwable` has no method named `getFile`
 %A
-   = help: the exception tree declares properties rather than accessors — write `->location`; spec § 10 lists `message`, `previous`, `backtrace`, `location`
+   = help: an exception has properties and no accessor methods. Write `->location`. The properties are `message`, `previous`, `backtrace`, `location`
 %A
 error[E0405]: `Throwable` has no method named `getCode`
 %A

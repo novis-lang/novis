@@ -181,7 +181,7 @@ fn within(ctx: &mut nvs_runtime::Ctx, base: &Path, path: &str) -> Result<String,
 
 #[test]
 fn within_resolves_and_then_proves_containment() {
-    // Spec § 14's *Resolution* bullet over `rule:security/launderers-are-sink-named`: the launderer answers a path that is
+    // `Core\IO::within` under `rule:security/launderers-are-sink-named`: the launderer answers a path that is
     // resolved — every `..` and every symlink already gone — and proved to be under the base. Both
     // halves matter, and the order is what separates this from `Core\Path::normalize`.
     let manifest = &package();
@@ -654,7 +654,7 @@ const FILE_MODE: &str = r"Core\IO::FileMode";
 
 #[test]
 fn an_open_file_is_an_object_and_never_a_resource() {
-    // Spec § 14's R14. What separates an object from a `resource` is not that
+    // What separates an object from a `resource` is not that
     // `open` answers something with a name — a `resource` has a type name too —
     // but that every operation on it is reached *through* it. PHP's handle is
     // an integer passed back to `fread`, `fgets`, `fwrite`, `fseek` and
@@ -726,7 +726,7 @@ fn an_open_file_is_an_object_and_never_a_resource() {
 
 #[test]
 fn a_file_mode_is_an_enum_and_never_a_string() {
-    // Spec § 14's R11. The registry half first: `open`'s second parameter is
+    // The registry half first: `open`'s second parameter is
     // the enum, so `Core\IO::open($p, "r+b")` is refused by `E0401` before the
     // program runs rather than by a parser inside the member.
     let io = nvs_stdlib::registry::class(r"Core\IO").expect("`Core\\IO` is registered");

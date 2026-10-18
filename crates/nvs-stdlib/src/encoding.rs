@@ -1,6 +1,5 @@
-//! `Core\Encoding` — docs/spec/01-core-library.md § 7, the members that sit
-//! exactly on the `bytes`↔`string` boundary
-//! (`rule:types/bytes`).
+//! `Core\Encoding` — the members that sit exactly on the `bytes`↔`string`
+//! boundary (`rule:types/bytes`).
 //!
 //! Everything this class does is a *representation* change: the same
 //! information, spelled as text a person or a protocol can carry, or spelled
@@ -10,10 +9,10 @@
 //!
 //! # What is registered here so far
 //!
-//! The whole of § 7's `Core\Encoding` table: `toHex`/`fromHex`,
+//! The whole of `Core\Encoding`: `toHex`/`fromHex`,
 //! `toBase64`/`fromBase64`, `toBase64Url`/`fromBase64Url`,
 //! `toBase32`/`fromBase32`, and the `encodeText`/`decodeText`/`isValidText`
-//! trio over [`CHARSET`]. § 7's other class, `Core\Bytes`, is elsewhere.
+//! trio over [`CHARSET`]. `Core\Bytes` is [`crate::bytes`].
 //!
 //! `rule:classes/an-encoder-ends-a-cycle-by-identity` has nothing to carry
 //! here, because no member of this class walks a value graph at all: every one
@@ -25,9 +24,9 @@
 //!
 //! # `Charset` is the WHATWG index, and Novis keeps three labels apart
 //!
-//! § 7 says the roster is the **WHATWG Encoding Standard's index**, not a list
-//! the spec curates, so adding an encoding is a dependency update rather than
-//! a design decision. [`CHARSET`] is that index, and
+//! The roster is the **WHATWG Encoding Standard's index**, not a list Novis
+//! curates, so adding an encoding is a dependency update rather than a design
+//! decision. [`CHARSET`] is that index, and
 //! `the_delegated_roster_is_the_standards_own` checks each case name against
 //! `encoding_rs`'s own `name()` rather than trusting this file's spelling.
 //!
@@ -42,8 +41,8 @@
 //!   and ISO-8859-1 has the C1 controls. Reading `Charset::Latin1` as
 //!   windows-1252 would answer a *different* string, which is the substitution
 //!   `rule:types/conversion` removes
-//!   from the language. `Ascii` has a second reason: § 7's own table gives
-//!   `isValidText` as the replacement for `mb_check_encoding`, and
+//!   from the language. `Ascii` has a second reason: `isValidText` is the
+//!   replacement for `mb_check_encoding`, and
 //!   `mb_check_encoding($s, "ASCII")` is the commonest call of it — folded
 //!   into windows-1252 that question answers `true` for every byte string.
 //! - **`replacement` is absent.** That entry of the index exists so a browser
@@ -83,7 +82,7 @@
 //! | member | alphabet | padding |
 //! |---|---|---|
 //! | `toBase64` / `fromBase64` | `A-Za-z0-9+/` (§ 4) | **required** — `base64_encode`'s own output |
-//! | `toBase64Url` / `fromBase64Url` | `A-Za-z0-9-_` (§ 5) | **absent** — JWT, and the `rtrim(strtr(…))` idiom the spec row names |
+//! | `toBase64Url` / `fromBase64Url` | `A-Za-z0-9-_` (§ 5) | **absent** — JWT, and the `rtrim(strtr(…))` idiom it replaces |
 //!
 //! Neither decoder accepts the other's spelling, and neither accepts
 //! whitespace, a newline or a stray `=`. That is the same rule `fromHex` reads
@@ -103,7 +102,7 @@
 //! `toBase32` writes RFC 4648 § 6's alphabet **upper case and unpadded**,
 //! which is how an `otpauth:` secret is written — TOTP
 //! (`rule:security/protocol-roster`)
-//! being the consumer § 7's row names, since PHP has nothing here to replace.
+//! being the consumer it is for, since PHP has nothing here to replace.
 //!
 //! `fromBase32` then reads **either case, and padding that is either canonical
 //! or absent**. That looks like the tolerance the two base64 decoders refuse
@@ -158,6 +157,9 @@
 //! substituting, dropping or truncating, which is the same reason `rule:types/conversion`
 //! refuses `iconv`'s `//IGNORE`. A caller who wants the question without the
 //! throw asks it of the text before converting.
+//!
+//! There is no quoted-printable and no uuencode member: nothing a web server or
+//! a command-line program reaches for needs either on its own.
 
 use base64::Engine as _;
 use base64::engine::general_purpose::{STANDARD, URL_SAFE_NO_PAD};
@@ -181,7 +183,7 @@ pub(crate) const NAME: &str = r"Core\Encoding";
 /// the registry rows that take one, and for every message quoting it.
 pub(crate) const CHARSET_NAME: &str = r"Core\Charset";
 
-/// Spec § 7's `Charset` — the WHATWG Encoding Standard's index, in that
+/// `Core\Charset` — the WHATWG Encoding Standard's index, in that
 /// document's own table order, with the departures the module doc argues.
 ///
 /// The integers are each case's own constant, written out rather than
@@ -338,8 +340,8 @@ const CARD: ClassDoc = ClassDoc {
             set, and writes bytes as base64, base32 or hex text.",
 };
 
-/// `Core\Encoding`'s registry rows — § 7's text trio, its hex pair, its base64
-/// family and its base32 pair.
+/// `Core\Encoding`'s registry rows — the text trio, the hex pair, the base64
+/// family and the base32 pair.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
     doc: Some(&CARD),
@@ -1125,8 +1127,8 @@ nvs_runtime::nvs_helper! {
 
 nvs_runtime::nvs_helper! {
     /// `Core\Encoding::toBase64Url(bytes $b): string` — replacing the
-    /// `rtrim(strtr(base64_encode($b), "+/", "-_"), "=")` idiom, which is what
-    /// the spec row names because it is what every PHP codebase writes.
+    /// `rtrim(strtr(base64_encode($b), "+/", "-_"), "=")` idiom, because it is
+    /// what every PHP codebase writes.
     ///
     /// RFC 4648 § 5's alphabet, **unpadded**: that idiom's `rtrim` is not an
     /// optional flourish, it is what JWT, `Core\Uri` and every other consumer
@@ -1326,9 +1328,8 @@ mod tests {
     }
 
     /// `Core\Charset::Big5` from `Big5`, `Iso88598I` from `ISO-8859-8-I` — the
-    /// mechanical PascalCase of a WHATWG name, which is what "named in Novis
-    /// casing" in spec § 7 means and what `nvs_syntax::casing` would demand of
-    /// the same name written in source.
+    /// mechanical PascalCase of a WHATWG name, which is what
+    /// `nvs_syntax::casing` would demand of the same name written in source.
     fn pascal(whatwg: &str) -> String {
         whatwg
             .split(['-', '_'])
@@ -1372,7 +1373,7 @@ mod tests {
 
     /// Every delegated case is named by `encoding_rs`'s own `name()`, which
     /// is the standard's label — so the roster is the index rather than this
-    /// file's transcription of it, which is what spec § 7 requires. A case
+    /// file's transcription of it. A case
     /// added with a mistyped name fails here rather than at a call site.
     #[test]
     fn the_delegated_roster_is_the_standards_own() {

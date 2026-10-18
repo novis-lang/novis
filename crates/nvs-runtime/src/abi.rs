@@ -95,7 +95,7 @@ pub type HelperFn = NvsFn;
 pub enum Fault {
     /// An Novis exception a `catch` may handle; becomes [`THROWN`].
     ///
-    /// The class is which of spec § 10's tree the promoted object is built
+    /// The class is which class of the `Core\Error` tree the promoted object is built
     /// from, so `Core\Json::decode("{oops}")` is caught by
     /// `catch (ParseError $e)` and not only by `catch (Throwable $e)`.
     /// [`Fault::thrown`] means [`crate::ThrownClass::Runtime`], which is what a
@@ -151,13 +151,13 @@ pub enum Fault {
 }
 
 impl Fault {
-    /// A [`Fault::Thrown`] with a message, as spec § 10's `RuntimeError`.
+    /// A [`Fault::Thrown`] with a message, as `RuntimeError`.
     #[must_use]
     pub fn thrown(message: impl Into<std::borrow::Cow<'static, str>>) -> Self {
         Self::Thrown(crate::ThrownClass::Runtime, message.into())
     }
 
-    /// A [`Fault::Thrown`] with a message, as a *named* class of spec § 10's
+    /// A [`Fault::Thrown`] with a message, as a *named* class of the `Core\Error`
     /// tree — what a member whose own signature promises one throws.
     #[must_use]
     pub fn thrown_as(

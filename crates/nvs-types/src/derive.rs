@@ -617,9 +617,9 @@ pub const DEPRECATED: &str = r"Core\Deprecated";
 /// variant and no new pass.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub enum Format {
-    /// `#[Json\Derive]` — spec § 6's `Core\Json\Codec`, both halves.
+    /// `#[Json\Derive]` — `Core\Json\Codec`, both halves.
     Json,
-    /// `#[Db\Derive]` — spec § 6's `Core\Db\Codec`, which declares `fromRow`
+    /// `#[Db\Derive]` — `Core\Db\Codec`, which declares `fromRow`
     /// alone (`rule:core-classes/derive-generates-what-is-missing`).
     Db,
 }
@@ -2086,8 +2086,8 @@ fn check_class_format(
     env.exprs.record_codec(format, class.to_string(), codec);
 }
 
-/// The two members [`docs/spec/01-core-library.md`] § 6's `Core\Json\Codec`
-/// declares, which are also the two halves `rule:core-classes/derive-generates-what-is-missing` talks about.
+/// The two members `Core\Json\Codec` declares, which are also the two halves
+/// `rule:core-classes/derive-generates-what-is-missing` talks about.
 const ENCODE: &str = "toJson";
 /// The decoding half of [`ENCODE`] — `static fromJson(mixed $value): static`.
 const DECODE: &str = "fromJson";

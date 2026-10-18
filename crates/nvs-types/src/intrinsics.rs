@@ -460,7 +460,7 @@ const INTRINSICS: &[Intrinsic] = &[
         restriction: None,
         grammar: Grammar::Sql,
     },
-    // § 10's second sentence, and the only row that addresses a field: § 18
+    // § 10's second sentence, and the only row that addresses a field: `Core\Db`
     // writes the host inside the `Db\Settings` shape, so `at` names the shape
     // and `field` names the key. `connect` has no row beside it on purpose —
     // its endpoint is the one an operator wrote into root-owned configuration,

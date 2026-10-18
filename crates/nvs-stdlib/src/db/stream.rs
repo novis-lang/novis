@@ -69,8 +69,8 @@ const STREAM_CARD: ClassDoc = ClassDoc {
             runs. Use it for a result too big to keep in memory.",
 };
 
-/// Spec § 18's `Iterable<Db\Row>` and `Iterable<T>`, as a class a return type
-/// can name.
+/// The `Iterable<Db\Row>` and `Iterable<T>` that `stream` and `streamAs` return, as a
+/// class a return type can name.
 ///
 /// A named class because [`CoreTy::Iterated`] is parameter position only, which
 /// is `Core\IO\Lines`' reason for existing as well; [`crate::registry`]'s
@@ -177,8 +177,7 @@ fn park_row(
 ///
 /// # Errors
 ///
-/// [`filed_connection`]'s `LogicError` for a connection spec § 18's `close` has
-/// released, [`statement_failure`]'s for anything the server refused mid-walk
+/// [`filed_connection`]'s `LogicError` for a connection `close` has released, [`statement_failure`]'s for anything the server refused mid-walk
 /// or a wire that failed under it, [`column_value`]'s for a column with no
 /// Novis representation, and — on a `streamAs<T>` walk — [`park_row`]'s
 /// `ParseError` for a row that does not match `T`. A [`Fault::fatal`] for a
@@ -467,7 +466,7 @@ fn stream_over(
     Ok(())
 }
 
-/// Opens the walk both of § 18's streaming members are: the portal left parked
+/// Opens the walk both streaming members are: the portal left parked
 /// on the connection, and a [`STREAM`] over it carrying `class` — a descriptor
 /// for `streamAs<T>`, `null` for `stream`.
 ///
@@ -775,7 +774,7 @@ mod tests {
             let held = crate::instance::slot(receiver, STREAM_ROW_AT);
             assert!(
                 crate::instance::is_instance(held, &ROW),
-                "the walk parks spec § 18's `Db\\Row` and not the array it holds"
+                "the walk parks a `Db\\Row` and not the array it holds"
             );
             #[expect(
                 unsafe_code,

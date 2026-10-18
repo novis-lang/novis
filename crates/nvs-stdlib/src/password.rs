@@ -1,5 +1,4 @@
-//! `Core\Password` — [docs/spec/01-core-library.md](/docs/spec/01-core-library.md)
-//! § 16's three members, and the second of exactly two operations that take a
+//! `Core\Password`: three members, and the second of exactly two operations that take a
 //! `secret` and answer something that is not one.
 //!
 //! `rule:core-api/tier-roster` places
@@ -13,7 +12,7 @@
 //!
 //! # No algorithm argument, and no cost argument
 //!
-//! The spec's row and `examples/crypto.nvs`'s own header both write it as the
+//! The registry row and `examples/crypto.nvs`'s own header both write it as the
 //! headline: `hash(secret string): string` takes the password and nothing
 //! else. PHP's `password_hash($pw, PASSWORD_ARGON2ID, ['memory_cost' => …])`
 //! puts three numbers at every call site, which means a program's cost is
@@ -215,7 +214,7 @@ fn params() -> Params {
     Params::new(M_COST, T_COST, P_COST, None).expect("the module's own constants are in range")
 }
 
-/// Spec § 16's password hashing, and `rule:core-classes/secret-reveal`'s second escape hatch.
+/// Password hashing, and `rule:core-classes/secret-reveal`'s second escape hatch.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: r"Core\Password",
     doc: Some(&CARD),

@@ -992,10 +992,10 @@ fn short_echo_tag_semicolon_before_close_tag_is_optional_but_allowed() {
 }
 
 // ========================================================================
-// `autoload` — `rule:programs/autoload`, spec `00-overview.md` § 2
+// `autoload` — `rule:programs/autoload`
 // ========================================================================
 
-/// Both file-scope forms, spelled exactly as the spec's grammar block
+/// Both file-scope forms, spelled exactly as `rule:programs/autoload`
 /// writes them, plus the one thing adding a second word to the grammar could
 /// have broken: `discover` stays an ordinary identifier everywhere else.
 #[test]

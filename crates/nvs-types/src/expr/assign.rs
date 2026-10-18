@@ -247,7 +247,7 @@ fn assignable(
     // the widened view lands in storage the narrow view still reads. `rule:types/arrays` makes an Novis array a copy-on-write **value** instead, so the widened
     // binding is a separate array the moment anything writes to it, and the
     // narrow one can never observe the write. What covariance buys is every
-    // signature the spec writes over a union — `Core\Arr::sum`'s
+    // `Core` signature written over a union — `Core\Arr::sum`'s
     // `array<int|float|decimal>` takes an `array<int>`, which is what a caller
     // means by it — and `Core\Arr::flip`'s `array<T>` binding a `T` it could
     // not otherwise reach.

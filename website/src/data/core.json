@@ -10,7 +10,7 @@
           "cases": [],
           "raw": "Order",
           "doc": {
-            "shortHtml": "The direction <code>Core\\Arr::sort</code> and <code>sortByKey</code> put elements in — spec § 2's <code>{order: …}</code> option, which is <code>Asc</code> when omitted.",
+            "shortHtml": "The direction <code>Core\\Arr::sort</code> and <code>sortByKey</code> put elements in. It is the <code>{order: …}</code> option, and it is <code>Asc</code> when you leave it out.",
             "cases": []
           }
         },
@@ -19,7 +19,7 @@
           "cases": [],
           "raw": "SetOn",
           "doc": {
-            "shortHtml": "Which part of an entry <code>Core\\Arr::diff</code> and <code>intersect</code> compare — spec § 2's <code>{on: …}</code> option, which is <code>Values</code> when omitted; <code>by</code> and <code>comparator</code> apply to the part it selects.",
+            "shortHtml": "Which part of an entry <code>Core\\Arr::diff</code> and <code>intersect</code> compare. It is the <code>{on: …}</code> option, and it is <code>Values</code> when you leave it out; <code>by</code> and <code>comparator</code> apply to the part it selects.",
             "cases": []
           }
         }
@@ -15864,7 +15864,7 @@
                 "descHtml": "The file to measure. A relative path must be a string written directly in the code. It is joined to the folder of the file that contains it."
               }
             ],
-            "returnHtml": "The byte count as a <code>uint</code>. For a text file this is bytes and not characters — a <code>string</code>'s own length is <code>Core\\Str::length</code>, which counts what § 1 says it counts.",
+            "returnHtml": "The byte count as a <code>uint</code>. For a text file this is bytes and not characters — a <code>string</code>'s own length is <code>Core\\Str::length</code>, which counts graphemes (what a person counts as one character).",
             "errors": [
               {
                 "error": "RuntimeError",

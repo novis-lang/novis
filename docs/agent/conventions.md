@@ -281,7 +281,7 @@ CoreMethod {
 },
 ```
 
-`names` is the spec's signature column, one per positional slot and never the `$` (`rule:core-api/shape-rules` R2);
+`names` is the published signature's parameter names, one per positional slot and never the `$` (`rule:core-api/shape-rules` R2);
 `every_registry_rows_names_are_the_specs_signature_column` holds the two together.
 
 **2. The card** — `rule:core-api/reference-card`'s reference documentation, a `const` in the block of cards directly after the
@@ -310,7 +310,7 @@ in `registry.rs` are the rule; the three things they do not say are these. `para
 option of a trailing options bag under the option's own name
 (`a_documented_rows_param_docs_agree_with_its_names`), and `shape` is filled only for a fixed-key
 shape parameter. `errors` is **what the body throws** — every `Fault::thrown_as(ThrownClass::…)` the
-helper reaches, by the class's `catch` name from the spec's § 10 tree (`LogicError`, `ParseError`), one
+helper reaches, by the class's `catch` name from the `Core\Error` tree (`LogicError`, `ParseError`), one
 entry per class with its conditions in the `desc`, and never an error the body does not raise. Two
 readings that cost the backfill time: a bare `Fault::thrown(…)` is `RuntimeError` (`abi.rs` says so),
 and a `Fault::fatal` is not a throw at all — no `catch` sees it, so it is never an entry, though `ret`

@@ -1,7 +1,7 @@
 <?nvs
 // `Core\BigInt` is the integer with no width: the same five questions `gmp` and
 // the integer half of `bcmath` were reached for, asked of a `Core`-owned object
-// that is immutable and method-based — `rule:types/arithmetic`, spec § 13.
+// that is immutable and method-based — `rule:types/arithmetic`.
 
 // A factorial is the shortest program that leaves `int` behind: 20! is the last
 // one an `int` holds, and this one is ten digits past it.

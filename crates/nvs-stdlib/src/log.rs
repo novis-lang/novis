@@ -459,7 +459,7 @@ mod tests {
     fn application_code_and_the_engine_floor_produce_schema_identical_records() {
         // `rule:errors/log-write`'s error, thrown the way a helper's failure is and
         // unwound through one compiled frame so that it carries a backtrace.
-        // The class table is spec § 10's root shape and arrives the one way a
+        // The class table is the `Core\Error` tree's root shape and arrives the one way a
         // context takes one (`Ctx::set_runtime_error_class`).
         const SLOTS: [&str; 4] = ["message", "previous", "backtrace", "location"];
         let mut classes = ClassTable::new();

@@ -282,7 +282,7 @@ pub(crate) const EXIT_REPORT_NAME: &str = r"Core\Script\ExitReport";
 /// The `Throwable` an `UncaughtThrow` report carries, as a type a row can name.
 ///
 /// The one [`CoreTy::Instance`] in this crate naming a class the *exception
-/// tree* owns rather than [`crate::registry::CLASSES`] — spec § 10's root,
+/// tree* owns rather than [`crate::registry::CLASSES`] — that tree's root,
 /// declared in `nvs_hir::errors::TREE` and seeded into the checker's class
 /// table by `nvs_types::error_lib`, so it interns exactly as any other class
 /// type does. `every_instance_type_names_a_registered_class` names it for that
@@ -1303,7 +1303,7 @@ fn result_of(ctx: &nvs_runtime::Ctx, completion: Completion) -> Value {
         // The `[debug] inline` block's style nonce, ignored for the same
         // reason: it belongs to a response's policy.
         style_nonce: _,
-        // Spec § 15's status, ignored on the same reasoning: a `ScriptResult`
+        // `Core\Response::setStatus`'s status, ignored on the same reasoning: a `ScriptResult`
         // is not a response, so a child that set one said it to whoever is
         // answering a peer, which a `spawn script`'s collector is not.
         status: _,

@@ -1,4 +1,4 @@
-//! `Core\Mime` — spec § 17's detection class: what a run of octets *is*, read
+//! `Core\Mime` — the detection class: what a run of octets *is*, read
 //! from the octets and from nothing else.
 //!
 //! **Why this is Tier 0 rather than an extension.** A type read off a file
@@ -44,9 +44,8 @@
 //! because what distinguishes `.docx`, `.xlsx`, `.odt` and `.jar` is a named
 //! entry inside, which is `Core\Zip`'s reading; and `Ebml`, because what
 //! distinguishes a WebM from a Matroska file is the `DocType` element, which is
-//! a parse of the same kind. Spec § 17's row defers *what deliberately has no
-//! case* to this doc ([01-core-library.md](/docs/spec/01-core-library.md) § 17),
-//! and this is it: `Unknown` for a format with no signature, and a container
+//! a parse of the same kind. This doc is the home of *what deliberately has no
+//! case*: `Unknown` for a format with no signature, and a container
 //! case for a format the signature reaches but cannot narrow.
 
 use nvs_runtime::{Fault, NvsStr, Value};
@@ -660,7 +659,7 @@ mod tests {
     }
 
     /// The detection is from the octets, and there is no name for it to be
-    /// misled by — Stage 3's first rule and spec § 17's row.
+    /// misled by — Stage 3's first rule.
     ///
     /// A sweep over the whole table rather than a handful of fixtures, counted
     /// so an entry that stops matching cannot pass by being skipped: every

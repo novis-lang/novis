@@ -4463,9 +4463,8 @@ pub(crate) const CALLABLE_MARKER: &str = "$callable";
 /// The reserved **first** field of every callable's environment class: how many
 /// parameters [`FN_INVOKE`] declares, not counting the receiver.
 ///
-/// [docs/spec/01-core-library.md](/docs/spec/01-core-library.md)
-/// § 2 hands every `Core\Arr` callback `($value, $key)` and lets it "declare
-/// fewer parameters" — so a native caller has to know how many the callable
+/// `Core\Arr` hands every callback `($value, $key)` and lets it declare
+/// fewer parameters — so a native caller has to know how many the callable
 /// actually wants before it can pass, and retain, the right number. A
 /// descriptor carries no arity, so the callable object carries it, in a slot
 /// whose index `nvs_runtime::CALLABLE_ARITY_SLOT` restates and
@@ -4508,7 +4507,7 @@ pub(crate) const FN_ARITY: &str = "fn#arity";
 /// more gets no nibble for its seventeenth onward, and `nvs_runtime` refuses
 /// the *call* rather than passing a parameter it cannot check — fail-closed,
 /// under this repository's priority ordering, and unreachable from a callback
-/// the spec describes, which is handed two arguments.
+/// a `Core` member takes, which is handed two arguments.
 ///
 /// One further 16-byte slot per callable, per evaluation of it, beside
 /// [`FN_ARITY`]'s — memory footprint spent on security, and bought against a

@@ -1,5 +1,5 @@
-//! The cursor `docs/spec/01-core-library.md` § 9's collections hand a
-//! `foreach` — `rule:iteration/two-interfaces`'s `Iterator<T>` half, over a snapshot list.
+//! The cursor `Core\ObjectMap`, `Core\ObjectSet` and `Core\Heap` hand a
+//! `foreach` —`rule:iteration/two-interfaces`'s `Iterator<T>` half, over a snapshot list.
 //!
 //! # Decision: a `Core` collection answers a `foreach` through its method table
 //!
@@ -22,7 +22,7 @@
 //! # Decision: the cursor walks a snapshot, not the live collection
 //!
 //! `iterate()` copies the elements it will yield into a fresh list and the
-//! cursor walks that. § 9's three classes are the spec's only *mutable* `Core`
+//! cursor walks that. Those three classes are *mutable* `Core`
 //! types, so the live alternative has to answer what a `remove` mid-loop does
 //! — PHP's own answer for a rehashed `SplObjectStorage` is undefined — and for
 //! [`crate::heap`] it cannot be answered at all: pop order is not the order the

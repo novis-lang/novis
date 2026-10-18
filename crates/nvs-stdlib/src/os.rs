@@ -2,7 +2,7 @@
 //! on, replacing `posix_*` minus fork, `php_uname`, `getrusage` and
 //! `sys_getloadavg`.
 //!
-//! `rule:core-api/tier-roster` places the class and the spec's § 16 row is the member
+//! `rule:core-api/tier-roster` places the class, and the registry row is the member
 //! list: `pid`, `hostname`, `cpuCount`, `residentBytes`, `loadAverage`. One
 //! member per fact and never one string or one array to take apart, which is
 //! `php_uname`'s and `getrusage`'s migration rows both.
@@ -49,7 +49,7 @@ use crate::registry::{ClassDoc, CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodD
 /// every consumer that matches on it cannot drift apart.
 pub(crate) const NAME: &str = "Core\\Os";
 
-/// `Core\Os`'s registry rows — the spec's § 16 row, whole and in its order.
+/// `Core\Os`'s registry rows: the five members, in the module doc's order.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
     doc: Some(&CARD),

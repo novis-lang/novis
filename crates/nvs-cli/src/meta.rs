@@ -51,8 +51,8 @@
 //! A row is **signature** as well as documentation, and `docs/novis.md` —
 //! the one-file reference `bun nv reference` generates — is built from this
 //! command alone, so that a member's types never have to be scraped out of
-//! the spec a second time. Every member therefore also carries `kind`
-//! (`static` or `instance`), `signature` (the spec's own spelling,
+//! prose. Every member therefore also carries `kind` (`static` or
+//! `instance`), `signature` ([`signature`]'s rendering of the row,
 //! `length(string $s): uint`), `params` with each positional parameter's
 //! type, qualifier and default, `options` for a trailing bag, and `returns`;
 //! a class carries `typeParams` and `constructor` when it has them, a
@@ -203,7 +203,7 @@ pub(crate) fn document() -> Value {
 
 /// One class: its name, its type parameters and constructor when it has
 /// them, its members — methods before instance members, each roster in the
-/// spec's own order — its constants, when it has any, and its own card under
+/// registry row's order — its constants, when it has any, and its own card under
 /// `doc` when the row carries one.
 fn class_json(class: &CoreClass) -> Value {
     let members: Vec<Value> = class
@@ -403,7 +403,7 @@ fn option_json(option: &CoreOption) -> Value {
     Value::Object(out)
 }
 
-/// The spec's own spelling of a row — `name(type $a, type $b = 1, {opt?: T}): ret`,
+/// A row's published signature — `name(type $a, type $b = 1, {opt?: T}): ret`,
 /// with a variadic tail as `type ...$rest` and a written type-argument list
 /// as `name<T>(…)`. Never the class or the `$receiver->`: the consumer knows
 /// which class it is reading and `kind` says the rest.
@@ -499,7 +499,7 @@ fn const_string(value: &Const) -> String {
     }
 }
 
-/// A [`Qual`] as the spec's *Qualifier* column spells it.
+/// A [`Qual`] as the published `qualifier` field spells it.
 fn qual_string(qual: Qual) -> &'static str {
     match qual {
         Qual::Contagious => "contagious",
@@ -1468,7 +1468,7 @@ mod tests {
         );
     }
 
-    /// The signature half spells a row the way the spec's column does:
+    /// The signature half spells a row the way a program writes the call:
     /// defaults aligned to the end, a bag last, a written type argument on
     /// the name — read off rows the registry ships.
     #[test]

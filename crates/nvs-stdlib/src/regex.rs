@@ -1,6 +1,4 @@
-//! `Core\Regex` — [docs/spec/01-core-library.md](/docs/spec/01-core-library.md)
-//! § 5, over `rule:core-classes/regex-two-tiers`'s
-//! two engines.
+//! `Core\Regex`, over `rule:core-classes/regex-two-tiers`'s two engines.
 //!
 //! That rule is the specification and this module is its implementation; nothing
 //! about *why* the tiers exist is restated here.
@@ -43,7 +41,7 @@
 //! # What a compiled pattern costs, and where it is held
 //!
 //! Compiling is orders of magnitude more expensive than matching, and the
-//! spec's own members take a pattern by value at every call — so
+//! class's own members take a pattern by value at every call — so
 //! `Regex::matches($line, "^\\d+$")` inside a loop would recompile per
 //! iteration. [`compiled`] therefore memoizes, in a **thread-local** cache of
 //! at most [`CACHE_CAPACITY`] entries.
@@ -87,6 +85,14 @@
 //! the set a core caches is the program's own and never one a request composed.
 //! [`crate::cldr`]'s prepared-pattern cache is this same store one grammar
 //! along, under this same bound.
+//!
+//! # The callback that is not `($value, $key)`
+//!
+//! `replaceWith`'s callback is `callable(Match): string`, the one place a
+//! `Core` callback does not receive `($value, $key)`
+//! (`rule:core-api/callback-receives-value-and-key`): a match is one value
+//! with named parts, not a pair. Filtering an array by a pattern has no member;
+//! it is `Arr::filter($a, fn($v) => Regex::matches($v, $p))`.
 
 use std::borrow::Cow;
 use std::cell::RefCell;
@@ -103,14 +109,12 @@ use crate::registry::{
 // Registration — this class's rows, and where its symbols live
 // ============================================================================
 
-/// This class's own name, for the rosters keyed on one — spec § 5's
-/// `Core\Regex`.
+/// This class's own name, for the rosters keyed on one.
 pub const NAME: &str = r"Core\Regex";
 
-/// `Core\Regex`'s registry rows, in the spec's own order.
+/// `Core\Regex`'s registry rows, all eight of them.
 ///
-/// All eight of them. The four members that section states on a `Match` are
-/// [`MATCH`]'s own roster, not this one.
+/// The four members of a `Match` are [`MATCH`]'s own roster, not this one.
 pub const CLASS: CoreClass = CoreClass {
     name: NAME,
     doc: Some(&CARD),
@@ -458,12 +462,12 @@ const QUOTE_DOC: MethodDoc = MethodDoc {
 /// [`MATCH_NAME`] for why.
 const PATTERN_NAME: &str = r"Core\Regex\Pattern";
 
-/// Spec § 5's `Core\Regex\Pattern` — a pattern plus the four compilation
+/// `Core\Regex\Pattern` — a pattern plus the four compilation
 /// flags, which is what PCRE's `/…/imsU` delimiter-and-modifier syntax carried
 /// and Novis has no syntax for.
 ///
 /// **Two slots and no member of its own.** A `Pattern` is a *handle*: nothing
-/// asks it a question, and every one of § 5's matching members takes one where
+/// asks it a question, and every one of `Core\Regex`'s matching members takes one where
 /// it also takes a plain `string`. So its state is read by `Core\Regex`'s
 /// members rather than by its own, which is the one carve-out in
 /// `registry`'s `a_class_with_slots_has_instance_members_and_the_reverse` and
@@ -501,11 +505,11 @@ const PATTERN_TEXT_SLOT: usize = 0;
 /// [`PATTERN`]'s `flags` slot, by index — see [`GROUPS_SLOT`].
 const PATTERN_FLAGS_SLOT: usize = 1;
 
-/// Spec § 5's `Pattern|string $pattern`, written once because five members
+/// The `Pattern|string $pattern` parameter, written once because five members
 /// declare it — a compiled handle, or the text of one taken at its defaults.
 ///
-/// Both spellings are the same question asked twice, which is why the spec
-/// admits either: `Regex::matches($s, "^\\d+$")` needs no handle at all, and
+/// Both spellings are the same question asked twice, which is why the
+/// signature admits either: `Regex::matches($s, "^\\d+$")` needs no handle at all, and
 /// `Regex::compile` exists for the call that wants flags or wants the
 /// pattern's validity checked at one place. [`pattern_of`] is where the two
 /// meet again.
@@ -572,7 +576,7 @@ const NO_FLAGS: u8 = 0;
 /// [`crate::registry::CLASSES`], so the two cannot drift apart.
 const MATCH_NAME: &str = r"Core\Regex\Match";
 
-/// Spec § 5's `Core\Regex\Match` — the first `Core`-owned instance, and the
+/// `Core\Regex\Match` — the first `Core`-owned instance, and the
 /// shape that replaces `preg_match`'s `$matches` out-parameter (`rule:core-api/shape-rules` R3
 /// forbids one) together with `PREG_OFFSET_CAPTURE`.
 ///
@@ -582,7 +586,7 @@ const MATCH_NAME: &str = r"Core\Regex\Match";
 /// here is what this one holds.
 ///
 /// **The groups are materialized when the match is made, not when they are
-/// asked for.** Slot `groups` is the whole `array<?string>` the spec's
+/// asked for.** Slot `groups` is the whole `array<?string>` that
 /// `groups()` answers with, and every other member reads it: `group(k)` is a
 /// key lookup in it, `text()` is `group(0)`, and only `offset` is stored
 /// beside it. The alternative — keeping the subject and each group's byte

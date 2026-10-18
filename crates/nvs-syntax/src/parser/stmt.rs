@@ -171,7 +171,7 @@ impl<'src, 'd> Parser<'src, 'd> {
     }
 
     pub(super) fn parse_statement_inner(&mut self) -> Stmt {
-        // --- HTML-mode round trip, spec 00-overview.md § 1 ---------------------
+        // --- HTML-mode round trip ---------------------------------------------
         // `?>`/`<?nvs` can reopen or reclose code mode anywhere a statement is
         // expected, not just at file scope — e.g. `if ($x) { ?>html<?nvs }` is
         // legal, exactly as in PHP. Skip every bare tag token here; stop at
@@ -926,7 +926,7 @@ impl<'src, 'd> Parser<'src, 'd> {
         }
     }
 
-    /// `<?= expr (';')? ?>` — spec § 1: exactly `<?nvs echo expr; ?>`, one
+    /// `<?= expr (';')? ?>` — exactly `<?nvs echo expr; ?>`, one
     /// expression, and unlike every other statement form the `;` is optional
     /// right before the closing tag. `?>` is left for `parse_statement`'s next
     /// call to consume, matching how an ordinary `echo` leaves the following

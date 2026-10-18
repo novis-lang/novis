@@ -10,7 +10,7 @@
 //! toggles it **in place**, never by pushing: there is exactly one outer state
 //! at a time, so `modes.len() == 1` is the precise condition for "an unclosed
 //! tag is legal to run to end of file"
-//! ([`docs/spec/00-overview.md` § 1](/docs/spec/00-overview.md)).
+//! ([`docs/reference/lang/10-programs.md`](/docs/reference/lang/10-programs.md)).
 //! Everything nested inside that outer state — a double-quoted string, a
 //! html template, a heredoc/nowdoc, a `{$…}` interpolation site — is a
 //! genuine push/pop frame, and reaching end of input with any of those still
@@ -598,7 +598,8 @@ impl<'a> Lexer<'a> {
             // (`rule:tooling/shebang-opens-code-mode`).
             self.shebang_open = false;
             // One immediately following newline is swallowed, so a template
-            // line ending in `?>` does not emit a blank line (spec § 1). It is
+            // line ending in `?>` does not emit a blank line
+            // (`docs/reference/lang/10-programs.md`). It is
             // the only byte outside `skip_trivia` that no token covers, so it
             // is recorded as trivia too — otherwise every `?>` at the end of a
             // line would be a hole in
@@ -2040,7 +2041,7 @@ mod tests {
     fn spawn_script_with_are_contextual_not_reserved() {
         // These must lex as plain identifiers -- the grammar recognises them
         // by text only at the one position each is meaningful, per
-        // docs/spec/00-overview.md § 2 and token.rs's module docs.
+        // token.rs's module docs.
         assert_eq!(
             kinds_ok("<?nvs spawn script with type"),
             vec![OpenTagNvs, Ident, Ident, Ident, Ident, Eof]

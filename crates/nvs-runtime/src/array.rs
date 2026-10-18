@@ -1874,8 +1874,8 @@ pub unsafe extern "C" fn nvs_array_set_index(
 /// Answers [`crate::OK`], or [`crate::THROWN`] where the next integer key is
 /// already live: PHP 8.5's *"Cannot add element to the array as the next
 /// element is already occupied"*, raised as
-/// [`ThrownClass::Logic`](crate::ThrownClass::Logic) because that is spec
-/// § 10's class for a program that asked for something its own state forbids.
+/// [`ThrownClass::Logic`](crate::ThrownClass::Logic) because that is the
+/// `Core\Error` tree's class for a program that asked for something its own state forbids.
 /// **On that refusal `array` is written to `out` unchanged and `value`'s
 /// reference is released**, so the pointer the caller already holds stays live
 /// and stays owned and there is nothing for the error path to re-point — see

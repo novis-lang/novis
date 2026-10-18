@@ -13,8 +13,8 @@
 
 use super::*;
 
-/// Spec § 18's `Db\Settings` — the two arms `open` takes, in the spec's own
-/// order, per `rule:core-api/shape-parameter`.
+/// `Core\Db\Settings` — the two arms `open` takes, per
+/// `rule:core-api/shape-parameter`.
 ///
 /// **The arms are separated by their `driver` and by nothing else that is
 /// declared.** § 2's arm selection is "exactly one arm accepts it", and enum-case
@@ -194,8 +194,7 @@ const STEP_CARD: ClassDoc = ClassDoc {
             the SQL that makes the change.",
 };
 
-/// Spec § 18's `Core\Db` — `connect`, `open`, and the two connectionless entry
-/// points, in the spec's own order.
+/// `Core\Db` — `connect`, `open`, and the two connectionless entry points.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
     doc: Some(&CARD),
@@ -204,7 +203,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             name: "connect",
             names: &["name"],
             params: &[
-                // § 18's Q column: the name is a **sink**, because it selects
+                // The name is a **sink**, because it selects
                 // which operator-written credential this program opens with,
                 // and a `tainted` one would let a request pick the database.
                 CoreTy::Text(Qual::Sink),
@@ -232,8 +231,8 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             name: "open",
             names: &["settings"],
             params: &[
-                // § 18's Q column reads **sink (host)**, and that is where the
-                // classification sits: on [`SETTINGS`]' own field, not here.
+                // The settings are a **sink** for the host, and that
+                // classification sits on [`SETTINGS`]' own field, not here.
                 CoreTy::Shape(SETTINGS),
                 CoreTy::Options(&[CoreOption {
                     name: "shared",
@@ -271,7 +270,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
     constants: &[],
 };
 
-/// Spec § 18's `Core\Db\Connection` — the object `connect` answers with.
+/// `Core\Db\Connection` — the object `connect` answers with.
 ///
 /// The slots are the pair every handle in this crate carries — the key into the
 /// request's own table ([`nvs_runtime::Ctx::hold_open_connection`]) and the name
@@ -280,7 +279,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
 ///
 /// **`query`, `queryAs`, `execute`, `executeMany`, `stream`, `streamAs` and
 /// `transaction` are `Core\Db\Queryable`'s members, and every one is declared
-/// here.** Beyond the interface, § 18's own four rows land here too: `close`,
+/// here.** Beyond the interface, four rows of its own land here too: `close`,
 /// `driver`, `serverVersion` and `isOpen`. The last three answer without a
 /// round trip: `nvs_db::Connection::server_version` reads a string the
 /// connection already has.
@@ -288,7 +287,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
 /// **`close` is the only one of these on this class alone.** A
 /// [`TRANSACTION`] delegates `Core\Db\Queryable` to its connection and nothing
 /// else, and closing the connection out from under the `transaction()` call
-/// that is still running is not something § 18 gives a spelling for.
+/// that is still running is not something Novis gives a syntax for.
 /// `rule:classes/no-traits` makes `Transaction` delegate the interface to its connection, so
 /// every one of them is declared once — here — and [`TRANSACTION`] is where the
 /// forwarding lands.
@@ -303,8 +302,8 @@ pub(crate) const CLASS: CoreClass = CoreClass {
 /// wire, and the lock wait on SQLite — so the option means one thing across the
 /// roster rather than one thing per backend.
 ///
-/// **`chunk` is deliberately not here.** `stream`'s second option in § 18 has to
-/// reach the `Execute` that asks for a row count, and this driver's walk asks for
+/// **`chunk` is deliberately not here.** A `chunk` option on `stream` would have
+/// to reach the `Execute` that asks for a row count, and this driver's walk asks for
 /// one row; [`crate::db`] § *`stream` declares no `chunk`, and the portal is
 /// why* is where that stays recorded.
 const STATEMENT_OPTIONS: &[CoreOption] = &[CoreOption {
@@ -332,7 +331,7 @@ pub(crate) const CONNECTION: CoreClass = CoreClass {
                 CoreTy::Options(STATEMENT_OPTIONS),
             ],
             defaults: &[],
-            // § 18's `Rows<Row>` — [`ROWS`] at the one concrete argument an
+            // `Rows<Row>` — [`ROWS`] at the one concrete argument an
             // unhydrated result set has, and `queryAs<T>` is the same class at
             // whatever the call site wrote. A [`CoreTy::InstanceAt`] and not a
             // [`CoreTy::Instance`]: the bare spelling would intern the class at
@@ -356,7 +355,7 @@ pub(crate) const CONNECTION: CoreClass = CoreClass {
                 CoreTy::Options(STATEMENT_OPTIONS),
             ],
             defaults: &[],
-            // § 18's `Rows<T>` at the `T` the call site wrote — the whole
+            // `Rows<T>` at the `T` the call site wrote — the whole
             // reason [`CoreTy::Written`] descends into a
             // [`CoreTy::InstanceAt`]. It is also what makes this member
             // generic: `CoreMethod::written` finds the `T` here and nowhere
@@ -391,7 +390,7 @@ pub(crate) const CONNECTION: CoreClass = CoreClass {
                 // times, so the text is written once and cannot pick up a
                 // `tainted` fragment per set.
                 CoreTy::Text(Qual::Sink),
-                // § 18's `array<array<mixed>>`. The outer array is the sets and
+                // `array<array<mixed>>`. The outer array is the sets and
                 // the inner one is `query`'s own `$params`, which is why each
                 // set is read by [`statement_of`] and gains no binding rule of
                 // its own.
@@ -414,8 +413,8 @@ pub(crate) const CONNECTION: CoreClass = CoreClass {
             names: &["sql", "params"],
             // `query`'s two exactly: § 4 gives this member the same statement
             // and the same binding rule, and the only difference is where the
-            // rows are when it answers. § 18's `{timeout?, chunk?: uint}` is
-            // here at its `timeout` alone: on this member the deadline stays
+            // rows are when it answers. The options bag is `{timeout?}`
+            // alone: on this member the deadline stays
             // filed while the portal is open, so it bounds every `advance()` up
             // to the last row rather than the call that opens the walk.
             // [`crate::db`] § *`stream` declares no `chunk`, and the portal is
@@ -427,7 +426,7 @@ pub(crate) const CONNECTION: CoreClass = CoreClass {
                 CoreTy::Options(STATEMENT_OPTIONS),
             ],
             defaults: &[],
-            // § 18's `Iterable<Db\Row>`, spelled as the class that *is* the
+            // `Iterable<Db\Row>`, spelled as the class that *is* the
             // walk — [`CoreTy::Iterated`] is parameter position only, so
             // `Core\IO\Lines`' spelling is the one available here. The element
             // rides as that class's own type argument, exactly as it does on
@@ -452,7 +451,7 @@ pub(crate) const CONNECTION: CoreClass = CoreClass {
                 CoreTy::Options(STATEMENT_OPTIONS),
             ],
             defaults: &[],
-            // § 18's `Iterable<T>`, which is the walk above at the type its
+            // `Iterable<T>`, which is the walk above at the type its
             // call site wrote. The [`CoreTy::Written`] is what makes the member
             // generic, exactly as `queryAs`'s is: `CoreMethod::written` finds
             // the `T` here and nowhere else, so a call naming no type argument
@@ -476,7 +475,7 @@ pub(crate) const CONNECTION: CoreClass = CoreClass {
             names: &[],
             params: &[],
             defaults: &[],
-            // § 18's `Driver`, which is the same enum a `Core\Db::open`
+            // `Core\Db\Driver`, which is the same enum a `Core\Db::open`
             // settings object names first — [`DRIVER`]. A connection is the
             // one place the answer is a fact rather than a request, since a
             // `connect` reads it out of the block the operator wrote.
@@ -489,7 +488,7 @@ pub(crate) const CONNECTION: CoreClass = CoreClass {
             names: &[],
             params: &[],
             defaults: &[],
-            // Unqualified, as § 18's table writes it and for [`COLUMN`]'s
+            // Unqualified, for [`COLUMN`]'s
             // reason: the server described itself during the handshake, before
             // this connection had carried a statement at all, so it is not one
             // of § 9's `tainted` reads — those are the values a request can put
@@ -513,8 +512,8 @@ pub(crate) const CONNECTION: CoreClass = CoreClass {
 };
 
 /// The [`CONNECTION`] rows that are **not** `Core\Db\Queryable`'s, and so are
-/// not delegated to a [`TRANSACTION`] — spec § 18's second table, which gives
-/// `Connection` members "beyond `Queryable`".
+/// not delegated to a [`TRANSACTION`]: the `Connection` members beyond
+/// `Queryable`.
 ///
 /// It exists so that the delegation sweep in
 /// [`crate::db::transaction`]'s `a_transaction_is_a_callable_and_transaction_is_a_queryable`
@@ -525,7 +524,7 @@ pub(crate) const CONNECTION: CoreClass = CoreClass {
 /// ends — every name on it is a row [`CONNECTION`] has and [`TRANSACTION`] does
 /// not. A row that stops being either fails there rather than going stale.
 ///
-/// `stream` and `streamAs` will not join it: § 18 puts both on `Queryable`, so
+/// `stream` and `streamAs` will not join it: both are `Queryable` members, so
 /// each lands on both classes.
 ///
 /// [`QUERYABLE`] reads its members off the same list: every [`CONNECTION`]
@@ -666,7 +665,7 @@ pub(super) const TRANSACTION_ROW: CoreMethod = CoreMethod {
     doc: Some(&TRANSACTION_DOC),
 };
 
-/// Spec § 18's `Core\Db\Transaction` — what § 7's callable is handed, and the
+/// `Core\Db\Transaction` — what § 7's callable is handed, and the
 /// only place a transaction is nameable.
 ///
 /// **`implements Queryable by $connection` is spelled here as the same rows
@@ -705,7 +704,7 @@ pub(crate) const TRANSACTION: CoreClass = CoreClass {
                 CoreTy::Options(STATEMENT_OPTIONS),
             ],
             defaults: &[],
-            // § 18's `Rows<Row>` — [`ROWS`] at the one concrete argument an
+            // `Rows<Row>` — [`ROWS`] at the one concrete argument an
             // unhydrated result set has, and `queryAs<T>` is the same class at
             // whatever the call site wrote. A [`CoreTy::InstanceAt`] and not a
             // [`CoreTy::Instance`]: the bare spelling would intern the class at
@@ -823,8 +822,8 @@ pub(crate) const TRANSACTION: CoreClass = CoreClass {
 /// [`SETTINGS`] and every message quoting one cannot drift apart.
 pub(crate) const DRIVER_NAME: &str = r"Core\Db\Driver";
 
-/// Spec § 18's `Driver` — `rule:core-classes/db-one-api`'s five backends, as the registry half of
-/// [`nvs_db::Driver`].
+/// `Core\Db\Driver` — `rule:core-classes/db-one-api`'s five backends, as the registry half
+/// of [`nvs_db::Driver`].
 ///
 /// **The two halves are one enum and the wire one is authoritative.** This
 /// table is what a program writes into a `Db\Settings` object;
@@ -838,8 +837,8 @@ pub(crate) const DRIVER_NAME: &str = r"Core\Db\Driver";
 /// `Driver::Sqlite` and the other four disjoint sets. No field is declared to
 /// be a discriminant, here or anywhere.
 ///
-/// **The values are declaration ordinals and mean nothing else.** They are
-/// § 18's own order, so `MySql` is 0 and `SqlServer` is 4, and they are not a
+/// **The values are declaration ordinals and mean nothing else.** `MySql` is 0
+/// and `SqlServer` is 4, and they are not a
 /// rank — writing them out rather than leaning on `rule:enums/declaration`'s
 /// auto-increment is [`CoreEnum::cases`]' rule for every enum here.
 pub(crate) const DRIVER: CoreEnum = CoreEnum {
@@ -888,14 +887,14 @@ pub(super) const DRIVER_DOC: EnumDoc = EnumDoc {
 /// [`DRIVER_NAME`] is.
 pub(crate) const TLS_NAME: &str = r"Core\Db::Tls";
 
-/// Spec § 18's `Tls` — how much of the server's certificate a TCP connection
+/// `Core\Db::Tls` — how much of the server's certificate a TCP connection
 /// checks.
 ///
 /// **`VerifyFull` is the default and it is the only mode this runtime
 /// implements**, which is `rule:core-classes/db-capabilities`'s third closed hole: PHP's `pdo_pgsql`
 /// defaults to `sslmode=prefer` and connects in plaintext whenever the server
 /// says so, and none of § 3's three defaults is configurable to the unsafe
-/// value. The other three cases are declared because § 18 declares them and a
+/// value. The other three cases are declared so that a
 /// program that writes one is refused *at the call*, naming what it asked for
 /// — which is an honest answer, where accepting `Disabled` and quietly
 /// verifying anyway would be a second, silent one. [`settings_tls`] is where
@@ -905,7 +904,7 @@ pub(crate) const TLS_NAME: &str = r"Core\Db::Tls";
 /// is a different field: a `tls_ca_file` on the block, or the compiled-in
 /// Mozilla anchor set — [`nvs_db::PgTarget::tls_ca_file`] owns that reading.
 ///
-/// **The values are declaration ordinals**, § 18's own order, weakest first.
+/// **The values are declaration ordinals**, weakest first.
 pub(crate) const TLS: CoreEnum = CoreEnum {
     name: TLS_NAME,
     cases: &[
@@ -950,8 +949,8 @@ pub(super) const TLS_DOC: EnumDoc = EnumDoc {
 /// that will take it and every message quoting it cannot drift apart.
 pub(crate) const ISOLATION_NAME: &str = r"Core\Db\Isolation";
 
-/// Spec § 18's `Isolation` — `rule:core-classes/db-transactions`'s five levels, as the registry half
-/// of [`nvs_db::Isolation`].
+/// `Core\Db\Isolation` — `rule:core-classes/db-transactions`'s five levels, as the
+/// registry half of [`nvs_db::Isolation`].
 ///
 /// **The two halves are one enum and the wire one is authoritative.** This
 /// table is what a program writes; `nvs_db::Isolation` is what a driver renders,
@@ -1129,7 +1128,7 @@ pub(super) const ERROR_KIND_DOC: EnumDoc = EnumDoc {
 /// that answers with it and every message quoting it cannot drift apart.
 pub(crate) const COLUMN_TYPE_NAME: &str = r"Core\Db\Column::Type";
 
-/// Spec § 18's `ColumnType` — the fourteen types a result column can be
+/// `Core\Db\Column::Type` — the fourteen types a result column can be
 /// declared as, as the registry half of [`nvs_db::ColumnType`].
 ///
 /// **The two halves are one enum and the wire one is authoritative.** This
@@ -1143,9 +1142,8 @@ pub(crate) const COLUMN_TYPE_NAME: &str = r"Core\Db\Column::Type";
 /// `array<T>` and MySQL's `SET` as `array<string>`, and both *describe* as
 /// `Other`. [`ROWS`] records the same split from the reader's side.
 ///
-/// **The values are declaration ordinals and mean nothing else.** They are the
-/// spec's own order at `docs/spec/01-core-library.md:1223`, so `Int` is 0 and
-/// `Other` is 13, but they are not a rank a program may compare: these are a
+/// **The values are declaration ordinals and mean nothing else.** They follow
+/// [`nvs_db::ColumnType`]'s declaration order, so `Int` is 0 and `Other` is 13, but they are not a rank a program may compare: these are a
 /// set and not a scale, which is why `nvs_db::ColumnType` derives no `Ord`
 /// either. Writing them out rather than leaning on `rule:enums/declaration`'s
 /// auto-increment is [`CoreEnum::cases`]' rule for every enum here.
@@ -1246,14 +1244,14 @@ pub(super) const COLUMN_TYPE_DOC: EnumDoc = EnumDoc {
     ],
 };
 
-/// Spec § 18's `Core\Db\Rows` — what a buffered statement answers with.
+/// `Core\Db\Rows` — what a buffered statement answers with.
 ///
 /// What the slot holds is the whole of what the members read, decided here
 /// rather than left to them: **every row, already decoded, each as a
 /// string-keyed array of its columns** — which is `Row::toArray`'s own shape, so
 /// every member below is a reader over it and never a second decoder.
 ///
-/// **All six of § 18's members, and the sixth reads a second slot.**
+/// **Six members, and the sixth reads a second slot.**
 /// `columns()` answers what the *statement* described rather than anything a
 /// row holds, so [`ROWS_COLUMNS_SLOT`] is filled beside the rows at query time:
 /// [`nvs_db::PgRows`] lends its row description out of the borrow the rows are
@@ -1262,7 +1260,7 @@ pub(super) const COLUMN_TYPE_DOC: EnumDoc = EnumDoc {
 /// description of a column is not a summary of the value a read of it
 /// produces.
 ///
-/// **It is generic at `T`, and § 18's `Rows` and `Rows<T>` are this one class.**
+/// **It is generic at `T`, and `Rows` and `Rows<T>` are this one class.**
 /// The roster row is in [`crate::registry::GENERIC_CLASSES`], `all`/`first`
 /// answer `array<T>`/`?T`, and what fixes the variable is the member that
 /// produced the receiver: `query` answers `Rows<Row>` and `queryAs<T>` the
@@ -1294,7 +1292,7 @@ pub(crate) const ROWS: CoreClass = CoreClass {
             names: &[],
             params: &[],
             defaults: &[],
-            // § 18's `Rows<T>` row: `all` answers the class's own type
+            // `all` answers the class's own type
             // variable, which `query`'s `Rows<Row>` fixes at a `Core\Db\Row`
             // and `queryAs<T>` at whatever the call site wrote. Substituted in
             // by `nvs_types::expr::args::substitute_receiver_args`, exactly as
@@ -1325,7 +1323,7 @@ pub(crate) const ROWS: CoreClass = CoreClass {
         CoreMethod {
             name: "column",
             names: &["key"],
-            // § 18's `int|string $key`: a number is the column's *position* in
+            // `int|string $key`: a number is the column's *position* in
             // the server's own description and a name is its label. Neutral,
             // for the reason every name parameter in [`ROW`] is — the values
             // this answers with carry the database's qualifiers and never the
@@ -1350,7 +1348,7 @@ pub(crate) const ROWS: CoreClass = CoreClass {
             names: &[],
             params: &[],
             defaults: &[],
-            // § 18's `array<Column>` and deliberately not `array<T>`: a
+            // `array<Column>` and deliberately not `array<T>`: a
             // description belongs to the statement, so `queryAs<Person>`
             // describes the same columns `query` does and the class variable
             // has nothing to say about it.
@@ -1363,7 +1361,7 @@ pub(crate) const ROWS: CoreClass = CoreClass {
     constants: &[],
 };
 
-/// Spec § 18's `Core\Db\Row` — one row of a [`ROWS`], and the whole of what
+/// `Core\Db\Row` — one row of a [`ROWS`], and the whole of what
 /// `rule:core-classes/db-column-types` puts in place of `FETCH_ASSOC`, `FETCH_NUM` and `FETCH_OBJ`.
 ///
 /// **The three orderings PHP makes a fetch mode of are one shape here.** A row
@@ -1383,7 +1381,7 @@ pub(crate) const ROWS: CoreClass = CoreClass {
 /// refuses: `->float` on a `NUMERIC` is not the rounding PHP does silently, and
 /// `->string` on a `BYTEA` is not the re-interpretation
 /// `rule:types/bytes` keeps apart. The
-/// universal path § 18 names — `->get()` plus `as` — is what a program that
+/// universal path — `->get()` plus `as` — is what a program that
 /// means a conversion writes.
 ///
 /// **Four of the eleven answer with an instance**: `instant`, `date`, `time`
@@ -1395,7 +1393,7 @@ pub(crate) const ROWS: CoreClass = CoreClass {
 /// **The fifth structured row has no reader of its own**: a zone-less
 /// `TIMESTAMP` is a `Core\Time\DateTime`, and § 6's roster of eleven — which
 /// this list is exactly — names no `dateTime`. It is reached through `get`,
-/// which is § 18's universal path and what that roster means by leaving it
+/// which is the universal path and what that roster means by leaving it
 /// out.
 pub(crate) const ROW: CoreClass = CoreClass {
     name: ROW_NAME,
@@ -1405,7 +1403,7 @@ pub(crate) const ROW: CoreClass = CoreClass {
         CoreMethod {
             name: "has",
             names: &["name"],
-            // § 18's own annotation on this row, and what every other name
+            // Neutral, which is what every other name
             // parameter in this class carries too: a column name is a lookup
             // key, so what comes back carries the qualifiers `rule:core-classes/db-column-types` gives
             // the *column* and never the name's. `Qual::Sink` would be the
@@ -1538,12 +1536,12 @@ pub(crate) const ROW: CoreClass = CoreClass {
     constants: &[],
 };
 
-/// Spec § 18's `Core\Db\Write` — what a statement that answers no rows answers
+/// `Core\Db\Write` — what a statement that answers no rows answers
 /// with, and the whole of what `rule:core-classes/db-statement-members` puts in place of `rowCount` on a
 /// write, `lastInsertId` and `mysqli_info`.
 ///
-/// **Three readers rather than § 18's three readonly properties**, which is
-/// where this departs from that table and has to: a `Core`-owned instance has
+/// **Three readers rather than three readonly properties**, because a
+/// `Core`-owned instance has
 /// no property a program can reach ([`CoreTy::Instance`] is the home of that
 /// rule), so `$w->affected` would resolve a class, find no member and reach
 /// `nvs-ir` with nothing to call. `Core\RateLimit\Decision` is the same shape
@@ -1597,7 +1595,7 @@ pub(crate) const WRITE: CoreClass = CoreClass {
     constants: &[],
 };
 
-/// Spec § 18's `Core\Db\Column` — one column of what a statement described,
+/// `Core\Db\Column` — one column of what a statement described,
 /// and the whole of what `rule:core-classes/db-one-api` puts in place of `getColumnMeta` and
 /// `mysqli_fetch_field`.
 ///
@@ -1608,7 +1606,7 @@ pub(crate) const WRITE: CoreClass = CoreClass {
 /// table has its headings before it knows whether there is anything under
 /// them.
 ///
-/// **Three readers rather than § 18's three properties**, for the reason
+/// **Three readers rather than three properties**, for the reason
 /// [`WRITE`]'s own docs give: a `Core`-owned instance has no property a program
 /// can reach.
 ///
@@ -1630,7 +1628,7 @@ pub(crate) const COLUMN: CoreClass = CoreClass {
             names: &[],
             params: &[],
             defaults: &[],
-            // Unqualified, and § 18's table writes it that way: a label is
+            // Unqualified: a label is
             // described by the server out of the statement *this* program
             // wrote, so it is not one of § 9's `tainted` reads — those are the
             // column's values, which is what a request can put bytes into.
@@ -1665,9 +1663,8 @@ pub(crate) const COLUMN: CoreClass = CoreClass {
     constants: &[],
 };
 
-/// Spec § 18's `Core\Db\InList` — opaque, produced by one member and read by
-/// the bind. No members at all, which is that table's own "accepted only as a
-/// bound parameter".
+/// `Core\Db\InList` — opaque, produced by one member and read by the bind. It
+/// has no members at all, because it is accepted only as a bound parameter.
 pub(crate) const IN_LIST: CoreClass = CoreClass {
     name: IN_LIST_NAME,
     doc: Some(&IN_LIST_CARD),

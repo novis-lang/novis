@@ -4,7 +4,7 @@
 //! session editing one area does not carry the rest in context. The methods
 //! are `pub(crate)` so they reach across these modules and no further.
 //!
-//! **`current()` outside the protocol throws spec § 10's `LogicError`**
+//! **`current()` outside the protocol throws `LogicError`**
 //! (`rule:iteration/cursor-out-of-range`). Driving a cursor is the calling
 //! code's own control flow, so
 //! reading an element it never advanced to is a bug in that code rather than a
@@ -885,7 +885,7 @@ pub(crate) fn lower_generator_advance(
 /// guard needs no flag of its own: it reads the field the entry switch
 /// already reads, and the state object grows by nothing.
 ///
-/// **It throws `LogicError`**, spec § 10's class for a caller that broke a
+/// **It throws `LogicError`**, the `Core\Error` tree's class for a caller that broke a
 /// contract it could have checked, rather than a `RuntimeError` under it.
 /// Which element a cursor is on is a fact of the calling code's own control
 /// flow rather than of the run — the caller either drove `advance()` or did
@@ -975,7 +975,7 @@ pub(crate) fn lower_generator_current(
         Ty::Str,
         InstKind::ConstStr(OUTSIDE_THE_PROTOCOL.to_owned()),
     );
-    // Tagged rather than bare, because spec § 10 types the `previous` option
+    // Tagged rather than bare, because `Throwable` types the `previous` option
     // `Throwable|null` and the constructor reads parameter 2 as one `Value`.
     // Nothing to retain: a `Ty::Null` holds no reference to take.
     let (absent, _) = low.emit(outside, Ty::Null, InstKind::ConstNull);

@@ -1,9 +1,9 @@
-//! `Core\Json` — [docs/spec/01-core-library.md](/docs/spec/01-core-library.md)
-//! § 6, over `serde_json`.
+//! `Core\Json`, over `serde_json`.
 //!
-//! That section is authoritative for every signature; what belongs here is the
-//! crate choice, the two shapes JSON has that Novis does not, and the places
-//! this module refuses a value the C `json_encode`/`json_decode` would have
+//! The registry (`crates/nvs-stdlib/src/registry.rs`, published by `nvs meta --json`)
+//! is the one source of every signature, `rule:core-api/field-wise-precedence`. What
+//! belongs here is the crate choice, the two shapes JSON has that Novis does not, and
+//! the places this module refuses a value the C `json_encode`/`json_decode` would have
 //! degraded instead.
 //!
 //! # The crate, and why this one
@@ -197,7 +197,7 @@
 //! the class a call site named, each element of an `array<T>` of one, and a
 //! field or a list element typed as one, since a document is a tree and a door
 //! at its root only is not a door. What the member is handed is the value as it
-//! arrived, § 6 declaring it over `mixed`, so this door reads a document the
+//! arrived, the member being declared over `mixed`, so this door reads a document the
 //! field walk would refuse for not being an object.
 //!
 //! **The encoding half parts at the same place, one condition ahead of the
@@ -297,8 +297,8 @@ use crate::registry::{
 // Registration — this class's rows, and where its symbols live
 // ============================================================================
 
-/// `Core\Json`'s registry rows, in the spec's own order — all four of § 6's
-/// members.
+/// `Core\Json`'s registry rows — all four of its members: `encode`, `decode`,
+/// `decodeAs` and `isValid`.
 ///
 /// `decodeAs` is one of the rows whose helper takes arguments its `params` does
 /// not declare: `registry::WRITTEN_CLASS_MEMBERS` puts the class its call site
@@ -374,8 +374,7 @@ const CARD: ClassDoc = ClassDoc {
 /// `Core\Json::encode`'s reference card (`rule:core-api/reference-card`): each option is its own
 /// [`ParamDoc`] under the option's name, which is how [`MethodDoc::params`]
 /// says a bag is documented. What is stated here is what
-/// [`nvs_core_json_encode`] and [`Encodable`] do, and nothing the spec's § 6
-/// promises beyond them.
+/// [`nvs_core_json_encode`] and [`Encodable`] do, and nothing beyond them.
 const ENCODE_DOC: MethodDoc = MethodDoc {
     short: "Serializes `$value` as JSON text. It can be a scalar, an array, an anonymous object \
             or an instance of a class with `#[Json\\Derive]`. The text is on one line unless \
@@ -547,7 +546,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
 // Depth
 // ============================================================================
 
-/// Spec § 6's default `maxDepth`, which is also PHP's `$depth` default.
+/// The default `maxDepth`, which is also PHP's `$depth` default.
 ///
 /// Counted PHP's way: a scalar document is depth 1, so `[1]` is depth 2 and a
 /// `maxDepth` of 1 rejects it. That is the same arithmetic a program migrating
@@ -610,7 +609,7 @@ pub(crate) fn max_depth(value: &Value, who: &str) -> Result<u32, Fault> {
 // Encoding
 // ============================================================================
 
-/// The encoding half of spec § 6's `Core\Json\Codec` — `toJson(): mixed`.
+/// The encoding half of `Core\Json\Codec` — `toJson(): mixed`.
 /// `nvs_types::derive` owns the spelling as the half a `#[Json\Derive]`
 /// generates where the class does not write it, and `E0757` refuses an
 /// attribute on a class that wrote both. [`DECODE`] is its twin, and the two
@@ -1787,7 +1786,7 @@ impl<'de> Visitor<'de> for Decode {
     }
 
     /// The one number arm that can refuse: a positive literal past
-    /// `i64::MAX` is spec § 6's "too large for `int`", and this module's
+    /// `i64::MAX` is "too large for `int`", and this module's
     /// § *The refusals* owns how much further that band reaches.
     fn visit_u64<E: serde::de::Error>(self, value: u64) -> Result<Value, E> {
         i64::try_from(value)
@@ -1860,8 +1859,8 @@ pub(crate) fn read(text: &str, max: u32) -> Result<Value, serde_json::Error> {
 /// [`read`]'s parse, on whatever stack it is called on.
 ///
 /// `disable_recursion_limit` is deliberate and is what [`DEPTH_CEILING`]
-/// exists to make safe: `serde_json`'s own limit is 128, which is below spec
-/// § 6's default of [`DEFAULT_MAX_DEPTH`], so leaving it on would make the
+/// exists to make safe: `serde_json`'s own limit is 128, which is below the
+/// default of [`DEFAULT_MAX_DEPTH`], so leaving it on would make the
 /// declared default unreachable. [`Decode`]'s own counter is the bound
 /// instead, and it is checked against a ceiling the call cannot raise.
 fn parse(text: &str, max: u32) -> Result<Value, serde_json::Error> {
@@ -2278,7 +2277,7 @@ const fn undecoded(ty: CodecTy) -> bool {
     matches!(ty, CodecTy::Opaque | CodecTy::Bytes)
 }
 
-/// The decoding half of spec § 6's `Core\Json\Codec` —
+/// The decoding half of `Core\Json\Codec` —
 /// `static fromJson(mixed $value): static`. `nvs_types::derive` owns the
 /// spelling as the half a `#[Json\Derive]` generates where the class does not
 /// write it, and `E0757` refuses an attribute on a class that wrote both.
@@ -2287,7 +2286,7 @@ const DECODE: &str = "fromJson";
 /// The other door out of [`decode_object`]: the value handed to the [`DECODE`]
 /// the class wrote itself, and whatever that member built is the instance.
 ///
-/// **The value goes over as it arrived.** § 6 declares the member over `mixed`,
+/// **The value goes over as it arrived.** The member is declared over `mixed`,
 /// so a document this door reads is not required to be a JSON object the way a
 /// field walk's is — what a `"1.2"` or a `[1, 2]` means to the class is the
 /// class's own business. The reference is borrowed rather than owned:

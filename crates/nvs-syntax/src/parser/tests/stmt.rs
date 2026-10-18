@@ -314,7 +314,7 @@ fn foreach_binding_with_no_type_and_no_var_is_still_refused() {
 
 #[test]
 fn foreach_header_as_belongs_to_foreach_not_conversion() {
-    // `rule:types/conversion` / docs/spec/00-overview.md § 3.2: converting the
+    // `rule:types/conversion`: converting the
     // *subject* inside a `foreach` header needs parens, since a bare
     // `as` right after the subject is `foreach`'s own separator.
     let s = parse_stmt_ok("foreach (($m as array<int>) as int $v) { }");
@@ -517,7 +517,7 @@ fn a_name_used_as_a_type_is_not_confused_with_a_static_call() {
     assert!(matches!(e.kind, ExprKind::StaticCall { .. }));
 }
 
-/// `docs/spec/01-core-library.md` § 6's `decodeAs<T>` spelling: the
+/// `Core\Json::decodeAs<T>`'s syntax: the
 /// `<...>` between a member name and its `(` is a type-argument list, not
 /// two comparisons.
 #[test]

@@ -226,7 +226,7 @@ impl TdsColumn {
         self.flags & COLUMN_NULLABLE != 0
     }
 
-    /// The column's declared type, as spec § 18's `ColumnType` names it — what
+    /// The column's declared type, as `Core\Db`'s `ColumnType` names it — what
     /// `Core\Db\Rows::columns` answers for this column.
     ///
     /// It reads the type byte and nothing else, which is the whole difference

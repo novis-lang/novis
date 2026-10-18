@@ -1240,8 +1240,8 @@ fn reject_unrowed_arithmetic_operand(
 /// operands *are* numbers for. [`code::E_FLOAT_MODULO`]'s own doc comment is
 /// that decision's home: PHP's `%` converts to an integer and returns one,
 /// `rule:types/arithmetic`'s "either operand a `float`" row would return a `float`, and
-/// the spec's own `Core\Math::mod` row settles it the third way — "integer `%`
-/// is the operator", so the floating-point remainder is that member and the
+/// `Core\Math::mod` settles it the third way — integer `%` is the operator,
+/// so the floating-point remainder is that member and the
 /// operator is refused at both ends rather than guessed at either. The other
 /// end is the catchable throw `nvs_runtime::helpers::value_arith` raises where
 /// only the tags can see it.
@@ -3040,8 +3040,8 @@ fn require_stringable_object(ty: TypeId, span: Span, env: &mut Env<'_>) {
                 )
                 .with_primary(span, "converted to `string` here")
                 .with_help(
-                    "a `Core` class renders exactly where the spec gives it a `toString`, and \
-                     this one has none — call the member that answers the text you want",
+                    "a `Core` class can be converted to `string` only if it has a `toString` \
+                     method. Call the method that returns the text you want",
                 ),
             );
             return;

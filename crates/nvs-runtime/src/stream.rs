@@ -389,7 +389,7 @@ impl Drop for Drain {
 pub struct Opened {
     /// The media type the opening member declared.
     pub content_type: Box<str>,
-    /// What the request had declared this response *means* — spec § 15's
+    /// What the request had declared this response *means* — its
     /// status — and `None` where it had declared nothing by the time it opened
     /// the stream.
     pub status: Option<u16>,

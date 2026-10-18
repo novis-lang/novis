@@ -1,7 +1,7 @@
-//! `Core\Path` — [docs/spec/01-core-library.md](/docs/spec/01-core-library.md)
-//! § 8, pure string algebra over paths.
+//! `Core\Path`, pure string algebra over paths.
 //!
-//! That section is authoritative for every signature. **No member touches the
+//! The registry (`crates/nvs-stdlib/src/registry.rs`, published by `nvs meta --json`) is the
+//! one source of every signature (`rule:core-api/field-wise-precedence`). **No member touches the
 //! disk**, so this module has no dependency at all — not `std::path`, whose
 //! `Path`/`PathBuf` are a *host* abstraction that resolves differently on each
 //! target and would drag `OsStr`'s non-UTF-8 question into a type `rule:types/bytes`
@@ -12,7 +12,7 @@
 //!
 //! # One grammar on every platform
 //!
-//! Spec § 8 says every member accepts `/` and `\` alike on every platform and
+//! Every member accepts `/` and `\` alike on every platform and
 //! emits [`SEPARATOR`]. This module reads that as the stronger statement it
 //! has to be: **a path is parsed by one grammar everywhere, and only the
 //! rendering is platform-dependent.** So `Path::isAbsolute('C:/log')` is
@@ -73,7 +73,7 @@
 //! down: **`normalize` is not a launderer.** It is the member most likely to be
 //! read as one — resolving `..` is exactly what stops a path climbing out of a
 //! directory, so it *looks* like the thing that makes a `tainted` path safe —
-//! and spec § 8 says outright that it is not. Its answer is still the caller's
+//! it is not. Its answer is still the caller's
 //! bytes rearranged, and the sink it would have to launder for is a filesystem
 //! nothing in this module opens. So it is `Qual::Contagious`, like every other
 //! member that answers the caller's text, and `isAbsolute` is the class's only
@@ -98,8 +98,8 @@ use crate::registry::{
 // Registration — this class's rows, and where its symbols live
 // ============================================================================
 
-/// `Core\Path`'s registry rows, in the spec's own order — every member of
-/// § 8, plus the `SEPARATOR` constant on [`CONSTANTS`].
+/// `Core\Path`'s registry rows: every member, plus the `SEPARATOR` constant on
+/// [`CONSTANTS`].
 pub const CLASS: CoreClass = CoreClass {
     name: r"Core\Path",
     doc: Some(&CARD),
@@ -584,7 +584,7 @@ pub(crate) struct Parts<'a> {
     pub(crate) components: Vec<&'a str>,
 }
 
-/// Either separator, on every platform — spec § 8's acceptance rule, which is
+/// Either separator, on every platform — the acceptance rule, which is
 /// deliberately not the emission rule ([`SEPARATOR`]).
 fn is_separator(c: char) -> bool {
     c == '/' || c == '\\'
@@ -730,7 +730,7 @@ fn stem_and_extension(name: &str) -> (&str, Option<&str>) {
 /// share, since answering "where is this relative to that" means answering it
 /// about two paths that have already been resolved.
 ///
-/// **Lexical, and therefore not a launderer** — spec § 8 says so out loud: a
+/// **Lexical, and therefore not a launderer**: a
 /// `..` is removed by counting components, and whether the component it
 /// cancelled was a symlink is a question about the disk. `Core\IO::within` is
 /// where a base directory is actually known.
@@ -863,7 +863,7 @@ nvs_runtime::nvs_helper! {
     /// (`/a/b/` is `b`, as PHP's own `basename` answers) and a path that is
     /// nothing but a root has no name at all: `basename('/')` is `''`. That
     /// empty answer is PHP's too, and it is a `string` rather than R5's `null`
-    /// because the spec's signature says so — a root is not an *absent* name.
+    /// because the published signature says so — a root is not an *absent* name.
     fn nvs_core_path_basename(_ctx, args: [2]) {
         let path = text(&args[0], "basename", "the path")?;
         let without_extension = boolean(&args[1], "basename", "the `withoutExtension` option")?;
@@ -1086,11 +1086,10 @@ nvs_runtime::nvs_helper! {
     /// rules) and re-renders with [`SEPARATOR`], so a repeated or trailing
     /// separator goes too. It never fails: every path has a normal form.
     ///
-    /// **It is not a launderer**, and spec § 8 says so in the same words:
-    /// removing `../` is not path-traversal safety, because the base directory
-    /// this path is supposed to stay inside is not part of the input. The
-    /// launderer is `Core\IO::within`, in § 14, which is where the base is
-    /// known. `realpath`'s other half — following symlinks, and answering
+    /// **It is not a launderer**: removing `../` is not path-traversal safety,
+    /// because the base directory this path is supposed to stay inside is not
+    /// part of the input. The launderer is `Core\IO::within`, which is where
+    /// the base is known. `realpath`'s other half — following symlinks, and answering
     /// `false` for a path that does not exist — belongs there too.
     fn nvs_core_path_normalize(_ctx, args: [1]) {
         let path = text(&args[0], "normalize", "the path")?;
@@ -1106,8 +1105,8 @@ nvs_runtime::nvs_helper! {
     ///
     /// True for a path beginning at a separator, at a drive followed by a
     /// separator, or at a UNC server. All three readings hold on **every**
-    /// platform, which is this module's own docs' one-grammar rule; the spec's
-    /// `Q` column marks this member neutral, and a lexical question about a
+    /// platform, which is this module's own docs' one-grammar rule. The registry
+    /// row marks this member `Qual::Neutral`, and a lexical question about a
     /// string is exactly why.
     fn nvs_core_path_is_absolute(_ctx, args: [1]) {
         let path = text(&args[0], "isAbsolute", "the path")?;

@@ -1072,7 +1072,7 @@ pub fn parse(file: &SourceFile, diags: &mut Diagnostics) -> Parsed {
 
 /// Parses a whole file top to bottom: the `nvs ast`/corpus-parse entry point,
 /// and the one place the file always starts in HTML mode
-/// (spec `00-overview.md` § 1) rather than a test's manually-bumped open tag.
+/// (`docs/reference/lang/10-programs.md`) rather than a test's manually-bumped open tag.
 /// Errors are reported into `diags` rather than stopping the parse — callers
 /// that only care whether it parsed cleanly should check
 /// [`Diagnostics::has_errors`] afterwards.

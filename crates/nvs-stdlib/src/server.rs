@@ -14,8 +14,7 @@
 //! characters a `[log]` record and a `traceparent` carry. The context already
 //! holds the trace for the logger, so the member spends no per-request memory;
 //! each call allocates its string. The HTTP version and the server's and the
-//! client's ports have no member anywhere
-//! ([docs/spec/01-core-library.md](/docs/spec/01-core-library.md) § 15): no rule
+//! client's ports have no member anywhere: no rule
 //! or example needs them, and one is added when a program does.
 //!
 //! # Why the bit is not read from `nvs-server`
@@ -44,7 +43,7 @@ const CARD: ClassDoc = ClassDoc {
             server has started to shut down. `traceId()` returns the id of the current request.",
 };
 
-/// `Core\Server`'s registry rows — § 15's `isDraining` and `traceId`.
+/// `Core\Server`'s registry rows: `isDraining` and `traceId`.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: r"Core\Server",
     doc: Some(&CARD),
@@ -121,8 +120,8 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Server::traceId(): string` — the request's trace id, spec § 15's
-    /// only request identifier.
+    /// `Core\Server::traceId(): string` — the request's trace id, and this
+    /// class's only request identifier.
     ///
     /// Read off the context rather than the carrier: [`nvs_runtime::Ctx::set_inbound`]
     /// copies a continued trace onto the context, and the context's copy is

@@ -1,5 +1,4 @@
-//! `Core\Str` — [docs/spec/01-core-library.md](/docs/spec/01-core-library.md)
-//! § 1, over `nvs_runtime`'s reference-counted `NvsStr`.
+//! `Core\Str`, over `nvs_runtime`'s reference-counted `NvsStr`.
 //!
 //! Every member here is pure (`rule:core-api/shape-rules` R3) and borrows its subject rather than
 //! consuming it — see [`crate`]'s own docs for why that falls out of being a
@@ -75,10 +74,19 @@
 //!
 //! `lower`/`upper`/`upperFirst`/`lowerFirst` use Rust's full Unicode case
 //! mappings, so they answer for `straße`/`ÄRGER` what PHP's `mb_strtoupper`
-//! answers and *not* what its byte-wise `strtolower`/`ucfirst` do. The spec's
-//! **Replaces** column lists both PHP spellings against one Novis member on
+//! answers and *not* what its byte-wise `strtolower`/`ucfirst` do. Each Novis
+//! member replaces both PHP spellings on
 //! purpose (R13: "no member takes an encoding argument"), so the byte-wise
 //! behaviour has no surviving spelling to be compatible with.
+//!
+//! # No character-class members
+//!
+//! A test of which characters a string contains has no member and no class
+//! of its own: it is what `Core\Regex` is for, and an all-letters test is
+//! `Regex::matches($s, "^\\p{L}+$")`. An all-digits test is a type question
+//! and so an `as`: `$s as ?uint != null` (`rule:expressions/nullable-conversion`).
+//! Members for these would bring ASCII-only meanings into a type whose unit is
+//! the grapheme.
 
 use std::cmp::Ordering;
 
@@ -116,11 +124,11 @@ const LENGTH_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// Spec § 1's `NormalForm` — UAX #15's four normal forms, and the only
+/// `Core\Str::NormalForm` — UAX #15's four normal forms, and the only
 /// argument [`nvs_core_str_normalize`] takes beside its subject.
 ///
-/// The order is the spec's own, which is also the order the two axes fall
-/// out in: composed before decomposed, canonical before compatibility. The
+/// The order is the one the two axes fall out in: composed before
+/// decomposed, canonical before compatibility. The
 /// integers are each case's own constant, written out rather than
 /// auto-incremented, per [`CoreEnum::cases`], and they are **ABI** —
 /// [`normal_form_of`] indexes this table with the integer compiled code
@@ -167,7 +175,7 @@ const CARD: ClassDoc = ClassDoc {
             so an accented letter or an emoji counts as one.",
 };
 
-/// `Core\Str`'s registry rows, in the spec's own order.
+/// `Core\Str`'s registry rows.
 ///
 /// Declared beside the implementations rather than in one flat table, so
 /// adding a member touches this file and nothing else. [`crate::registry`]'s
@@ -1578,8 +1586,8 @@ const REPLACE_OPTIONS: &[CoreOption] = &[
 /// `Core\Str::replaceAll`'s `{caseInsensitive?: bool}`.
 ///
 /// Deliberately **not** [`REPLACE_OPTIONS`]: a `limit` over a whole
-/// substitution table would have to say *which* pair it counts, and the spec's
-/// row at § 1 does not offer one. `replace` keeps its `limit` because there is
+/// substitution table would have to say *which* pair it counts, and the
+/// published signature does not offer one. `replace` keeps its `limit` because there is
 /// exactly one needle to count.
 const REPLACE_ALL_OPTIONS: &[CoreOption] = &[CoreOption {
     name: "caseInsensitive",
@@ -1633,8 +1641,7 @@ const LAST_INDEX_OF_OPTIONS: &[CoreOption] = &[
 /// comparison functions: neither is `strcmp`, `caseInsensitive` alone is
 /// `strcasecmp`, `natural` alone is `strnatcmp`, and both together are
 /// `strnatcasecmp`. `natural` selects a **different ordering** rather than a
-/// variant of the same one, which is why the spec's own prose under § 1's
-/// *Comparison* table calls it out; [`nvs_core_str_compare`] owns what that
+/// variant of the same one; [`nvs_core_str_compare`] owns what that
 /// ordering is.
 const COMPARE_OPTIONS: &[CoreOption] = &[
     CoreOption {
@@ -2703,14 +2710,14 @@ nvs_runtime::nvs_helper! {
     /// replacement is never rescanned — `replace("aaa", "aa", "a")` is `"aa"`,
     /// PHP's answer too.
     ///
-    /// Two option decisions, both recorded here because the spec's table
-    /// states the option's *type* and not its default:
+    /// Two option decisions, both recorded here because the published
+    /// signature states the option's *type* and not its default:
     ///
     /// * **`limit` defaults to `uint`'s maximum**, which is "every
     ///   occurrence" — a string that fits in memory can never hold that many.
     ///   A sentinel `0` would have been a magic value, and `?uint = null` is a
-    ///   second spelling of "every occurrence" where the spec's table gives
-    ///   `limit` a plain `uint`. A `limit` of `0` therefore means
+    ///   second spelling of "every occurrence" where the published signature
+    ///   gives `limit` a plain `uint`. A `limit` of `0` therefore means
     ///   exactly what it says: replace nothing.
     /// * **An empty `$search` replaces nothing**, rather than inserting the
     ///   replacement between every character or looping forever. PHP returns
@@ -3229,7 +3236,7 @@ fn folded(subject: &str) -> impl Iterator<Item = char> + '_ {
 /// `img12`.
 ///
 /// This is a faithful port of PHP's `strnatcmp`, quirks included, because the
-/// spec's § 1 table names that function as what the option replaces and a
+/// option replaces that function and a
 /// program being migrated is entitled to the same order it already sorts in.
 /// Three of those quirks are not obvious and are pinned by
 /// `tests/conformance/core/str-compare-orders-two-ways.nvst`:
@@ -3322,11 +3329,10 @@ nvs_runtime::nvs_helper! {
     /// mapping of each instead, the same boundary [`match_at`] sits on, so
     /// `ß` and `SS` are still different. `{natural: true}` is a **different
     /// ordering** rather than a variant of this one — [`natural_order`] owns
-    /// what it is, and the spec's own prose under § 1's *Comparison* table
-    /// says so with `compare("img12", "img2")` as the sign that flips.
+    /// what it is, and `compare("img12", "img2")` is the sign that flips.
     ///
     /// There is no locale-sensitive third ordering: `strcoll` has nothing to
-    /// read a locale from here (`rule:core-api/tier-placement`), which § 1 states.
+    /// read a locale from here (`rule:core-api/tier-placement`).
     fn nvs_core_str_compare(_ctx, args: [4]) {
         let left = text(&args[0], "compare", "the first subject")?;
         let right = text(&args[1], "compare", "the second subject")?;
@@ -3350,7 +3356,7 @@ nvs_runtime::nvs_helper! {
 /// matched — the first one, or the last when `last` is set.
 ///
 /// Case-sensitive: neither member declares a `caseInsensitive` option, because
-/// the spec gives them one option and it is this one.
+/// their one option is `last`, and this function reads it.
 fn cut_at(subject: &str, needle: &str, last: bool) -> Option<(usize, usize)> {
     if !last {
         return find_from(subject, needle, false);
@@ -3364,8 +3370,8 @@ nvs_runtime::nvs_helper! {
     /// `strstr($h, $n, true)` and `strrchr` used as a prefix.
     ///
     /// The needle itself is not included, and a needle that does not occur is
-    /// `null` rather than PHP's `false` (`rule:core-api/shape-rules` R5) — spec § 1's *Extraction*
-    /// prose is the home for both, and for what `{last: true}` changes.
+    /// `null` rather than PHP's `false` (`rule:core-api/shape-rules` R5). `{last: true}` cuts at
+    /// the last occurrence instead of the first.
     fn nvs_core_str_before(_ctx, args: [3]) {
         let subject = text(&args[0], "before", "the subject")?;
         let needle = text(&args[1], "before", "the needle")?;
@@ -3383,8 +3389,7 @@ nvs_runtime::nvs_helper! {
     /// `strstr`, `stristr` and `strrchr`.
     ///
     /// The needle is not included, which is the one place this diverges from
-    /// `strstr` — spec § 1's *Extraction* prose owns that rule and the port of
-    /// a program that wanted PHP's shape. Absence is `null`, not `false`.
+    /// `strstr`, whose answer starts with the needle. Absence is `null`, not `false`.
     fn nvs_core_str_after(_ctx, args: [3]) {
         let subject = text(&args[0], "after", "the subject")?;
         let needle = text(&args[1], "after", "the needle")?;
@@ -3706,8 +3711,8 @@ nvs_runtime::nvs_helper! {
     /// `Core\Str::upperFirst(string $s): string` — replacing PHP's `ucfirst`.
     ///
     /// Only the first character changes; the rest is copied through, which is
-    /// what separates this from title casing (`ucwords`, which the spec's § 1
-    /// note keeps out of `Core` entirely because word segmentation is
+    /// what separates this from title casing (`ucwords`, which `Core\Str`
+    /// leaves out entirely because word segmentation is
     /// locale-dependent).
     fn nvs_core_str_upper_first(_ctx, args: [1]) {
         map_first(text(&args[0], "upperFirst", "the subject")?, true)

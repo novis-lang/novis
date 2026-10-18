@@ -121,7 +121,7 @@
 //!   [`conformance`] holding the `compareTo` that a claim of it owes, and
 //!   [`expr::require_stringable`] for `rule:classes/no-magic-methods`.
 //!   [`error_lib`] gives `Throwable` and its subclasses a signature table
-//!   without a source declaration — spec § 10's four readonly properties and
+//!   without a source declaration — the four readonly properties and
 //!   the one constructor, so `$e->message` is checked like any other property
 //!   read — the same way [`core_lib`] does for `Core`.
 //! - **`object` is a real supertype, and a shape type is structural.** Every
