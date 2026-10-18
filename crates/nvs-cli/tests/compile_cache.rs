@@ -220,6 +220,47 @@ fn file_cache_false_stores_nothing() {
     let _ = std::fs::remove_dir_all(&dir);
 }
 
+/// A built-in component compiled cold, inside the request that first calls
+/// it, leaves that request's memory ceiling where it was. The compile
+/// allocates on the engine's worker threads and frees on the request's
+/// thread, and before its bracket that gave the request hundreds of
+/// megabytes the ceiling never granted, so a 100 MB string fit under 64M.
+#[test]
+fn a_cold_compile_of_a_built_in_component_buys_its_request_no_memory() {
+    let dir = private_scratch("cold-built-in");
+    let config = dir.join("nvs.toml");
+    std::fs::write(&config, "[limits]\nmemory = \"64M\"\n").expect("the configuration is written");
+    let program = dir.join("main.nvs");
+    std::fs::write(
+        &program,
+        "<?nvs\nvar $pdf = Novis\\Pdf\\Document::fromHtml('<p>Shop</p>')->render()->bytes;\n\
+         echo 'compiled', \"\\n\";\nstring $big = Core\\Str::repeat('x', 100000000);\n\
+         echo Core\\Str::length($big), \"\\n\";\n",
+    )
+    .expect("the program is written");
+    let data = nvs_repo::scratch_private("nvsdata");
+    let out = Command::new(env!("CARGO_BIN_EXE_nvs"))
+        .arg("--data")
+        .arg(&*data)
+        .arg("--no-init")
+        .arg("--config")
+        .arg(&config)
+        .arg("run")
+        .arg(&program)
+        .env("NOVIS_NO_FILE_CACHE", "1")
+        .output()
+        .expect("the `nvs` binary this test was built beside runs");
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert_eq!(
+        stdout, "compiled\n",
+        "the string past the ceiling was never made: {stderr}"
+    );
+    assert!(!out.status.success(), "the run stops at its ceiling");
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
 /// One program run under two configurations that differ only in their
 /// `[[extension]]` array: each writes its own artifact, and a run under either
 /// one again writes nothing. A unit compiled under one set of extensions is
