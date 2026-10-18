@@ -160,6 +160,11 @@ outside its module's range.
 edits no shared table by hand.
 
 - [ ] The `Core` class table is one file per class, collected in one place. `crates/nvs-stdlib/src/registry.rs:1774`
+  - [x] The collection is decided: a committed, rendered `crates/nvs-stdlib/src/classes.rs`, ordered by a rank each class states beside its own const.
+  - [ ] A `nv render` renderer writes `classes.rs` from every ranked `CoreClass` const under `crates/nvs-stdlib/src/`, and `registry.rs` re-exports it as `CLASSES`.
+  - [ ] Each const in today's table carries its rank, seeded from its position so the order is unchanged, and `nvs meta --json` prints the same bytes.
+  - [ ] The table's prose comments move into each const's own doc, rewritten for where they now stand.
+  - [ ] A test fails on a `CoreClass` const that has no rank and is not on a short roster of unregistered ones, such as `crate::cursor::CLASS`.
 - [ ] Each `nvs` command registers itself, so a new command edits no central `match`. `crates/nvs-cli/src/main.rs:144`
 - [x] `data/proofs/policy.json`'s skips are one file per feature, under `data/proofs/skip/`. `tools/nv/schema/proofs.ts:51`
 
@@ -175,37 +180,44 @@ edits no shared table by hand.
 
 ### State
 
-Stage 5 is done. Stage 6's proof policy is done. Stage 4's one open item waits on looper.
+Stage 5 is done. Stage 6's proof policy is done, and the `Core` class table's collection is decided.
+Stage 4's one open item waits on looper.
 
-- The proof skips are record type `proof_skip`, one file per feature at its roster path under
-  `data/proofs/skip/`, with a `feature` field for the id, because a path does not give the id back.
-  `data/proofs/policy.json` keeps `report` and `owes`, which apply to the whole tree, so `perf.ts` is
-  unchanged. An index check refuses two files for one feature. `nv proofs --json` printed the same
-  bytes before and after the split.
-- The doc gate was red because each area file's `declared` module saw only its own codes. The
-  `codes!` macro now brings `crate::code::*` into each one. `crates/nvs-diagnostics/src/lib.rs:68`
+- The class table becomes a committed, rendered `crates/nvs-stdlib/src/classes.rs`. A generated
+  `include!` from `build.rs` was declined: `nv-scan` keys a footprint per row of `CLASSES`, and a file
+  outside the tree has no rows for it to see. The order needs a key because the website's `Core`
+  index lists classes in `CLASSES` order (`website/src/lib/core.ts:95`), so each const states a rank.
+  The table has 175 rows. Its consts are spread over `src/`, the `db` and `ldap` ones in submodules.
+- `Cargo.lock` held `inout 0.2.3`, which is yanked, and `THIRD-PARTY-LICENSES.txt` was stale, so CI's
+  `supply chain` and `third-party attribution` were red. `website/src/data/core.json` and
+  `reference.json` were stale too. Local verify does not run `nv render --website --check`.
 - The swap to `looper links` and `looper layout` waits on looper: its `links` reads no `<a id>` and
   does not skip `docs/novis.md`, its `layout` reads README.md and the listing is in CONTRIBUTING.md,
   and CI has no looper binary.
 - `looper prose` reads a whole `.nvs` file, code included, so `nv proofs --comments` stays for the
   `.nvs` comments.
 
-Nightly run 39013536848 on `e110c9c0b` is still the newest. `docs` (`nv check`) is green here, and the
-five-driver matrix's queue arity was fixed by `460a68396`, after it. The `proofs` jobs fail on perf
-figures owed until the goal end, and `cost guards / windows` on the warm-start budget (Backlog).
+Nightly run 39013536848 on `e110c9c0b` is still the newest. Its `docs` failure and the push run
+39076740827's are both green here, and the five-driver matrix's queue arity was fixed by `460a68396`.
+The `proofs` jobs fail on perf figures owed until the goal end, and `cost guards / windows` on the
+warm-start budget (Backlog).
 
 ### Next
 
-Stage 6's `Core` class table, on `crates/nvs-stdlib/src/registry.rs` and the domain modules:
-- [ ] Decide the collection: `CLASSES` lists 82 `crate::<module>::CLASS` lines, and its doc names a `crate::symbols` module that does not exist. `crates/nvs-stdlib/src/registry.rs:1763`
-- [ ] Each class registers from its own file, and `CLASSES` keeps the spec's § order. `crates/nvs-stdlib/src/registry.rs:1774`
-- [ ] Then each `nvs` command registers itself, as a group of its own. `crates/nvs-cli/src/main.rs:1656`
+Stage 6's `Core` class table, on `crates/nvs-stdlib/src/registry.rs`, a new renderer under
+`tools/nv/` and the domain modules. The checkpoints are under the stage 6 item.
+- [ ] The renderer: scan `crates/nvs-stdlib/src/**/*.rs` for a ranked `CoreClass` const, resolve its public path (the `db` and `ldap` classes sit in submodules and are re-exported), and write `src/classes.rs`, sorted by rank and then by path. Register it beside the others `nv render` runs. `crates/nvs-stdlib/src/registry.rs:1774`
+- [ ] Seed one rank per row from today's order, then replace the table with `pub use crate::classes::CLASSES` and prove `nvs meta --json` prints the same bytes. `crates/nvs-cli/src/meta.rs:190`
+- [ ] Move each prose comment in the table to its const's doc, and fix the table's own doc, which names a `crate::symbols` module that does not exist. `crates/nvs-stdlib/src/lib.rs:33`
+- [ ] Update the readers of the table's text: `tier_boundary.rs` reads its body for `#[cfg`, and `nv-scan` keys a row per class. `crates/nvs-stdlib/tests/tier_boundary.rs:198`, `tools/nv-scan/src/items.rs:1594`
+
+Then each `nvs` command registers itself, as a group of its own. `crates/nvs-cli/src/main.rs:1656`
 
 ### Backlog
 
-- Looper's `links` needs `<a id>` anchors and a generated-page skip, and its `layout` a configurable file, before stage 4's first item can land. Looper's own goals own it.
-- `test_request_dispatches_in_process_through_the_compiled_route_table` was red once in the `covws` verify, also alone, and green on every rerun. `Core\Env::context()` was not `Request` in that run. `crates/nvs-cli/src/runner.rs:3410`
+- Looper's `links` needs `<a id>` anchors and a generated-page skip, and its `layout` a configurable file, before stage 4's first item can land. And `looper guard` matched a commit in looper's own checkout against a claim on mwl's `docs/goals/README.md`. Looper's own goals own both, the second in `crates/looper-core/src/claims.rs`.
+- Two flakes to fix at the cause. `test_request_dispatches_in_process_through_the_compiled_route_table` was red once, also alone, because `Core\Env::context()` was not `Request` (`crates/nvs-cli/src/runner.rs:3410`). And `live_edit`'s two compile-race tests missed their 30 s swap deadline beside the other binaries on a disk 98% full, and passed alone (`crates/nvs-cli/tests/live_edit.rs:1016`).
 - The Windows warm-start budget: 13 ms of work on a quiet hosted runner against 6 ms. `tools/nv/cmd/bench.ts` § *The warm-start figure* owns it.
+- `bun nv verify` does not run `nv render --website --check`, so the website data goes stale unseen until CI. `tools/nv/cmd/verify.ts:151`
 - `fullRun` and `runBenches` still take a `deadline` that no caller passes, and `runBenches` an `order` and `onStart` that only the debt passed. `tools/nv/select/full.ts:63`, `tools/nv/proofs/select.ts:265`
-- `looper guard` matched a commit in looper's own checkout against a claim on mwl's `docs/goals/README.md`. Looper's `crates/looper-core/src/claims.rs` owns it.
 - `Core\Ldap::connect` dials each address of a host in turn, so a `localhost` block pays 2 s on Windows. `crates/nvs-stdlib/src/ldap/mod.rs:489`, `crates/nvs-host/src/net.rs:438`
