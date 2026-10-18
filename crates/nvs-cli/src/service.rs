@@ -183,6 +183,276 @@ use nvs_diagnostics::{Diagnostic, Diagnostics, SourceMap, code};
 
 use crate::render_diagnostics;
 
+/// Installs, starts, stops and removes a Novis program that runs as a
+/// system service.
+///
+/// A system service runs in the background, with no terminal. It can start
+/// when the computer starts.
+// A namespace of its own because every other subcommand acts on files with
+// no server involved, and these do not.
+// `rule:packaging/a-service-is-one-stored-argv`; this module's doc owns how a
+// verb reaches this machine's own service manager.
+#[derive(clap::Args)]
+pub(crate) struct Args {
+    #[command(subcommand)]
+    command: Command,
+}
+
+/// `nvs service`'s own subcommands, which are
+/// `rule:packaging/a-service-is-one-stored-argv`'s list.
+///
+/// `unit` is the one `rule:packaging/the-unit-is-printed-and-install-is-the-opt-in` makes the default on Linux:
+/// generate the unit and **print** it, because the operator's configuration
+/// management already owns the directory it belongs in and a binary that writes
+/// there behind Ansible's back is a worse citizen than one that prints. On
+/// Windows it emits § 5's equivalent `New-Service` invocation, carrying § 3's
+/// encoded `ImagePath` for review rather than execution.
+///
+/// Every § 2 refusal runs in front of both it and `install`, so `unit` is also
+/// how an operator finds out that the argv they were about to install would
+/// have been refused — without an elevated shell, and without having installed
+/// anything. Which manager a verb reaches is [`at_host`]'s answer, and this
+/// module's doc owns why `run` is not here yet.
+#[derive(clap::Subcommand)]
+enum Command {
+    // Every `///` line below is printed by `nvs service --help`, so it is
+    // written as `AGENTS.md` § *Text an end user reads* asks.
+    /// Installs the command after `--` as a system service. The account that
+    /// the service runs as can then read its configuration file and write to
+    /// its log folder and its cache folder.
+    #[command(after_help = INSTALL_EXAMPLE)]
+    Install(Install),
+    /// Removes an installed service. It also deletes everything that `install`
+    /// created, and takes back the access that `install` gave.
+    Uninstall {
+        /// The name of the service, as it was installed.
+        name: String,
+        /// Prints every step, and changes nothing.
+        #[arg(long)]
+        dry_run: bool,
+    },
+    /// Tells the service manager to start an installed service.
+    Start {
+        /// The name of the service.
+        name: String,
+    },
+    /// Stops a running service. A server stops taking new requests. It
+    /// finishes the requests it already has, and then it exits.
+    Stop {
+        /// The name of the service.
+        name: String,
+    },
+    /// Prints the state of the service.
+    Status {
+        /// The name of the service.
+        name: String,
+    },
+    /// Runs the stored command in this terminal. The service manager starts
+    /// the service with the same command.
+    Run {
+        /// The name of the service.
+        name: String,
+    },
+    /// Prints the service definition that `install` would create. It installs
+    /// nothing.
+    Unit {
+        /// The name of the service. The operating system uses this name.
+        name: String,
+        /// The account that the service runs as. The default is the local
+        /// system account, `LocalSystem`. `SYSTEM` is another name for the
+        /// same account.
+        // `rule:packaging/a-service-runs-as-a-virtual-account`.
+        #[arg(long, value_name = "ACCOUNT")]
+        account: Option<String>,
+        /// Not allowed. It gives error `E0633`. Other users on the computer
+        /// can read a command line. The installer prompts you for the password
+        /// instead.
+        #[arg(long, value_name = "PASSWORD")]
+        password: Option<String>,
+        /// The `nvs` command that the service runs, written after `--`.
+        ///
+        /// The `--` is required. Everything before it is an option of the
+        /// installer. Everything after it is stored exactly as you wrote it.
+        /// So the service command can use an option that the installer also
+        /// has, for example `--start`.
+        // `rule:packaging/a-service-is-one-stored-argv`.
+        #[arg(
+            last = true,
+            required = true,
+            allow_hyphen_values = true,
+            value_name = "ARGS"
+        )]
+        argv: Vec<String>,
+    },
+}
+
+/// The text under `nvs service install --help`: one whole command line for each
+/// platform, and the rules a first install meets.
+///
+/// An end user reads this, so it is written as `AGENTS.md` § *Text an end user
+/// reads* asks.
+const INSTALL_EXAMPLE: &str = r#"Examples:
+  Each example is shown on several lines. Type it as one line.
+
+  Windows, in a terminal started as administrator:
+
+    nvs service install shop
+        --description "Shop web server"
+        --start delayed
+        --restart on-failure
+        --depends-on postgresql
+        -- serve D:\srv\shop\public\index.nvs --config D:\srv\shop\nvs.toml
+
+  Linux, as root, with the configuration file in the data folder:
+
+    nvs service install shop
+        --description "Shop web server"
+        --depends-on postgresql.service
+        -- serve /srv/shop/public/index.nvs
+
+  A configuration file with `[[server.mount]]` blocks, and no entry file:
+
+    nvs service install sites
+        -- serve --config /srv/www/nvs.toml
+
+  Everything before `--` is an option of the installer. Everything after `--` is
+  the `nvs` command that the service runs. It must be `serve` or `run`.
+
+  Write every path in full. Paths inside the configuration file must be full too.
+
+  Without `--config`, the service uses `nvs.toml` in its data folder. The data
+  folder is `.nvsdata` next to the `nvs` program. To use another folder, add
+  `--data` and the full path of the folder after `--`. The installer creates the
+  folder and the file if they do not exist. It also lets the service write to
+  the folder.
+
+  The entry file is optional for `serve`. With no entry file, the service serves
+  every file that the `[[server.mount]]` blocks in the configuration file mount.
+  A configuration file with `[[server.mount]]` blocks must set `root` in its
+  `[server]` block. Write the full path of the folder that the blocks search.
+
+  A service has no terminal, so it needs a log file. Set this in the
+  configuration file:
+
+    [log]
+    target = "file:D:/srv/shop/logs/novis.log"
+
+  The installer creates that folder and lets the service write to it.
+
+  Add `--dry-run` to print every step without changing anything. To remove the
+  service, run `nvs service uninstall shop`."#;
+
+/// What `nvs service install` takes, which is also what the hidden
+/// `nvs install-service` takes: one struct, because two spellings of one
+/// command that drifted apart in their options would be two commands.
+#[derive(clap::Args)]
+pub(crate) struct Install {
+    /// The name of the service. The operating system uses this name.
+    name: String,
+    /// The account that the service runs as. The default is the local system
+    /// account, `LocalSystem`. `SYSTEM` is another name for the same account.
+    // `rule:packaging/a-service-runs-as-a-virtual-account`.
+    #[arg(long, value_name = "ACCOUNT")]
+    account: Option<String>,
+    /// Not allowed. It gives error `E0633`. Other users on the computer can
+    /// read a command line. The installer prompts you for the password
+    /// instead.
+    #[arg(long, value_name = "PASSWORD")]
+    password: Option<String>,
+    /// When the service starts after the computer starts. The default is
+    /// together with the other automatic services.
+    // `rule:packaging/a-service-answers-its-manager`.
+    #[arg(long, value_enum, value_name = "MODE")]
+    start: Option<registration::StartMode>,
+    /// What the service manager does when the service fails. The default
+    /// starts it again.
+    #[arg(long, value_enum, value_name = "POLICY")]
+    restart: Option<registration::Restart>,
+    /// A service that must start first, for example a database. Repeat this
+    /// option for each one.
+    #[arg(long, value_name = "SERVICE")]
+    depends_on: Vec<String>,
+    /// A description that administrators see next to the name. The default is
+    /// the name of the service.
+    #[arg(long, value_name = "TEXT")]
+    description: Option<String>,
+    /// Prints every step, and changes nothing.
+    #[arg(long)]
+    dry_run: bool,
+    /// The `nvs` command that the service runs, written after `--`.
+    ///
+    /// The `--` is required. Everything before it is an option of the
+    /// installer. Everything after it is stored exactly as you wrote it. So
+    /// the service command can use an option that the installer also has, for
+    /// example `--start`.
+    // `rule:packaging/a-service-is-one-stored-argv`.
+    #[arg(
+        last = true,
+        required = true,
+        allow_hyphen_values = true,
+        value_name = "ARGS"
+    )]
+    argv: Vec<String>,
+}
+
+impl Args {
+    /// Runs the `nvs service` subcommand clap parsed, over the run's `--config` list.
+    pub(crate) fn run(self, config: &[PathBuf]) -> ExitCode {
+        match self.command {
+            Command::Install(args) => args.run(config),
+            Command::Uninstall { name, dry_run } => uninstall(config, &name, dry_run),
+            Command::Start { name } => start(&name),
+            Command::Stop { name } => stop(&name),
+            Command::Status { name } => status(&name),
+            Command::Run { name } => match stored_argv(&name) {
+                Ok(argv) => crate::run_hosted(&argv),
+                Err(reported) => reported,
+            },
+            Command::Unit {
+                name,
+                account,
+                password,
+                argv,
+            } => print_unit(
+                config,
+                &name,
+                &argv,
+                account.as_deref(),
+                password.as_deref(),
+                crate::unaccepted(&argv).as_deref(),
+            ),
+        }
+    }
+
+    /// Whether this is `nvs service run`, the one command that runs another
+    /// command line, and so names the data folder from that line.
+    pub(crate) fn runs_a_stored_line(&self) -> bool {
+        matches!(self.command, Command::Run { .. })
+    }
+}
+
+impl Install {
+    /// `nvs service install` and `nvs install-service`, which are one command.
+    pub(crate) fn run(&self, config: &[PathBuf]) -> ExitCode {
+        let unaccepted = crate::unaccepted(&self.argv);
+        install(
+            config,
+            &self.name,
+            &self.argv,
+            &InstallOptions {
+                account: self.account.as_deref(),
+                password: self.password.as_deref(),
+                unaccepted: unaccepted.as_deref(),
+                start: self.start.unwrap_or_default(),
+                restart: self.restart.unwrap_or_default(),
+                depends_on: &self.depends_on,
+                description: self.description.as_deref(),
+                dry_run: self.dry_run,
+            },
+        )
+    }
+}
+
 /// The closed allowlist of `rule:packaging/the-installer-is-a-sink`'s first row: the two subcommands that stay
 /// running and mean something with no terminal attached.
 const ALLOWED: [&str; 2] = ["serve", "run"];
@@ -2882,7 +3152,7 @@ pub(crate) mod registration {
         test,
         expect(
             dead_code,
-            reason = "the `ServiceCommand` variants that choose an applier are the slice after it"
+            reason = "the `Command` variants that choose an applier are the slice after it"
         )
     )]
     #[expect(
@@ -4168,6 +4438,39 @@ mod tests {
     /// case reading it.
     fn coded(refusal: &Diagnostic) -> nvs_diagnostics::Code {
         refusal.code.expect("every § 2 refusal carries a code")
+    }
+
+    /// Every command line the help shows is one the parser takes, and the argv
+    /// it stores is one this binary runs — so the example cannot drift from the
+    /// options it is an example of.
+    #[test]
+    fn every_command_line_in_the_service_install_help_parses_and_stores_an_accepted_argv() {
+        use clap::Parser as _;
+        // An example runs from its `nvs service install` line to the next blank
+        // one, and is one command line once those are joined.
+        let lines: Vec<String> = INSTALL_EXAMPLE
+            .split("\n\n")
+            .filter(|block| block.trim_start().starts_with("nvs service install "))
+            .map(|block| block.split_whitespace().collect::<Vec<_>>().join(" "))
+            .collect();
+        assert_eq!(
+            lines.len(),
+            3,
+            "one for each platform, and one that names no entry file"
+        );
+        for line in &lines {
+            let cli = crate::Cli::try_parse_from(crate::tests::words(line))
+                .unwrap_or_else(|error| panic!("{line}: {error}"));
+            let Some(crate::Command::Service(Args {
+                command: Command::Install(args),
+            })) = cli.command
+            else {
+                panic!("{line} is not `nvs service install`")
+            };
+            assert!(["shop", "sites"].contains(&args.name.as_str()), "{line}");
+            assert_eq!(args.argv[0], "serve");
+            assert_eq!(crate::unaccepted(&args.argv), None, "{line}");
+        }
     }
 
     /// A path that is absolute on the host these tests run on.
