@@ -614,11 +614,29 @@ compound-operator block, 05 `/=` on an `int`. Probing found two gaps, both owned
 and `$this = new P()` compiles and rebinds `$this`
 (`data/gaps/nvs-types/an-assignment-to-this-compiles-and.json`).
 
+`match`, `is-new-clone-throw-print-exit-isset-empty` and `calls` are done, each fact run on the
+binary, and no text disagreed with it; the chapter did not change. `match`'s `details.md` has the
+subject running once, arms in order stopping at the first match, `E0466` (a `null` arm and an `int`
+condition in `match (true)` too), the union result type and `E0401`, narrowing in a `match (true)`
+arm, `E0476` and the `LogicError` message; example 04 is the chapter's block, 05 an `E0466` arm. The
+second feature's `details.md` has `is` on every type, `E0496` after `is` and `new`, `E0785`, `E0740`,
+`E0781`, `E0780`, `print` with `E0707`, `isset`'s `E0498`, `E0301` and `E0459`, and `empty` on a
+call; its `about.md` said "the compiler knows" and is rewritten; examples 04 and 05 are the chapter's
+two blocks. `calls`' `details.md` has written-order evaluation of named arguments, `E0778`, `E0489`,
+several `...` arguments with the keys kept, a `callable`'s `mixed` result and `LogicError`s, and a
+`void` call's `E0401` and `E0707`; it leaves `E0402`, `E0486` to `E0488`, `E0439` and `E0713` to
+`parameters`' `details.md`. Its `about.md` and examples 01 to 03's comments were in the essay voice,
+now rewritten; example 04 is the chapter's block, 05 an `E0489` call. Probing found three gaps, all
+owned by `release-hardening`: a `void` call at a `mixed` local or as a `match` arm stops at `E0901`
+(`data/gaps/nvs-ir/a-void-call-at-a-mixed.json`), `$u == -1` on a `uint` throws `ArithmeticError`
+(`data/gaps/nvs-types/a-negative-literal-compared-with-a.json`), and a second `default` in a `match`
+or a `switch` compiles (`data/gaps/nvs-types/a-match-with-two-default-arms.json`).
+
 ### Next
 
-`30-expressions` continues: 8 features left. The next group is `match` (`30-expressions.md:385`,
-25 lines), `is-new-clone-throw-print-exit-isset-empty` (`30-expressions.md:411`), and the features
-after it in chapter order. Work each feature the way `break-and-continue` was done: read
+`30-expressions` continues: 5 features left. The next group is `the-pipeline-operator`
+(`30-expressions.md:500`), `anonymous-functions` (`:552`), and the features after it in chapter
+order. Work each feature the way `break-and-continue` was done: read
 its chapter section, its `about.md` and its syntax page, probe each fact `about.md` lacks on the
 binary, write `details.md`, and turn each chapter code block no example shows into an example
 (`proof: compile-error` for an `nvs error` fence). Bless with `bun nv proofs --bless <file>...`, then
@@ -631,7 +649,7 @@ you meant to test. A probe's method goes in a class: a top-level `function` stop
 An enum is `enum Suit { Hearts, Spades }`, with no `case`. Many probes at once: a JSON map of name to
 body, and a script under `.agent-tmp/` that writes and runs each; the guard refuses a shell loop of
 `nvs run` over `docs/examples/`, so check a new example with `--bless`.
-- [ ] `30-expressions` from `match`, in chapter order. `docs/reference/lang/30-expressions.md:385`
+- [ ] `30-expressions` from the pipeline operator, in chapter order. `docs/reference/lang/30-expressions.md:500`
 - [ ] Once the chapter's last edit lands, `bun nv proofs --record-perf --group lang:expressions`, and commit `data/perf/members.ndjson`. `tools/nv/proofs/roster.ts:28`
 
 ### Backlog
