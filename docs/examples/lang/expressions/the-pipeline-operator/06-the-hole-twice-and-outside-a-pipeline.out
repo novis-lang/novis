@@ -1,0 +1,16 @@
+error[E0130]: `$_` may appear exactly once on the right side of a `|>`
+  --> 06-the-hole-twice-and-outside-a-pipeline.nvs:7:34
+  |
+7 | echo $s |> Core\Str::replace($_, $_, "x"), "\n";
+  |                                  ^^ the hole was already taken by an earlier `$_`
+  = help: bind the value to a local instead
+
+error[E0131]: `$_` is the pipeline hole and has no meaning here
+  --> 06-the-hole-twice-and-outside-a-pipeline.nvs:8:13
+  |
+8 | string $t = $_;
+  |             ^^ outside the right side of a `|>`
+  = help: a hole is only written on the right side of `|>`
+
+error: aborting due to 2 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

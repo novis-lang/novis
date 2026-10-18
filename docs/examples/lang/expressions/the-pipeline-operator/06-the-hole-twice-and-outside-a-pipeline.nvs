@@ -1,0 +1,8 @@
+<?nvs
+// Shows the two other places where `$_` does not compile.
+// The first step has `$_` twice. The second line uses `$_` outside a pipeline.
+// proof: compile-error
+
+string $s = "hi";
+echo $s |> Core\Str::replace($_, $_, "x"), "\n";
+string $t = $_;

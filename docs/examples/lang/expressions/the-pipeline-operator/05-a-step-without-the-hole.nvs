@@ -1,0 +1,6 @@
+<?nvs
+// Shows that a method reference is not a step. The right side must be a call with `$_` in it.
+// proof: compile-error
+
+string $s = "hi";
+echo $s |> Core\Str::upper(...), "\n";
