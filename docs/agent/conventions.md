@@ -503,6 +503,17 @@ constant with its card, and take the highest number in that file plus one: never
 a hole. A test fails on a code outside its file's range and on a number declared twice. A full range
 continues in a new range and a new file, which the table names.
 
+## An `nvs` command
+
+A command is its own module under `crates/nvs-cli/src/`, and that module owns the command's arguments
+and how they are run. It declares a `#[derive(clap::Args)] pub(crate) struct Args` whose doc comment is
+the command's help line, and an `Args::run(self, ...)` that takes only what the command reads from the
+global flags. `main.rs` then gets two lines: the variant `Name(name::Args)` in `Command`, with no doc
+comment, and the arm `Command::Name(args) => args.run(...)`. A command with subcommands owns a
+`#[derive(clap::Subcommand)]` enum in the same way. `crates/nvs-cli/src/ast.rs`'s `Args` is the shape.
+Moving a command keeps every help page byte for byte the same, so compare `nvs <command> --help` and
+`-h` before and after.
+
 ## An edit the Edit tool cannot express, or a run of three or more edits
 
 ```

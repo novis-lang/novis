@@ -38,12 +38,39 @@
 //! it from this crate would need a wildcard arm and would walk a variant added
 //! later as a leaf.
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use nvs_diagnostics::{Diagnostics, SourceFile, SourceMap};
 use nvs_syntax::{Parsed, Trivia, TriviaKind, check_declarations, parse, walk};
 use serde_json::{Map, Value, json};
+
+/// Parse a Novis file and print its AST.
+#[derive(clap::Args)]
+pub(crate) struct Args {
+    /// The file to parse.
+    file: PathBuf,
+    /// Print the frozen JSON schema rather than the `Debug` rendering.
+    #[arg(long)]
+    json: bool,
+    /// Print the tree the parser recovered into. The default, and
+    /// spelled out so a caller can pin it.
+    #[arg(long, conflicts_with = "strict")]
+    resilient: bool,
+    /// Print no tree at all once an error is reported.
+    #[arg(long)]
+    strict: bool,
+}
+
+impl Args {
+    /// Runs `nvs ast` with the arguments clap parsed.
+    pub(crate) fn run(self) -> ExitCode {
+        // `resilient` selects nothing, because it is the default. It exists so a
+        // caller can write down which half of the pair it wants, and clap refuses
+        // it beside `--strict` rather than picking one.
+        run(&self.file, self.json, self.strict)
+    }
+}
 
 /// Parses `path` and prints its tree, as JSON when `as_json` is set.
 ///

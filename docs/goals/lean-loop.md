@@ -166,6 +166,11 @@ edits no shared table by hand.
   - [x] The table's prose comments move into each const's own doc, rewritten for where they now stand.
   - [x] A test fails on a `CoreClass` const that has no rank and is not on a short roster of unregistered ones, such as `crate::cursor::CLASS`.
 - [ ] Each `nvs` command registers itself, so a new command edits no central `match`. `crates/nvs-cli/src/main.rs:144`
+  - [x] The shape is decided: a module owns a `clap::Args` struct, whose doc comment is the help line, and its `run`. `main.rs` keeps one variant line and one arm line per command, as `conventions.md` § *An `nvs` command* says.
+  - [x] `nvs ast` is moved, and all 113 `--help` and `-h` pages print byte for byte what they printed before.
+  - [ ] Every command with no subcommands is moved, and the help pages are compared again.
+  - [ ] Every command group, such as `service` and `queue`, moves its `Subcommand` enum into its module, and the help pages are compared again.
+  - [ ] `initializes`, `prepares` and the `service run` test still match each variant, and `main.rs` holds no command's fields.
 - [x] `data/proofs/policy.json`'s skips are one file per feature, under `data/proofs/skip/`. `tools/nv/schema/proofs.ts:51`
 
 ### 7. a generated file never conflicts in a merge
@@ -180,32 +185,34 @@ edits no shared table by hand.
 
 ### State
 
-Stage 5 is done. Stage 6's proof policy and `Core` class table are done; its CLI command item is
-open. Stage 4's one open item waits on looper.
+Stage 5 is done. Stage 6's proof policy and `Core` class table are done. Its CLI command item has its
+shape and one command moved. Stage 4's one open item waits on looper.
 
-- The class table is `crates/nvs-stdlib/src/classes.rs`, rendered by
-  `tools/nv/renderers/core-classes.ts` from the `// rank: N` line above each `CoreClass` const, and
-  `registry.rs` re-exports it. Its 175 rows are in the old table's order, entry for entry. A const
-  with no rank fails `nv render` unless the renderer's `UNRANKED` names it. The table's comments are
-  each const's doc now. `nv-scan` attributes rows of any const array, so it needed no change.
+- The command shape is `conventions.md` § *An `nvs` command*, and `crates/nvs-cli/src/ast.rs`'s
+  `Args` is the one command on it. A `clap::Args` struct's doc comment becomes the help line of a
+  newtype variant that has none, so the help pages stay the same. The check is a walk of every
+  `--help` and `-h` page, 113 of them, diffed before and after. The walker was a scratch script, so
+  the next session writes it again: recurse on each page's `Commands:` list, skipping `help`.
 - The swap to `looper links` and `looper layout` waits on looper: its `links` reads no `<a id>` and
   does not skip `docs/novis.md`, its `layout` reads README.md and the listing is in CONTRIBUTING.md,
   and CI has no looper binary.
 - `looper prose` reads a whole `.nvs` file, code included, so `nv proofs --comments` stays for the
   `.nvs` comments.
 
-Nightly run 39013536848 on `e110c9c0b` is still the newest. Its `docs` failure and the push run
-39076740827's are both green here, and the five-driver matrix's queue arity was fixed by `460a68396`.
-The `proofs` jobs fail on perf figures owed until the goal end, and `cost guards / windows` on the
-warm-start budget (Backlog).
+Nightly run 39108526796 on `1a78b49ef` is the newest. Its `docs` and website-data failures, its
+yanked `inout` in `supply chain` and its stale `THIRD-PARTY-LICENSES.txt` are all green on this tree,
+fixed by `8f8966275`. The `proofs` jobs fail on perf figures owed until the goal end. `cost guards /
+windows` failed on `serve_throughput_scales_from_one_core_to_four_by_the_margin_this_test_names` at
+1.38 against 1.5, with arms of 20 ms, so the test now takes the best of 10 rounds, not 3. The
+warm-start budget is the Backlog's.
 
 ### Next
 
-Stage 6's last item: each `nvs` command registers itself, on `crates/nvs-cli/src/main.rs` and the
-command modules it declares. Write the checkpoints under the stage 6 item first.
-- [ ] Decide the shape: clap's `Command` enum is one central `#[derive(Subcommand)]` and the dispatch is one `match command`. Find how a module can own its variant and its arm, with `--help` output byte for byte the same. `crates/nvs-cli/src/main.rs:361`, `crates/nvs-cli/src/main.rs:1826`
-- [ ] Move one command to that shape and prove its help and exit codes unchanged, then the rest. `crates/nvs-cli/src/main.rs:1991`
-- [ ] `conventions.md` says how a new command is added. `docs/agent/conventions.md:1`
+Stage 6's last item, on `crates/nvs-cli/src/main.rs` and the command modules it declares. Its
+checkpoints are under the stage 6 item.
+- [ ] Move every command with no subcommands to `ast.rs`'s shape, a few per commit, and diff the help pages after each. `crates/nvs-cli/src/main.rs:361`, `crates/nvs-cli/src/main.rs:1813`
+- [ ] Move each command group's `Subcommand` enum, such as `ServiceCommand`, into its module. `crates/nvs-cli/src/main.rs:1402`
+- [ ] Leave `main.rs` with no command's fields, and `initializes` and `prepares` matching tuple variants. `crates/nvs-cli/src/main.rs:291`
 
 Then stage 7, `.gitattributes` and the merge rule for generated files. `.gitattributes:43`
 
@@ -213,7 +220,7 @@ Then stage 7, `.gitattributes` and the merge rule for generated files. `.gitattr
 
 - Looper's `links` needs `<a id>` anchors and a generated-page skip, and its `layout` a configurable file, before stage 4's first item can land. And `looper guard` matched a commit in looper's own checkout against a claim on mwl's `docs/goals/README.md`. Looper's own goals own both, the second in `crates/looper-core/src/claims.rs`.
 - Two flakes to fix at the cause. `test_request_dispatches_in_process_through_the_compiled_route_table` was red once, also alone, because `Core\Env::context()` was not `Request` (`crates/nvs-cli/src/runner.rs:3410`). And `live_edit`'s two compile-race tests missed their 30 s swap deadline beside the other binaries on a disk 98% full, and passed alone (`crates/nvs-cli/tests/live_edit.rs:1016`).
-- The Windows warm-start budget: 13 ms of work on a quiet hosted runner against 6 ms. `tools/nv/cmd/bench.ts` § *The warm-start figure* owns it.
+- The warm-start budget of 6 ms of work. At `1a78b49ef` Linux measured 7.4 ms and macOS 6.8 ms, where macOS measured 5.6 ms at `e110c9c0b`, and Windows is over it on every run. Find which of the commits between the two adds start-up work. `tools/nv/cmd/bench.ts` § *The warm-start figure* owns it.
 - `bun nv verify` does not run `nv render --website --check`, so the website data goes stale unseen until CI. `tools/nv/cmd/verify.ts:151`
 - `fullRun` and `runBenches` still take a `deadline` that no caller passes, and `runBenches` an `order` and `onStart` that only the debt passed. `tools/nv/select/full.ts:63`, `tools/nv/proofs/select.ts:265`
 - `Core\Ldap::connect` dials each address of a host in turn, so a `localhost` block pays 2 s on Windows. `crates/nvs-stdlib/src/ldap/mod.rs:489`, `crates/nvs-host/src/net.rs:438`
