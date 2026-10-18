@@ -1,0 +1,27 @@
+<?nvs
+// Shows the error `as` throws for a path that is not valid.
+
+class Customer {
+    public string $name = "Ada";
+    private string $password = "x9f2";
+}
+
+class Order {
+    public Customer $customer;
+    public int $total = 40;
+
+    public function constructor() {
+        $this->customer = new Customer();
+    }
+}
+
+// The first path is valid. Each other path has one wrong part, and the message names it.
+array<string> $fields = ["customer.name", "customer.age", "customer.password", "total.amount", "customer."];
+foreach ($fields as string $field) {
+    try {
+        propertyPath<Order> $path = $field as propertyPath<Order>;
+        echo "valid: ", $path as string, "\n";
+    } catch (RuntimeError $e) {
+        echo $e->message, "\n";
+    }
+}

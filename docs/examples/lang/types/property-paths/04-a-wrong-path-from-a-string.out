@@ -1,0 +1,5 @@
+valid: customer.name
+`"customer.age"` is not a property path of `Order`: `Customer` has no public property `$age`
+`"customer.password"` is not a property path of `Order`: `Customer` has no public property `$password`
+`"total.amount"` is not a property path of `Order`: `Order`'s property `$total` is not an object, so the path cannot continue after it
+`"customer."` is not a property path of `Order`: it has an empty part

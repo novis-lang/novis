@@ -13,4 +13,5 @@ the same class, such as `parent.parent.name`, and has no length limit. `$path as
 text of the path.
 
 **The examples below** go from an order to its customer, address and lines, sort a list by a field
-from the web address, and use `propertyPath<static>` in a parent class.
+from the web address, and use `propertyPath<static>` in a parent class. Then they show the errors for
+a wrong path in a string and in the code.
