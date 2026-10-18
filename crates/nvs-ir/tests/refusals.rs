@@ -21,17 +21,11 @@
 //! Two things, and the difference between them is who owns the site:
 //!
 //! *   **An open numbered item claims it** — one in the live goal's file
-//!     under `docs/goals/`, or one in `docs/agent/carried-refusals.md`,
-//!     which is where a hole an earlier milestone left is owned once no current
-//!     goal can be judged on it (a goal switch carries a check forward and the
-//!     items that made it green not at all, so that inventory has to live
-//!     somewhere the switch does not rewrite). That
-//!     is a hole with a schedule: the item names the file and the function,
-//!     and closing the item removes the site. `bun nv holes`'s own attribution
-//!     decides this, so a site in a file no item anchors is *unattributed* and
-//!     fails here. The last such item has landed, so nothing is left to claim
-//!     a site and this gate now refuses everything not on the allowlist — the
-//!     end state the check's name, `nvs-ir (no refusal left)`, describes.
+//!     under `docs/goals/`. That is a hole with a schedule: the item names
+//!     the file and the function, and closing the item removes the site.
+//!     `bun nv holes`'s own attribution decides this, so a site in a file no
+//!     item anchors is *unattributed* and fails here. No item claims a site,
+//!     so this gate refuses everything not on the allowlist.
 //! *   **[`ALLOWLIST`] names it**, because it is a refusal the language means
 //!     to keep. **That list may never grow.** Every entry is a bullet in
 //!     the live goal's § *Standing decisions*, and adding one to
@@ -88,12 +82,11 @@ const CEILING: usize = 0;
 
 /// What `bun nv holes` opens: the `nv` program and the script entry that names
 /// it, the goal files that name the live goal and hold its items and checks,
-/// the carried item list, the diagnostic registry, and the two crates that lower.
+/// the diagnostic registry, and the two crates that lower.
 const HOLES_READS: &[&str] = &[
     "package.json",
     "tools/nv",
     "docs/goals",
-    "docs/agent/carried-refusals.md",
     "crates/nvs-diagnostics/src/lib.rs",
     "crates/nvs-ir/src",
     "crates/nvs-codegen/src",
@@ -299,9 +292,8 @@ fn every_refusal_is_a_diagnostic_or_decided() {
     assert!(
         standing.is_empty(),
         "{} refusal(s) belong to nobody — each is a shape that type-checks and then \
-         refuses, with no open item in the live goal's file under docs/goals/ or \
-         in docs/agent/carried-refusals.md claiming it and no entry on this test's \
-         allowlist. Give it a diagnostic, close it, or take the decision in the goal's \
+         refuses, with no open item in the live goal's file under docs/goals/ \
+         claiming it and no entry on this test's allowlist. Give it a diagnostic, close it, or take the decision in the goal's \
          § Standing decisions — do NOT add it to the allowlist to make this pass.\n{}",
         standing.len(),
         standing.join("\n")

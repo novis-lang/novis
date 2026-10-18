@@ -8,13 +8,12 @@ what is specific to Novis.
 ## The rule that determines the design
 
 **A loop that lives inside one conversation cannot run hundreds of iterations.** Every iteration appends
-permanently to that conversation — the subagent prompt, its report, the re-read handoff — at roughly 3k
-tokens each. That caps a single coordinator session at ~30 iterations before it is either stopped or
-auto-summarized, and a summarized coordinator quietly loses the standing instructions it exists to enforce.
-No prompt wording fixes this; a conversation cannot forget.
+permanently to that conversation — the subagent prompt, its report, the re-read handoff — so a
+coordinator session is soon either stopped or auto-summarized, and a summarized coordinator quietly loses
+the standing instructions it exists to enforce. No prompt wording fixes this; a conversation cannot forget.
 
 So **the loop does not live in a conversation.** looper starts one *fresh* `claude` session per
-iteration. Context resets to zero every time, so session 400 costs exactly what session 1 did. The loop's
+iteration. Context resets to zero every time, so the last session costs what the first did. The loop's
 memory lives on disk: git history, and the live goal's file under `docs/goals/` with its `## Handoff`.
 
 Four things follow, and they are the whole design:
@@ -42,7 +41,6 @@ Four things follow, and they are the whole design:
 | `docs/goals/<slug>.md` | A goal: its stages, its acceptance checks, its `context` list, its standing decisions and its `## Handoff`. Edited in place or through `looper goal`; `looper lint` checks it. |
 | [loop-authoring.md](loop-authoring.md) | How a *new* goal is written: measure first, **scope the context**, what makes one drivable, what to pre-authorize, the stage order. |
 | [playbook.md](playbook.md) | The traps a session paid for once, one file per bullet under `docs/agent/playbook/`. |
-| [optimization-prompt.md](optimization-prompt.md) | The prompt for an optimization pass, which a person runs by hand; the loop runs none. |
 | [conventions.md](conventions.md) | The shape of everything the repo writes, so no session re-derives it from an existing example. |
 | `.loop/status.txt` | One line written by each session: `CONTINUE …`, `DONE …` or `BLOCKED …`. |
 
@@ -91,10 +89,9 @@ settings*), or the allowlist is ignored and every such call waits on the classif
 
 ### The loop's own machinery is a person's to change
 
-The loop never spends a session on itself. An optimization pass — [optimization-prompt.md](optimization-prompt.md)
-— is started by a person, between runs or while the run is paused, and its commits are judged the way any
-change to `tools/` is: `looper orient` must still produce a pack, `looper lint` must pass, and `nv verify`
-must be green.
+The loop never spends a session on itself. A change to it is made by a person, between runs or while the
+run is paused, and is judged the way any change to `tools/` is: `looper orient` must still produce a pack,
+`looper lint` must pass, and `nv verify` must be green.
 
 ## Setting a new goal
 
@@ -107,15 +104,14 @@ order, and how to write the item list so groups fall out of it.
 One is still fine for a **short** run — a dozen sessions, where you want to watch and intervene. Give each
 subagent the goal's pack from `looper orient`, one subagent at a time (they share one working tree and
 one handoff; concurrent sessions race). Keep the coordinator's own context small: never re-read a diff,
-never re-derive the plan, never second-guess verified work. But stop at ~100k and restart — and
-understand that restarting is not a workaround for the context problem, it *is* the loop's design, just
-done by hand.
+never re-derive the plan, never second-guess verified work. But restart it before it nears the
+interactive ceiling of AGENTS.md § *Session workflow* step 2 — and understand that restarting is not a
+workaround for the context problem, it *is* the loop's design, just done by hand.
 
-**Could a parallel `Core`-domain lane work now?** Partly. The hotspot splits removed the *file* collision
-that made it impossible: a new `Core` class is one line in `nvs_stdlib::registry`, one in `nvs_stdlib`'s
-`symbols`, and its own new module, so two sessions adding two domains no longer touch the same lines — and
-the same is true of the checker and end-to-end tests, now one file per rule area and per feature area.
-The chain run itself is still **one working tree and one handoff**. A second lane is a **side goal**, as
+**Could a parallel `Core`-domain lane work?** Partly. A new `Core` class is one line in
+`nvs_stdlib::registry`, one in `nvs_stdlib`'s `symbols`, and its own new module, so two sessions adding
+two domains do not touch the same lines, and the checker and end-to-end tests are one file per rule area
+and per feature area. The chain run itself is still **one working tree and one handoff**. A second lane is a **side goal**, as
 § *Running it* says. What a side goal does not do is split the chain: it is written by hand for work that
 can run beside the chain, and the chain still walks one goal at a time.
 
