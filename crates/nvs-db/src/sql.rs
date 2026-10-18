@@ -66,6 +66,12 @@
 //! is actually wrong with it. The errors below are otherwise only the ones about
 //! *placeholders and arguments*, which the server cannot see because it never
 //! receives the original spelling.
+//!
+//! # What it costs
+//!
+//! [`StatementCache::lookup`] is a linear search over a list kept in
+//! most-recent order, so each execution costs O(capacity). The capacity is
+//! small and fixed by configuration, so that is a constant per statement.
 
 use std::io;
 

@@ -49,6 +49,11 @@
 //! nowhere else. Only a `file:` URI has a path: a document opened under any
 //! other scheme is held and analysed as nothing, because its `require` targets
 //! have no directory to resolve against.
+//!
+//! # What it costs
+//!
+//! [`Documents::overlay`] copies the text of every open buffer into the source
+//! map on each call, so one analysis costs the size of all open buffers.
 
 use std::cell::RefCell;
 use std::collections::HashMap;
