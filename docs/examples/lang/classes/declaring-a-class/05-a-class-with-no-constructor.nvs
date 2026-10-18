@@ -1,0 +1,13 @@
+<?nvs
+// Shows a class with no constructor. Every property has a default, so `new`
+// takes no arguments.
+
+class Counter {
+    public int $n = 0;
+}
+
+var $c = new Counter();
+$c->n = $c->n + 1;
+
+// This prints `1`.
+echo $c->n, "\n";

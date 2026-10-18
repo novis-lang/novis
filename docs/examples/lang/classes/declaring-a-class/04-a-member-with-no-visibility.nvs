@@ -1,0 +1,8 @@
+<?nvs
+// Shows that every property needs `public`, `protected` or `private`.
+// `$balance` has none, so this program does not compile.
+// proof: compile-error
+
+class Account {
+    int $balance = 0;
+}

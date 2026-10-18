@@ -12,3 +12,7 @@ needs no constructor.
 
 **Good to know:** a visibility keyword in front of a constructor parameter declares a property of that
 name and fills it with the argument.
+
+**The examples below** show a class with data and methods, a constructor that declares its
+properties, and a class that keeps its data private. The last two show a property with no visibility,
+which does not compile, and a class with no constructor.
