@@ -325,7 +325,16 @@ proofs roster), contradicted the code (`splice.ts:169` refuses a repeated anchor
 reads `target/release` first), described a trap the tooling now handles (`suiteVerdict`, `show`'s
 exact match), or were about the deleted decision records and Python tools.
 
-The sweep's CI failures are on remote `main` at `1a78b49e`, not this branch, as the last five
+`writing-novis/` is done: 297 bullets stay. The 19 deleted ones repeated another bullet (the
+`HANDLES` roster, `regex::grow`, the `nvs_ir::Helper` symbol table, the `CoreTy` variant's
+`mentions` arm, the type-parse backtrack, the `spawn script` `Err` edge, the row-less symbol,
+`array<K, V>` twice, `Bytes::length` against `slice`, the error-path phrase, the cross-crate
+`#[non_exhaustive]` match, the four gates of a new row, the frozen union rendering), contradicted
+the code (`bind.rs:186` makes only `ErrorKind::Other` a `DbError`, `verify.ts:53` runs `fmt`
+first, one bullet told a session to join `UNCLASSIFIED`), cited the deleted spec, or described a
+sweep `capability.rs`'s `takes_a_path` now handles.
+
+The sweep's CI failures are on remote `main` at `1a78b49e`, not this branch, as the last six
 sessions found. `bun nv site --check` also fails on pages this goal has not touched: stale question
 entries, long paragraphs in `compare.mdx` and `run-as-a-service.mdx`, and the `/reference/types/` link.
 
@@ -335,8 +344,8 @@ Stage 5, the playbook's larger directories: a bullet that tells a story, repeats
 contradicts a rule is deleted, never reworded (standing decision). Each slice is one directory;
 grep the other directories for each bullet's key term (an error text, a symbol) to find duplicates,
 and keep the copy in the directory the trap belongs to.
-- [ ] `writing-novis/` (316 bullets, about 190 KB) loses its stories and duplicates; grep `writing-a-test-case/` too, which repeats some language traps. Print the bullets 40 files a call, because a larger output spills to a file the read guard refuses. `docs/agent/playbook/writing-novis/`
-- [ ] `writing-a-test-case/` (480), split across two sessions by file name. `docs/agent/playbook/writing-a-test-case/a-0-default-on-a-uint-is-uint-int-so-it-does-not-fit.md:1`
+- [ ] `writing-a-test-case/` files `a` to `m` lose their stories and duplicates. Print the bullets 40 files a call, because a larger output spills to a file the read guard refuses. Known clusters, each to keep one copy: the error-path gate's phrase and window (seven bullets, beside `writing-novis/everyerrorpathis…` two), `E0406` scope in a loop or `catch` (six, beside `writing-novis/a-local-declared-inside-a-loop-body…`), `E0459` narrowing in a loop (four), `?? 0` on a `uint` (beside `writing-novis/an-integer-literal-in-a-fallback…`), `as ?string` on `null`, `Bytes::length`, `E0472` and `array<string, uint>`. A language trap keeps its `writing-novis/` copy. `docs/agent/playbook/writing-a-test-case/a-0-default-on-a-uint-is-uint-int-so-it-does-not-fit.md:1`
+- [ ] `writing-a-test-case/` files `n` to `z`, the same way. `docs/agent/playbook/writing-a-test-case/no-nvst-case-can-reach-a-live-queue-server-but-a-nvst-case.md:1`
 - [ ] Then AGENTS.md outside the markers, stage 5's first item. `AGENTS.md:1`
 ### Backlog
 
