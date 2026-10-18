@@ -11,10 +11,13 @@ harvest = false           # Novis harvests nothing: a reached goal's decisions a
 carry_to_floor = false    # no check joins the floor when its goal is reached
 scratch = ".agent-tmp"
 
-[budget]                  # the ceilings of AGENTS.md § Session workflow step 2; no kill, as the old driver had none
+[budget]                  # the ceilings of AGENTS.md § Session workflow step 2, with no kill
 hard = 200000
 interactive = 250000
 slice = 120000
+
+[orient]
+traps = 8                 # the most playbook bullets the pack prints, nearest the next anchors first
 
 [loop]
 min_free_gb = 10          # `nv disk`'s MIN_FREE_GB
