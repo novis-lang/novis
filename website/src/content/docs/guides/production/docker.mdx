@@ -1,13 +1,131 @@
 ---
 title: Docker
 covers: []
-description: Run a Novis application in a container, with nvs serve listening on every address.
+description: Run a Novis application in a container, with the official image or an image you build yourself.
 ---
 
 A Novis application needs only the `nvs` binary and your files. A container for it is small.
 
-There is no published Novis image. Build `nvs` for Linux as [Install](/install/) shows. Then copy
-the binary into the image with your application:
+`nvs` is the compiler, the server, the test runner and the command line tool. One image runs all of
+them. The command you give chooses one: `serve`, `run`, `test` or `check`.
+
+## The official image
+
+Each release publishes an image to the GitHub Container Registry:
+
+```sh
+docker pull ghcr.io/novis-lang/novis:0.4.1
+```
+
+`0.4.1` on this page stands for the version you use. Until the first release, there is no image to
+pull. Until then, [build your own image](#build-your-own-image).
+
+The image runs nothing by itself. You always give the command. A `docker run` with no command
+prints the help of `nvs` and exits with code `0`.
+
+### Which tag
+
+| Tag | Changes | Use it for |
+|---|---|---|
+| `0.4.1` | never | Production. This tag always means the same build. |
+| `0.4` | on each patch release of 0.4 | Fixes that do not break your program. |
+| `latest` | on each release | Trying Novis. Do not deploy it. |
+| `sha-abc1234` | never | One commit of the repository. |
+
+There is no `0` tag before version 1.0. Below 1.0, a new minor version such as 0.5 can break your
+program. A `0` tag would move to it.
+
+`latest` and `0.4` change when the release is published. That is usually a few minutes after
+`0.4.1` appears.
+
+### Two variants
+
+| Tag | Base image | Size without `nvs` |
+|---|---|---|
+| `0.4.1` | `gcr.io/distroless/cc-debian13` | about 43 MB |
+| `0.4.1-debian` | `debian:trixie-slim` | about 119 MB |
+
+Use the default, `0.4.1`. It has no shell and no package manager. The `-debian` variant has the
+same `nvs` and a shell, so you can open a shell in a running container with `docker exec`. Use it to
+find a problem, and deploy the default.
+
+Both variants exist for `linux/amd64` and `linux/arm64`. Docker chooses the right one.
+
+Neither image needs the `ca-certificates` package. `nvs` contains the Mozilla list of trusted
+certificates, so outbound TLS works.
+
+### Serve an application
+
+Mount your application at `/app`, and give the path of its entry file to `serve`:
+
+```sh
+docker run --rm -p 8000:8000 \
+  -v "$PWD:/app:ro" -v novis-data:/usr/local/bin/.nvsdata \
+  ghcr.io/novis-lang/novis:0.4.1 serve /app/public/index.nvs --listen 0.0.0.0:8000
+```
+
+The volume `novis-data` keeps the compile cache when you remove the container.
+[The data folder](#the-data-folder) explains it.
+
+### A Compose file
+
+```yaml
+services:
+  app:
+    image: ghcr.io/novis-lang/novis:0.4.1
+    command: ["serve", "/app/public/index.nvs", "--listen", "0.0.0.0:8000"]
+    ports: ["8000:8000"]
+    volumes:
+      - ./app:/app:ro
+      - novis-data:/usr/local/bin/.nvsdata
+    read_only: true
+    cap_drop: ["ALL"]
+    security_opt: ["no-new-privileges:true"]
+    # A little longer than [server] drain_timeout, which is 30s by default.
+    stop_grace_period: 35s
+
+volumes:
+  novis-data:
+```
+
+`read_only: true` works because `nvs` writes only to its data folder, and the volume is that folder.
+The image already runs as the account `nonroot`, with the uid 65532. `cap_drop` and
+`no-new-privileges` remove the Linux privileges that are left.
+
+### Use it as a command line tool
+
+The image starts `nvs`, so each command of `nvs` is the first word after the image:
+
+```sh
+# Run a script.
+docker run --rm -v "$PWD:/app:ro" ghcr.io/novis-lang/novis:0.4.1 run hello.nvs
+
+# Run the tests in a folder.
+docker run --rm -v "$PWD:/app:ro" ghcr.io/novis-lang/novis:0.4.1 test tests/
+
+# Check the types of a program without running it.
+docker run --rm -v "$PWD:/app:ro" ghcr.io/novis-lang/novis:0.4.1 check src/main.nvs
+
+# Print the version and the build information.
+docker run --rm ghcr.io/novis-lang/novis:0.4.1 --version
+docker run --rm ghcr.io/novis-lang/novis:0.4.1 info
+```
+
+The working folder in the image is `/app`, so `hello.nvs` above is `/app/hello.nvs`. If you mount
+the folder you are in, the paths are the same as on your computer.
+
+Words after the file name go to your program, not to `nvs`. In `run script.nvs --verbose`, your
+program reads `--verbose` with `Core\Cli::arguments`.
+
+`nvs` in the image runs as the uid 65532. A file it creates in a mounted folder belongs to 65532 on
+your computer too. To keep your own owner, add `--user "$(id -u):$(id -g)"`. Then also pass
+`--data` with a folder that your user owns, because the data folder in the image belongs to
+`nonroot`.
+
+## Build your own image
+
+Build `nvs` for Linux as [Install](/install/) shows. Then copy the binary into the image with your
+application:
 
 ```dockerfile
 FROM debian:trixie-slim
@@ -29,16 +147,32 @@ CMD ["serve", "/app/public/index.nvs", "--listen", "0.0.0.0:8000"]
 This image is Debian 13, which has glibc 2.41. Build `nvs` on a system with the same glibc or an
 older one, such as Ubuntu 22.04. A binary built on a newer system does not start in this image.
 
+Build the image and run it:
+
+```sh
+docker build -t shop .
+docker run -p 8000:8000 shop
+```
+
 ## Listen on every address
 
 `nvs serve` listens on `127.0.0.1:8000` when nothing else is set. Inside a container, that address
-can only be reached from inside the same container. So the command above passes
+can only be reached from inside the same container. So each command on this page passes
 `--listen 0.0.0.0:8000`. Without it, the container runs, but every connection fails.
+
+You can also write `listen = ["0.0.0.0:8000"]` under `[server]` in `nvs.toml`. The `--listen` option
+replaces that setting.
 
 ## The configuration
 
-`WORKDIR /app` makes `/app` the working folder. `nvs` reads `/app/nvs.toml` from there, so the
-configuration in your project is found without `--config`.
+`/app` is the working folder. `nvs` reads `/app/nvs.toml` from there, so the configuration in your
+project is found without `--config`.
+
+If you pass `--config` with a file, `nvs` reads only that file. It does not read `/app/nvs.toml`.
+
+A program needs the same capabilities in a container as outside one. The container does not grant
+any, even when it runs as root. Grant them in `nvs.toml`, as
+[Configuration](/guides/how-to-use/configuration/) shows.
 
 Keep secrets out of the image. Docker Compose can mount a secret as a file, and `nvs.toml` reads it
 with `password_file`:
@@ -52,30 +186,100 @@ password_file = "/run/secrets/db-password"
 
 ## The data folder
 
-`nvs` keeps its compile cache and its temporary files in a data folder. By default, this is
-`.nvsdata` next to the `nvs` program, here `/usr/local/bin/.nvsdata`. The account `app` cannot
-create a folder in `/usr/local/bin`, so the `RUN` line above creates it. Only `app` can open it.
+`nvs` keeps its own files in a data folder: the compile cache, temporary folders, files for your
+editor and the logs of a service. By default, this is `.nvsdata` next to the `nvs` program. In both
+kinds of image, that is `/usr/local/bin/.nvsdata`.
+
+The official image already has this folder. It is empty, and only the account `nonroot` can open it.
+In your own image, the `RUN` line above creates it, because the account `app` cannot create a folder
+in `/usr/local/bin`.
 
 Without this folder, `nvs` prints a warning. It runs without the compile cache, and
 `Core\IO::temporaryDir` throws an error.
 
-## Run it
-
-```sh
-docker build -t shop .
-docker run -p 8000:8000 shop
-```
-
-The data folder is inside the container. When you remove the container, the compile cache is
-deleted, and the next container compiles every program again. To keep the cache, mount a volume
-on the data folder:
+The folder is inside the container. When you remove the container, the compile cache is deleted,
+and the next container compiles every program again. With `read_only: true`, `nvs` cannot write to
+the folder at all. To keep the cache, mount a volume on the data folder:
 
 ```sh
 docker run -p 8000:8000 -v shop-data:/usr/local/bin/.nvsdata shop
 ```
 
-A new volume starts with the owner and the permissions of the folder in the image. You can also
-pass `--data` with the full path of another folder that `app` owns.
+A new volume starts with the owner and the permissions of the folder in the image. A folder from
+your computer works too. It must belong to the uid 65532, and only its owner may write to it.
+Otherwise `nvs` prints a warning and does not use it.
 
-Put a reverse proxy in front of the container for TLS. Read
-[Behind a reverse proxy](/guides/production/reverse-proxy/).
+You can also pass `--data` with the full path of another folder. Do this when you start the
+container with `--user` and another uid, because that uid cannot open the folder in the image.
+
+## Health checks
+
+Set `health_path` to give a load balancer a path to check:
+
+```toml
+[server]
+health_path = "/healthz"
+```
+
+The path returns `200` while the server accepts requests. It returns `503` while the server stops.
+It does not run your program, and it does not check your database.
+
+Neither image contains a program such as `curl`. So a `HEALTHCHECK` in a Dockerfile has nothing to
+run, and neither image has one. Check the path from outside the container. Kubernetes does this
+itself:
+
+```yaml
+readinessProbe:
+  httpGet: { path: /healthz, port: 8000 }
+livenessProbe:
+  httpGet: { path: /healthz, port: 8000 }
+```
+
+With Compose, let your reverse proxy check the path, or build your own image with `curl` in it.
+
+## Stop a container
+
+`docker stop` sends `SIGTERM` to `nvs serve`. Both official images set `STOPSIGNAL SIGTERM`. When
+the server gets the signal, it does this:
+
+- It accepts no new connections.
+- If you set `[server] health_path`, that path returns `503`.
+- Each request that is running finishes, and its response is sent.
+- A connection with no request closes at once.
+- When every connection is closed, the process exits.
+
+`SIGINT` (Ctrl-C) and `SIGHUP` stop the server in the same way.
+
+The server gives each open connection at most `[server] drain_timeout` to finish. The default is
+`30s`. Docker waits 10 seconds by default, and then it sends `SIGKILL`. Kubernetes waits 30
+seconds by default. Set the wait a little longer than `drain_timeout`:
+
+- **Docker**: `docker stop -t 35 <container>`.
+- **Compose**: `stop_grace_period: 35s`.
+- **Kubernetes**: `terminationGracePeriodSeconds: 35`.
+
+To stop faster, set a shorter `drain_timeout`, and a wait a little longer than it:
+
+```toml
+[server]
+drain_timeout = "8s"
+```
+
+`nvs` is the first process in the container (pid 1). It handles `SIGTERM` itself, so you do not
+need `docker run --init`.
+
+## Check where an official image comes from
+
+Each official image has a signed statement. It says that the release workflow of the Novis
+repository built this image, and from which commit. This command checks it:
+
+```sh
+gh attestation verify oci://ghcr.io/novis-lang/novis:0.4.1 --repo novis-lang/novis
+```
+
+The image contains the same `nvs` as the release archive for Linux. `latest` and `0.4` are other
+names for the same image, so the command checks the same statement for them.
+
+The `nvs` in the official image has its debug information. A backtrace shows the file and the line
+of each step. Set `RUST_BACKTRACE=1` to print one. The first backtrace takes longer, because `nvs`
+unpacks the debug information then.

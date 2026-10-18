@@ -3,7 +3,8 @@
 #
 #     bash tests/docker/smoke.sh <image> [port]
 #
-# It runs the image the ways `docs/docker.md` tells a user to: with no command, which prints the
+# It runs the image the ways the website's Docker guide tells a user to
+# (`website/src/content/docs/guides/production/docker.mdx`): with no command, which prints the
 # help and exits 0, each CLI subcommand on `app/`, `serve app/main.nvs` under the hardened flags of
 # the guide's Compose file, and a `docker stop` while a request is still running, which must finish
 # that request and exit 0. The
