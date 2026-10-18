@@ -256,6 +256,8 @@ with each.
   - [x] `// proof: compile-error` in `run.ts`: exit 1, a diagnostic on stderr, and the `.out` is the diagnostic with the path shortened; documented in `docs/examples/README.md`
 - [ ] `40-statements` is done first, as the pattern: each feature's facts sorted into its three homes, the chapter's unique code blocks made examples. `docs/reference/lang/40-statements.md:244`, `docs/examples/lang/statements/break-and-continue/about.md:1`
   - [x] `break-and-continue`: `details.md`, the chapter's two code blocks as examples 04 and 05
+  - [x] `return`: `details.md`, and example 04, a `void` method's `return 0;` that does not compile
+  - [x] `throw`: no `details.md`, since `about.md` has every fact, and example 04, an uncaught error ending with status 1
   - [ ] the chapter's other features, in its order
 - [ ] The other ten chapters, one per slice: `10-programs`, `20-types`, `30-expressions`, `50-classes`, `55-enums`, `60-iteration`, `70-errors`, `80-concurrency`, `90-attributes`, `95-testing`. `docs/reference/lang/10-programs.md:1`
 
@@ -309,6 +311,14 @@ and 05 (a compile error). `about.md`'s closing sentence names the two. The three
 fact; `continue 1` inside a `switch` in a loop also continues the loop, which no text said. The
 chapter and the syntax page keep their own copies until stages 7 and 8 replace them.
 
+`return` and `throw` followed it. `return`'s `details.md` holds three facts the binary confirmed and
+no text stated whole: `return;` in a non-`void` method is `E0822`, a path that reaches the end of
+such a body is `E0739` (a `throw` ends a path too), and a required file's top-level `return` value is
+what `require` gives. Its example 04 is the chapter's "`void` returning a value" as a compile error
+(`E0403`). `about.md` lost "the one that answers". `throw` needed no `details.md`; its example 04 is
+the chapter's uncaught throw (`// proof: exit 1`), and `about.md` gained its closing sentence. No
+text disagreed with the binary.
+
 `looper lint` failed on a stale managed block, so `looper sync` brought AGENTS.md's `agents` block to
 v3. It adds § *looper only orchestrates* and still links `docs/design.md`.
 
@@ -323,7 +333,8 @@ chapter section, its `about.md` and its syntax page, probe each fact `about.md` 
 write `details.md`, and turn each chapter code block no example shows into an example
 (`proof: compile-error` for an `nvs error` fence). Bless with `bun nv proofs --bless`, then
 `bun nv proofs --run --only <id>` and `--comments <dir>`.
-- [ ] `return`, the next section. `docs/reference/lang/40-statements.md:288`
+- [ ] `try-catch-finally`, the next section. `docs/reference/lang/40-statements.md:313`
+- [ ] `catch-as-an-expression`, then `echo-print-unset-exit-yield` and `statement-forms-that-do-not-parse`. `docs/reference/lang/40-statements.md:397`
 - [ ] Then the chapter's features before `break-and-continue`, from its top. `docs/reference/lang/40-statements.md:1`
 
 ### Backlog
