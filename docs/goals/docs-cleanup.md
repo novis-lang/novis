@@ -632,11 +632,27 @@ owned by `release-hardening`: a `void` call at a `mixed` local or as a `match` a
 (`data/gaps/nvs-types/a-negative-literal-compared-with-a.json`), and a second `default` in a `match`
 or a `switch` compiles (`data/gaps/nvs-types/a-match-with-two-default-arms.json`).
 
+`the-pipeline-operator` and `anonymous-functions` are done, each fact run on the binary, and no
+text disagreed with it; the chapter did not change. The pipeline's `details.md` has where a step
+ends (`$n |> $_ * 2` is `($n |> $_) * 2`, and `$n |> 10 - $_` is `E0129`), the step forms, a deep
+`$_`, `E0129` to `E0131` with their cases, the subject running once, and `!` running after `|>`;
+examples 04 to 06 are the chapter's four blocks. `about.md` and example 01 said `$_` "marks" the
+place, now rewritten. `anonymous-functions`' `details.md` has `E0222`, `E0223`, `E0210`, `E0493`,
+`E0237`, `E0808`, `E0450`, `E0401`/`E0403`, a captured copy restarting on each call, `E0301` for the
+function's own variable, the named `fn fact(…)` (only the syntax page had it) and `E0320`, `E0779`,
+method references, the `bindTo` message and `E0402`; example 04 is the chapter's block, 05 a named
+function, 06 the `function` block. Probing found three gaps, owned by `release-hardening`: a default
+on a `fn` parameter is never used
+(`data/gaps/nvs-types/an-anonymous-function-parameter-default-is.json`), a `...` parameter on a `fn`
+is a plain one (`data/gaps/nvs-types/a-variadic-parameter-on-an-anonymous.json`), and `echo` of a
+callable compiles and throws naming `Script$fn0`
+(`data/gaps/nvs-types/echo-of-a-callable-compiles-and.json`).
+
 ### Next
 
-`30-expressions` continues: 5 features left. The next group is `the-pipeline-operator`
-(`30-expressions.md:500`), `anonymous-functions` (`:552`), and the features after it in chapter
-order. Work each feature the way `break-and-continue` was done: read
+`30-expressions` continues: 3 features left. The next group is `arrays-in-expressions`
+(`30-expressions.md:588`), `anonymous-objects` (`:655`) and `refused-in-expression-position`
+(`:680`). Work each feature the way `break-and-continue` was done: read
 its chapter section, its `about.md` and its syntax page, probe each fact `about.md` lacks on the
 binary, write `details.md`, and turn each chapter code block no example shows into an example
 (`proof: compile-error` for an `nvs error` fence). Bless with `bun nv proofs --bless <file>...`, then
@@ -649,7 +665,7 @@ you meant to test. A probe's method goes in a class: a top-level `function` stop
 An enum is `enum Suit { Hearts, Spades }`, with no `case`. Many probes at once: a JSON map of name to
 body, and a script under `.agent-tmp/` that writes and runs each; the guard refuses a shell loop of
 `nvs run` over `docs/examples/`, so check a new example with `--bless`.
-- [ ] `30-expressions` from the pipeline operator, in chapter order. `docs/reference/lang/30-expressions.md:500`
+- [ ] `30-expressions` from arrays in expressions, in chapter order. `docs/reference/lang/30-expressions.md:588`
 - [ ] Once the chapter's last edit lands, `bun nv proofs --record-perf --group lang:expressions`, and commit `data/perf/members.ndjson`. `tools/nv/proofs/roster.ts:28`
 
 ### Backlog
