@@ -3089,7 +3089,7 @@ finally { … }                   // optional; runs however the try was left
 - A `catch` names **one** class or interface and matches it and every subclass; the first matching clause wins, so a supertype written first shadows the clauses after it. A `catch (A | B $e)` clause is not available; write two clauses.
 - Each `catch` variable is a declared local of the function, so two clauses in one function use two names. Reusing one is **`E0406`** — the ordinary declare-once rule of the types chapter, not a `catch`-specific one, because a clause's `$e` is the same kind of name any other declaration makes.
 - `finally` runs on every exit from the `try` and its `catch`es — normal completion, a `return`, a `break` or `continue` out of an enclosing loop, and a throw — and nested `finally` blocks run innermost first.
-- A throw inside a `catch` leaves through `finally` to the next enclosing `try`. A `try` with neither `catch` nor `finally` is accepted and merely runs its body.
+- A throw inside a `catch` leaves through `finally` to the next enclosing `try`. A `try` with neither `catch` nor `finally` is **`E0242`**.
 - The exception classes, their properties and `throw new … {previous: $e}` are the errors chapter's.
 
 ```nvs
@@ -5916,7 +5916,7 @@ try {
   the region was leaving with — silently discarding a throw in flight — so the result is changed
   in a `catch`, or after the region. The same holds for a `break` or `continue` whose target lies
   outside the `finally`; a loop wholly inside the block keeps both.
-- A `try` with neither `catch` nor `finally` is accepted and changes nothing.
+- A `try` with neither `catch` nor `finally` does not compile: **`E0242`**.
 
 ```nvs
 <?nvs

@@ -1,0 +1,11 @@
+error[E0406]: `$e` is already declared
+   --> 04-two-clauses-need-two-names.nvs:12:29
+   |
+12 |         } catch (LogicError $e) {
+   |                             -- first declared here
+...
+14 |         } catch (Throwable $e) {
+   |                            ^^ second declaration
+
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.
