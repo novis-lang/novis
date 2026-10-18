@@ -232,11 +232,11 @@ the playbook holds only traps that can still happen.
   - [x] `conventions.md` loses its stories, the plan, the spec's test and the measured link count
   - [x] `conventions.md`'s pack heading is fixed; `testing.md` is looper's managed text, so its dead `§ Names` link is looper's template's to fix
 - [x] `optimization-prompt.md`, `carried-refusals.md` (with its readers in `holes.ts`, `owners.ts` and `refusals.rs`) and `guard-name-debt.md` are deleted; its three causes move to `loop-authoring.md` § 3, beside a check's `tests` list. `coordinator.md` and `loop-authoring.md` lose their history and stale numbers. `docs/agent/coordinator.md:19`, `tools/nv/cmd/owners.ts:38`
-- [ ] The playbook loses every bullet about a removed tool, every story, every bullet that contradicts a rule (such as the `git stash` one) and every duplicate, and `[orient] traps = 8`. `docs/agent/playbook/running-things/a-before-after-measurement-is-worth-a-git-stash-and-the-base.md:1`, `looper.toml:8`
+- [x] The playbook loses every bullet about a removed tool, every story, every bullet that contradicts a rule (such as the `git stash` one) and every duplicate, and `[orient] traps = 8`. `docs/agent/playbook/running-things/a-before-after-measurement-is-worth-a-git-stash-and-the-base.md:1`, `looper.toml:8`
   - [x] the two bullets `looper playbook retire --check` named are retired
   - [x] no bullet names a removed `bun nv` command; the carried-refusals bullet goes with that file's item
   - [x] the `git stash` bullet is deleted
-  - [ ] the stories and the duplicates are deleted, one playbook directory per slice
+  - [x] the stories and the duplicates are deleted, one playbook directory per slice
   - [x] `[orient] traps = 8` in `looper.toml`
 - [x] `how-novis-is-written.mdx`'s count of notes comes from `numbers.json` or goes. `website/src/content/docs/in-depth/how-novis-is-written.mdx:62`
 
@@ -334,19 +334,31 @@ the code (`bind.rs:186` makes only `ErrorKind::Other` a `DbError`, `verify.ts:53
 first, one bullet told a session to join `UNCLASSIFIED`), cited the deleted spec, or described a
 sweep `capability.rs`'s `takes_a_path` now handles.
 
-The sweep's CI failures are on remote `main` at `1a78b49e`, not this branch, as the last six
+`writing-a-test-case/` is done, and with it the whole playbook sweep: 439 bullets stay. The 41
+deleted ones repeated another bullet: the `E0406` scope cluster (the two "same type may reuse a
+name" bullets stay, because they add a rule), the `E0459` loop narrowing, `?? 0` on a `uint`,
+`as ?string` on `null`, the `uint` array subscript in a bench (six), the error-path window, the
+`--GET--` sink, the one-`#[cfg(test)]` scan (three), the floor of three, the attribution of a `?T`,
+`array<T>` or title-only class, `bun nv try` dropping sections, `Arr::append`, the debug UTF-8
+check, the `Ctx` pending throw, `%2$s`, `missing/..`, the task `echo` buffer, the multi-argument
+`echo`, `cfg(unix)` against a `cargo`-named check and `as` precedence. Four contradicted the code: two
+said a new attack or example fails `nv verify` until formatted (`verify.ts:55` formats it, and
+`identity.rs:44` reads only `tests/` and `examples/`), one advised `(0 as uint)`, and
+`running-things/`'s `#[global_allocator]` bullet named `debug_assertions` where
+`nvs-runtime/src/lib.rs:279` uses `not(test)`. A `bun nv try` copy each in `running-things/` and
+`tooling/` went with the cluster.
+
+The sweep's CI failures are on remote `main` at `1a78b49e`, not this branch, as the last seven
 sessions found. `bun nv site --check` also fails on pages this goal has not touched: stale question
 entries, long paragraphs in `compare.mdx` and `run-as-a-service.mdx`, and the `/reference/types/` link.
 
 ### Next
 
-Stage 5, the playbook's larger directories: a bullet that tells a story, repeats another or
-contradicts a rule is deleted, never reworded (standing decision). Each slice is one directory;
-grep the other directories for each bullet's key term (an error text, a symbol) to find duplicates,
-and keep the copy in the directory the trap belongs to.
-- [ ] `writing-a-test-case/` files `a` to `m` lose their stories and duplicates. Print the bullets 40 files a call, because a larger output spills to a file the read guard refuses. Known clusters, each to keep one copy: the error-path gate's phrase and window (seven bullets, beside `writing-novis/everyerrorpathis…` two), `E0406` scope in a loop or `catch` (six, beside `writing-novis/a-local-declared-inside-a-loop-body…`), `E0459` narrowing in a loop (four), `?? 0` on a `uint` (beside `writing-novis/an-integer-literal-in-a-fallback…`), `as ?string` on `null`, `Bytes::length`, `E0472` and `array<string, uint>`. A language trap keeps its `writing-novis/` copy. `docs/agent/playbook/writing-a-test-case/a-0-default-on-a-uint-is-uint-int-so-it-does-not-fit.md:1`
-- [ ] `writing-a-test-case/` files `n` to `z`, the same way. `docs/agent/playbook/writing-a-test-case/no-nvst-case-can-reach-a-live-queue-server-but-a-nvst-case.md:1`
-- [ ] Then AGENTS.md outside the markers, stage 5's first item. `AGENTS.md:1`
+Stage 5's last item, AGENTS.md outside the markers. The file set is `AGENTS.md` alone, against
+the managed block below it. Carried decision: the project's half holds only what the block lacks.
+- [ ] Delete from the project's half each section the block restates: *Where to look*, the rules the block lists as 1 to 14, and *Session workflow* with its *Keep each slice small*. Move any fact only the project's half has into the block's named home (`docs/agent/commands.md`, `conventions.md`, `grounding.md`) first. `AGENTS.md:14`, `AGENTS.md:392`
+- [ ] Name the mid-work check, `bun nv verify --fast -p <crate>`, and each shell shape the guard refuses with the call to make instead (a `>` redirect is one: `looper guard` refused it this session). `AGENTS.md:1`, `docs/agent/commands.md:1`
+- [ ] No rule number, step count or budget in the project's half contradicts the block's, then `looper lint` and `bun nv verify --doc`. Then stage 5 is done. `AGENTS.md:392`
 ### Backlog
 
 - `docs/design.md` is deleted once looper's managed block no longer links it. `docs/goals/docs-cleanup.md:163`
