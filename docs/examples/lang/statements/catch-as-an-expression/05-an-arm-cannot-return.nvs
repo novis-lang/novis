@@ -1,0 +1,13 @@
+<?nvs
+// Shows that an arm is an expression, so `return` is not allowed there.
+// Write a `try` block when you need a statement. This program does not compile.
+// proof: compile-error
+
+class Repo {
+    public static function get(int $id): int {
+        return $id;
+    }
+}
+
+int $n = Repo::get(1) catch (IOError $e) => return 0;
+echo $n, "\n";

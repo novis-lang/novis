@@ -1,0 +1,9 @@
+error[E0126]: a `catch` arm is an expression, and `return` is a statement
+   --> 05-an-arm-cannot-return.nvs:12:45
+   |
+12 | int $n = Repo::get(1) catch (IOError $e) => return 0;
+   |                                             ^^^^^^ `return` cannot appear here
+   = help: `throw` is an expression, so `catch (E $e) => throw new …` is allowed here; for an early return write the block form, `try { … } catch (E $e) { return …; }`
+
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.
