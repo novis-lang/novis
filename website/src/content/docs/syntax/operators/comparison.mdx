@@ -35,8 +35,8 @@ the result of their `compareTo` method.
 - The block of `if ($a != null && $b != null)` runs only when both tests are true. Inside it,
   `$a` and `$b` are not `null`.
 
-These values count as false: `false`, `0`, `0.0`, `""`, `"0"`, `[]` and `null`. Every other value
-counts as true.
+These values count as false: `false`, `0`, `0.0`, `""`, `"0"`, `[]`, an empty `bytes` value and
+`null`. Every other value counts as true.
 
 ## Use this when you compare strings
 
