@@ -17,7 +17,11 @@ try {
 <?nvs
 // covers: Core\Ldap\Connection::compare
 var $corp = Core\Ldap::connect("corp");
-var $library = Core\Ldap\Dn::parse("OU=Library,DC=example,DC=test");
+
+// The name ends in the process id, so two runs at the same time use different entries.
+string $run = Core\Os::pid() as string;
+string $unit = "OU=Library-" . $run . ",DC=example,DC=test";
+var $library = Core\Ldap\Dn::parse($unit);
 var $admin = "CN=Administrator,CN=Users,DC=example,DC=test";
 
 // A run that stopped half-way leaves the entry behind.
@@ -40,7 +44,7 @@ echo "Music: ", $corp->compare($library, "description", "Music") ? "true" : "fal
 // An `int` and a `Dn` are sent in the form a write uses.
 echo "gPOptions 1: ", $corp->compare($library, "gPOptions", 1) ? "true" : "false", "\n";
 echo "gPOptions 2: ", $corp->compare($library, "gPOptions", 2) ? "true" : "false", "\n";
-echo "managedBy: ", $corp->compare("OU=Library,DC=example,DC=test", "managedBy", Core\Ldap\Dn::parse($admin)) ? "true" : "false", "\n";
+echo "managedBy: ", $corp->compare($unit, "managedBy", Core\Ldap\Dn::parse($admin)) ? "true" : "false", "\n";
 
 $corp->delete($library);
 --COPY--

@@ -16,7 +16,9 @@ try {
 --FILE--
 <?nvs
 var $corp = Core\Ldap::connect("corp");
-var $dn = "OU=Cinema,DC=example,DC=test";
+// The name ends in the process id, so two runs at the same time use different entries.
+string $run = Core\Os::pid() as string;
+var $dn = "OU=Cinema-" . $run . ",DC=example,DC=test";
 try {
     $corp->delete($dn);
 } catch (Core\Ldap\LdapError $gone) {

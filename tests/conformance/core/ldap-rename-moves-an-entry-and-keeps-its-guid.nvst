@@ -17,8 +17,10 @@ try {
 <?nvs
 // covers: Core\Ldap\Connection::rename
 var $corp = Core\Ldap::connect("corp");
-string $first = "OU=Atlas Two,DC=example,DC=test";
-string $second = "OU=Harbor Two,DC=example,DC=test";
+// Each name ends in the process id, so two runs at the same time use different entries.
+string $run = Core\Os::pid() as string;
+string $first = "OU=Atlas Two-" . $run . ",DC=example,DC=test";
+string $second = "OU=Harbor Two-" . $run . ",DC=example,DC=test";
 array<string> $leftovers = ["OU=Desk," . $first, "OU=Counter," . $first, "OU=Counter," . $second, $first, $second];
 foreach ($leftovers as string $left) {
     try {

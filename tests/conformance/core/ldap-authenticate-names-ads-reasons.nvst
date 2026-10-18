@@ -16,18 +16,23 @@ try {
 --FILE--
 <?nvs
 var $corp = Core\Ldap::connect("corp");
-var $patrons = "CN=Patrons,OU=Patrons,DC=example,DC=test";
+
+// Each name ends in the process id, so two runs at the same time use different entries.
+string $run = Core\Os::pid() as string;
+string $account = "Patrons-" . $run;
+string $unit = "OU=" . $account . ",DC=example,DC=test";
+var $patrons = "CN=" . $account . "," . $unit;
 
 // A run that stopped half-way leaves the account behind.
-array<string> $leftovers = [$patrons, "OU=Patrons,DC=example,DC=test"];
+array<string> $leftovers = [$patrons, $unit];
 foreach ($leftovers as string $left) {
     try {
         $corp->delete($left);
     } catch (Core\Ldap\LdapError $gone) {
     }
 }
-$corp->add("OU=Patrons,DC=example,DC=test", ["objectClass" => "organizationalUnit"]);
-$corp->add($patrons, ["objectClass" => "user", "sAMAccountName" => "Patrons"]);
+$corp->add($unit, ["objectClass" => "organizationalUnit"]);
+$corp->add($patrons, ["objectClass" => "user", "sAMAccountName" => $account]);
 $corp->setPassword($patrons, "Patrons-first-Pass-7");
 $corp->modify($patrons, [
     Core\Ldap\Change::replace("userAccountControl", 512),
@@ -61,7 +66,7 @@ try {
 }
 
 $corp->delete($patrons);
-$corp->delete("OU=Patrons,DC=example,DC=test");
+$corp->delete($unit);
 --COPY--
 ../../db/ca.crt
 --FILE nvs.toml--
