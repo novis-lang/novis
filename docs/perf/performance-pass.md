@@ -9,12 +9,6 @@ bounds; [`benches/scaling/README.md`](../../benches/scaling/README.md) says what
 `bun nv scaling --iterations` over the whole bench tree: no bench's counts rise per operation as
 its batch grows. Every bench it could judge is flat on all four counts.
 
-**`nvs lsp` grows close to quadratically with the size of the open document**
-([`benches/scaling/lsp/classes.nvs`](../../benches/scaling/lsp/classes.nvs): clock slope 1.91, and
-1.98 on a second run). The open, the edit, completion, hover and references each grow faster than
-linear, and `nvs check` on the same document is linear, so the extra cost is in the server's own
-analysis. Not fixed yet.
-
 **Each task a request starts holds about 1 MB against the request's memory limit.**
 [`benches/scaling/scheduler/tasks.nvs`](../../benches/scaling/scheduler/tasks.nvs) grows linearly,
 so it passes. But `Core\Task::map` over 300 labels stops the request at the default ceiling of
@@ -23,19 +17,8 @@ can run about 250 tasks at once. The ladder stays at 128 tasks or fewer. The meg
 stack reservation, `TASK_STACK_SIZE` (`crates/nvs-host/src/stack.rs:88`), which
 `rule:concurrency/a-task-stack-is-reserved-wide-and-pooled` charges to the request when the task starts.
 
-**A POST body the program does not read can lose the response.** Checked over a raw socket
-against `nvs serve` on a program that only echoes `ok` and never calls `Core\Request::body`. Up to
-8 KB the connection stays open, and a request pipelined behind the POST is answered. From 16 KB the
-POST is answered and the server then closes the connection, so the pipelined request gets nothing.
-At 512 KB, 6 of 20 POSTs got a clean close and no response at all; at 64 KB and below, 20 of 20
-were answered. So the server closes before its response is sent when much of the body is unread.
-Where the close is decided is not checked yet.
-
-**A request with 100 or more header lines gets `431 Request Header Fields Too Large`.** Checked
-over a raw socket: 96 headers plus `Host` are answered, 100 plus `Host` get the 431 and a close. That
-is a limit with a correct status, not a lost response. No limit is set under `crates/` (a grep for
-`max_headers` finds none), so it is the HTTP layer's default. The `request/headers` ladder stays at
-96 headers.
+The open findings are gap records: `bun nv gaps --module crates/nvs-server/src/body.rs`,
+`crates/nvs-server/src/serve.rs` and `crates/nvs-lsp/src/document.rs`.
 
 ## What got better
 
