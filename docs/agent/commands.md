@@ -839,8 +839,10 @@ and sharing one with the leak sweep would rebuild the tree on every alternation.
 
 Nothing an agent needs to do its work depends on looper being installed. looper is absent when
 `command -v looper` fails. The agent then runs no `looper` command and does what this table says. Its
-handoff names the checks it could not run, and the next session with looper runs them. The rules of
-every file still bind, and every `bun nv` command works as it does with looper.
+handoff names the loop-only checks it could not run. Every gate a change must pass has a `bun nv`
+command, and `tools/nv/test/without-looper.test.ts` runs the guard, the prose check and the commit hook
+with no looper on PATH. What has no `nv` command is loop coordination: goal lint, the goals README,
+claims, `looper exec` and the loop itself.
 
 | looper command | Without looper |
 |---|---|
@@ -848,7 +850,9 @@ every file still bind, and every `bun nv` command works as it does with looper.
 | `looper verify` | Run `bun nv verify`, the `[verify] run` of `looper.toml`, or `bun nv affected --run` interactively. § *Verifying* names the narrow forms. |
 | `looper affected` | `bun nv affected`. |
 | `looper check [--name <text>]` | Run the `run` of each check in the live goal's front matter. Judge its matchers by reading the output. |
-| `looper lint`, `looper links`, `looper layout --check`, `looper prose` | Run `bun nv links` and `bun nv layout --check`. The other two have no equivalent: follow the rules they check by hand, and name each in the handoff as not run. |
+| `looper links`, `looper layout --check` | `bun nv links` and `bun nv layout --check`. |
+| `looper prose [--all]` | `bun nv prose [--all]`, which `looper prose` runs through `looper.toml`'s `[gates] prose`. |
+| `looper lint` | Loop-only: it checks the goal files. Keep a goal's front matter in the shape the goal format gives, and name lint in the handoff as not run. |
 | `looper goal …` | Edit the goal's front matter by hand, in the shape the goal format gives. |
 | `looper render` | Leave the body of `docs/goals/README.md` as it is. The next `looper render` rewrites it. |
 | `looper wrap` | Apply the plan sections with `bun nv plan --apply <file>`, overwrite `## Handoff`, tick what is done, and commit each slice with `git commit -F <file>`. |
@@ -859,5 +863,5 @@ every file still bind, and every `bun nv` command works as it does with looper.
 | `looper claims`, `looper claims release` | No equivalent. There are no claims, so stage only your own files by name. |
 | `looper loop start` | No equivalent. The unattended loop needs looper. |
 
-`tools/git-hooks/commit-msg` is this repository's own hook. It rejects a trailer with or without looper,
-and adds looper's shape check where looper is installed.
+`tools/git-hooks/commit-msg` is this repository's own hook, and needs no looper. It rejects a trailer
+and a subject out of the shape `looper.toml`'s `[commits]` sets.

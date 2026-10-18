@@ -61,8 +61,10 @@ agent without looper skips the guard, the prose check and the commit shape check
   `[audited unsafe]` marker.
 
 **These calls were the agent's, for the user to overturn:**
-- A check's configuration moves to `nv` with the check. `looper.toml` keeps only the command looper
-  runs. So `[[guard.deny]]`, `[prose]` and `[commits]` move out of `looper.toml`.
+- A check's configuration moves to `nv` with the check, unless looper itself still reads it. So
+  `[[guard.deny]]` and `[prose] paths` moved into `nv guard` and `nv prose`. `[commits]` stays in
+  `looper.toml`, because `looper wrap` reads it too, and the commit hook reads it there with awk.
+  `[prose] scope` stays, because it is the words looper writes into `docs/agent/prose.md`.
 - The settings' `PreToolUse` hook is a small script. With looper on PATH it runs `looper guard`,
   which keeps its loop-only parts (edit claims and the pending entries `looper exec` reads) and runs
   `bun nv guard` for the rules. Without looper it runs `bun nv guard`. The generic rules looper has
@@ -93,10 +95,10 @@ agent without looper skips the guard, the prose check and the commit shape check
 
 - [x] `bun nv guard` holds looper's generic built-in rules and the four `[[guard.deny]]` rules, which move into it. `d4671aab6^:tools/nv/cmd/guard.ts` is the starting point. `looper.toml:85`
 - [ ] The `PreToolUse` hook is a script that runs `looper guard` where looper is installed and `bun nv guard` where it is not. `.claude/settings.json:10`
-- [ ] `bun nv prose` checks the shape of the touched Markdown in `[prose] paths`: a sentence over 25 words, a dash that joins two sentences, and a banned word. `docs/agent/prose.md:5`, `looper.toml:106`
-- [ ] `tools/git-hooks/commit-msg` checks the subject's shape itself, from the type list and length `[commits]` holds now. `tools/git-hooks/commit-msg:89`, `looper.toml:124`
-- [ ] `tools/nv/test/without-looper.test.ts` runs the three with no looper on PATH and pins their verdicts.
-- [ ] `commands.md` § *Without looper* gives an `nv` command for every gate, and names the rest as loop-only. `docs/agent/commands.md:837`
+- [x] `bun nv prose` checks the shape of the touched Markdown in `[prose] paths`: a sentence over 25 words, a dash that joins two sentences, and a banned word. `docs/agent/prose.md:5`, `looper.toml:106`
+- [x] `tools/git-hooks/commit-msg` checks the subject's shape itself, from the type list and length `[commits]` holds now. `tools/git-hooks/commit-msg:89`, `looper.toml:124`
+- [x] `tools/nv/test/without-looper.test.ts` runs the three with no looper on PATH and pins their verdicts.
+- [x] `commands.md` § *Without looper* gives an `nv` command for every gate, and names the rest as loop-only. `docs/agent/commands.md:837`
 
 ### 2. looper runs the project's command for each check
 
@@ -110,24 +112,28 @@ repository, so both ways give one verdict.
 
 ### State
 
-`bun nv guard` is back (`tools/nv/cmd/guard.ts`, pinned by `tools/nv/test/guard.test.ts`). It holds
-the four rules `looper.toml`'s `[[guard.deny]]` had, now gone, and looper's generic ones: `sleep`, a
-kill by name, a shell write and a build cut by `head` or `tail`. One call measured 69 ms. The
-settings run it as its own hook on `Read|Bash`, beside `looper guard`. The one script that picks either
-waits on looper: `looper lint` fails unless `looper guard` is its own entry, since `looper sync`'s
-template writes it, so that item moves with stage 2. Without looper, that entry fails without blocking.
+All three gates run without looper. `bun nv guard` (`tools/nv/cmd/guard.ts`) holds the four former
+`[[guard.deny]]` rules and looper's generic ones, and the settings run it as its own hook beside
+`looper guard`. `bun nv prose` (`tools/nv/cmd/prose.ts`) is looper's `gates::prose` ported, with the
+paths in its `PATHS`: over every end-user file it gave the same 1043 findings as `looper prose --all`.
+`looper.toml`'s `[gates] prose` makes `looper prose` run it. `tools/git-hooks/commit-msg` checks the
+subject's type, length and blank second line itself, from `looper.toml`'s `[commits]`, and runs no
+looper. `tools/nv/test/without-looper.test.ts` pins all three with every looper directory off PATH.
+
+Looper already has `[gates]` for `links`, `layout`, `prose` and `guard` (`crates/looper-core/src/model.rs`
+in looper's repository), and its goal `project-gates` has no file left there, so stage 2 is not blocked.
 
 The nightly CI run was on `1a78b49ef`, and `main` is ahead of origin. `a9fdc1a97` and `8f8966275`
 fixed `docs`, `supply chain`, `third-party attribution` and the website data, and are not pushed. The
-miri timeout is fixed here. The proof debt and the warm-start budget are goal `release-hardening`'s.
+proof debt and the warm-start budget are goal `release-hardening`'s.
 
 ### Next
 
-Stage 1, on `tools/nv/main.ts`, `looper.toml`, `tools/git-hooks/commit-msg` and `docs/agent/commands.md`.
-- [ ] `bun nv prose` for the Markdown in `[prose] paths`, with `[prose]` moving out of `looper.toml`. `docs/agent/prose.md:5`, `looper.toml:85`
-- [ ] The commit hook checks the subject's shape without looper, from `[commits]`. `tools/git-hooks/commit-msg:89`
-- [ ] `tools/nv/test/without-looper.test.ts` runs `nv guard`, `nv prose` and the commit hook with a PATH holding no looper. This machine has two looper directories on PATH. `tools/nv/cmd/guard.ts:1`
-- [ ] `commands.md` § *Without looper* names an `nv` command for every gate. `docs/agent/commands.md:850`
+Stage 1's last item and stage 2, on `looper.toml`, `.claude/settings.json`, `AGENTS.md` and `docs/agent/prose.md`.
+- [ ] `[gates] links`, `layout` and `guard` name `bun nv links`, `bun nv layout --check` and `bun nv guard`. With `guard` set, `looper guard` runs `nv guard` after its claims, so the settings' separate `bun nv guard` entry goes only if a session without looper still runs it. Decide that first. `looper.toml:88`, `.claude/settings.json:10`
+- [ ] The `PreToolUse` hook item of stage 1: one entry that runs `looper guard` where looper is installed and `bun nv guard` where it is not, if `looper lint` accepts it. `.claude/settings.json:10`
+- [ ] AGENTS.md and the agent docs name `bun nv prose` and the hook's own shape check, and `looper …` only for loop work. `docs/agent/prose.md:5` sits inside looper's managed block, so its wording changes through looper's template. `AGENTS.md:1`
+- [ ] The stage 2 checks: `looper doctor`, `bun nv verify --doc` and `bun nv owners --closes works-without-looper`. `docs/goals/works-without-looper.md:23`
 
 ### Backlog
 
