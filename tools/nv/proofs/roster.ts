@@ -25,6 +25,9 @@ export const HOSTILE = "tests/hostile";
 export const BENCHES = "benches/members";
 /** A feature's website description, inside its example directory. It never counts as an example. */
 export const ABOUT = "about.md";
+/** A language feature's exact rules and edge cases, beside its `about.md`. It is optional, and it never
+ * counts as an example either. */
+export const DETAILS = "details.md";
 const LANG = "docs/reference/lang";
 const TOOLCHAPTERS = "docs/reference/tools";
 
@@ -46,6 +49,7 @@ export interface Entry {
 
 export const examplesDir = (e: Entry) => `${EXAMPLES}/${e.path}`;
 export const aboutFile = (e: Entry) => `${examplesDir(e)}/${ABOUT}`;
+export const detailsFile = (e: Entry) => `${examplesDir(e)}/${DETAILS}`;
 export const hostileDir = (e: Entry) => `${HOSTILE}/${e.path}`;
 export const benchFile = (e: Entry) => `${BENCHES}/${e.path}.nvs`;
 export const implFile = (e: Entry) => (e.anchor ? e.anchor.split(":")[0]! : "");

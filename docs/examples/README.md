@@ -89,6 +89,21 @@ full, the first worker pauses. If it is empty, the second one waits.
 "full" looks like, then closing cleanly.
 ```
 
+## The exact rules — `details.md`
+
+A language feature's directory under `lang/` may also hold `details.md`: the exact rules and the edge
+cases that `about.md` leaves out, written for the same reader. Each fact is in exactly one of them: `about.md` says what a reader
+needs to use the feature, and `details.md` says everything else that is true of it. A feature whose
+`about.md` says it all has no `details.md`.
+
+- **Plain paragraphs and `-` lists**, with no front matter and no heading, the same as `about.md`.
+  It has no word limit.
+- **No code.** A rule that needs code to be understood gets an example, and a rule about what does
+  not compile gets one that declares `proof: compile-error` (§ *`// proof: compile-error`*).
+- **The same prose rule as a comment:** [`AGENTS.md`](../../AGENTS.md) § *Text an end user reads*.
+  `bun nv proofs --comments` and the `comments` proof count its sentences and dashes the way they
+  count a comment's.
+
 ## What an example is
 
 **A reader who has never seen this repository is the audience.** Not a test, not a specification —
@@ -240,6 +255,18 @@ lands on a different one is still a failure. Nothing else changes: the `.out` be
 frozen standard output, byte for byte, and what the program wrote to standard error is not part of
 it. Without this line, the feature could carry no example at all — which is a `[skip]` entry and a
 website page with nothing on it, for a feature a reader is especially likely to look up.
+
+## `// proof: compile-error`
+
+A language rule is often a rule about what does not compile: `break 3` under one loop, a type that
+does not match. Its example is the code a reader should not write, and it declares that:
+
+    // proof: compile-error
+
+The runner then requires `nvs run`'s compile-error status, `1`, and a compile diagnostic
+(`error[E…]`) on standard error. The `.out` beside it is that diagnostic, not standard output, with
+the example's path shortened to its file name so it is the same on every host. `--bless` writes it
+the same way. Keep such an example to one error, so the `.out` shows the one rule it is about.
 
 ## `// requires: unimplemented`
 

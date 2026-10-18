@@ -1,5 +1,5 @@
 // Running the proofs on disk. An example runs and its standard output is compared with the `.out` frozen
-// beside it. An attack runs and passes when the runtime survived it, whatever the program's own fate.
+// beside it, or its diagnostic when it declares `proof: compile-error` (`exampleOutput`). An attack runs and passes when the runtime survived it, whatever the program's own fate.
 // `bun nv proofs --run` and `--verify` call this, over any number of groups in one pass: the files of
 // every group go into one pool, and each group's verdict lines are counted from its own files. A program
 // that runs out of time in the pool runs once more alone before its verdict stands (`timedOut`).
@@ -148,6 +148,11 @@ const STEP_RE = /^\s*\/\/\/?\s*(?:Step\s+)?([0-9]+)[.:](?:\s|$)/i;
 const ENDING_RE = /^(?:FATAL|exit|[A-Za-z_][A-Za-z0-9_]*(?:\\[A-Za-z_][A-Za-z0-9_]*)*)$/;
 /** `// proof: exit 1` in an example: the exact status it ends with. */
 const EXAMPLE_EXIT_RE = /(?:\/\/|#)\s*proof:\s*exit\s+([0-9]+)/;
+/** `// proof: compile-error` in an example: it shows code that does not compile, so the run must end
+ * with `nvs`'s compile-error status and a diagnostic, and its `.out` is that diagnostic. */
+const EXAMPLE_COMPILE_ERROR_RE = /(?:\/\/|#)\s*proof:\s*compile-error\b/;
+/** The status `nvs run` ends with when the program does not compile. */
+const COMPILE_ERROR_EXIT = 1;
 /** A compile diagnostic. An uncaught throw is a log line and does not look like this. */
 const REFUSED_RE = /^error\[E[0-9]+\]/m;
 /** What an attack's output must never carry: the runtime under the program came apart. */
@@ -405,8 +410,20 @@ export function matchesOut(stdout: string, want: string, command: boolean): bool
 
 /** The status an example says it ends with, and 0 for every example that says nothing. */
 function declaredExit(source: string): number {
+  if (EXAMPLE_COMPILE_ERROR_RE.test(source)) return COMPILE_ERROR_EXIT;
   const m = EXAMPLE_EXIT_RE.exec(source);
   return m ? Number(m[1]) : 0;
+}
+
+/**
+ * What an example's `.out` freezes: its standard output, or for a `proof: compile-error` example the
+ * diagnostic on standard error, with the example's path shortened to its file name in either slash
+ * form, so the `.out` reads the same on every host and on the website.
+ */
+export function exampleOutput(path: string, source: string, out: Pick<Ran, "stdout" | "stderr">): string {
+  if (!EXAMPLE_COMPILE_ERROR_RE.test(source)) return out.stdout;
+  const name = basename(path);
+  return out.stderr.replaceAll(path.replaceAll("\\", "/"), name).replaceAll(path.replaceAll("/", "\\"), name);
 }
 
 /** One judged run: the verdict, why, and what the program did, which a program skipped on this host
@@ -428,11 +445,16 @@ async function runExample(nvs: string, path: string, unlogged = false): Promise<
   const want = declaredExit(source);
   if (out.code !== want) {
     const first = out.stderr.trim().split(/\r?\n/)[0] ?? "";
-    return ["fail", want ? `exit ${out.code} where it declares \`proof: exit ${want}\`` : `exit ${out.code}: ${first}`, out];
+    const declared = EXAMPLE_COMPILE_ERROR_RE.test(source) ? "proof: compile-error" : `proof: exit ${want}`;
+    return ["fail", want ? `exit ${out.code} where it declares \`${declared}\`` : `exit ${out.code}: ${first}`, out];
   }
+  const compileError = EXAMPLE_COMPILE_ERROR_RE.test(source);
+  if (compileError && !REFUSED_RE.test(out.stderr)) return ["fail", "it declares `proof: compile-error`, and stderr has no compile diagnostic", out];
   const expected = sibling(path, ".out");
   if (!existsSync(abs(expected))) return ["fail", `no ${basename(expected)} beside it`, out];
-  if (!matchesOut(out.stdout, read(expected), path.endsWith(".cmd"))) return ["fail", "stdout differs from its .out", out];
+  if (!matchesOut(exampleOutput(path, source, out), read(expected), path.endsWith(".cmd"))) {
+    return ["fail", `${compileError ? "the diagnostic" : "stdout"} differs from its .out`, out];
+  }
   return ["ok", "", out];
 }
 
@@ -460,7 +482,8 @@ export async function bless(nvs: string, paths: string[]): Promise<{ lines: stri
       continue;
     }
     const out = await spawnProof([nvs, "run", path], path, 120_000);
-    if (out.code !== declaredExit(read(path))) {
+    const source = read(path);
+    if (out.code !== declaredExit(source) || (EXAMPLE_COMPILE_ERROR_RE.test(source) && !REFUSED_RE.test(out.stderr))) {
       lines.push(`  FAIL  ${path} exited ${out.code}:`, "        " + out.stderr.trim().replace(/\r?\n/g, "\n        "));
       failed = true;
       continue;
@@ -472,7 +495,7 @@ export async function bless(nvs: string, paths: string[]): Promise<{ lines: stri
       lines.push(`  kept  ${dest}: its elided lines still match`);
       continue;
     }
-    const text = out.stdout.replace(/\r\n/g, "\n");
+    const text = exampleOutput(path, source, out).replace(/\r\n/g, "\n");
     writeFileSync(abs(dest), text);
     record(abs(dest));
     lines.push(`  ${existed ? "rewrote" : "wrote"}  ${dest}`);
