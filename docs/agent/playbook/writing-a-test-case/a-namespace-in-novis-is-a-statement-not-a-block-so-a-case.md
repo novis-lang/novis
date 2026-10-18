@@ -3,4 +3,4 @@
   (`rule:statements/require-is-the-only-inclusion-construct`), so the shape is a `--FILE app.nvs--`
   plus a `require './app.nvs';` at the top of the root file, whose statements alone print. `bun nv try`
   cannot run it, but `target/debug/nvs test <path>.nvst` takes a single case path and reproduces its
-  working directory. `until: gone crates/nvs-diagnostics/src/lib.rs:Code::new("E0243")`
+  working directory. `until: gone crates/nvs-diagnostics/src/code/config.rs:Code::new("E0243")`

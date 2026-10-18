@@ -3,4 +3,4 @@
   rejected PHP construct, and `E_IMPORT_ALIAS_UNSUPPORTED` (`E0212`), `E_ENUM_MEMBER_UNSUPPORTED`
   (`E0220`) and `E_IMPORT_GROUP_UNSUPPORTED` (`E0238`) are all reported from `parser/decl.rs`. Find
   the sibling refusal's code first and take the number next to it, whatever band the orientation
-  pack's next-free list points at. `until: gone crates/nvs-diagnostics/src/lib.rs:E_IMPORT_ALIAS_UNSUPPORTED`
+  pack's next-free list points at. `until: gone crates/nvs-diagnostics/src/code/rejected_php.rs:E_IMPORT_ALIAS_UNSUPPORTED`

@@ -16,9 +16,18 @@ use std::path::Path;
 
 use nvs_diagnostics::code;
 
-/// Every code's number and the name of its constant, read out of the registry's source.
+/// Every code's number and the name of its constant, read out of the area files under
+/// `src/code/`.
 fn declarations() -> Vec<(String, String)> {
-    let source = include_str!("../src/lib.rs");
+    let dir = nvs_repo::path("crates/nvs-diagnostics/src/code");
+    let mut source = String::new();
+    for entry in fs::read_dir(&dir)
+        .expect("the area files are readable")
+        .flatten()
+    {
+        source.push_str(&fs::read_to_string(entry.path()).expect("an area file is text"));
+        source.push('\n');
+    }
     let mut out = Vec::new();
     for line in source.lines() {
         let Some(rest) = line.trim().strip_prefix("pub const ") else {

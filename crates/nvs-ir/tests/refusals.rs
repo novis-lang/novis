@@ -94,7 +94,7 @@ const HOLES_READS: &[&str] = &[
     "tools/nv",
     "docs/goals",
     "docs/agent/carried-refusals.md",
-    "crates/nvs-diagnostics/src/lib.rs",
+    "crates/nvs-diagnostics/src/code",
     "crates/nvs-ir/src",
     "crates/nvs-codegen/src",
 ];
