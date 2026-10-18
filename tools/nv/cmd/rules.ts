@@ -103,14 +103,16 @@ export function recordFindings(present: string[], files: Iterable<[string, strin
 /**
  * A citation of a deleted doc: the plan directory, the plan index, the ideas note, the Core spec, the
  * perf notes and the public pages that moved to the website, by their repository path, by a relative
- * Markdown link, or by `spec § N` in either case. Their facts moved to rules, module docs, goals, gap
- * records, `data/perf/`, the registry and the website, so a citation of one points at nothing.
+ * Markdown link, or by `spec § N` in either case, and the reference findings list by its file name in
+ * any form. Their facts moved to rules, module docs, goals, gap records, `data/perf/`, the registry,
+ * the reference chapters, the conformance cases and the website, so a citation of one points at
+ * nothing.
  */
 export const DELETED_DOC_CITE =
-  /\bdocs\/(?:plan\/|spec\/|perf\/|implementation-plan\.md|future-ideas\.md|docker\.md|why-tainted-and-secret\.md)|\]\((?:\.\.\/)*(?:plan\/[\w.-]+\.md|spec\/[\w.-]+\.md|perf\/[\w.-]+\.md|implementation-plan\.md|future-ideas\.md|docker\.md|why-tainted-and-secret\.md)|\b[Ss]pec §/;
+  /\bdocs\/(?:plan\/|spec\/|perf\/|implementation-plan\.md|future-ideas\.md|docker\.md|why-tainted-and-secret\.md)|\]\((?:\.\.\/)*(?:plan\/[\w.-]+\.md|spec\/[\w.-]+\.md|perf\/[\w.-]+\.md|implementation-plan\.md|future-ideas\.md|docker\.md|why-tainted-and-secret\.md)|\b[Ss]pec §|\bfindings\.md\b/;
 /** The same forms, wider, for `git grep` to pick the files `DELETED_DOC_CITE` then reads. */
 const DELETED_DOC_GREP =
-  "docs/(plan/|spec/|perf/|implementation-plan[.]md|future-ideas[.]md)|(plan|spec|perf)/[a-z0-9-]+[.]md|implementation-plan[.]md|future-ideas[.]md|docker[.]md|why-tainted-and-secret[.]md|[Ss]pec §";
+  "docs/(plan/|spec/|perf/|implementation-plan[.]md|future-ideas[.]md)|(plan|spec|perf)/[a-z0-9-]+[.]md|implementation-plan[.]md|future-ideas[.]md|docker[.]md|why-tainted-and-secret[.]md|[Ss]pec §|findings[.]md";
 
 /** What `--check` says about citations of a deleted doc: a finding for each citing line. */
 export function deletedDocFindings(files: Iterable<[string, string]>): Finding[] {

@@ -11,13 +11,10 @@ A memory-limit breach inside `try { … } finally { … }` is `rule:errors/on-li
 // makes it interesting. The loop's reserved `foreach#N` binding holds a second
 // reference to the array being walked and exists on only some of the region's
 // landing edges, so the region's dispatch drops it and the drop owes a release
-// on the way into the handler. Emitting that release into the landing block
-// itself put it ahead of a terminator *both* exits leave through, and the
-// uncatchable one then swept the same reference a second time: an
-// "attempt to subtract with overflow" inside `nvs_array_release`, exit 127,
-// instead of the two lines below. `docs/reference/findings.md`'s P15 is the
-// report; `Lowering::landing_block` is where the catchable exit got a block of
-// its own.
+// on the way into the handler. That release goes into a block of the catchable
+// exit's own (`Lowering::landing_block`), not into the landing block both exits
+// leave through, so the uncatchable exit does not release the same reference a
+// second time and the run prints the two lines below.
 echo "start\n";
 
 // Under the 16M grant on its own, and past it by the third slab: the file's
