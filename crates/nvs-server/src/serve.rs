@@ -71,6 +71,12 @@
 //! - **One core.** The name says so: a listener bound once and handed to several
 //!   cores through [`nvs_host::NvsListener::from_std`] is the fan-out, and it is
 //!   the same loop on each of them.
+//!
+//! # What it costs
+//!
+//! Each request takes a read lock on one process-wide `RwLock` to read the
+//! resolved policy, in `Serving::policy`. Cores contend on it, and the cost
+//! does not grow with traffic.
 
 use std::cell::{Cell, RefCell};
 use std::convert::Infallible;

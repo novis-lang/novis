@@ -69,6 +69,12 @@
 //! whether `Cart::LIMIT` wrote `Cart` or the `Limits` it inherits from. That
 //! keeps a reference list a list of sites that resolved to the symbol asked
 //! about rather than a text search for its name.
+//!
+//! # What it costs
+//!
+//! An edit re-analyses every indexed entry whose graph read the changed file,
+//! which [`SymbolIndex::invalidate`] returns. That is linear in the readers per
+//! edit.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};

@@ -6,7 +6,7 @@
 //     bun nv scaling                             every ladder under benches/scaling/
 //     bun nv scaling --iterations                every bench under benches/members/
 //     bun nv scaling --iterations core/Str       only the benches whose path contains `core/Str`
-//     bun nv scaling --areas [--reviewed]        whether every area in `AREAS` has a ladder (and a review)
+//     bun nv scaling --areas                     whether every area in `AREAS` has a ladder
 //     bun nv scaling --budget [--write]          whether every bench's counted work is within its budget
 //
 // The budget. `--budget` counts the statements each bench runs at its own N and compares each with its
@@ -140,11 +140,10 @@ import { read } from "../proofs/roster.ts";
 import { releaseBinary, servicesFor, skipReason, spawnProof } from "../proofs/run.ts";
 import { freePort, hammer, HttpConn, type HttpShape, Server } from "./bench.ts";
 
-export const summary = "how fast a program's cost grows with its size: nv scaling [--iterations] [--check] [path-filter...] | --areas [--reviewed]";
+export const summary = "how fast a program's cost grows with its size: nv scaling [--iterations] [--check] [path-filter...] | --areas";
 
 const BENCHES = "benches/members";
 const LADDERS = "benches/scaling";
-const REVIEW = "docs/perf/performance-review.md";
 /** The line `--check` prints when nothing grows past its bound. */
 const PASSED_ITERATIONS = "every bench costs the same per operation in every batch";
 const PASSED_LADDERS = "every ladder is within its declared growth";
@@ -1043,20 +1042,18 @@ function programs(tree: string): string[] {
   return out;
 }
 
-/** The areas with no ladder, and with `reviewed`, also the areas `REVIEW` has no `## <area>` section for. */
-export function missingAreas(ladders: string[], review: string | null): { noLadder: string[]; noReview: string[] } {
-  const noLadder = AREAS.filter((a) => !ladders.some((l) => l.startsWith(`${LADDERS}/${a}/`)));
-  const headings = new Set((review ?? "").split(/\r?\n/).filter((l) => l.startsWith("## ")).map((l) => l.slice(3).replace(/`/g, "").trim()));
-  return { noLadder, noReview: review === null ? [] : AREAS.filter((a) => !headings.has(a)) };
+/** The areas no ladder under `LADDERS` belongs to. */
+export function missingAreas(ladders: string[]): string[] {
+  return AREAS.filter((a) => !ladders.some((l) => l.startsWith(`${LADDERS}/${a}/`)));
 }
 
-function areas(reviewed: boolean): number {
-  const review = reviewed ? (existsSync(abs(REVIEW)) ? readFileSync(abs(REVIEW), "utf8") : "") : null;
-  const { noLadder, noReview } = missingAreas(programs(LADDERS), review);
-  if (noLadder.length) console.log(`nv scaling: ${noLadder.length} of ${AREAS.length} areas have no ladder under ${LADDERS}/: ${noLadder.join(", ")}`);
-  if (noReview.length) console.log(`nv scaling: ${noReview.length} of ${AREAS.length} areas have no section in ${REVIEW}: ${noReview.join(", ")}`);
-  if (noLadder.length || noReview.length) return 1;
-  console.log(reviewed ? "every area has a ladder and a review section" : "every area has a ladder");
+function areas(): number {
+  const noLadder = missingAreas(programs(LADDERS));
+  if (noLadder.length) {
+    console.log(`nv scaling: ${noLadder.length} of ${AREAS.length} areas have no ladder under ${LADDERS}/: ${noLadder.join(", ")}`);
+    return 1;
+  }
+  console.log("every area has a ladder");
   return 0;
 }
 
@@ -1240,7 +1237,7 @@ export async function run(argv: string[]): Promise<number> {
                           rose above its share of ${BUDGET} with no reason beside its N
     --write               with --budget, store the counts when they are within the budget
     --check             print one line when nothing grows past its bound, for an acceptance check
-    --areas               fail while an area has no ladder; with --reviewed, also no section in ${REVIEW}
+    --areas               fail while an area has no ladder
     <filter>...           only the programs whose path contains one of these
     --nvs <path>          the binary to run, instead of the release build
     --reps <n>            plain runs per batch, the fastest is the clock (default 2)
@@ -1258,12 +1255,11 @@ The ramp, the agreement test, the ceiling and the bounds are in tools/nv/cmd/sca
     return at >= 0;
   };
   if (flag("--areas")) {
-    const reviewed = flag("--reviewed");
     if (args.length) {
       console.error(`nv scaling: --areas takes no other argument, not ${args[0]}`);
       return 2;
     }
-    return areas(reviewed);
+    return areas();
   }
   const growth = flag("--growth");
   if (growth) return growthRun(args);

@@ -88,7 +88,7 @@ implementation gains a few owned-or-borrowed paths in the runtime's array and st
 - [ ] The helper appends into the carrier's text when the object and its string each have one reference, and copies otherwise.
 - [ ] A ladder under `benches/scaling/templates/` builds a page with `+` in a loop and declares `expect linear`.
 - [ ] A valgrind run over the new edge is clean.
-- [ ] `docs/perf/performance-review.md` § *templates* and `docs/perf/performance-pass.md` § *Decided* say the loop is linear.
+- [ ] `crates/nvs-stdlib/src/html.rs`'s module doc says a page built with `Markup + Markup` in a loop is linear.
 
 ### 2. the runtime's array reserves, replaces in place and is looked up by a borrowed key
 

@@ -123,11 +123,9 @@ test("a clock whose slope is unread is flat only when the largest size stays nea
   expect(clockFlat(at([100]))).toBe(false);
 });
 
-test("an area needs a ladder in its folder, and with a review, a section headed with its name", () => {
+test("an area needs a ladder in its folder", () => {
   const ladders = AREAS.filter((a) => a !== "json").map((a) => `benches/scaling/${a}/one.nvs`);
-  expect(missingAreas(ladders, null)).toEqual({ noLadder: ["json"], noReview: [] });
-  const review = AREAS.filter((a) => a !== "lsp").map((a) => `## \`${a}\`\n\nFine.\n`).join("\n");
-  expect(missingAreas(ladders, review).noReview).toEqual(["lsp"]);
+  expect(missingAreas(ladders)).toEqual(["json"]);
 });
 
 test("the compile line's counts are read by name, and stderr without one gives null", () => {

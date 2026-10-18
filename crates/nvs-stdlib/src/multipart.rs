@@ -47,6 +47,13 @@
 //! `Content-Disposition` or no `name`, a parameter declared twice, a quoted
 //! value with no closing quote, a boundary that is not RFC 2046's, and a body
 //! that ends anywhere but after its closing delimiter.
+//!
+//! # What it costs
+//!
+//! A part's header block is searched for its blank line from the block's start
+//! again after every chunk that did not finish it, so a block that arrives in
+//! many small chunks costs quadratic time. [`PART_HEADERS`] bounds the block,
+//! so the cost is bounded per part.
 
 use std::ops::Range;
 

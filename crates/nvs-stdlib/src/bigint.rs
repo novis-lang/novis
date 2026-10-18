@@ -65,6 +65,12 @@
 //! text that is not an integer in the radix asked for; `LogicError` for a radix
 //! outside 2 to 36, which is a bug in the program rather than in its input.
 //!
+//! # What it costs
+//!
+//! `toString`, `format` and `parse` use the library's radix conversion, which
+//! is taken to be quadratic in the digits; the library's source is not checked.
+//! [`MAX_BITS`] bounds every operand, so the cost is bounded per call.
+//!
 //! # Known gaps
 //!
 //! Each gap is a record, and `bun nv gaps --module crates/nvs-stdlib/src/bigint.rs` lists them.
