@@ -1,0 +1,16 @@
+<?nvs
+// Shows the escapes of a double-quoted string, and what is printed for each one.
+
+// `\t` is a tab, `\"` is a quote, `\$` is a dollar sign and `\\` is one backslash.
+string $who = "Ada";
+echo "tab[\t] quote[\"] dollar[\$who] backslash[\\]\n";
+
+// `\101` (octal), `\x41` (hex) and `\u{41}` (a code point) all print `A`.
+echo "oct[\101] hex[\x41] code point[\u{41}]\n";
+
+// An escape the language does not know keeps its backslash, so this prints `\q`.
+echo "unknown[\q]\n";
+
+// In braces, any expression that starts with a variable is filled in. This prints `30`.
+array<int> $n = [10, 20];
+echo "sum {$n[0] + $n[1]}\n";
