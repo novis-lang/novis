@@ -49,12 +49,19 @@ describe("nv rules --check, deleted docs", () => {
     expect(doc("# the policy in docs/implementation-plan.md's section")).toHaveLength(1);
     expect(doc("a note in docs/future-ideas.md")).toHaveLength(1);
     expect(doc("// the signature column of `docs/spec/01-core-library.md`")).toHaveLength(1);
+    expect(doc("/// `docs/perf/userland-gap.md` § D is the measurement")).toHaveLength(1);
+  });
+
+  test("the perf ledgers under data/perf are not a deleted doc", () => {
+    expect(doc("//     bun nv bench --json data/perf/userland.ndjson")).toEqual([]);
+    expect(doc("[the ledger](../../data/perf/bench-budget.json)")).toEqual([]);
   });
 
   test("a deleted doc cited by a relative link is a finding", () => {
     expect(doc("[the frozen design](../plan/design.md)")).toHaveLength(1);
     expect(doc("[the plan](implementation-plan.md)")).toHaveLength(1);
     expect(doc("[the Core spec](../spec/01-core-library.md#10-coreerror)")).toHaveLength(1);
+    expect(doc("[the pass](../perf/performance-pass.md)")).toHaveLength(1);
   });
 
   test("the Core spec cited by a section mark is a finding in either case", () => {
