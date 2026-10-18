@@ -815,9 +815,27 @@ owned by `release-hardening`: a case declared twice compiles and the later one w
 checker and stops at `E0901`, or gives "expected `M`, found `M`"
 (`data/gaps/nvs-types/new-on-an-enum-passes-the.json`). `llms-full.txt` is rendered again.
 
+The next four `55-enums` features are done, each fact run on the binary, and no text disagreed with
+it; the chapter did not change. `match-and-switch-over-an-enum`'s `details.md` has no `default`
+needed when every case has an arm, `E0466` for another enum's case, a number and `null` (in a
+`case` too), an arm not narrowing the subject (`match (true)` does), a `switch` with no matching
+`case` running nothing, an outside label on a smaller-type subject, and a `mixed` subject matching
+by number; what `match`'s own `details.md` says is left there. Example 01 said `default` "answers",
+now rewritten. `an-enum-as-a-type`'s has each `E0401`, `E0403`, `var` inference, `E0409` for a
+property with no default, a parameter default, `?Suit` and JSON; `E0434` stays in
+`a-case-is-its-integer`'s. Its `about.md` said a number "cannot reach" the type, now rewritten.
+`a-union-of-cases-is-a-narrower-type`'s has `E0401` and `E0403`, a single case, cases of two enums,
+what narrows (`==` on the whole enum too; not `||`, `!=`, `else` or a `match ($m)` arm), `is`, `as`
+from a number (`E0470` for a literal), the nullable forms, an alias, and `==` with an outside case
+compiling and being `false`; example 04 is the chapter's error block. `an-enum-inside-a-class`'s has
+`E0133`, `E0309` and `E0303` in a subclass or an implementing class, `E0135`, `E0212`, `E0304` for
+an enum, constant or alias of one name, `E0220`, `E0233`, the class's enum winning over a top-level
+one of the same name, `::class` and two classes' enums being disjoint (`E0466`); examples 04 to 06
+are the chapter's three error blocks. Probing found no new gap.
+
 ### Next
 
-`55-enums` continues at `` `match` and `switch` over an enum `` (`55-enums.md:181`), three or four
+`55-enums` continues at `What an enum does not have` (`55-enums.md:401`), three or four
 features per session; take each feature id from `bun nv proofs --json`. Work each feature the way `break-and-continue` was done: read
 its chapter section, its `about.md` and its syntax page, probe each fact `about.md` lacks on the
 binary, write `details.md`, and turn each chapter code block no example shows into an example
@@ -832,7 +850,8 @@ An enum is `enum Suit { Hearts, Spades }`, with no `case`. An array with string 
 `array<int>`: `array<string, int>` is `E0101`. Many probes at once: a JSON map of name to
 body, and a script under `.agent-tmp/` that writes and runs each; the guard refuses a shell loop of
 `nvs run` over `docs/examples/`, so check a new example with `--bless`.
-- [ ] `55-enums` from `` `match` and `switch` over an enum `` to `An enum inside a class`, then `What an enum does not have` and `Core` enums. `docs/reference/lang/55-enums.md:181`
+- [ ] `55-enums`' last two features, `What an enum does not have` and `Core` enums. `docs/reference/lang/55-enums.md:401`
+- [ ] `60-iteration` from its first section, three or four features per session. `docs/reference/lang/60-iteration.md:1`
 - [ ] Once the chapter's last edit lands, `bun nv proofs --record-perf --group lang:enums`, and commit `data/perf/members.ndjson`. `tools/nv/proofs/roster.ts:28`
 
 ### Backlog
