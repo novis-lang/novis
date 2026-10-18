@@ -64,7 +64,8 @@ describe("with no looper on PATH", () => {
   });
 
   describe("`tools/git-hooks/commit-msg`", () => {
-    const hook = (text: string) => bare(["sh", join(ROOT, "tools", "git-hooks", "commit-msg"), scratch("msg.txt", text)]);
+    // `git hook run` starts the hook with git's own sh, as a commit does, so the test needs no `sh` on PATH.
+    const hook = (text: string) => bare(["git", "-c", "core.hooksPath=tools/git-hooks", "hook", "run", "commit-msg", "--", scratch("msg.txt", text)]);
 
     test("passes a message in shape, and git's own subjects", async () => {
       expect((await hook("feat(nv): `bun nv prose` checks the end-user Markdown\n\nThe body.\n")).code).toBe(0);
