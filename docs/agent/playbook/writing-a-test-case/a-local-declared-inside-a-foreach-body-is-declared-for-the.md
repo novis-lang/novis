@@ -1,7 +1,0 @@
-- **A local declared inside a `foreach` body is declared for the whole `.nvst` file, so two loops
-  cannot both call their subject `$key`.** A case is top-level statements under one variable scope,
-  so the second `Core\Crypto\PublicKey $key = …` is `E0406` — and it points at the *inner* line with
-  "first declared here" on the other loop, which reads as though a loop body were a scope and the
-  two declarations were somehow the same one. Give each loop's subject its own name, or declare the
-  local once above both loops and only assign inside them.
-  `until: gone crates/nvs-diagnostics/src/lib.rs:E0406`
