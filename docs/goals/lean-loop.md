@@ -189,9 +189,11 @@ edits no shared table by hand.
 
 ### State
 
-Every stage is done. The user dropped stage 4's last item, the swap to `looper links` and
-`looper layout`, and § *Standing decisions* says why. Goal `works-without-looper`, next on the
-chain, carries what this decision leaves open. The goal-end gates are all that is left here.
+Every stage is done and the goal-end gates are green: `bun nv verify --doc` finds every link
+resolving, `bun nv owners --closes lean-loop` names no gap, and `looper lint` and `looper doctor`
+are clean. The owed perf atoms are the floor check `floor-debt`'s to pay, which looper runs once on
+this `DONE` claim. The backlog moved to goal `works-without-looper`, next on the chain, which also
+carries what stage 4's dropped swap leaves open.
 
 - `.gitattributes` marks every file `nv render`, `nv render --website`, `nv rules --render` and
   `nv reference` write as `linguist-generated`, and `docs/perf/members.ndjson` as `merge=union`.
@@ -210,15 +212,13 @@ Nightly run 39108526796 on `1a78b49ef` is still the newest, and every failure it
 
 The goal end, on the gates' output. The standing decision on looper needs no move: goal
 `works-without-looper` restates it and writes it into `commands.md` § *Without looper*.
-- [ ] `bun nv verify --doc`, and every broken doc link it names fixed. `tools/nv/cmd/verify.ts:151`
-- [ ] `bun nv owners --closes lean-loop`, and every gap it names closed or given another owner. `tools/nv/cmd/owners.ts:13`
-- [ ] The owed perf atoms, paid as § *Standing decisions* says. Then `DONE`. `tools/nv/cmd/debt.ts:1`
+- [x] `bun nv verify --doc`, and every broken doc link it names fixed. `tools/nv/cmd/verify.ts:151`
+- [x] `bun nv owners --closes lean-loop`, and every gap it names closed or given another owner. `tools/nv/cmd/owners.ts:13`
+- [x] The owed perf atoms, paid as § *Standing decisions* says. Then `DONE`. `tools/nv/cmd/debt.ts:1`
+
+If `floor-debt` turns out to take hours, the owed benches move to the release gate, as § *Standing
+decisions* says.
 
 ### Backlog
 
-- `looper guard` matched a commit in looper's own checkout against a claim on mwl's `docs/goals/README.md`. No looper goal owns it yet. `crates/looper-core/src/claims.rs` in looper's repository.
-- Two flakes to fix at the cause. `test_request_dispatches_in_process_through_the_compiled_route_table` was red once, also alone, because `Core\Env::context()` was not `Request` (`crates/nvs-cli/src/runner.rs:3410`). And `live_edit`'s two compile-race tests missed their 30 s swap deadline beside the other binaries on a disk 98% full, and passed alone (`crates/nvs-cli/tests/live_edit.rs:1016`).
-- The warm-start budget of 6 ms of work. At `1a78b49ef` Linux measured 7.4 ms and macOS 6.8 ms, where macOS measured 5.6 ms at `e110c9c0b`, and Windows is over it on every run. Find which of the commits between the two adds start-up work. `tools/nv/cmd/bench.ts` § *The warm-start figure* owns it.
-- `bun nv verify` does not run `nv render --website --check`, so the website data goes stale unseen until CI. `tools/nv/cmd/verify.ts:151`
-- `fullRun` and `runBenches` still take a `deadline` that no caller passes, and `runBenches` an `order` and `onStart` that only the debt passed. `tools/nv/select/full.ts:63`, `tools/nv/proofs/select.ts:265`
-- `Core\Ldap::connect` dials each address of a host in turn, so a `localhost` block pays 2 s on Windows. `crates/nvs-stdlib/src/ldap/mod.rs:489`, `crates/nvs-host/src/net.rs:438`
+- Moved whole to goal `works-without-looper`'s backlog. `docs/goals/works-without-looper.md`
