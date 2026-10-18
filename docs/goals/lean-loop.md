@@ -189,31 +189,26 @@ edits no shared table by hand.
 
 ### State
 
-Every stage is done and the goal-end gates are green. `floor-debt` paid all 5506 owed proof
-programs in 63 minutes, with no bench among them, so the owed benches stay with the release gate.
-Five of them were red, carried as debt since the change that broke each:
+Every stage is done and the goal-end gates are green. The refused `DONE`'s `floor-debt` run left
+six proof programs red, and one cause made five of them red:
 
-- `Core\IO::write` wrote a file named like the folder in a path ending with `/`, because the
-  resolved path loses the separator. `capability::resolve_file` now refuses such a path at every
-  file door, and `a_path_ending_with_a_separator_is_refused_by_every_file_door` pins it.
-- The `Core\Out::capture` attack did not compile since capture returns a carrier union. Its step 5
-  casts with `as Core\Cli\Text`.
-- The PDF slots example's `.out` predated the fill moving to its cell's top-left corner.
-- The PDF billion-laughs attack's 20 MB step fits under the limit since the pdf world copies its
-  bytes once. Step 7 is 60 MB, and the render still stops at the limit.
-- The Font attack's step 4 throws `ParseError` under the limit, because Font code never reaches the
-  limit. The user dropped its `ends-early 4 FATAL` marker in `12a028bed`.
+- The five PDF attacks that declare `ends-early ... FATAL` ran to their last line under a recorded
+  run, which sets `NOVIS_NO_FILE_CACHE`. A built-in component compiled cold, inside the first
+  request that calls it, allocates on wasmtime's worker threads and frees on the request's thread.
+  So the request's balance fell by about 360 MB, and its ceiling bought it that much more. A warm
+  run deserializes the component and was right. `built_in` in `crates/nvs-cli/src/extensions.rs`
+  now compiles inside a `budget::Detached` bracket, and
+  `a_cold_compile_of_a_built_in_component_buys_its_request_no_memory` pins it. The attacks are
+  unchanged and green both ways.
+- The `Core\Ldap\Entry::string` attack was red in 162 ms and is green alone and recorded. It needs
+  the `samba-ad` fixture, which was not up for that run. Not checked further.
 
-`AGENTS.md`'s managed block is looper's `agents` v3, so `looper lint` is green again.
-
-Nightly run 39108526796 is the newest. `supply chain` failed because cargo-deny's container has no
-1.99.1 toolchain, and `ci.yml` now passes it the channel `rust-toolchain.toml` pins. The rest was
-fixed by `8f8966275` and `b34ff85e5`, or was these five proofs.
+Nightly run 39108526796 is still the newest, and the last handoff accounted for every job in it.
 
 ### Next
 
 The goal end: the driver judges `floor-debt` on the `DONE` claim.
-- [x] The user settles the Font attack's step 4. `tests/hostile/novis/Image-Font/fromBytes/01-bytes-that-pretend-to-be-a-font.nvs:4`
+- [x] The cold-compile ceiling fix. `crates/nvs-cli/src/extensions.rs:142`
 - [ ] `floor-debt` green, then `DONE`. `tools/nv/cmd/debt.ts:1`
 
 ### Backlog
