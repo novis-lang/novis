@@ -1,0 +1,12 @@
+<?nvs
+// Shows that `static::$n` does not compile. Write `self::$n` or `Counter::$n`
+// to read a `static` property.
+// proof: compile-error
+
+class Counter {
+    public static int $n = 0;
+
+    public static function read(): int {
+        return static::$n;
+    }
+}
