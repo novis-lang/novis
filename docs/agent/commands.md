@@ -144,15 +144,13 @@ reached into the same one repeatedly.
 
 **The 400-line floor is enforced on both sides.** `bun nv peek` refuses a bare `path` over
 `--max-lines` — 400, which is AGENTS.md rule 3's "whole file under ~400 lines".
-The harness's own tools have no such floor, so `bun nv guard` is a `PreToolUse` hook, wired in
-`.claude/settings.json` for `Read` and `Bash`. It denies a raw command where a tool or a rule in this
-file covers it: a whole `Read`, `cat` or `sed -n` of a tracked file over that same 400 lines, and the
-other habits `tools/nv/cmd/guard.ts`'s `RULES` list. Each denial starts `guard: <rule>:` and names the
-call to make instead, and anything the guard cannot read is allowed. `looper guard` is the second
-`PreToolUse` hook, on `Bash`, `Read`, `Edit`, `Write` and `NotebookEdit`: it refuses `sleep` and poll
-loops, a write through a shell, and an edit or a `git add` of a file another session claims
-(§ *Other sessions' edits*). Claude Code is the only harness that reads `.claude/`; every other one gets
-the floor from `bun nv peek` alone.
+The harness's own tools have no such floor, so `looper guard` is a `PreToolUse` hook, wired in
+`.claude/settings.json` for `Bash`, `Read`, `Edit`, `Write` and `NotebookEdit`. It refuses a whole
+`Read` of a file over that same 400 lines, `sleep` and poll loops, a write through a shell, and an edit
+or a `git add` of a file another session claims (§ *Other sessions' edits*). `looper.toml`'s
+`[[guard.deny]]` adds the refusals only this repository has, each with the call to make instead.
+Claude Code is the only harness that reads `.claude/`; every other one gets the floor from
+`bun nv peek` alone.
 
 ## One shell
 
@@ -270,8 +268,8 @@ it stays red until the goal is reached. `--run` runs the rest: `nv verify` first
 then the sweep over exactly the checks it named, and a binary or case verify ran green is not started
 twice.
 
-**`nv guard` refuses the commands that run more than a change reaches**: `cargo test` with no target
-and no filter, `bun nv benches`, `bun nv debt`, `bun nv select --full`, `bun nv sweep`, `bun nv proofs --verify` or
+**`looper guard` refuses the commands that run more than a change reaches**: `cargo test` with no target
+and no filter, `looper check` with no `--name`, `bun nv benches`, `bun nv debt`, `bun nv select --full`, `bun nv sweep`, `bun nv proofs --verify` or
 `--run` over every feature, and `bun nv verify --no-cache`. A person runs them by hand; looper's sweep
 and its hooks are not tool calls, so the guard never sees them. To look into one test, name it: `cargo test --test <name>` or `cargo test --lib <filter>`.
 
@@ -837,7 +835,7 @@ every file still bind, and every `bun nv` command works as it does with looper.
 | `looper wrap` | Apply the plan sections with `bun nv plan --apply <file>`, overwrite `## Handoff`, tick what is done, and commit each slice with `git commit -F <file>`. |
 | `looper log`, `looper playbook retire` | No equivalent. |
 | `looper sync`, `looper doctor`, `looper clean` | Not needed. Never edit the text between looper's markers by hand. |
-| `looper guard` | The settings run it by itself. Without looper, the call goes through, `bun nv guard` still runs on Read and Bash, and the shell rules still bind. |
+| `looper guard` | The settings run it by itself. Without looper, the call goes through, and the shell rules still bind. |
 | `looper exec list`, `looper exec log`, `looper exec wait`, `looper exec kill` | No equivalent. Ask the user before stopping a process another session started. |
 | `looper claims`, `looper claims release` | No equivalent. There are no claims, so stage only your own files by name. |
 | `looper loop start` | No equivalent. The unattended loop needs looper. |

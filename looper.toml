@@ -65,6 +65,27 @@ after_session = [{ run = ["bun", "nv", "sweep"], timeout = 900, on_fail = "pause
 # The timeout covers its own 600-second cap on `bun install` and the copies.
 before_run = [{ run = ["bun", "nv", "side", "--prepare", "--hook"], timeout = 900, on_fail = "pause" }]
 
+# The project's own refusals, on top of looper guard's built-in rules. A pattern is a regex over the whole
+# command and over each part between `;`, `&&`, `||`, `|` and newlines. Rust's regex has no lookahead, so a
+# rule that excludes a flag lists the words a command may hold instead, and a command may start with
+# `timeout`, `time`, `nice`, `nohup`, `env` or `NAME=value`. `tools/nv/test/guard-deny.test.ts` holds a
+# command each rule refuses and a near miss it lets through.
+[[guard.deny]]
+pattern = '(?ms)(?:^|[;&|]\s*)(?:for|while|until|xargs)\b.*(?:\bnvs(?:\.exe)?\s+run\b.*(?:docs[/\\]examples|tests[/\\]hostile|benches[/\\]members)\b|(?:docs[/\\]examples|tests[/\\]hostile|benches[/\\]members)\b.*\bnvs(?:\.exe)?\s+run\b)|(?:docs[/\\]examples|tests[/\\]hostile|benches[/\\]members)\b.*(?:^|[;&|]\s*)(?:for|while|until|xargs)\b.*\bnvs(?:\.exe)?\s+run\b'
+reason = "This runs `nvs run` in a loop over the feature proofs. `bun nv proofs --run --id <feature> --show` runs each of a feature's examples and attacks in one call and reports what each printed."
+
+[[guard.deny]]
+pattern = '^(?:(?:timeout(?:\s+-\S+)*\s+\S+|time|nice|nohup|env|[A-Za-z_]\w*=\S*)\s+)*cargo\s+(?:\+\S+\s+)?(?:build|test|clippy)(?:\s+(?:[^\s-]\S*|-[^\s\-r]\S*|-r\S+|--[^\s\-rp]\S*|--p[^\sr]\S*|--))*\s+(?:-p|--package)\S*(?:\s+(?:[^\s-]\S*|-[^\s\-r]\S*|-r\S+|--[^\s\-rp]\S*|--p[^\sr]\S*|--))*\s*$'
+reason = "A debug `cargo build`, `cargo test` or `cargo clippy` with `-p` resolves features over one package and writes a second copy of every workspace crate (AGENTS.md rule 5). Leave out `-p` and narrow what runs with `--test <name>` or `--lib`, or run `bun nv verify -p <crate>`."
+
+[[guard.deny]]
+pattern = '^(?:(?:timeout(?:\s+-\S+)*\s+\S+|time|nice|nohup|env|[A-Za-z_]\w*=\S*)\s+)*bun\s+(?:run\s+)?(?:nv|\S*tools[/\\]nv[/\\]main\.ts)\s+(?:(?:sweep|debt)(?:\s+(?:[^\s-]\S*|-[^\s\-h]\S*|--[^\sh]\S*))*\s*$|benches\b|verify\b.*\s--no-cache\b|select\b.*\s--full\b|proofs(?:\s+(?:[^\s-]\S*|-[^\s-]\S*|--[^\sigo]\S*|--i[^\sd]\S*|--o[^\sn]\S*|--g[^\sr]\S*))*\s+--(?:run|verify)\b(?:\s+(?:[^\s-]\S*|-[^\s-]\S*|--[^\sigo]\S*|--i[^\sd]\S*|--o[^\sn]\S*|--g[^\sr]\S*))*\s*$)'
+reason = "This runs more than your change reaches: `nv sweep` and `nv debt` are looper's hooks, `nv benches` is the release's, and `nv proofs` with no `--id`, `nv verify --no-cache` and `nv select --full` run every atom. `bun nv affected --run` runs exactly what your change reaches."
+
+[[guard.deny]]
+pattern = '^(?:(?:timeout(?:\s+-\S+)*\s+\S+|time|nice|nohup|env|[A-Za-z_]\w*=\S*)\s+)*looper\s+check(?:\s+(?:[^\s-]\S*|-[^\s-]\S*|--[^\sn]\S*|--n[^\sa]\S*))*\s*$'
+reason = "`looper check` with no `--name` runs the live goal's whole acceptance, whatever your change reaches. Name the check with `looper check --name <text>`."
+
 [prose]
 scope = "Text an end user reads"
 paths = [

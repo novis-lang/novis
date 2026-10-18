@@ -8,8 +8,8 @@
 // Every command's children inherit `LLVM_PROFILE_FILE`, set to `DISCARD_PROFILE` when it is unset, so an
 // instrumented `nvs` that no run records writes its counters under `.agent-tmp/`.
 //
-// A command's own tests are under `test/`, and `test/surfaces.test.ts` runs the ones a session or the
-// hook reaches by name against this tree: `brief --where` and `guard --check`.
+// A command's own tests are under `test/`, and `test/surfaces.test.ts` runs the one a session reaches by
+// name against this tree: `brief --where`.
 
 import { DISCARD_PROFILE } from "./lib/paths.ts";
 import { ENV as READS_ENV, install } from "./lib/reads.ts";
@@ -40,7 +40,7 @@ const COMMANDS: Record<string, () => Promise<Command>> = {
   "ext-templates": () => import("./cmd/ext-templates.ts"),
   gaps: () => import("./cmd/gaps.ts"),
   "gen-attribution": () => import("./cmd/gen-attribution.ts"),
-  guard: () => import("./cmd/guard.ts"),
+
   holes: () => import("./cmd/holes.ts"),
   layout: () => import("./cmd/layout.ts"),
   legs: () => import("./cmd/legs.ts"),
