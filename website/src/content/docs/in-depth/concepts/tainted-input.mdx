@@ -9,6 +9,9 @@ import { githubFile } from '@config/site.mjs'
 Many attacks on web servers work the same way. Text from a request reaches a place that runs it as
 code. SQL injection, cross-site scripting and shell injection are all this one mistake.
 
+In Novis, this mistake is a compile error. A program that makes it does not build, so it never
+runs.
+
 ## A type for text from outside
 
 In Novis, a value from a request is `tainted`. This includes a form field, a header, a cookie, the
@@ -36,8 +39,39 @@ the compiler needs the right check for each place.
 
 ## Secret values
 
-A second word, `secret`, works the same way for passwords and keys. Code that prints a `secret`
-value with `echo` or puts it in an error message does not compile.
+A second word, `secret`, works the same way for passwords, keys and tokens. A `secret string`
+cannot be printed, written to a log, put in JSON or used in an error message. Each of these does
+not compile. A debug dump shows a placeholder for the value.
+
+When one line really must use the text, it calls `Core\Secret::reveal()` with a short reason. The
+reason is for the people who read the code, so a reviewer can search for every place.
+
+## Why this is different
+
+- **The compiler adds the taint itself.** You do not mark which values come from outside. Every way
+  into a program gives a tainted value, also a value read back from a database.
+- **A new function is safe by default.** A `Core` function that does not say what it accepts does
+  not accept a tainted value. So a function that nobody checked fails at compile time.
+- **There is no general `sanitize()`.** Each kind of use has its own escape function, named for that
+  use. Some uses have none.
+- **Nothing can turn it off.** The check is part of `nvs check` and of every run. There is no
+  setting for it, and no library you must annotate first.
+
+## Other languages
+
+Most languages leave this check to a library, a framework or a separate scanner:
+
+| Language | Text from outside | Secrets | What enforces it |
+|---|---|---|---|
+| PHP | Nothing in the language. The `taint` extension is not part of PHP. | Nothing | You, each time |
+| JavaScript, TypeScript | Nothing in the language. Trusted Types protects the browser page only. | Nothing | A browser setting |
+| Python | Nothing in the language. Template engines such as Django's escape HTML. | Nothing | Your framework |
+| Java | `@Tainted` and `@Untainted` from the Checker Framework, a separate tool | Nothing | A tool you can skip |
+| C# | Code analyzers such as CodeQL. They give warnings, not errors. | Nothing | A scan you can ignore |
+| Go | `html/template` escapes HTML. `text/template` has the same functions and does not escape. | Nothing | The package you import |
+| Ruby | `taint` and `$SAFE` existed. Ruby 3.0 removed the checks. | Nothing | Nothing |
+| Rust | Nothing in the language. HTML crates escape. | The `secrecy` crate | The crate you choose |
+| Novis | `tainted`, added to every value from outside | `secret` | The compiler |
 
 ## Where to go next
 
