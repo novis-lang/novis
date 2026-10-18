@@ -1,6 +1,0 @@
-- **A `#[global_allocator]` in a test target must be `#[cfg(debug_assertions)]`.** `nvs-runtime`
-  installs its pooled allocator under `all(not(test), not(debug_assertions))`, so a second one in a
-  `nvs-stdlib` test binary links under `cargo test` and fails under `cargo test --release` with
-  *"cannot define multiple global allocators"*; `nv verify` runs the debug profile and never sees
-  it. `crates/nvs-stdlib/tests/allocation_policy.rs` is the worked example.
-  `until: gone crates/nvs-stdlib/tests/allocation_policy.rs:global_allocator`
