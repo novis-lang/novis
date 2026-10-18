@@ -755,15 +755,6 @@ class<Animal> $c = 'Rock' as class<Animal>;
 
 ```nvs error
 <?nvs
-int $n = 3;
-echo (int)$n, "\n";
-```
-```output
-`(int)expr` is not supported
-```
-
-```nvs error
-<?nvs
 int $i = 7;
 ?int $a = $i as ?int;
 ```
@@ -1446,4 +1437,13 @@ echo gettype($m), "\n";
 ```
 ```output
 no free function has this name
+```
+
+```nvs error
+<?nvs
+int $n = 3;
+echo (int)$n, "\n";
+```
+```output
+`(int)expr` is not supported
 ```

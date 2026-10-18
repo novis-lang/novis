@@ -1,20 +1,19 @@
 <?nvs
-// Shows how to ask what a value holds, now that `gettype` and `is_int` are
-// gone and there are no free functions at all.
+// Shows how to test what a `mixed` value is, with `== null`, `is` and `as`.
 
 class Describe {
     public static function of(mixed $value): string {
-        // Nothing at all is a comparison against `null`.
+        // `== null` tests for `null`.
         if ($value == null) {
             return "nothing";
         }
 
-        // `is` answers whether the value is an object of that class.
+        // `is` tests whether the value is an object of that class.
         if ($value is Core\Regex\Pattern) {
             return "a compiled pattern";
         }
 
-        // For a number, ask for the conversion and see whether it answered.
+        // `as ?int` gives `null` when the value is not a whole number.
         ?int $whole = $value as ?int;
         if ($whole != null) {
             return "a whole number";

@@ -1,17 +1,15 @@
 <?nvs
-// Shows how a value is converted now that the cast spellings are gone, and
-// what happens when the value does not fit.
+// Shows how to convert a value with `as`, and what happens when the value does not fit.
 
 mixed $answer = "42";
 
-// `as` is the only conversion. It stands in for `(int)`, `intval` and the rest
-// of that family.
+// `as` converts a value to the type after it. Text from a `mixed` value is tainted.
 int $count = $answer as int;
 tainted string $label = $answer as string;
 float $share = $answer as float;
 
-// The conversion is checked. A price with a fraction is not a whole number,
-// so asking with `?int` answers `null` rather than losing the fraction.
+// `as ?int` converts a value to a whole number. 3.9 is not a whole number,
+// so the result is `null`.
 float $price = 3.9;
 ?int $whole = $price as ?int;
 

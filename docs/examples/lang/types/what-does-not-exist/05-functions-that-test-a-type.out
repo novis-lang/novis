@@ -1,0 +1,16 @@
+error[E0320]: `gettype` is not a function that exists
+  --> 05-functions-that-test-a-type.nvs:6:6
+  |
+6 | echo gettype($value), "\n";
+  |      ^^^^^^^ no free function has this name
+  = help: `rule:classes/no-free-functions-or-constants`: every callable is a method, and the built-ins live under the reserved `Core` namespace — `Core\Str::length($s)`, or `use Core\Str;` and then `Str::length($s)`
+
+error[E0208]: `settype` is not supported
+  --> 05-functions-that-test-a-type.nvs:7:1
+  |
+7 | settype($value, "string");
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^ no binding's declared type ever changes after the fact
+  = help: convert into a new, differently typed binding with `as` instead
+
+error: aborting due to 2 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.
