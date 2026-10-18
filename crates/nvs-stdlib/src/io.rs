@@ -86,6 +86,12 @@ const CARD: ClassDoc = ClassDoc {
 };
 
 /// The registry row. See [`crate::registry::CLASSES`].
+///
+/// No spec § of its own, and here beside `Core\Path` because that is where a
+/// reader looks for it: § 8's class splits a path lexically and this one
+/// reaches the filesystem behind it. What it needs to do that is
+/// [`CAPABILITIES`](crate::registry::CAPABILITIES), and `rule:security/capability-check-at-the-door`'s doors are what make it need one.
+// rank: 140
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
     doc: Some(&CARD),
@@ -1348,6 +1354,12 @@ const FILE_CARD: ClassDoc = ClassDoc {
 /// [`nvs_core_io_stdin`] alone — a member answering a `tainted string` rather
 /// than a handle — and that member's doc comment is the home of why the writing
 /// half does not exist and why the reading half is not one of these.
+///
+/// Spec § 14's `File` — R14's "an open file is an object and never a
+/// `resource`". Its slot holds a key into the request's own table of open
+/// descriptors, which its own docs argue for; `Core\Script\Handle` is the
+/// same shape and landed first.
+// rank: 170
 pub(crate) const FILE: CoreClass = CoreClass {
     name: FILE_NAME,
     doc: Some(&FILE_CARD),
@@ -1709,6 +1721,11 @@ const LINES_CARD: ClassDoc = ClassDoc {
 /// the sense `registry`'s `a_class_with_slots_has_instance_members_and_the_reverse`
 /// names, beside `Core\Script\Handle`: its slot is read, just not through a
 /// member of its own.
+///
+/// What `Core\IO::lines` answers with, and the whole of spec § 14's
+/// `Iterable<string>` — a name for the walk, with no member on it. Its own
+/// docs say why it holds the lines rather than streaming them.
+// rank: 150
 pub(crate) const LINES: CoreClass = CoreClass {
     name: LINES_NAME,
     doc: Some(&LINES_CARD),
@@ -1789,6 +1806,12 @@ const WALK_CARD: ClassDoc = ClassDoc {
 ///
 /// [`LINES`]'s answer, for [`LINES`]'s reason: everything it does is
 /// `iterate()`, dispatched by name through [`crate::instance`]'s roster.
+///
+/// What `Core\IO::walk` answers with — the same shape as `LINES` above and
+/// the other of spec § 14's two `Iterable<string>`s. Its own docs say why a
+/// tree is a different question from `list`'s directory rather than a second
+/// spelling of it.
+// rank: 160
 pub(crate) const WALK: CoreClass = CoreClass {
     name: WALK_NAME,
     doc: Some(&WALK_CARD),
@@ -1870,6 +1893,13 @@ const METADATA_CARD: ClassDoc = ClassDoc {
 /// pair of `int` slots so that its representation stays inside
 /// [`crate::time`], which is where [`crate::time::instant_at_system_time`]'s
 /// own doc argues it belongs.
+///
+/// What `Core\IO::stat` answers with — § 14's whole metadata bullet as one
+/// value, so a program asking more than one question about a path pays for
+/// one syscall. Its own docs argue why it is an instance rather than a
+/// shape (`rule:types/shape-type`), and why the questions it answers are also members of
+/// `Core\IO` without that being `rule:core-api/shape-rules` R17's two spellings.
+// rank: 180
 pub(crate) const METADATA: CoreClass = CoreClass {
     name: METADATA_NAME,
     doc: Some(&METADATA_CARD),

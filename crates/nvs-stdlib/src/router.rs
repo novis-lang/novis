@@ -219,6 +219,11 @@ const CARD: ClassDoc = ClassDoc {
 /// `Core\Request::route()` hands that one back. A program asking this class
 /// about the path it is already serving would be matching twice, which is what
 /// § 1 exists to remove.
+///
+/// § 15's link half only — `rule:routing/link-name-and-params-are-checked`'s `url`/`urlAbsolute`. `match` and
+/// `methodsFor` answer a request and land with the server; [`crate::router`]
+/// owns why, and owns the enum that section's `method` parameter takes.
+// rank: 380
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
     doc: Some(&CARD),
@@ -647,6 +652,11 @@ const CAPTURE: &CoreTy = &CoreTy::Union(&[
 /// over: the call site passes every routed method's folded payload keyed by
 /// label, and the helper returns the matched row's entry, which is data
 /// (`rule:routing/a-match-reads-an-attribute-as-data`).
+///
+/// `rule:routing/matched-once-before-the-handler`'s match, which is a `Core\Router` name and so lives in that
+/// module — but is produced by `Core\Request::route()` rather than by
+/// anything on the class above, because § 1 puts the match on the *request*.
+// rank: 390
 pub(crate) const MATCH: CoreClass = CoreClass {
     name: MATCH_NAME,
     doc: Some(&MATCH_CARD),

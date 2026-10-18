@@ -305,6 +305,7 @@ use crate::registry::{
 /// wrote in slot 0, and that roster owns why. `Core\Request::jsonAs` is the
 /// same decode over a request body and reaches it through [`check_codec`] and
 /// [`hydrate`] rather than through [`decode_as`].
+// rank: 100
 pub const CLASS: CoreClass = CoreClass {
     name: r"Core\Json",
     doc: Some(&CARD),

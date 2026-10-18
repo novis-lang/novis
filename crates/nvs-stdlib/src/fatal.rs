@@ -46,6 +46,12 @@ const CARD: ClassDoc = ClassDoc {
 };
 
 /// The registry row. See [`crate::registry::CLASSES`].
+///
+/// `rule:errors/on-limit`, and no spec § of its own: that rule is where this
+/// member is specified, because what it registers is a rung of the
+/// escalation ladder rather than a library facility. [`crate::fatal`] owns why the
+/// callable is held by the request's context and not by the module.
+// rank: 840
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
     doc: Some(&CARD),

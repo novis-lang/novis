@@ -207,6 +207,12 @@ const DECOMPRESSOR_CARD: ClassDoc = ClassDoc {
 };
 
 /// `Core\Compress`'s registry rows — § 17's whole-buffer pair.
+///
+/// § 17's codec class, beside `Core\Html` because that is the section both
+/// are rows of. Tier 0 for a reason that is not the other three's:
+/// `rule:core-classes/decompression-bound`'s bound is policy, and a policy
+/// a program can decline is not one — see [`crate::compress`].
+// rank: 1090
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
     doc: Some(&CARD),
@@ -385,6 +391,13 @@ pub(crate) const COMPRESSOR_NAME: &str = r"Core\Compress\Compressor";
 /// answered. This module's own docs say why the state is the chunks rather than
 /// a coder, why this is a class of its own beside [`DECOMPRESSOR`], and what
 /// either one spends.
+///
+/// § 17's incremental pair, beside the class whose two openers answer them.
+/// Two classes rather than one because an instance carries no qualifier:
+/// `rule:security/tainted-sources` makes the decompressing half's `finish`
+/// answer `tainted bytes` and the compressing half's answer `bytes`, which
+/// one class would have to collapse — [`crate::compress`] is the argument.
+// rank: 1100
 pub(crate) const COMPRESSOR: CoreClass = CoreClass {
     name: COMPRESSOR_NAME,
     doc: Some(&COMPRESSOR_CARD),
@@ -454,6 +467,7 @@ pub(crate) const DECOMPRESSOR_NAME: &str = r"Core\Compress\Decompressor";
 /// [`Bound`] this stream was opened under, already resolved against the
 /// operator's ceiling, so `finish` measures the whole stream against the numbers
 /// the opening fixed and no later configuration read can raise them.
+// rank: 1110
 pub(crate) const DECOMPRESSOR: CoreClass = CoreClass {
     name: DECOMPRESSOR_NAME,
     doc: Some(&DECOMPRESSOR_CARD),

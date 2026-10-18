@@ -216,6 +216,13 @@ fn params() -> Params {
 }
 
 /// Spec § 16's password hashing, and `rule:core-classes/secret-reveal`'s second escape hatch.
+///
+/// § 16, and beside `Core\Secret` rather than in section order because the
+/// two are one mechanism: `rule:core-classes/secret-reveal` has exactly two operations that take
+/// a `secret` and answer something that is not one, and these are the rows
+/// of the second. [`crate::password`] owns the parameters and why there is
+/// no argument for them.
+// rank: 910
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: r"Core\Password",
     doc: Some(&CARD),

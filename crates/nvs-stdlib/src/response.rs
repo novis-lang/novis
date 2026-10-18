@@ -302,6 +302,13 @@ const CARD: ClassDoc = ClassDoc {
 
 /// `Core\Response`'s registry rows — § 15's body members, in § 4's own table
 /// order for the ones that exist.
+///
+/// § 15's fourth request-facing class, and the first one that *writes*: the
+/// typed body members of `rule:security/response-body-is-one-typed-member`. Beside
+/// `Core\Server` because the two are the same request's two halves, and
+/// [`crate::response`]'s module doc owns what a written body is — the bytes
+/// are `echo`'s output and the member adds the `Content-Type`.
+// rank: 760
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
     doc: Some(&CARD),
@@ -575,6 +582,12 @@ const STREAM_CARD: ClassDoc = ClassDoc {
 /// `EventSource` reconnects when the body ends; that is a property of a
 /// request-scoped stream rather than a fault, and the reader for it is `fetch`
 /// or a progress UI that closes itself.
+///
+/// `rule:concurrency/a-stream-that-outlives-its-request-is-a-connection`'s
+/// request-scoped half, immediately after the class whose `stream` is the
+/// only thing that produces one. [`crate::response`] owns why the handle has
+/// no slots and why there is no member that closes it.
+// rank: 770
 pub(crate) const STREAM: CoreClass = CoreClass {
     name: STREAM_NAME,
     doc: Some(&STREAM_CARD),

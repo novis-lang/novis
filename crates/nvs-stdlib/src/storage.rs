@@ -172,6 +172,14 @@ const CARD: ClassDoc = ClassDoc {
 };
 
 /// `Core\Storage`'s four rows — `rule:programs/framework-core-half`'s object storage.
+///
+/// `rule:programs/framework-core-half`'s other half of the same row pair, and registered beside
+/// `Core\Mail` because the two are what that section adds to `Core`: an
+/// operator names the endpoint in one and the disk in the other, and neither
+/// takes a host or a path. It is the one class here that declares **no**
+/// capability of its own — [`crate::storage`] owns why `fs.*` answering
+/// twice would be the bug.
+// rank: 890
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
     doc: Some(&CARD),

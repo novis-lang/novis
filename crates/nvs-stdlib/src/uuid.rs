@@ -142,6 +142,7 @@ pub const NAME: &str = r"Core\Uuid";
 /// into octets. `isValid` was a static row until `rule:expressions/try-parse`
 /// deleted it: `tryParse` is that question asked through `parse` itself, so the
 /// two were one predicate and R17 keeps one.
+// rank: 340
 pub const CLASS: CoreClass = CoreClass {
     name: NAME,
     doc: Some(&CARD),

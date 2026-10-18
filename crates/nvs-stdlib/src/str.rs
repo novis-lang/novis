@@ -194,6 +194,7 @@ const CARD: ClassDoc = ClassDoc {
 /// * **Sink** on `format`'s template, which is one of `rule:core-api/shape-rules` R11's four
 ///   grammars — § 1's corollary makes every one of the four a sink, and the
 ///   variadic arguments it renders stay data.
+// rank: 10
 pub const CLASS: CoreClass = CoreClass {
     name: r"Core\Str",
     doc: Some(&CARD),

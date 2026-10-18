@@ -114,6 +114,10 @@ const CARD: ClassDoc = ClassDoc {
 ///
 /// The coverage, trace and profile members that section also lists are not
 /// here: they are `rule:testing/debug-surface`'s, which goal `trace-timeline` builds.
+///
+/// § 16. `rule:errors/debug-dump`'s `dump` and `render` only. The coverage, trace and profile members
+/// that section also lists are `rule:testing/debug-surface`'s, which goal `trace-timeline` builds.
+// rank: 450
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
     doc: Some(&CARD),

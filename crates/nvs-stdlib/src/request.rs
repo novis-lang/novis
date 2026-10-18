@@ -212,6 +212,16 @@ const CARD: ClassDoc = ClassDoc {
 /// three facts the request arrived on. `mount` and `route` sit last because
 /// each answers a match made before the program ran rather than anything the
 /// peer sent.
+///
+/// § 15's second request-facing class, and the one every value that came
+/// from outside the process arrives through: `rule:statements/no-host-populated-variables`'s replacement for
+/// `$_GET`, `$_POST`, `$_COOKIE` and `$_FILES`, of which the request line —
+/// `method`, `path`, `query` — is registered. Beside `Core\Server` for the
+/// reason that class sits beside `Core\Response`: the two are one request
+/// read from two ends. [`crate::request`]'s module doc owns why a program
+/// that is answering no request gets a throw rather than an empty answer,
+/// and why a verb becomes a `Core\Http\Method` case here and nowhere else.
+// rank: 700
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
     doc: Some(&CARD),
@@ -1076,6 +1086,12 @@ const CAPTURE_SEGMENTS: CoreTy = CoreTy::Array(&CoreTy::TaintedStr);
 /// O(in-flight) either way. Nothing is cached: the two facts are on
 /// [`Inbound`](nvs_runtime::Inbound) and this class is a reading of them, the
 /// same arrangement `Core\Request::route()` has with the match.
+///
+/// What `Core\Request::mount` answers with: `rule:routing/a-request-reads-its-mount`'s two facts about
+/// which mount is serving this request, as a pair rather than as the shape
+/// that section spells — [`crate::request`]'s `MOUNT` docs own why a shape
+/// has no return-position spelling and why the captures carry the mark.
+// rank: 710
 pub(crate) const MOUNT: CoreClass = CoreClass {
     name: MOUNT_NAME,
     doc: Some(&MOUNT_CARD),
@@ -1192,6 +1208,13 @@ const BODY_STREAM_CARD: ClassDoc = ClassDoc {
 /// `registry`'s `a_class_with_slots_has_instance_members_and_the_reverse`
 /// names. Spec § 15 writes `bodyStream(): Iterable<bytes>` and no member on the
 /// thing it answers with.
+///
+/// What `Core\Request::bodyStream` answers with, and the whole of § 15's
+/// `Iterable<bytes>` — a name for the walk, with no member on it, exactly as
+/// `Core\IO\Lines` is. It is the one `Iterable` in `Core` that is its own
+/// iterator rather than a snapshot, and its own docs say why: the next chunk
+/// of a request body does not exist yet when the walk is named.
+// rank: 720
 pub(crate) const BODY_STREAM: CoreClass = CoreClass {
     name: BODY_STREAM_NAME,
     doc: Some(&BODY_STREAM_CARD),
@@ -1247,6 +1270,11 @@ const FILES_CARD: ClassDoc = ClassDoc {
 /// `registry`'s `a_class_with_slots_has_instance_members_and_the_reverse`
 /// names. Spec § 15 writes `files(): Iterable<Part>` and puts every member on
 /// the part rather than on the walk.
+///
+/// What `Core\Request::files` answers with, and `rule:http-server/an-upload-is-received-only-through-files`'s whole
+/// `Iterable<Part>` — a name for the walk, with every member on the part
+/// rather than on it, exactly as the body walk above carries none.
+// rank: 730
 pub(crate) const FILES: CoreClass = CoreClass {
     name: FILES_NAME,
     doc: Some(&FILES_CARD),
@@ -1320,6 +1348,13 @@ const PART_ORDINAL: usize = 3;
 /// bytes the parse has already drained, and handing it the *current* part's
 /// bytes would be the silent wrong answer — so it is refused, by
 /// [`part_parse`], which is the one place the stamp is compared.
+///
+/// And what that walk yields: `rule:http-server/a-part-is-a-file-iff-it-carries-a-filename`'s file part, which is a part iff
+/// it declared a `filename`. Three readers of what one upload said about
+/// itself, all of them `tainted`, and no `size` — [`crate::request`]'s `PART`
+/// docs own why the spec's two marks became three and why there is no
+/// fourth reader.
+// rank: 740
 pub(crate) const PART: CoreClass = CoreClass {
     name: PART_NAME,
     doc: Some(&PART_CARD),
@@ -1602,6 +1637,12 @@ const PART_CONTENT_CARD: ClassDoc = ClassDoc {
 /// **What it spends:** one chunk, resident, for as long as the loop body holds
 /// it — [`BODY_STREAM`]'s figure exactly, because it is the same pull with a
 /// multipart parse in front of it.
+///
+/// And what the part's own `content()` answers: `rule:http-server/a-part-is-consumed-in-one-of-three-ways`'s walk over one
+/// upload's bytes. The body walk above with an identity — `crate::request`'s
+/// `PART_CONTENT` docs own why a walk over a *part* needs one where a walk
+/// over a body does not.
+// rank: 750
 pub(crate) const PART_CONTENT: CoreClass = CoreClass {
     name: PART_CONTENT_NAME,
     doc: Some(&PART_CONTENT_CARD),

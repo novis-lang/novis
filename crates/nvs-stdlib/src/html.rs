@@ -166,6 +166,14 @@ const MARKUP_CARD: ClassDoc = ClassDoc {
 
 /// `rule:security/launderers-are-sink-named`'s launderer for the HTML sink, and `rule:core-classes/html-to-source`'s one way back
 /// out of the carrier it answers.
+///
+/// `rule:security/launderers-are-sink-named`'s own worked example of a launderer, and here rather than in
+/// spec § order because the class beneath it is the one this crate defers to
+/// whenever a `tainted` value has to be written into a document: § 5 makes
+/// HTML the sink that escapes by default, and this is what it escapes with.
+/// No spec § of its own yet — § 20's roster row names the class, and
+/// [`crate::html`] owns why `sanitize` and the WHATWG parser are not here.
+// rank: 1030
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: r"Core\Html",
     doc: Some(&CARD),
@@ -273,6 +281,13 @@ pub const MARKUP_NAME: &str = nvs_runtime::CARRIER_HTML_MARKUP;
 /// [`nvs_runtime::CARRIER_TEXT_SLOT`] is that index, shared with the other
 /// carrier so `value_to_string` renders either without asking this crate
 /// anything.
+///
+/// `rule:core-classes/html-auto-escape`'s carrier for that same sink, memberless: `nvs_runtime`
+/// already renders it and `nvs_types` already refuses a `tainted` or
+/// computed conversion to it, so what this row adds is the registered
+/// layout the slot lives in. [`crate::html`] owns why it has no
+/// constructor.
+// rank: 1040
 pub(crate) const MARKUP: CoreClass = CoreClass {
     name: MARKUP_NAME,
     doc: Some(&MARKUP_CARD),

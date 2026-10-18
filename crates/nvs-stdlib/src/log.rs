@@ -138,6 +138,13 @@ const LEVEL_DOC: EnumDoc = EnumDoc {
 };
 
 /// The registry row. See [`crate::registry::CLASSES`].
+///
+/// `rule:errors/log-write`, and beside `Core\Fatal` because the two are one ladder:
+/// the rung above every `catch` and the reporting half every rung of it
+/// ends at. [`crate::log`] owns why the level enum's integers are syslog
+/// severities and why a record reaches the output stream rather than the
+/// diagnostic one.
+// rank: 850
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
     doc: Some(&CARD),

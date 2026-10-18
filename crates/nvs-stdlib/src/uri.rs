@@ -402,6 +402,7 @@ pub const NAME: &str = r"Core\Uri";
 /// read the seven components [`read`] found. [`crate::regex`] splits its
 /// instance out into `Core\Regex\Match` for the opposite reason — a match is
 /// not a regex — and nothing here is a second thing.
+// rank: 370
 pub const CLASS: CoreClass = CoreClass {
     name: NAME,
     doc: Some(&CARD),

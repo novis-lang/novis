@@ -111,6 +111,7 @@ pub const NAME: &str = r"Core\Regex";
 ///
 /// All eight of them. The four members that section states on a `Match` are
 /// [`MATCH`]'s own roster, not this one.
+// rank: 70
 pub const CLASS: CoreClass = CoreClass {
     name: NAME,
     doc: Some(&CARD),
@@ -480,6 +481,7 @@ const PATTERN_NAME: &str = r"Core\Regex\Pattern";
 /// **What it spends:** one object, two slots and one `string` copy of the
 /// pattern per `compile` call, charged to the request. The compiled program it
 /// stands for is the cache's, shared by every call that names the same pair.
+// rank: 90
 pub const PATTERN: CoreClass = CoreClass {
     name: PATTERN_NAME,
     doc: Some(&PATTERN_CARD),
@@ -592,6 +594,7 @@ const MATCH_NAME: &str = r"Core\Regex\Match";
 /// spends:** one array plus one `string` per participating group (two for a
 /// named one, which is stored under both its name and its number, exactly as
 /// `preg_match` returns it), per match, charged to the request.
+// rank: 80
 pub const MATCH: CoreClass = CoreClass {
     name: MATCH_NAME,
     doc: Some(&MATCH_CARD),

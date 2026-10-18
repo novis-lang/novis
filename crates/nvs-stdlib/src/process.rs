@@ -145,6 +145,12 @@ std::thread_local! {
 }
 
 /// The registry row. See [`crate::registry::CLASSES`].
+///
+/// `rule:core-classes/process-is-argv-only`'s one way to run another program, and the result it answers
+/// with. Beside `Core\IO` because it is the other class that reaches the
+/// operating system through a door of its own; its capability row is in
+/// [`CAPABILITIES`](crate::registry::CAPABILITIES) alongside that class's.
+// rank: 190
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
     doc: Some(&CARD),
@@ -402,6 +408,7 @@ const HANDLE_PATH_SLOT: usize = 1;
 /// O(children in flight), charged to the task that spawned them. The error
 /// adds one flag and a copy of the program's path per child, and one
 /// `try_wait` per child still held when the task ends.
+// rank: 210
 pub(crate) const HANDLE: CoreClass = CoreClass {
     name: HANDLE_NAME,
     doc: Some(&HANDLE_CARD),
@@ -611,6 +618,7 @@ const SIGNALLED: i32 = -1;
 /// than a shape; what belongs here is that every member is a slot read, because
 /// the child has already exited by the time one exists — there is nothing left
 /// to compute and nothing left to fail.
+// rank: 200
 pub(crate) const RESULT: CoreClass = CoreClass {
     name: RESULT_NAME,
     doc: Some(&RESULT_CARD),

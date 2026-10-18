@@ -66,6 +66,7 @@ const CARD: ClassDoc = ClassDoc {
 ///
 /// Declared beside the implementations rather than in one flat table, for the
 /// reason [`crate::arr::CLASS`] states.
+// rank: 40
 pub const CLASS: CoreClass = CoreClass {
     name: r"Core\Math",
     doc: Some(&CARD),

@@ -124,6 +124,7 @@ const RANDOM_CARD: ClassDoc = ClassDoc {
 
 /// `Core\Random`'s registry rows, in the spec's own order — all seven of
 /// § 11's first table.
+// rank: 320
 pub const CLASS: CoreClass = CoreClass {
     name: NAME,
     doc: Some(&RANDOM_CARD),
@@ -365,6 +366,11 @@ const SEEDED_CARD: ClassDoc = ClassDoc {
 /// state is one word — the module docs' reason for writing that generator here
 /// is also the reason this class is an ordinary object rather than a handle
 /// into a table of native ones.
+///
+/// Spec § 11's reproducible generator, which is a *type* rather than a mode
+/// the class above can be put into — `crate::random`'s own docs argue the
+/// separation, and [`CONSTRUCTORS`](crate::registry::CONSTRUCTORS) is what makes `new` on it resolve.
+// rank: 330
 pub(crate) const SEEDED: CoreClass = CoreClass {
     name: SEEDED_NAME,
     doc: Some(&SEEDED_CARD),

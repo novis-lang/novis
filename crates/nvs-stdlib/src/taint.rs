@@ -60,6 +60,14 @@ const CARD: ClassDoc = ClassDoc {
 };
 
 /// `rule:security/launderers-are-sink-named`'s escape hatch, and the one launderer that names no single sink.
+///
+/// `rule:security/launderers-are-sink-named`, and no spec § of its own, for the reason `Core\Secret` below
+/// has none: a member that removes `tainted` is a rung of the qualifier's own
+/// mechanism rather than a library facility. Registered immediately before
+/// its twin because the two are one shape on two axes — one narrow, named,
+/// reasoned call each — and [`Qual`](crate::registry::Qual)'s doc comment is the home of why this
+/// one writes [`Qual::Launder`](crate::registry::Qual::Launder) and names no single sink.
+// rank: 860
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: r"Core\Taint",
     doc: Some(&CARD),

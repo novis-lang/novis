@@ -1622,6 +1622,14 @@ const CARD: ClassDoc = ClassDoc {
 /// answer is a function of two arguments and a table compiled into the binary,
 /// so `rule:security/capability-question-is-grant-and-scope`
 /// has no door to put a check at.
+///
+/// `rule:programs/framework-core-half`'s last row, and the third of the three this stage adds to
+/// `Core`. Beside the two above because it completes them and not because
+/// it shares anything else: it is the one entry in that table placed by
+/// test 4 — data the language already had to carry — rather than by an
+/// outside world it waits on. [`crate::cldr`] owns why the rules are a
+/// closed roster and why a language outside it is refused.
+// rank: 900
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
     doc: Some(&CARD),

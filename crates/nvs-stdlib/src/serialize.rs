@@ -53,6 +53,10 @@ const CARD: ClassDoc = ClassDoc {
 /// `rule:classes/graph-copy`'s `encode`/`decode` pair, taking
 /// `rule:core-api/shape-rules` R6's naming.
 /// PHP's bare `serialize`/`unserialize` spellings do not exist.
+///
+/// `rule:classes/graph-copy`'s externalizing carrier, and no spec § of its own: the walk
+/// it reaches is `nvs_runtime::graph`'s, shared with the `spawn` boundary.
+// rank: 420
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: r"Core\Serialize",
     doc: Some(&CARD),

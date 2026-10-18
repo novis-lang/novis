@@ -421,6 +421,14 @@ const VERIFY_ISSUED_OPTIONS: &[CoreOption] = &[
 /// `rule:security/protocol-roster`'s fourth roster entry: the two ways of
 /// signing a token, and the one way of reading back a token this program
 /// signed under a shared key.
+///
+/// `rule:security/protocol-roster`'s fourth roster entry, and the only one
+/// of the five whose wire format was designed elsewhere, so [`crate::jwt`]
+/// is the one class here that reads a field an attacker wrote. Its own
+/// module doc is the home of why `alg` is only ever compared, why the
+/// expiry is a positional `Duration` rather than a claim, and why a claim
+/// comes back as `tainted string` when the cookie above launders.
+// rank: 980
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
     doc: Some(&CARD),
@@ -783,6 +791,16 @@ const READ_OPTIONS: &[CoreOption] = &[CoreOption {
 }];
 
 /// The set a token is verified against, as one row.
+///
+/// The keys the class above verifies another party's token against, beside
+/// it for `crate::jwe::KEY`'s reason: it is the value that member takes and
+/// nothing else produces one. Every rule about which keys a document may
+/// publish is applied at its one member, so a verification is a lookup by
+/// `kid` and a signature check — `rule:security/algorithm-comes-from-the-key`
+/// is why that is a lookup and never a try, and [`crate::jwt`]'s own module
+/// doc is the home of why a key this roster has no use for is skipped where
+/// a document that is wrong is refused whole.
+// rank: 990
 pub(crate) const KEY_SET: CoreClass = CoreClass {
     name: KEY_SET_NAME,
     doc: Some(&KEY_SET_CARD),

@@ -50,6 +50,13 @@ use crate::registry::{ClassDoc, CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodD
 pub(crate) const NAME: &str = "Core\\Os";
 
 /// `Core\Os`'s registry rows — the spec's § 16 row, whole and in its order.
+///
+/// § 16's other half: what the host itself is, as five facts about the
+/// process asking rather than about anything it can reach. It is the one
+/// class in this stretch with no row in [`CAPABILITIES`](crate::registry::CAPABILITIES), and
+/// [`crate::os`]'s module doc is the home of why declaring `None` five times
+/// would have been the wrong claim rather than a cautious one.
+// rank: 1320
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
     doc: Some(&CARD),

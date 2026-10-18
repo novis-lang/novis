@@ -198,6 +198,11 @@ const SECRET_ENTRY_CARD: ClassDoc = ClassDoc {
 };
 
 /// § 1's tiers, as a member per tier that hands one back.
+///
+/// `rule:concurrency/cross-request-state-is-explicit`'s two tiers, as the two members that hand back a store — the
+/// sanctioned exception to `rule:security/no-cross-request-state`'s closed door on cross-request
+/// state, and the one place a value outlives the request that made it.
+// rank: 1330
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
     doc: Some(&CARD),
@@ -313,6 +318,11 @@ const GET_SECRET_OPTIONS: &[CoreOption] = &[
 /// slot, written by the member that produced it and readable by no program —
 /// asking a store what it is would be the flag § 1 refuses, arriving one call
 /// later.
+///
+/// What those two answer with: one class for both tiers, because a tier is a
+/// destination and not a different operation. [`crate::cache`]'s module doc
+/// is the home of why an entry is a byte payload rather than a live graph.
+// rank: 1340
 pub(crate) const STORE: CoreClass = CoreClass {
     name: STORE_NAME,
     doc: Some(&STORE_CARD),
@@ -689,6 +699,11 @@ const GET_SECRET_DOC: MethodDoc = MethodDoc {
 /// door onto the value that `getSecret` is the only door onto — which is why
 /// the class is a singular noun with one static and no instance member at all
 /// (R16, R18).
+///
+/// What a `getSecret` fill answers with, and the one shape a lifetime a
+/// fetch learned can reach this store in. [`crate::cache`]'s own class doc
+/// is the home of why it answers nothing back.
+// rank: 1350
 pub(crate) const SECRET_ENTRY: CoreClass = CoreClass {
     name: SECRET_ENTRY_NAME,
     doc: Some(&SECRET_ENTRY_CARD),

@@ -172,6 +172,7 @@ pub(crate) const NAME: &str = r"Core\Validate";
 /// The section states these as sentences rather than as a table, so there is
 /// no line on `tests/spec-members-outstanding.txt` to strike: the gates that
 /// hold this class are `examples/collect.nvs` and `conformance_coverage.rs`.
+// rank: 430
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
     doc: Some(&CARD),

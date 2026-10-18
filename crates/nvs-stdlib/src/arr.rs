@@ -113,6 +113,7 @@ const CARD: ClassDoc = ClassDoc {
 /// adding a member touches this file and nothing else. [`crate::registry`]'s
 /// `CLASSES` lists this const; that list grows one line per *class*, never one
 /// per member.
+// rank: 20
 pub const CLASS: CoreClass = CoreClass {
     name: r"Core\Arr",
     doc: Some(&CARD),
