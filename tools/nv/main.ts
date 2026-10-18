@@ -53,6 +53,7 @@ const COMMANDS: Record<string, () => Promise<Command>> = {
   peek: () => import("./cmd/peek.ts"),
   plan: () => import("./cmd/plan.ts"),
   proofs: () => import("./cmd/proofs.ts"),
+  prose: () => import("./cmd/prose.ts"),
   reference: () => import("./cmd/reference.ts"),
   release: () => import("./cmd/release.ts"),
   relink: () => import("./cmd/relink.ts"),
