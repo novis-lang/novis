@@ -85,13 +85,13 @@ before_run = [{ run = ["bun", "nv", "side", "--prepare", "--hook"], timeout = 90
 # The project's own refusals are `bun nv guard`'s rules (`tools/nv/cmd/guard.ts`), a `PreToolUse` hook of
 # its own beside `looper guard`, so they hold without looper.
 
+# `scope` is the words looper writes into `docs/agent/prose.md`. The files the prose check reads and its
+# rules are `tools/nv/cmd/prose.ts`'s, and `[gates] prose` makes `looper prose` run it.
 [prose]
 scope = "Text an end user reads"
-paths = [
-  "website/**/*.mdx",
-  "website/**/*.md",
-  "**/about.md",
-]
+
+[gates]
+prose = ["bun", "nv", "prose"]
 
 [sync]
 skip = [

@@ -54,6 +54,7 @@
       "Bash(bun nv peek:*)",
       "Bash(bun nv plan:*)",
       "Bash(bun nv proofs:*)",
+      "Bash(bun nv prose:*)",
       "Bash(bun nv reference:*)",
       "Bash(bun nv release:*)",
       "Bash(bun nv relink:*)",
