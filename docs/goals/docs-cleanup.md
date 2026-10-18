@@ -305,7 +305,7 @@ with each.
       - [x] `objects-are-handles` to `what-a-class-cannot-declare`
       - [x] `lang:classes`' perf recorded after the chapter's last edit
     - [ ] `55-enums`, then `lang:enums`' perf recorded after the chapter's last edit
-      - [ ] `declaring-an-enum` to `comparing-cases`
+      - [x] `declaring-an-enum` to `comparing-cases`
       - [ ] `match-and-switch-over-an-enum` to `an-enum-inside-a-class`
       - [ ] `what-an-enum-does-not-have` and `core-enums`
       - [ ] `lang:enums`' perf recorded after the chapter's last edit
@@ -794,9 +794,30 @@ written from outside its class through an `object` or `mixed` variable**, which 
 class's encapsulation (`data/gaps/nvs-runtime/a-private-or-protected-property-is.json`, owned by
 `release-hardening`).
 
+`55-enums`' first four features are done, each fact run on the binary. One claim was wrong in two
+texts: the chapter and `a-case-is-its-integer`'s `about.md` said `as int` is the only conversion out
+of an enum, but `as bool` compiles and is always `true`, as `rule:enums/truthiness` implies. Both now
+say so (`55-enums.md:102`). `declaring-an-enum`'s `details.md` has the literal forms and `E0436`,
+`E0437` for a value out of range and for counting past the largest number, a trailing comma, an
+empty enum, equal cases, `E0110`, `E0239`, `E0220`, `E0218`, `E0219`, `E0438`, `E0304`, `E0233` and
+`E0309`; examples 04 to 07 are the chapter's counting block and its three error blocks (07 with no
+values, so it gives one error). `a-case-is-its-integer`'s has `E0707`, `E0434`, `E0708` for each
+type, `as bool`, `E0416`, `E0415` (also `-1 as Level`, since `as` runs before `-`), JSON and
+`dump`, and a case in `mixed` keeping no enum; example 04 is the `as string` block.
+`from-an-integer-back-to-a-case`'s has each failing step: a `float` with a fraction and a negative
+number for a `uint` enum throw `ArithmeticError`, which is not a `RuntimeError`; it also has `null`,
+`" 1"` and `"2.0"`, `E0708` for a `bool`, and `E0309` for `from`/`tryFrom`. No new example: 01 and 02
+show the chapter's block. `comparing-cases`' has `E0466` for each pair and for `null`, `E0715`, and
+`==` in `mixed` being by number across enums and against an `int`, which `rule:enums/representation`
+states and declines to change; example 04 is the chapter's error block. Probing found two gaps,
+owned by `release-hardening`: a case declared twice compiles and the later one wins
+(`data/gaps/nvs-types/an-enum-case-declared-twice-compiles.json`), and `new` on an enum passes the
+checker and stops at `E0901`, or gives "expected `M`, found `M`"
+(`data/gaps/nvs-types/new-on-an-enum-passes-the.json`). `llms-full.txt` is rendered again.
+
 ### Next
 
-`55-enums` is next, in chapter order from `Declaring an enum` (`55-enums.md:8`), three or four
+`55-enums` continues at `` `match` and `switch` over an enum `` (`55-enums.md:181`), three or four
 features per session; take each feature id from `bun nv proofs --json`. Work each feature the way `break-and-continue` was done: read
 its chapter section, its `about.md` and its syntax page, probe each fact `about.md` lacks on the
 binary, write `details.md`, and turn each chapter code block no example shows into an example
@@ -811,7 +832,7 @@ An enum is `enum Suit { Hearts, Spades }`, with no `case`. An array with string 
 `array<int>`: `array<string, int>` is `E0101`. Many probes at once: a JSON map of name to
 body, and a script under `.agent-tmp/` that writes and runs each; the guard refuses a shell loop of
 `nvs run` over `docs/examples/`, so check a new example with `--bless`.
-- [ ] `55-enums` from `Declaring an enum`, in chapter order. `docs/reference/lang/55-enums.md:8`
+- [ ] `55-enums` from `` `match` and `switch` over an enum `` to `An enum inside a class`, then `What an enum does not have` and `Core` enums. `docs/reference/lang/55-enums.md:181`
 - [ ] Once the chapter's last edit lands, `bun nv proofs --record-perf --group lang:enums`, and commit `data/perf/members.ndjson`. `tools/nv/proofs/roster.ts:28`
 
 ### Backlog
