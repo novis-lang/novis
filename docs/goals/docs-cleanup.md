@@ -833,10 +833,33 @@ an enum, constant or alias of one name, `E0220`, `E0233`, the class's enum winni
 one of the same name, `::class` and two classes' enums being disjoint (`E0466`); examples 04 to 06
 are the chapter's three error blocks. Probing found no new gap.
 
+`55-enums` is done, and `lang:enums`' perf is recorded after the chapter's last edit. One claim was
+wrong in two texts: `what-an-enum-does-not-have`'s `about.md` and example 01's comment said the
+compiler checks a `match` against every case, so a case added later is a compile error. The binary
+compiles a `match` with a missing arm and throws `LogicError` when the case reaches it, as
+`match-and-switch-over-an-enum`'s `details.md` already said; both now say so. The chapter line on
+`as uint` now says it is for a `uint` enum (`55-enums.md:408`). That feature's `details.md` has
+`E0405` for a property or method on a case, `E0309` for `from`, `tryFrom`, `cases`, a constant and a
+static property, `E0220` for `extends`, `E0101` for `abstract` or `final`, `E0781`, the `object`
+`E0401`, and `::class` with `E0702`; examples 04 and 05 are the chapter's two error blocks.
+`core-enums`' `details.md` has `E0401` for a number or another enum, `E0405` for a missing case
+(an enum of your own gives `E0309`), the `as` message and `as ?`, `E0466`, `use Core\Arr;` and
+`E0212`, an own enum of the same name, and JSON and `dump`; example 04 is a number in place of a case.
+
+`60-iteration`'s first two features are done, each fact run on the binary, and no text disagreed
+with it; the chapter did not change. `what-foreach-walks`' `details.md` has the key always being a
+`string` (`E0723` for `int $k`), `E0401` for a written type, each `E0443` subject (a `?array<int>`
+too), and a second loop over one `Iterator` going on from where the first stopped; example 04 shows
+that. `the-two-interfaces`' has `E0442`, no type variable of your own, `E0449`, a class implementing
+both, the three types not converting into each other (`E0401`, an `Iterator<int>` is not an
+`Iterable<int>`), and the `current()` `LogicError` message; example 04 is the chapter's `E0444`
+block. Probing found that `current(): string` on an `Iterator<int>` class compiles and a loop reads
+the string's address as an `int`, now named in the override-signature gap record.
+
 ### Next
 
-`55-enums` continues at `What an enum does not have` (`55-enums.md:401`), three or four
-features per session; take each feature id from `bun nv proofs --json`. Work each feature the way `break-and-continue` was done: read
+`60-iteration` continues at `Generators` (`60-iteration.md:163`), three or four features per
+session; take each feature id from `bun nv proofs --json`. Work each feature the way `break-and-continue` was done: read
 its chapter section, its `about.md` and its syntax page, probe each fact `about.md` lacks on the
 binary, write `details.md`, and turn each chapter code block no example shows into an example
 (`proof: compile-error` for an `nvs error` fence). Bless with `bun nv proofs --bless <file>...`, then
@@ -850,9 +873,9 @@ An enum is `enum Suit { Hearts, Spades }`, with no `case`. An array with string 
 `array<int>`: `array<string, int>` is `E0101`. Many probes at once: a JSON map of name to
 body, and a script under `.agent-tmp/` that writes and runs each; the guard refuses a shell loop of
 `nvs run` over `docs/examples/`, so check a new example with `--bless`.
-- [ ] `55-enums`' last two features, `What an enum does not have` and `Core` enums. `docs/reference/lang/55-enums.md:401`
-- [ ] `60-iteration` from its first section, three or four features per session. `docs/reference/lang/60-iteration.md:1`
-- [ ] Once the chapter's last edit lands, `bun nv proofs --record-perf --group lang:enums`, and commit `data/perf/members.ndjson`. `tools/nv/proofs/roster.ts:28`
+- [ ] `60-iteration`'s last four features, from `Generators`. `docs/reference/lang/60-iteration.md:163`
+- [ ] `70-errors` from its first section; it decides what `lang:errors/try-catch-finally` keeps. `docs/reference/lang/70-errors.md:1`
+- [ ] Once a chapter's last edit lands, `bun nv proofs --record-perf --group lang:<chapter>`, and commit `data/perf/members.ndjson`. `tools/nv/proofs/roster.ts:28`
 
 ### Backlog
 
