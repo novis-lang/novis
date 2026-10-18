@@ -1,0 +1,8 @@
+error[E0405]: `Level` has no property named `name`
+  --> 04-a-case-has-no-name.nvs:8:6
+  |
+8 | echo Level::Info->name, "\n";
+  |      ^^^^^^^^^^^ referenced here
+
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

@@ -405,7 +405,7 @@ A case has no properties and an enum has no methods. So `E::A->value`, `E::A->na
 cases: a method, a constant or an `implements` clause does not compile. Every enum is backed by an
 integer. Write these instead:
 
-- The integer of a case is `E::A as int`, or `E::A as uint`.
+- The integer of a case is `E::A as int`, or `E::A as uint` for a `uint` enum.
 - `$n as E` gives the case for an integer, and throws `RuntimeError` when no case matches.
   `$n as ?E` gives `null` when no case matches.
 - The name of a case is a `match` in a class of your own.

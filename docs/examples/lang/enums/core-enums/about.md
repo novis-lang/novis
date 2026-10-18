@@ -13,4 +13,5 @@ Nothing about these enums is special. They have no methods and no `->value`, the
 one of these enums accepts only its cases. A wrong value is an error when the program is compiled.
 
 **The examples below** sort with `Core\Arr::Order`, round a bill with `Core\RoundMode`, then turn the
-text a visitor sent into a sort order.
+text a visitor sent into a sort order. Example 04 shows that a number in place of a case does not
+compile.

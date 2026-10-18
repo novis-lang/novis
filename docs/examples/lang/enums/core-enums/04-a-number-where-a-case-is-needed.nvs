@@ -1,0 +1,8 @@
+<?nvs
+// Shows that a method which needs a `Core` enum does not take a number. This
+// call does not compile. Write `Core\Arr::Order::Desc` instead of `1`.
+// proof: compile-error
+
+array<int> $scores = [3, 1, 2];
+
+echo Core\Arr::count(Core\Arr::sort($scores, {order: 1})), "\n";
