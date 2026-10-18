@@ -136,9 +136,9 @@
 //! primitive a `&mut Scheduler` that a running task provably cannot have.
 //!
 //! What the tree spends, as `rule:programs/memory-priority` requires: one node per live task — a parent
-//! id, a child vector and a flag — removed when that task ends, so it is
-//! O(in-flight) and not O(tasks ever spawned), plus one queued id per wake in
-//! flight, which every turn drains.
+//! id, a sorted set of child ids with one tree node per child, and a flag — removed when that task
+//! ends, so it is O(in-flight) and not O(tasks ever spawned), plus one queued id per wake in
+//! flight and one list of cancelled task ids, which every turn drains.
 //!
 //! **A `Core` member reaches none of this directly**, and what it reaches
 //! instead is [`crate::group`] — the implementor of `nvs-runtime`'s host seam,

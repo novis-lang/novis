@@ -1,5 +1,6 @@
 <?nvs
 // Multiplies numbers of n/3 to n binary digits by themselves, as a program does when it works with very large keys.
+// The method that multiplies changes with the size of the number, so one size alone does not grow smoothly.
 // scaling: start 64000
 // scaling: max 512000
 // scaling: expect karatsuba

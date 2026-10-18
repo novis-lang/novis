@@ -82,7 +82,7 @@ conflicted. The last stage waits for looper's goal `landing-fixes`. This goal co
 - A diagnostic code range is reserved per area, so two sessions can add codes in two areas without a
   race.
 - The perf ledger `members.ndjson` merges with git's built-in `union` driver, because it is an
-  append-only ledger. Goal `docs-cleanup` moves it from `docs/perf/` to `data/perf/`.
+  append-only ledger. It lives under `data/perf/`.
 - `.claude/settings.json` loses only the second guard hook and entries that a wider entry already
   allows. If the permission classifier refuses that edit in the loop, the session names it in the
   handoff for the user to make, and goes on with the next item.

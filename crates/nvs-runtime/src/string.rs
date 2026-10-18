@@ -1835,8 +1835,8 @@ mod tests {
         }
     }
 
-    /// The claim § B of `docs/perf/userland-gap.md` asks for, measured rather
-    /// than asserted about: an n-piece concatenation allocates one buffer, of
+    /// The n-ary concatenation's claim, measured rather than asserted
+    /// about: an n-piece concatenation allocates one buffer, of
     /// exactly the length it answers, where a fold of two-operand
     /// `nvs_str_concat` calls reallocates every time the accumulation outgrows
     /// the room it has and copies what is already there into the new one.
@@ -1977,8 +1977,8 @@ mod tests {
         }
     }
 
-    /// The claim § B of `docs/perf/userland-gap.md` asks for, measured rather
-    /// than asserted about: an append a solely-owned string has the room for
+    /// The capacity's claim, measured rather than asserted about: an append a
+    /// solely-owned string has the room for
     /// allocates nothing at all, and a run of them allocates a multiple of the
     /// *final* length rather than of the accumulation copied each time.
     ///
@@ -2160,8 +2160,8 @@ mod tests {
         words
     }
 
-    /// The claim § B of `docs/perf/userland-gap.md` makes for a string
-    /// literal, from the side this crate owns: an immortal header costs
+    /// The claim § *An immortal string* makes for a string literal, from the
+    /// side this crate owns: an immortal header costs
     /// nothing to retain or release, is never freed however many times it is
     /// released, and — the half that keeps the plain `Cell` sound — is never
     /// *written*.

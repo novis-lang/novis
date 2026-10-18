@@ -14,7 +14,7 @@
 //! review: `nvs_runtime::affordable` is the only place a size becomes a
 //! refusal (`rule:programs/memory-priority`).
 //!
-//! The last two are `docs/perf/userland-gap.md` § D, and they are measured
+//! The last two are `crate::arr`'s module doc's key rule, and they are measured
 //! here rather than from compiled code because the member is where the
 //! decision is made: `nvs_runtime::callable_arity` is read once before the walk
 //! and decides whether a key is *built*, so a native callback with an arity
@@ -485,8 +485,7 @@ fn callback(arity: usize) -> nvs_runtime::Value {
     callable_of(arity, invoke)
 }
 
-/// `docs/perf/userland-gap.md` § D, measured: the key a callback never
-/// declared is never built.
+/// The key a callback never declared is never built, measured.
 ///
 /// `map`, `filter` and `reduce` each read `nvs_runtime::callable_arity` once
 /// before their walk and pass `$key` only to a callback with somewhere to put

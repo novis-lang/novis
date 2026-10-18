@@ -37,8 +37,8 @@ echo \"<\" . $tag . \">$i</\" . $tag . \">\", \"\\n\";
     assert_eq!(output_of(source), "<tr><td>7</td>\nabcd\n<td>7</td>\n");
 }
 
-/// `docs/perf/userland-gap.md` § B's third change, from the side this crate
-/// owns: a string literal is an address in the unit's data section, so
+/// A string literal stops allocating, from the side this crate owns: a string
+/// literal is an address in the unit's data section, so
 /// evaluating one twice yields the *same* address rather than two
 /// allocations.
 ///

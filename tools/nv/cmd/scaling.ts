@@ -350,7 +350,7 @@ export const FETCH_URL_ENV = "NVS_SCALING_URL";
 /** How far a `serve` ramp's peak memory may rise above the lowest peak it reached, as a fraction of that peak. */
 export const PEAK_SLACK = 0.25;
 
-/** The areas Stage 3 of `performance-pass` covers, each a folder under `benches/scaling/`. */
+/** The areas `--areas` expects a ladder in, each a folder under `benches/scaling/`. */
 export const AREAS = [
   "compiler", "values", "arrays", "strings", "regex", "json", "markup", "formats", "templates", "numbers", "time",
   "database", "queue", "cache", "scheduler", "request", "connections", "traffic", "http-client", "lsp", "fmt", "app",

@@ -20,7 +20,7 @@ overturn a decision. **One call orients you**, and which one depends on why you 
 |---|---|
 | A session of the unattended loop | Nothing — looper ran `looper orient` and piped the pack in ahead of your prompt: the live goal, its stage, its handoff and the traps, narrowed to the goal's `context` list. Run it yourself only if it is genuinely absent. |
 | Working interactively, on anything | `looper orient --full` — the same pack with no narrowing |
-| Looking for the file that owns a topic | `bun nv brief --where <keyword>` — a search over the rulebook: the chapters under [docs/rules/](docs/rules/) and every rule's title, plus the homes that are not rules — the goals, the tools, the benches, the perf notes. With no keyword, the chapter list |
+| Looking for the file that owns a topic | `bun nv brief --where <keyword>` — a search over the rulebook: the chapters under [docs/rules/](docs/rules/) and every rule's title, plus the homes that are not rules — the goals, the tools, the benches, the perf ledgers. With no keyword, the chapter list |
 
 Those three route to everything else. The five files behind them, none of which is read in full by default:
 

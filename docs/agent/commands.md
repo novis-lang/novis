@@ -495,7 +495,7 @@ bun nv bench                             # the userland cases, Novis, PHP, Pytho
 bun nv bench 05 regex                    # only the cases whose name contains these
 bun nv bench --check                     # do the engines still agree? (no timing)
 bun nv bench --php-mode default          # PHP as installed, rather than with opcache+JIT
-bun nv bench --json docs/perf/userland.ndjson   # append one record per case
+bun nv bench --json data/perf/userland.ndjson   # append one record per case
 ```
 
 `benches/userland/` holds twenty pieces of ordinary web-and-CLI PHP written twice, `NN-slug.php` beside

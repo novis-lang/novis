@@ -126,7 +126,8 @@ struct CtorObligations<'a> {
 /// [`InitState::rewind`] takes back what it added, the way
 /// [`crate::live::Live`] does for [`crate::locals`]. So a branch costs what
 /// it assigns, and a constructor checks in time linear in its length however
-/// many properties are assigned before each branch.
+/// many properties are assigned before each branch. The undo log spends one
+/// more copy of each assigned property name while the constructor is checked.
 ///
 /// `written` is the other direction: the class's own `readonly` properties
 /// that *may* have been written so far, on some path that reaches this point.

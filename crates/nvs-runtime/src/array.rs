@@ -850,8 +850,8 @@ impl fmt::Debug for ArrayHeader {
 /// only means to *store* the entry under the same key, or to pass the key on
 /// to a callback that may not want it, does not need that string built: the
 /// `Index` arm carries the position itself, and [`NvsArray::set_index`] takes
-/// it without rendering anything. `docs/perf/userland-gap.md` § D is the
-/// measurement, and `Core\Arr`'s `map`/`filter`/`reduce` are the callers.
+/// it without rendering anything. `Core\Arr`'s `map`/`filter`/`reduce` are
+/// the callers.
 ///
 /// The `Str` arm carries a reference the receiver owns, exactly as `key_at`
 /// does — dropping it releases.
@@ -2575,7 +2575,7 @@ mod tests {
 
     #[test]
     fn a_callback_that_does_not_want_a_key_synthesizes_none() {
-        // `docs/perf/userland-gap.md` § D's guard, at the level where the
+        // `nvs_stdlib`'s `arr` module doc's guard, at the level where the
         // allocation either happens or does not: `Core\Arr::map` over a list
         // reads one key per entry and stores under it, and a one-parameter
         // callback never asks for the string. What that member walks is

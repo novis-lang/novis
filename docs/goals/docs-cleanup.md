@@ -14,8 +14,8 @@ stages:
     context: [docs/spec/01-core-library.md, tools/nv/renderers/website-core.ts, tools/nv/renderers/spec-tables.ts, crates/nvs-stdlib/tests/spec_registry_coverage.rs]
   - id: 3
     title: "docs/perf is gone, its ledgers are data and its findings have homes"
-    status: open
-    context: [tools/nv/proofs/ledger.ts, tools/nv/proofs/perf.ts, tools/nv/cmd/scaling.ts, docs/perf/userland-gap.md, docs/goals/fewer-allocations.md]
+    status: done
+    context: [tools/nv/proofs/ledger.ts, tools/nv/proofs/perf.ts, tools/nv/cmd/scaling.ts, docs/goals/fewer-allocations.md]
   - id: 4
     title: every public page is on the website alone
     status: open
@@ -199,8 +199,11 @@ record, a module doc or a line in its goal.
 - [x] `history.ndjson` is deleted, and the rules `testing/perf-history-file` and `testing/perf-secondary-figures` are retired.
 - [x] The three open findings with no record become gap records: an unread POST body of 16 KB or more can lose the response, a head of 100 header lines is answered 431, and `nvs lsp` grows near-quadratically. `docs/perf/performance-pass.md:1`
 - [x] `performance-review.md`'s *Bounded* costs go into each module's `//!` cost section, and `scaling --areas --reviewed` is retired with it. `tools/nv/cmd/scaling.ts:1046`
-- [ ] `userland-gap.md` and `brainsort-evaluation.md` give their still-true lines to `crates/nvs-runtime/src/callable.rs`, `crates/nvs-stdlib/src/sort.rs` and `crates/nvs-stdlib/src/arr.rs`. Goal `fewer-allocations` states its own design where it cites § F, § I and the `Markup` decision, and its stage 9 loses the items this stage does. `docs/goals/fewer-allocations.md:91`, `docs/goals/fewer-allocations.md:167`
-- [ ] Every citation of `docs/perf/` is rewritten, including `perf_guards.rs`'s assertion message, and `docs/perf/` joins `RECORD_CITE`. `benches/abi-probe/tests/perf_guards.rs:2814`
+- [x] `userland-gap.md` and `brainsort-evaluation.md` give their still-true lines to `crates/nvs-runtime/src/callable.rs`, `crates/nvs-stdlib/src/sort.rs` and `crates/nvs-stdlib/src/arr.rs`. Goal `fewer-allocations` states its own design where it cites § F, § I and the `Markup` decision, and its stage 9 loses the items this stage does. `docs/goals/fewer-allocations.md:91`, `docs/goals/fewer-allocations.md:167`
+  - [x] `sort.rs` says where the key sort is slower and what stays on the merge sort; `nvs-codegen`'s module doc says the tier is not where time goes
+  - [x] `fewer-allocations` states the `Markup`, hash and format designs inline
+- [x] `performance-pass.md`'s still-true costs go to their module docs or rules, and the file is deleted. `docs/perf/performance-pass.md:1`
+- [x] Every citation of `docs/perf/` is rewritten, including `perf_guards.rs`'s assertion message, `userland.ndjson` moves to `data/perf/`, and `docs/perf/` joins `DELETED_DOC_CITE`. `benches/abi-probe/tests/perf_guards.rs:2814`
 
 ### 4. every public page is on the website alone
 
@@ -261,29 +264,22 @@ stage 1's last sub-item. Stage 1 stays `open` until then.
 
 Stage 2 is done.
 
-Stage 3's first four items are done. The perf ledgers are under `data/perf/`, and `history.ndjson`
-is gone with its two rules. The three open findings of `performance-pass.md` are gap records:
-`data/gaps/nvs-server/an-unread-post-body-can-lose-the-response.json` and
-`header-line-limit-is-hyper-default.json`, owned by `release-hardening`, and
-`data/gaps/nvs-lsp/open-document-analysis-grows-quadratically.json`, owned by `editor-fixes`.
-`performance-review.md` is deleted. Six of its *Bounded* costs are now a `# What it costs` section in
-their module docs: `sql.rs`, `multipart.rs`, `bigint.rs`, `nvs-server/src/serve.rs`, and the LSP's
-`index.rs` and `document.rs`. The rest were dropped: they were already in their module docs or a rule,
-the code they named is gone (`ClassLayout::slot_of`), or they were a constant factor.
-`scaling --areas --reviewed` is retired.
-
-`docs/perf/` now holds `performance-pass.md`, `userland-gap.md`, `brainsort-evaluation.md` and
-`userland.ndjson`. `bun nv bench --json` appends to the ledger (`tools/nv/cmd/bench.ts:9`).
+Stage 3 is done. `docs/perf/` is gone: every ledger is under `data/perf/`, and `bun nv rules
+--check` fails on a new citation of `docs/perf/` (`tools/nv/cmd/rules.ts:107`). The perf notes'
+still-true facts are in module docs: `sort.rs` (where the key sort is slower), `nvs-codegen`'s
+`lib.rs` (the tier is not where time goes), and the costs `performance-pass.md` named in `regex.rs`,
+`layout.rs`, `ctor_init.rs`, `scheduler.rs`, `channel.rs`, `request.rs` and the task-stack rule.
+Goal `fewer-allocations` states its `Markup`, hash and format designs itself. The measured tables
+and the cross-engine figures were dropped.
 
 The sweep's CI failures are on `main`, not this branch: `docs`, `proofs` on three platforms, the cost
 guards, supply chain, attribution and `docs/novis.md`. None is this goal's.
 
 ### Next
 
-Stage 3's last two items, on `docs/perf/` and the files that cite it.
-- [ ] `userland-gap.md` and `brainsort-evaluation.md` give their still-true lines to `crates/nvs-runtime/src/callable.rs`, `crates/nvs-stdlib/src/sort.rs` and `crates/nvs-stdlib/src/arr.rs`. Goal `fewer-allocations` states its own design where it cites § F, § I and `performance-pass.md` § *Decided*. `docs/perf/userland-gap.md:1`, `docs/perf/brainsort-evaluation.md:1`, `docs/goals/fewer-allocations.md:91`
-- [ ] `performance-pass.md`'s still-true lines go to their module docs or rules, and the file is deleted. `docs/perf/performance-pass.md:1`
-- [ ] Every citation of `docs/perf/` is rewritten, including `perf_guards.rs`'s assertion message and `tests/conformance/core/arr-every-callback-is-offered-value-and-key.nvst:12`. `userland.ndjson` moves to `data/perf/`, and `docs/perf/` joins `RECORD_CITE`. `benches/abi-probe/tests/perf_guards.rs:2814`, `tools/nv/cmd/bench.ts:9`, `tools/nv/cmd/rules.ts:107`
+Stage 4, on `docs/docker.md`, `docs/why-tainted-and-secret.md` and the website pages they join.
+- [ ] `docs/docker.md`'s public parts join the website's Docker guide; the build and *Why not Alpine* go to `docker/README.md`. `docs/docker.md:1`, `website/src/content/docs/guides/production/docker.mdx:1`, `.github/workflows/release.yml:588`, `docker/Dockerfile:15`
+- [ ] `docs/why-tainted-and-secret.md` becomes a website page under `in-depth/`, and *What not to claim yet* goes to `rule:programs/three-claims`. `docs/why-tainted-and-secret.md:1`, `website/src/content/docs/in-depth/concepts/tainted-input.mdx:1`, `README.md:17`
 
 ### Backlog
 

@@ -41,7 +41,7 @@
     reason = "the measured figure is this guard's output. A timing guard that passed silently \
               would report only that a cost is inside its hard bound, which is the one thing a \
               reader already knows when it is green; the printed figures are what makes a CI log \
-              answer how far inside, and `docs/perf/` quotes them"
+              answer how far inside"
 )]
 
 use std::alloc::{GlobalAlloc, Layout, System};
@@ -2811,7 +2811,7 @@ fn an_allocation_round_trip_stays_in_the_pooled_cost_class() {
          frees again; a cache that serves every one of them falls by exactly {BLOCKS} and \
          comes back. Either `nvs_runtime::alloc` is no longer the `#[global_allocator]` for \
          this build, or its cache is no longer serving a request this size; \
-         docs/perf/userland-gap.md § A is the measurement that made Novis own its allocator."
+         `nvs_runtime::alloc`'s module doc says why Novis owns its allocator."
     );
 
     judge(

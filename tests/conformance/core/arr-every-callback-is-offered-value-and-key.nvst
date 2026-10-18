@@ -8,8 +8,8 @@ Every Core\Arr callback is offered ($value, $key) and trimmed to what it declare
 // `ARRAY_FILTER_USE_KEY`/`ARRAY_FILTER_USE_BOTH` pair — and
 // `nvs_runtime::call_callable` trims the tail to the arity the callable wrote.
 // Four members read `nvs_runtime::callable_arity` themselves and skip building
-// a key nobody declared (`crates/nvs-stdlib/src/arr.rs`'s module doc, and
-// `docs/perf/userland-gap.md` § D); the rest always offer both. That split is
+// a key nobody declared (`crates/nvs-stdlib/src/arr.rs`'s module doc); the
+// rest always offer both. That split is
 // exactly where one member could drift from the protocol while still
 // answering plausibly on its own line, so what is asserted below is that the
 // one-parameter and the two-parameter spelling of one function are the same

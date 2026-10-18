@@ -428,7 +428,7 @@ blake3 = { version = "1", default-features = false, features = ["std", "pure"] }
 # A stable sort for keys that map to an ordered integer or a byte string, radix
 # where the key allows it, AVX2/BMI2 chosen at run time.
 # `crates/nvs-stdlib/src/sort.rs` owns why the member has two sorts and which
-# subjects reach this one; docs/perf/brainsort-evaluation.md is the measurement.
+# subjects reach this one, and where the key sort is slower than the merge sort.
 # `rule:packaging/a-c-dependency-answers-two-questions`'s first question is
 # "yes" — every value a program sorts reaches it — and the crate is pure Rust
 # with no dependencies and no C, so the record the rule asks of C is written here
