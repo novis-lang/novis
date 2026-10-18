@@ -201,10 +201,10 @@ Five of them were red, carried as debt since the change that broke each:
 - The PDF slots example's `.out` predated the fill moving to its cell's top-left corner.
 - The PDF billion-laughs attack's 20 MB step fits under the limit since the pdf world copies its
   bytes once. Step 7 is 60 MB, and the render still stops at the limit.
-- **Open:** `tests/hostile/novis/Image-Font/fromBytes/01-bytes-that-pretend-to-be-a-font.nvs`
-  declares `ends-early 4 FATAL`, and step 4 now throws an error under the limit. Font code never
-  reaches the limit, even at 64 MB, so the step cannot be made to. Removing the marker was refused
-  by the loop's permission classifier as removing a security test, so the user decides.
+- The Font attack's step 4 throws `ParseError` under the limit, because Font code never reaches the
+  limit. The user dropped its `ends-early 4 FATAL` marker in `12a028bed`.
+
+`AGENTS.md`'s managed block is looper's `agents` v3, so `looper lint` is green again.
 
 Nightly run 39108526796 is the newest. `supply chain` failed because cargo-deny's container has no
 1.99.1 toolchain, and `ci.yml` now passes it the channel `rust-toolchain.toml` pins. The rest was
@@ -212,8 +212,8 @@ fixed by `8f8966275` and `b34ff85e5`, or was these five proofs.
 
 ### Next
 
-The goal end, once the Font attack is settled.
-- [ ] The user settles the Font attack's step 4. `tests/hostile/novis/Image-Font/fromBytes/01-bytes-that-pretend-to-be-a-font.nvs:4`
+The goal end: the driver judges `floor-debt` on the `DONE` claim.
+- [x] The user settles the Font attack's step 4. `tests/hostile/novis/Image-Font/fromBytes/01-bytes-that-pretend-to-be-a-font.nvs:4`
 - [ ] `floor-debt` green, then `DONE`. `tools/nv/cmd/debt.ts:1`
 
 ### Backlog
