@@ -1,0 +1,9 @@
+<?nvs
+// Shows that the alternative syntax `if (…): … endif;` is not allowed. Write
+// braces instead. This program does not compile.
+// proof: compile-error
+
+int $n = 2;
+if ($n == 2):
+    echo "two";
+endif;

@@ -10,5 +10,5 @@ function. Write `[int $a, int $b] = …` instead of `list($a, $b) = …`, and `r
 goes at the top of a file, never inside a body.
 
 **The examples below** show what to write instead of `goto`, instead of `global` and a `static`
-variable, and instead of `list()` and the alternative syntax. The last one is a `goto` that does not
-compile.
+variable, and instead of `list()` and the alternative syntax. The last two are a `goto` and an
+`if (…): … endif;` that do not compile.

@@ -9,7 +9,8 @@ Each form has its own error code:
   `E0233`.
 
 A label, `declare(…)` and the alternative syntax give a general syntax error. That error does not
-name what to write instead.
+name what to write instead. The alternative syntax is the colon form of `if`, `while`, `for`,
+`foreach` and `switch`, with `endif`, `endwhile`, `endfor`, `endforeach` and `endswitch`.
 
 In `[int $a, int $b] = …`, each variable needs its type. `[$a, $b] = …` does not compile, even when
 `$a` and `$b` are already declared.
