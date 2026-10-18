@@ -1,0 +1,13 @@
+# cargo-nextest's settings. Only the Miri job runs nextest (`.github/workflows/ci.yml`, job `miri`):
+# each test is a process of its own there, so a test Miri cannot interpret fails alone and the run
+# goes on to list every other result.
+
+[profile.miri]
+fail-fast = false
+# Each Miri process loads the whole test crate, about 1 GB resident on `nvs-stdlib`, and nextest
+# starts one per CPU by default. Sixteen of them swap on a 16-CPU machine with 16 GB; eight are
+# about 9 GB. CI's runner has 4 CPUs and is bound by them, so the cap costs it no time.
+test-threads = 8
+# A test still running after five minutes is stopped and reported as a failure. A test that is only
+# slow under Miri takes a smaller input under `cfg!(miri)` instead.
+slow-timeout = { period = "60s", terminate-after = 5 }
