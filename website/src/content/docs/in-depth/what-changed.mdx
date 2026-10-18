@@ -11,3 +11,22 @@ This page lists the changes in each release of Novis, newest first. Each release
 the highlights, the new features and the changes that can break your code.
 
 There is no release yet. The [Roadmap](/in-depth/roadmap/) says what is built and what comes next.
+
+## Version numbers
+
+A version number has three parts: `MAJOR.MINOR.PATCH`. `nvs --version` prints it. The same number
+is the version of the language.
+
+Before version 1.0, the second part is the one that can break your code. A change from `0.4` to
+`0.5` can break it. A change from `0.4.1` to `0.4.2` never does. From 1.0 on, the first part is the
+one that can break your code.
+
+Before version 0.1.0, any change can break your code. From 0.1.0 on, a version number covers these
+things:
+
+- the language: what you can write, and what it does;
+- every `Core` class and method, and what it does;
+- the settings in `nvs.toml`, and their default values;
+- the `nvs` commands, their options, their exit codes and their JSON output;
+- the code of each error message, but not its text;
+- the data that `serialize()` writes.

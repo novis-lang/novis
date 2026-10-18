@@ -14,7 +14,7 @@ exactly one trigger, and it is a person choosing `Run workflow`.
 |---|---|---|
 | 1 | `plan` — the next version, and the notes rendered from the commit log | nothing |
 | 2 | `test` — the whole of [ci.yml](../.github/workflows/ci.yml), called, not copied | nothing |
-| 3 | `build` — seven targets, each at the version being released | nothing |
+| 3 | `build` — six targets, each at the version being released | nothing |
 | 4 | `publish` — bump, changelog, commit, tag, push, draft release | **everything, at once** |
 | 5 | `docker` — two image variants, from the binaries step 3 built, each smoke-tested by `tests/docker/smoke.sh` before it is pushed | the immutable image tags; in a dry run, nothing |
 
@@ -86,7 +86,7 @@ protection blocks that like any other push.
 Note that a push made with `GITHUB_TOKEN` does **not** trigger workflows. That is what stops the
 release commit from starting a fresh CI run, and it is deliberate.
 
-### 5. Public repository, or three build legs stop working
+### 5. Public repository, or two build legs and the attestation stop working
 
 Two matrix legs use GitHub's ARM runners (`ubuntu-22.04-arm`, `windows-11-arm`), which are free on
 public repositories and unavailable on private ones. Build provenance attestation is likewise a
@@ -152,9 +152,9 @@ thing to question.
 
 ## The version scheme is not plain SemVer
 
-`rule:packaging/below-1-0-the-breaking-slot-moves-left` owns it, and below 1.0 the
-breaking slot moves left by one — `0.MINOR` carries breaking changes and `0.MINOR.PATCH` is always
-compatible. From today's 0.0.1:
+`rule:packaging/below-1-0-the-breaking-slot-moves-left` owns it, and the website's
+[What changed](../website/src/content/docs/in-depth/what-changed.mdx) page says it to users. What
+it means for `bump`, from today's 0.0.1:
 
 | `bump` | Result | |
 |---|---|---|
@@ -179,15 +179,11 @@ Three habits in the workflow keep it that way, each load-bearing rather than dec
 **no `${{ }}` inside any `run:` block**, because an expression is pasted in before the shell parses
 it and the commit log this workflow reads is written by an unattended loop, not curated by hand.
 
-## Verifying a published binary
+## What an archive carries
 
-Each archive carries a signed statement that this repository's workflow, at a named commit,
-produced those exact bytes — keyless, so there is no key to leak:
-
-```sh
-gh attestation verify nvs-0.1.0-linux-x86_64.tar.gz --repo novis-lang/novis
-sha256sum --check --ignore-missing SHA256SUMS
-```
+Each archive carries a keyless build provenance attestation, so there is no key to leak, and the
+release carries `SHA256SUMS`. How a user checks both is the website's
+[install page](../website/src/content/docs/install/index.mdx) § *Check a release archive*.
 
 Archives are deliberately **not** stripped. `[profile.release]` in [Cargo.toml](../Cargo.toml)
 keeps `debug = "line-tables-only"` so a production backtrace names lines; stripping the shipped

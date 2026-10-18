@@ -90,6 +90,22 @@ compiler.
 
 </Steps>
 
+## Check a release archive
+
+There is no release yet. Each release will have an archive of `nvs` for each platform, and a file
+`SHA256SUMS` with the checksum of each archive. Each archive also has a signed statement. It says
+that the release workflow of the Novis repository built the archive, and from which commit.
+
+These two commands check an archive. The first one needs the GitHub CLI, `gh`.
+
+```sh
+gh attestation verify nvs-0.1.0-linux-x86_64.tar.gz --repo novis-lang/novis
+sha256sum --check --ignore-missing SHA256SUMS
+```
+
+The first command checks the signed statement. The second command checks the archive against its
+checksum in `SHA256SUMS`.
+
 ## The commands you use first
 
 | Command | What it does |
