@@ -260,8 +260,9 @@ example.test:8080
 ```
 
 - The path is relative to the requiring file's directory. A path written directly in the code is
-  resolved while compiling, so a missing file is a compile-time error; a computed path is resolved at run time and
-  throws if it cannot be read.
+  resolved while compiling, so a missing file is a compile-time error (`E0311`). Class constants
+  joined with `.` count as written directly. A path built at run time is never loaded: the `require`
+  throws `RuntimeError` when it is reached, even if the file exists.
 - The value of a `require` expression is `mixed` — convert it with `as` to the type the file returns.
 - **Declarations cross and variables do not.** Every class, interface, enum and `type` alias either
   file declares is visible to the other as if it had been pasted in. A local does not cross in either
@@ -296,8 +297,8 @@ autoload 'App\{..}' from '../src';                 // `{..}` is the name of the 
   the one the map found it by, namespace included (`E0317`).
 - A root that does not exist is allowed. `nvs check --autoload-map` lists it under `missing`.
 - The map is built while compiling, from every `autoload` in every file the program reaches;
-  there is no runtime loader and no registration function. A class that cannot be found is a
-  compile error naming the roots that were searched.
+  there is no runtime loader and no registration function. A class that cannot be found is the
+  compile error `E0303`, the same as any undeclared name; `nvs check --autoload-map` shows the roots.
 - The same map answers `Core\Program::implementing<I>()` — every non-abstract class implementing
   an interface, found through the autoload roots even when nothing names it.
 
@@ -321,7 +322,7 @@ class Files {
 Files::load('data/rates.json');            // reads /srv/shop/src/data/rates.json
 
 string $name = 'rates.json';
-Core\IO::read('data/' . $name);            // throws RuntimeError: the path is relative
+Core\IO::read('data/' . $name);            // does not compile (E0840): the path is relative
 ```
 
 - Every `Core` parameter that names a file is a file path parameter: `Core\IO`'s path methods,
