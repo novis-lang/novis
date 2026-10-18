@@ -1,0 +1,9 @@
+<?nvs
+// Shows that `+` with an `int` on one side and a `uint` on the other does not compile.
+// proof: compile-error
+
+int $change = -1;
+uint $stock = 2;
+
+// Convert one side with `as int` or `as uint` first.
+echo $stock + $change, "\n";
