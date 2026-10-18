@@ -286,6 +286,13 @@ with each.
       - [x] `what-does-not-exist`
       - [x] `lang:types`' perf recorded after the chapter's last edit
   - [ ] `30-expressions`, `50-classes` and `55-enums`
+    - [x] `precedence-and-associativity`, `operators-that-do-not-parse`, `arithmetic` and `comparison-and-equality`
+      - [x] `precedence-and-associativity`
+      - [x] `operators-that-do-not-parse`
+      - [x] `arithmetic`
+      - [x] `comparison-and-equality`
+    - [ ] `logical-operators-and-truth`, `string-operators`, `and-the-ternary` and `assignment`
+    - [ ] the rest of `30-expressions`, then `lang:expressions`' perf recorded after the chapter's last edit
   - [ ] `60-iteration`, `70-errors` and `80-concurrency`
   - [ ] `90-attributes` and `95-testing`
 
@@ -563,11 +570,33 @@ The sweep's red items are not this branch's: run 39108526796 ran on `main` at 1a
 sessions found, and the red bench `benches/members/core/Ldap-Connection/delete.nvs` belongs to the
 `ldap` work on `main`. `bun nv site --check` also fails on pages this goal has not touched.
 
+`30-expressions`' first four features are done, each fact run on the binary.
+`precedence-and-associativity`'s `details.md` has the full order as a list, `as`, `!` with `is`,
+`|>`, `new …->m()`, `clone`, the three `W1022` cases and the expression `catch`; example 04 is the
+chapter's block, extended to `!`/`is`, `|>` and `new`. `operators-that-do-not-parse`'s `about.md`
+said every error names the replacement, but a backtick and `&$x` give a general syntax error; its
+`details.md` lists each form's code, and example 04 is the chapter's `===` block. `arithmetic` found
+two chapter errors, both against `rule:types/arithmetic`, which the binary agrees with: `%` works on
+`decimal` (the chapter said integers only), and `**` on a `decimal` is `E0455`. A `decimal` division
+by zero throws `ArithmeticError` with the range message, not `Division by zero`. The chapter's table
+(`30-expressions.md:101`) and the syntax page's `%` row now say so. Its `about.md` was rewritten (it
+said both sides must be the same kind, and example 01 adds an `int` and a `float`); examples 04 to 06
+are the chapter's `E0407`, unary and bitwise blocks. `comparison-and-equality` found one wrong claim
+in four texts: `<=>` on two objects returns `compareTo`'s value unchanged, as
+`rule:classes/ordering-lowers-to-compare-to` says, not `-1`, `0` or `1`. The chapter
+(`30-expressions.md:212`), `about.md`, example 03's comment and the syntax page now say so. Its
+`details.md` has each `E0466`, `E0715` and `E0411` pair, exact `int`/`uint` comparison, arrays,
+`mixed`, and a `?int` with `<` compiling and throwing `RuntimeError` on `null` (the union is answered
+from the tag, by design in `crates/nvs-ir/src/ir.rs:2761`); examples 04 and 05 are the chapter's two
+error blocks. Probing found a compiler bug: `true < 3` and `1 < 2 < 3` pass the checker and stop at
+`E0901`, now the gap record `data/gaps/nvs-types/ordering-a-bool-against-a-number.json`, owned by
+`release-hardening`. `llms-full.txt` is rendered again.
+
 ### Next
 
-`30-expressions` from its top, one feature per slice: 16 features in 694 lines, so about four a
-session. `precedence-and-associativity` (53 lines), `operators-that-do-not-parse` (28),
-`arithmetic` (108) and `comparison-and-equality` (68) are the first group. The chapter's
+`30-expressions` continues: 12 features left. The next group is `logical-operators-and-truth`
+(`30-expressions.md:265`, 20 lines), `string-operators` (18), `and-the-ternary` (60) and
+`assignment` (22). The chapter's
 `inout` line (`30-expressions.md:472`) is already fixed. Work each feature the way `break-and-continue` was done: read
 its chapter section, its `about.md` and its syntax page, probe each fact `about.md` lacks on the
 binary, write `details.md`, and turn each chapter code block no example shows into an example
@@ -578,7 +607,10 @@ A probe that reads a file needs an `nvs.toml` granting `[capabilities.fs] read` 
 probe is a file under `.agent-tmp/` written with Write, since the guard refuses a redirect.
 A probe catching two error types needs two variable names, or it stops at `E0406` before the line
 you meant to test. A probe's method goes in a class: a top-level `function` stops at `E0215`.
-- [ ] `30-expressions` from its top, in chapter order. `docs/reference/lang/30-expressions.md:8`
+An enum is `enum Suit { Hearts, Spades }`, with no `case`. Many probes at once: a JSON map of name to
+body, and a script under `.agent-tmp/` that writes and runs each; the guard refuses a shell loop of
+`nvs run` over `docs/examples/`, so check a new example with `--bless`.
+- [ ] `30-expressions` from `logical-operators-and-truth`, in chapter order. `docs/reference/lang/30-expressions.md:265`
 - [ ] Once the chapter's last edit lands, `bun nv proofs --record-perf --group lang:expressions`, and commit `data/perf/members.ndjson`. `tools/nv/proofs/roster.ts:28`
 
 ### Backlog
