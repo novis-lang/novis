@@ -1,0 +1,8 @@
+<?nvs
+// Shows that `==` between an `int` and a string does not compile. Convert one side with `as` first.
+// proof: compile-error
+
+int $quantity = 1;
+if ($quantity == "1") {
+    echo "one item\n";
+}
