@@ -103,6 +103,8 @@ skip = [
   "docs/agent/conventions.md",
   "docs/agent/doc-style.md",
   "docs/agent/playbook.md",      # `looper lint` reads the template block's own list as bullets and refuses them
+  "docs/agent/prose.md",         # names `bun nv prose`, the command `[gates] prose` runs
+  "docs/agent/testing.md",       # names `bun nv affected`, which a session without looper runs
   "tools/git-hooks/commit-msg",  # Novis's hook passes a merge and git's `fixup!` subjects, which the template refuses
 ]
 

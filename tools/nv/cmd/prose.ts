@@ -2,8 +2,8 @@
 // over `SENTENCE_MAX` words, a dash that joins two sentences, and a banned word. It never judges the
 // meaning, which AGENTS.md § *Text an end user reads* binds and nothing checks.
 //
-// The banned words are the quoted ones on the *No filler* line of `docs/agent/prose.md`, which looper
-// writes. Code, front matter, tables, HTML comments and link targets are not prose, and text in double
+// The banned words are the quoted ones on the *No filler* line of `docs/agent/prose.md`, which this
+// repository owns. Code, front matter, tables, HTML comments and link targets are not prose, and text in double
 // quotes is a mention, so a banned word in quotes is not flagged.
 //
 // It reads the files `PATHS` names that differ from `HEAD` or are untracked, so old text never blocks a

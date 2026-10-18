@@ -867,3 +867,18 @@ claims, `looper exec` and the loop itself.
 
 `tools/git-hooks/commit-msg` is this repository's own hook, and needs no looper. It rejects a trailer
 and a subject out of the shape `looper.toml`'s `[commits]` sets.
+
+**Why it is shaped this way.** The user decided that the project runs and is developed the same way with
+and without looper, so each check is written once, in `bun nv`, and `looper.toml`'s `[gates]` names it.
+- `bun nv links` and `bun nv layout --check` check more than looper's own: source-file links and their
+  form, crate and bench-package rows, and the `[audited unsafe]` marker.
+- A check's configuration lives with the check unless looper still reads it. `[commits]` stays in
+  `looper.toml` because `looper wrap` reads it, and the hook reads it there with awk. `[prose] scope` stays
+  because AGENTS.md's managed block renders it. `docs/agent/prose.md` and `testing.md` are on `[sync] skip`, so they name the `bun nv` command.
+- The settings keep an entry whose command is exactly `looper guard`, because `looper doctor` and
+  `looper sync` want it. The second entry starts `bun nv guard` only where looper is absent, so the
+  rules run once either way. The cost is a `bun` start per guarded tool call, where looper's guard was
+  one native binary.
+- The commit hook stays in sh and awk, so a commit starts no new process.
+- Joining another session's verify run is loop coordination, so a session without looper runs
+  `bun nv verify` with `run_in_background` and joins nothing.
