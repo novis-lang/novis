@@ -3,45 +3,10 @@
 Novis is a JIT-compiled, memory-safe language for web servers and the command line. It exists to run web
 requests and CLI programs **securely and fast**.
 
-This file is inlined into every agent's context before it does anything, so it holds only what cannot be
-looked up on demand: the routing table's three entries, the priority ordering, the rules whose whole cost
-is that you did not know they existed, the one rule nothing can check — how text an end user reads is
-written — and the session workflow. **Everything else is one call away.**
-
-**Every fact in this repository has exactly one home.** If two documents state the same thing, the one
-named as the home is authoritative and the other is a bug — fix it rather than reconciling it in your head.
-
-## Where to look
-
-Do not read the docs tree breadth-first: most of it is reasoning you only need when you are about to
-overturn a decision. **One call orients you**, and which one depends on why you are here:
-
-| You are | Run |
-|---|---|
-| A session of the unattended loop | Nothing — looper ran `looper orient` and piped the pack in ahead of your prompt: the live goal, its stage, its handoff and the traps, narrowed to the goal's `context` list. Run it yourself only if it is genuinely absent. |
-| Working interactively, on anything | `looper orient --full` — the same pack with no narrowing |
-| Looking for the file that owns a topic | `bun nv brief --where <keyword>` — a search over the rulebook: the chapters under [docs/rules/](docs/rules/) and every rule's title, plus the homes that are not rules — the goals, the tools, the benches, the perf ledgers. With no keyword, the chapter list |
-
-Those three route to everything else. The five files behind them, none of which is read in full by default:
-
-- **[docs/ground-rules.md](docs/ground-rules.md)** — generated, one line per rule, each linking the rule
-  it states. The rule's fragment under `docs/rules/<topic>/` is the rule; the chapter
-  `docs/rules/<topic>.md` that renders it is what you read.
-- **[docs/agent/commands.md](docs/agent/commands.md)** — how this repo is driven: `nv peek`, `nv verify`,
-  `nv splice`, `nv disk`, WSL, valgrind, and the two shell rules below in full.
-- **[docs/agent/doc-style.md](docs/agent/doc-style.md)** — how to write anything in `docs/`, and the length
-  targets nothing enforces.
-- **[docs/agent/conventions.md](docs/agent/conventions.md)** — the *shape* of a commit message, a `.nvst`
-  case, a `Core` member, a rule fragment, a diagnostic. Read this instead of opening an example to
-  copy.
-- **[docs/agent/grounding.md](docs/agent/grounding.md)** — what an answer owes the person who asked for
-  it: how a claim carries its evidence, and why a proposal is verified before it is offered rather than
-  when it is questioned.
-
-**A rule's fragment under `docs/rules/` is the rule, and it is always currently true.**
-There are no decision records. A rule holds its reasons and its Declined list, and a new decision becomes
-a goal. `git log` is the only history, and `bun nv rules --check` fails on a record, a citation of one
-or a citation of a deleted doc.
+This half of the file holds only what looper's managed block below it does not say: the priority
+ordering, the rules only this project has, how text an end user reads is written, what a loop session
+owes on top of the block's *Session workflow*, and where Novis departs from the stack files. The block
+holds the routing table, the shared rules, the context budget, the session workflow, goals and commits.
 
 ## The priority ordering
 
@@ -69,80 +34,69 @@ When choosing between designs:
 - Saving memory at the cost of an invariant every future contributor must remember is the wrong direction —
   that is the account the unsafe modules are already drawing on.
 
-## The rules you will otherwise break
+## Novis works without looper
 
-Each is one sentence here because not knowing it exists is the entire cost. The mechanism, and why, is in
-[docs/agent/commands.md](docs/agent/commands.md), except rules 7 to 9, whose homes are
-[docs/agent/conventions.md](docs/agent/conventions.md) § *A code comment*,
-[docs/agent/grounding.md](docs/agent/grounding.md) and `rule:testing/feature-proofs`, and rules 10 to 12,
-which are whole where they stand.
+**Every Novis developer, and CI, can do all of the project's work without looper.** Only a few people
+have looper installed, and CI never does. So every gate a change must pass (build, test, verify, the
+guard, the prose and commit checks, the doc and layout checks) is written once in `bun nv` and runs with
+`bun nv` alone. Looper may run that command. It never replaces it.
 
-1. **A shell never carries file content into the tree.** Create and edit files with Write and Edit — never
-   a heredoc, a `>` redirect or a `sed -i`, because the shell parses your apostrophes and backticks before
-   it runs anything. An edit those tools cannot express goes through `bun nv splice`.
-2. **One shell call runs one command** — a `;`-chain reports only the last one's exit status. Independent
-   calls may go out together in one message, but measured sessions never do it, so use the two tools that
-   batch for you instead. **Read with `bun nv peek A.rs:120-160 B.rs:@sym C.md:"## 4"`** — as
-   many targets as you have questions, one call, and `--locate <symbol> ...` for `file:line` anchors
-   alone. **Write a run of three or more edits with `bun nv splice --patch <file>`** — one patch,
-   any number of files, all of it or none of it.
-3. **Read a big file in the region you need.** Whole file under ~400 lines; past that, `grep -n` for the
-   anchor and read around it. Context, not the clock, is what caps a session.
-4. **Verify with one call, once, at the end:** `bun nv affected --run`. It names what your change
-   reaches, runs `bun nv verify` — build, fmt, test, the `.nvst` trees and clippy, each step only when
-   what it reads changed — and then only the acceptance checks your change reaches that are not green
-   yet. A loop session runs `looper verify` instead, which runs `bun nv verify` alone and joins the
-   tree's run if one is going, because the driver sweeps the rest. Never choose a wider command
-   yourself: `nv guard` refuses one, and `bun nv affected` without `--run` says what would run and why.
-5. **A debug cargo command never takes `-p`.** `cargo build`, `cargo test` and `cargo clippy
-   --all-targets` are the whole tree and warm in seconds; a `-p <crate>` resolves features over that one
-   package and writes a second copy of every workspace crate beside the first, and a day of those
-   filled the disk. Narrow what *runs* — `bun nv verify -p <crate>`, or a `--test <name>`
-   or `--lib` filter under `cargo test` — and leave `--release -p` to the cost guards.
-6. **Finish with one call:** `looper wrap <file>` applies steps 4 and 5 below — playbook bullet,
-   handoff, one commit per slice, status — or refuses and changes nothing.
-7. **A comment says what the code does now, and is rewritten as a whole** — never edited by leaving the
-   old sentence beside the new one, so no comment ever reads as a changelog. `git log` is the only
-   history this repository keeps: no dates, no counts of things that can change, no measured figures
-   the code does not enforce. A comment an end user reads is the exception, and § *Text an end user
-   reads* below is its rule.
-8. **Verify a claim before you make it, not when it is questioned.** Every claim carries a `file:line`
-   or the words *not checked*, and advice you volunteered meets the same bar as the answer — a
-   follow-up that sends you to the code and changes what you said means the answer went out early.
-9. **A feature is finished when its feature proofs exist, not when it works** — `about.md`, tests from
-   Novis and from Rust, three examples, one bench with its growth, one attack, and its help in the binary. `bun nv proofs --id '<feature>'`
-   prints what it still owes and the path of each, and every `.nvs` and `about.md` among
-   them is held to § *Text an end user reads* below.
-10. **Nothing is written outside the project's folders.** Every scratch file — a patch, a probe script, a
-   throwaway case, a commit message, a log — goes under `.agent-tmp/` at the repository root, which is
-   git-ignored and is where `nv verify` already writes its logs. Never the system temp directory, a
-   harness's own scratchpad or a home directory, whatever a harness offers by default: the user set this
-   for every agent and every session, and a file outside the tree is one they cannot see, review or
-   clean up. **Whoever writes a scratch file deletes it when the work it served is done** — a session
-   before it stops, a subagent before it reports, a test in its own `afterAll` or `finally` — and leaves
-   only what a tool reads back on its next run (the `verify-*` logs and timings, `peek-ledger.json`,
-   `select-rec/discard/`). Delete only the files you wrote yourself: another
-   agent may be working in the tree at the same time. A git worktree is scratch too: it goes under
-   `.agent-tmp/worktrees/<branch>`, and the agent that made it removes it and deletes its branch the
-   moment that branch is merged into `main`, with `git worktree remove` and `git branch -d`, never a
-   forced form: one of them refusing means work would be lost, and that is a question for the user.
-11. **Nothing a reporter told you is written into the tree under its own name.** A bug report, a pasted
-   configuration or a log names somebody's modules, namespaces, directories, hosts, URLs and counts, and
-   all of it is theirs: the test, the rule, the example, the comment and the commit
-   message that come out of the report use neutral names instead — `Blog`, `Shop`, `Framework`,
-   `example.com` — and say "many" where the report gave a figure. Reproduce the *shape* of what was
-   reported, never its words: this repository is public, and a name copied from a report publishes a
-   piece of somebody's private codebase.
-12. **An interactive session splits big work across subagents, and decides that before it starts.** Big
-   is work that will not fit under the session's own ceiling (§ *Session workflow* step 2): several
-   slices over different file sets, a sweep across many areas, a long fix-and-verify loop. The session
-   keeps the decisions, the check of each result and the wrap; each subagent gets one narrow deliverable
-   — a slice or two committed one at a time, or a report — and a brief that names its ceiling and tells
-   it to commit and report back before it gets near it. Read-only subagents go out together in one
-   message; ones that write run one after another, unless each has its own worktree under
-   `.agent-tmp/worktrees/`. A subagent's report is a pointer to check, not evidence (rule 8). When the
-   session itself nears its ceiling with work left, it says where the work stands and tells the user to
-   continue in a fresh session, never runs past it.
+- **Never move, replace or delete a command, a check or an instruction so that the work needs looper.**
+  A change that would do so is wrong even when looper's version checks more: extend `bun nv` instead,
+  and change looper to run it.
+- Only loop coordination is looper's alone: the loop itself, claims, `looper exec`, goal lint and the
+  goals README render.
+- Where looper's managed block below names a `looper` command for a gate, the `bun nv` command it runs is
+  what a session without looper uses, and this section wins over the block. A cleanup of this file keeps
+  every such `bun nv` command. [commands.md](docs/agent/commands.md#without-looper) § *Without looper*
+  names the command for each.
+
+## The rules only this project has
+
+Each is here because not knowing it exists is the entire cost. The file named after each is its home.
+
+- **Find the file that owns a topic with `bun nv brief --where <keyword>`.** It searches the chapters
+  under [docs/rules/](docs/rules/), every rule's title, and the homes that are not rules: the goals,
+  the tools, the benches and the perf ledgers. [docs/ground-rules.md](docs/ground-rules.md) is one line
+  per rule. A rule's fragment under `docs/rules/<topic>/` is the rule, and it is always currently true.
+  There are no decision records: a rule holds its reasons and its Declined list, and `bun nv rules
+  --check` fails on a record or a citation of one.
+- **A debug cargo command never takes `-p`.** `cargo build`, `cargo test` and `cargo clippy
+  --all-targets` are the whole tree and warm in seconds. A `-p <crate>` resolves features over that one
+  package and writes a second copy of every workspace crate, and a day of those filled the disk.
+  Narrow what runs instead: `bun nv verify -p <crate>`,
+  or `--test <name>` or `--lib` under `cargo test`. `--release -p` is the cost guards' alone
+  ([commands.md](docs/agent/commands.md) § *A debug cargo command never takes `-p`*).
+- **Read with `bun nv peek`, and write a run of three or more edits with `bun nv splice --patch
+  <file>`.** `bun nv peek A.rs:120-160 B.rs:@sym C.md:"## 4"` reads as many targets as you have
+  questions in one call, and `--locate <symbol> ...` gives `file:line` anchors alone. One patch edits
+  any number of files, all of it or none of it ([commands.md](docs/agent/commands.md) § *One shell call
+  runs one command, and its exit status is the last one's*).
+- **A mid-work check is `bun nv verify --fast -p <crate>`**: the build, then one crate's tests. The full
+  gate runs once, at the end of the group ([commands.md](docs/agent/commands.md) § *Verifying*).
+- **The end-of-group gate is `bun nv affected --run`.** It runs `bun nv verify` over what the change
+  reaches, then the acceptance checks it reaches that are not green yet. In the loop, `looper verify`
+  runs `bun nv verify` and joins a run already going. Without looper, `looper wrap` is the handoff
+  overwritten by hand and one `git commit -F <file>` per slice ([commands.md](docs/agent/commands.md)
+  § *Without looper*).
+- **The guards refuse a shell habit a tool covers, and each refusal names the call to make instead.**
+  A `>` redirect into the tree, a whole read of a big file, `cargo test -p`, `sleep` and a run wider
+  than the change are among them ([commands.md](docs/agent/commands.md) § *What the guards refuse*).
+- **A scratch file is deleted by whoever wrote it, and a worktree by whoever made it**, once its work is
+  done, and a worktree never with a forced form ([commands.md](docs/agent/commands.md) § *Scratch files
+  and worktrees*).
+- **A feature is finished when its feature proofs exist, not when it works**: `about.md`, tests from
+  Novis and from Rust, three examples, one bench with its growth, one attack, and its help in the
+  binary. `bun nv proofs --id '<feature>'` prints what it still owes and the path of each, and every
+  `.nvs` and `about.md` among them is held to § *Text an end user reads* below
+  (`rule:testing/feature-proofs`).
+- **Nothing a reporter told you is written into the tree under its own name.** A bug report, a pasted
+  configuration or a log names somebody's modules, namespaces, directories, hosts, URLs and counts, and
+  all of it is theirs. The test, the rule, the example, the comment and the commit message that come out
+  of the report use neutral names instead — `Blog`, `Shop`, `Framework`, `example.com` — and say "many"
+  where the report gave a figure. Reproduce the *shape* of what was reported, never its words: this
+  repository is public, and a name copied from a report publishes a piece of somebody's private
+  codebase.
 
 ## Text an end user reads
 
@@ -263,90 +217,9 @@ block, words in a sentence, a dash joining two — and nothing about the words. 
 about whether the comment is plain; a line it names is written again from what the code does, never
 trimmed until it passes.
 
-## Session workflow
-
-Every session runs the same five steps, in this order, and **stops**:
-
-1. **Orient in one call** — already done for you in the loop (looper pipes the pack in with the
-   prompt), `looper orient --full` interactively.
-   That is the map, where the work stands, the traps that apply to these files, the shapes you are about to
-   write, and the rules this goal lives inside. It is narrowed on purpose: if you find yourself needing
-   something it did not print, that is a gap in the goal's `[context]` manifest — say so in the handoff.
-2. **Do the work — as much of the group as fits under the context ceiling.** The handoff names a group of
-   related slices and the file set they share. **Keep taking slices from that group while both hold: the
-   next one touches files already loaded, *and* you are under 120k with the previous one committed. Stop at
-   the first slice that fails either test.** Context is the binding budget here, not the clock: an agent
-   degrades well before its window is full, so the ceiling is a fixed **200k** for a loop session and
-   **250k** for an interactive session and for each subagent it starts (rule 12). **This
-   paragraph is the cap's only home** — every other file points here rather than restating a number.
-
-   **The gate is the budget, not a count of slices.** A session pays a fixed cost — orienting, verifying,
-   wrapping — that is the same for a three-line slice as for a three-hundred-line one, so small slices over
-   one file set share a session and one hard slice fills it alone. looper's session log (`looper log`)
-   shows that fixed cost; read it there, because this file copies no measured figure.
-3. **Verify what you touched, once, at the end of the group** — `looper verify` in the loop, started
-   in the background as § *In the loop* says, `bun nv affected --run` anywhere else, plus whatever the
-   change specifically warrants (a `valgrind` run for a new refcount edge). **This is the only place
-   verification happens**, and a group shares one run: the build is the same build.
-4. **Write the docs and the handoff, once for the whole group.** A playbook bullet if a trap cost you
-   time, and the live goal's handoff overwritten with where the work stands now. The
-   handoff is *state* — a fact that will still be true in ten sessions belongs in the playbook, a rule, or
-   a crate's module doc instead. Naming the **next** group, and the file set it shares, is this step's job:
-   you are the only one holding the context to decide it cheaply, and `bun nv peek --locate` turns
-   its `file.rs:NN` anchors into one call.
-5. **Commit — one per slice, all after step 3 is green**, staging each slice's own files so `git log`
-   still reads a slice at a time. Then you are done.
-
-**Steps 4 and 5 are one call.** Write a single wrap file — playbook bullet, handoff, a `## commit:` per
-slice, the status line — and apply it with `looper wrap <file>` (`--template` is the format). It applies
-everything or refuses everything, so there is no half-written tail.
-
-**After step 5, stop.** Do not re-run `cargo build`/`test`/`clippy`/`fmt`, do not re-read the orientation,
-do not re-check a doc against a length. Writing prose cannot break a build, so there is nothing a second
-test run could discover. If step 4 or 5 turned up a real problem, fix it and re-verify *that* — otherwise
-the session is over.
-
-## Keep each slice small, commit every one of them
-
-Step 5 above, in detail:
-
-- Always commit your work before you exit, and never leave a slice uncommitted. Stage each slice's own
-  files, and let the last commit sweep whatever is left.
-- The handoff is the live goal's `## Handoff` in `docs/goals/<slug>.md`. **Overwrite it**, never append:
-  every later session reads it whole, so it is a bounded state file, not a changelog. Its three parts:
-  `### State`, a few lines on what is on disk and what is blocked; `### Next`, the next group as two to
-  four slices under one line naming the stage and the file set they share, each item naming the rule
-  that specifies it and its anchors repo-rooted (`crates/nvs-runtime/src/ctx/isolate.rs:116`), because
-  the item is where `looper orient` reads the code it inlines into the next pack; and `### Backlog`, up
-  to six one-line items, each with its owning doc. A fact that outlives ten sessions goes to the
-  playbook, a rule's fragment or a module doc, and the handoff points at that home rather than restating
-  it. Aim for about 60 lines, and never spend a session trimming it. Then show the user the same
-  prompt in chat.
-- **The playbook is the opposite file**: traps, not history ([docs/agent/playbook.md](docs/agent/playbook.md)).
-  Add a bullet in the shape [conventions.md](docs/agent/conventions.md) § *A playbook bullet* gives when a
-  trap costs you time, edit one when it stops being true, and never reword one or write a session's story
-  into it.
-- The process docs drift as decisions land. Periodically — the user fires this by hand, never you
-  automatically — re-run the pass in [docs/agent/doc-cleanup.md](docs/agent/doc-cleanup.md).
-- Every time we add, change or remove a feature, decide and say what the tradeoffs are in performance,
-  memory, usability and simplicity for developers using the language. If there are large tradeoffs, notify
-  the user and ask for agreement before proceeding. If there are only benefits, go ahead.
-- **The schedule is the chain.** The chain and the goal files are looper's, under
-  [docs/goals/](docs/goals/README.md), as § *Goals* below says. Known-gap detail is a gap record under
-  `data/gaps/`, named from the crate's module doc. **A side goal is a goal file off the
-  chain.** It runs as a side loop (`looper loop add --side <slug>`) in a lane: looper makes the
-  worktree `.agent-tmp/worktrees/lane-<n>` on branch `side/<slug>`, and the `before_run` hook `bun nv
-  side --prepare --hook` prepares it. A side loop whose `.agent-tmp/worktrees/side/<slug>` already
-  exists keeps that worktree. Once its goal is reached
-  and its file deleted, the loop lands its branch itself: it merges `main` in, runs verify, pauses the
-  other loops and fast-forwards `main`. It never pushes.
-- **Name a goal by its slug, never by its number** — in prose, a comment, a commit message, an owner
-  column and what a tool prints. A position beside a total (`29 of 43`) is fine; a position moves when a
-  goal is inserted, and a slug never does.
-
 ## In the loop
 
-What a loop session owes on top of § *Session workflow*:
+What a loop session owes on top of the block's § *Session workflow*:
 
 - **A denied call is not retried in another form.** The loop runs under `--permission-mode auto`, so a
   call outside `.claude/settings.json`'s allowlist is reviewed and may be refused. Do the work with an
@@ -359,8 +232,7 @@ What a loop session owes on top of § *Session workflow*:
   no excerpts), never the project, because it reads its own copy of this file.
 - **Start `looper verify` with `run_in_background` before you write the handoff, then end your turn
   to wait.** Its report starts your next turn, and nothing polls. It joins the tree's verify run if
-  another session started one, so never wait for or kill another session's verify. A mid-work check
-  is `bun nv verify --fast` or `-p <crate>`, never the full gate.
+  another session started one, so never wait for or kill another session's verify.
 - **`BLOCKED` is for a decision expensive to reverse with no safe default.** Otherwise take the safe
   option and say so in the handoff.
 - **Before `DONE`, the goal-end gates.** `bun nv verify --doc` and every broken doc link it names

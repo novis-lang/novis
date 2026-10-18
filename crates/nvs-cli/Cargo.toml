@@ -26,7 +26,7 @@ path = "src/main.rs"
 #
 # `cargo check -p nvs-cli --no-default-features --bins` is what proves the second
 # build still compiles. Nothing gates it, and it is the one cargo command in this
-# tree for which `-p` is the point rather than the trap AGENTS.md rule 5 names.
+# tree for which `-p` is the point rather than the trap `docs/agent/commands.md` names.
 [features]
 default = ["exporter"]
 exporter = ["nvs-server/exporter"]

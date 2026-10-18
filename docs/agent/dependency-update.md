@@ -165,8 +165,7 @@ Write the migration note in the same commit as the warning, not at release time.
    `deny.toml`'s `advisories.ignore`.
 3. **`bun nv links`** if any doc moved.
 4. **Commit** — one per bump, classification in the message.
-5. **Overwrite the live goal's handoff** per [AGENTS.md](../../AGENTS.md) § *Keep each slice small,
-   commit every one of them* — unless a loop is mid-goal, in which case leave that record to the loop —
+5. **Overwrite the live goal's handoff** in the shape [conventions.md](conventions.md) § *A handoff* gives — unless a loop is mid-goal, in which case leave that record to the loop —
    then show the user the report below.
 6. **Stop.** No second `cargo` pass after the commit.
 

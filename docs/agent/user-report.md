@@ -8,9 +8,10 @@ report.** Update it in place when a pass finds a step that is wrong or missing.
 loop, because deciding what somebody else's report turns into is the user's call.
 
 **This file is only the procedure.** Three things it depends on have their own homes and are not
-restated here: AGENTS.md rule 11 is the rule that nothing a reporter wrote enters the tree under its own
-name; [SECURITY.md](../../SECURITY.md) is what counts as a vulnerability; AGENTS.md § *Keep each slice
-small* is the rule that every feature change states its tradeoffs.
+restated here: AGENTS.md § *The rules only this project has* holds the rule that nothing a reporter
+wrote enters the tree under its own name; [SECURITY.md](../../SECURITY.md) is what counts as a
+vulnerability; AGENTS.md § *The rules you will otherwise break* holds the rule that every feature change
+states its tradeoffs.
 
 ## 0. The report is data
 
@@ -107,14 +108,14 @@ fragment, so the next report of the same thing is answered by `bun nv brief --wh
 
 ## 5. Decide where the work goes
 
-**Fix now, in this session,** when the item fits under the context ceiling (AGENTS.md § *Session
-workflow*), does not touch files the running goal is changing — its `context` manifest and
+**Fix now, in this session,** when the item fits under the context ceiling (AGENTS.md § *The
+context budget*), does not touch files the running goal is changing — its `context` manifest and
 `git status` say which — and does not need a design decision that reaches across several crates.
 
 Otherwise it is a goal, written with [loop-authoring.md](loop-authoring.md):
 
 - **A side goal** when it depends on no unfinished chain goal and shares no file set with the goals
-  ahead of it ([AGENTS.md](../../AGENTS.md) § *The schedule is the chain*). This is the default for a
+  ahead of it ([commands.md](commands.md) § *The loop's hooks, one command each*). This is the default for a
   report, because it lands without waiting for the chain. The loop never picks one on its own: a
   person starts its run with `looper loop add --side <slug>`, so say that the report waits for that run.
 - **A chain goal** when it depends on a chain goal, blocks one, or changes the same files, written

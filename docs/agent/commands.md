@@ -21,7 +21,7 @@ A `grep`/`sed -n` through a shell is allowed where it is genuinely shaped better
 retry rather than a silent wrong edit.
 
 **What you read is the budget, so read a big file in the region you need.** A session works under the
-context ceiling AGENTS.md § *Session workflow* sets, and one read of a large module spends a real part
+context ceiling AGENTS.md § *The context budget* sets, and one read of a large module spends a real part
 of it. So: whole file when it is small (roughly under 400 lines, or when you will touch most of it),
 otherwise `grep -n` for the anchor and read the region around it. Context is the constraint that degrades
 the work rather than merely slowing it. `looper log <session>` prints one session's events, which is
@@ -121,6 +121,35 @@ loops, a write through a shell, and an edit or a `git add` of a file another ses
 (§ *Other sessions' edits*). Claude Code is the only harness that reads `.claude/`; every other one gets
 the floor from `bun nv peek` alone.
 
+## What the guards refuse, and the call to make instead
+
+| Refused | Make this call instead |
+|---|---|
+| A whole `Read`, `cat` or `sed -n` of a tracked file over 400 lines | `bun nv peek <file>:120-160`, `<file>:@symbol` or `<file>:"## Heading"`, or `Read` with an `offset` and a `limit` |
+| A heredoc, a `>` redirect or a `tee` that writes into the tree, and a `python -c` or `bun -e` that writes a file | The Write or Edit tool, `bun nv splice --patch <file>`, or a script under `.agent-tmp/` |
+| A loop that runs `nvs run` over `docs/examples/`, `tests/hostile/` or `benches/members/` | `bun nv proofs --run --id <feature> --show` |
+| `cargo build`, `cargo test` or `cargo clippy` with `-p` and no `--release` | The same command without `-p`, narrowed with `--test <name>` or `--lib`, or `bun nv verify -p <crate>` |
+| A command that runs more than a change reaches (§ *Verifying*) | `bun nv affected --run`, or one test named with `cargo test --test <name>` or `cargo test --lib <filter>` |
+| `sleep`, and a loop that polls | `run_in_background`, then end the turn (§ *Long commands*) |
+| An edit or a `git add` of a file another live session claims, and `git add -A` while a claim stands | Another file, or `git add <your paths>` (§ *Other sessions' edits*) |
+
+The first five are `bun nv guard`'s, and `tools/nv/cmd/guard.ts`'s `RULES` is their home. The last two
+are `looper guard`'s.
+
+## Scratch files and worktrees
+
+- **Every scratch file goes under `.agent-tmp/`**: a patch, a probe script, a throwaway case, a commit
+  message, a log. Never the system temp directory, a harness's scratchpad or a home directory: a file
+  outside the tree is one the user cannot see, review or clean up.
+- **Whoever writes a scratch file deletes it when its work is done**: a session before it stops, a
+  subagent before it reports, a test in its own `afterAll` or `finally`. What a tool reads back on its
+  next run stays: the `verify-*` logs and timings, `peek-ledger.json` and `select-rec/discard/`. Delete
+  only your own files, because another agent may be working in the tree.
+- **A git worktree is scratch too.** It goes under `.agent-tmp/worktrees/<branch>`. The agent that made
+  it removes it and deletes its branch once that branch is merged into `main`, with `git worktree
+  remove` and `git branch -d`. Never a forced form: a refusal means work would be lost, and that is a
+  question for the user.
+
 ## One shell
 
 - **Bash is the only shell tool.** `.claude/settings.json` turns the PowerShell tool off. Run PowerShell
@@ -215,6 +244,7 @@ bun nv affected --paths crates/nvs-ir/src/lower.rs             # the same, for t
 bun nv verify                                                  # build + fmt + test + clippy, one call
 bun nv verify --fast                                           # build + test only, for a mid-work check
 bun nv verify -p nvs-ir                                        # the same build; only nvs-ir's test binaries run
+bun nv verify --fast -p nvs-ir                                 # the mid-work check: build, then nvs-ir's tests
 looper verify                                                  # the loop's gate: bun nv verify, joining a run already going
 bun nv verify --no-cache                                       # run every step, whatever the cache holds; by hand only
 bun nv verify --doc                                            # the rustdoc gate alone, a session's before DONE
@@ -593,6 +623,12 @@ red and 2 on a usage error, except `bun nv sweep`, which always exits 0 and writ
 `[hooks] before_run`, and `bun nv sweep` as `[hooks] after_session`, whose comments there say why each
 timeout and `on_fail` are what they are. looper runs
 none of the others on its own. Each command's `--help` and module doc own its flags.
+
+**A side goal is a goal file off the chain**, run as a side loop with `looper loop add --side <slug>`.
+looper makes its lane, the worktree `.agent-tmp/worktrees/lane-<n>` on branch `side/<slug>`, and
+`bun nv side --prepare --hook` readies it. A side loop whose `.agent-tmp/worktrees/side/<slug>` exists
+keeps that worktree. Once its goal is reached and its file deleted, the loop lands its branch: it
+merges `main` in, runs verify, pauses the other loops and fast-forwards `main`. It never pushes.
 
 ## Disk
 

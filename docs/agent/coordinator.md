@@ -26,7 +26,7 @@ Four things follow, and they are the whole design:
    Nothing on the stop path depends on a model's self-assessment.
 3. **The handoff is bounded.** The live goal's `## Handoff` is read in full by every future session, so
    each session overwrites it rather than appending to it, and it aims at about 60 lines. Its shape is
-   AGENTS.md § *Keep each slice small*. The target is guidance for the session writing it, and nothing
+   [conventions.md](conventions.md) § *A handoff*. The target is guidance for the session writing it, and nothing
    measures it.
 4. **State and knowledge are separate files.** The handoff is rewritten every session;
    [playbook.md](playbook.md) grows a bullet at a time and is otherwise left alone, so no session pays to
@@ -74,7 +74,8 @@ A **side goal** runs in a lane: `looper loop add --side <slug>` adds its loop, l
 `.agent-tmp/worktrees/lane-<n>` on branch `side/<slug>`, and `looper.toml`'s `before_run` hook, `bun nv
 side --prepare --hook`, readies it before each run. A side loop whose `.agent-tmp/worktrees/side/<slug>`
 already exists keeps that worktree, and `bun nv side --prepare <slug>` makes and readies one by hand.
-AGENTS.md § *The schedule is the chain* is what a side goal is and how it lands.
+[commands.md](commands.md) § *The loop's hooks, one command each* is what a side goal is and how it
+lands.
 
 **A session runs under `--permission-mode auto`, and that is not an incidental setting.** A `claude -p`
 session auto-denies any tool call that would otherwise prompt, so under `default` an unattended session
@@ -105,7 +106,7 @@ One is still fine for a **short** run — a dozen sessions, where you want to wa
 subagent the goal's pack from `looper orient`, one subagent at a time (they share one working tree and
 one handoff; concurrent sessions race). Keep the coordinator's own context small: never re-read a diff,
 never re-derive the plan, never second-guess verified work. But restart it before it nears the
-interactive ceiling of AGENTS.md § *Session workflow* step 2 — and understand that restarting is not a
+interactive ceiling of AGENTS.md § *The context budget* — and understand that restarting is not a
 workaround for the context problem, it *is* the loop's design, just done by hand.
 
 **Could a parallel `Core`-domain lane work?** Partly. A new `Core` class is one line in
@@ -118,8 +119,8 @@ can run beside the chain, and the chain still walks one goal at a time.
 **Neither is the first lever, and the reason is the context ceiling.** A session's fixed cost —
 orientation before the first edit, then verify, docs and commit after the last one — argues for putting
 several related slices in one session. But an agent starts missing what it has already read well before
-its window is full, so the saving is in reading less per session, not doing more. AGENTS.md § *Session
-workflow* step 2 is the gate.
+its window is full, so the saving is in reading less per session, not doing more. AGENTS.md § *The
+context budget* is the gate.
 
 **Reading less is a mechanism rather than an instruction.** `looper orient` prints a session's whole step
 1 out of the goal's own `context` list, so a session does not pay for the unscoped orientation to start.

@@ -547,3 +547,19 @@ What does **not** go in: the session's narrative (which stage, which check, what
 `AGENTS.md`), or a trap whose whole subject is a stale line in a goal's record or prose or a wrong claim
 in a handoff — fix the line instead. Grep `docs/agent/playbook/` for the path before writing, to find
 the traps already filed against it.
+
+## A handoff
+
+The live goal's `## Handoff` in `docs/goals/<slug>.md`, overwritten whole every session and never
+appended to, because every later session reads it whole. It aims at about 60 lines, and no session is
+spent trimming it.
+
+- **`### State`**: a few lines on what is on disk and what is blocked.
+- **`### Next`**: the next group, two to four slices under one line naming the stage and the file set
+  they share. Each item names the rule that specifies it and its anchors repo-rooted
+  (`crates/nvs-runtime/src/ctx/isolate.rs:116`), because the item is where `looper orient` reads the
+  code it inlines into the next pack.
+- **`### Backlog`**: up to six one-line items, each with its owning doc.
+
+The handoff is state. A fact that will still be true in ten sessions goes to the playbook, a rule's
+fragment or a module doc, and the handoff points at that home.

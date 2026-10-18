@@ -378,7 +378,7 @@ export const RULES: Rule[] = [
         if (words.some((w) => w === "--release" || w === "-r" || /^--profile(?:=|$)/.test(w))) continue;
         return (
           `\`cargo ${sub} -p\` resolves features over one package and writes a second copy of every workspace crate ` +
-          `(AGENTS.md rule 5). Leave out \`-p\` and narrow what runs with \`--test <name>\` or \`--lib\`, or run ` +
+          `(docs/agent/commands.md). Leave out \`-p\` and narrow what runs with \`--test <name>\` or \`--lib\`, or run ` +
           `\`bun nv verify -p <crate>\`.`
         );
       }
