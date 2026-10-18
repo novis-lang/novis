@@ -687,6 +687,7 @@ export default defineConfig({
             },
             { label: 'Where Novis is weaker', link: '/in-depth/falls-behind/' },
             { label: 'Novis, PHP, Bun and Go compared', link: '/in-depth/compare/' },
+            { label: 'Coming from PHP', link: '/in-depth/coming-from-php/' },
             { label: 'All questions', link: '/in-depth/questions/' },
             { label: 'Roadmap', link: '/in-depth/roadmap/' },
             { label: 'What changed', link: '/in-depth/what-changed/' },

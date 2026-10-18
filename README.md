@@ -41,7 +41,7 @@ For web servers and the command line. Familiar syntax (Hello PHP).
   precompiled binary runs on every platform, written in whatever language you like, and a crashing or
   hostile extension harms one request rather than the process.
 
-Coming from PHP? [How Novis is different, and how to port a program](docs/reference/tools/30-php-differences.md).
+Coming from PHP? [How Novis is different, and how to port a program](website/src/content/docs/in-depth/coming-from-php.mdx).
 
 ## Roadmap
 
