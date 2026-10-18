@@ -2,12 +2,11 @@
 //! [`System`].
 //!
 //! A small allocation's round trip to the platform heap is the dominant cost
-//! of making it — [`docs/perf/userland-gap.md`](/docs/perf/userland-gap.md) § A
-//! holds that measurement and the case-by-case attribution behind it. A string,
-//! an array header and a small object are all in that size range, so the
-//! platform heap is on the request path several times per statement, and
-//! fronting it with a free list is the largest single move on the userland
-//! suite's median that this tree has measured.
+//! of making it. A string, an array header and a small object are all in that
+//! size range, so the platform heap is on the request path several times per
+//! statement. `benches/abi-probe`'s
+//! `an_allocation_round_trip_stays_in_the_pooled_cost_class` holds the cached
+//! round trip below the platform heap's.
 //!
 //! `rule:security/arena-is-an-ownership-root` is the home of the decision
 //! that a request allocates from an arena of its own;

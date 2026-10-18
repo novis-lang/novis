@@ -30,5 +30,6 @@ worker thread, O(workers), and the pages the deepest parse touched stay resident
 thread. Code on it never calls compiled Novis code, whose recursion limit is armed for the task's stack.
 
 - **Memory:** each task in flight reserves 1 MiB of address space, charged to its request, and keeps
-  resident only the pages its frames touched. A serving core also holds up to its share of
+  resident only the pages its frames touched. So a request whose memory limit is 256 MB runs at most
+  about 250 tasks at once. A serving core also holds up to its share of
   `max_in_flight` in idle reservations between tasks, and each worker thread one 8 MiB spare stack.

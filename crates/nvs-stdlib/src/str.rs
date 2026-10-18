@@ -45,8 +45,7 @@
 //! `05-string-replace` from 0.92× to 0.74× against PHP; walking a cycle of
 //! `padEnd`'s padding to measure what a second walk then wrote took
 //! `07-string-normalize` from 0.50× to 0.45×. A read is not free, and at these
-//! sizes it is not cheaper than the `memcpy` it saves. Both are arithmetic now,
-//! and `docs/perf/userland-gap.md` § E holds the numbers.
+//! sizes it is not cheaper than the `memcpy` it saves. Both are arithmetic now.
 //!
 //! **`join` is the member this rule does not reach**, and it is unchanged: its
 //! length costs a walk of the subject's slots, which is the expensive half of

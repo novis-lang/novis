@@ -136,7 +136,8 @@ struct State<T> {
 ///
 /// Each waiter is stored under a ticket, and tickets count up, so the first
 /// entry is the one that has waited longest. A map rather than a list, so that
-/// a [`Waiter`] taking itself out costs O(log waiters). That matters because
+/// a [`Waiter`] taking itself out costs O(log waiters), for one tree node per
+/// waiter. That matters because
 /// the ordinary case is a waiter that was already taken out when it was woken,
 /// and a list would be read to its end to find that out.
 #[derive(Default)]

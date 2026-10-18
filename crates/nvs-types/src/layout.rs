@@ -877,7 +877,8 @@ fn flatten_constants<'a>(
 /// because a hook is keyed on its property and its accessor together.
 ///
 /// Both are sets, so a class of many members flattens in time linear in the
-/// layout it ends up with. Each class still walks its own ancestors: its
+/// layout it ends up with, and spends one set of borrowed names while it is
+/// built. Each class still walks its own ancestors: its
 /// layout is a full copy of everything it inherits, so reusing a parent's
 /// layout would save a constant factor and nothing more.
 #[derive(Default)]

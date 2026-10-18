@@ -633,7 +633,7 @@ fn require_callable(callable: Value) -> Result<(), Fault> {
 /// [`call_callable`] uses it to trim the argument list, and a caller asks it
 /// directly to avoid *building* an argument that trimming would throw away:
 /// `Core\Arr::map`'s `$key` costs a rendered decimal and an `NvsStr` per
-/// entry on a list, which is `docs/perf/userland-gap.md` § D. That is the
+/// entry on a list, which `nvs_stdlib`'s `arr` module doc states. That is the
 /// only reason to inspect an arity — a caller that already holds every
 /// argument still passes them all and lets the trimming happen here.
 ///

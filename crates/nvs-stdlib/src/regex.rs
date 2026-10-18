@@ -59,7 +59,8 @@
 //! so a program's hot patterns survive a stream of one-off ones. What that
 //! costs a hit is one counter written into the entry the hit already read;
 //! the scan for the oldest entry runs on a miss only, beside a compile that
-//! costs far more.
+//! costs far more. Each entry spends one `usize` and one `u64` on that
+//! bookkeeping.
 //!
 //! **A hit answers what a miss would.** Each entry keeps the capture-table
 //! bytes [`search_cost`] priced when it was built, and every use asks the

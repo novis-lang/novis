@@ -113,6 +113,19 @@
 //! tier would sit behind the same [`nvs_ir`] boundary, and the safepoint poll
 //! is where it would deoptimise.
 //!
+//! **This tier is not where a program loses time.** A static call and a
+//! `foreach` step cost a few nanoseconds, the uniform calling convention's
+//! 16-byte argument slots included, and the `catch_unwind` around each helper
+//! costs nothing on the path that does not throw. What a slow program pays
+//! for is allocation count, in the runtime and the standard library. Two
+//! limits are known and kept: Cranelift leaves redundant register moves and
+//! unmerged block chains, which is this tier's ceiling and which nothing plans
+//! to raise; and in the tightest loop most instructions are the hot-word
+//! checks above, a few `Ctx` loads and branches around the loop's own work.
+//! Removing those checks would give up `rule:testing/debug-probes`'s
+//! guarantee that a running request can have its probes turned on, which is a
+//! decision for that rule rather than a defect here.
+//!
 //! **The safepoint poll is the one way a running request is stopped.** Every
 //! flag [`nvs_runtime::SafepointFlags`] defines — the CPU-time and wall-clock
 //! limits, cancellation, a collection, a debugger break, shutdown — is acted

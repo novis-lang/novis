@@ -2,12 +2,12 @@
 looper: 1
 title: The runtime and the standard library allocate only what a result needs
 summary: "Every gap record this goal owns is closed: built and its record deleted, or written into its module doc as a stated bound. Markup + Markup is linear in a loop, every bench a stage reaches declares the count it reaches, and the checks below pass."
-context: [docs/rules/testing/member-perf-ledger.md, docs/perf/userland-gap.md]
+context: [docs/rules/testing/member-perf-ledger.md]
 stages:
   - id: 1
     title: "Markup + Markup appends into the left operand"
     status: open
-    context: [crates/nvs-stdlib/src/html.rs, crates/nvs-runtime/src/string.rs, docs/perf/performance-pass.md]
+    context: [crates/nvs-stdlib/src/html.rs, crates/nvs-runtime/src/string.rs]
   - id: 2
     title: "the runtime's array reserves, replaces in place and is looked up by a borrowed key"
     status: open
@@ -39,7 +39,7 @@ stages:
   - id: 9
     title: "what waits for a measured wall is a stated bound, and the cross-engine suite is gone"
     status: open
-    context: [docs/perf/userland-gap.md, tools/nv/cmd/bench.ts, docs/rules/testing/userland-benchmarks.md, docs/rules/tooling/bench-engine-list-is-data.md]
+    context: [tools/nv/cmd/bench.ts, docs/rules/testing/userland-benchmarks.md, docs/rules/tooling/bench-engine-list-is-data.md]
 checks: []
 ---
 
@@ -66,10 +66,15 @@ layout, the codegen backend or the calling convention every `Core` member shares
 becomes a stated bound in stage 9, naming what it costs and what would close it. Big work waits until a
 measured program hits it.
 
-**`Markup + Markup` gets its new `unsafe` code.** The user decided it. The two pieces are the ones
-`docs/perf/performance-pass.md` § *Decided* names: a lowering that hands the left operand's reference over only
-where its holder is re-pointed at the result, and a helper that appends in place when the object and its
-string each have one reference. It is a new refcount edge, so the slice owes a valgrind run.
+**`Markup + Markup` gets its new `unsafe` code.** The user decided it. `nvs_core_html_markup_concat`
+copies both sides into a new string, so `$page = $page + html`…`` over n rows copies the page so far on
+every row: a probe ran 4 times the rows in 19 times the time. String `.` is linear in the same loop
+because `InstKind::Concat` hands the first operand's reference to `nvs_str_concat_n`, which writes in
+place at a refcount of one. A `CoreCall`'s arguments are borrowed, so `Markup` needs two pieces: a
+lowering that hands the left operand's reference over only where its holder is re-pointed at the
+result, and a helper that appends in place when the object and its string each have one reference.
+Until it lands, `Core\Html::join` is the linear form. It spends no memory beyond the doubling a string
+`.` already spends. It is a new refcount edge, so the slice owes a valgrind run.
 
 **Every slice says what it spends,** per `rule:programs/memory-priority`. A cache held between calls is
 per thread and bounded, never per request served.
@@ -103,8 +108,11 @@ implementation gains a few owned-or-borrowed paths in the runtime's array and st
 
 ### 3. a string carries its hash
 
-**Does:** a repeat lookup with the same string hashes nothing. `docs/perf/userland-gap.md` § F is the
-design. SipHash stays.
+**Does:** a repeat lookup with the same string hashes nothing. Today the array's index is a
+`HashMap<NvsStr, usize>` keyed through `Borrow<[u8]>`, so every lookup hashes the key bytes again.
+**SipHash stays:** `array.rs`'s § *the index map hashes with std's `RandomState`* is a security
+decision, and caching the digest changes nothing about which hasher made it. `Borrow<[u8]>` has to go,
+because std has no stable raw-entry API, so the change is contained to `string.rs` and `array.rs`.
 
 - [ ] `StrHeader` caches the digest of its bytes. `crates/nvs-runtime/src/string.rs:169`
 - [ ] The array's index keys on a type whose `Hash` writes the cached word, and a lookup from bare bytes computes it the same way.
@@ -140,7 +148,11 @@ design. SipHash stays.
 ### 7. a constant is built once, when the unit is compiled
 
 **Does:** closes `a-written-duration-is-built-at` and `two-identical-string-literals-are-two-data-objects`,
-and takes `docs/perf/userland-gap.md` § I's next shape.
+and takes the next shape of a literal `Core\Str::format` template. A template of plain `%d`/`%s` over
+`int` and `string` already compiles to no call (`nvs_types::expr_table::FormatPiece`); one that still
+calls builds an `NvsArray` for its variadic tail and parses the template again. A zero-padded `%0Nd`
+is the commonest flag left, and a per-placeholder conversion helper would take it and every other flag
+out of the call.
 
 - [ ] A written duration is an immortal constant in the compiled unit. `crates/nvs-ir/src/lower/expr.rs:2803`
 - [ ] Two identical string literals in one unit share one data object. `crates/nvs-codegen/src/emit.rs:1318`, `crates/nvs-codegen/src/emit.rs:1420`
@@ -164,8 +176,7 @@ denial-of-service question first and a speed question second.
 bench-compare` over `benches/compare/`, is a separate suite and stays.
 
 - [ ] `virtual-dispatch-resolves-by-name-not`, `nothing-inlines` and `a-switch-terminator-lowers-to-a-compare-chain` are stated bounds, each naming its cost and what closes it. So is any record an earlier stage stopped on.
-- [ ] `docs/perf/userland-gap.md`'s items G and J are stated bounds in `crates/nvs-runtime/src/object.rs` and `crates/nvs-stdlib/src/arr.rs`. Its *ruled out* and *not on this list* facts move to the module docs they describe, without the cross-engine figures. Then the file is deleted.
-- [ ] `benches/userland/` and `docs/perf/userland.ndjson` are deleted. `bun nv bench` keeps `--warm-start` alone, which CI runs (`.github/workflows/ci.yml:310`). `--serve-vs-fpm` and `benches/serve/hello.php` go with the suite, and `benches/serve/echo.nvs` stays for `bun nv bench-load`. `tools/nv/cmd/bench.ts:1`
+- [ ] `benches/userland/` and `data/perf/userland.ndjson` are deleted. `bun nv bench` keeps `--warm-start` alone, which CI runs (`.github/workflows/ci.yml:310`). `--serve-vs-fpm` and `benches/serve/hello.php` go with the suite, and `benches/serve/echo.nvs` stays for `bun nv bench-load`. `tools/nv/cmd/bench.ts:1`
 - [ ] `rule:testing/userland-benchmarks` and `rule:tooling/bench-engine-list-is-data` are retired, and nothing cites them.
 - [ ] Every other mention is rewritten or removed: `Cargo.toml:4`, `tools/nv/cmd/audit.ts:174`, `tools/nv/proofs/perf.ts:388`, `docs/setup.md:31`, `docs/agent/commands.md:513`, `docs/examples/README.md:10`, `benches/members/README.md:6`, `benches/serve/hello.nvs:6`, and the crate comments `grep -rn userland crates benches/abi-probe tests` names. A comment that cited a cross-engine figure as its evidence cites its guard test instead.
 
@@ -174,8 +185,7 @@ bench-compare` over `benches/compare/`, is a separate suite and stays.
 ### State
 
 The goal is new. The work was M12's other half, and M12 is deleted. The eighteen records it owned now
-name this goal. Item K of `docs/perf/userland-gap.md` has landed (`crates/nvs-runtime/src/array.rs:2407`),
-and its row is stale.
+name this goal. An empty array is already a per-thread singleton (`crates/nvs-runtime/src/array.rs:2407`).
 
 ### Next
 
@@ -185,4 +195,4 @@ Stage 1, `Markup + Markup`, on the html and string files:
 
 ### Backlog
 
-- `nvs lsp` grows close to quadratically with the open document's size. It is tooling, not the request path. `docs/perf/performance-pass.md`
+- `nvs lsp` grows close to quadratically with the open document's size. It is tooling, not the request path, and goal `editor-fixes` owns its record. `data/gaps/nvs-lsp/open-document-analysis-grows-quadratically.json`

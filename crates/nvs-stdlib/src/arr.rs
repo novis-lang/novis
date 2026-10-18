@@ -74,9 +74,8 @@
 //! [`store_at`] writes an entry back under `nvs_runtime::SlotKey`, the key in
 //! whichever form the subject's own shape already holds it, so a `map` over a
 //! list allocates no keys at all and a `filter` allocates them only where it
-//! left a gap. `docs/perf/userland-gap.md` § D is the measurement, and
-//! `nvs-runtime`'s `a_callback_that_does_not_want_a_key_synthesizes_none` is
-//! the guard.
+//! left a gap. `nvs-runtime`'s
+//! `a_callback_that_does_not_want_a_key_synthesizes_none` is the guard.
 //!
 //! [`nvs_core_arr_sort`] takes the same rule one step further, because it is
 //! the one member that may not need the keys *at all*: with `preserveKeys`
@@ -2356,7 +2355,7 @@ nvs_runtime::nvs_helper! {
         let base = held_subject(args, "filter")?;
         // Read once for the whole walk rather than per entry: a predicate
         // declaring one parameter is never handed a key, so none is rendered
-        // for it — `docs/perf/userland-gap.md` § D.
+        // for it, as this module's doc says.
         let wants_key = nvs_runtime::callable_arity(args[1])? >= 2;
 
         let mut kept = NvsArray::new();
@@ -2816,8 +2815,7 @@ fn held_subject(args: &[Value], member: &str) -> Result<Held, Fault> {
 /// an existing position or the next one with no decimal rendered at all, so
 /// mapping a list allocates no keys — and a `filter` that skips an entry still
 /// preserves the keys it kept, because the gap is exactly what degrades the
-/// result to the hash form and renders them there. `docs/perf/userland-gap.md`
-/// § D is the measurement.
+/// result to the hash form and renders them there.
 pub(crate) fn store_at(out: &mut NvsArray, key: SlotKey, value: Value) {
     match key {
         SlotKey::Index(index) => out.set_index(index, value),
@@ -4480,7 +4478,6 @@ nvs_runtime::nvs_helper! {
         // them, or a `by` callable declared a parameter to receive one. A sort
         // that renumbers and extracts by value alone — `sort($list)`, the
         // common call — reads none, so this walk collects none.
-        // `docs/perf/userland-gap.md` § D's second paragraph.
         let by_wants_key = match by {
             Some(by) => nvs_runtime::callable_arity(by)? >= 2,
             None => false,

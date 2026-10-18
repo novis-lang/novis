@@ -87,9 +87,8 @@ Two things the table cannot say for itself:
   reason the cross-machine history counts instructions instead (`rule:testing/perf-two-mechanisms`). Quote a ratio with the host it came from, or don't quote it.
 - **A ratio can depend on the size.** `03-string-concat` was the standing example — Novis's `.=` was
   quadratic where PHP's was flat, so that case's ratio was a statement about 20,000 rows and nothing
-  else. It no longer is: the string gained capacity and n-ary concatenation, and
-  [docs/perf/userland-gap.md](../../docs/perf/userland-gap.md) owns what that closed and what is left.
-  The rule outlives the example. When a case's cost is not linear in its own size, say so here rather
+  else. It no longer is: the string gained capacity and n-ary concatenation, which
+  `crates/nvs-runtime/src/string.rs`'s module doc states. The rule outlives the example. When a case's cost is not linear in its own size, say so here rather
   than letting the number imply it is a constant.
 
 ## PHP's configuration is chosen, not inherited

@@ -6,7 +6,7 @@
 //     bun nv bench --check                correctness only: do the engines agree? (no timing)
 //     bun nv bench --engines nvs,php      narrow the roster; the default is all four
 //     bun nv bench --php-mode default     PHP as installed, instead of with opcache+JIT
-//     bun nv bench --json docs/perf/userland.ndjson   append one record per case
+//     bun nv bench --json data/perf/userland.ndjson   append one record per case
 //     bun nv bench --warm-start --max-work-ms 6       the CLI's own start cost, budgeted
 //     bun nv bench --serve-vs-fpm --record PATH       requests/sec against PHP, appended to PATH
 //

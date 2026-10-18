@@ -127,10 +127,10 @@
 //!
 //! **What they spend.** `header` walks the list once and allocates only the
 //! answer; `headers` allocates one array per distinct name plus one string per
-//! line, and groups by scanning the names it has already seen, which is
-//! quadratic in the number of *distinct* names and bounded by the door's own
-//! header-count cap. Neither memoizes: that cap bounds every walk of the
-//! field lines by a constant, which is what `query` and `post` lack.
+//! line, and finds each line's group in one probe of a map from name to group,
+//! so it is linear in the lines. Neither memoizes: the door's own header-count
+//! cap bounds every walk of the field lines by a constant, which is what
+//! `query` and `post` lack.
 //!
 //! # A cookie is the `Cookie` field, read
 //!

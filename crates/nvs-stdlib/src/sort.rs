@@ -56,8 +56,39 @@
 //! which the rule above calls a hole rather than a trade-off, so [`cache_off`]
 //! sets the limit to zero before the first sort. The allocate and free paths
 //! still take the (uncontended) mutex once per large block before consulting
-//! the limit; the cost is measured in `docs/perf/brainsort-evaluation.md` and
-//! is paid.
+//! the limit. Running without the cache costs page faults on fresh blocks,
+//! which grow with the subject, and that cost is paid: it is the price of
+//! memory that stays attributable to a request.
+//!
+//! Neither sort consults `nvs_runtime::affordable` for its scratch, so the
+//! per-request ceiling does not see it; that gap is the merge sort's as much
+//! as this path's.
+//!
+//! # Where the key sort is slower, and what is left on the merge sort
+//!
+//! - **33 to about 48 entries of random input.** The crate insertion-sorts
+//!   in place up to 32 entries and builds its records from 33, for a list the
+//!   merge sort finishes in a microsecond. No threshold on this side sends
+//!   those sizes to the merge sort, because sorted and nearly sorted input of
+//!   the same sizes gains more than random input loses. Raising the crate's
+//!   own small-sort limit is the change that would close it.
+//! - **Sorted or nearly sorted strings gain the least,** because the prescan
+//!   reads every key either way and a string key is a pointer chase.
+//! - **A `decimal` row stays on the merge sort.** An order-preserving key for
+//!   a mantissa with a scale is a second implementation of
+//!   `Decimal::compare`, not worth writing until a program sorts decimals at
+//!   size.
+//! - **A comparator stays on the merge sort,** which sorts an index
+//!   permutation through a `Result`-returning closure over `compare_values`.
+//!   Sorting the entries directly with a specialised comparator is a rewrite
+//!   of that sort rather than a removal, and a comparator's own call through
+//!   a callable per comparison costs more than the indirection does.
+//!
+//! The crate is pinned to its exact version in `Cargo.lock`; a bump is caught
+//! by the tests below, which hold the permutation to the merge sort's. Not
+//! checked on the development machine: the crate's scalar kernels (its own CI
+//! runs them), a CPU without AVX2, and Miri over this seam, which adds no
+//! `unsafe` of its own.
 //!
 //! # What cannot go wrong, and what is contained
 //!
