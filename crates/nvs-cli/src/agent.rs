@@ -175,7 +175,7 @@ pub(crate) const SCHEMA_VERSION: u64 = 1;
 /// The line that marks the section under it, on a line of its own.
 const MARKER: &str = "<!-- primer -->";
 
-/// The reference chapters, in the order `docs/novis.md` concatenates them, which
+/// The reference chapters, in the order `/llms-full.txt` concatenates them, which
 /// is the order the chapter map prints them in.
 ///
 /// The whole chapter is embedded rather than an extract of its marked sections,

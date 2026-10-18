@@ -2,8 +2,8 @@
 every renderer consumes it:
 
 ```
-                      ┌─ nv reference        → docs/novis.md
-                      ├─ nv render --website  → core.json → MDX
+                      ┌─ nv render --website  → core.json → MDX
+                      ├─ nv render --website  → /llms-full.txt
 nvs meta --json ──────┼─ nvs doc              → Markdown pages
                       └─ nvs agent            → the primer, the index, one card
 ```

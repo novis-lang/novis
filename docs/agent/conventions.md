@@ -415,8 +415,7 @@ The record, `data/rules/core-classes/schema-plan.json`:
   topics cannot collide, and `bun nv peek rule:core-classes/schema-plan` reads it.
 - **The `title` is the rule as one statement of what is now true** — the same voice as a commit subject, and the line `ground-rules.md` prints. Not a topic ("Plan grades"), not an instruction.
 - **`status` is `shipped` or `designed`**, and `designed` is the honest answer for a rule the tree does
-  not hold yet. `docs/novis.md` filters to `shipped` so every line in it runs; the rulebook carries both,
-  and the pack marks a designed rule where it prints one.
+  not hold yet. The rulebook carries both, and the pack marks a designed rule where it prints one.
 - **A `designed` rule names the goal that ships it**, as a gap does: `goal`, the slug of any goal
   file under `docs/goals/`. A `shipped` rule names none. The chapter prints the owner beside the title, and
   `bun nv owners` lists every designed rule by its owner.

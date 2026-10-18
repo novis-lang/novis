@@ -1435,8 +1435,8 @@ ecosystem that does not exist yet, which is why it is kept cheap to replace.
 every renderer consumes it:
 
 ```
-                      ┌─ nv reference        → docs/novis.md
-                      ├─ nv render --website  → core.json → MDX
+                      ┌─ nv render --website  → core.json → MDX
+                      ├─ nv render --website  → /llms-full.txt
 nvs meta --json ──────┼─ nvs doc              → Markdown pages
                       └─ nvs agent            → the primer, the index, one card
 ```
@@ -1481,7 +1481,7 @@ a consumer can tell from "written, and empty" without learning a convention.
 The command owns the contract, and `--json` is required so that a `meta` with nothing named cannot
 succeed by printing nothing. A consumer ignores fields it does not know, so a field may be added but never
 renamed or moved; a consumer on a toolchain without the subcommand treats it as "no registry docs yet",
-never as an error. `docs/novis.md` and the website's core data are both built from this command alone.
+never as an error. The website's `/llms-full.txt` and its core data are both built from this command alone.
 
 <sub>See also [`core-api/reference-card`](core-api.md#core-api-reference-card), [`core-api/field-wise-precedence`](core-api.md#core-api-field-wise-precedence), [`core-api/parameters-are-callable-by-name`](core-api.md#core-api-parameters-are-callable-by-name), [`tooling/meta-json-takes-a-program`](tooling.md#tooling-meta-json-takes-a-program), [`tooling/one-json-several-renderers`](tooling.md#tooling-one-json-several-renderers).</sub>
 
@@ -1725,8 +1725,8 @@ hundred bytes per code.
 
 Every claim the primer makes is proven against the compiler that ships with it: each example in it is
 run and must print what the primer says it prints, and each diagnostic code it names must be one that
-compiler declares. `bun nv reference --primer --check` is that proof, and it is the harness
-`docs/novis.md`'s examples already run under, applied to the one document that is read by someone who
+compiler declares. `bun nv reference --primer` is that proof, and it is the harness
+the chapters' examples already run under, applied to the one document that is read by someone who
 has nothing else.
 
 A code is checked as a code because the text beside it is often a fragment that no `nvs check` can be

@@ -1,10 +1,10 @@
-# The reference chapters — what `docs/novis.md` is generated from
+# The reference chapters — what `/llms-full.txt` is generated from
 
-[`docs/novis.md`](../novis.md) is the one-file reference to everything Novis has, written for a
+The website's `/llms-full.txt` is the one-file reference to everything Novis has, written for a
 reader who has never seen this repository: a search engine, a language model, a person. **It is
-generated, never edited** — `bun nv reference` builds it from three inputs and runs every
-example in it against the binary; `bun nv verify` does the same after every build, so it
-follows the code without anyone remembering to.
+generated, never edited.** `bun nv render --website` builds it from three inputs into
+`website/public/llms-full.txt` (`tools/nv/renderers/website-llms.ts`), and `bun nv reference`
+runs every example in it against the binary. `bun nv verify` runs the examples after every build.
 
 | Input | Owner | What it contributes |
 |---|---|---|
@@ -16,7 +16,7 @@ follows the code without anyone remembering to.
 
 ## Who reads this, and what that means for the prose
 
-A reader of `novis.md` has **only that file**. They cannot follow a link to a rule, do not know what
+A reader of `/llms-full.txt` has **only that file**. They cannot follow a link to a rule, do not know what
 a milestone is, and do not care why a decision was made — they need to know what the language
 *does*, completely and once. So:
 
@@ -83,7 +83,7 @@ directly above that section's heading:
 
 The section it heads is lifted whole — its prose, its tables and its examples, down to the next
 heading of the same or a shallower level — so a section that stops being true stops being rendered
-rather than becoming a lie. The marker is stripped from `docs/novis.md`, where it would mean
+rather than becoming a lie. The marker is stripped from `/llms-full.txt`, where it would mean
 nothing.
 
 What the primer carries is fixed: the lookup protocol, one complete worked program with every shape
@@ -141,6 +141,6 @@ Rules that keep examples honest and cheap:
     `toml file=nvs.toml` fence granting `fs.read`; without one the example runs with no
   configuration at all.
 - Keep each under ~40 lines; two small examples beat one that does everything.
-- `bun nv reference --examples-only --only <chapter-file-substring>` runs one chapter's
+- `bun nv reference --only <chapter-file-substring>` runs one chapter's
   examples while writing it; `--keep` leaves the directories under `.agent-tmp/reference-examples/`
   to look at.

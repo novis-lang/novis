@@ -1,6 +1,6 @@
 // The `Core` and `Novis` class introductions name no PHP function, no PHP
 // superglobal and not PHP itself (`rule:programs/no-compatibility-promise`), because the website and
-// `docs/novis.md` publish both. The cards are held to the same list and the same test of a word by
+// its `/llms-full.txt` publish both. The cards are held to the same list and the same test of a word by
 // `no_member_text_says_what_it_replaces_in_php` in `crates/nvs-stdlib/src/registry.rs`.
 
 import { describe, expect, test } from "bun:test";

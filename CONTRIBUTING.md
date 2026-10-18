@@ -184,11 +184,8 @@ tools/              how this repository is driven; docs/agent/commands.md is the
 data/               the JSON records `bun nv` reads and writes: gaps, rules, proofs, reference, spec
 docs/
   setup.md          what a development machine installs, and what a clone does not carry
-  novis.md          the one-file reference to everything Novis has (generated)
   agent/            how agents work here: the loop, conventions, commands and the playbook
-  spec/             the normative language reference
-  reference/        the chapters `bun nv reference` generates `docs/novis.md` from
-  perf/             recorded benchmark figures
+  reference/        the chapters the website's `/llms-full.txt` and `nvs agent` are built from
   examples/         worked `Core` examples
 .github/            CI: three platforms, miri, asan, tsan and fuzz legs, and a Bun-only docs job
 .claude/            Claude Code settings, and the pointer file to AGENTS.md

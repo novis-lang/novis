@@ -206,7 +206,7 @@ describe("render", () => {
     expect(() => apply([{ path: "x", text: "" }, { path: "x", text: "" }], { check: true })).toThrow("two renderers");
   });
 
-  test("a class introduction's paragraphs, tables and fences become HTML, and a novis.md anchor is plain text", () => {
+  test("a class introduction's paragraphs, tables and fences become HTML, and an /llms-full.txt anchor is plain text", () => {
     const html = blocksHtml(
       ["See [testing](#lang-testing) and `a<b`.", "", "| A | B |", "|---|---|", "| `x` | y |", "", "```nvs", "echo 1;", "```", "", "```output", "1", "```"].join("\n"),
     );

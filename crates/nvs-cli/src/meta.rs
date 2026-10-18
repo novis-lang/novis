@@ -48,8 +48,8 @@
 //!
 //! ## The signature half, and the tables beside the registry
 //!
-//! A row is **signature** as well as documentation, and `docs/novis.md` —
-//! the one-file reference `bun nv reference` generates — is built from this
+//! A row is **signature** as well as documentation, and the website's
+//! one-file reference `/llms-full.txt` is built from this
 //! command alone, so that a member's types never have to be scraped out of
 //! prose. Every member therefore also carries `kind` (`static` or
 //! `instance`), `signature` ([`signature`]'s rendering of the row,

@@ -16,4 +16,4 @@ a consumer can tell from "written, and empty" without learning a convention.
 The command owns the contract, and `--json` is required so that a `meta` with nothing named cannot
 succeed by printing nothing. A consumer ignores fields it does not know, so a field may be added but never
 renamed or moved; a consumer on a toolchain without the subcommand treats it as "no registry docs yet",
-never as an error. `docs/novis.md` and the website's core data are both built from this command alone.
+never as an error. The website's `/llms-full.txt` and its core data are both built from this command alone.

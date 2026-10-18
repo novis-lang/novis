@@ -85,6 +85,14 @@ project says about itself first. The landing page, the tutorial and the first ex
 isolate and a qualifier, never with a benchmark and never with a PHP comparison. A PHP comparison page
 may exist; it is not the front door.
 
+**The first claim is worded about who enforces it, never about how complete the escaping is.** Not
+"XSS is impossible": auto-escaping closes text-node XSS, while an unquoted or URL-valued attribute,
+an inline `<script>` and CSS context are positions the escape does not cover
+([`core-classes/html-template`](core-classes.md#core-classes-html-template)), and each needs the launderer for its own sink
+([`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named)). *Injection is a compile error* is the sentence the
+project writes, and it is the stronger one. Nor is the first claim paired with "faster than PHP":
+pairing a retired claim with a live one weakens both.
+
 <sub>See also [`programs/audience`](programs.md#programs-audience), [`programs/no-compatibility-promise`](programs.md#programs-no-compatibility-promise), [`programs/memory-priority`](programs.md#programs-memory-priority).</sub>
 
 <a id="programs-no-compatibility-promise"></a>
