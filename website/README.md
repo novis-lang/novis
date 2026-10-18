@@ -36,6 +36,7 @@ renders them all at build time, and a member's prose is its `about.md`.
 | `src/pages/reference/core/[...slug].astro` | human | the one route that renders every Core class and member page |
 | `src/content/docs/reference/core/index.mdx` | human | the Core reference's landing page |
 | `src/data/reference.json` | tool | the Configuration and CLI pages, regenerated with `core.json` |
+| `public/llms-full.txt` | tool | the one-file reference to everything Novis has, from the same registry and the chapters under `../docs/reference/`, regenerated with `core.json` (`../tools/nv/renderers/website-llms.ts`) |
 | `src/data/numbers.json` | tool | the counts the front page and *How Novis is written* print, rounded down, from `../tools/nv/renderers/website-numbers.ts`, which says what each one counts. Its `--check` passes while every figure is still at most the real count |
 | `src/pages/reference/[area]/[...slug].astro` | human | the one route that renders every Configuration and CLI page and both landing pages |
 | `../docs/examples/**` | the proofs sweep | each member's `about.md` and examples, read in place by `src/lib/feature.ts`; the site holds no copy. `bun nv proofs --run` runs each example and diffs it against its `.out` file |
@@ -61,8 +62,8 @@ renders them all at build time, and a member's prose is its `about.md`.
 3. A class's summary is its card's one sentence, then its introduction:
    `../docs/reference/core/<Class>.md` (`Time-Date.md` for `Core\Time\Date`), or
    `../docs/reference/novis/` for a built-in component's class. The front matter is not
-   shown. `bun nv reference` reads the same files into `docs/novis.md` and runs every
-   example in them.
+   shown. `bun nv render --website` writes the same files into `public/llms-full.txt`,
+   and `bun nv reference` runs every example in them.
 4. `src/pages/reference/core/[...slug].astro` renders a page per published class and
    member. A member page is its signature, its `about.md` (or the card's short
    description when it has none), then Parameters, Options, Return value, Errors,

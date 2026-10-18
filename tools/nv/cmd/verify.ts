@@ -13,12 +13,11 @@
 // The steps, in order, stopping at the first failure: `cargo fmt`, `bun nv lints --check`,
 // `bun nv directives --check` and `--check-template`, `bun nv owners --check`, `bun nv selftest`,
 // the fuzz workspace's lock brought back in step, `cargo build`, `nvs fmt` over the `.nvs` files this
-// working tree added or changed, `cargo test`, the `.nvst` trees, `bun nv reference --stale-fails`,
-// `cargo clippy --all-targets -- -D warnings`, and the VS Code extension's headless suites. Green prints
-// one line per step; a failure prints that step's output and nothing else. The full output of every step
-// is written to `.agent-tmp/verify-<step>.log`. This command judges nothing: a step's own exit status is
-// the whole verdict. So `reference` is red when it had to rewrite `docs/novis.md`: the file is then in
-// the tree for the change that made it stale to commit, and the next run finds it current.
+// working tree added or changed, `cargo test`, the `.nvst` trees, `bun nv reference` (every chapter
+// example), `cargo clippy --all-targets -- -D warnings`, and the VS Code extension's headless suites.
+// Green prints one line per step; a failure prints that step's output and nothing else. The full output
+// of every step is written to `.agent-tmp/verify-<step>.log`. This command judges nothing: a step's own
+// exit status is the whole verdict.
 //
 // Every build and every run is the `covws` build (`lib/covws.ts`): `target/covws`, the workspace's own
 // crates compiled with coverage counters. `cargo build`, `cargo test`, `cargo doc` and the doc-tests go
@@ -1044,7 +1043,7 @@ function stepsFor(opts: Opts, r: () => Run, built = existsSync(covwsNvs())): Ste
       for (const tree of CASE_TREES) {
         if (existsSync(join(ROOT, "tests", tree))) steps.push(step(tree, ["test", "--cases", "<the selected cases>", `tests/${tree}`], summaries.cases!, { exe: nvs, runner: (s) => runCases(r(), s) }));
       }
-      steps.push(bunStep(r, "reference", ["nv", "reference", "--stale-fails"], () => {}, () => ({ NVS_BIN: nvs })));
+      steps.push(bunStep(r, "reference", ["nv", "reference"], () => {}, () => ({ NVS_BIN: nvs })));
     }
     steps.push(
       step("clippy", ["clippy", "--all-targets", ...target, "--", "-D", "warnings"], summaries.clippy!, {

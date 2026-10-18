@@ -5,8 +5,8 @@
 // Two sources. The registry is `nvs meta --json`: every class, member, enum, shape type and constant,
 // with its card. A class's summary is its card's one sentence followed by its introduction, the
 // hand-written file under `docs/reference/core/` (named for the class after `Core\`, with `\` written
-// `-`) or under `docs/reference/novis/` for a built-in component's class. `bun nv reference` reads the
-// same introductions into `docs/novis.md`, and runs every example in them.
+// `-`) or under `docs/reference/novis/` for a built-in component's class. `website-llms.ts` writes the
+// same introductions into `/llms-full.txt`, and `bun nv reference` runs every example in them.
 //
 // Every registered class and member is published, and nothing else. A class, enum or type alias the
 // registry calls `internal`, a built-in component's engine and what only it uses, is not published,
@@ -67,7 +67,7 @@ interface Registry {
 }
 
 /** `NVS_BIN` when it is set, otherwise the most recently built of `target/debug` and `target/release`. */
-function binary(root: string): string {
+export function binary(root: string): string {
   const env = process.env.NVS_BIN;
   if (env) {
     if (!existsSync(env)) throw new Error(`NVS_BIN names ${env}, which does not exist`);
@@ -116,7 +116,7 @@ function registry(root: string): Registry {
 
 const escapeHtml = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
-/** Code, links, bold and italics. A link to an anchor of `docs/novis.md` (`#lang-testing`) is its text alone. */
+/** Code, links, bold and italics. A link to an anchor of `/llms-full.txt` (`#lang-testing`) is its text alone. */
 function inlineHtml(md: string): string {
   return md
     .split(/(`[^`]+`)/)

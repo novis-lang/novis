@@ -76,10 +76,10 @@ export const LANES: Record<string, string[]> = {
     "Cargo.toml", "Cargo.lock", "deny.toml", "THIRD-PARTY-LICENSES.txt",
     "tools/nv/cmd/gen-attribution.ts", ".github/workflows/",
   ],
-  // docs/novis.md and the website's `Core` pages are generated from the binary's registry and the
+  // The website's `Core` pages and `/llms-full.txt` are rendered from the binary's registry and the
   // chapters, so either side moving can make a committed file stale. Gates `reference`.
   refdoc: [
-    "crates/", "docs/reference/", "docs/novis.md", "tools/nv/cmd/reference.ts",
+    "crates/", "docs/reference/", "tools/nv/cmd/reference.ts",
     "website/", "tools/nv/renderers/", ".github/workflows/",
   ],
   // What `bun nv proofs --verify` reads: the binary's inputs, every feature's examples, attacks, benches
