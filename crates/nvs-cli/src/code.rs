@@ -39,6 +39,100 @@ use serde_json::{Map, Value, json};
 
 use crate::agent::{SCHEMA_VERSION, pretty};
 
+/// Answer questions about the Novis project you are in: where a name is
+/// used, what declares it, and which type a variable has.
+///
+/// The project is the folder of the nearest `nvs.toml` at or above the
+/// working directory. If there is none, it is the working directory. Every
+/// `.nvs` file in it is read, and nothing is changed.
+///
+/// Write a name in full, with its namespace, as `'Shop\Cart::addItem'`.
+/// Put it in single quotes, so that the shell keeps the backslashes. A
+/// file is a path from the working directory.
+// `rule:tooling/nvs-code-answers-about-the-project`.
+#[derive(clap::Args)]
+pub(crate) struct Args {
+    #[command(subcommand)]
+    command: Command,
+}
+
+/// `nvs code`'s verbs, each a reader of one workspace index
+/// (`rule:tooling/nvs-code-answers-about-the-project`).
+#[derive(clap::Subcommand, Debug)]
+enum Command {
+    /// Print where a name is declared, its signature and its doc comment. For
+    /// a `Core` name, print the card that `nvs agent show` prints.
+    Show {
+        /// The name, as `Shop\Cart`, `Shop\Cart::addItem` or
+        /// `Shop\Cart::$total`.
+        symbol: String,
+        /// Print the answer as one JSON document. An unknown name prints an
+        /// `error` and a `nearest` list, and the command fails.
+        #[arg(long)]
+        json: bool,
+    },
+    /// Print every place a name is written. The declaration comes first. Then
+    /// each `use` line and each use follow, in file and line order.
+    ///
+    /// Each line has the position, the kind (`declared`, `import` or `use`)
+    /// and the line of code.
+    Refs {
+        /// The name, as `Shop\Cart::addItem`. A `Core` name lists the places
+        /// where the project uses it.
+        symbol: String,
+        /// Print the answer as one JSON document. An unknown name prints an
+        /// `error` and a `nearest` list, and the command fails.
+        #[arg(long)]
+        json: bool,
+    },
+    /// Print the types that extend or implement a type, or the methods that
+    /// override a method.
+    ///
+    /// These lines say `below`. Lines that say `above` show what the type
+    /// extends or implements, or which method the method overrides.
+    Impls {
+        /// The name of a type or a method, as `Shop\Priced`.
+        symbol: String,
+        /// Print the answer as one JSON document. An unknown name prints an
+        /// `error` and a `nearest` list, and the command fails.
+        #[arg(long)]
+        json: bool,
+    },
+    /// Print what a file declares, one line each. The members of a class are
+    /// indented under it.
+    Outline {
+        /// The file, as `src/Cart.nvs`.
+        file: String,
+        /// Print the answer as one JSON document. An unknown file prints an
+        /// `error` and a `nearest` list, and the command fails.
+        #[arg(long)]
+        json: bool,
+    },
+    /// Print the type of each variable that a file declares with `var`.
+    Types {
+        /// The file, as `src/Cart.nvs`. Add `:10` for line 10 only, or
+        /// `:10-20` for lines 10 to 20.
+        file: String,
+        /// Print the answer as one JSON document. An unknown file prints an
+        /// `error` and a `nearest` list, and the command fails.
+        #[arg(long)]
+        json: bool,
+    },
+}
+
+impl Args {
+    /// Runs the `nvs code` verb clap parsed.
+    pub(crate) fn run(self) -> ExitCode {
+        match self.command {
+            Command::Show { symbol, json } => show(&symbol, json),
+            Command::Refs { symbol, json } => refs(&symbol, json),
+            Command::Impls { symbol, json } => impls(&symbol, json),
+            Command::Outline { file, json } => outline(&file, json),
+            Command::Types { file, json } => types(&file, json),
+        }
+    }
+}
+
 /// How many names or files an unknown argument lists as nearest.
 const NEAREST: usize = 5;
 

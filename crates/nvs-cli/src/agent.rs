@@ -167,6 +167,168 @@ use serde_json::{Map, Value, json};
 
 mod names;
 
+/// Answer a coding agent from the registry this binary carries.
+///
+/// A verb of its own rather than an argument to `nvs doc`, which takes a
+/// path: a symbol is not a path, and a query form under it would be
+/// ambiguous at the argument parser before it was ambiguous to a reader.
+// `rule:tooling/an-agent-asks-the-binary`.
+#[derive(clap::Args)]
+pub(crate) struct Args {
+    #[command(subcommand)]
+    command: Command,
+}
+
+/// `nvs agent`'s own verbs — the read half of
+/// `rule:tooling/an-agent-asks-the-binary`'s surface.
+///
+/// Each renders `nvs meta --json`'s document and holds nothing, so the binary
+/// that compiles a program is the binary that answers for it.
+#[derive(clap::Subcommand, Debug)]
+enum Command {
+    /// Print the short document that makes a coding agent productive: the
+    /// lookup protocol, one worked program, the capability model, the refusals
+    /// and the chapter map.
+    ///
+    /// It is generated from the reference chapters this binary embeds, so it
+    /// describes the language this binary compiles and nothing else.
+    // `rule:tooling/a-primer-claim-is-executed`.
+    Primer,
+    /// Print one line per registered member, one per enum, exception and
+    /// attribute beside them, one per chapter of the reference and per heading
+    /// in it, and one per configuration key, command, flag and error code.
+    // `rule:tooling/the-index-is-one-line-per-member`,
+    // `rule:tooling/the-index-names-every-key-command-and-code`.
+    Index {
+        /// Print the lines as one JSON document: an `entries` array with one
+        /// record for each line, which has the line's symbol, its kind and the
+        /// line itself.
+        #[arg(long)]
+        json: bool,
+    },
+    /// Print the index lines whose name matches a query: a class or member
+    /// name, a heading of the reference, which is where a keyword such as
+    /// `autoload` is found, or a configuration key, a command, a flag or an
+    /// error code.
+    ///
+    /// A command rather than an instruction to grep the index, because a
+    /// namespaced name loses its backslash to the shell before `grep` sees it
+    /// and the empty result that follows is indistinguishable from a name the
+    /// language does not have.
+    Find {
+        /// What to match against a name or a heading, without case. A flag
+        /// is written as it is typed, as `--port`.
+        #[arg(allow_hyphen_values = true)]
+        query: String,
+        /// Print the matching lines as the JSON document `index --json`
+        /// prints. No match gives an empty `entries` array.
+        #[arg(long)]
+        json: bool,
+    },
+    /// Print one symbol's card — its signature, its prose, its parameters and
+    /// what it throws — or the section of the reference a line names.
+    Show {
+        /// The symbol an index line opens with, as `Core\IO::read` or
+        /// `programs#autoload-find-a-class-by-its-namespace`, or the name after
+        /// `config: `, `command: `, `flag: ` or `code: `, as `E0621`. A
+        /// chapter's own name, as `programs`, lists its sections.
+        symbol: String,
+        /// Print the card as one JSON object, with each part of the card as a
+        /// field. An unknown symbol gives an `error` and a `nearest` list, on
+        /// standard output, and the command still fails.
+        #[arg(long)]
+        json: bool,
+    },
+    /// Install this surface into the project in the working directory: an
+    /// `AGENTS.md` stanza, and the files the coding agent you run needs beside
+    /// it. Each file names the four commands above, the `nvs code` commands and
+    /// the `nvs check` loop.
+    ///
+    /// The agent is found from the environment it runs commands in. Codex,
+    /// Cursor and OpenCode read `AGENTS.md`, so they need no other file. Claude
+    /// Code gets a skill and GitHub Copilot an instructions file.
+    ///
+    /// Claude Code and Cursor also get a hook in their settings file:
+    /// after each edit of a `.nvs` file, the agent runs `nvs agent hook`,
+    /// which checks the file and shows the agent its errors.
+    ///
+    /// None of the files states a language fact. The four commands give those
+    /// answers, and a copy of one would be wrong after the language changes.
+    ///
+    /// Running it again updates every file it wrote that nobody has edited
+    /// since, whichever agent runs it, and refuses a file somebody has edited.
+    // `rule:tooling/an-adapter-carries-protocol-and-never-language`.
+    Init {
+        /// Install for this agent, and not the one found in the environment.
+        /// Give it more than once for more than one agent.
+        #[arg(
+            long = "agent",
+            value_name = "NAME",
+            value_parser = clap::builder::PossibleValuesParser::new(agent_names()),
+            conflicts_with = "all"
+        )]
+        agents: Vec<String>,
+        /// Install for every agent this command knows.
+        #[arg(long)]
+        all: bool,
+        /// Replace a file somebody edited after `init` wrote it.
+        #[arg(long)]
+        force: bool,
+        /// Write nothing; name each file that is missing, outdated or edited,
+        /// and fail when there is one.
+        #[arg(long, conflicts_with = "force")]
+        check: bool,
+        /// Add no hook, and remove each hook an earlier run added. With
+        /// `--check`, hooks are not checked.
+        #[arg(long)]
+        no_hooks: bool,
+    },
+    /// Check the `.nvs` file a coding agent just edited, and show the agent
+    /// its errors. `nvs agent init` adds this command to Claude Code's and
+    /// Cursor's settings, and the agent runs it after each edit.
+    ///
+    /// The command reads the agent's JSON message on standard input. It
+    /// checks the file the way `nvs check <file>` does, in the directory the
+    /// message names. When the file has errors, it prints the first five as
+    /// JSON for the agent and says how many more there are. Warnings are not
+    /// shown. A file that is not a `.nvs` file, a clean file and a message it
+    /// cannot read print nothing. The command always exits with status 0, so
+    /// it never stops the agent.
+    // `rule:tooling/an-adapter-carries-protocol-and-never-language`.
+    Hook {
+        /// The agent that runs the command, which decides the shape of the
+        /// JSON it prints.
+        #[arg(value_parser = clap::builder::PossibleValuesParser::new(hooked_agent_names()))]
+        agent: String,
+    },
+}
+
+impl Args {
+    /// Runs the `nvs agent` verb clap parsed.
+    pub(crate) fn run(self) -> ExitCode {
+        match self.command {
+            Command::Primer => primer(),
+            Command::Index { json } => index(json),
+            Command::Find { query, json } => find(&query, json),
+            Command::Show { symbol, json } => show(&symbol, json),
+            Command::Init {
+                agents,
+                all,
+                force,
+                check,
+                no_hooks,
+            } => init(&InitOptions {
+                agents,
+                all,
+                force,
+                check,
+                no_hooks,
+            }),
+            Command::Hook { agent } => hook(&agent),
+        }
+    }
+}
+
 /// The shape of the three `--json` documents the module doc sketches, frozen
 /// the way `nvs check --json`'s is. It goes up when a key is removed or its
 /// meaning changes; a key added beside the others does not move it.
