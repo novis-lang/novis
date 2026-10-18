@@ -1,12 +1,12 @@
-A nullable type holds its type or nothing. Nothing is a type of its own, so an ordinary number can
-never quietly be empty. A union holds either of the types it names, and a program asks which one is
-there before treating it as one of them.
+A nullable type `?T` is the type `T` or `null`. A variable can be `null` only when its type allows
+it. A union `A|B` is either of the two types. Test which one a value is with `is` before you use it
+as one of them.
 
-A single-value type is one value used as a type, such as `"asc"`. A union of them is a set of
-allowed values. A setting that may only be one of three words has a type that names those three
-words, and a fourth word is not accepted where it arrives. An enum case is a type in the same way,
-so a function can accept two of an enum's cases and not the third.
+A single-value type is one value written as a type, such as `"asc"` or `3`. A union of them is a
+list of allowed values. A setting that may only be one of three words has a type that names those
+three words. Any other word is not accepted. An enum case is a type in the same way, so a function
+can accept two cases of an enum and not the third.
 
-**In plain words:** the type lists what is allowed, and nothing else gets in. The examples show a
-setting that may be missing, a sort order limited to three words, and a handler that turns an
-untrusted request into the values it will act on.
+**The examples below** show a setting that may be missing, a sort order limited to three words, and
+a handler that converts an untrusted request into the values it accepts. The last three show each
+kind of type at once, and two compile errors.
