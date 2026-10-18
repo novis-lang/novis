@@ -1,0 +1,7 @@
+<?nvs
+// Shows that a case cannot be compared with a number. Write
+// `(Rank::Bronze as int) == 0` to compare the numbers.
+// proof: compile-error
+
+enum Rank { Bronze, Silver }
+echo (Rank::Bronze == 0) ? "bronze" : "other", "\n";
