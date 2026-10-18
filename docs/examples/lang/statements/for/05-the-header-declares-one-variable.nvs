@@ -1,0 +1,8 @@
+<?nvs
+// Shows that the first part of a `for` header declares one variable at most.
+// This header declares two, so this program does not compile.
+// proof: compile-error
+
+for (int $row = 0, int $column = 0; $row < 3; $row++) {
+    echo $row, "\n";
+}
