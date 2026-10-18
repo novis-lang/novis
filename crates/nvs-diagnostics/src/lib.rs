@@ -66,6 +66,11 @@ macro_rules! codes {
     ) => {
         /// The constants this area declares, which [`crate::code`] re-exports.
         pub(super) mod declared {
+            // Every other area's codes, so a doc comment here can link to a
+            // code declared in another file.
+            #[allow(unused_imports, reason = "read by intra-doc links alone")]
+            use crate::code::*;
+
             $(
                 $(#[$meta])*
                 pub const $name: crate::Code = crate::Code::new($code);
