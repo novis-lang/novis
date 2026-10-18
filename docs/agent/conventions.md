@@ -509,8 +509,11 @@ A command is its own module under `crates/nvs-cli/src/`, and that module owns th
 and how they are run. It declares a `#[derive(clap::Args)] pub(crate) struct Args` whose doc comment is
 the command's help line, and an `Args::run(self, ...)` that takes only what the command reads from the
 global flags. `main.rs` then gets two lines: the variant `Name(name::Args)` in `Command`, with no doc
-comment, and the arm `Command::Name(args) => args.run(...)`. A command with subcommands owns a
-`#[derive(clap::Subcommand)]` enum in the same way. `crates/nvs-cli/src/ast.rs`'s `Args` is the shape.
+comment, and the arm `Command::Name(args) => args.run(...)`. A command with subcommands gives its
+`Args` one `#[command(subcommand)]` field holding a private `#[derive(clap::Subcommand)] enum Command`,
+which `Args::run` matches; `crates/nvs-cli/src/schema.rs` is that shape. A hidden alias is the one
+variant that keeps a doc comment, beside its `#[command(hide = true)]`. `crates/nvs-cli/src/ast.rs`'s
+`Args` is the shape.
 Moving a command keeps every help page byte for byte the same, so compare `nvs <command> --help` and
 `-h` before and after.
 

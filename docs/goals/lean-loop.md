@@ -22,7 +22,7 @@ stages:
     context: [crates/nvs-diagnostics/src/code/mod.rs]
   - id: 6
     title: the central tables are split per item
-    status: open
+    status: done
     context: [crates/nvs-stdlib/src/registry.rs, crates/nvs-cli/src/main.rs, data/proofs/policy.json]
   - id: 7
     title: a generated file never conflicts in a merge
@@ -165,12 +165,12 @@ edits no shared table by hand.
   - [x] Each const in today's table carries its rank, seeded from its position so the order is unchanged, and `nvs meta --json` prints the same bytes.
   - [x] The table's prose comments move into each const's own doc, rewritten for where they now stand.
   - [x] A test fails on a `CoreClass` const that has no rank and is not on a short roster of unregistered ones, such as `crate::cursor::CLASS`.
-- [ ] Each `nvs` command registers itself, so a new command edits no central `match`. `crates/nvs-cli/src/main.rs:144`
+- [x] Each `nvs` command registers itself, so a new command edits no central `match`. `crates/nvs-cli/src/main.rs:144`
   - [x] The shape is decided: a module owns a `clap::Args` struct, whose doc comment is the help line, and its `run`. `main.rs` keeps one variant line and one arm line per command, as `conventions.md` § *An `nvs` command* says.
   - [x] `nvs ast` is moved, and all 113 `--help` and `-h` pages print byte for byte what they printed before.
   - [x] Every command with no subcommands is moved, and the help pages are compared again.
-  - [ ] Every command group, such as `service` and `queue`, moves its `Subcommand` enum into its module, and the help pages are compared again.
-  - [ ] `initializes`, `prepares` and the `service run` test still match each variant, and `main.rs` holds no command's fields.
+  - [x] Every command group, such as `service` and `queue`, moves its `Subcommand` enum into its module, and the help pages are compared again.
+  - [x] `initializes`, `prepares` and the `service run` test still match each variant, and `main.rs` holds no command's fields.
 - [x] `data/proofs/policy.json`'s skips are one file per feature, under `data/proofs/skip/`. `tools/nv/schema/proofs.ts:51`
 
 ### 7. a generated file never conflicts in a merge
@@ -185,20 +185,18 @@ edits no shared table by hand.
 
 ### State
 
-Stage 5 is done. Stage 6's proof policy and `Core` class table are done. Its CLI command item has
-every command without subcommands moved. Stage 4's one open item waits on looper.
+Stages 5 and 6 are done. Stage 7 is next. Stage 4's one open item waits on looper.
 
-- The command shape is `conventions.md` § *An `nvs` command*. Thirteen commands are on it: `ast`,
-  `check`, `run`, `serve`, `test`, `build`, `init`, `fmt`, `lsp`, `lsp-test`, `info`, `meta`, `doc`
-  and `stubs`. `nvs test`'s `Args` is in `runner.rs`, `nvs build`'s in a new `build.rs`, and `nvs
-  run`'s in a new `run.rs` with `FaultSiteArg`. `check::Deny` moved beside `check::Args`.
-- `run::Args` and `serve::Args` also have `hosted`, which `run_hosted` calls for `nvs service run`.
-  It skips the service-manager check, because `run_hosted` already logs like a service.
-- The bodies `run_check`, `run_run`, `run_test`, `run_build` and `serve_command` stay in `main.rs`,
-  and each `Args::run` calls one. Moving them is not on this item.
-- The check is a walk of every `--help` and `-h` page, 112 of them, diffed before and after. The
-  walker is a scratch script, so the next session writes it again: recurse on each page's
-  `Commands:` list, skipping `help`.
+- Every `nvs` command is on `conventions.md` § *An `nvs` command*. `Command` in
+  `crates/nvs-cli/src/main.rs` is one tuple variant per command, and the only doc comment left
+  on a variant is the hidden alias `InstallService(service::Install)`.
+- A group's module holds `Args` with the group's help, a private `Command` enum, and `Args::run`.
+  `nvs api`'s is in `api_diff.rs`, `ExtLang` is `ext::Lang`, and `service::Install` has its own
+  `run`. `service::Args::runs_a_stored_line` is how `main` skips the data folder for `nvs service
+  run`. `run_hosted` and `unaccepted` stay in `main.rs`, because they parse `Cli`.
+- The service install-help test moved to `service.rs`'s tests, and calls `crate::tests::words`.
+- All 112 `--help` and `-h` pages print what they printed before, apart from the build's commit
+  stamp. The walker was a scratch script.
 - The swap to `looper links` and `looper layout` waits on looper: its `links` reads no `<a id>` and
   does not skip `docs/novis.md`, its `layout` reads README.md and the listing is in CONTRIBUTING.md,
   and CI has no looper binary.
@@ -210,12 +208,12 @@ Nightly run 39108526796 on `1a78b49ef` is still the newest, and every failure it
 
 ### Next
 
-Stage 6's last item, on `crates/nvs-cli/src/main.rs` and the command modules it declares. Its
-checkpoints are under the stage 6 item.
-- [ ] Move each command group's `Subcommand` enum into its module, as `<name>::Command`, a few groups per commit, and diff the help pages after each: `code` and `agent` `crates/nvs-cli/src/main.rs:493`, `crates/nvs-cli/src/main.rs:560`; `ext`, `api`, `config`, `queue`, `schema` and `tmp` `crates/nvs-cli/src/main.rs:681`; `service` with `ServiceInstall` `crates/nvs-cli/src/main.rs:942`, `crates/nvs-cli/src/main.rs:1074`.
-- [ ] Leave `main.rs` with no command's fields, and `initializes` and `prepares` matching tuple variants. `crates/nvs-cli/src/main.rs:297`, `crates/nvs-cli/src/main.rs:355`
+Stage 7's first two items, as three slices, on `.gitattributes`, `tools/nv/cmd/render.ts` and `docs/agent/commands.md`.
+- [ ] List every file `nv render` and `nv rules --render` write, and mark each `linguist-generated` beside the rules pages already marked. `.gitattributes:39`, `tools/nv/cmd/render.ts:1`
+- [ ] Mark the perf ledger `members.ndjson` `merge=union`, at the path it has now; goal `docs-cleanup` moves it. `.gitattributes:43`, `docs/perf/members.ndjson:1`
+- [ ] Say in `commands.md` how a person resolves a conflict in a generated file: take either side, then render. `docs/agent/commands.md:1`
 
-Then stage 7, `.gitattributes` and the merge rule for generated files. `.gitattributes:43`
+The third item waits on looper's goal `landing-fixes`; if it is not reached, write `BLOCKED`.
 
 ### Backlog
 
