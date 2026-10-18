@@ -107,8 +107,8 @@ repository, so both ways give one verdict.
 
 ### State
 
-The goal is new, and nothing is on disk for it yet. Goal `lean-loop` is live ahead of it, with only
-its goal-end gates left. Looper's goal `project-gates` is written in looper's repository.
+The goal is new, and nothing is on disk for it yet. Goal `lean-loop` ahead of it claimed `DONE`,
+and its backlog moved here. Looper's goal `project-gates` is written in looper's repository.
 
 ### Next
 
@@ -119,4 +119,9 @@ Stage 1, on `tools/nv/main.ts`, `.claude/settings.json` and `looper.toml`.
 
 ### Backlog
 
-- Looper's `links` misses three things another project may need: `<a id>` anchors, a skip for generated pages, and a code span that wraps onto the next line. Looper's goal `project-gates` notes them.
+- Two looper gaps. Its `links` misses `<a id>` anchors, a skip for generated pages and a code span that wraps onto the next line, which looper's goal `project-gates` notes. And `looper guard` matched a commit in looper's own checkout against a claim on this tree's `docs/goals/README.md`, which no looper goal owns yet (`crates/looper-core/src/claims.rs` in looper's repository).
+- `bun nv verify` does not run `nv render --website --check`, so the website data goes stale unseen until CI. `tools/nv/cmd/verify.ts:153`
+- Two flakes to fix at the cause. `test_request_dispatches_in_process_through_the_compiled_route_table` was red once, also alone, because `Core\Env::context()` was not `Request` (`crates/nvs-cli/src/runner.rs:3410`). And `live_edit`'s two compile-race tests missed their 30 s swap deadline beside the other binaries on a disk 98% full, and passed alone (`crates/nvs-cli/tests/live_edit.rs:1016`).
+- The warm-start budget of 6 ms of work. At `1a78b49ef` Linux measured 7.4 ms and macOS 6.8 ms, where macOS measured 5.6 ms at `e110c9c0b`, and Windows is over it on every run. Find which of the commits between the two adds start-up work. `tools/nv/cmd/bench.ts` § *The warm-start figure* owns it.
+- `fullRun` and `runBenches` still take a `deadline` that no caller passes, and `runBenches` an `order` and `onStart` that only the debt passed. `tools/nv/select/full.ts:63`, `tools/nv/proofs/select.ts:265`
+- `Core\Ldap::connect` dials each address of a host in turn, so a `localhost` block pays 2 s on Windows. `crates/nvs-stdlib/src/ldap/mod.rs:489`, `crates/nvs-host/src/net.rs:438`
