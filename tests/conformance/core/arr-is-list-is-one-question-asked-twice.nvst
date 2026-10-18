@@ -1,5 +1,5 @@
 --TEST--
-Core\Arr::isList and Core\Json::encode's array test are one predicate, so the members that renumber answer a list from any subject while a chunk run that keeps its keys answers one only where it was given one — `rule:types/arrays`, `rule:types/preserve-keys` and `rule:types/arrays`, spec § 2
+Core\Arr::isList and Core\Json::encode's array test are one predicate, so the members that renumber answer a list from any subject while a chunk run that keeps its keys answers one only where it was given one — `rule:types/arrays`, `rule:types/preserve-keys` and `rule:types/arrays`
 --FILE--
 <?nvs
 // "Are these keys exactly "0" ... "n-1", in that order?" is `rule:types/arrays`'s list

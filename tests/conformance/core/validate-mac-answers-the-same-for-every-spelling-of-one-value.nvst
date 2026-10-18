@@ -1,8 +1,8 @@
 --TEST--
-`Core\Validate::isMac` is one predicate over a value rather than three predicates over three notations: every spelling of the same twelve characters is counted, and the count is unanimous for all 137 values swept — docs/spec/01-core-library.md § 12
+`Core\Validate::isMac` is one predicate over a value rather than three predicates over three notations: every spelling of the same twelve characters is counted, and the count is unanimous for all 137 values swept
 --FILE--
 <?nvs
-// § 12 accepts a MAC three ways — six octets by `:`, six by `-`, or Cisco's
+// `Core\Validate::isMac` accepts a MAC three ways — six octets by `:`, six by `-`, or Cisco's
 // three groups of four by `.` — in hex digits of either case. The sibling case
 // `validate-mac-takes-three-spellings-and-refuses-the-nearest-miss.nvst` names
 // each of those bounds beside the spelling just past it. This one asserts what
@@ -63,7 +63,7 @@ final class Mac {
 
 // What the renderer actually produces, for the one value everybody writes. A
 // unanimity count is satisfied by a member that refuses everything, so the
-// counts below mean nothing unless these three are the addresses § 12 names.
+// counts below mean nothing unless these three are the addresses `isMac` accepts.
 echo "renders ",
      Mac::render("001122334455", ":", 2), " ",
      Mac::render("001122334455", "-", 2), " ",

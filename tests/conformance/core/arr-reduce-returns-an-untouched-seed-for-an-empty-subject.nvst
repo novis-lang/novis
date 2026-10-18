@@ -1,9 +1,9 @@
 --TEST--
-Core\Arr::reduce over an empty subject is the seed returned unchanged with no call made, whatever the seed's type, and the seed the caller holds is never written through (spec § 2 Iteration and aggregation)
+Core\Arr::reduce over an empty subject is the seed returned unchanged with no call made, whatever the seed's type, and the seed the caller holds is never written through
 --FILE--
 <?nvs
-// Spec § 2 says an empty array is "that seed returned unchanged with no call
-// made", which is two claims. The first is read off the answer; the second is
+// Over an empty array the answer is the seed returned unchanged, with no call
+// made, which is two claims. The first is read off the answer; the second is
 // only assertable by handing the fold a *landmine* — a callback that throws the
 // moment it is called — since a callback that merely returns its carry would
 // leave the two indistinguishable. Every callback here is written inline: the

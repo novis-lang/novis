@@ -1,5 +1,5 @@
 --TEST--
-Spec § 4: `Core\Time\TimeOfDay` is the zone-free clock half, and `$d->timeOfDay()` is the component view
+`Core\Time\TimeOfDay` is the zone-free clock half, and `$d->timeOfDay()` is the component view
 --FILE--
 <?nvs
 // `TimeOfDay::at` takes the two fields a wall clock always writes and

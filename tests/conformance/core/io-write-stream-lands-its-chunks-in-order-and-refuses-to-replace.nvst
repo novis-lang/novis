@@ -1,5 +1,5 @@
 --TEST--
-Core\IO::writeStream lands its chunks in order as one file, and a second write to the same name refuses unless `overwrite` says otherwise — the default asserted by what is still on disk after the refusal rather than by the throw on its own — `rule:core-classes/io-write-stream`, spec § 14
+Core\IO::writeStream lands its chunks in order as one file, and a second write to the same name refuses unless `overwrite` says otherwise — the default asserted by what is still on disk after the refusal rather than by the throw on its own — `rule:core-classes/io-write-stream`
 --FILE--
 <?nvs
 // Three chunks, one file: what a caller gets is `write`'s result over a source

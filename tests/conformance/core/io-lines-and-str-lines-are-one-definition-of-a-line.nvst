@@ -1,5 +1,5 @@
 --TEST--
-Core\IO::lines and Core\Str::lines over Core\IO::read answer the same lines for the same file, counted over a sweep of the three terminators, a trailing one, an interior empty line, a file that ends without a terminator and an empty file — the two members are one definition of a line reached two ways rather than two definitions that happen to agree today — spec §§ 1 and 14
+Core\IO::lines and Core\Str::lines over Core\IO::read answer the same lines for the same file, counted over a sweep of the three terminators, a trailing one, an interior empty line, a file that ends without a terminator and an empty file — the two members are one definition of a line reached two ways rather than two definitions that happen to agree today
 --FILE--
 <?nvs
 // The claim is an agreement, and it is the reason `Core\IO::lines` has no
@@ -30,7 +30,7 @@ int $i = 0;
 for (; $i < $total; $i = $i + 1) {
     Core\IO::write("subject.txt", $bodies[$i]);
 
-    // The same file, read whole and split by § 1's member.
+    // The same file, read whole and split by `Core\Str::lines`.
     array<string> $split = Core\Str::lines(Core\IO::read("subject.txt"));
     int $expected = Core\Arr::count($split) as int;
 

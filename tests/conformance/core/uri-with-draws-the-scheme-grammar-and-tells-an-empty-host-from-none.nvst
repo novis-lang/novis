@@ -1,8 +1,8 @@
 --TEST--
-`Core\Uri::with` draws each component's own grammar: a scheme is RFC 3986 § 3.1's `ALPHA *( ALPHA / DIGIT / "+" / "-" / "." )` at both ends of the bound, and an empty host is a different authority from an absent one — spec § 12
+`Core\Uri::with` draws each component's own grammar: a scheme is RFC 3986 § 3.1's `ALPHA *( ALPHA / DIGIT / "+" / "-" / "." )` at both ends of the bound, and an empty host is a different authority from an absent one
 --FILE--
 <?nvs
-// Spec § 12's `with` recomposes and re-reads, so a component's grammar is the
+// `with` recomposes and re-reads, so a component's grammar is the
 // one RFC 3986 gives that component and not "any string". The standing cases
 // pin case-preservation and the component that *moves*; this one asks where
 // each component's own grammar stops.

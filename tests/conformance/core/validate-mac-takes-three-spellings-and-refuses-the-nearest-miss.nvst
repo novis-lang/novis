@@ -1,8 +1,8 @@
 --TEST--
-`Core\Validate::isMac` names each of the three separator forms and both hex cases it accepts beside the nearest spelling it refuses, and counts that exactly one group count per form is accepted — docs/spec/01-core-library.md § 12
+`Core\Validate::isMac` names each of the three separator forms and both hex cases it accepts beside the nearest spelling it refuses, and counts that exactly one group count per form is accepted
 --FILE--
 <?nvs
-// § 12 gives `isMac` `FILTER_VALIDATE_MAC`'s own reading: six octets separated
+// `isMac` takes `FILTER_VALIDATE_MAC`'s own reading: six octets separated
 // by `:` or `-`, or Cisco's three groups of four separated by `.`, with one
 // separator throughout. Every one of those words is a *bound*, and a member
 // that stopped one entry short of any of them still prints plausibly against

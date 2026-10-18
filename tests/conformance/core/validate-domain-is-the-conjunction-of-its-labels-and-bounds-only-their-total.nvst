@@ -1,5 +1,5 @@
 --TEST--
-`Core\Validate::isDomain` accepts a name exactly when every label of it is accepted as a name of its own and the total stays inside RFC 1123 § 2.1's 253 bytes — so the number of labels is bounded by nothing else, and the last width accepted sits beside the first refused — docs/spec/01-core-library.md § 12
+`Core\Validate::isDomain` accepts a name exactly when every label of it is accepted as a name of its own and the total stays inside RFC 1123 § 2.1's 253 bytes — so the number of labels is bounded by nothing else, and the last width accepted sits beside the first refused
 
 --FILE--
 <?nvs

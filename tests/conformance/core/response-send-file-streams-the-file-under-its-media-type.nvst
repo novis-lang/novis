@@ -1,5 +1,5 @@
 --TEST--
-`Core\Response::sendFile` answers with the file at its path rather than with a copy of it the program holds, and the bytes reach the body verbatim — `rule:security/response-body-is-one-typed-member`, spec § 15
+`Core\Response::sendFile` answers with the file at its path rather than with a copy of it the program holds, and the bytes reach the body verbatim — `rule:security/response-body-is-one-typed-member`
 --FILE--
 <?nvs
 // § 4's file row is the one body member that hands over a *name*. Inside a

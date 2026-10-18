@@ -1,5 +1,5 @@
 --TEST--
-Spec § 4, `rule:classes/comparable`: `Core\Time\Instant::compareTo` is a total order on the timeline, asserted by counting trichotomy, antisymmetry, agreement with `<` and `<=>` over every pair and transitivity over every triple; it answers the first and the last representable instants and two instants one nanosecond apart, and `==` stays identity where it answers `0`
+`Core\Time\Instant::compareTo` is a total order on the timeline, asserted by counting trichotomy, antisymmetry, agreement with `<` and `<=>` over every pair and transitivity over every triple; it answers the first and the last representable instants and two instants one nanosecond apart, and `==` stays identity where it answers `0` — `rule:classes/comparable`
 --FILE--
 <?nvs
 // covers: Core\Time\Instant::compareTo

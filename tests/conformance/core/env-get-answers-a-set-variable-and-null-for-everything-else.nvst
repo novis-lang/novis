@@ -1,5 +1,5 @@
 --TEST--
-`Core\Env::get` answers a set variable and `null` for every other name — spec § 15, `rule:statements/no-host-populated-variables`
+`Core\Env::get` answers a set variable and `null` for every other name — `rule:statements/no-host-populated-variables`
 --ENV--
 NVS_CASE_ONE=first
 NVS_CASE_PAIR=key=value

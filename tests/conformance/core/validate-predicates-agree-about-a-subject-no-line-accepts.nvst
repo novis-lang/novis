@@ -1,8 +1,8 @@
 --TEST--
-`Core\Validate`'s four structural predicates agree, over a sweep of degenerate subjects, that none of them is anything — while `isAscii` and `isPrintable` are a different question and split the same sweep — docs/spec/01-core-library.md § 12
+`Core\Validate`'s four structural predicates agree, over a sweep of degenerate subjects, that none of them is anything — while `isAscii` and `isPrintable` are a different question and split the same sweep
 --FILE--
 <?nvs
-// § 12's first table is six predicates that never throw: a malformed subject
+// `Core\Validate` has six predicates that never throw: a malformed subject
 // is answered `false`, not raised. `validate-members.nvst` walks each
 // member's own line. This asks one question of all six at once and
 // **counts** the answers, so a member that grew its own idea of "empty" —

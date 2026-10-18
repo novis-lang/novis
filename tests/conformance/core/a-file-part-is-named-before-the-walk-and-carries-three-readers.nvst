@@ -1,5 +1,5 @@
 --TEST--
-`Core\Request::files` names the walk rather than taking it, so a program answering no request is refused where it asked and not at the first part — spec § 15, `rule:http-server/an-upload-is-received-only-through-files` and `rule:http-server/a-part-is-a-file-iff-it-carries-a-filename`, `rule:security/request-state-throws-in-an-isolate`
+`Core\Request::files` names the walk rather than taking it, so a program answering no request is refused where it asked and not at the first part — `rule:http-server/an-upload-is-received-only-through-files` and `rule:http-server/a-part-is-a-file-iff-it-carries-a-filename`, `rule:security/request-state-throws-in-an-isolate`
 --FILE--
 <?nvs
 // Where the refusal lands is the question, and it is one only a lazy member can

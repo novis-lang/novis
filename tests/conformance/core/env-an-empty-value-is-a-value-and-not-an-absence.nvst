@@ -1,5 +1,5 @@
 --TEST--
-An empty value is a value and not an absence, in both of `Core\Env`'s answers — spec § 15, `rule:core-api/shape-rules`
+An empty value is a value and not an absence, in both of `Core\Env`'s answers — `rule:core-api/shape-rules`
 --ENV--
 NVS_CASE_EMPTY=
 NVS_CASE_FULL=x

@@ -1,5 +1,5 @@
 --TEST--
-Core\Math's six hyperbolic members are the exponential definitions they are named for, and the three inverses undo them, spec § 3
+Core\Math's six hyperbolic members are the exponential definitions they are named for, and the three inverses undo them
 --FILE--
 <?nvs
 // The *agreement* shape (conventions.md), asserted by *counting*: the question

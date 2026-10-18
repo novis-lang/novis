@@ -1,8 +1,8 @@
 --TEST--
-Core\Arr::average answers every exact quotient a decimal holds and refuses exactly the one whose rounding carries past it, spec § 2 and `rule:types/decimal` and `rule:types/arithmetic`
+Core\Arr::average answers every exact quotient a decimal holds and refuses exactly the one whose rounding carries past it, `rule:types/decimal` and `rule:types/arithmetic`
 --FILE--
 <?nvs
-// Spec § 2's `average` keeps an exact subject exact: a `decimal` total is
+// `Core\Arr::average` keeps an exact subject exact: a `decimal` total is
 // divided by the entry count as a `decimal`, which `rule:types/arithmetic` rounds half to
 // even at the widest scale the quotient admits. The one subject it has no
 // answer for is the one whose rounding carries past § 1's 96-bit mantissa.

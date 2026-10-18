@@ -1,5 +1,5 @@
 --TEST--
-`Core\IO::open` answers a `Core\IO\File` a declared type can name, its three members carry a whole round trip, and a handle used after `close` throws rather than reading another file — spec § 14 R14, `rule:security/capability-check-at-the-door`
+`Core\IO::open` answers a `Core\IO\File` a declared type can name, its three members carry a whole round trip, and a handle used after `close` throws rather than reading another file — `rule:security/capability-check-at-the-door`
 --FILE--
 <?nvs
 // covers: Core\IO\File::close

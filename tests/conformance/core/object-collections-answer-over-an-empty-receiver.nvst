@@ -1,5 +1,5 @@
 --TEST--
-Every `Core\ObjectMap` and `Core\ObjectSet` member answers over an empty receiver, and the empty set is `union`'s identity and `intersect`'s annihilator from both sides — docs/spec/01-core-library.md § 9
+Every `Core\ObjectMap` and `Core\ObjectSet` member answers over an empty receiver, and the empty set is `union`'s identity and `intersect`'s annihilator from both sides
 --FILE--
 <?nvs
 final class Tag {
@@ -8,7 +8,7 @@ final class Tag {
 
 Tag $red = new Tag("red");
 
-// § 9's edge: an empty collection answers every member rather than throwing.
+// The edge: an empty collection answers every member rather than throwing.
 // `get` is `?V` precisely so the absent read has an answer, and `remove` has
 // no answer to give in either case, so it cannot report one.
 Core\ObjectMap<Tag, int> $map = new Core\ObjectMap<Tag, int>();

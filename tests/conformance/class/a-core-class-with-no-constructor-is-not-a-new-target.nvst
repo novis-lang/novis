@@ -4,9 +4,9 @@
 <?nvs
 // A `Core` class is not constructed by a `constructor` member: its instances
 // come from the member that produces one, and the whole roster of names `new`
-// may be written on is `nvs_stdlib::registry::CONSTRUCTORS` — spec § 9's
-// collections and nothing else. So the two mistakes below are different ones,
-// and neither is the arity count a user class gets.
+// may be written on is `nvs_stdlib::registry::CONSTRUCTORS` and nothing else.
+// So the two mistakes below are different ones, and neither is the arity count
+// a user class gets.
 
 // The accepted half, written first so that a name that stopped being
 // constructible shows up here rather than as a missing refusal below.

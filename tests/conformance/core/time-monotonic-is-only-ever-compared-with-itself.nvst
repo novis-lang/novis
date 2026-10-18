@@ -1,5 +1,5 @@
 --TEST--
-Spec § 4: every `Core\Time::monotonic` assertion is made against another reading of the same clock — a whole sweep ordered pair by pair, and no epoch or zone anywhere in the value
+Every `Core\Time::monotonic` assertion is made against another reading of the same clock — a whole sweep ordered pair by pair, and no epoch or zone anywhere in the value
 --FILE--
 <?nvs
 // `Core\Time::monotonic(): Duration` reads the host, so no case can name its

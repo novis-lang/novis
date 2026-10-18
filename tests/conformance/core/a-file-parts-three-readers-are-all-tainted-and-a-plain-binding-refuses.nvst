@@ -1,5 +1,5 @@
 --TEST--
-Every reader `Core\Request\Part` has answers `tainted string`, including the field name the spec leaves unmarked, so a plain `string` binding refuses all three — `rule:security/tainted-qualifier`, `rule:http-server/a-part-is-a-file-iff-it-carries-a-filename`, spec § 15
+Every reader `Core\Request\Part` has answers `tainted string`, the field name included, so a plain `string` binding refuses all three — `rule:security/tainted-qualifier`, `rule:http-server/a-part-is-a-file-iff-it-carries-a-filename`
 --FILE--
 <?nvs
 // Agreement, asked of all three readers at once: what decides the qualifier is

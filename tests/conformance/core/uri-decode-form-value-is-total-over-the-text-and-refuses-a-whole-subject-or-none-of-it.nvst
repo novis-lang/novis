@@ -1,5 +1,5 @@
 --TEST--
-`Core\Uri::decodeFormValue` has exactly one refusal and the text cannot cause it: it answers for every one of the 128 raw ASCII bytes and for all 256 arrangements of a `%` with a non-hex neighbour, and where the octets do refuse it refuses the *whole* subject wherever the escape sits rather than answering the prefix it had already decoded — spec § 12, `rule:types/bytes`
+`Core\Uri::decodeFormValue` has exactly one refusal and the text cannot cause it: it answers for every one of the 128 raw ASCII bytes and for all 256 arrangements of a `%` with a non-hex neighbour, and where the octets do refuse it refuses the *whole* subject wherever the escape sits rather than answering the prefix it had already decoded — `rule:types/bytes`
 --FILE--
 <?nvs
 // Two claims that the neighbouring cases each half-state. The malformed-escape

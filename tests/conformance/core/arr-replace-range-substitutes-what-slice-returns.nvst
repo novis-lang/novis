@@ -1,5 +1,5 @@
 --TEST--
-Core\Arr::replaceRange substitutes exactly the window Core\Arr::slice returns, and renumbers, per spec § 2 and `rule:types/preserve-keys`
+Core\Arr::replaceRange substitutes exactly the window Core\Arr::slice returns, and renumbers, per `rule:types/preserve-keys`
 --FILE--
 <?nvs
 // `replaceRange` is `slice`'s window with the entries put back differently,

@@ -1,5 +1,5 @@
 --TEST--
-Core\Random::int's closed bound is drawn at the ends of `int` itself — a singleton at each extreme, the whole 2^64-value range, and the two-value ranges pinned against each end — spec § 11, `rule:types/arithmetic`
+Core\Random::int's closed bound is drawn at the ends of `int` itself — a singleton at each extreme, the whole 2^64-value range, and the two-value ranges pinned against each end — `rule:types/arithmetic`
 --FILE--
 <?nvs
 // The standing sweep asks for `int(1, 6)` and for a range of 2^62 either side

@@ -1,9 +1,9 @@
 --TEST--
-Core\Uri::decodeComponent and decodeFormValue read `%20` alike and `+` differently, either case of hex reads, and a malformed escape is text — spec § 12
+Core\Uri::decodeComponent and decodeFormValue read `%20` alike and `+` differently, either case of hex reads, and a malformed escape is text
 --FILE--
 <?nvs
 // Every row here reads a decoder's answer as text, and a decoder answers
-// `bytes` (spec § 12) — so each one carries the `as string` `rule:types/conversion` asks
+// `bytes` — so each one carries the `as string` `rule:types/conversion` asks
 // for. All of these octets are text, so none of the conversions throws; the
 // ones that would are `uri-decode-component-…-refuses-a-non-utf-8-octet`'s.
 //

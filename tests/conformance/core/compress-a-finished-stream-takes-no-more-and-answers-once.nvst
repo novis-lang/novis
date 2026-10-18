@@ -1,5 +1,5 @@
 --TEST--
-A finished `Core\Compress` stream refuses a later `add` and a second `finish`, in both directions, and a `finish` that refused is finished too — spec § 17, `rule:core-api/a-lifetime-is-an-object`, `rule:core-classes/decompression-bound`
+A finished `Core\Compress` stream refuses a later `add` and a second `finish`, in both directions, and a `finish` that refused is finished too — `rule:core-api/a-lifetime-is-an-object`, `rule:core-classes/decompression-bound`
 --FILE--
 <?nvs
 // `finish` consumes the stream: a frame is whole once it has been answered, so

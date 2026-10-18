@@ -1,8 +1,8 @@
 --TEST--
-Spec § 4: `Core\Time\Date::at` bounds each of its three fields on both sides — year -9999/9999 against -10000/10000, month 1/12 against 0/13, day 1/31 against 0/32 — the day's own ceiling is read from the other two fields rather than fixed, and past every calendar bound there is a second one, a field wider than the calendar writes, with its own sentence and its own pair of neighbours
+`Core\Time\Date::at` bounds each of its three fields on both sides — year -9999/9999 against -10000/10000, month 1/12 against 0/13, day 1/31 against 0/32 — the day's own ceiling is read from the other two fields rather than fixed, and past every calendar bound there is a second one, a field wider than the calendar writes, with its own sentence and its own pair of neighbours
 --FILE--
 <?nvs
-// § 4: `at` is the only way to write a `Date`'s three fields, so the bounds it
+// `at` is the only way to write a `Date`'s three fields, so the bounds it
 // enforces are the whole of what a calendar date can be. Each is asserted on
 // both sides: a member that stopped one entry early prints plausibly against
 // either half alone, and a member that clamped instead of refusing prints
@@ -77,7 +77,7 @@ echo "all-past=", Cal::at(10000, 13, 32), "|\n";
 echo "two-past=", Cal::at(2024, 13, 32), "|\n";
 
 // The day's ceiling is not a number: it is read from the year and the month
-// together, which is the whole of why § 4 has no `checkdate`. Six (year,
+// together, which is the whole of why `Core\Time` has no `checkdate`. Six (year,
 // month) pairs, each with the last day it accepts — including both halves of
 // the century rule, where 2000 is a leap year and 1900 is not — and each
 // asserted on both sides: the last day accepted, the next one refused. A

@@ -1,5 +1,5 @@
 --TEST--
-`Core\Uri::buildQuery` and `parseQuery` are inverse over a sweep of query strings — the array survives, the text is a fixed point, and key order is insertion order — with the two keys the wire cannot spell: one holding the bracket convention's own characters, and one that is empty — spec § 12
+`Core\Uri::buildQuery` and `parseQuery` are inverse over a sweep of query strings — the array survives, the text is a fixed point, and key order is insertion order — with the two keys the wire cannot spell: one holding the bracket convention's own characters, and one that is empty
 --FILE--
 <?nvs
 // The neighbouring case shows what one call writes, row by row. This one asks
@@ -23,7 +23,7 @@ array<string> $queries = [
     "a[b][c][d][e]=x",
     "",
 ];
-// `parseQuery` answers a value as `bytes` (spec § 12) and `Core\Json::encode`
+// `parseQuery` answers a value as `bytes` and `Core\Json::encode`
 // has no encoding for one, so every comparison of two whole arrays below runs
 // through this walk. It converts leaves and nothing else, so the nesting and
 // the key order — which are what is being compared — are untouched.

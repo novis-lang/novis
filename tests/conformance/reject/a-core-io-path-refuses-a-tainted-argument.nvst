@@ -1,10 +1,10 @@
 --TEST--
-every path parameter of Core\IO refuses a tainted argument, and the seven of them agree across the whole class rather than each answering for itself — a filesystem path component is an instruction because `..` and the separators direct the resolver — `rule:security/sink-predicate`, spec § 14
+every path parameter of Core\IO refuses a tainted argument, and the seven of them agree across the whole class rather than each answering for itself — a filesystem path component is an instruction because `..` and the separators direct the resolver — `rule:security/sink-predicate`
 --FILE--
 <?nvs
 // `rule:security/sink-predicate`'s table puts a filesystem path component on the instruction
-// side -- `..` and the separators direct the resolver -- so spec § 14's opening
-// sentence, which calls every member of `Core\IO` a path sink, is that
+// side -- `..` and the separators direct the resolver -- so every member of
+// `Core\IO` being a path sink is that
 // predicate applied rather than a second rule. What this file asks is that the
 // class *agrees*: a member that kept an answer of its own still reads right on
 // its own line and fails on this one.

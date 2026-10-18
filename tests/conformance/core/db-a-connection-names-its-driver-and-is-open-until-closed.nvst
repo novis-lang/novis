@@ -1,5 +1,5 @@
 --TEST--
-`Core\Db\Connection`'s two readonly members answer the connection and not the block that named it: `driver()` is the `Core\Db\Driver` case the `[db.<name>]` block wrote, and `isOpen()` is `true` right up to the `close` that ends it — `rule:core-classes/db-connection-is-named` and `rule:security/db-pool-reset-is-a-boundary` and spec § 18
+`Core\Db\Connection`'s two readonly members answer the connection and not the block that named it: `driver()` is the `Core\Db\Driver` case the `[db.<name>]` block wrote, and `isOpen()` is `true` right up to the `close` that ends it — `rule:core-classes/db-connection-is-named` and `rule:security/db-pool-reset-is-a-boundary`
 --FILE--
 <?nvs
 // covers: Core\Db\Driver
@@ -11,7 +11,7 @@
 // worth a running database.
 var $db = Core\Db::connect("main");
 
-// § 18's `driver()`. The answer is the enum and not its name: a case is a
+// `driver()`. The answer is the enum and not its name: a case is a
 // value (`rule:enums/closed-integer-type`), so a program compares rather than parses.
 echo "driver ", $db->driver() == Core\Db\Driver::Sqlite ? "is sqlite" : "is something else", "\n";
 
@@ -20,7 +20,7 @@ echo "driver ", $db->driver() == Core\Db\Driver::Sqlite ? "is sqlite" : "is some
 // time rather than cached in the handle.
 echo "still ", $db->driver() == Core\Db\Driver::Sqlite ? "sqlite" : "something else", "\n";
 
-// § 18's `isOpen()`, before and after. It is bookkeeping about the request's
+// `isOpen()`, before and after. It is bookkeeping about the request's
 // own table and never a round trip, which is why a program may write it in a
 // condition.
 echo "open before close: ", $db->isOpen() ? "yes" : "no", "\n";

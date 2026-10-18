@@ -1,5 +1,5 @@
 --TEST--
-`Core\ObjectMap::remove` of a key whose identity hash other keys share keeps every survivor in insertion order, and every survivor still findable — docs/spec/01-core-library.md § 9
+`Core\ObjectMap::remove` of a key whose identity hash other keys share keeps every survivor in insertion order, and every survivor still findable
 --FILE--
 <?nvs
 // covers: Core\ObjectMap::remove, Core\ObjectMap::values

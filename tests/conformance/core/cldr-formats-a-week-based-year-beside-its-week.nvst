@@ -1,5 +1,5 @@
 --TEST--
-Spec § 4: `Y` writes the year `w`'s week belongs to, and every letter that reads a week rule reads the same one
+`Core\Time`: `Y` writes the year `w`'s week belongs to, and every letter that reads a week rule reads the same one
 --FILE--
 <?nvs
 // ISO 8601 writes a week as a year, a week number and a day in it, and the

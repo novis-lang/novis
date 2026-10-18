@@ -1,8 +1,8 @@
 --TEST--
-Spec § 4: `Core\Time\TimeOfDay` is a clock that wraps at both ends — a step of `n` minutes is `(minute-of-day + n) mod 1440` over a sweep that crosses midnight in both directions, a full turn is the identity in three units, and `compareTo` orders by the same reading `format` renders
+`Core\Time\TimeOfDay` is a clock that wraps at both ends — a step of `n` minutes is `(minute-of-day + n) mod 1440` over a sweep that crosses midnight in both directions, a full turn is the identity in three units, and `compareTo` orders by the same reading `format` renders
 --FILE--
 <?nvs
-// § 4: a time of day has no date under it for a carry to go into, so the
+// A time of day has no date under it for a carry to go into, so the
 // clock step is total and wraps. That makes the whole member a modular
 // arithmetic, and this sweep asserts it as one: 429 offsets from a fixed
 // 09:05, every seventh minute from a full day before it to a full day after,

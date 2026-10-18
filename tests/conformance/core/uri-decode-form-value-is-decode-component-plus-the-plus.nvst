@@ -1,5 +1,5 @@
 --TEST--
-`Core\Uri::decodeFormValue` is `decodeComponent` plus one byte: `+` is the only input the two disagree on, they agree again once it is escaped, and they refuse the same non-UTF-8 sequences — spec § 12
+`Core\Uri::decodeFormValue` is `decodeComponent` plus one byte: `+` is the only input the two disagree on, they agree again once it is escaped, and they refuse the same non-UTF-8 sequences
 --FILE--
 <?nvs
 // `decodeFormValue` replaces PHP's `urldecode` and `decodeComponent` replaces

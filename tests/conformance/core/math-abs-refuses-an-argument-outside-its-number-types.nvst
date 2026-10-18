@@ -1,5 +1,5 @@
 --TEST--
-Core\Math::abs refuses a `string` where the call is written, with the mismatch a parameter declared `int|float|decimal` reports, even though its result follows the argument's type, per spec § 3
+Core\Math::abs refuses a `string` where the call is written, with the mismatch a parameter declared `int|float|decimal` reports, even though its result follows the argument's type
 --FILE--
 <?nvs
 // The variable `abs` binds from its argument has a bound. A `string` does not

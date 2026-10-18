@@ -1,5 +1,5 @@
 --TEST--
-`Core\Uri::encodeFormValue` passes through exactly 65 of the 128 ASCII bytes — RFC 3986 § 2.3's unreserved set less the `~` the form encoding predates — and every one of the other 63 is a `+` or a `%` and two upper-case hex digits, counted rather than shown, with the alphabet's four edges named on both sides — spec § 12, RFC 3986 § 2.3
+`Core\Uri::encodeFormValue` passes through exactly 65 of the 128 ASCII bytes — RFC 3986 § 2.3's unreserved set less the `~` the form encoding predates — and every one of the other 63 is a `+` or a `%` and two upper-case hex digits, counted rather than shown, with the alphabet's four edges named on both sides — RFC 3986 § 2.3
 --FILE--
 <?nvs
 // The byte-sweep case next door asserts that the two encoders *disagree* on

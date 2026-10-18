@@ -1,17 +1,17 @@
 --TEST--
-`$uri->with` replaces the components it is given and `$uri->resolve` is RFC 3986 § 5's reference resolution, both answering a fresh `Uri` — spec § 12
+`$uri->with` replaces the components it is given and `$uri->resolve` is RFC 3986 § 5's reference resolution, both answering a fresh `Uri`
 --FILE--
 <?nvs
 var $u = Core\Uri::parse("https://user@example.com:8443/a/b?x=1#top");
 
-// § 12: `with` replaces what it is given and carries the rest over, including
+// `with` replaces what it is given and carries the rest over, including
 // `userInfo`, which is not on the bag at all.
 echo $u->with({path: "/c/d"})->toString(), "\n";
 echo $u->with({scheme: "http", port: 80})->toString(), "\n";
 echo $u->with({host: "other.test"})->toString(), "\n";
 echo $u->with({query: "y=2", fragment: "bottom"})->toString(), "\n";
 
-// § 12: every option is optional, so an empty bag is the identity — and the
+// Every option is optional, so an empty bag is the identity — and the
 // answer is a fresh `Uri` rather than the receiver mutated, which is why the
 // receiver still reads the same afterwards.
 echo $u->with({})->toString(), "\n";

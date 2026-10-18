@@ -1,5 +1,5 @@
 --TEST--
-`Core\Uri::decodeFormValue`'s two rewrites are one pass over bytes rather than two passes over the text: a `+` is a space even where it sits inside a `%` that then cannot be an escape, counted over every hex digit; a `+` an escape produced is never re-read as a space; and a `+` between two octets is a byte in the stream, so it breaks a sequence that was otherwise well formed — spec § 12, RFC 3986 § 2.1
+`Core\Uri::decodeFormValue`'s two rewrites are one pass over bytes rather than two passes over the text: a `+` is a space even where it sits inside a `%` that then cannot be an escape, counted over every hex digit; a `+` an escape produced is never re-read as a space; and a `+` between two octets is a byte in the stream, so it breaks a sequence that was otherwise well formed — RFC 3986 § 2.1
 --FILE--
 <?nvs
 // The neighbouring case establishes *that* `+` is the one byte this member and

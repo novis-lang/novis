@@ -1,5 +1,5 @@
 --TEST--
-every year `Core\Time\Date::at` accepts renders through `format`, and the first year on each side that it refuses is named — spec § 4
+every year `Core\Time\Date::at` accepts renders through `format`, and the first year on each side that it refuses is named
 --FILE--
 <?nvs
 // One number, both sides. `Core\Time\Date::at` states its own range in its

@@ -1,5 +1,5 @@
 --TEST--
-Spec § 2: `Core\Arr::sort` orders UTF-8 strings by code point — which is their byte order — identically on its key sort and under a comparator, across every encoding length, at the sizes that reach the key sort's radix route
+`Core\Arr::sort` orders UTF-8 strings by code point — which is their byte order — identically on its key sort and under a comparator, across every encoding length, at the sizes that reach the key sort's radix route
 --FILE--
 <?nvs
 // A `string` is UTF-8 by its tag, and UTF-8 was designed so that ordering the

@@ -1,5 +1,5 @@
 --TEST--
-Core\Debug::render, Core\Json::encode and Core\Arr::isList read one array's keys the same way, so a dump and an encode never disagree about which of `rule:errors/diagnostic-record`'s two array shapes a value is — spec §§ 16 and 4, `rule:errors/diagnostic-record` and `rule:errors/renderings`
+Core\Debug::render, Core\Json::encode and Core\Arr::isList read one array's keys the same way, so a dump and an encode never disagree about which of `rule:errors/diagnostic-record`'s two array shapes a value is — `rule:errors/diagnostic-record` and `rule:errors/renderings`
 --FILE--
 <?nvs
 // One rule, three members. `rule:errors/diagnostic-record` gives an array two node kinds and

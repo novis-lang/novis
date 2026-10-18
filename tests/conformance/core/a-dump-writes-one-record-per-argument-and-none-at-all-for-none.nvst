@@ -1,5 +1,5 @@
 --TEST--
-`Core\Debug::dump`'s variadic asserted on both sides: no arguments writes nothing at all, and every arity above it writes exactly one record per argument, in argument order and agreeing byte for byte with `render` — spec § 16, `rule:errors/renderings` and `rule:errors/debug-dump`
+`Core\Debug::dump`'s variadic asserted on both sides: no arguments writes nothing at all, and every arity above it writes exactly one record per argument, in argument order and agreeing byte for byte with `render` — `rule:errors/renderings` and `rule:errors/debug-dump`
 --FILE--
 <?nvs
 // `dump` is the one `Core` member whose parameter list is a variadic

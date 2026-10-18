@@ -1,8 +1,8 @@
 --TEST--
-Core\Path's six parsing members agree that an empty component is nothing, so `/var/log`, `/var/log/` and `/var/log//` are one path to all of them — counted over a sweep, spec § 8
+Core\Path's six parsing members agree that an empty component is nothing, so `/var/log`, `/var/log/` and `/var/log//` are one path to all of them — counted over a sweep
 --FILE--
 <?nvs
-// § 8 gives `Core\Path` one grammar and one parse, and `parse` in
+// `Core\Path` has one grammar and one parse, and `parse` in
 // `crates/nvs-stdlib/src/path.rs` filters every empty component out of it. So a
 // trailing separator, a doubled trailing separator and a doubled interior one
 // are three spellings of the same path, and the six members that read that
@@ -54,7 +54,7 @@ echo "elements ", $elements, " empty ", $empties, "\n";
 
 // And the agreement is not vacuous: the four members that answer a path answer
 // a real one for the decorated spelling. Rendered with `/` because emission
-// follows the host (§ 8, and the loop goal's own note about the two legs).
+// follows the host (the loop goal's own note about the two legs).
 string $decorated = "/var/log//";
 echo "basename ", Core\Path::basename($decorated), "\n";
 echo "dirname ", Core\Str::replace(Core\Path::dirname($decorated), Core\Path::SEPARATOR, "/"), "\n";

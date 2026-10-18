@@ -1,5 +1,5 @@
 --TEST--
-Spec § 4, `rule:classes/comparable`: `Core\Time\Duration::compareTo` is a total order over the signed length, asserted by counting trichotomy, antisymmetry, agreement with `toNanoseconds` and with `<` over every pair and transitivity over every triple; it answers the two ends of the range, whose difference no `int` holds, and `==` stays identity where it answers `0`
+`Core\Time\Duration::compareTo` is a total order over the signed length, asserted by counting trichotomy, antisymmetry, agreement with `toNanoseconds` and with `<` over every pair and transitivity over every triple; it answers the two ends of the range, whose difference no `int` holds, and `==` stays identity where it answers `0` — `rule:classes/comparable`
 --FILE--
 <?nvs
 // covers: Core\Time\Duration::compareTo

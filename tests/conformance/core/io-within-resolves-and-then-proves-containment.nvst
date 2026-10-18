@@ -1,8 +1,8 @@
 --TEST--
-Core\IO::within resolves a path and then proves containment — a name that stays inside the base comes back as a path the operating system agrees with, and three spellings that leave the base a different way each are refused by the same sentence, which is the bound `Core\Path::normalize` structurally cannot assert at either end — spec § 14 *Resolution*, `rule:security/launderers-are-sink-named`
+Core\IO::within resolves a path and then proves containment — a name that stays inside the base comes back as a path the operating system agrees with, and three spellings that leave the base a different way each are refused by the same sentence, which is the bound `Core\Path::normalize` structurally cannot assert at either end — `rule:security/launderers-are-sink-named`
 --FILE--
 <?nvs
-// `within` is the one member of § 14 that answers a question *about* a path
+// `within` is the one member of `Core\IO` that answers a question *about* a path
 // rather than acting on one, and it is the question `Core\Path` cannot answer:
 // collapsing `..` lexically says nothing about where a name ended up once a
 // symlink is on the way. So the path is resolved first and proved second, and

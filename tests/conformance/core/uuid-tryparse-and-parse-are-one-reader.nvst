@@ -1,5 +1,5 @@
 --TEST--
-Core\Uuid::tryParse is Core\Uuid::parse with the throw turned into a null — every subject of one table asked of both, with the agreement counted rather than read off a line — `rule:expressions/try-parse`, `rule:core-api/shape-rules` R4, spec § 11
+Core\Uuid::tryParse is Core\Uuid::parse with the throw turned into a null — every subject of one table asked of both, with the agreement counted rather than read off a line — `rule:expressions/try-parse`, `rule:core-api/shape-rules` R4
 --FILE--
 <?nvs
 // `rule:expressions/try-parse` says `tryParse` *is* `parse`, `null` where it throws — one

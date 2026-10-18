@@ -1,5 +1,5 @@
 --TEST--
-Spec § 4: `next`/`previous` land on the named `Core\Time\DateTime::Weekday` strictly later or strictly earlier, with the clock untouched — the receiver's own weekday included
+`next`/`previous` land on the named `Core\Time\DateTime::Weekday` strictly later or strictly earlier, with the clock untouched — the receiver's own weekday included
 --FILE--
 <?nvs
 // covers: Core\Time\DateTime::Weekday

@@ -1,5 +1,5 @@
 --TEST--
-Spec § 4: `Instant::since` returns a distance of exactly the longest `Duration` either way, and throws one nanosecond past it
+`Core\Time`: `Instant::since` returns a distance of exactly the longest `Duration` either way, and throws one nanosecond past it
 --FILE--
 <?nvs
 // covers: Core\Time\Instant::since

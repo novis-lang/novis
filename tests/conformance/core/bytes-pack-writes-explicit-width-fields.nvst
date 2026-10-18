@@ -1,8 +1,8 @@
 --TEST--
-`Core\Bytes::pack` writes fields of a stated width and order, and refuses every code that would let the machine decide — spec § 7, `rule:core-api/shape-rules` R4
+`Core\Bytes::pack` writes fields of a stated width and order, and refuses every code that would let the machine decide — `rule:core-api/shape-rules` R4
 --FILE--
 <?nvs
-// Spec § 7's `pack(string $format, mixed ...$values): bytes`. Every octet
+// `Core\Bytes::pack(string $format, mixed ...$values): bytes`. Every octet
 // below is what PHP's `pack` writes for the same call; the divergences are all
 // refusals, and `crates/nvs-stdlib/src/bytes.rs` owns why each one is refused.
 

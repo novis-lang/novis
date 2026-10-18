@@ -1,5 +1,5 @@
 --TEST--
-Spec § 18's `stream` walks a result set a row at a time and holds the connection for the walk's whole length: the rows arrive in the statement's order, a statement attempted between two of them is a `LogicError`, and the connection takes one again the moment the last row is read — `rule:core-classes/db-streaming`, `rule:core-classes/a-stream-parks-its-read-on-the-connection` and `rule:core-classes/db-connection-busy-state`
+`stream` walks a result set a row at a time and holds the connection for the walk's whole length: the rows arrive in the statement's order, a statement attempted between two of them is a `LogicError`, and the connection takes one again the moment the last row is read — `rule:core-classes/db-streaming`, `rule:core-classes/a-stream-parks-its-read-on-the-connection` and `rule:core-classes/db-connection-busy-state`
 --FILE--
 <?nvs
 // SQLite is the one backend a case can reach — a `:memory:` block needs no

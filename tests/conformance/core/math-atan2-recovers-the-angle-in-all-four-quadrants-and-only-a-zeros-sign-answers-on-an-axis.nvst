@@ -1,5 +1,5 @@
 --TEST--
-Core\Math::atan2 hands back the angle every point on the unit circle was built from, in all four quadrants and nowhere outside a single turn, and on the four axes the sign of a zero argument is the whole answer — docs/spec/01-core-library.md § 3
+Core\Math::atan2 hands back the angle every point on the unit circle was built from, in all four quadrants and nowhere outside a single turn, and on the four axes the sign of a zero argument is the whole answer
 --FILE--
 <?nvs
 // The case beside this one asks what `atan2` answers *relative to* `atan`. This

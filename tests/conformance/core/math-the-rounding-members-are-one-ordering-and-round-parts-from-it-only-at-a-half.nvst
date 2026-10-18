@@ -1,5 +1,5 @@
 --TEST--
-Core\Math::floor, truncate, round and ceil bracket every row in that order and the two ends are never more than one apart, truncate is the end nearer zero and round the end nearer the row — which leaves it undetermined at an exact half and nowhere else — docs/spec/01-core-library.md § 3
+Core\Math::floor, truncate, round and ceil bracket every row in that order and the two ends are never more than one apart, truncate is the end nearer zero and round the end nearer the row — which leaves it undetermined at an exact half and nowhere else
 --FILE--
 <?nvs
 // The two cases beside this one take the halves where these members are *not*

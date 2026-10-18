@@ -1,5 +1,5 @@
 --TEST--
-Every `Core\Uuid` draw is canonical, distinct and round-trips through `parse`; `tryParse` agrees with `parse` on every spelling; and a refusal quotes the operand it refused, bounded — spec § 11, `rule:core-api/shape-rules` R4, `rule:security/sink-predicate`
+Every `Core\Uuid` draw is canonical, distinct and round-trips through `parse`; `tryParse` agrees with `parse` on every spelling; and a refusal quotes the operand it refused, bounded — `rule:core-api/shape-rules` R4, `rule:security/sink-predicate`
 --FILE--
 <?nvs
 // A drawn UUID cannot be asserted, so the two generators are pinned by

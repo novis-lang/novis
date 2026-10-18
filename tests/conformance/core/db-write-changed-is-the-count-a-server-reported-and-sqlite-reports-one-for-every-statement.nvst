@@ -1,5 +1,5 @@
 --TEST--
-`Core\Db\Write::changed` is the count the server itself reported: a `?uint` a caller unwraps, equal to `affected` wherever it is present, its own statement's rather than an earlier one's, and present for every statement kind on SQLite, which has nothing to report an absence with — `rule:core-classes/db-statement-members`, spec § 18
+`Core\Db\Write::changed` is the count the server itself reported: a `?uint` a caller unwraps, equal to `affected` wherever it is present, its own statement's rather than an earlier one's, and present for every statement kind on SQLite, which has nothing to report an absence with — `rule:core-classes/db-statement-members`
 --FILE--
 <?nvs
 // covers: Core\Db\Write::changed

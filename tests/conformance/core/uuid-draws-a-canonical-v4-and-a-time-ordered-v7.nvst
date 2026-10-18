@@ -1,5 +1,5 @@
 --TEST--
-Core\Uuid::v4 and v7 each build a `Uuid` whose canonical rendering carries its own version and RFC 9562's variant, and a v7 opens with the clock — spec § 11
+Core\Uuid::v4 and v7 each build a `Uuid` whose canonical rendering carries its own version and RFC 9562's variant, and a v7 opens with the clock
 --FILE--
 <?nvs
 // A drawn UUID cannot be asserted, so every line here pins an invariant of the
@@ -7,7 +7,7 @@ Core\Uuid::v4 and v7 each build a `Uuid` whose canonical rendering carries its o
 var $v4 = Core\Uuid::v4()->toString();
 var $v7 = Core\Uuid::v7()->toString();
 
-// Spec § 11: the canonical form is 8-4-4-4-12 lower-case hex, so it is 36
+// The canonical `Core\Uuid` form is 8-4-4-4-12 lower-case hex, so it is 36
 // characters with four hyphens in fixed places.
 echo Core\Str::length($v4), "\n";
 echo Core\Regex::matches($v4, '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$')

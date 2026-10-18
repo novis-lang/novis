@@ -1,5 +1,5 @@
 --TEST--
-`Core\ObjectSet<T>`'s `add`, `remove`, `has`, `count`, `isEmpty` and `clear` are one invariant rather than six members: after every mutation the count, the iteration, the membership sweep and `isEmpty` still agree — docs/spec/01-core-library.md § 9
+`Core\ObjectSet<T>`'s `add`, `remove`, `has`, `count`, `isEmpty` and `clear` are one invariant rather than six members: after every mutation the count, the iteration, the membership sweep and `isEmpty` still agree
 --FILE--
 <?nvs
 final class Tag {

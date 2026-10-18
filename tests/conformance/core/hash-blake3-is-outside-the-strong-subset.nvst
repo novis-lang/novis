@@ -1,10 +1,10 @@
 --TEST--
-`Core\Hash::Digest::Blake3` hashes but does not authenticate: `Core\Hash::hmac` refuses it, and the diagnostic's accepted set is exactly spec § 11's ten `StrongDigest` cases — spec § 11, `rule:types/enum-case-type`
+`Core\Hash::Digest::Blake3` hashes but does not authenticate: `Core\Hash::hmac` refuses it, and the diagnostic's accepted set is exactly the ten `StrongDigest` cases — `rule:types/enum-case-type`
 --FILE--
 <?nvs
 // Every other case outside `StrongDigest` is outside it because it is broken
 // or because it is a checksum. `Blake3` is neither: it is the strongest and
-// fastest algorithm on § 11's roster, and it is refused here anyway.
+// fastest algorithm `Core\Hash::Digest` has, and it is refused here anyway.
 //
 // The reason is that HMAC-BLAKE3 is a construction nobody uses. BLAKE3 is
 // keyed natively, so wrapping it in RFC 2104's two padded blocks is slower

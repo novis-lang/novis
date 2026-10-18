@@ -1,5 +1,5 @@
 --TEST--
-`Core\Db\Column::name` answers the label the server described — the alias wherever the select list wrote one, the table's own column name where it did not, and one entry per column rather than one per label — `rule:core-classes/db-column-types`, spec § 18
+`Core\Db\Column::name` answers the label the server described — the alias wherever the select list wrote one, the table's own column name where it did not, and one entry per column rather than one per label — `rule:core-classes/db-column-types`
 --FILE--
 <?nvs
 // covers: Core\Db\Column::name

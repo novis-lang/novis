@@ -1,5 +1,5 @@
 --TEST--
-Spec § 4: `Core\Time::sleep` waits for every duration above zero and for none at or below it, and the unit the duration was spelled in changes nothing
+`Core\Time::sleep` waits for every duration above zero and for none at or below it, and the unit the duration was spelled in changes nothing
 --FILE--
 <?nvs
 // `Core\Time::sleep(Duration $d): void` has one bound and it is at zero: a

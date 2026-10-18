@@ -1,5 +1,5 @@
 --TEST--
-`isOpen` answers a plain `bool`, so "can I still use this connection" has two answers and not three — `rule:core-classes/db-one-api`, spec § 18
+`isOpen` answers a plain `bool`, so "can I still use this connection" has two answers and not three — `rule:core-classes/db-one-api`
 --FILE--
 <?nvs
 // covers: Core\Db\Connection::isOpen

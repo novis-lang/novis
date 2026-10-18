@@ -1,5 +1,5 @@
 --TEST--
-Core\IO::makeDir over a directory that already exists succeeds and keeps everything in it, so the member's contract is that the directory exists afterwards — while a *file* at the same path is an IOError, because that is not the directory that was asked for — spec § 14
+Core\IO::makeDir over a directory that already exists succeeds and keeps everything in it, so the member's contract is that the directory exists afterwards — while a *file* at the same path is an IOError, because that is not the directory that was asked for
 --FILE--
 <?nvs
 // The decision this pins is in `capability::create_dir`'s doc: refusing an

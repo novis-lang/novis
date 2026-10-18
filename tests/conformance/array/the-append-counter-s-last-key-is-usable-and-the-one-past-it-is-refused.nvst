@@ -30,7 +30,7 @@ try {
 echo "count: ", Core\Arr::count($accepted), "\n";
 echo "still holds: ", $accepted[9223372036854775807], "\n";
 
-// It is a `LogicError` — spec § 10's class for a program asking for something
+// It is a `LogicError`, the error class for a program asking for something
 // its own state forbids — not the bare `RuntimeError` a helper with nothing
 // more specific to say raises.
 try {

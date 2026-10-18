@@ -1,5 +1,5 @@
 --TEST--
-`Core\Encoding`'s hex pair round-trips octets and throws rather than guessing — spec § 7, `rule:types/bytes` and `rule:types/conversion`
+`Core\Encoding`'s hex pair round-trips octets and throws rather than guessing — `rule:types/bytes` and `rule:types/conversion`
 --FILE--
 <?nvs
 class Hex {

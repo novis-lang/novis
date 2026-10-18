@@ -1,5 +1,5 @@
 --TEST--
-Core\IO::copy makes a second file rather than a second name for one — writing to either side afterwards leaves the other where it was, in both directions — spec § 14
+Core\IO::copy makes a second file rather than a second name for one — writing to either side afterwards leaves the other where it was, in both directions
 --FILE--
 <?nvs
 // A member that linked, or that left a handle shared between the two paths,

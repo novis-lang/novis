@@ -5,7 +5,7 @@ A sink carrier reached through an operand whose static type names no class rende
 // `nvs_stdlib::registry::class_renders` has two rows and this is the second:
 // a carrier is the sink's own value type, holding bytes that have *already*
 // been through the sink, so it renders as precisely those bytes and asks for
-// no member at all. The first row — a `Core` class the spec gives a
+// no member at all. The first row — a `Core` class the registry gives a
 // `toString` — is the sibling case
 // `a-core-object-behind-an-erased-operand-renders-through-the-same-member`,
 // and the two rows reaching two different renderings is what keeps a carrier

@@ -1,5 +1,5 @@
 --TEST--
-A `Core\ObjectMap` key follows the object it is, so mutating that object does not lose its pair — while a value-typed member is fixed at the moment it is added — docs/spec/01-core-library.md § 9, `rule:expressions/equality-semantics`
+A `Core\ObjectMap` key follows the object it is, so mutating that object does not lose its pair — while a value-typed member is fixed at the moment it is added — `rule:expressions/equality-semantics`
 --FILE--
 <?nvs
 final class Tag {
@@ -19,7 +19,7 @@ $weights->set($blue, 7);
 
 // An object key is the object, not a picture of it: rewriting every property
 // it has moves nothing, because `rule:expressions/equality-semantics`'s object row never reads one.
-// This is the whole reason § 9's collections exist beside `array<T>`, whose
+// This is the whole reason the object collections exist beside `array<T>`, whose
 // `int|string` key would have had to be derived from those properties.
 $red->name = "crimson";
 echo $weights->count(), " ", $weights->get($red) ?? -1, " ", $weights->has($red) ? "yes" : "no", "\n";

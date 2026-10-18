@@ -1,8 +1,8 @@
 --TEST--
-`queryAs<T>` answers a `Core\Db\Rows<T>` at the class its call site wrote, where `query` answers `Rows<Row>` — `rule:core-classes/db-statement-members`, `rule:core-classes/derive-field-list`, spec § 18
+`queryAs<T>` answers a `Core\Db\Rows<T>` at the class its call site wrote, where `query` answers `Rows<Row>` — `rule:core-classes/db-statement-members`, `rule:core-classes/derive-field-list`
 --FILE--
 <?nvs
-// Spec § 18: `Rows` is one generic class and not two. `query` fixes its `T` at
+// `Rows` is one generic class and not two. `query` fixes its `T` at
 // a `Core\Db\Row`, and `queryAs<T>` at whatever the call site named — so the
 // two members differ in their answer's *type argument* and in nothing else.
 // That is the whole of what `PDO::FETCH_CLASS` was for, decided at the call

@@ -1,5 +1,5 @@
 --TEST--
-`queryAs<T>` names the class a row is built into, so a scalar written there is refused where a `Core\Db\Row` reader would have been the answer — `rule:core-classes/derive-field-list`, spec § 18
+`queryAs<T>` names the class a row is built into, so a scalar written there is refused where a `Core\Db\Row` reader would have been the answer — `rule:core-classes/derive-field-list`
 --FILE--
 <?nvs
 // `rule:core-classes/derive-field-list`: hydrating is an ordinary `new`, so the type argument has to be
@@ -20,7 +20,7 @@ class Person {
 }
 
 // The same member on the other half of `Core\Db\Queryable`, written the way
-// § 18 asks for: a class, so there is something to construct.
+// it must be: a class, so there is something to construct.
 class People {
     public static function everyone(Core\Db\Transaction $tx): Core\Db\Rows<Person>
     {

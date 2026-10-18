@@ -1,8 +1,8 @@
 --TEST--
-`Core\Hash::hmac` answers the digest its own RFC 2104 construction answers when that construction is streamed through `Core\Hash\Stream` — spec § 11, `rule:types/bytes` and `rule:types/conversion`
+`Core\Hash::hmac` answers the digest its own RFC 2104 construction answers when that construction is streamed through `Core\Hash\Stream` — `rule:types/bytes` and `rule:types/conversion`
 --FILE--
 <?nvs
-// § 11: `hmac` is a member rather than an option because its third parameter
+// `Core\Hash::hmac` is a member rather than an option because its third parameter
 // is the closed `StrongDigest` subset — but it is not a *primitive*. It is
 // `H((K ⊕ opad) ‖ H((K ⊕ ipad) ‖ m))`, and that construction is two streams
 // fed four chunks. So the question asked here is whether the two agree, over

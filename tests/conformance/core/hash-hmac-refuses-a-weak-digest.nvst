@@ -1,5 +1,5 @@
 --TEST--
-`Core\Hash::hmac` takes spec § 11's `StrongDigest`, so a legacy `Core\Hash::Digest` case does not compile and the diagnostic names every case that does — spec § 11, `rule:types/enum-case-type`
+`Core\Hash::hmac` takes a `StrongDigest`, so a legacy `Core\Hash::Digest` case does not compile and the diagnostic names every case that does — `rule:types/enum-case-type`
 --FILE--
 <?nvs
 // `StrongDigest` is not a second enum — it is the closed subset of `Digest`,

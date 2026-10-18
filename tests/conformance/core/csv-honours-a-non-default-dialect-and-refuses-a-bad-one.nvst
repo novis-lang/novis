@@ -1,5 +1,5 @@
 --TEST--
-`Core\Csv` reads and writes a caller's dialect on both legs, and refuses one that has no reading — spec § 12's second table
+`Core\Csv` reads and writes a caller's dialect on both legs, and refuses one that has no reading
 --FILE--
 <?nvs
 // The dialect is three single ASCII bytes and each is the caller's;

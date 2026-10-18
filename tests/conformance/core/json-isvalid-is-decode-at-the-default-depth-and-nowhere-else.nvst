@@ -1,5 +1,5 @@
 --TEST--
-`Core\Json::isValid` is `decode` at the *default* depth — it holds at 512 and refuses 513 on its own, and a raised or lowered cap moves `decode` away from it in both directions — spec § 6
+`Core\Json::isValid` is `decode` at the *default* depth — it holds at 512 and refuses 513 on its own, and a raised or lowered cap moves `decode` away from it in both directions
 --FILE--
 <?nvs
 // `crates/nvs-stdlib/src/json.rs` documents `isValid` as answering "exactly

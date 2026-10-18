@@ -1,8 +1,8 @@
 --TEST--
-`Core\Encoding`'s four decoders each name the reason they refused and the offset it is at, and bound the operand they quote back — spec § 7, `rule:types/conversion`, `rule:security/sink-predicate`
+`Core\Encoding`'s four decoders each name the reason they refused and the offset it is at, and bound the operand they quote back — `rule:types/conversion`, `rule:security/sink-predicate`
 --FILE--
 <?nvs
-// Spec § 7's four `from*` members. The neighbouring cases pin *what* each
+// `Core\Encoding`'s four `from*` members. The neighbouring cases pin *what* each
 // accepts; this one pins what each says when it does not, because `rule:types/conversion`
 // makes every one of these checked rather than repairing, and a refusal a
 // caller cannot act on is the same dead end as `base64_decode`'s silent

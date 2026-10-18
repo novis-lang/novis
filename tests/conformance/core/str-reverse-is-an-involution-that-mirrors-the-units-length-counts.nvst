@@ -1,5 +1,5 @@
 --TEST--
-`Core\Str::reverse` is its own inverse and mirrors exactly the units `Core\Str::length` counts, so it distributes over concatenation on every join that is not inside a cluster — spec § 1
+`Core\Str::reverse` is its own inverse and mirrors exactly the units `Core\Str::length` counts, so it distributes over concatenation on every join that is not inside a cluster
 --FILE--
 <?nvs
 // `crates/nvs-stdlib/src/str.rs`'s comment says the unit is

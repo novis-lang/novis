@@ -1,9 +1,9 @@
 --TEST--
-Inline HTML outside `<?nvs` … `?>` is written verbatim, and the one newline after `?>` is swallowed — spec 00-overview.md § 1
+Inline HTML outside `<?nvs` … `?>` is written verbatim, and the one newline after `?>` is swallowed
 --FILE--
 before any tag
 <?nvs
-// spec 00-overview.md § 1: a run of literal text outside code mode is written
+// A run of literal text outside code mode is written
 // to the output exactly as its source bytes read — never escaped, never
 // interpreted, unlike an `echo` operand. The line above is this file's first
 // statement, so a template needs no opening tag at all.

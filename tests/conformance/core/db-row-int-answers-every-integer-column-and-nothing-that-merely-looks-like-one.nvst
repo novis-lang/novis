@@ -47,7 +47,7 @@ foreach ($others as string $column) {
     }
 }
 
-// A NULL column is an absence and not a refusal — `rule:core-classes/db-column-types`, spec § 18.
+// A NULL column is an absence and not a refusal — `rule:core-classes/db-column-types`.
 ?int $missed = $row->int("missed");
 if ($missed == null) {
     echo "int over missed: null\n";

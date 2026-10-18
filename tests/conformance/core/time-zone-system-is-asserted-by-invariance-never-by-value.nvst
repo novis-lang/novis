@@ -1,8 +1,8 @@
 --TEST--
-Spec § 4: `Zone::system()` reads the host, so what is asserted is that it is invariant, that the reader gives it back, and that it is a zone like any other
+`Core\Time`: `Zone::system()` reads the host, so what is asserted is that it is invariant, that the reader gives it back, and that it is a zone like any other
 --FILE--
 <?nvs
-// `Core\Time\Zone::system()` is the one member of § 4 whose answer this suite
+// `Core\Time\Zone::system()` is the one `Core\Time` member whose answer this suite
 // cannot name: it is whatever the host is configured for, and the three CI
 // runners, WSL and a developer's box need not agree. So every claim below is a
 // *property* asked of that answer rather than a value read off it, and each is

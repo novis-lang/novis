@@ -1,5 +1,5 @@
 --TEST--
-Spec § 1: `Core\Str::slice` takes a `?int` length, and `before`/`after` cut at an occurrence without including it
+`Core\Str::slice` takes a `?int` length, and `before`/`after` cut at an occurrence without including it
 --FILE--
 <?nvs
 // `?int $length = null` is the first `Core` parameter whose default is `null`:

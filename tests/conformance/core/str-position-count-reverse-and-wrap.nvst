@@ -1,5 +1,5 @@
 --TEST--
-Spec § 1: `Core\Str::indexOf`/`lastIndexOf` answer `?uint`, `countOf` counts without overlapping, and `reverse`/`wrap` work in characters
+`Core\Str::indexOf`/`lastIndexOf` answer `?uint`, `countOf` counts without overlapping, and `reverse`/`wrap` work in characters
 --FILE--
 <?nvs
 // `rule:core-api/shape-rules` R5: absence is `null`, so PHP's `strpos(...) == false` bug family

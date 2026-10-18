@@ -1,5 +1,5 @@
 --TEST--
-Spec § 4: every `with` member throws a catchable `RuntimeError` naming the field for a `uint` option past the `int` range, the same sentence as for the last `uint` an `int` holds, in `Date`, `DateTime` and `TimeOfDay` alike
+`Core\Time`: Every `with` member throws a catchable `RuntimeError` naming the field for a `uint` option past the `int` range, the same sentence as for the last `uint` an `int` holds, in `Date`, `DateTime` and `TimeOfDay` alike
 --FILE--
 <?nvs
 // covers: Core\Time\Date::with, Core\Time\DateTime::with, Core\Time\TimeOfDay::with

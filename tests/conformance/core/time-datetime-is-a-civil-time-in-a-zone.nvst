@@ -1,5 +1,5 @@
 --TEST--
-Spec § 4: a `DateTime` is a civil time in a zone, and its arithmetic counts calendar units
+`Core\Time`: A `DateTime` is a civil time in a zone, and its arithmetic counts calendar units
 --FILE--
 <?nvs
 // covers: Core\Time\DateTime::zone, Core\Time\DateTime::weekday, Core\Time\DateTime::isLeapYear
@@ -16,7 +16,7 @@ echo $d->dayOfYear() as string, "|", $d->isLeapYear() as string, "|\n";
 echo $d->zone()->offsetAt($d->toInstant())->toSeconds() as string, "|\n";
 echo $d->toInstant()->toIso(), "|\n";
 
-// § 4's *calendar* arithmetic: `1, Unit::Month` lands on the same day-of-month
+// *Calendar* arithmetic: `1, Unit::Month` lands on the same day-of-month
 // clamped to the month's length, so a leap day plus a year is the 28th.
 echo $d->plus(1, Core\Unit::Year)->format("yyyy-MM-dd"), "|\n";
 echo $d->plus(1, Core\Unit::Month)->format("yyyy-MM-dd"), "|\n";

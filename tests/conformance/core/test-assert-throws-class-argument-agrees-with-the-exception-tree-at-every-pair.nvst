@@ -12,8 +12,8 @@
 // each time -- and none of those subsets is empty, so one count catches all of
 // them.
 //
-// The nine are `nvs_hir::errors::TREE` in full (docs/spec/01-core-library.md
-// § 10's drawing), including the two roots a program rarely writes by hand:
+// The nine are `nvs_hir::errors::TREE` in full, including the two roots a
+// program rarely writes by hand:
 // `Throwable` itself, and `Core\Test\Failure`, which is a tree row rather than
 // a `Core` class and is thrown here as an ordinary exception -- nothing about
 // a hand-made one reaches the assertion ledger, which only records an

@@ -1,5 +1,5 @@
 --TEST--
-`Core\Uri::decodeFormValue`'s refusal is a property of the decoded octet *stream*, counted over every one of the 256 single-byte escapes and every one of the 256 second octets after a two-byte lead: 128 accepted and 128 refused on the first sweep, 64 accepted on the second, `decodeComponent` refusing the identical set in both, and the bound named on both sides — spec § 12, `rule:types/bytes`
+`Core\Uri::decodeFormValue`'s refusal is a property of the decoded octet *stream*, counted over every one of the 256 single-byte escapes and every one of the 256 second octets after a two-byte lead: 128 accepted and 128 refused on the first sweep, 64 accepted on the second, `decodeComponent` refusing the identical set in both, and the bound named on both sides — `rule:types/bytes`
 --FILE--
 <?nvs
 // The neighbouring case shows this refusal on five hand-picked families and

@@ -1,5 +1,5 @@
 --TEST--
-`Core\Csv::parse`'s terminator edges: a trailing newline never changes what a document holds, and only terminators is no records at all — spec § 12's second table
+`Core\Csv::parse`'s terminator edges: a trailing newline never changes what a document holds, and only terminators is no records at all
 --FILE--
 <?nvs
 // Every CSV generator writes a terminator after its last record and a good

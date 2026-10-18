@@ -1,5 +1,5 @@
 --TEST--
-`$e->location` is a readonly property naming the file and line of the `throw`, not an accessor — the loop goal's exception surface, spec § 10
+`$e->location` is a readonly property naming the file and line of the `throw`, not an accessor — the loop goal's exception surface
 --FILE--
 <?nvs
 class Site {

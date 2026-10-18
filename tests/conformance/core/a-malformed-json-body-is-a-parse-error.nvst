@@ -7,7 +7,7 @@ Content-Type: application/json
 --FILE--
 <?nvs
 // The peer declared `application/json` and sent something else: the class is
-// `ParseError`, which spec § 10 puts under `RuntimeError` as "input did not
+// `ParseError`, which sits under `RuntimeError` as "input did not
 // match a format this code declared", and it is what a handler maps to 400.
 // It is never a `LogicError`, because a peer must not be able to make a
 // program report its own defect.

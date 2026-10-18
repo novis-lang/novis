@@ -1,8 +1,8 @@
 --TEST--
-`Core\Out::capture` swallows what its callable echoes, nests by call nesting and answers the sink's carrier rather than a `string` — spec § 12, `rule:tooling/echo-always-has-a-sink` and `rule:security/capture-answers-the-carrier`
+`Core\Out::capture` swallows what its callable echoes, nests by call nesting and answers the sink's carrier rather than a `string` — `rule:tooling/echo-always-has-a-sink` and `rule:security/capture-answers-the-carrier`
 --FILE--
 <?nvs
-// § 12: the buffer is scoped to a callable, so `ob_start`/`ob_get_clean`'s
+// The buffer is scoped to a callable, so `ob_start`/`ob_get_clean`'s
 // global stack has no equivalent and neither does implicit flushing.
 var $captured = Core\Out::capture(fn (): void => {
     echo "a";
@@ -29,7 +29,7 @@ echo Core\Out::capture(fn (): void => {
 // A callable that writes nothing answers an empty carrier, not `null`.
 echo "[", Core\Out::capture(fn (): void => {}), "]\n";
 
-// § 12's `{through: $filter}` transforms what was captured and takes and
+// `capture`'s `{through: $filter}` transforms what was captured and takes and
 // answers the same carrier. The identity is the filter that pins the plumbing
 // alone — that the option is read and its callable called on the captured
 // value; a filter that reads the carrier and writes a different one is

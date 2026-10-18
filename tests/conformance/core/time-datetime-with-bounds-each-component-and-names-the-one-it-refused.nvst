@@ -1,8 +1,8 @@
 --TEST--
-Spec § 4: `with` and `withTime` bound every component at its own ends, and a refusal names the component
+`Core\Time`: `with` and `withTime` bound every component at its own ends, and a refusal names the component
 --FILE--
 <?nvs
-// Spec § 4. `with` is an options bag of seven independent components, and each
+// `with` is an options bag of seven independent components, and each
 // carries a *different* bound: the last accepted value and the first refused
 // one are named together here, since a member that stops one entry early
 // prints plausibly against either half alone.

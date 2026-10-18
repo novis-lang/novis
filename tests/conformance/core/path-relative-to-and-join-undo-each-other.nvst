@@ -1,5 +1,5 @@
 --TEST--
-Core\Path::join($base, Core\Path::relativeTo($p, $base)) normalizes back to $p on every row, the pair parts exactly where the two arguments disagree about Core\Path::isAbsolute, and the absence is null rather than a path — docs/spec/01-core-library.md § 8
+Core\Path::join($base, Core\Path::relativeTo($p, $base)) normalizes back to $p on every row, the pair parts exactly where the two arguments disagree about Core\Path::isAbsolute, and the absence is null rather than a path
 --FILE--
 <?nvs
 // `relativeTo` answers "how do I get from $base to $p", so the only thing

@@ -1,5 +1,5 @@
 --TEST--
-`Core\Uri::encodeComponent`'s answer is defined by the parser rather than by its own decoder: interpolated into a path segment, every one of the 128 ASCII bytes survives `Core\Uri::parse` and reads back out of `$uri->path` as itself, while the same bytes written raw leave the path or refuse the parse — spec § 12, RFC 3986 § 3.3
+`Core\Uri::encodeComponent`'s answer is defined by the parser rather than by its own decoder: interpolated into a path segment, every one of the 128 ASCII bytes survives `Core\Uri::parse` and reads back out of `$uri->path` as itself, while the same bytes written raw leave the path or refuse the parse — RFC 3986 § 3.3
 --FILE--
 <?nvs
 // Every existing case asks this member against its own decoder, which is the

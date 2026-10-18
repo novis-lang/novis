@@ -1,5 +1,5 @@
 --TEST--
-`Core\ObjectSet<T>`'s `union`, `intersect` and `diff` are one partition of two sets rather than three walks — inclusion-exclusion, the two halves each operand splits into, and membership decided the same way on every element of the domain — over a sweep of overlapping pairs — docs/spec/01-core-library.md § 9, `rule:expressions/object-identity-equality`
+`Core\ObjectSet<T>`'s `union`, `intersect` and `diff` are one partition of two sets rather than three walks — inclusion-exclusion, the two halves each operand splits into, and membership decided the same way on every element of the domain — over a sweep of overlapping pairs — `rule:expressions/object-identity-equality`
 --FILE--
 <?nvs
 // The existing algebra cases ask the *degenerate* ends — a set against itself

@@ -1,5 +1,5 @@
 --TEST--
-Core\IO::temporaryDir answers a directory that already exists and is already empty, and two calls never answer the same one — so a program never races another for a name, which is the whole of what `sys_get_temp_dir` plus a hand-rolled suffix gets wrong — spec § 14
+Core\IO::temporaryDir answers a directory that already exists and is already empty, and two calls never answer the same one — so a program never races another for a name, which is the whole of what `sys_get_temp_dir` plus a hand-rolled suffix gets wrong
 --FILE--
 <?nvs
 // Nothing here prints a path: the answer is host-specific by construction, so

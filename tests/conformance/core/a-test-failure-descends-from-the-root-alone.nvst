@@ -3,7 +3,7 @@
 --FILE--
 <?nvs
 // covers: Core\Test\Failure
-// The place in spec § 10's tree, with no runner and no ledger anywhere near it:
+// The place in the `Throwable` tree, with no runner and no ledger anywhere near it:
 // what this pins is which `catch` clause a failed check reaches, which
 // `crates/nvs-hir/src/errors.rs` decides on its own. A test's failures are not
 // the program's errors, and this is the assertion that says so.

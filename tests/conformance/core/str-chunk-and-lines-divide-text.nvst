@@ -1,5 +1,5 @@
 --TEST--
-`Core\Str::chunk` divides by cluster and `Core\Str::lines` ends on any of the three terminators — spec § 1 *Extraction*, `rule:types/string-is-utf8`
+`Core\Str::chunk` divides by cluster and `Core\Str::lines` ends on any of the three terminators — `rule:types/string-is-utf8`
 --FILE--
 <?nvs
 // `chunk` replaces `str_split`, `mb_str_split` and `chunk_split`: the last

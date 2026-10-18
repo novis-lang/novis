@@ -1,5 +1,5 @@
 --TEST--
-Core\Random::int, float and token draw from a CSPRNG inside the bounds each one states, and an empty range throws — spec § 11, `rule:core-api/shape-rules` R4
+Core\Random::int, float and token draw from a CSPRNG inside the bounds each one states, and an empty range throws — `rule:core-api/shape-rules` R4
 --FILE--
 <?nvs
 // A random answer cannot be asserted, so every line here pins an invariant of
@@ -23,7 +23,7 @@ class Draw {
     }
 }
 
-// Spec § 11: `int` is inclusive at both ends, so the degenerate range is the
+// `Core\Random::int` is inclusive at both ends, so the degenerate range is the
 // one draw with a single possible answer.
 echo Core\Random::int(5, 5), "\n";
 echo Draw::inRange(-7, -7), "\n";

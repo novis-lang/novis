@@ -1,5 +1,5 @@
 --TEST--
-Core\Arr::unique, contains, diff and intersect resolve one identity table, not four — spec § 2, `rule:expressions/equality-semantics`
+Core\Arr::unique, contains, diff and intersect resolve one identity table, not four — `rule:expressions/equality-semantics`
 --FILE--
 <?nvs
 // The depth claim is *agreement*, not another row of answers: every pair below

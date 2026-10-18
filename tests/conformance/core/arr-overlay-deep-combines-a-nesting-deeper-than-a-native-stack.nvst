@@ -1,5 +1,5 @@
 --TEST--
-`Core\Arr::overlayDeep` combines two arrays nested far deeper than any native call stack, because its walk carries the nesting on the heap — spec § 2, `rule:types/array-combination` and `rule:programs/memory-priority`
+`Core\Arr::overlayDeep` combines two arrays nested far deeper than any native call stack, because its walk carries the nesting on the heap — `rule:types/array-combination` and `rule:programs/memory-priority`
 --FILE--
 <?nvs
 // The nesting depth of an argument is the caller's data: a request that

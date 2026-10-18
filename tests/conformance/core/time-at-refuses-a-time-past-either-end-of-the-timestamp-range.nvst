@@ -1,5 +1,5 @@
 --TEST--
-`Core\Time::at` accepts the first and last instant a `DateTime` holds and refuses the second past each, in one plain sentence — spec § 4
+`Core\Time::at` accepts the first and last instant a `DateTime` holds and refuses the second past each, in one plain sentence
 --FILE--
 <?nvs
 // covers: Core\Time::at

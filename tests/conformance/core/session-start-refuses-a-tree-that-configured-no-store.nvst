@@ -31,7 +31,7 @@ if (Core\Str::contains($said, "[session] backend")) {
     echo "and it names nothing: ", $said, "\n";
 }
 
-// It is a `RuntimeError`, so it is catchable by the root of spec § 10's tree as
+// It is a `RuntimeError`, so it is catchable by `Throwable`, the root of the tree, as
 // well: a program that cannot start a session is one that can say so, not one
 // that dies. The `catch` above already proved the class; this proves the tree.
 uint $byRoot = 0;

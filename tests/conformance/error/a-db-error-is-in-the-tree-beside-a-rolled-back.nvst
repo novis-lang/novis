@@ -1,5 +1,5 @@
 --TEST--
-`Core\Db\DbError` is a class in spec § 10's tree under `RuntimeError`, caught by its own name, by its parent's and by the root's, and never by the sibling `Core\Db\RolledBack` — spec § 18, `rule:core-classes/db-error`
+`Core\Db\DbError` is a class in the `Throwable` tree under `RuntimeError`, caught by its own name, by its parent's and by the root's, and never by the sibling `Core\Db\RolledBack` — `rule:core-classes/db-error`
 --FILE--
 <?nvs
 // `rule:core-classes/db-error`: one class for every refusal the database itself made, rather
@@ -10,7 +10,7 @@ try {
     echo "own: ", $duplicate->message, "\n";
 }
 
-// Spec § 18 puts it under `RuntimeError`: the world said no. A handler written
+// It sits under `RuntimeError`: the world said no. A handler written
 // for that reading catches it without naming the database at all.
 try {
     throw new Core\Db\DbError("the connection was reset");
@@ -25,7 +25,7 @@ try {
     echo "root: ", $deadlock->message, "\n";
 }
 
-// The two § 18 names are siblings, not one name: a handler for the rollback the
+// `DbError` and `RolledBack` are siblings, not one name: a handler for the rollback the
 // program asked for does not swallow a refusal it never chose. `rule:core-classes/db-transactions` is
 // the other half.
 try {

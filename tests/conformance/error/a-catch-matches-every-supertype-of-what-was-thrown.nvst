@@ -1,5 +1,5 @@
 --TEST--
-`RuntimeError`'s three subclasses are each caught by a `RuntimeError` clause, and `ArithmeticError` is not — spec § 10
+`RuntimeError`'s three subclasses are each caught by a `RuntimeError` clause, and `ArithmeticError` is not
 --FILE--
 <?nvs
 // covers: ArithmeticError

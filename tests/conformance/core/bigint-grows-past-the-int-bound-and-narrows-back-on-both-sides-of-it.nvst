@@ -1,5 +1,5 @@
 --TEST--
-A `Core\BigInt` grows past every scalar's bound and `toInt`, `toUint` and `toDecimal` each name both sides of their own — `rule:types/arithmetic` and `rule:types/decimal`, spec § 13
+A `Core\BigInt` grows past every scalar's bound and `toInt`, `toUint` and `toDecimal` each name both sides of their own — `rule:types/arithmetic` and `rule:types/decimal`
 --FILE--
 <?nvs
 // covers: Core\BigInt::add, Core\BigInt::mul

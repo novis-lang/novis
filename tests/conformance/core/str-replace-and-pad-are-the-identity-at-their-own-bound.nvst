@@ -1,5 +1,5 @@
 --TEST--
-Spec § 1: `Core\Str::replace` and the two pad members each have a bound at which they do nothing, asserted there and at the first input past it
+`Core\Str::replace` and the two pad members each have a bound at which they do nothing, asserted there and at the first input past it
 --FILE--
 <?nvs
 // `replace`'s `{limit}` counts occurrences, and `0` means exactly what it says

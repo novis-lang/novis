@@ -1,5 +1,5 @@
 --TEST--
-`Core\Response::sendFile` refuses at the call what it cannot send — a name that is not there and a directory — and sends the file beside them, each bound named on both sides — `rule:security/response-body-is-one-typed-member`, spec § 15
+`Core\Response::sendFile` refuses at the call what it cannot send — a name that is not there and a directory — and sends the file beside them, each bound named on both sides — `rule:security/response-body-is-one-typed-member`
 --FILE--
 <?nvs
 // Everything here runs with the grant in place, so the door is not what

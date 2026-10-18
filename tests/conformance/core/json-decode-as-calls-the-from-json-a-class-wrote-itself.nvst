@@ -1,5 +1,5 @@
 --TEST--
-A class that writes `Core\Json\Codec`'s `fromJson` and carries no `#[Json\Derive]` is decoded through the member it wrote, at every door and at every level of the document — `rule:core-classes/derive-generates-what-is-missing`, `rule:core-classes/derive-attribute`, spec § 6
+A class that writes `Core\Json\Codec`'s `fromJson` and carries no `#[Json\Derive]` is decoded through the member it wrote, at every door and at every level of the document — `rule:core-classes/derive-generates-what-is-missing`, `rule:core-classes/derive-attribute`
 --FILE--
 <?nvs
 // `rule:core-classes/derive-generates-what-is-missing`: the derive fills in the
@@ -8,7 +8,7 @@ A class that writes `Core\Json\Codec`'s `fromJson` and carries no `#[Json\Derive
 // admits a call naming a class that records no field list but declares this
 // member, and `nvs_stdlib::json`'s `hand_written` dispatches to it.
 //
-// § 6 declares the member over `mixed`, so what it is handed is the value the
+// The registry declares the member over `mixed`, so what it is handed is the value the
 // document held and not an object the field walk agreed to first. Re-encoding
 // that value is the one reading that shows what arrived without this class
 // claiming any shape of its own: a decode that quietly walked a field list

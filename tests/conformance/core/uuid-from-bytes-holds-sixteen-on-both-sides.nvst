@@ -1,5 +1,5 @@
 --TEST--
-`Core\Uuid::fromBytes` reads sixteen octets and refuses every other width, naming the width it was handed — spec § 11, `rule:core-api/shape-rules` R4
+`Core\Uuid::fromBytes` reads sixteen octets and refuses every other width, naming the width it was handed — `rule:core-api/shape-rules` R4
 --FILE--
 <?nvs
 // A length is the whole of what this member refuses: every 128-bit pattern is

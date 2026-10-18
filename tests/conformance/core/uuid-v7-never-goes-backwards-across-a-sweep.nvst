@@ -1,5 +1,5 @@
 --TEST--
-`Core\Uuid::v7`'s millisecond field never goes backwards across a sweep of consecutive draws — counted, contrasted against `v4`'s leading field, and bounded on both sides as a real Unix-epoch clock — spec § 11
+`Core\Uuid::v7`'s millisecond field never goes backwards across a sweep of consecutive draws — counted, contrasted against `v4`'s leading field, and bounded on both sides as a real Unix-epoch clock
 --FILE--
 <?nvs
 // A drawn UUID cannot be asserted, so v7's one behavioural claim — that it is

@@ -1,5 +1,5 @@
 --TEST--
-`$uri->with` accepts a port at both ends of the TCP range and refuses one past it, refuses any component that does not survive its own recomposition, and tells an empty component from an absent one — spec § 12
+`$uri->with` accepts a port at both ends of the TCP range and refuses one past it, refuses any component that does not survive its own recomposition, and tells an empty component from an absent one
 --FILE--
 <?nvs
 // RFC 3986 § 3.2.3 admits any run of digits as a port, so the bound is the one
@@ -32,7 +32,7 @@ try {
 // result still recomposes — that is the accepted side of the same check.
 echo Core\Uri::parse("http://h/p")->with({path: ""})->toString(), "\n";
 
-// § 12: the readers are `?string`, so an absent query is `null` while an empty
+// The readers are `?string`, so an absent query is `null` while an empty
 // one is `""` — two different URIs, told apart by the reader and by
 // `toString`. `with` has no removal spelling, so `{query: ""}` builds the
 // second of them and never the first.

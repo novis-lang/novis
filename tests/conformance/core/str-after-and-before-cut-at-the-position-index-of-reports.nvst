@@ -1,5 +1,5 @@
 --TEST--
-`Core\Str::before`/`after` cut the subject at exactly the position `indexOf`/`lastIndexOf` report and hand back the two `slice` windows either side of it, so the three members never disagree about where an occurrence is — spec § 1
+`Core\Str::before`/`after` cut the subject at exactly the position `indexOf`/`lastIndexOf` report and hand back the two `slice` windows either side of it, so the three members never disagree about where an occurrence is
 --FILE--
 <?nvs
 // `crates/nvs-stdlib/src/str.rs`'s `cut_at` is one function serving both

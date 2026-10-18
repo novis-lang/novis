@@ -1,8 +1,8 @@
 --TEST--
-`Core\Bytes::unpack`, `::at` and `::fill` each name the last octet they read beside the first they cannot — spec § 7, `rule:types/bytes`, `rule:core-api/shape-rules` R4 and R8
+`Core\Bytes::unpack`, `::at` and `::fill` each name the last octet they read beside the first they cannot — `rule:types/bytes`, `rule:core-api/shape-rules` R4 and R8
 --FILE--
 <?nvs
-// Spec § 7's three reading boundaries, each asserted on both sides and by the
+// `Core\Bytes`'s three reading boundaries, each asserted on both sides and by the
 // *message* it names rather than by the fact that something threw: a member
 // that stops one octet early prints plausibly against either half alone.
 //

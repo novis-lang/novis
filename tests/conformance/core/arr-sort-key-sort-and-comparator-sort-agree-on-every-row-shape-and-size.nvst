@@ -1,5 +1,5 @@
 --TEST--
-Spec § 2: `Core\Arr::sort` without a comparator answers the same array as with one on every natural-order row, input shape and size that reaches the key sort, under both orders and with keys preserved — and `sortByKey` does too
+`Core\Arr::sort` without a comparator answers the same array as with one on every natural-order row, input shape and size that reaches the key sort, under both orders and with keys preserved — and `sortByKey` does too
 --FILE--
 <?nvs
 // `Core\Arr::sort` runs two sorts: a key sort when no comparator was given and

@@ -1,5 +1,5 @@
 --TEST--
-Core\Math::toRadians and toDegrees invert each other over a swept table, and land on PI and TAU exactly at the quarter turns — docs/spec/01-core-library.md § 3
+Core\Math::toRadians and toDegrees invert each other over a swept table, and land on PI and TAU exactly at the quarter turns
 --FILE--
 <?nvs
 // The pair is implemented as PHP's own expressions — `($d / 180.0) * PI` and
@@ -98,7 +98,7 @@ echo "mirrored: ", $mirrors, "/", $mirrorRows, "\n";
 //    the two operations rather than from the magnitude. `toRadians` divides by
 //    180 first, so the largest finite `float` survives it; `toDegrees` divides
 //    by PI — barely more than 3 — and then multiplies by 180, which overflows.
-//    Neither throws: § 3 answers IEEE's value.
+//    Neither throws: the answer is IEEE's value.
 if (Core\Math::isFinite(Core\Math::toRadians(1.0e308))) {
     echo "toRadians finite";
 } else {

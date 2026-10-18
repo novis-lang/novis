@@ -1,5 +1,5 @@
 --TEST--
-`$uuid->toBytes` and `$uuid->toString` render one UUID two ways, and `Core\Uuid::fromBytes` and `Core\Uuid::parse` read the same value back from either — spec § 11
+`$uuid->toBytes` and `$uuid->toString` render one UUID two ways, and `Core\Uuid::fromBytes` and `Core\Uuid::parse` read the same value back from either
 --FILE--
 <?nvs
 // covers: Core\Uuid::toBytes

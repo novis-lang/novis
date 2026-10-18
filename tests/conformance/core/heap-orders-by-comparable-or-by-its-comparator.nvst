@@ -1,8 +1,8 @@
 --TEST--
-Core\Heap<T> answers smallest-first, ordered by `rule:classes/comparable`'s `Comparable` or by the comparator given at construction — docs/spec/01-core-library.md § 9
+Core\Heap<T> answers smallest-first, ordered by `rule:classes/comparable`'s `Comparable` or by the comparator given at construction
 --FILE--
 <?nvs
-// § 9's third row: `push`, `peek`, `pop`, `count`, `isEmpty`, replacing
+// `Core\Heap`'s members: `push`, `peek`, `pop`, `count`, `isEmpty`, replacing
 // `SplPriorityQueue`, `SplMinHeap` and `SplMaxHeap`.
 class Job implements Comparable {
     public string $name;
@@ -55,7 +55,7 @@ while (!$jobs->isEmpty()) {
 echo "|\n";
 
 // `peek` and `pop` throw on an empty heap rather than answering `null`:
-// § 9 gives the class an `isEmpty`, and that is the question.
+// The class has an `isEmpty`, and that is the question.
 try {
     $n->pop();
 } catch (Throwable $e) {

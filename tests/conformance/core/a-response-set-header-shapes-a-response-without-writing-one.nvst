@@ -1,5 +1,5 @@
 --TEST--
-`Core\Response::setHeader` puts no byte in the body, and setting one name twice is admitted rather than refused as a duplicate -- spec § 15
+`Core\Response::setHeader` puts no byte in the body, and setting one name twice is admitted rather than refused as a duplicate
 --FILE--
 <?nvs
 // Like `setStatus` and unlike `rule:security/response-body-is-one-typed-member`'s five body members: this one

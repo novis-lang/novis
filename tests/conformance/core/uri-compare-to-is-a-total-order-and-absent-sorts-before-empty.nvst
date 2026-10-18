@@ -1,5 +1,5 @@
 --TEST--
-`$uri->compareTo` is a total order and not only an equality test: antisymmetric, reflexive and transitive over a corpus, decided component by component in the readers' declared order rather than over the text, with an absent component sorting before an empty one — spec § 12, `rule:classes/comparable`, `rule:expressions/object-identity-equality`
+`$uri->compareTo` is a total order and not only an equality test: antisymmetric, reflexive and transitive over a corpus, decided component by component in the readers' declared order rather than over the text, with an absent component sorting before an empty one — `rule:classes/comparable`, `rule:expressions/object-identity-equality`
 --FILE--
 <?nvs
 // covers: Core\Uri::compareTo

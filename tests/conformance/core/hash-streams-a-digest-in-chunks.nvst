@@ -1,8 +1,8 @@
 --TEST--
-`Core\Hash::stream` accumulates a digest across `update` calls and is consumed by `finish` — spec § 11, `rule:types/bytes` and `rule:types/conversion`
+`Core\Hash::stream` accumulates a digest across `update` calls and is consumed by `finish` — `rule:types/bytes` and `rule:types/conversion`
 --FILE--
 <?nvs
-// § 11: the incremental form answers exactly what the one-shot member would
+// The incremental form answers exactly what the one-shot member would
 // over the concatenation of everything fed to it, which is the property that
 // makes it substitutable for `Core\Hash::of`.
 var $stream = Core\Hash::stream(Core\Hash::Digest::Sha256);
@@ -20,7 +20,7 @@ $mixed->update(Core\Encoding::fromHex("61"));
 $mixed->update("bc");
 echo Core\Encoding::toHex($mixed->finish()), "\n";
 
-// § 11 keeps the three broken algorithms for interop, and the stream takes the
+// `Core\Hash` keeps the three broken algorithms for interop, and the stream takes the
 // whole of `Core\Hash::Digest` for the same reason — a checksum over a file being
 // copied is the case that wants it.
 var $sum = Core\Hash::stream(Core\Hash::Digest::Crc32);

@@ -1,5 +1,5 @@
 --TEST--
-Spec § 4: an `Instant`'s three epoch readings are unchanged by reading it in a zone, including the host's, and they agree either side of the epoch
+`Core\Time`: An `Instant`'s three epoch readings are unchanged by reading it in a zone, including the host's, and they agree either side of the epoch
 --FILE--
 <?nvs
 // covers: Core\Time\Instant::in

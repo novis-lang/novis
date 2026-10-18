@@ -1,5 +1,5 @@
 --TEST--
-`Core\Time`'s unknown-zone refusal names the member that was handed the id, and a zone it accepted is never refused again — spec § 4, `rule:core-api/shape-rules` R20
+`Core\Time`'s unknown-zone refusal names the member that was handed the id, and a zone it accepted is never refused again — `rule:core-api/shape-rules` R20
 --FILE--
 <?nvs
 // covers: Core\Time\Zone::offsetAt
@@ -22,7 +22,7 @@ var $winter = Core\Time::fromIso("2024-01-15T12:00:00Z");
 var $utc = Core\Time\Zone::UTC;
 echo $utc->offsetAt($winter)->toSeconds() as string, "|", Core\Time\Zone::of("Europe/Berlin")->offsetAt($winter)->toSeconds() as string, "|\n";
 
-// The refusal, in full. The neighbouring § 4 cases assert that *something* was
+// The refusal, in full. The neighbouring `Core\Time` cases assert that *something* was
 // said here; what the member owes past that is its own name and the id it was
 // handed, because a caller reading this has a typo to find and nothing else to
 // find it with. The empty id is the sharpest of the two: there is no argument

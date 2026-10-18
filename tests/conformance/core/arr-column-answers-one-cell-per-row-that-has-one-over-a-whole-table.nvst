@@ -1,8 +1,8 @@
 --TEST--
-Core\Arr::column's answer is one cell per row that has the named key, rebuilt over a whole table rather than read off a line, so a null cell counts and an absent key does not, and {indexBy} leaves one entry per distinct key, per spec § 2
+Core\Arr::column's answer is one cell per row that has the named key, rebuilt over a whole table rather than read off a line, so a null cell counts and an absent key does not, and {indexBy} leaves one entry per distinct key
 --FILE--
 <?nvs
-// Spec § 2's row and `crates/nvs-stdlib/src/arr.rs:2278`'s doc both describe
+// The registry's row and `crates/nvs-stdlib/src/arr.rs:2278`'s doc both describe
 // `column` one row at a time. What no case asks is whether the description
 // survives a *table*: the sibling cases
 // `arr-column-takes-one-cell-out-of-every-row` and

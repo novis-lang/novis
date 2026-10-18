@@ -1,5 +1,5 @@
 --TEST--
-A `RuntimeError` clause takes every one of the seven classes below it, including the three whose names are namespaced, and none of the three on the other half — both sides counted rather than read off one arm — and the value it binds keeps the narrow name it was thrown under — spec § 10
+A `RuntimeError` clause takes every one of the seven classes below it, including the three whose names are namespaced, and none of the three on the other half — both sides counted rather than read off one arm — and the value it binds keeps the narrow name it was thrown under
 --FILE--
 <?nvs
 // covers: RuntimeError, lang:errors/the-throwable-tree

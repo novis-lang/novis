@@ -1,14 +1,14 @@
 --TEST--
-`Core\Uri::buildQuery` writes what `parseQuery` reads, and the pair round-trips — spec § 12
+`Core\Uri::buildQuery` writes what `parseQuery` reads, and the pair round-trips
 --FILE--
 <?nvs
-// docs/spec/01-core-library.md § 12: `buildQuery` is `parseQuery`'s inverse
+// `buildQuery` is `parseQuery`'s inverse
 // over one bracket convention. A nested value is written under its whole
 // bracket path, with the indexes spelled out and the structural brackets
 // percent-encoded like any other byte — which is what `http_build_query`
 // writes and what `parseQuery` reads back.
 //
-// `parseQuery` answers a value as `bytes` (spec § 12) and `Core\Json::encode`
+// `parseQuery` answers a value as `bytes` and `Core\Json::encode`
 // has no encoding for one, so the round trip below is rendered through this
 // walk. `buildQuery` itself takes the octets straight, which is what keeps the
 // two inverse.

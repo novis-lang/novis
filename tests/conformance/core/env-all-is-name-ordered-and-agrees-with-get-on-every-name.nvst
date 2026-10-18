@@ -1,5 +1,5 @@
 --TEST--
-`Core\Env::all` is name-ordered and agrees with `get` on every name it holds — spec § 15, `rule:security/tainted-qualifier`
+`Core\Env::all` is name-ordered and agrees with `get` on every name it holds — `rule:security/tainted-qualifier`
 --ENV--
 NVS_CASE_C=third
 NVS_CASE_A=first

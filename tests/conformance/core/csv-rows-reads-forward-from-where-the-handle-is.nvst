@@ -1,5 +1,5 @@
 --TEST--
-A `Core\Csv::rows` walk starts where the handle is, is taken once, and refuses a handle the program has closed — spec § 12's second table, `rule:programs/memory-priority`
+A `Core\Csv::rows` walk starts where the handle is, is taken once, and refuses a handle the program has closed — `rule:programs/memory-priority`
 --FILE--
 <?nvs
 Core\IO\File $out = Core\IO::open("ledger.csv", Core\IO::FileMode::Write);

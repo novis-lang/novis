@@ -1,5 +1,5 @@
 --TEST--
-`Core\ObjectMap`'s `keys` and `values` stay positionally paired through a sweep of writes — a re-`set` replaces in place, a removal closes the same gap in both lists, and a re-added key lands at the end — docs/spec/01-core-library.md § 9
+`Core\ObjectMap`'s `keys` and `values` stay positionally paired through a sweep of writes — a re-`set` replaces in place, a removal closes the same gap in both lists, and a re-added key lands at the end
 --FILE--
 <?nvs
 // covers: Core\ObjectMap::set, Core\ObjectMap::keys, Core\ObjectMap::values
@@ -17,7 +17,7 @@ array<Tag> $tags = [
     new Tag("t6"), new Tag("t7"), new Tag("t8"),
 ];
 
-// § 9 pairs `keys` and `values` by position and by nothing else, so the one
+// `Core\ObjectMap` pairs `keys` and `values` by position and by nothing else, so the one
 // thing this map can get wrong is the two lists drifting apart. Every step
 // below prints both.
 Core\ObjectMap<Tag, int> $map = new Core\ObjectMap<Tag, int>();

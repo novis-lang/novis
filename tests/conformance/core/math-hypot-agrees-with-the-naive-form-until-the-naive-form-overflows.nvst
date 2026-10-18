@@ -1,8 +1,8 @@
 --TEST--
-Core\Math::hypot answers exactly what sqrt($x * $x + $y * $y) answers on every row whose square sum is representable, and stays finite on the row where the naive form is an infinity — docs/spec/01-core-library.md § 3
+Core\Math::hypot answers exactly what sqrt($x * $x + $y * $y) answers on every row whose square sum is representable, and stays finite on the row where the naive form is an infinity
 --FILE--
 <?nvs
-// § 3 gives `hypot` its own row rather than leaving it to `sqrt`, and the whole
+// `Core\Math` gives `hypot` its own member rather than leaving it to `sqrt`, and the whole
 // reason for that is the last two blocks: the naive form loses to the exponent
 // range long before the answer does. The sweep is what makes those two blocks a
 // boundary rather than two samples — it asserts the two forms agree everywhere
@@ -64,7 +64,7 @@ echo Core\Math::hypot(3.0, 4.0), "|", Core\Math::hypot(-3.0, -4.0), "|",
 
 // The overflow row. 3e200 and 4e200 are ordinary finite floats and so is 5e200,
 // but their squares are not — 9e400 is past FLOAT_MAX, so the naive form has
-// already thrown the answer away by the time `sqrt` sees it. § 3's domain rule
+// already thrown the answer away by the time `sqrt` sees it. `Core\Math`'s domain rule
 // is IEEE's value rather than a throw, so the failure is silent: an infinity,
 // which `isFinite` is then the member that asks about.
 float $bigX = 3.0e200;

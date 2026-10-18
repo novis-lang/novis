@@ -1,5 +1,5 @@
 --TEST--
-Spec § 5: `Core\Regex::matchAll` reports the offsets a search taken one match at a time reports, over subjects whose clusters sit between the matches — `rule:types/string-is-utf8`
+`Core\Regex::matchAll` reports the offsets a search taken one match at a time reports, over subjects whose clusters sit between the matches — `rule:types/string-is-utf8`
 --FILE--
 <?nvs
 // `matchAll` converts a whole run of byte positions into `rule:types/string-is-utf8`'s

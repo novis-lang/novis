@@ -1,10 +1,10 @@
 --TEST--
-Spec § 4, `rule:classes/comparable`: `Core\Time\Date::compareTo` is a total order, asserted by counting the laws over a table rather than reading a row — trichotomy, antisymmetry over 144 pairs and transitivity over 1,728 triples — that the order is year before month before day and not any other precedence, that it is not the order its own rendering sorts under, and that `Core\Arr::sort` reaches it from a comparator that never asks it
+`Core\Time\Date::compareTo` is a total order, asserted by counting the laws over a table rather than reading a row — trichotomy, antisymmetry over 144 pairs and transitivity over 1,728 triples — that the order is year before month before day and not any other precedence, that it is not the order its own rendering sorts under, and that `Core\Arr::sort` reaches it from a comparator that never asks it — `rule:classes/comparable`
 --FILE--
 <?nvs
 // covers: Core\Time\Date::compareTo, Core\Time\Date::format
-// `rule:classes/comparable` makes `compareTo` the one order a value has, and § 4 gives a civil
-// date exactly one. A row-by-row case cannot tell a total order from a member
+// `rule:classes/comparable` makes `compareTo` the one order a value has, and a civil date
+// has exactly one. A row-by-row case cannot tell a total order from a member
 // that answers plausibly: the laws are statements about *triples* and about
 // the whole table at once, so every count below is over a sweep and the
 // expectation is the sweep's size.
@@ -43,7 +43,7 @@ class Cal {
 // to do. Rows 3 and 7 are two distinct instances of one date — the pair that
 // makes `0` reachable off the diagonal — and three pairs differ in exactly
 // one field: rows 1 and 3 in the year, rows 1 and 10 in the day, rows 1 and
-// 12 in the month. Two rows are BCE, which is where § 4's range and its
+// 12 in the month. Two rows are BCE, which is where `Core\Time`'s range and its
 // rendering stop agreeing (below).
 array<Core\Time\Date> $calendar = [
     Core\Time\Date::at(2024, 3, 1),

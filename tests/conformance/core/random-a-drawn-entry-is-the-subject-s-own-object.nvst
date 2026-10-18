@@ -1,5 +1,5 @@
 --TEST--
-Core\Random::pick, sample and shuffle hand back the subject's own entries rather than copies of them — every answer is identical to an entry, never equal to a field-identical twin, and a write through a drawn handle is a write to the subject — spec § 11, `rule:expressions/one-equality-operator`, `rule:classes/clone-is-shallow`
+Core\Random::pick, sample and shuffle hand back the subject's own entries rather than copies of them — every answer is identical to an entry, never equal to a field-identical twin, and a write through a drawn handle is a write to the subject — `rule:expressions/one-equality-operator`, `rule:classes/clone-is-shallow`
 --FILE--
 <?nvs
 // The invariant `nvs_stdlib::random::owned_value_at` is written around: a draw

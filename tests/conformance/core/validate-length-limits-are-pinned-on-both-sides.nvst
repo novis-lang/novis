@@ -2,7 +2,7 @@
 `Core\Validate`'s four length limits are RFC 5321 § 4.5.3.1's and RFC 1123 § 2.1's, and an empty label is one rule rather than three about dots
 --FILE--
 <?nvs
-// docs/spec/01-core-library.md § 12 states the roster;
+// The registry states the roster;
 // `crates/nvs-stdlib/src/validate.rs`'s own module doc owns every limit
 // below — a label of 1 to 63 bytes, a hostname of 253, a dot-atom local part
 // of 64 and a whole address of 254. A limit is only pinned by a *pair*: the

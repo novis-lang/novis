@@ -1,5 +1,5 @@
 --TEST--
-`Core\Response::setHeader` names both sides of what a header line carries — a field name is a token and a field value is printable ASCII -- spec § 15
+`Core\Response::setHeader` names both sides of what a header line carries — a field name is a token and a field value is printable ASCII
 --FILE--
 <?nvs
 // A bound asserted on both sides: a member that admitted one byte more than

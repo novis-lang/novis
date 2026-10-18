@@ -1,5 +1,5 @@
 --TEST--
-`rollBack` is a member of the transaction alone, because `rule:core-classes/db-transactions` removes the connection-level one along with `commit` and `inTransaction` — `rule:core-classes/db-transactions`, spec § 18
+`rollBack` is a member of the transaction alone, because `rule:core-classes/db-transactions` removes the connection-level one along with `commit` and `inTransaction` — `rule:core-classes/db-transactions`
 --FILE--
 <?nvs
 // The boundary on both sides: `rollBack` is a member of the transaction and of

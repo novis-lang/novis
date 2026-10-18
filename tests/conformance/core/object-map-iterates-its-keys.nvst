@@ -1,5 +1,5 @@
 --TEST--
-A `foreach` over a `Core\ObjectMap<K, V>` yields its keys, from a snapshot taken when the loop began — docs/spec/01-core-library.md § 9, `rule:iteration/two-interfaces` and `rule:iteration/foreach-subjects`
+A `foreach` over a `Core\ObjectMap<K, V>` yields its keys, from a snapshot taken when the loop began — `rule:iteration/two-interfaces` and `rule:iteration/foreach-subjects`
 --FILE--
 <?nvs
 final class Tag {
@@ -17,7 +17,7 @@ Core\ObjectMap<Tag, int> $weights = new Core\ObjectMap<Tag, int>();
 $weights->set($red, 3);
 $weights->set($blue, 7);
 
-// § 9: a map yields its keys, which is the half that hands `get` back the
+// A map yields its keys, which is the half that hands `get` back the
 // other one. The binding's type is `K` fixed at the receiver's own argument.
 foreach ($weights as Tag $tag) {
     echo $tag->name, "=", $weights->get($tag) ?? 0, "\n";

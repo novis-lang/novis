@@ -1,9 +1,9 @@
 --TEST--
-`Core\Uuid::fromBytes` and `$uuid->toBytes` carry one UUID's 128 bits in both directions, over written values and over both generators' draws — spec § 11
+`Core\Uuid::fromBytes` and `$uuid->toBytes` carry one UUID's 128 bits in both directions, over written values and over both generators' draws
 --FILE--
 <?nvs
 // covers: Core\Uuid::toBytes
-// Spec § 11's octet pair, asserted as a *round trip* by counting agreement
+// `Core\Uuid`'s octet pair, asserted as a *round trip* by counting agreement
 // over a sweep rather than off one line: a pair that wrote the two halves the
 // wrong way up round-trips against itself on a symmetric value, so the rows
 // below are asymmetric and both generators are swept as well.

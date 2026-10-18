@@ -1,5 +1,5 @@
 --TEST--
-`Core\Str::indexOf` with `caseInsensitive` answers a long near miss in linear time, and finds an empty needle at the end in both modes — spec § 1 *Search*
+`Core\Str::indexOf` with `caseInsensitive` answers a long near miss in linear time, and finds an empty needle at the end in both modes
 --FILE--
 <?nvs
 // A needle of 4096 letters and a `b`, against 1 MiB of letters. Trying the

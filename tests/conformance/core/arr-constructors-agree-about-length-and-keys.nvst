@@ -1,9 +1,9 @@
 --TEST--
-Core\Arr::fill, fillKeys, fromKeysAndValues, padStart and padEnd are asked for the same number of entries and agree about how many they build and which keys hold them — spec § 2, `rule:types/preserve-keys`
+Core\Arr::fill, fillKeys, fromKeysAndValues, padStart and padEnd are asked for the same number of entries and agree about how many they build and which keys hold them — `rule:types/preserve-keys`
 --FILE--
 <?nvs
 // Five members build an array whose *count* is stated by an argument rather
-// than by a subject, so spec § 2 asks all five one question: how many entries,
+// than by a subject, so all five answer one question: how many entries,
 // under which keys. The five spellings of "build n entries" are the count
 // itself, n keys, n keys against n values, and an empty subject padded to n on
 // either side — and what this case asserts is their agreement rather than the

@@ -1,5 +1,5 @@
 --TEST--
-`transaction` answers the callable's own type and not `mixed`, so wrapping an expression in a transaction retypes nothing around it — `rule:core-classes/db-transactions`, spec § 18
+`transaction` answers the callable's own type and not `mixed`, so wrapping an expression in a transaction retypes nothing around it — `rule:core-classes/db-transactions`
 --FILE--
 <?nvs
 // `rule:core-classes/db-transactions` writes the member `transaction(callable $fn): T` — the answer is

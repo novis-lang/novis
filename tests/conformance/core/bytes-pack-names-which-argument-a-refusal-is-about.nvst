@@ -1,8 +1,8 @@
 --TEST--
-`Core\Bytes::pack` reports which argument each mismatch is about, and every code accepts exactly one kind of argument — spec § 7, `rule:types/bytes` and `rule:types/conversion`, `rule:types/grammar`
+`Core\Bytes::pack` reports which argument each mismatch is about, and every code accepts exactly one kind of argument — `rule:types/bytes` and `rule:types/conversion`, `rule:types/grammar`
 --FILE--
 <?nvs
-// Spec § 7's `pack(string $format, mixed ...$values): bytes`. The value list is
+// `Core\Bytes::pack(string $format, mixed ...$values): bytes`. The value list is
 // `mixed`, which is `rule:types/grammar`'s one unchecked position, so nothing the
 // checker knows lines the format up against the arguments — the member does it
 // at the call, and `rule:types/conversion`'s checked-never-repaired rule is why every

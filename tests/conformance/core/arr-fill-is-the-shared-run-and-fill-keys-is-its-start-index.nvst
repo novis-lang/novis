@@ -1,5 +1,5 @@
 --TEST--
-`Core\Arr::fill` answers the same run its two padding siblings add for the same count, degenerate counts included, and `::fillKeys` is what replaces PHP's dropped `$start_index` — spec § 2
+`Core\Arr::fill` answers the same run its two padding siblings add for the same count, degenerate counts included, and `::fillKeys` is what replaces PHP's dropped `$start_index`
 --FILE--
 <?nvs
 // `fill`, `padStart` and `padEnd` all reach `append_copies`, so the run each

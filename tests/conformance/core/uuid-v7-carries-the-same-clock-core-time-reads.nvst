@@ -1,5 +1,5 @@
 --TEST--
-Core\Uuid::v7's leading 48 bits are a millisecond count read off the clock `Core\Time::now()` reads, and the 74 bits below it are what tells two draws of one millisecond apart — spec § 11, RFC 9562 § 5.7
+Core\Uuid::v7's leading 48 bits are a millisecond count read off the clock `Core\Time::now()` reads, and the 74 bits below it are what tells two draws of one millisecond apart — RFC 9562 § 5.7
 --FILE--
 <?nvs
 // `uuid-v7-never-goes-backwards-across-a-sweep.nvst` asserts that the leading

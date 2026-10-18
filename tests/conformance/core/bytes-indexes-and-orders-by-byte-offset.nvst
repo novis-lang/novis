@@ -1,5 +1,5 @@
 --TEST--
-Spec § 7: `Core\Bytes`'s indexing half counts in bytes where `Core\Str`'s members of the same name count characters — `rule:types/bytes`, `rule:core-api/shape-rules` R5/R6/R8
+`Core\Bytes`'s indexing half counts in bytes where `Core\Str`'s members of the same name count characters — `rule:types/bytes`, `rule:core-api/shape-rules` R5/R6/R8
 --FILE--
 <?nvs
 class Probe {
@@ -14,7 +14,7 @@ class Probe {
     }
 }
 
-// There is no `bytes` literal (00-overview § 5), so a buffer is built through
+// There is no `bytes` literal, so a buffer is built through
 // `Core\Encoding` — here PNG's eight-byte signature, which is what R6's
 // "magic-byte sniffing" is about and is not valid UTF-8 in the first place.
 bytes $png = Core\Encoding::fromHex("89504e470d0a1a0a");

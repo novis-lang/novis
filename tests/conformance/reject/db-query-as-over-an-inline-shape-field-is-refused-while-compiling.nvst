@@ -1,5 +1,5 @@
 --TEST--
-`queryAs<T>` over a class with an inline-shape field is refused while compiling rather than once per row — `rule:core-classes/db-column-types`, `rule:core-classes/derive-field-list`, spec § 18
+`queryAs<T>` over a class with an inline-shape field is refused while compiling rather than once per row — `rule:core-classes/db-column-types`, `rule:core-classes/derive-field-list`
 --FILE--
 <?nvs
 // `rule:core-classes/db-column-types` makes a row a flat list of columns, so a

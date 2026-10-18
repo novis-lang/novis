@@ -1,5 +1,5 @@
 --TEST--
-`Core\Db\Column::nullable` answers `true` for every column a statement described, whatever that column was declared — a stepped statement carries no `not null` flag, so a primary key, a `not null` column and a column the query works out are one answer, and it is `bool` rather than `?bool` — `rule:core-classes/db-column-types`, spec § 18
+`Core\Db\Column::nullable` answers `true` for every column a statement described, whatever that column was declared — a stepped statement carries no `not null` flag, so a primary key, a `not null` column and a column the query works out are one answer, and it is `bool` rather than `?bool` — `rule:core-classes/db-column-types`
 --FILE--
 <?nvs
 // covers: Core\Db\Column::nullable

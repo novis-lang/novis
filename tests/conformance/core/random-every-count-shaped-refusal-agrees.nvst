@@ -1,5 +1,5 @@
 --TEST--
-Core\Random's four count-shaped refusals agree — each answers one step inside its bound, throws one step outside it in the same class, and says which member and which numbers — spec § 11, `rule:core-api/shape-rules` R4
+Core\Random's four count-shaped refusals agree — each answers one step inside its bound, throws one step outside it in the same class, and says which member and which numbers — `rule:core-api/shape-rules` R4
 --FILE--
 <?nvs
 // `rule:core-api/shape-rules` R4 read at four members at once: a call with no answer to invent

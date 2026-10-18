@@ -1,8 +1,8 @@
 --TEST--
-Spec § 4: the same step asked of a `DateTime` and of its `toInstant()` agrees only where no calendar makes it differ
+The same step asked of a `DateTime` and of its `toInstant()` agrees only where no calendar makes it differ
 --FILE--
 <?nvs
-// § 4's opening rule is that a `DateTime` moves by a count of a `Core\Unit`
+// A `DateTime` moves by a count of a `Core\Unit`
 // while an `Instant` moves by an exact `Core\Time\Duration`. Everything below
 // asks *one* step of both and compares what the two landed on, so a member
 // that quietly reduced a calendar unit to a fixed number of nanoseconds fails

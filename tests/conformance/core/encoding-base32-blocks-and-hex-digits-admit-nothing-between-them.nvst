@@ -1,5 +1,5 @@
 --TEST--
-`Core\Encoding`'s base32 pair spells every block length and reads its own padding back, and its hex pair admits no separator, prefix or newline — spec § 7, `rule:types/bytes` and `rule:types/conversion`
+`Core\Encoding`'s base32 pair spells every block length and reads its own padding back, and its hex pair admits no separator, prefix or newline — `rule:types/bytes` and `rule:types/conversion`
 --FILE--
 <?nvs
 class B32 {

@@ -1,8 +1,8 @@
 --TEST--
-Spec § 5: `Core\Regex::compile` answers a `Pattern`, the handle carrying the four flags PCRE wrote as `/…/imsU`
+`Core\Regex::compile` answers a `Pattern`, the handle carrying the four flags PCRE wrote as `/…/imsU`
 --FILE--
 <?nvs
-// A `Pattern` is § 5's option-carrying handle: the modifiers PCRE spelled
+// A `Pattern` is `Core\Regex`'s option-carrying handle: the modifiers PCRE spelled
 // after a closing delimiter are named options here, and there is no delimiter
 // to escape. Nothing is asked *of* a `Pattern` — it is what the five matching
 // members take in place of a `string`, which is the `Pattern|string` their
@@ -53,7 +53,7 @@ echo Core\Regex::matches("foobaz", $fancy) as string, "|\n";
 //
 // The pattern arrives in a variable: written as a literal it is `rule:expressions/intrinsic-list-is-closed`'s
 // compile error instead, which is the same refusal made earlier and therefore
-// not the one a `catch` can see (§ 2).
+// not the one a `catch` can see.
 string $unclosed = "(unclosed";
 try {
     Core\Regex\Pattern $bad = Core\Regex::compile($unclosed, {caseInsensitive: true});

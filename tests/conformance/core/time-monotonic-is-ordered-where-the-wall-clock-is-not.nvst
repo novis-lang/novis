@@ -1,5 +1,5 @@
 --TEST--
-Spec § 4: a sweep of `Core\Time::monotonic` readings never steps backwards, and what separates two of them is a `Duration`
+A sweep of `Core\Time::monotonic` readings never steps backwards, and what separates two of them is a `Duration`
 --FILE--
 <?nvs
 // `Core\Time::monotonic(): Duration` has no reading a case could pin — the

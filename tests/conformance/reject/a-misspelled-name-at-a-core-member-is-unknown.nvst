@@ -2,7 +2,7 @@
 a name that reaches no `Core` parameter is refused where it is written, whether it is a misspelling or the one name a variadic tail carries (`rule:core-api/shape-rules` R2)
 --FILE--
 <?nvs
-// The spec writes `Core\Str::repeat(string $s, uint $times)`, so `subject:`
+// The registry writes `Core\Str::repeat(string $s, uint $times)`, so `subject:`
 // names no parameter of it — the same refusal a user-declared method gives,
 // because a `Core` signature is now the same kind of signature.
 echo Core\Str::repeat(subject: "x", times: 2), "\n";

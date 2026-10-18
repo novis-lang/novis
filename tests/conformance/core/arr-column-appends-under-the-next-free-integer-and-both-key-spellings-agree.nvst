@@ -1,8 +1,8 @@
 --TEST--
-Core\Arr::column appends a row missing the indexBy key under the next free integer key, which a later row's own key can then collide with, and its column and indexBy arguments answer the same for either spelling of a key, per spec § 2
+Core\Arr::column appends a row missing the indexBy key under the next free integer key, which a later row's own key can then collide with, and its column and indexBy arguments answer the same for either spelling of a key
 --FILE--
 <?nvs
-// `crates/nvs-stdlib/src/arr.rs:2218`'s doc settles two rules the spec's row
+// `crates/nvs-stdlib/src/arr.rs:2218`'s doc settles two rules the registry's row
 // does not: a row missing the `indexBy` key still contributes, "under the next
 // integer key", and both key arguments go through `key_bytes`, so an `int` and
 // its written-out string name one cell. The sibling case

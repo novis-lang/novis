@@ -1,5 +1,5 @@
 --TEST--
-`Core\Compress` is one API over every codec case, and each direction is the other's inverse — spec § 17, `rule:core-api/tier-roster`
+`Core\Compress` is one API over every codec case, and each direction is the other's inverse — `rule:core-api/tier-roster`
 --FILE--
 <?nvs
 // covers: Core\Compress::Codec

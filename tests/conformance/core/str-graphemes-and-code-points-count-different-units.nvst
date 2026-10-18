@@ -1,5 +1,5 @@
 --TEST--
-`Core\Str::graphemes` answers the class's own unit and `Core\Str::codePoints` answers scalar values — spec § 1 *Extraction*, `rule:types/string-is-utf8`
+`Core\Str::graphemes` answers the class's own unit and `Core\Str::codePoints` answers scalar values — `rule:types/string-is-utf8`
 --FILE--
 <?nvs
 class Render {

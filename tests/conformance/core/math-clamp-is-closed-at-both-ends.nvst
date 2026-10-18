@@ -1,5 +1,5 @@
 --TEST--
-Core\Math::clamp holds a closed range at both ends, and a one-point range is the last non-empty one, per spec § 3
+Core\Math::clamp holds a closed range at both ends, and a one-point range is the last non-empty one
 --FILE--
 <?nvs
 // That `clamp` is the composition `min(max($x, $lo), $hi)` on every row of a

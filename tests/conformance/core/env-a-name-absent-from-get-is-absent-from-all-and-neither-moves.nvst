@@ -1,5 +1,5 @@
 --TEST--
-A name `Core\Env::get` does not hold is absent from `all` too, and neither answer moves during a run — spec § 15
+A name `Core\Env::get` does not hold is absent from `all` too, and neither answer moves during a run
 --ENV--
 NVS_CASE_PRESENT=here
 --FILE--

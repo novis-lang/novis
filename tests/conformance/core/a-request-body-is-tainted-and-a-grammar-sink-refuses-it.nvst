@@ -1,8 +1,8 @@
 --TEST--
-`Core\Request::body` answers a `tainted string`, so a request's own bytes reach a grammar sink only through the launderer that names it — spec § 15, `rule:security/tainted-qualifier` and `rule:security/launderers-are-sink-named`, `rule:http-server/a-part-is-consumed-in-one-of-three-ways`
+`Core\Request::body` answers a `tainted string`, so a request's own bytes reach a grammar sink only through the launderer that names it — `rule:security/tainted-qualifier` and `rule:security/launderers-are-sink-named`, `rule:http-server/a-part-is-consumed-in-one-of-three-ways`
 --FILE--
 <?nvs
-// The qualifier is the third thing § 15's signature says, and the only one no
+// The qualifier is the third thing the signature says, and the only one no
 // runtime assertion can show: a plain `string` is assignable into a `tainted`
 // target, so a case that only declared one would pass over a member that had
 // dropped the mark. What pins it is the refusal -- a body is the least trusted

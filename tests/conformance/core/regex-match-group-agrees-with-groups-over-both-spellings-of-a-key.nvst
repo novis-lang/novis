@@ -1,5 +1,5 @@
 --TEST--
-Spec § 5: `Core\Regex\Match::group` answers exactly the keys `groups` lists, under either spelling of a number, and throws on every other
+`Core\Regex\Match::group` answers exactly the keys `groups` lists, under either spelling of a number, and throws on every other
 --FILE--
 <?nvs
 // covers: Core\Regex\Match::groups

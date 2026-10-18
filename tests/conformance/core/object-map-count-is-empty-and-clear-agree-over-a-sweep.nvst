@@ -1,5 +1,5 @@
 --TEST--
-`Core\ObjectMap<K, V>::count`, `::isEmpty` and `::clear` agree with each other and with both lists at every point of a sweep — docs/spec/01-core-library.md § 9
+`Core\ObjectMap<K, V>::count`, `::isEmpty` and `::clear` agree with each other and with both lists at every point of a sweep
 --FILE--
 <?nvs
 // covers: Core\ObjectMap::clear, Core\ObjectMap::count, Core\ObjectMap::isEmpty

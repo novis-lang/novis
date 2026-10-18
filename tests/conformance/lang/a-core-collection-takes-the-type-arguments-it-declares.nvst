@@ -1,5 +1,5 @@
 --TEST--
-A `Core`-owned generic class takes exactly the type arguments its roster declares, so one list is right for one collection and wrong for the other — `rule:types/grammar`, spec § 9
+A `Core`-owned generic class takes exactly the type arguments its roster declares, so one list is right for one collection and wrong for the other — `rule:types/grammar`
 --FILE--
 <?nvs
 // `rule:types/grammar` makes "which `new` target may carry a `<...>`" a resolution

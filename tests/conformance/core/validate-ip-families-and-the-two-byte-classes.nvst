@@ -2,7 +2,7 @@
 `Core\Validate::isIp`'s `{version}` refuses the other family's spelling, and `isAscii` and `isPrintable` cross each other twice
 --FILE--
 <?nvs
-// docs/spec/01-core-library.md § 12 folds `FILTER_FLAG_IPV4`/`IPV6` into one
+// `Core\Validate::isIp` folds `FILTER_FLAG_IPV4`/`IPV6` into one
 // `{version?: 4|6}` option, so what the option is *for* is the row where the
 // two families disagree — the same subject answered differently by the two
 // versions. `crates/nvs-stdlib/src/validate.rs`'s module doc owns the reading;

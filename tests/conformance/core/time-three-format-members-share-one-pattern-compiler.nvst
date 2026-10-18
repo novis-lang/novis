@@ -1,8 +1,8 @@
 --TEST--
-`Core\Time`'s three `format` members refuse a malformed pattern as a `LogicError` with one sentence each naming its own member, and the two zone-free halves narrow that grammar into disjoint halves — spec §§ 4, 10
+`Core\Time`'s three `format` members refuse a malformed pattern as a `LogicError` with one sentence each naming its own member, and the two zone-free halves narrow that grammar into disjoint halves
 --FILE--
 <?nvs
-// Spec § 4's three rendering members — `Core\Time\DateTime::format`,
+// `Core\Time`'s three rendering members — `Core\Time\DateTime::format`,
 // `Core\Time\Date::format` and `Core\Time\TimeOfDay::format` — read one pattern
 // compiler (`crates/nvs-stdlib/src/cldr.rs`), and each wraps its refusal in its
 // own name. The neighbouring cases assert a *fragment* of one of those
@@ -89,7 +89,7 @@ try { echo $clock->format("yyyy VV"), "\n"; }
 catch (LogicError $calendarBeforeZone) { echo $calendarBeforeZone->message, "\n"; }
 
 // Counted: the subset is closed over the whole ASCII alphabet, not merely over
-// the letters § 4's own examples happen to use. 52 single-letter patterns, 36
+// the letters the examples happen to use. 52 single-letter patterns, 36
 // of which are fields, 16 refused — and 15 of those 16 quote the letter they
 // were handed rather than a constant. The one refusal that does not is `V`,
 // which is a pattern letter at the wrong count and says so, which is why the

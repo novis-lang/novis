@@ -1,8 +1,8 @@
 --TEST--
-Core\Json::encode is decode's inverse over every canonical document, isValid agrees with decode on every spelling, the three places a re-encoding is deliberately not the input, and a repeated key, which does not decode — spec § 6
+Core\Json::encode is decode's inverse over every canonical document, isValid agrees with decode on every spelling, the three places a re-encoding is deliberately not the input, and a repeated key, which does not decode
 --FILE--
 <?nvs
-// The sibling case pins § 6's members row by row. This one pins the property
+// The sibling case pins `Core\Json`'s members row by row. This one pins the property
 // the pair is written around: for a document already in the form `encode`
 // writes, decoding and re-encoding is the identity. A decoder that lost key
 // order, re-spelled a number or dropped an escape would pass a row-by-row

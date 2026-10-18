@@ -1,5 +1,5 @@
 --TEST--
-Core\Math's asin, acos and atan undo sin, cos and tan only inside their own principal branch, and fold, reflect or shift everything outside it, spec § 3
+Core\Math's asin, acos and atan undo sin, cos and tan only inside their own principal branch, and fold, reflect or shift everything outside it
 --FILE--
 <?nvs
 // The *agreement* shape (conventions.md), asserted by *counting*. An inverse

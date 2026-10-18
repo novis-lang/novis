@@ -1,5 +1,5 @@
 --TEST--
-Spec § 4: `offsetAt` takes the instant because an offset is a step function of it — constant between transitions, and one step across one
+`Core\Time`: `offsetAt` takes the instant because an offset is a step function of it — constant between transitions, and one step across one
 --FILE--
 <?nvs
 // covers: Core\Time\Zone::offsetAt

@@ -1,5 +1,5 @@
 --TEST--
-Core\Math::intDiv and mod satisfy the division identity on every row of a two-signed sweep, and Core\Math::gcd and lcm satisfy theirs, each pair naming the rows where one member has no answer — docs/spec/01-core-library.md § 3
+Core\Math::intDiv and mod satisfy the division identity on every row of a two-signed sweep, and Core\Math::gcd and lcm satisfy theirs, each pair naming the rows where one member has no answer
 --FILE--
 <?nvs
 // Two members of a pair can each look right on a chosen row and still not be
@@ -11,7 +11,7 @@ Core\Math::intDiv and mod satisfy the division identity on every row of a two-si
 // grew a `floor` somewhere agrees on the positive rows and fails here.
 
 // 1. `intDiv($a, $b) * $b + mod($a, $b) == $a`, over every combination of both
-//    signs. `mod` is declared over `float` — spec § 3 leaves integer modulo to
+//    signs. `mod` is declared over `float` — `Core\Math` leaves integer modulo to
 //    the `%` operator — so the identity is asserted in `float`, and the table is
 //    bounded by that: `int as float` is exact-or-throw, so ±2^53 is the widest
 //    dividend the float leg can be asked about at all (part 3 pins that bound).
@@ -48,7 +48,7 @@ foreach ($dividends as int $a) {
         if (Core\Math::sign($r) * Core\Math::sign($a) >= 0) {
             $signed = $signed + 1;
         }
-        // And the spec's own division of labour: the member is the `float` case
+        // And the division of labour between the two: the member is the `float` case
         // of exactly what `%` answers on the `int` case, not a second rule.
         if ($r == ($a % $b) as float) {
             $agreesWithOperator = $agreesWithOperator + 1;

@@ -1,5 +1,5 @@
 --TEST--
-Each of `Core\Db\Isolation`'s five levels is accepted by a running SQLite engine, which is always serializable, and a nested transaction asking for a level of its own is refused rather than run at the level around it — spec § 18, `rule:core-classes/db-transactions`
+Each of `Core\Db\Isolation`'s five levels is accepted by a running SQLite engine, which is always serializable, and a nested transaction asking for a level of its own is refused rather than run at the level around it — `rule:core-classes/db-transactions`
 --FILE--
 <?nvs
 // covers: Core\Db\Isolation
@@ -25,7 +25,7 @@ class Counter {
 // SQLite needs no server, so every level below is really asked of a running
 // engine rather than of a table in this program. This backend has one level and
 // it is the strongest, so each of the five is delivered at least as strongly as
-// it was asked for — which is the case § 18 says a driver does not throw over.
+// it was asked for, so none of them is a level the driver lacks and none throws.
 var $db = Db::connect("main");
 $db->execute("create table t (id integer primary key, note text not null)", []);
 

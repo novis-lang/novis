@@ -1,5 +1,5 @@
 --TEST--
-Every `Core\Bytes::pack` integer code accepts exactly the union of its width's signed and unsigned ranges and refuses the value one past each end, `unpack` reads that field back unsigned, and `slice`'s window clamps at both ends of the buffer — spec § 7, `rule:core-api/shape-rules` R4 and R8
+Every `Core\Bytes::pack` integer code accepts exactly the union of its width's signed and unsigned ranges and refuses the value one past each end, `unpack` reads that field back unsigned, and `slice`'s window clamps at both ends of the buffer — `rule:core-api/shape-rules` R4 and R8
 --FILE--
 <?nvs
 // `crates/nvs-stdlib/src/bytes.rs`'s own docs state the rule these rows pin:

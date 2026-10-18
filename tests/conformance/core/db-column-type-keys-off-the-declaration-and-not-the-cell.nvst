@@ -1,5 +1,5 @@
 --TEST--
-`Core\Db\Column::type` answers the case the column was *declared* as, over a real statement — a column with no declaration is `Other`, a backend with no JSON type describes one as `Text`, and a cell stored as something else does not move the case — `rule:core-classes/db-column-types`, spec § 18
+`Core\Db\Column::type` answers the case the column was *declared* as, over a real statement — a column with no declaration is `Other`, a backend with no JSON type describes one as `Text`, and a cell stored as something else does not move the case — `rule:core-classes/db-column-types`
 --FILE--
 <?nvs
 // covers: Core\Db\Column::type

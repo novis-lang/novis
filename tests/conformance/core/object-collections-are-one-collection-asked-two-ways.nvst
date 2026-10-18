@@ -1,10 +1,10 @@
 --TEST--
-`Core\ObjectMap<K, V>`'s keys are a `Core\ObjectSet<K>`: one script of writes run against both leaves them agreeing about membership, size, emptiness and order at every step — docs/spec/01-core-library.md § 9
+`Core\ObjectMap<K, V>`'s keys are a `Core\ObjectSet<K>`: one script of writes run against both leaves them agreeing about membership, size, emptiness and order at every step
 --FILE--
 <?nvs
 // The *agreement* shape, across the two classes rather than within one. Each
 // class already has a sweep of its own; what neither says alone is that they
-// are one collection asked two ways — § 9's map is its key set plus a lookup,
+// are one collection asked two ways — a `Core\ObjectMap` is its key set plus a lookup,
 // so `set`/`remove`/`clear` must move a map's keys exactly as `add`/`remove`/
 // `clear` move a set's members. A class that grew its own identity rule, its
 // own insertion order or its own emptiness test still prints plausibly on its

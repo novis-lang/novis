@@ -1,5 +1,5 @@
 --TEST--
-`Core\IO::stdin` reads to end of input in one call, and a program started with nothing attached sees the empty string rather than a wait — spec § 14
+`Core\IO::stdin` reads to end of input in one call, and a program started with nothing attached sees the empty string rather than a wait
 --FILE--
 <?nvs
 // A case is started with its standard input closed, which is also what a

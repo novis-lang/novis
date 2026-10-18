@@ -1,5 +1,5 @@
 --TEST--
-`$uri->path` ends at the first `?` or `#` and at no other byte: an escaped one is a byte inside the path, a `/` or a `?` after them belongs to the query or the fragment, and over a corpus of relative references the three components rebuild the whole text exactly — spec § 12, RFC 3986 § 3.3
+`$uri->path` ends at the first `?` or `#` and at no other byte: an escaped one is a byte inside the path, a `/` or a `?` after them belongs to the query or the fragment, and over a corpus of relative references the three components rebuild the whole text exactly — RFC 3986 § 3.3
 --FILE--
 <?nvs
 // The neighbouring `uri-path-is-the-one-component-that-always-exists` case

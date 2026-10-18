@@ -1,5 +1,5 @@
 --TEST--
-`Core\BigInt::toString` renders the digits `parse` reads back and keeps the sign at every width, and `echo` and string interpolation render through it — `rule:classes/stringable`, spec § 13
+`Core\BigInt::toString` renders the digits `parse` reads back and keeps the sign at every width, and `echo` and string interpolation render through it — `rule:classes/stringable`
 --FILE--
 <?nvs
 // covers: Core\BigInt::toString

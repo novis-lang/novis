@@ -1,5 +1,5 @@
 --TEST--
-Every `Core\BigInt` refusal, each beside the neighbouring call that answers: a zero divisor or modulus, a negative exponent or root, and the two members bounded at 1 048 576 bits — `rule:types/arithmetic`, spec § 13
+Every `Core\BigInt` refusal, each beside the neighbouring call that answers: a zero divisor or modulus, a negative exponent or root, and the two members bounded at 1 048 576 bits — `rule:types/arithmetic`
 --FILE--
 <?nvs
 // Every refusal this class has, in one place and with its message frozen: what
