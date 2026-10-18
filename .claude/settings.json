@@ -134,7 +134,13 @@
       "Bash(looper links:*)",
       "Bash(looper layout:*)",
       "Bash(looper prose:*)",
-      "Bash(looper sync:*)"
+      "Bash(looper sync:*)",
+      "Bash(git push origin main)",
+      "Bash(git fetch:*)",
+      "Bash(gh workflow run ci.yml --ref main)",
+      "Bash(gh run cancel:*)",
+      "Bash(gh run watch:*)",
+      "Bash(gh api repos/novis-lang/novis/actions/:*)"
     ]
   }
 }
