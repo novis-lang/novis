@@ -1,0 +1,24 @@
+<?nvs
+// Shows an `object` variable, and how `is` and `as` get its class back.
+
+class Cell {
+    public int $n = 1;
+}
+
+class Row {
+    public int $n = 2;
+}
+
+// Any instance can be assigned to `object`. Reading `$o->n` gives a `mixed` value.
+object $o = new Cell();
+echo $o->n, "\n";
+
+// `is Cell` tests the class. `as Cell` converts to it, so `->n` is an `int`. This prints `cell 1`.
+echo ($o is Cell) ? "cell" : "other", " ", ($o as Cell)->n, "\n";
+
+// The object is not a `Row`, so `as Row` throws an error.
+try {
+    echo ($o as Row)->n, "\n";
+} catch (RuntimeError $e) {
+    echo $e->message, "\n";
+}
