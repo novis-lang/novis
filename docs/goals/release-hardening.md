@@ -87,6 +87,12 @@ bugs. Each stage below closes one hole or adds one kind of test, in priority ord
 
 **The user decided every item on this page.** Each stage names the choice it implements.
 
+**A session decides and goes on. It does not ask the user.** The user takes the session's
+recommendation, so a choice this goal meets is the session's to make. It picks the option that fits
+Novis best by the priority ordering, writes the choice and its reason where the change lives (the
+rule, the test, the CI comment or the commit message), and carries on. `BLOCKED` is only for a call
+the loop's permissions refuse.
+
 **Memory safety first.** `Core\Serialize::decode` builds values without checking them, which is a
 memory-safety hole, so it is stage 1. It is the same family as the wider-shape-view gap that
 `completeness-holes` holds open.
@@ -101,7 +107,7 @@ template escaping stays declined (`docs/rules/core-classes/html-template.md`).
 the rule already names. The upgrade's `Origin` check reuses the per-route `csrf: false` escape.
 
 **Property tests need no new crate.** A seeded loop over generated inputs is enough for path grants
-and the address table. If a session finds it needs `proptest`, it asks first.
+and the address table. A session that finds it needs `proptest` adds it and says why in the commit.
 
 **Trade-offs.**
 - Stage 1 adds one tag test per field on a decode: latency on that path only, no memory.
@@ -244,8 +250,8 @@ live bytes per request grow.
   - [ ] Miri's default model, Stacked Borrows. Its first run reported undefined behaviour in the pool
     allocator: a retag through a reference over a block, reached through `counting_alloc::Counting`
     wrapping `alloc::Pooled` (`crates/nvs-runtime/src/alloc.rs:226`). Fix it at its cause if the fix is
-    local. If it needs `-Zmiri-tree-borrows` instead, stop with `BLOCKED` and name the report: the
-    model is the user's call.
+    local. If the code is sound and only Stacked Borrows rejects it, choose the model that fits
+    Novis, write why in the Miri job's comment, and go on.
 - [ ] Seeded property tests: a grant on `a/secret1` never grants `a/secret`, and every address in a denied range is denied in each of its spellings.
   - [x] The tests are in `crates/nvs-config/tests/capability.rs`, committed as `ae40a9e58`; `cargo test --test capability` passes.
   - [ ] Verified green and kept.
@@ -275,7 +281,9 @@ asked for this loop, and it repeats until CI is green:
    log comes from `gh api repos/novis-lang/novis/actions/jobs/<id>/logs`, because
    `gh run view --log-failed` is empty while the run is going.
 4. On the first failure, cancel the run, fix the cause, verify locally, commit, and go back to 1.
-   A fix repairs the cause: no loosened bound, skipped test or deny `ignore` entry without the user.
+   A fix repairs the cause. A loosened bound, a skipped test or a deny `ignore` entry is a choice
+   the session makes only when it judges that the right fix for Novis, with its reason in the
+   commit message and beside the change.
    A timing guard that fails with no code change behind it is noise, and is run again rather
    than fixed.
 5. Stop when one run is green on every job.
@@ -322,8 +330,7 @@ Stage 8, on `crates/nvs-cli/src/runner.rs`, `crates/nvs-test/src/run.rs` and `.g
 - Two more unchecked `string`s: a MySQL column name (`crates/nvs-stdlib/src/db/column.rs:67`, also `db/execute.rs:835`, `db/stream.rs:345`), and a signed cookie's plaintext, opened with empty AAD (`crates/nvs-stdlib/src/signed_cookie.rs:309`).
 - `bun nv verify` stops at `crates/nvs-stdlib/tests/spec_registry_coverage.rs:433`: `3a833d02d` deleted the last milestone record, so `data/plan/milestones/` no longer exists, and two tests refuse an empty directory on purpose. The session that retired the milestones decides what replaces them (`tools/nv/cmd/owners.ts:127`).
 - `Core\IO::within` does not refuse what `rule:errors/path-component-refusals` lists, beyond device names (`crates/nvs-stdlib/src/io.rs:3657`).
-- The Font attack waits on the user's edit or permission: drop `// hostile: ends-early 4 FATAL`, the `echo "step 4\n"` line and the memory sentence (`tests/hostile/novis/Image-Font/fromBytes/01-bytes-that-pretend-to-be-a-font.nvs:3`).
-- CI's Windows warm-start budget still fails: a warm `nvs run` is 8.1 ms of work on this host against 6. Resolving the extension tree once per `run`, not three times, is the next cut (`crates/nvs-ext/src/load.rs:567`, `tools/nv/cmd/bench.ts:132`).
+- CI's Windows warm-start budget still fails: a warm `nvs run` is 8.1 ms of work on this host against 6. Resolving the extension tree once per `run`, not three times, is the next cut (`crates/nvs-ext/src/load.rs:567`, `tools/nv/cmd/bench.ts:132`). The budget stays 6 ms and stays one budget for every platform: cut the work until it fits, measuring where each remaining millisecond goes. Raise it only for a cost the tree cannot remove, and name that cost in `ci.yml`'s comment.
 - CI's `proofs` jobs fail on proof debt: stale perf records (`bun nv benches --owed`) and owed proofs (`bun nv proofs --owed`). Stage 10 owns it (`.github/workflows/ci.yml:1`).
 - A forged payload can put an enum case with a backing value the enum does not declare into an enum-typed property (`rule:enums/representation`). Whether a typed read of it is safe is not checked (`crates/nvs-runtime/src/object.rs:5629`).
 - `bun nv verify` fails on load: `crates/nvs-stdlib/tests/ldap.rs:277` and `:1485` hit their socket deadline, and `crates/nvs-cli/tests/live_edit.rs:1010` misses its 30 s swap, beside the other binaries. Each passes alone (`tools/nv/cmd/verify.ts`'s module doc).
