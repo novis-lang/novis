@@ -972,8 +972,8 @@ O(document). Neither shape can offer the other's property, so a program with a l
 program with a small configuration file are not being offered a preference — they are being offered the
 only two answers that exist.
 
-Spec § 17 names this outright as "the one place in this file where two shapes of the same subsystem
-coexist", so it is the **named** exception to [`core-api/one-paradigm-per-operation`](core-api.md#core-api-one-paradigm-per-operation) rather than a
+This is the one place in `Core` where two shapes of the same subsystem coexist, so it is the
+**named** exception to [`core-api/one-paradigm-per-operation`](core-api.md#core-api-one-paradigm-per-operation) rather than a
 quiet one, and the naming is what stops it spreading: a subsystem that wants two shapes has to earn its
 own sentence. The disjointness is what makes it survivable — an operation reachable through both would
 put a seam in the API where the memory story stops being a property of the door a program came in

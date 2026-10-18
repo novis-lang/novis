@@ -57,6 +57,12 @@ describe("nv rules --check, deleted docs", () => {
     expect(doc("[the Core spec](../spec/01-core-library.md#10-coreerror)")).toHaveLength(1);
   });
 
+  test("the Core spec cited by a section mark is a finding in either case", () => {
+    expect(doc("// Spec § 16's `Core\\Net`")).toHaveLength(1);
+    expect(doc("/// what spec § 4 says")).toHaveLength(1);
+    expect(doc("/// a field the spec derives")).toEqual([]);
+  });
+
   test("a doc that still exists is not a finding, and a file carrying the marker is skipped", () => {
     expect(doc("[the rules](../rules/types.md) and docs/setup.md")).toEqual([]);
     expect(doc("see [docs/design.md](docs/design.md)")).toEqual([]);
