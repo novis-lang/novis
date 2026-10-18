@@ -1,17 +1,15 @@
-// `bun nv reference`: generate `docs/novis.md`, the one-file reference to everything Novis has, and
-// prove what the two generated documents claim: this one, and the primer the binary renders.
+// `bun nv reference`: build the website's `/llms-full.txt`, the one-file reference to everything Novis
+// has, and prove what the two generated documents claim: that one, and the primer the binary renders.
 //
-//     bun nv reference                  regenerate docs/novis.md, then run every example in it
-//     bun nv reference --check          regenerate in memory; exit 1 if docs/novis.md is stale
-//     bun nv reference --stale-fails    regenerate as the bare command does, then exit 1 if it was stale
-//     bun nv reference --no-examples    regenerate only
-//     bun nv reference --examples-only [--only <substring>]   run the examples, write nothing
-//     bun nv reference --primer --check prove `nvs agent primer` instead, writing nothing
-//     bun nv reference --agent-walk     walk the surface cold: primer, find, show, check
-//     bun nv reference --keep           leave the example directories under .agent-tmp/ behind
+//     bun nv reference [--only <substring>]   run every example in the chapters, writing nothing
+//     bun nv reference --primer               prove `nvs agent primer` instead, writing nothing
+//     bun nv reference --agent-walk           walk the surface cold: primer, find, show, check
+//     bun nv reference --keep                 leave the example directories under .agent-tmp/ behind
 //
-// `docs/novis.md` is written for a reader who has never seen this repository, and is generated, never
-// edited. Its inputs are `nvs meta --json` from the built binary (every `Core` class, member, card,
+// This command writes no file. `build` is the text, and `bun nv render --website` writes it to
+// `website/public/llms-full.txt` (`renderers/website-llms.ts`), which `--check` compares like every
+// other rendered file. The text is written for a reader who has never seen this repository. Its inputs
+// are `nvs meta --json` from the built binary (every `Core` class, member, card,
 // constant and enum, the exception tree, the global interfaces, the attributes and the `nvs.toml`
 // directives), so the reference cannot describe a member that does not run; one hand-written chapter
 // per topic under `docs/reference/lang/` and `docs/reference/tools/`, in filename order, in the format
@@ -38,13 +36,9 @@ import { covwsNvs } from "../lib/covws.ts";
 import { ROOT, rel } from "../lib/paths.ts";
 import { run as runProc } from "../lib/proc.ts";
 import { ArgError, comparePaths, parseArgs, pyInt, pyRepr, splitlines } from "../lib/py.ts";
-import { record } from "../lib/written.ts";
 
-export const summary = "generate docs/novis.md and prove its examples: nv reference [--check | --stale-fails | --no-examples | --examples-only [--only S] | --primer | --agent-walk] [--keep]";
+export const summary = "run every example of /llms-full.txt's chapters: nv reference [--only S | --primer | --agent-walk] [--keep]";
 
-const OUT = join(ROOT, "docs", "novis.md");
-/** What `--stale-fails` prints when it rewrote the file, which `nv verify` shows as the step's summary. */
-export const STALE_FAILS = "nv reference: docs/novis.md was stale and is rewritten -- commit it with the change that made it stale";
 const SOURCES = join(ROOT, "docs", "reference");
 /** The whole diagnostic registry: a code declared anywhere else does not exist. */
 const DIAGNOSTICS = join(ROOT, "crates", "nvs-diagnostics", "src", "lib.rs");
@@ -200,9 +194,10 @@ function classIntro(name: string): [Map<string, string>, string] | null {
 /** The registry as `nvs meta --json` prints it, read field by field below. */
 type Json = any;
 
-async function registry(): Promise<Json> {
-  if (!existsSync(nvsBinary())) throw new Fatal(`nv reference: no binary at ${rel(nvsBinary())} -- \`bun nv verify\` builds it`);
-  const p = await runProc([nvsBinary(),"meta", "--json"]);
+/** The registry of `nvs`, which is this command's own binary unless the caller names another. */
+export async function registry(nvs: string = nvsBinary()): Promise<Json> {
+  if (!existsSync(nvs)) throw new Fatal(`nv reference: no binary at ${rel(nvs)} -- \`bun nv verify\` builds it`);
+  const p = await runProc([nvs, "meta", "--json"]);
   if (p.code !== 0) throw new Fatal(`nv reference: \`nvs meta --json\` failed:\n${p.stderr}`);
   return JSON.parse(p.stdout);
 }
@@ -400,20 +395,15 @@ Conventions the whole file uses:
   \`nvs skip\` are fragments. Run a program with \`nvs run file.nvs\`.
 `;
 
-function build(reg: Json): string {
+/** `/llms-full.txt`'s text from the registry `nvs meta --json` printed and the chapters. */
+export function build(reg: Json): string {
   const lang = loadChapters("lang");
   const tools = loadChapters("tools");
   const lines: string[] = [];
   const indexLine = (part: string, n: number, ch: Chapter) =>
     `- ${part}.${n} [${ch.title}](#${chapterAnchor(ch)}) — ${ch.summary} *(${ch.keywords})*`;
   lines.push("# Novis — the complete reference", "");
-  // The `GENERATED FILE` marker is the repository's convention and the link checker reads it: without
-  // it this file's chapter-relative links are checked again here, where they have become anchors.
-  lines.push(
-    "<!-- GENERATED FILE — do not edit by hand. Written by `bun nv reference` from `nvs meta --json` and docs/reference/: edit the chapter under docs/reference/ or the registry in crates/nvs-stdlib, then regenerate. -->",
-    "",
-    HOW_TO_READ,
-  );
+  lines.push(HOW_TO_READ);
   lines.push("## Index", "", "### Part A — The language", "");
   lang.forEach((ch, i) => lines.push(indexLine("A", i + 1, ch)));
   lines.push("", "### Part B — The `Core` library", "");
@@ -751,14 +741,13 @@ async function checkWalk(keep: boolean): Promise<number> {
 // ------------------------------------------------------------------ main
 
 const USAGE = [
-  "usage: nv reference [-h] [--check] [--stale-fails] [--no-examples] [--examples-only]",
-  "                    [--primer] [--agent-walk] [--only ONLY] [--keep]",
+  "usage: nv reference [-h] [--primer] [--agent-walk] [--only ONLY] [--keep]",
 ].join("\n");
 
 export async function run(args: string[]): Promise<number> {
   let parsed;
   try {
-    parsed = parseArgs(args, { flags: ["--check", "--stale-fails", "--no-examples", "--examples-only", "--primer", "--agent-walk", "--keep"], valued: ["--only"] });
+    parsed = parseArgs(args, { flags: ["--primer", "--agent-walk", "--keep"], valued: ["--only"] });
   } catch (e) {
     if (!(e instanceof ArgError)) throw e;
     console.error(`${USAGE}\nnv reference: error: ${e.message}`);
@@ -772,39 +761,9 @@ export async function run(args: string[]): Promise<number> {
   const keep = flags.has("--keep");
   const only = values.get("--only");
   try {
-    // The primer is rendered by the binary at the call and never written to the tree, so there is
-    // nothing for `--check` to compare; the walk likewise only asks the binary questions.
     if (flags.has("--primer")) return await checkPrimer(keep);
     if (flags.has("--agent-walk")) return await checkWalk(keep);
-    if (flags.has("--examples-only")) return await checkExamples(only, keep);
-
-    const text = build(await registry());
-    const current = existsSync(OUT) ? readText(OUT).replace(/\r\n/g, "\n") : "";
-    const stale = text !== current;
-    if (flags.has("--check")) {
-      if (stale) {
-        console.log("nv reference: docs/novis.md is stale -- run `bun nv reference` and commit it");
-        return 1;
-      }
-      console.log("nv reference: docs/novis.md is current");
-    } else if (stale) {
-      writeText(OUT, text);
-      // Nothing a session does names this file, and verification runs this command in every session:
-      // without the note, the loop's sweep reads it as somebody else's edit.
-      record(OUT);
-      const kb = Math.floor(Buffer.byteLength(text, "utf8") / 1024);
-      console.log(`nv reference: wrote ${rel(OUT)} (${kb} KB, ${text.split("\n").length - 1} lines)`);
-    } else {
-      console.log("nv reference: docs/novis.md unchanged");
-    }
-    const examples = flags.has("--no-examples") ? 0 : await checkExamples(only, keep);
-    // Verification passes `--stale-fails`: it shows a passing step as one line, so a rewrite that
-    // still exited 0 would reach no commit. The run after the commit finds the file current.
-    if (stale && flags.has("--stale-fails")) {
-      console.log(STALE_FAILS);
-      return 1;
-    }
-    return examples;
+    return await checkExamples(only, keep);
   } catch (e) {
     if (!(e instanceof Fatal)) throw e;
     console.error(e.message);
