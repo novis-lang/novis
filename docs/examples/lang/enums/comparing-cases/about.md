@@ -10,4 +10,5 @@ which is also how you subtract or add them. That keeps the order you get explici
 of the cases is the order of the numbers you gave them.
 
 **The examples below** show `==` and `!=` between cases, then the number comparison that puts two
-cases in order, then a page that decides what a visitor may do from a role.
+cases in order, then a page that decides what a visitor may do from a role. Example 04 shows that a case compared with
+a number does not compile.
