@@ -1,0 +1,21 @@
+<?nvs
+// Shows that `finally` also runs when `continue` leaves the `try` block.
+
+int $i = 0;
+
+while ($i < 3) {
+    $i++;
+    try {
+        if ($i == 2) {
+            // The rest of the block is skipped, but `finally` still runs.
+            continue;
+        }
+        echo "body", $i, " ";
+    } finally {
+        echo "fin", $i, " ";
+    }
+}
+
+// The loop above prints: body1 fin1 fin2 body3 fin3
+// The second pass prints only fin2.
+echo "\n";

@@ -258,6 +258,7 @@ with each.
   - [x] `break-and-continue`: `details.md`, the chapter's two code blocks as examples 04 and 05
   - [x] `return`: `details.md`, and example 04, a `void` method's `return 0;` that does not compile
   - [x] `throw`: no `details.md`, since `about.md` has every fact, and example 04, an uncaught error ending with status 1
+  - [x] `try-catch-finally`: `details.md`, examples 04 (`E0406`) and 05 (`finally` on `continue`), and the bare-`try` claim fixed in both chapters
   - [ ] the chapter's other features, in its order
 - [ ] The other ten chapters, one per slice: `10-programs`, `20-types`, `30-expressions`, `50-classes`, `55-enums`, `60-iteration`, `70-errors`, `80-concurrency`, `90-attributes`, `95-testing`. `docs/reference/lang/10-programs.md:1`
 
@@ -319,6 +320,17 @@ what `require` gives. Its example 04 is the chapter's "`void` returning a value"
 the chapter's uncaught throw (`// proof: exit 1`), and `about.md` gained its closing sentence. No
 text disagreed with the binary.
 
+`try-catch-finally` found the first disagreement. Both chapters said a `try` with neither `catch` nor
+`finally` is accepted; the binary, the rule and the conformance case make it `E0242`. Both chapter
+lines now say so (`40-statements.md:325`, `70-errors.md:232`), and `about.md` no longer says a `try`
+needs "one or more" `catch` clauses, since `try { } finally { }` is valid. `details.md` holds the
+rest, each run on the binary: an interface in a `catch`, a parent class first compiles and shadows
+silently, `E0245` and `E0406`, a throw from a `catch` passing through `finally`, nested `finally`
+order. The chapter's `E0406` block is example 04 and its `continue` loop example 05; its `Parse`
+block is examples 02 and 03 already. A `return`, `break` or `continue` leaving `finally` (`E0250`,
+`E0251`) is the errors chapter's fact, and goes to `lang:errors/try-catch-finally`'s `details.md`
+when `70-errors` is done; that feature has its own `about.md` and examples, which overlap this one's.
+
 `looper lint` failed on a stale managed block, so `looper sync` brought AGENTS.md's `agents` block to
 v3. It adds § *looper only orchestrates* and still links `docs/design.md`.
 
@@ -333,8 +345,7 @@ chapter section, its `about.md` and its syntax page, probe each fact `about.md` 
 write `details.md`, and turn each chapter code block no example shows into an example
 (`proof: compile-error` for an `nvs error` fence). Bless with `bun nv proofs --bless`, then
 `bun nv proofs --run --only <id>` and `--comments <dir>`.
-- [ ] `try-catch-finally`, the next section. `docs/reference/lang/40-statements.md:313`
-- [ ] `catch-as-an-expression`, then `echo-print-unset-exit-yield` and `statement-forms-that-do-not-parse`. `docs/reference/lang/40-statements.md:397`
+- [ ] `catch-as-an-expression`, the next section, then `echo-print-unset-exit-yield` and `statement-forms-that-do-not-parse`. `docs/reference/lang/40-statements.md:397`
 - [ ] Then the chapter's features before `break-and-continue`, from its top. `docs/reference/lang/40-statements.md:1`
 
 ### Backlog
@@ -344,4 +355,5 @@ write `details.md`, and turn each chapter code block no example shows into an ex
 - `docs/agent/testing.md` is looper-managed (`looper lint` refuses a hand edit) and links a `§ *Names*` that `conventions.md` lacks; looper's template owns the fix. `docs/agent/testing.md:16`
 - About 4,300 bare `§ N` marks under `crates/` and `tests/conformance/` cite sections of deleted decision records, and `RECORD_CITE` cannot tell them from an RFC's. Rewriting them needs its own goal; no owner yet. `tools/nv/cmd/rules.ts:84`
 - The guard messages and `peek.ts`/`splice.ts` comments cite "AGENTS.md rule 1" and "rule 3" by the block's numbers, which a template change can move; citing `commands.md` sections would not. `tools/nv/cmd/guard.ts:259`
+- `lang:statements/try-catch-finally` and `lang:errors/try-catch-finally` are one syntax and two features, each with an `about.md` and three examples saying much the same. Stage 6's `70-errors` slice decides whether the errors one keeps only what its chapter adds. `docs/examples/lang/errors/try-catch-finally/about.md:1`
 - Stages 7 and 8 render the syntax pages and the chapters from each feature's `about.md` and `details.md`. `docs/goals/docs-cleanup.md:257`

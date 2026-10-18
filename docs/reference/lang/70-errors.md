@@ -229,7 +229,7 @@ try {
   the region was leaving with — silently discarding a throw in flight — so the result is changed
   in a `catch`, or after the region. The same holds for a `break` or `continue` whose target lies
   outside the `finally`; a loop wholly inside the block keeps both.
-- A `try` with neither `catch` nor `finally` is accepted and changes nothing.
+- A `try` with neither `catch` nor `finally` does not compile: **`E0242`**.
 
 ```nvs
 <?nvs
