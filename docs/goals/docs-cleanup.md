@@ -268,12 +268,16 @@ with each.
   - [ ] `20-types`
     - [x] `every-binding-has-a-type`, `numbers-bool-int-uint-float-decimal`, `text-string-and-bytes` and `array-t`
     - [x] `callable-classes-object-shapes`, `mixed`, `nullable-union-single-value-and-enum-case-types` and `void-never-self-static`
-    - [ ] `type-aliases`, `values-written-in-the-code`, `widening-without-as` and `the-conversion-operator-as`
+    - [x] `type-aliases`, `values-written-in-the-code`, `widening-without-as` and `the-conversion-operator-as`
       - [x] `type-aliases`
-      - [ ] `values-written-in-the-code`
-      - [ ] `widening-without-as`
-      - [ ] `the-conversion-operator-as`
+      - [x] `values-written-in-the-code`
+      - [x] `widening-without-as`
+      - [x] `the-conversion-operator-as`
     - [ ] `property-keys`, `property-paths`, `strings-with-holes` and `narrowing`
+      - [x] `property-keys`
+      - [x] `property-paths`
+      - [ ] `strings-with-holes`
+      - [ ] `narrowing`
     - [ ] `truthiness`, `parameters`, `properties-and-constants`, `qualifiers-tainted-and-secret` and `what-does-not-exist`
   - [ ] `30-expressions`, `50-classes` and `55-enums`
   - [ ] `60-iteration`, `70-errors` and `80-concurrency`
@@ -488,6 +492,20 @@ a third compiler panic: `$c is class<Dog>` passes `nvs check` and panics in lowe
 record `data/gaps/nvs-ir/an-is-test-against-a-class-reference.json`, owned by `release-hardening`.
 The chapter did not change in this slice.
 
+`property-keys` and `property-paths` are done, each fact run on the binary, and no syntax page covers
+them. `property-keys`' `about.md` said a key cannot write to a class with any `readonly` property, but
+a `private readonly` one does not stop the write; it now says "public `readonly`", as the chapter
+does. Its `details.md` has `E0799`, `E0405` for a literal and at a parameter, the `as` error for a
+private name, `E0235`, the union read type, the two write checks (`E0401` for a value no property
+takes, every property for a `tainted` or `secret` value), `E0782`, the parent's key on a child, and
+equality. Examples 05 to 07 are the chapter's three blocks. Probing found a bug: a `public static`
+property's name converts to a key, and a read through it throws "`User` has no field `count`". That
+is the gap record `data/gaps/nvs-types/a-property-key-names-a-static.json`, owned by
+`release-hardening`. `property-paths`' `details.md` has `E0405` for a wrong part and for a part after
+a non-object, the run-time messages (an empty part too), `E0235` for `$obj->$path`, and equality.
+Example 04 is the chapter's `as` error, extended to each message, and 05 a wrong literal path. The
+chapter did not change.
+
 `looper lint` failed on a stale managed block, so `looper sync` brought AGENTS.md's `agents` block to
 v3. It adds § *looper only orchestrates* and still links `docs/design.md`.
 
@@ -497,8 +515,8 @@ sessions found, and the red bench `benches/members/core/Ldap-Connection/delete.n
 
 ### Next
 
-`20-types` from `property-keys` (9 features left; `property-keys` is 123 lines and `property-paths`
-62, so take them together), one feature per slice. The chapter's `(int)$n` error block
+`20-types` from `strings-with-holes` (7 features left; `strings-with-holes` is 55 lines, `narrowing`
+140, so take them together), one feature per slice. The chapter's `(int)$n` error block
 (`20-types.md:756`) goes to `what-does-not-exist` with its own section. Work each feature the way `break-and-continue` was done: read
 its chapter section, its `about.md` and its syntax page, probe each fact `about.md` lacks on the
 binary, write `details.md`, and turn each chapter code block no example shows into an example
@@ -509,7 +527,7 @@ A probe that reads a file needs an `nvs.toml` granting `[capabilities.fs] read` 
 probe is a file under `.agent-tmp/` written with Write, since the guard refuses a redirect.
 A probe catching two error types needs two variable names, or it stops at `E0406` before the line
 you meant to test. A probe's method goes in a class: a top-level `function` stops at `E0215`.
-- [ ] `20-types` from `property-keys`, in chapter order. `docs/reference/lang/20-types.md:808`
+- [ ] `20-types` from `strings-with-holes`, in chapter order. `docs/reference/lang/20-types.md:993`
 - [ ] Once the chapter's last edit lands, `bun nv proofs --record-perf --group lang:types`, and commit `data/perf/members.ndjson`. `tools/nv/proofs/roster.ts:28`
 
 ### Backlog
