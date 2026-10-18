@@ -22,8 +22,6 @@ interface Command {
 
 const COMMANDS: Record<string, () => Promise<Command>> = {
   affected: () => import("./cmd/affected.ts"),
-  allow: () => import("./cmd/allow.ts"),
-  audit: () => import("./cmd/audit.ts"),
   bench: () => import("./cmd/bench.ts"),
   benches: () => import("./cmd/benches.ts"),
   "bench-compare": () => import("./cmd/bench-compare.ts"),
@@ -32,7 +30,6 @@ const COMMANDS: Record<string, () => Promise<Command>> = {
   brief: () => import("./cmd/brief.ts"),
   check: () => import("./cmd/check.ts"),
   "ci-changes": () => import("./cmd/ci-changes.ts"),
-  "class-cards": () => import("./cmd/class-cards.ts"),
   "db-matrix": () => import("./cmd/db-matrix.ts"),
   debt: () => import("./cmd/debt.ts"),
   deps: () => import("./cmd/deps.ts"),
@@ -55,9 +52,7 @@ const COMMANDS: Record<string, () => Promise<Command>> = {
   "pdf-custom-data": () => import("./cmd/pdf-custom-data.ts"),
   peek: () => import("./cmd/peek.ts"),
   plan: () => import("./cmd/plan.ts"),
-  pack: () => import("./cmd/pack.ts"),
   proofs: () => import("./cmd/proofs.ts"),
-  query: () => import("./cmd/query.ts"),
   reference: () => import("./cmd/reference.ts"),
   release: () => import("./cmd/release.ts"),
   relink: () => import("./cmd/relink.ts"),

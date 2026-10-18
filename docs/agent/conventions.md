@@ -493,8 +493,7 @@ reorder is cheap: moving an entry changes no content, and `--render` rewrites th
 
 ## A diagnostic
 
-Next free code per band: `bun nv pack`, under *The next free number*. Bands are by compiler phase and the legend is
-`crates/nvs-diagnostics/src/lib.rs`'s own table. Declare it there as a `Code::new` constant next to its
+Bands are by compiler phase and the legend is `crates/nvs-diagnostics/src/lib.rs`'s own table. Declare it there as a `Code::new` constant next to its
 siblings — that file is the whole registry, so a code declared anywhere else does not exist.
 
 Never reuse a retired number; the next free one is the band's highest plus one, deliberately not the

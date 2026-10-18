@@ -27,7 +27,7 @@
   "permissions": {
     "allow": [
       "Bash(bun nv affected:*)",
-      "Bash(bun nv audit:*)",
+
       "Bash(bun nv bench:*)",
       "Bash(bun nv bench-load:*)",
       "Bash(bun nv bench-proxied:*)",
@@ -36,7 +36,7 @@
       "Bash(bun nv check:*)",
       "Bash(bun nv ci-changes:*)",
       "Bash(bun nv ci-green:*)",
-      "Bash(bun nv class-cards:*)",
+
       "Bash(bun nv db-matrix:*)",
       "Bash(bun nv decisions:*)",
       "Bash(bun nv directives:*)",
@@ -60,7 +60,7 @@
       "Bash(bun nv plan:*)",
       "Bash(bun nv playbook:*)",
       "Bash(bun nv proofs:*)",
-      "Bash(bun nv query:*)",
+
       "Bash(bun nv records:*)",
       "Bash(bun nv reference:*)",
       "Bash(bun nv release:*)",
@@ -124,9 +124,9 @@
       "Bash(bun nv suite:*)",
       "Bash(bun nv benches:*)",
       "Bash(bun nv side:*)",
-      "Bash(bun nv allow:*)",
+
       "Bash(bun nv sweep:*)",
-      "Bash(bun nv pack:*)",
+
       "Bash(looper:*)",
       "Bash(looper orient:*)",
       "Bash(looper status:*)",

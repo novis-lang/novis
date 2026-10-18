@@ -6,8 +6,7 @@ other dependency is a new decision. Two parts are Rust, each a crate outside the
 `bun nv` builds and runs. `tools/nv-scan` is what the check selection and the perf ledger read Rust
 source with, because only a parser reads Rust exactly; its dependencies are `syn`, `proc-macro2`,
 `quote` and `sha2` at the versions the workspace already locks. `tools/covwrap` is the compiler wrapper
-of the `covws` build, and it has no dependencies. `bun nv audit python` fails on a tracked Python file it does not
-name as allowed, and on a document that tells a reader to run a Python tool.
+of the `covws` build, and it has no dependencies.
 
 This is the repository's tooling, not the language's: nothing here reaches the `nvs` binary, a Novis
 program or a request. What it costs is that every developer and every CI job needs Bun, which is one

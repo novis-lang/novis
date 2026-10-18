@@ -80,6 +80,6 @@ is nothing to shave to clear it: adding a sentence to a full field costs droppin
 orientation pack — under the advisory note it replaces, and `bun nv plan --check` prints the headroom
 ahead of the wrap so a session that reads it never meets the refusal at all.
 
-The one structural rule that *does* still matter is not about length: `bun nv brief` and
-`bun nv pack` may only print text bounded by a **count of entities** — one line per milestone, per
-rule, per record, per guard test, per module in scope — never by a length of prose.
+The one structural rule that *does* still matter is not about length: `bun nv brief` may only print
+text bounded by a **count of entities** — one line per milestone, per rule, per record, per guard
+test, per module in scope — never by a length of prose.
