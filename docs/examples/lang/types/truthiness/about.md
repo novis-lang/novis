@@ -1,11 +1,13 @@
-Some places in a program ask a value a yes-or-no question without being handed a yes-or-no value.
+A condition can test a value of any type. The value is either truthy or falsy.
 
-A condition — the test in an `if`, in a `while`, in the middle of a `for`, the test of a short
-`? :`, and the values either side of *and*, *or* and *not* — takes a value of any kind and decides
-whether it counts as something or as nothing. Counting as nothing are: `false`, a zero, an empty
-piece of text, the one-character text `"0"`, an empty list, an empty buffer, and a missing value.
-Everything else counts as something, including the text `"0.0"`, a single space and every object.
+The conditions are the test of an `if`, a `while` and the middle part of a `for`. The test of a
+ternary `? :` and of `?:` is a condition too, and so are the values beside `&&`, `||` and `!`.
+These values are falsy: `false`, `0`, `0.0`, `""`, `"0"`, an empty array, an empty `bytes` and
+`null`. Every other value is truthy. This includes `"0.0"`, `" "` and every object.
 
-**Good to know:** those places are the only ones that ask the question for you. Storing a value in
-a yes-or-no slot, or handing it to something that wants one, still needs you to write `as bool`.
-`empty` asks the same question the other way round, and `isset` asks only whether a value is there.
+**Good to know:** only a condition tests a value this way. A `bool` variable, a `bool` parameter and
+a `bool` return value need `as bool`, which uses the same table. `empty($x)` is `true` when `$x` is
+falsy. `isset($x)` is `true` when `$x` is not `null`.
+
+**The examples below** test the fields of a form, show each kind of condition, build the header of
+an email from settings that may be empty, and convert values with `as bool`.

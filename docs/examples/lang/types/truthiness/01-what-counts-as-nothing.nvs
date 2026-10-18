@@ -1,7 +1,5 @@
 <?nvs
-// A condition asks a value one question: does it count as something, or as
-// nothing? An empty piece of text, a zero, an empty list and a missing value
-// all count as nothing. Everything else counts as something.
+// Shows which values of a form are falsy in an `if`.
 
 array<mixed> $submitted = [
     "name" => "Ada",
@@ -20,10 +18,9 @@ foreach ($submitted as tainted string $field => mixed $value) {
     }
 }
 
-// One piece of text is the odd one out. A single zero digit counts as nothing,
-// the way it does in PHP, while a space or the text "0.0" counts as something.
+// The string "0" is falsy. The strings "0.0" and " " are truthy.
 array<string> $answers = ["0", "0.0", " ", ""];
 
 foreach ($answers as string $answer) {
-    echo "\"", $answer, "\" ", $answer ? "counts" : "does not count", "\n";
+    echo "\"", $answer, "\" ", $answer ? "is truthy" : "is falsy", "\n";
 }
