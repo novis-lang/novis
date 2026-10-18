@@ -359,21 +359,7 @@ fn initializes(command: &Command) -> bool {
 
 #[derive(Subcommand)]
 enum Command {
-    /// Parse a Novis file and print its AST.
-    Ast {
-        /// The file to parse.
-        file: PathBuf,
-        /// Print the frozen JSON schema rather than the `Debug` rendering.
-        #[arg(long)]
-        json: bool,
-        /// Print the tree the parser recovered into. The default, and
-        /// spelled out so a caller can pin it.
-        #[arg(long, conflicts_with = "strict")]
-        resilient: bool,
-        /// Print no tree at all once an error is reported.
-        #[arg(long)]
-        strict: bool,
-    },
+    Ast(ast::Args),
     /// Parse, resolve and type-check a Novis file, reporting every diagnostic
     /// found.
     Check {
@@ -1824,15 +1810,7 @@ fn main() -> ExitCode {
     let init = config::init_gate(initializes(&command), cli.no_init, no_init.as_deref());
 
     match command {
-        Command::Ast {
-            file,
-            json,
-            // Selects nothing, because it is the default. It exists so a
-            // caller can write down which half of the pair it wants, and
-            // clap refuses it beside `--strict` rather than picking one.
-            resilient: _,
-            strict,
-        } => ast::run(&file, json, strict),
+        Command::Ast(args) => args.run(),
         Command::Check {
             file,
             json,
